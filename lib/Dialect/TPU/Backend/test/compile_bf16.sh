@@ -15,9 +15,18 @@ fi
 pushd $DIR/tmp
 
 mlir-opt \
+    --convert-bn-to-scale \
+    --canonicalize \
+    --eltwise-early-stride \
+    --print-tpu-op-info \
+    --tpu-op-info-filename op_info.csv \
+    ${MLIR_MODEL} \
+    -o test_fp32_opt.mlir
+
+mlir-opt \
      --gen-pseudo-weight-npz \
      --pseudo-calibration-table test_calibration_table \
-     ${MLIR_MODEL} \
+     test_fp32_opt.mlir \
      -o tmp.mlir
 mv input.npz test_in_fp32_bs${BATCH_SIZE}.npz
 
@@ -28,7 +37,7 @@ mlir-opt \
      --tpu-quant --quant-full-bf16 \
      --print-tpu-op-info \
      --tpu-op-info-filename test_op_info_bf16.csv \
-     ${MLIR_MODEL} \
+     test_fp32_opt.mlir \
      -o test_bf16.mlir
 
 # optimization for bf16 mlir model

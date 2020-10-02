@@ -51,6 +51,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertTile.cpp
   Transforms/ConvertQuantOp.cpp
   Transforms/ConvertPower.cpp
+  Transforms/ConvertMatMul.cpp
   Transforms/LowerToTG.cpp
   Transforms/group_ops/GroupOps.cpp
   Transforms/group_ops/NetGraph.cpp
@@ -146,7 +147,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/bf16_scale_kernel.cpp
   Backend/Kernel/bf16_softmax.cpp
   Backend/Kernel/bf16_tiling.cpp
-  Backend/Kernel/bf16_matmul_kernel.cpp
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
 )

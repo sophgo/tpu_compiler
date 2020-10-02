@@ -66,47 +66,47 @@ after_loop:
     int cur_h = std::min(h - pos_h, step_h);
     for (int pos_w = 0; pos_w < w; pos_w += step_w) {
       int cur_w = std::min(w - pos_w, step_w);
+      shape_b = ctx.shape_t4(1, 1, cur_h, cur_w);
+
+      // load b to lmem
+      cvk_tl_t operand;
+      uint64_t b_offset = (pos_w + pos_h * bw) * sizeof(uint16_t);
+      operand.start_address = tl_b->start_address;
+      operand.shape = shape_b;
+      operand.stride = ctx.tl_default_stride(shape_b, CVK_FMT_BF16, 1);
+      operand.fmt = CVK_FMT_BF16;
+      cvk_tg_stride_t stride = ctx.tg_default_stride(
+          {(uint32_t)bn, (uint32_t)bc, (uint32_t)bh, (uint32_t)bw}, CVK_FMT_BF16);
+      ctx.tdma_load_stride_bf16(&operand, ga_inputs[1] + b_offset, stride);
+
+      llvm::errs() << llvm::format(
+          "load b, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
+          operand.start_address, shape_b.n, shape_b.c, shape_b.h, shape_b.w, stride.n,
+          stride.c, stride.h, stride.w, b_offset);
+
+      // broadcast b to all lanes
+      cvk_tl_t operand_lane;
+      operand_lane.shape = shape_b;
+      operand_lane.stride =
+          ctx.tl_default_stride(shape_b, CVK_FMT_BF16, /*eu_align=*/1);
+      operand_lane.fmt = CVK_FMT_BF16;
+      for (int i = 1; i < NPU_NUM; ++i) {
+        operand_lane.start_address =
+            tl_b->start_address + i * LOCAL_MEM_SIZE; // start of lmem
+        cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
+        p2.src = &operand;
+        p2.dst = &operand_lane;
+        ctx._tdma_l2l_tensor_copy(&p2);
+      }
+      shape_b = ctx.shape_t4(1, NPU_NUM, cur_h, cur_w);
+      cvk_tl_t operand_b;
+      operand_b.start_address = tl_b->start_address;
+      operand_b.shape = shape_b;
+      operand_b.stride = ctx.tl_default_stride(shape_b, CVK_FMT_BF16, /*eu_align=*/1);
+      operand_b.fmt = CVK_FMT_BF16;
+
       for (int pos_c = 0; pos_c < c; pos_c += step_c) {
         int cur_c = std::min(c - pos_c, step_c);
-        shape_b = ctx.shape_t4(1, 1, cur_h, cur_w);
-
-        // load b to lmem
-        cvk_tl_t operand;
-        uint64_t b_offset = (pos_w + pos_h * bw) * sizeof(uint16_t);
-        operand.start_address = tl_b->start_address;
-        operand.shape = shape_b;
-        operand.stride = ctx.tl_default_stride(shape_b, CVK_FMT_BF16, 1);
-        operand.fmt = CVK_FMT_BF16;
-        cvk_tg_stride_t stride = ctx.tg_default_stride(
-            {(uint32_t)bn, (uint32_t)bc, (uint32_t)bh, (uint32_t)bw}, CVK_FMT_BF16);
-        ctx.tdma_load_stride_bf16(&operand, ga_inputs[1] + b_offset, stride);
-
-        llvm::errs() << llvm::format(
-            "load b, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
-            operand.start_address, shape_b.n, shape_b.c, shape_b.h, shape_b.w, stride.n,
-            stride.c, stride.h, stride.w, b_offset);
-
-        // broadcast b to all lanes
-        cvk_tl_t operand_lane;
-        operand_lane.shape = shape_b;
-        operand_lane.stride =
-            ctx.tl_default_stride(shape_b, CVK_FMT_BF16, /*eu_align=*/1);
-        operand_lane.fmt = CVK_FMT_BF16;
-        for (int i = 1; i < NPU_NUM; ++i) {
-          operand_lane.start_address =
-              tl_b->start_address + i * LOCAL_MEM_SIZE; // start of lmem
-          cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
-          p2.src = &operand;
-          p2.dst = &operand_lane;
-          ctx._tdma_l2l_tensor_copy(&p2);
-        }
-        shape_b = ctx.shape_t4(1, NPU_NUM, cur_h, cur_w);
-        cvk_tl_t operand_b;
-        operand_b.start_address = tl_b->start_address;
-        operand_b.shape = shape_b;
-        operand_b.stride = ctx.tl_default_stride(shape_b, CVK_FMT_BF16, /*eu_align=*/1);
-        operand_b.fmt = CVK_FMT_BF16;
-
         for (int pos_n = 0; pos_n < n; pos_n += step_n) {
           int cur_n = std::min(n - pos_n, step_n);
 

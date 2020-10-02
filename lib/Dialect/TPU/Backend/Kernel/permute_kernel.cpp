@@ -1088,6 +1088,83 @@ static void permute_0321_tp(
 
 }
 
+static void permute_nc_tp(
+    const CviBackendContext& ctx, uint32_t layer_id, gaddr_t ga_ifmap,
+    gaddr_t ga_ofmap, uint32_t input_n, uint32_t input_c, uint32_t input_h,
+    uint32_t input_w, cvk_fmt_t fmt) {
+
+  int n = input_n;
+  int c = input_c;
+  int h = 1;
+  int w = input_h * input_w;
+  int element_size = (fmt == CVK_FMT_BF16) ? 2 : 1;
+
+  int max_w = std::min(w, MAX_WIDTH);
+  int step_w = max_w;
+  int step_c = c;
+  int step_n = n;
+  uint32_t lmem_required = (uint32_t)LOCAL_MEM_SIZE + 1;
+  cvk_tl_shape_t shape;
+  for (step_w = max_w; step_w > 0; --step_w) {
+    for (step_c = c; step_c > 0; --step_c) {
+      for (step_n = n; step_n > 0; step_n -= NPU_NUM) {
+        shape = ctx.shape_t4(step_c, step_n, h, step_w);
+        lmem_required = ctx.lmem_tensor_to_size(shape, fmt, 1);
+        if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
+          goto after_loop;
+        }
+      }
+    }
+  }
+after_loop:
+  if (lmem_required > (uint32_t)LOCAL_MEM_SIZE) {
+    assert(0);
+  }
+
+  llvm::errs() << llvm::format("step, %d,%d,%d,%d\n", step_n, step_c, h, step_w);
+
+  cvk_tl_t *tl_a = ctx.lmem_alloc_tensor(shape, fmt, 1);
+  assert(tl_a);
+
+  for (int pos_n = 0; pos_n < n; pos_n += step_n) {
+    int cur_n = std::min(n - pos_n, step_n);
+    for (int pos_c = 0; pos_c < c; pos_c += step_c) {
+      int cur_c = std::min(c - pos_c, step_c);
+      for (int pos_w = 0; pos_w < w; pos_w += step_w) {
+        int cur_w = std::min(w - pos_w, step_w);
+        shape = ctx.shape_t4(cur_n, cur_c, h, cur_w);
+
+        cvk_tl_t tensor;
+        tensor.start_address = tl_a->start_address;
+        tensor.shape = shape;
+        tensor.stride = ctx.tl_default_stride(shape, fmt, 1);
+        tensor.fmt = fmt;
+        uint64_t offset = (pos_w + pos_c * w + pos_n * c * w) * element_size;
+        auto stride = ctx.tg_default_stride({(uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t)w}, fmt);
+        ctx.tdma_load_stride_bf16(&tensor, ga_ifmap + offset, stride, 1);
+
+        LLVM_DEBUG(llvm::errs() << llvm::format("load, shape:%d,%d,%d,%d, stride: %d,%d,%d,%d, offset:%d\n",
+                  cur_n, cur_c, h, cur_w,
+                  (int)stride.n, (int)stride.c, (int)stride.h, (int)stride.w,
+                  (int)offset));
+
+        shape = ctx.shape_t4(cur_c, cur_n, h, cur_w);
+        tensor.shape = shape;
+        tensor.stride = ctx.tl_default_stride(shape, fmt, 1);
+        offset = (pos_w + pos_n * w + pos_c * n * w) * element_size;
+        stride = ctx.tg_default_stride({(uint32_t)c, (uint32_t)n, (uint32_t)h, (uint32_t)w}, fmt);
+        ctx.tdma_store_stride_bf16(&tensor, ga_ofmap + offset, stride);
+        LLVM_DEBUG(llvm::errs() << llvm::format("store, shape:%d,%d,%d,%d, stride: %d,%d,%d,%d, offset:%d\n",
+                  cur_c, cur_n, h, cur_w,
+                  (int)stride.n, (int)stride.c, (int)stride.h, (int)stride.w,
+                  (int)offset));
+      }
+    }
+  }
+
+  ctx.lmem_free_tensor(tl_a);
+}
+
 void cvi_backend_tg_permute(
     const CviBackendContext& ctx, uint32_t layer_id, gaddr_t ga_ifmap,
     gaddr_t ga_ofmap, uint32_t input_n, uint32_t input_c, uint32_t input_h,
@@ -1129,7 +1206,10 @@ void cvi_backend_tg_permute(
     return;
   }
 
-  if (order_w == 3) {
+  if (order_n == 1 && order_c == 0 && order_h == 2 && order_w == 3) {
+    permute_nc_tp(ctx, layer_id, ga_ifmap, ga_ofmap, input_n, input_c, input_h,
+                  input_w, fmt);
+  } else if (order_w == 3) {
     // (0, 1, 2, 3) -> (, , , 3)
     // E.g. yolo_v2, 0213, original 012435
     permute_xxx3_tp(ctx, layer_id, ga_ifmap, ga_ofmap, input_n, input_c,

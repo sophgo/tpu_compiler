@@ -1102,7 +1102,7 @@ def TPU_MatMulOp : TPU_Op<"matmul",
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Matrix multipy operator";
+  let summary = "Matrix multiply operator";
 
   let description = [{
     Inputs:
@@ -1136,6 +1136,8 @@ def TPU_MatMulOp : TPU_Op<"matmul",
   );
 
   let results = (outs AnyTensor:$output);
+
+  let hasCanonicalizer = 1;
 }
 
 def TPU_NormalizeOp: TPU_Op<"normalize",
