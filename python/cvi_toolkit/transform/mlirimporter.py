@@ -1444,6 +1444,9 @@ class MLIRImporter(object):
     def add_broadcast_sub_op(self, op_name, inputOperands, output_tensor_shape):
         tensor_output_type=self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
+        none = self.add_none_op()
+        for _ in range(6 - len(inputOperands)):
+            inputOperands.append(none)
         name_attr=self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.BroadcastSub.value, inputOperands, [tensor_output_type],
             name=name_attr, quant=self.quant_param)
