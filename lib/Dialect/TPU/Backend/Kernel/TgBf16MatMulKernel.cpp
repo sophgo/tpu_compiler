@@ -284,7 +284,7 @@ after_loop:
           p.res = &opd_y;
           p.left = &opd_l;
           p.right = &opd_r;
-          p.bias = have_bias ? &opd_b : nullptr;
+          p.bias = add_bias ? &opd_b : nullptr;
           p.lshift_bits = 0; // deprecated
           p.rshift_bits = 0;
           p.res_is_int8 = 1; // H/W constraint
@@ -304,4 +304,10 @@ after_loop:
       }
     }
   }
+
+  if (have_bias)
+    ctx.lmem_free_matrix(tl_b);
+  ctx.lmem_free_matrix(tl_y);
+  ctx.lmem_free_matrix(tl_r);
+  ctx.lmem_free_matrix(tl_l);
 }
