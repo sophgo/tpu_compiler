@@ -1720,6 +1720,50 @@ class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_BF16_SquareOp : TPU_TG_SquareOp<"tg_bf16_square", "Bf16">;
 
+class TPU_TG_MatMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Matrix Multipy operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_MatMulOp : TPU_TG_MatMulOp<"tg_int8_matmul", "Int8">;
+def TPU_TG_BF16_MatMulOp : TPU_TG_MatMulOp<"tg_bf16_matmul", "Bf16">;
+
 class TPU_TG_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1759,44 +1803,5 @@ class TPU_TG_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
 def TPU_TG_INT8_ZeroMaskOp : TPU_TG_ZeroMaskOp<"tg_int8_zero_mask", "Int8">;
 def TPU_TG_BF16_ZeroMaskOp : TPU_TG_ZeroMaskOp<"tg_bf16_zero_mask", "Bf16">;
-
-class TPU_TG_MatMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "matmul operator";
-
-  let description = [{
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$inputs,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
-    OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_TG_INT8_MatMulOp : TPU_TG_MatMulOp<"tg_int8_matmul", "Int8">;
-def TPU_TG_BF16_MatMulOp : TPU_TG_MatMulOp<"tg_bf16_matmul", "Bf16">;
 
 #endif // TPU_TG_OPS

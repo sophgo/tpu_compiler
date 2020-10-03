@@ -1093,6 +1093,48 @@ def TPU_LstmOp: TPU_Op<"lstm",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_MatMulOp : TPU_Op<"matmul",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Matrix multipy operator";
+
+  let description = [{
+    Inputs:
+      `inputs`          : required, input tensors.
+
+    Attributes:
+      `do_relu`         : required, if need to preform relu on result.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_NormalizeOp: TPU_Op<"normalize",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -2689,41 +2731,6 @@ def TPU_ZeroMaskOp: TPU_Op<"zero_mask",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_MatMulOp: TPU_Op<"matmul",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "mat mul operator";
-
-  let description = [{
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-  }];
-
-  let arguments = (
-    ins Variadic<AnyTensor>:$inputs,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
 
 include "mlir/Dialect/TPU/TPUSupportOps.td"
 include "mlir/Dialect/TPU/TPUTGOps.td"

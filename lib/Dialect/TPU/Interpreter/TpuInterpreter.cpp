@@ -1206,70 +1206,6 @@ LogicalResult tpu::FullyConnectedOp::interpret(
   return success();
 }
 
-// template<typename T>
-// static void transposeFullyConnectedFilter(std::vector<T> &w,
-//     std::vector<int64_t> &s) {
-//   assert(s.size() == 2);
-//   int row = s[0];
-//   int col = s[1];
-//   std::vector<T> w_t(w.size());
-//   for (int i = 0; i < row; i++) {
-//     for (int j = 0; j < col; j++) {
-//       w_t[j * row + i] = w[i * col  + j];
-//     }
-//   }
-//   w.assign(w_t.begin(), w_t.end());
-// }
-
-LogicalResult tpu::MatMulOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float> >(size);
-
-  // parse param
-  int m, k, n;
-  auto input_0 = op->getOperand(0);
-  auto input_1 = op->getOperand(1);
-  parseFullyConnectedParam(input_0, output(), input_1, m, k, n);
-
-  std::shared_ptr<std::vector<float> > input = opdT[0];
-  std::shared_ptr<std::vector<float> > filter = opdT[1];
-
-  // std::vector<float> filter_data;
-  // filter_data.assign(filter->begin(), filter->end());
-  // std::vector<int64_t> filter_shape;
-  // filter_shape.push_back(k);
-  // filter_shape.push_back(n);
-  // transposeFullyConnectedFilter(filter_data, filter_shape);
-  // int ret = mkldnn_ip(input->data(), filter_data.data(),
-  //     nullptr, resultT->data(), m, k, n, false);
-
-  int ret = mkldnn_ip(input->data(), filter->data(),
-      nullptr, resultT->data(), m, k, n, false);
-  assert(ret == 0);
-
-  // rshift and saturate on output
-  if (getOpQuant() == "NONE") {
-    // do nothing
-  } else if (getOpQuant() == "INT8") {
-    assert(0 && "Not support INT8");
-  } else if (getOpQuant() == "BF16") {
-    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
-    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
-    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-  } else {
-    llvm_unreachable("unsupported type");
-  }
-
-  valueMapping[result] = std::move(resultT);
-
-  return success();
-}
 
 LogicalResult tpu::GruOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
@@ -3149,6 +3085,67 @@ LogicalResult tpu::SquareOp::interpret(
     output[i] = input[i] * input[i];
   }
 
+  if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::MatMulOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  int m, k, n;
+  auto opd_left = op->getOperand(0);
+  auto opd_right = op->getOperand(1);
+
+  auto left_type = opd_left->getType().template cast<TensorType>();
+  std::vector<int64_t> left_shape(left_type.getShape());
+  auto right_type = opd_right->getType().cast<TensorType>();
+  std::vector<int64_t> right_shape(right_type.getShape());
+  auto output_type = output()->getType().template cast<TensorType>();
+  std::vector<int64_t> output_shape(output_type.getShape());
+  llvm::errs() << "left:" << left_shape[0] << " " << left_shape[1]
+               << " right:" << right_shape[0] << " " << right_shape[1]
+               << " output:" << output_shape[0] << " " << output_shape[1]
+               << "\n";
+  assert((left_shape[0] == output_shape[0]) && "input M not equal to output M");
+  m = left_shape[0];
+  assert((left_shape[1] == right_shape[0]) && "input K not equal to filter K");
+  k = left_shape[1];
+  assert((right_shape[1] == output_shape[1]) && "filter N not equal to output N");
+  n = output_shape[1];
+  bool do_relu = this->do_relu();
+
+  std::vector<float> transposed_right(opdT[1]->size());
+  float *right_data = opdT[1]->data();
+  for (int i = 0; i < k; i++) {
+    for (int j = 0; j < n; j++) {
+      transposed_right[j * k + i] = right_data[i * n  + j];
+    }
+  }
+
+  int ret = mkldnn_ip(opdT[0]->data(), transposed_right.data(), nullptr, resultT->data(), m, k, n, false);
+  assert(ret == 0);
+  if (do_relu) {
+    ret = my_relu(resultT->data(), resultT->data(), 1, 1, 1, n * m, 0.0f);
+    assert(ret == 0);
+  }
+
+  assert(getOpQuant() == "BF16");
   if (getOpQuant() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding

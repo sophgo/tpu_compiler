@@ -957,7 +957,6 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseAddOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMaxOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMinOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMulOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::MatMulOp)
 
 LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
@@ -1023,6 +1022,7 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMeanOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMaxOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ShuffleChannelOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SquareOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::MatMulOp)
 
 LogicalResult tpu::SqrtOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["

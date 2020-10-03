@@ -1225,7 +1225,6 @@ LogicalResult tpu::FullyConnectedOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::MatMulOp)
 
 LogicalResult tpu::LeakyReluOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1322,6 +1321,7 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SwapChannelOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxCpuOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SquareOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::MatMulOp)
 
 LogicalResult tpu::TanHOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
