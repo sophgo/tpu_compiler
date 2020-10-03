@@ -1132,7 +1132,7 @@ after_loop:
       int cur_c = std::min(c - pos_c, step_c);
       for (int pos_w = 0; pos_w < w; pos_w += step_w) {
         int cur_w = std::min(w - pos_w, step_w);
-        shape = ctx.shape_t4(cur_n, cur_c, h, cur_w);
+        shape = ctx.shape_t4(cur_c, cur_n, h, cur_w);
 
         cvk_tl_t tensor;
         tensor.start_address = tl_a->start_address;

@@ -73,6 +73,7 @@ void CviBackendContext::tdma_load_stride_bf16(
 
   if (do_transpose) {
     cvk_tdma_g2l_tensor_copy_nc_transposed_param_t p1 = {0};
+    ts_data.shape = {tlp->shape.c, tlp->shape.n, tlp->shape.h, tlp->shape.w};
     p1.src = &ts_data;
     p1.dst = tlp;
     this->tdma_g2l_bf16_tensor_copy_nc_transposed(&p1);
