@@ -340,7 +340,7 @@ static void fc_slicing_multi_dimention(
 
 }
 
-void cvi_backend_tg_bf16_fc_kernel(
+void cvi_backend_tg_bf16_fc_kernelxxx(
     const CviBackendContext &ctx,
     uint32_t layer_id,
     gaddr_t bottom_data_gaddr,

@@ -93,6 +93,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/TgBf16SquareKernel.cpp
   Backend/Kernel/TgBf16BroadcastKernel.cpp
+  Backend/Kernel/TgBf16MatMulKernel.cpp
   Backend/Kernel/cast_kernel.cpp
   Backend/Kernel/concat_bmkernel.cpp
   Backend/Kernel/conv_kernel.cpp

@@ -1470,8 +1470,7 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
       k, // int in_col
       n, // in out_col,
       with_bias, // has_bias
-      do_relu ? 1 : 0, // do_activation
-      0  // activation_method
+      do_relu // do_activation
       );
 
   return success();
@@ -1956,9 +1955,8 @@ LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
       m,
       k,
       n,
-      0,
-      0,
-      0
+      false,
+      false
   );
 
   return success();

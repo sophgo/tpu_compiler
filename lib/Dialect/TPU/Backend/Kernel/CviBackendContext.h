@@ -22,6 +22,9 @@
 #define MAX_CHANNEL (4095 - 32)
 #define MAX_HEIGHT (4095 - 32)
 #define MAX_WIDTH (4095 - 32)
+#define MAX_ROW (4095 - 32)
+#define MAX_COL (4095 - 32)
+
 #define NPU_NUM ctx.cvi_chip_info_context(CVI_CHIP_LANE_NUM)
 #define EU_NUM ctx.cvi_chip_info_context(CVI_CHIP_EU_NUM)
 #define LOCAL_MEM_SIZE ctx.cvi_chip_info_context(CVI_CHIP_LMEM_SIZE)
