@@ -17,6 +17,12 @@ void cvi_backend_tl_load(
     laddr_t la_ifmap, gaddr_t ga_ifmap, cvk_fmt_t fmt,
     uint32_t n, uint32_t ic, uint32_t ih, uint32_t iw);
 
+void cvi_backend_tl_load(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t la_ifmap, gaddr_t ga_ifmap,
+    uint32_t n, uint32_t ic, uint32_t ih, uint32_t iw,
+    bool doDecompress);
+
 void cvi_backend_tl_store(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_ofmap, gaddr_t ga_ofmap, cvk_fmt_t fmt,
@@ -36,7 +42,24 @@ void cvi_backend_tl_load_stride(
     int Local_W, int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
     cvk_fmt_t from, cvk_fmt_t to,
-    bool bCompressed);
+    bool DoDecompressed);
+
+void cvi_backend_tl_load_stride(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_src, laddr_t la_dst,
+    int Local_N, int Local_C, int Local_H, int Local_W,
+    int Global_C, int Global_H, int Global_W,
+    bool DoTranspose, bool DoAligned, bool isNeuron,
+    cvk_fmt_t from, cvk_fmt_t to);
+
+void cvi_backend_tl_load_compressed(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_src, laddr_t la_dst,
+    int Local_N, int Local_C, int Local_H,
+    int Local_W, int Global_C, int Global_H, int Global_W,
+    bool DoTranspose, bool DoAligned, bool isNeuron,
+    cvk_fmt_t from, cvk_fmt_t to,
+    int h_step, int step_size);
 
 void cvi_backend_tl_store_stride(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -45,6 +68,22 @@ void cvi_backend_tl_store_stride(
     int Local_W, int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
     cvk_fmt_t from, cvk_fmt_t to);
+
+void cvi_backend_tl_store_stride(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_dst, laddr_t la_src,
+    int Local_N, int Local_C, int Local_H,
+    int Local_W, int Global_C, int Global_H, int Global_W,
+    bool DoTranspose, bool DoAligned, bool isNeuron,
+    cvk_fmt_t from, cvk_fmt_t to, bool DoCompress);
+
+void cvi_backend_tl_store_compressed(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_dst, laddr_t la_src,
+    int Local_N, int Local_C, int Local_H, int Local_W,
+    int Global_C, int Global_H, int Global_W,
+    bool DoTranspose, bool DoAligned, bool isNeuron,
+    cvk_fmt_t from, cvk_fmt_t to, int h_step, int step_size);
 
 void cvi_backend_tl_copy(
     const CviBackendContext &ctx, uint32_t layer_id,

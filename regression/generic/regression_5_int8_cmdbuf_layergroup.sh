@@ -19,6 +19,7 @@ mlir-opt \
 
 mlir-opt \
     --compress-weight \
+    --compress-activation \
     ${NET}_quant_int8_multiplier_layergroup_lw.mlir \
     -o ${NET}_quant_int8_multiplier_layergroup_lw_compressed.mlir
 

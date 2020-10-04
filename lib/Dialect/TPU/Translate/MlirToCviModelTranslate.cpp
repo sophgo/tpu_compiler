@@ -438,6 +438,16 @@ void CviModelBuilder::parseModule() {
           op->getAttr("buffer_reused").cast<BoolAttr>().getValue()) {
         overwritten = true;
       }
+      if (op->getAttr("store_compr_act") &&
+          op->getAttr("store_compr_act").cast<BoolAttr>().getValue()) {
+        overwritten = true;
+      }
+      if (llvm::dyn_cast<tpu::TL_LG_JoinOp>(op)) {
+        auto tpuOp = llvm::dyn_cast<tpu::TL_LG_StoreOp>(
+                        op->getOperand(0)->getDefiningOp());
+        if (tpuOp.store_compr_act().hasValue())
+          overwritten = tpuOp.store_compr_act().getValue();
+      }
       tensor->overwritten = overwritten;
       tensorMaps_.push_back(tensor);
     }

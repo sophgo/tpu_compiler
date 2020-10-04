@@ -138,8 +138,39 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   );
 
   if (tl_load_flag()) {
-    cvi_backend_tl_load(*backend_ctx, layer_id, la_input, ga_input, CVK_FMT_I8,
-                        n, ic, ih, iw);
+    bool do_decompress = load_compr_act().hasValue() ?
+                         load_compr_act().getValue() : false;
+
+    if (!do_decompress) {
+      cvi_backend_tl_load(*backend_ctx,
+                           layer_id,
+                           la_input,
+                           ga_input,
+                           CVK_FMT_I8,
+                           n, ic, ih, iw);
+    } else {
+      int step_size = 0;
+      int h_step = ih;
+      if (this->load_compr_act_param().hasValue()) {
+        h_step = this->load_compr_act_param().getValue().h_step().getInt();
+        step_size = this->load_compr_act_param().getValue().step_size().getInt();
+      }
+
+      cvi_backend_tl_load_compressed(*backend_ctx,
+                                     layer_id,
+                                     ga_input,
+                                     la_input,
+                                     n, ic, ih, iw,
+                                     ic, ih, iw,
+                                     /*transpose=*/false,
+                                     /*aligned=*/true,
+                                     /*isNeuron=*/true,
+                                     /*from=*/CVK_FMT_I8,
+                                     /*to=*/CVK_FMT_I8,
+                                     h_step, step_size
+                                     );
+
+    }
   }
 
   bool compressed_weight = false;

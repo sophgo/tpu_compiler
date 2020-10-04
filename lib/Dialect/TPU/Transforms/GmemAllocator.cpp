@@ -4,12 +4,16 @@
  */
 #include "llvm/Support/Debug.h"
 #include "mlir/Dialect/TPU/GmemAllocator.hpp"
+#include "mlir/Dialect/TPU/TPUOperationSupport.h"
 
 namespace mlir {
 
 #define DEBUG_TYPE "gmem-allocator"
 
 static uint32_t getTensorGmemSize(Operation *op, uint32_t alignment) {
+  if (uint32_t size = (uint32_t)getTotalCompressedActivationSize(op))
+    return llvm::alignTo(size, alignment);
+
   uint32_t dsize = 1;
   auto type = op->getResult(0)->getType().template cast<TensorType>();
   std::vector<int64_t> shape = type.getShape();

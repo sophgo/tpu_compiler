@@ -106,6 +106,19 @@ void parseGruParam(
     Value *input, Value *recurrence,
     int &seq_len, int &batch_size, int &input_size, int& hidden_size);
 
+void parseActCompressParam(const tpu::ActCmprParam &param, int &cmpr_n,
+    int &cmpr_c, int &cmpr_h, int64_t &step_size, int64_t &total_size);
+
+bool isBf16Tensor(Value *val);
+
+int64_t getTotalCompressedActivationSize(Operation *op);
+
+void getTiledCompressedSize(int n, int c, int h, int w, int n_step, int c_step,
+    int h_step, int isBf16, int64_t &stepSize, int64_t &totalSize);
+
+void getTiledCompressedActSize(Operation *op, int n_step, int oc_step,
+    int oh_step, int ow, int64_t &stepSize, int64_t &totalSize);
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_

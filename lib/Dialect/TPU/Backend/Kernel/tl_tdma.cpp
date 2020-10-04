@@ -33,6 +33,79 @@ void cvi_backend_tl_to_tensor(
   }
 }
 
+void cvi_backend_tl_load_stride(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_src, laddr_t la_dst,
+    int Local_N, int Local_C, int Local_H, int Local_W,
+    int Global_C, int Global_H, int Global_W,
+    bool DoTranspose, bool DoAligned, bool isNeuron,
+    cvk_fmt_t from, cvk_fmt_t to) {
+
+  cvi_backend_tl_load_stride(ctx,
+                             layer_id,
+                             ga_src,
+                             la_dst,
+                             Local_N,
+                             Local_C,
+                             Local_H,
+                             Local_W,
+                             Global_C,
+                             Global_H,
+                             Global_W,
+                             DoTranspose,
+                             DoAligned,
+                             isNeuron,
+                             from,
+                             to,
+                             false  // DoDecompress
+                             );
+
+}
+
+
+void cvi_backend_tl_load_compressed(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_src, laddr_t la_dst,
+    int Local_N, int Local_C, int Local_H, int Local_W,
+    int Global_C, int Global_H, int Global_W,
+    bool DoTranspose, bool DoAligned, bool isNeuron,
+    cvk_fmt_t from, cvk_fmt_t to,
+    int h_step, int step_size) {
+
+  // Global shape is used for stride - global memory layout
+  assert(from == to && "Expect same data type");
+
+  int eu_align = DoAligned ? 1 : 0;
+
+  cvk_tl_stride_t tl_stride =
+    ctx.tl_default_stride(ctx.shape_t4(Local_N, Local_C, Local_H, Local_W),
+                          to, eu_align);
+
+  for (int i = 0; i < Local_H; i+=h_step) {
+    int cur_h = std::min(h_step, Local_H - i);
+
+    cvk_cmpr_tg_t tg_cmpr_src = {0};
+    ctx.gmem_init_tensor(&tg_cmpr_src.t,
+                         {(uint32_t)Local_N, (uint32_t)Global_C, (uint32_t)cur_h,
+                          (uint32_t)Global_W},
+                         from);
+    tg_cmpr_src.t.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
+    tg_cmpr_src.t.start_address = ga_src + step_size * (i / h_step);
+
+    // HxW in each lane is contiguous
+    cvk_tl_t tl_dst;
+    ctx.lmem_init_tensor(&tl_dst, ctx.shape_t4(Local_N, Local_C, cur_h, Local_W),
+                         to, eu_align);
+    tl_dst.stride = tl_stride;
+    tl_dst.start_address = la_dst + i * Local_W * tl_stride.w;
+
+    cvk_tdma_g2l_tensor_copy_decompressed_param_t param = {0};
+    param.src = &tg_cmpr_src;
+    param.dst = &tl_dst;
+    param.layer_id = layer_id;
+    ctx.tdma_g2l_tensor_copy_decompressed(&param);
+  }
+}
 
 void cvi_backend_tl_load_stride(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -41,7 +114,7 @@ void cvi_backend_tl_load_stride(
     int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
     cvk_fmt_t from, cvk_fmt_t to,
-    bool bCompressed) {
+    bool DoDecompress) {
   LLVM_DEBUG(
     llvm::errs() << llvm::format("cvi_backend_tl_load_stride:\n"
                                   "    layer_id %d\n"
@@ -51,7 +124,7 @@ void cvi_backend_tl_load_stride(
                                   "    from %d to %d, Compressed %d\n",
                                   layer_id, Global_C, Global_H, Global_W, Local_N, Local_C,
                                   Local_H, Local_W, ga_src, la_dst, DoTranspose, DoAligned,
-                                  isNeuron, from, to, bCompressed));
+                                  isNeuron, from, to, DoDecompress));
   // tensor in local memory
   cvk_tl_shape_t tl_shape;
   tl_shape.n = DoTranspose ? Local_C : Local_N;
@@ -65,7 +138,7 @@ void cvi_backend_tl_load_stride(
 
   if (from == CVK_FMT_BF16 || to == CVK_FMT_BF16) {
     // TODO: support other format
-    assert(!bCompressed && "not support bf16 + compress yet");
+    assert(!DoDecompress && "not support bf16 + compress yet");
   }
 
   if ((from == CVK_FMT_BF16 && to == CVK_FMT_I8) &&
@@ -84,22 +157,23 @@ void cvi_backend_tl_load_stride(
   tl_data.shape = tl_shape;
   tl_data.stride = ctx.tl_default_stride(tl_shape, tl_data.fmt, DoAligned ? 1 : 0);
 
-  // Glbal shape used for stride calculation
+  // Global shape used for stride calculation
   cvk_tg_stride_t ga_stride =
       ctx.tg_default_stride(
           {(uint32_t)Local_N, (uint32_t)Global_C,
           (uint32_t)Global_H, (uint32_t)Global_W},
       from);
 
-  if (!bCompressed) {
+  cvk_tg_t ga_data = {0};
+  ga_data.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
+  ga_data.start_address = ga_src;
+  ga_data.fmt = to;
+  ga_data.shape = {tl_data.shape.n, tl_data.shape.c,
+                   tl_data.shape.h, tl_data.shape.w};
+  ga_data.stride = ga_stride;
+
+  if (!DoDecompress) {
     // normal data
-    cvk_tg_t ga_data = {0};
-    ga_data.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
-    ga_data.start_address = ga_src;
-    ga_data.fmt = to;
-    ga_data.shape = {tl_data.shape.n, tl_data.shape.c,
-                      tl_data.shape.h, tl_data.shape.w};
-    ga_data.stride = ga_stride;
     cvk_tdma_g2l_tensor_copy_param_t param = {0};
     param.src = &ga_data;
     param.dst = &tl_data;
@@ -111,17 +185,62 @@ void cvi_backend_tl_load_stride(
     }
   } else {
     // Compressed data
-    cvk_cmpr_tg_t ga_data = {0};
-    ga_data.t.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
-    ga_data.t.start_address = ga_src;
-    ga_data.t.fmt = to;
-    ga_data.t.shape = {tl_data.shape.n, tl_data.shape.c,
-                      tl_data.shape.h, tl_data.shape.w};
-    ga_data.t.stride = ga_stride;
+    cvk_cmpr_tg_t cmpr_ga_data = {0};
+    cmpr_ga_data.t = ga_data;
+
     cvk_tdma_g2l_tensor_copy_decompressed_param_t param = {0};
-    param.src = &ga_data;
+    param.src = &cmpr_ga_data;
     param.dst = &tl_data;
     ctx.tdma_g2l_tensor_copy_decompressed(&param);
+  }
+}
+
+void cvi_backend_tl_load(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t la_ifmap, gaddr_t ga_ifmap, cvk_fmt_t fmt,
+    uint32_t n, uint32_t ic, uint32_t ih, uint32_t iw, bool do_decompress) {
+  cvk_tl_t tl_ifmap;
+  tl_ifmap.start_address = la_ifmap;
+  tl_ifmap.fmt = fmt;
+  tl_ifmap.shape = ctx.shape_t4(n, ic, ih, iw);
+  tl_ifmap.stride = ctx.tl_default_stride(tl_ifmap.shape, fmt, /*eu_align=*/1);
+  ctx.set_layer_id(layer_id);
+
+  if (fmt == CVK_FMT_I8) {
+    cvk_tg_stride_t ifmap_gstride = {ic * ih * iw, ih * iw, iw};
+    ctx.tdma_load_stride(&tl_ifmap, ga_ifmap, ifmap_gstride,
+                       /*do_transpose=*/false, do_decompress);
+  } else if (fmt == CVK_FMT_BF16) {
+    ctx.tdma_load_bf16(&tl_ifmap, ga_ifmap);
+  } else {
+    assert(0);
+  }
+}
+
+void cvi_backend_tl_load(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t la_ifmap, gaddr_t ga_ifmap, cvk_fmt_t fmt,
+    uint32_t n, uint32_t ic, uint32_t ih, uint32_t iw) {
+  cvi_backend_tl_load(ctx, layer_id, la_ifmap, ga_ifmap, fmt, n, ic, ih, iw,
+                      /*do_decompress=*/false);
+}
+
+void cvi_backend_tl_store(const CviBackendContext &ctx, uint32_t layer_id,
+                          laddr_t la_ofmap, gaddr_t ga_ofmap, cvk_fmt_t fmt,
+                          uint32_t n, uint32_t oc, uint32_t oh, uint32_t ow) {
+  cvk_tl_t tl_ofmap;
+  tl_ofmap.start_address = la_ofmap;
+  tl_ofmap.fmt = fmt;
+  tl_ofmap.shape = ctx.shape_t4(n, oc, oh, ow);
+  tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, fmt, /*eu_align=*/1);
+
+  ctx.set_layer_id(layer_id);
+  if (fmt == CVK_FMT_I8) {
+    ctx.tdma_store(&tl_ofmap, ga_ofmap);
+  } else if (fmt == CVK_FMT_BF16) {
+    ctx.tdma_store_bf16(&tl_ofmap, ga_ofmap);
+  } else {
+    assert(0);
   }
 }
 
@@ -131,7 +250,7 @@ void cvi_backend_tl_store_stride(
     int Local_N, int Local_C, int Local_H, int Local_W,
     int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
-    cvk_fmt_t from, cvk_fmt_t to) {
+    cvk_fmt_t from, cvk_fmt_t to, bool DoCompress) {
   LLVM_DEBUG(
     llvm::errs() << llvm::format("cvi_backend_tl_store_stride:\n"
                                   "    layer_id %d\n"
@@ -175,49 +294,85 @@ void cvi_backend_tl_store_stride(
 
   // We need another API to pass memory region from TPU dialect codegen.
   if (is_quant || is_bf16) {
-    ctx.tdma_store_stride_bf16(&tl_data, ga_dst, ts_stride);
+    ctx.tdma_store_stride_bf16(&tl_data, ga_dst, ts_stride,
+                              /*do_transpose=*/false, DoCompress);
   } else {
-    ctx.tdma_store_stride(&tl_data, ga_dst, ts_stride);
+    ctx.tdma_store_stride(&tl_data, ga_dst, ts_stride, /*do_transpose=*/false,
+                          DoCompress);
   }
 }
 
-void cvi_backend_tl_load(
+void cvi_backend_tl_store_stride(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t la_ifmap, gaddr_t ga_ifmap, cvk_fmt_t fmt,
-    uint32_t n, uint32_t ic, uint32_t ih, uint32_t iw) {
-  cvk_tl_t tl_ifmap;
-  tl_ifmap.start_address = la_ifmap;
-  tl_ifmap.fmt = fmt;
-  tl_ifmap.shape = ctx.shape_t4(n, ic, ih, iw);
-  tl_ifmap.stride = ctx.tl_default_stride(tl_ifmap.shape, fmt, /*eu_align=*/1);
+    gaddr_t ga_dst, laddr_t la_src,
+    int Local_N, int Local_C, int Local_H, int Local_W,
+    int Global_C, int Global_H, int Global_W,
+    bool DoTranspose, bool DoAligned, bool isNeuron,
+    cvk_fmt_t from, cvk_fmt_t to) {
 
-  ctx.set_layer_id(layer_id);
-  if (fmt == CVK_FMT_I8) {
-    ctx.tdma_load(&tl_ifmap, ga_ifmap);
-  } else if (fmt == CVK_FMT_BF16) {
-    ctx.tdma_load_bf16(&tl_ifmap, ga_ifmap);
-  } else {
-    assert(0);
-  }
-
+  cvi_backend_tl_store_stride(ctx, layer_id, ga_dst, la_src, Local_N, Local_C,
+                              Local_H, Local_W, Global_C, Global_H, Global_W,
+                              DoTranspose, DoAligned, isNeuron, from, to,
+                              false);
 }
 
-void cvi_backend_tl_store(const CviBackendContext &ctx, uint32_t layer_id,
-                          laddr_t la_ofmap, gaddr_t ga_ofmap, cvk_fmt_t fmt,
-                          uint32_t n, uint32_t oc, uint32_t oh, uint32_t ow) {
-  cvk_tl_t tl_ofmap;
-  tl_ofmap.start_address = la_ofmap;
-  tl_ofmap.fmt = fmt;
-  tl_ofmap.shape = ctx.shape_t4(n, oc, oh, ow);
-  tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, fmt, /*eu_align=*/1);
+// Tiled compressed activation split as (n, c, h_step, w)
+// Global memory layout: (h/h_step, n, c, h_step, w)
+//
+// output shape       (1, 64, 35, 112)
+// tiled output shape (1, 64,  1, 112)
+//
+// tiled TDMA store
+//   (1, 64, 1, 112)
+//   (1, 64, 1, 112)
+//   ...
+//   (1, 64, 1, 112)
+//
+//  n   h  c  w
+//  0   0  0  0       | header | compressed shape (1, h=1, c=64, w=112) |
+//  0   1  0  0
+//
+//  0  34  0  0
+//
+void cvi_backend_tl_store_compressed(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_dst, laddr_t la_src,
+    int Local_N, int Local_C, int Local_H, int Local_W,
+    int Global_C, int Global_H, int Global_W,
+    bool DoTranspose, bool DoAligned, bool isNeuron,
+    cvk_fmt_t from, cvk_fmt_t to, int h_step, int step_size) {
 
-  ctx.set_layer_id(layer_id);
-  if (fmt == CVK_FMT_I8) {
-    ctx.tdma_store(&tl_ofmap, ga_ofmap);
-  } else if (fmt == CVK_FMT_BF16) {
-    ctx.tdma_store_bf16(&tl_ofmap, ga_ofmap);
-  } else {
-    assert(0);
+  // Global shape is used for stride - global memory layout
+  assert(from == to && "Expect same data type");
+
+  int eu_align = DoAligned ? 1 : 0;
+  cvk_tl_stride_t tl_stride =
+    ctx.tl_default_stride(ctx.shape_t4(Local_N, Local_C, Local_H, Local_W),
+                          from, eu_align);
+
+  for (int i = 0; i < Local_H; i+=h_step) {
+    int cur_h = std::min(h_step, Local_H - i);
+
+  // HxW in each lane is contiguous
+    cvk_tl_t tl_src;
+    ctx.lmem_init_tensor(&tl_src, ctx.shape_t4(Local_N, Local_C, cur_h, Local_W),
+                         from, eu_align);
+    tl_src.stride = tl_stride;
+    tl_src.start_address = la_src + i * Local_W * tl_stride.w;
+
+    cvk_cmpr_tg_t tg_cmpr_dst = {0};
+    ctx.gmem_init_tensor(&tg_cmpr_dst.t,
+                         {(uint32_t)Local_N, (uint32_t)Global_C, (uint32_t)cur_h,
+                          (uint32_t)Global_W},
+                         to);
+    tg_cmpr_dst.t.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_dst);
+    tg_cmpr_dst.t.start_address = ga_dst + step_size * (i / h_step);
+
+    cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
+    param.src = &tl_src;
+    param.dst = &tg_cmpr_dst;
+
+    ctx.tdma_l2g_tensor_copy_compressed(&param);
   }
 }
 

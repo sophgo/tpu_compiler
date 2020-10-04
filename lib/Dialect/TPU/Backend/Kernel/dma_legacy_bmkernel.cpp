@@ -15,8 +15,7 @@
 
 
 void CviBackendContext::tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src,
-                                         cvk_tg_stride_t ts_stride,
-                                         uint8_t do_transpose) const {
+    cvk_tg_stride_t ts_stride, bool do_transpose, bool do_decompress) const {
   assert(tlp != nullptr);
 
   // tensor in system memory
@@ -48,12 +47,33 @@ void CviBackendContext::tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src,
     p1.src = &ts_data;
     p1.dst = tlp;
     this->tdma_g2l_tensor_copy_nc_transposed(&p1);
+  } else if (do_decompress) {
+    cvk_cmpr_tg_t cmpr_ts_data = {0};
+    cmpr_ts_data.t = ts_data;
+
+    cvk_tdma_g2l_tensor_copy_decompressed_param_t param = {0};
+    param.src = &cmpr_ts_data;
+    param.dst = tlp;
+    this->tdma_g2l_tensor_copy_decompressed(&param);
   } else {
     cvk_tdma_g2l_tensor_copy_param_t p1 = {0};
     p1.src = &ts_data;
     p1.dst = tlp;
     this->tdma_g2l_tensor_copy(&p1);
   }
+}
+
+void CviBackendContext::tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src,
+                                         cvk_tg_stride_t ts_stride,
+                                         bool do_transpose) const {
+  this->tdma_load_stride(tlp, ga_src, ts_stride, do_transpose,
+                         /*do_decompress=*/false);
+}
+
+void CviBackendContext::tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src,
+                                         cvk_tg_stride_t ts_stride) const {
+  this->tdma_load_stride(tlp, ga_src, ts_stride, /*do_transpose=*/false,
+                         /*do_decompress=*/false);
 }
 
 //
@@ -125,7 +145,7 @@ void CviBackendContext::tdma_load_bf16(
 //
 void CviBackendContext::tdma_store_stride(
     cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-    uint8_t do_transpose) const {
+    bool do_transpose, bool do_compress) const {
   assert(tlp != nullptr);
 
   // tensor in system memory
@@ -143,6 +163,14 @@ void CviBackendContext::tdma_store_stride(
     p1.src = tlp;
     p1.dst = &ts_data;
     this->tdma_l2g_tensor_copy_nc_transposed(&p1);
+  } else if (do_compress) {
+    cvk_cmpr_tg_t cmpr_dst = {0};
+    cmpr_dst.t = ts_data;
+
+    cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
+    param.src = tlp;
+    param.dst = &cmpr_dst;
+    this->tdma_l2g_tensor_copy_compressed(&param);
   } else {
     cvk_tdma_l2g_tensor_copy_param_t p1 = {0};
     p1.src = tlp;
@@ -151,9 +179,22 @@ void CviBackendContext::tdma_store_stride(
   }
 }
 
+void CviBackendContext::tdma_store_stride(
+    cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
+    bool do_transpose) const {
+  tdma_store_stride(tlp, ga_dst, ts_stride, do_transpose,
+                    /*do_compress=*/false);
+}
+
+void CviBackendContext::tdma_store_stride(
+    cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride) const {
+  tdma_store_stride(tlp, ga_dst, ts_stride, /*do_transpose=*/false,
+                    /*do_compress=*/false);
+}
+
 void CviBackendContext::tdma_store_stride_bf16(
     cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-    uint8_t do_transpose) const {
+    bool do_transpose, bool do_compress) const {
   assert(tlp != nullptr);
 
   // tensor in system memory
@@ -171,12 +212,27 @@ void CviBackendContext::tdma_store_stride_bf16(
     p1.src = tlp;
     p1.dst = &ts_data;
     this->tdma_l2g_bf16_tensor_copy_nc_transposed(&p1);
+  } else if (do_compress) {
+    assert(0 && "bf16 tdma store does not suppport compress yet");
   } else {
     cvk_tdma_l2g_tensor_copy_param_t p1 = {0};
     p1.src = tlp;
     p1.dst = &ts_data;
     this->tdma_l2g_bf16_tensor_copy(&p1);
   }
+}
+
+void CviBackendContext::tdma_store_stride_bf16(
+    cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
+    bool do_transpose) const {
+  this->tdma_store_stride_bf16(tlp, ga_dst, ts_stride, do_transpose,
+                              /*do_compress=*/false);
+}
+
+void CviBackendContext::tdma_store_stride_bf16(
+    cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride) const {
+  this->tdma_store_stride_bf16(tlp, ga_dst, ts_stride, /*do_transpose=*/false,
+                              /*do_compress=*/false);
 }
 
 //

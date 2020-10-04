@@ -1,5 +1,7 @@
 #include <numeric>
 #include "mlir/Dialect/TPU/TPUDialect.h"
+#include "mlir/Dialect/TPU/TPUTensorSupport.h"
+#include "mlir/Dialect/TPU/TPUCompressUtil.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -660,6 +662,92 @@ void parseLstmParam(
   batch_size = 1;
   input_size = w_s[2];
   hidden_size = w_s[1] / 4;
+}
+
+void parseActCompressParam(const tpu::ActCmprParam &param, int &cmpr_n,
+    int &cmpr_c, int &cmpr_h, int64_t &step_size, int64_t &total_size) {
+  std::vector<int> shapes;
+  cmpr_n = param.n_step().getInt();
+  cmpr_c = param.c_step().getInt();
+  cmpr_h = param.h_step().getInt();
+  step_size = param.step_size().getInt();
+  total_size = param.total_size().getInt();
+}
+
+bool isBf16Tensor(Value *val) {
+  auto valType = val->getType().dyn_cast<TensorType>();
+  auto elementType = valType.getElementType();
+  return elementType.isBF16();
+}
+
+int64_t getTotalCompressedActivationSize(Operation *op) {
+  if (llvm::dyn_cast<tpu::TL_LG_JoinOp>(op)) {
+    auto tpuOp =
+        llvm::dyn_cast<tpu::TL_LG_StoreOp>(op->getOperand(0)->getDefiningOp());
+
+    // tl_lg_store -> tl_lg_join
+    if (tpuOp.compr_act_param().hasValue()) {
+      return tpuOp.compr_act_param().getValue().total_size().getInt();
+    }
+  }
+
+  return 0;
+}
+
+// Tiled compressed activation split as (tiled_n, tiled_c, tiled_h, W)
+// Global memory shape: (N/tiled_n, C/tiled_c, tiled_h, tiled_c, W)
+//
+// output shape       (1, 64, 112, 112)
+// tiled output shape (1, 32,  26, 112)
+//
+// tiled TDMA store
+//   (1, 32, 26, 112)      c=[31:0]
+//   (1, 32, 26, 112)
+//   (1, 32, 26, 112)
+//   (1, 32, 26, 112)
+//   (1, 32,  8, 112)
+//   ----------------
+//   (1, 32, 26, 112)      c=[63:32]
+//   (1, 32, 26, 112)
+//   (1, 32, 26, 112)
+//   (1, 32, 26, 112)
+//   (1, 32,  8, 112)
+//
+//  n    h  c  w
+//  0    0  0  0       | header | compressed shape (1, h=26, c=32, w) |
+//  0   26  0  0
+//
+//  0  104  0  0
+//  -------------------------------------------------------------------
+//  0   0  32  0
+//  0  26  32  0
+//
+//  0  104 32  0
+//
+void getTiledCompressedSize(int n, int c, int h, int w, int n_step, int c_step,
+    int h_step, int isBf16, int64_t &stepSize, int64_t &totalSize) {
+  int tiledSize = n_step * c_step * h_step * w;
+  stepSize = getCompressedDataSize(tiledSize, isBf16);
+
+  // Compressed tiled activation size
+  //   ceil(batch, tiled_n) * ceil(channel/tiled_channel) *
+  //   ceil(height/tiled_height) * compressed(step_size)
+  totalSize = llvm::divideCeil(n, n_step) *
+              llvm::divideCeil(c, c_step) *
+              llvm::divideCeil(h, h_step) *
+              stepSize;
+}
+
+void getTiledCompressedActSize(Operation *op, int n_step, int oc_step,
+    int oh_step, int ow, int64_t &stepSize, int64_t &totalSize) {
+  int64_t resultSize;
+  std::vector<int64_t> shapes;
+  getTensorShapeAndSize(op->getResult(0), shapes, resultSize);
+
+  int isBf16 = isBf16Tensor(op->getResult(0));
+
+  getTiledCompressedSize(shapes[0], shapes[1], shapes[2], shapes[3], n_step,
+                         oc_step, oh_step, isBf16, stepSize, totalSize);
 }
 
 } // namespace

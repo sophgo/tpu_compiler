@@ -406,8 +406,11 @@ public:
   //
   // TDMA legacy API
   //
+  void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride) const;
   void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
-                        uint8_t do_transpose = 0) const;
+                        bool do_transpose) const;
+  void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
+                        bool do_transpose, bool do_decompress) const;
 
   void tdma_load_stride_bf16(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
                              uint8_t do_transpose = 0) const;
@@ -416,11 +419,17 @@ public:
 
   void tdma_load_bf16(cvk_tl_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
 
+  void tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride) const;
   void tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-                         uint8_t do_transpose = 0) const;
+                         bool do_transpose) const;
+  void tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
+                         bool do_transpose, bool do_compress) const;
 
+  void tdma_store_stride_bf16(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride) const;
   void tdma_store_stride_bf16(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-                              uint8_t do_transpose = 0) const;
+                              bool do_transpose) const;
+  void tdma_store_stride_bf16(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
+                              bool do_transpose, bool do_compress) const;
 
   void tdma_store(cvk_tl_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
 
