@@ -3466,6 +3466,9 @@ struct LowerFunctionTypePattern: public RewritePattern {
     auto quantOp = cast<OpTy>(op);
     auto prevOp = op->getOperand(0)->getDefiningOp();
     auto nextOp = getNextOp(op);
+    if (nextOp == nullptr) {
+      return matchFailure();
+    }
     if (!isa<tpu::InputOp>(prevOp) && !isa<ReturnOp>(nextOp)) {
       return matchFailure();
     }
