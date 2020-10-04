@@ -132,6 +132,8 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
     OptionalAttr<BoolAttr>:$do_ic_alignment,
     OptionalAttr<I32Attr>:$tiled_oc_step,
     OptionalAttr<BoolAttr>:$compressed_weight,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
     OptionalAttr<StrAttr>:$chipname
   );
 

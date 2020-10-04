@@ -383,6 +383,8 @@ def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<TPU_ActCmprParamAttr>:$compr_act_param,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -437,6 +439,8 @@ def TPU_TL_LG_StoreOp : TPU_Op<"tl_lg_store",
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<BoolAttr>:$store_compr_act,
+    OptionalAttr<TPU_ActCmprParamAttr>:$compr_act_param,
     OptionalAttr<StrAttr>:$chipname
   );
 
