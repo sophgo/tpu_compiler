@@ -36,12 +36,12 @@ static inline int8_t unsign_to_sign(uint8_t val)
 }
 
 void getCompressParameter(
-    const uint8_t *ibuf, size_t isz, bool signedness, bool isBfloat16,
+    const uint8_t *ibuf, size_t isz, uint8_t signedness, uint8_t isBfloat16,
     CompressCommandInfo *cmd_info) {
   assert(!(isBfloat16 && signedness)); // WARNING: signedness MUST be 0 as isBfloat16==True
 
   cmd_info->is_bfloat16 = isBfloat16;
-  if (isBfloat16 == false && signedness == true)
+  if (!isBfloat16 && signedness)
   {
     // two-side circular shift
     int hist[256] = {0};
@@ -83,10 +83,10 @@ void getCompressParameter(
     //cmd_info->bias1 = (neg_v < -1 && neg_v >= -128) ? abs(neg_v + 1) : 0;
     // comparison is always   true due to limited range of data type [-Werror=type-limits]
     cmd_info->bias1 = (neg_v < -1) ? abs(neg_v + 1) : 0;
-    cmd_info->signedness = true;
+    cmd_info->signedness = 1;
   }
 
-  if (isBfloat16 == true)
+  if (isBfloat16)
   {
     // center shift
     int64_t exp_accum = 0;
@@ -105,8 +105,8 @@ void getCompressParameter(
     {
       cmd_info->bias0 = (uint8_t)((exp_accum / (float)cnt) + 0.5);
     }
-    cmd_info->zero_guard_en = (inum == cnt) ? false : true;
-    cmd_info->signedness = false;
+    cmd_info->zero_guard_en = (inum == cnt) ? 0 : 1;
+    cmd_info->signedness = 0;
   }
 }
 
@@ -152,7 +152,7 @@ static inline void vlc_enc_header(StreamBuffer *bs_header, CommandInfo *cmd_info
 }
 
 // -- symbol remmaping handler --
-static inline uint8_t center_shift(uint8_t val, uint8_t bias, bool zero_guard)
+static inline uint8_t center_shift(uint8_t val, uint8_t bias, uint8_t zero_guard)
 {
   if (val == 0 && zero_guard)
     return 0;
@@ -169,7 +169,7 @@ static inline uint8_t center_shift(uint8_t val, uint8_t bias, bool zero_guard)
   }
 }
 
-static inline uint8_t inv_center_shift(uint8_t val, uint8_t bias, bool zero_guard)
+static inline uint8_t inv_center_shift(uint8_t val, uint8_t bias, uint8_t zero_guard)
 {
   if (val == 0 && zero_guard)
     return 0;
@@ -191,7 +191,7 @@ static inline int8_t two_side_circular_shift(int8_t val, uint8_t bias0, uint8_t 
   if (val == 0)
     return 0;
 
-  bool sign = (val < 0) ? true : false;
+  uint8_t sign = (val < 0) ? 1 : 0;
   int32_t abs_val = abs(val);
   abs_val -= (sign) ? bias1 : bias0;
   abs_val += (abs_val <= 0) ? (127 + sign) : 0;
@@ -203,7 +203,7 @@ static inline int8_t inv_two_side_circular_shift(int8_t val, uint8_t bias0, uint
   if (val == 0)
     return 0;
 
-  bool sign = (val < 0) ? true : false;
+  uint8_t sign = (val < 0) ? 1 : 0;
   uint32_t abs_val = abs(val);
   abs_val += (sign) ? bias1 : bias0;
   int32_t abs_val_minus = abs_val - (127 + sign);
@@ -214,16 +214,16 @@ static inline int8_t inv_two_side_circular_shift(int8_t val, uint8_t bias0, uint
   return (sign) ? -abs_val_lsb : abs_val_lsb;
 }
 
-static inline void symbol_remapping(uint8_t *blk_in, uint8_t *blk_out, uint8_t bias0, uint8_t bias1, bool signedness, bool is_bf16_exp, bool zero_guard)
+static inline void symbol_remapping(uint8_t *blk_in, uint8_t *blk_out, uint8_t bias0, uint8_t bias1, uint8_t signedness, uint8_t is_bf16_exp, uint8_t zero_guard)
 {
-  if (is_bf16_exp == false && signedness == false)
+  if (!is_bf16_exp && !signedness)
   {
     // remapping bypass
     memcpy(blk_out, blk_in, sizeof(uint8_t) * 16);
     return;
   }
 
-  if (is_bf16_exp == true)
+  if (is_bf16_exp)
   {
     // center circular shift
     for (int i = 0; i < 16; i++)

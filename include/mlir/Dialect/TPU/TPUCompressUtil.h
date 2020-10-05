@@ -33,11 +33,11 @@
 namespace mlir {
 
 struct CompressCommandInfo {
-  bool signedness;
-  bool is_bfloat16;
+  uint8_t signedness;
+  uint8_t is_bfloat16;
   uint8_t bias0;
   uint8_t bias1;
-  bool zero_guard_en;
+  uint8_t zero_guard_en;
 };
 
 //
@@ -47,7 +47,7 @@ struct CompressCommandInfo {
 int getCompressedDataSize(int unCompressedDatasize, int dataType);
 
 void getCompressParameter(
-    const uint8_t *ibuf, size_t isz, bool signedness, bool isBfloat16,
+    const uint8_t *ibuf, size_t isz, uint8_t signedness, uint8_t isBfloat16,
     CompressCommandInfo *cmd_info);
 
 void compressInt8Data(
