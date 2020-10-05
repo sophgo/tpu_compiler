@@ -57,20 +57,34 @@ void TgEltwiseKernel::allocLmem(cvk_tl_shape_t &input_shape,
                                 cvk_tl_shape_t &output_shape) {
   tl_input[0] = ctx.lmem_alloc_tensor(input_shape, fmt, 1);
   tl_input[1] = ctx.lmem_alloc_tensor(input_shape, fmt, 1);
-  tl_output[0] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
-  tl_output[1] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
-  tl_output_h = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
+  if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
+    tl_output[0] = tl_input[0];
+    tl_output[1] = tl_input[1];
+    tl_output_h = NULL;
+  }
+  else {
+    tl_output[0] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
+    tl_output[1] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
+    tl_output_h = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
+    assert(tl_output_h);
+  }
   assert(tl_input[0] && tl_input[1]);
   assert(tl_output[0] && tl_output[1]);
-  assert(tl_output_h);
 }
 
 void TgEltwiseKernel::deallocLmem() {
-  ctx.lmem_free_tensor(tl_output_h);
-  ctx.lmem_free_tensor(tl_output[1]);
-  ctx.lmem_free_tensor(tl_output[0]);
-  ctx.lmem_free_tensor(tl_input[1]);
-  ctx.lmem_free_tensor(tl_input[0]);
+  if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
+    // no allocate output
+    ctx.lmem_free_tensor(tl_input[1]);
+    ctx.lmem_free_tensor(tl_input[0]);
+  }
+  else {
+    ctx.lmem_free_tensor(tl_output_h);
+    ctx.lmem_free_tensor(tl_output[1]);
+    ctx.lmem_free_tensor(tl_output[0]);
+    ctx.lmem_free_tensor(tl_input[1]);
+    ctx.lmem_free_tensor(tl_input[0]);
+  }
 }
 
 void TgEltwiseKernel::selectTilePolicy() {
@@ -83,6 +97,11 @@ void TgEltwiseKernel::selectTilePolicy() {
 
 void TgEltwiseKernel::doTileForNormalCase() {
   int32_t block_num = 5;
+
+  if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
+    block_num = 2; // 2 for ping pong buffer and reuse activation
+  }
+
   uint32_t remain = n * c * h * w;
   uint32_t offset = 0;
   int32_t max_h = LOCAL_MEM_SIZE / (EU_NUM * block_num * elementSize);
@@ -245,7 +264,13 @@ void TgEltwiseKernel::store(int32_t step_idx) {
   auto tile = tiles[tile_idx];
   cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
   cvk_tl_t result;
-  result.start_address = tl_output[1 - output_flip]->start_address;
+  if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
+    // one input case
+    result.start_address = tl_output[tile_idx]->start_address;
+  }
+  else {
+    result.start_address = tl_output[1 - output_flip]->start_address;
+  }
   result.shape = shape;
   result.stride = ctx.tl_default_stride(shape, fmt, 1);
   result.fmt = fmt;
@@ -907,7 +932,8 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
 
   cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
-  cvk_tl_t input, output, output_high;
+  cvk_tl_t input, output;
+  //cvk_tl_t output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = fmt;
@@ -924,10 +950,10 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
   output.stride = ctx.tl_default_stride(shape, fmt, 1);
   output.fmt = fmt;
 
-  output_high.start_address = tl_output_h->start_address;
-  output_high.shape = shape;
-  output_high.stride = ctx.tl_default_stride(shape, fmt, 1);
-  output_high.fmt = fmt;
+  //output_high.start_address = tl_output_h->start_address;
+  //output_high.shape = shape;
+  //output_high.stride = ctx.tl_default_stride(shape, fmt, 1);
+  //output_high.fmt = fmt;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
@@ -969,6 +995,7 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
     p2.layer_id = layer_id;
     ctx.tiu_max(&p2);
   }
+
   output_flip = 1 - output_flip;
 }
 
