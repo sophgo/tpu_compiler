@@ -28,6 +28,7 @@ void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_ou
   this->coeffs = coeffs;
   this->coeffs_float = nullptr;
   this->fmt = CVK_FMT_I8;
+  this->elementSize = this->fmt == CVK_FMT_I8 ? 1 : 2;
 }
 
 void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
@@ -49,6 +50,7 @@ void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_ou
   this->coeffs_float = coeffs;
   this->coeffs = nullptr;
   this->fmt = CVK_FMT_BF16;
+  this->elementSize = this->fmt == CVK_FMT_I8 ? 1 : 2;
 }
 
 void TgEltwiseKernel::allocLmem(cvk_tl_shape_t &input_shape,
@@ -83,7 +85,6 @@ void TgEltwiseKernel::doTileForNormalCase() {
   int32_t block_num = 5;
   uint32_t remain = n * c * h * w;
   uint32_t offset = 0;
-  int32_t elementSize = fmt == CVK_FMT_I8 ? 1 : 2;
   int32_t max_h = LOCAL_MEM_SIZE / (EU_NUM * block_num * elementSize);
   max_h = std::min(max_h, MAX_HEIGHT);
   assert(max_h);
@@ -155,7 +156,6 @@ void TgEltwiseKernel::doTileForStrideCase() {
   assert(lmem_required <= (uint32_t)LOCAL_MEM_SIZE);
   allocLmem(input_shape, output_shape);
 
-  int elementSize = fmt == CVK_FMT_I8 ? 1 : 2;
   EltwiseTile tile;
   for (int n_pos = 0; n_pos < n; n_pos += n_step) {
     int cur_n = std::min(n - n_pos, n_step);
@@ -211,7 +211,6 @@ void TgEltwiseKernel::load(int32_t step_idx) {
   operand.shape = shape;
   operand.stride = ctx.tl_default_stride(shape, fmt, 1);
   operand.fmt = fmt;
-  uint32_t elementSize = fmt == CVK_FMT_I8 ? 1 : 2;
   if (do_early_stride) {
     cvk_tg_stride_t stride = {(uint32_t)(c * h * w * elementSize),
                               (uint32_t)(h * w * elementSize),
@@ -250,7 +249,6 @@ void TgEltwiseKernel::store(int32_t step_idx) {
   result.shape = shape;
   result.stride = ctx.tl_default_stride(shape, fmt, 1);
   result.fmt = fmt;
-  uint32_t elementSize = fmt == CVK_FMT_I8 ? 1 : 2;
   if (do_early_stride) {
     cvk_tg_stride_t stride = {
         (uint32_t)(c * (h / stride_h) * (w / stride_w) * elementSize),
@@ -614,7 +612,7 @@ void TgBf16EltwiseAddKernel::compute(int32_t step_idx) {
   if (do_early_stride) {
     cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
-    input.stride.w = stride_w;
+    input.stride.w = stride_w * elementSize;
   } else {
     input.stride = ctx.tl_default_stride(shape, fmt, 1);
   }
@@ -677,7 +675,7 @@ void TgBf16EltwiseMaxKernel::compute(int32_t step_idx) {
   if (do_early_stride) {
     cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
-    input.stride.w = stride_w;
+    input.stride.w = stride_w * elementSize;
   } else {
     input.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
   }
@@ -769,7 +767,7 @@ void TgBf16EltwiseMinKernel::compute(int32_t step_idx) {
   if (do_early_stride) {
     cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
-    input.stride.w = stride_w;
+    input.stride.w = stride_w * elementSize;
   } else {
     input.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
   }
@@ -862,7 +860,7 @@ void TgBf16EltwiseMulKernel::compute(int32_t step_idx) {
   if (do_early_stride) {
     cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
-    input.stride.w = stride_w;
+    input.stride.w = stride_w * elementSize;
   } else {
     input.stride = ctx.tl_default_stride(shape, fmt, 1);
   }
@@ -916,7 +914,7 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
   if (do_early_stride) {
     cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
-    input.stride.w = stride_w;
+    input.stride.w = stride_w * elementSize;
   } else {
     input.stride = ctx.tl_default_stride(shape, fmt, 1);
   }

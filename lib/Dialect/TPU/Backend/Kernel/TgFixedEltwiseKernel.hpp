@@ -82,6 +82,7 @@ protected:
   int32_t layer_id;
   bool do_relu;
   cvk_fmt_t fmt;
+  uint32_t elementSize;
 
   int32_t input_flip = 0;
   int32_t output_flip = 0;
