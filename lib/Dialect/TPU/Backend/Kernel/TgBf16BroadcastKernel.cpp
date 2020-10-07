@@ -10,6 +10,39 @@
 #include <cmath>
 
 #define DEBUG_TYPE "TgBf16BroadcastKernel"
+void broadcast_one_to_all_lane(const CviBackendContext &ctx, cvk_tl_t inputBuffer) {
+  assert(inputBuffer.shape.h * inputBuffer.shape.w < ((1 << 16 )- 1));//Reg bit field = 16 bit
+  // reshape
+  cvk_tl_t tl_src;
+  tl_src.start_address = inputBuffer.start_address;
+  tl_src.fmt = CVK_FMT_BF16;
+  tl_src.shape = ctx.shape_t4(inputBuffer.shape.n, 1, NPU_NUM, inputBuffer.shape.h * inputBuffer.shape.w);
+  tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_BF16, /*eu_align=*/1);
+  tl_src.stride.h = 0;
+
+  cvk_tl_t tl_dst;
+  tl_dst.start_address = inputBuffer.start_address;
+  tl_dst.fmt = CVK_FMT_BF16;
+  tl_dst.shape = {
+      static_cast<uint32_t>(inputBuffer.shape.n), static_cast<uint32_t>(NPU_NUM),
+      static_cast<uint32_t>(1), static_cast<uint32_t>(inputBuffer.shape.h * inputBuffer.shape.w)};
+  tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+  cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
+  p2.src = &tl_src;
+  p2.dst = &tl_dst;
+
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+                  "         L2L Reshape:\n"
+                  "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                  "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                  p2.src->start_address, p2.src->shape.n,
+                  p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                  p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                  p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                  p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+  ctx.tdma_l2l_bf16_tensor_copy(&p2);
+}
 
 void cvi_backend_tg_bf16_broadcast_sub_kernel(const CviBackendContext &ctx,
                                               uint32_t layer_id, gaddr_t ga_inputs[],
@@ -85,19 +118,7 @@ after_loop:
           stride.c, stride.h, stride.w, b_offset);
 
       // broadcast b to all lanes
-      cvk_tl_t operand_lane;
-      operand_lane.shape = shape_b;
-      operand_lane.stride =
-          ctx.tl_default_stride(shape_b, CVK_FMT_BF16, /*eu_align=*/1);
-      operand_lane.fmt = CVK_FMT_BF16;
-      for (int i = 1; i < NPU_NUM; ++i) {
-        operand_lane.start_address =
-            tl_b->start_address + i * LOCAL_MEM_SIZE; // start of lmem
-        cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
-        p2.src = &operand;
-        p2.dst = &operand_lane;
-        ctx.tdma_l2l_bf16_tensor_copy(&p2);
-      }
+      broadcast_one_to_all_lane(ctx, operand);
       shape_b = ctx.shape_t4(1, NPU_NUM, cur_h, cur_w);
       cvk_tl_t operand_b;
       operand_b.start_address = tl_b->start_address;
