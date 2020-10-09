@@ -1918,6 +1918,13 @@ LogicalResult tpu::TG_BF16_SquareOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_SquareSumOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  llvm_unreachable("unsupport codegen of TG_BF16_SquareSumOp");
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_MatMulOp::codegen(void *ctx) {
   llvm_unreachable("unsupport codegen of TG_INT8_MatMulOp");
   return success();

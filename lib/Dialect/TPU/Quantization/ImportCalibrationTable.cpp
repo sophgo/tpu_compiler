@@ -575,6 +575,7 @@ public:
                  || isa<tpu::SoftmaxOp>(op)
                  || isa<tpu::SoftmaxCpuOp>(op)
                  || isa<tpu::SquareOp>(op)
+                 || isa<tpu::SquareSumOp>(op)
                  || isa<tpu::TransposeOp>(op)
                  || isa<tpu::YoloDetectionOp>(op)
                  /*|| isa<tpu::CustomOp>(op)*/) {

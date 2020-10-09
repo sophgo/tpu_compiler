@@ -2269,6 +2269,47 @@ def TPU_SquareOp: TPU_Op<"square",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_SquareSumOp: TPU_Op<"square_sum",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Sum of Squares operator";
+
+  let description = [{
+    Perform sum of squares on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
+                               of the next/prev Ops.
+      No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    TPU_QuantParamAttr:$quant,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_SwapChannelOp: TPU_Op<"swap_channel",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,

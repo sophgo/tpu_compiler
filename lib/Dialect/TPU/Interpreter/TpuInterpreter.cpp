@@ -3220,7 +3220,6 @@ LogicalResult tpu::SquareOp::interpret(
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float> >(size);
 
-  assert(getOpQuant() == "BF16");
   size_t total = std::accumulate(shape.begin(), shape.end(), 1,
                                  std::multiplies<int64_t>());
   float *input = opdT[0]->data();
@@ -3229,7 +3228,52 @@ LogicalResult tpu::SquareOp::interpret(
     output[i] = input[i] * input[i];
   }
 
-  if (getOpQuant() == "BF16") {
+  if (getOpQuant() == "NONE") {
+    // do nothing here
+  } else if (getOpQuant() == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
+LogicalResult tpu::SquareSumOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  int axis = this->axis().getLimitedValue();
+  assert(axis == 1);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+////
+  auto input_shape = getTensorShape(op->getOperand(0));
+  assert(input_shape.size() == 4);
+  int n = input_shape[0];
+  int c = input_shape[1];
+  int h = input_shape[2];
+  int w = input_shape[3];
+
+  assert(h < 32);
+  assert(w < 32);
+
+  // compute in fp32
+  mkldnn_conv(opdT[0]->data(), opdT[0]->data(), nullptr,
+              resultT->data(), n, c, h, w, c, h, w, h, w,
+              h, w, 1, 1, 0, 0, 0, 0, c);
+  // rshift and saturate on output
+  if (getOpQuant() == "NONE") {
+    // do nothing
+  } else if (getOpQuant() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
@@ -3289,8 +3333,9 @@ LogicalResult tpu::MatMulOp::interpret(
     assert(ret == 0);
   }
 
-  assert(getOpQuant() == "BF16");
-  if (getOpQuant() == "BF16") {
+  if (getOpQuant() == "NONE") {
+    // do nothing here
+  } else if (getOpQuant() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());

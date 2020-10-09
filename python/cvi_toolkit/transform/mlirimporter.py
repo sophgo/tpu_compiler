@@ -87,6 +87,7 @@ class TPU_OpType(Enum):
     MatMul = 'tpu.matmul'
     BroadcastSub = 'tpu.broadcast_sub'
     Square = 'tpu.square'
+    SquareSum = 'tpu.square_sum'
 
 
 def checkKey(dict, key):
@@ -1439,6 +1440,13 @@ class MLIRImporter(object):
             self.f32Type, output_tensor_shape)
         name_attr=self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Square.value, inputOperands, [tensor_output_type],
+            name=name_attr, quant=self.quant_param)
+
+    def add_square_sum_op(self, op_name, inputOperands, output_tensor_shape):
+        tensor_output_type=self.module.make_ranked_tensor_type(
+            self.f32Type, output_tensor_shape)
+        name_attr=self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.SquareSum.value, inputOperands, [tensor_output_type],
             name=name_attr, quant=self.quant_param)
 
     def add_broadcast_sub_op(self, op_name, inputOperands, output_tensor_shape):

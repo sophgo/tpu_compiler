@@ -1777,6 +1777,49 @@ class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_BF16_SquareOp : TPU_TG_SquareOp<"tg_bf16_square", "Bf16">;
 
+class TPU_TG_SquareSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Sum of Squares operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_BF16_SquareSumOp : TPU_TG_SquareSumOp<"tg_bf16_square_sum", "Bf16">;
+
 class TPU_TG_MatMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

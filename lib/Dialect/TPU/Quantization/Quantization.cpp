@@ -893,6 +893,9 @@ public:
           if (isa<tpu::SquareOp>(op)) {
             setOpQuant(op, "BF16");
           }
+          if (isa<tpu::SquareSumOp>(op)) {
+            setOpQuant(op, "BF16");
+          }
 
           if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
             std::string layer_name = mlir::getOpName(op).str();
