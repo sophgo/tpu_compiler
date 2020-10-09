@@ -69,8 +69,6 @@ static void _mixed_precision_ss_bf16_quant(const CviBackendContext &ctx, uint32_
     cvk_tl_t* tl_ifmap = ctx.lmem_alloc_tensor(slice_shape, tiling_unit, /*eu_align=*/0);
 
     // load input
-    // FIXME: use \cvi_backend_tl_load_tensor
-    //cvi_backend_tl_load_tensor(ctx, layer_id, tl_ifmap, bottom_gaddr + gaddr_offset, /*eu_align=*/0);
     gaddr_t bottom_offset = bottom_gaddr + gaddr_offset * unit_size;
     ctx.tdma_load_bf16(tl_ifmap, bottom_offset);
 

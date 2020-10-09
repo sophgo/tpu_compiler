@@ -114,7 +114,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/shuffle_channel_kernel.cpp
   Backend/Kernel/slice_kernel.cpp
   Backend/Kernel/src_deconv_bmkernel.cpp
-  Backend/Kernel/src_tl_api.cpp
   Backend/Kernel/swap_channel_kernel.cpp
   Backend/Kernel/tensor_common.cpp
   Backend/Kernel/tile_kernel.cpp

@@ -14,14 +14,20 @@ class CviBackendContext;
 
 void cvi_backend_tl_load(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t la_ifmap, gaddr_t ga_ifmap,
+    laddr_t la_ifmap, gaddr_t ga_ifmap, cvk_fmt_t fmt,
     uint32_t n, uint32_t ic, uint32_t ih, uint32_t iw);
 
 void cvi_backend_tl_store(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t la_ofmap, gaddr_t ga_ofmap,
+    laddr_t la_ofmap, gaddr_t ga_ofmap, cvk_fmt_t fmt,
     uint32_t n, uint32_t oc, uint32_t oh, uint32_t ow);
 
+void cvi_backend_tl_to_tensor(
+    const CviBackendContext &ctx,
+    cvk_tl_t *tensor,
+    laddr_t la,
+    uint32_t tensor_n, uint32_t tensor_c, uint32_t tensor_h, uint32_t tensor_w,
+    cvk_fmt_t fmt, uint8_t eu_align);
 
 void cvi_backend_tl_load_stride(
     const CviBackendContext &ctx, uint32_t layer_id,

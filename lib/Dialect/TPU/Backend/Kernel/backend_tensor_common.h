@@ -34,10 +34,6 @@ int is_bf16(cvk_fmt_t fmt);
 
 int _get_csize_local(const CviBackendContext &ctx, int h, int w, cvk_fmt_t fmt);
 
-void _tdma_g2g_tensor_copy(const CviBackendContext &ctx, cvk_tg_t *src,
-                           cvk_tg_t *dst);
-
-
 void tdma_g2g_tensor_copy(
     // src
     const CviBackendContext &ctx, uint64_t src_start_address,

@@ -138,8 +138,8 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   );
 
   if (tl_load_flag()) {
-    cvi_backend_tl_load(*backend_ctx, layer_id,
-        la_input, ga_input, n, ic, ih, iw);
+    cvi_backend_tl_load(*backend_ctx, layer_id, la_input, ga_input, CVK_FMT_I8,
+                        n, ic, ih, iw);
   }
 
   bool compressed_weight = false;
@@ -147,22 +147,6 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   if (convOp.compressed_weight().hasValue())
     compressed_weight = convOp.compressed_weight().getValue();
 
-  #if 0
-  //
-  // V0: Weight Only version, with no parallel for load/store activations
-  // (only consider load weight parallel)
-  //
-  cvi_backend_tl_conv_LW(*backend_ctx, layer_id,
-      la_input, la_output, la_working,
-      ga_filter, ga_pc_info,
-      n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-      dh, dw, ph, ph, pw, pw, sh, sw,
-      false, with_bias, do_relu);
-  if (op.tl_store_flag()) {
-    cvi_backend_tl_store(*backend_ctx, layer_id,
-        la_output, ga_output, n, oc, oh, ow);
-  }
-  #endif
   #if 1
   //
   // V1: Weight and Store version
@@ -372,10 +356,8 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
         do_relu, 0, coeffs, i32Multiplier,
         0, 1, 1);
     if(tl_store_flag()) {
-      cvi_backend_tl_store(
-      *backend_ctx, layer_id,
-      la_output, ga_output,
-      n, c, h, w);
+      cvi_backend_tl_store(*backend_ctx, layer_id, la_output, ga_output,
+                           CVK_FMT_I8, n, c, h, w);
     }
   }
   return success();
@@ -470,10 +452,8 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
     llvm::errs() << "\n";
   );
   if(tl_load_flag()) {
-    cvi_backend_tl_load(
-     *backend_ctx, layer_id,
-    la_input, ga_input,
-    n, c, ih, iw);
+    cvi_backend_tl_load(*backend_ctx, layer_id, la_input, ga_input, CVK_FMT_I8,
+                        n, c, ih, iw);
   }
   cvi_backend_tl_pooling(
     *backend_ctx, layer_id,
@@ -485,10 +465,8 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
     true, //avg_pooling
     rshift, m_i8);
   if(tl_store_flag()) {
-    cvi_backend_tl_store(
-     *backend_ctx, layer_id,
-    la_output, ga_output,
-    n, c, oh, ow);
+    cvi_backend_tl_store(*backend_ctx, layer_id, la_output, ga_output,
+                         CVK_FMT_I8, n, c, oh, ow);
   }
   return success();
 }
@@ -533,10 +511,8 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
   );
 
   if(tl_load_flag()) {
-    cvi_backend_tl_load(
-     *backend_ctx, layer_id,
-    la_input, ga_input,
-    n, c, h, w);
+    cvi_backend_tl_load(*backend_ctx, layer_id, la_input, ga_input, CVK_FMT_I8,
+                        n, c, h, w);
   }
   cvi_backend_tl_scale_qi32(
       *backend_ctx, // ctx
@@ -556,10 +532,8 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
       false         // second_is_load_weight
       );
   if(tl_store_flag()) {
-    cvi_backend_tl_store(
-     *backend_ctx, layer_id,
-    la_output, ga_output,
-    n, c, h, w);
+    cvi_backend_tl_store(*backend_ctx, layer_id, la_output, ga_output,
+                         CVK_FMT_I8, n, c, h, w);
   }
   return success();
 }

@@ -61,16 +61,6 @@ void init_tensor_tgmem(const CviBackendContext &ctx, cvk_tg_t *t,
   t->stride = stride;
 }
 
-void _tdma_g2g_tensor_copy(const CviBackendContext &ctx, cvk_tg_t *src,
-                           cvk_tg_t *dst) {
-  cvk_tdma_g2g_tensor_copy_param_t p = {0};
-  p.src = src;
-  p.dst = dst;
-
-  ctx.tdma_g2g_tensor_copy(&p);
-}
-
-
 void tdma_g2g_tensor_copy(
     // src
     const CviBackendContext &ctx, uint64_t src_start_address,

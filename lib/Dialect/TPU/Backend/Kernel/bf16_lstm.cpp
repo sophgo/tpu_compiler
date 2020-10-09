@@ -510,7 +510,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
                      store_output_param.dst->shape.n, store_output_param.dst->shape.c, store_output_param.dst->shape.h, store_output_param.dst->shape.w,
                      store_output_param.dst->stride.n, store_output_param.dst->stride.c, store_output_param.dst->stride.h));
 
-    ctx._tdma_l2g_tensor_copy(&store_output_param);
+    ctx.tdma_l2g_bf16_tensor_copy(&store_output_param);
     //free memory
     ctx.lmem_free_tensor(tl_xt_mul_w);
     ctx.lmem_free_tensor(tl_output);

@@ -381,10 +381,8 @@ void cvi_backend_tg_bf16_lut_scientific_kernel (const CviBackendContext &ctx, ui
   cvk_tl_t *tl_table_answer_mantissa = ctx.lmem_alloc_tensor(cvk_table_shape, (cvk_fmt_t)fmt, eu_align);
 
   // load exp / mantissa table
-  cvi_backend_tl_load_tensor(ctx, layer_id, tl_table_answer, exp_lut_table,
-                             eu_align);
-  cvi_backend_tl_load_tensor(ctx, layer_id, tl_table_answer_mantissa,
-                             mantissa_lut_table, eu_align);
+  ctx.tdma_load_bf16(tl_table_answer, exp_lut_table);
+  ctx.tdma_load_bf16(tl_table_answer_mantissa, mantissa_lut_table);
 
   for (size_t i = 0; i < tiling_info.size(); i++) {
     int n = tiling_info[i].first.n;
@@ -402,9 +400,7 @@ void cvi_backend_tg_bf16_lut_scientific_kernel (const CviBackendContext &ctx, ui
     cvk_tl_t* tl_ofmap = ctx.lmem_alloc_tensor(slice_shape, (cvk_fmt_t)fmt, eu_align);
 
     // load input
-    cvi_backend_tl_load_tensor(ctx, layer_id, tl_ifmap,
-                               bottom_gaddr + gaddr_offset, eu_align);
-
+    ctx.tdma_load_bf16(tl_ifmap, bottom_gaddr + gaddr_offset);
     bf16_lut_tl_scientific_forward_kernel(ctx,
         tl_ifmap->start_address,
         tl_buf->start_address,
@@ -417,8 +413,7 @@ void cvi_backend_tg_bf16_lut_scientific_kernel (const CviBackendContext &ctx, ui
 
     // TODO checke tfma/tiu pipeline
     // store
-    cvi_backend_tl_store_tensor(ctx, layer_id, tl_ofmap,
-                                top_gaddr + gaddr_offset, eu_align);
+    ctx.tdma_store_bf16(tl_ofmap, top_gaddr + gaddr_offset);
 
     ctx.lmem_free_tensor(tl_ofmap);
     ctx.lmem_free_tensor(tl_buf);
