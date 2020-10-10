@@ -28,7 +28,7 @@ void cvi_backend_tg_swap_channel_kernel(const CviBackendContext &ctx, uint32_t s
     assert((uint32_t)channel_order[i] < c && "channel_order is illegal");
     gaddr_t s_gaddr = input_gaddr + h * w * channel_order[i];
     gaddr_t d_gaddr = output_gaddr + h * w * i;
-    tdma_g2g_tensor_copy(ctx, s_gaddr, shape, stride, CVK_FMT_I8, d_gaddr, shape,
-                         stride, CVK_FMT_I8);
+    ctx.tdma_g2g_tensor_copy(s_gaddr, shape, stride, d_gaddr, shape, stride,
+                             CVK_FMT_I8);
   }
 }

@@ -111,36 +111,11 @@ void cvi_backend_tg_fixed_lrn_kernel(const CviBackendContext &ctx, uint32_t stre
       uint64_t slice_bottom_gaddr = input_gaddr + offset;
       uint64_t slice_top_gaddr = output_gaddr + offset;
 
-      cvk_tg_t ts_slice_bottom;
-      ts_slice_bottom.start_address = slice_bottom_gaddr;
-      ts_slice_bottom.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(slice_bottom_gaddr);
-      ts_slice_bottom.fmt = CVK_FMT_I8;
-      ts_slice_bottom.shape.n = lshape.n;
-      ts_slice_bottom.shape.c = lshape.c;
-      ts_slice_bottom.shape.h = lshape.h;
-      ts_slice_bottom.shape.w = lshape.w;
-      ts_slice_bottom.stride = gstride;
-
-      cvk_tdma_g2l_tensor_copy_param_t cp = {0};
-      cp.src = &ts_slice_bottom;
-      cp.dst = bottom;
-      ctx.tdma_g2l_tensor_copy(&cp);
+      ctx.tdma_load_stride(bottom, slice_bottom_gaddr, gstride);
 
       // lut:x^2*alpha/local_size
       // move data from gmem to lmem
-      cvk_tg_t ts_lut;
-      ts_lut.start_address = sqr_lut_gaddr;
-      ts_lut.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(sqr_lut_gaddr);
-      ts_lut.fmt = CVK_FMT_I8;
-      ts_lut.shape.n = table_shape.n;
-      ts_lut.shape.c = table_shape.c;
-      ts_lut.shape.h = table_shape.h;
-      ts_lut.shape.w = table_shape.w;
-      ts_lut.stride = ctx.tg_default_stride(ts_lut.shape, ts_lut.fmt);
-
-      cp.src = &ts_lut;
-      cp.dst = sqr_lut_table;
-      ctx.tdma_g2l_tensor_copy(&cp);
+      ctx.tdma_load(sqr_lut_table, sqr_lut_gaddr);
 
       cvk_tiu_lookup_table_param_t p12 = {0};
       p12.ofmap = top;
@@ -238,20 +213,7 @@ void cvi_backend_tg_fixed_lrn_kernel(const CviBackendContext &ctx, uint32_t stre
 
       // scale=lut:(k+sum)^(-beta)
       // move data from gmem to lmem
-      cvk_tg_t ts_power_lut;
-      ts_power_lut.start_address = power_lut_gaddr;
-      ts_power_lut.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(power_lut_gaddr);
-      ts_power_lut.fmt = CVK_FMT_I8;
-      ts_power_lut.shape.n = table_shape.n;
-      ts_power_lut.shape.c = table_shape.c;
-      ts_power_lut.shape.h = table_shape.h;
-      ts_power_lut.shape.w = table_shape.w;
-      ts_power_lut.stride = ctx.tg_default_stride(ts_power_lut.shape,
-                                                  ts_power_lut.fmt);
-
-      cp.src = &ts_power_lut;
-      cp.dst = power_lut_table;
-      ctx.tdma_g2l_tensor_copy(&cp);
+      ctx.tdma_load(power_lut_table, power_lut_gaddr);
 
       p12.ofmap = top;
       p12.ifmap = sum_high;
@@ -307,21 +269,7 @@ void cvi_backend_tg_fixed_lrn_kernel(const CviBackendContext &ctx, uint32_t stre
 
       // Original global memory shape used to calculate global stride
       // Asign global memory shape as local memory's
-      cvk_tg_t ts_top_high;
-      ts_top_high.start_address = slice_top_gaddr;
-      ts_top_high.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(slice_top_gaddr);
-      ts_top_high.fmt = CVK_FMT_I8;
-      ts_top_high.shape.n = top_high->shape.n;
-      ts_top_high.shape.c = top_high->shape.c;
-      ts_top_high.shape.h = top_high->shape.h;
-      ts_top_high.shape.w = top_high->shape.w;
-      ts_top_high.stride = gstride;
-
-      cvk_tdma_l2g_tensor_copy_param_t p8 = {0};
-      p8.src = top_high;
-      p8.dst = &ts_top_high;
-
-      ctx.tdma_l2g_tensor_copy(&p8);
+      ctx.tdma_store_stride(top_high, slice_top_gaddr, gstride);
 
       ctx.lmem_free_tensor(top_high_high);
       ctx.lmem_free_tensor(top_high);

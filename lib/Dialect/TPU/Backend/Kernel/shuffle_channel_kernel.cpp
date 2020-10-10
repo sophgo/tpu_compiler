@@ -34,11 +34,6 @@ void cvi_backend_tg_shuffle_channel_kernel(
   // For tdma
   ctx.set_layer_id(layer_id);
 
-#if 0
-  // keep golden
-  tdma_g2g_tensor_copy(ctx, input_gaddr, shape, s_stride, CVK_FMT_I8, output_gaddr,
-                       shape, d_stride, CVK_FMT_I8);
-#else
   shape.n = 1; // TODO: support n dim shift
   shape.w /= unit_size;
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
@@ -78,5 +73,4 @@ void cvi_backend_tg_shuffle_channel_kernel(
       ctx.lmem_free_tensor(bottom);
     }
   }
-#endif
 }

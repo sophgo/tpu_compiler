@@ -452,30 +452,7 @@ void cvi_backend_tg_bf16_gru_kernel(const CviBackendContext &ctx, uint32_t layer
         ctx.lmem_free_tensor(tl_h_mul_r);
     }
     //Store output
-    cvk_tg_t tg_dst;
-    tg_dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
-    tg_dst.start_address = ga_output;
-    tg_dst.fmt = CVK_FMT_BF16;
-    tg_dst.shape =  {
-            static_cast<uint32_t>(seq_len), static_cast<uint32_t>(hidden_size),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};;
-    tg_dst.stride = ctx.tg_default_stride(tg_dst.shape, CVK_FMT_BF16);;
-
-    cvk_tdma_l2g_tensor_copy_param_t store_output_param = {0};
-    store_output_param.src = tl_output;
-    store_output_param.dst = &tg_dst;
-
-    LLVM_DEBUG(llvm::errs() << llvm::format(
-                     "         L2G Reshape Store:\n"
-                     "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
-                     "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
-                     store_output_param.src->start_address, store_output_param.src->shape.n,
-                     store_output_param.src->shape.c, store_output_param.src->shape.h, store_output_param.src->shape.w, store_output_param.src->stride.n,
-                     store_output_param.src->stride.c, store_output_param.src->stride.h, store_output_param.src->stride.w, store_output_param.dst->start_address,
-                     store_output_param.dst->shape.n, store_output_param.dst->shape.c, store_output_param.dst->shape.h, store_output_param.dst->shape.w,
-                     store_output_param.dst->stride.n, store_output_param.dst->stride.c, store_output_param.dst->stride.h));
-
-    ctx.tdma_l2g_bf16_tensor_copy(&store_output_param);
+    ctx.tdma_store_bf16(tl_output, ga_output);
     //free memory
     ctx.lmem_free_tensor(tl_xt_mul_wt);
     ctx.lmem_free_tensor(tl_output);

@@ -91,42 +91,14 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
     tl_bias = ctx.lmem_alloc_tensor(tl_bias_shape, CVK_FMT_BF16, /*eu_align=*/1);
 
   }
-
-  cvk_tg_t ts_scale;
-  ts_scale.start_address = scale_gaddr;
-  ts_scale.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(scale_gaddr);
-  ts_scale.fmt = CVK_FMT_BF16;
-  ts_scale.shape.n = 1;
-  ts_scale.shape.c = input_c;
-  ts_scale.shape.h = 1;
-  ts_scale.shape.w = 1;
-  ts_scale.stride =
-      ctx.tg_default_stride(ts_scale.shape, CVK_FMT_BF16);
-
-  cvk_tdma_g2l_tensor_copy_param_t p = {0};
-  p.src = &ts_scale;
-  p.dst = tl_scale;
-  ctx.tdma_g2l_bf16_tensor_copy(&p);
+  ctx.tdma_load_bf16(tl_scale, scale_gaddr);
 
   /*
    * put bias to lmem
    */
 
-  cvk_tg_t ts_bias;
-  cvk_tdma_g2l_tensor_copy_param_t p1 = {0};
   if (do_bias) {
-    ts_bias.start_address = bias_gaddr;
-    ts_bias.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(bias_gaddr);
-    ts_bias.fmt = CVK_FMT_BF16;
-    ts_bias.shape.n = 2;
-    ts_bias.shape.c = input_c;
-    ts_bias.shape.h = 1;
-    ts_bias.shape.w = 1;
-    ts_bias.stride =
-        ctx.tg_default_stride(ts_bias.shape, CVK_FMT_BF16);
-    p1.src = &ts_bias;
-    p1.dst = tl_bias;
-    ctx.tdma_g2l_bf16_tensor_copy(&p1);
+    ctx.tdma_load_bf16(tl_bias, bias_gaddr);
   }
   int coeff_usage = __get_lmem_usage(
       ctx, 1, do_bias ? input_c * 2 * sizeof(uint16_t) : input_c * sizeof(uint16_t), 1,
@@ -169,19 +141,7 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
       cvk_tl_t *tl_bslice =
           ctx.lmem_alloc_tensor(tl_bslice_shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-      cvk_tg_t ts_bslice;
-      ts_bslice.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(input_gaddr);
-      ts_bslice.fmt = CVK_FMT_BF16;
-      ts_bslice.start_address = input_gaddr + offset;
-      ts_bslice.shape.n = tl_bslice_shape.n;
-      ts_bslice.shape.c = tl_bslice_shape.c;
-      ts_bslice.shape.h = tl_bslice_shape.h;
-      ts_bslice.shape.w = tl_bslice_shape.w;
-      ts_bslice.stride = ts_bottom_stride;
-
-      p.src = &ts_bslice;
-      p.dst = tl_bslice;
-      ctx.tdma_g2l_bf16_tensor_copy(&p);
+      ctx.tdma_load_stride_bf16(tl_bslice, input_gaddr + offset, ts_bottom_stride);
 
       /*
        * Res(n, c, h, w) = A(n, c, h, w) * B(1,c,1,1) + Bias(1,c,1,1)
@@ -213,18 +173,7 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
       /*
        * Get sliced output back to gmem
        */
-
-      cvk_tg_t ts_oslice;
-      ts_oslice.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(output_gaddr);
-      ts_oslice.fmt = ts_bslice.fmt;
-      ts_oslice.start_address = output_gaddr + offset;
-      ts_oslice.shape = ts_bslice.shape;
-      ts_oslice.stride = ts_bslice.stride;
-
-      cvk_tdma_l2g_tensor_copy_param_t out_param = {0};
-      out_param.src = tl_bslice;
-      out_param.dst = &ts_oslice;
-      ctx.tdma_l2g_bf16_tensor_copy(&out_param);
+      ctx.tdma_store_stride_bf16(tl_bslice, output_gaddr + offset, ts_bottom_stride);
 
       hstart += sec_len_h;
       ctx.lmem_free_tensor(tl_bslice);

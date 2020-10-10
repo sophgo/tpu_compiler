@@ -491,17 +491,7 @@ static void conv_lw_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
     cvk_tg_stride_t filter_gstride = {oc * kh * kw * ic / g, kh * kw * ic / g, ic / g};
     if (!compressed_weight) {
       // Normal weight
-      cvk_tg_t ts_data = {0};
-      ts_data.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_filter_oc_pos);
-      ts_data.start_address = ga_filter_oc_pos;
-      ts_data.fmt = tl_filter.fmt;
-      ts_data.shape = {tl_filter.shape.n, tl_filter.shape.c,
-                      tl_filter.shape.h, tl_filter.shape.w};
-      ts_data.stride = filter_gstride;
-      cvk_tdma_g2l_tensor_copy_param_t param = {0};
-      param.src = &ts_data;
-      param.dst = &tl_filter;
-      ctx.tdma_g2l_tensor_copy(&param);
+      ctx.tdma_load_stride(&tl_filter, ga_filter_oc_pos, filter_gstride);
     } else {
       // Compressed weight
       cvk_cmpr_tg_t ts_data = {0};

@@ -74,9 +74,6 @@ void cvi_backend_tg_fixed_dilate_kernel(const CviBackendContext &ctx,
   output_gstride.c = ow * (ins_h+1) * data_size;
   output_gstride.n = ow*oh * data_size;
 
-  tdma_g2g_tensor_copy(
-      ctx,
-      bottom_gaddr, input_shape, input_gstride, fmt,
-      top_gaddr, output_shape, output_gstride, fmt
-      );
+  ctx.tdma_g2g_tensor_copy(bottom_gaddr, input_shape, input_gstride, top_gaddr,
+                           output_shape, output_gstride, fmt);
 }

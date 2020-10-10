@@ -94,31 +94,9 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                       static_cast<uint32_t>(output_dim[3]) * 2};
         shape_ = {static_cast<uint32_t>(input_dims[i]), static_cast<uint32_t>(output_dim[1]),
                   static_cast<uint32_t>(output_dim[2]), static_cast<uint32_t>(output_dim[3])};
-
-        cvk_tg_t src;
-        src.start_address = input_gaddrs[i];
-        src.fmt = CVK_FMT_BF16;
-        src.shape = shape_;
-        src.stride = stride_src;
-
-        cvk_tg_t dst;
-        dst.start_address = output_gaddr + offset;
-        dst.fmt = CVK_FMT_BF16;
-        dst.shape = shape_;
-        dst.stride = stride_dst;
-
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-                        "    [%d] 1 g2g:\n"
-                        "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
-                        "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
-                        i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
-                        src.stride.n, src.stride.c, src.stride.h, dst.start_address, dst.shape.n,
-                        dst.shape.c, dst.shape.h, dst.shape.w, dst.stride.n, dst.stride.c,
-                        dst.stride.h));
-        cvk_tdma_g2g_tensor_copy_param_t p = {0};
-        p.src = &src;
-        p.dst = &dst;
-        ctx.tdma_g2g_bf16_tensor_copy(&p);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
+                                 output_gaddr + offset, shape_, stride_dst,
+                                 CVK_FMT_BF16);
 
         offset += input_dims[i] * output_dim[1] * output_dim[2] * output_dim[3] * sizeof(uint16_t);
       }
@@ -139,46 +117,24 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
           stride_dst = {static_cast<uint32_t>(output_dim[1]) * output_dim[2] * output_dim[3] * 2,
                         static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
                         static_cast<uint32_t>(output_dim[3]) * 2};
-         LLVM_DEBUG(llvm::errs() << llvm::format("output_dim n= %d c=%d h=%d w=%d\n", output_dim[0], output_dim[1],output_dim[2],output_dim[3]););
-         LLVM_DEBUG(llvm::errs() << llvm::format("input_num = %d\n", input_num););
+          LLVM_DEBUG(llvm::errs() << llvm::format("output_dim n= %d c=%d h=%d w=%d\n", output_dim[0], output_dim[1], output_dim[2], output_dim[3]););
+          LLVM_DEBUG(llvm::errs() << llvm::format("input_num = %d\n", input_num););
           for (int i = 0; i < input_num; i++) {
             if (input_gaddrs[i] != GA_INVALID) {
               stride_src = {static_cast<uint32_t>(input_dims[i]) * output_dim[2] * output_dim[3] * 2,
                             static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
                             static_cast<uint32_t>(output_dim[3]) * 2};
-              shape_ = {static_cast<uint32_t>(output_dim[0]), static_cast<uint32_t>(input_dims[i]),
-                        static_cast<uint32_t>(output_dim[2]), static_cast<uint32_t>(output_dim[3])};
+              shape_ = {static_cast<uint32_t>(output_dim[0]),
+                        static_cast<uint32_t>(input_dims[i]),
+                        static_cast<uint32_t>(output_dim[2]),
+                        static_cast<uint32_t>(output_dim[3])};
 
-              cvk_tg_t src;
-              src.start_address = input_gaddrs[i];
-              src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
-              src.fmt = CVK_FMT_BF16;
-              src.shape = shape_;
-              src.stride = stride_src;
-
-              cvk_tg_t dst;
-              dst.start_address = output_gaddr + offset;
-              dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
-              dst.fmt = CVK_FMT_BF16;
-              dst.shape = shape_;
-              dst.stride = stride_dst;
-
-              LLVM_DEBUG(
-                  llvm::errs() << llvm::format(
-                      "    [%d] 2 g2g:\n"
-                      "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
-                      "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
-                      i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
-                      src.stride.n, src.stride.c, src.stride.h, dst.start_address, dst.shape.n,
-                      dst.shape.c, dst.shape.h, dst.shape.w, dst.stride.n, dst.stride.c,
-                      dst.stride.h);
-              );
-              cvk_tdma_g2g_tensor_copy_param_t p = {0};
-              p.src = &src;
-              p.dst = &dst;
-              ctx.tdma_g2g_bf16_tensor_copy(&p);
+              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
+                                       output_gaddr + offset, shape_,
+                                       stride_dst, CVK_FMT_BF16);
             }
-            offset += input_dims[i] * output_dim[2] * output_dim[3] * sizeof(uint16_t);
+            offset += input_dims[i] * output_dim[2] * output_dim[3] *
+                      sizeof(uint16_t);
           }
           break;
         case 2:
@@ -189,35 +145,9 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
             stride_src = {static_cast<uint32_t>(input_dims[i]) * 2, 1 * 2, 1 * 2};
             if (input_dims[i] < 65536) {
               shape_ = {static_cast<uint32_t>(output_dim[0]), static_cast<uint32_t>(input_dims[i]), 1, 1};
-
-              cvk_tg_t src;
-              src.start_address = input_gaddrs[i];
-              src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
-              src.fmt = CVK_FMT_BF16;
-              src.shape = shape_;
-              src.stride = stride_src;
-
-              cvk_tg_t dst;
-              dst.start_address = output_gaddr + offset;
-              dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
-              dst.fmt = CVK_FMT_BF16;
-              dst.shape = shape_;
-              dst.stride = stride_dst;
-
-              LLVM_DEBUG(
-                  llvm::errs() << llvm::format(
-                      "    [%d] 3 g2g:\n"
-                      "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
-                      "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
-                      i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
-                      src.stride.n, src.stride.c, src.stride.h, dst.start_address, dst.shape.n,
-                      dst.shape.c, dst.shape.h, dst.shape.w, dst.stride.n, dst.stride.c,
-                      dst.stride.h));
-              cvk_tdma_g2g_tensor_copy_param_t p = {0};
-              p.src = &src;
-              p.dst = &dst;
-              ctx.tdma_g2g_bf16_tensor_copy(&p);
-
+              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
+                                       output_gaddr + offset, shape_,
+                                       stride_dst, CVK_FMT_BF16);
               offset += input_dims[i] * sizeof(uint16_t);
             } else {
               //assert(0);
@@ -226,35 +156,9 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
               uint64_t soffset = 0;
               for (int j = 0; j < c_slice - 1; j++) {
                 shape_ = {static_cast<uint32_t>(output_dim[0]), 65535, 1, 1};
-
-                cvk_tg_t src;
-                src.start_address = input_gaddrs[i] + soffset;
-                src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
-                src.fmt = CVK_FMT_BF16;
-                src.shape = shape_;
-                src.stride = stride_src;
-
-                cvk_tg_t dst;
-                dst.start_address = output_gaddr + offset;
-                dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
-                dst.fmt = CVK_FMT_BF16;
-                dst.shape = shape_;
-                dst.stride = stride_dst;
-
-                LLVM_DEBUG(
-                    llvm::errs() << llvm::format(
-                        "    [%d] 4 g2g:\n"
-                        "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
-                        "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
-                        i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
-                        src.stride.n, src.stride.c, src.stride.h, dst.start_address, dst.shape.n,
-                        dst.shape.c, dst.shape.h, dst.shape.w, dst.stride.n, dst.stride.c,
-                        dst.stride.h));
-
-                cvk_tdma_g2g_tensor_copy_param_t p = {0};
-                p.src = &src;
-                p.dst = &dst;
-                ctx.tdma_g2g_bf16_tensor_copy(&p);
+                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_,
+                                         stride_src, output_gaddr + offset,
+                                         shape_, stride_dst, CVK_FMT_BF16);
 
                 offset += 65535 * sizeof(uint16_t);
                 soffset += 65535 * sizeof(uint16_t);
@@ -263,34 +167,9 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                 shape_ = {static_cast<uint32_t>(output_dim[0]), static_cast<uint32_t>(input_dims[i]) % 65535,
                           1, 1};
 
-                cvk_tg_t src;
-                src.start_address = input_gaddrs[i] + soffset;
-                src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
-                src.fmt = CVK_FMT_BF16;
-                src.shape = shape_;
-                src.stride = stride_src;
-
-                cvk_tg_t dst;
-                dst.start_address = output_gaddr + offset;
-                dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
-                dst.fmt = CVK_FMT_BF16;
-                dst.shape = shape_;
-                dst.stride = stride_dst;
-
-                LLVM_DEBUG(
-                    llvm::errs() << llvm::format(
-                        "    [%d] 5 g2g:\n"
-                        "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
-                        "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
-                        i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
-                        src.stride.n, src.stride.c, src.stride.h, dst.start_address, dst.shape.n,
-                        dst.shape.c, dst.shape.h, dst.shape.w, dst.stride.n, dst.stride.c,
-                        dst.stride.h));
-
-                cvk_tdma_g2g_tensor_copy_param_t p = {0};
-                p.src = &src;
-                p.dst = &dst;
-                ctx.tdma_g2g_bf16_tensor_copy(&p);
+                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_,
+                                         stride_src, output_gaddr + offset,
+                                         shape_, stride_dst, CVK_FMT_BF16);
 
                 offset += (input_dims[i] % 65535) * sizeof(uint16_t);
               }
@@ -319,33 +198,9 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                       static_cast<uint32_t>(input_dims[i]) * 2, 1 * 2};
         shape_ = {static_cast<uint32_t>(output_dim[0]), static_cast<uint32_t>(output_dim[1]),
                   static_cast<uint32_t>(input_dims[i]), 1};
-
-        cvk_tg_t src;
-        src.start_address = input_gaddrs[i];
-        src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
-        src.fmt = CVK_FMT_BF16;
-        src.shape = shape_;
-        src.stride = stride_src;
-
-        cvk_tg_t dst;
-        dst.start_address = output_gaddr + offset;
-        dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
-        dst.fmt = CVK_FMT_BF16;
-        dst.shape = shape_;
-        dst.stride = stride_dst;
-
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-                        "    [%d] 6 g2g:\n"
-                        "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n"
-                        "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d)\n",
-                        i, src.start_address, src.shape.n, src.shape.c, src.shape.h, src.shape.w,
-                        src.stride.n, src.stride.c, src.stride.h, dst.start_address, dst.shape.n,
-                        dst.shape.c, dst.shape.h, dst.shape.w, dst.stride.n, dst.stride.c,
-                        dst.stride.h));
-        cvk_tdma_g2g_tensor_copy_param_t p = {0};
-        p.src = &src;
-        p.dst = &dst;
-        ctx.tdma_g2g_bf16_tensor_copy(&p);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
+                                 output_gaddr + offset, shape_, stride_dst,
+                                 CVK_FMT_BF16);
 
         offset += input_dims[i] * sizeof(uint16_t);
       }
@@ -361,23 +216,9 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
         ASSERT(input_dims[i] < 65536);
         shape_.w = static_cast<uint32_t>(input_dims[i]);
         stride_src = ctx.tg_default_stride(shape_, CVK_FMT_BF16);
-        cvk_tg_t src;
-        src.start_address = input_gaddrs[i];
-        src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
-        src.fmt = CVK_FMT_BF16;
-        src.shape = shape_;
-        src.stride = stride_src;
-
-        cvk_tg_t dst;
-        dst.start_address = output_gaddr + offset;
-        dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
-        dst.fmt = CVK_FMT_BF16;
-        dst.shape = shape_;
-        dst.stride = stride_dst;
-        cvk_tdma_g2g_tensor_copy_param_t p = {0};
-        p.src = &src;
-        p.dst = &dst;
-        ctx.tdma_g2g_bf16_tensor_copy(&p);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
+                                 output_gaddr + offset, shape_, stride_dst,
+                                 CVK_FMT_BF16);
         offset += input_dims[i] * sizeof(uint16_t);
       }
 

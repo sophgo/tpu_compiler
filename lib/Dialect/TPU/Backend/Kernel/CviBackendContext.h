@@ -407,6 +407,7 @@ public:
   // TDMA legacy API
   //
   void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride) const;
+
   void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
                         bool do_transpose) const;
   void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
@@ -454,6 +455,11 @@ public:
   void tdma_store(cvk_ml_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
 
   void tdma_store_bf16(cvk_ml_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
+
+  void tdma_g2g_tensor_copy(uint64_t src_addr, cvk_tg_shape_t src_shape,
+                            cvk_tg_stride_t src_stride, uint64_t dst_addr,
+                            cvk_tg_shape_t dst_shape,
+                            cvk_tg_stride_t dst_stride, cvk_fmt_t fmt) const;
 
   // get TDMA base gmem selection from gaddr.
   uint8_t getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const;

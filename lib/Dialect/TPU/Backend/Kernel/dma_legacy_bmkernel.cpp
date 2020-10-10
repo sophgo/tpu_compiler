@@ -480,4 +480,33 @@ void CviBackendContext::tdma_store_stride_bf16(
   this->tdma_l2g_bf16_matrix_copy(&p1);
 }
 
+void CviBackendContext::tdma_g2g_tensor_copy(
+    uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride,
+    uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride,
+    cvk_fmt_t fmt) const {
+  cvk_tg_t src = {0};
+  src.start_address = src_addr;
+  src.base_reg_index = this->getTdmaBaseSelectIndexFromGaddr(src_addr);
+  src.fmt = fmt;
+  src.shape = src_shape;
+  src.stride = src_stride;
+  src.int8_rnd_mode = 0;
+
+  cvk_tg_t dst = {0};
+  dst.start_address = dst_addr;
+  dst.base_reg_index = this->getTdmaBaseSelectIndexFromGaddr(dst_addr);
+  dst.fmt = fmt;
+  dst.shape = dst_shape;
+  dst.stride = dst_stride;
+  dst.int8_rnd_mode = 0;
+  cvk_tdma_g2g_tensor_copy_param_t p = {0};
+  p.src = &src;
+  p.dst = &dst;
+  if (fmt == CVK_FMT_BF16) {
+    this->tdma_g2g_bf16_tensor_copy(&p);
+  } else if (fmt == CVK_FMT_I8 || fmt == CVK_FMT_U8) {
+    this->tdma_g2g_tensor_copy(&p);
+  }
+}
+
 //}  // namespace bmnet

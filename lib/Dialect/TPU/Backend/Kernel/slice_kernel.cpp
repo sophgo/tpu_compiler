@@ -34,12 +34,10 @@ void cvi_backend_tg_slice_kernel(const CviBackendContext &ctx,
         (uint32_t)input_dim[2],
         (uint32_t)input_dim[3]
     };
-    cvk_tg_stride_t d_stride = ctx.tg_default_stride(shape, (cvk_fmt_t)fmt);
-    cvk_tg_stride_t s_stride = ctx.tg_default_stride(orig_shape, (cvk_fmt_t)fmt);
-    tdma_g2g_tensor_copy(
-        ctx, input_gaddr + offset * dtype_sz,
-        shape, s_stride, (cvk_fmt_t)fmt,
-        output_gaddr, shape, d_stride, (cvk_fmt_t)fmt);
+    cvk_tg_stride_t d_stride = ctx.tg_default_stride(shape, fmt);
+    cvk_tg_stride_t s_stride = ctx.tg_default_stride(orig_shape, fmt);
+    ctx.tdma_g2g_tensor_copy(input_gaddr + offset * dtype_sz, shape, s_stride,
+                             output_gaddr, shape, d_stride, fmt);
   } else {
     uint32_t former_dim = 1;
     uint32_t later_dim = dtype_sz;
@@ -60,8 +58,7 @@ void cvi_backend_tg_slice_kernel(const CviBackendContext &ctx,
         (uint32_t)(later_dim)
     };
     cvk_tg_stride_t d_stride = ctx.tg_default_stride(shape, CVK_FMT_I8);
-    tdma_g2g_tensor_copy(
-        ctx, input_gaddr + offset * later_dim, shape, s_stride, CVK_FMT_I8,
-        output_gaddr, shape, d_stride, CVK_FMT_I8);
+    ctx.tdma_g2g_tensor_copy(input_gaddr + offset * later_dim, shape, s_stride,
+                             output_gaddr, shape, d_stride, CVK_FMT_I8);
   }
 }

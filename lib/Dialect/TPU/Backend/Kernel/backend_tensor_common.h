@@ -22,10 +22,6 @@ uint32_t ___get_lmem_usage(const CviBackendContext &ctx, int n, int c, int h, in
 
 int _tensor_size_lmem(const CviBackendContext &ctx, int n, int c, int h, int w, cvk_fmt_t fmt);
 
-void init_tensor_tgmem(const CviBackendContext &ctx, cvk_tg_t *t,
-                       uint64_t start_address, cvk_tg_shape_t shape,
-                       cvk_tg_stride_t stride, cvk_fmt_t fmt);
-
 int is_one_bf16(cvk_fmt_t src, cvk_fmt_t dst) ;
 
 int is_support_fmt(cvk_fmt_t fmt) ;
@@ -33,16 +29,6 @@ int is_support_fmt(cvk_fmt_t fmt) ;
 int is_bf16(cvk_fmt_t fmt);
 
 int _get_csize_local(const CviBackendContext &ctx, int h, int w, cvk_fmt_t fmt);
-
-void tdma_g2g_tensor_copy(
-    // src
-    const CviBackendContext &ctx, uint64_t src_start_address,
-    cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride,
-    cvk_fmt_t src_fmt,
-    // dst
-    uint64_t dst_start_address, cvk_tg_shape_t dst_shape,
-    cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt);
-
 
 int getQuantizeMode(const int *i8_multiplier);
 
@@ -56,13 +42,6 @@ void load_32byte_multiplier(const CviBackendContext &ctx, int oc_step, bool do_b
 
 void load_16bytes_bias(const CviBackendContext &ctx, int oc, cvk_tl_t **tl_bias,
                        gaddr_t bias_gaddr);
-
-
-// copy same shape from system to local
-void tdma_g2l_tensor_copy(const CviBackendContext &ctx, cvk_tl_t **tl_bslice,
-                          int input_n, int input_c, int input_h, int input_w, gaddr_t input_gaddr,
-                          cvk_fmt_t fmt, int eu_align = 1);
-
 
 // apply quantize int 8 mode
 void apply_qi8(const CviBackendContext &ctx, cvk_tl_t *ifmap, uint32_t layer_id, int do_relu,

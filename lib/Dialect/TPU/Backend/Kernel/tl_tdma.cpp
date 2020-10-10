@@ -206,7 +206,7 @@ void cvi_backend_tl_load(
   tl_ifmap.stride = ctx.tl_default_stride(tl_ifmap.shape, fmt, /*eu_align=*/1);
   ctx.set_layer_id(layer_id);
 
-  if (fmt == CVK_FMT_I8) {
+  if (fmt == CVK_FMT_I8 || fmt == CVK_FMT_U8) {
     cvk_tg_stride_t ifmap_gstride = {ic * ih * iw, ih * iw, iw};
     ctx.tdma_load_stride(&tl_ifmap, ga_ifmap, ifmap_gstride,
                        /*do_transpose=*/false, do_decompress);
@@ -235,7 +235,7 @@ void cvi_backend_tl_store(const CviBackendContext &ctx, uint32_t layer_id,
   tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, fmt, /*eu_align=*/1);
 
   ctx.set_layer_id(layer_id);
-  if (fmt == CVK_FMT_I8) {
+  if (fmt == CVK_FMT_I8 || fmt == CVK_FMT_U8) {
     ctx.tdma_store(&tl_ofmap, ga_ofmap);
   } else if (fmt == CVK_FMT_BF16) {
     ctx.tdma_store_bf16(&tl_ofmap, ga_ofmap);

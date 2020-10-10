@@ -209,32 +209,14 @@ static void pooling_forward_slice(const CviBackendContext &ctx, uint32_t layer_i
   cvk_tl_t *ifmap = alloc_tensor_lmem(ctx, s->n, s->c, s->h, s->w);
   cvk_tl_t *ofmap = alloc_tensor_lmem(ctx, s->n, s->c, out_h, out_w);
   int is_max_pooling = !s->is_avg_pooling;
-  cvk_tg_t ts_pooling;
 
   cvk_tg_shape_t ts_all_in_shape = {
       static_cast<uint32_t>(all->n), static_cast<uint32_t>(all->c), static_cast<uint32_t>(all->h),
       static_cast<uint32_t>(all->w)};
+  cvk_tg_stride_t ts_stride = ctx.tg_default_stride(ts_all_in_shape, CVK_FMT_BF16);
 
-  ts_pooling.start_address = s->ifmap_gaddr;
-  ts_pooling.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(s->ifmap_gaddr);
-  ts_pooling.fmt = CVK_FMT_BF16;
-  ts_pooling.shape.n = s->n;
-  ts_pooling.shape.c = s->c;
-  ts_pooling.shape.h = s->h;
-  ts_pooling.shape.w = s->w;
-  ts_pooling.stride = ctx.tg_default_stride(ts_all_in_shape, CVK_FMT_BF16);
-  cvk_tdma_g2l_tensor_copy_param_t p = {0};
-  p.src = &ts_pooling;
-  p.dst = ifmap;
 
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-      "  tdma_g2l_bf16_tensor_copy\n"
-      "    src addr 0x%lx, shape (%d, %d, %d, %d)\n"
-      "    dst addr 0x%x, shape (%d, %d, %d, %d)\n",
-      p.src->start_address, p.src->shape.n, p.src->shape.c, p.src->shape.h, p.src->shape.w,
-      p.dst->start_address, p.dst->shape.n, p.dst->shape.c, p.dst->shape.h, p.dst->shape.w););
-
-  ctx.tdma_g2l_bf16_tensor_copy(&p);
+  ctx.tdma_load_stride_bf16(ifmap, s->ifmap_gaddr, ts_stride);
 
   int pad_bot = s->pad_bot;
   if (s->last_column) {
@@ -308,33 +290,12 @@ static void pooling_forward_slice(const CviBackendContext &ctx, uint32_t layer_i
     ctx.tiu_average_pooling(&param);
   }
 
-  cvk_tg_t tg_output;
   cvk_tg_shape_t ts_all_out_shape = {
       static_cast<uint32_t>(all->n), static_cast<uint32_t>(all->c), static_cast<uint32_t>(pooling_out_h(all)),
       static_cast<uint32_t>(pooling_out_w(all))};
+  cvk_tg_stride_t ts_out_stride = ctx.tg_default_stride(ts_all_out_shape, CVK_FMT_BF16);
 
-  tg_output.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(s->ofmap_gaddr);
-  tg_output.fmt = CVK_FMT_BF16;
-  tg_output.start_address = s->ofmap_gaddr;
-  tg_output.shape.n = s->n;
-  tg_output.shape.c = s->c;
-  tg_output.shape.h = out_h;
-  tg_output.shape.w = out_w;
-  tg_output.stride = ctx.tg_default_stride(ts_all_out_shape, CVK_FMT_BF16);
-  cvk_tdma_l2g_tensor_copy_param_t out_param = {0};
-  out_param.src = ofmap;
-  out_param.dst = &tg_output;
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-      "  tdma_l2g_bf16_tensor_copy\n"
-      "    src addr 0x%x, shape (%d, %d, %d, %d)\n"
-      "    dst addr 0x%lx, shape (%d, %d, %d, %d)\n",
-      out_param.src->start_address, out_param.src->shape.n, out_param.src->shape.c,
-      out_param.src->shape.h, out_param.src->shape.w, out_param.dst->start_address,
-      out_param.dst->shape.n, out_param.dst->shape.c, out_param.dst->shape.h,
-      out_param.dst->shape.w););
-
-  ctx.tdma_l2g_bf16_tensor_copy(&out_param);
+  ctx.tdma_store_stride_bf16(ofmap, s->ofmap_gaddr, ts_out_stride);
 
   ctx.lmem_free_tensor(ofmap);
   ctx.lmem_free_tensor(ifmap);

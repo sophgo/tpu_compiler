@@ -4,48 +4,29 @@
 #include <cmath>
 #include "CviBackendContext.h"
 
-// only fill base_reg_index/int8_rnd_mode
-static void init_tgmem(const CviBackendContext &ctx, cvk_tg_t* t, gaddr_t addr) {
-  t->base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(addr);
-  t->int8_rnd_mode = 0;
-}
 
 static void tile_w(const CviBackendContext &ctx,
     gaddr_t input_gaddr, cvk_tg_shape_t input_shape, cvk_fmt_t input_fmt,
     gaddr_t output_gaddr, cvk_tg_shape_t output_shape, cvk_fmt_t output_fmt,
     int w_factor, uint32_t layer_id) {
+      cvk_tg_shape_t src_shape = input_shape;
+      src_shape.n = src_shape.n * src_shape.c;
+      src_shape.c = src_shape.h;
+      src_shape.h = 1;
+      cvk_tg_stride_t src_stride = ctx.tg_default_stride(src_shape, input_fmt);
+      src_shape.h = w_factor; // fake, just prevent shape size eq check
+      src_stride.h = 0;                // stall for copy w
 
-  cvk_tdma_g2g_tensor_copy_param_t p;
-  cvk_tg_t src, dst;
-
-  init_tgmem(ctx, &src, input_gaddr);
-  init_tgmem(ctx, &dst, output_gaddr);
-  // tile w
-  // we reshape nchw to nc, h, 1, w for align copy w
-  src.fmt = input_fmt;
-  src.start_address = input_gaddr;
-  src.shape = input_shape;
-  src.shape.n = src.shape.n * src.shape.c;
-  src.shape.c = src.shape.h;
-  src.shape.h = 1;
-  src.stride = ctx.tg_default_stride(src.shape, src.fmt);
-  src.shape.h = w_factor; // fake, just prevent shape size eq check
-  src.stride.h = 0; // stall for copy w
-
-  dst.fmt = output_fmt;
-  dst.start_address = output_gaddr;
-  dst.shape = output_shape;
-  dst.shape.n = src.shape.n;
-  dst.shape.c = src.shape.c;
-  dst.shape.h = w_factor;
-  dst.shape.w = src.shape.w;
-  dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
-
-  p.src = &src;
-  p.dst = &dst;
-  p.layer_id = layer_id;
-
-  ctx.tdma_g2g_bf16_tensor_copy(&p);
+      cvk_tg_shape_t dst_shape = output_shape;
+      dst_shape.n = src_shape.n;
+      dst_shape.c = src_shape.c;
+      dst_shape.h = w_factor;
+      dst_shape.w = src_shape.w;
+      cvk_tg_stride_t dst_stride = ctx.tg_default_stride(output_shape, output_fmt);
+      ctx.set_layer_id(layer_id);
+      ctx.tdma_g2g_tensor_copy(input_gaddr, src_shape, src_stride,
+                               output_gaddr, dst_shape, dst_stride,
+                               CVK_FMT_BF16);
 }
 
 int cvi_backend_tg_tile_kernel(const CviBackendContext &ctx,
@@ -101,43 +82,27 @@ int cvi_backend_tg_tile_kernel(const CviBackendContext &ctx,
       // 5 6 7 8    x x x x x x x x
       //            1 2 3 4 1 2 3 4
       //            x x x x x x x x
-      cvk_tdma_g2g_tensor_copy_param_t p;
-      cvk_tg_t src, dst;
+      cvk_tg_shape_t src_shape = _input_shape;
+      src_shape.n = src_shape.n * src_shape.c;
+      src_shape.c = src_shape.h;
+      src_shape.h = 1;
+      cvk_tg_stride_t src_stride = ctx.tg_default_stride(src_shape, input_fmt);
+      src_shape.h = tile_dims[DIMS_W]; // fake, just prevent shape size eq check
+      src_stride.h = 0;                // stall for copy w
 
-      init_tgmem(ctx, &src, input_gaddr);
-      init_tgmem(ctx, &dst, output_gaddr);
-      // tile w
-      // we reshape nchw to nc, h, 1, w for align copy w
-      src.fmt = input_fmt;
-      src.start_address = input_gaddr;
-      src.shape = _input_shape;
-      src.shape.n = src.shape.n * src.shape.c;
-      src.shape.c = src.shape.h;
-      src.shape.h = 1;
-      src.stride = ctx.tg_default_stride(src.shape, src.fmt);
-      src.shape.h = tile_dims[DIMS_W]; // fake, just prevent shape size eq check
-      src.stride.h = 0; // stall for copy w
-
-      dst.fmt = output_fmt;
-      dst.start_address = output_gaddr;
-      dst.shape = _output_shape;
-      dst.shape.n = src.shape.n;
-      dst.shape.c = src.shape.c;
-      dst.shape.h = tile_dims[DIMS_W];
-      dst.shape.w = src.shape.w;
-
-      // shift next nc
-      dst.stride = ctx.tg_default_stride(output_shape, dst.fmt);
-      uint32_t dst_stride_n = dst.stride.c;
-
-      dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
-      dst.stride.n = dst_stride_n;
-
-      p.src = &src;
-      p.dst = &dst;
-      p.layer_id = layer_id;
-
-      ctx.tdma_g2g_bf16_tensor_copy(&p);
+      cvk_tg_shape_t dst_shape = _output_shape;
+      dst_shape.n = src_shape.n;
+      dst_shape.c = src_shape.c;
+      dst_shape.h = tile_dims[DIMS_W];
+      dst_shape.w = src_shape.w;
+      cvk_tg_stride_t dst_stride = ctx.tg_default_stride(output_shape, output_fmt);
+      uint32_t dst_stride_n = dst_stride.c;
+      dst_stride = ctx.tg_default_stride(dst_shape, output_fmt);
+      dst_stride.n = dst_stride_n;
+      ctx.set_layer_id(layer_id);
+      ctx.tdma_g2g_tensor_copy(input_gaddr, src_shape, src_stride,
+                               output_gaddr, dst_shape, dst_stride,
+                               CVK_FMT_BF16);
     }
 
     // reshape to n, c, 1, hw
@@ -151,36 +116,21 @@ int cvi_backend_tg_tile_kernel(const CviBackendContext &ctx,
 
     // copy itself
     {
-      cvk_tdma_g2g_tensor_copy_param_t p;
-      cvk_tg_t src, dst;
-
-      init_tgmem(ctx, &src, input_gaddr);
-      init_tgmem(ctx, &dst, output_gaddr);
-
-      // tile h, cuz previous tile w placed by channel, we just copy in each channel
-      src.fmt = input_fmt;
-      src.start_address = output_gaddr;
-      src.shape = _input_shape;
-      src.stride = ctx.tg_default_stride(src.shape, src.fmt);
-
-      src.shape.h = tile_dims[DIMS_H]; // fake, just prevent shape size eq check
-      src.stride.h = 0; // stall for copy w
-
-      dst.fmt = output_fmt;
-      dst.start_address = output_gaddr;
-      dst.shape = _output_shape;
-      dst.shape.h = tile_dims[DIMS_H];
-      dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
-
-      // previous w-tile placed by c
-      src.stride.c = dst.stride.c;
-      src.stride.n = dst.stride.n;
-
-      p.src = &src;
-      p.dst = &dst;
-      p.layer_id = layer_id;
-
-      ctx.tdma_g2g_bf16_tensor_copy(&p);
+      // tile h, cuz previous tile w placed by channel, we just copy in each
+      // channel
+      cvk_tg_shape_t src_shape = _input_shape;
+      cvk_tg_shape_t dst_shape = _output_shape;
+      cvk_tg_stride_t src_stride = ctx.tg_default_stride(src_shape, input_fmt);
+      src_shape.h = tile_dims[DIMS_H]; // fake, just prevent shape size eq check
+      src_stride.h = 0;                // stall for copy w
+      dst_shape.h = tile_dims[DIMS_H];
+      cvk_tg_stride_t dst_stride = ctx.tg_default_stride(dst_shape, output_fmt);
+      src_stride.c = dst_stride.c;
+      src_stride.n = dst_stride.n;
+      ctx.set_layer_id(layer_id);
+      ctx.tdma_g2g_tensor_copy(output_gaddr, src_shape, src_stride,
+                               output_gaddr, dst_shape, dst_stride,
+                               CVK_FMT_BF16);
     }
   }
   else {

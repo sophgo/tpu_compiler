@@ -72,17 +72,7 @@ void cvi_backend_tl_scale(const CviBackendContext &ctx, uint32_t layer_id,
   tl_scale.stride = ctx.tl_default_stride(tl_scale.shape, CVK_FMT_I8, /*eu_align=*/1);
 
   // FIXME: support axis != 1 and num_axes != 2 ??? from scal_kernel.cpp
-  cvk_tg_t tg_scale;
-  tg_scale.start_address = scale_gaddr;
-  tg_scale.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(scale_gaddr);
-  tg_scale.fmt = CVK_FMT_I8;
-  tg_scale.shape = {1, (uint32_t)input_c, 1, 1};
-  tg_scale.stride = ctx.tg_default_stride(tg_scale.shape, tg_scale.fmt);
-
-  cvk_tdma_g2l_tensor_copy_param_t p = {0};
-  p.src = &tg_scale;
-  p.dst = &tl_scale;
-  ctx.tdma_g2l_tensor_copy(&p);
+  ctx.tdma_load(&tl_scale, scale_gaddr);
 
   if (qmode == CviBackendContext::QuantizeMode::INT8_PER_LAYER) {
     cvk_tiu_mul_param_t p = {0};

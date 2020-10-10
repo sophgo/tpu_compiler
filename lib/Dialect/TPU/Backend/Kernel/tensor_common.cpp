@@ -51,46 +51,6 @@ int tensor_size_lmem(const CviBackendContext &ctx, int n, int c, int h, int w) {
   return _tensor_size_lmem(ctx, n, c, h, w, CVK_FMT_I8);
 }
 
-void init_tensor_tgmem(const CviBackendContext &ctx, cvk_tg_t *t,
-                       uint64_t start_address, cvk_tg_shape_t shape,
-                       cvk_tg_stride_t stride, cvk_fmt_t fmt) {
-  t->start_address = start_address;
-  t->base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(start_address);
-  t->fmt = fmt;
-  t->shape = shape;
-  t->stride = stride;
-}
-
-void tdma_g2g_tensor_copy(
-    // src
-    const CviBackendContext &ctx, uint64_t src_start_address,
-    cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride,
-    cvk_fmt_t src_fmt,
-    // dst
-    uint64_t dst_start_address, cvk_tg_shape_t dst_shape,
-    cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt) {
-
-  cvk_tg_t src;
-  src.start_address = src_start_address;
-  src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src_start_address);
-  src.fmt = src_fmt;
-  src.shape = src_shape;
-  src.stride = src_stride;
-
-  cvk_tg_t dst;
-  dst.start_address = dst_start_address;
-  dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst_start_address);
-  dst.fmt = dst_fmt;
-  dst.shape = dst_shape;
-  dst.stride = dst_stride;
-
-  cvk_tdma_g2g_tensor_copy_param_t p = {0};
-  p.src = &src;
-  p.dst = &dst;
-
-  ctx.tdma_g2g_tensor_copy(&p);
-}
-
 /*
 int getQuantizeMode(
     const int *i8_multiplier) {
@@ -154,50 +114,7 @@ void load_16bytes_bias(const CviBackendContext &ctx, int oc, cvk_tl_t **tl_bias,
   tl_bias_shape.h = 1;
   tl_bias_shape.w = 1;
   *tl_bias = ctx.lmem_alloc_tensor(tl_bias_shape, CVK_FMT_I8, 0);
-
-  cvk_tg_t ts_bias;
-  ts_bias.start_address = bias_gaddr;
-  ts_bias.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(bias_gaddr);
-  ts_bias.fmt = CVK_FMT_I8;
-  ts_bias.shape.n = 2;
-  ts_bias.shape.c = oc;
-  ts_bias.shape.h = 1;
-  ts_bias.shape.w = 1;
-  ts_bias.stride = ctx.tg_default_stride(ts_bias.shape,ts_bias.fmt);
-
-  cvk_tdma_g2l_tensor_copy_param_t p = {0};
-  p.src = &ts_bias;
-  p.dst = *tl_bias;
-  ctx.tdma_g2l_tensor_copy(&p);
-}
-
-// copy same shape from system to local
-void tdma_g2l_tensor_copy(const CviBackendContext &ctx, cvk_tl_t **tl_bslice,
-                          int input_n, int input_c, int input_h, int input_w, gaddr_t input_gaddr,
-                          cvk_fmt_t fmt, int eu_align) {
-
-  cvk_tl_shape_t tl_bslice_shape;
-  tl_bslice_shape.n = input_n;
-  tl_bslice_shape.c = input_c;
-  tl_bslice_shape.h = input_h;
-  tl_bslice_shape.w = input_w;
-
-  *tl_bslice = ctx.lmem_alloc_tensor(tl_bslice_shape, fmt, eu_align);
-
-  cvk_tg_t ts_bslice;
-  ts_bslice.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(input_gaddr);
-  ts_bslice.fmt = fmt;
-  ts_bslice.start_address = input_gaddr;
-  ts_bslice.shape.n = tl_bslice_shape.n;
-  ts_bslice.shape.c = tl_bslice_shape.c;
-  ts_bslice.shape.h = tl_bslice_shape.h;
-  ts_bslice.shape.w = tl_bslice_shape.w;
-  ts_bslice.stride = ctx.tg_default_stride(ts_bslice.shape, ts_bslice.fmt);
-
-  cvk_tdma_g2l_tensor_copy_param_t p = {0};
-  p.src = &ts_bslice;
-  p.dst = *tl_bslice;
-  ctx.tdma_g2l_tensor_copy(&p);
+  ctx.tdma_load(*tl_bias, bias_gaddr);
 }
 
 // apply quantize int 8 mode

@@ -54,7 +54,7 @@ void tiling_packing(const CviBackendContext &ctx, int require_shape, int coeff_l
                     enum TilingDim tiling_along,
                     cvk_tg_shape_t* shape) {
 
-  assert(fmt == CVK_FMT_BF16 || fmt == CVK_FMT_I8);
+  assert(fmt == CVK_FMT_BF16 || fmt == CVK_FMT_I8 || fmt == CVK_FMT_U8);
   assert(blob_num > 0 && "blob number should >= 1(contain itself)");
 
   int data_type_size = bitsize_of_fmt(fmt) / 8;  // byte

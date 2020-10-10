@@ -1198,22 +1198,7 @@ void cvi_backend_tg_permute(
     if (ga_ofmap != ga_ifmap) {
       cvk_tg_shape_t shape_ = {output_n, output_c, output_h, output_w};
       cvk_tg_stride_t stride_ = ctx.tg_default_stride(shape_, fmt);
-
-      cvk_tg_t tg_src;
-      tg_src.start_address = ga_ifmap;
-      tg_src.fmt = fmt;
-      tg_src.shape = shape_;
-      tg_src.stride = stride_;
-
-      cvk_tg_t tg_dst;
-      tg_dst.start_address = ga_ofmap;
-      tg_dst.fmt = fmt;
-      tg_dst.shape = shape_;
-      tg_dst.stride = stride_;
-      cvk_tdma_g2g_tensor_copy_param_t param = {0};
-      param.src = &tg_src;
-      param.dst = &tg_dst;
-      ctx.tdma_g2g_tensor_copy(&param);
+      ctx.tdma_g2g_tensor_copy(ga_ifmap, shape_, stride_, ga_ofmap, shape_, stride_, fmt);
     }
     return;
   }
