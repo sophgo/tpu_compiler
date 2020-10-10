@@ -1901,7 +1901,7 @@ Value* tpu::SquareOp::convertToTG() {
   return newOp.getResult();
 }
 
-Value* tpu::SquareSumOp::convertToTG() {
+Value* tpu::QuadraticSumOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
@@ -1913,8 +1913,10 @@ Value* tpu::SquareSumOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("axis", axisAttr() ? axisAttr() :
       builder.getI32IntegerAttr(this->axis().getSExtValue())));
+  attrs.push_back(builder.getNamedAttr("high_precision", high_precisionAttr() ? high_precisionAttr() :
+      builder.getBoolAttr(this->high_precision().getValue())));
   assert(getOpQuant() == "BF16");
-  auto newOp = OpBuilder(op).create<tpu::TG_BF16_SquareSumOp>(op->getLoc(),
+  auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuadraticSumOp>(op->getLoc(),
                   getResult()->getType(), ArrayRef<Value *>{operands},
                   ArrayRef<NamedAttribute>{attrs});
   return newOp.getResult();
@@ -3646,7 +3648,7 @@ public:
         DefaultToTGPattern<tpu::LstmOp>,
         DefaultToTGPattern<tpu::SoftmaxOp>,
         DefaultToTGPattern<tpu::SquareOp>,
-        DefaultToTGPattern<tpu::SquareSumOp>,
+        DefaultToTGPattern<tpu::QuadraticSumOp>,
         DefaultToTGPattern<tpu::ZeroMaskOp>,
         DefaultToTGPattern<tpu::MatMulOp>
         >(context);

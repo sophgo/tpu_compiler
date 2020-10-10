@@ -442,4 +442,14 @@ void cvi_backend_bf16_tl_mac_const(const CviBackendContext &ctx,
                                    laddr_t output_addr, int n, int c, int h,
                                    int w, float multiplier, float const_val,
                                    bool do_relu);
+
+void cvi_backend_tl_bf16_ps32_to_fp32(const CviBackendContext &ctx,
+                                      uint32_t layer_id, laddr_t la_addr,
+                                      int n, int c, int h, int w);
+
+void cvi_backend_tl_store_fp32(const CviBackendContext &ctx,
+                               uint32_t layer_id, gaddr_t ga_dst,
+                               laddr_t la_src,
+                               int n, int c, int h, int w);
+
 #endif /* CVI_BACKEND_TL_API */

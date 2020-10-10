@@ -781,7 +781,8 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
       with_bias,
-      do_relu ? 1 : 0
+      do_relu ? 1 : 0,
+      false
       );
 
   return success();
@@ -919,6 +920,7 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
       sh, sw,
       with_bias, // bias_term,
       do_relu ? 1 : 0 // do_activation,
+      false
       );
 #endif
   return success();
@@ -1918,10 +1920,41 @@ LogicalResult tpu::TG_BF16_SquareOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_BF16_SquareSumOp::codegen(void *ctx) {
+LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  llvm_unreachable("unsupport codegen of TG_BF16_SquareSumOp");
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto shape = getTensorShape(op->getOperand(0));
+  int n = shape[0];
+  int c = shape[1];
+  int h = shape[2];
+  int w = shape[3];
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_conv_kernel(
+      *backend_ctx,
+      layer_id,  // layer_id
+      ga_input,
+      ga_output,
+      ga_input,
+      GA_INVALID,
+      n, c, h, w,
+      c, // group
+      c,
+      h, w,
+      1, 1,
+      0, 0, 0, 0,
+      h, w,
+      false,
+      false,
+      this->high_precision().getValue()
+      );
+
   return success();
 }
 

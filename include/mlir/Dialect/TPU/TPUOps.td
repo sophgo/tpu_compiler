@@ -2269,7 +2269,7 @@ def TPU_SquareOp: TPU_Op<"square",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_SquareSumOp: TPU_Op<"square_sum",
+def TPU_QuadraticSumOp: TPU_Op<"quadratic_sum",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
@@ -2303,6 +2303,7 @@ def TPU_SquareSumOp: TPU_Op<"square_sum",
     ins AnyTensor:$input,
     StrAttr:$name,
     TPU_QuantParamAttr:$quant,
+    OptionalAttr<BoolAttr>:$high_precision,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     OptionalAttr<StrAttr>:$chipname
   );

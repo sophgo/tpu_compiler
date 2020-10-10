@@ -1777,7 +1777,7 @@ class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_BF16_SquareOp : TPU_TG_SquareOp<"tg_bf16_square", "Bf16">;
 
-class TPU_TG_SquareSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+class TPU_TG_QuadraticSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -1811,6 +1811,7 @@ class TPU_TG_SquareSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<BoolAttr>:$high_precision,
     StrAttr:$name,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     OptionalAttr<StrAttr>:$chipname
@@ -1818,7 +1819,7 @@ class TPU_TG_SquareSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_BF16_SquareSumOp : TPU_TG_SquareSumOp<"tg_bf16_square_sum", "Bf16">;
+def TPU_TG_BF16_QuadraticSumOp : TPU_TG_QuadraticSumOp<"tg_bf16_quadratic_sum", "Bf16">;
 
 class TPU_TG_MatMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

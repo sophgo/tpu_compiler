@@ -87,7 +87,7 @@ class TPU_OpType(Enum):
     MatMul = 'tpu.matmul'
     BroadcastSub = 'tpu.broadcast_sub'
     Square = 'tpu.square'
-    SquareSum = 'tpu.square_sum'
+    QuadraticSum = 'tpu.quadratic_sum'
 
 
 def checkKey(dict, key):
@@ -1442,12 +1442,17 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Square.value, inputOperands, [tensor_output_type],
             name=name_attr, quant=self.quant_param)
 
-    def add_square_sum_op(self, op_name, inputOperands, output_tensor_shape):
+    def add_quadratic_sum_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type=self.module.make_ranked_tensor_type(
             self.f32Type, output_tensor_shape)
         name_attr=self.module.stringAttr(op_name)
-        return self.buildOp(TPU_OpType.SquareSum.value, inputOperands, [tensor_output_type],
-            name=name_attr, quant=self.quant_param)
+        param = {}
+        if 'high_precision' in kargs:
+            param['high_precision'] = self.module.boolAttr(kargs['high_precision'])
+        if 'axis' in kargs:
+            param['axis'] = self.module.integerAttr(self.i32Type, kargs['axis'])
+        return self.buildOp(TPU_OpType.QuadraticSum.value, inputOperands, [tensor_output_type],
+            name=name_attr, quant=self.quant_param, **param)
 
     def add_broadcast_sub_op(self, op_name, inputOperands, output_tensor_shape):
         tensor_output_type=self.module.make_ranked_tensor_type(

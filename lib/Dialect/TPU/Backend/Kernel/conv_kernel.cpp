@@ -12,6 +12,8 @@
 #include <iostream>
 #include <map>
 
+#include "backend/backend_tl_api.h"
+
 #define DEBUG_TYPE "cvi_backend_conv_kernel"
 
 #define ASSERT(x) assert(x)
@@ -1173,6 +1175,7 @@ struct Conv_ARGS {
   uint8_t gm_output_region;
   uint8_t gm_activation_region;
   uint8_t gm_weight_region;
+  bool ps32_output;
 };
 
 typedef struct {
@@ -3765,6 +3768,12 @@ void Conv::dwConv() {
   uint32_t weight_gstride_w = (args_.tiu_fmt == CVK_FMT_BF16) ? 2 : 1;
   uint32_t ofmap_gstride_w = (args_.output_fmt == CVK_FMT_BF16) ? 2 : 1;
 
+  int ofmap_multiplier = 1;
+  if (args_.ps32_output && args_.tiu_fmt == CVK_FMT_BF16)
+    ofmap_multiplier = 2;
+  else if (args_.ps32_output && args_.tiu_fmt == CVK_FMT_I8)
+    ofmap_multiplier = 4;
+
   //
   // Pre-alloc maximum one-step size
   //
@@ -3779,9 +3788,9 @@ void Conv::dwConv() {
                                       /*eu_align=*/1);
   tl_ifmap[1] = ctx_.lmem_alloc_tensor(ctx_.shape_t4(n_step, oc_step, ih_step, iw_step), args_.tiu_fmt,
                                       /*eu_align=*/1);
-  tl_ofmap[0] = ctx_.lmem_alloc_tensor(ctx_.shape_t4(n_step, oc_step, oh_step, ow_step), args_.tiu_fmt,
+  tl_ofmap[0] = ctx_.lmem_alloc_tensor(ctx_.shape_t4(ofmap_multiplier * n_step, oc_step, oh_step, ow_step), args_.tiu_fmt,
                                       /*eu_align=*/1);
-  tl_ofmap[1] = ctx_.lmem_alloc_tensor(ctx_.shape_t4(n_step, oc_step, oh_step, ow_step), args_.tiu_fmt,
+  tl_ofmap[1] = ctx_.lmem_alloc_tensor(ctx_.shape_t4(ofmap_multiplier * n_step, oc_step, oh_step, ow_step), args_.tiu_fmt,
                                       /*eu_align=*/1);
   ASSERT(tl_weight[0] && tl_weight[1] && tl_ifmap[0] && tl_ifmap[1] && tl_ofmap[0] && tl_ofmap[1]);
 
@@ -3981,7 +3990,7 @@ void Conv::dwConv() {
 
             // Adjust current shape and stride
             // bmk does not keep eu-align info, user need to update stride if shape changed
-            tl_ofmap[flip]->shape = ctx_.shape_t4(cur_n, cur_oc, cur_oh, cur_ow);
+            tl_ofmap[flip]->shape = ctx_.shape_t4(ofmap_multiplier * cur_n, cur_oc, cur_oh, cur_ow);
             tl_ofmap[flip]->stride =
                 ctx_.tl_default_stride(tl_ofmap[flip]->shape, args_.tiu_fmt,
                                       /*eu_aign=*/1);
@@ -4074,6 +4083,7 @@ void Conv::dwConv() {
               param.dilation_w = dilation_w;
               param.relu_enable = fused_conv_relu;
               param.rshift_bits = right_shift_width;
+              param.ps32_mode = args_.ps32_output ? 2 : 0;
               param.layer_id = layer_id;
 
               LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -4196,8 +4206,8 @@ void Conv::dwConv() {
             }    // if (do_activation)
 
             ga_ofmap_cur[flip] =
-                ga_ofmap + n_pos * ofmap_gstride.n + oc_pos * ofmap_gstride.c +
-                oh_top * ofmap_gstride.h + ow_left * ofmap_gstride_w;
+                ga_ofmap + (n_pos * ofmap_gstride.n + oc_pos * ofmap_gstride.c +
+                oh_top * ofmap_gstride.h + ow_left * ofmap_gstride_w) * (args_.ps32_output ? 2 : 1);
 
             if (first) {
               // postponse first result to next loop
@@ -4209,13 +4219,29 @@ void Conv::dwConv() {
               uint32_t flip_back = 1 - flip;
 
               // Store back to global memory
-              if ((args_.tiu_fmt == CVK_FMT_I8) && (args_.output_fmt == CVK_FMT_I8))
+              if ((args_.tiu_fmt == CVK_FMT_I8) && (args_.output_fmt == CVK_FMT_I8)) {
                 ctx_.tdma_store_stride(tl_ofmap[flip_back],
                                       ga_ofmap_cur[flip_back], ofmap_gstride);
-              else if ((args_.tiu_fmt == CVK_FMT_BF16) && (args_.output_fmt == CVK_FMT_BF16))
-                ctx_.tdma_store_stride_bf16(tl_ofmap[flip_back],
-                                      ga_ofmap_cur[flip_back], ofmap_gstride);
-              else {
+              } else if ((args_.tiu_fmt == CVK_FMT_BF16) && (args_.output_fmt == CVK_FMT_BF16)) {
+                if (!args_.ps32_output) {
+                  ctx_.tdma_store_stride_bf16(tl_ofmap[flip_back],
+                                        ga_ofmap_cur[flip_back], ofmap_gstride);
+                } else {
+                  cvk_tl_t *tl_res = tl_ofmap[flip_back];
+                  gaddr_t ga_dst = ga_ofmap_cur[flip_back];
+
+                  cvi_backend_tl_bf16_ps32_to_fp32(ctx_, args_.layer_id,
+                      tl_res->start_address,
+                      tl_res->shape.n, tl_res->shape.c, tl_res->shape.h,
+                      tl_res->shape.w);
+
+                  cvi_backend_tl_store_fp32(ctx_, args_.layer_id,
+                      ga_dst, tl_res->start_address,
+                      tl_res->shape.n, tl_res->shape.c, tl_res->shape.h,
+                      tl_res->shape.w);
+
+                }
+              } else {
                 assert(0 && "dw-conv output only supports i8/bf16");
               }
             }
@@ -4238,13 +4264,28 @@ void Conv::dwConv() {
     uint32_t flip_back = 1 - flip;
 
     // Store back to global memory
-    if ((args_.tiu_fmt == CVK_FMT_I8) && (args_.output_fmt == CVK_FMT_I8))
+    if ((args_.tiu_fmt == CVK_FMT_I8) && (args_.output_fmt == CVK_FMT_I8)) {
       ctx_.tdma_store_stride(tl_ofmap[flip_back], ga_ofmap_cur[flip_back],
                             ofmap_gstride);
-    else if ((args_.tiu_fmt == CVK_FMT_BF16) && (args_.output_fmt == CVK_FMT_BF16))
-      ctx_.tdma_store_stride_bf16(tl_ofmap[flip_back], ga_ofmap_cur[flip_back],
-                                  ofmap_gstride);
-    else {
+    } else if ((args_.tiu_fmt == CVK_FMT_BF16) && (args_.output_fmt == CVK_FMT_BF16)) {
+      if (!args_.ps32_output) {
+        ctx_.tdma_store_stride_bf16(tl_ofmap[flip_back], ga_ofmap_cur[flip_back],
+                                    ofmap_gstride);
+      } else {
+        cvk_tl_t *tl_res = tl_ofmap[flip_back];
+        gaddr_t ga_dst = ga_ofmap_cur[flip_back];
+
+        cvi_backend_tl_bf16_ps32_to_fp32(ctx_, args_.layer_id,
+            tl_res->start_address,
+            tl_res->shape.n, tl_res->shape.c, tl_res->shape.h,
+            tl_res->shape.w);
+
+        cvi_backend_tl_store_fp32(ctx_, args_.layer_id,
+            ga_dst, tl_res->start_address,
+            tl_res->shape.n, tl_res->shape.c, tl_res->shape.h,
+            tl_res->shape.w);
+      }
+    } else {
       assert(0 && "dw-conv output only supports i8/bf16");
     }
 
@@ -4798,7 +4839,7 @@ void cvi_backend_tg_bf16_conv_kernel(
     int output_c, uint16_t kh, uint16_t kw, uint16_t dilation_h,
     uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left,
     uint8_t pad_right, uint8_t stride_h, uint8_t stride_w, int do_bias,
-    int do_activation) {
+    int do_activation, bool fp32_output) {
 
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -4852,6 +4893,7 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args_.input_fmt = CVK_FMT_BF16;
   conv->args_.output_fmt = CVK_FMT_BF16;
   conv->args_.tiu_fmt = CVK_FMT_BF16;
+  conv->args_.ps32_output = fp32_output;
 
   // Global memory region from dialect
   conv->initializeGlobalMem();

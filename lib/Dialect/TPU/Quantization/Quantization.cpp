@@ -133,21 +133,33 @@ static llvm::cl::opt<std::string> clSkipFuseClipLayersByFile(
 static void insertQuantOp(Operation *op) {
   auto builder = OpBuilder(op);
 
+  if (isa<tpu::ReshapeOp>(op)) {
+    return;
+  }
+
   StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
   for (unsigned i = 0; i < op->getNumOperands(); i++) {
     auto prev_op = op->getOperand(i)->getDefiningOp();
     StringRef prev_quant;
     if (!prev_op) {
       prev_quant = "NONE";
-    } else if (isa<tpu::QuantOp>(prev_op)
+    } else {
+      if (isa<tpu::QuantOp>(prev_op)
                 || isa<tpu::LoadWeightOp>(prev_op)
                 || isa<tpu::NoneOp>(prev_op)) {
-      continue;
-    } else if (isa<tpu::ReshapeOp>(prev_op)) {
-      prev_op = prev_op->getOperand(0)->getDefiningOp();
-      prev_quant = getOpQuant(prev_op);
-    } else {
-      prev_quant = getOpQuant(prev_op);
+        continue;
+      } else if (isa<tpu::ReshapeOp>(prev_op)) {
+        prev_op = prev_op->getOperand(0)->getDefiningOp();
+      }
+      if (auto castOp = dyn_cast<tpu::QuadraticSumOp>(prev_op)) {
+        if (castOp.high_precision()) {
+          prev_quant = "NONE";
+        } else {
+          prev_quant = getOpQuant(prev_op);
+        }
+      } else {
+        prev_quant = getOpQuant(prev_op);
+      }
     }
 
     // insert quant if prev and curr have different quant mode
@@ -174,6 +186,7 @@ static void insertQuantOp(Operation *op) {
       } else if (prev_quant == "BF16") {
         name = getOpName(prev_op).str() + "_dequant";
       }
+      #if 1
       // app recognizes _quant as network output
       //name = name + "_" + prev_quant.str() + "_" + curr_quant.str();
       // check if prev op has inserted quant/dequant op
@@ -193,6 +206,7 @@ static void insertQuantOp(Operation *op) {
           continue;
         }
       }
+      #endif
 
       attrs.push_back(builder.getNamedAttr("threshold",
           builder.getF32FloatAttr(threshold)));
@@ -893,7 +907,7 @@ public:
           if (isa<tpu::SquareOp>(op)) {
             setOpQuant(op, "BF16");
           }
-          if (isa<tpu::SquareSumOp>(op)) {
+          if (isa<tpu::QuadraticSumOp>(op)) {
             setOpQuant(op, "BF16");
           }
 

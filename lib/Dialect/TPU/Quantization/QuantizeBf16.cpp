@@ -1024,8 +1024,16 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMeanOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMaxOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ShuffleChannelOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SquareOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SquareSumOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::MatMulOp)
+
+LogicalResult tpu::QuadraticSumOp::quantizeBf16() {
+  Operation *op = this->getOperation();
+  // for high precision
+  if (high_precision()) {
+    setOpResultType(op->getResult(0), StandardTypes::F32);
+  }
+  return success();
+}
 
 LogicalResult tpu::SqrtOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["

@@ -413,3 +413,70 @@ void cvi_backend_tl_copy(
   p2.relu_enable = 0;
   ctx.tiu_mul(&p2);
 }
+
+void cvi_backend_tl_bf16_ps32_to_fp32(const CviBackendContext &ctx,
+                                      uint32_t layer_id, laddr_t la_addr,
+                                      int n, int c, int h, int w) {
+  assert((n > 1) && ((n % 2) == 0) && "Expect ps32 shape");
+  assert((h == 1) && (w == 1) && "Only support h=1, w=1");
+  n /= 2; // Exclude lower part
+
+  int eu_align = 1; // the result of tiu operation always align eu
+  cvk_fmt_t fmt = CVK_FMT_BF16;
+  cvk_tl_shape_t shape = ctx.shape_t4(n, c, h, w);
+  cvk_tl_stride_t stride = ctx.tl_default_stride(shape, fmt, eu_align);
+
+  uint32_t la_high = la_addr;
+  uint32_t la_low = la_addr + stride.n * n;
+
+  cvk_tl_t tl_src;
+  ctx.lmem_init_tensor(&tl_src, shape, fmt, eu_align);
+  tl_src.start_address = la_high;
+  tl_src.shape = shape;
+  tl_src.stride = {stride.n, (uint32_t)EU_NUM, stride.h, stride.w};
+
+  cvk_tl_t tl_dst;
+  ctx.lmem_init_tensor(&tl_dst, shape, fmt, eu_align);
+  tl_dst.start_address = la_low + sizeof(uint16_t); // concat higher part
+  tl_dst.shape = shape;
+  tl_dst.stride = {stride.n, (uint32_t)EU_NUM, stride.h, stride.w};
+
+  cvk_tdma_l2l_tensor_copy_param_t param = {0};
+  param.src = &tl_src;
+  param.dst = &tl_dst;
+  param.layer_id = layer_id;
+  ctx.tdma_l2l_bf16_tensor_copy(&param);
+}
+
+void cvi_backend_tl_store_fp32(const CviBackendContext &ctx,
+                               uint32_t layer_id, gaddr_t ga_dst,
+                               laddr_t la_src,
+                               int n, int c, int h, int w)
+{
+  n /= 2; // Exclude lower part
+
+  int eu_align = 1; // the result of tiu operation always align eu
+  cvk_fmt_t fmt = CVK_FMT_BF16;
+  cvk_tl_shape_t shape = ctx.shape_t4(n, c, h, w);
+  cvk_tl_stride_t stride = ctx.tl_default_stride(shape, fmt, eu_align);
+
+  uint32_t la_low = la_src + stride.n * n;
+
+  cvk_tl_t tl_src = {0};
+  tl_src.start_address = la_low;
+  tl_src.fmt = fmt;
+  tl_src.shape = ctx.shape_t4(n, c, h, (sizeof(uint32_t)/sizeof(uint16_t)) * w);
+  tl_src.stride = {stride.n, (uint32_t)EU_NUM, stride.h, stride.w};
+
+  cvk_tg_shape_t tg_shape = {(uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t) (2 * w)};
+  cvk_tg_t tg_dst;
+  ctx.gmem_init_tensor(&tg_dst, tg_shape, fmt);
+  tg_dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_dst);
+  tg_dst.start_address = ga_dst;
+  //tg_dst.stride.c = 2;
+
+  cvk_tdma_l2g_tensor_copy_param_t param = {0};
+  param.src = &tl_src;
+  param.dst = &tg_dst;
+  ctx.tdma_l2g_bf16_tensor_copy(&param);
+}

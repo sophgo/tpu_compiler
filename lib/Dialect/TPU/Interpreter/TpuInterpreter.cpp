@@ -3242,7 +3242,7 @@ LogicalResult tpu::SquareOp::interpret(
   return success();
 }
 
-LogicalResult tpu::SquareSumOp::interpret(
+LogicalResult tpu::QuadraticSumOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
@@ -3268,10 +3268,10 @@ LogicalResult tpu::SquareSumOp::interpret(
 
   // compute in fp32
   mkldnn_conv(opdT[0]->data(), opdT[0]->data(), nullptr,
-              resultT->data(), n, c, h, w, c, h, w, h, w,
+              resultT->data(), n, c, h, w, c, 1, 1, h, w,
               h, w, 1, 1, 0, 0, 0, 0, c);
   // rshift and saturate on output
-  if (getOpQuant() == "NONE") {
+  if (getOpQuant() == "NONE" || this->high_precision()) {
     // do nothing
   } else if (getOpQuant() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
