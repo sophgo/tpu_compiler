@@ -976,8 +976,12 @@ class TPU_TG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_QuantOp : TPU_TG_QuantOp<"tg_int8_quant", "Int8">;
-def TPU_TG_BF16_QuantOp : TPU_TG_QuantOp<"tg_bf16_quant", "Bf16">;
+def TPU_TG_FP32_INT8_CastOp : TPU_TG_QuantOp<"tg_fp32_int8_cast", "Int8">;
+def TPU_TG_BF16_INT8_CastOp : TPU_TG_QuantOp<"tg_bf16_int8_cast", "Int8">;
+def TPU_TG_INT8_BF16_CastOp : TPU_TG_QuantOp<"tg_int8_bf16_cast", "Bf16">;
+def TPU_TG_FP32_BF16_CastOp : TPU_TG_QuantOp<"tg_fp32_bf16_cast", "Bf16">;
+def TPU_TG_INT8_FP32_CastOp : TPU_TG_QuantOp<"tg_int8_fp32_cast", "Fp32">;
+def TPU_TG_BF16_FP32_CastOp : TPU_TG_QuantOp<"tg_bf16_fp32_cast", "Fp32">;
 
 class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

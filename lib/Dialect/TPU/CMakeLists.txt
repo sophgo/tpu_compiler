@@ -4,7 +4,7 @@ endif(NOT tpu_LINKER_LIBS)
 list(APPEND tpu_LINKER_LIBS
   mkldnn)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-pedantic")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-pedantic -fno-strict-aliasing")
 
 if(NOT DEFINED FLATBUFFERS_PATH)
   set(FLATBUFFERS_PATH $ENV{FLATBUFFERS_PATH})

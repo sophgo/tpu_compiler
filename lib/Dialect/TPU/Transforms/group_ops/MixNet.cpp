@@ -1328,21 +1328,19 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
   // it MUST quant op
   RankedTensorType old_input_type, old_output_type;
 
-  if (auto quantOp = dyn_cast<tpu::TG_INT8_QuantOp>(im_layer->op())) {
+  if (auto quantOp = dyn_cast<tpu::TG_BF16_INT8_CastOp>(im_layer->op())) {
     old_input_type = quantOp.getOperand()->getType().cast<RankedTensorType>();
     old_output_type = quantOp.getResult()->getType().cast<RankedTensorType>();
     threshold = quantOp.threshold().getValue().convertToFloat();
     from = quantOp.from();
     to = quantOp.to();
-  }
-  else if (auto quantOp = dyn_cast<tpu::TG_BF16_QuantOp>(im_layer->op())) {
+  } else if (auto quantOp = dyn_cast<tpu::TG_INT8_BF16_CastOp>(im_layer->op())) {
     old_input_type = quantOp.getOperand()->getType().cast<RankedTensorType>();
     old_output_type = quantOp.getResult()->getType().cast<RankedTensorType>();
     threshold = quantOp.threshold().getValue().convertToFloat();
     from = quantOp.from();
     to = quantOp.to();
-  }
-  else {
+  } else {
     assert(0 && "it should be quant interface");
   }
 

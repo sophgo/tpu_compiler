@@ -534,9 +534,6 @@ static bool isQuantOp(Operation *op) {
       return true;
     }
   }
-  if (isa<tpu::TG_INT8_QuantOp>(op) || isa<tpu::TG_BF16_QuantOp>(op)) {
-    return true;
-  }
   return false;
 }
 

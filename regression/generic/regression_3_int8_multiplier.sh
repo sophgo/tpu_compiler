@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -xe
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 

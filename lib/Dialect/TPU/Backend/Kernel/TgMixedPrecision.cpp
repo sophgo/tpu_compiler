@@ -144,7 +144,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
     // just use bf16 size and store back
     ofmap_fmt = CVK_FMT_BF16;
     // clean output lmem to 0
-    fill_fp32_lmem_0(ctx, layer_id, input_n, input_c, input_h, input_w);
+    //fill_fp32_lmem_0(ctx, layer_id, input_n, input_c, input_h, input_w);
   }
 
   int require_shape = input_n * input_c * input_h * input_w;
@@ -167,22 +167,37 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
 
     // alloc local memory
     cvk_tl_t* tl_ofmap_fp32 = NULL;
-    cvk_tl_t* tl_gap = NULL;
+    //cvk_tl_t* tl_gap = NULL;
     laddr_t tl_ofmap_laddr = LA_INVALID;
 
     if (fmt_d == CVK_FMT_F32) {
-      tl_ofmap_fp32 = ctx.lmem_alloc_tensor(output_shape, ofmap_fmt, /*eu_align=*/0);
+      tl_ofmap_fp32 = ctx.lmem_alloc_tensor(output_shape, ofmap_fmt, /*eu_align=*/1);
       tl_ofmap_laddr = tl_ofmap_fp32->start_address;
 
-      cvk_tl_shape_t gap_shape = ctx.tl_shape_t4(1, c, 1, coeff_lane_shape);
-      tl_gap = ctx.lmem_alloc_tensor(gap_shape, ofmap_fmt, /*eu_align=*/0);
+      // clean fp32 output lmem
+      cvk_tdma_g2l_tensor_fill_constant_param_t p = {0};
+      p.dst = tl_ofmap_fp32;
+      p.constant = (uint16_t)0;
+      p.layer_id = layer_id;
+      ctx.tdma_tg2l_bf16_tensor_fill_constant(&p);
+
+      // cvk_tl_shape_t gap_shape = ctx.shape_t4(1, c, 1, coeff_lane_shape);
+      // tl_gap = ctx.lmem_alloc_tensor(gap_shape, ofmap_fmt, /*eu_align=*/1);
 
       tl_ofmap_fp32->start_address = tl_ofmap_laddr + 2;// +2 means put start point at higher 16bit
       tl_ofmap_fp32->shape = slice_shape; // fake
-      tl_ofmap_fp32->stride = tl_fp32_stride(ctx, tl_ofmap_fp32);
+      tl_ofmap_fp32->stride = tl_fp32_stride(ctx, tl_ofmap_fp32, 1);
     }
 
-    cvk_tl_t* tl_ofmap = ctx.lmem_alloc_tensor(slice_shape, ofmap_fmt, /*eu_align=*/0);
+    cvk_tl_t* tl_ofmap = ctx.lmem_alloc_tensor(slice_shape, ofmap_fmt, /*eu_align=*/1);
+    {
+      // clean bf16 output lmem
+      cvk_tdma_g2l_tensor_fill_constant_param_t p = {0};
+      p.dst = tl_ofmap;
+      p.constant = (uint16_t)0;
+      p.layer_id = layer_id;
+      ctx.tdma_tg2l_bf16_tensor_fill_constant(&p);
+    }
     cvk_tl_t* output = tl_ofmap;
 
     // load input
@@ -212,22 +227,35 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
     p.layer_id = layer_id;
 
     ctx.tiu_mul(&p);
+    LLVM_DEBUG(llvm::errs() << llvm::format("mul: a shape:[%d,%d,%d,%d], stride:[%d,%d,%d,%d]",
+                                 p.a->shape.n, p.a->shape.c, p.a->shape.h, p.a->shape.w,
+                                 p.a->stride.n, p.a->stride.c, p.a->stride.h, p.a->stride.w
+                                 ););
+    LLVM_DEBUG(llvm::errs() << llvm::format("  res shape:[%d,%d,%d,%d], stride:[%d,%d,%d,%d]\n",
+                                 p.res_low->shape.n, p.res_low->shape.c, p.res_low->shape.h, p.res_low->shape.w,
+                                 p.res_low->stride.n, p.res_low->stride.c, p.res_low->stride.h, p.res_low->stride.w
+                                 ););
 
     // emit
     if (fmt_d == CVK_FMT_F32) {
       tl_ofmap_fp32->start_address = tl_ofmap_laddr;
       tl_ofmap_fp32->shape = output_shape;
-      tl_ofmap_fp32->stride = ctx.tl_default_stride(tl_ofmap_fp32->shape, tl_ofmap_fp32->fmt, /*eu_align=*/0);
+      tl_ofmap_fp32->stride = ctx.tl_default_stride(tl_ofmap_fp32->shape, tl_ofmap_fp32->fmt, /*eu_align=*/1);
       output = tl_ofmap_fp32;
     }
 
     ctx.tdma_store_bf16(output, top_gaddr + gaddr_offset * unit_size);
+    LLVM_DEBUG(llvm::errs() << llvm::format("store: output shape:[%d,%d,%d,%d], stride:[%d,%d,%d,%d]\n",
+                                 output->shape.n, output->shape.c, output->shape.h, output->shape.w,
+                                 output->stride.n, output->stride.c, output->stride.h, output->stride.w
+                                 ););
+    LLVM_DEBUG(llvm::errs() << "offset:" << gaddr_offset << ", unit_size:" << unit_size << "\n";);
 
     // release
     ctx.lmem_free_tensor(tl_ofmap);
-    if (tl_gap) {
-      ctx.lmem_free_tensor(tl_gap);
-    }
+    // if (tl_gap) {
+    //   ctx.lmem_free_tensor(tl_gap);
+    // }
     if (tl_ofmap_fp32) {
       ctx.lmem_free_tensor(tl_ofmap_fp32);
     }

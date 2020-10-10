@@ -44,7 +44,7 @@
 llvm::cl::opt<bool>
     clUseTPUQuantOp("use-tpu-quant-op",
                 llvm::cl::desc("Quant op inference by tpu instead of cpu"),
-                llvm::cl::init(false));
+                llvm::cl::init(true));
 
 llvm::cl::opt<bool> clDequantResultsToFp32(
     "dequant-results-to-fp32",
@@ -54,7 +54,7 @@ llvm::cl::opt<bool> clDequantResultsToFp32(
 llvm::cl::opt<bool> clQuantInputsToInt8(
     "quant-inputs-to-int8",
     llvm::cl::desc("Quant all inputs of network from fp32 to int8"),
-    llvm::cl::init(true));
+    llvm::cl::init(false));
 
 namespace mlir {
 
@@ -1190,47 +1190,57 @@ Value *tpu::QuantOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("to", toAttr()));
   attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
 
-  if (this->from() == "BF16" && this->to() == "INT8") {
+  auto parentOp = this->getOperand()->getDefiningOp();
+  if (isa<tpu::InputOp>(parentOp)) {
+    std::vector<NamedAttribute> param;
+    param.push_back(builder.getNamedAttr("from", fromAttr()));
+    param.push_back(builder.getNamedAttr("to", toAttr()));
+    param.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
+    auto paramAttr = builder.getDictionaryAttr(param);
+    auto operationAttr = builder.getStringAttr(getOperationName());
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+    attrs.push_back(builder.getNamedAttr("param", paramAttr));
+    auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if ((this->from() == "NONE" && this->to() == "INT8") &&
+             true /*clUseTPUQuantOp*/) {
+    // quant fp32->int8
+    auto newOp = OpBuilder(op).create<tpu::TG_FP32_INT8_CastOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (this->from() == "BF16" && this->to() == "INT8") {
     // quant
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuantOp>(
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_INT8_CastOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if ((this->from() == "INT8" ||
-             this->from() == "UINT8") && this->to() == "BF16") {
+              this->from() == "UINT8") && this->to() == "BF16") {
     // dequant
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_BF16_CastOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
-  } else if (((this->from() == "BF16" && this->to() == "NONE") ||
-              (this->from() == "NONE" && this->to() == "BF16")) &&
-             clUseTPUQuantOp) {
-    // dequant bf16<->fp32
-    std::string from = this->from() == "NONE" ? "FP32" : this->from();
-    std::string to = this->to() == "NONE" ? "FP32" : this->to();
-
-    attrs.clear();
-    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-    attrs.push_back(builder.getNamedAttr("from", builder.getStringAttr(from)));
-    attrs.push_back(builder.getNamedAttr("to", builder.getStringAttr(to)));
-
-    auto newOp = OpBuilder(op).create<tpu::TG_CastOp>(
+  } else if (this->from() == "NONE" && this->to() == "BF16" &&
+              true /*clUseTPUQuantOp*/) {
+    auto newOp = OpBuilder(op).create<tpu::TG_FP32_BF16_CastOp>(
       op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
       ArrayRef<NamedAttribute>{attrs});
-
     return newOp.getResult();
-  } else if ((this->from() == "NONE" && this->to() == "INT8") &&
-             clUseTPUQuantOp) {
-    // quant fp32->int8
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_QuantOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
+  } else if (this->from() == "BF16" && this->to() == "NONE" &&
+             true /*clUseTPUQuantOp*/) {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_FP32_CastOp>(
+      op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
-  } else if ((this->from() == "INT8" && this->to() == "NONE") &&
-             clUseTPUQuantOp) {
-    // dequant int8->fp32
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_QuantOp>(
+  } else if (this->from() == "INT8" && this->to() == "NONE" &&
+             true /*clUseTPUQuantOp*/) {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_FP32_CastOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();

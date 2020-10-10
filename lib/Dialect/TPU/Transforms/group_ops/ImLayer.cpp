@@ -80,10 +80,6 @@ void ImLayer::add_imm_tensor(const std::shared_ptr<Tensor> associcate,
   imm_tensors.push_back(tensor);
 }
 
-static Type getOpType(mlir::Value* v) {
-  return v->getType().cast<RankedTensorType>().getElementType();
-}
-
 static bool is_channel_align(Operation* op) {
   // ONLY shift channel offset align NPU_NUM
   std::vector<int32_t> crop_offsets;
@@ -175,16 +171,9 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
-  } else if (isa<tpu::TG_INT8_QuantOp>(op) || isa<tpu::TG_BF16_QuantOp>(op)) {
-    Type output_type = getOpType(op->getResult(0));
-    Type input_type = getOpType(op->getOperand(0));
-    if (output_type.isF32() || input_type.isF32()) {
-      // skip group in input/output
-      layer = std::make_shared<ImCommon>(op, true, IR_OTHER);
-    }
-    else {
-      layer = std::make_shared<ImQuant>(op);
-    }
+  } else if (isa<tpu::TG_BF16_INT8_CastOp>(op) ||
+             isa<tpu::TG_INT8_BF16_CastOp>(op)) {
+    layer = std::make_shared<ImQuant>(op);
   } else if (isa<tpu::QuantOp>(op) ||
              isa<tpu::InputOp>(op) ) {
     layer = std::make_shared<ImCommon>(op, true, IR_OTHER);

@@ -932,9 +932,17 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
   }
 }
 
+static uint8_t float_isnan(const float x) {
+  //return isnan(x);
+  return x != x;
+}
+
 /// HW float to bfloat16
 bfloat16 FloatToBFloat16(float value)
 {
+  if (float_isnan(value))
+    return 0x7FC0 /*NAN_VALUE*/;
+
   float f32_val = value;
   uint32_t* u32_val = reinterpret_cast<uint32_t*>(&f32_val);
   uint32_t input = *u32_val;
