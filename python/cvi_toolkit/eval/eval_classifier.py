@@ -130,7 +130,7 @@ if __name__ == '__main__':
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
   # transposed already in ToTensor(),
   preprocessor.config(net_input_dims=net_input_dims,
-                      resize_dims=args.image_resize_dims,
+                      resize_dims=net_input_dims,
                       mean=args.mean,
                       mean_file=args.mean_file,
                       input_scale=args.input_scale,
@@ -190,7 +190,7 @@ if __name__ == '__main__':
     # Pytorch ToTensor will make tesnor range to [0, 1]
     # recover to [0, 255]
     x = images[0].numpy() * 255
-   
+
     x = preprocessor.run(x, input_type='tensor',
                             output_channel_order=args.model_channel_order)
 
