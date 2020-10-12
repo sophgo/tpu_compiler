@@ -6,7 +6,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 echo "$0 net=$NET"
 
 # quantization
-if [ $DO_QUANT_BF16 -eq 1 ]; then
+if [ $DO_QUANT_BF16 -eq 1 ] && [ $DO_NOT_BF16_UNDER_182x -eq 0 ]; then
   mlir-opt \
       --assign-chip-name \
       --chipname ${SET_CHIP_NAME} \

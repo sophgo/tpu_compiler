@@ -38,6 +38,7 @@ export TOLERANCE_FP32=0.999,0.999,0.998
 export DO_QUANT_BF16=0
 export DO_CMDBUF_BF16=0
 export DO_LG_WITH_BF16=0
+export DO_NOT_BF16_UNDER_182x=0
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -571,6 +572,7 @@ export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/face_detection/retinaface/caffe/R
 export DO_QUANT_BF16=1
 export DO_CMDBUF_BF16=1
 export DO_LG_WITH_BF16=1
+export DO_NOT_BF16_UNDER_182x=1 # not enough tiu/tdma cmdbuf size
 export TOLERANCE_BF16=0.99,0.99,0.87
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
