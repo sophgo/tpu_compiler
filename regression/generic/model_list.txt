@@ -17,9 +17,9 @@ densenet_201              N        N        N        Y        Y        N
 senet_res50               N        N        N        Y        Y        Y
 resnext50                 N        N        N        Y        Y        N
 arcface_res50             Y        N        N        N        Y        N
-retinaface_mnet25         Y        Y        N        N        N        N
+retinaface_mnet25         Y        N        N        Y        Y        N
 retinaface_mnet25_600     N        N        N        Y        N        N
-retinaface_res50          Y        Y        N        Y        N        N
+retinaface_res50          N        N        N        Y        N        N
 ssd300                    N        N        N        Y        Y        N
 mobilenet_ssd             Y        N        N        N        Y        N
 yolo_v1_448               N        N        N        Y        N        N
@@ -52,7 +52,7 @@ res2net50                 N        N        N        Y        Y        N
 
 # tensorflow
 mobilenet_v1_tf           N        N        N        Y        Y        N
-mobilenet_v2_tf           Y        Y        N        N        N        N
+mobilenet_v2_tf           Y        Y        N        N        Y        N
 resnet50_tf               N        N        N        Y        Y        N
 vgg16_tf                  N        N        N        Y        Y        N
 inception_v3_tf           N        N        N        Y        Y        N

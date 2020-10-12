@@ -38,10 +38,6 @@ def parse_args():
                         help="Draw results on image")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--dump_weights",
-                        help="Dump all weights into a file in npz format")
-    parser.add_argument("--force_input",
-                        help="Force the input blob data, in npy format")
     parser.add_argument("--obj_threshold", type=float, default=0.5,
                         help="Object confidence threshold")
 
@@ -106,8 +102,8 @@ def parse_top_detection(resolution, detections, conf_threshold=0.6):
     return top_conf, bboxs
 
 def ssd300_face_detect(net, image_path, net_input_dims,
-                  dump_blobs=None, dump_weights=None):
-    
+                  dump_blobs=None):
+
     transformer = caffe.io.Transformer({'data': net.blobs['data'].data.shape})
     transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
     transformer.set_mean('data', np.array([104, 177, 123], dtype=np.float32))
@@ -144,14 +140,6 @@ def ssd300_face_detect(net, image_path, net_input_dims,
             blobs_dict[name] = out[net.top_names[name][0]].copy()
         np.savez(dump_blobs, **blobs_dict)
 
-    if dump_weights is not None:
-        print("Save Weights:", dump_weights)
-        weights_dict = {}
-        for name, param in net.params.items():
-            for i in range(len(param)):
-                weights_dict[name + "_" + str(i)] = param[i].data
-        np.savez(dump_weights, **weights_dict)
-
     return detections
 
 def main(argv):
@@ -170,7 +158,7 @@ def main(argv):
     if (args.input_file != '') :
         image = cv2.imread(args.input_file)
         predictions = ssd300_face_detect(net, args.input_file, net_input_dims,
-                                    args.dump_blobs, args.dump_weights)
+                                    args.dump_blobs)
 
         top_conf, bboxs = parse_top_detection(image.shape, predictions, obj_threshold)
 

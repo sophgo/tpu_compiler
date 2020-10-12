@@ -12,7 +12,6 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --model_def $MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.prototxt \
       --pretrained_model $MODEL_PATH/face_antispoofing/RGBIRLiveness/caffe/RGBIRlivenessFacebageNet.caffemodel \
       --dump_blobs $CAFFE_BLOBS_NPZ \
-      --dump_weights liveness_weights.npz \
       --model_type liveness \
       --input_file $REGRESSION_PATH/data/liveness_1_patch.bin
 fi

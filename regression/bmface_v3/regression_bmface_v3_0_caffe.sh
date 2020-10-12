@@ -11,7 +11,6 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --model_def $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.prototxt \
       --pretrained_model $MODEL_PATH/face_recognition/bmface/caffe/bmface-v3.caffemodel \
       --dump_blobs $CAFFE_BLOBS_NPZ \
-      --dump_weights bmface_v3_weights.npz \
       --model_type bmface_v3 \
       --input_file $REGRESSION_PATH/data/Aaron_Eckhart_0001.jpg
 fi

@@ -1,2 +1,0 @@
-$REGRESSION_PATH/parallel/run_accuracy.sh resnet50 100
-$REGRESSION_PATH/parallel/run_accuracy.sh mobilenet_v2 100

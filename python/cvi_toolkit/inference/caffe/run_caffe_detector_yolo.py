@@ -43,13 +43,9 @@ def parse_args():
                         help="Draw results on image")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--dump_weights",
-                        help="Dump all weights into a file in npz format")
     parser.add_argument("--dump_blobs_with_inplace",
                         type=bool, default=False,
                         help="Dump all blobs including inplace blobs (takes much longer time)")
-    parser.add_argument("--force_input",
-                        help="Force the input blob data, in npy format")
     parser.add_argument("--obj_threshold", type=float, default=0.3,
                         help="Object confidence threshold")
     parser.add_argument("--nms_threshold", type=float, default=0.5,
@@ -114,12 +110,6 @@ def main(argv):
 
     all_tensor_dict = caffemodel.get_all_tensor(inputs, args.dump_blobs_with_inplace)
     np.savez(args.dump_blobs, **all_tensor_dict)
-
-    # dump weight to file
-    if args.dump_weights is not None:
-        print("Save Weights:", args.dump_weights)
-        weights_dict = caffemodel.get_all_weights()
-        np.savez(args.dump_weights, **weights_dict)
 
     out_feat = {}
     if yolov3 == True:

@@ -24,10 +24,6 @@ def parse_args():
                         help="Draw results on image")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--dump_weights",
-                        help="Dump all weights into a file in npz format")
-    parser.add_argument("--force_input",
-                        help="Force the input blob data, in npy format")
     parser.add_argument("--obj_threshold", type=float, default=0.1,
                         help="Object confidence threshold")
 
@@ -108,8 +104,8 @@ def get_label_name(labelmap, labels):
     return label_names
 
 def ssd_detect(model,image_path, net_input_dims,
-                  dump_blobs=None, dump_weights=None):
-    
+                  dump_blobs=None):
+
     image = caffe.io.load_image(image_path)  # range from 0 to 1
 
     # net.blobs['data'].reshape(1, 3, net_input_dims[0], net_input_dims[1])
@@ -141,13 +137,6 @@ def ssd_detect(model,image_path, net_input_dims,
     #     for name, blob in net.blobs.items():
     #         blobs_dict[name] = blob.data
     #     np.savez(dump_blobs, **blobs_dict)
-    # if dump_weights is not None:
-    #     print("Save Weights:", dump_weights)
-    #     weights_dict = {}
-    #     for name, param in net.params.items():
-    #         for i in range(len(param)):
-    #             weights_dict[name + "_" + str(i)] = param[i].data
-    #     np.savez(dump_weights, **weights_dict)
 
     return detections
 
@@ -172,7 +161,7 @@ def main(argv):
     if (args.input_file != '') :
         image = cv2.imread(args.input_file)
         predictions = ssd_detect(args.model,args.input_file, net_input_dims,
-                                    args.dump_blobs, args.dump_weights)
+                                    args.dump_blobs)
 
         top_label_indices, top_conf, bboxs = parse_top_detection(image.shape, predictions, obj_threshold)
         top_label_name = get_label_name(labelmap, top_label_indices)

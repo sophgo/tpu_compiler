@@ -34,10 +34,6 @@ def parse_args():
                         help="Draw results on image")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--dump_weights",
-                        help="Dump all weights into a file in npz format")
-    parser.add_argument("--force_input",
-                        help="Force the input blob data, in npy format")
     parser.add_argument("--obj_threshold", type=float, default=0.3,
                         help="Object confidence threshold")
     parser.add_argument("--nms_threshold", type=float, default=0.5,
@@ -276,4 +272,3 @@ def main(argv):
 
 if __name__ == '__main__':
     main(sys.argv)
- 

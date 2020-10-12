@@ -39,8 +39,6 @@ def parse_args():
                         help="Input image for testing")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--dump_weights",
-                        help="Dump all weights into a file in npz format")
     parser.add_argument("--dump_blobs_with_inplace",
                         type=bool, default=False,
                         help="Dump all blobs including inplace blobs (takes much longer time)")
@@ -109,11 +107,6 @@ def main(argv):
         print("Save Blobs: ", args.dump_blobs)
         blobs_dict = caffemodel.get_all_tensor(input, args.dump_blobs_with_inplace)
         np.savez(args.dump_blobs, **blobs_dict)
-
-    if args.dump_weights:
-        print("Save Weights:", args.dump_weights)
-        weights_dict = caffemodel.get_all_weights()
-        np.savez(args.dump_weights, **weights_dict)
 
 
 if __name__ == '__main__':

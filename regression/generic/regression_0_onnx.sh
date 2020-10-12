@@ -23,7 +23,4 @@ if [ ! -f "$ONNX_BLOBS_NPZ" ]; then
 fi
 
 cvi_npz_tool.py extract $ONNX_BLOBS_NPZ ${NET}_in_fp32.npz input
-# cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_prob.npz output
-
-# VERDICT
 echo $0 PASSED

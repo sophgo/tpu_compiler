@@ -11,7 +11,6 @@ run_caffe_classifier.py \
     --mean_file $REGRESSION_PATH/data/ilsvrc_2012_mean.npy \
     --label_file $REGRESSION_PATH/data/synset_words.txt \
     --dump_blobs squeezenet_blobs.npz \
-    --dump_weights squeezenet_weights.npz \
     $REGRESSION_PATH/data/cat.jpg \
     caffe_out.npy
 

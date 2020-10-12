@@ -12,7 +12,6 @@ run_caffe_detector_ssd.py \
     --mean $MEAN \
     --input_scale $INPUT_SCALE \
     --dump_blobs ${NET}_blobs.npz \
-    --dump_weights ${NET}_weights.npz \
     --batch_size $BATCH_SIZE \
     --input_file $REGRESSION_PATH/data/dog.jpg \
     --label_file $LABEL_MAP  \

@@ -17,7 +17,6 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --model_channel_order $MODEL_CHANNEL_ORDER \
       --batch_size $BATCH_SIZE \
       --dump_blobs $CAFFE_BLOBS_NPZ \
-      --dump_weights ${NET}_weights.npz \
       $REGRESSION_PATH/data/cat.jpg \
       caffe_out.npy
 fi

@@ -53,10 +53,6 @@ def make_parser():
         help="Indicate output name"
     )
     parser.add_argument(
-        "--dump_weights",
-        help="Dump all weights into a file in npz format"
-    )
-    parser.add_argument(
         "--batch_size",
         type=int, default=1,
         help="Set batch size"
@@ -102,12 +98,6 @@ if __name__ == '__main__':
     all_tensor_dict = caffemodel.get_all_tensor(inputs,
         args.dump_blobs_with_inplace)
     np.savez(args.dump_blobs, **all_tensor_dict)
-
-    # dump weight to file
-    if args.dump_weights is not None:
-        print("Save Weights:", args.dump_weights)
-        weights_dict = caffemodel.get_all_weights()
-        np.savez(args.dump_weights, **weights_dict)
 
 
     ##--decoder: Change the name of output blobs according to your prototxts--

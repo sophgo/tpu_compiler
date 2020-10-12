@@ -41,10 +41,6 @@ def parse_args():
                         help="Draw results on image")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--dump_weights",
-                        help="Dump all weights into a file in npz format")
-    parser.add_argument("--force_input",
-                        help="Force the input blob data, in npy format")
     parser.add_argument("--obj_threshold", type=float, default=0.5,
                         help="Object confidence threshold")
     parser.add_argument("--batch_size", type=int, default=1,
@@ -126,7 +122,7 @@ def get_label_name(labelmap, labels):
     return label_names
 
 def ssd_detect(net, image_path, net_input_dims, input_scale, mean, raw_scale,
-                  dump_blobs=None, dump_weights=None, batch=1):
+                  dump_blobs=None, batch=1):
     image_x = cv2.imread(image_path)
     image_x = cv2.resize(image_x, (net_input_dims[1], net_input_dims[0]))
     image_x = image_x.astype(np.float32)
@@ -153,13 +149,6 @@ def ssd_detect(net, image_path, net_input_dims, input_scale, mean, raw_scale,
         for name, blob in net.blobs.items():
             blobs_dict[name] = blob.data
         np.savez(dump_blobs, **blobs_dict)
-    if dump_weights is not None:
-        print("Save Weights:", dump_weights)
-        weights_dict = {}
-        for name, param in net.params.items():
-            for i in range(len(param)):
-                weights_dict[name + "_" + str(i)] = param[i].data
-        np.savez(dump_weights, **weights_dict)
 
     return detections
 
@@ -189,7 +178,7 @@ def main(argv):
         image = cv2.imread(args.input_file)
         predictions = ssd_detect(net, args.input_file, net_input_dims,
                                  args.input_scale, mean, args.raw_scale,
-                                 args.dump_blobs, args.dump_weights, args.batch_size)
+                                 args.dump_blobs, args.batch_size)
 
         top_label_indices, top_conf, bboxs = parse_top_detection(image.shape, predictions, obj_threshold)
         top_label_name = get_label_name(labelmap, top_label_indices)

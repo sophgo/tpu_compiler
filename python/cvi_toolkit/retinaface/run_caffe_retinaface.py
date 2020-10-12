@@ -47,8 +47,6 @@ def parse_args():
                         help="NMS threshold")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--dump_weights",
-                        help="Dump all weights into a file in npz format")
     parser.add_argument("--batch_size", type=int, default=1, help="Set batch size")
 
     args = parser.parse_args()
@@ -89,11 +87,6 @@ def main(argv):
         print("Save Blobs: ", args.dump_blobs)
         blobs_dict = caffemodel.get_all_tensor(inputs, True)
         np.savez(args.dump_blobs, **blobs_dict)
-
-    if args.dump_weights:
-        print("Save Weights:", args.dump_weights)
-        weights_dict = caffemodel.get_all_weights()
-        np.savez(args.dump_weights, **weights_dict)
 
     if (args.draw_image != ''):
         faces, landmarks = retinaface_detect(caffemodel.net, image, net_input_dims, args.batch_size,

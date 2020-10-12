@@ -15,7 +15,6 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --pretrained_model $MODEL_DAT \
       --net_input_dims $NET_INPUT_DIMS \
       --dump_blobs $CAFFE_BLOBS_NPZ \
-      --dump_weights ${NET}_weights.npz \
       --output ${OUTPUTS} \
       --batch_size $BATCH_SIZE \
       --input_file $IMAGE_PATH \

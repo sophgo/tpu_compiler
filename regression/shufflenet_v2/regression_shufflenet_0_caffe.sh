@@ -10,7 +10,6 @@ run_caffe_classifier.py \
     --pretrained_model $MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel \
     --label_file $REGRESSION_PATH/data/synset_words.txt \
     --dump_blobs shufflenet_blobs.npz \
-    --dump_weights shufflenet_weights.npz \
     --raw_scale 1.0 \
     $REGRESSION_PATH/shufflenet_v2/data/194.jpg \
     caffe_out.npy

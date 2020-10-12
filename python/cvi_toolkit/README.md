@@ -94,7 +94,6 @@ $ run_caffe_classifier.py \
     --mean_file $PYTHON_TOOLS_PATH/data/ilsvrc_2012_mean.npy \
     --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
     --dump_blobs resnet50_blobs.npz \
-    --dump_weights resnet50_weights.npz \
     $PYTHON_TOOLS_PATH/data/images/cat.jpg \
     caffe_out.npy
 
@@ -106,8 +105,6 @@ $ run_caffe_classifier.py \
     --mean_file $PYTHON_TOOLS_PATH/data/ilsvrc_2012_mean.npy \
     --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
     --dump_blobs resnet50_blobs.npz \
-    --dump_weights resnet50_weights.npz \
-    --force_input resnet50_input_fp32.npy \
     $PYTHON_TOOLS_PATH/data/images/cat.jpg \
     caffe_out.npy
 $ bin_compare.py caffe_out.bin $DATA_PATH/test_cat_out_resnet50_prob_fp32.bin \
@@ -123,7 +120,6 @@ $ run_caffe_classifier.py \
     --input_scale 0.017 \
     --label_file $PYTHON_TOOLS_PATH/data/ilsvrc12/synset_words.txt \
     --dump_blobs mobilenet_v2_blobs.npz \
-    --dump_weights mobilenet_v2_weights.npz \
     $PYTHON_TOOLS_PATH/data/images/cat.jpg \
     caffe_out.npy
 ```
@@ -137,7 +133,6 @@ $ run_caffe_detector_yolo.py \
     --obj_threshold 0.3 \
     --nms_threshold 0.5 \
     --dump_blobs yolov3_blobs.npz \
-    --dump_weights yolov3_weights.npz \
     --input_file $PYTHON_TOOLS_PATH/data/yolo/dog.jpg \
     --label_file $PYTHON_TOOLS_PATH/data/coco-labels-2014_2017.txt \
     --draw_image out.jpg
