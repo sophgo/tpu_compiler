@@ -3,6 +3,7 @@
  *
  * File Name: fc_kernel.cpp
  * Description:
+ * refined 2020-10-12
  */
 
 #include "CviBackendContext.h"

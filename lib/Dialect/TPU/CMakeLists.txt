@@ -88,65 +88,64 @@ add_llvm_library(MLIRTPU
   Plugin/CustomOpPlugin.cpp
   Backend/MachineInfo.cpp
   Backend/Kernel/CviBackendContext.cpp
+  Backend/Kernel/internal_common.cpp
+  Backend/Kernel/internal_tiling.cpp
   Backend/Kernel/TgFixedEltwiseKernel.cpp
   Backend/Kernel/TgFixedFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
+  Backend/Kernel/TgCastKernel.cpp
+  Backend/Kernel/TgFixedConcatKernel.cpp
+  Backend/Kernel/TgConvKernel.cpp
+  Backend/Kernel/TgFixedCropKernel.cpp
+  Backend/Kernel/TgFixedMacConstKernel.cpp
+  Backend/Kernel/TgFixedDilateKernel.cpp
+  Backend/Kernel/TgFixedLrnKernel.cpp
+  Backend/Kernel/TgLutKernel.cpp
+  Backend/Kernel/TgMixedPrecision.cpp
+  Backend/Kernel/TgPadKernel.cpp
+  Backend/Kernel/TgPermuteKernel.cpp
+  Backend/Kernel/TgPixelShuffleKernel.cpp
+  Backend/Kernel/TgFixedPowerKernel.cpp
+  Backend/Kernel/TgReluKernel.cpp
+  Backend/Kernel/TgReorgKernel.cpp
+  Backend/Kernel/TgFixedScaleKernel.cpp
+  Backend/Kernel/TgShuffleChannelKernel.cpp
+  Backend/Kernel/TgSliceKernel.cpp
+  Backend/Kernel/TgFixedDeconvKernel.cpp
+  Backend/Kernel/TgSwapChannelKernel.cpp
+  Backend/Kernel/TgTileKernel.cpp
+  Backend/Kernel/TgUpsampleKernel.cpp
+  Backend/Kernel/TgBf16ConcatKernel
+  Backend/Kernel/TgBf16FcKernel.cpp
+  Backend/Kernel/TgBf16GruKernel.cpp
+  Backend/Kernel/TgBf16LstmKernel.cpp
+  Backend/Kernel/TgBf16PoolingKernel.cpp
+  Backend/Kernel/TgBf16PreluKernel.cpp
+  Backend/Kernel/TgBf16ReluKernel.cpp
+  Backend/Kernel/TgBf16ScaleKernel.cpp
+  Backend/Kernel/TgBf16SoftmaxKernel.cpp
   Backend/Kernel/TgBf16SquareKernel.cpp
   Backend/Kernel/TgBf16BroadcastKernel.cpp
   Backend/Kernel/TgBf16MatMulKernel.cpp
-  Backend/Kernel/cast_kernel.cpp
-  Backend/Kernel/concat_bmkernel.cpp
-  Backend/Kernel/conv_kernel.cpp
-  Backend/Kernel/crop_bmkernel.cpp
-  Backend/Kernel/mac_const_kernel.cpp
-  Backend/Kernel/dilate_bmkernel.cpp
-  Backend/Kernel/dma_legacy_bmkernel.cpp
-  Backend/Kernel/lrn_kernel.cpp
-  Backend/Kernel/lut.cpp
-  Backend/Kernel/mixed_precision.cpp
-  Backend/Kernel/pad_kernel.cpp
-  Backend/Kernel/permute_kernel.cpp
-  Backend/Kernel/pixel_shuffle_kernel.cpp
-  Backend/Kernel/power_kernel.cpp
-  Backend/Kernel/relu_bmkernel.cpp
-  Backend/Kernel/reorg_kernel.cpp
-  Backend/Kernel/scale_kernel.cpp
-  Backend/Kernel/shuffle_channel_kernel.cpp
-  Backend/Kernel/slice_kernel.cpp
-  Backend/Kernel/src_deconv_bmkernel.cpp
-  Backend/Kernel/swap_channel_kernel.cpp
-  Backend/Kernel/tensor_common.cpp
-  Backend/Kernel/tile_kernel.cpp
-  Backend/Kernel/tiling.cpp
-  Backend/Kernel/upsample_kernel.cpp
-  Backend/Kernel/tl_broadcast_mul.cpp
-  Backend/Kernel/tl_concat.cpp
-  Backend/Kernel/tl_conv.cpp
-  Backend/Kernel/tl_crop.cpp
-  Backend/Kernel/tl_deconv.cpp
-  Backend/Kernel/tl_eltwise.cpp
-  Backend/Kernel/tl_leaky_relu.cpp
-  Backend/Kernel/tl_lrn.cpp
-  Backend/Kernel/tl_lut.cpp
-  Backend/Kernel/tl_pad.cpp
-  Backend/Kernel/tl_pooling.cpp
-  Backend/Kernel/tl_prelu.cpp
-  Backend/Kernel/tl_quant.cpp
-  Backend/Kernel/tl_relu.cpp
-  Backend/Kernel/tl_scale.cpp
-  Backend/Kernel/tl_tdma.cpp
-  Backend/Kernel/tl_upsample.cpp
-  Backend/Kernel/tl_mac_const.cpp
-  Backend/Kernel/bf16_concat_kernel.cpp
-  Backend/Kernel/bf16_fc_kernel.cpp
-  Backend/Kernel/bf16_gru.cpp
-  Backend/Kernel/bf16_lstm.cpp
-  Backend/Kernel/bf16_pooling_kernel.cpp
-  Backend/Kernel/bf16_prelu_kernel.cpp
-  Backend/Kernel/bf16_relu_bmkernel.cpp
-  Backend/Kernel/bf16_scale_kernel.cpp
-  Backend/Kernel/bf16_softmax.cpp
-  Backend/Kernel/bf16_tiling.cpp
+  Backend/Kernel/TlBroadcastMul.cpp
+  Backend/Kernel/TlConcat.cpp
+  Backend/Kernel/TlConv.cpp
+  Backend/Kernel/TlCrop.cpp
+  Backend/Kernel/TlDeconv.cpp
+  Backend/Kernel/TlEltwise.cpp
+  Backend/Kernel/TlLeakyRelu.cpp
+  Backend/Kernel/TlLrn.cpp
+  Backend/Kernel/TlLut.cpp
+  Backend/Kernel/TlPad.cpp
+  Backend/Kernel/TlPooling.cpp
+  Backend/Kernel/TlPrelu.cpp
+  Backend/Kernel/TlRelu.cpp
+  Backend/Kernel/TlQuant.cpp
+  Backend/Kernel/TlRelu.cpp
+  Backend/Kernel/TlScale.cpp
+  Backend/Kernel/TlTdma.cpp
+  Backend/Kernel/TlUpsample.cpp
+  Backend/Kernel/TlMacConst.cpp
   ADDITIONAL_HEADER_DIRS
   ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
 )

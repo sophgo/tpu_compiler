@@ -1,5 +1,8 @@
 /*
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
+ *
+ * refined 2020-10-12
+ *
  */
 
 #include "CviBackendContext.h"
@@ -16,16 +19,14 @@ void broadcast_one_to_all_lane(const CviBackendContext &ctx, cvk_tl_t inputBuffe
   cvk_tl_t tl_src;
   tl_src.start_address = inputBuffer.start_address;
   tl_src.fmt = CVK_FMT_BF16;
-  tl_src.shape = ctx.shape_t4(inputBuffer.shape.n, 1, NPU_NUM, inputBuffer.shape.h * inputBuffer.shape.w);
+  tl_src.shape = ctx.tl_shape_t4(inputBuffer.shape.n, 1, NPU_NUM, inputBuffer.shape.h * inputBuffer.shape.w);
   tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_BF16, /*eu_align=*/1);
   tl_src.stride.h = 0;
 
   cvk_tl_t tl_dst;
   tl_dst.start_address = inputBuffer.start_address;
   tl_dst.fmt = CVK_FMT_BF16;
-  tl_dst.shape = {
-      static_cast<uint32_t>(inputBuffer.shape.n), static_cast<uint32_t>(NPU_NUM),
-      static_cast<uint32_t>(1), static_cast<uint32_t>(inputBuffer.shape.h * inputBuffer.shape.w)};
+  tl_dst.shape = ctx.tl_shape_t4(inputBuffer.shape.n, NPU_NUM, 1, inputBuffer.shape.h * inputBuffer.shape.w);
   tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
   cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
@@ -71,8 +72,8 @@ void cvi_backend_tg_bf16_broadcast_sub_kernel(const CviBackendContext &ctx,
   for (step_w = w; step_w > 0; step_w--) {
     for (step_h = h; step_h > 0; step_h--) {
       for (step_n = n; step_n > 0; step_n--) {
-        shape_a = ctx.shape_t4(step_n, step_c, step_h, step_w);
-        shape_b = ctx.shape_t4(1, 1, step_h, step_w);
+        shape_a = ctx.tl_shape_t4(step_n, step_c, step_h, step_w);
+        shape_b = ctx.tl_shape_t4(1, 1, step_h, step_w);
         lmem_required = ctx.lmem_tensor_to_size(shape_a, CVK_FMT_BF16, 1) * 2 +
                         ctx.lmem_tensor_to_size(shape_b, CVK_FMT_BF16, 1);
         if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
@@ -99,7 +100,7 @@ after_loop:
     int cur_h = std::min(h - pos_h, step_h);
     for (int pos_w = 0; pos_w < w; pos_w += step_w) {
       int cur_w = std::min(w - pos_w, step_w);
-      shape_b = ctx.shape_t4(1, 1, cur_h, cur_w);
+      shape_b = ctx.tl_shape_t4(1, 1, cur_h, cur_w);
 
       // load b to lmem
       cvk_tl_t operand;
@@ -119,7 +120,7 @@ after_loop:
 
       // broadcast b to all lanes
       broadcast_one_to_all_lane(ctx, operand);
-      shape_b = ctx.shape_t4(1, NPU_NUM, cur_h, cur_w);
+      shape_b = ctx.tl_shape_t4(1, NPU_NUM, cur_h, cur_w);
       cvk_tl_t operand_b;
       operand_b.start_address = tl_b->start_address;
       operand_b.shape = shape_b;
@@ -134,7 +135,7 @@ after_loop:
           llvm::errs() << llvm::format("cur_n:%d, cur_c:%d, cur_h:%d, cur_w:%d\n", cur_n,
                                        cur_c, cur_h, cur_w);
           cvk_tl_t operand_a, operand_res;
-          shape_a = ctx.shape_t4(cur_n, cur_c, cur_h, cur_w);
+          shape_a = ctx.tl_shape_t4(cur_n, cur_c, cur_h, cur_w);
           operand_a.start_address = tl_a->start_address; // start of lmem
           operand_a.shape = shape_a;
           operand_a.stride = ctx.tl_default_stride(shape_a, CVK_FMT_BF16, /*eu_align=*/1);

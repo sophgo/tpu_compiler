@@ -13,8 +13,8 @@
 #include <assert.h>
 #include <cvikernel/cvikernel.h>
 #include <backend/backend_tg_api.h>
-#include "backend_tiling.h"
-#include "backend_tensor_common.h"
+#include "internal_tiling.h"
+#include "internal_common.h"
 
 #define MAX_CONV_IC (4095 - 32)
 #define MAX_TIU_CHL (4095 - 32)
@@ -46,7 +46,7 @@ public:
     cvk_ctx_->ops->set_layer_id(cvk_ctx_, layer_id);
   }
 
-  // tdma
+  // tdma kernel api
   void tdma_l2l_tensor_copy(cvk_tdma_l2l_tensor_copy_param_t *param) const {
     cvk_ctx_->ops->tdma_l2l_tensor_copy(cvk_ctx_, param);
   }
@@ -364,36 +364,14 @@ public:
     return cvk_ctx_->misc_ops->float_to_bfloat16(cvk_ctx_, fp32);
   }
 
-  //
-  // BM kernel legacy API
-  //
-
-  inline cvk_tl_shape_t shape_t4(int n, int c, int h, int w) const {
+  inline cvk_tl_shape_t tl_shape_t4(int n, int c, int h, int w) const {
     return {static_cast<uint32_t>(n), static_cast<uint32_t>(c), static_cast<uint32_t>(h),
             static_cast<uint32_t>(w)};
   }
 
-  inline cvk_tl_t tl_prealloc_align(uint32_t la_addr, cvk_tl_shape_t shape,
-                                    cvk_fmt_t fmt) const {
-    cvk_tl_t tl_data = {0};
-    tl_data.start_address = la_addr;
-    tl_data.fmt = fmt;
-    tl_data.shape = shape;
-    tl_data.stride = this->tl_default_stride(tl_data.shape, fmt,
-                                             /*eu_align=*/1);
-
-    return tl_data;
-  }
-
-  inline cvk_tl_t tl_prealloc(uint32_t la_addr, cvk_tl_shape_t shape, cvk_fmt_t fmt) const {
-    cvk_tl_t tl_data = {0};
-    tl_data.start_address = la_addr;
-    tl_data.fmt = fmt;
-    tl_data.shape = shape;
-    tl_data.stride = this->tl_default_stride(tl_data.shape, fmt,
-                                             /*eu_aligned=*/0);
-
-    return tl_data;
+  inline cvk_tg_shape_t tg_shape_t4(int n, int c, int h, int w) const {
+    return {static_cast<uint32_t>(n), static_cast<uint32_t>(c), static_cast<uint32_t>(h),
+            static_cast<uint32_t>(w)};
   }
 
   //
@@ -404,33 +382,20 @@ public:
   }
 
   //
-  // TDMA legacy API
+  // tdma simple api
   //
-  void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride) const;
-
   void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
-                        bool do_transpose) const;
-  void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
-                        bool do_transpose, bool do_decompress) const;
-
+                        bool do_transpose = false, bool do_decompress = false) const;
   void tdma_load_stride_bf16(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
                              uint8_t do_transpose = 0) const;
 
   void tdma_load(cvk_tl_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
-
   void tdma_load_bf16(cvk_tl_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
 
-  void tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride) const;
   void tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-                         bool do_transpose) const;
-  void tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-                         bool do_transpose, bool do_compress) const;
-
-  void tdma_store_stride_bf16(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride) const;
+                         bool do_transpose = false, bool do_compress = false) const;
   void tdma_store_stride_bf16(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-                              bool do_transpose) const;
-  void tdma_store_stride_bf16(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-                              bool do_transpose, bool do_compress) const;
+                              bool do_transpose = false, bool do_compress = false) const;
 
   void tdma_store(cvk_tl_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
 
@@ -456,10 +421,12 @@ public:
 
   void tdma_store_bf16(cvk_ml_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
 
-  void tdma_g2g_tensor_copy(uint64_t src_addr, cvk_tg_shape_t src_shape,
-                            cvk_tg_stride_t src_stride, uint64_t dst_addr,
-                            cvk_tg_shape_t dst_shape,
-                            cvk_tg_stride_t dst_stride, cvk_fmt_t fmt) const;
+  void tdma_g2g_tensor_copy(uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride,
+                            uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride,
+                            cvk_fmt_t g2g_fmt) const;
+  void tdma_g2g_tensor_copy(uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride, cvk_fmt_t src_fmt,
+                            uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt,
+                            cvk_fmt_t g2g_fmt) const;
 
   // get TDMA base gmem selection from gaddr.
   uint8_t getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const;

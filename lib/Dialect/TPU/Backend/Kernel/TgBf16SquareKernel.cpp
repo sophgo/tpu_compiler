@@ -1,5 +1,8 @@
 /*
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
+ *
+ * refined 2020-10-12
+ *
  */
 
 #include "TgBf16SquareKernel.hpp"
@@ -49,7 +52,7 @@ void TgBf16SquareKernel::doTileForNormalCase() {
   assert(max_h);
   int32_t cur_h = max_h;
 
-  cvk_tl_shape_t shape = ctx.shape_t4(1, NPU_NUM, cur_h, EU_NUM);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(1, NPU_NUM, cur_h, EU_NUM);
   allocLmem(shape, shape);
 
   SquareTile tile;
@@ -118,7 +121,7 @@ void TgBf16SquareKernel::schedule() {
 void TgBf16SquareKernel::load(int32_t step_idx, int32_t flip) {
   cvk_tl_t operand;
   auto tile = tiles[step_idx];
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   operand.start_address = tl_input[1 - flip]->start_address;
   operand.shape = shape;
   operand.stride = ctx.tl_default_stride(shape, CVK_FMT_BF16, 1);
@@ -137,7 +140,7 @@ void TgBf16SquareKernel::load(int32_t step_idx, int32_t flip) {
 void TgBf16SquareKernel::store(int32_t step_idx, int32_t flip) {
   cvk_tl_t result;
   auto tile = tiles[step_idx];
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   result.start_address = tl_output[1 - flip]->start_address;
   result.shape = shape;
   result.stride = ctx.tl_default_stride(shape, CVK_FMT_BF16, 1);
@@ -160,13 +163,13 @@ void TgBf16SquareKernel::compute(int32_t step_idx, int32_t flip) {
   cvk_tl_t input;
   cvk_tl_t output;
 
-  input_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+  input_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   input.start_address = tl_input[flip]->start_address;
   input.shape = input_shape;
   input.fmt = CVK_FMT_BF16;
   input.stride = ctx.tl_default_stride(input_shape, CVK_FMT_BF16, 1);
 
-  output_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+  output_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   output.start_address = tl_output[flip]->start_address;
   output.shape = output_shape;
   output.fmt = CVK_FMT_BF16;

@@ -1,5 +1,8 @@
 /*
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
+ *
+ * refined 2020-10-12
+ *
  */
 
 #include "TgFixedPoolingKernel.hpp"
@@ -89,8 +92,8 @@ void TgInt8PoolingKernel::doTileForNormalCase() {
         if (step_iw > w) {
           step_iw = w;
         }
-        cvk_tl_shape_t input_shape = ctx.shape_t4(1, step_c, step_ih, step_iw);
-        cvk_tl_shape_t output_shape = ctx.shape_t4(1, step_c, step_oh, step_ow);
+        cvk_tl_shape_t input_shape = ctx.tl_shape_t4(1, step_c, step_ih, step_iw);
+        cvk_tl_shape_t output_shape = ctx.tl_shape_t4(1, step_c, step_oh, step_ow);
         auto total_lmem = 2 * (ctx.lmem_tensor_to_size(input_shape, CVK_FMT_I8, 1) +
                                ctx.lmem_tensor_to_size(output_shape, CVK_FMT_I8, 1));
         LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -183,7 +186,7 @@ void TgInt8PoolingKernel::schedule() {
 void TgInt8PoolingKernel::load(int32_t step_idx, int32_t flip) {
   cvk_tl_t operand;
   auto tile = tiles[step_idx];
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   operand.start_address = tl_input[1 - flip]->start_address;
   operand.shape = shape;
   operand.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
@@ -205,7 +208,7 @@ void TgInt8PoolingKernel::load(int32_t step_idx, int32_t flip) {
 void TgInt8PoolingKernel::store(int32_t step_idx, int32_t flip) {
   cvk_tl_t result;
   auto tile = tiles[step_idx];
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.oh, tile.ow);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.oh, tile.ow);
   result.start_address = tl_output[1 - flip]->start_address;
   result.shape = shape;
   result.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
@@ -231,13 +234,13 @@ void TgInt8PoolingKernel::compute(int32_t step_idx, int32_t flip) {
   cvk_tl_t input;
   cvk_tl_t output;
 
-  input_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+  input_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   input.start_address = tl_input[flip]->start_address;
   input.shape = input_shape;
   input.fmt = CVK_FMT_I8;
   input.stride = ctx.tl_default_stride(input_shape, CVK_FMT_I8, 1);
 
-  output_shape = ctx.shape_t4(tile.n, tile.c, tile.oh, tile.ow);
+  output_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.oh, tile.ow);
   output.start_address = tl_output[flip]->start_address;
   output.shape = output_shape;
   output.fmt = CVK_FMT_I8;

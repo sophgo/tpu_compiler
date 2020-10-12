@@ -1,6 +1,7 @@
 /*
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
  *
+ * refined 2020-10-12
  */
 #ifndef TG_BF16_SQUARE_KERNEL_HPP
 #define TG_BF16_SQUARE_KERNEL_HPP

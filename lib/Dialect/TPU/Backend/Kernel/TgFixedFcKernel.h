@@ -1,6 +1,7 @@
 #ifndef TG_FIXED_FC_KERNEL_H
 #define TG_FIXED_FC_KERNEL_H
 
+// refined 2020-10-12
 class TgFcKernel {
 public:
   TgFcKernel(const CviBackendContext &ctx, int input_row, int input_col,

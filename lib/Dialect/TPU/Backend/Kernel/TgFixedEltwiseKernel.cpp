@@ -1,5 +1,6 @@
 /*
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
+ * refined 2020-10-12
  */
 
 #include "TgFixedEltwiseKernel.hpp"
@@ -109,7 +110,7 @@ void TgEltwiseKernel::doTileForNormalCase() {
   assert(max_h);
   int32_t cur_h = max_h;
 
-  cvk_tl_shape_t shape = ctx.shape_t4(1, NPU_NUM, cur_h, EU_NUM);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(1, NPU_NUM, cur_h, EU_NUM);
   allocLmem(shape, shape);
 
   EltwiseTile tile;
@@ -157,14 +158,14 @@ void TgEltwiseKernel::doTileForStrideCase() {
   int n_step = 1;
   int c_step = std::min(c, NPU_NUM);
   int h_step = h / stride_h;
-  cvk_tl_shape_t input_shape = ctx.shape_t4(n_step, c_step, h_step, w);
-  cvk_tl_shape_t output_shape = ctx.shape_t4(n_step, c_step, h_step, w / stride_w);
+  cvk_tl_shape_t input_shape = ctx.tl_shape_t4(n_step, c_step, h_step, w);
+  cvk_tl_shape_t output_shape = ctx.tl_shape_t4(n_step, c_step, h_step, w / stride_w);
   uint32_t lmem_required = ctx.lmem_tensor_to_size(input_shape, fmt, 1) * 2 +
                            ctx.lmem_tensor_to_size(output_shape, fmt, 1) * 3;
   if (lmem_required > (uint32_t)LOCAL_MEM_SIZE) {
     for (; h_step > 0; --h_step) {
-      input_shape = ctx.shape_t4(n_step, c_step, h_step, w);
-      output_shape = ctx.shape_t4(n_step, c_step, h_step, w / stride_w);
+      input_shape = ctx.tl_shape_t4(n_step, c_step, h_step, w);
+      output_shape = ctx.tl_shape_t4(n_step, c_step, h_step, w / stride_w);
       lmem_required = ctx.lmem_tensor_to_size(input_shape, fmt, 1) * 2 +
                       ctx.lmem_tensor_to_size(output_shape, fmt, 1) * 3;
       if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
@@ -225,7 +226,7 @@ void TgEltwiseKernel::load(int32_t step_idx) {
   auto tile_idx = step_idx / operand_num;
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   operand.start_address = tl_input[input_flip]->start_address;
   operand.shape = shape;
   operand.stride = ctx.tl_default_stride(shape, fmt, 1);
@@ -262,7 +263,7 @@ void TgEltwiseKernel::load(int32_t step_idx) {
 void TgEltwiseKernel::store(int32_t step_idx) {
   auto tile_idx = step_idx / operand_num;
   auto tile = tiles[tile_idx];
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
   cvk_tl_t result;
   if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
     // one input case
@@ -310,14 +311,14 @@ void TgInt8EltwiseAddKernel::compute(int32_t step_idx) {
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output, output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = CVK_FMT_I8;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
     input.stride.w = stride_w;
   } else {
@@ -394,14 +395,14 @@ void TgInt8EltwiseMaxKernel::compute(int32_t step_idx) {
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output, output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = CVK_FMT_I8;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
     input.stride.w = stride_w;
   } else {
@@ -480,14 +481,14 @@ void TgInt8EltwiseMinKernel::compute(int32_t step_idx) {
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output, output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = CVK_FMT_I8;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
     input.stride.w = stride_w;
   } else {
@@ -566,14 +567,14 @@ void TgInt8EltwiseMulKernel::compute(int32_t step_idx) {
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = CVK_FMT_I8;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
     input.stride.w = stride_w;
   } else {
@@ -628,14 +629,14 @@ void TgBf16EltwiseAddKernel::compute(int32_t step_idx) {
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output, output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = fmt;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
     input.stride.w = stride_w * elementSize;
   } else {
@@ -691,14 +692,14 @@ void TgBf16EltwiseMaxKernel::compute(int32_t step_idx) {
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output, output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = CVK_FMT_I8;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
     input.stride.w = stride_w * elementSize;
   } else {
@@ -783,14 +784,14 @@ void TgBf16EltwiseMinKernel::compute(int32_t step_idx) {
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output, output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = CVK_FMT_I8;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
     input.stride.w = stride_w * elementSize;
   } else {
@@ -876,14 +877,14 @@ void TgBf16EltwiseMulKernel::compute(int32_t step_idx) {
   auto opd_idx = step_idx % operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
   input.fmt = fmt;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
     input.stride.w = stride_w * elementSize;
   } else {
@@ -930,7 +931,7 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
   auto tile_idx = step_idx / operand_num;
   auto tile = tiles[tile_idx];
 
-  cvk_tl_shape_t shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
 
   cvk_tl_t input, output;
   //cvk_tl_t output_high;
@@ -938,7 +939,7 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
   input.shape = shape;
   input.fmt = fmt;
   if (do_early_stride) {
-    cvk_tl_shape_t tdma_shape = ctx.shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
     input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
     input.stride.w = stride_w * elementSize;
   } else {
