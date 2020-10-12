@@ -48,6 +48,12 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
             ${NET}_quant_bf16_tg.mlir \
             -o ${NET}_quant_bf16_lg.mlir
 
+        mlir-opt \
+            --compress-weight \
+            --tpu-compressed-weight-map-filename=${NET}_quant_bf16_lg_compressed_weight_stats.csv \
+            ${NET}_quant_bf16_lg.mlir \
+            -o ${NET}_quant_bf16_lg_compressed.mlir
+
         # assign weight address & neuron address
         mlir-opt \
             --assign-weight-address \
@@ -57,7 +63,7 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
             --assign-neuron-address \
             --tpu-neuron-address-align=64 \
             --tpu-neuron-map-filename=${NET}_neuron_map_bf16.csv \
-            ${NET}_quant_bf16_lg.mlir \
+            ${NET}_quant_bf16_lg_compressed.mlir \
             -o ${NET}_quant_bf16_addr.mlir
     else
         # assign weight address & neuron address

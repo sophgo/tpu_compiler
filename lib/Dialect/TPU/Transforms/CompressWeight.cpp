@@ -52,7 +52,7 @@ struct CompressInfo {
   uint64_t compressedSize;
 };
 
-template <typename TensorTyOp>
+template <typename TensorTyOp, typename DataType>
 class CompressConvolutionWeightPattern : public OpRewritePattern<TensorTyOp> {
 public:
   using OpRewritePattern<TensorTyOp>::OpRewritePattern;
@@ -82,33 +82,29 @@ public:
     // Not support group convolution and depthwise convolution
     if (convOp.param().group().getValue().getLimitedValue() > 1) {
       LLVM_DEBUG(llvm::dbgs()
-                 << "CompressWeight: layer ID " << getOpLayerId(op)
-                 << ", " << convOp.name()
-                 << ", groups " << convOp.param().group().getValue().getLimitedValue()
-                 << ", not support group convolution\n");
+          << "CompressWeight: layer ID " << getOpLayerId(op)
+          << ", " << convOp.name()
+          << ", groups " << convOp.param().group().getValue().getLimitedValue()
+          << ", not support group convolution\n");
       return Pattern::matchFailure();
     }
 
     auto filterTy =
         convOp.filter()->getType().template dyn_cast<RankedTensorType>();
-    auto filterElementType = filterTy.getElementType();
-    assert(filterElementType.isIntOrFloat() && "Expect result is int or float");
-    if (!filterElementType.isIntOrFloat())
+    auto fltElemType = filterTy.getElementType();
+    assert(fltElemType.isIntOrFloat() && "Expect result is int or float");
+    if (!fltElemType.isIntOrFloat())
       return Pattern::matchFailure();
 
-    // Not support bfloat16 yet.
-    if (filterElementType.isBF16()) {
-      LLVM_DEBUG(llvm::dbgs()
-                 << "CompressWeight: layer ID " << getOpLayerId(op)
-                 << ", " << convOp.name()
-                 << ", not support bfloat16\n");
-      return Pattern::matchFailure();
-    }
+    uint64_t fltEltSize = llvm::divideCeil(fltElemType.getIntOrFloatBitWidth(),
+                                           8);
 
-    uint64_t filterDataTypeSize = filterElementType.getIntOrFloatBitWidth() / 8;
+    if (fltElemType.isBF16())
+      assert(fltEltSize == sizeof(DataType) &&
+             "Expect data type size of bf16 is 2");
 
     // Only support int8 or bf16
-    if (filterDataTypeSize != 1 && !filterElementType.isBF16()) {
+    if (fltEltSize != 1 && !fltElemType.isBF16()) {
       LLVM_DEBUG(llvm::dbgs()
                  << "CompressWeight: layer ID " << getOpLayerId(op)
                  << ", " << convOp.name()
@@ -118,7 +114,7 @@ public:
 
     // Same filter shape but fill compressed data
     TensorFile *wTF = getWeightTensorFile(convOp.getOperation());
-    auto filter = readAndDeleteWeightTensor<int8_t>(convOp.filter(), wTF);
+    auto filter = readAndDeleteWeightTensor<DataType>(convOp.filter(), wTF);
     int64_t filterSize;
     std::vector<int64_t> filterShape;
     getTensorShapeAndSize(convOp.filter(), filterShape, filterSize);
@@ -126,17 +122,17 @@ public:
            "filter size should be equal");
 
     LLVM_DEBUG(llvm::dbgs()
-               << "CompressWeight: layer ID " << getOpLayerId(op)
-               << ", " << convOp.name() << "\n"
-               << "  filter(" << filterShape[0]
-               << ", " << filterShape[1]
-               << ", " << filterShape[2]
-               << ", " << filterShape[3]
-               << "), filterDataTypeSize " << filterDataTypeSize
-               << "\n");
+        << "CompressWeight: layer ID " << getOpLayerId(op)
+        << ", " << convOp.name() << "\n"
+        << "  filter(" << filterShape[0]
+        << ", " << filterShape[1]
+        << ", " << filterShape[2]
+        << ", " << filterShape[3]
+        << "), fltEltSize " << fltEltSize
+        << "\n");
 
-    auto newFilter = std::make_unique<std::vector<int8_t> >(filterSize);
-    std::memset(newFilter->data(), 0, filterSize);
+    auto newFilter = std::make_unique<std::vector<DataType> >(filterSize);
+    std::memset(newFilter->data(), 0, filterSize * sizeof(DataType));
 
     // Filter layout in dialact (oc, ic, kh, kw)
     // But the storage layout is already changed to (1, oc, kh*kw, ic)
@@ -145,63 +141,73 @@ public:
     int kh = filterShape[2];
     int kw = filterShape[3];
 
-
     bool canCompress = true;
     // Split output channel in unit of lane number for df only
     int oc_step = MInfo::lane_num;
     // not split for lg
-    if (TensorTyOp::getOperationName() == "tpu.tl_lg_int8_conv_2d")
+    if ((TensorTyOp::getOperationName() == "tpu.tl_lg_int8_conv_2d") ||
+        (TensorTyOp::getOperationName() == "tpu.tl_lg_bf16_conv_2d"))
       oc_step = oc;
 
     auto buffer =
-        std::make_unique<std::vector<uint8_t> >(oc_step * kh * kw * ic);
+        std::make_unique<std::vector<uint8_t> >(oc_step * kh * kw * ic *
+                                                sizeof(DataType));
 
     int totalSize = 0;
     int totalCompressedSize = 0;
     for (int oc_pos = 0; oc_pos < oc; oc_pos += oc_step) {
       int cur_oc = std::min(oc - oc_pos, oc_step);
-      int step_size = cur_oc * kh * kw * ic;
-      int pos = oc_pos * kh * kw * ic;
+      int step_size = cur_oc * kh * kw * ic * sizeof(DataType);
+      int pos = oc_pos * kh * kw * ic * sizeof(DataType);
 
       // H/W constrain: must align 16B
       if (pos % 16) {
         LLVM_DEBUG(llvm::dbgs()
-                   << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
-                   << ", step_size " << step_size
-                   << ", pos " << pos
-                   << ", not aligned, SKIP\n");
+            << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
+            << ", step_size " << step_size
+            << ", pos " << pos
+            << ", not aligned, SKIP\n");
         canCompress = false;
         break;
       }
 
-      // Compressing uses uint8 data type.
-      // Create unit8 tiled buffer for it.
       auto plainData = std::make_unique<std::vector<uint8_t> >(step_size);
       std::memcpy(plainData->data(), filter->data() + pos, step_size);
 
       // Calculate compress parameter first.
       CompressCommandInfo cmdInfo;
       std::memset(&cmdInfo, 0, sizeof(cmdInfo));
-      cmdInfo.signedness = 1; // int8
-      cmdInfo.is_bfloat16 = 0;
+      cmdInfo.signedness = fltElemType.isBF16() ? 0 : 1;
+      cmdInfo.is_bfloat16 = fltElemType.isBF16() ? 1 : 0;
       getCompressParameter(plainData->data(), step_size, cmdInfo.signedness,
-                          cmdInfo.is_bfloat16, &cmdInfo);
+                           cmdInfo.is_bfloat16, &cmdInfo);
 
       // Create Compress data.
-      int requiredSize = getCompressedDataSize(step_size, /*dataType*/0);
+      int requiredSize = getCompressedDataSize(step_size,
+                                               fltElemType.isBF16() ? 1 : 0);
       auto compressedData =
           std::make_unique<std::vector<uint8_t> >(requiredSize);
       int compressedSize = 0;
-      compressInt8Data(plainData->data(), step_size, compressedData->data(),
-                       &compressedSize, &cmdInfo);
+
+      if (fltElemType.isBF16())
+        compressBf16Data(plainData->data(), step_size, compressedData->data(),
+                         &compressedSize, &cmdInfo);
+      else
+        compressInt8Data(plainData->data(), step_size, compressedData->data(),
+                         &compressedSize, &cmdInfo);
 
       // Compress size must be less than tiled size.
+      LLVM_DEBUG(llvm::dbgs()
+          << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
+          << ", step_size " << step_size
+          << ", compressedSize " << compressedSize << "\n");
+
       if (compressedSize > step_size) {
         LLVM_DEBUG(llvm::dbgs()
-                   << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
-                   << ", step_size " << step_size
-                   << ", compressedSize " << compressedSize
-                   << ", SKIP\n");
+            << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
+            << ", step_size " << step_size
+            << ", compressedSize " << compressedSize
+            << ", SKIP\n");
         canCompress = false;
         break;
       } else {
@@ -214,14 +220,10 @@ public:
                   compressedSize);
     }
 
-    if (filterDataTypeSize == 1) {
-    } else if (filterElementType.isBF16()) {
-      assert(filterDataTypeSize == 2 && "Expect data type size of bf16 is 2");
-    }
-
     if (canCompress) {
-      addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
-          "z", *newFilter, filterShape, "INT8", wTF);
+      addWeightTensorAndUpdateWeightOp<DataType>(convOp.filter(),
+          "z", *newFilter, filterShape,
+          fltElemType.isBF16() ? "BF16" : "INT8", wTF);
 
       assert(memcmp(filter->data(), newFilter->data(), filterSize)
              && "Expect compressed content");
@@ -242,13 +244,14 @@ public:
       compressInfos_.push_back(info);
 
       LLVM_DEBUG(llvm::dbgs()
-                << "  compressInfos size "
-                << compressInfos_.size() << "\n");
+          << "  compressInfos size "
+          << compressInfos_.size() << "\n");
 
       return Pattern::matchSuccess();
     } else  {
-      addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
-          "", *filter, filterShape, "INT8", wTF);
+      addWeightTensorAndUpdateWeightOp<DataType>(convOp.filter(),
+          "", *filter, filterShape,
+          fltElemType.isBF16() ? "BF16" : "INT8", wTF);
 
       return Pattern::matchFailure();
     }
@@ -378,16 +381,6 @@ public:
       compressInt8Data(plainData->data(), step_size, compressedData->data(),
                        &compressedSize, &cmdInfo);
 
-      LLVM_DEBUG(llvm::dbgs()
-          << "    [k_pos=" << k_pos
-          << "][n_pos=" << n_pos
-          << "] dstOffset " << dstOffset
-          << ", srcOffset " << srcOffset
-          << ", k_size " << k_size
-          << ", n_size " << n_size
-          << ", compressedSize " << compressedSize
-          << "\n");
-
       if ((dstOffset + compressedSize) > (K * N)) {
         LLVM_DEBUG(llvm::dbgs()
             << "      compressed size exceed, dstOffset " << dstOffset
@@ -496,8 +489,9 @@ void CompressWeightPass::runOnFunction() {
   // Compress convolution weight
   OwningRewritePatternList patterns;
   patterns.insert<
-      CompressConvolutionWeightPattern<tpu::TL_LW_Conv2DOp>,
-      CompressConvolutionWeightPattern<tpu::TL_LG_INT8_Conv2DOp>
+      CompressConvolutionWeightPattern<tpu::TL_LW_Conv2DOp, int8_t>,
+      CompressConvolutionWeightPattern<tpu::TL_LG_INT8_Conv2DOp, int8_t>,
+      CompressConvolutionWeightPattern<tpu::TL_LG_BF16_Conv2DOp, uint16_t>
       >(&getContext(), compressInfos);
   applyPatternsGreedily(getFunction(), patterns);
 

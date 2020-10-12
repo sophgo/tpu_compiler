@@ -136,9 +136,10 @@ void cvi_backend_tl_load_stride(
   int is_quant = 0;
   int is_bf16 = 0;
 
-  if (from == CVK_FMT_BF16 || to == CVK_FMT_BF16) {
-    // TODO: support other format
-    assert(!DoDecompress && "not support bf16 + compress yet");
+  if (DoDecompress) {
+    assert(((from == CVK_FMT_I8 && to == CVK_FMT_I8) ||
+            (from == CVK_FMT_BF16 && to == CVK_FMT_BF16)) &&
+            "Only support i8/bf16 now");
   }
 
   if ((from == CVK_FMT_BF16 && to == CVK_FMT_I8) &&

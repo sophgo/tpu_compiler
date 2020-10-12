@@ -35,6 +35,15 @@ static inline int8_t unsign_to_sign(uint8_t val)
   return (uint8_t)((sign_i == 1) ? (-abs_data_i) : abs_data_i);
 }
 
+static inline void dispatch_bf16_data(const uint16_t *bf16_in, uint8_t *exp, uint8_t *frac, size_t isz)
+{
+  for (size_t i = 0; i < isz; i++)
+  {
+    exp[i] = (uint8_t)((bf16_in[i] >> 7) & 0xFF);
+    frac[i] = (uint8_t)(((bf16_in[i] >> 15) << 7) | (bf16_in[i] & 0x7F));
+  }
+}
+
 void getCompressParameter(
     const uint8_t *ibuf, size_t isz, uint8_t signedness, uint8_t isBfloat16,
     CompressCommandInfo *cmd_info) {
@@ -373,6 +382,59 @@ void compressInt8Data(
   free(bsbuf);
 }
 
+// -- vlc encode bfloat16 entry function --
+void compressBf16Data(
+    const uint8_t *ibuf, int isz, uint8_t *obuf, int *osz,
+    CommandInfo *cmd_info)
+{
+  const uint16_t *ibuf16 = (const uint16_t *)ibuf;
+  StreamBuffer bs_header, bs_kmap, bs_data;
+  size_t blk_num = (isz + 31) >> 5; // 32 bytes per blok
+  size_t header_size = 16;
+  size_t kmap_size = llvm::divideCeil(blk_num, 16) << 4;
+  size_t bs_buf_size = header_size + kmap_size + (blk_num << 5);
+  uint8_t *bsbuf = (uint8_t *)calloc(bs_buf_size, sizeof(uint8_t));
+
+  // block encode
+  init_stream(&bs_kmap, bsbuf + header_size, kmap_size, false);
+  init_stream(&bs_data, bsbuf + header_size + kmap_size, blk_num << 5, false);
+
+  for (size_t blk_idx = 0; blk_idx < blk_num; blk_idx++)
+  {
+    uint8_t blk_data[16] = {0}, blk_sr_data[16] = {0}, blk_data_frac[16] = {0};
+    size_t in_num = (blk_idx == (blk_num - 1)) ? ((isz >> 1) - (blk_idx << 4)) : 16;
+    dispatch_bf16_data(&ibuf16[blk_idx << 4], blk_data, blk_data_frac, in_num);
+
+    // exp: BGR encode
+    symbol_remapping(blk_data, blk_sr_data, cmd_info->bias0, cmd_info->bias1, false, true, cmd_info->zero_guard_en);
+
+    int k = vlc_estimate_block_order(blk_sr_data, cmd_info->zero_guard_en);
+    uint8_t ulen = vlc_gr_enc_block_data(blk_sr_data, &bs_data, k, cmd_info->zero_guard_en);
+    uint8_t k_info = (k == -1) ? 0xE0 : (k << 5) + ulen;
+    write_stream(&bs_kmap, &k_info, 8);
+
+    // frac: implicit zero compression
+    for (size_t i = 0; i < 16; i++)
+    {
+      if (!cmd_info->zero_guard_en || blk_data[i] != 0)
+      {
+        write_stream(&bs_data, &blk_data_frac[i], 8);
+      }
+    }
+  }
+
+  int blk_bs_size = llvm::divideCeil(((bs_data.bit_pos + 7) >> 3), 16) << 4; // 16 byte align
+  *osz = header_size + kmap_size + blk_bs_size;
+
+  // write header
+  init_stream(&bs_header, bsbuf, header_size, false);
+  vlc_enc_header(&bs_header, cmd_info, blk_bs_size);
+
+  memcpy(obuf, bsbuf, (*osz) * sizeof(uint8_t));
+  free(bsbuf);
+}
+
+// dataType: 0: 8bit, 1: 16bit
 int getCompressedDataSize(int unCompressedDatasize, int dataType) {
   int blk_num = (dataType) ?
       ((unCompressedDatasize + 31) >> 5) : ((unCompressedDatasize + 15) >> 4);

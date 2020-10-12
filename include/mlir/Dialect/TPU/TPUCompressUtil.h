@@ -54,6 +54,9 @@ void compressInt8Data(
     const uint8_t *ibuf, int isz, uint8_t *obuf, int *osz,
     CompressCommandInfo *cmd_info);
 
+void compressBf16Data(
+    const uint8_t *ibuf, int isz, uint8_t *obuf, int *osz,
+    CompressCommandInfo *cmd_info);
 
 // unit test
 void testCompress(void);
