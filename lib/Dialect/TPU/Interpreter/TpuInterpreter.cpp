@@ -1163,6 +1163,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
         input[i] = input_copy[i].data();
       }
       // apply multiplier
+      //#pragma omp parallel for schedule(static)
       for (unsigned i = 0; i < nInputs; ++i) {
         for (size_t j = 0; j < opdT[i]->size(); ++j) {
           input[i][j] = input[i][j] * (int8_t)quant_multiplier->at(i);
@@ -1177,6 +1178,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
 
   // compute in fp32
   int ret = 0;
+  //#pragma omp parallel for schedule(static)
   for (size_t ni = 0; ni < nInputs; ++ni) {
     for (size_t i = 0; i < (size_t)(in * ic * ih * iw); ++i) {
       if (ni == 0) { // first input
@@ -1209,6 +1211,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
     if (getOpQuantParamType(op) != "NONE") {
       if (type == "ADD" || type == "MAX" || type == "MIN") {
         // apply rshift and saturate
+        //#pragma omp parallel for schedule(static)
         for (int i = 0; i < input_size; ++i) {
 
           output[i] = (float)applyRShiftAndSaturateInt8(
@@ -3644,6 +3647,7 @@ LogicalResult tpu::YoloDetectionOp::interpret(
   float nms_threshold = this->nms_threshold().convertToFloat();
   int keep_topk = this->keep_topk().getLimitedValue();
   bool tiny = this->tiny();
+  bool yolo_v4 = this->yolo_v4();
   int class_num = this->class_num().getLimitedValue();
   std::string str_anchors = this->anchors();
   std::vector<float> vec_anchors;
@@ -3664,11 +3668,20 @@ LogicalResult tpu::YoloDetectionOp::interpret(
     }
   } else {
     if (vec_anchors.size() == 0) {
-      vec_anchors = {
-        10,13,   16,30,    33,23,      // layer106-conv (52*52)
-        30,61,   62,45,    59,119,     // layer94-conv  (26*26)
-        116,90,  156,198,  373,326     // layer82-conv  (13*13)
-      };
+      if (yolo_v4) {
+        vec_anchors = {
+          142, 110, 192, 243, 459, 401, // layer161-conv
+          36, 75, 76, 55, 72, 146,// layer150-conv
+          12, 16, 19, 36, 40, 28, // layer139-conv
+        };
+      }
+      else {
+        vec_anchors = {
+          10,13,   16,30,    33,23,      // layer106-conv (52*52)
+          30,61,   62,45,    59,119,     // layer94-conv  (26*26)
+          116,90,  156,198,  373,326     // layer82-conv  (13*13)
+        };
+      }
     }
   }
 

@@ -1410,6 +1410,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'keep_topk')
         checkKey(kargs, 'spp_net')
         checkKey(kargs, 'tiny')
+        checkKey(kargs, 'yolo_v4')
         checkKey(kargs, 'class_num')
         checkKey(kargs, 'anchors')
 
@@ -1422,6 +1423,7 @@ class MLIRImporter(object):
             'keep_topk': self.module.integerAttr(self.i32Type, kargs['keep_topk']),
             'spp_net': self.module.boolAttr(kargs['spp_net']),
             'tiny': self.module.boolAttr(kargs['tiny']),
+            'yolo_v4': self.module.boolAttr(kargs['yolo_v4']),
             'class_num': self.module.integerAttr(self.i32Type, kargs['class_num']),
             'anchors': self.module.stringAttr(kargs['anchors'])
         }

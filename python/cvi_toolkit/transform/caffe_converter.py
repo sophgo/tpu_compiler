@@ -1461,6 +1461,7 @@ class CaffeConverter(BaseConverter):
             "keep_topk": p.keep_topk,
             "spp_net": p.spp_net,
             "tiny": p.tiny,
+            "yolo_v4": p.yolo_v4,
             "class_num": p.class_num,
             "anchors": p.anchors
         }
