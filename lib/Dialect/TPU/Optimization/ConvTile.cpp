@@ -359,10 +359,8 @@ struct ConvTilePass : public FunctionPass<ConvTilePass> {
 };
 
 void ConvTilePass::runOnFunction() {
-  std::string getRunChipType;
   MInfo Machineinfo;
-  get_cvichip_name(getRunChipType);
-  Machineinfo.getChipInfo(getRunChipType.c_str());
+  Machineinfo.getChipInfo(getFunction());
   assert(MInfo::version && "refer to set-chip");
 
   getFunction().walk([&](Operation *op) {

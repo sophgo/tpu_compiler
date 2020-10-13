@@ -627,10 +627,8 @@ struct CompressActivationPass : public FunctionPass<CompressActivationPass> {
 
 void CompressActivationPass::runOnFunction() {
   OwningRewritePatternList patterns;
-  std::string getRunChipType;
   MInfo mInfo;
-  get_cvichip_name(getRunChipType);
-  mInfo.getChipInfo(getRunChipType.c_str());
+  mInfo.getChipInfo(getFunction());
   assert(MInfo::version && "refer to set-chip");
 
   // Determine whether the operation can store compressed activation.

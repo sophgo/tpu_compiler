@@ -518,7 +518,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         floatDividend = iw - 1;
         std::tie(maxInsertWAtOnce, maxFloatDividend) = getDivisors(ow - 1, floatDividend);
         if (!maxInsertWAtOnce.size()) {
-          // TODO: seperate all divisor 
+          // TODO: seperate all divisor
           std::vector<std::pair<int, int> > owDivisors;
           std::vector<std::pair<int, int> > iwDivisors;
           std::tie(owDivisors, maxFloatDividend) = getDivisors(ow - 1, 0, isInsInConv);
@@ -752,10 +752,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
                 ArrayRef<NamedAttribute>{attrs});
 
             // FIXME: no need init every travel
-            std::string getRunChipType = "cv183x";
-            MInfo Machineinfo;
-            //get_cvichip_name(getRunChipType); FIXME: get chip info
-            Machineinfo.getChipInfo(getRunChipType.c_str());
+            MInfo::getChipInfo("cv183x");
+            assert(MInfo::version && "refer to set-chip");
             uint64_t totalPerLane = SimpleConv2DMemoryUsageAnalysis(fakeOp, NULL);
 
             // depthwse with ins SHOULD not slice h/w

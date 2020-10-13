@@ -41,7 +41,7 @@
 
 using namespace mlir;
 
-namespace mlir{
+namespace mlir {
 
 uint32_t MInfo::version{0};
 uint32_t MInfo::eu_num{0};
@@ -54,12 +54,9 @@ int MInfo::MAX_TIU_CHANNEL{0};
 int MInfo::MAX_TIU_HEIGHT{0};
 int MInfo::MAX_TIU_WIDTH{0};
 
-void MInfo::runOnFunction() {
-}
-void MInfo::getChipInfo(const char *name) {
-
+void MInfo::getChipInfo(std::string chipName) {
   CviBackendContext *backend_ctx = nullptr;
-  backend_ctx = cvi_backend_create_context(name);
+  backend_ctx = cvi_backend_create_context(chipName.c_str());
 
   version = cvi_backend_chip_context(backend_ctx, CVI_CHIP_VERSION);
   eu_num = cvi_backend_chip_context(backend_ctx, CVI_CHIP_EU_NUM);
@@ -72,17 +69,20 @@ void MInfo::getChipInfo(const char *name) {
   MAX_TIU_HEIGHT = 4095 - 32;
   MAX_TIU_WIDTH = 4095 - 32;
 
-  LLVM_DEBUG(llvm::errs()<<" version = " << version << "\n";);
-  LLVM_DEBUG(llvm::errs()<<" eu = " << eu_num << "\n";);
-  LLVM_DEBUG(llvm::errs()<<" lane = " << lane_num << "\n";);
-  LLVM_DEBUG(llvm::errs()<<" lane size= " << lmem_per_lane << "\n";);
-}
-} // namespace
+  LLVM_DEBUG(llvm::errs() << " version = " << version << "\n";);
+  LLVM_DEBUG(llvm::errs() << " eu = " << eu_num << "\n";);
+  LLVM_DEBUG(llvm::errs() << " lane = " << lane_num << "\n";);
+  LLVM_DEBUG(llvm::errs() << " lane size= " << lmem_per_lane << "\n";);
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createMInfo() {
-  return std::make_unique<MInfo>();
 }
 
-static PassRegistration<MInfo>
-    pass("set-chip",
-         "Apply chip type.");
+void MInfo::getChipInfo(FuncOp fn) {
+  // get chipname form function attributes.
+  std::string chipname = "cx1835";
+  if (fn.getAttr("chipname")) {
+    chipname = fn.getAttr("chipname").cast<StringAttr>().getValue();
+  }
+  getChipInfo(chipname);
+
+}
+} // namespace mlir

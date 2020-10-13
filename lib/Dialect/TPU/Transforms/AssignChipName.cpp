@@ -41,9 +41,9 @@
 
 using namespace mlir;
 
-/// set static run-chip 
+/// set static run-chip
 // TODO: enable by default for now, should set default "cv183x"
-static llvm::cl::opt<std::string> clRunChipType(
+llvm::cl::opt<std::string> clRunChipType(
      "chipname",
      llvm::cl::desc("set chip type"),
      llvm::cl::init("cv183x"));
@@ -55,22 +55,8 @@ public:
 
   void runOnFunction() override {
     auto fn = getFunction();
-    fn.walk([&](Operation *op) {
-      if (op->getName().getDialect().str() != "tpu"
-          || isa<tpu::WeightFileOp>(op)
-          || isa<tpu::LoadWeightOp>(op)
-          || isa<tpu::NoneOp>(op)) {
-        // no need to assign
-      } else if ( !failed(setChipName(op, clRunChipType.c_str())) ) {
-        LLVM_DEBUG(llvm::errs() << " Chip_name: "
-                                << llvm::format("%s", clRunChipType.c_str())
-                                << " -> " << mlir::getOpName(op)
-                                << " : " << op->getName() << "\n";);
-      } else {
-        llvm::errs() << "addChipNameAttr didn't handle " << op->getName() << "\n";
-        assert(false);
-      }
-    });
+    auto *context = &getContext();
+    fn.setAttr("chipname", Builder(context).getStringAttr(clRunChipType));
   }
 };
 

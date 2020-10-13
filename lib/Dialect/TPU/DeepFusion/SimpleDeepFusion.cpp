@@ -123,10 +123,7 @@ public:
     }
     llvm::raw_ostream &os = file ? file->os() : llvm::errs();
 
-    std::string getRunChipType;
-    MInfo Machineinfo;
-    get_cvichip_name(getRunChipType);
-    Machineinfo.getChipInfo(getRunChipType.c_str());
+    MInfo::getChipInfo(getFunction());
     assert(MInfo::version && "refer to set-chip");
 
     auto func = getFunction();

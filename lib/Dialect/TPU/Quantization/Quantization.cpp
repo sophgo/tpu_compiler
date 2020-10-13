@@ -842,11 +842,9 @@ public:
   explicit TpuQuantPass() {}
 
   void runOnFunction() override {
-    std::string getRunChipType;
-    MInfo machineInfo;
-    get_cvichip_name(getRunChipType);
-    machineInfo.getChipInfo(getRunChipType.c_str());
+    MInfo::getChipInfo(getFunction());
     assert(MInfo::version && "refer to set-chip");
+
     auto fn = getFunction();
     auto *context = &getContext();
     auto builder = Builder(context);

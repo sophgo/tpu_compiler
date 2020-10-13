@@ -47,14 +47,8 @@ using namespace mlir;
 namespace {
 struct TgOpTilePass : public FunctionPass<TgOpTilePass> {
   void runOnFunction() override {
-    std::string getRunChipType;
     MInfo mInfo;
-    get_cvichip_name(getRunChipType);
-
-    if (!getRunChipType.size())
-      return;
-
-    mInfo.getChipInfo(getRunChipType.c_str());
+    mInfo.getChipInfo(getFunction());
     assert(MInfo::version && "refer to set-chip");
 
     getFunction().walk([&](Operation *op) {

@@ -52,10 +52,7 @@ extern int BF16_TABLE_END;
 
 static CviBackendContext *backend_ctx = nullptr;
 
-static llvm::cl::opt<std::string> clRunChipType(
-     "cbuf-set-chip",
-     llvm::cl::desc("set and translate chip type to cmdbuf"),
-     llvm::cl::init("cv183x"));
+extern llvm::cl::opt<std::string> clRunChipType;
 
 static LogicalResult runOperation(Operation &opInst) {
   LLVM_DEBUG(llvm::errs() << "  op " << opInst.getName() << "\n";);

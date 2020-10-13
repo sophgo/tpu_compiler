@@ -244,10 +244,8 @@ struct FullyConnectedTilePass : public FunctionPass<FullyConnectedTilePass> {
 };
 
 void FullyConnectedTilePass::runOnFunction() {
-  std::string getRunChipType;
   MInfo machineInfo;
-  get_cvichip_name(getRunChipType);
-  machineInfo.getChipInfo(getRunChipType.c_str());
+  machineInfo.getChipInfo(getFunction());
   assert(MInfo::version && "refer to set-chip");
 
   getFunction().walk([&](Operation *op) {

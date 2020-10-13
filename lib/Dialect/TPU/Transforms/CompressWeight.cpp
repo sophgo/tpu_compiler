@@ -480,11 +480,7 @@ void CompressWeightPass::generateReport(
 
 void CompressWeightPass::runOnFunction() {
   std::vector<struct CompressInfo> compressInfos;
-  std::string getRunChipType;
-  MInfo Machineinfo;
-  get_cvichip_name(getRunChipType);
-  Machineinfo.getChipInfo(getRunChipType.c_str());
-  assert(MInfo::version && "refer to set-chip");
+  MInfo::getChipInfo(getFunction());
 
   // Compress convolution weight
   OwningRewritePatternList patterns;

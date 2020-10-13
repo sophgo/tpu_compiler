@@ -21,8 +21,11 @@ using namespace mlir;
 
 namespace mlir{
 
-class MInfo : public FunctionPass<MInfo> {
+class MInfo {
 public:
+  static void getChipInfo(FuncOp op);
+  static void getChipInfo(std::string chipName);
+
   static uint32_t version;
   static uint32_t lane_num;
   static uint32_t eu_num;
@@ -33,10 +36,6 @@ public:
   static int MAX_TIU_CHANNEL;
   static int MAX_TIU_HEIGHT;
   static int MAX_TIU_WIDTH;
-
-  explicit MInfo() {};
-  void runOnFunction();
-  void getChipInfo(const char* name);
 
   static uint64_t getSizePerLane(int n, int c, int h, int w, bool eu_align) {
     assert(version && "refer to chip-type");
@@ -52,23 +51,6 @@ public:
 };
 
 }
-
-#define get_cvichip_name(chipname) \
-do {           \
-  getFunction().walk([&](Operation *op) { \
-    if (op->getName().getDialect().str() != "tpu" \
-        || isa<tpu::WeightFileOp>(op) \
-        || isa<tpu::LoadWeightOp>(op) \
-        || isa<tpu::NoneOp>(op)) { \
-      /* no need to assign*/ \
-    } else { \
-        std::string clRunChipType = getChipName(op); \
-      if(!clRunChipType.empty() && (clRunChipType.compare("CPU") != 0) && (clRunChipType.compare("NONE") != 0)) { \
-        chipname = clRunChipType; \
-      } \
-    } \
-  }); \
-}while(0)
 
 #endif /* _TP_MACHINE_INFO_H_ */
 

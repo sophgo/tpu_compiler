@@ -1097,10 +1097,7 @@ public:
   void runOnFunction() override {
     auto fn = getFunction();
     auto *context = &getContext();
-    std::string getRunChipType;
-    MInfo Machineinfo;
-    get_cvichip_name(getRunChipType);
-    Machineinfo.getChipInfo(getRunChipType.c_str());
+    MInfo::getChipInfo(getFunction());
     assert(MInfo::version && "refer to set-chip");
 
     OwningRewritePatternList patterns;

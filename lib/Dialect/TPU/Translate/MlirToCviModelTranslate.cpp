@@ -54,7 +54,7 @@ static llvm::cl::opt<std::string>
 static llvm::cl::opt<std::string>
     clWeightBinFileName("weight-file", llvm::cl::desc("saved weight bin filename"));
 
-std::string clRunChipType;
+extern llvm::cl::opt<std::string> clRunChipType;
 
 extern int BF16_TABLE_START;
 extern int BF16_TABLE_END;
@@ -281,10 +281,6 @@ CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
         ops.push_back(op);
       }
     }
-    /*get chip name from InputOp*/
-    if (llvm::isa<tpu::InputOp>(op)) {
-        clRunChipType = getChipName(op);
-      }
   });
 
   getOpGroupInputsOutputs(ops, inputs, outputs);
@@ -335,6 +331,9 @@ CviModelBuilder::CviModelBuilder(ModuleOp &module) : fbb_(1024) {
   for (auto fn : module.getOps<FuncOp>()) {
     if (fn.getName() == "tpu_func") {
       mainFunc_ = fn;
+      if (fn.getAttr("chipname")) {
+        clRunChipType = fn.getAttr("chipname").cast<StringAttr>().getValue();
+      }
       privateGmemSize_ = fn.getAttr("private_gmem").cast<IntegerAttr>().getInt();
       sharedGmemSize_ = fn.getAttr("shared_gmem").cast<IntegerAttr>().getInt();
       continue;
@@ -366,7 +365,6 @@ void CviModelBuilder::parseModule() {
     }
   });
   getOpGroupInputsOutputs(ops_, inputs_, outputs_);
-
   mainFunc_.walk([&](Operation *op) {
     if (op->getName().getDialect().str() != "tpu" || isa<tpu::NoneOp>(op) ||
         isa<ReturnOp>(op)) {
@@ -425,10 +423,6 @@ void CviModelBuilder::parseModule() {
       if (!batchNum_) {
         batchNum_ = tensor->shape[0];
       }
-      if (op->getAttr("chipname")) {
-        clRunChipType = op->getAttr("chipname").cast<StringAttr>().getValue();
-      }
-
       bool overwritten = false;
       if (op->getAttr("tl_store_flag") &&
           !op->getAttr("tl_store_flag").cast<BoolAttr>().getValue()) {
