@@ -302,12 +302,9 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     std::string bias_storage = "UINT16";
     int bias_usize = 2;
 
-    if (is_dw)
-      add_in_tensor(2, oc, 1, 1, bias_usize,
-                    bias_storage, bias_name, TENSOR_BIAS);
-    else
-      add_in_tensor(g*2, oc/g, 1, 1, bias_usize,
-                    bias_storage, bias_name, TENSOR_BIAS);
+    add_in_tensor(2, oc, 1, 1, bias_usize,
+                  bias_storage, bias_name, TENSOR_BIAS);
+
   }
 
   // add out tensor

@@ -1068,6 +1068,7 @@ void cvi_backend_bf16_tl_conv(
                   input_w, output_c, output_h, output_w, group, kh, kw, pad_h_top, pad_h_bottom, pad_w_left,
                   pad_w_right, stride_h, stride_w, with_bias, do_relu
                   ));
+
   // input
   cvk_tl_shape_t tl_input_shape = ctx.tl_shape_t4(input_n,input_c,input_h,input_w);
   cvk_tl_t tl_input;
@@ -1154,6 +1155,97 @@ void cvi_backend_bf16_tl_conv(
 
   } else {
     // group conv
-    assert(0);
+    int ic = input_c / group;
+    int oc = output_c / group;
+    int bf16_usize = 2;
+    int bottomc_per_NPU = ceiling_func(input_c, NPU_NUM);
+    int topc_per_NPU = ceiling_func(output_c, NPU_NUM);
+    int bottom_csize_local = align_up(input_h * input_w * bf16_usize, EU_NUM);
+    int top_csize_local = align_up(output_h * output_w * bf16_usize, EU_NUM);
+    //
+    int bias_count = ceiling_func(oc, NPU_NUM);
+    int bias_size = bias_count * bf16_usize;
+
+    for (int ig = 0; ig < group; ig++) {
+      int bottom_start_npu_idx = (ig * ic) % NPU_NUM;
+      int top_start_npu_idx = (ig * oc) % NPU_NUM;
+
+      for (int nidx = 0; nidx < input_n; nidx++) {
+        uint32_t top_local_shift =
+            (nidx * topc_per_NPU + (ig * oc) / NPU_NUM) * top_csize_local;
+        uint32_t bottom_local_shift =
+            (nidx * bottomc_per_NPU + (ig * ic) / NPU_NUM) * bottom_csize_local;
+        uint32_t bottom_addr =
+            bottom_start_npu_idx * LOCAL_MEM_SIZE + tl_input.start_address + bottom_local_shift;
+        uint32_t top_addr =
+            top_start_npu_idx * LOCAL_MEM_SIZE + tl_output.start_address + top_local_shift;
+        uint32_t weight_addr =
+            top_start_npu_idx * LOCAL_MEM_SIZE +
+            ((ig * oc) / NPU_NUM) * ic * kh * kw * bf16_usize + tl_weight.start_address;
+
+        // not need to add top_start_npu_idx for bias address,
+        // since opd2_addr has only 16 bits
+        // here we add the top_start_npu_idx only for good code review
+        // bias will use result opd's top_start_npu_idx as hw default
+        uint32_t bias_local_shift =  (ig * oc / NPU_NUM) * bias_size;
+        uint32_t bias_addr = la_bias +  bias_local_shift;
+
+        // input
+        cvk_tl_shape_t input_shape = {
+            1, static_cast<uint32_t>(ic),
+            static_cast<uint32_t>(input_h), static_cast<uint32_t>(input_w)};
+        cvk_tl_t input;
+        input.start_address = bottom_addr;
+        input.fmt = CVK_FMT_BF16;
+        input.shape = input_shape;
+        input.stride = ctx.tl_default_stride(input_shape, CVK_FMT_BF16, 1);
+
+        // weight
+        cvk_tl_shape_t weight_shape = {
+            static_cast<uint32_t>(ic), static_cast<uint32_t>(oc),
+            static_cast<uint32_t>(kh), static_cast<uint32_t>(kw)};
+        cvk_tl_t weight;
+        weight.start_address = weight_addr;
+        weight.fmt = CVK_FMT_BF16;
+        weight.shape = weight_shape;
+        weight.stride = ctx.tl_default_stride(weight_shape, CVK_FMT_BF16, 0);
+        // output
+        cvk_tl_shape_t output_shape = {
+            1, static_cast<uint32_t>(oc),
+            static_cast<uint32_t>(output_h), static_cast<uint32_t>(output_w)};
+        cvk_tl_t output;
+        output.start_address = top_addr;
+        output.fmt = CVK_FMT_BF16;
+        output.shape = output_shape;
+        output.stride = ctx.tl_default_stride(output_shape, CVK_FMT_BF16, 1);
+
+        // bias
+        tl_bias.start_address = bias_addr;
+        tl_bias.shape = {2, static_cast<uint32_t>(oc), 1, 1};
+        tl_bias.stride =
+            ctx.tl_default_stride(tl_bias.shape, CVK_FMT_BF16, 0);
+
+        cvk_tiu_pt_convolution_param_t param = {nullptr};
+        param.ofmap = &output;
+        param.ifmap = &input;
+        param.weight = &weight;
+        param.bias = with_bias ? &tl_bias : 0;
+        param.ins_h = param.ins_last_h = 0;
+        param.ins_w = param.ins_last_w = 0;
+        param.pad_top = pad_h_top;
+        param.pad_bottom = pad_h_bottom;
+        param.pad_left = pad_w_left;
+        param.pad_right = pad_w_right;
+        param.stride_h = stride_h;
+        param.stride_w = stride_w;
+        param.dilation_h = dilation_h;
+        param.dilation_w = dilation_w;
+        param.relu_enable = do_relu;
+        param.ps32_mode = 0;
+        param.w_is_const = 0;
+        param.layer_id = layer_id;
+        ctx.tiu_pt_convolution(&param);
+      }
+    }
   }
 }
