@@ -53,7 +53,7 @@ LLVM_DEBUG(
     tl_input.shape = input_shape;
     tl_input.stride =
       ctx.tl_default_stride(input_shape, CVK_FMT_I8, 1);
-    apply_qi8(ctx, &tl_input, layer_id, do_relu ? 1 : 0, rshift, m_i8[i]);
+    ctx.apply_qi8(&tl_input, layer_id, do_relu ? 1 : 0, rshift, m_i8[i]);
   }
 
   int concat_c = 0;

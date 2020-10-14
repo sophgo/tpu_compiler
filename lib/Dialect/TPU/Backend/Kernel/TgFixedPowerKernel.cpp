@@ -143,8 +143,8 @@ void cvi_backend_tg_fixed_power_kernel(
 
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
   //uintptr_t tiling_info_ptr = reinterpret_cast<std::uintptr_t>(&tiling_info);
-  //tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, fmt, tiling_info_ptr);
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, (cvk_fmt_t)fmt, &tiling_info);
+  //ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, fmt, tiling_info_ptr);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, (cvk_fmt_t)fmt, &tiling_info);
 
   // eu_align set to 1 imply align with c
   cvk_tl_t *tl_scale = ctx.lmem_alloc_tensor(ctx.tl_shape_t4(1,

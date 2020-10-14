@@ -19,7 +19,7 @@
 
 static int concat_size_lmem(const CviBackendContext &ctx,
                             const cvk_tg_shape_t p) {
-  return tensor_size_lmem(ctx, p.n, p.c, p.h, p.w);
+  return ctx.tensor_size_lmem(p.n, p.c, p.h, p.w);
 }
 
 static int split_concat_forward(const CviBackendContext &ctx,

@@ -19,7 +19,7 @@
 
 static int get_csize_local_bitwidth(const CviBackendContext &ctx, int h, int w, int bitwidth) {
   // TODO: pass fmt
-  return ALIGN(h * w * bitsize_of_fmt(CVK_FMT_BF16), EU_NUM) * bitwidth / 8;
+  return ALIGN(h * w * ctx.bitsize_of_fmt(CVK_FMT_BF16), EU_NUM) * bitwidth / 8;
 }
 
 static int get_csize_global_bitwidth(const CviBackendContext &ctx, int h, int w, int bitwidth){
@@ -147,8 +147,8 @@ static int pooling_size_lmem(const CviBackendContext &ctx, const pooling_t *p) {
   int out_w = pooling_out_w(p);
 
   // TODO: pass fmt
-  int in_size = _tensor_size_lmem(ctx, p->n, p->c, p->h, p->w, CVK_FMT_BF16);
-  int out_size = _tensor_size_lmem(ctx, p->n, p->c, out_h, out_w, CVK_FMT_BF16);
+  int in_size = ctx.tensor_size_lmem(p->n, p->c, p->h, p->w, CVK_FMT_BF16);
+  int out_size = ctx.tensor_size_lmem(p->n, p->c, out_h, out_w, CVK_FMT_BF16);
 
   int index_size = 0;
   if (is_max_pooling) {

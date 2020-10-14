@@ -22,10 +22,8 @@ void cvi_backend_tg_fixed_dilate_kernel(const CviBackendContext &ctx,
                                  int oh, int ow, int fill_constant,
                                  int ins_h, int ins_w,
                                  cvk_fmt_t fmt) {
-
-  int data_size = (fmt == CVK_FMT_BF16) ? sizeof(uint16_t) : sizeof(uint8_t);
-  assert((fmt == CVK_FMT_BF16 || fmt == CVK_FMT_I8 || fmt == CVK_FMT_U8) &&
-      "dilate ONLY support bf16/i8");
+  ctx.assert_support_fmt(fmt);
+  int data_size = ctx.bytesize_of_fmt(fmt);
 
   cvk_tg_shape_t input_shape = {(uint32_t)n, (uint32_t)c, (uint32_t)ih, (uint32_t)iw};
   cvk_tg_shape_t output_shape = {(uint32_t)n, (uint32_t)c, (uint32_t)oh, (uint32_t)ow};

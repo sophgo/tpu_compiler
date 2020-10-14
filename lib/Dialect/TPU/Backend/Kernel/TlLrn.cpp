@@ -66,35 +66,35 @@ void cvi_backend_tl_lrn(
   sum.fmt = CVK_FMT_U8;
   sum.shape = lshape;
   sum.stride = ctx.tl_default_stride(lshape, CVK_FMT_I8, 1);
-  uint32_t sum_size = __get_lmem_usage(ctx, lshape.n, lshape.c, lshape.h, lshape.w);
+  uint32_t sum_size = ctx.get_lmem_usage(lshape.n, lshape.c, lshape.h, lshape.w);
 
   cvk_tl_t sum_high;
   sum_high.start_address = sum.start_address + sum_size;  // after sum
   sum_high.fmt = CVK_FMT_U8;
   sum_high.shape = lshape;
   sum_high.stride = ctx.tl_default_stride(lshape, CVK_FMT_I8, 1);
-  uint32_t sum_high_size = __get_lmem_usage(ctx, lshape.n, lshape.c, lshape.h, lshape.w);
+  uint32_t sum_high_size = ctx.get_lmem_usage(lshape.n, lshape.c, lshape.h, lshape.w);
 
   cvk_tl_t shift_sum;
   shift_sum.start_address = sum_high.start_address + sum_high_size;  // after sum_high
   shift_sum.fmt = CVK_FMT_U8;
   shift_sum.shape = lshape;
   shift_sum.stride = ctx.tl_default_stride(lshape, CVK_FMT_I8, 1);
-  uint32_t shift_sum_size = __get_lmem_usage(ctx, lshape.n, lshape.c, lshape.h, lshape.w);
+  uint32_t shift_sum_size = ctx.get_lmem_usage(lshape.n, lshape.c, lshape.h, lshape.w);
 
   cvk_tl_t top_high;
   top_high.start_address = shift_sum.start_address + shift_sum_size;  // after shift_sum
   top_high.fmt = CVK_FMT_U8;
   top_high.shape = lshape;
   top_high.stride = ctx.tl_default_stride(lshape, CVK_FMT_I8, 1);
-  uint32_t top_high_size = __get_lmem_usage(ctx, lshape.n, lshape.c, lshape.h, lshape.w);
+  uint32_t top_high_size = ctx.get_lmem_usage(lshape.n, lshape.c, lshape.h, lshape.w);
 
   cvk_tl_t top_high_high;
   top_high_high.start_address = top_high.start_address + top_high_size;  // after top_high
   top_high_high.fmt = CVK_FMT_U8;
   top_high_high.shape = lshape;
   top_high_high.stride = ctx.tl_default_stride(lshape, CVK_FMT_I8, 1);
-  uint32_t top_high_high_size = __get_lmem_usage(ctx, lshape.n, lshape.c, lshape.h, lshape.w);
+  uint32_t top_high_high_size = ctx.get_lmem_usage(lshape.n, lshape.c, lshape.h, lshape.w);
 
   // Should no exceed local memory size
   assert((top_high_high.start_address + top_high_high_size) <= (uint32_t)(LOCAL_MEM_SIZE));

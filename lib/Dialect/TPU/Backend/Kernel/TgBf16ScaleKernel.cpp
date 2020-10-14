@@ -100,11 +100,10 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
   if (do_bias) {
     ctx.tdma_load_bf16(tl_bias, bias_gaddr);
   }
-  int coeff_usage = __get_lmem_usage(
-      ctx, 1, do_bias ? input_c * 2 * sizeof(uint16_t) : input_c * sizeof(uint16_t), 1,
-      1); // scale
+  int coeff_usage = ctx.get_lmem_usage(
+      1, do_bias ? input_c * 2 * sizeof(uint16_t) : input_c * sizeof(uint16_t), 1, 1); // scale
   int nsecs = 1, hsecs = 1;
-  _split_nh(ctx, input_n, input_c, input_h, input_w * sizeof(uint16_t), 2, coeff_usage,
+  ctx.split_nh(input_n, input_c, input_h, input_w * sizeof(uint16_t), 2, coeff_usage,
             &nsecs, &hsecs);
 
   LLVM_DEBUG(llvm::errs() << llvm::format(

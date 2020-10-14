@@ -58,7 +58,7 @@ void cvi_backend_tg_fixed_scale_kernel(const CviBackendContext &ctx, uint32_t st
     int sec_n = input_n;
     int count = ALIGN(sec_n * input_c * input_h * input_w, MAX_W);
     int blob_num = 1;  // use 8bit output
-    int slice_num = __split(ctx, blob_num, count);
+    int slice_num = ctx.split(blob_num, count);
     int step = ALIGN(ceiling_func(count, slice_num), MAX_W);
     int offset_input = 0;
     LLVM_DEBUG(llvm::errs() << llvm::format("sec_n %d count %d blob_num %d slice_num %d step %d\n",
@@ -171,20 +171,20 @@ void cvi_backend_tg_fixed_scale_kernel(const CviBackendContext &ctx, uint32_t st
   cvk_tl_t _tl_bias;
   cvk_tl_t *tl_bias = &_tl_bias;
 
-  load_bias_multiplier(ctx, input_c, do_bias, bias_gaddr, qmode, &tl_bias);
+  ctx.load_bias_multiplier(input_c, do_bias, bias_gaddr, qmode, &tl_bias);
 
-  int coeff_usage = __get_lmem_usage(ctx, 1, input_c, 1, 1); // scale
+  int coeff_usage = ctx.get_lmem_usage(1, input_c, 1, 1); // scale
 
   if (qmode == CviBackendContext::QuantizeMode::INT8_PER_LAYER) {
-    coeff_usage += __get_lmem_usage(ctx, 1, input_c, 1, 1) * 2; // 2 for 16byte bias
+    coeff_usage += ctx.get_lmem_usage(1, input_c, 1, 1) * 2; // 2 for 16byte bias
   }
   else if (qmode == CviBackendContext::QuantizeMode::INT8_32_MULTIPLER) {
-    int bias_len = do_bias ? 9 : 5; // hw config
-    coeff_usage += __get_lmem_usage(ctx, 1, input_c, 1, bias_len); // for 32 bit multiplier
+    int bias_len = ctx.chan_quan_param_size(do_bias); // hw config
+    coeff_usage += ctx.get_lmem_usage(1, input_c, 1, bias_len); // for 32 bit multiplier
   }
 
   int nsecs = 1, hsecs = 1;
-  _split_nh(ctx, input_n, input_c, input_h, input_w, 1,
+  ctx.split_nh(input_n, input_c, input_h, input_w, 1,
             coeff_usage, &nsecs,
             &hsecs);
 

@@ -118,7 +118,7 @@ static void conv_la_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
   tl_ofmap = ctx.lmem_alloc_tensor(ctx.tl_shape_t4(n, oc, oh, ow), CVK_FMT_I8, /*eu_align=*/1);
   tl_filter[0] = ctx.lmem_alloc_tensor(ctx.tl_shape_t4(ic / g, oc_step, kh, kw), CVK_FMT_I8, /*eu_align=*/0);
   tl_filter[1] = ctx.lmem_alloc_tensor(ctx.tl_shape_t4(ic / g, oc_step, kh, kw), CVK_FMT_I8, /*eu_align=*/0);
-  int perchannel_size = with_bias ? 9 : 5;
+  int perchannel_size = ctx.chan_quan_param_size(with_bias);
   tl_perchannel = ctx.lmem_alloc_tensor(ctx.tl_shape_t4(1, oc, 1, perchannel_size), CVK_FMT_U8, /*eu_align=*/0);
   assert(tl_filter[0] && tl_filter[1] && tl_ifmap && tl_ofmap && tl_perchannel);
 
@@ -441,7 +441,7 @@ static void conv_lw_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
 
   // allocate working lmem
   // laddr_t la_perchannel = la_working;
-  int perchannel_size = with_bias ? 9 : 5;
+  int perchannel_size = ctx.chan_quan_param_size(with_bias);
   // uint32_t ls_perchannel = ceiling_func(oc, NPU_NUM) * perchannel_size;
   laddr_t la_perChannel[2];
   uint32_t ls_perChannel = align_up(ceiling_func(oc_step, NPU_NUM) * perchannel_size, EU_NUM);
@@ -883,7 +883,7 @@ void cvi_backend_tl_conv(
       weight.shape = weight_shape;
       weight.stride = ctx.tl_default_stride(weight_shape, CVK_FMT_I8, 0);
 
-      perchannel.start_address = la_perchannel + (oc_pos / NPU_NUM) * (do_bias ? 9 : 5);
+      perchannel.start_address = la_perchannel + (oc_pos / NPU_NUM) * ctx.chan_quan_param_size(do_bias);
       perchannel.fmt = CVK_FMT_I8;
       perchannel.shape = {1, static_cast<uint32_t>(cur_oc), 1, 1};
       perchannel.stride = ctx.tl_default_stride(perchannel.shape, CVK_FMT_I8, 0);
@@ -955,7 +955,7 @@ void cvi_backend_tl_conv(
     int top_csize_local = ALIGN(output_h * output_w, EU_NUM);
     //
     int bias_count = ceiling_func(oc, NPU_NUM);
-    int bias_usize = (do_bias ? 9 : 5);
+    int bias_usize = ctx.chan_quan_param_size(do_bias);
     int bias_size = bias_count * bias_usize;
 
     for (int ig = 0; ig < group; ig++) {

@@ -24,7 +24,7 @@
 
 static int concat_size_lmem(const CviBackendContext &ctx,
                             const cvk_tg_shape_t p) {
-  return tensor_size_lmem(ctx, p.n, p.c, p.h, p.w);
+  return ctx.tensor_size_lmem(p.n, p.c, p.h, p.w);
 }
 
 static int split_concat_forward(const CviBackendContext &ctx,
@@ -309,8 +309,7 @@ void cvi_backend_tg_fixed_concat_kernel(
         ctx.tdma_load(ifmap, bottom_data);
 
         // apply quantize int 8 mode
-        apply_qi8(
-            ctx,
+        ctx.apply_qi8(
             ifmap,
             layer_id,
             do_relu ? 1 : 0,
@@ -387,12 +386,12 @@ void cvi_backend_tg_fixed_concat_kernel(
                   i, _input_dim[0], _input_dim[1], _input_dim[2], _input_dim[3]));
 
                 // retry tiling
-                int require_shape = shape_size(1, _input_dim[1], _input_dim[2], _input_dim[3], fmt);
+                int require_shape = ctx.tensor_size(1, _input_dim[1], _input_dim[2], _input_dim[3], fmt);
                 std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-                tiling_packing(ctx, require_shape, 0, 1, fmt, &tiling_info);
+                ctx.tiling_packing(require_shape, 0, 1, fmt, &tiling_info);
 
                 offset = 0;
-                int n_offset = shape_size(n, _input_dim[1], _input_dim[2], _input_dim[3], fmt);
+                int n_offset = ctx.tensor_size(n, _input_dim[1], _input_dim[2], _input_dim[3], fmt);
                 for (uint64_t j = 0; j < tiling_info.size(); j++) {
                   int n = tiling_info[j].first.n;
                   int c = tiling_info[j].first.c;
@@ -420,8 +419,7 @@ void cvi_backend_tg_fixed_concat_kernel(
                   ctx.tdma_load(ifmap, ifmap_offset);
 
                   // apply quantize int 8 mode
-                  apply_qi8(
-                      ctx,
+                  ctx.apply_qi8(
                       ifmap,
                       layer_id,
                       do_relu ? 1 : 0,
@@ -430,7 +428,7 @@ void cvi_backend_tg_fixed_concat_kernel(
 
                   ctx.tdma_store(ifmap, ofmap_offset);
                   ctx.lmem_free_tensor(ifmap);
-                  ofmap_offset += shape_size(n, c, h, w, fmt);
+                  ofmap_offset += ctx.tensor_size(n, c, h, w, fmt);
                 }
               }
             }

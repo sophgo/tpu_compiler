@@ -50,7 +50,7 @@ void cvi_backend_tg_fixed_relu_kernel(const CviBackendContext &ctx, uint32_t str
   int blob_num = 2; // 3 means we allocate input / output
 
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, (cvk_fmt_t)fmt, &tiling_info);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, (cvk_fmt_t)fmt, &tiling_info);
 
   for (size_t i = 0; i < tiling_info.size(); i++) {
     int n = tiling_info[i].first.n;
@@ -280,7 +280,7 @@ void cvi_backend_tg_fixed_prelu_kernel(
 
   uint32_t reserved = ctx.lmem_tensor_to_size(slope_shape, CVK_FMT_I8, 0);
   reserved = align_up(reserved, EU_NUM);
-  _split_nh(ctx, input_n, input_c, input_h, input_w, 3, reserved, &nsecs, &hsecs);
+  ctx.split_nh(input_n, input_c, input_h, input_w, 3, reserved, &nsecs, &hsecs);
   LLVM_DEBUG(llvm::errs() << llvm::format(
           "prelu inference, <%d,%d,%d,%d>, nsecs:%d, hsecs:%d\n\n",
           input_n, input_c, input_h, input_w, nsecs, hsecs););

@@ -37,8 +37,8 @@ void cvi_backend_tg_shuffle_channel_kernel(
   shape.n = 1; // TODO: support n dim shift
   shape.w /= unit_size;
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
-  tiling_packing(ctx, /*require_shape=*/0, /*coeff_lane_shape=*/0, /*blob_num=*/1,
-      fmt, &tiling_info, TilingDimNH, &shape);
+  ctx.tiling_packing(/*require_shape=*/0, /*coeff_lane_shape=*/0, /*blob_num=*/1,
+      fmt, &tiling_info, ctx.TilingDimNH, &shape);
 
   // accumuate store
   int output_n = batch;

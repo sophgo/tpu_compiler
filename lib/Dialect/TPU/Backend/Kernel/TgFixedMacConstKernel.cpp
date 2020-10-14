@@ -25,7 +25,7 @@ void cvi_backend_tg_fixed_mac_const_kernel(
   int coeff_lane_shape = 0;
 
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, CVK_FMT_I8, &tiling_info);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, CVK_FMT_I8, &tiling_info);
 
   for (size_t i = 0; i < tiling_info.size(); i++) {
     int n = tiling_info[i].first.n;
@@ -89,7 +89,7 @@ void cvi_backend_tg_bf16_mac_const_kernel(
   int coeff_lane_shape = 0;
 
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, CVK_FMT_BF16, &tiling_info);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, CVK_FMT_BF16, &tiling_info);
 
   for (size_t i = 0; i < tiling_info.size(); i++) {
     int n = tiling_info[i].first.n;

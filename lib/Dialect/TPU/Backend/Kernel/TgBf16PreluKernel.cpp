@@ -53,8 +53,8 @@ void cvi_backend_tg_bf16_prelu_kernel(const CviBackendContext &ctx, uint32_t lay
   int nsecs = 1, hsecs = 1;
   uint32_t global_Nstride = static_cast<uint32_t>(input_c) * input_h * input_w;
   int blob_num = 2 * 2; /* twice as much as INT8, former 2 for input/output, buf*/
-  _split_nh(ctx, input_n, input_c, input_h, input_w, blob_num,
-            __get_lmem_usage(ctx, 1, input_c, 1, 1) * 2, &nsecs, &hsecs);
+  ctx.split_nh(input_n, input_c, input_h, input_w, blob_num,
+            ctx.get_lmem_usage(1, input_c, 1, 1) * 2, &nsecs, &hsecs);
   LLVM_DEBUG(llvm::errs() << llvm::format("prelu inference, <%d,%d,%d,%d>, nsecs:%d, hsecs:%d\n\n",
                                           input_n, input_c, input_h, input_w, nsecs, hsecs));
 

@@ -88,8 +88,6 @@ add_llvm_library(MLIRTPU
   Plugin/CustomOpPlugin.cpp
   Backend/MachineInfo.cpp
   Backend/Kernel/CviBackendContext.cpp
-  Backend/Kernel/internal_common.cpp
-  Backend/Kernel/internal_tiling.cpp
   Backend/Kernel/TgFixedEltwiseKernel.cpp
   Backend/Kernel/TgFixedFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp

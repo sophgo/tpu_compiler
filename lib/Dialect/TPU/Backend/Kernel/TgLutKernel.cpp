@@ -45,7 +45,7 @@ void cvi_backend_tg_fixed_lut_kernel(const CviBackendContext &ctx, uint32_t stre
   int coeff_lane_shape = table_h * table_w;
   int blob_num = 1; // 1 means only one blob and it chould overwrite itself
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, fmt,
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, fmt,
                  &tiling_info);
 
   cvk_tl_shape_t table_shape = ctx.tl_shape_t4(1, NPU_NUM, table_h, table_w);
@@ -291,7 +291,7 @@ void cvi_backend_tg_bf16_lut_interpolation_kernel(
   int require_shape = input_n * input_c * input_h * input_w;
   int coeff_lane_shape = 2 * table_h * table_w;
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, CVK_FMT_BF16,
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, CVK_FMT_BF16,
                  &tiling_info);
 
   for (size_t i = 0; i < tiling_info.size(); i++) {
@@ -365,7 +365,7 @@ void cvi_backend_tg_bf16_lut_scientific_kernel (const CviBackendContext &ctx, ui
   int require_shape = input_n * input_c * input_h * input_w;
 
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, (cvk_fmt_t)fmt, &tiling_info);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, (cvk_fmt_t)fmt, &tiling_info);
 
   // alloc coeff(table)
   ctx.bf16_table_shape(&table_shape);

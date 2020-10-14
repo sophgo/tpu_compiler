@@ -1584,7 +1584,7 @@ void Conv::initializeGlobalBias() {
 
   std::vector<uint32_t> shapes;
   if (args_.do_chl_quan) {
-    uint32_t perchannel_size = args_.do_bias ? 9 : 5;
+    uint32_t perchannel_size = ctx_.chan_quan_param_size(args_.do_bias);
     shapes = {1, groups(), group_output_channels(), 1, perchannel_size};
   } else {
     shapes = {2, groups(), group_output_channels(), 1, 1};
@@ -1789,7 +1789,7 @@ std::vector<uint32_t> Conv::getTiledShapesForLmAllocationOfBias() {
   std::vector<uint32_t> shapes;
 
   if (args_.do_chl_quan) {
-    uint32_t perchannel_size = args_.do_bias ? 9 : 5;
+    uint32_t perchannel_size = ctx_.chan_quan_param_size(args_.do_bias);
     shapes = {1, 1, slices_.oc_step, 1, perchannel_size};
   } else if (args_.do_bias) {
     shapes = {2, 1, slices_.oc_step, 1, 1};

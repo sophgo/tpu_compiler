@@ -19,7 +19,7 @@ static void find_best_slice(const CviBackendContext &ctx, int n, int c, int h,
   *h_slices = 1;
   *n_slices = 1;
 
-  uint32_t total_lmem_needs = blob_num * __get_lmem_usage(ctx, n, c, h, w);
+  uint32_t total_lmem_needs = blob_num * ctx.get_lmem_usage(n, c, h, w);
   // total_lmem_needs += 2 * 32 * 256;  // sq_lut_table and power_lut_table
   total_lmem_needs +=
       2 * NPU_NUM * 256; // sq_lut_table and power_lut_table
@@ -35,7 +35,7 @@ static void find_best_slice(const CviBackendContext &ctx, int n, int c, int h,
     *h_slices = ceiling_func(total_lmem_needs, LOCAL_MEM_SIZE);
     int h_units_per_slice = ceiling_func(h, *h_slices);
 
-    while (blob_num * __get_lmem_usage(ctx, 1, c, h_units_per_slice, w) >
+    while (blob_num * ctx.get_lmem_usage(1, c, h_units_per_slice, w) >
            (uint32_t)LOCAL_MEM_SIZE) {
       *h_slices += 1;
       h_units_per_slice = ceiling_func(h, *h_slices);
@@ -44,7 +44,7 @@ static void find_best_slice(const CviBackendContext &ctx, int n, int c, int h,
     *n_slices = ceiling_func(total_lmem_needs, (uint32_t)LOCAL_MEM_SIZE);
     int n_units_per_slice = ceiling_func(n, *n_slices);
 
-    while (blob_num * __get_lmem_usage(ctx, n_units_per_slice, c, h, w) >
+    while (blob_num * ctx.get_lmem_usage(n_units_per_slice, c, h, w) >
            (uint32_t)LOCAL_MEM_SIZE) {
       *n_slices += 1;
       n_units_per_slice = ceiling_func(n, *n_slices);

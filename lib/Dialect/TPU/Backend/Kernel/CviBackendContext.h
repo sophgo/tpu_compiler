@@ -13,8 +13,6 @@
 #include <assert.h>
 #include <cvikernel/cvikernel.h>
 #include <backend/backend_tg_api.h>
-#include "internal_tiling.h"
-#include "internal_common.h"
 
 #define MAX_CONV_IC (4095 - 32)
 #define MAX_TIU_CHL (4095 - 32)
@@ -45,6 +43,11 @@ public:
   void set_layer_id(uint16_t layer_id) const {
     cvk_ctx_->ops->set_layer_id(cvk_ctx_, layer_id);
   }
+
+public:
+  // ####################################################
+  // cvikernel adapter
+  // ####################################################
 
   // tdma kernel api
   void tdma_l2l_tensor_copy(cvk_tdma_l2l_tensor_copy_param_t *param) const {
@@ -354,31 +357,8 @@ public:
     cvk_ctx_->ops->gmem_init_tensor(cvk_ctx_, tg, shape, fmt);
   }
 
-  inline uint32_t chan_quan_param_size(bool do_bias) const {
-    // bias(4B) + multiplier(4B) + right_shift(1B)
-    // multiplier(4B) + right_shift(1B)
-    return do_bias ? 9 : 5;
-  }
-
   inline uint16_t convert_fp32_to_bf16(float fp32) const {
     return cvk_ctx_->misc_ops->float_to_bfloat16(cvk_ctx_, fp32);
-  }
-
-  inline cvk_tl_shape_t tl_shape_t4(int n, int c, int h, int w) const {
-    return {static_cast<uint32_t>(n), static_cast<uint32_t>(c), static_cast<uint32_t>(h),
-            static_cast<uint32_t>(w)};
-  }
-
-  inline cvk_tg_shape_t tg_shape_t4(int n, int c, int h, int w) const {
-    return {static_cast<uint32_t>(n), static_cast<uint32_t>(c), static_cast<uint32_t>(h),
-            static_cast<uint32_t>(w)};
-  }
-
-  //
-  // Hardware feature
-  //
-  bool has_cmd_pre_exe() const {
-    return (cvk_ctx_->info.features & CVK_HWF_CMD_PRE_EXE) ? true : false;
   }
 
   //
@@ -428,6 +408,159 @@ public:
                             uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt,
                             cvk_fmt_t g2g_fmt) const;
 
+  //
+  // tl calc
+  //
+  void load_bias_multiplier(int oc_step, // output channel
+                            bool do_bias, gaddr_t bias_gaddr, int qmode,
+                            cvk_tl_t **tl_bias) const;
+
+  void load_32byte_multiplier(int oc_step, bool do_bias, gaddr_t bias_gaddr,
+                              cvk_tl_t **tl_chl_quan_param) const;
+
+  void load_16bytes_bias(int oc, cvk_tl_t **tl_bias, gaddr_t bias_gaddr) const;
+
+  // apply quantize int 8 mode
+  void apply_qi8(cvk_tl_t *ifmap, uint32_t layer_id, int do_relu,
+                 int right_shift_width, int threshold_x_quantized) const;
+
+  /*
+   * fill fp32 range to 0
+   *
+   * we tiling all local memory and seperate fp32 / bf16 region
+   * fill fp32 region to 0 for export fp32 format
+   * for instance:
+   *
+   *  0       16      32              64       80        96
+   *  +------fp0------+------fp1------+-bf16_0--+--bf16_1-+
+   *  +
+   *  |0x0|0x0|0x0|0x0|0x0|0x0|0x0|0x0|0x13|0x14|0x13|0x23|
+   *  +
+   *
+   *  and we could copy bf16 region with stride to convert fp32 format
+   *
+   *  0       16        32                64        80        96
+   *  +------fp0--------+------fp1--------+--bf16_0--+--bf16_1-+
+   *  +
+   *  |0x0|0x0|0x13|0x14|0x0|0x0|0x13|0x23|0x13|0x14|0x13|0x23|
+   *  +
+   */
+  void fill_fp32_lmem_0(uint32_t layer_id, int batch, int channel, int height,
+                        int width) const;
+  /*
+   * \brief truncat fp32 low 16bit and concat it
+   *
+   * it will overwrite itself with different stride,
+   * for instance:
+   *  fp32 layout in lmem
+   *
+   *  0         16        32         48       64
+   *  +--------fp0--------+--------fp1--------+
+   *  +
+   *  |0xaa|0x12|0x13|0x14|0xaa|0x12|0x13|0x23|
+   *  +
+   *
+   *  shrink it to bf16, takes high 16bits of fp32,
+   *  thie memory layout could be:
+   *
+   *  0         16        32
+   *  +--bf16_0--+--bf16_1+
+   *  +
+   *  |0x13|0x14|0x13|0x23|
+   *  +
+   *
+   *  \bottom_fp32 fp32 lmem pointer, it should NOT eu_align
+   *  \bottom_bf16 bf16 lmem pointer, it should NOT eu_align
+   */
+  void lmem_shrink_fp32_bf16(cvk_tl_t *lmem_bf16, cvk_tl_t *lmem_fp32,
+                             int bf16_n, int bf16_c, int bf16_h, int bf16_w,
+                             uint32_t layer_id) const;
+
+  cvk_tl_stride_t tl_fp32_stride(cvk_tl_t *tl, int eu_align = 0) const;
+
+public:
+  // ####################################################
+  // backend common api
+  // ####################################################
+
+  //
+  // shape/size/fmt functions
+  //
+  void assert_support_fmt(cvk_fmt_t fmt) const;
+
+  int bitsize_of_fmt(uint32_t fmt) const;
+
+  inline int bytesize_of_fmt(cvk_fmt_t fmt) const {
+    return bitsize_of_fmt(fmt) / 8; // byte
+  }
+
+  inline cvk_tl_shape_t tl_shape_t4(int n, int c, int h, int w) const {
+    return {static_cast<uint32_t>(n), static_cast<uint32_t>(c),
+            static_cast<uint32_t>(h), static_cast<uint32_t>(w)};
+  }
+
+  inline cvk_tg_shape_t tg_shape_t4(int n, int c, int h, int w) const {
+    return {static_cast<uint32_t>(n), static_cast<uint32_t>(c),
+            static_cast<uint32_t>(h), static_cast<uint32_t>(w)};
+  }
+
+  inline int tensor_size(int n, int c, int h, int w, cvk_fmt_t fmt) const {
+    return n * c * h * w * bytesize_of_fmt(fmt);
+  }
+
+  int tensor_size_lmem(int n, int c, int h, int w,
+                       cvk_fmt_t fmt = CVK_FMT_I8) const;
+
+  inline uint32_t get_lmem_usage(int n, int c, int h, int w,
+                                 cvk_fmt_t fmt = CVK_FMT_I8) const {
+    return lmem_tensor_to_size(tl_shape_t4(n, c, h, w), fmt, /*eu_align*/ 1);
+  }
+
+  //
+  // tiling functions
+  //
+
+  enum TilingDim {
+    TilingDimAll = 0, // reshape data and tiling
+    TilingDimNH,      // keep shape and ONLY tiling n/h dim
+    TilingDimNo,      // no tiling
+  };
+
+  int split(int blob_num, int count) const;
+  void split_nh(int n, int c, int h, int w, int blob_num, uint32_t reserved,
+                int *n_slices, int *h_slices) const;
+  void split_cnh(int n, int c, int h, int w, int blob_num, uint32_t reserved,
+                 int *c_slices, int *n_slices, int *h_slices) const;
+
+  // tiling pack data with specified dims
+  // shape for TilingDimNH used, we need to keep origin shape and tile with
+  // specified dims blob_num blob number in lmem at same time, start with 1
+  // coeff_lane_shape tensor size of coefficient(bias, etc) in lmem,
+  // the tensor size SHOULD reflect with the fmt, e.g.: the coeff_lane_shape of
+  // <1x1x2x3xi8> should be 6 and <1x1x2x3xbf16> should be 12 that bf16
+  // takes twice size than i8
+  // tiling_info store tiling info in each steps and second shift size reflect
+  // with fmt
+  void
+  tiling_packing(int require_shape, int coeff_lane_shape, int blob_num,
+                 cvk_fmt_t fmt,
+                 std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> *tiling_info,
+                 enum TilingDim tiling_along = TilingDimAll,
+                 cvk_tg_shape_t *shape = NULL) const;
+
+  //
+  // Hardware feature
+  //
+  bool has_cmd_pre_exe() const {
+    return (cvk_ctx_->info.features & CVK_HWF_CMD_PRE_EXE) ? true : false;
+  }
+
+  inline uint32_t chan_quan_param_size(bool do_bias) const {
+    // bias(4B) + multiplier(4B) + right_shift(1B)
+    // multiplier(4B) + right_shift(1B)
+    return do_bias ? 9 : 5;
+  }
+
   // get TDMA base gmem selection from gaddr.
   uint8_t getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const;
 
@@ -442,14 +575,22 @@ public:
   enum QuantizeMode {
     INT8_PER_LAYER = 1, // 1880 mode, scale + rightshift
     INT8_PER_CHANNEL = 2,
-    INT8_32_MULTIPLER = 3, // 1880v2, 32bit multipliers(channel align) product tensor
-    INT8_NOTSUPPORT        // not support, should be assert it
+    INT8_32_MULTIPLER =
+        3,          // 1880v2, 32bit multipliers(channel align) product tensor
+    INT8_NOTSUPPORT // not support, should be assert it
   };
 
   void *get_cvk_ctx() const { return cvk_ctx_; }
 
 private:
+  //
+  // local use functions
+  //
+  inline int get_csize_local(int h, int w, cvk_fmt_t fmt = CVK_FMT_I8) const {
+    return get_lmem_usage(/*n=*/1, /*c=*/1, h, w, fmt);
+  }
 
+private:
   // Mapping between tdma base selection and global memory region.
   // Allowed to assign unique tdma base selection for each global memory region.
   uint8_t tdmaBaseSelects[MAX_GLOBAL_MEMORY_REGION];

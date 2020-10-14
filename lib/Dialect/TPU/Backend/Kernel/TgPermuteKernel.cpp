@@ -751,7 +751,7 @@ static void permute_0312_tp( const CviBackendContext& ctx, uint32_t layer_id, ga
 
   // slice align target cuz `cvk_tdma_g2l_tensor_copy_chw_rotated_param_t`
   // set by target shape
-  _split_nh(ctx, 1, output_c, input_n * output_h, output_w, /*blob_num=*/1, /*reserved=*/0, &nsecs, &hsecs);
+  ctx.split_nh(1, output_c, input_n * output_h, output_w, /*blob_num=*/1, /*reserved=*/0, &nsecs, &hsecs);
 
   // Global stride from global shape
   cvk_tg_stride_t ofmap_gstride = {output_c * output_h * output_w,
@@ -761,7 +761,7 @@ static void permute_0312_tp( const CviBackendContext& ctx, uint32_t layer_id, ga
   int hresidual = output_h - hslice * hsecs;
 
   if (input_c == 1) {
-    _split_nh(ctx, 1, input_c, input_n * input_h, input_w, /*blob_num=*/1, /*reserved=*/0, &nsecs, &hsecs);
+    ctx.split_nh(1, input_c, input_n * input_h, input_w, /*blob_num=*/1, /*reserved=*/0, &nsecs, &hsecs);
 
     hslice = input_h / hsecs;
     hresidual = input_h - hslice * hsecs;

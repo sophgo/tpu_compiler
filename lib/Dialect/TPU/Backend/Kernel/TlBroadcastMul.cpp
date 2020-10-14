@@ -121,7 +121,7 @@ void cvi_backend_tl_broadcast_mul(
     tl_bias_shape.n = 1;
     tl_bias_shape.c = input_c;
     tl_bias_shape.h = 1;
-    tl_bias_shape.w = do_bias ? 9 : 5;
+    tl_bias_shape.w = ctx.chan_quan_param_size(do_bias);
   } else if (qmode == CviBackendContext::QuantizeMode::INT8_PER_LAYER) {
     if (do_bias) {
       tl_bias_shape.n = 2;

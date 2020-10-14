@@ -48,7 +48,7 @@ static void _mixed_precision_ss_bf16_quant(const CviBackendContext &ctx, uint32_
   int require_shape = input_n * input_c * input_h * input_w;
 
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, tiling_unit, &tiling_info);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, tiling_unit, &tiling_info);
 
   for (size_t i = 0; i < tiling_info.size(); i++) {
     int n = tiling_info[i].first.n;
@@ -87,7 +87,7 @@ static void _mixed_precision_ss_bf16_quant(const CviBackendContext &ctx, uint32_
     laddr_t tl_ifmap_laddr = tl_ifmap->start_address;
     if (fmt_s == CVK_FMT_F32) {
       cvk_tl_t tl_ifmap_fp32 = *tl_ifmap;
-      lmem_shrink_fp32_bf16(ctx, tl_ifmap, &tl_ifmap_fp32, n, c, h, w, layer_id);
+      ctx.lmem_shrink_fp32_bf16(tl_ifmap, &tl_ifmap_fp32, n, c, h, w, layer_id);
     }
 
     // FIXME: leverage \tdma_store_stride_bf16 with pass \fmt_d
@@ -150,7 +150,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
   int require_shape = input_n * input_c * input_h * input_w;
 
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, tiling_unit, &tiling_info);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, tiling_unit, &tiling_info);
 
   for (size_t i = 0; i < tiling_info.size(); i++) {
     uint32_t n = tiling_info[i].first.n;
@@ -186,7 +186,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
 
       tl_ofmap_fp32->start_address = tl_ofmap_laddr + 2;// +2 means put start point at higher 16bit
       tl_ofmap_fp32->shape = slice_shape; // fake
-      tl_ofmap_fp32->stride = tl_fp32_stride(ctx, tl_ofmap_fp32, 1);
+      tl_ofmap_fp32->stride = ctx.tl_fp32_stride(tl_ofmap_fp32, 1);
     }
 
     cvk_tl_t* tl_ofmap = ctx.lmem_alloc_tensor(slice_shape, ofmap_fmt, /*eu_align=*/1);

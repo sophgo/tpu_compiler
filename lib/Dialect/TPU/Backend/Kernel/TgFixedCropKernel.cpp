@@ -21,7 +21,7 @@ void cvi_backend_tg_fixed_crop_kernel(const CviBackendContext &ctx, uint32_t str
                                  int *input2_dim, int *output_dim, int *offsets,
                                  cvk_fmt_t fmt) {
 
-  int data_size = bytesize_of_fmt(fmt);
+  int data_size = ctx.bytesize_of_fmt(fmt);
   int offset_n = offsets[0];
   int offset_c = offsets[1];
   int offset_h = offsets[2];
@@ -64,8 +64,8 @@ void cvi_backend_tg_fixed_crop_kernel(const CviBackendContext &ctx, uint32_t str
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
   dst_gstride = {dst_N_stride, dst_C_stride, dst_H_stride, (uint32_t)data_size};
 
-  tiling_packing(ctx, require_shape, coeff_lane_shape, blob_num, fmt, &tiling_info,
-      TilingDimNH, &tg_shape);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, fmt, &tiling_info,
+      ctx.TilingDimNH, &tg_shape);
 
   // accumuate store
   for (int batch = 0; batch < output_n; batch++) {
