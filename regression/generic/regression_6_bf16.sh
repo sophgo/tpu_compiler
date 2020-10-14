@@ -38,7 +38,7 @@ if [ $DO_QUANT_BF16 -eq 1 ] && [ $DO_NOT_BF16_UNDER_182x -eq 0 ]; then
     # Lower
     ################################
     mlir-opt \
-        --tpu-lower --reorder-op \
+        --tpu-lower --reorder-op --tg-op-tile \
         ${NET}_quant_bf16.mlir \
         -o ${NET}_quant_bf16_tg.mlir
 
