@@ -481,3 +481,56 @@ void cvi_backend_tl_store_fp32(const CviBackendContext &ctx,
   param.dst = &tg_dst;
   ctx.tdma_l2g_bf16_tensor_copy(&param);
 }
+
+void cvi_backend_ml_load_stride(const CviBackendContext &ctx, uint32_t layer_id,
+                                gaddr_t ga_src, laddr_t la_dst,
+                                int Local_R, int Local_C,
+                                int Global_C,
+                                bool DoTranspose, bool DoAligned,
+                                cvk_fmt_t from, cvk_fmt_t to,
+                                bool DoDecompress) {
+  if (DoDecompress) {
+    assert(!DoTranspose &&
+           ((from == CVK_FMT_I8 && to == CVK_FMT_I8) ||
+            (from == CVK_FMT_BF16 && to == CVK_FMT_BF16)) &&
+            "Only support i8/bf16 non-transpose compress");
+  }
+
+  ctx.set_layer_id(layer_id);
+
+  uint32_t element_size = (from == CVK_FMT_BF16) ? 2 : 1;
+  cvk_mg_t mg_src = {0};
+  mg_src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
+  mg_src.start_address = ga_src;
+  mg_src.fmt = from;
+  mg_src.shape = {(uint32_t)Local_R, (uint32_t)Local_C};
+  mg_src.stride = {(uint32_t)Global_C * element_size};
+
+  cvk_ml_t ml_dst = {0};
+  uint32_t row = DoTranspose ? Local_C : Local_R;
+  uint32_t col = DoTranspose ? Local_R : Local_C;
+  ml_dst.fmt = to;
+  ml_dst.start_address = la_dst;
+  ml_dst.shape = ctx.ml_default_shape(row, col, from);
+  ml_dst.stride = ctx.ml_default_stride(ml_dst.shape, to, DoAligned);
+
+  if (!DoDecompress && !DoTranspose) {
+    cvk_tdma_g2l_matrix_copy_param_t param = {0};
+    param.src = &mg_src;
+    param.dst = &ml_dst;
+    ctx.tdma_g2l_matrix_copy(&param);
+  } else if (!DoDecompress) {
+    cvk_tdma_g2l_matrix_copy_row_col_transposed_param_t param = {0};
+    param.src = &mg_src;
+    param.dst = &ml_dst;
+    ctx.tdma_g2l_matrix_copy_row_col_transposed(&param);
+  } else {
+    cvk_cmpr_mg_t cmpr_mg_src = {0};
+    cmpr_mg_src.m = mg_src;
+
+    cvk_tdma_g2l_matrix_copy_decompressed_param_t param = {0};
+    param.src = &cmpr_mg_src;
+    param.dst = &ml_dst;
+    ctx.tdma_g2l_matrix_copy_decompressed(&param);
+  }
+}
