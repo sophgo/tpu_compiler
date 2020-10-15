@@ -93,7 +93,7 @@ static void pixelShuffle_tensor_load_nc_transpose(
       << ", " << param.dst->stride.c << ", " << param.dst->stride.h
       << ", " << param.dst->stride.w << ")\n");
 
-  ctx.tdma_g2l_bf16_tensor_copy_nc_transposed(&param);
+  ctx.tdma_g2l_tensor_copy_nc_transposed(&param);
 }
 
 static void pixelShuffle_tiu_copy(
@@ -169,7 +169,7 @@ static void pixelShuffle_tensor_store(
       << "), stride(" << param.dst->stride.n
       << ", " << param.dst->stride.c << ", " << param.dst->stride.h << ")\n");
 
-  ctx.tdma_l2g_bf16_tensor_copy(&param);
+  ctx.tdma_l2g_tensor_copy(&param);
 }
 
 static void _pixel_shuffle_fixed_kernel_new(const CviBackendContext &ctx, uint32_t layer_id,

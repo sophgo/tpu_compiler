@@ -70,7 +70,7 @@ static void _mixed_precision_ss_bf16_quant(const CviBackendContext &ctx, uint32_
 
     // load input
     gaddr_t bottom_offset = bottom_gaddr + gaddr_offset * unit_size;
-    ctx.tdma_load_bf16(tl_ifmap, bottom_offset);
+    ctx.tdma_load(tl_ifmap, bottom_offset);
 
     // quant it
     cvk_tiu_mul_param_t p = {0};
@@ -90,7 +90,7 @@ static void _mixed_precision_ss_bf16_quant(const CviBackendContext &ctx, uint32_
       ctx.lmem_shrink_fp32_bf16(tl_ifmap, &tl_ifmap_fp32, n, c, h, w, layer_id);
     }
 
-    // FIXME: leverage \tdma_store_stride_bf16 with pass \fmt_d
+    // FIXME: leverage \tdma_store_stride with pass \fmt_d
     cvk_tg_t ts_data;
     ts_data.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(top_gaddr);
     ts_data.fmt = fmt_d;
@@ -106,7 +106,7 @@ static void _mixed_precision_ss_bf16_quant(const CviBackendContext &ctx, uint32_
     cvk_tdma_l2g_tensor_copy_param_t p1 = {0};
     p1.src = tl_ifmap;
     p1.dst = &ts_data;
-    ctx.tdma_l2g_bf16_tensor_copy(&p1);
+    ctx.tdma_l2g_tensor_copy(&p1);
 
     tl_ifmap->start_address = tl_ifmap_laddr;
     ctx.lmem_free_tensor(tl_ifmap);
@@ -179,7 +179,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
       p.dst = tl_ofmap_fp32;
       p.constant = (uint16_t)0;
       p.layer_id = layer_id;
-      ctx.tdma_tg2l_bf16_tensor_fill_constant(&p);
+      ctx.tdma_g2l_tensor_fill_constant(&p);
 
       // cvk_tl_shape_t gap_shape = ctx.shape_t4(1, c, 1, coeff_lane_shape);
       // tl_gap = ctx.lmem_alloc_tensor(gap_shape, ofmap_fmt, /*eu_align=*/1);
@@ -196,7 +196,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
       p.dst = tl_ofmap;
       p.constant = (uint16_t)0;
       p.layer_id = layer_id;
-      ctx.tdma_tg2l_bf16_tensor_fill_constant(&p);
+      ctx.tdma_g2l_tensor_fill_constant(&p);
     }
     cvk_tl_t* output = tl_ofmap;
 
@@ -214,7 +214,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
 
     p1.src = &src;
     p1.dst = tl_ofmap;
-    ctx.tdma_g2l_bf16_tensor_copy(&p1);
+    ctx.tdma_g2l_tensor_copy(&p1);
 
     // mul scale(dequant)
     cvk_tiu_mul_param_t p = {0};
@@ -244,7 +244,7 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
       output = tl_ofmap_fp32;
     }
 
-    ctx.tdma_store_bf16(output, top_gaddr + gaddr_offset * unit_size);
+    ctx.tdma_store(output, top_gaddr + gaddr_offset * unit_size);
     LLVM_DEBUG(llvm::errs() << llvm::format("store: output shape:[%d,%d,%d,%d], stride:[%d,%d,%d,%d]\n",
                                  output->shape.n, output->shape.c, output->shape.h, output->shape.w,
                                  output->stride.n, output->stride.c, output->stride.h, output->stride.w

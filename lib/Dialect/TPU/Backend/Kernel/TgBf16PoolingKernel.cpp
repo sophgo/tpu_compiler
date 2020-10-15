@@ -102,10 +102,6 @@ static int index_size_gmem(const CviBackendContext &ctx, int kernel_size, int n,
   return n * c * get_csize_global_bitwidth(ctx, h, w, bit_width);
 }
 
-static int tensor_size_gmem(const CviBackendContext &ctx, int n, int c, int h, int w) {
-  return n * c * h * w * sizeof(uint16_t);
-}
-
 static cvk_tl_t *alloc_tensor_lmem(const CviBackendContext &ctx, int n, int c,
                                                   int h, int w) {
   cvk_tl_shape_t shape = ctx.tl_shape_t4(n,c,h,w);
@@ -213,7 +209,7 @@ static void pooling_forward_slice(const CviBackendContext &ctx, uint32_t layer_i
   cvk_tg_stride_t ts_stride = ctx.tg_default_stride(ts_all_in_shape, CVK_FMT_BF16);
 
 
-  ctx.tdma_load_stride_bf16(ifmap, s->ifmap_gaddr, ts_stride);
+  ctx.tdma_load_stride(ifmap, s->ifmap_gaddr, ts_stride);
 
   int pad_bot = s->pad_bot;
   if (s->last_column) {
@@ -290,7 +286,7 @@ static void pooling_forward_slice(const CviBackendContext &ctx, uint32_t layer_i
   cvk_tg_shape_t ts_all_out_shape = ctx.tg_shape_t4(all->n,all->c,pooling_out_h(all),pooling_out_w(all));
   cvk_tg_stride_t ts_out_stride = ctx.tg_default_stride(ts_all_out_shape, CVK_FMT_BF16);
 
-  ctx.tdma_store_stride_bf16(ofmap, s->ofmap_gaddr, ts_out_stride);
+  ctx.tdma_store_stride(ofmap, s->ofmap_gaddr, ts_out_stride);
 
   ctx.lmem_free_tensor(ofmap);
   ctx.lmem_free_tensor(ifmap);
@@ -373,8 +369,8 @@ void cvi_backend_tg_bf16_pooling_kernel(const CviBackendContext &ctx, uint32_t l
     int slice_c = std::min(step_c, c - ci);
     int out_h = pooling_out_h(&pooling);
     int out_w = pooling_out_w(&pooling);
-    gaddr_t ifmap_nc = ifmap_gaddr + tensor_size_gmem(ctx, 1, ci, h, w);
-    gaddr_t ofmap_nc = ofmap_gaddr + tensor_size_gmem(ctx, 1, ci, out_h, out_w);
+    gaddr_t ifmap_nc = ifmap_gaddr + ctx.tensor_size(1, ci, h, w, CVK_FMT_BF16);
+    gaddr_t ofmap_nc = ofmap_gaddr + ctx.tensor_size(1, ci, out_h, out_w, CVK_FMT_BF16);
     gaddr_t index_nc = index_gaddr + index_size_gmem(ctx, kh * kw * sizeof(uint16_t), 1,
                                                      ci, out_h, out_w);
 
@@ -405,8 +401,8 @@ void cvi_backend_tg_bf16_pooling_kernel(const CviBackendContext &ctx, uint32_t l
       int out_hi = (hi + pad_top) / stride_h;
       slice.pad_top = -std::min(0, hi);
       slice.pad_bot = std::max(0, hi + slice_h - h);
-      slice.ifmap_gaddr = ifmap_nc + tensor_size_gmem(ctx, 1, 1, hi + slice.pad_top, w);
-      slice.ofmap_gaddr = ofmap_nc + tensor_size_gmem(ctx, 1, 1, out_hi, out_w);
+      slice.ifmap_gaddr = ifmap_nc + ctx.tensor_size(1, 1, hi + slice.pad_top, w, CVK_FMT_BF16);
+      slice.ofmap_gaddr = ofmap_nc + ctx.tensor_size(1, 1, out_hi, out_w, CVK_FMT_BF16);
       slice.index_gaddr =
           index_nc + index_size_gmem(ctx, kh * kw * sizeof(uint16_t), 1, 1, out_hi, out_w);
       slice.h = slice_h - slice.pad_top - slice.pad_bot;

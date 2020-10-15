@@ -349,14 +349,14 @@ void cvi_backend_bf16_tl_lut_slope_method(
   dst.int8_rnd_mode = 1;
   p3.dst = &dst;
   p3.src = tl_tmp;
-  ctx.tdma_l2l_bf16_tensor_copy(&p3);
+  ctx.tdma_l2l_tensor_copy(&p3);
   dst.int8_rnd_mode = 0; // reset
 
   // <! int8 to bf16 format cus for sub use, sub MUST in the same format
   memset(&p3, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
   p3.dst = tl_ofmap_slope; //<! bf16
   p3.src = &dst;
-  ctx.tdma_l2l_bf16_tensor_copy(&p3);
+  ctx.tdma_l2l_tensor_copy(&p3);
 
   // <! sub, diff base , a - b
   // (x - x0)
@@ -481,7 +481,7 @@ void cvi_backend_tl_lut_exponential_mul_mantissa(
   p10.mv_lut_base = false; // MUST init by ifself in soc
   p10.mv_lut_idx = true;
   p10.layer_id = layer_id;
-  ctx.tdma_l2l_bf16_tensor_copy(&p10);
+  ctx.tdma_l2l_tensor_copy(&p10);
 
   // <! get f(x0) = 2^(x0*-0.5)
   cvk_tiu_lookup_table_param_t p12={0};

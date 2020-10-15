@@ -46,8 +46,8 @@ void cvi_backend_tg_bf16_prelu_kernel(const CviBackendContext &ctx, uint32_t lay
 
   ASSERT(tl_input && tl_output && slope && "ERROR: ctx.lmem_alloc_tensor");
 
-  ctx.tdma_load_bf16(tl_input, ga_bottom);
-  ctx.tdma_load_bf16(slope, ga_negative_slope);
+  ctx.tdma_load(tl_input, ga_bottom);
+  ctx.tdma_load(slope, ga_negative_slope);
 #endif
   /* BF16 Condition */
   int nsecs = 1, hsecs = 1;
@@ -72,7 +72,7 @@ void cvi_backend_tg_bf16_prelu_kernel(const CviBackendContext &ctx, uint32_t lay
                << ", " << tl_slope->stride.h << ", " << tl_slope->stride.w << " }\n";
   );
 
-  ctx.tdma_load_bf16(tl_slope, ga_negative_slope);
+  ctx.tdma_load(tl_slope, ga_negative_slope);
 
   LLVM_DEBUG(
       llvm::errs() << "[ nsecs = " << nsecs << ", hsecs = " << hsecs << " ]\n";);
@@ -102,7 +102,7 @@ void cvi_backend_tg_bf16_prelu_kernel(const CviBackendContext &ctx, uint32_t lay
           (uint32_t)(input_w * sizeof(uint16_t))
       };
 
-      ctx.tdma_load_stride_bf16(bottom, ga_bottom + offset, stride);
+      ctx.tdma_load_stride(bottom, ga_bottom + offset, stride);
 
       LLVM_DEBUG(llvm::errs() << llvm::format(
                      "loop, nstart:%d,hstart:%d, sec_len_n:%d,sec_len_h:%d, offset:%lu, "
@@ -172,7 +172,7 @@ void cvi_backend_tg_bf16_prelu_kernel(const CviBackendContext &ctx, uint32_t lay
       ctx.tiu_add(&p9);
 
       // move result to global
-      ctx.tdma_store_stride_bf16(bottom, ga_top + offset, stride);
+      ctx.tdma_store_stride(bottom, ga_top + offset, stride);
       // free
       ctx.lmem_free_tensor(neg);
       ctx.lmem_free_tensor(bottom);
@@ -273,7 +273,7 @@ static void bf16_eltwise_sum_forward_kernel(const CviBackendContext &ctx, uint32
 
   ASSERT(tl_input && tl_output && tl_output_h);
 
-  ctx.tdma_load_bf16(tl_input, ga_input[0] + gaddr_offset);
+  ctx.tdma_load(tl_input, ga_input[0] + gaddr_offset);
 
   cvk_tiu_mul_param_t p = {0};
   p.res_high = tl_output_h;
@@ -288,7 +288,7 @@ static void bf16_eltwise_sum_forward_kernel(const CviBackendContext &ctx, uint32
   ctx.tiu_mul(&p);
 
   for (int i = 1; i < input_size - 1; ++i) {
-    ctx.tdma_load_bf16(tl_input, ga_input[i] + gaddr_offset);
+    ctx.tdma_load(tl_input, ga_input[i] + gaddr_offset);
 
     cvk_tiu_mac_param_t p3 = {0};
     p3.res_high = tl_output_h;
@@ -305,7 +305,7 @@ static void bf16_eltwise_sum_forward_kernel(const CviBackendContext &ctx, uint32
     ctx.tiu_mac(&p3);
   }
 
-  ctx.tdma_load_bf16(tl_input, ga_input[input_size - 1] + gaddr_offset);
+  ctx.tdma_load(tl_input, ga_input[input_size - 1] + gaddr_offset);
 
   cvk_tiu_mac_param_t p3 = {0};
   p3.res_high = tl_output_h;
@@ -321,7 +321,7 @@ static void bf16_eltwise_sum_forward_kernel(const CviBackendContext &ctx, uint32
   p3.relu_enable = fused_relu;
   ctx.tiu_mac(&p3);
 
-  ctx.tdma_store_bf16(tl_output, ga_output + gaddr_offset);
+  ctx.tdma_store(tl_output, ga_output + gaddr_offset);
 
   // Reverse order
   ctx.lmem_free_tensor(tl_output_h);

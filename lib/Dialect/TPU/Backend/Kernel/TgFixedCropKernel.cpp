@@ -92,7 +92,7 @@ void cvi_backend_tg_fixed_crop_kernel(const CviBackendContext &ctx, uint32_t str
       cvk_tl_shape_t input_shape = ctx.tl_shape_t4(n, c, h, w);
       cvk_tl_t *bottom = ctx.lmem_alloc_tensor(input_shape, fmt, /*eu_align=*/0);
       src_gstride.h = bottom->stride.h;
-      ctx.tdma_load_stride_bf16(bottom,
+      ctx.tdma_load_stride(bottom,
           src_gaddr + bottom_local_shift + batch * src_N_stride, src_gstride);
       bottom_local_shift += bottom->stride.c;
 
@@ -111,7 +111,7 @@ void cvi_backend_tg_fixed_crop_kernel(const CviBackendContext &ctx, uint32_t str
 
       // store back
       dst_gstride.h = top.stride.h;
-      ctx.tdma_store_stride_bf16(&top,
+      ctx.tdma_store_stride(&top,
           top_gaddr + top_local_shift + batch * dst_N_stride, dst_gstride,
           /*do_transpose=*/0);
 

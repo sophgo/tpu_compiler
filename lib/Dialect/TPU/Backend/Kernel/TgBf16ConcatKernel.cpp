@@ -93,9 +93,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                       static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
                       static_cast<uint32_t>(output_dim[3]) * 2};
         shape_ = ctx.tg_shape_t4(input_dims[i], output_dim[1], output_dim[2], output_dim[3]);
-        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                 output_gaddr + offset, shape_, stride_dst,
-                                 CVK_FMT_BF16);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_BF16,
+                                 output_gaddr + offset, shape_, stride_dst, CVK_FMT_BF16);
 
         offset += input_dims[i] * output_dim[1] * output_dim[2] * output_dim[3] * sizeof(uint16_t);
       }
@@ -125,9 +124,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                             static_cast<uint32_t>(output_dim[3]) * 2};
               shape_ = ctx.tg_shape_t4(output_dim[0], input_dims[i], output_dim[2], output_dim[3]);
 
-              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                       output_gaddr + offset, shape_,
-                                       stride_dst, CVK_FMT_BF16);
+              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_BF16,
+                                       output_gaddr + offset, shape_, stride_dst, CVK_FMT_BF16);
             }
             offset += input_dims[i] * output_dim[2] * output_dim[3] *
                       sizeof(uint16_t);
@@ -141,9 +139,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
             stride_src = {static_cast<uint32_t>(input_dims[i]) * 2, 1 * 2, 1 * 2};
             if (input_dims[i] < 65536) {
               shape_ = ctx.tg_shape_t4(output_dim[0], input_dims[i], 1, 1);
-              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                       output_gaddr + offset, shape_,
-                                       stride_dst, CVK_FMT_BF16);
+              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_BF16,
+                                       output_gaddr + offset, shape_, stride_dst, CVK_FMT_BF16);
               offset += input_dims[i] * sizeof(uint16_t);
             } else {
               //assert(0);
@@ -152,9 +149,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
               uint64_t soffset = 0;
               for (int j = 0; j < c_slice - 1; j++) {
                 shape_ = ctx.tg_shape_t4(output_dim[0], 65535, 1, 1);
-                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_,
-                                         stride_src, output_gaddr + offset,
-                                         shape_, stride_dst, CVK_FMT_BF16);
+                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_, stride_src, CVK_FMT_BF16,
+                                         output_gaddr + offset, shape_, stride_dst, CVK_FMT_BF16);
 
                 offset += 65535 * sizeof(uint16_t);
                 soffset += 65535 * sizeof(uint16_t);
@@ -162,9 +158,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
               if (input_dims[i] % 65535 != 0) {
                 shape_ = ctx.tg_shape_t4(output_dim[0], input_dims[i] % 65535, 1, 1);
 
-                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_,
-                                         stride_src, output_gaddr + offset,
-                                         shape_, stride_dst, CVK_FMT_BF16);
+                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_, stride_src, CVK_FMT_BF16,
+                                         output_gaddr + offset, shape_, stride_dst, CVK_FMT_BF16);
 
                 offset += (input_dims[i] % 65535) * sizeof(uint16_t);
               }
@@ -192,9 +187,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
         stride_src = {static_cast<uint32_t>(output_dim[1]) * input_dims[i] * 2,
                       static_cast<uint32_t>(input_dims[i]) * 2, 1 * 2};
         shape_ = ctx.tg_shape_t4(output_dim[0], output_dim[1], input_dims[i], 1);
-        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                 output_gaddr + offset, shape_, stride_dst,
-                                 CVK_FMT_BF16);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_BF16,
+                                 output_gaddr + offset, shape_, stride_dst, CVK_FMT_BF16);
 
         offset += input_dims[i] * sizeof(uint16_t);
       }
@@ -209,9 +203,8 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
         ASSERT(input_dims[i] < 65536);
         shape_.w = static_cast<uint32_t>(input_dims[i]);
         stride_src = ctx.tg_default_stride(shape_, CVK_FMT_BF16);
-        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                 output_gaddr + offset, shape_, stride_dst,
-                                 CVK_FMT_BF16);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_BF16,
+                                 output_gaddr + offset, shape_, stride_dst, CVK_FMT_BF16);
         offset += input_dims[i] * sizeof(uint16_t);
       }
 

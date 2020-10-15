@@ -128,7 +128,7 @@ void TgBf16SquareKernel::load(int32_t step_idx, int32_t flip) {
   operand.fmt = CVK_FMT_BF16;
   cvk_tg_stride_t stride =
       ctx.tg_default_stride({shape.n, shape.c, shape.h, shape.w}, CVK_FMT_BF16);
-  ctx.tdma_load_stride_bf16(&operand, ga_input + tile.input_offset, stride);
+  ctx.tdma_load_stride(&operand, ga_input + tile.input_offset, stride);
 
   LLVM_DEBUG(
       llvm::errs() << llvm::format(
@@ -147,7 +147,7 @@ void TgBf16SquareKernel::store(int32_t step_idx, int32_t flip) {
   result.fmt = CVK_FMT_BF16;
   cvk_tg_stride_t stride =
       ctx.tg_default_stride({shape.n, shape.c, shape.h, shape.w}, CVK_FMT_BF16);
-  ctx.tdma_store_stride_bf16(&result, ga_output + tile.output_offset, stride);
+  ctx.tdma_store_stride(&result, ga_output + tile.output_offset, stride);
 
   LLVM_DEBUG(
       llvm::errs() << llvm::format(

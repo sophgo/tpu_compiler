@@ -124,5 +124,5 @@ void cvi_backend_tl_bf16_crop(const CviBackendContext &ctx, uint32_t layer_id,
   cvk_tdma_l2l_tensor_copy_param_t p1 = {0};
   p1.dst = &tl_output;
   p1.src = &tl_input;
-  ctx.tdma_l2l_bf16_tensor_copy(&p1);
+  ctx.tdma_l2l_tensor_copy(&p1);
 }

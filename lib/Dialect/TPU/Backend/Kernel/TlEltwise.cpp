@@ -684,7 +684,7 @@ void cvi_backend_bf16_tl_eltwise(
             p10.dst = &output;
             p10.src = res_low;
             p10.layer_id = layer_id;
-            ctx.tdma_l2l_bf16_tensor_copy(&p10);
+            ctx.tdma_l2l_tensor_copy(&p10);
           }
         } else {
           // Not support

@@ -25,8 +25,7 @@ static void tile_w(const CviBackendContext &ctx,
       cvk_tg_stride_t dst_stride = ctx.tg_default_stride(output_shape, output_fmt);
       ctx.set_layer_id(layer_id);
       ctx.tdma_g2g_tensor_copy(input_gaddr, src_shape, src_stride, input_fmt,
-                               output_gaddr, dst_shape, dst_stride, output_fmt,
-                               CVK_FMT_BF16);
+                               output_gaddr, dst_shape, dst_stride, output_fmt);
 }
 
 int cvi_backend_tg_tile_kernel(const CviBackendContext &ctx,
@@ -101,8 +100,7 @@ int cvi_backend_tg_tile_kernel(const CviBackendContext &ctx,
       dst_stride.n = dst_stride_n;
       ctx.set_layer_id(layer_id);
       ctx.tdma_g2g_tensor_copy(input_gaddr, src_shape, src_stride, input_fmt,
-                               output_gaddr, dst_shape, dst_stride, output_fmt,
-                               CVK_FMT_BF16);
+                               output_gaddr, dst_shape, dst_stride, output_fmt);
     }
 
     // reshape to n, c, 1, hw
@@ -129,8 +127,7 @@ int cvi_backend_tg_tile_kernel(const CviBackendContext &ctx,
       src_stride.n = dst_stride.n;
       ctx.set_layer_id(layer_id);
       ctx.tdma_g2g_tensor_copy(output_gaddr, src_shape, src_stride, input_fmt,
-                               output_gaddr, dst_shape, dst_stride, output_fmt,
-                               CVK_FMT_BF16);
+                               output_gaddr, dst_shape, dst_stride, output_fmt);
     }
   }
   else {

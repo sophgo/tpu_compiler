@@ -47,13 +47,13 @@ void cvi_backend_tg_fixed_mac_const_kernel(
     param.dst = tl_output;
     param.layer_id = layer_id;
     param.constant = (uint16_t)const_val;
-    ctx.tdma_tg2l_tensor_fill_constant(&param);
+    ctx.tdma_g2l_tensor_fill_constant(&param);
 
     cvk_tdma_g2l_tensor_fill_constant_param_t param2 = {0};
     param2.dst = tl_output_h;
     param2.layer_id = layer_id;
     param2.constant = (uint16_t)0;
-    ctx.tdma_tg2l_tensor_fill_constant(&param2);
+    ctx.tdma_g2l_tensor_fill_constant(&param2);
 
     cvk_tiu_mac_param_t p = {0};
     p.res_high = tl_output_h;
@@ -104,13 +104,13 @@ void cvi_backend_tg_bf16_mac_const_kernel(
     cvk_tl_t *tl_output = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, /*eu_align=*/1);
 
 
-    ctx.tdma_load_bf16(tl_input, input_gaddr + gaddr_offset);
+    ctx.tdma_load(tl_input, input_gaddr + gaddr_offset);
 
     cvk_tdma_g2l_tensor_fill_constant_param_t param = {0};
     param.dst = tl_output;
     param.layer_id = layer_id;
     param.constant = ctx.convert_fp32_to_bf16(const_val);
-    ctx.tdma_tg2l_bf16_tensor_fill_constant(&param);
+    ctx.tdma_g2l_tensor_fill_constant(&param);
 
     cvk_tiu_mac_param_t p = {0};
     p.res_high = nullptr;
@@ -126,7 +126,7 @@ void cvi_backend_tg_bf16_mac_const_kernel(
     p.relu_enable = do_relu ? 1 : 0;
     ctx.tiu_mac(&p);
 
-    ctx.tdma_store_bf16(tl_output, output_gaddr + gaddr_offset);
+    ctx.tdma_store(tl_output, output_gaddr + gaddr_offset);
     ctx.lmem_free_tensor(tl_output);
     ctx.lmem_free_tensor(tl_input);
 

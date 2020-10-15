@@ -170,7 +170,7 @@ after_loop:
       opd_r.fmt = CVK_FMT_BF16;
       opd_r.stride = ctx.ml_default_stride(shape_r, CVK_FMT_BF16, 1);
       offset = pos_n * element_size;
-      ctx.tdma_load_stride_bf16(&opd_r, ga_right + offset, gstride_r);
+      ctx.tdma_load_stride(&opd_r, ga_right + offset, gstride_r);
 
       if (have_bias) {
         shape_b = ctx.ml_default_shape(2, cur_n, CVK_FMT_BF16);
@@ -179,7 +179,7 @@ after_loop:
         opd_b.fmt = CVK_FMT_BF16;
         opd_b.stride = ctx.ml_default_stride(shape_b, CVK_FMT_BF16, 1);
         offset = pos_n * element_size;
-        ctx.tdma_load_stride_bf16(&opd_b, ga_bias + offset, gstride_r);
+        ctx.tdma_load_stride(&opd_b, ga_bias + offset, gstride_r);
       }
 
       for (int pos_m = 0; pos_m < m; pos_m += step_m) {
@@ -193,7 +193,7 @@ after_loop:
         opd_l.stride = ctx.ml_default_stride(shape_l, CVK_FMT_BF16, 1);
 
         offset = pos_m * k * element_size;
-        ctx.tdma_load_stride_bf16(&opd_l, ga_left + offset, gstride_l);
+        ctx.tdma_load_stride(&opd_l, ga_left + offset, gstride_l);
 
         cvk_ml_t opd_y;
         shape_y = ctx.ml_default_shape(cur_m, cur_n, CVK_FMT_BF16);
@@ -219,7 +219,7 @@ after_loop:
 
         // store
         offset = (pos_n + pos_m * n) * element_size;
-        ctx.tdma_store_stride_bf16(&opd_y, ga_output + offset, gstride_y);
+        ctx.tdma_store_stride(&opd_y, ga_output + offset, gstride_y);
       }
     }
   } else {
@@ -238,7 +238,7 @@ after_loop:
           opd_r.fmt = CVK_FMT_BF16;
           opd_r.stride = ctx.ml_default_stride(shape_r, CVK_FMT_BF16, 1);
           offset = (pos_n + pos_k * n) * element_size;
-          ctx.tdma_load_stride_bf16(&opd_r, ga_right + offset, gstride_r);
+          ctx.tdma_load_stride(&opd_r, ga_right + offset, gstride_r);
 
           cvk_ml_t opd_l;
           shape_l = ctx.ml_default_shape(cur_m, cur_k, CVK_FMT_BF16);
@@ -248,7 +248,7 @@ after_loop:
           opd_l.stride = ctx.ml_default_stride(shape_l, CVK_FMT_BF16, 1);
 
           offset = (pos_k + pos_m * k) * element_size;
-          ctx.tdma_load_stride_bf16(&opd_l, ga_left + offset, gstride_l);
+          ctx.tdma_load_stride(&opd_l, ga_left + offset, gstride_l);
 
           cvk_ml_t opd_y;
           shape_y = ctx.ml_default_shape(cur_m, cur_n, CVK_FMT_BF16);
@@ -266,7 +266,7 @@ after_loop:
             opd_b.fmt = CVK_FMT_BF16;
             opd_b.stride = ctx.ml_default_stride(shape_b, CVK_FMT_BF16, 1);
             offset = pos_n * element_size;
-            ctx.tdma_load_stride_bf16(&opd_b, ga_bias + offset, gstride_r);
+            ctx.tdma_load_stride(&opd_b, ga_bias + offset, gstride_r);
           }
 
           int ps32_mode = 0;           // normal mode
@@ -301,7 +301,7 @@ after_loop:
           // store
           if (is_last_k_tile) {
             offset = (pos_n + pos_m * n) * element_size;
-            ctx.tdma_store_stride_bf16(&opd_y, ga_output + offset, gstride_y);
+            ctx.tdma_store_stride(&opd_y, ga_output + offset, gstride_y);
           }
         }
       }

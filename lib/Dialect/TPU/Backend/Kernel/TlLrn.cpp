@@ -421,7 +421,7 @@ void cvi_backend_bf16_tl_lrn(
   p6.mv_lut_base = false;
   p6.mv_lut_idx = true;
   p6.layer_id = layer_id;
-  ctx.tdma_l2l_bf16_tensor_copy(&p6);
+  ctx.tdma_l2l_tensor_copy(&p6);
 
   // tmp = lut: exp
   cvk_tiu_lookup_table_param_t p7 = {0};

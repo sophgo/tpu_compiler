@@ -132,24 +132,10 @@ void cvi_backend_tl_load_stride(
   tl_shape.h = Local_H;
   tl_shape.w = Local_W;
 
-  // quant emit once data type change(e.g int8->bf16 or bf16->int8)
-  int is_quant = 0;
-  int is_bf16 = 0;
-
   if (DoDecompress) {
     assert(((from == CVK_FMT_I8 && to == CVK_FMT_I8) ||
             (from == CVK_FMT_BF16 && to == CVK_FMT_BF16)) &&
             "Only support i8/bf16 now");
-  }
-
-  if ((from == CVK_FMT_BF16 && to == CVK_FMT_I8) &&
-      from == CVK_FMT_I8 && to == CVK_FMT_BF16) {
-    // TODO: support U8/BF16 quant
-    is_quant = 1;
-  }
-
-  if (from == CVK_FMT_BF16 && to == CVK_FMT_BF16) {
-    is_bf16 = 1;
   }
 
   cvk_tl_t tl_data;
@@ -178,12 +164,8 @@ void cvi_backend_tl_load_stride(
     cvk_tdma_g2l_tensor_copy_param_t param = {0};
     param.src = &ga_data;
     param.dst = &tl_data;
-    if (is_quant || is_bf16) {
-      ctx.tdma_g2l_bf16_tensor_copy(&param);
-    }
-    else {
-      ctx.tdma_g2l_tensor_copy(&param);
-    }
+    ctx.tdma_g2l_tensor_copy(&param);
+
   } else {
     // Compressed data
     cvk_cmpr_tg_t cmpr_ga_data = {0};
@@ -212,7 +194,7 @@ void cvi_backend_tl_load(
     ctx.tdma_load_stride(&tl_ifmap, ga_ifmap, ifmap_gstride,
                        /*do_transpose=*/false, do_decompress);
   } else if (fmt == CVK_FMT_BF16) {
-    ctx.tdma_load_bf16(&tl_ifmap, ga_ifmap);
+    ctx.tdma_load(&tl_ifmap, ga_ifmap);
   } else {
     assert(0);
   }
@@ -236,13 +218,7 @@ void cvi_backend_tl_store(const CviBackendContext &ctx, uint32_t layer_id,
   tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, fmt, /*eu_align=*/1);
 
   ctx.set_layer_id(layer_id);
-  if (fmt == CVK_FMT_I8 || fmt == CVK_FMT_U8) {
-    ctx.tdma_store(&tl_ofmap, ga_ofmap);
-  } else if (fmt == CVK_FMT_BF16) {
-    ctx.tdma_store_bf16(&tl_ofmap, ga_ofmap);
-  } else {
-    assert(0);
-  }
+  ctx.tdma_store(&tl_ofmap, ga_ofmap);
 }
 
 void cvi_backend_tl_store_stride(
@@ -269,20 +245,6 @@ void cvi_backend_tl_store_stride(
   tl_shape.h = Local_H;
   tl_shape.w = Local_W;
 
-  // quant emit once data type change(e.g int8->bf16 or bf16->int8)
-  int is_quant = 0;
-  int is_bf16 = 0;
-
-  if ((from == CVK_FMT_BF16 && to == CVK_FMT_I8) &&
-      from == CVK_FMT_I8 && to == CVK_FMT_BF16) {
-    // TODO: support U8/BF16 quant
-    is_quant = 1;
-  }
-
-  if (from == CVK_FMT_BF16 && to == CVK_FMT_BF16) {
-    is_bf16 = 1;
-  }
-
   cvk_tl_t tl_data;
   tl_data.start_address = la_src;
   tl_data.fmt = from;
@@ -294,13 +256,8 @@ void cvi_backend_tl_store_stride(
           (uint32_t)Global_H, (uint32_t)Global_W}, to);
 
   // We need another API to pass memory region from TPU dialect codegen.
-  if (is_quant || is_bf16) {
-    ctx.tdma_store_stride_bf16(&tl_data, ga_dst, ts_stride,
+  ctx.tdma_store_stride(&tl_data, ga_dst, ts_stride,
                               /*do_transpose=*/false, DoCompress);
-  } else {
-    ctx.tdma_store_stride(&tl_data, ga_dst, ts_stride, /*do_transpose=*/false,
-                          DoCompress);
-  }
 }
 
 void cvi_backend_tl_store_stride(
@@ -446,7 +403,7 @@ void cvi_backend_tl_bf16_ps32_to_fp32(const CviBackendContext &ctx,
   param.src = &tl_src;
   param.dst = &tl_dst;
   param.layer_id = layer_id;
-  ctx.tdma_l2l_bf16_tensor_copy(&param);
+  ctx.tdma_l2l_tensor_copy(&param);
 }
 
 void cvi_backend_tl_store_fp32(const CviBackendContext &ctx,
@@ -479,5 +436,5 @@ void cvi_backend_tl_store_fp32(const CviBackendContext &ctx,
   cvk_tdma_l2g_tensor_copy_param_t param = {0};
   param.src = &tl_src;
   param.dst = &tg_dst;
-  ctx.tdma_l2g_bf16_tensor_copy(&param);
+  ctx.tdma_l2g_tensor_copy(&param);
 }

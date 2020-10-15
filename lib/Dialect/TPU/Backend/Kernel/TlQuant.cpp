@@ -58,7 +58,7 @@ void cvi_backend_tl_quant(
     cvk_tdma_l2l_tensor_copy_param_t p1 = {0};
     p1.src = tl_input;
     p1.dst = tl_output;
-    ctx.tdma_l2l_bf16_tensor_copy(&p1);
+    ctx.tdma_l2l_tensor_copy(&p1);
 
     // NOTICE: make sure tdma order before than mul
     ctx.parallel_enable();
@@ -98,7 +98,7 @@ void cvi_backend_tl_quant(
     cvk_tdma_l2l_tensor_copy_param_t p1 = {0};
     p1.src = tl_input;
     p1.dst = tl_output;
-    ctx.tdma_l2l_bf16_tensor_copy(&p1);
+    ctx.tdma_l2l_tensor_copy(&p1);
   }
 
   delete tl_output;

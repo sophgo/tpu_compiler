@@ -57,12 +57,12 @@ void cvi_backend_tg_shuffle_channel_kernel(
       // load
       cvk_tl_shape_t input_shape = ctx.tl_shape_t4(n, c, h, w);
       cvk_tl_t *bottom = ctx.lmem_alloc_tensor(input_shape, fmt, /*eu_align=*/0);
-      ctx.tdma_load_stride_bf16(bottom,
+      ctx.tdma_load_stride(bottom,
           input_gaddr + bottom_local_shift + batch * s_stride.n, s_stride);
       bottom_local_shift += bottom->stride.c;
 
       // store back
-      ctx.tdma_store_stride_bf16(bottom,
+      ctx.tdma_store_stride(bottom,
           output_gaddr + top_h_shift * d_stride.h + batch * d_stride.n, d_stride,
           /*do_transpose=*/0);
 

@@ -150,7 +150,7 @@ void cvi_backend_tl_bf16_concat(const CviBackendContext &ctx, uint32_t layer_id,
     cvk_tdma_l2l_tensor_copy_param_t p10 = {0};
     p10.dst = &tl_output;
     p10.src = &tl_input;
-    ctx.tdma_l2l_bf16_tensor_copy(&p10);
+    ctx.tdma_l2l_tensor_copy(&p10);
 
     concat_c += input_dim_c[i];
   }

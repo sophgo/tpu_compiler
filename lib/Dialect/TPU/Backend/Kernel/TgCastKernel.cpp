@@ -41,7 +41,7 @@ void convert_fp32_bf16_kernel(const CviBackendContext &ctx, uint32_t stream_id, 
     cvk_tl_t *bottom_fp32 = ctx.lmem_alloc_tensor(input_shape, fmt, /*eu_align=*/0);
 
     // load fp32 directly, * 2 means fp32 takes twice size of bf16
-    ctx.tdma_load_bf16(bottom_fp32, input_gaddr + gaddr_offset * 2);
+    ctx.tdma_load(bottom_fp32, input_gaddr + gaddr_offset * 2);
 
     laddr_t bottom_fp32_addr = bottom_fp32->start_address;
 
@@ -50,7 +50,7 @@ void convert_fp32_bf16_kernel(const CviBackendContext &ctx, uint32_t stream_id, 
     ctx.lmem_shrink_fp32_bf16(&bottom_bf16, bottom_fp32, n, c, h, w, layer_id);
 
     // contiguous store back
-    ctx.tdma_store_bf16(&bottom_bf16, output_gaddr + gaddr_offset);
+    ctx.tdma_store(&bottom_bf16, output_gaddr + gaddr_offset);
 
     // release
     bottom_fp32->start_address = bottom_fp32_addr;
@@ -110,7 +110,7 @@ void convert_bf16_fp32_kernel(
     laddr_t top_lddr = top->start_address;
     top->start_address = top_lddr + 2; // + 2 means bf16 takes high 16bit
 
-    ctx.tdma_load_bf16(bottom, input_gaddr + gaddr_offset);
+    ctx.tdma_load(bottom, input_gaddr + gaddr_offset);
 
     // fake for shape MUST eq limitation in cmodel
     top->shape = bottom->shape;
@@ -128,7 +128,7 @@ void convert_bf16_fp32_kernel(
     top->shape = output_shape;
     top->stride = ctx.tl_default_stride(top->shape, top->fmt, /*eu_align=*/0);
     // 2 means fp32 take twice than bf16
-    ctx.tdma_store_bf16(top, output_gaddr + gaddr_offset * 2);
+    ctx.tdma_store(top, output_gaddr + gaddr_offset * 2);
 
     // release
     ctx.lmem_free_tensor(bottom);

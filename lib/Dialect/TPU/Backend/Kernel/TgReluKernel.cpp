@@ -67,7 +67,7 @@ void cvi_backend_tg_fixed_relu_kernel(const CviBackendContext &ctx, uint32_t str
 
     if ((cvk_fmt_t)fmt == CVK_FMT_BF16) {
       tl_input = ctx.lmem_alloc_tensor(tl_shape, (cvk_fmt_t)fmt, /*eu_align=*/1);
-      ctx.tdma_load_bf16(tl_input, bottom_gaddr + gaddr_offset);
+      ctx.tdma_load(tl_input, bottom_gaddr + gaddr_offset);
     }
     else {
       tl_input = ctx.lmem_alloc_tensor(tl_shape, (cvk_fmt_t)fmt, /*eu_align=*/1);
@@ -98,15 +98,8 @@ void cvi_backend_tg_fixed_relu_kernel(const CviBackendContext &ctx, uint32_t str
       }
     }
 
-
-    if (fmt == CVK_FMT_BF16) {
-      ctx.tiu_max(&p13);
-      ctx.tdma_store_bf16(tl_input, top_gaddr + gaddr_offset);
-    }
-    else {
-      ctx.tiu_max(&p13);
-      ctx.tdma_store(tl_input, top_gaddr + gaddr_offset);
-    }
+    ctx.tiu_max(&p13);
+    ctx.tdma_store(tl_input, top_gaddr + gaddr_offset);
 
     ctx.lmem_free_tensor(tl_input);
 
@@ -130,14 +123,14 @@ void cvi_backend_tg_fixed_prelu_kernel(
       ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, /*eu_align=*/1);
   cvk_tl_t *tl_output =
       ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, /*eu_align=*/1);
-  ctx.tdma_load_bf16(tl_input, bottom_gaddr);
+  ctx.tdma_load(tl_input, bottom_gaddr);
 
   // slope
   cvk_tl_shape_t slope_shape = {1, static_cast<uint32_t>(input_c), 1,
                                                1};
   cvk_tl_t *slope =
       ctx.lmem_alloc_tensor(slope_shape, CVK_FMT_BF16, /*eu_align=*/1);
-  ctx.tdma_load_bf16(slope, negative_scope_gaddr);
+  ctx.tdma_load(slope, negative_scope_gaddr);
   #endif
 
   cvk_tl_shape_t tl_shape;
@@ -166,12 +159,12 @@ void cvi_backend_tg_fixed_prelu_kernel(
         ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, /*eu_align=*/1);
     tl_output =
         ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, /*eu_align=*/1);
-    ctx.tdma_load_bf16(tl_input, bottom_gaddr);
+    ctx.tdma_load(tl_input, bottom_gaddr);
     // slope
     slope_shape = {1, static_cast<uint32_t>(input_c), 1, 1};
     slope =
         ctx.lmem_alloc_tensor(slope_shape, CVK_FMT_BF16, /*eu_align=*/1);
-    ctx.tdma_load_bf16(slope, negative_scope_gaddr);
+    ctx.tdma_load(slope, negative_scope_gaddr);
   } else {
     assert(0 && "Not Support Format Type.");
   }
@@ -252,7 +245,7 @@ void cvi_backend_tg_fixed_prelu_kernel(
   p9.rshift_bits = 0;
   p9.b_is_const=0;
   ctx.tiu_add(&p9);
-  ctx.tdma_store_bf16(tl_output, top_gaddr);
+  ctx.tdma_store(tl_output, top_gaddr);
   ctx.lmem_free_tensor(tl_output);
   ctx.lmem_free_tensor(tl_input);
 }
@@ -308,7 +301,7 @@ void cvi_backend_tg_fixed_prelu_kernel(
       // cvk_tdma_g2l_tensor_fill_constant_param_t p1 = {0};
       // p1.constant = 0;
       // p1.dst = zero;
-      // ctx.tdma_tg2l_tensor_fill_constant(&p1);
+      // ctx.tdma_g2l_tensor_fill_constant(&p1);
 
       uint64_t offset = n_pos * gstride.n + h_pos * input_w;
 

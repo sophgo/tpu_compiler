@@ -88,8 +88,8 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
     ASSERT(tl_exponential_table_answer);
     ASSERT(tl_exponential_table_answer_slope);
 
-    ctx.tdma_load_bf16(tl_exponential_table_answer, ga_exponential_table_data_lut);
-    ctx.tdma_load_bf16(tl_exponential_table_answer_slope, ga_exponential_slope_table_data_lut);
+    ctx.tdma_load(tl_exponential_table_answer, ga_exponential_table_data_lut);
+    ctx.tdma_load(tl_exponential_table_answer_slope, ga_exponential_slope_table_data_lut);
     //Load reciprocal table
 
     cvk_tl_t *tl_reciprocal_table_answer =
@@ -100,8 +100,8 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
     ASSERT(tl_reciprocal_table_answer);
     ASSERT(tl_reciprocal_mantissa_table_answer);
 
-    ctx.tdma_load_bf16(tl_reciprocal_table_answer, ga_reciprocal_table_data_lut);
-    ctx.tdma_load_bf16(tl_reciprocal_mantissa_table_answer, ga_reciprocal_table_mantissa_data_lut);
+    ctx.tdma_load(tl_reciprocal_table_answer, ga_reciprocal_table_data_lut);
+    ctx.tdma_load(tl_reciprocal_mantissa_table_answer, ga_reciprocal_table_mantissa_data_lut);
 
     int outerSizeStep = ceiling_func(outer_size, tiledOutputSize);
     for(int outerSizeCounter = 0; outerSizeCounter < outerSizeStep; outerSizeCounter++) {
@@ -113,7 +113,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             ctx.lmem_alloc_tensor(input_shape, CVK_FMT_BF16, eu_align);
         ASSERT(tl_input);
         gaddr_t globalSrcAddress = ga_input + outer_pos * inner_size * sizeof(uint16_t);
-        ctx.tdma_load_bf16(tl_input, globalSrcAddress);
+        ctx.tdma_load(tl_input, globalSrcAddress);
 
         cvk_tl_t tl_enlargeInput;
         tl_enlargeInput.start_address = tl_input->start_address;  // start of lmem
@@ -181,7 +181,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                             p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                             p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx.tdma_l2l_bf16_tensor_copy(&p2);
+            ctx.tdma_l2l_tensor_copy(&p2);
         }
         cvk_tl_shape_t parallel_input_shape = ctx.tl_shape_t4(workingOutputSize,parallelC,1,bf16_euWorkingOneLane);
         cvk_tl_t *tl_parallel_input =
@@ -202,7 +202,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                             p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                             p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx.tdma_l2l_bf16_tensor_copy(&p2);
+            ctx.tdma_l2l_tensor_copy(&p2);
         }
 
         //Input = Input - maxOfInput
@@ -272,7 +272,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                             p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                             p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx.tdma_l2l_bf16_tensor_copy(&p2);
+            ctx.tdma_l2l_tensor_copy(&p2);
         }
 
         //Accumulate exponential value
@@ -347,7 +347,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                             p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                             p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx.tdma_l2l_bf16_tensor_copy(&p2);
+            ctx.tdma_l2l_tensor_copy(&p2);
         }
 
         //ans = exp(input - maxInput) *  reciprocal value
@@ -395,8 +395,8 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             cvk_tdma_l2g_matrix_copy_param_t p1 = {0};
             p1.src = &tl_golden;
             p1.dst = &ts_data;
-            ctx.tdma_l2g_bf16_matrix_copy(&p1);
-            // ctx.tdma_store_stride_bf16(&tl_golden, ga_output,
+            ctx.tdma_l2g_matrix_copy(&p1);
+            // ctx.tdma_store_stride(&tl_golden, ga_output,
             //                            {inner_size*sizeof(uint16_t)});// original column width
         }
         ctx.lmem_free_tensor(tl_lut_reciprocal_result);
@@ -484,8 +484,8 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
     ASSERT(tl_exponential_table_answer);
     ASSERT(tl_exponential_table_answer_slope);
 
-    ctx.tdma_load_bf16(tl_exponential_table_answer, ga_exponential_table_data_lut);
-    ctx.tdma_load_bf16(tl_exponential_table_answer_slope, ga_exponential_slope_table_data_lut);
+    ctx.tdma_load(tl_exponential_table_answer, ga_exponential_table_data_lut);
+    ctx.tdma_load(tl_exponential_table_answer_slope, ga_exponential_slope_table_data_lut);
     //Load reciprocal table
 
     cvk_tl_t *tl_reciprocal_table_answer =
@@ -496,8 +496,8 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
     ASSERT(tl_reciprocal_table_answer);
     ASSERT(tl_reciprocal_mantissa_table_answer);
 
-    ctx.tdma_load_bf16(tl_reciprocal_table_answer, ga_reciprocal_table_data_lut);
-    ctx.tdma_load_bf16(tl_reciprocal_mantissa_table_answer, ga_reciprocal_table_mantissa_data_lut);
+    ctx.tdma_load(tl_reciprocal_table_answer, ga_reciprocal_table_data_lut);
+    ctx.tdma_load(tl_reciprocal_mantissa_table_answer, ga_reciprocal_table_mantissa_data_lut);
 
     for(int hStepCounter = 0; hStepCounter < hStep; hStepCounter++) {
         int h_pos = hStepCounter * tileH;
@@ -519,8 +519,8 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
             gaddr_t inputAddr = ga_input + i * h * w * c * sizeof(uint16_t) + h_pos * w * sizeof(uint16_t);
             cvk_tg_stride_t ifmap_gstride = ctx.tg_default_stride({c, h * w, 1, 1}, CVK_FMT_BF16);
             // original shape
-            // ctx.tdma_load_bf16(tl_input, inputAddr);
-            ctx.tdma_load_stride_bf16(tl_input, inputAddr, ifmap_gstride);
+            // ctx.tdma_load(tl_input, inputAddr);
+            ctx.tdma_load_stride(tl_input, inputAddr, ifmap_gstride);
 
             bool doConcateC = tileHeightSize * w > (unsigned int)NPU_NUM;
             if(doConcateC) {
@@ -706,8 +706,8 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
                 gaddr_t outputAddr = ga_output + i * h * w * c * sizeof(uint16_t) + h_pos * w * sizeof(uint16_t);
                 cvk_tg_stride_t ofmap_gstride = ctx.tg_default_stride({c, h * w, 1, 1}, CVK_FMT_BF16);
                 // // original shape
-                ctx.tdma_store_stride_bf16(selected_tl_output, outputAddr, ofmap_gstride);
-                // ctx.tdma_store_bf16(selected_tl_output, outputAddr);
+                ctx.tdma_store_stride(selected_tl_output, outputAddr, ofmap_gstride);
+                // ctx.tdma_store(selected_tl_output, outputAddr);
             }
             ctx.lmem_free_tensor(tl_lut_reciprocal_result);
             ctx.lmem_free_tensor(tl_lut_result);

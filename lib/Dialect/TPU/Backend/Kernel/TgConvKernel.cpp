@@ -1950,7 +1950,7 @@ void Conv::loadBias(std::vector<uint32_t> gmOutputPoss,
   if (args_.tiu_fmt == CVK_FMT_I8)
     ctx_.tdma_load_stride(&tl_bias, ga_load, gm_stride);
   else if (args_.tiu_fmt == CVK_FMT_BF16)
-    ctx_.tdma_load_stride_bf16(&tl_bias, ga_load, gm_stride);
+    ctx_.tdma_load_stride(&tl_bias, ga_load, gm_stride);
   else {
     assert(0 && "Bias only supports i8/bf16");
   }
@@ -2028,13 +2028,7 @@ void Conv::loadWeight(std::vector<uint32_t> gmOutputPoss,
       << ", " << ts_data.stride.h << ")\n"
       << "    intraCmdParal " << (int)intraCmdParal << "\n");
 
-  if (args_.tiu_fmt == CVK_FMT_I8)
-    ctx_.tdma_g2l_tensor_copy(&p1);
-  else if (args_.tiu_fmt == CVK_FMT_BF16)
-    ctx_.tdma_g2l_bf16_tensor_copy(&p1);
-  else {
-    assert(0 && "Weight only supports i8/bf16");
-  }
+  ctx_.tdma_g2l_tensor_copy(&p1);
 
   cModelDebug_.recordWeight(args_.layer_id, gmOutputPoss, ts_data.start_address,
       ga_offset, tiled_cur_poss, tiled_shapes);
@@ -2187,11 +2181,10 @@ void Conv::fillConstantLmInput(cvk_tl_t *lmLoad,
 
   if (args_.tiu_fmt == CVK_FMT_I8) {
     param.constant = 0;
-    ctx_.tdma_tg2l_tensor_fill_constant(&param);
   } else {
     param.constant = ctx_.convert_fp32_to_bf16(0.0);
-    ctx_.tdma_tg2l_bf16_tensor_fill_constant(&param);
   }
+  ctx_.tdma_g2l_tensor_fill_constant(&param);
 }
 
 // Adjust input and padding for pad-only input.
@@ -2309,7 +2302,7 @@ void Conv::loadInput(std::vector<uint32_t> gmOutputPoss,
     } else if ((args_.input_fmt == CVK_FMT_BF16) &&
             (args_.tiu_fmt == CVK_FMT_BF16)) {
       if (tl_load.shape.h)
-        ctx_.tdma_load_stride_bf16(&tl_load, ga_input_load,
+        ctx_.tdma_load_stride(&tl_load, ga_input_load,
                                    cvk_gm_input_stride);
       else
         fillConstantLmInput(&tl_load, cur_gm_input_paddings);
@@ -2741,14 +2734,7 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
     param.dst = &ts_data;
     param.intra_cmd_paral = intraCmdParal ? 1 : 0;
 
-    if ((args_.tiu_fmt == CVK_FMT_I8) && (args_.output_fmt == CVK_FMT_I8))
-      ctx_.tdma_l2g_tensor_copy(&param);
-    else if ((args_.tiu_fmt == CVK_FMT_BF16) &&
-             (args_.output_fmt == CVK_FMT_BF16))
-      ctx_.tdma_l2g_bf16_tensor_copy(&param);
-    else {
-      assert(0 && "Output only supports i8/bf16");
-    }
+    ctx_.tdma_l2g_tensor_copy(&param);
   }
 
   cModelDebug_.recordOutput(args_.layer_id, gmOutputPoss, ga_output_store,
@@ -3881,7 +3867,7 @@ void Conv::dwConv() {
           ctx_.tdma_load_stride(
               tl_bias[coeff_flip], ga_bias + coeff_offset, bias_gstride);
         else if (args_.tiu_fmt == CVK_FMT_BF16)
-          ctx_.tdma_load_stride_bf16(
+          ctx_.tdma_load_stride(
               tl_bias[coeff_flip], ga_bias + coeff_offset * weight_gstride_w,
               bias_gstride);
         else {
@@ -3913,7 +3899,7 @@ void Conv::dwConv() {
         if (args_.tiu_fmt == CVK_FMT_I8)
           ctx_.tdma_load_stride(&tl_tmp, weight_offset, weight_gstride);
         else if (args_.tiu_fmt == CVK_FMT_BF16)
-          ctx_.tdma_load_stride_bf16(&tl_tmp, weight_offset, weight_gstride);
+          ctx_.tdma_load_stride(&tl_tmp, weight_offset, weight_gstride);
         else {
           assert(0 && "dw-conv weight only supports i8/bf16");
         }
@@ -4008,7 +3994,7 @@ void Conv::dwConv() {
             if ((args_.input_fmt == CVK_FMT_I8) && (args_.tiu_fmt == CVK_FMT_I8))
               ctx_.tdma_load_stride(tl_ifmap[flip], ifmap_offset, ifmap_gstride);
             else if ((args_.input_fmt == CVK_FMT_BF16) && (args_.tiu_fmt == CVK_FMT_BF16))
-              ctx_.tdma_load_stride_bf16(tl_ifmap[flip], ifmap_offset, ifmap_gstride);
+              ctx_.tdma_load_stride(tl_ifmap[flip], ifmap_offset, ifmap_gstride);
             else {
               assert(0 && "dw-conv input only supports i8/bf16");
             }
@@ -4224,7 +4210,7 @@ void Conv::dwConv() {
                                       ga_ofmap_cur[flip_back], ofmap_gstride);
               } else if ((args_.tiu_fmt == CVK_FMT_BF16) && (args_.output_fmt == CVK_FMT_BF16)) {
                 if (!args_.ps32_output) {
-                  ctx_.tdma_store_stride_bf16(tl_ofmap[flip_back],
+                  ctx_.tdma_store_stride(tl_ofmap[flip_back],
                                         ga_ofmap_cur[flip_back], ofmap_gstride);
                 } else {
                   cvk_tl_t *tl_res = tl_ofmap[flip_back];
@@ -4269,7 +4255,7 @@ void Conv::dwConv() {
                             ofmap_gstride);
     } else if ((args_.tiu_fmt == CVK_FMT_BF16) && (args_.output_fmt == CVK_FMT_BF16)) {
       if (!args_.ps32_output) {
-        ctx_.tdma_store_stride_bf16(tl_ofmap[flip_back], ga_ofmap_cur[flip_back],
+        ctx_.tdma_store_stride(tl_ofmap[flip_back], ga_ofmap_cur[flip_back],
                                     ofmap_gstride);
       } else {
         cvk_tl_t *tl_res = tl_ofmap[flip_back];

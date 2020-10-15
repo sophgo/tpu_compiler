@@ -171,35 +171,6 @@ void CviBackendContext::tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src,
 }
 
 //
-void CviBackendContext::tdma_load_stride_bf16(cvk_tl_t *tlp, uint64_t ga_src,
-                                              cvk_tg_stride_t ts_stride,
-                                              uint8_t do_transpose) const {
-  assert(tlp != nullptr);
-
-  // tensor in system memory
-  // Global shape use local shape
-  cvk_tg_t ts_data;
-  ts_data.base_reg_index = getTdmaBaseSelectIndexFromGaddr(ga_src);
-  ts_data.fmt = tlp->fmt;
-  ts_data.start_address = ga_src;
-  ts_data.shape = {tlp->shape.n, tlp->shape.c, tlp->shape.h, tlp->shape.w};
-  ts_data.stride = ts_stride;
-
-  if (do_transpose) {
-    cvk_tdma_g2l_tensor_copy_nc_transposed_param_t p1 = {0};
-    ts_data.shape = {tlp->shape.c, tlp->shape.n, tlp->shape.h, tlp->shape.w};
-    p1.src = &ts_data;
-    p1.dst = tlp;
-    tdma_g2l_bf16_tensor_copy_nc_transposed(&p1);
-  } else {
-    cvk_tdma_g2l_tensor_copy_param_t p1 = {0};
-    p1.src = &ts_data;
-    p1.dst = tlp;
-    tdma_g2l_bf16_tensor_copy(&p1);
-  }
-}
-
-//
 // Implement 1880 gdma_load, tensor format
 //
 // Note:
@@ -216,17 +187,6 @@ void CviBackendContext::tdma_load(cvk_tl_t *tlp, uint64_t ga_src,
   ts_data.shape = {tlp->shape.n, tlp->shape.c, tlp->shape.h, tlp->shape.w};
   ts_data.stride = tg_default_stride(ts_data.shape, ts_data.fmt);
   tdma_load_stride(tlp, ga_src, ts_data.stride);
-}
-
-void CviBackendContext::tdma_load_bf16(cvk_tl_t *tlp, uint64_t ga_src,
-                                       uint8_t do_transpose) const {
-  assert(tlp != nullptr);
-
-  cvk_tg_t ts_data = {0};
-  ts_data.fmt = tlp->fmt;
-  ts_data.shape = {tlp->shape.n, tlp->shape.c, tlp->shape.h, tlp->shape.w};
-  ts_data.stride = tg_default_stride(ts_data.shape, ts_data.fmt);
-  tdma_load_stride_bf16(tlp, ga_src, ts_data.stride);
 }
 
 //
@@ -259,6 +219,8 @@ void CviBackendContext::tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst,
     p1.dst = &ts_data;
     tdma_l2g_tensor_copy_nc_transposed(&p1);
   } else if (do_compress) {
+    assert(ts_data.fmt != CVK_FMT_BF16 &&
+           "bf16 tdma store does not suppport compress yet");
     cvk_cmpr_tg_t cmpr_dst = {0};
     cmpr_dst.t = ts_data;
 
@@ -271,37 +233,6 @@ void CviBackendContext::tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst,
     p1.src = tlp;
     p1.dst = &ts_data;
     tdma_l2g_tensor_copy(&p1);
-  }
-}
-
-void CviBackendContext::tdma_store_stride_bf16(cvk_tl_t *tlp, uint64_t ga_dst,
-                                               cvk_tg_stride_t ts_stride,
-                                               bool do_transpose,
-                                               bool do_compress) const {
-  assert(tlp != nullptr);
-
-  // tensor in system memory
-  // Global shape use local shape
-  // Global shape used for stride calculation
-  cvk_tg_t ts_data;
-  ts_data.base_reg_index = getTdmaBaseSelectIndexFromGaddr(ga_dst);
-  ts_data.fmt = tlp->fmt;
-  ts_data.start_address = ga_dst;
-  ts_data.shape = {tlp->shape.n, tlp->shape.c, tlp->shape.h, tlp->shape.w};
-  ts_data.stride = ts_stride;
-
-  if (do_transpose) {
-    cvk_tdma_l2g_tensor_copy_nc_transposed_param_t p1 = {0};
-    p1.src = tlp;
-    p1.dst = &ts_data;
-    tdma_l2g_bf16_tensor_copy_nc_transposed(&p1);
-  } else if (do_compress) {
-    assert(0 && "bf16 tdma store does not suppport compress yet");
-  } else {
-    cvk_tdma_l2g_tensor_copy_param_t p1 = {0};
-    p1.src = tlp;
-    p1.dst = &ts_data;
-    tdma_l2g_bf16_tensor_copy(&p1);
   }
 }
 
@@ -337,33 +268,6 @@ void CviBackendContext::tdma_store(cvk_tl_t *tlp, uint64_t ga_dst,
     p1.src = tlp;
     p1.dst = &ts_data;
     tdma_l2g_tensor_copy(&p1);
-  }
-}
-
-void CviBackendContext::tdma_store_bf16(cvk_tl_t *tlp, uint64_t ga_dst,
-                                        uint8_t do_transpose) const {
-  assert(tlp != nullptr);
-
-  // tensor in system memory
-  // Global shape use local shape
-  // Gobal memory stride from local memory shape
-  cvk_tg_t ts_data;
-  ts_data.base_reg_index = getTdmaBaseSelectIndexFromGaddr(ga_dst);
-  ts_data.fmt = tlp->fmt;
-  ts_data.start_address = ga_dst;
-  ts_data.shape = {tlp->shape.n, tlp->shape.c, tlp->shape.h, tlp->shape.w};
-  ts_data.stride = tg_default_stride(ts_data.shape, ts_data.fmt);
-
-  if (do_transpose) {
-    cvk_tdma_l2g_tensor_copy_nc_transposed_param_t p1 = {0};
-    p1.src = tlp;
-    p1.dst = &ts_data;
-    tdma_l2g_bf16_tensor_copy_nc_transposed(&p1);
-  } else {
-    cvk_tdma_l2g_tensor_copy_param_t p1 = {0};
-    p1.src = tlp;
-    p1.dst = &ts_data;
-    tdma_l2g_bf16_tensor_copy(&p1);
   }
 }
 
@@ -407,28 +311,6 @@ void CviBackendContext::tdma_load_stride(cvk_ml_t *tlp, uint64_t ga_src,
   }
 }
 
-void CviBackendContext::tdma_load_stride_bf16(cvk_ml_t *tlp, uint64_t ga_src,
-                                              cvk_mg_stride_t ts_stride,
-                                              uint8_t do_transpose) const {
-  assert(tlp != nullptr);
-
-  // Global memory from reshaped local memory
-  cvk_mg_t ts_data = {0};
-  ts_data.base_reg_index = getTdmaBaseSelectIndexFromGaddr(ga_src);
-  ts_data.start_address = ga_src;
-  ts_data.fmt = tlp->fmt;
-  ts_data.shape = {tlp->shape.n, tlp->shape.col};
-  ts_data.stride = ts_stride;
-
-  // BM1880v2 tdma does not support transposed matrix load
-  assert(!do_transpose);
-
-  cvk_tdma_g2l_matrix_copy_param_t p1 = {0};
-  p1.src = &ts_data;
-  p1.dst = tlp;
-  tdma_g2l_bf16_matrix_copy(&p1);
-}
-
 //
 // Implement 1880 gdma_load, matrix format
 //
@@ -441,17 +323,6 @@ void CviBackendContext::tdma_load(cvk_ml_t *tlp, uint64_t ga_src,
   ts_data.stride = {tlp->shape.col};
 
   tdma_load_stride(tlp, ga_src, ts_data.stride);
-}
-
-void CviBackendContext::tdma_load_bf16(cvk_ml_t *tlp, uint64_t ga_src,
-                                       uint8_t do_transpose) const {
-  assert(tlp != nullptr);
-
-  cvk_mg_t ts_data = {0};
-  ts_data.shape = {tlp->shape.n, tlp->shape.col};
-  ts_data.stride = {tlp->shape.col};
-
-  tdma_load_stride_bf16(tlp, ga_src, ts_data.stride);
 }
 
 //
@@ -476,27 +347,6 @@ void CviBackendContext::tdma_store(cvk_ml_t *tlp, uint64_t ga_dst,
   p1.src = tlp;
   p1.dst = &ts_data;
   tdma_l2g_matrix_copy(&p1);
-}
-
-void CviBackendContext::tdma_store_bf16(cvk_ml_t *tlp, uint64_t ga_dst,
-                                        uint8_t do_transpose) const {
-
-  assert(do_transpose == false);
-
-  // tensor in system memory
-  // Global shape use local shape
-  // Gobal memory stride from local memory shape
-  cvk_mg_t ts_data = {0};
-  ts_data.base_reg_index = getTdmaBaseSelectIndexFromGaddr(ga_dst);
-  ts_data.start_address = ga_dst;
-  ts_data.fmt = tlp->fmt;
-  ts_data.shape = {tlp->shape.n, tlp->shape.col};
-  ts_data.stride = {tlp->shape.col};
-
-  cvk_tdma_l2g_matrix_copy_param_t p1 = {0};
-  p1.src = tlp;
-  p1.dst = &ts_data;
-  tdma_l2g_bf16_matrix_copy(&p1);
 }
 
 //
@@ -524,32 +374,10 @@ void CviBackendContext::tdma_store_stride(cvk_ml_t *tlp, uint64_t ga_dst,
   tdma_l2g_matrix_copy(&p1);
 }
 
-void CviBackendContext::tdma_store_stride_bf16(cvk_ml_t *tlp, uint64_t ga_dst,
-                                               cvk_mg_stride_t ts_stride,
-                                               uint8_t do_transpose) const {
-
-  assert(do_transpose == false);
-
-  // tensor in system memory
-  // Global shape use local shape
-  // Global shape used for stride calculation
-  cvk_mg_t ts_data = {0};
-  ts_data.base_reg_index = getTdmaBaseSelectIndexFromGaddr(ga_dst);
-  ts_data.start_address = ga_dst;
-  ts_data.fmt = tlp->fmt;
-  ts_data.shape = {tlp->shape.n, tlp->shape.col};
-  ts_data.stride = ts_stride;
-
-  cvk_tdma_l2g_matrix_copy_param_t p1 = {0};
-  p1.src = tlp;
-  p1.dst = &ts_data;
-  tdma_l2g_bf16_matrix_copy(&p1);
-}
-
 void CviBackendContext::tdma_g2g_tensor_copy(
     uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride,
     cvk_fmt_t src_fmt, uint64_t dst_addr, cvk_tg_shape_t dst_shape,
-    cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt, cvk_fmt_t g2g_fmt) const {
+    cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt) const {
   cvk_tg_t src = {0};
   src.start_address = src_addr;
   src.base_reg_index = getTdmaBaseSelectIndexFromGaddr(src_addr);
@@ -568,19 +396,7 @@ void CviBackendContext::tdma_g2g_tensor_copy(
   cvk_tdma_g2g_tensor_copy_param_t p = {0};
   p.src = &src;
   p.dst = &dst;
-  if (g2g_fmt == CVK_FMT_BF16) {
-    tdma_g2g_bf16_tensor_copy(&p);
-  } else if (g2g_fmt == CVK_FMT_I8 || g2g_fmt == CVK_FMT_U8) {
-    tdma_g2g_tensor_copy(&p);
-  }
-}
-
-void CviBackendContext::tdma_g2g_tensor_copy(
-    uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride,
-    uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride,
-    cvk_fmt_t g2g_fmt) const {
-  tdma_g2g_tensor_copy(src_addr, src_shape, src_stride, g2g_fmt, dst_addr,
-                       dst_shape, dst_stride, g2g_fmt, g2g_fmt);
+  tdma_g2g_tensor_copy(&p);
 }
 
 int CviBackendContext::bitsize_of_fmt(uint32_t fmt) const {

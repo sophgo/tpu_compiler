@@ -63,5 +63,5 @@ void cvi_backend_tg_pad_kernel(
   auto src_gaddr = ga_ifmap;
   auto dst_gaddr = ga_ofmap + dst_shape.w * pads[2] + pads[3];
   ctx.tdma_g2g_tensor_copy(src_gaddr, src_shape, src_gstride, fmt, dst_gaddr,
-                           src_shape, dst_gstride, fmt, CVK_FMT_I8);
+                           src_shape, dst_gstride, fmt);
 }

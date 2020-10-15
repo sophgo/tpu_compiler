@@ -44,13 +44,13 @@ void cvi_backend_tl_mac_const(const CviBackendContext &ctx, uint32_t layer_id,
   param.dst = &tl_output;
   param.layer_id = layer_id;
   param.constant = static_cast<int16_t>(const_val);
-  ctx.tdma_tg2l_tensor_fill_constant(&param);
+  ctx.tdma_g2l_tensor_fill_constant(&param);
 
   cvk_tdma_g2l_tensor_fill_constant_param_t param2 = {0};
   param2.dst = &tl_working;
   param2.layer_id = layer_id;
   param2.constant = static_cast<int16_t>(0);
-  ctx.tdma_tg2l_tensor_fill_constant(&param2);
+  ctx.tdma_g2l_tensor_fill_constant(&param2);
 
   cvk_tiu_mac_param_t p = {0};
   p.res_high = &tl_working;
@@ -91,7 +91,7 @@ void cvi_backend_bf16_tl_mac_const(const CviBackendContext &ctx,
   param.dst = &tl_output;
   param.layer_id = layer_id;
   param.constant = ctx.convert_fp32_to_bf16(const_val);
-  ctx.tdma_tg2l_bf16_tensor_fill_constant(&param);
+  ctx.tdma_g2l_tensor_fill_constant(&param);
 
   cvk_tiu_mac_param_t p = {0};
   p.res_high = nullptr;

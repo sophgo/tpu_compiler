@@ -110,9 +110,8 @@ void cvi_backend_tg_fixed_concat_kernel(
         shape_ = {static_cast<uint32_t>(input_dims[i]), static_cast<uint32_t>(output_dim[1]),
                   static_cast<uint32_t>(output_dim[2]), static_cast<uint32_t>(output_dim[3])};
 
-        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                 output_gaddr + offset, shape_, stride_dst,
-                                 CVK_FMT_U8);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_U8,
+                                 output_gaddr + offset, shape_, stride_dst, CVK_FMT_U8);
 
         offset += input_dims[i] * output_dim[1] * output_dim[2] * output_dim[3] * sizeof(uint8_t);
       }
@@ -142,9 +141,8 @@ void cvi_backend_tg_fixed_concat_kernel(
               shape_ = {static_cast<uint32_t>(output_dim[0]), static_cast<uint32_t>(input_dims[i]),
                         static_cast<uint32_t>(output_dim[2]), static_cast<uint32_t>(output_dim[3])};
 
-              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                       output_gaddr + offset, shape_,
-                                       stride_dst, CVK_FMT_U8);
+              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_U8,
+                                       output_gaddr + offset, shape_, stride_dst, CVK_FMT_U8);
             }
             offset += input_dims[i] * output_dim[2] * output_dim[3] * sizeof(uint8_t);
           }
@@ -156,9 +154,8 @@ void cvi_backend_tg_fixed_concat_kernel(
             stride_src = {static_cast<uint32_t>(input_dims[i]), 1, 1};
             if (input_dims[i] < 65536) {
               shape_ = {static_cast<uint32_t>(output_dim[0]), static_cast<uint32_t>(input_dims[i]), 1, 1};
-              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                                    output_gaddr + offset, shape_,
-                                                    stride_dst, CVK_FMT_U8);
+              ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_U8,
+                                       output_gaddr + offset, shape_, stride_dst, CVK_FMT_U8);
               offset += input_dims[i] * sizeof(uint8_t);
             } else {
               // We need slice the C.
@@ -167,9 +164,8 @@ void cvi_backend_tg_fixed_concat_kernel(
               for (int j = 0; j < c_slice - 1; j++) {
                 shape_ = {static_cast<uint32_t>(output_dim[0]), 65535, 1, 1};
 
-                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_, stride_src,
-                                       output_gaddr + offset, shape_,
-                                       stride_dst, CVK_FMT_U8);
+                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_, stride_src, CVK_FMT_U8,
+                                         output_gaddr + offset, shape_, stride_dst, CVK_FMT_U8);
 
                 offset += 65535 * sizeof(uint8_t);
                 soffset += 65535 * sizeof(uint8_t);
@@ -177,9 +173,8 @@ void cvi_backend_tg_fixed_concat_kernel(
               if (input_dims[i] % 65535 != 0) {
                 shape_ = {static_cast<uint32_t>(output_dim[0]), static_cast<uint32_t>(input_dims[i]) % 65535,
                           1, 1};
-                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_, stride_src,
-                                       output_gaddr + offset, shape_,
-                                       stride_dst, CVK_FMT_U8);
+                ctx.tdma_g2g_tensor_copy(input_gaddrs[i] + soffset, shape_, stride_src, CVK_FMT_U8,
+                                         output_gaddr + offset, shape_, stride_dst, CVK_FMT_U8);
 
                 offset += (input_dims[i] % 65535) * sizeof(uint8_t);
               }
@@ -209,9 +204,8 @@ void cvi_backend_tg_fixed_concat_kernel(
         shape_ = {static_cast<uint32_t>(output_dim[0]), static_cast<uint32_t>(output_dim[1]),
                   static_cast<uint32_t>(input_dims[i]), 1};
 
-        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                       output_gaddr + offset, shape_,
-                                       stride_dst, CVK_FMT_U8);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_U8,
+                                 output_gaddr + offset, shape_, stride_dst, CVK_FMT_U8);
         offset += input_dims[i] * sizeof(uint8_t);
       }
     } else if(concat_axis == 3) {
@@ -226,9 +220,8 @@ void cvi_backend_tg_fixed_concat_kernel(
         ASSERT(input_dims[i] < 65536);
         shape_.w = static_cast<uint32_t>(input_dims[i]);
         stride_src = ctx.tg_default_stride(shape_, CVK_FMT_U8);
-        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src,
-                                       output_gaddr + offset, shape_,
-                                       stride_dst, CVK_FMT_U8);
+        ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_U8,
+                                 output_gaddr + offset, shape_, stride_dst, CVK_FMT_U8);
         offset += input_dims[i] * sizeof(uint8_t);
       }
 

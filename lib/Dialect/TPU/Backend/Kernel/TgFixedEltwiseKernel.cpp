@@ -235,11 +235,7 @@ void TgEltwiseKernel::load(int32_t step_idx) {
     cvk_tg_stride_t stride = {(uint32_t)(c * h * w * elementSize),
                               (uint32_t)(h * w * elementSize),
                               (uint32_t)(stride_h * w * elementSize), elementSize};
-    if (fmt == CVK_FMT_I8) {
-      ctx.tdma_load_stride(&operand, ga_inputs[opd_idx] + tile.input_offset, stride);
-    } else {
-      ctx.tdma_load_stride_bf16(&operand, ga_inputs[opd_idx] + tile.input_offset, stride);
-    }
+    ctx.tdma_load_stride(&operand, ga_inputs[opd_idx] + tile.input_offset, stride);
 
     LLVM_DEBUG(llvm::errs() << llvm::format("load[%d], flip[%d], shape<%d,%d,%d,%d>,"
                                             " stride:<%d,%d,%d,%d>, offset:%d\n",
@@ -247,11 +243,7 @@ void TgEltwiseKernel::load(int32_t step_idx) {
                                             tile.w, stride.n, stride.c, stride.h,
                                             stride.w, tile.input_offset));
   } else {
-    if (fmt == CVK_FMT_I8) {
-      ctx.tdma_load(&operand, ga_inputs[opd_idx] + tile.input_offset);
-    } else {
-      ctx.tdma_load_bf16(&operand, ga_inputs[opd_idx] + tile.input_offset);
-    }
+    ctx.tdma_load(&operand, ga_inputs[opd_idx] + tile.input_offset);
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
                    "load[%d], flip[%d], shape<%d,%d,%d,%d>, global:%d -> local: %u\n", step_idx,
@@ -275,11 +267,7 @@ void TgEltwiseKernel::store(int32_t step_idx) {
         (uint32_t)(c * (h / stride_h) * (w / stride_w) * elementSize),
         (uint32_t)((h / stride_h) * (w / stride_w) * elementSize),
         (uint32_t)(w / stride_w * elementSize), elementSize};
-    if (fmt == CVK_FMT_I8) {
-      ctx.tdma_store_stride(&result, ga_output + tile.output_offset, stride);
-    } else {
-      ctx.tdma_store_stride_bf16(&result, ga_output + tile.output_offset, stride);
-    }
+    ctx.tdma_store_stride(&result, ga_output + tile.output_offset, stride);
 
     LLVM_DEBUG(llvm::errs() << llvm::format("store[%d], flip[%d], shape<%d,%d,%d,%d>,"
                                             " stride<%d,%d,%d,%d>, offset:%d\n",
@@ -288,12 +276,7 @@ void TgEltwiseKernel::store(int32_t step_idx) {
                                             result.shape.w, stride.n, stride.c, stride.h,
                                             stride.w, tile.output_offset));
   } else {
-    if (fmt == CVK_FMT_I8) {
-      ctx.tdma_store(&result, ga_output + tile.output_offset);
-    } else {
-      ctx.tdma_store_bf16(&result, ga_output + tile.output_offset);
-    }
-
+    ctx.tdma_store(&result, ga_output + tile.output_offset);
     LLVM_DEBUG(llvm::errs() << llvm::format(
                    "store[%d], flip[%d], shape<%d,%d,%d,%d>, local:%u -> global: %d\n", step_idx,
                    1 - output_flip, result.shape.n, result.shape.c, result.shape.h,

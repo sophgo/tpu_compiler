@@ -25,8 +25,8 @@ void cvi_backend_tg_fixed_dilate_kernel(const CviBackendContext &ctx,
   ctx.assert_support_fmt(fmt);
   int data_size = ctx.bytesize_of_fmt(fmt);
 
-  cvk_tg_shape_t input_shape = {(uint32_t)n, (uint32_t)c, (uint32_t)ih, (uint32_t)iw};
-  cvk_tg_shape_t output_shape = {(uint32_t)n, (uint32_t)c, (uint32_t)oh, (uint32_t)ow};
+  cvk_tg_shape_t input_shape = ctx.tg_shape_t4(n,c,ih,iw);
+  cvk_tg_shape_t output_shape = ctx.tg_shape_t4(n,c,oh,ow);
   cvk_tg_stride_t input_gstride, output_gstride;
 
   // g2g with stride
@@ -67,6 +67,6 @@ void cvi_backend_tg_fixed_dilate_kernel(const CviBackendContext &ctx,
   output_gstride.c = ow * (ins_h+1) * data_size;
   output_gstride.n = ow*oh * data_size;
 
-  ctx.tdma_g2g_tensor_copy(bottom_gaddr, input_shape, input_gstride, top_gaddr,
+  ctx.tdma_g2g_tensor_copy(bottom_gaddr, input_shape, input_gstride, fmt, top_gaddr,
                            output_shape, output_gstride, fmt);
 }

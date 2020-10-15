@@ -42,7 +42,7 @@ void broadcast_one_to_all_lane(const CviBackendContext &ctx, cvk_tl_t inputBuffe
                   p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
                   p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                   p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-  ctx.tdma_l2l_bf16_tensor_copy(&p2);
+  ctx.tdma_l2l_tensor_copy(&p2);
 }
 
 void cvi_backend_tg_bf16_broadcast_sub_kernel(const CviBackendContext &ctx,
@@ -111,7 +111,7 @@ after_loop:
       operand.fmt = CVK_FMT_BF16;
       cvk_tg_stride_t stride = ctx.tg_default_stride(
           {(uint32_t)bn, (uint32_t)bc, (uint32_t)bh, (uint32_t)bw}, CVK_FMT_BF16);
-      ctx.tdma_load_stride_bf16(&operand, ga_inputs[1] + b_offset, stride);
+      ctx.tdma_load_stride(&operand, ga_inputs[1] + b_offset, stride);
 
       llvm::errs() << llvm::format(
           "load b, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
@@ -144,7 +144,7 @@ after_loop:
               {(uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t)w}, CVK_FMT_BF16);
           uint64_t a_offset =
               (pos_n * c * h * w + pos_c * h * w + pos_h * w + pos_w) * sizeof(uint16_t);
-          ctx.tdma_load_stride_bf16(&operand_a, ga_inputs[0] + a_offset, g_stride);
+          ctx.tdma_load_stride(&operand_a, ga_inputs[0] + a_offset, g_stride);
           llvm::errs() << llvm::format(
               "load a, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
               operand_a.start_address, shape_a.n, shape_a.c, shape_a.h, shape_a.w,
@@ -168,7 +168,7 @@ after_loop:
           ctx.tiu_sub(&p5);
 
           // store result
-          ctx.tdma_store_stride_bf16(&operand_res, ga_output + a_offset, g_stride);
+          ctx.tdma_store_stride(&operand_res, ga_output + a_offset, g_stride);
           llvm::errs() << llvm::format(
               "store, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
               operand_res.start_address, shape_a.n, shape_a.c, shape_a.h, shape_a.w,

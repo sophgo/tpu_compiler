@@ -44,7 +44,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     cvk_tl_t *tl_input =
         ctx.lmem_alloc_tensor(reshape_input_shape, CVK_FMT_BF16, eu_align);
     ASSERT(tl_input);
-    ctx.tdma_load_bf16(tl_input, ga_input);
+    ctx.tdma_load(tl_input, ga_input);
     //Load weight (Wi + Wf + Wc + Wo)
     cvk_tl_shape_t  weight_shape = {
         static_cast<uint32_t>(1), static_cast<uint32_t>( 4 * hidden_size),
@@ -52,7 +52,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     cvk_tl_t *tl_weight =
         ctx.lmem_alloc_tensor(weight_shape, CVK_FMT_BF16, 0); //weight EU_ALIGN = False
     ASSERT(tl_weight);
-    ctx.tdma_load_bf16(tl_weight, ga_weight);
+    ctx.tdma_load(tl_weight, ga_weight);
 
     //Reshape weight shape/stride to match convolution constraint
     //Just fit the constraint
@@ -66,7 +66,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     cvk_tl_t *tl_recurrence =
         ctx.lmem_alloc_tensor(reshape_recurrence_shape, CVK_FMT_BF16, 0); //weight EU_ALIGN = False
     ASSERT(tl_recurrence);
-    ctx.tdma_load_bf16(tl_recurrence, ga_recurrence);
+    ctx.tdma_load(tl_recurrence, ga_recurrence);
 
     //Reshape weight shape/stride to match convolution constraint
     //Just fit the constraint
@@ -86,7 +86,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         ASSERT(tl_wtBias);
         cvk_tg_stride_t bias_gstride = ctx.tg_default_stride({2, (uint32_t)(4 * hidden_size), 1, 1}, CVK_FMT_BF16);
         bias_gstride.n *= 2;
-        ctx.tdma_load_stride_bf16(tl_wtBias, ga_bias, bias_gstride);
+        ctx.tdma_load_stride(tl_wtBias, ga_bias, bias_gstride);
 
         cvk_tl_shape_t reshape_recurrenceBias_shape = {
             static_cast<uint32_t>(2), static_cast<uint32_t>(4 * hidden_size),
@@ -95,7 +95,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
             ctx.lmem_alloc_tensor(reshape_recurrenceBias_shape, CVK_FMT_BF16, 0); //weight EU_ALIGN = False
         ASSERT(tl_recurrenceBias);
         gaddr_t ga_recurrenceBias = ga_bias + 4 * hidden_size * sizeof(short);
-        ctx.tdma_load_stride_bf16(tl_recurrenceBias, ga_recurrenceBias, bias_gstride);
+        ctx.tdma_load_stride(tl_recurrenceBias, ga_recurrenceBias, bias_gstride);
     }
     //Load initial_h
     cvk_tl_shape_t reshape_initial_h_shape = {
@@ -104,7 +104,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     cvk_tl_t *tl_initial_h =
             ctx.lmem_alloc_tensor(reshape_initial_h_shape, CVK_FMT_BF16, eu_align);
     ASSERT(tl_initial_h);
-    ctx.tdma_load_bf16(tl_initial_h, ga_initial_h);
+    ctx.tdma_load(tl_initial_h, ga_initial_h);
 
     //Load initial_c
     cvk_tl_shape_t reshape_initial_c_shape = {
@@ -113,7 +113,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     cvk_tl_t *tl_initial_c =
             ctx.lmem_alloc_tensor(reshape_initial_c_shape, CVK_FMT_BF16, eu_align);
     ASSERT(tl_initial_c);
-    ctx.tdma_load_bf16(tl_initial_c, ga_initial_c);
+    ctx.tdma_load(tl_initial_c, ga_initial_c);
 
     //Load sigmoid table
     int const table_n = 1;
@@ -133,8 +133,8 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     ASSERT(tl_sigmoid_table_answer);
     ASSERT(tl_sigmoid_table_answer_slope);
 
-    ctx.tdma_load_bf16(tl_sigmoid_table_answer, ga_sigmoid_table_data_lut);
-    ctx.tdma_load_bf16(tl_sigmoid_table_answer_slope, ga_sigmoid_slope_table_data_lut);
+    ctx.tdma_load(tl_sigmoid_table_answer, ga_sigmoid_table_data_lut);
+    ctx.tdma_load(tl_sigmoid_table_answer_slope, ga_sigmoid_slope_table_data_lut);
     //Load tanh table
 
     cvk_tl_t *tl_tanh_table_answer =
@@ -145,8 +145,8 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     ASSERT(tl_tanh_table_answer);
     ASSERT(tl_tanh_table_answer_slope);
 
-    ctx.tdma_load_bf16(tl_tanh_table_answer, ga_tanh_table_data_lut);
-    ctx.tdma_load_bf16(tl_tanh_table_answer_slope, ga_tanh_table_slope_data_lut);
+    ctx.tdma_load(tl_tanh_table_answer, ga_tanh_table_data_lut);
+    ctx.tdma_load(tl_tanh_table_answer_slope, ga_tanh_table_slope_data_lut);
     //Allocate output buffer
     cvk_tl_shape_t reshape_output_shape = {
             static_cast<uint32_t>(seq_len + 1), static_cast<uint32_t>(hidden_size),
@@ -487,7 +487,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         ctx.lmem_free_tensor(tl_h_mul_r);
     }
     //Store output
-    ctx.tdma_store_bf16(tl_output, ga_output);
+    ctx.tdma_store(tl_output, ga_output);
     //free memory
     ctx.lmem_free_tensor(tl_xt_mul_w);
     ctx.lmem_free_tensor(tl_output);

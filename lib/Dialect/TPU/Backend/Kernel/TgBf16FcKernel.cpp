@@ -259,7 +259,7 @@ static void fc_slicing_multi_dimention(
       tl_tiled_L.shape = ctx.ml_default_shape(M, width_K, CVK_FMT_BF16);  // actual width
       tl_tiled_L.stride = ctx.ml_default_stride(tl_tiled_L.shape, CVK_FMT_BF16, /*eu_align=*/1);
       required_size += ctx.lmem_matrix_to_size(tl_tiled_L.shape, CVK_FMT_BF16, /*eu_align=*/1);
-      ctx.tdma_load_stride_bf16(&tl_tiled_L, global_offset_bottom_data + offset_K * sizeof(uint16_t),
+      ctx.tdma_load_stride(&tl_tiled_L, global_offset_bottom_data + offset_K * sizeof(uint16_t),
                                {(uint32_t)(K * sizeof(uint16_t))}  // original column width
                                );
 
@@ -269,7 +269,7 @@ static void fc_slicing_multi_dimention(
       tl_tiled_R.stride = ctx.ml_default_stride(tl_tiled_R.shape, CVK_FMT_BF16, /*eu_align=*/1);
       required_size += ctx.lmem_matrix_to_size(tl_tiled_R.shape, CVK_FMT_BF16, /*eu_aligned=*/1);
 
-      ctx.tdma_load_stride_bf16(&tl_tiled_R, global_offset_weight_data + (offset_K * N + offset_N) * sizeof(uint16_t),
+      ctx.tdma_load_stride(&tl_tiled_R, global_offset_weight_data + (offset_K * N + offset_N) * sizeof(uint16_t),
                                 {(uint32_t)(N * sizeof(uint16_t))} // original column width
                                 );
 
@@ -285,7 +285,7 @@ static void fc_slicing_multi_dimention(
         required_size += ctx.lmem_matrix_to_size(tl_tiled_B.shape, CVK_FMT_BF16, /*eu_aligned=*/1);
         assert(required_size <= lane_size);
 
-        ctx.tdma_load_stride_bf16(&tl_tiled_B, global_offset_bias_data + offset_N * sizeof(uint16_t),
+        ctx.tdma_load_stride(&tl_tiled_B, global_offset_bias_data + offset_N * sizeof(uint16_t),
                                   {(uint32_t)(N * sizeof(uint16_t))} // original column width
                                   );
       }
@@ -330,7 +330,7 @@ static void fc_slicing_multi_dimention(
 
       // Store tiled_Y to global memory
       if (is_last_tile) {
-        ctx.tdma_store_stride_bf16(&tl_tiled_Y, global_offset_top_data + offset_N * sizeof(uint16_t),
+        ctx.tdma_store_stride(&tl_tiled_Y, global_offset_top_data + offset_N * sizeof(uint16_t),
                                    {(uint32_t)(N*sizeof(uint16_t))}// original column width
         );
       }

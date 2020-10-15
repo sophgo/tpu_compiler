@@ -91,14 +91,14 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
     tl_bias = ctx.lmem_alloc_tensor(tl_bias_shape, CVK_FMT_BF16, /*eu_align=*/1);
 
   }
-  ctx.tdma_load_bf16(tl_scale, scale_gaddr);
+  ctx.tdma_load(tl_scale, scale_gaddr);
 
   /*
    * put bias to lmem
    */
 
   if (do_bias) {
-    ctx.tdma_load_bf16(tl_bias, bias_gaddr);
+    ctx.tdma_load(tl_bias, bias_gaddr);
   }
   int coeff_usage = ctx.get_lmem_usage(
       1, do_bias ? input_c * 2 * sizeof(uint16_t) : input_c * sizeof(uint16_t), 1, 1); // scale
@@ -140,7 +140,7 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
       cvk_tl_t *tl_bslice =
           ctx.lmem_alloc_tensor(tl_bslice_shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-      ctx.tdma_load_stride_bf16(tl_bslice, input_gaddr + offset, ts_bottom_stride);
+      ctx.tdma_load_stride(tl_bslice, input_gaddr + offset, ts_bottom_stride);
 
       /*
        * Res(n, c, h, w) = A(n, c, h, w) * B(1,c,1,1) + Bias(1,c,1,1)
@@ -172,7 +172,7 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
       /*
        * Get sliced output back to gmem
        */
-      ctx.tdma_store_stride_bf16(tl_bslice, output_gaddr + offset, ts_bottom_stride);
+      ctx.tdma_store_stride(tl_bslice, output_gaddr + offset, ts_bottom_stride);
 
       hstart += sec_len_h;
       ctx.lmem_free_tensor(tl_bslice);

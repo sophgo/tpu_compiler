@@ -54,11 +54,8 @@ static void permute_default_tensor_load(
       << "), stride(" << param.dst->stride.n
       << ", " << param.dst->stride.c << ", " << param.dst->stride.h
       << ", " << param.dst->stride.w << ")\n");
-  if (tl_ifmap->fmt == CVK_FMT_BF16) {
-    ctx.tdma_g2l_bf16_tensor_copy(&param);
-  } else {
-    ctx.tdma_g2l_tensor_copy(&param);
-  }
+
+  ctx.tdma_g2l_tensor_copy(&param);
 }
 
 
@@ -503,11 +500,7 @@ static void permute_tp_tensor_store(const CviBackendContext &ctx,
                           << param.dst->stride.n << ", " << param.dst->stride.c
                           << ", " << param.dst->stride.h << "\n");
 
-  if (tl_ofmap->fmt == CVK_FMT_BF16) {
-    ctx.tdma_l2g_bf16_tensor_copy(&param);
-  } else {
-    ctx.tdma_l2g_tensor_copy(&param);
-  }
+  ctx.tdma_l2g_tensor_copy(&param);
 }
 
 // ORDER: [0-2][0-2][0-2]3
@@ -629,7 +622,7 @@ static void permute_xxx3_tp_tensor_store(
       << "), stride(" << param.dst->stride.n
       << ", " << param.dst->stride.c << ", " << param.dst->stride.h << "\n");
   if (tl_ofmap->fmt == CVK_FMT_BF16) {
-    ctx.tdma_l2g_bf16_tensor_copy(&param);
+    ctx.tdma_l2g_tensor_copy(&param);
   } else {
     ctx.tdma_l2g_tensor_copy(&param);
   }
@@ -717,7 +710,7 @@ static void permute_0312_tp_c_1(const CviBackendContext& ctx,
   cvk_tdma_g2l_tensor_copy_param_t p1;
   p1.src = &src_tg;
   p1.dst = tmp_tl_load;
-  ctx.tdma_g2l_bf16_tensor_copy(&p1);
+  ctx.tdma_g2l_tensor_copy(&p1);
 
   cvk_tdma_l2g_tensor_copy_cw_transposed_param_t p2;
 
@@ -734,7 +727,7 @@ static void permute_0312_tp_c_1(const CviBackendContext& ctx,
   p2.dst = &dst_tg;
 
   // store back
-  ctx.tdma_l2g_bf16_tensor_copy_cw_transposed(&p2);
+  ctx.tdma_l2g_tensor_copy_cw_transposed(&p2);
 
   // free
   ctx.lmem_free_tensor(tmp_tl_load);
@@ -1151,7 +1144,7 @@ after_loop:
         tensor.fmt = fmt;
         uint64_t offset = (pos_w + pos_c * w + pos_n * c * w) * element_size;
         auto stride = ctx.tg_default_stride({(uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t)w}, fmt);
-        ctx.tdma_load_stride_bf16(&tensor, ga_ifmap + offset, stride, 1);
+        ctx.tdma_load_stride(&tensor, ga_ifmap + offset, stride, 1);
 
         LLVM_DEBUG(llvm::errs() << llvm::format("load, shape:%d,%d,%d,%d, stride: %d,%d,%d,%d, offset:%d\n",
                   cur_n, cur_c, h, cur_w,
@@ -1163,7 +1156,7 @@ after_loop:
         tensor.stride = ctx.tl_default_stride(shape, fmt, 1);
         offset = (pos_w + pos_n * w + pos_c * n * w) * element_size;
         stride = ctx.tg_default_stride({(uint32_t)c, (uint32_t)n, (uint32_t)h, (uint32_t)w}, fmt);
-        ctx.tdma_store_stride_bf16(&tensor, ga_ofmap + offset, stride);
+        ctx.tdma_store_stride(&tensor, ga_ofmap + offset, stride);
         LLVM_DEBUG(llvm::errs() << llvm::format("store, shape:%d,%d,%d,%d, stride: %d,%d,%d,%d, offset:%d\n",
                   cur_c, cur_n, h, cur_w,
                   (int)stride.n, (int)stride.c, (int)stride.h, (int)stride.w,
@@ -1198,7 +1191,7 @@ void cvi_backend_tg_permute(
     if (ga_ofmap != ga_ifmap) {
       cvk_tg_shape_t shape_ = {output_n, output_c, output_h, output_w};
       cvk_tg_stride_t stride_ = ctx.tg_default_stride(shape_, fmt);
-      ctx.tdma_g2g_tensor_copy(ga_ifmap, shape_, stride_, ga_ofmap, shape_, stride_, fmt);
+      ctx.tdma_g2g_tensor_copy(ga_ifmap, shape_, stride_, fmt, ga_ofmap, shape_, stride_, fmt);
     }
     return;
   }

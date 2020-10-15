@@ -69,7 +69,7 @@ void cvi_backend_tg_bf16_leakyrelu_kernel(const CviBackendContext &ctx, uint32_t
           (uint32_t)(input_h * input_w * sizeof(uint16_t)),
           (uint32_t)(input_w * sizeof(uint16_t))
       };
-      ctx.tdma_load_stride_bf16(bottom, ga_bottom + offset, stride);
+      ctx.tdma_load_stride(bottom, ga_bottom + offset, stride);
 
       LLVM_DEBUG(llvm::errs() << llvm::format(
           "loop, nstart:%d,hstart:%d, sec_len_n:%d,sec_len_h:%d, offset:%lu, "
@@ -114,7 +114,7 @@ void cvi_backend_tg_bf16_leakyrelu_kernel(const CviBackendContext &ctx, uint32_t
         ctx.tiu_min(&p13);
       }
       // move result to global
-      ctx.tdma_store_stride_bf16(relu, ga_top + offset, stride);
+      ctx.tdma_store_stride(relu, ga_top + offset, stride);
 
       // free
       ctx.lmem_free_tensor(relu);

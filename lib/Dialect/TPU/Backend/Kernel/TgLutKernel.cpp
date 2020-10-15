@@ -52,7 +52,7 @@ void cvi_backend_tg_fixed_lut_kernel(const CviBackendContext &ctx, uint32_t stre
   cvk_tl_t *sg_lut_table = ctx.lmem_alloc_tensor(table_shape, fmt, eu_align);
 
   // load lut table
-  ctx.tdma_load_bf16(sg_lut_table, sg_lut_gaddr);
+  ctx.tdma_load(sg_lut_table, sg_lut_gaddr);
   for (size_t i = 0; i < tiling_info.size(); i++) {
     int n = tiling_info[i].first.n;
     int c = tiling_info[i].first.c;
@@ -63,7 +63,7 @@ void cvi_backend_tg_fixed_lut_kernel(const CviBackendContext &ctx, uint32_t stre
     // load
     cvk_tl_shape_t input_shape = ctx.tl_shape_t4(n, c, h, w);
     cvk_tl_t *bottom = ctx.lmem_alloc_tensor(input_shape, fmt, eu_align);
-    ctx.tdma_load_bf16(bottom, bottom_gaddr + gaddr_offset);
+    ctx.tdma_load(bottom, bottom_gaddr + gaddr_offset);
 
     cvk_tiu_lookup_table_param_t p12 = {0};
     p12.ifmap = bottom;
@@ -73,7 +73,7 @@ void cvi_backend_tg_fixed_lut_kernel(const CviBackendContext &ctx, uint32_t stre
     ctx.tiu_lookup_table(&p12);
 
     // move result to global
-    ctx.tdma_store_bf16(bottom, top_gaddr + gaddr_offset);
+    ctx.tdma_store(bottom, top_gaddr + gaddr_offset);
 
     // free
     ctx.lmem_free_tensor(bottom);
@@ -100,7 +100,7 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   cvk_tl_t *tl_ofmap_y0 =
       ctx.lmem_alloc_tensor(tl_shape, fmt, eu_align);
 
-  ctx.tdma_load_bf16(tl_ifmap, bottom_gaddr + gaddr_offset);
+  ctx.tdma_load(tl_ifmap, bottom_gaddr + gaddr_offset);
 
 #if 0
   // FIXME: enable it after new lut kernel struct merged
@@ -147,14 +147,14 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   dst.int8_rnd_mode = 1;
   p3.dst = &dst;
   p3.src = tl_ifmap;
-  ctx.tdma_l2l_bf16_tensor_copy(&p3);
+  ctx.tdma_l2l_tensor_copy(&p3);
   dst.int8_rnd_mode = 0; // reset
 
   // <! int8 to bf16 format cus for sub use, sub MUST in the same format
   memset(&p3, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
   p3.dst = tl_ofmap_slope; //<! bf16
   p3.src = &dst;
-  ctx.tdma_l2l_bf16_tensor_copy(&p3);
+  ctx.tdma_l2l_tensor_copy(&p3);
 #else
   // we keep contiguous layout that we convert
   // it without 'gap' and leverage tiu_mv to
@@ -166,13 +166,13 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   dst.int8_rnd_mode = 1;
   p3.src = tl_ifmap;
   p3.dst = &dst;
-  ctx.tdma_l2l_bf16_tensor_copy(&p3);
+  ctx.tdma_l2l_tensor_copy(&p3);
   dst.int8_rnd_mode = 0;
 
   // int8 to bf16
   p3.src = &dst;
   p3.dst = tl_ofmap_slope; //<! bf16
-  ctx.tdma_l2l_bf16_tensor_copy(&p3);
+  ctx.tdma_l2l_tensor_copy(&p3);
 #endif
   // <! sub, diff base , a - b
   // (x - x0)
@@ -249,7 +249,7 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
 
 #endif
 
-  ctx.tdma_store_bf16(tl_ofmap_y0, top_gaddr + gaddr_offset);
+  ctx.tdma_store(tl_ofmap_y0, top_gaddr + gaddr_offset);
   ctx.lmem_free_tensor(tl_ofmap_y0);
   ctx.lmem_free_tensor(tl_ofmap_slope);
   ctx.lmem_free_tensor(tl_ifmap);
@@ -283,8 +283,8 @@ void cvi_backend_tg_bf16_lut_interpolation_kernel(
   cvk_tl_t *tl_table_answer_slope =
       ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
 
-  ctx.tdma_load_bf16(tl_table_answer, y0_table_gaddr);
-  ctx.tdma_load_bf16(tl_table_answer_slope, slope_gaddr);
+  ctx.tdma_load(tl_table_answer, y0_table_gaddr);
+  ctx.tdma_load(tl_table_answer_slope, slope_gaddr);
 
   // tiling input
   int blob_num = 3;
@@ -379,8 +379,8 @@ void cvi_backend_tg_bf16_lut_scientific_kernel (const CviBackendContext &ctx, ui
   cvk_tl_t *tl_table_answer_mantissa = ctx.lmem_alloc_tensor(cvk_table_shape, (cvk_fmt_t)fmt, eu_align);
 
   // load exp / mantissa table
-  ctx.tdma_load_bf16(tl_table_answer, exp_lut_table);
-  ctx.tdma_load_bf16(tl_table_answer_mantissa, mantissa_lut_table);
+  ctx.tdma_load(tl_table_answer, exp_lut_table);
+  ctx.tdma_load(tl_table_answer_mantissa, mantissa_lut_table);
 
   for (size_t i = 0; i < tiling_info.size(); i++) {
     int n = tiling_info[i].first.n;
@@ -398,7 +398,7 @@ void cvi_backend_tg_bf16_lut_scientific_kernel (const CviBackendContext &ctx, ui
     cvk_tl_t* tl_ofmap = ctx.lmem_alloc_tensor(slice_shape, (cvk_fmt_t)fmt, eu_align);
 
     // load input
-    ctx.tdma_load_bf16(tl_ifmap, bottom_gaddr + gaddr_offset);
+    ctx.tdma_load(tl_ifmap, bottom_gaddr + gaddr_offset);
     bf16_lut_tl_scientific_forward_kernel(ctx,
         tl_ifmap->start_address,
         tl_buf->start_address,
@@ -411,7 +411,7 @@ void cvi_backend_tg_bf16_lut_scientific_kernel (const CviBackendContext &ctx, ui
 
     // TODO checke tfma/tiu pipeline
     // store
-    ctx.tdma_store_bf16(tl_ofmap, top_gaddr + gaddr_offset);
+    ctx.tdma_store(tl_ofmap, top_gaddr + gaddr_offset);
 
     ctx.lmem_free_tensor(tl_ofmap);
     ctx.lmem_free_tensor(tl_buf);

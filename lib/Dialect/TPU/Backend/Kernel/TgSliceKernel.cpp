@@ -26,7 +26,7 @@ void cvi_backend_tg_slice_kernel(const CviBackendContext &ctx,
     cvk_tg_shape_t orig_shape = ctx.tg_shape_t4(input_dim[0],input_dim[1],input_dim[2],input_dim[3]);
     cvk_tg_stride_t d_stride = ctx.tg_default_stride(shape, fmt);
     cvk_tg_stride_t s_stride = ctx.tg_default_stride(orig_shape, fmt);
-    ctx.tdma_g2g_tensor_copy(input_gaddr + offset * dtype_sz, shape, s_stride,
+    ctx.tdma_g2g_tensor_copy(input_gaddr + offset * dtype_sz, shape, s_stride, fmt,
                              output_gaddr, shape, d_stride, fmt);
   } else {
     uint32_t former_dim = 1;
@@ -44,7 +44,7 @@ void cvi_backend_tg_slice_kernel(const CviBackendContext &ctx,
         (uint32_t)(later_dim)
     };
     cvk_tg_stride_t d_stride = ctx.tg_default_stride(shape, CVK_FMT_I8);
-    ctx.tdma_g2g_tensor_copy(input_gaddr + offset * later_dim, shape, s_stride,
+    ctx.tdma_g2g_tensor_copy(input_gaddr + offset * later_dim, shape, s_stride, CVK_FMT_I8,
                              output_gaddr, shape, d_stride, CVK_FMT_I8);
   }
 }

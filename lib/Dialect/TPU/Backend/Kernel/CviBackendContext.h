@@ -49,12 +49,11 @@ public:
   // cvikernel adapter
   // ####################################################
 
-  // tdma kernel api
+  //
+  // tdma kernel api, support i8/u8/bf16
+  //
   void tdma_l2l_tensor_copy(cvk_tdma_l2l_tensor_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_l2l_tensor_copy(cvk_ctx_, param);
-  }
-
-  void tdma_l2l_bf16_tensor_copy(cvk_tdma_l2l_tensor_copy_param_t *param) const {
+    // compatible for i8/u8/bf16
     cvk_ctx_->ops->tdma_l2l_bf16_tensor_copy(cvk_ctx_, param);
   }
 
@@ -63,29 +62,15 @@ public:
   }
 
   void tdma_l2g_tensor_copy(cvk_tdma_l2g_tensor_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_l2g_tensor_copy(cvk_ctx_, param);
-  }
-
-  void tdma_l2g_bf16_tensor_copy(cvk_tdma_l2g_tensor_copy_param_t *param) const {
     cvk_ctx_->ops->tdma_l2g_bf16_tensor_copy(cvk_ctx_, param);
   }
 
   void tdma_l2g_tensor_copy_nc_transposed(
       cvk_tdma_l2g_tensor_copy_nc_transposed_param_t *param) const {
-    cvk_ctx_->ops->tdma_l2g_tensor_copy_nc_transposed(cvk_ctx_, param);
-  }
-
-  void tdma_l2g_bf16_tensor_copy_nc_transposed(
-      cvk_tdma_l2g_tensor_copy_nc_transposed_param_t *param) const {
     cvk_ctx_->ops->tdma_l2g_bf16_tensor_copy_nc_transposed(cvk_ctx_, param);
   }
 
   void tdma_l2g_tensor_copy_cw_transposed(
-      cvk_tdma_l2g_tensor_copy_cw_transposed_param_t *param) const {
-    cvk_ctx_->ops->tdma_l2g_tensor_copy_cw_transposed(cvk_ctx_, param);
-  }
-
-  void tdma_l2g_bf16_tensor_copy_cw_transposed(
       cvk_tdma_l2g_tensor_copy_cw_transposed_param_t *param) const {
     cvk_ctx_->ops->tdma_l2g_bf16_tensor_copy_cw_transposed(cvk_ctx_, param);
   }
@@ -100,35 +85,14 @@ public:
   }
 
   void tdma_l2g_matrix_copy(cvk_tdma_l2g_matrix_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_l2g_matrix_copy(cvk_ctx_, param);
-  }
-
-  void tdma_l2g_bf16_matrix_copy(cvk_tdma_l2g_matrix_copy_param_t *param) const {
     cvk_ctx_->ops->tdma_l2g_bf16_matrix_copy(cvk_ctx_, param);
   }
 
-  void tdma_l2g_general_copy(cvk_tdma_l2g_general_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_l2g_general_copy(cvk_ctx_, param);
-  }
-
-  void tdma_l2g_bf16_general_copy(cvk_tdma_l2g_bf16_general_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_l2g_bf16_general_copy(cvk_ctx_, param);
-  }
-
   void tdma_g2l_tensor_copy(cvk_tdma_g2l_tensor_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_g2l_tensor_copy(cvk_ctx_, param);
-  }
-
-  void tdma_g2l_bf16_tensor_copy(cvk_tdma_g2l_tensor_copy_param_t *param) const {
     cvk_ctx_->ops->tdma_g2l_bf16_tensor_copy(cvk_ctx_, param);
   }
 
   void tdma_g2l_tensor_copy_nc_transposed(
-      cvk_tdma_g2l_tensor_copy_nc_transposed_param_t *param) const {
-    cvk_ctx_->ops->tdma_g2l_tensor_copy_nc_transposed(cvk_ctx_, param);
-  }
-
-  void tdma_g2l_bf16_tensor_copy_nc_transposed(
       cvk_tdma_g2l_tensor_copy_nc_transposed_param_t *param) const {
     cvk_ctx_->ops->tdma_g2l_bf16_tensor_copy_nc_transposed(cvk_ctx_, param);
   }
@@ -143,12 +107,7 @@ public:
     cvk_ctx_->ops->tdma_g2l_tensor_copy_decompressed(cvk_ctx_, param);
   }
 
-  void tdma_tg2l_tensor_fill_constant(cvk_tdma_g2l_tensor_fill_constant_param_t *param) const {
-    cvk_ctx_->ops->tdma_g2l_tensor_fill_constant(cvk_ctx_, param);
-  }
-
-  void
-  tdma_tg2l_bf16_tensor_fill_constant(cvk_tdma_g2l_tensor_fill_constant_param_t *param) const {
+  void tdma_g2l_tensor_fill_constant(cvk_tdma_g2l_tensor_fill_constant_param_t *param) const {
     cvk_ctx_->ops->tdma_g2l_bf16_tensor_fill_constant(cvk_ctx_, param);
   }
 
@@ -158,10 +117,6 @@ public:
   }
 
   void tdma_g2l_matrix_copy(cvk_tdma_g2l_matrix_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_g2l_matrix_copy(cvk_ctx_, param);
-  }
-
-  void tdma_g2l_bf16_matrix_copy(cvk_tdma_g2l_matrix_copy_param_t *param) const {
     cvk_ctx_->ops->tdma_g2l_bf16_matrix_copy(cvk_ctx_, param);
   }
 
@@ -170,19 +125,7 @@ public:
     cvk_ctx_->ops->tdma_g2l_matrix_copy_row_col_transposed(cvk_ctx_, param);
   }
 
-  void tdma_g2l_general_copy(cvk_tdma_g2l_general_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_g2l_general_copy(cvk_ctx_, param);
-  }
-
-  void tdma_g2l_bf16_general_copy(cvk_tdma_g2l_bf16_general_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_g2l_bf16_general_copy(cvk_ctx_, param);
-  }
-
   void tdma_g2g_tensor_copy(cvk_tdma_g2g_tensor_copy_param_t *param) const {
-    cvk_ctx_->ops->tdma_g2g_tensor_copy(cvk_ctx_, param);
-  }
-
-  void tdma_g2g_bf16_tensor_copy(cvk_tdma_g2g_tensor_copy_param_t *param) const {
     cvk_ctx_->ops->tdma_g2g_bf16_tensor_copy(cvk_ctx_, param);
   }
 
@@ -364,49 +307,21 @@ public:
   //
   // tdma simple api
   //
+  void tdma_load(cvk_tl_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
   void tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
                         bool do_transpose = false, bool do_decompress = false) const;
-  void tdma_load_stride_bf16(cvk_tl_t *tlp, uint64_t ga_src, cvk_tg_stride_t ts_stride,
-                             uint8_t do_transpose = 0) const;
-
-  void tdma_load(cvk_tl_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
-  void tdma_load_bf16(cvk_tl_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
-
+  void tdma_store(cvk_tl_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
   void tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
                          bool do_transpose = false, bool do_compress = false) const;
-  void tdma_store_stride_bf16(cvk_tl_t *tlp, uint64_t ga_dst, cvk_tg_stride_t ts_stride,
-                              bool do_transpose = false, bool do_compress = false) const;
-
-  void tdma_store(cvk_tl_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
-
-  void tdma_store_bf16(cvk_tl_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
-
   // matrix format
+  void tdma_load(cvk_ml_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
   void tdma_load_stride(cvk_ml_t *tlp, uint64_t ga_src, cvk_mg_stride_t ts_stride,
                         uint8_t do_transpose = 0) const;
-
-  void tdma_load_stride_bf16(cvk_ml_t *tlp, uint64_t ga_src, cvk_mg_stride_t ts_stride,
-                             uint8_t do_transpose = 0) const;
-
-  void tdma_load(cvk_ml_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
-  void tdma_load_bf16(cvk_ml_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
-
+  void tdma_store(cvk_ml_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
   void tdma_store_stride(cvk_ml_t *tlp, uint64_t ga_dst, cvk_mg_stride_t ts_stride,
                          uint8_t do_transpose = 0) const;
-
-  void tdma_store_stride_bf16(cvk_ml_t *tlp, uint64_t ga_dst, cvk_mg_stride_t ts_stride,
-                              uint8_t do_transpose = 0) const;
-
-  void tdma_store(cvk_ml_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
-
-  void tdma_store_bf16(cvk_ml_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
-
-  void tdma_g2g_tensor_copy(uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride,
-                            uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride,
-                            cvk_fmt_t g2g_fmt) const;
   void tdma_g2g_tensor_copy(uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride, cvk_fmt_t src_fmt,
-                            uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt,
-                            cvk_fmt_t g2g_fmt) const;
+                            uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt) const;
 
   //
   // tl calc
