@@ -204,14 +204,14 @@ void TgEltwiseKernel::schedule() {
   for (int32_t i = 0; i < total_steps + 2; i++) {
     ctx.parallel_enable();
 
+    if ((i - 2) >= 0 && (i - 2) % operand_num == operand_num - 1) {
+      store(i - 2);
+    }
     if (i - 1 >= 0 && i - 1 < total_steps) {
       compute(i - 1);
     }
     if (i < total_steps) {
       load(i);
-    }
-    if ((i - 2) >= 0 && (i - 2) % operand_num == operand_num - 1) {
-      store(i - 2);
     }
 
     ctx.parallel_disable();
@@ -254,8 +254,8 @@ void TgEltwiseKernel::load(int32_t step_idx) {
     }
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
-                   "load[%d], flip[%d], shape<%d,%d,%d,%d>, offset:%d\n", step_idx,
-                   input_flip, tile.n, tile.c, tile.h, tile.w, tile.input_offset));
+                   "load[%d], flip[%d], shape<%d,%d,%d,%d>, global:%d -> local: %u\n", step_idx,
+                   input_flip, tile.n, tile.c, tile.h, tile.w, tile.input_offset, operand.start_address));
   }
   input_flip = 1 - input_flip;
 }
@@ -265,13 +265,8 @@ void TgEltwiseKernel::store(int32_t step_idx) {
   auto tile = tiles[tile_idx];
   cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
   cvk_tl_t result;
-  if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
-    // one input case
-    result.start_address = tl_output[tile_idx]->start_address;
-  }
-  else {
-    result.start_address = tl_output[1 - output_flip]->start_address;
-  }
+
+  result.start_address = tl_output[1 - output_flip]->start_address;
   result.shape = shape;
   result.stride = ctx.tl_default_stride(shape, fmt, 1);
   result.fmt = fmt;
@@ -300,9 +295,9 @@ void TgEltwiseKernel::store(int32_t step_idx) {
     }
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
-                   "store[%d], flip[%d], shape<%d,%d,%d,%d>, offset:%d\n", step_idx,
+                   "store[%d], flip[%d], shape<%d,%d,%d,%d>, local:%u -> global: %d\n", step_idx,
                    1 - output_flip, result.shape.n, result.shape.c, result.shape.h,
-                   result.shape.w, tile.output_offset));
+                   result.shape.w, result.start_address, tile.output_offset));
   }
 }
 
@@ -337,12 +332,14 @@ void TgInt8EltwiseAddKernel::compute(int32_t step_idx) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d> "
+                 "in %u -> out %u\n",
                  step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
                  input.shape.h, input.shape.w, input.stride.n, input.stride.c,
                  input.stride.h, input.stride.w, output.shape.n, output.shape.c,
                  output.shape.h, output.shape.w, output.stride.n, output.stride.c,
-                 output.stride.h, output.stride.w));
+                 output.stride.h, output.stride.w,
+                 input.start_address, output.start_address));
 
   if (opd_idx == 0) {
     // calculate first input.
@@ -958,12 +955,14 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
-                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d>\n",
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d> "
+                 "in:%u -> out:%u\n",
                  step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
                  input.shape.h, input.shape.w, input.stride.n, input.stride.c,
                  input.stride.h, input.stride.w, output.shape.n, output.shape.c,
                  output.shape.h, output.shape.w, output.stride.n, output.stride.c,
-                 output.stride.h, output.stride.w));
+                 output.stride.h, output.stride.w,
+                 input.start_address, output.start_address));
 
   cvk_tiu_min_param_t p7 = {0};
   p7.min = &output;
