@@ -621,11 +621,8 @@ static void permute_xxx3_tp_tensor_store(
       << ", " << param.dst->shape.w
       << "), stride(" << param.dst->stride.n
       << ", " << param.dst->stride.c << ", " << param.dst->stride.h << "\n");
-  if (tl_ofmap->fmt == CVK_FMT_BF16) {
-    ctx.tdma_l2g_tensor_copy(&param);
-  } else {
-    ctx.tdma_l2g_tensor_copy(&param);
-  }
+
+  ctx.tdma_l2g_tensor_copy(&param);
 }
 
 // (0, 1, 2, 3) -> (, , , 3)

@@ -116,14 +116,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     ctx.tdma_load(tl_initial_c, ga_initial_c);
 
     //Load sigmoid table
-    int const table_n = 1;
-    int const table_c = NPU_NUM;
-    int const table_h = 32;
-    int const table_w = 8;
-
-    cvk_tl_shape_t table_shape = {
-        static_cast<uint32_t>(table_n), static_cast<uint32_t>(table_c),
-        static_cast<uint32_t>(table_h), static_cast<uint32_t>(table_w)};
+    cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
 
     cvk_tl_t *tl_sigmoid_table_answer =
         ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);

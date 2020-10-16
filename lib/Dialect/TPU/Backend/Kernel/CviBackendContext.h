@@ -466,6 +466,8 @@ public:
   //
   // Hardware feature
   //
+  const cvk_tl_shape_t &lut_table_shape(cvk_fmt_t fmt) const;
+
   bool has_cmd_pre_exe() const {
     return (cvk_ctx_->info.features & CVK_HWF_CMD_PRE_EXE) ? true : false;
   }

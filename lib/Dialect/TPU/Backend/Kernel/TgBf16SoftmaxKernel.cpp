@@ -24,12 +24,7 @@ unsigned int doSplitHeightBf16softmax2D(const CviBackendContext &ctx, int outerS
     int bf16_euWorkingOneLane = EU_NUM / 2;
     int parallelC = ceiling_func(innerSize, bf16_euWorkingOneLane);
 
-    const int table_n = 1;
-    const int table_c = NPU_NUM;
-    const int table_h = 32;
-    const int table_w = 8;
-
-    cvk_tl_shape_t table_shape = ctx.tl_shape_t4(table_n,table_c,table_h,table_w);
+    cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
     int tableSize = ctx.lmem_tensor_to_size(table_shape, CVK_FMT_BF16, eu_align) * 4;
 
     while(true) {
@@ -73,12 +68,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
     int parallelC = ceiling_func(inner_size, bf16_euWorkingOneLane);
 
     //Load exponential table
-    const int table_n = 1;
-    const int table_c = NPU_NUM;
-    const int table_h = 32;
-    const int table_w = 8;
-
-    cvk_tl_shape_t table_shape = ctx.tl_shape_t4(table_n,table_c,table_h,table_w);
+    cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
 
     cvk_tl_t *tl_exponential_table_answer =
         ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
@@ -421,12 +411,7 @@ unsigned int doSplitHeightBf16softmax4D(const CviBackendContext &ctx, int64_t* s
     w = shape[3];
     int tileH = h;
 
-    const int table_n = 1;
-    const int table_c = NPU_NUM;
-    const int table_h = 32;
-    const int table_w = 8;
-
-    cvk_tl_shape_t table_shape = ctx.tl_shape_t4(table_n,table_c,table_h,table_w);
+    cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
     int tableSize = ctx.lmem_tensor_to_size(table_shape, CVK_FMT_BF16, eu_align) * 4;
 
     while(true) {
@@ -469,12 +454,7 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
 
     int hStep = ceiling_func(h, tileH);
     //Load exponential table
-    const int table_n = 1;
-    const int table_c = NPU_NUM;
-    const int table_h = 32;
-    const int table_w = 8;
-
-    cvk_tl_shape_t table_shape = ctx.tl_shape_t4(table_n,table_c,table_h,table_w);
+    cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
 
     cvk_tl_t *tl_exponential_table_answer =
         ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);

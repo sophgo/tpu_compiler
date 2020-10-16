@@ -137,7 +137,7 @@ void cvi_backend_tg_fixed_scale_qi32_kernel(
     bool second_is_blob  // true means second comes from weight, otherwise comes from another input
 );
 
-void cvi_backend_tg_fixed_lut_kernel(
+void cvi_backend_tg_lut_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
     uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr, gaddr_t sg_lut_gaddr,

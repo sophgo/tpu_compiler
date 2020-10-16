@@ -18,7 +18,7 @@
 #define DEBUG_TYPE "lut_kernel"
 
 
-void cvi_backend_tg_fixed_lut_kernel(const CviBackendContext &ctx, uint32_t stream_id,
+void cvi_backend_tg_lut_kernel(const CviBackendContext &ctx, uint32_t stream_id,
                                           uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
                                           uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
                                           gaddr_t sg_lut_gaddr, int input_n, int input_c,
@@ -26,33 +26,20 @@ void cvi_backend_tg_fixed_lut_kernel(const CviBackendContext &ctx, uint32_t stre
 
   ctx.set_layer_id(layer_id);
 
-  int table_w, table_h;
-
-  if(fmt == CVK_FMT_I8){
-    table_w = 16;
-    table_h = 16;
-  } else if (fmt == CVK_FMT_BF16) {
-    table_w = 8;
-    table_h = 32;
-  } else {
-    assert(0 && "not support type");
-  }
-
   uint8_t eu_align = 1; // hardware constrainst
+  cvk_tl_shape_t table_shape = ctx.lut_table_shape(fmt);
 
   // extend to channel
   int require_shape = input_n * input_c * input_h * input_w;
-  int coeff_lane_shape = table_h * table_w;
+  int coeff_lane_shape = table_shape.h * table_shape.w;
   int blob_num = 1; // 1 means only one blob and it chould overwrite itself
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
-  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, fmt,
-                 &tiling_info);
-
-  cvk_tl_shape_t table_shape = ctx.tl_shape_t4(1, NPU_NUM, table_h, table_w);
-  cvk_tl_t *sg_lut_table = ctx.lmem_alloc_tensor(table_shape, fmt, eu_align);
+  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, fmt, &tiling_info);
 
   // load lut table
+  cvk_tl_t *sg_lut_table = ctx.lmem_alloc_tensor(table_shape, fmt, eu_align);
   ctx.tdma_load(sg_lut_table, sg_lut_gaddr);
+
   for (size_t i = 0; i < tiling_info.size(); i++) {
     int n = tiling_info[i].first.n;
     int c = tiling_info[i].first.c;
@@ -270,14 +257,9 @@ void cvi_backend_tg_bf16_lut_interpolation_kernel(
                  input_c, input_h, input_w, scale));
 
   // for hw setting
-  int const table_n = 1;
-  int const table_c = NPU_NUM;
-  int const table_h = 32;
-  int const table_w = 8;
+
   uint8_t eu_align = 1; // hardware constrainst
-
-  cvk_tl_shape_t table_shape = ctx.tl_shape_t4(table_n,table_c,table_h,table_w);
-
+  cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
   cvk_tl_t *tl_table_answer =
       ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
   cvk_tl_t *tl_table_answer_slope =
@@ -289,7 +271,7 @@ void cvi_backend_tg_bf16_lut_interpolation_kernel(
   // tiling input
   int blob_num = 3;
   int require_shape = input_n * input_c * input_h * input_w;
-  int coeff_lane_shape = 2 * table_h * table_w;
+  int coeff_lane_shape = 2 * table_shape.h * table_shape.w;
   std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
   ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, CVK_FMT_BF16,
                  &tiling_info);

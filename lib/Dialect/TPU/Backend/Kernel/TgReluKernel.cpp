@@ -63,16 +63,8 @@ void cvi_backend_tg_fixed_relu_kernel(const CviBackendContext &ctx, uint32_t str
     cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(n, c, h, w);
 
     // load input
-    cvk_tl_t *tl_input;
-
-    if ((cvk_fmt_t)fmt == CVK_FMT_BF16) {
-      tl_input = ctx.lmem_alloc_tensor(tl_shape, (cvk_fmt_t)fmt, /*eu_align=*/1);
-      ctx.tdma_load(tl_input, bottom_gaddr + gaddr_offset);
-    }
-    else {
-      tl_input = ctx.lmem_alloc_tensor(tl_shape, (cvk_fmt_t)fmt, /*eu_align=*/1);
-      ctx.tdma_load(tl_input, bottom_gaddr + gaddr_offset);
-    }
+    cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(tl_shape, fmt, /*eu_align=*/1);
+    ctx.tdma_load(tl_input, bottom_gaddr + gaddr_offset);
 
     // 0. top = relu(bottom)
     cvk_tiu_max_param_t p13 = {0};

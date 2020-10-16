@@ -20,17 +20,11 @@ void cvi_backend_tl_to_tensor(
     laddr_t la,
     uint32_t tensor_n, uint32_t tensor_c, uint32_t tensor_h, uint32_t tensor_w,
     cvk_fmt_t fmt, uint8_t eu_align) {
-
+  ctx.assert_support_fmt(fmt);
   tensor->start_address = la;
   tensor->fmt = fmt;
   tensor->shape = ctx.tl_shape_t4(tensor_n, tensor_c, tensor_h, tensor_w);
-
-  if (fmt == CVK_FMT_I8 || fmt == CVK_FMT_BF16) {
-    tensor->stride = ctx.tl_default_stride(tensor->shape, fmt, eu_align);
-  }
-  else {
-    assert(0 && "not support");
-  }
+  tensor->stride = ctx.tl_default_stride(tensor->shape, fmt, eu_align);
 }
 
 void cvi_backend_tl_load_stride(

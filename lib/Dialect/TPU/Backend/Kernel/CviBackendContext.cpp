@@ -424,6 +424,16 @@ int CviBackendContext::bitsize_of_fmt(uint32_t fmt) const {
   }
 }
 
+const cvk_tl_shape_t &CviBackendContext::lut_table_shape(cvk_fmt_t fmt) const {
+  static const cvk_tl_shape_t table_fixed = tl_shape_t4(1, NPU_NUM, 16, 16);
+  static const cvk_tl_shape_t table_bf16 = tl_shape_t4(1, NPU_NUM, 32, 8);
+  assert_support_fmt(fmt);
+  if (fmt == CVK_FMT_BF16) {
+    return table_bf16;
+  }
+  return table_fixed;
+}
+
 void CviBackendContext::tiling_packing(
     int require_shape, int coeff_lane_shape, int blob_num, cvk_fmt_t fmt,
     std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> *tiling_info,

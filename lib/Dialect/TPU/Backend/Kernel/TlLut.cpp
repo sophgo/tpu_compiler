@@ -48,10 +48,6 @@ void cvi_backend_tl_lut_LA(
                  << "\n";
   );
 
-  int table_w, table_h;
-  table_w = 16;
-  table_h = 16;
-
   bool prealloc = false;
   if (la_input != LA_INVALID) { //some checks
     prealloc = true;
@@ -91,7 +87,7 @@ void cvi_backend_tl_lut_LA(
 
   // load lut table
   sg_lut_table->fmt = CVK_FMT_I8;
-  sg_lut_table->shape = ctx.tl_shape_t4(1, NPU_NUM, table_h, table_w);
+  sg_lut_table->shape = ctx.lut_table_shape(CVK_FMT_I8);
   sg_lut_table->stride = ctx.tl_default_stride(sg_lut_table->shape, CVK_FMT_I8, /*eu_align=*/1);
   ctx.tdma_load(sg_lut_table, sg_lut_gaddr);
 
@@ -154,11 +150,6 @@ void cvi_backend_tl_lut(
   if (la_working == 0 && la_slope_table == 0) {
     // assign in MixNet.cpp::_add_tl_activation_op
     // int8 lut
-
-    int table_w, table_h;
-    table_w = 16;
-    table_h = 16;
-
     cvk_tl_t *tl_input = new cvk_tl_t;
     cvk_tl_t *tl_output = new cvk_tl_t;
     cvk_tl_t *tl_y_table = new cvk_tl_t;
@@ -175,7 +166,7 @@ void cvi_backend_tl_lut(
 
     tl_y_table->start_address = la_y_table;
     tl_y_table->fmt = CVK_FMT_I8;
-    tl_y_table->shape = ctx.tl_shape_t4(1, NPU_NUM, table_h, table_w);
+    tl_y_table->shape = ctx.lut_table_shape(CVK_FMT_I8);
     tl_y_table->stride = ctx.tl_default_stride(tl_y_table->shape, CVK_FMT_I8, /*eu_align=*/1);
 
     //compute
@@ -284,15 +275,10 @@ void cvi_backend_bf16_tl_lut_slope_method(
   tl_tmp->shape = tl_ifmap->shape;
   tl_tmp->stride = tl_ifmap->stride;
 
-  // 1880v2 hw setting
-  int const table_n = 1;
-  int const table_h = 32;
-  int const table_w = 8;
-
   // y0
   tl_table_answer->start_address = la_y_table;
   tl_table_answer->fmt = CVK_FMT_BF16;
-  tl_table_answer->shape = ctx.tl_shape_t4(table_n, NPU_NUM, table_h, table_w);
+  tl_table_answer->shape = ctx.lut_table_shape(CVK_FMT_BF16);
   tl_table_answer->stride = ctx.tl_default_stride(tl_table_answer->shape, CVK_FMT_BF16, /*eu_align=*/1);
 
   // slope
@@ -454,15 +440,10 @@ void cvi_backend_tl_lut_exponential_mul_mantissa(
   tl_ofmap_slope->shape = tl_ifmap->shape;
   tl_ofmap_slope->stride = tl_ifmap->stride;
 
-  // 1880v2 hw setting
-  int const table_n = 1;
-  int const table_h = 32;
-  int const table_w = 8;
-
   // y0
   tl_table_answer->start_address = la_exponential_table;
   tl_table_answer->fmt = CVK_FMT_BF16;
-  tl_table_answer->shape = ctx.tl_shape_t4(table_n, NPU_NUM, table_h, table_w);
+  tl_table_answer->shape = ctx.lut_table_shape(CVK_FMT_BF16);
   tl_table_answer->stride = ctx.tl_default_stride(tl_table_answer->shape, CVK_FMT_BF16, /*eu_align=*/1);
 
   // mantissa

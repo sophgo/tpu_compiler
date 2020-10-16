@@ -1684,7 +1684,7 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
   gaddr_t y0_table_gaddr = getWeightOpAddress(table()->getDefiningOp());
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_fixed_lut_kernel(*backend_ctx,
+  cvi_backend_tg_lut_kernel(*backend_ctx,
                              0,        // stream_id,
                              0,        // inst_id,
                              layer_id, // layer_id,
