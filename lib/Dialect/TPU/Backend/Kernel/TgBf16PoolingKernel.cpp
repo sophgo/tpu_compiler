@@ -17,11 +17,6 @@
 #define ASSERT(x) assert(x)
 // #define ENABLE_DEBUG_MSG
 
-static int get_csize_local_bitwidth(const CviBackendContext &ctx, int h, int w, int bitwidth) {
-  // TODO: pass fmt
-  return ALIGN(h * w * ctx.bitsize_of_fmt(CVK_FMT_BF16), EU_NUM) * bitwidth / 8;
-}
-
 static int get_csize_global_bitwidth(const CviBackendContext &ctx, int h, int w, int bitwidth){
   //ASSERT(ctx.hw.chip_version != BM_CHIP_BM1880);
 
@@ -90,12 +85,6 @@ static int index_bit_width(int kernel_size) {
   }
 }
 
-static int index_size_lmem(const CviBackendContext &ctx, int kernel_size, int n, int c, int h,
-                           int w) {
-  int bit_width = index_bit_width(kernel_size);
-  return n * ALIGN(c, NPU_NUM) * get_csize_local_bitwidth(ctx, h, w, bit_width);
-}
-
 static int index_size_gmem(const CviBackendContext &ctx, int kernel_size, int n, int c, int h,
                            int w) {
   int bit_width = index_bit_width(kernel_size);
@@ -138,20 +127,12 @@ static int pooling_aligned_out_h(const pooling_t *p) {
 }
 
 static int pooling_size_lmem(const CviBackendContext &ctx, const pooling_t *p) {
-  int is_max_pooling = !p->is_avg_pooling;
   int out_h = pooling_out_h(p);
   int out_w = pooling_out_w(p);
-
-  // TODO: pass fmt
   int in_size = ctx.tensor_size_lmem(p->n, p->c, p->h, p->w, CVK_FMT_BF16);
   int out_size = ctx.tensor_size_lmem(p->n, p->c, out_h, out_w, CVK_FMT_BF16);
 
-  int index_size = 0;
-  if (is_max_pooling) {
-    index_size = index_size_lmem(ctx, p->kh * p->kw, p->n, p->c, out_h, out_w);
-  }
-
-  return in_size + out_size + index_size;
+  return in_size + out_size;
 }
 
 static int split_pooling_forward(const CviBackendContext &ctx, const pooling_t *_p,
@@ -207,7 +188,6 @@ static void pooling_forward_slice(const CviBackendContext &ctx, uint32_t layer_i
 
   cvk_tg_shape_t ts_all_in_shape = ctx.tg_shape_t4(all->n,all->c,all->h,all->w);
   cvk_tg_stride_t ts_stride = ctx.tg_default_stride(ts_all_in_shape, CVK_FMT_BF16);
-
 
   ctx.tdma_load_stride(ifmap, s->ifmap_gaddr, ts_stride);
 
