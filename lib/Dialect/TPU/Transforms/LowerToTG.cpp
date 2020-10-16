@@ -357,7 +357,7 @@ Value* tpu::Conv2DOp::convertToTG() {
       operands.push_back(padOp);
     } else if (getOpQuant() == "BF16") {
       auto padOp = OpBuilder(op).create<tpu::TG_BF16_PadOp>(op->getLoc(),
-          getResult()->getType(), ArrayRef<Value *>{input()},
+          resultType, ArrayRef<Value *>{input()},
           ArrayRef<NamedAttribute>{attrs});
       operands.push_back(padOp);
     }
