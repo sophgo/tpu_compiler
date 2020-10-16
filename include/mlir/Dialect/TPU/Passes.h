@@ -44,6 +44,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createConvertScaleToDWConvPass();
 std::unique_ptr<OpPassBase<FuncOp>> createConvertSwishToReLUPass();
 std::unique_ptr<OpPassBase<FuncOp>> createClipAsRelu6Pass();
 std::unique_ptr<OpPassBase<FuncOp>> createTpuQuantClipPass();
+std::unique_ptr<OpPassBase<FuncOp>> createFuseAsymmetricZeroPointPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseReluPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFusePadPass();
 std::unique_ptr<OpPassBase<FuncOp>> createFuseEltwisePass();

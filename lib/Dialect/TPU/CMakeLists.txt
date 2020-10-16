@@ -32,6 +32,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertNormalize.cpp
   Transforms/ConvertSwishToRelu.cpp
   Transforms/ConvertPermute.cpp
+  Transforms/FuseAsymmetricZeroPointShift.cpp
   Transforms/FuseRelu.cpp
   Transforms/FusePad.cpp
   Transforms/RefactorEltAndConv.cpp
