@@ -30,10 +30,14 @@ CviBackendContext::CviBackendContext(const char *runchip) {
 
   // Default mapping between tdma base selection
   // and global memory region.
-  tdmaBaseSelects[NEURON_MEMORY] = 0;
+  tdmaBaseSelects[SHARED_MEMORY] = 0;
   tdmaBaseSelects[WEIGHT_MEMORY] = 1;
-  tdmaBaseSelects[INPUT_MEMORY] = 2;
-  tdmaBaseSelects[OUTPUT_MEMORY] = 2;
+  tdmaBaseSelects[PRIVATE_MEMORY] = 2;
+  tdmaBaseSelects[IO_MEMORY_0] = 3;
+  tdmaBaseSelects[IO_MEMORY_1] = 4;
+  tdmaBaseSelects[IO_MEMORY_2] = 5;
+  tdmaBaseSelects[IO_MEMORY_3] = 6;
+  tdmaBaseSelects[IO_MEMORY_4] = 7;
 
   LLVM_DEBUG(llvm::errs() << "register " << runchip << " done\n";);
 }
@@ -78,10 +82,9 @@ int CviBackendContext::cvi_chip_info_context(
     assert(0);
 }
 
-uint8_t
-CviBackendContext::getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const {
-  // we store memory region value in bits (40 ~ 41) of gaddr;
-  uint32_t memoryRegion = ((((uint64_t)gaddr) >> 40) & 0x03);
+uint8_t CviBackendContext::getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const {
+  // we store memory region value in bits (40 ~ 42) of gaddr;
+  uint32_t memoryRegion = ((((uint64_t)gaddr) >> 40) & 0x07);
   if (memoryRegion < MAX_GLOBAL_MEMORY_REGION) {
     return tdmaBaseSelects[memoryRegion];
   }

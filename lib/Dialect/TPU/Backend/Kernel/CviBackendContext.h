@@ -482,11 +482,15 @@ public:
   uint8_t getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const;
 
   enum GlobalMemoryRegion {
-    NEURON_MEMORY = 0,
+    SHARED_MEMORY = 0,
     WEIGHT_MEMORY = 1,
-    INPUT_MEMORY = 2,
-    OUTPUT_MEMORY = 3,
-    MAX_GLOBAL_MEMORY_REGION = 4
+    PRIVATE_MEMORY = 2,
+    IO_MEMORY_0 = 3,
+    IO_MEMORY_1 = 4,
+    IO_MEMORY_2 = 5,
+    IO_MEMORY_3 = 6,
+    IO_MEMORY_4 = 7,
+    MAX_GLOBAL_MEMORY_REGION = 8
   };
 
   enum QuantizeMode {
