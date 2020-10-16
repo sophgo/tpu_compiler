@@ -167,22 +167,22 @@ public:
       } else {
          auto current = op;
          while (current->getResult(0)->hasOneUse()) {
-          auto next = getNextOp(current);
-          if (isa<ReturnOp>(next) || !isUnaryOp(next))
+          auto use = getNextOp(current);
+          if (isa<ReturnOp>(use) || !isUnaryOp(use))
             break;
           auto insertPoint = current->getNextNode();
-          next->moveBefore(insertPoint);
-          insertPoint = next;
-          auto opdNum = next->getNumOperands();
+          use->moveBefore(insertPoint);
+          insertPoint = use;
+          auto opdNum = use->getNumOperands();
           for (int i = (int)opdNum - 1; i >= 0; --i) {
-            auto opd = next->getOperand(i)->getDefiningOp();
-            // if def has multi use, we can not move
-            if (!opd->getResult(0)->hasOneUse())
+            auto opd = use->getOperand(i)->getDefiningOp();
+            // opd may have multi-use, just keep it in front
+            if (hasMoreUser(opd) && opd->isBeforeInBlock(use))
               continue;
             opd->moveBefore(insertPoint);
             insertPoint = opd;
           }
-          current = next;
+          current = use;
         }
       }
     });
