@@ -9,7 +9,6 @@
  */
 
 #include "CviBackendContext.h"
-#include "backend/backend_tl_api.h"
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
@@ -92,8 +91,7 @@ static void matrix_multiplication(const CviBackendContext &ctx,
 void cvi_backend_tg_bf16_fc_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                    gaddr_t ga_left, gaddr_t ga_right, gaddr_t ga_bias,
                                    gaddr_t ga_output, int in_row, int in_col, int out_col,
-                                   bool have_bias, bool do_relu,
-                                   bool compressed_weight, std::vector<int> compr_weight_poss) {
+                                   bool have_bias, bool do_relu) {
 
   int element_size = 2;
 
@@ -161,7 +159,6 @@ after_loop:
   cvk_mg_stride_t gstride_r = {(uint32_t)(n * element_size)};
   cvk_mg_stride_t gstride_y = {(uint32_t)(n * element_size)};
 
-  unsigned cmpr_weight_index = 0;
   if (step_k == k) {
     for (int pos_n = 0; pos_n < n; pos_n += step_n) {
       int cur_n = std::min(n - pos_n, step_n);
@@ -173,24 +170,7 @@ after_loop:
       opd_r.fmt = CVK_FMT_BF16;
       opd_r.stride = ctx.ml_default_stride(shape_r, CVK_FMT_BF16, 1);
       offset = pos_n * element_size;
-      if (!compressed_weight) {
-        ctx.tdma_load_stride_bf16(&opd_r, ga_right + offset, gstride_r);
-      } else {
-        cvi_backend_ml_load_stride(ctx,
-                                   layer_id,
-                                   ga_right + compr_weight_poss[cmpr_weight_index],
-                                   tl_r->start_address,
-                                   k, cur_n,
-                                   cur_n,
-                                   false, // DoTranspose
-                                   true,  // DoAligned
-                                   CVK_FMT_BF16,
-                                   CVK_FMT_BF16,
-                                   true   // DoDecompress
-                                   );
-
-        cmpr_weight_index++;
-      }
+      ctx.tdma_load_stride_bf16(&opd_r, ga_right + offset, gstride_r);
 
       if (have_bias) {
         shape_b = ctx.ml_default_shape(2, cur_n, CVK_FMT_BF16);
@@ -258,24 +238,7 @@ after_loop:
           opd_r.fmt = CVK_FMT_BF16;
           opd_r.stride = ctx.ml_default_stride(shape_r, CVK_FMT_BF16, 1);
           offset = (pos_n + pos_k * n) * element_size;
-          if (!compressed_weight) {
-            ctx.tdma_load_stride_bf16(&opd_r, ga_right + offset, gstride_r);
-          } else {
-            cvi_backend_ml_load_stride(ctx,
-                                       layer_id,
-                                       ga_right + compr_weight_poss[cmpr_weight_index],
-                                       tl_r->start_address,
-                                       cur_k, cur_n,
-                                       cur_n,
-                                       false, // DoTranspose
-                                       true,  // DoAligned
-                                       CVK_FMT_BF16,
-                                       CVK_FMT_BF16,
-                                       true   // DoDecompress
-                                      );
-
-            cmpr_weight_index++;
-          }
+          ctx.tdma_load_stride_bf16(&opd_r, ga_right + offset, gstride_r);
 
           cvk_ml_t opd_l;
           shape_l = ctx.ml_default_shape(cur_m, cur_k, CVK_FMT_BF16);

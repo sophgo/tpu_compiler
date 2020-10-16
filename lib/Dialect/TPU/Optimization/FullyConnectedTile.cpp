@@ -57,7 +57,6 @@ public:
   };
 
   TileInfo getTileSizes();
-  TileInfo getBf16TileSizes();
   int getLmSizePerLane(int tileM, int tileK, int tileN);
   void getTilePoss(TileInfo tileInfo, std::vector<int> &n_poss,
                    std::vector<int> &k_poss, std::vector<int> &n_sizes,
@@ -115,13 +114,15 @@ int FullyConnectedModel::getLmSizePerLane(int tileM, int tileK, int tileN) {
 }
 
 FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
-  int tileM = std::min(M, (1 << 12) - 1); // TIU 12bit
-  int tileK = std::min(K, (1 << 12) - 1); // TIU 12bit
+  int tileM = M;
 
   // 1/2 EU in bf16
   int totalEuNum = (dataTypeSize == 2) ? mInfo.eu_num / 2 : mInfo.eu_num;
   totalEuNum *= mInfo.lane_num;
-  int tileN = std::min(totalEuNum, N);
+  int tileN = (N >= totalEuNum) ? totalEuNum : N;
+
+  int maxK = (1 << 12) - 1; // TIU 12 bit
+  int tileK = (K > maxK) ? maxK : K;
 
   TileInfo tileInfo = {0};
   for (; tileK > 0; --tileK) {
@@ -131,29 +132,6 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
       tileInfo.k_step = tileK;
       tileInfo.n_step = tileN;
       break;
-    }
-  }
-
-  return tileInfo;
-}
-
-FullyConnectedModel::TileInfo FullyConnectedModel::getBf16TileSizes() {
-  int maxM = std::min(M, (1 << 12) - 1); // TIU 12bit
-  int maxK = std::min(K, (1 << 12) - 1); // TIU 12bit
-  int maxN = std::min(N, (1 << 12) - 1); // TIU 12bit
-
-  TileInfo tileInfo = {0};
-  for (int tileK = maxK; tileK > 0; --tileK) {
-    for (int tileN = maxN; tileN > 0; --tileN) {
-      for (int tileM = maxM; tileM > 0; --tileM) {
-        int needed = getLmSizePerLane(tileM, tileK, tileN);
-        if (needed <= (int)mInfo.lmem_per_lane) {
-          tileInfo.m_step = tileM;
-          tileInfo.k_step = tileK;
-          tileInfo.n_step = tileN;
-          return tileInfo;
-        }
-      }
     }
   }
 
@@ -235,12 +213,7 @@ public:
     auto fcModel(std::make_unique<FullyConnectedModel>(mInfo, m, k, n,
                                                        hasBias, dataTypeSize));
 
-    FullyConnectedModel::TileInfo tileInfo = {0};
-    if (dataTypeSize == 1)
-      tileInfo = fcModel->getTileSizes();
-    else
-      tileInfo = fcModel->getBf16TileSizes();
-
+    FullyConnectedModel::TileInfo tileInfo = fcModel->getTileSizes();
     if (!tileInfo.m_step || !tileInfo.k_step || !tileInfo.n_step)
       return Pattern::matchFailure();
 

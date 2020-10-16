@@ -274,8 +274,7 @@ void cvi_backend_tg_bf16_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t bottom_data_gaddr, gaddr_t weight_data_gaddr,
     gaddr_t bias_data_gaddr, gaddr_t top_data_gaddr, int in_row, int in_col,
-    int out_col, bool have_bias, bool do_relu,
-    bool compressed_weight, std::vector<int> compr_weight_poss);
+    int out_col, bool have_bias, bool do_relu);
 
 void cvi_backend_tg_bf16_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

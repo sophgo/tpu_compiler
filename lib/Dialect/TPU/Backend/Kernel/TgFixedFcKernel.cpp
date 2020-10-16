@@ -8,7 +8,6 @@
 
 #include "CviBackendContext.h"
 #include "TgFixedFcKernel.h"
-#include "backend/backend_tl_api.h"
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
@@ -127,6 +126,49 @@ static void matrix_multiplication(
       p2.right->shape.col));
 
   ctx.tiu_matrix_multiplication_qm(&p2);
+}
+
+//
+// Weight (K, N)
+//
+// -------------
+// | A00 | A01 |              A00
+// ------|------ K    =>      A10
+// | A10 | A11 |              A01
+// -------------              A11
+//       N
+//
+static void loadCompressedWeight(const CviBackendContext &ctx,
+                                 gaddr_t ga_weight, cvk_ml_t &tl_weight,
+                                 uint32_t width_N, unsigned loadIndex,
+                                 std::vector<int> compr_weight_poss) {
+  assert(loadIndex < compr_weight_poss.size());
+
+  cvk_cmpr_mg_t tg_src = {0};
+  tg_src.m.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_weight);
+  tg_src.m.start_address = ga_weight + compr_weight_poss[loadIndex];
+  tg_src.m.fmt = tl_weight.fmt;
+  tg_src.m.shape = {tl_weight.shape.n, tl_weight.shape.col};
+  tg_src.m.stride = {width_N};
+
+  cvk_tdma_g2l_matrix_copy_decompressed_param_t param = {0};
+  param.src = &tg_src;
+  param.dst = &tl_weight;
+
+  LLVM_DEBUG(llvm::dbgs()
+      << "    tdma g2l decompress\n      "
+      << "src " << llvm::format_hex(param.src->m.start_address, 10)
+      << "(" << llvm::format_hex(ga_weight, 10)
+      << " + " << llvm::format_hex(compr_weight_poss[loadIndex], 10)
+      << "), shape (" << param.src->m.shape.row
+      << ", " << param.src->m.shape.col << ")\n      "
+      << "dst " << llvm::format_hex(param.dst->start_address, 10)
+      << ", shape (n=" << param.dst->shape.n
+      << ", c=" << param.dst->shape.c
+      << ", w=" << param.dst->shape.w
+      << ", col=" << param.dst->shape.col << ")\n");
+
+  ctx.tdma_g2l_matrix_copy_decompressed(&param);
 }
 
 static void fc_slicing_multi_dimension(
@@ -275,12 +317,13 @@ static void fc_slicing_multi_dimension(
   // tiled_L(input) reload is reload once tiled_weight moves right.
   //
   // for each tiled N
-  unsigned cmpr_weight_index = 0;
+  unsigned loadWeightIndex = 0;
   for (uint32_t offset_N = 0; offset_N < N; offset_N += tiled_N) {
     // Y = [Y0, Y1, ... Yn-1]
 
     // Actual width
     uint32_t width_N = ((offset_N + tiled_N) <= N) ? tiled_N : (N - offset_N);
+    uint32_t width_N_org = width_N;
 
     // Disable now, need to separate tiu shape and tdma shape
     // width_N = ALIGN(width_N, 16); //Align 16 for better performance
@@ -354,19 +397,9 @@ static void fc_slicing_multi_dimension(
             << ", w=" << tl_tiled_R.shape.w
             << ", col=" << tl_tiled_R.shape.col << ")\n");
       } else {
-        cvi_backend_ml_load_stride(ctx,
-                                   layer_id,
-                                   ga_weight + compr_weight_poss[cmpr_weight_index],
-                                   tl_tiled_R.start_address,
-                                   width_K, width_N,
-                                   width_N,
-                                   false, // DoTranspose
-                                   true, // DoAligned
-                                   CVK_FMT_I8,  // from
-                                   CVK_FMT_I8,  // to
-                                   true         // DoDecompress
-                                   );
-        cmpr_weight_index++;
+        loadCompressedWeight(ctx, ga_weight, tl_tiled_R, width_N_org,
+                             loadWeightIndex, compr_weight_poss);
+        loadWeightIndex++;
       }
 
       // Load tiled B from gobale memory at last time, bias

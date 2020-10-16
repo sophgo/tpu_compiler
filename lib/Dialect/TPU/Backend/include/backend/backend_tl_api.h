@@ -452,12 +452,4 @@ void cvi_backend_tl_store_fp32(const CviBackendContext &ctx,
                                laddr_t la_src,
                                int n, int c, int h, int w);
 
-void cvi_backend_ml_load_stride(const CviBackendContext &ctx, uint32_t layer_id,
-                                gaddr_t ga_src, laddr_t la_dst,
-                                int Local_R, int Local_C,
-                                int Global_C,
-                                bool DoTranspose, bool DoAligned,
-                                cvk_fmt_t from, cvk_fmt_t to,
-                                bool DoDecompress);
-
 #endif /* CVI_BACKEND_TL_API */
