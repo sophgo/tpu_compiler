@@ -175,7 +175,7 @@ class MLIRImporter(object):
         return quant_param
 
     def check_int8_param(self, **kargs):
-        # checkKey(kargs, 'is_asymmetric') TODO: Not support now
+        checkKey(kargs, 'is_asymmetric')
         checkKey(kargs, 'is_perchannel')
         checkKey(kargs, 'param_type')
         checkKey(kargs, 'threshold_max')
@@ -184,6 +184,7 @@ class MLIRImporter(object):
     def create_int8_quant_param(self, **kargs):
         self.check_int8_param(**kargs)
         param = self.create_quant_param(
+            is_asymmetric=kargs['is_asymmetric'],
             is_perchannel=kargs['is_perchannel'],
             param_type=kargs['param_type'],
             threshold_max=kargs['threshold_max'],
@@ -1149,7 +1150,7 @@ class MLIRImporter(object):
         if to_type == "NONE":
             tensor_output_type = self.module.make_ranked_tensor_type(
                 self.f32Type, output_tensor_shape)
-        elif to_type == "INT8":
+        elif to_type == "INT8" or to_type == "UINT8":
             tensor_output_type = self.module.make_ranked_tensor_type(
                 self.i8Type, output_tensor_shape)
         else:
