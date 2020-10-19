@@ -419,6 +419,10 @@ public:
             static_cast<uint32_t>(h), static_cast<uint32_t>(w)};
   }
 
+  inline cvk_tg_stride_t tg_default_stride(int c, int h, int w, cvk_fmt_t fmt) const {
+    return tg_default_stride(tg_shape_t4(1,c,h,w), fmt);
+  }
+
   inline int tensor_size(int n, int c, int h, int w, cvk_fmt_t fmt) const {
     return n * c * h * w * bytesize_of_fmt(fmt);
   }

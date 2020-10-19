@@ -75,7 +75,7 @@ void cvi_backend_tg_bf16_gru_kernel(const CviBackendContext &ctx, uint32_t layer
         tl_wtBias =
             ctx.lmem_alloc_tensor(reshape_wtBias_shape, CVK_FMT_BF16, 0); //weight EU_ALIGN = False
         ASSERT(tl_wtBias);
-        cvk_tg_stride_t bias_gstride = ctx.tg_default_stride({2, (uint32_t)(3*hidden_size), 1, 1}, CVK_FMT_BF16);
+        cvk_tg_stride_t bias_gstride = ctx.tg_default_stride(3*hidden_size, 1, 1, CVK_FMT_BF16);
         bias_gstride.n *= 2;
         ctx.tdma_load_stride(tl_wtBias, ga_bias, bias_gstride);
 

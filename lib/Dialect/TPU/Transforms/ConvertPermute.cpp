@@ -38,9 +38,10 @@ using namespace mlir;
 
 namespace {
 
-// For example,
-// if [1,1,256,1] => [1,1,1,256], it can convert to reshape
-// if [4,3,28,1] => [4,3,1,28], it can convert to reshape
+// Permute can convert to Reshape in some situations.
+// For example:
+// [4,3,28,1] => [4,3,1,28]
+// [4,3,1,28] => [4,1,3,28]
 struct TpuPermuteToReshapePattern : public RewritePattern {
   TpuPermuteToReshapePattern(MLIRContext *context)
       : RewritePattern("tpu.permute", 1, context) {}
@@ -57,31 +58,29 @@ struct TpuPermuteToReshapePattern : public RewritePattern {
 
     uint32_t dim_size = shape.size();
     assert(dim_size == 4);
-    uint32_t start_index = 0, index = 0;
+    uint32_t start = 0, end = dim_size - 1;
     std::vector<uint32_t> order;
     order.push_back(permuteOp.order0().getLimitedValue());
     order.push_back(permuteOp.order1().getLimitedValue());
     order.push_back(permuteOp.order2().getLimitedValue());
     order.push_back(permuteOp.order3().getLimitedValue());
-    for (index = 0; index < dim_size; index++) {
-      if (index != order[index]) {
-        start_index = index;
+    while (start < dim_size && start == order[start]) {
+      start++;
+    }
+    while (end > start && end == order[end]) {
+      end--;
+    }
+    bool do_reshape = true;
+    int64_t sum = 1;
+    for (uint32_t index = start; index <= end; index++) {
+      sum *= shape[index];
+      if (shape[index] != 1 && sum != shape[index]) {
+        do_reshape = false;
         break;
       }
     }
-    bool need_opt = true;
-    if (index != dim_size) {
-      int64_t sum = 1;
-      for (index = start_index; index < dim_size; index++) {
-        sum *= shape[index];
-        if (shape[index] != 1 && sum != shape[index]) {
-          need_opt = false;
-          break;
-        }
-      }
-    }
 
-    if (need_opt == false) {
+    if (do_reshape == false) {
       return matchFailure();
     }
 

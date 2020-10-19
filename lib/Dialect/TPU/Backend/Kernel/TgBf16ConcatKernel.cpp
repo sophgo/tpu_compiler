@@ -84,14 +84,10 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
   if (need_quantize_num == 0 && false == do_relu) {
     if (concat_axis == 0) {
       ASSERT(output_dim_size == 4);
-      stride_dst = {static_cast<uint32_t>(output_dim[1]) * output_dim[2] * output_dim[3] * 2,
-                    static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
-                    static_cast<uint32_t>(output_dim[3]) * 2};
+      stride_dst = ctx.tg_default_stride(output_dim[1],output_dim[2], output_dim[3], CVK_FMT_BF16);
       // Concat N.
       for (int i = 0; i < input_num; i++) {
-        stride_src = {static_cast<uint32_t>(output_dim[1]) * output_dim[2] * output_dim[3] * 2,
-                      static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
-                      static_cast<uint32_t>(output_dim[3]) * 2};
+        stride_src = stride_dst;
         shape_ = ctx.tg_shape_t4(input_dims[i], output_dim[1], output_dim[2], output_dim[3]);
         ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_BF16,
                                  output_gaddr + offset, shape_, stride_dst, CVK_FMT_BF16);
@@ -112,16 +108,12 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
           /* fall through */
 
         case 4:
-          stride_dst = {static_cast<uint32_t>(output_dim[1]) * output_dim[2] * output_dim[3] * 2,
-                        static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
-                        static_cast<uint32_t>(output_dim[3]) * 2};
+          stride_dst = ctx.tg_default_stride(output_dim[1],output_dim[2], output_dim[3], CVK_FMT_BF16);
           LLVM_DEBUG(llvm::errs() << llvm::format("output_dim n= %d c=%d h=%d w=%d\n", output_dim[0], output_dim[1], output_dim[2], output_dim[3]););
           LLVM_DEBUG(llvm::errs() << llvm::format("input_num = %d\n", input_num););
           for (int i = 0; i < input_num; i++) {
             if (input_gaddrs[i] != GA_INVALID) {
-              stride_src = {static_cast<uint32_t>(input_dims[i]) * output_dim[2] * output_dim[3] * 2,
-                            static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
-                            static_cast<uint32_t>(output_dim[3]) * 2};
+              stride_src = ctx.tg_default_stride(input_dims[i], output_dim[2], output_dim[3], CVK_FMT_BF16);
               shape_ = ctx.tg_shape_t4(output_dim[0], input_dims[i], output_dim[2], output_dim[3]);
 
               ctx.tdma_g2g_tensor_copy(input_gaddrs[i], shape_, stride_src, CVK_FMT_BF16,
@@ -195,9 +187,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
     }  else if(concat_axis == 3) {
       // concat w
       assert(output_dim_size == 4);
-      stride_dst = {static_cast<uint32_t>(output_dim[1] * output_dim[2] * output_dim[3] * 2),
-                    static_cast<uint32_t>(output_dim[2] * output_dim[3] * 2),
-                    static_cast<uint32_t>(output_dim[3] * 2)};
+      stride_dst = ctx.tg_default_stride(output_dim[1], output_dim[2], output_dim[3], CVK_FMT_BF16);
       shape_ = ctx.tg_shape_t4(output_dim[0], output_dim[1], output_dim[2], 1);
       for (int i = 0; i < input_num; i++) {
         ASSERT(input_dims[i] < 65536);
@@ -218,9 +208,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
       // Concat C.
       switch (output_dim_size) {
         case 4:
-          stride_dst = {static_cast<uint32_t>(output_dim[1]) * output_dim[2] * output_dim[3] * 2,
-                        static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
-                        static_cast<uint32_t>(output_dim[3]) * 2};
+          stride_dst = ctx.tg_default_stride(output_dim[1], output_dim[2], output_dim[3], CVK_FMT_BF16);
           for (int i = 0; i < input_num; i++) {
             if (input_gaddrs[i] != GA_INVALID) {
               LLVM_DEBUG(llvm::errs() << llvm::format("concat threshold_x_quantized= %d", threshold_x_quantized[i]););
@@ -250,9 +238,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                     cvk_tl_t *ifmap = ctx.lmem_alloc_tensor(
                         ctx.tl_shape_t4(cur_n, cur_c, cur_h, output_dim[3]), CVK_FMT_BF16, 1);  // EU-aligned
 
-                    stride_src = {static_cast<uint32_t>(input_dims[i]) * output_dim[2] * output_dim[3] * 2,
-                                  static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
-                                  static_cast<uint32_t>(output_dim[3]) * 2};
+                    stride_src = ctx.tg_default_stride(input_dims[i], output_dim[2], output_dim[3], CVK_FMT_BF16);
                     if(1)
                       assert(0);
                     ctx.tdma_load_stride(ifmap, ifmap_offset, stride_src);
@@ -274,10 +260,7 @@ void cvi_backend_tg_bf16_concat_kernel(const CviBackendContext &ctx, uint32_t st
                         (n_pos * output_dim[1] * output_dim[2] * output_dim[3] +
                          c_pos * output_dim[2] * output_dim[3] + h_pos * output_dim[3]) *
                             sizeof(uint16_t);
-                    cvk_tg_stride_t stride_dst = {
-                        static_cast<uint32_t>(output_dim[1]) * output_dim[2] * output_dim[3] * 2,
-                        static_cast<uint32_t>(output_dim[2]) * output_dim[3] * 2,
-                        static_cast<uint32_t>(output_dim[3]) * 2};
+                    cvk_tg_stride_t stride_dst = ctx.tg_default_stride(output_dim[1], output_dim[2], output_dim[3], CVK_FMT_BF16);
 
                     ctx.tdma_store_stride(ifmap, ofmap_offset, stride_dst);
 

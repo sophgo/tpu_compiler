@@ -3733,22 +3733,13 @@ void Conv::dwConv() {
   // Global memory stride from global memory shape
   // input_c, output_c, not ic, oc
   cvk_tg_stride_t ofmap_gstride =
-      ctx_.tg_default_stride(
-          {static_cast<uint32_t>(input_n), static_cast<uint32_t>(output_c),
-          static_cast<uint32_t>(oh), static_cast<uint32_t>(ow)},
-          args_.output_fmt);
-  cvk_tg_stride_t ifmap_gstride =
-      ctx_.tg_default_stride(
-          {static_cast<uint32_t>(input_n), static_cast<uint32_t>(input_c),
-           static_cast<uint32_t>(input_h), static_cast<uint32_t>(input_w)},
-          args_.input_fmt);
+      ctx_.tg_default_stride(output_c, oh, ow, args_.output_fmt);
+  cvk_tg_stride_t ifmap_gstride = ctx_.tg_default_stride(
+      input_c, input_h, input_w, args_.input_fmt);
   cvk_tg_stride_t bias_gstride =
-        ctx_.tg_default_stride({1, static_cast<uint32_t>(output_c), 1, 1},
-        args_.tiu_fmt);
+      ctx_.tg_default_stride(output_c, 1, 1, args_.tiu_fmt);
   cvk_tg_stride_t weight_gstride =
-      ctx_.tg_default_stride(
-          {1, static_cast<uint32_t>(oc), static_cast<uint32_t>(kh*kw),
-           static_cast<uint32_t>(ic)}, args_.tiu_fmt);
+      ctx_.tg_default_stride(oc, kh * kw, ic, args_.tiu_fmt);
 
   uint32_t ifmap_gstride_w = (args_.input_fmt == CVK_FMT_BF16) ? 2 : 1;
   uint32_t weight_gstride_w = (args_.tiu_fmt == CVK_FMT_BF16) ? 2 : 1;

@@ -109,8 +109,7 @@ after_loop:
       operand.shape = shape_b;
       operand.stride = ctx.tl_default_stride(shape_b, CVK_FMT_BF16, 1);
       operand.fmt = CVK_FMT_BF16;
-      cvk_tg_stride_t stride = ctx.tg_default_stride(
-          {(uint32_t)bn, (uint32_t)bc, (uint32_t)bh, (uint32_t)bw}, CVK_FMT_BF16);
+      cvk_tg_stride_t stride = ctx.tg_default_stride(bc, bh, bw, CVK_FMT_BF16);
       ctx.tdma_load_stride(&operand, ga_inputs[1] + b_offset, stride);
 
       llvm::errs() << llvm::format(
@@ -140,8 +139,7 @@ after_loop:
           operand_a.shape = shape_a;
           operand_a.stride = ctx.tl_default_stride(shape_a, CVK_FMT_BF16, /*eu_align=*/1);
           operand_a.fmt = CVK_FMT_BF16;
-          cvk_tg_stride_t g_stride = ctx.tg_default_stride(
-              {(uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t)w}, CVK_FMT_BF16);
+          cvk_tg_stride_t g_stride = ctx.tg_default_stride(c, h, w, CVK_FMT_BF16);
           uint64_t a_offset =
               (pos_n * c * h * w + pos_c * h * w + pos_h * w + pos_w) * sizeof(uint16_t);
           ctx.tdma_load_stride(&operand_a, ga_inputs[0] + a_offset, g_stride);

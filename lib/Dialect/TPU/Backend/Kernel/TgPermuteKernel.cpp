@@ -101,316 +101,90 @@ static void permute_nhwc_to_nchw_tensor_load(
 
 //
 //  Permute 0231, (N, C, H, W) -> (N, H, W, C)
-//    tensor load
-//    tensor move, hw transpose
-//    tensor store, cw transpose
 //
-//  0  1  2  3
-// (N, C, H, W) -> (N, H, W, C)
-// (1, 2, 4, 4) -> (1, 4, 4, 2)
+//  1.(N,C,H,W) => (N,C,1,H*W)
+//  2.load lmem => (N,C,1,H*W)
+//  3.store by cw transpose =>(N,H*W,1,C)=>(N,H,W,C)
 //
-// Source (1, 2, 4, 4)
-//
-//             Tile 1           ||          Tile 0
-//         H3           H2      ||      H1           H0
-// || 16 15 14 13 | 12 11 10  9 ||  8  7  6  5 |  4  3  2  1 ||   C0
-// || 32 31 30 29 | 28 27 26 25 || 24 23 22 21 | 20 19 18 17 ||   C1
-//
-//
-// Destination (1, 4, 4, 2)
-//
-//  20  4 | 19  3 | 18  2 | 17  1    C0    Tile 0
-//  24  8 | 23  7 | 22  6 | 21  5    C1
-//  ==============================================
-//  28 12 | 27 11 | 26 10 | 25  9    C2    Tile 1
-//  32 16 | 31 15 | 30 14 | 29 13    C3
-//
-// 1. Tile 0
-// 1.1. Tensor load
-//    src shape (1, 2, 2, 4), stride (32, 16, 4), offset 0
-//    dst shape (1, 2, 2, 4), stride (8, 8, 4)
-//
-//         H1            H0
-//     8  7  6  5 |  4  3  2  1    C0
-//    24 23 22 21 | 20 19 18 17    C1
-//
-// 1.2. Tensor move, HW transpose
-//    src shape (1, 2, 2, 4), stride (8, 8, 4, 1)
-//    dst shape (1, 2, 2, 4), stride (8, 8, 1, 2)
-//
-//      H3     H2      H1      H0
-//     8  4 | 7  3 |  6  2 |  5  1    C0
-//    24 20 |23 19 | 22 18 | 21 17    C1
-//
-// 1.3. Tensor store, CW transpose
-//    src shape (1, 2, 4, 2), stride (8, 8, 2)
-//    dst shape (1, 2, 4, 2), stride (16, 8, 2), offset 0
-//
-//    H3      H2      H1      H0
-//  20  4 | 19  3 | 18  2 | 17  1    C0
-//  24  8 | 23  7 | 22  6 | 21  5    C1
-//
-//
-// 2. Tile 1
-// 2.1. Tensor load
-//    src shape (1, 2, 2, 4), stride (32, 16, 4), offset 8
-//    dst shape (1, 2, 2, 4), stride (8, 8, 4)
-//
-//         H1            H0
-//    16 15 14 13 | 12 11 10  9    C0
-//    32 31 30 29 | 28 27 26 25    C1
-//
-// 2.2. Tensor move, HW transpose
-//    src shape (1, 2, 2, 4), stride (8, 8, 4, 1)
-//    dst shape (1, 2, 2, 4), stride (8, 8, 1, 2)
-//
-//      H3      H2      H1      H0
-//    16 12 | 15 11 | 14 10 | 13  9    C0
-//    32 28 | 31 27 | 30 26 | 29 25    C1
-//
-// 2.3. Tensor store, CW transpose
-//    src shape (1, 2, 4, 2), stride (8, 8, 2)
-//    dst shape (1, 2, 4, 2), stride (16, 8, 2), offset 16
-//
-//      H3      H2      H1      H0
-//    28 12 | 27 11 | 26 10 | 25  9    C0
-//    32 16 | 31 15 | 30 14 | 29 13    C1
-//
-//    destination in global memory
-//    shape (1, 4, 4, 2), stride (32, 8, 2)
-//    gm_permuted_strides[order_n 0] = dst_gm_stride.n 32
-//    gm_permuted_strides[order_c 2] = dst_gm_stride.c 8
-//    gm_permuted_strides[order_h 3] = dst_gm_stride.h 2
-//
-//    tile1 1
-//    source in global memory, offset [0][0][2][0], 9
-//      src_gm_offset = 2 * h_stride = 2 * 4 = 8, used in first load
-//
-//    destination in global memory, offset [0][2][0][0], 9
-//    dst_gm_offset = 2 * c_stride = 2 * 8 = 16
-//
-//    src[i][j][k][l] = dst[i][k][l][j]
-//    src[0][0][2][0] = dst[0][2][0][0]
-//
+// Support N/C/H/W tiling.
+// One local memory needed
 
-// Only support N/H tiling.
-// Two local memory needed:
-//    First one for tensor load
-//    Second one for tensor move
-static void permute_0231_cw_tp_split(
-    const CviBackendContext &ctx, std::vector<uint32_t> &shapes, cvk_fmt_t fmt,
-    int eu_align, std::vector<uint32_t> &tiledSteps) {
-
-  // Split H
-  for (uint32_t tiledH = tiledSteps[NCHW_H]; tiledH != 0; --tiledH) {
-    // Split N
-    for (uint32_t tiledN = tiledSteps[NCHW_N]; tiledN != 0; --tiledN) {
-      cvk_tl_shape_t tl_load_shape = {
-          tiledN, tiledSteps[NCHW_C], tiledH, tiledSteps[NCHW_W]};
-      uint32_t loadSizePerLane =
-          ctx.lmem_tensor_to_size(tl_load_shape, fmt, eu_align);
-
-      cvk_tl_shape_t tl_move_shape = {
-          tiledN, tiledSteps[NCHW_C], tiledSteps[NCHW_W], tiledH};
-      uint32_t moveSizePerLane =
-          ctx.lmem_tensor_to_size(tl_move_shape, fmt, eu_align);
-
-      uint32_t totalNeededPerLane = loadSizePerLane + moveSizePerLane;
-      if (totalNeededPerLane <= (uint32_t)LOCAL_MEM_SIZE) {
-        tiledSteps[NCHW_N] = tiledN;
-        tiledSteps[NCHW_H] = tiledH;
-
-        LLVM_DEBUG(llvm::dbgs()
-            << "    permute_0231_cw_tp_split:\n"
-            << "      shape(" << shapes[0]
-            << ", " << shapes[1]
-            << ", " << shapes[2]
-            << ", " << shapes[3]
-            << ")\n"
-            << "      tiledSteps(" << tiledSteps[0]
-            << ", " << tiledSteps[1]
-            << ", " << tiledSteps[2]
-            << ", " << tiledSteps[3]
-            << ")\n"
-            << "     totalNeededPerLane " << totalNeededPerLane
-            << ", totalSizePerLane " << LOCAL_MEM_SIZE
-            << "\n");
-        return;
-      }
-    }
-  }
-
-  assert(0 && "Expect valid split for 0231 permute");
-
-  tiledSteps[NCHW_N] = 0;
-  tiledSteps[NCHW_H] = 0;
-}
-
-static void permute_0231_cw_tp(
-    const CviBackendContext& ctx, uint32_t layer_id, gaddr_t ga_ifmap,
-    gaddr_t ga_ofmap, uint32_t input_n, uint32_t input_c, uint32_t input_h,
-    uint32_t input_w, uint32_t output_c, uint32_t output_h, uint32_t output_w,
-    uint32_t order_n, uint32_t order_c, uint32_t order_h, uint32_t order_w,
-    cvk_fmt_t fmt) {
+static void permute_0231_cw_tp(const CviBackendContext &ctx, uint32_t layer_id,
+                               gaddr_t ga_ifmap, gaddr_t ga_ofmap,
+                               uint32_t input_n, uint32_t input_c,
+                               uint32_t input_h, uint32_t input_w,
+                               uint32_t output_c, uint32_t output_h,
+                               uint32_t output_w, uint32_t order_n,
+                               uint32_t order_c, uint32_t order_h,
+                               uint32_t order_w, cvk_fmt_t fmt) {
 
   // TDMA store w/ CW-TP only supports int8
   assert((fmt == CVK_FMT_I8) && "TDMA store w/ cw-tp only support int8");
-
-  uint32_t eu_align = 0; // contiguous memory
-
-  std::vector<uint32_t> srcShapes = {
-      input_n, input_c, input_h, input_w};
-  std::vector<uint32_t> tiledSteps =
-      {input_n, input_c, input_h, input_w};
-  permute_0231_cw_tp_split(ctx, srcShapes, fmt, eu_align, tiledSteps);
-  if (!tiledSteps[NCHW_N] || !tiledSteps[NCHW_H])
-    return;
-
-  // Global stride from global shape
-  std::vector<uint32_t> srcStrides(NCHW_MAX_DIMS);
-  srcStrides[NCHW_W] = (fmt == CVK_FMT_I8) ? 1 : 2;
-  srcStrides[NCHW_H] = srcShapes[NCHW_W] * srcStrides[NCHW_W];
-  srcStrides[NCHW_C] = srcShapes[NCHW_H] * srcStrides[NCHW_H];
-  srcStrides[NCHW_N] = srcShapes[NCHW_C] * srcStrides[NCHW_C];
-
-  std::vector<uint32_t> orders= {
-      order_n, order_c, order_h, order_w};
-  std::vector<uint32_t> dstShapes = {
-      srcShapes[orders[NCHW_N]], srcShapes[orders[NCHW_C]],
-      srcShapes[orders[NCHW_H]], srcShapes[orders[NCHW_W]]};
-  std::vector<uint32_t> dstStrides(NCHW_MAX_DIMS);
-  dstStrides[NCHW_W] = (fmt == CVK_FMT_I8) ? 1 : 2;
-  dstStrides[NCHW_H] = dstShapes[NCHW_W] * dstStrides[NCHW_W];
-  dstStrides[NCHW_C] = dstShapes[NCHW_H] * dstStrides[NCHW_H];
-  dstStrides[NCHW_N] = dstShapes[NCHW_C] * dstStrides[NCHW_C];
-
-  // Derive destination offset from source position
-  std::vector<uint32_t> dstIndex(NCHW_MAX_DIMS);
-  dstIndex[orders[NCHW_N]] = 0;
-  dstIndex[orders[NCHW_C]] = 1;
-  dstIndex[orders[NCHW_H]] = 2;
-  dstIndex[orders[NCHW_W]] = 3;
-
-  //
-  // Main tiled transpose routine
-  //
-  std::vector<uint32_t> srcPoss = {0, 0, 0, 0};
-  for (srcPoss[NCHW_H] = 0; srcPoss[NCHW_H] < srcShapes[NCHW_H];
-       srcPoss[NCHW_H] += tiledSteps[NCHW_H]) {
-    uint32_t curH =
-        std::min(srcShapes[NCHW_H] - srcPoss[NCHW_H], tiledSteps[NCHW_H]);
-    for (srcPoss[NCHW_N] = 0; srcPoss[NCHW_N] < srcShapes[NCHW_N];
-         srcPoss[NCHW_N] += tiledSteps[NCHW_N]) {
-      uint32_t curN =
-        std::min(srcShapes[NCHW_N] - srcPoss[NCHW_N], tiledSteps[NCHW_N]);
-
-      std::vector<uint32_t> srcTiledShapes = {
-          curN, srcShapes[NCHW_C], curH, srcShapes[NCHW_W]};
-
-      uint32_t srcOffset =
-          srcPoss[NCHW_N] * srcStrides[NCHW_N] +
-          srcPoss[NCHW_C] * srcStrides[NCHW_C] +
-          srcPoss[NCHW_H] * srcStrides[NCHW_H] +
-          srcPoss[NCHW_W] * srcStrides[NCHW_W];
-      uint32_t dstOffset = srcPoss[NCHW_N] * dstStrides[dstIndex[NCHW_N]] +
-                           srcPoss[NCHW_C] * dstStrides[dstIndex[NCHW_C]] +
-                           srcPoss[NCHW_H] * dstStrides[dstIndex[NCHW_H]] +
-                           srcPoss[NCHW_W] * dstStrides[dstIndex[NCHW_W]];
-
-      LLVM_DEBUG(llvm::dbgs()
-          << "    srcPoss[" << srcPoss[0]
-          << "][" << srcPoss[1]
-          << "][" << srcPoss[2]
-          << "][" << srcPoss[3]
-          << "] srcTiledShapes["
-          << srcTiledShapes[0]
-          << "][" << srcTiledShapes[1]
-          << "][" << srcTiledShapes[2]
-          << "][" << srcTiledShapes[3]
-          << "] srcOffset " << srcOffset
-          << ", dstOffset " << dstOffset
-          << "\n");
-
-      // 1. Tensor load, tiled shape, global stride
-      cvk_tl_t *tl_load_dst_tiled = NULL;
-      {
-        cvk_tg_t tg_src_tiled;
-        memset(&tg_src_tiled, 0, sizeof(tg_src_tiled));
-        tg_src_tiled.base_reg_index =
-            ctx.getTdmaBaseSelectIndexFromGaddr(ga_ifmap);
-        tg_src_tiled.start_address = ga_ifmap + srcOffset;
-        tg_src_tiled.fmt = fmt;
-        tg_src_tiled.shape.n = srcTiledShapes[NCHW_N];
-        tg_src_tiled.shape.c = srcTiledShapes[NCHW_C];
-        tg_src_tiled.shape.h = srcTiledShapes[NCHW_H];
-        tg_src_tiled.shape.w = srcTiledShapes[NCHW_W];
-        tg_src_tiled.stride.n = srcStrides[NCHW_N];
-        tg_src_tiled.stride.c = srcStrides[NCHW_C];
-        tg_src_tiled.stride.h = srcStrides[NCHW_H];
-
-        cvk_tl_shape_t tl_dst_tiled_shape = {
-            srcTiledShapes[NCHW_N], srcTiledShapes[NCHW_C],
-            srcTiledShapes[NCHW_H], srcTiledShapes[NCHW_W]};
-        tl_load_dst_tiled =
-            ctx.lmem_alloc_tensor(tl_dst_tiled_shape, fmt, eu_align);
-
-        cvk_tdma_g2l_tensor_copy_param_t param;
-        param.src = &tg_src_tiled;
-        param.dst = tl_load_dst_tiled;
-        ctx.tdma_g2l_tensor_copy(&param);
+  int n = input_n;
+  int c = input_c;
+  int h = 1;
+  int w = input_h * input_w;
+  int element_size = ctx.bytesize_of_fmt(fmt);
+  int max_w = std::min(w, MAX_WIDTH);
+  int step_w = max_w;
+  int step_c = c;
+  int step_n = n;
+  uint32_t lmem_required = (uint32_t)LOCAL_MEM_SIZE + 1;
+  cvk_tl_shape_t shape;
+  for (step_w = max_w; step_w > 0; --step_w) {
+    for (step_n = n; step_n > 0; --step_n) {
+      for (step_c = c; step_c > 0; step_c -= NPU_NUM) {
+        shape = ctx.tl_shape_t4(step_n, step_c, h, step_w);
+        lmem_required = ctx.lmem_tensor_to_size(shape, fmt, 1);
+        if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
+          goto after_loop;
+        }
       }
-
-      // 2. Tensor move, HW transpose
-      cvk_tl_t *tl_move_dst = NULL;
-      {
-        cvk_tl_shape_t tl_move_dst_shape = {
-            srcTiledShapes[NCHW_N], srcTiledShapes[NCHW_C],
-            srcTiledShapes[NCHW_W], srcTiledShapes[NCHW_H]};
-        tl_move_dst =
-            ctx.lmem_alloc_tensor(tl_move_dst_shape, fmt, eu_align);
-
-        // HW transpose, still use source shape for data transfer
-        cvk_tl_t tl_dst_hw_tp;
-        ctx.lmem_init_tensor(&tl_dst_hw_tp, tl_load_dst_tiled->shape, fmt,
-                             eu_align);
-        tl_dst_hw_tp.start_address = tl_move_dst->start_address;
-        tl_dst_hw_tp.stride.h = tl_move_dst->stride.w;
-        tl_dst_hw_tp.stride.w = tl_move_dst->stride.h;
-
-        cvk_tiu_copy_param_t param;
-        param.src = tl_load_dst_tiled;
-        param.dst = &tl_dst_hw_tp;
-        param.layer_id = layer_id;
-        ctx.tiu_copy(&param);
-      }
-
-      // 3. Tensor store, CW transpose
-      {
-        cvk_tg_t tg_dst_tiled;
-        memset(&tg_dst_tiled, 0, sizeof(tg_dst_tiled));
-        tg_dst_tiled.base_reg_index =
-            ctx.getTdmaBaseSelectIndexFromGaddr(ga_ofmap);
-        tg_dst_tiled.start_address = ga_ofmap + dstOffset;
-        tg_dst_tiled.fmt = fmt;
-        tg_dst_tiled.shape.n = tl_move_dst->shape.n;
-        tg_dst_tiled.shape.c = tl_move_dst->shape.w; // CW transpose
-        tg_dst_tiled.shape.h = tl_move_dst->shape.h;
-        tg_dst_tiled.shape.w = tl_move_dst->shape.c; // CW transpose
-        tg_dst_tiled.stride =
-            ctx.tg_default_stride(tg_dst_tiled.shape, fmt);
-
-        cvk_tdma_l2g_tensor_copy_cw_transposed_param_t param;
-        param.src = tl_move_dst;
-        param.dst = &tg_dst_tiled;
-        ctx.tdma_l2g_tensor_copy_cw_transposed(&param);
-      }
-
-      // Free local memory
-      ctx.lmem_free_tensor(tl_move_dst);
-      ctx.lmem_free_tensor(tl_load_dst_tiled);
     }
   }
+after_loop:
+  if (lmem_required > (uint32_t)LOCAL_MEM_SIZE) {
+    assert(0);
+  }
 
+  llvm::errs() << llvm::format("step, %d,%d,%d,%d\n", step_n, step_c, h,
+                               step_w);
+  auto gstride = ctx.tg_default_stride(c, h, w, fmt);
+  cvk_tl_t *tl_a = ctx.lmem_alloc_tensor(shape, fmt, 1);
+  for (int pos_n = 0; pos_n < n; pos_n += step_n) {
+    int cur_n = std::min(n - pos_n, step_n);
+    for (int pos_c = 0; pos_c < c; pos_c += step_c) {
+      int cur_c = std::min(c - pos_c, step_c);
+      for (int pos_w = 0; pos_w < w; pos_w += step_w) {
+        int cur_w = std::min(w - pos_w, step_w);
+        uint64_t src_offset =
+            (pos_w + pos_c * w + pos_n * c * w) * element_size;
+        uint64_t dst_offset =
+            (pos_c + pos_w * c + pos_n * c * w) * element_size;
+        // g2l
+        cvk_tl_shape_t src_shape = ctx.tl_shape_t4(cur_n, cur_c, h, cur_w);
+        cvk_tl_t tl_ifmap;
+        tl_ifmap.start_address = tl_a->start_address;
+        tl_ifmap.shape = src_shape;
+        tl_ifmap.stride = ctx.tl_default_stride(src_shape, fmt, 1);
+        tl_ifmap.fmt = fmt;
+        ctx.tdma_load_stride(&tl_ifmap, ga_ifmap + src_offset, gstride);
+
+        // l2g
+        cvk_tg_t ofmap = {0};
+        ofmap.start_address = ga_ofmap + dst_offset;
+        ofmap.shape = ctx.tg_shape_t4(cur_n, cur_w, h, cur_c);
+        ofmap.stride = ctx.tg_default_stride(w, h, c, fmt);
+        ofmap.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_ofmap);
+        ofmap.fmt = fmt;
+        cvk_tdma_l2g_tensor_copy_cw_transposed_param_t param;
+        param.src = &tl_ifmap;
+        param.dst = &ofmap;
+        ctx.tdma_l2g_tensor_copy_cw_transposed(&param);
+      }
+    }
+  }
+  ctx.lmem_free_tensor(tl_a);
 }
 
 static void permute_xxx3_tp_split(
@@ -920,7 +694,7 @@ static void permute_0321_cw_tp_split(
         tiledSteps[NCHW_H] = tiledH;
 
         LLVM_DEBUG(llvm::dbgs()
-            << "    permute_0231_cw_tp_split:\n"
+            << "    permute_0321_cw_tp_split:\n"
             << "      shape(" << shapes[0]
             << ", " << shapes[1]
             << ", " << shapes[2]
@@ -1140,7 +914,7 @@ after_loop:
         tensor.stride = ctx.tl_default_stride(shape, fmt, 1);
         tensor.fmt = fmt;
         uint64_t offset = (pos_w + pos_c * w + pos_n * c * w) * element_size;
-        auto stride = ctx.tg_default_stride({(uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t)w}, fmt);
+        auto stride = ctx.tg_default_stride(c,h,w,fmt);
         ctx.tdma_load_stride(&tensor, ga_ifmap + offset, stride, 1);
 
         LLVM_DEBUG(llvm::errs() << llvm::format("load, shape:%d,%d,%d,%d, stride: %d,%d,%d,%d, offset:%d\n",
@@ -1152,7 +926,7 @@ after_loop:
         tensor.shape = shape;
         tensor.stride = ctx.tl_default_stride(shape, fmt, 1);
         offset = (pos_w + pos_n * w + pos_c * n * w) * element_size;
-        stride = ctx.tg_default_stride({(uint32_t)c, (uint32_t)n, (uint32_t)h, (uint32_t)w}, fmt);
+        stride = ctx.tg_default_stride(n,h,w,fmt);
         ctx.tdma_store_stride(&tensor, ga_ofmap + offset, stride);
         LLVM_DEBUG(llvm::errs() << llvm::format("store, shape:%d,%d,%d,%d, stride: %d,%d,%d,%d, offset:%d\n",
                   cur_c, cur_n, h, cur_w,

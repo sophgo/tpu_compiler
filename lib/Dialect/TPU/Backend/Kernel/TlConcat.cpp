@@ -44,9 +44,7 @@ LLVM_DEBUG(
   uint32_t w = output_dim[3];
 
   for ( int i = 0; i < input_size; i++) {
-    cvk_tl_shape_t input_shape = {n, static_cast<uint32_t>(input_dim_c[i]),
-                                     static_cast<uint32_t>(h),
-                                     static_cast<uint32_t>(w)};
+    cvk_tl_shape_t input_shape = ctx.tl_shape_t4(n,input_dim_c[i],h,w);
     cvk_tl_t tl_input;
     tl_input.start_address = la_input[i];
     tl_input.fmt = CVK_FMT_I8;
@@ -63,12 +61,8 @@ LLVM_DEBUG(
                         la_output
                         + out_offset;
 
-    cvk_tl_shape_t shape = {n, static_cast<uint32_t>(input_dim_c[i]),
-                               static_cast<uint32_t>(h),
-                               static_cast<uint32_t>(w)};
-    cvk_tl_shape_t out_shape = {n, static_cast<uint32_t>(oc),
-                               static_cast<uint32_t>(h),
-                               static_cast<uint32_t>(w)};
+    cvk_tl_shape_t shape = ctx.tl_shape_t4(n,input_dim_c[i],h,w);
+    cvk_tl_shape_t out_shape = ctx.tl_shape_t4(n,oc,h,w);
 
     cvk_tl_t tl_input;
     tl_input.start_address = la_input[i];
@@ -126,12 +120,8 @@ void cvi_backend_tl_bf16_concat(const CviBackendContext &ctx, uint32_t layer_id,
                         la_output
                         + out_offset;
 
-    cvk_tl_shape_t shape = {n, static_cast<uint32_t>(input_dim_c[i]),
-                               static_cast<uint32_t>(h),
-                               static_cast<uint32_t>(w)};
-    cvk_tl_shape_t out_shape = {n, static_cast<uint32_t>(oc),
-                               static_cast<uint32_t>(h),
-                               static_cast<uint32_t>(w)};
+    cvk_tl_shape_t shape = ctx.tl_shape_t4(n,input_dim_c[i],h,w);
+    cvk_tl_shape_t out_shape = ctx.tl_shape_t4(n,oc,h,w);
 
     cvk_tl_t tl_input;
     tl_input.start_address = la_input[i];

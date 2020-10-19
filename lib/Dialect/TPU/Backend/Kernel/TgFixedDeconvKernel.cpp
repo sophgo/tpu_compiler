@@ -277,13 +277,9 @@ void node_depthwise_cvi_backend_tg_int8_deconv_kernel(
   cvk_tl_t *tl_bias = nullptr;
   cvk_tl_t *tl_quan_param = nullptr;
 
-  cvk_tg_stride_t ofmap_gstride = {static_cast<uint32_t>(output_c) * output_h * output_w,
-                                                   static_cast<uint32_t>(output_h) * output_w,
-                                                   static_cast<uint32_t>(output_w)};
+  cvk_tg_stride_t ofmap_gstride = ctx.tg_default_stride(output_c,output_h,output_w,CVK_FMT_I8);
 
-  cvk_tg_stride_t ifmap_gstride = {static_cast<uint32_t>(input_c) * input_h * input_w,
-                                                   static_cast<uint32_t>(input_h) * input_w,
-                                                   static_cast<uint32_t>(input_w)};
+  cvk_tg_stride_t ifmap_gstride = ctx.tg_default_stride(input_c,input_h,input_w,CVK_FMT_I8);
   cvk_tg_stride_t bias_stride = {static_cast<uint32_t>(output_c), 1, 1};
 
   for (int oc_pos = 0; oc_pos < oc; oc_pos += oc_step) {
@@ -358,9 +354,7 @@ void node_depthwise_cvi_backend_tg_int8_deconv_kernel(
           tl_weight = ctx.lmem_alloc_tensor(ctx.tl_shape_t4(1, cur_ic, kh, kw), CVK_FMT_I8, /*eu_align=*/1);
           uint64_t weight_offset = ga_weight + sizeof(uint8_t) * (oc_pos * kh * kw);
 
-          cvk_tg_stride_t stride = {
-              static_cast<uint32_t>(oc) * kh * kw, static_cast<uint32_t>(kh) * kw,
-              static_cast<uint32_t>(kw)};  // TODO(wwcai): test SPLIT
+          cvk_tg_stride_t stride = ctx.tg_default_stride(oc, kh, kw, CVK_FMT_I8); // TODO(wwcai): test SPLIT
           ctx.tdma_load_stride(tl_weight, weight_offset, stride);
 
           if (do_chan_quan) {
@@ -505,12 +499,8 @@ void cvi_backend_tg_fixed_deconv_kernel(
   tl_weight = ctx.lmem_alloc_tensor(ctx.tl_shape_t4(1, oc_step, kh * kw, ic), CVK_FMT_I8,
                                     0);  // Not EU-aligned
 
-  cvk_tg_stride_t ofmap_gstride = {static_cast<uint32_t>(output_c) * output_h * output_w,
-                                                   static_cast<uint32_t>(output_h) * output_w,
-                                                   static_cast<uint32_t>(output_w)};
-  cvk_tg_stride_t ifmap_gstride = {static_cast<uint32_t>(input_c) * input_h * input_w,
-                                                   static_cast<uint32_t>(input_h) * input_w,
-                                                   static_cast<uint32_t>(input_w)};
+  cvk_tg_stride_t ofmap_gstride = ctx.tg_default_stride(output_c,output_h,output_w,CVK_FMT_I8);
+  cvk_tg_stride_t ifmap_gstride = ctx.tg_default_stride(input_c,input_h,input_w,CVK_FMT_I8);
   cvk_tg_stride_t bias_stride = {static_cast<uint32_t>(output_c), 1, 1};
 
   for (int ig = 0; ig < groups; ig++) {
@@ -592,9 +582,8 @@ void cvi_backend_tg_fixed_deconv_kernel(
           tl_weight->stride =
               ctx.tl_default_stride(tl_weight->shape, CVK_FMT_I8, 0);  // Not EU-aligned
 
-          cvk_tg_stride_t stride = {
-              static_cast<uint32_t>(cur_oc) * kh * kw * ic, static_cast<uint32_t>(kh) * kw * ic,
-              static_cast<uint32_t>(ic)};  // TODO(wwcai): test SPLIT
+          cvk_tg_stride_t stride = ctx.tg_default_stride(
+              cur_oc, kh * kw, ic, CVK_FMT_I8); // TODO(wwcai): test SPLIT
           ctx.tdma_load_stride(tl_weight, weight_offset, stride);
           // Reshape
           // bmk does not keep eu-align info, user need to update stride if shape changed

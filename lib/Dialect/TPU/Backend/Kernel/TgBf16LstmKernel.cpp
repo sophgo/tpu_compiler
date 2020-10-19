@@ -38,17 +38,13 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     assert(batch_size == 1);
     uint8_t eu_align = 1; // hardware constrainst
     //Load input
-    cvk_tl_shape_t reshape_input_shape = {
-        static_cast<uint32_t>(batch_size * seq_len), static_cast<uint32_t>(input_size),
-        static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+    cvk_tl_shape_t reshape_input_shape = ctx.tl_shape_t4(batch_size * seq_len, input_size, 1, 1);
     cvk_tl_t *tl_input =
         ctx.lmem_alloc_tensor(reshape_input_shape, CVK_FMT_BF16, eu_align);
     ASSERT(tl_input);
     ctx.tdma_load(tl_input, ga_input);
     //Load weight (Wi + Wf + Wc + Wo)
-    cvk_tl_shape_t  weight_shape = {
-        static_cast<uint32_t>(1), static_cast<uint32_t>( 4 * hidden_size),
-        static_cast<uint32_t>(1), static_cast<uint32_t>(input_size)};
+    cvk_tl_shape_t  weight_shape = ctx.tl_shape_t4(1, 4 * hidden_size, 1, input_size);
     cvk_tl_t *tl_weight =
         ctx.lmem_alloc_tensor(weight_shape, CVK_FMT_BF16, 0); //weight EU_ALIGN = False
     ASSERT(tl_weight);
@@ -60,9 +56,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     tl_weight->stride = ctx.tl_default_stride(tl_weight->shape, CVK_FMT_BF16, /*eu_align=*/0);
 
     //Load recurrence (Ri + Rf + Rc + Ro)
-    cvk_tl_shape_t reshape_recurrence_shape = {
-        static_cast<uint32_t>(1), static_cast<uint32_t>(4 * hidden_size),
-        static_cast<uint32_t>(1), static_cast<uint32_t>(hidden_size)};
+    cvk_tl_shape_t reshape_recurrence_shape = ctx.tl_shape_t4(1, 4 * hidden_size, 1, hidden_size);
     cvk_tl_t *tl_recurrence =
         ctx.lmem_alloc_tensor(reshape_recurrence_shape, CVK_FMT_BF16, 0); //weight EU_ALIGN = False
     ASSERT(tl_recurrence);
@@ -78,19 +72,15 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     cvk_tl_t *tl_recurrenceBias;
     if(do_bias) {
         //set nstride
-        cvk_tl_shape_t reshape_wtBias_shape = {
-            static_cast<uint32_t>(2), static_cast<uint32_t>(4 * hidden_size),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_wtBias_shape = ctx.tl_shape_t4(2, 4 * hidden_size, 1, 1);
         tl_wtBias =
             ctx.lmem_alloc_tensor(reshape_wtBias_shape, CVK_FMT_BF16, 0); //weight EU_ALIGN = False
         ASSERT(tl_wtBias);
-        cvk_tg_stride_t bias_gstride = ctx.tg_default_stride({2, (uint32_t)(4 * hidden_size), 1, 1}, CVK_FMT_BF16);
+        cvk_tg_stride_t bias_gstride = ctx.tg_default_stride(4 * hidden_size, 1, 1, CVK_FMT_BF16);
         bias_gstride.n *= 2;
         ctx.tdma_load_stride(tl_wtBias, ga_bias, bias_gstride);
 
-        cvk_tl_shape_t reshape_recurrenceBias_shape = {
-            static_cast<uint32_t>(2), static_cast<uint32_t>(4 * hidden_size),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_recurrenceBias_shape = ctx.tl_shape_t4(2, 4 * hidden_size, 1, 1);
         tl_recurrenceBias =
             ctx.lmem_alloc_tensor(reshape_recurrenceBias_shape, CVK_FMT_BF16, 0); //weight EU_ALIGN = False
         ASSERT(tl_recurrenceBias);
@@ -98,18 +88,14 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         ctx.tdma_load_stride(tl_recurrenceBias, ga_recurrenceBias, bias_gstride);
     }
     //Load initial_h
-    cvk_tl_shape_t reshape_initial_h_shape = {
-            static_cast<uint32_t>(1), static_cast<uint32_t>(hidden_size),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+    cvk_tl_shape_t reshape_initial_h_shape = ctx.tl_shape_t4(1, hidden_size, 1, 1);
     cvk_tl_t *tl_initial_h =
             ctx.lmem_alloc_tensor(reshape_initial_h_shape, CVK_FMT_BF16, eu_align);
     ASSERT(tl_initial_h);
     ctx.tdma_load(tl_initial_h, ga_initial_h);
 
     //Load initial_c
-    cvk_tl_shape_t reshape_initial_c_shape = {
-            static_cast<uint32_t>(1), static_cast<uint32_t>(hidden_size),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+    cvk_tl_shape_t reshape_initial_c_shape = ctx.tl_shape_t4(1, hidden_size, 1, 1);
     cvk_tl_t *tl_initial_c =
             ctx.lmem_alloc_tensor(reshape_initial_c_shape, CVK_FMT_BF16, eu_align);
     ASSERT(tl_initial_c);
@@ -141,16 +127,12 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     ctx.tdma_load(tl_tanh_table_answer, ga_tanh_table_data_lut);
     ctx.tdma_load(tl_tanh_table_answer_slope, ga_tanh_table_slope_data_lut);
     //Allocate output buffer
-    cvk_tl_shape_t reshape_output_shape = {
-            static_cast<uint32_t>(seq_len + 1), static_cast<uint32_t>(hidden_size),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+    cvk_tl_shape_t reshape_output_shape = ctx.tl_shape_t4(seq_len + 1, hidden_size, 1, 1);
     cvk_tl_t *tl_output =
             ctx.lmem_alloc_tensor(reshape_output_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
     ASSERT(tl_output);
     //Allocate temp1 =  Xt*W
-    cvk_tl_shape_t reshape_temp1_shape = {
-            static_cast<uint32_t>(seq_len*batch_size), static_cast<uint32_t>(4 * hidden_size),
-            static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+    cvk_tl_shape_t reshape_temp1_shape = ctx.tl_shape_t4(seq_len*batch_size, 4 * hidden_size, 1, 1);
     cvk_tl_t *tl_xt_mul_w =
             ctx.lmem_alloc_tensor(reshape_temp1_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
     ASSERT(tl_xt_mul_w);
@@ -215,9 +197,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         tl_it_ot_ft_part1.shape = {1, (uint32_t)(3 * hidden_size), 1, 1};
         tl_it_ot_ft_part1.stride = ctx.tl_default_stride(tl_it_ot_ft_part1.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-        cvk_tl_shape_t reshape_h_mul_r_shape = {
-                static_cast<uint32_t>(1), static_cast<uint32_t>(4 * hidden_size),
-                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_h_mul_r_shape = ctx.tl_shape_t4(1, 4 * hidden_size, 1, 1);
         cvk_tl_t *tl_h_mul_r =
                 ctx.lmem_alloc_tensor(reshape_h_mul_r_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
         ASSERT(tl_h_mul_r);
@@ -263,9 +243,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         tl_it_ot_ft_h_mul_r.shape = {1, (uint32_t)(3 * hidden_size), 1, 1};
         tl_it_ot_ft_h_mul_r.stride = ctx.tl_default_stride(tl_it_ot_ft_h_mul_r.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-        cvk_tl_shape_t reshape_zt_rt_lut_index_shape = {
-                static_cast<uint32_t>(1), static_cast<uint32_t>(3 * hidden_size),
-                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_zt_rt_lut_index_shape = ctx.tl_shape_t4(1,3 * hidden_size,1,1);
         cvk_tl_t *tl_it_ot_ft_lut_index =
                 ctx.lmem_alloc_tensor(reshape_zt_rt_lut_index_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
         ASSERT(tl_it_ot_ft_lut_index);
@@ -285,17 +263,13 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         ctx.tiu_add(&p3);
 
         //working
-        cvk_tl_shape_t reshape_temp4_shape = {
-                static_cast<uint32_t>(2), static_cast<uint32_t>(3 * hidden_size),
-                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_temp4_shape = ctx.tl_shape_t4(2,3 * hidden_size,1,1);
         cvk_tl_t *tl_temp4 =
                 ctx.lmem_alloc_tensor(reshape_temp4_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
         ASSERT(tl_temp4);
 
         //output
-        cvk_tl_shape_t reshape_it_ft_shape = {
-                static_cast<uint32_t>(1), static_cast<uint32_t>(3 * hidden_size),
-                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_it_ft_shape = ctx.tl_shape_t4(1,3 * hidden_size,1,1);
         cvk_tl_t *tl_it_ot_ft =
                 ctx.lmem_alloc_tensor(reshape_it_ft_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
         ASSERT(tl_it_ot_ft);
@@ -336,9 +310,7 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         tl_ct_h_mul_r.shape = {1, (uint32_t)hidden_size, 1, 1};
         tl_ct_h_mul_r.stride = ctx.tl_default_stride(tl_ct_h_mul_r.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-        cvk_tl_shape_t reshape_ct_lut_index_shape = {
-                static_cast<uint32_t>(1), static_cast<uint32_t>(hidden_size),
-                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_ct_lut_index_shape = ctx.tl_shape_t4(1,hidden_size,1,1);
         cvk_tl_t *tl_ct_lut_index =
                 ctx.lmem_alloc_tensor(reshape_ct_lut_index_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
         ASSERT(tl_ct_lut_index);
@@ -366,17 +338,13 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         ctx.tiu_add(&p520);
 
         //working
-        cvk_tl_shape_t reshape_temp6_shape = {
-                static_cast<uint32_t>(2), static_cast<uint32_t>(hidden_size),
-                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_temp6_shape = ctx.tl_shape_t4(2,hidden_size,1,1);
         cvk_tl_t *tl_temp6 =
                 ctx.lmem_alloc_tensor(reshape_temp6_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
         ASSERT(tl_temp6);
 
         //output
-        cvk_tl_shape_t reshape_ct_shape = {
-                static_cast<uint32_t>(1), static_cast<uint32_t>(hidden_size),
-                static_cast<uint32_t>(1), static_cast<uint32_t>(1)};
+        cvk_tl_shape_t reshape_ct_shape = ctx.tl_shape_t4(1,hidden_size,1,1);
         cvk_tl_t *tl_ct =
                 ctx.lmem_alloc_tensor(reshape_ct_shape, CVK_FMT_BF16, 1); //weight EU_ALIGN = False
         ASSERT(tl_ct);

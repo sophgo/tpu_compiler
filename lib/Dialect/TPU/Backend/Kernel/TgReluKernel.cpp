@@ -251,12 +251,7 @@ void cvi_backend_tg_fixed_prelu_kernel(
 
   int nsecs = 1, hsecs = 1;
   cvk_tg_stride_t gstride =
-      ctx.tg_default_stride({
-          static_cast<uint32_t>(input_n),
-          static_cast<uint32_t>(input_c),
-          static_cast<uint32_t>(input_h),
-          static_cast<uint32_t>(input_w)},
-          CVK_FMT_I8);
+      ctx.tg_default_stride(input_c,input_h,input_w,CVK_FMT_I8);
 
   cvk_tl_shape_t slope_shape = ctx.tl_shape_t4(1, input_c, 1, 1);
   cvk_tl_t *tl_slope =
