@@ -78,9 +78,9 @@ export DO_QUANT_MIX=1
 export TOLERANCE_MIX_PRECISION=0.96,0.95,0.73
 export MIX_PRECISION_BF16_LAYER_NUM=10
 export EXCEPTS=prob,res2c_relu,res3d_relu,res4f_relu
-export DO_QUANT_BF16=0
-export DO_CMDBUF_BF16=0
-export DO_LG_WITH_BF16=0
+export DO_QUANT_BF16=1
+export DO_CMDBUF_BF16=1
+export DO_LG_WITH_BF16=1
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
