@@ -1,3 +1,4 @@
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Format.h"
@@ -1929,7 +1930,7 @@ double my_mish_wrapper(double x_val) {
 int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf16, float mish_threshold) {
   LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
                           << ", w: " << w << "\n";);
-  int npu_num = 32; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;

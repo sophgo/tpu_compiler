@@ -65,7 +65,7 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
                             << ", threshold_y = " << std::to_string(threshold_y)
                             << ", threshold_x = " << std::to_string(threshold_x)
                             << "\n";);
-    int npu_num = 32; //<! 1880v2 hardcode
+    int npu_num = MInfo::lane_num;
 
     //<! 1880v2 hw config
     int table_h;

@@ -25,6 +25,7 @@
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/Dialect/TPU/CustomOpPlugin.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -306,7 +307,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
     lrnOp.setOperand(3, lrnOp.getOperand(1));
 
     const int EXP_START = -62;
-    const int NPU_NUM = 32;
+    const int NPU_NUM = MInfo::lane_num;
     const int TABLE_H_INT8 = 16;
     const int TABLE_W_INT8 = 16;
     const int TABLE_HW_INT8 = (TABLE_H_INT8 * TABLE_W_INT8);

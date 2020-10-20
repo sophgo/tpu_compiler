@@ -560,14 +560,14 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   int usize = getOpResultUnitSize(load_sqr);
   std::string storage = getWeightStorage(load_sqr);
   std::string sqr_name = load_sqr.name().str();
-  add_in_tensor(1, 32, table_h, table_w, usize, storage, sqr_name, TENSOR_COEFF_LUT);
+  add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, sqr_name, TENSOR_COEFF_LUT);
 
   // add power weight
   auto load_pow = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
   usize = getOpResultUnitSize(load_pow);
   storage = getWeightStorage(load_pow);
   std::string pow_name = load_pow.name().str();
-  add_in_tensor(1, 32, table_h, table_w, usize, storage, pow_name, TENSOR_COEFF_LUT);
+  add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, pow_name, TENSOR_COEFF_LUT);
 
   add_imm_tensor(in_tensors[0], working_size, name_ + "_imm");
 }

@@ -21,6 +21,7 @@
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/Passes.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -47,16 +48,14 @@ namespace {
 
 #define EXP_START -62
 #define EXP_END 63
-#define CHANNEL 32
-#define NPU_NUM 32
 #define TABLE_H_BF16 32
 #define TABLE_W_BF16 8
 #define TABLE_H_INT8 16
 #define TABLE_W_INT8 16
 #define TABLE_HW_INT8 (TABLE_H_INT8*TABLE_W_INT8)
-#define TBL_SHAPE_INT8 (TABLE_HW_INT8*NPU_NUM)
+#define TBL_SHAPE_INT8 (TABLE_HW_INT8*MInfo::lane_num)
 #define TABLE_HW_BF16 (TABLE_H_BF16*TABLE_W_BF16)
-#define TBL_SHAPE_BF16 (TABLE_HW_BF16*NPU_NUM)
+#define TBL_SHAPE_BF16 (TABLE_HW_BF16*MInfo::lane_num)
 
 struct TpuGenReciprocalTablePattern : public RewritePattern {
   TpuGenReciprocalTablePattern(MLIRContext *context)
@@ -89,7 +88,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
     float threshold_y = getOpThreshold(op);
 
 
-    for (int n = 0; n < NPU_NUM; n++) {
+    for (uint32_t n = 0; n < MInfo::lane_num; n++) {
       for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
           char lutInput = static_cast<char>(idx);
           float index = lutInput * threshold_x / 127.0;
@@ -111,7 +110,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
 
     bf16_gen_reciprocal_mantissa(EXP_START, EXP_END, TABLE_HW_BF16, table_data_mantissa_lut_bf16.data());
 
-    for (uint32_t i = 1; i < NPU_NUM; i++) {
+    for (uint32_t i = 1; i < MInfo::lane_num; i++) {
       memcpy(table_data_mantissa_lut_bf16.data() + i * TABLE_HW_BF16, table_data_mantissa_lut_bf16.data(), sizeof(uint16_t) * TABLE_HW_BF16);
       memcpy(table_data_lut_bf16.data() + i * TABLE_HW_BF16, table_data_lut_bf16.data(), sizeof(uint16_t) * TABLE_HW_BF16);
     }
@@ -134,7 +133,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
 
     // add new filter and bias weight
     std::vector<float> newWeights = y0_table ;
-    std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_INT8, TABLE_W_INT8};
+    std::vector<int64_t> weightShape{1, MInfo::lane_num, TABLE_H_INT8, TABLE_W_INT8};
 
     auto tensor_name = op_name + "_gen_weight";
     LLVM_DEBUG(llvm::errs() << "  new_weight: " << tensor_name << "\n";);
@@ -155,7 +154,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
   }else if(reciprocalOp.getOpQuant() == "BF16"){
 
     std::vector<std::vector<float>> newWeights = {table_data_lut, table_data_mantissa_lut};
-    std::vector<int64_t> weightShapes = {1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};
+    std::vector<int64_t> weightShapes = {1, MInfo::lane_num, TABLE_H_BF16, TABLE_W_BF16};
 
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_gen_weight_" + std::to_string(i);

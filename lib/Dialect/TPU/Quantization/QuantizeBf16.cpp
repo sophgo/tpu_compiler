@@ -127,7 +127,7 @@ LogicalResult quantizeBF16ReciprocalOps(Operation *op) {
 
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
-  int npu_num = MInfo::lane_num; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -178,7 +178,7 @@ LogicalResult quantizeBF16SqrtOps(Operation *op) {
 
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
-  int npu_num = MInfo::lane_num; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;
@@ -242,7 +242,7 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
                           << ", threshold_y = " << std::to_string(threshold_y)
                           << ", threshold_x = " << std::to_string(threshold_x)
                           << "\n";);
-  int npu_num = MInfo::lane_num; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
   int table_h = 32;

@@ -25,6 +25,7 @@
 #include "mlir/Dialect/TPU/TPUTensorSupport.h"
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/TPU/NativeCpuImplementation.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -470,7 +471,7 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
                           << ", threshold_y = " << std::to_string(threshold_y)
                           << ", threshold_x = " << std::to_string(threshold_x)
                           << "\n";);
-  int npu_num = 32; //<! 1880v2 hardcode
+  int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw config
   int table_h;
