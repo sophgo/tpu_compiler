@@ -287,10 +287,15 @@ void cvi_backend_tg_upsample(
     return;
 
   // Global stride from global shape
+  int fmt_size = (fmt == CVK_FMT_BF16) ? 2 : 1;
   cvk_tg_stride_t ifmap_gstride = {
-      input_c * input_h * input_w, input_h * input_w, input_w};
+      input_c * input_h * input_w * fmt_size,
+      input_h * input_w * fmt_size,
+      input_w * fmt_size};
   cvk_tg_stride_t ofmap_gstride = {
-      output_c * output_h * output_w, output_h * output_w, output_w};
+      output_c * output_h * output_w * fmt_size,
+      output_h * output_w * fmt_size,
+      output_w * fmt_size};
 
   for (uint32_t n_pos = 0; n_pos < input_n; n_pos += n_step) {
     for (uint32_t c_pos = 0; c_pos < input_c; c_pos += c_step) {

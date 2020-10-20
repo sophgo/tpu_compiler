@@ -89,20 +89,6 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
 
   ctx.tdma_load(tl_ifmap, bottom_gaddr + gaddr_offset);
 
-#if 0
-  // FIXME: enable it after new lut kernel struct merged
-  cvk_tiu_bf16_lookup_interp_table_param_t param = {0};
-  param.ifmap = tl_ifmap;
-  param.buf = tl_ofmap_slope;
-  param.tbl_answer = tl_table_answer;
-  param.tbl_answer_mantissa = tl_table_answer_slope;
-  param.ofmap = tl_ofmap_y0;
-  param.is_scientific = 0; // interpolation
-  param.min = -8; // align with frontend
-  param.max = 8;  // align with frontend
-  param.eu_align = eu_align;
-  ctx.tiu_bf16_lookup_interp_table(&param);
-#else
   cvk_tdma_l2l_tensor_copy_param_t p3 = {0};
   // scale input for remap its idx(-x~x) to (-127~127), dirty tl_ifmap
   cvk_tiu_mul_param_t p4 = {0};
@@ -121,28 +107,6 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   cvk_tl_t dst;
   memcpy(&dst, tl_ofmap_y0, sizeof(cvk_tl_t));
 
-//#define L2L_STRIDE
-#ifdef L2L_STRIDE
-  cvk_tl_shape_t tl_ofmap_x0_int8_shape = {
-      1, static_cast<uint32_t>(input_c), static_cast<uint32_t>(input_h * input_w), 1};
-  // keep golden
-  dst.shape = tl_ofmap_x0_int8_shape;
-  dst.fmt = CVK_FMT_I8;
-  dst.stride =
-      ctx.tl_default_stride(tl_ofmap_x0_int8_shape, CVK_FMT_I8, eu_align);
-  dst.stride.h = dst.stride.h * 2;
-  dst.int8_rnd_mode = 1;
-  p3.dst = &dst;
-  p3.src = tl_ifmap;
-  ctx.tdma_l2l_tensor_copy(&p3);
-  dst.int8_rnd_mode = 0; // reset
-
-  // <! int8 to bf16 format cus for sub use, sub MUST in the same format
-  memset(&p3, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
-  p3.dst = tl_ofmap_slope; //<! bf16
-  p3.src = &dst;
-  ctx.tdma_l2l_tensor_copy(&p3);
-#else
   // we keep contiguous layout that we convert
   // it without 'gap' and leverage tiu_mv to
   // contiguous again
@@ -160,7 +124,7 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   p3.src = &dst;
   p3.dst = tl_ofmap_slope; //<! bf16
   ctx.tdma_l2l_tensor_copy(&p3);
-#endif
+
   // <! sub, diff base , a - b
   // (x - x0)
   cvk_tiu_sub_param_t p5 = {0};
@@ -173,8 +137,7 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   p5.rshift_bits = 0;
   p5.layer_id = layer_id;
   ctx.tiu_sub(&p5);
-#ifdef L2L_STRIDE
-#else
+
   // move index seperate as bf16 size
   // copy to bf16 size
   {
@@ -195,7 +158,6 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
     param.layer_id = layer_id;
     ctx.tiu_copy(&param);
   }
-#endif
   // get f(x0) and slope(x)
   // reshape, 16->16
   dst.fmt = fmt;
@@ -233,8 +195,6 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   p7.relu_enable = 0;
   p7.layer_id = layer_id;
   ctx.tiu_mac(&p7);
-
-#endif
 
   ctx.tdma_store(tl_ofmap_y0, top_gaddr + gaddr_offset);
   ctx.lmem_free_tensor(tl_ofmap_y0);

@@ -197,6 +197,7 @@ void cvi_backend_bf16_tl_lut(
     laddr_t la_y_table, laddr_t la_slope_table,
     int thresh_min, int thresh_max, int n, int c, int h, int w,
     int method) {
+  ctx.parallel_disable();
   if (method == METHOD_MANTISSA) {
     // for reciprocal/sqrt/power
     laddr_t la_exponential_table = la_y_table;
@@ -228,17 +229,14 @@ void cvi_backend_bf16_tl_lut_slope_method(
                  << ", la_w = " << la_working
                  << ", la_y_table = " << la_y_table
                  << ", la_slope_table = " << la_slope_table
+                 << ", thresh_min = " << thresh_min
+                 << ", thresh_max = " << thresh_max
                  << "\n";
   );
   bool isSync = (abs(thresh_min) == thresh_max);
   float offset = (float)(thresh_max + thresh_min) / 2;
   int range = (thresh_max - thresh_min);
   const int lut_index_num = 256;
-  int input_n, input_c, input_h, input_w;
-  input_n = n;
-  input_c = c;
-  input_h = h;
-  input_w = w;
   cvk_tl_t _tl_ifmap, _tl_ofmap_slope, _tl_ofmap_y0, _tl_table_answer, _tl_table_answer_slope;
   cvk_tl_t *tl_ifmap, *tl_ofmap_slope, *tl_ofmap_y0, *tl_table_answer, *tl_table_answer_slope;
   cvk_tl_t _tl_tmp;
@@ -287,11 +285,6 @@ void cvi_backend_bf16_tl_lut_slope_method(
   tl_table_answer_slope->shape = tl_table_answer->shape;
   tl_table_answer_slope->stride = tl_table_answer->stride;
 
-  cvk_tl_shape_t tl_ofmap_x0_int8_shape = {
-      (uint32_t)input_n, (uint32_t)input_c,
-      (uint32_t)(input_h * input_w), 1
-  };
-
   if(!isSync){
     cvk_tiu_add_param_t p90 = {0};
     p90.res_high = nullptr;
@@ -319,33 +312,32 @@ void cvi_backend_bf16_tl_lut_slope_method(
   p4.layer_id = layer_id;
   ctx.tiu_mul(&p4);
 
-  // <! get idx from bf16->int8
   memset(&p3, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
-  cvk_tl_t dst;
-  memcpy(&dst, tl_ofmap_y0, sizeof(cvk_tl_t));
+  cvk_tl_t input_i8;
+  memcpy(&input_i8, tl_ofmap_y0, sizeof(cvk_tl_t));
 
-  // fill low 8 bit for lut index
-  dst.shape = tl_ofmap_x0_int8_shape;
-  dst.fmt = CVK_FMT_I8;
-  cvk_tl_shape_t _tl_ofmap_x0_int8_shape = {
-    (uint32_t)input_n, (uint32_t)input_c, (uint32_t)(input_h * input_w), 2};
-  int int8_eu_align = 1;
-  dst.stride =
-    ctx.tl_default_stride(_tl_ofmap_x0_int8_shape, CVK_FMT_I8, /*eu_align=*/int8_eu_align);
-  dst.int8_rnd_mode = 1;
-  p3.dst = &dst;
+  // input_i8 = convert_to_i8(input)
+  // the result i8 is in compact mode as:
+  // i8,i8,i8,i8
+  input_i8.fmt = CVK_FMT_I8;
+  input_i8.shape = tl_ifmap->shape;
+  input_i8.stride =
+    ctx.tl_default_stride(input_i8.shape, CVK_FMT_I8, 1);
+  input_i8.int8_rnd_mode = 1;
+  p3.dst = &input_i8;
   p3.src = tl_tmp;
   ctx.tdma_l2l_tensor_copy(&p3);
-  dst.int8_rnd_mode = 0; // reset
+  input_i8.int8_rnd_mode = 0; // reset
 
-  // <! int8 to bf16 format cus for sub use, sub MUST in the same format
-  memset(&p3, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
-  p3.dst = tl_ofmap_slope; //<! bf16
-  p3.src = &dst;
+  // input_i8_bf16 = convert_to_bf16(input_i8)
+  // the result bf16 is in compact mode as:
+  // bf16, bf16, bf16, bf16......
+  p3.dst = tl_ofmap_slope;
+  p3.src = &input_i8;
   ctx.tdma_l2l_tensor_copy(&p3);
 
-  // <! sub, diff base , a - b
   // (x - x0)
+  // input = input - input_i8_bf16
   cvk_tiu_sub_param_t p5 = {0};
   p5.res_high = 0;
   p5.res_low = tl_tmp;
@@ -357,38 +349,54 @@ void cvi_backend_bf16_tl_lut_slope_method(
   p5.layer_id = layer_id;
   ctx.tiu_sub(&p5);
 
-  // get f(x0) and slope(x)
-  // reshape, 16->16
-  dst.fmt = CVK_FMT_BF16;
-  dst.shape = tl_ofmap_slope->shape;
-  dst.stride = tl_ofmap_slope->stride;
+  // convert compact mode data to sparse mode:
+  // from: i8,i8,i8,i8......
+  // to: i8,xx,i8,xx,i8,xx,i8,xx......
+  cvk_tl_t working = *tl_ofmap_slope;
+  working.fmt = CVK_FMT_I8;
+  cvk_tiu_copy_param_t param = {0};
+  param.src = &input_i8;
+  param.dst = &working;
+  param.layer_id = layer_id;
+  ctx.tiu_copy(&param);
 
-  // <! get slope by index
+  input_i8.fmt = CVK_FMT_BF16;
+  input_i8.shape = tl_ofmap_slope->shape;
+  input_i8.stride = tl_ofmap_slope->stride;
+  param.src = &working;
+  param.dst = &input_i8;
+  param.layer_id = layer_id;
+  ctx.tiu_copy(&param);
+
+  // set input_i8 to bf16 format
+  // since we will do bf16 table lookup
+  // data is stored in following format:
+  // i8,xx,i8,xx,i8,xx,i8,xx...
+  // slope = lut(input_i8, slope_table)
   cvk_tiu_lookup_table_param_t p6 = {0};
   memset(&p6, 0x0, sizeof(cvk_tiu_lookup_table_param_t));
   p6.ofmap = tl_ofmap_slope;
-  p6.ifmap = &dst;
+  p6.ifmap = &input_i8;
   p6.table = tl_table_answer_slope;
   p6.layer_id = layer_id;
   ctx.tiu_lookup_table(&p6);
 
-  // base f(x0)
+  // y0 = lut(input_i8, y0_table)
   memset(&p6, 0x0, sizeof(cvk_tiu_lookup_table_param_t));
   p6.ofmap = tl_ofmap_y0;
-  p6.ifmap = &dst;
+  p6.ifmap = &input_i8;
   p6.table = tl_table_answer;
   p6.layer_id = layer_id;
   ctx.tiu_lookup_table(&p6);
 
-  // <! mac
-  // <! part A + part B, a * b + res = res
+  // result = slope * (x - x0) + y0
   cvk_tiu_mac_param_t p7 = {0};
   p7.res_high = 0;
   p7.res_low = tl_ofmap_y0;
   p7.res_is_int8 = 0;
-  p7.a = tl_tmp;
+  p7.a = tl_ofmap_slope;
   p7.b_is_const = 0;
-  p7.b = tl_ofmap_slope;
+  p7.b = tl_tmp;
   p7.lshift_bits = 0; // lshift_bits;
   p7.rshift_bits = 0; // rshift_bits;
   p7.relu_enable = 0;

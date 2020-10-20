@@ -476,9 +476,6 @@ ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op, true) {
 }
 
 ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
-
-  // FIXME: only support sigmoid now
-
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   bool isBF16 = isa<tpu::TG_BF16_LutOp>(op);
   int table_h = 16;
@@ -507,11 +504,7 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
     add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, m_table_name, TENSOR_COEFF_LUT);
 
     // add working table
-    // NOTICE: 4 dims
     add_imm_tensor(out_tensors[0], 2, name_ + "_imm");
-    //std::vector<int64_t> i_s(op->getResult(0)->getType().cast<TensorType>().getShape());
-    //add_in_tensor(i_s[0], i_s[1], i_s[2], i_s[3], usize, storage,
-    //    getOpName(op).str() + "_working", TENSOR_NEURON);
   }
 }
 
