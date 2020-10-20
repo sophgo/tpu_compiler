@@ -160,6 +160,11 @@ int my_reduce_mean(float *input, float *output,
                      std::vector<int64_t> &input_shape,
                      std::vector<int> &axes);
 
+int my_reduce_mean_int8(float *input, float *output,
+                        std::vector<int64_t> &org_input_shape,
+                        std::vector<int> &axes,
+                        int avg_const, int rshift);
+
 int my_reduce_max(float *input, float *output,
                      std::vector<int64_t> &input_shape,
                      std::vector<int> &axes);

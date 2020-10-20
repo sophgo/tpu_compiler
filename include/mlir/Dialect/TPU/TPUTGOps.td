@@ -1681,6 +1681,8 @@ class TPU_TG_ReduceMeanOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I8Attr>:$m_i8,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
@@ -1691,8 +1693,8 @@ class TPU_TG_ReduceMeanOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_ReduceMeanOp : TPU_TG_PadOp<"tg_int8_reduce_mean", "Int8">;
-def TPU_TG_BF16_ReduceMeanOp : TPU_TG_PadOp<"tg_bf16_reduce_mean", "Bf16">;
+def TPU_TG_INT8_ReduceMeanOp : TPU_TG_ReduceMeanOp<"tg_int8_reduce_mean", "Int8">;
+def TPU_TG_BF16_ReduceMeanOp : TPU_TG_ReduceMeanOp<"tg_bf16_reduce_mean", "Bf16">;
 
 class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -1726,6 +1728,8 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I8Attr>:$m_i8,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
@@ -1736,8 +1740,8 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_ReduceMaxOp : TPU_TG_PadOp<"tg_int8_reduce_max", "Int8">;
-def TPU_TG_BF16_ReduceMaxOp : TPU_TG_PadOp<"tg_bf16_reduce_max", "Bf16">;
+def TPU_TG_INT8_ReduceMaxOp : TPU_TG_ReduceMaxOp<"tg_int8_reduce_max", "Int8">;
+def TPU_TG_BF16_ReduceMaxOp : TPU_TG_ReduceMaxOp<"tg_bf16_reduce_max", "Bf16">;
 
 class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

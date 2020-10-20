@@ -3299,7 +3299,48 @@ LogicalResult tpu::TG_BF16_PadOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_ReduceMeanOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  int rshift = 0;
+  if (this->rshift().hasValue())
+    rshift = this->rshift().getValue().getLimitedValue();
+
+  int multiplier = 1;
+  if (this->m_i8().hasValue())
+    multiplier = this->m_i8().getValue().getLimitedValue();
+
+  int num_axes = 0;
+  int *axes = nullptr;
+  if (this->axes().hasValue()) {
+    std::vector<int32_t> axes_array;
+    arrayAttrToVector(this->axes().getValue(), axes_array);
+    num_axes = axes_array.size();
+    axes = new int[num_axes];
+    for (unsigned i = 0; i < axes_array.size(); ++i)
+      axes[i] = axes_array[i];
+  }
+
+  cvi_backend_tg_fixed_reduce_mean_kernel(*backend_ctx,
+                                          layer_id,
+                                          ga_input,
+                                          ga_output,
+                                          (int)input_shape[0],
+                                          (int)input_shape[1],
+                                          (int)input_shape[2],
+                                          (int)input_shape[3],
+                                          rshift,
+                                          multiplier,
+                                          axes,
+                                          num_axes
+                                          );
+
+  delete[] axes;
 
   return success();
 }
@@ -3307,7 +3348,65 @@ LogicalResult tpu::TG_INT8_ReduceMeanOp::codegen(void *ctx) {
 LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  int num_axes = 0;
+  int *axes = nullptr;
+  if (this->axes().hasValue()) {
+    std::vector<int32_t> axes_array;
+    arrayAttrToVector(this->axes().getValue(), axes_array);
+    num_axes = axes_array.size();
+    axes = new int[num_axes];
+    for (unsigned i = 0; i < axes_array.size(); ++i)
+      axes[i] = axes_array[i];
+  }
+
+  if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
+    // Replace with tdma global memory copy via TG permute
+    std::vector<int64_t> output_shape = getTensorShape(output());
+    cvi_backend_tg_fixed_premute_kernel(*backend_ctx,
+                                        0,  // stream_id
+                                        0,  // inst_id
+                                        layer_id,
+                                        nullptr,  // depends
+                                        0,        // depends_len
+                                        ga_input,
+                                        ga_output,
+                                        (uint32_t)output_shape[0], // input_n
+                                        (uint32_t)output_shape[1], // input_c
+                                        (uint32_t)output_shape[2], // input_h
+                                        (uint32_t)output_shape[3], // input_w
+                                        (uint32_t)output_shape[0], // output_n
+                                        (uint32_t)output_shape[1], // output_c
+                                        (uint32_t)output_shape[2], // output_h
+                                        (uint32_t)output_shape[3], // output_w
+                                        0,                         // order_n
+                                        1,                         // order_c
+                                        2,                         // order_h
+                                        3,                         // order_w
+                                        false                      // do_permute
+                                        );
+  } else {
+    cvi_backend_tg_fixed_reduce_max_kernel(*backend_ctx,
+                                          layer_id,
+                                          ga_input,
+                                          ga_output,
+                                          (int)input_shape[0],
+                                          (int)input_shape[1],
+                                          (int)input_shape[2],
+                                          (int)input_shape[3],
+                                          axes,
+                                          num_axes
+                                          );
+  }
+
+  delete[] axes;
 
   return success();
 }
@@ -3315,7 +3414,38 @@ LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_ReduceMeanOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  int num_axes = 0;
+  int *axes = nullptr;
+  if (this->axes().hasValue()) {
+    std::vector<int32_t> axes_array;
+    arrayAttrToVector(this->axes().getValue(), axes_array);
+    num_axes = axes_array.size();
+    axes = new int[num_axes];
+    for (unsigned i = 0; i < axes_array.size(); ++i)
+      axes[i] = axes_array[i];
+  }
+
+  cvi_backend_tg_bf16_reduce_mean_kernel(*backend_ctx,
+                                         layer_id,
+                                         ga_input,
+                                         ga_output,
+                                         (int)input_shape[0],
+                                         (int)input_shape[1],
+                                         (int)input_shape[2],
+                                         (int)input_shape[3],
+                                         axes,
+                                         num_axes
+                                         );
+
+  delete[] axes;
 
   return success();
 }
@@ -3323,7 +3453,65 @@ LogicalResult tpu::TG_BF16_ReduceMeanOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  std::vector<int64_t> input_shape = getTensorShape(input());
+
+  int num_axes = 0;
+  int *axes = nullptr;
+  if (this->axes().hasValue()) {
+    std::vector<int32_t> axes_array;
+    arrayAttrToVector(this->axes().getValue(), axes_array);
+    num_axes = axes_array.size();
+    axes = new int[num_axes];
+    for (unsigned i = 0; i < axes_array.size(); ++i)
+      axes[i] = axes_array[i];
+  }
+
+  if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
+    // Replace with tdma global memory copy via TG permute
+    std::vector<int64_t> output_shape = getTensorShape(output());
+    cvi_backend_tg_bf16_premute_kernel(*backend_ctx,
+                                        0,  // stream_id
+                                        0,  // inst_id
+                                        layer_id,
+                                        nullptr,  // depends
+                                        0,        // depends_len
+                                        ga_input,
+                                        ga_output,
+                                        (uint32_t)output_shape[0], // input_n
+                                        (uint32_t)output_shape[1], // input_c
+                                        (uint32_t)output_shape[2], // input_h
+                                        (uint32_t)output_shape[3], // input_w
+                                        (uint32_t)output_shape[0], // output_n
+                                        (uint32_t)output_shape[1], // output_c
+                                        (uint32_t)output_shape[2], // output_h
+                                        (uint32_t)output_shape[3], // output_w
+                                        0,                         // order_n
+                                        1,                         // order_c
+                                        2,                         // order_h
+                                        3,                         // order_w
+                                        false                      // do_permute
+                                        );
+  } else {
+    cvi_backend_tg_bf16_reduce_max_kernel(*backend_ctx,
+                                          layer_id,
+                                          ga_input,
+                                          ga_output,
+                                          (int)input_shape[0],
+                                          (int)input_shape[1],
+                                          (int)input_shape[2],
+                                          (int)input_shape[3],
+                                          axes,
+                                          num_axes
+                                          );
+  }
+
+  delete[] axes;
 
   return success();
 }

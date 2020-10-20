@@ -106,6 +106,7 @@ def TPU_ReshapeOp: TPU_Op<"reshape",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 //===----------------------------------------------------------------------===//

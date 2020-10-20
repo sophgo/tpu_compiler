@@ -88,6 +88,8 @@ std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionGroupSlice();
 
 std::unique_ptr<OpPassBase<FuncOp>> createTgOpTilePass();
 
+std::unique_ptr<OpPassBase<FuncOp>> createFuseReshapePass();
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_PASSES_H_

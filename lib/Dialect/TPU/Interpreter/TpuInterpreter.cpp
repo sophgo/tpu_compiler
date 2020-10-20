@@ -3594,9 +3594,24 @@ LogicalResult tpu::ReduceMeanOp::interpret(
 
   std::vector<int64_t> input_shape = getTensorShape(this->input());
 
-  int ret = my_reduce_mean(input->data(), resultT->data(), input_shape, axes);
+  if (getOpQuant() == "INT8") {
+    // int8
+    std::shared_ptr<std::vector<float> > quant_rshift = nullptr;
+    std::shared_ptr<std::vector<float> > quant_multiplier = nullptr;
+    assert(opdT.size() == 5);
+    quant_rshift = opdT[3];
+    quant_multiplier = opdT[4];
 
-  assert(ret == 0);
+    int ret = my_reduce_mean_int8(input->data(), resultT->data(), input_shape,
+                                  axes, (int)quant_multiplier->at(0),
+                                  (int)quant_rshift->at(0));
+    assert(ret == 0);
+  } else {
+    // float32, bf16
+    int ret = my_reduce_mean(input->data(), resultT->data(), input_shape, axes);
+    assert(ret == 0);
+  }
+
   valueMapping[result] = std::move(resultT);
   return success();
 }
@@ -3621,8 +3636,28 @@ LogicalResult tpu::ReduceMaxOp::interpret(
   std::vector<int64_t> input_shape = getTensorShape(this->input());
 
   int ret = my_reduce_max(input->data(), resultT->data(), input_shape, axes);
-
   assert(ret == 0);
+
+  if (mlir::getOpQuant(op) == "NONE") {
+    // do nothing
+  } else if (getOpQuant() == "INT8") {
+    assert(opdT.size() == 5);
+    std::shared_ptr<std::vector<float> > quant_rshift = opdT[3];
+    std::shared_ptr<std::vector<float> > quant_multiplier = opdT[4];
+
+    for (int64_t i = 0; i < size; ++i) {
+      resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          resultT->at(i), (uint32_t)quant_rshift->at(0),
+          (uint32_t)quant_multiplier->at(0), false);
+    }
+  } else if (mlir::getOpQuant(op) == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
   valueMapping[result] = std::move(resultT);
   return success();
 }

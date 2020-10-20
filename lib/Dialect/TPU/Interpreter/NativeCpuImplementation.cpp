@@ -2329,6 +2329,68 @@ int my_reduce_mean(float *input, float *output,
   return 0;
 }
 
+int my_reduce_mean_int8(float *input, float *output,
+                        std::vector<int64_t> &org_input_shape,
+                        std::vector<int> &axes,
+                        int avg_const, int rshift) {
+  assert(axes.size() > 0);
+  auto input_shape = org_input_shape;
+  int size = count(input_shape, 0, input_shape.size());
+  std::vector<int> tmp (size, 0);
+  int* _output = tmp.data();
+  std::vector<int> tmp2 (size, 0);
+  int* _input = tmp2.data();
+
+  // Convert integer format
+  for (int i = 0; i < size; i++)
+    _input[i] = (int)input[i];
+
+  for (int i = 0; i < (int)axes.size(); i++) {
+    int dim = input_shape.size();
+    int axis = axes[i];
+    assert(dim > axis);
+
+    int inner = count(input_shape, axis + 1, input_shape.size());
+    int next_inner = inner * input_shape[axis];
+    int outer = count(input_shape, 0, axis);
+
+    llvm::outs() << "  [" << i << "] inner " << inner
+                 << ", outer " << outer << "\n";
+
+    for (int i = 0; i < outer; i++) {
+      std::vector<int> inner_sum (inner, 0);
+      for (int s = 0; s < input_shape[axis]; s++) {
+        for (int j = 0; j < inner; j++) {
+          inner_sum[j] += _input[i * next_inner + s * inner + j] * avg_const;
+        }
+      }
+
+      // quantization down
+      for (int j = 0; j < inner; j++) {
+        int val = inner_sum[j];
+        val >>= rshift - 1;
+        val += 1; // round up
+        val >>= 1;
+        val = std::max(val, -128);
+        val = std::min(val, 127);
+        _output[i * inner + j] = val;
+      }
+
+    }
+
+    input_shape[axis] = 1;
+    _input = _output;
+  }
+
+
+  // Store float format
+  size = count(input_shape, 0, input_shape.size());
+  for (int i = 0; i < size; i++)
+    output[i] = (float)_output[i];
+
+  return 0;
+}
+
 int my_reduce_max(float *input, float *output,
                      std::vector<int64_t> &input_shape,
                      std::vector<int> &axes) {

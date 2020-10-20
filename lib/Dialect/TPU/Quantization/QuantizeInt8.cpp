@@ -577,6 +577,7 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
 ///      - 4 quant operands are following
 /// special handling for some operations
 ///   1. PoolAvg2D: needs to take 1 / (kh * kw) into account
+///   2. ReduceMean: needs to take 1 / reduced_size into account
 ///
 template<typename OpTy>
 LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
@@ -623,8 +624,10 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
              && OpTy::getOperationName() != "tpu.concat"
              && OpTy::getOperationName() != "tpu.eltwise_max"
              && OpTy::getOperationName() != "tpu.eltwise_min"
-             && OpTy::getOperationName() != "tpu.eltwise_add") {
-    // leave quant_rshift and quant_mulitplier as NoneOp to indicate bypass
+             && OpTy::getOperationName() != "tpu.eltwise_add"
+             && OpTy::getOperationName() != "tpu.reduce_mean"
+             && OpTy::getOperationName() != "tpu.reduce_max") {
+    // leave quant_rshift and quant_multiplier as NoneOp to indicate bypass
     LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
                             << ",  quantization bypassed\n";);
     setOpQuantParamType(op, "NONE");
@@ -672,12 +675,38 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
             rewriter.getBoolAttr(true),
             rewriter.getContext()));
   }
+
+  // special handling
+  if (OpTy::getOperationName() == tpu::ReduceMeanOp::getOperationName()) {
+    auto castOp = dyn_cast<tpu::ReduceMeanOp>(op);
+    assert(castOp && "Expect ReduceMeanOp");
+
+    std::vector<int64_t> axes;
+    if (castOp.axes().hasValue()) {
+      // Collect reduced axes
+      for (auto val : castOp.axes().getValue())
+        axes.push_back(val.cast<IntegerAttr>().getInt());
+
+      // Calculate size of reduced axes from input dimensions
+      auto type = castOp.input()->getType().template cast<TensorType>();
+      std::vector<int64_t> inputShapes(type.getShape());
+      int64_t size = 1;
+      for (auto dim : axes) {
+        assert(static_cast<unsigned>(dim) < inputShapes.size() &&
+               "Expect valid axis");
+        size *= inputShapes[dim];
+      }
+
+      qscale[0] /= size;
+    }
+  }
+
   // create tensors for rshift and multiplier
   auto rshift = std::make_unique<std::vector<float> >(1);
   auto multiplier = std::make_unique<std::vector<float> >(nInputs);
 
   //
-  // decompose into int8 mulitplier and rshift
+  // decompose into int8 multiplier and rshift
   //
   // find one rshift for all inputs, and multipliers for each inputs
   //   each qscale will be implemented by hardware as

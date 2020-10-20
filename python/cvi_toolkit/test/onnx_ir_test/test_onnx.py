@@ -33,6 +33,8 @@ TEST_ONNX_IR = [
     "Neg",
     "Relu",
     "PRelu",
+    "ReduceMax",
+    "ReduceMean",
     "Resize",
 #    "Reciprocal",
     "Slice",
@@ -165,12 +167,12 @@ class ONNX_IR_TESTER(object):
                 np.savez(ref_npz, **int8_tensors)
 
                 # lower
-                tg_mlir = "tg_{}.mlir".format(model_name)
+                tg_mlir = "tg_{}_int8.mlir".format(model_name)
                 ret = mlir_lower_opt(quant_mlir, tg_mlir)
                 if ret < 0: raise RuntimeError("lower_opt failed")
 
                 # gen cvimodel
-                cvimodel = "{}.cvimodel".format(model_name)
+                cvimodel = "{}_int8.cvimodel".format(model_name)
                 ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
                 if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
@@ -195,7 +197,7 @@ class ONNX_IR_TESTER(object):
                         print("{} not support bf16 test!".format(model_name))
                         return
                 # opt
-                fp32_opt_mlir = "{}_opt.mlir".format(model_name)
+                fp32_opt_mlir = "{}_opt_bf16.mlir".format(model_name)
                 fp32_csv = "{}_fp32.csv".format(model_name)
                 mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv, chip=chip)
 
@@ -216,12 +218,12 @@ class ONNX_IR_TESTER(object):
                 np.savez(ref_npz, **bf16_tensors)
 
                 # lower
-                tg_mlir = "tg_{}.mlir".format(model_name)
+                tg_mlir = "tg_{}_bf16.mlir".format(model_name)
                 ret = mlir_lower_opt(quant_mlir, tg_mlir)
                 if ret < 0: raise RuntimeError("lower_opt failed")
 
                 # gen cvimodel
-                cvimodel = "{}.cvimodel".format(model_name)
+                cvimodel = "{}_bf16.cvimodel".format(model_name)
                 ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
                 if ret < 0: raise RuntimeError("gen_cvimodel failed")
 

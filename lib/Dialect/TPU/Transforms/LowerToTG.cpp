@@ -1747,6 +1747,21 @@ Value* tpu::ReduceMeanOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+
+    assert( !isTensorNone(quant_rshift()) );
+    TensorFile *wTF = getWeightTensorFile(op);
+    auto rshift = readWeightTensor<float>(quant_rshift(), wTF);
+    assert(rshift->size() == 1);
+    attrs.push_back(builder.getNamedAttr("rshift",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    assert( !isTensorNone(quant_multiplier()) );
+    auto multiplier = readWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    attrs.push_back(builder.getNamedAttr("m_i8",
+        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(0)))));
+
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMeanOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -1774,9 +1789,22 @@ Value* tpu::ReduceMaxOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
 
-  auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMaxOp>(op->getLoc(),
+    assert( !isTensorNone(quant_rshift()) );
+    TensorFile *wTF = getWeightTensorFile(op);
+    auto rshift = readWeightTensor<float>(quant_rshift(), wTF);
+    assert(rshift->size() == 1);
+    attrs.push_back(builder.getNamedAttr("rshift",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    assert( !isTensorNone(quant_multiplier()) );
+    auto multiplier = readWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    attrs.push_back(builder.getNamedAttr("m_i8",
+        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(0)))));
+
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMaxOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();

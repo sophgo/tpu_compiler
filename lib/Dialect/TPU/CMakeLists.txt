@@ -35,6 +35,7 @@ add_llvm_library(MLIRTPU
   Transforms/FuseAsymmetricZeroPointShift.cpp
   Transforms/FuseRelu.cpp
   Transforms/FusePad.cpp
+  Transforms/FuseReshape.cpp
   Transforms/RefactorEltAndConv.cpp
   Transforms/MakeConvIcToEven.cpp
   Transforms/AssignWeightAddress.cpp
@@ -114,6 +115,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgSwapChannelKernel.cpp
   Backend/Kernel/TgTileKernel.cpp
   Backend/Kernel/TgUpsampleKernel.cpp
+  Backend/Kernel/TgFixedReduceKernel.cpp
   Backend/Kernel/TgBf16ConcatKernel
   Backend/Kernel/TgBf16FcKernel.cpp
   Backend/Kernel/TgBf16GruKernel.cpp
@@ -126,6 +128,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgBf16SquareKernel.cpp
   Backend/Kernel/TgBf16BroadcastKernel.cpp
   Backend/Kernel/TgBf16MatMulKernel.cpp
+  Backend/Kernel/TgBf16ReduceKernel.cpp
   Backend/Kernel/TlBroadcastMul.cpp
   Backend/Kernel/TlConcat.cpp
   Backend/Kernel/TlConv.cpp

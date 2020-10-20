@@ -244,6 +244,18 @@ void cvi_backend_tg_fixed_eltwise_mul_kernel(
     const int32_t *multipliers,
     const int32_t *coeffs);
 
+void cvi_backend_tg_fixed_reduce_max_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w,
+    int axes[], int num_axes);
+
+void cvi_backend_tg_fixed_reduce_mean_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w,
+    int rshift, int multiplier,
+    int axes[], int num_axes);
 
 //////////////// bf16 kernel API /////////////////
 void cvi_backend_tg_bf16_conv_kernel(
@@ -419,6 +431,18 @@ void cvi_backend_tg_bf16_broadcast_sub_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output, int n, int c,
     int h, int w, int bn, int bc, int bh, int bw, bool do_relu);
+
+void cvi_backend_tg_bf16_reduce_max_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w,
+    int axes[], int num_axes);
+
+void cvi_backend_tg_bf16_reduce_mean_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w,
+    int axes[], int num_axes);
 
 ////////////// fixed & bf16 kernel api ////////////////
 
