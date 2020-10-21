@@ -58,6 +58,35 @@ llvm::cl::opt<bool> clQuantInputsToInt8(
 
 namespace mlir {
 
+Value *tpu::AbsOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  //TensorFile *wTF = getWeightTensorFile(op);
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  if (getOpQuant() == "INT8") {
+    // no need to quant
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_AbsOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_AbsOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+
+  llvm_unreachable("unsupported type");
+
+}
+
 Value* tpu::BroadcastMulOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -3644,6 +3673,7 @@ public:
     // do op lower
     patterns.clear();
     patterns.insert<
+        DefaultToTGPattern<tpu::AbsOp>,
         DefaultToTGPattern<tpu::BroadcastMulOp>,
         DefaultToTGPattern<tpu::BroadcastAddOp>,
         DefaultToTGPattern<tpu::BroadcastSubOp>,

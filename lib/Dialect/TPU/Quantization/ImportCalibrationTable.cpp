@@ -82,7 +82,9 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
       if (threshold_x == threshold_y) {
           continue;
       }
-      if (auto cast_op = llvm::dyn_cast_or_null<tpu::BroadcastMulOp>(formerOp)) {
+      if (auto cast_op = llvm::dyn_cast_or_null<tpu::AbsOp>(formerOp)) {
+        setOpThreshold(formerOp, threshold_y);
+      } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::BroadcastMulOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
       } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ConcatOp>(formerOp)) {
         setOpThreshold(formerOp, threshold_y);
@@ -545,6 +547,7 @@ public:
       LLVM_DEBUG(llvm::errs() << "Backward overwrite threshold for all\n";);
       patterns.clear();
       patterns.insert<
+          BackendOverwriteThresholdDefaultPattern<tpu::AbsOp>,
           BackendOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
           BackendOverwriteThresholdDefaultPattern<tpu::ReluOp>,
           BackendOverwriteThresholdDefaultPattern<tpu::PadOp>,
@@ -566,6 +569,7 @@ public:
       LLVM_DEBUG(llvm::errs() << "Forward overwrite threshold for all\n";);
       patterns.clear();
       patterns.insert<
+          ForwardOverwriteThresholdDefaultPattern<tpu::AbsOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::ReluOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::UpsampleOp>,

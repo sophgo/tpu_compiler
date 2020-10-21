@@ -105,6 +105,90 @@ static void parseTLConvLeakyParam(Operation *op,
   negative_slope = lreluOp.negative_slope().getValue().convertToFloat();
 }
 
+LogicalResult tpu::TL_LG_INT8_AbsOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+
+  int nInputs = op->getNumOperands();
+  std::vector<int32_t> la_input_array;
+  auto la_input = new laddr_t[nInputs];
+  la_input[0] = this->la_input().getLimitedValue();
+
+  laddr_t la_output = this->la_output().getLimitedValue();
+
+  // parse param
+  int layer_id = getOpLayerId(op);
+
+  int op_code = 3; // abs
+  cvi_backend_tl_eltwise( *backend_ctx,
+      layer_id, /*u32 layer_id,*/
+      la_input,
+      la_output,
+      -1 /*la_working*/,
+      n, c, h, w, nInputs,
+      op_code,
+      0 /*rshift*/,
+      0 /*m_i8_input*/,
+      0 /*use_default_coeff*/,
+      0 /*do_relu*/,
+      0 /*relu_slope*/,
+      NULL /*coeffs*/,
+      0,
+      0, 0, 0 /*do_early_stride, early_stride_h, early_stride_w*/
+      );
+
+  delete[] la_input;
+
+  return success();
+}
+
+LogicalResult tpu::TL_LG_BF16_AbsOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+    CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+
+  int nInputs = op->getNumOperands();
+  std::vector<int32_t> la_input_array;
+  auto la_input = new laddr_t[nInputs];
+  la_input[0] = this->la_input().getLimitedValue();
+
+  laddr_t la_output = this->la_output().getLimitedValue();
+
+  // parse param
+  int layer_id = getOpLayerId(op);
+
+  int op_code = 3; // abs
+
+  cvi_backend_bf16_tl_eltwise(*backend_ctx,
+      layer_id, /*u32 layer_id,*/
+      la_input,
+      la_output,
+      -1 /*la_working*/,
+      n, c, h, w, nInputs,
+      op_code,
+      0 /*use_default_coeff*/,
+      0 /*do_relu*/,
+      0 /*relu_slope*/,
+      NULL /*coeffs*/,
+      0 /*do_early_stride*/,
+      0, 0 /*early_stride_h, early_stride_w*/
+      );
+
+  delete[] la_input;
+  return success();
+}
+
 LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

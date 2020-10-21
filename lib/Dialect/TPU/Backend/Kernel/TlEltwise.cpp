@@ -517,6 +517,41 @@ void cvi_backend_tl_eltwise(
         assert(0);
         break;
       }
+      case 3: { // abs
+        // abs = max(-1 * x, x)
+        int16_t mul_const = -1;
+        cvk_tiu_mul_param_t p = {0};
+        p.res_high = NULL;
+        p.res_low = &output;
+        p.a = &input[0];
+        p.b_const.val = mul_const;
+        p.b_const.is_signed = true;
+        p.b_is_const = true;
+        p.rshift_bits = 0;
+        p.layer_id = layer_id;
+        p.relu_enable = 0;
+        ctx.tiu_mul(&p);
+
+        cvk_tiu_max_param_t p2 = {0};
+        p2.max = &output;
+        p2.a = &output;
+        p2.b_is_const = 0;
+        p2.b = &input[0];
+        p2.layer_id = layer_id;
+        ctx.tiu_max(&p2);
+
+        if (do_relu) {
+          cvk_tiu_max_param_t p2 = {0};
+          p2.max = &output;
+          p2.a = &output;
+          p2.b_is_const = true;
+          p2.b_const.val = (0);
+          p2.b_const.is_signed = 1;
+          p2.layer_id = layer_id;
+          ctx.tiu_max(&p2);
+        }
+        break;
+      }
     }
   }
   if (do_relu && !fused_relu) {
@@ -698,6 +733,42 @@ void cvi_backend_bf16_tl_eltwise(
         assert(0);
         break;
       }
+      case 3: { // abs
+        // abs = max(-1 * x, x)
+        int16_t mul_const = ctx.convert_fp32_to_bf16(-1.0);
+        cvk_tiu_mul_param_t p = {0};
+        p.res_high = NULL;
+        p.res_low = &output;
+        p.a = &input[0];
+        p.b_const.val = mul_const;
+        p.b_const.is_signed = true;
+        p.b_is_const = true;
+        p.rshift_bits = 0;
+        p.layer_id = layer_id;
+        p.relu_enable = 0;
+        ctx.tiu_mul(&p);
+
+        cvk_tiu_max_param_t p2 = {0};
+        p2.max = &output;
+        p2.a = &output;
+        p2.b_is_const = 0;
+        p2.b = &input[0];
+        p2.layer_id = layer_id;
+        ctx.tiu_max(&p2);
+
+        if (do_relu) {
+          cvk_tiu_max_param_t p2 = {0};
+          p2.max = &output;
+          p2.a = &output;
+          p2.b_is_const = true;
+          p2.b_const.val = (0);
+          p2.b_const.is_signed = 1;
+          p2.layer_id = layer_id;
+          ctx.tiu_max(&p2);
+        }
+        break;
+      }
+
     }
   }
   if (do_relu && !fused_relu) {

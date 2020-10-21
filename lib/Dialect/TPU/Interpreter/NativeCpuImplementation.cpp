@@ -653,6 +653,34 @@ int my_lstm(float *input, float *output,
   return 0;
 }
 
+int my_abs(float *input, float *output, int n, int c, int h, int w) {
+#ifdef DUMP_FLAG
+  static int dump_idx = 0;
+  std::string prefix = std::string("abs") + std::to_string(dump_idx);
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_in.bin"),
+        (const char *)input, n * c * h * w * sizeof(float));
+  }
+#endif // DUMP_FLAG
+  LLVM_DEBUG(
+    llvm::errs() << "  n: " << n << ", c: " << c
+                 << ", h: " << h << ", w: " << w << "\n";
+  );
+
+  for (int i = 0; i < n * c * h * w; ++i) {
+    output[i] = fabs(input[i]);
+    //llvm::errs() << "  ["<<i<<"] s:" << input[i] << ", out:" << output[i] << "\n";
+  }
+#ifdef DUMP_FLAG
+  if (dump_idx < 4) {
+    write_bianry_file(prefix + std::string("_out.bin"),
+        (const char *)output, n * c * h * w * sizeof(float));
+  }
+  dump_idx ++;
+#endif // DUMP_FLAG
+  return 0;
+}
+
 int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr) {
@@ -1105,6 +1133,59 @@ int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool 
       float mantissaFloatValue = convert_bf16_fp32(table_data_mantissa_lut_bf16[bf16InputValue & 0xff]);
       output[i] = convert_bf16_fp32(convert_fp32_bf16(exponentFloatValue * mantissaFloatValue));
     }
+  }
+
+  return 0;
+}
+
+// \y0_bf16_slope_table and \y0_bf16_table occupy sizeof(float) and its content quanted as bf16 layout
+static void hw_lut(float *input, float *output,
+    int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table,
+    double (*activate_func)(double)) {
+  int shape_size =  n * c * h * w;
+  float scale = 256 / (BF16_TABLE_END - BF16_TABLE_START); // quant from interger index range from 16(-8~8)->256(lut index size)
+
+  // rounding
+  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
+  //std::for_each(std::execution::par, input.begin(), input.end(), [&](const size_t& i) {
+  for (int i = 0; i < shape_size; ++i) {
+    float rescale_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) * scale;
+    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
+
+    // get interger part to get table index and x0
+    int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
+
+    // get delta x (x - x0)
+    float delta_x = rescale_input - rescale_input_i8;
+
+    // get slope
+    uint16_t slope = y0_bf16_slope_table[rescale_input_i8 & 0xff];
+
+    // base y0 = f(x0)
+    uint16_t base = y0_bf16_table[rescale_input_i8 & 0xff];
+
+    // result = y0 + delta * slope
+    float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
+    output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
+  }
+  //});
+
+}
+
+int my_sigmoid(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16) {
+  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
+                          << ", w: " << w << "\n";);
+
+  if (!is_bf16) {
+    int shape_size =  n * c * h * w;
+    for (int i = 0; i < shape_size; ++i) {
+      output[i] = sigmoid(input[i]);
+    }
+  }
+  else {
+    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, sigmoid);
   }
 
   return 0;

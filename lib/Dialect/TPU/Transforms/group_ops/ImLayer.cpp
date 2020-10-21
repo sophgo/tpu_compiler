@@ -100,7 +100,10 @@ static bool is_channel_align(Operation* op) {
 
 std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   std::shared_ptr<ImLayer> layer;
-  if (isa<tpu::TG_INT8_PC_Conv2DOp>(op) ||
+  if (isa<tpu::TG_INT8_AbsOp>(op) ||
+             isa<tpu::TG_BF16_AbsOp>(op)) {
+    layer = std::make_shared<ImAbs>(op);
+  } else if (isa<tpu::TG_INT8_PC_Conv2DOp>(op) ||
       isa<tpu::TG_BF16_Conv2DOp>(op)) {
     layer = std::make_shared<ImConv>(op);
   } else if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op) ||
@@ -570,6 +573,11 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, pow_name, TENSOR_COEFF_LUT);
 
   add_imm_tensor(in_tensors[0], working_size, name_ + "_imm");
+}
+
+ImAbs::ImAbs(Operation *op): ImLayer(IR_ABS, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
 ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, true) {

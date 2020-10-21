@@ -19,6 +19,7 @@ import gc
 script_path = os.path.dirname(os.path.abspath(__file__))
 
 TEST_ONNX_IR = [
+    "Abs",
     "Add",
     "AveragePool",
 #    "Concat",
@@ -76,6 +77,7 @@ class ONNX_IR_TESTER(object):
         self.cvi_model_test = True
 
         self.test_function = {
+            "Abs": self.test_Abs,
             "Add": self.test_Add,
             "AveragePool": self.test_AveragePool,
             "Concat": self.test_Concat,
@@ -272,6 +274,51 @@ class ONNX_IR_TESTER(object):
         del self.mlir_model
 
         print("PASS")
+
+    def test_Abs(self):
+        test_case = 'Abs'
+        input_shape = [1, 3, 27, 27]
+        output_shape = [1, 6, 27, 27]
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+
+        #test three input
+        concat_def = helper.make_node(
+            'Concat',  # node name
+            ['input', 'X1'],  # inputs
+            ['X2'],  # outputs
+            axis = 1
+        )
+
+        abs_def = helper.make_node(
+            'Abs',
+            ['X2'],
+            ['output'],
+        )
+
+        graph_def = helper.make_graph(
+            [x1_def, concat_def, abs_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        onnx.checker.check_model(model_def)
+
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                        input_shape[2], input_shape[3]).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
 
     def test_Add(self):
         test_case = 'Add'

@@ -172,4 +172,13 @@ protected:
   void compute(int32_t step_idx);
 };
 
+class TgEltwiseAbsKernel : public TgEltwiseKernel {
+public:
+  TgEltwiseAbsKernel(const CviBackendContext &ctx)
+    : TgEltwiseKernel(ctx) {}
+
+protected:
+  void compute(int32_t step_idx);
+};
+
 #endif

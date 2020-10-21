@@ -29,6 +29,9 @@ int my_lstm(float *input, float *output,
     int seq_len, int batch_size, int input_size, int hidden_size,
     bool b_bidirectional=false);
 
+int my_abs(float *input, float *output,
+    int n, int c, int h, int w);
+
 int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
                    int oh, int ow, int kh, int kw, int sh, int sw, int pt,
                    int pb, int pl, int pr);
@@ -110,6 +113,13 @@ int my_permute(float *input, float *output, int in, int ic, int ih, int iw,
                int order0, int order1, int order2, int order3);
 
 float my_mish_caffe(float x_val, float mish_threshold = 20.0);
+
+int my_mish(std::vector<float> &input,
+    std::vector<float> &output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16, float mish_threshold = 20.0);
+int my_mish(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table,
+    bool is_bf16, float mish_threshold = 20.0);
 int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false, float mish_threshold = 20.0);
 
 int my_normalize(float *input,float *scale, float *output,

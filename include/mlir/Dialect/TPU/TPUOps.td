@@ -219,6 +219,50 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
 //===----------------------------------------------------------------------===//
 // TPU op definitions. (in alphabetical order)
 //===----------------------------------------------------------------------===//
+def TPU_AbsOp: TPU_Op<"abs",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Abs operator";
+
+  let description = [{
+    Element-wise abs operator
+      y = max(x * -1, x)
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `maximum`         : optional, the maximum value for Abs when present.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantBypass`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_BatchNormOp: TPU_Op<"batch_norm",
       [NoSideEffect,

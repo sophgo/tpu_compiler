@@ -125,6 +125,7 @@ class OnnxConverter(BaseConverter):
 
         self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
+            "Abs": lambda node: self.convert_abs_op(node),
             "Add": lambda node: self.convert_add_op(node),
             "AveragePool": lambda node: self.convert_avg_pool_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
@@ -407,6 +408,22 @@ class OnnxConverter(BaseConverter):
                 activation_op = self.CVI.add_exp_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
 
             self.addOperand(onnx_node.name, activation_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_abs_op(self, onnx_node):
+        assert(onnx_node.op_type == "Abs")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        if tensor_type == TensorType.TENSOR:
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            output_data = np.clip(tensor_data, 0, np.inf)
+            output_shape = list(output_data.shape)
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(op)
+            output_shape = input_shape
+            abs_op = self.CVI.add_abs_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, abs_op, output_shape, TensorType.ACTIVATION)
 
     def convert_add_op(self, onnx_node):
 

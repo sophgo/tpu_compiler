@@ -53,6 +53,80 @@ extern int BF16_TABLE_END;
 
 namespace mlir {
 
+LogicalResult tpu::TG_INT8_AbsOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  int32_t input_number = op->getNumOperands();
+  auto ga_inputs = new gaddr_t[input_number];
+  for(int32_t i = 0; i < input_number; i++){
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_eltwise_abs_kernel(
+        *backend_ctx,
+        layer_id,     // layer_id
+        ga_inputs,    // gaddr_t ga_input[]
+        ga_output,    // gaddr_t ga_output
+        1,            // int input_size
+        n, c, h, w,
+        0,      // bool do_relu
+        false, 0, 0,
+        0, 0, NULL, // rshift, *multipliers, coeffs
+        CVK_FMT_I8);
+
+  delete[] ga_inputs;
+
+  return success();
+}
+
+
+LogicalResult tpu::TG_BF16_AbsOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  int32_t input_number = op->getNumOperands();
+  auto ga_inputs = new gaddr_t[input_number];
+  for(int32_t i = 0; i < input_number; i++){
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
+
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_eltwise_abs_kernel(
+        *backend_ctx,
+        layer_id,     // layer_id
+        ga_inputs,    // gaddr_t ga_input[]
+        ga_output,    // gaddr_t ga_output
+        1,            // int input_size
+        n, c, h, w,
+        0,      // bool do_relu
+        false, 0, 0,
+        0, 0, NULL, // rshift, *multipliers, coeffs
+        CVK_FMT_BF16);
+
+  delete[] ga_inputs;
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

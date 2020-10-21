@@ -931,6 +931,7 @@ LogicalResult quantizeBf16BypassOps(Operation *op) {
     return quantizeBf16BypassOps(op); \
   }
 
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::AbsOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastMulOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastAddOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastSubOp)

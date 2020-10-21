@@ -27,6 +27,7 @@ class TPU_OpType(Enum):
     Interp  = 'tpu.interp'
     Load_Weight = 'tpu.load_weight'
 
+    Abs = 'tpu.abs'
     BatchNorm = 'tpu.batch_norm'
     BroadcastMul = 'tpu.broadcast_mul'
     BroadcastAdd = 'tpu.broadcast_add'
@@ -299,6 +300,14 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Interp.value, inputOperands, [
             tensor_output_type], name=name, **mlir_attrs,
             quant=self.quant_param)
+
+    def add_abs_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.get_input_type(inputOperands[0]), output_tensor_shape)
+
+        abs_name = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.Abs.value, inputOperands, [
+            tensor_output_type], name=abs_name, quant=self.quant_param)
 
     def add_batchnorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

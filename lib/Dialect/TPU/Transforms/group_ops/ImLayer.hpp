@@ -32,7 +32,8 @@
 namespace mlir {
 
 typedef enum {
-  IR_CONVOLUTION = 0,
+  IR_ABS = 0,
+  IR_CONVOLUTION,
   IR_DECONVOLUTION,
   IR_POOLING,
   IR_BROADCAST_MUL,
@@ -157,6 +158,13 @@ class ImActivation : public ImLayer {
  public:
   explicit ImActivation(Operation *op);
 };
+
+class ImAbs : public ImLayer {
+ public:
+  explicit ImAbs(Operation *op);
+};
+
+
 
 class ImLrn : public ImLayer {
  public:

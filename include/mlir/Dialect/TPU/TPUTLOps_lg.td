@@ -75,6 +75,45 @@ def TPU_TensorTypeAttr:StrEnumAttr<
 //===----------------------------------------------------------------------===//
 // TL op definitions.
 //===----------------------------------------------------------------------===//
+class TPU_TL_LG_AbsOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL abs operator" ;
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTLOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    BoolAttr:$align,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LG_INT8_AbsOp : TPU_TL_LG_AbsOp<"tl_lg_int8_abs", "Int8">;
+def TPU_TL_LG_BF16_AbsOp : TPU_TL_LG_AbsOp<"tl_lg_bf16_abs", "Bf16">;
 
 class TPU_TL_LG_Conv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

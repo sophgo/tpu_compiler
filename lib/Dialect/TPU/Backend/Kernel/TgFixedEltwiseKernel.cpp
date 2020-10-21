@@ -982,6 +982,80 @@ void TgBf16EltwiseMinMaxKernel::compute(int32_t step_idx) {
   output_flip = 1 - output_flip;
 }
 
+void TgEltwiseAbsKernel::compute(int32_t step_idx) {
+  auto tile_idx = step_idx / operand_num;
+  auto tile = tiles[tile_idx];
+
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
+
+  cvk_tl_t input, output;
+  //cvk_tl_t output_high;
+  input.start_address = tl_input[1 - input_flip]->start_address;
+  input.shape = shape;
+  input.fmt = fmt;
+  if (do_early_stride) {
+    cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
+    input.stride.w = stride_w * elementSize;
+  } else {
+    input.stride = ctx.tl_default_stride(shape, fmt, 1);
+  }
+
+  output.start_address = tl_output[output_flip]->start_address;
+  output.shape = shape;
+  output.stride = ctx.tl_default_stride(shape, fmt, 1);
+  output.fmt = fmt;
+
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+                 "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
+                 "%d,%d,%d,%d>, output<%d,%d,%d,%d:%d,%d,%d,%d> "
+                 "in:%u -> out:%u\n",
+                 step_idx, 1 - input_flip, output_flip, input.shape.n, input.shape.c,
+                 input.shape.h, input.shape.w, input.stride.n, input.stride.c,
+                 input.stride.h, input.stride.w, output.shape.n, output.shape.c,
+                 output.shape.h, output.shape.w, output.stride.n, output.stride.c,
+                 output.stride.h, output.stride.w,
+                 input.start_address, output.start_address));
+
+  int16_t mul_const = -1;
+  if (fmt == CVK_FMT_BF16) {
+    mul_const = ctx.convert_fp32_to_bf16(-1.0);
+  }
+  // abs = max(-1 * x, 1)
+  cvk_tiu_mul_param_t p = {0};
+  p.res_high = NULL;
+  p.res_low = &output;
+  p.a = &input;
+  p.b_const.val = mul_const;
+  p.b_const.is_signed = true;
+  p.b_is_const = true;
+  p.rshift_bits = 0;
+  p.layer_id = layer_id;
+  p.relu_enable = 0;
+  ctx.tiu_mul(&p);
+
+  cvk_tiu_max_param_t p2 = {0};
+  p2.max = &output;
+  p2.a = &output;
+  p2.b_is_const = 0;
+  p2.b = &input;
+  p2.layer_id = layer_id;
+  ctx.tiu_max(&p2);
+
+  if (do_relu) {
+    cvk_tiu_max_param_t p2 = {0};
+    p2.max = &output;
+    p2.a = &output;
+    p2.b_is_const = true;
+    p2.b_const.val = (0);
+    p2.b_const.is_signed = 1;
+    p2.layer_id = layer_id;
+    ctx.tiu_max(&p2);
+  }
+
+  output_flip = 1 - output_flip;
+}
+
 void cvi_backend_tg_fixed_eltwise_add_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_inputs[],
     gaddr_t ga_output, int32_t operand_num, int32_t n, int32_t c, int32_t h, int32_t w,
@@ -1110,6 +1184,30 @@ void cvi_backend_tg_bf16_eltwise_min_max_kernel(const CviBackendContext &ctx,
   TgBf16EltwiseMinMaxKernel kernel(ctx);
   kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
               do_early_stride, stride_h, stride_w, coeffs);
+
+  kernel.selectTilePolicy();
+  kernel.schedule();
+}
+
+void cvi_backend_tg_eltwise_abs_kernel(const CviBackendContext &ctx,
+                                       uint32_t layer_id, gaddr_t ga_inputs[],
+                                       gaddr_t ga_output, int32_t operand_num,
+                                       int32_t n, int32_t c, int32_t h,
+                                       int32_t w, bool do_relu,
+                                       bool do_early_stride, int32_t stride_h,
+                                       int32_t stride_w, int32_t rshift,
+                                       const int32_t *multipliers,
+                                       const int32_t *coeffs, cvk_fmt_t fmt) {
+  TgEltwiseAbsKernel kernel(ctx);
+
+  if (fmt == CVK_FMT_BF16) {
+    kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+        do_early_stride, stride_h, stride_w, NULL);
+  }
+  else {
+    kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
+        do_early_stride, stride_h, stride_w, rshift, multipliers, coeffs);
+  }
 
   kernel.selectTilePolicy();
   kernel.schedule();

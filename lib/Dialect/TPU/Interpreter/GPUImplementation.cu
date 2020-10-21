@@ -8,6 +8,26 @@ __global__ void ReLUForward(const int n, const float* in, float* out,
   }
 }
 
+__global__ void AbsForward(const int n, const float* in, float* out) {
+  CUDA_KERNEL_LOOP(i, n){
+    out[i] = in[i] > 0 ? in[i] : (-1 * in[i]);
+  }
+}
+
+int gpu_abs(float *input, float *output, int n, int c, int h, int w) {
+  int size = n * c * h * w;
+  float *gi, *go;
+  cudaMallocManaged(&gi, size * sizeof(float));
+  cudaMallocManaged(&go, size * sizeof(float));
+
+  cudaMemcpy(gi, input, size * sizeof(float), cudaMemcpyDefault);
+  AbsForward<<<GET_BLOCKS(size), CUDA_NUM_THREADS>>>(size, gi, go);
+  cudaDeviceSynchronize();
+  cudaMemcpy(output, go, size * sizeof(float), cudaMemcpyDefault);
+  cudaFree(gi);
+  cudaFree(go);
+  return 0;
+}
 
 int gpu_conv(float *input, float *weight, float *bias,
     float *output, int in, int ic, int ih, int iw, int oc, int oh, int ow,
