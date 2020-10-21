@@ -1039,12 +1039,12 @@ static LogicalResult doBroadcastOpInterpret(Operation *op,
 
   // parse param
   std::vector<int64_t> shape;
-  int64_t input_size, n0, c0, h0, w0;
+  int64_t input0_size, input1_size, n0, c0, h0, w0;
   int64_t n1, c1, h1, w1;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  assert(input_size == output_size);
+  getTensorShapeAndSize(op->getOperand(0), shape, input0_size);
+  assert(input0_size == output_size);
   getNCHW(shape, n0, c0, h0, w0);
-  getTensorShapeAndSize(op->getOperand(1), shape, input_size);
+  getTensorShapeAndSize(op->getOperand(1), shape, input1_size);
   getNCHW(shape, n1, c1, h1, w1);
 
   llvm::errs() << llvm::format("interpret, a:%d,%d,%d,%d, b:%d,%d,%d,%d\n",
@@ -1125,20 +1125,20 @@ static LogicalResult doBroadcastOpInterpret(Operation *op,
     if (getOpQuantParamType(op) != "NONE") {
       if (type == "ADD" || type == "SUB" || type == "MAX" || type == "MIN") {
         // apply rshift and saturate
-        for (int i = 0; i < input_size; ++i) {
+        for (int i = 0; i < output_size; ++i) {
           output[i] = (float)applyRShiftAndSaturateInt8(
               output[i], (uint32_t)quant_rshift->at(0));
         }
       } else if (type == "MUL") {
         // apply qscale on output (both rshift and saturate)
-        for (int i = 0; i < input_size; ++i) {
+        for (int i = 0; i < output_size; ++i) {
           output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
               output[i], (uint32_t)quant_rshift->at(0),
               (uint32_t)quant_multiplier->at(0), true);
         }
       }
     }
-    for (int i = 0; i < input_size; ++i) {
+    for (int i = 0; i < output_size; ++i) {
       if (output[i] > 127.0) {
         output[i] = 127.0;
       } else if (output[i] < -128.0) {

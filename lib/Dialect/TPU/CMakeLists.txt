@@ -97,6 +97,7 @@ add_llvm_library(MLIRTPU
   Plugin/CustomOpPlugin.cpp
   Backend/MachineInfo.cpp
   Backend/Kernel/CviBackendContext.cpp
+  Backend/Kernel/TgBroadcastKernel.cpp
   Backend/Kernel/TgFixedEltwiseKernel.cpp
   Backend/Kernel/TgFixedFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
@@ -134,7 +135,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgBf16ScaleKernel.cpp
   Backend/Kernel/TgBf16SoftmaxKernel.cpp
   Backend/Kernel/TgBf16SquareKernel.cpp
-  Backend/Kernel/TgBf16BroadcastKernel.cpp
   Backend/Kernel/TgBf16MatMulKernel.cpp
   Backend/Kernel/TgBf16ReduceKernel.cpp
   Backend/Kernel/TlBroadcastMul.cpp
