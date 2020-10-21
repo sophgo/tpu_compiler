@@ -175,14 +175,6 @@ void cvi_backend_tg_fixed_deconv_kernel(
     int pad_w_right, int stride_h, int stride_w, bool do_bias, bool result_add, bool do_relu,
     int right_shift_width, bool use_winograd, int right_shift_array_len, gaddr_t ga_per_channel);
 
-void cvi_backend_tg_fixed_premute_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n,
-    int input_c, int input_h, int input_w, int output_n, int output_c,
-    int output_h, int output_w, int order_n, int order_c, int order_h,
-    int order_w, bool need_permute_);
-
 void cvi_backend_tg_fixed_upsample_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
     uint32_t layer_id, const uint32_t *depends, uint32_t depends_len, gaddr_t ga_ifmap,
@@ -322,15 +314,6 @@ void cvi_backend_tg_bf16_lut_interpolation_kernel(
     int input_c, int input_h, int input_w, float range_min, float range_max,
     float scale);
 
-void cvi_backend_tg_bf16_premute_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t input_gaddr, gaddr_t output_gaddr,
-    int input_n, int input_c, int input_h, int input_w,
-    int output_n, int output_c, int output_h, int output_w,
-    int order_n, int order_c, int order_h, int order_w,
-    bool need_permute_);
-
 void cvi_backend_tg_bf16_upsample_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
     uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
@@ -445,6 +428,13 @@ void cvi_backend_tg_bf16_reduce_mean_kernel(
     int axes[], int num_axes);
 
 ////////////// fixed & bf16 kernel api ////////////////
+
+void cvi_backend_tg_permute_kernel(
+    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
+    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
+    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n,
+    int input_c, int input_h, int input_w, int order_n, int order_c, int order_h,
+    int order_w, cvk_fmt_t fmt);
 
 // shuffle channel, batch = shape[0], channel = shape[1], frame_size = shape[2]
 // * shape[3] * ... suppor int8 and bf16

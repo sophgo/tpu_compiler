@@ -34,7 +34,6 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/MathExtras.h"
-#include "llvm/IR/Function.h"
 #include "mlir/Dialect/TPU/SimpleAnalysis.h"
 #include <algorithm>
 #include <map>

@@ -2075,8 +2075,6 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
 
   auto input_type = input()->getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output()->getType().template cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
 
   std::vector<int> orders;
   orders.push_back(this->order0().getLimitedValue());
@@ -2087,19 +2085,8 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  // Check if we need to reorder the data or keep it.
-  bool need_permute_ = false;
-  int num_axes_ = i_s.size();
 
-  for (int i = 0; i < num_axes_; ++i) {
-    if (orders[i] != i) {
-      // As long as there is one order which is different from the natural order
-      // of the data, we need to permute. Otherwise, we share the data and diff.
-      need_permute_ = true;
-      break;
-    }
-  }
-  cvi_backend_tg_fixed_premute_kernel(
+  cvi_backend_tg_permute_kernel(
       *backend_ctx,
       0, //stream_id,
       0, //inst_id,
@@ -2109,9 +2096,7 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
       input_gaddr,
       output_gaddr,
       i_s[0], i_s[1], i_s[2], i_s[3],
-      o_s[0], o_s[1], o_s[2], o_s[3],
-      orders[0], orders[1], orders[2], orders[3],
-      need_permute_);
+      orders[0], orders[1], orders[2], orders[3], CVK_FMT_I8);
   return success();
 }
 
@@ -2123,18 +2108,10 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
 
   auto input_type = input()->getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output()->getType().template cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
 
   std::vector<int64_t> i_nchw(4,1);
-  std::vector<int64_t> o_nchw(4,1);
-
   for (uint64_t i = 0; i < i_s.size(); i++) {
     i_nchw[i] = i_s[i];
-  }
-
-  for (uint64_t i = 0; i < o_s.size(); i++) {
-    o_nchw[i] = o_s[i];
   }
 
   std::vector<int> orders;
@@ -2146,19 +2123,8 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  // Check if we need to reorder the data or keep it.
-  bool need_permute_ = false;
-  int num_axes_ = i_s.size();
-  for (int i = 0; i < num_axes_; ++i) {
-    if (orders[i] != i) {
-      // As long as there is one order which is different from the natural order
-      // of the data, we need to permute. Otherwise, we share the data and diff.
-      need_permute_ = true;
-      break;
-    }
-  }
 
-  cvi_backend_tg_bf16_premute_kernel(
+  cvi_backend_tg_permute_kernel(
       *backend_ctx,
       0, //stream_id,
       0, //inst_id,
@@ -2168,9 +2134,8 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
       input_gaddr,
       output_gaddr,
       i_nchw[0], i_nchw[1], i_nchw[2], i_nchw[3],
-      o_nchw[0], o_nchw[1], o_nchw[2], o_nchw[3],
       orders[0], orders[1], orders[2], orders[3],
-      need_permute_);
+      CVK_FMT_BF16);
   return success();
 }
 

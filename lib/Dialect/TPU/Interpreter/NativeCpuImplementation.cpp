@@ -1865,46 +1865,25 @@ int my_interptile(float *input, float *output, int n, int c, int h, int w,
   return 0;
 }
 
-int my_permute(float *input, float *output, const int input_shape_size,
-    int in, int ic, int ih, int iw,
-    int on, int oc, int oh, int ow,
-    int order0, int order1, int order2, int order3) {
-
-  /* This algorthem is referred to caffe permute layer */
-  int count = in*ic*ih*iw;
-  LLVM_DEBUG(llvm::errs() << "my_permute"<<"\n";);
-  LLVM_DEBUG(llvm::errs() << "shap_size = "<<input_shape_size<<"\n";);
-  std::vector<int> old_steps;
-  std::vector<int> new_steps;
-  std::vector<int> orders;
-
-
-  old_steps.push_back(ic*ih*iw);
-  old_steps.push_back(ih*iw);
-  old_steps.push_back(iw);
-  old_steps.push_back(1);
-
-  new_steps.push_back(oc*oh*ow);
-  new_steps.push_back(oh*ow);
-  new_steps.push_back(ow);
-  new_steps.push_back(1);
-
-  orders.push_back(order0);
-  orders.push_back(order1);
-  orders.push_back(order2);
-  orders.push_back(order3);
-
-  for (int i = 0; i < count; ++i) {
-    int old_idx = 0;
-    int idx = i;
-    for (int j = 0; j < input_shape_size; ++j) {
-      int order = orders[j];
-      old_idx += (idx / new_steps[j]) * old_steps[order];
-      idx %= new_steps[j];
+int my_permute(float *input, float *output, int in, int ic, int ih, int iw,
+               int order0, int order1, int order2, int order3) {
+  int shape[4] = {in, ic, ih, iw};
+  for (int n = 0; n < in; n++) {
+    for (int c = 0; c < ic; c++) {
+      for (int h = 0; h < ih; h++) {
+        for (int w = 0; w < iw; w++) {
+          int cur[4] = {n, c, h, w};
+          int in_idx = w + h * iw + c * ih * iw + n * ic * ih * iw;
+          int out_idx =
+              cur[order3] + cur[order2] * shape[order3] +
+              cur[order1] * shape[order3] * shape[order2] +
+              cur[order0] * shape[order3] * shape[order2] * shape[order1];
+          output[out_idx] = input[in_idx];
+        }
+      }
     }
-    output[i] = input[old_idx];
   }
-  return 0 ;
+  return 0;
 }
 
 // mish, copy from caffe

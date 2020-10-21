@@ -1991,7 +1991,7 @@ LogicalResult tpu::NormalizeOp::interpret(
 }
 
 LogicalResult tpu::PermuteOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2001,45 +2001,28 @@ LogicalResult tpu::PermuteOp::interpret(
   auto resultT = std::make_unique<std::vector<float>>(size);
 
   std::vector<int64_t> input_shape;
-  std::vector<int64_t> output_shape;
-
-  int64_t input_size, output_size;
+  int64_t input_size;
   getTensorShapeAndSize(input(), input_shape, input_size);
-  getTensorShapeAndSize(output(), output_shape, output_size);
 
   assert(input_shape.size() == 4);
 
-  int in,ic,ih,iw,on,oc,oh,ow,order0,order1,order2,order3;
+  int in, ic, ih, iw, order0, order1, order2, order3;
 
   in = input_shape[0];
   ic = input_shape[1];
   ih = input_shape[2];
   iw = input_shape[3];
 
-  on = output_shape[0];
-  oc = output_shape[1];
-  oh = output_shape[2];
-  ow = output_shape[3];
-
   order0 = this->order0().getLimitedValue();
   order1 = this->order1().getLimitedValue();
   order2 = this->order2().getLimitedValue();
   order3 = this->order3().getLimitedValue();
 
-  int ret = 0;
   std::shared_ptr<std::vector<float>> input = opdT[0];
-  //As long as there is one order which is different from the natural order
-  // of the data, we need to permute.(from caffe permute layer source code mark)
-  if( in==on && ic==oc && ih==oh && iw==ow ){
-    valueMapping[result] = std::move(opdT[0]);
-  } else {
-    std::shared_ptr<std::vector<float>> input = opdT[0];
-    ret = my_permute(input->data(),resultT->data(),input_shape.size(),in,ic,ih,iw,
-              on,oc,oh,ow,
-              order0,order1,order2,order3);
-    assert(ret == 0);
-    valueMapping[result] = std::move(resultT);
-  }
+  int ret = my_permute(input->data(), resultT->data(), in, ic, ih, iw, order0,
+                       order1, order2, order3);
+  assert(ret == 0);
+  valueMapping[result] = std::move(resultT);
   return success();
 }
 
@@ -2440,15 +2423,11 @@ LogicalResult tpu::PreprocessOp::interpret(
     t_oc = input_shape.at(transpose_orders.at(1));
     t_oh = input_shape.at(transpose_orders.at(2));
     t_ow = input_shape.at(transpose_orders.at(3));
-    my_permute(input->data(), transpose_tmp_data.data(), input_shape.size(),
+    my_permute(input->data(), transpose_tmp_data.data(),
                input_shape.at(0),
                input_shape.at(1),
                input_shape.at(2),
                input_shape.at(3),
-               t_on,
-               t_oc,
-               t_oh,
-               t_ow,
                transpose_orders.at(0),
                transpose_orders.at(1),
                transpose_orders.at(2),
