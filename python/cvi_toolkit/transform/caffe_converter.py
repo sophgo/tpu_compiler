@@ -1453,6 +1453,15 @@ class CaffeConverter(BaseConverter):
             op, _, _ = self.getOperand(bottom)
             operands.append(op)
         p = layer.yolo_detection_param
+
+        if not p.anchors:
+            if p.tiny:
+                p.anchors = "10,14,23,27,37,58,81,82,135,169,344,319"
+            elif p.yolo_v4:
+                p.anchors = "142,110,192,243,459,401,36,75,76,55,72,146,12,16,19,36,40,28"
+            else:
+                p.anchors = "10,13,16,30,33,23,30,61,62,45,59,119,116,90,156,198,373,326"
+
         param = {
             'net_input_h': p.net_input_h,
             "net_input_w": p.net_input_w,
