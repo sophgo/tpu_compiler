@@ -1166,7 +1166,17 @@ class OnnxConverter(BaseConverter):
         operands.append(op)
         weight_name = onnx_node.inputs[1]
         weight_tensor = self.getTensor(weight_name)
-        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
+        weight_shape = weight_tensor.shape
+        if onnx_node.attrs.get('transA', 1) == 0 and onnx_node.attrs.get('transB', 1) == 0:
+            # mlir require second is transposed
+            print("transpose b for mlir require", onnx_node.attrs, type(weight_shape))
+            assert(len(weight_shape) == 2 and "shape should be 2 dim")
+            weight_shape.reverse()
+            weight_tensor_data = weight_tensor.tensor_data
+            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor_data, (1, 0)))
+            self.addTensor(weight_name, weight_tensor, weight_shape)
+
+        weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
         operands.append(weight_op)
 
         bias_name = onnx_node.inputs[2]
