@@ -3335,7 +3335,7 @@ LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
   if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
     // Replace with tdma global memory copy via TG permute
     std::vector<int64_t> output_shape = getTensorShape(output());
-    cvi_backend_tg_fixed_premute_kernel(*backend_ctx,
+    cvi_backend_tg_permute_kernel(*backend_ctx,
                                         0,  // stream_id
                                         0,  // inst_id
                                         layer_id,
@@ -3347,15 +3347,8 @@ LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
                                         (uint32_t)output_shape[1], // input_c
                                         (uint32_t)output_shape[2], // input_h
                                         (uint32_t)output_shape[3], // input_w
-                                        (uint32_t)output_shape[0], // output_n
-                                        (uint32_t)output_shape[1], // output_c
-                                        (uint32_t)output_shape[2], // output_h
-                                        (uint32_t)output_shape[3], // output_w
-                                        0,                         // order_n
-                                        1,                         // order_c
-                                        2,                         // order_h
-                                        3,                         // order_w
-                                        false                      // do_permute
+                                        0,1,2,3,   // order
+                                        CVK_FMT_I8
                                         );
   } else {
     cvi_backend_tg_fixed_reduce_max_kernel(*backend_ctx,
@@ -3440,7 +3433,7 @@ LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
   if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
     // Replace with tdma global memory copy via TG permute
     std::vector<int64_t> output_shape = getTensorShape(output());
-    cvi_backend_tg_bf16_premute_kernel(*backend_ctx,
+    cvi_backend_tg_permute_kernel(*backend_ctx,
                                         0,  // stream_id
                                         0,  // inst_id
                                         layer_id,
@@ -3452,15 +3445,11 @@ LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
                                         (uint32_t)output_shape[1], // input_c
                                         (uint32_t)output_shape[2], // input_h
                                         (uint32_t)output_shape[3], // input_w
-                                        (uint32_t)output_shape[0], // output_n
-                                        (uint32_t)output_shape[1], // output_c
-                                        (uint32_t)output_shape[2], // output_h
-                                        (uint32_t)output_shape[3], // output_w
                                         0,                         // order_n
                                         1,                         // order_c
                                         2,                         // order_h
                                         3,                         // order_w
-                                        false                      // do_permute
+                                        CVK_FMT_BF16
                                         );
   } else {
     cvi_backend_tg_bf16_reduce_max_kernel(*backend_ctx,
