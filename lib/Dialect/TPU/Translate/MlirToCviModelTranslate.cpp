@@ -300,15 +300,17 @@ void CviTpuRoutine::codeGen() {
       int layer_id = mlir::getOpLayerId(op);
       cvi_backend_set_layer_id(backend_ctx, layer_id);
       // enable parallel
-      if (tlOp.getEnableParallel() && !isa<tpu::TL_LG_INT8_LrnOp>(op)
-          && !isa<tpu::TL_LG_BF16_LrnOp>(op)) {
+      if (tlOp.getEnableParallel() &&
+          !isa<tpu::TL_LG_INT8_LrnOp>(op) &&
+          !isa<tpu::TL_LG_BF16_LrnOp>(op)) {
         cvi_backend_parallel_enable(backend_ctx);
       }
       // tl codegen
       tlOp.codegen((void *)backend_ctx);
       // disable parallel
-      if (tlOp.getDisableParallel() && !isa<tpu::TL_LG_INT8_LrnOp>(op)
-          && !isa<tpu::TL_LG_BF16_LrnOp>(op)) {
+      if (tlOp.getDisableParallel() &&
+          !isa<tpu::TL_LG_INT8_LrnOp>(op) &&
+          !isa<tpu::TL_LG_BF16_LrnOp>(op)) {
         cvi_backend_parallel_disable(backend_ctx);
       }
     }
@@ -380,9 +382,10 @@ void CviModelBuilder::parseModule() {
       }
     } else if (auto castOp = llvm::dyn_cast<tpu::LoadWeightOp>(op)) {
       auto type = castOp.getResult()->getType().template cast<TensorType>();
-      auto tensor =
-          std::make_shared<CviTensor>(castOp.name().str(), type,
-                                      castOp.offset().getValue().getSExtValue(), true);
+      auto tensor = std::make_shared<CviTensor>(
+          castOp.name().str(), type,
+          castOp.offset().getValue().getSExtValue(),
+          true);
       tensorMaps_.push_back(tensor);
     } else if (auto castOp = llvm::dyn_cast<tpu::ReshapeOp>(op)) {
       auto findTensor = [this](std::string name) {
@@ -408,15 +411,18 @@ void CviModelBuilder::parseModule() {
           op->getAttr("gaddr") ? op->getAttr("gaddr").cast<IntegerAttr>().getInt() : -1;
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
       if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
-        float threshold = (float)castOp.quant().threshold_max().
-                          getValue().convertToFloat();
+        float threshold =
+            (float)castOp.quant().threshold_max().getValue().convertToFloat();
         tensor->setInt8SymQuantInfo(threshold);
       } else if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
         if (castOp.operation_name() == "tpu.quant" &&
             castOp.param().get("from").cast<StringAttr>().getValue() == "NONE" &&
             castOp.param().get("to").cast<StringAttr>().getValue() == "INT8") {
-          float threshold = (float)castOp.param().get("threshold").
-                            cast<FloatAttr>().getValue().convertToFloat();
+          float threshold = (float)castOp.param()
+                                .get("threshold")
+                                .cast<FloatAttr>()
+                                .getValue()
+                                .convertToFloat();
           tensor->setInt8SymQuantInfo(threshold);
         }
       }
@@ -437,8 +443,8 @@ void CviModelBuilder::parseModule() {
         overwritten = true;
       }
       if (llvm::dyn_cast<tpu::TL_LG_JoinOp>(op)) {
-        auto tpuOp = llvm::dyn_cast<tpu::TL_LG_StoreOp>(
-                        op->getOperand(0)->getDefiningOp());
+        auto tpuOp =
+            llvm::dyn_cast<tpu::TL_LG_StoreOp>(op->getOperand(0)->getDefiningOp());
         if (tpuOp.store_compr_act().hasValue())
           overwritten = tpuOp.store_compr_act().getValue();
       }
@@ -534,18 +540,19 @@ FBSectionVector CviModelBuilder::buildSections() {
 }
 
 FBModel CviModelBuilder::build() {
-  Version modelVersion = Version(MajorVersion_value, MinorVersion_value, SubMinorVersion_value);
+  Version modelVersion =
+      Version(MajorVersion_value, MinorVersion_value, SubMinorVersion_value);
   auto fbModelName = fbb_.CreateString(modelName_);
   auto fbBuildTime = fbb_.CreateString(getStrOfCurrentTime());
-
+  auto fbMlirVersion = fbb_.CreateString(MLIR_VERSION);
   auto fbWeightMap = buildWeightMap();
   auto fbSections = buildSections();
   auto fbProgram = buildProgram();
   std::vector<FBProgram> programVec;
   programVec.push_back(fbProgram);
   auto fbProgramVec = fbb_.CreateVector(programVec);
-  return CreateModel(fbb_, &modelVersion, fbModelName, fbBuildTime, 0, 0, fbWeightMap,
-                     fbProgramVec, fbSections);
+  return CreateModel(fbb_, &modelVersion, fbModelName, fbBuildTime,  0, 0,
+                     fbWeightMap, fbProgramVec, fbSections, 0, fbMlirVersion);
 }
 
 FBWeightVector CviModelBuilder::buildWeightMap() {
@@ -582,8 +589,7 @@ FBTensorVector CviModelBuilder::buildNeuronMap() {
     auto fbName = fbb_.CreateString(tensor->name);
     auto fbShapeVec = fbb_.CreateVector(shape);
     auto fbShape = CreateShape(fbb_, fbShapeVec);
-    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type,
-                                   0, 0, 0, tensor->qscale);
+    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type, 0, 0, 0, tensor->qscale);
     auto fbTensor = CreateTensor(fbb_, 0, fbName, tensor->offset, tensor->dtype, fbShape,
                                  0, fbQuant, tensor->overwritten);
     tensorVec.push_back(fbTensor);
@@ -602,9 +608,8 @@ FBProgram CviModelBuilder::buildProgram() {
     fbRoutineVec.push_back(rt->build());
   }
   auto fbRoutines = fbb_.CreateVector(fbRoutineVec);
-  return CreateProgram(fbb_, batchNum_, 0, fbInputs, fbOutputs,
-                       fbNeuronMap, fbRoutines, (uint32_t)sharedGmemSize_,
-                       (uint32_t)privateGmemSize_);
+  return CreateProgram(fbb_, batchNum_, 0, fbInputs, fbOutputs, fbNeuronMap, fbRoutines,
+                       (uint32_t)sharedGmemSize_, (uint32_t)privateGmemSize_);
 }
 
 void CviModelBuilder::storeModel(llvm::raw_ostream &output) {

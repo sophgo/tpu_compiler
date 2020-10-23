@@ -54,6 +54,8 @@ static llvm::cl::opt<bool> verifyDiagnostics(
     llvm::cl::init(false));
 
 int main(int argc, char **argv) {
+  llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
+
   llvm::InitLLVM y(argc, argv);
 
   // Add flags for all the registered translations.

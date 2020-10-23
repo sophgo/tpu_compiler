@@ -57,6 +57,7 @@ static cl::opt<bool>
                  cl::init(true));
 
 int main(int argc, char **argv) {
+  llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
   InitLLVM y(argc, argv);
 
   // Register any pass manager command line options.

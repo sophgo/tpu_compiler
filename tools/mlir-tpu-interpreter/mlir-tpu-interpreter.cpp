@@ -82,6 +82,8 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
 static mlir::DialectRegistration<mlir::tpu::TPUDialect> TPUOps;
 
 int main(int argc, char **argv) {
+  llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
+
   llvm::InitLLVM y(argc, argv);
 
   llvm::cl::ParseCommandLineOptions(argc, argv, "MLIR TPU interpreter driver\n");

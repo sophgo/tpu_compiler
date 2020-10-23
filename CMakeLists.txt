@@ -37,6 +37,24 @@ endfunction()
 
 add_custom_target(mlir-doc)
 
+execute_process(
+  COMMAND git describe --always --dirty --abbrev=8 --match="NoTagWithThisName"
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  RESULT_VARIABLE GIT_EXEC_RESULT
+  OUTPUT_VARIABLE GIT_SHORT_HASH)
+execute_process(
+  COMMAND git rev-parse --abbrev-ref HEAD
+  WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+  RESULT_VARIABLE GIT_EXEC_RESULT0
+  OUTPUT_VARIABLE GIT_BRANCH_NAME)
+
+string(STRIP ${GIT_SHORT_HASH} GIT_SHORT_HASH)
+string(STRIP ${GIT_BRANCH_NAME} GIT_BRANCH_NAME)
+string(TIMESTAMP BUILD_TIME "%Y%m%d%H%M%S")
+set(MLIR_VERSION "${GIT_BRANCH_NAME}:${GIT_SHORT_HASH}:${BUILD_TIME}")
+message(STATUS "mlir version: ${MLIR_VERSION}")
+add_definitions(-DMLIR_VERSION="${MLIR_VERSION}")
+
 # TODO: This is to handle the current static registration, but should be
 # factored out a bit.
 function(whole_archive_link target)
