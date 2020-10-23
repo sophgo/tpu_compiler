@@ -837,6 +837,117 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
   }
 };
 
+
+struct TpuConvertDilationWeightPattern : public RewritePattern {
+  TpuConvertDilationWeightPattern(MLIRContext *context)
+      : RewritePattern("tpu.conv_2d", 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto convOp = cast<tpu::Conv2DOp>(op);
+    LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
+                            << getOpName(op)<< "\n";);
+
+    auto dh = convOp.param().dilation_h().getValue().getLimitedValue();
+    auto dw = convOp.param().dilation_w().getValue().getLimitedValue();
+    const int DILATION_H_MAX = 15;
+    const int DILATION_W_MAX = 15;
+    if (dh <= DILATION_H_MAX && dw <= DILATION_W_MAX)
+      return matchFailure();
+
+    TensorFile *wTF = getWeightTensorFile(op);
+    auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
+    std::vector<int64_t> filterShape;
+    filterShape = getTensorShape(convOp.filter());
+
+    int64_t oc = 0;
+    int64_t ic = 0;
+    int64_t kh = 0;
+    int64_t kw = 0;
+    if (filterShape.size() == 4) {
+      oc = filterShape[0];
+      ic = filterShape[1];
+      kh = filterShape[2];
+      kw = filterShape[3];
+    } else if (filterShape.size() == 5) {
+      // g, oc/g, ic/g, kh, kw
+      oc = filterShape[0] * filterShape[1];
+      ic = filterShape[2];
+      kh = filterShape[3];
+      kw = filterShape[4];
+    } else {
+      assert(0);
+    }
+
+    int insertNumH = 0;
+    int insertNumW = 0;
+    int newDilationH = dh;
+    int newDilationW = dw;
+    while(1) {
+      insertNumH++;
+      newDilationH = (dh - 1 - insertNumH) / (insertNumH + 1) + 1;
+      if (((dh - 1 - insertNumH) % (insertNumH + 1) == 0) &&
+         newDilationH < DILATION_H_MAX)
+        break;
+    }
+
+    while(1) {
+      insertNumW++;
+      newDilationW = (dw - 1 - insertNumW) / (insertNumW + 1) + 1;
+      if (((dw - 1 - insertNumW) % (insertNumW + 1) == 0) &&
+         newDilationW < DILATION_W_MAX)
+        break;
+    }
+
+    int k_ext_h = (insertNumH + 1) * (kh - 1) + 1;
+    int k_ext_w = (insertNumW + 1) * (kw - 1) + 1;
+    filterShape[2] = k_ext_h;
+    filterShape[3] = k_ext_w;
+    auto filterSize = oc * ic * k_ext_h * k_ext_w;
+    std::vector<float> newFilter(filterSize, 0);
+    for (int i = 0; i < oc * ic; i++) {
+      for (int j = 0; j < kh; j++) {
+        for (int k = 0; k < kw; k++) {
+          auto old_offset = i * kh * kw + j * kw + k;
+          auto new_offset = i * k_ext_h * k_ext_w +
+                            j * (insertNumW + 1) * k_ext_w +
+                            k * (insertNumH + 1);
+          newFilter[new_offset] = filter->data()[old_offset];
+        }
+      }
+    }
+
+    // update op
+    if (getOpQuant(op) == "INT8")
+      addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
+          "dilation", newFilter, filterShape, "INT8", wTF);
+    else if (getOpQuant(op) == "BF16")
+      addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
+          "dilation", newFilter, filterShape, "BF16", wTF);
+
+    // rewrite pad
+    convOp.setAttr("param",
+           tpu::ConvParam::get(
+                convOp.param().stride_h(),
+                convOp.param().stride_w(),
+                convOp.param().padding(),
+                rewriter.getI32IntegerAttr(newDilationH),
+                rewriter.getI32IntegerAttr(newDilationW),
+                convOp.param().padding_t(),
+                convOp.param().padding_b(),
+                convOp.param().padding_l(),
+                convOp.param().padding_r(),
+                convOp.param().group(),
+                convOp.param().is_dw(),
+                convOp.param().with_bias(),
+                convOp.param().do_relu(),
+                convOp.param().ins(),
+                rewriter.getContext()));
+
+    return matchSuccess();
+  }
+};
+
 class TpuQuantPass : public FunctionPass<TpuQuantPass> {
 
 public:
@@ -923,11 +1034,14 @@ public:
       }
     });
 
+    OwningRewritePatternList patterns;
+
     // check clip(relu6) is fused or leave for bf16
     // we implement relu6 with threshold, if no need quant(bf16 case)
     // we SHOULD do relu6 op
-    OwningRewritePatternList patterns;
     patterns.insert<TpuTpuQuantClipPassPattern>(context);
+    // patch for dialation > 15
+    patterns.insert<TpuConvertDilationWeightPattern>(context);
     applyPatternsGreedily(fn, patterns);
 
     // unzip preprocess op
