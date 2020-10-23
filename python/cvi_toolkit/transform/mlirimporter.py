@@ -745,7 +745,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.GRU.value, inputOperands, [
             tensor_output_type], name=gru_name, quant=self.quant_param, **gru_param)
 
-    def add_leaky_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_leaky_relu_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
         self.f32Type, output_tensor_shape)
 
@@ -760,11 +760,33 @@ class MLIRImporter(object):
         none = self.add_none_op()
         # quant_pos_scale, quant_pos_zeropoint, quant_neg_scale, quant_neg_zeropoint
         # quant_pos_rshift, quant_pos_multiplier, quant_neg_rshift, quant_neg_multiplier
-        for _ in range( 9 - len(inputOperands)):
-            inputOperands.append(none)
+        if mode == TPU_MODE.INT8:
+            if len(inputOperands) < 4:
+                raise RuntimeError(
+                    "{} input, need more than 4 input operands".format(len(inputOperands)))
+
+            quant_param = self.create_int8_quant_param(**kargs)
+
+            # [input, quant_pos_rshift, quant_pos_multiplier, quant_neg_rshift, quant_neg_multiplier]
+            activation_op = inputOperands[0]
+            pos_rshift, pos_multipiler = inputOperands[1:3]
+            neg_rshift, neg_multipiler = inputOperands[3:5]
+            inputOperands = [activation_op, none, none,
+                             none, none, pos_rshift, pos_multipiler, neg_rshift, neg_multipiler]
+
+        elif mode == TPU_MODE.FP32:
+            if len(inputOperands) < 1:
+                raise RuntimeError(
+                    "{} input, need more than 1 input operands".format(len(inputOperands)))
+            for _ in range( 9 - len(inputOperands)):
+                inputOperands.append(none)
+            quant_param = self.quant_param
+
+        elif mode == TPU_MODE.BF16:
+            raise RuntimeError("Not support BF16")
 
         return self.buildOp(TPU_OpType.LeakyRelu.value, inputOperands, [
-            tensor_output_type], name=leaky_relu_name, quant=self.quant_param, **leaky_relu_param)
+            tensor_output_type], name=leaky_relu_name, quant=quant_param, **leaky_relu_param)
 
     def add_lrn_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(self.f32Type, output_tensor_shape)
