@@ -59,7 +59,7 @@ namespace mlir {
 /// Conv Ops quantization method
 ///
 template<typename OpTy>
-LogicalResult quantizeBf16ConvOps(Operation *op) {
+LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
   assert(getOpQuant(op) == "BF16");
 
   auto convOp = cast<OpTy>(op);
@@ -76,9 +76,12 @@ LogicalResult quantizeBf16ConvOps(Operation *op) {
   int64_t oc = 0;
   if (filterShape.size() == 4) {
     oc = filterShape[0];
-  } else if (filterShape.size() == 5) {
+  } else if (filterShape.size() == 5 && spatial_dims == 2) {
     // g, oc/g, ic/g, kh, kw
     oc = filterShape[0] * filterShape[1];
+  } else if (filterShape.size() == 5 && spatial_dims == 3) {
+    // oc, ic, kd, kh, kw
+    oc = filterShape[0];
   } else {
     assert(0);
   }
@@ -942,7 +945,7 @@ LogicalResult tpu::Conv2DOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBf16ConvOps<tpu::Conv2DOp>(op);
+  return quantizeBf16ConvOps<tpu::Conv2DOp>(op, 2);
 }
 
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CropOp)
@@ -953,7 +956,14 @@ LogicalResult tpu::DeConv2DOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBf16ConvOps<tpu::DeConv2DOp>(op);
+  return quantizeBf16ConvOps<tpu::DeConv2DOp>(op, 2);
+}
+
+LogicalResult tpu::Conv3DOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16ConvOps<tpu::Conv3DOp>(op, 3);
 }
 
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseAddOp)

@@ -186,6 +186,31 @@ def TPU_ConvParamAttr : StructAttr<"ConvParam", TPU_Dialect, [
 }
 
 //===----------------------------------------------------------------------===//
+// Conv3d dimension parameters structure.
+//===----------------------------------------------------------------------===//
+def TPU_Conv3dParamAttr : StructAttr<"Conv3dParam", TPU_Dialect, [
+    StructFieldAttr<"stride_d", I32Attr>,
+    StructFieldAttr<"stride_h", I32Attr>,
+    StructFieldAttr<"stride_w", I32Attr>,
+    StructFieldAttr<"padding", TPU_PaddingAttr>,
+    StructFieldAttr<"dilation_d", I32Attr>,
+    StructFieldAttr<"dilation_h", I32Attr>,
+    StructFieldAttr<"dilation_w", I32Attr>,
+    StructFieldAttr<"padding_d0", I32Attr>,
+    StructFieldAttr<"padding_d1", I32Attr>,
+    StructFieldAttr<"padding_t", I32Attr>,
+    StructFieldAttr<"padding_b", I32Attr>,
+    StructFieldAttr<"padding_l", I32Attr>,
+    StructFieldAttr<"padding_r", I32Attr>,
+    StructFieldAttr<"group", I32Attr>,
+    StructFieldAttr<"is_dw", BoolAttr>,
+    StructFieldAttr<"with_bias", BoolAttr>,
+    StructFieldAttr<"do_relu", BoolAttr>,
+    StructFieldAttr<"ins", I32ArrayAttr>]> {
+  let description = "Structure of dimension parameters for conv3d op";
+}
+
+//===----------------------------------------------------------------------===//
 // Pool dimension parameters structure.
 //===----------------------------------------------------------------------===//
 def TPU_PoolParamAttr : StructAttr<"PoolParam", TPU_Dialect, [

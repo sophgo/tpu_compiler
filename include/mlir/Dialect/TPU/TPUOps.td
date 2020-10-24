@@ -100,6 +100,76 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
   let hasCanonicalizer = 1;
 }
 
+class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = opSummary # " operator";
+
+  let description = [{
+    Performs convolution operation on inputs.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `filter`          : required, the filter weight tensor.
+      `bias`            : optional, the bias weight tensor.
+      `quant_scale`     : optional, the quant scale tensor, should be a fp32
+                          value for `per-tensor` quantization, or `oc` fp32
+                          values for `per-channel` quantization.
+      `quant_zeropoint` : optional, the quant zero_point tensor, should always
+                          be a int8 value, we support asymmetric on actvations
+                          only, weights are sysmmetric.
+      `quant_rshift`    : optional, `quant_scale` can be expressed by a rshift
+                          value (`quant.is_rshiftonly` mode), or be deccomposed
+                          into a rshift and a multiplier. should be a int8
+                          value for `per-tensor` quantization, or `oc` int8
+                          values for `per-channel` quantization.
+      `quant_multiplier`: optional, see `quant_rshift` comments, should be a
+                          int8 value for `per-tensor` quantization, or `oc`
+                          int32 values for `per-channel` quantization.
+
+    Attributes:
+      `param`           : required, a ConvParam struct attributes, carrying
+                          stride, padding, dilation, group, is_dw, with_bias,
+                          and do_relu.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    TPU_Conv3dParamAttr:$param,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+
+  let hasCanonicalizer = 1;
+}
+
 class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -498,6 +568,7 @@ def TPU_ConcatOp: TPU_Op<"concat",
 }
 
 def TPU_Conv2DOp : TPU_ConvOp<"conv_2d", "Convolution">;
+def TPU_Conv3DOp : TPU_Conv3dOp<"conv_3d", "Convolution">;
 
 def TPU_CropOp: TPU_Op<"crop",
       [NoSideEffect,

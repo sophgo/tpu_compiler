@@ -592,6 +592,14 @@ LogicalResult tpu::DeConv2DOp::interpret(
   return doConv2DOpInterpret<tpu::DeConv2DOp>(op, valueMapping);
 }
 
+LogicalResult tpu::Conv3DOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  //Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  // return doConv3DOpInterpret<tpu::Conv3DOp>(op, valueMapping);
+  return success();
+}
+
 LogicalResult tpu::DilateOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();

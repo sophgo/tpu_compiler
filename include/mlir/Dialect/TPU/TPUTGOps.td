@@ -195,6 +195,71 @@ def TPU_TG_BF16_Conv2DOp : TPU_TG_ConvOp<"tg_bf16_conv_2d", "Bf16">;
 def TPU_TG_INT8_PT_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pt_deconv_2d", "Int8 Per-Tensor">;
 def TPU_TG_INT8_PC_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pc_deconv_2d", "Int8 Per-Channel">;
 def TPU_TG_BF16_DeConv2DOp : TPU_TG_ConvOp<"tg_bf16_deconv_2d", "Bf16">;
+
+
+
+class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Convolution operator";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+      `filter`          : required, the filter weight memref.
+      `pc_info`         : required, the perchannel weight memref.
+
+    Attributes:
+      `pt_rshift`       : optional, rshift for per-tensor mode.
+      `param`           : required, a ConvParam struct attributes, carrying
+                          stride, padding, dilation, group, is_dw, with_bias,
+                          and do_relu.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    TPU_TensorOfOrNone<[I32,I16,I8]>:$pc_info,
+    OptionalAttr<I8Attr>:$pt_rshift,
+    TPU_Conv3dParamAttr:$param,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<BoolAttr>:$do_ic_alignment,
+    OptionalAttr<F32Attr>:$negative_slope,
+    OptionalAttr<I8Attr>:$rshift_pos,
+    OptionalAttr<I8Attr>:$m_i8_pos,
+    OptionalAttr<I8Attr>:$rshift_neg,
+    OptionalAttr<I8Attr>:$m_i8_neg,
+    DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<BoolAttr>:$store_compr_act,
+    OptionalAttr<TPU_ConvTileParamAttr>:$tile_param,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_BF16_Conv3DOp : TPU_TG_Conv3dOp<"tg_bf16_conv_3d", "Bf16">;
+
 // underlying we are using conv to do broadcast mul
 def TPU_TG_INT8_BroadcastMulOp : TPU_TG_ConvOp<"tg_int8_broadcast_mul", "Int8">;
 def TPU_TG_BF16_BroadcastMulOp : TPU_TG_ConvOp<"tg_bf16_broadcast_mul", "Bf16">;

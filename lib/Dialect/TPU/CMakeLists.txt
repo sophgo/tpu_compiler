@@ -49,6 +49,7 @@ add_llvm_library(MLIRTPU
   Transforms/ReorderOp.cpp
   Transforms/ConvertInterp.cpp
   Transforms/ConvertConv2D.cpp
+  Transforms/ConvertConv3D.cpp
   Transforms/ConvertUpsample.cpp
   Transforms/ConvertTile.cpp
   Transforms/ConvertQuantOp.cpp

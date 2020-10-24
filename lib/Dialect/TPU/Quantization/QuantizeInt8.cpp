@@ -49,7 +49,7 @@ namespace mlir {
 /// Conv Ops quantization method
 ///
 template<typename OpTy>
-LogicalResult quantizeInt8ConvOps(Operation *op) {
+LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   assert(getOpQuant(op) == "INT8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -67,9 +67,12 @@ LogicalResult quantizeInt8ConvOps(Operation *op) {
   int64_t oc = 0;
   if (filterShape.size() == 4) {
     oc = filterShape[0];
-  } else if (filterShape.size() == 5) {
+  } else if (filterShape.size() == 5 && spatial_dims == 2) {
     // g, oc/g, ic/g, kh, kw
     oc = filterShape[0] * filterShape[1];
+  } else if (filterShape.size() == 5 && spatial_dims == 3) {
+    // oc, ic, kd, kh, kw
+    oc = filterShape[0];
   } else {
     assert(0);
   }
@@ -1187,7 +1190,14 @@ LogicalResult tpu::Conv2DOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeInt8ConvOps<tpu::Conv2DOp>(op);
+  return quantizeInt8ConvOps<tpu::Conv2DOp>(op, 2);
+}
+
+LogicalResult tpu::Conv3DOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8ConvOps<tpu::Conv3DOp>(op, 3);
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::AbsOp)
@@ -1199,7 +1209,7 @@ LogicalResult tpu::DeConv2DOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeInt8ConvOps<tpu::DeConv2DOp>(op);
+  return quantizeInt8ConvOps<tpu::DeConv2DOp>(op, 2);
 }
 
 LogicalResult tpu::EltwiseAddOp::quantizeInt8() {

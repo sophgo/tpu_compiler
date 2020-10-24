@@ -445,6 +445,12 @@ Value* tpu::Conv2DOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value* tpu::Conv3DOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  return nullptr;
+}
+
 Value* tpu::CropOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);

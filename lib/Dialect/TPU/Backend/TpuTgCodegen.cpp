@@ -1004,6 +1004,12 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_Conv3DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_DilateOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
