@@ -40,12 +40,6 @@ using namespace mlir;
 
 namespace {
 
-static llvm::cl::opt<bool> clSkipMultiUsedScaleOp(
-    "skip-mult-used-scale-op",
-    llvm::cl::desc("Skip Multiple uses for Scale Op"),
-    llvm::cl::init(false));
-
-
 struct TpuFoldScalePattern : public RewritePattern {
   TpuFoldScalePattern(MLIRContext *context)
       : RewritePattern("tpu.scale", 5, context) {}
@@ -60,13 +54,11 @@ struct TpuFoldScalePattern : public RewritePattern {
 
     // match consecutive scale operations
     auto formerOp = laterScaleOp.getOperand(0)->getDefiningOp();
-    if (!isa<tpu::ScaleOp>(formerOp))
+    if (!isa<tpu::ScaleOp>(formerOp)) {
       return matchFailure();
-    if (clSkipMultiUsedScaleOp && !formerOp->getResult(0)->hasOneUse()) {
-      auto nameAttr = formerOp->getAttrOfType<StringAttr>("name");
-      std::string op_name = nameAttr.getValue().str();
-      LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: "
-                              << op_name << ", not remove it\n";);
+    }
+
+    if (!formerOp->getResult(0)->hasOneUse()) {
       return matchFailure();
     }
 
@@ -153,10 +145,13 @@ struct TpuFoldScalePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name",
                     rewriter.getStringAttr(op_name)));
-
+    // replace former scale op with new scale op
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
-        laterScaleOp, formerScaleOp.getResult()->getType(),
+        formerScaleOp, formerScaleOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+    // delete later scale op
+    op->getResult(0)->replaceAllUsesWith(op->getOperand(0));
+    rewriter.eraseOp(op);
 
     return matchSuccess();
   }
@@ -194,13 +189,10 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
 
     // match consecutive scale operations
     auto formerOp = scaleOp.getOperand(0)->getDefiningOp();
-    if (!isa<tpu::Conv2DOp>(formerOp))
+    if (!isa<tpu::Conv2DOp>(formerOp)) {
       return matchFailure();
-    if (clSkipMultiUsedScaleOp && !formerOp->getResult(0)->hasOneUse()) {
-      auto nameAttr = formerOp->getAttrOfType<StringAttr>("name");
-      std::string op_name = nameAttr.getValue().str();
-      LLVM_DEBUG(llvm::errs() << "Some one need to use Scale Op: "
-                              << op_name << ", not remove it\n";);
+    }
+    if (!formerOp->getResult(0)->hasOneUse()) {
       return matchFailure();
     }
 
@@ -374,9 +366,13 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
         elt.second = rewriter.getStringAttr(op_name);
       }
     }
+    // replace former conv op with new conv op
     rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
-        scaleOp, convOp.getResult()->getType(),
+        convOp, convOp.getResult()->getType(),
         ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+    // delete later scale op
+    op->getResult(0)->replaceAllUsesWith(op->getOperand(0));
+    rewriter.eraseOp(op);
 
     return matchSuccess();
   }

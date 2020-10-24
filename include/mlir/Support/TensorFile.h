@@ -36,6 +36,7 @@
 #include <system_error>
 #include <ctime>
 #include <atomic>
+#include <fstream>
 
 #include "cnpy.h"
 
@@ -85,6 +86,10 @@ public:
       bool newCreate = false)
       : filename(filename), readOnly(readOnly) {
     if (!newCreate) {
+      std::ifstream f(filename.str());
+      if (!f.good()) {
+        llvm::errs() << "WARNING, " << filename << "doesn't exist, please check\n";
+      }
       auto ret = load();
       if (!succeeded(ret)) {
         if (readOnly) {
