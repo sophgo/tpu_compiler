@@ -448,7 +448,101 @@ Value* tpu::Conv2DOp::convertToTG() {
 Value* tpu::Conv3DOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  return nullptr;
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
+  std::vector<Value *> operands;
+
+  auto pad_d0 = param().padding_d0().getValue().getLimitedValue();
+  auto pad_d1 = param().padding_d1().getValue().getLimitedValue();
+  auto pad_t = param().padding_t().getValue().getLimitedValue();
+  auto pad_b = param().padding_b().getValue().getLimitedValue();
+  auto pad_l = param().padding_l().getValue().getLimitedValue();
+  auto pad_r = param().padding_r().getValue().getLimitedValue();
+  int32_t pad_h_begin = 0, pad_h_end = 0;
+  int32_t pad_w_begin = 0, pad_w_end = 0;
+  if (pad_t > 15) {
+    pad_h_begin = pad_t;
+    pad_t = 0;
+  }
+  if (pad_b > 15) {
+    pad_h_end = pad_b;
+    pad_b = 0;
+  }
+  if (pad_l > 15) {
+    pad_w_begin = pad_l;
+    pad_l = 0;
+  }
+  if (pad_r > 15) {
+    pad_w_end = pad_r;
+    pad_r = 0;
+  }
+  if (pad_h_begin > 0 || pad_h_end > 0 || pad_w_begin > 0 || pad_w_end > 0) {
+    std::vector<int32_t> pads = {0, 0, pad_h_begin, pad_w_begin, 0, 0, pad_h_end, pad_w_end};
+    std::vector<NamedAttribute> attrs;
+    auto inputShape = getTensorShape(input());
+    auto type = getResult()->getType().template cast<TensorType>();
+
+    std::vector<int64_t> shape(4);
+    shape[0] = inputShape[0];
+    shape[1] = inputShape[1] + pad_d0 + pad_d1;
+    shape[2] = inputShape[2] + pad_h_begin + pad_h_end;
+    shape[3] = inputShape[3] + pad_h_begin + pad_h_end;
+    shape[4] = inputShape[4] + pad_w_begin + pad_w_end;
+    auto resultType = RankedTensorType::get(shape, type.getElementType());
+
+    attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name().str() + "_pad")));
+    attrs.push_back(builder.getNamedAttr("const_val", builder.getF32FloatAttr(0)));
+    attrs.push_back(builder.getNamedAttr("pads", builder.getI32ArrayAttr(ArrayRef<int32_t>({pads}))));
+    if (getOpQuant() == "INT8") {
+      auto padOp = OpBuilder(op).create<tpu::TG_INT8_PadOp>(op->getLoc(),
+          resultType, ArrayRef<Value *>{input()},
+          ArrayRef<NamedAttribute>{attrs});
+      operands.push_back(padOp);
+    } else if (getOpQuant() == "BF16") {
+      auto padOp = OpBuilder(op).create<tpu::TG_BF16_PadOp>(op->getLoc(),
+          resultType, ArrayRef<Value *>{input()},
+          ArrayRef<NamedAttribute>{attrs});
+      operands.push_back(padOp);
+    }
+  } else {
+    operands.push_back(input());
+  }
+  operands.push_back(filter());
+  operands.push_back(bias());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("param",
+          tpu::Conv3dParam::get(
+              param().stride_d(),
+              param().stride_h(),
+              param().stride_w(),
+              param().padding(),
+              param().dilation_d(),
+              param().dilation_h(),
+              param().dilation_w(),
+              builder.getI32IntegerAttr(pad_d0),
+              builder.getI32IntegerAttr(pad_d1),
+              builder.getI32IntegerAttr(pad_t),
+              builder.getI32IntegerAttr(pad_b),
+              builder.getI32IntegerAttr(pad_l),
+              builder.getI32IntegerAttr(pad_r),
+              param().group(),
+              param().is_dw(),
+              param().with_bias(),
+              param().do_relu(),
+              param().ins(),
+              builder.getContext())));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  if (getOpQuant() == "INT8") {
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_Conv3DOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
 }
 
 Value* tpu::CropOp::convertToTG() {
@@ -2328,6 +2422,80 @@ static void transposeConvolutionFilter(std::vector<T> &w,
   w.assign(w_t.begin(), w_t.end());
 }
 
+
+static void get_strides_from_shapes5d(int strides[5], const int shapes[5],
+                                      int ws)
+{
+  strides[5 - 1] = ws;
+  for (int i = 5 - 2; i >= 0; i--)
+    strides[i] = shapes[i + 1] * strides[i + 1];
+}
+
+static int get_tensor5d_offset(int poss[5], const int strides[5])
+{
+  int offset = 0;
+  for (int i = 0; i < 5; i++)
+    offset += poss[i] * strides[i];
+
+  return offset;
+}
+
+// (oc, ic, kd, kh, kw) -> (kd, oc, kh, kw, ic)
+template<typename T>
+static void transposeConvolution3dFilter(std::vector<T> &w,
+    std::vector<int64_t> &s) {
+  int oc, ic, kd, kh, kw;
+  if (s.size() == 5) {
+    // oc, ic, kd, kh, kw
+    oc = (int)s[0];
+    ic = (int)s[1];
+    kd = (int)s[2];
+    kh = (int)s[3];
+    kw = (int)s[4];
+  } else {
+    llvm_unreachable("unsupported shape size");
+  }
+
+  std::vector<T> w_t(w.size());
+  int cpu_shapes[5] = {oc, ic, kd, kh, kw};
+  int tpu_shapes[5] = {kd, oc, kh, kw, ic};
+
+  // logical stride, in unit of float
+  int cpu_strides[5], tpu_strides[5];
+  get_strides_from_shapes5d(cpu_strides, cpu_shapes, 1);
+  get_strides_from_shapes5d(tpu_strides, tpu_shapes, 1);
+
+  LLVM_DEBUG(llvm::dbgs()
+      << "transposeConvolution3dFilter\n  "
+      << "shape(oc=" << oc << ", ic=" << ic << ", kd=" << kd << ", kh=" << kh
+      << ", kw=" << kw << ")\n");
+
+  // (oc, ic, id, kh, kw) -> (id, oc, khxkw, ic)
+  for (int i = 0; i < cpu_shapes[0]; i++) {
+    for (int j = 0; j < cpu_shapes[1]; j++) {
+      for (int z = 0; z < cpu_shapes[2]; z++) {
+        for (int y = 0; y < cpu_shapes[3]; y++) {
+          for (int x = 0; x < cpu_shapes[4]; x++) {
+            int cpu_poss[5] = {i, j, z, y, x};
+            int tpu_poss[5] = {z, i, y, x, j};
+            int cpu_offset = get_tensor5d_offset(cpu_poss, cpu_strides);
+            int tpu_offset = get_tensor5d_offset(tpu_poss, tpu_strides);
+            w_t[tpu_offset] = w[cpu_offset];
+
+            LLVM_DEBUG(llvm::dbgs()
+                << "  [i=" << i << "][j=" << j << "][z=" << z << "][y=" << y
+                << "][x=" << x << "] w_t[" << tpu_offset
+                << "]=w[" << cpu_offset << "]=" << w[cpu_offset] << "\n");
+
+          }
+        }
+      }
+    }
+  }
+
+  w.assign(w_t.begin(), w_t.end());
+}
+
 template<typename T>
 static void transposeFullyConnectedFilter(std::vector<T> &w,
     std::vector<int64_t> &s) {
@@ -2474,6 +2642,154 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         std::vector<uint16_t> bias_fp32_low;
         size_t sz = bias->size();
         LLVM_DEBUG(llvm::errs() << "Lower bias for Conv2D size : "
+                            << sz << "\n";);
+        float *biasFloatPtr = bias->data();
+        for (size_t i = 0; i < sz; ++i) {
+          unsigned short *temp_short_ptr = reinterpret_cast<unsigned short *>(biasFloatPtr + i);
+          bias_fp32_high.push_back(temp_short_ptr[1]);
+          bias_fp32_low.push_back(temp_short_ptr[0]);
+        }
+        std::vector<uint16_t> bias_reshape_fp32;
+        bias_reshape_fp32.reserve(2 * sz);
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_high.begin(), bias_fp32_high.end());
+        bias_reshape_fp32.insert(bias_reshape_fp32.end(), bias_fp32_low.begin(), bias_fp32_low.end());
+        // then copy into uint32_t
+        std::vector<uint32_t> bias_uint32(sz);
+        memcpy(bias_uint32.data(), bias_reshape_fp32.data(), sz * sizeof(uint32_t));
+
+        // save it
+        // after expand to FP32 and transpose, this is not FP32 anymore
+        // it is 2 stripes of UINT16(BF16)
+        // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
+        // to change the shape
+        StringRef storageType = "UINT32";
+        addWeightTensorAndUpdateWeightOp<uint32_t>(convOp.bias(),
+            "lowered", bias_uint32, shape, storageType, wTF);
+        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+    }
+
+    return matchSuccess();
+  }
+};
+
+template <typename OpTy>
+struct LowerWeightConv3DOpPattern : public RewritePattern {
+  LowerWeightConv3DOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  PatternMatchResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto convOp = cast<OpTy>(op);
+    auto filterOp = cast<tpu::LoadWeightOp>(convOp.filter()->getDefiningOp());
+    if (filterOp.lowered()) {
+      // lowered already
+      return matchFailure();
+    }
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for Conv3D: "
+                            << getOpName(op) << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+      {
+        assert(filterOp.storage() == "INT8");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(convOp.filter(), shape, size);
+        auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
+        std::vector<int8_t> filter_int8(filter->begin(), filter->end());
+        // transpose ic <-> kh*kw
+        // if kh*kw == 1 or ic/g == 1, transposeConvolutionFilter() will do nothing
+        assert(shape.size() == 4 || shape.size() == 5);
+        if (isa<tpu::DeConv2DOp>(op))
+          rotateConvolutionFilter<int8_t>(filter_int8, shape);
+        transposeConvolutionFilter<int8_t>(filter_int8, shape);
+
+        // save it
+        addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
+            "lowered", filter_int8, shape, "INT8", wTF);
+        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+      // lower bias
+      if ( !isTensorNone(convOp.bias()) ) {
+        auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias()->getDefiningOp());
+        if (isOpQuantPerchannel(op)
+            && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
+          // lowered already, in pack
+          assert(biasOp.lowered());
+          assert(biasOp.storage() == "UINT8");
+        } else if (isOpQuantPerchannel(op)) {
+          // per-channel mode, bias is INT32
+          assert(biasOp.storage() == "INT32");
+          llvm_unreachable("REMINDER: NOT sure if per-channel bias"
+                           "needs transpose");
+          // TODO:
+
+          // save it
+          //StringRef storageType = "INT32";
+          //addWeightTensorAndUpdateWeightOp<int32_t>(convOp.bias(),
+          //    "lowered", bias_int16, shape, storageType, wTF);
+          biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        } else {
+          // per-tensor mode, bias is INT16
+          assert(biasOp.storage() == "INT16");
+          std::vector<int64_t> shape;
+          int64_t size;
+          getTensorShapeAndSize(convOp.bias(), shape, size);
+          auto bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
+          std::vector<int16_t> bias_int16(bias->begin(), bias->end());
+          transposeBiasInt16(bias_int16);
+          std::vector<uint16_t> bias_uint16(size);
+          memcpy(bias_uint16.data(), bias_int16.data(), size * sizeof(int16_t));
+
+          // save it
+          // after transpose, this is not INT16 anymore, it is 2 stripes of UINT8
+          // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
+          // to change the shape.
+          addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.bias(),
+              "lowered", bias_uint16, shape, "UINT16", wTF);
+          biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        }
+      }
+    } else if (getOpQuant(op) == "BF16") {
+      // lower filter
+      {
+        assert(filterOp.storage() == "BF16");
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(convOp.filter(), shape, size);
+        auto filter = readAndDeleteWeightTensor<bfloat16>(convOp.filter(), wTF);
+        std::vector<uint16_t> filter_bf16(filter->begin(), filter->end());
+
+        assert(shape.size() == 5 || shape.size() == 6);
+        transposeConvolution3dFilter<uint16_t>(filter_bf16, shape);
+
+        // save it
+        StringRef storageType = "BF16";
+        addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.filter(),
+            "lowered", filter_bf16, shape, storageType, wTF);
+        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      }
+
+      // lower bias
+      if ( !isTensorNone(convOp.bias()) ) {
+        auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias()->getDefiningOp());
+        assert(biasOp.storage() == "FP32");
+        // NOTE: for 1880v2, bias is fp32, rather than bf16
+        // however, for simplicity, in quantizeBf16, we quantize all tensor into bf16
+        // before lowering to hardware, we need to expand the bf16 to fp32 first
+        // then transpose into 2 stripes of uint16_t
+        std::vector<int64_t> shape;
+        int64_t size;
+        getTensorShapeAndSize(convOp.bias(), shape, size);
+        auto bias = readAndDeleteWeightTensor<float>(convOp.bias(), wTF);
+        //Split into high/low part
+        std::vector<uint16_t> bias_fp32_high;
+        std::vector<uint16_t> bias_fp32_low;
+        size_t sz = bias->size();
+        LLVM_DEBUG(llvm::errs() << "Lower bias for Conv3D size : "
                             << sz << "\n";);
         float *biasFloatPtr = bias->data();
         for (size_t i = 0; i < sz; ++i) {
@@ -3640,6 +3956,7 @@ public:
     patterns.insert<
         LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
         LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
+        LowerWeightConv3DOpPattern<tpu::Conv3DOp>,
         LowerWeightLrnOpPattern,
         LowerWeightLutOpPattern<tpu::ReciprocalOp>,
         LowerWeightPReluOpPattern,
@@ -3687,6 +4004,7 @@ public:
         DefaultToTGPattern<tpu::ClipOp>,
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,
+        DefaultToTGPattern<tpu::Conv3DOp>,
         DefaultToTGPattern<tpu::CropOp>,
         DefaultToTGPattern<tpu::DeConv2DOp>,
         DefaultToTGPattern<tpu::DilateOp>,

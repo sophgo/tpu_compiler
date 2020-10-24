@@ -58,6 +58,19 @@ void getNCHW(std::vector<int64_t> &shape,
   }
 }
 
+void getNCDHW(std::vector<int64_t> &shape,
+    int64_t &n, int64_t &c, int64_t &d, int64_t &h, int64_t &w) {
+  if(shape.size() == 5) {
+    n = shape[0];
+    c = shape[1];
+    d = shape[2];
+    h = shape[3];
+    w = shape[4];
+  } else {
+    llvm_unreachable("unsupported shape size");
+  }
+}
+
 std::vector<std::vector<int64_t>> getOperandShapes(Operation *op) {
   std::vector<std::vector<int64_t>> shapes;
   for (auto operand : op->getOperands()) {

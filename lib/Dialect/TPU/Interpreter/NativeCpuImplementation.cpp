@@ -2509,3 +2509,118 @@ int my_tile(float *input, float *output, std::vector<int64_t> &input_shape,
   }
   return 0;
 }
+
+static void get_strides_from_shapes5d(
+    int strides[5], const int shapes[5], int ws)
+{
+  strides[5 - 1] = ws;
+  for (int i = 5 - 2; i >= 0; i--)
+    strides[i] = shapes[i + 1] * strides[i + 1];
+}
+
+static int get_tensor5d_offset(
+    int poss[5], const int strides[5])
+{
+  int offset = 0;
+  for (int i = 0; i < 5; i++)
+    offset += poss[i] * strides[i];
+
+  return offset;
+}
+
+// input (n, ic, id, ih, iw)
+// output (n, oc, od, oh, ow)
+// weight (oc, ic, kd, kh, kw), pytorch
+void conv3d_float_ref(float *input, float *weight, float *bias, float *output,
+  int batch, int input_c, int input_d, int input_h, int input_w,
+  int output_c, int output_d, int output_h, int output_w,
+  int kernel_d, int kernel_h, int kernel_w,
+  int stride_d, int stride_h, int stride_w,
+  int dilation_d, int dilation_h, int dilation_w,
+  int pad_d0, int pad_top, int pad_bottom,
+  int pad_d1, int pad_left, int pad_right) {
+  (void)pad_bottom;
+  (void)pad_d1;
+  (void)pad_right;
+
+  int input_shapes[5] = {batch, input_c, input_d, input_h, input_w};
+  int output_shapes[5] = {batch, output_c, output_d, output_h, output_w};
+
+  //int kernel_shapes[5] = {output_c, kernel_d, kernel_h, kernel_w, input_c};
+  int kernel_shapes[5] = {output_c, input_c, kernel_d, kernel_h, kernel_w};
+
+  int input_strides[5];
+  int output_strides[5];
+  int kernel_strides[5];
+
+  // input/output shape (n, c, d, h, w)
+  get_strides_from_shapes5d(input_strides, input_shapes, sizeof(float));
+  get_strides_from_shapes5d(output_strides, output_shapes, sizeof(float));
+
+  // kernel shape (oc, ic, kd, kh, kw), pytorch
+  get_strides_from_shapes5d(kernel_strides, kernel_shapes, sizeof(float));
+
+  for (int i = 0; i < batch; ++i) {
+    for (int oc = 0; oc < output_c; oc++) {
+      for (int oz = 0; oz < output_d; oz++) {
+        for (int oy = 0; oy < output_h; ++oy) {
+          for (int ox = 0; ox < output_w; ++ox) {
+            for (int ic = 0; ic < input_c; ++ic) {
+              for (int kz = 0; kz < kernel_d; ++kz) {
+                const int iz = oz * stride_d + kz * dilation_d - pad_d0;
+                if (iz < input_d) {
+                  for (int ky = 0; ky < kernel_h; ++ky) {
+                    const int iy = oy * stride_h + ky * dilation_h - pad_top;
+                    if (iy < input_h) {
+                      for (int kx = 0; kx < kernel_w; ++kx) {
+                        const int ix = ox * stride_w + kx * dilation_w - pad_left;
+                        if (ix < input_w) {
+                          int input_poss[5] = {i, ic, iz, iy, ix};
+                          int input_offset = get_tensor5d_offset(input_poss, input_strides)
+                                             / input_strides[5 - 1];
+
+                          // pytorch (oc=1, ic=1, kd=1, kh=3, kw=3)
+                          int kernel_poss[5] = {oc, ic, kz, ky, kx};
+
+                          int kernel_offset =
+                            get_tensor5d_offset(kernel_poss, kernel_strides)
+                                / kernel_strides[5 - 1];
+
+                          int output_poss[5] = {i, oc, oz, oy, ox};
+                          int output_offset =
+                            get_tensor5d_offset(output_poss, output_strides)
+                                / output_strides[5 - 1];
+
+                          output[output_offset] +=
+                            input[input_offset] * weight[kernel_offset];
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (bias) {
+    for (int i = 0; i < batch; ++i) {
+      for (int oy = 0; oy < output_h; ++oy) {
+        for (int ox = 0; ox < output_w; ++ox) {
+          for (int oc = 0; oc < output_c; ++oc) {
+            for (int od = 0; od < output_d; ++od) {
+              int output_poss[5] = {i, oc, od, oy, ox};
+              int output_offset =
+                  get_tensor5d_offset(output_poss, output_strides)
+                      / output_strides[5 - 1];
+              output[output_offset] += bias[oc];
+            }
+          }
+        }
+      }
+    }
+  }
+}

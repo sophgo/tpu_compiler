@@ -183,4 +183,14 @@ int my_roipooling(float *data, float *rois, float *output, int pooled_h, int poo
 
 int my_tile(float *input, float *output, std::vector<int64_t> &input_shape,
             std::vector<int64_t> &output_shape, std::vector<int32_t> &resp);
+
+void conv3d_float_ref(float *input, float *weight, float *bias, float *output,
+                      int n, int input_c, int input_d, int input_h, int input_w,
+                      int output_c, int output_d, int output_h, int output_w,
+                      int kernel_d, int kernel_h, int kernel_w,
+                      int stride_d, int stride_h, int stride_w,
+                      int dilation_d, int dilation_h, int dilation_w,
+                      int pad_d0, int pad_top, int pad_bottom,
+                      int pad_d1, int pad_left, int pad_right);
+
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

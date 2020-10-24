@@ -466,8 +466,10 @@ public:
           }
           auto &os = neuronMapFile->os();
           os << mlir::getOpName(op) << "," << llvm::format_hex(gaddrMap[op], 10) << ","
-             << dtype << "," << shape[0] << "," << shape[1] << "," << shape[2] << ","
-             << shape[3] << "\n";
+             << dtype;
+          for (unsigned i = 0; i < shape.size(); ++i)
+            os << "," << shape[i];
+          os << "\n";
         }
       }
     });

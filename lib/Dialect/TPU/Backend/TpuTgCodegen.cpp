@@ -1007,6 +1007,48 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_Conv3DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  bool is_dw, with_bias, do_relu;
+  int n, ic, id, ih, iw, oc, od, oh, ow, g, kd, kh, kw, sd, sh, sw;
+  int pd0, pd1, pt, pb, pl, pr, dd, dh, dw;
+  parseConv3dParam(param(), false, input(), output(), filter(),
+                   n, ic, id, ih, iw,
+                   oc, od, oh, ow, g,
+                   kd, kh, kw,
+                   sd, sh, sw,
+                   pd0, pd1, pt, pb, pl, pr,
+                   dd, dh, dw,
+                   is_dw, with_bias, do_relu);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_bias = GA_INVALID;
+  if ( with_bias ) {
+    assert(!isTensorNone(pc_info()));
+    ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
+  }
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_conv3d_kernel(
+      *backend_ctx,
+      layer_id,  // layer_id
+      ga_input,
+      ga_output,
+      ga_filter,
+      ga_bias,
+      n, ic, id, ih, iw,
+      oc, od, oh, ow,
+      kd, kh, kw,
+      dd, dh, dw,
+      pd0, pd1, pt, pb, pl, pr,
+      sd, sh, sw,
+      with_bias,
+      do_relu ? 1 : 0
+      );
+
   return success();
 }
 
@@ -2648,7 +2690,13 @@ LogicalResult tpu::TG_BF16_FP32_CastOp::codegen(void *ctx) {
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  if (shape.size() == 5) {
+    int64_t d;
+    getNCDHW(shape, n, c, d, h, w);
+    h *= d; // Merge depth into height
+  } else {
+    getNCHW(shape, n, c, h, w);
+  }
 
   convert_bf16_fp32_kernel(
       *backend_ctx, 0, 0, layer_id, nullptr, 0,

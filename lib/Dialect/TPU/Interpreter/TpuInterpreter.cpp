@@ -592,12 +592,123 @@ LogicalResult tpu::DeConv2DOp::interpret(
   return doConv2DOpInterpret<tpu::DeConv2DOp>(op, valueMapping);
 }
 
+template <typename OpTy>
+LogicalResult doConv3DOpInterpret(Operation *op,
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  auto castOp = cast<OpTy>(op);
+  assert(castOp);
+  bool is_deconv = false; // isa<tpu::DeConv3DOp>(op)
+  bool do_bias_later = false;
+  bool do_relu_later = false;
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = castOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  bool is_dw, with_bias, do_relu;
+  int n, ic, id, ih, iw, oc, od, oh, ow, g, kd, kh, kw, sd, sh, sw;
+  int pd0, pd1, pt, pb, pl, pr, dd, dh, dw;
+  parseConv3dParam(castOp.param(), is_deconv,
+                  castOp.input(), castOp.output(), castOp.filter(),
+                  n, ic, id, ih, iw,
+                  oc, od, oh, ow, g,
+                  kd, kh, kw,
+                  sd, sh, sw,
+                  pd0, pd1, pt, pb, pl, pr,
+                  dd, dh, dw,
+                  is_dw, with_bias, do_relu);
+
+  // get tensors
+  assert(opdT.size() == 7);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::shared_ptr<std::vector<float> > filter = opdT[1];
+  std::shared_ptr<std::vector<float> > bias = opdT[2];
+  //std::shared_ptr<std::vector<float> > quant_scale = opdT[3];
+  //std::shared_ptr<std::vector<float> > quant_zeropoint = opdT[4];
+  std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
+  std::shared_ptr<std::vector<float> > quant_multiplier = opdT[6];
+
+  // get is dilate activation
+  std::vector<int32_t> ins;
+  arrayAttrToVector(castOp.param().ins(), ins);
+  assert(!ins.size() && "Not support 3d dilated conv");
+
+  // compute in fp32
+  if (!is_deconv) {
+    float *bias_data = bias ? bias->data() : nullptr;
+    if (getOpQuant(op) == "INT8" && isOpQuantPerchannel(op) &&
+        getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
+      if (bias_data) {
+        assert(with_bias && "with_bias value is false");
+        do_bias_later = true;
+        bias_data = nullptr;
+        if (do_relu) {
+          do_relu_later = true;
+          do_relu = false;
+        }
+      }
+    }
+    conv3d_float_ref(input->data(), filter->data(), bias_data, resultT->data(),
+                     n, ic, id, ih, iw,
+                     oc, od, oh, ow,
+                     kd, kh, kw,
+                     sd, sh, sw,
+                     dd, dh, dw,
+                     pd0, pd1, pt, pb, pl, pr);
+  } else {
+    assert(0 && "Not support 3d deconv");
+  }
+
+  if (do_relu) {
+    assert(0 && "Not support 3d conv relu");
+    int ret = my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
+    assert(ret == 0);
+  }
+
+  // rshift and saturate on output
+  if (getOpQuant(op) == "NONE") {
+    // do nothing
+  } else if (getOpQuant(op) == "INT8") {
+    if (!isOpQuantPerchannel(op)) {
+      assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
+      assert(quant_rshift);
+      quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
+          size, (uint32_t)quant_rshift->at(0));
+    } else if (isOpQuantPerchannel(op)
+               && getOpQuantParamType(op) == "RSHIFT_ONLY") {
+      assert(quant_rshift);
+      quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
+          n, oc, size / oc / n, quant_rshift->data());
+    } else if (isOpQuantPerchannel(op)
+               && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
+      assert(quant_rshift);
+      assert(quant_multiplier);
+      quantizeActivationInt8PerChannelMultiplierAndRShift(
+          resultT->data(), resultT->data(),
+          do_bias_later ? bias->data() : nullptr, do_relu_later, n, oc,
+          size / oc / n, quant_rshift->data(), quant_multiplier->data());
+    } else {
+      assert(false);
+    }
+  } else if (getOpQuant(op) == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  } else {
+    llvm_unreachable("unsupported type");
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::Conv3DOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  //Operation *op = this->getOperation();
+  Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-  // return doConv3DOpInterpret<tpu::Conv3DOp>(op, valueMapping);
-  return success();
+  return doConv3DOpInterpret<tpu::Conv3DOp>(op, valueMapping);
 }
 
 LogicalResult tpu::DilateOp::interpret(

@@ -84,6 +84,16 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu);
 
+void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
+    Value *input, Value *output, Value *filter,
+    int &n, int &ic, int &id, int &ih, int &iw,
+    int &oc, int &od, int &oh, int &ow, int &g,
+    int &kd, int &kh, int &kw,
+    int &sd, int &sh, int &sw,
+    int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
+    int &dd, int &dh, int &dw,
+    bool &is_dw, bool &with_bias, bool &do_relu);
+
 void parsePoolParam(const tpu::PoolParam &p,
     Value *input, Value *output,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,

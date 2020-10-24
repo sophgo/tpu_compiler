@@ -550,6 +550,87 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   with_bias = p.with_bias().getValue();
 }
 
+void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
+    Value *input, Value *output, Value *filter,
+    int &n, int &ic, int &id, int &ih, int &iw,
+    int &oc, int &od, int &oh, int &ow, int &g,
+    int &kd, int &kh, int &kw,
+    int &sd, int &sh, int &sw,
+    int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
+    int &dd, int &dh, int &dw,
+    bool &is_dw, bool &with_bias, bool &do_relu) {
+  dd = p.dilation_d().getValue().getLimitedValue();
+  dh = p.dilation_h().getValue().getLimitedValue();
+  dw = p.dilation_w().getValue().getLimitedValue();
+  sd = p.stride_d().getValue().getLimitedValue();
+  sh = p.stride_h().getValue().getLimitedValue();
+  sw = p.stride_w().getValue().getLimitedValue();
+  pd0 = p.padding_d0().getValue().getLimitedValue();
+  pd1 = p.padding_d1().getValue().getLimitedValue();
+  pt = p.padding_t().getValue().getLimitedValue();
+  pb = p.padding_b().getValue().getLimitedValue();
+  pl = p.padding_l().getValue().getLimitedValue();
+  pr = p.padding_r().getValue().getLimitedValue();
+  auto input_type = input->getType().template cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+  auto output_type = output->getType().template cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+  auto filter_type = filter->getType().template cast<TensorType>();
+  std::vector<int64_t> f_s(filter_type.getShape());
+
+  assert((i_s[0] == o_s[0]) && "input N not equal to output N");
+  if (i_s.size() == 5) {
+    n = i_s[0];
+    ic = i_s[1];
+    id = i_s[2];
+    ih = i_s[3];
+    iw = i_s[4];
+    oc = o_s[1];
+    od = o_s[2];
+    oh = o_s[3];
+    ow = o_s[4];
+  } else{
+    llvm_unreachable("unsupported shape size");
+  }
+  kd = f_s[f_s.size() - 3];
+  kh = f_s[f_s.size() - 2];
+  kw = f_s[f_s.size() - 1];
+
+  g = p.group().getValue().getLimitedValue();
+  if (g != 1 || f_s.size() == 5) {
+    if (g == oc && g == ic) {
+      is_dw = true;
+    } else {
+      is_dw = false;
+    }
+
+    // f_s is in (g, oc/g, ic/g, kd, kh, kw)
+    if(f_s.size() == 6) {
+      assert(g == f_s[0]);
+      assert(oc/g == f_s[1]);
+      assert(ic/g == f_s[2]);
+    } else if (f_s.size() == 5) {
+      // tl_layer has filter size of 5
+      if (is_dw) {
+        // (1, oc, kd, kh, kw)
+        assert(ic/g == 1);
+        assert(oc == f_s[1]);
+      } else {
+        // (oc, ic/g, kd, kh, kw)
+        assert(oc == f_s[0]);
+        assert(ic/g == f_s[1]);
+      }
+    }
+  } else {
+    assert(f_s.size() == 5);
+    assert(oc == f_s[0]);
+    assert(ic == f_s[1] || (ic % 2 != 0));
+    is_dw = false;
+  }
+  do_relu = p.do_relu().getValue();
+  with_bias = p.with_bias().getValue();
+}
+
 void parsePoolParam(const tpu::PoolParam &p,
     Value *input, Value *output,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,
