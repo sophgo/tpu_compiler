@@ -40,11 +40,14 @@ def TPU_QuantOp: TPU_Op<"quant",
 
     - From `None` to `INT8`
       Quantize a activation tensor into int8, according to its threshold value.
-      Q(x) = x * 128 / threshold, and saturate to (-128, 127) range
+      Q(x) = (x * 128 / threshold) + zero_point, and saturate to (-128, 127) range
+
 
     - From `INT8` to `None`
       Dequantize a activation tensor from int8 back to float.
-      x = Q(x) * threshold / 128
+      x = (Q(x) * threshold / 128) - zero_point
+
+    zero_point is zero when symmetric quantization
   }];
 
   let arguments = (
@@ -52,6 +55,7 @@ def TPU_QuantOp: TPU_Op<"quant",
     TPU_QuantModeAttr:$from,
     TPU_QuantModeAttr:$to,
     OptionalAttr<F32Attr>:$threshold,
+    DefaultValuedAttr<I32Attr, "0">:$zero_point,
     StrAttr:$name,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<StrAttr>:$chipname

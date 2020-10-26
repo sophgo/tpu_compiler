@@ -153,7 +153,8 @@ class MLIRImporter(object):
             'mode': self.module.stringAttr("NONE"),
             'param_type': self.module.stringAttr("NONE"),
             'threshold_max': self.module.floatAttr(0),
-            'threshold_min': self.module.floatAttr(0)
+            'threshold_min': self.module.floatAttr(0),
+            'zero_point': self.module.integerAttr(self.i8Type, 0),
         }
         self.quant_param = self.module.dictAttr(**quant_param)
         self.input_type = input_type
@@ -233,7 +234,8 @@ class MLIRImporter(object):
             'mode': self.module.stringAttr("NONE"),
             'param_type': self.module.stringAttr("NONE"),
             'threshold_max': self.module.floatAttr(0),
-            'threshold_min': self.module.floatAttr(0)
+            'threshold_min': self.module.floatAttr(0),
+            'zero_point': self.module.integerAttr(self.i8Type, 0),
         }
         if self.input_type == "UINT8":
             quant_param['mode'] = self.module.stringAttr("INT8")

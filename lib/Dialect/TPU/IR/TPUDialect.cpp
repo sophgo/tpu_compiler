@@ -448,6 +448,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_ZeroMaskOp)
               quant().is_asymmetric(), \
               quant().threshold_max(), \
               quant().threshold_min(), \
+              quant().zero_point(), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -465,6 +466,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_ZeroMaskOp)
               quant().is_asymmetric(), \
               quant().threshold_max(), \
               quant().threshold_min(), \
+              quant().zero_point(), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -482,6 +484,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_ZeroMaskOp)
               quant().is_asymmetric(), \
               quant().threshold_max(), \
               quant().threshold_min(), \
+              quant().zero_point(), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -499,6 +502,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_ZeroMaskOp)
               Builder(getOperation()->getContext()).getBoolAttr(flag), \
               quant().threshold_max(), \
               quant().threshold_min(), \
+              quant().zero_point(), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -519,6 +523,25 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_ZeroMaskOp)
               quant().is_asymmetric(), \
               Builder(getOperation()->getContext()).getF32FloatAttr(threshold), \
               quant().threshold_min(), \
+              quant().zero_point(), \
+              getOperation()->getContext())); \
+      return success(); \
+    }
+
+// quant().zero_point()
+#define DECLARE_GET_OP_QUANT_ZERO_POINT_METHOD(OP) \
+    int OP::getOpQuantZeroPoint() {return quant().zero_point().getValue().getLimitedValue();}
+#define DECLARE_SET_OP_QUANT_ZERO_POINT_METHOD(OP) \
+    LogicalResult OP::setOpQuantZeroPoint(int zero_point) { \
+      setAttr("quant", \
+          tpu::QuantParam::get( \
+              quant().mode(), \
+              quant().param_type(), \
+              quant().is_perchannel(), \
+              quant().is_asymmetric(), \
+              quant().threshold_max(), \
+              quant().threshold_min(), \
+              Builder(getOperation()->getContext()).getI8IntegerAttr(zero_point), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -534,7 +557,9 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_ZeroMaskOp)
     DECLARE_GET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
     DECLARE_SET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
     DECLARE_GET_OP_QUANT_THRESHOLD_METHOD(OP) \
-    DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP)
+    DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP) \
+    DECLARE_GET_OP_QUANT_ZERO_POINT_METHOD(OP) \
+    DECLARE_SET_OP_QUANT_ZERO_POINT_METHOD(OP)
 
 
 
@@ -951,6 +976,16 @@ float ReshapeOp::getOpQuantThreshold() { \
 }
 
 LogicalResult ReshapeOp::setOpQuantThreshold(float threshold) {
+  assert(false);
+  return failure();
+}
+
+int ReshapeOp::getOpQuantZeroPoint() {
+  auto prev_op = this->getOperand()->getDefiningOp();
+  return mlir::getOpZeroPoint(prev_op);
+}
+
+LogicalResult ReshapeOp::setOpQuantZeroPoint(int zp) {
   assert(false);
   return failure();
 }

@@ -36,7 +36,7 @@ def TPU_Quant_BF16    : StrEnumAttrCase<"BF16">;
 
 def TPU_QuantModeAttr : StrEnumAttr<
     "QuantizeFlag", "quantization flag enum", [
-      TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_UInt8,TPU_Quant_BF16,
+      TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_UInt8, TPU_Quant_BF16,
     ]>;
 
 // Allowed quantization parameter type cases
@@ -159,7 +159,8 @@ def TPU_QuantParamAttr : StructAttr<"QuantParam", TPU_Dialect, [
     StructFieldAttr<"is_perchannel", BoolAttr>,
     StructFieldAttr<"is_asymmetric", BoolAttr>,
     StructFieldAttr<"threshold_max", F32Attr>,
-    StructFieldAttr<"threshold_min", F32Attr>]> {
+    StructFieldAttr<"threshold_min", F32Attr>,
+    StructFieldAttr<"zero_point", I8Attr>]> {
   let description = "Structure of quantization parameters";
 }
 

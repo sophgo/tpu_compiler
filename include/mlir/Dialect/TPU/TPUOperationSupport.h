@@ -62,6 +62,8 @@ float getOpThreshold(Operation *op);
 LogicalResult setOpThreshold(Operation *op, float threshold);
 float getPreviousOpThreshold(Operation *op, uint index = 0);
 
+int getOpZeroPoint(Operation *op);
+
 uint64_t getOpAddress(Operation *op);
 LogicalResult setOpAddress(Operation *op, uint64_t gaddr);
 uint64_t getPreviousOpAddress(Operation *op, uint index = 0);

@@ -128,6 +128,16 @@ def TpuOpQuantInterface : OpInterface<"TpuOpQuantInterface"> {
       }],
       "LogicalResult", "setOpQuantThreshold", (ins "float ":$threshold)
     >,
+    InterfaceMethod<[{
+        Return zero_point for asymmetric quant.
+      }],
+      "int", "getOpQuantZeroPoint"
+    >,
+    InterfaceMethod<[{
+        set zero_point for asymmetric quant.
+      }],
+      "LogicalResult", "setOpQuantZeroPoint", (ins "int ":$zero_point)
+    >,
     //InterfaceMethod<[{
     //    Return threshold_max and threshold_min for asymmetric quant.
     //  }],

@@ -341,6 +341,16 @@ LogicalResult setOpThreshold(Operation *op, float threshold) {
   }
 }
 
+int getOpZeroPoint(Operation *op) {
+  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
+    return tpuOp.getOpQuantZeroPoint();
+  } else {
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
+  }
+}
+
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
@@ -450,6 +460,7 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
       builder.getBoolAttr(false),
       builder.getF32FloatAttr(0.0),
       builder.getF32FloatAttr(0.0),
+      builder.getI8IntegerAttr(0),
       builder.getContext());
 }
 
