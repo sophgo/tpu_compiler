@@ -870,10 +870,13 @@ static inline signed char float2int8(float v, int mode = 0)
 
 /// Quantize an Activation tensor into INT8, given threshold
 void quantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold, bool tpu_mode) {
-
+    int64_t size, float threshold, bool tpu_mode, int zero_point) {
   float scale = 128.0 / threshold;
+
   if (tpu_mode) {
+    if (zero_point != 0) {
+      assert("zero_point in tpu mode not ready, todo");
+    }
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
@@ -899,7 +902,7 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
       // note this is using std::round() rather than floor(v+0.5f)
       // to compliance with NEON implemention on runtime
       // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-      output[i] = (float)float2int8(input[i] * scale, 0);
+      output[i] = (float)float2int8((input[i] * scale) + zero_point, 0);
     }
   }
 }

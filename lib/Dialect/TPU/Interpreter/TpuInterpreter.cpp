@@ -3835,11 +3835,12 @@ LogicalResult tpu::QuantOp::interpret(
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
     float threshold = this->threshold().getValue().convertToFloat();
+    int zero_point = this->zero_point().getLimitedValue();
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
     auto prevOp = getOperand()->getDefiningOp();
     bool useTpuQuantOp = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
-    quantizeActivationInt8WithThreshold(output, input, size, threshold, useTpuQuantOp);
+    quantizeActivationInt8WithThreshold(output, input, size, threshold, useTpuQuantOp, zero_point);
   } else if (this->from() == "INT8" && this->to() == "NONE") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
