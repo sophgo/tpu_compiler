@@ -351,6 +351,16 @@ int getOpZeroPoint(Operation *op) {
   }
 }
 
+int getPreviousOpZeroPoint(Operation *op, uint index = 0) {
+  if (op->getNumOperands() < (index + 1)) {
+    std::string errorMsg = std::string(__func__) + " failed, Op " +
+                           op->getName().getStringRef().str() + "\n";
+    llvm_unreachable(errorMsg.c_str());
+  }
+  auto formerOp = op->getOperand(index)->getDefiningOp();
+  return getOpZeroPoint(formerOp);
+}
+
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
   if ( op->getNumOperands() < (index + 1) ) {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
