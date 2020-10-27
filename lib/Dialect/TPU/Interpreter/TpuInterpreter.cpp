@@ -947,7 +947,16 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
       my_mish(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table,
           getOpQuant(op) == "BF16", mish_threshold);
     } else if (type == "Exp") {
-      my_exp(input, output, n, c, h, w, getOpQuant(op) == "BF16");
+      auto castOp = dyn_cast<tpu::ExpOp>(op);
+      BF16_TABLE_START = castOp.min_range().convertToFloat();
+      BF16_TABLE_END = castOp.max_range().convertToFloat();
+
+      y0_bf16_table = y0_table_op == nullptr ? nullptr : y0_table_op->data();
+      y0_bf16_slope_table = slope_table == nullptr ? nullptr : slope_table->data();
+
+      my_exp(input, output, n, c, h, w,
+          y0_bf16_table, y0_bf16_slope_table,
+          getOpQuant(op) == "BF16");
     } else if (type == "SoftPlus") {
       auto castOp = dyn_cast<tpu::SoftPlusOp>(op);
       BF16_TABLE_START = castOp.min_range().convertToFloat();

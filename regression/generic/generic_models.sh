@@ -1033,6 +1033,7 @@ export DO_MEMOPT=1
 export DO_LAYERGROUP=1
 export SPP_NET="false"
 export TINY="true"
+export DENSITY_TABLE=$REGRESSION_PATH/data/density_tables/${NET}_density_table
 if [ $DO_PREPROCESS -eq 1 ]; then
   export EXCEPTS=data
 fi

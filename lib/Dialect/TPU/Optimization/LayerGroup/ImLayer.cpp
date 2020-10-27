@@ -57,7 +57,7 @@ void ImLayer::add_in_tensor(Value * v, tensor_type_t type) {
   }
 }
 
-void ImLayer::add_out_tensor(Value * v, tensor_type_t type) {
+void ImLayer::add_out_tensor(Value * v, tensor_type_t type, std::string storage) {
   auto def_op = v->getDefiningOp();
   auto shape = v->getType().dyn_cast<TensorType>();
   if (!isa<tpu::NoneOp>(def_op) && !isa<tpu::WeightFileOp>(def_op)
@@ -67,7 +67,7 @@ void ImLayer::add_out_tensor(Value * v, tensor_type_t type) {
     } else {
       std::string name = mlir::getOpName(def_op);
       std::shared_ptr<Tensor> tensor =
-          Tensor::register_tensor(&shape, name, type, layer_id_);
+          Tensor::register_tensor(&shape, name, type, layer_id_, storage);
       out_tensors.push_back(tensor);
     }
   }
@@ -187,6 +187,22 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
   }
   return layer;
+}
+
+std::string ImLayer::getStorage(Value * v) {
+  RankedTensorType _type = v->getType().cast<RankedTensorType>();
+  if (_type.getElementType().isBF16()) {
+    return "BF16";
+  } else if (_type.getElementType().isF32()) {
+    return "FP32";
+  } else if (_type.getElementType().isInteger(8)) {
+    return "INT8";
+  } else if (_type.getElementType().isInteger(16)) {
+    return "INT16";
+  } else {
+    assert(!"Not supported storage type.\n");
+  }
+  return "";
 }
 
 void ImLayer::register_it(std::shared_ptr<ImLayer>& layer) {
@@ -452,7 +468,7 @@ ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(
   }
 
   for (uint32_t i = 0; i < op->getNumResults(); ++i) {
-    add_out_tensor(op->getResult(i), TENSOR_NEURON);
+    add_out_tensor(op->getResult(i), TENSOR_NEURON, getStorage(op->getResult(i)));
   }
 }
 

@@ -187,7 +187,7 @@ void cvi_backend_tl_lut(
     cvi_backend_bf16_tl_lut_slope_method(ctx, layer_id,
         la_input, la_output, la_working,
         la_y_table, la_slope_table,
-        thresh_min, thresh_max, n, c, h, w);
+        thresh_min, thresh_max, false, n, c, h, w);
   }
 }
 
@@ -195,7 +195,8 @@ void cvi_backend_bf16_tl_lut(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
     laddr_t la_y_table, laddr_t la_slope_table,
-    int thresh_min, int thresh_max, int n, int c, int h, int w,
+    int thresh_min, int thresh_max, bool added_offset,
+    int n, int c, int h, int w,
     int method) {
   ctx.parallel_disable();
   if (method == METHOD_MANTISSA) {
@@ -208,7 +209,7 @@ void cvi_backend_bf16_tl_lut(
   } else if (method == METHOD_SLOPE) {
     cvi_backend_bf16_tl_lut_slope_method(ctx, layer_id,
             la_input, la_output, la_working,
-            la_y_table, la_slope_table, thresh_min, thresh_max, n, c, h, w);
+            la_y_table, la_slope_table, thresh_min, thresh_max, added_offset, n, c, h, w);
   }
 }
 
@@ -217,7 +218,7 @@ void cvi_backend_bf16_tl_lut_slope_method(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
     laddr_t la_y_table, laddr_t la_slope_table,
-    int thresh_min, int thresh_max, int n, int c, int h, int w) {
+    int thresh_min, int thresh_max, bool added_offset, int n, int c, int h, int w) {
 
   ctx.set_layer_id(layer_id);
   LLVM_DEBUG(
@@ -237,6 +238,10 @@ void cvi_backend_bf16_tl_lut_slope_method(
   float offset = (float)(thresh_max + thresh_min) / 2;
   int range = (thresh_max - thresh_min);
   const int lut_index_num = 256;
+  if (added_offset) {
+    isSync = true;
+  }
+
   cvk_tl_t _tl_ifmap, _tl_ofmap_slope, _tl_ofmap_y0, _tl_table_answer, _tl_table_answer_slope;
   cvk_tl_t *tl_ifmap, *tl_ofmap_slope, *tl_ofmap_y0, *tl_table_answer, *tl_table_answer_slope;
   cvk_tl_t _tl_tmp;

@@ -1188,6 +1188,20 @@ int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16
   return 0;
 }
 
+int my_exp(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16) {
+  if (!is_bf16) {
+    // fp32
+    int shape_size =  n * c * h * w;
+    for (int i = 0; i < shape_size; ++i) {
+      output[i] = exp(input[i]);
+    }
+  }
+  else {
+    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, exp);
+  }
+  return 0;
+}
 int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
   const int expStart = -62;
   const int expEnd = 63;

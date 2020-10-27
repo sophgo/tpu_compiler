@@ -89,13 +89,14 @@ class ImLayer {
 
   void add_in_tensor(Value * op, tensor_type_t type);
 
-  void add_out_tensor(Value * op, tensor_type_t type);
+  void add_out_tensor(Value * op, tensor_type_t type, std::string storage = "INT8");
 
   void add_imm_tensor(const std::shared_ptr<Tensor> associcate, int count, const std::string &name);
   // // clear temp_data if has.
   virtual void clear_temp_data() {}
 
   static std::shared_ptr<ImLayer> create(Operation *op);
+  static std::string getStorage(Value * v);
   static void register_it(std::shared_ptr<ImLayer> &layer);
   static void unregister_all();
   static std::vector<std::shared_ptr<ImLayer>> layers;

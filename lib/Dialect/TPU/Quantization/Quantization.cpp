@@ -791,6 +791,7 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
             || isa<tpu::ReciprocalOp>(op)
             || isa<tpu::SigmoidOp>(op)
             || isa<tpu::SqrtOp>(op)
+            || isa<tpu::ExpOp>(op)
             || isa<tpu::TanHOp>(op)
             ) && getOpQuant(op) == "BF16") {
         std::string op_name = mlir::getOpName(op).str();
@@ -805,7 +806,7 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
           std::pair<float, float> min_max = lutminmax_map[op_name];
           float min, max;
           std::tie(min, max) = min_max;
-          float is_symmetric = min + max;
+          float is_asymmetric = min + max;
 
           std::vector<NamedAttribute> attrs;
           attrs.push_back(builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
@@ -815,11 +816,9 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
           auto NoneOp = builder.create<tpu::NoneOp>(loc, builder.getNoneType());
           Operation *_op = op;
 
-          if (is_symmetric) {
+          if (is_asymmetric) {
             // add bias to shift 0 as symmetric
             float zero_point = (max + min) / 2;
-            max = max - zero_point;
-            min = -1.0 * max;
             float bias = -1.0 * zero_point;
 
             // add eltwise op, second input as bias, broadcast bias to hw
@@ -938,9 +937,9 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
 
           LLVM_DEBUG(llvm::errs() << "is_symmetric: " << op_name << " min/max "
               << min << " / " << max << "\n";);
-          std::tie(min, max) = min_max;
           _op->setAttr(llvm::StringRef("min_range"), builder.getF32FloatAttr(min));
           _op->setAttr(llvm::StringRef("max_range"), builder.getF32FloatAttr(max));
+          _op->setAttr(llvm::StringRef("added_offset"), builder.getBoolAttr(true));
         }
       }
     });

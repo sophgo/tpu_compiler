@@ -282,6 +282,9 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
     BF16_TABLE_END = castOp.max_range().convertToFloat();
     activate_func = tanh;
   } else if (OpTy::getOperationName() == "tpu.exp") {
+    auto castOp = dyn_cast<tpu::ExpOp>(op);
+    BF16_TABLE_START = castOp.min_range().convertToFloat();
+    BF16_TABLE_END = castOp.max_range().convertToFloat();
     activate_func = exp;
   }
   else if (OpTy::getOperationName() == "tpu.mish") {

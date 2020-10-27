@@ -261,6 +261,7 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `min_range`       : required, we cut to min_range and outlier saturate it
       `layer_id`        : optional, id for profiling.
       `has_table`       : optional, if has lookup table.
+      `added_offset`    : optional, set to ture if we had added offset value via add op
       `chipname`        : optional, chipname.
 
     Result:
@@ -285,6 +286,7 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    DefaultValuedAttr<BoolAttr, "false">:$added_offset,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );

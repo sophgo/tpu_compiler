@@ -1677,6 +1677,8 @@ Value *tpu::SigmoidOp::convertToTG() {
       builder.getF32FloatAttr(max_range().convertToFloat())));
   attrs.push_back(builder.getNamedAttr("min_range",
       builder.getF32FloatAttr(min_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("added_offset",
+      builder.getBoolAttr(added_offset())));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -1746,6 +1748,8 @@ Value *tpu::SqrtOp::convertToTG() {
       builder.getF32FloatAttr(max_range().convertToFloat())));
   attrs.push_back(builder.getNamedAttr("min_range",
       builder.getF32FloatAttr(min_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("added_offset",
+      builder.getBoolAttr(added_offset())));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -1783,6 +1787,8 @@ Value* tpu::TanHOp::convertToTG() {
       builder.getF32FloatAttr(max_range().convertToFloat())));
   attrs.push_back(builder.getNamedAttr("min_range",
       builder.getF32FloatAttr(min_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("added_offset",
+      builder.getBoolAttr(added_offset())));
   
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
@@ -1814,6 +1820,14 @@ Value* tpu::ExpOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  // get default/assign value
+  attrs.push_back(builder.getNamedAttr("max_range",
+      builder.getF32FloatAttr(max_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("min_range",
+      builder.getF32FloatAttr(min_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("added_offset",
+      builder.getBoolAttr(added_offset())));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(

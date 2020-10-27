@@ -717,6 +717,7 @@ LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
 
   float table_thresh_min = this->min_range().convertToFloat();
   float table_thresh_max = this->max_range().convertToFloat();
+  bool added_offset = this->added_offset();
   auto lut_method = method().getValue().str();
   // method 0: mantissa, 1: slope
   int method = 0;
@@ -734,6 +735,7 @@ LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
                           la_slope_lut,
                           table_thresh_min,
                           table_thresh_max,
+                          added_offset,
                           n, c, h, w, method);
   return success();
 }

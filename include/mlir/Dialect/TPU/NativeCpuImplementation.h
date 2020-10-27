@@ -40,6 +40,8 @@ int my_lut_interpolation(float *input, float *output, int n, int c, int h, int w
                          float thresh_min, float thresh_max, bool isExpFunc);
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
+int my_exp(float *input, float *output, int n, int c, int h, int w,
+    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16 = false);
 int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 int my_sigmoid(float *input, float *output, int n, int c, int h, int w,
     float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16 = false);
