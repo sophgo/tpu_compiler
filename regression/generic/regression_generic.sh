@@ -34,36 +34,27 @@ pushd $WORKDIR
 /bin/bash $FP32_INFERENCE_SCRIPT
 $DIR/regression_1_fp32.sh
 if [ $DO_QUANT_INT8 -eq 1 ]; then
-  $DIR/regression_2_int8_calibration.sh
-  $DIR/regression_3_int8_per_tensor.sh
-  $DIR/regression_3_int8_rshift_only.sh
-  $DIR/regression_3_int8_multiplier.sh
-fi
-if [ $DO_DEEPFUSION -eq 1 ]; then
-  $DIR/regression_4_int8_cmdbuf_deepfusion.sh
-fi
-if [ $DO_LAYERGROUP -eq 1 ]; then
-  $DIR/regression_5_int8_cmdbuf_layergroup.sh
+  if [ $DO_CALIBRATION -eq 1 ]; then
+    $DIR/regression_2_int8_calibration.sh
+  fi
+  $DIR/regression_3_int8.sh
 fi
 if [ $DO_QUANT_BF16 -eq 1 ]; then
-  $DIR/regression_6_bf16.sh
-fi
-if [ $DO_E2E -eq 1 ]; then
-  $DIR/regression_e2e.sh
-fi
-if [ $DO_NN_TOOLKIT -eq 1 ]; then
-  gen_cvi_nn_tool_template.py $NET
-  cvi_nn_converter.py $NET.yml
+  $DIR/regression_4_bf16.sh
 fi
 if [ $DO_QUANT_MIX -eq 1 ]; then
-  $DIR/regression_7_mix.sh
+  $DIR/regression_5_mix.sh
 fi
 if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
-  $DIR/regression_8_fuse_preprocess.sh
+  $DIR/regression_6_fuse_preprocess.sh
 fi
 if [ $DO_TPU_SOFTMAX_INFERENCE -eq 1 ]; then
-  $DIR/regression_9_tpu_softmax.sh
+  $DIR/regression_7_tpu_softmax.sh
 fi
+#if [ $DO_NN_TOOLKIT -eq 1 ]; then
+#  gen_cvi_nn_tool_template.py $NET
+#  cvi_nn_converter.py $NET.yml
+#fi
 popd
 
 unset DO_BATCHSIZE

@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+DIR="$( cd "$(dirname "$0")" ; pwd -P )"
+
 usage()
 {
   echo ""
@@ -130,6 +132,8 @@ if [ $do_tpu_softmax = "1" ]; then
   tpu_softmax_opt="--quant-bf16-softmax  "
 fi
 
+int8_mlir="${name}_int8.mlir"
+
 mlir-opt ${name}.mlir \
     --convert-bn-to-scale \
     --canonicalize \
@@ -145,28 +149,7 @@ mlir-opt \
     --tpu-quant \
     ${tpu_softmax_opt} \
     --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv | \
-mlir-opt \
-    --tpu-lower --reorder-op \
-    --tg-fuse-leakyrelu \
-    --conv-ic-alignment \
-    ${layergroup_opt} | \
-mlir-opt \
-    ${dce_opt} \
-    --deep-fusion-tg2tl-la \
-    --deep-fusion-tl-la2lw \
-    --compress-weight \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map.csv \
-    --tpu-weight-bin-filename=weight.bin \
-    --tpu-generate-compressed-weight \
-    --assign-neuron-address \
-    --tpu-neuron-memory-reuse \
-    --tpu-neuron-address-align=64 \
-    --tpu-neuron-map-filename=neuron_map.csv \
-    --divide-ops-to-func | \
-mlir-translate \
-    --mlir-to-cvimodel \
-    --weight-file weight.bin \
-    -o $output
+    --tpu-op-info-filename op_info_int8.csv \
+    -o $int8_mlir
+
+${DIR}/mlir_to_cvimodel.sh $int8_mlir $output

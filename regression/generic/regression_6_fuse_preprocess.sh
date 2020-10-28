@@ -119,36 +119,9 @@ cvi_npz_tool.py compare \
     --stats_int8_tensor
 
 # cvimodel
-mlir-opt \
+$DIR/../mlir_to_cvimodel.sh \
     ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
-    --use-tpu-quant-op \
-    --tpu-lower --reorder-op | \
-  mlir-opt \
-    --tg-fuse-leakyrelu \
-    --conv-ic-alignment | \
-  mlir-opt \
-    --group-ops | \
-  mlir-opt \
-    --dce \
-    --deep-fusion-tg2tl-la \
-    --deep-fusion-tl-la2lw | \
-  mlir-opt \
-    --compress-weight | \
-  mlir-opt \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map_int8_lg_fused_preprocess.csv \
-    --tpu-weight-bin-filename=weight_fused_process.bin | \
-  mlir-opt \
-    --tpu-generate-compressed-weight \
-    --assign-neuron-address \
-    --tpu-neuron-address-align=64 \
-    --tpu-neuron-map-filename=neuron_map_lg_fused_preprocess.csv \
-    --divide-ops-to-func | \
-mlir-translate \
-    --mlir-to-cvimodel \
-    --weight-file weight_fused_process.bin \
-    -o ${NET}_fused_preprocess.cvimodel
+    ${NET}_fused_preprocess.cvimodel
 
 model_runner \
     --dump-all-tensors \
