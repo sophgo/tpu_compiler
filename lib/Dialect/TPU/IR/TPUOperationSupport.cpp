@@ -344,6 +344,8 @@ LogicalResult setOpThreshold(Operation *op, float threshold) {
 int getOpZeroPoint(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuantZeroPoint();
+  } else if(auto quantOp = llvm::dyn_cast<tpu::QuantOp>(op)) {
+    return quantOp.zero_point().getLimitedValue();
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";
