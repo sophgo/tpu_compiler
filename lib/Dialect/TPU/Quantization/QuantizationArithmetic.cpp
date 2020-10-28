@@ -460,8 +460,13 @@ int32_t quantizeBiasRShiftAndMultiplier(float w, float threshold_y,
 }
 
 /// Simulate HW behavior, after accumuation, do rshift and saturate
-int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift) {
-  return saturateInt8(v / (1 << rshift));
+int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift, int offset) {
+  return saturateInt8((v / (1 << rshift)) + offset);
+}
+
+/// Simulate HW behavior, after accumuation, do rshift and saturate
+float applyZeroPointSaturateInt8(float v, int offset) {
+  return (float)saturateInt8(v + offset);
 }
 
 // USE_GOOGLE_GEMMLOWP_QDM
@@ -500,30 +505,26 @@ static inline s32 SaturatingRoundingDoublingHighMul(s32 a, s32 b)
 ///   use GOOGLE GEMMLOWP QDM multiply and shift
 ///   during multiply, a factor of (1 << 31) has been devided
 int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
-    uint32_t rshift, uint32_t multiplier, bool qdm) {
+    uint32_t rshift, uint32_t multiplier, bool qdm, int offset) {
   if (qdm) {
     int32_t q = RoundingDivideByPOT(
         SaturatingRoundingDoublingHighMul((int32_t)v, (int32_t)multiplier),
         rshift);
-    //llvm::errs() << "v,rshift,multiplier,q = " << v << ","
-    //             << rshift << "," << multiplier << "," << q << "\n";
-    return saturateInt8((float)q);
+    return saturateInt8((float)(q + offset));
   } else {
-    return saturateInt8(v * multiplier / (1 << rshift));
+    return saturateInt8((float)(((v * multiplier)) / (1 << rshift) + offset));
   }
 }
 
 int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
-    uint32_t rshift, uint32_t multiplier, bool qdm) {
+    uint32_t rshift, uint32_t multiplier, bool qdm, int offset) {
   if (qdm) {
     int32_t q = RoundingDivideByPOT(
         SaturatingRoundingDoublingHighMul(v, (int32_t)multiplier),
         rshift);
-    //llvm::errs() << "v,rshift,multiplier,q = " << v << ","
-    //             << rshift << "," << multiplier << "," << q << "\n";
-    return saturateInt8((float)q);
+    return saturateInt8((float)(q + offset));
   } else {
-    return saturateInt8(((float)(v * multiplier)) / (1 << rshift));
+    return saturateInt8((float)(((v * multiplier)) / (1 << rshift) + offset));
   }
 }
 
@@ -908,7 +909,7 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
 }
 /// DeQuantize an Activation tensor from INT8, given threshold
 void dequantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold, bool tpu_mode) {
+    int64_t size, float threshold, bool tpu_mode, int zero_point) {
   float scale = threshold / 128.0;
   if (tpu_mode) {
     bfloat16 bf_scale, bf_tmp;
@@ -1028,7 +1029,7 @@ void quantizeActivationInt8PerChannelRShift(float *output, float *input,
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerChannelMultiplierAndRShift(
     float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
-    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel) {
+    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel, int output_offset) {
   for (int64_t n = 0; n < on; ++n) {
     for (int64_t i = 0; i < oc; ++i) {
       for (int64_t j = 0; j < isz; ++j) {
@@ -1037,7 +1038,7 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
           v += (int32_t)bias[i];
         }
         v = applyMultiplierAndRShiftAndSaturateInt8(
-                v, rshift_per_channel[i], multiplier_per_channel[i], true);
+                v, rshift_per_channel[i], multiplier_per_channel[i], true, output_offset);
         if (do_relu && (v < 0)) {
           v = 0;
         }

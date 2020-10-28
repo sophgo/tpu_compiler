@@ -62,13 +62,16 @@ int32_t quantizeBiasRShiftAndMultiplier(float w,
                                         uint32_t rshift, uint32_t multiplier,
                                         bool qdm = false);
 
-int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift);
-int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
-                                               uint32_t rshift, uint32_t multiplier,
-                                               bool qdm = false);
+int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift, int offset=0);
+int8_t applyMultiplierAndRShiftAndSaturateInt8(float v, uint32_t rshift,
+                                               uint32_t multiplier,
+                                               bool qdm = false,
+                                               int offset=0);
 int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
                                                uint32_t rshift, uint32_t multiplier,
-                                               bool qdm = false);
+                                               bool qdm = false,int offset=0);
+
+float applyZeroPointSaturateInt8(float v, int offset);
 
 ///
 /// BF16
@@ -111,7 +114,7 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold, bool tpu_mode=false, int zero_point=0);
 
 void dequantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold, bool tpu_mode=false);
+    int64_t size, float threshold, bool tpu_mode=false, int zero_point=0);
 
 void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold);
@@ -127,7 +130,7 @@ void quantizeActivationInt8PerChannelRShift(float *output, float *input,
 
 void quantizeActivationInt8PerChannelMultiplierAndRShift(
     float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
-    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel);
+    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel, int output_offset=0);
 
 } // namespace mlir
 
