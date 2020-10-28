@@ -231,201 +231,84 @@ LogicalResult tpu::CastOp::interpret(
 }
 
 LogicalResult tpu::ConcatOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
 
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float> >(size);
+  std::vector<int64_t> output_shape = getTensorShape(result);
+  int64_t output_size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(output_size);
+
+  for (uint32_t i = output_shape.size(); i < 4; i++) {
+    output_shape.push_back(1); // append to 4 dim
+  }
+
+  int64_t output_hstride = output_shape[3];
+  int64_t output_cstride = output_shape[2] * output_hstride;
+  int64_t output_nstride = output_shape[1] * output_cstride;
 
   // parse param
-  auto concat_axis = this->axis();
+  int concat_axis = this->axis().getLimitedValue();
   LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
 
-  // get tensors
   size_t nInputs = this->getNumInputs();
   assert(nInputs >= 2 && "bottom num is 0 or 1");
-  std::vector<float *> input(nInputs);
-  for (size_t i = 0; i < nInputs; ++i) {
-    input[i] = (float *)opdT[i]->data();
-  }
-  //float *output = resultT->data();
-  std::shared_ptr<std::vector<float> > quant_rshift = opdT[nInputs + 2];
-  std::shared_ptr<std::vector<float> > quant_multiplier = opdT[nInputs + 3];
 
-  // apply qscale on input tensors before f32 compute
-  std::vector<std::vector<float> > input_copy(nInputs);
-  if (mlir::getOpQuant(op) == "INT8") {
-    for (unsigned i = 0; i < nInputs; ++i) {
-      // make copy
-      input_copy[i].assign(opdT[i]->begin(),
-                           opdT[i]->end());
-      input[i] = input_copy[i].data();
-    }
-    // apply multiplier
-    for (unsigned i = 0; i < nInputs; ++i) {
-      for (size_t j = 0; j < opdT[i]->size(); ++j) {
-        input[i][j] = input[i][j] * (int8_t)quant_multiplier->at(i);
-      }
-    }
-  }
-
-  // there is no fp32 compute
-
-  // apply rshift and saturate on input directly
-  if (mlir::getOpQuant(op) == "INT8") {
-    for (unsigned i = 0; i < nInputs; ++i) {
-      for (size_t j = 0; j < opdT[i]->size(); ++j) {
-        input[i][j] = (float)applyRShiftAndSaturateInt8(input[i][j],
-            (uint32_t)quant_rshift->at(0));
-      }
-    }
+  // quant param
+  std::shared_ptr<std::vector<float>> quant_rshift = opdT[nInputs + 2];
+  std::shared_ptr<std::vector<float>> quant_multiplier = opdT[nInputs + 3];
+  bool need_quant = false;
+  float rshift = 0;
+  if (mlir::getOpQuant(op) == "INT8" && quant_rshift != nullptr &&
+      quant_multiplier != nullptr) {
+    need_quant = true;
+    rshift = quant_rshift->at(0);
   }
 
   // do concat copy
-  auto tmp_resultT = std::make_unique<std::vector<float> >(0);
-  int shift_idx_c=0;
-  int shift_idx_h=0;
-  int shift_idx_w=0;
-  int tmp_w=0;
-  int tmp_h = 0;
+  float *output = resultT->data();
+  int global_offset = 0;
   for (uint32_t i = 0; i < nInputs; i++) {
-    std::vector<int64_t> shape;
-    int64_t input_size, n, c, h, w;
-    getTensorShapeAndSize(op->getOperand(i), shape, input_size);
-
-    if (shape.size() == 4) {
-      n = shape[0];
-      c = shape[1];
-      h = shape[2];
-      w = shape[3];
-
-      LLVM_DEBUG(llvm::errs() << "  [" << i << "], shape ("
-                              << n << ", " << c << ", " << h << ", " << w << ")\n";);
-      LLVM_DEBUG(llvm::errs() << "  [" << i << "], size " << input_size << "\n";);
-
-      auto *input_data = input[i];
-
-      if (concat_axis == 0) {
-        auto shapeT = std::make_unique<std::vector<float> >(input_size);
-        shapeT.get()->assign(&input_data[0], &input_data[input_size]);
-        tmp_resultT.get()->insert(tmp_resultT.get()->end(), shapeT->begin(), shapeT->end());
-      } else if (concat_axis == 1) {
-        for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
-          auto shapeT = std::make_unique<std::vector<float> >(c * h * w);
-          int insert_offset = ((idx_n + 1) * shift_idx_c  + idx_n * c) * h * w;
-          shapeT.get()->assign(&input_data[idx_n * c * h * w], &input_data[(idx_n + 1) * c * h * w]);
-          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
-        }
-        shift_idx_c += c;
-      } else if (concat_axis == 2) {
-        for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
-          for (uint32_t idx_c = 0; idx_c < c ;idx_c++) {
-            auto shapeT = std::make_unique<std::vector<float> >(h * w);
-            int insert_offset = (idx_n * c * (h + shift_idx_h) + (idx_c + 1) * shift_idx_h + idx_c * h) * w;
-            shapeT.get()->assign(&input_data[(idx_n * c + idx_c) * h * w], &input_data[(idx_n * c + (idx_c + 1)) * h * w]);
-            tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
-          }
-        }
-        shift_idx_h += h;
-      } else if (concat_axis == 3) {
-        for (uint32_t idx_n = 0; idx_n < n; idx_n++) {
-          for (uint32_t idx_c = 0; idx_c < c ;idx_c++) {
-            for (uint32_t idx_h = 0; idx_h < h ;idx_h++) {
-              auto shapeT = std::make_unique<std::vector<float> >(w);
-              int insert_offset =
-                idx_n * c * h * (w + shift_idx_w)+
-                idx_c * h * (w + shift_idx_w) +
-                (idx_h + 1) * shift_idx_w +
-                idx_h * w;
-
-              shapeT.get()->assign(
-                  &input_data[(idx_n * c * h + idx_c * h + idx_h) * w],
-                  &input_data[(idx_n * c * h + idx_c * h + (idx_h + 1)) * w]);
-
-              tmp_resultT.get()->insert(
-                  tmp_resultT.get()->begin() + insert_offset,
-                  shapeT->begin(), shapeT->end());
+    float *input = (float *)opdT[i]->data();
+    std::vector<int64_t> input_shape = getTensorShape(op->getOperand(i));
+    for (uint32_t idx = input_shape.size(); idx < 4; idx++) {
+      input_shape.push_back(1);
+    }
+    int64_t input_hstride = input_shape[3];
+    int64_t input_cstride = input_shape[2] * input_hstride;
+    int64_t input_nstride = input_shape[1] * input_cstride;
+    for (int64_t n = 0; n < input_shape[0]; n++) {
+      for (int64_t c = 0; c < input_shape[1]; c++) {
+        for (int64_t h = 0; h < input_shape[2]; h++) {
+          for (int64_t w = 0; w < input_shape[3]; w++) {
+            int input_offset =
+                w + h * input_hstride + c * input_cstride + n * input_nstride;
+            int output_offset = w + h * output_hstride + c * output_cstride +
+                                n * output_nstride;
+            float data = input[input_offset];
+            // do quant
+            if (need_quant) {
+              data *= quant_multiplier->at(i);
+              data = (float)applyRShiftAndSaturateInt8(data, rshift);
             }
+            // do relu
+            if (do_relu() && data < 0) {
+              data = 0;
+            }
+            output[output_offset + global_offset] = data;
           }
         }
-        shift_idx_w += w;
-        shift_idx_h += h;
-      }
-      else {
-        llvm_unreachable("concat_axis only support 0,1,2,3 now\n");
-      }
-    } else if (shape.size() == 2) {
-      h = shape[0];
-      w = shape[1];
-
-      LLVM_DEBUG(llvm::errs() << "  [" << i << "], shape ("
-                              << h << ", " << w << ")\n";);
-      LLVM_DEBUG(llvm::errs() << "  [" << i << "], size " << input_size << "\n";);
-
-      auto *input_data = input[i];
-
-      if (concat_axis == 0) {
-        auto shapeT = std::make_unique<std::vector<float> >(input_size);
-        shapeT.get()->assign(&input_data[0], &input_data[input_size]);
-        tmp_resultT.get()->insert(tmp_resultT.get()->end(), shapeT->begin(), shapeT->end());
-      } else if (concat_axis == 1) {
-        for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
-          auto shapeT = std::make_unique<std::vector<float> >(w);
-          //int insert_offset = ((idx_h + 1) * idx_h) * h * w;
-          //int insert_offset = (idx_h  + (idx_h + 1) * shift_idx_h) * (i=0?w:tmp_w);
-          int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
-          shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
-          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
-        }
-        tmp_w += w;
-      } else {
-        llvm_unreachable("not support concat_axis >=2 now\n");
-      }
-    } else if (shape.size() == 3) {
-      c = shape[0];
-      h = shape[1];
-      w = shape[2];
-
-      LLVM_DEBUG(llvm::errs() << "  [" << i << "], shape ("
-                              << c << ", " << h << ", " << w << ")\n";);
-      LLVM_DEBUG(llvm::errs() << "  [" << i << "], size " << input_size << "\n";);
-
-      auto *input_data = input[i];
-
-      if (concat_axis == 0) {
-        auto shapeT = std::make_unique<std::vector<float> >(input_size);
-        shapeT.get()->assign(&input_data[0], &input_data[input_size]);
-        tmp_resultT.get()->insert(tmp_resultT.get()->end(), shapeT->begin(), shapeT->end());
-      } else if (concat_axis == 2) {
-        assert(c==1);
-        for (uint32_t idx_h = 0; idx_h < h; idx_h++) {
-          auto shapeT = std::make_unique<std::vector<float> >(w);
-          int insert_offset = ((idx_h+1)* tmp_w) + idx_h*w;
-          shapeT.get()->assign(&input_data[idx_h * w], &input_data[(idx_h + 1) * w]);
-          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset, shapeT->begin(), shapeT->end());
-        }
-        tmp_w += w;
-      } else {
-        for (uint32_t idx_c = 0; idx_c < c; idx_c++) {
-          auto shapeT = std::make_unique<std::vector<float>>(h * w);
-          int insert_offset = ((idx_c + 1) * tmp_h) * w;
-          shapeT.get()->assign(&input_data[idx_c * h * w],
-                               &input_data[(idx_c + 1) * h * w]);
-          tmp_resultT.get()->insert(tmp_resultT.get()->begin() + insert_offset,
-                                    shapeT->begin(), shapeT->end());
-        }
-        tmp_h += h;
       }
     }
+    int axis_offset = 1;
+    for (int idx = concat_axis; idx < 4; idx++) {
+      axis_offset *= input_shape[idx];
+    }
+    global_offset += axis_offset;
   }
-  resultT.get()->assign(tmp_resultT.get()->begin(), tmp_resultT.get()->end());
-  if (do_relu()) {
-    my_relu(resultT->data(), resultT->data(), 1, 1, 1, size, 0.0f);
-  }
-
   valueMapping[result] = std::move(resultT);
   return success();
 }

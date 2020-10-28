@@ -426,159 +426,99 @@ LogicalResult tpu::TG_CastOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  int axis = this->axis().getLimitedValue();
-  if (axis == 0) {
-    return success();
-  }
-
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
+  int axis = this->axis().getLimitedValue();
   int layer_id = getOpLayerId(op);
   unsigned nInputs = op->getNumOperands();
-  auto ga_inputs = new gaddr_t[nInputs];
-  for ( unsigned i = 0; i < nInputs; i++) {
+  std::vector<gaddr_t> ga_inputs(nInputs);
+  for (unsigned i = 0; i < nInputs; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
 
   // prepare shape info
-  #define SHAPE_DIM 4
-  auto input_dims = new int32_t[nInputs * SHAPE_DIM];
-  for ( unsigned i = 0; i < nInputs; i++) {
-    std::vector<int64_t> shape;
-    int64_t size;
-    getTensorShapeAndSize(op->getOperand(i), shape, size);
-    // TODO: this looks very strange. 4 allocated for each input
-    // TODO: but only 1 is set for each input
-    input_dims[i] = shape[axis];
+  std::vector<int32_t> axis_dims;
+  for (unsigned i = 0; i < nInputs; i++) {
+    std::vector<int64_t> shape = getTensorShape(op->getOperand(i));
+    axis_dims.push_back(shape[axis]);
   }
-  int output_dim[SHAPE_DIM];
-  int output_dim_size;
-  std::vector<int64_t> shape;
-  int64_t size;
-  getTensorShapeAndSize(this->getResult(), shape, size);
-  output_dim[0] = shape[0];
-  output_dim[1] = shape[1];
-  output_dim[2] = shape[2];
-  output_dim[3] = shape[3];
-  output_dim_size = shape.size();
+  std::vector<int> output_dim;
+  std::vector<int64_t> shape = getTensorShape(this->getResult());
+  int output_dim_size = shape.size();
+  assert(output_dim_size <= 4);
+  for (int i = 0; i < output_dim_size; i++) {
+    output_dim.push_back(shape[i]);
+  }
 
   // prepare quant info
-  bool do_quant_rescale = false;
-  int8_t rshift;
-  auto m_i8_input = new int32_t[nInputs];
+  std::vector<int8_t> rshift;
+  std::vector<int32_t> m_i8_input;
+  const int8_t *p_rshift = nullptr;
+  const int32_t *p_m_i8 = nullptr;
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
-    do_quant_rescale = true;
-    rshift = this->rshift().getValue().getLimitedValue();
+    int8_t rshift_value = this->rshift().getValue().getLimitedValue();
 
-    std::vector<int32_t> m_i8_inputs_array;
-    arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
-    assert(m_i8_inputs_array.size() == nInputs);
+    arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_input);
+    assert(m_i8_input.size() == nInputs);
     for (unsigned i = 0; i < nInputs; ++i) {
-      m_i8_input[i] = static_cast<int8_t>(m_i8_inputs_array[i]);
+      rshift.push_back(rshift_value);
     }
+    p_rshift = rshift.data();
+    p_m_i8 = m_i8_input.data();
   }
 
-  // TODO: should change on backend API, rather than doing cast
-  auto rshift_int = new int32_t[nInputs];
-  auto m_int = new int32_t[nInputs];
-  if (do_quant_rescale) {
-    for (unsigned i = 0; i < nInputs; ++i) {
-      rshift_int[i] = static_cast<int>(rshift);
-      m_int[i] = static_cast<int>(m_i8_input[i]);
-    }
+  if (axis == 0 && do_relu() == false && p_rshift == nullptr &&
+      p_m_i8 == nullptr) {
+    // TODO: should be fixed when normal concat N
+    return success();
   }
 
-  cvi_backend_tg_fixed_concat_kernel(
-      *backend_ctx,
-      0, // u32 stream_id,
-      0, //u32 inst_id,
-      layer_id, // u32 layer_id,
-      nullptr, // const u32 *depends,
-      0,// u32 depends_len,
-      ga_inputs,       // gaddr_t input_gaddrs[],
-      ga_output,       // gaddr_t output_gaddr,
-      input_dims,      // int input_dims[],
-      nInputs,         //int input_num,
-      axis,            // int concat_axis,
-      output_dim_size, // int output_dim_size,
-      output_dim,      // int *output_dim,
-      do_relu(),
-      do_quant_rescale ? nInputs : 0,     // const int need_quantize_num,
-      do_quant_rescale ? rshift_int : 0,  // const int *right_shift_width,
-      do_quant_rescale ? m_int : nullptr  // const int *threshold_x_quantized
-      );
+  cvi_backend_tg_concat_kernel(
+      *backend_ctx, 0, 0, layer_id, nullptr, 0, nInputs, ga_inputs.data(),
+      ga_output, axis_dims.data(), axis, output_dim_size, output_dim.data(),
+      do_relu(), p_rshift, p_m_i8, CVK_FMT_I8);
 
-  delete[] ga_inputs;
-  delete[] m_i8_input;
-  delete[] rshift_int;
-  delete[] m_int;
-  delete[] input_dims;
   return success();
 }
 
 LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   int nInputs = op->getNumOperands();
-  auto ga_inputs = new gaddr_t[nInputs];
-  for ( int i = 0; i < nInputs; i++) {
+  std::vector<gaddr_t> ga_inputs(nInputs);
+  for (int i = 0; i < nInputs; i++) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
   int axis = this->axis().getLimitedValue();
   int layer_id = getOpLayerId(op);
 
-  // prepare shape info
-  #define SHAPE_DIM 4
-  auto input_dims = new int32_t[nInputs * SHAPE_DIM];
-  for ( int i = 0; i < nInputs; i++) {
-    std::vector<int64_t> shape;
-    int64_t size;
-    getTensorShapeAndSize(op->getOperand(i), shape, size);
-    // TODO: this looks very strange. 4 allocated for each input
-    // TODO: but only 1 is set for each input
-    input_dims[i] = shape[axis];
+  std::vector<int32_t> axis_dims;
+  for (int i = 0; i < nInputs; i++) {
+    std::vector<int64_t> shape = getTensorShape(op->getOperand(i));
+    axis_dims.push_back(shape[axis]);
   }
 
-  int output_dim[SHAPE_DIM];
-  int output_dim_size;
-  std::vector<int64_t> shape;
-  int64_t size;
-  getTensorShapeAndSize(this->getResult(), shape, size);
-  output_dim[0] = shape[0];
-  output_dim[1] = shape[1];
-  output_dim[2] = shape[2];
-  output_dim[3] = shape[3];
-  output_dim_size = shape.size();
+  std::vector<int> output_dim;
+  std::vector<int64_t> shape = getTensorShape(this->getResult());
+  int output_dim_size = shape.size();
+  assert(output_dim_size <= 4);
+  for (int i = 0; i < output_dim_size; i++) {
+    output_dim.push_back(shape[i]);
+  }
 
-  cvi_backend_tg_bf16_concat_kernel(
-      *backend_ctx,
-      0, // stream_id,
-      0, // inst_id,
-      layer_id, // layer_id,
-      nullptr, // depends
-      0, // depends_len
-      ga_inputs,       // gaddr_t input_gaddrs[],
-      ga_output,       // gaddr_t output_gaddr,
-      input_dims,      // int input_dims[],
-      nInputs,         // int input_num,
-      axis,            // int concat_axis,
-      output_dim_size, // int output_dim_size,
-      output_dim,      // int *output_dim,
-      do_relu(),
-      0,               // int need_quantize_num
-      nullptr          // threshold_x_quantized,
-      );
+  cvi_backend_tg_concat_kernel(
+      *backend_ctx, 0, 0, layer_id, nullptr, 0, nInputs, ga_inputs.data(),
+      ga_output, axis_dims.data(), axis, output_dim_size, output_dim.data(),
+      do_relu(), nullptr, nullptr, CVK_FMT_BF16);
 
-  delete[] ga_inputs;
-  delete[] input_dims;
   return success();
 }
 

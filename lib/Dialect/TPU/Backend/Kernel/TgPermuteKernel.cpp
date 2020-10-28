@@ -22,7 +22,7 @@
 //   shape.
 //
 // Permute 0321: (I8)
-//   (N, C, H, W) -> (N, H, W, C)
+//   (N, C, H, W) -> (N, W, H, C)
 //   tensor load
 //   tensor store, cw transpose
 //   e.g. reduceOp with axis [1] needs CW transpose in global memory

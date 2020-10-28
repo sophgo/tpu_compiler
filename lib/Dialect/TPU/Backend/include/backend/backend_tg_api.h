@@ -32,14 +32,6 @@ void cvi_backend_tg_fixed_conv_kernel(
     bool do_chl_quan, bool do_ic_alignment, bool store_compr_act,
     bool load_compr_act);
 
-void cvi_backend_tg_fixed_concat_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-    gaddr_t input_gaddrs[], gaddr_t output_gaddr, int input_dims[],
-    int input_num, int concat_axis, int output_dim_size, int *output_dim,
-    bool do_relu, const int need_quantize_num, const int *right_shift_width,
-    const int *threshold_x_quantized);
-
 void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id,
     const uint32_t *depends,
@@ -272,13 +264,6 @@ void cvi_backend_tg_bf16_conv3d_kernel(
     uint8_t stride_d, uint8_t stride_h, uint8_t stride_w,
     bool has_bias, bool do_relu);
 
-void cvi_backend_tg_bf16_concat_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-    gaddr_t input_gaddrs[], gaddr_t output_gaddr, int input_dims[],
-    int input_num, int concat_axis, int output_dim_size, int *output_dim,
-    bool do_relu, const int need_quantize_num, const int *threshold_x_quantized);
-
 void cvi_backend_tg_bf16_pooling_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ifmap_gaddr, gaddr_t ofmap_gaddr, gaddr_t index_gaddr,
@@ -462,6 +447,13 @@ void cvi_backend_tg_bf16_reduce_mean_kernel(
     int axes[], int num_axes);
 
 ////////////// fixed & bf16 kernel api ////////////////
+void cvi_backend_tg_concat_kernel(
+    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
+    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
+    int input_num, gaddr_t input_gaddrs[], gaddr_t output_gaddr,
+    int axis_dims[], int concat_axis, int output_dim_size, int *output_dim,
+    bool do_relu, const int8_t *right_shift_width,
+    const int *threshold_x_quantized, cvk_fmt_t fmt);
 
 void cvi_backend_tg_permute_kernel(
     const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
