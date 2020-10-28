@@ -158,7 +158,7 @@ cp -ar  $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
 pushd $TPU_PYTHON_PATH/retinaface; make; popd
 cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
 
-# Build rcnn cython 
+# Build rcnn cython
 pushd $TPU_PYTHON_PATH/rcnn/cython
 python3 setup.py build_ext --inplace
 python3 setup.py clean
@@ -230,8 +230,8 @@ if [ ! -e $BUILD_PATH/build_systemc ]; then
   mkdir $BUILD_PATH/build_systemc
 fi
 pushd $BUILD_PATH/build_systemc
-cp $MLIR_SRC_PATH/third_party/systemc-2.3.3/* . -a
-autoreconf -ivf
+cp $MLIR_SRC_PATH/third_party/systemc-2.3.3/* . -ur
+autoreconf -iv
 ./configure CXXFLAGS=-std=c++11
 make -j`nproc`
 make install
