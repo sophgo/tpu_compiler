@@ -49,6 +49,18 @@ fi
 
 if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   echo "Eval int8_per_tensor with interpreter"
+  mlir-opt ${NET}_opt_fp32.mlir \
+    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
+    --import-calibration-table \
+    --calibration-table ${CALI_TABLE} \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
+    --tpu-quant \
+    --quant-int8-per-tensor \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info_int8.csv \
+    -o ${NET}_quant_int8_per_tensor.mlir
+
   $EVAL_FUNC \
     --mlir_file=${NET}_quant_int8_per_tensor.mlir \
     --label_file=$LABEL_FILE \
@@ -66,6 +78,18 @@ fi
 
 if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
   echo "Eval int8_rshift_only with interpreter"
+  mlir-opt ${NET}_opt_fp32.mlir \
+    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
+    --import-calibration-table \
+    --calibration-table ${CALI_TABLE} \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
+    --tpu-quant \
+    --quant-int8-rshift-only \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info_int8.csv \
+    -o ${NET}_quant_int8_rshift_only.mlir
+
   $EVAL_FUNC \
     --mlir_file=${NET}_quant_int8_rshift_only.mlir \
     --label_file=$LABEL_FILE \
@@ -83,6 +107,17 @@ fi
 
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   echo "Eval int8_multiplier with interpreter"
+  mlir-opt ${NET}_opt_fp32.mlir \
+    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
+    --import-calibration-table \
+    --calibration-table ${CALI_TABLE} \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
+    --tpu-quant \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info_int8.csv \
+    -o ${NET}_quant_int8_multiplier.mlir
+
   if [ "$EVAL_MODEL_TYPE" = "imagenet" ]; then
     $EVAL_FUNC \
       --mlir_file=${NET}_quant_int8_multiplier.mlir \
