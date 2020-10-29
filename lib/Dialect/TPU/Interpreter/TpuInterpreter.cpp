@@ -1313,21 +1313,41 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   // get tensors
   const unsigned nInputs = op->getNumOperands() - 4;
   std::vector<float *>input(nInputs);
-  for (unsigned i = 0; i < nInputs; ++i) {
-    input[i] = opdT[i]->data();
-  }
   float *output = resultT->data();
+
+  std::vector<int> input_offset(nInputs, 0);
+  int output_offset = 0;
+  bool is_asymmetric = isOpQuantAsymmetric(op);
+
+  if (getOpQuant(op) == "INT8" && is_asymmetric){
+    for(size_t i = 0; i < nInputs; ++i){
+      input_offset.at(i) = -getPreviousOpZeroPoint(op, i);
+    }
+    output_offset = getOpZeroPoint(op);
+  }
+
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[nInputs + 2];
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[nInputs + 3];
 
   // apply qscale on input tensors before f32 compute
   std::vector<std::vector<float> > input_copy(nInputs);
+  for (size_t i = 0; i < nInputs; ++i) {
+    input[i] = opdT[i]->data();
+  }
   if (type == "ADD" || type == "MAX" || type == "MIN") {
     if (getOpQuant(op) == "INT8" && getOpQuantParamType(op) != "NONE") {
       for (unsigned i = 0; i < nInputs; ++i) {
         // make copy
         input_copy[i].assign(opdT[i]->begin(),
                              opdT[i]->end());
+        if(is_asymmetric && type != "ADD"){
+          llvm_unreachable("TODO: only ADD has asymmetric, other not ready");
+        }
+        if(input_offset[i] != 0){
+          for (auto &j: input_copy[i]) {
+            j += input_offset[i];
+          }
+        }
         input[i] = input_copy[i].data();
       }
       // apply multiplier
@@ -1343,9 +1363,6 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
   } else {
     llvm_unreachable("unsupported eltwise type");
   }
-
-  // compute in fp32
-  int ret = 0;
   //#pragma omp parallel for schedule(static)
   for (size_t ni = 0; ni < nInputs; ++ni) {
     for (size_t i = 0; i < (size_t)(in * ic * ih * iw); ++i) {
@@ -1367,7 +1384,11 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
     }
   }
 
-  if (do_relu) {
+  // compute in fp32
+  int ret = 0;
+  // asymmetric no need to do relu, if value < 0, do offset(-128) will saturate
+  // to -128
+  if (do_relu && !is_asymmetric) {
     ret = my_relu(output, output, in, ic, ih, iw, 0.0f);
     assert(ret == 0);
   }
@@ -1381,9 +1402,8 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
         // apply rshift and saturate
         //#pragma omp parallel for schedule(static)
         for (int i = 0; i < input_size; ++i) {
-
           output[i] = (float)applyRShiftAndSaturateInt8(
-              output[i], (uint32_t)quant_rshift->at(0));
+              output[i], (uint32_t)quant_rshift->at(0), output_offset);
         }
       } else if (type == "MUL") {
         // apply qscale on output (both rshift and saturate)
