@@ -1912,8 +1912,23 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
                  is_global, do_relu, count_include_pad);
 
   // get tensors
-  float *input = opdT[0]->data();
   float *output = resultT->data();
+  std::vector<float> input(opdT[0]->begin(), opdT[0]->end());
+  int input_offset = 0;
+  int output_offset = 0;
+  bool is_asymmetric = isOpQuantAsymmetric(op);
+
+  if (getOpQuant(op) == "INT8" && is_asymmetric){
+    input_offset = -getPreviousOpZeroPoint(op);
+    output_offset = getOpZeroPoint(op);
+    if (input_offset != 0) {
+      for (size_t i = 0; i < input.size(); i++) {
+        input.at(i) += input_offset;
+      }
+    }
+  }
+
+
   std::shared_ptr<std::vector<float> > quant_rshift = nullptr;
   std::shared_ptr<std::vector<float> > quant_multiplier = nullptr;
   if (is_average) {
@@ -1936,10 +1951,10 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
 
     // Todo: my case only has global average, if your model has other case,
     //       plz add and test
-    ret = my_avg_pooling(input, output, n, c, ih, iw, oh,
+    ret = my_avg_pooling(input.data(), output, n, c, ih, iw, oh,
                          ow, kh, kw, sh, sw, pt, pb, pl, pr);
   } else {
-    ret = mkldnn_pool(input, output, n, c, ih, iw, oh, ow, kh, kw,
+    ret = mkldnn_pool(input.data(), output, n, c, ih, iw, oh, ow, kh, kw,
                       sh, sw, pt, pb, pl, pr, is_average, count_include_pad);
   }
   assert(ret == 0);
@@ -1958,7 +1973,7 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
       int oc = c;
       int dh = 1, dw = 1;
       std::vector<float> conv_filter(filter_shape, 1);
-      int ret = mkldnn_conv(input, conv_filter.data(), NULL,
+      int ret = mkldnn_conv(input.data(), conv_filter.data(), NULL,
           conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
           sh, sw, dh, dw, pt, pb, pl, pr, g);
       assert(ret == 0);
@@ -1976,14 +1991,20 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
       }
       output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
           sum, (uint32_t)quant_rshift->at(0),
-          (uint32_t)quant_multiplier->at(0), false);
+          (uint32_t)quant_multiplier->at(0), false, output_offset);
     }
   } else if (is_average && getOpQuant(op) == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
   }
-
+  // if asymmetric avg pool, it's already done zero_point, pass
+  if (getOpQuant(op) == "INT8" && is_asymmetric && !is_average) {
+    for (size_t i = 0; i < resultT->size(); i++) {
+      resultT->at(i) =
+          applyZeroPointSaturateInt8(resultT->at(i), output_offset);
+    }
+  }
   valueMapping[result] = std::move(resultT);
 
   return success();
