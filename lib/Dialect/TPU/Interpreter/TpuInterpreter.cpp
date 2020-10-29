@@ -556,11 +556,13 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     if (!isOpQuantPerchannel(op)) {
       assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
       assert(quant_rshift);
+      assert(!is_asymmetric && "TODO: per-tensor asymmetric not ready");
       quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
           size, (uint32_t)quant_rshift->at(0));
     } else if (isOpQuantPerchannel(op)
                && getOpQuantParamType(op) == "RSHIFT_ONLY") {
       assert(quant_rshift);
+      assert(!is_asymmetric && "TODO: per-channel rshift asymmetric not ready");
       quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
           n, oc, size / oc / n, quant_rshift->data());
     } else if (isOpQuantPerchannel(op)

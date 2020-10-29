@@ -5,6 +5,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 
+
 #define DEBUG_TYPE "quant_arithmetic"
 
 namespace mlir {
@@ -912,6 +913,9 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold, bool tpu_mode, int zero_point) {
   float scale = threshold / 128.0;
   if (tpu_mode) {
+    if (zero_point != 0) {
+      assert("zero_point in tpu mode not ready, todo");
+    }
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
@@ -931,7 +935,7 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
   } else {
     for (int64_t i = 0; i < size; ++i) {
       float scale = threshold / 128.0;
-      output[i] = input[i] * scale;
+      output[i] = (input[i] + zero_point) * scale;
     }
   }
 }
