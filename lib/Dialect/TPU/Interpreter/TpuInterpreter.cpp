@@ -454,13 +454,22 @@ LogicalResult doConv2DOpInterpret(Operation *op,
 
   // get tensors
   assert(opdT.size() == 7);
-  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::vector<float> input(opdT[0]->begin(), opdT[0]->end());
+
   std::shared_ptr<std::vector<float> > filter = opdT[1];
   std::shared_ptr<std::vector<float> > bias = opdT[2];
-  //std::shared_ptr<std::vector<float> > quant_scale = opdT[3];
-  //std::shared_ptr<std::vector<float> > quant_zeropoint = opdT[4];
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[6];
+
+  int input_offset = -getPreviousOpZeroPoint(op);
+  int output_offset = getOpZeroPoint(op);
+  bool is_asymmetric = isOpQuantAsymmetric(op);
+
+  if (input_offset != 0) {
+    for(size_t i = 0;i < input.size(); i++){
+      input.at(i) += input_offset;
+    }
+  }
 
   // get is dilate activation
   std::vector<int32_t> ins;
@@ -482,9 +491,9 @@ LogicalResult doConv2DOpInterpret(Operation *op,
       int ow = calc_dilute_hw(iw, ins_w, 0, 0, 0);
       int size = n * ic * oh * ow;
       auto dilateActivation = std::vector<float> (size);
-      my_dilateActivation (input->data(), dilateActivation.data(), 0, 0, ins_h, 0, 0, 0, ins_w, 0, n, ic, ih, iw);
+      my_dilateActivation (input.data(), dilateActivation.data(), 0, 0, ins_h, 0, 0, 0, ins_w, 0, n, ic, ih, iw);
       // update dilated info
-      input = std::make_shared<std::vector<float>>(dilateActivation);
+      input = std::vector<float>(dilateActivation);
       ih = oh;
       iw = ow;
     }
@@ -523,13 +532,13 @@ LogicalResult doConv2DOpInterpret(Operation *op,
         }
       }
     }
-    int ret = mkldnn_conv(input->data(), filter->data(), bias_data,
+    int ret = mkldnn_conv(input.data(), filter->data(), bias_data,
                           resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw,
                           sh, sw, dh, dw, pt, pb, pl, pr, g);
     assert(ret == 0);
 #endif
   } else {
-    int ret = mkldnn_deconv(input->data(), filter->data(),
+    int ret = mkldnn_deconv(input.data(), filter->data(),
         bias ? bias->data() : nullptr, resultT->data(),
         n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, g);
     assert(ret == 0);
@@ -558,10 +567,12 @@ LogicalResult doConv2DOpInterpret(Operation *op,
                && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
       assert(quant_rshift);
       assert(quant_multiplier);
+      // asymmetric no need to do relu, if value < 0, do offset(-128) will saturate to -128
       quantizeActivationInt8PerChannelMultiplierAndRShift(
           resultT->data(), resultT->data(),
-          do_bias_later ? bias->data() : nullptr, do_relu_later, n, oc,
-          size / oc / n, quant_rshift->data(), quant_multiplier->data());
+          do_bias_later ? bias->data() : nullptr, do_relu_later && !is_asymmetric, n, oc,
+          size / oc / n, quant_rshift->data(), quant_multiplier->data(),
+          output_offset);
     } else {
       assert(false);
     }
