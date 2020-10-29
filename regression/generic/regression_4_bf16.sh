@@ -27,12 +27,14 @@ mlir-tpu-interpreter ${NET}_quant_bf16.mlir \
 cvi_npz_tool.py compare \
     ${NET}_out_bf16.npz \
     ${NET}_out_fp32.npz \
+    --excepts ${EXCEPTS_BF16} \
     --tolerance $TOLERANCE_BF16 -vv
 
 cvi_npz_tool.py compare \
     ${NET}_tensor_all_bf16.npz \
     ${NET}_tensor_all_fp32.npz \
     --op_info ${NET}_op_info_bf16.csv \
+    --excepts ${EXCEPTS_BF16} \
     --tolerance $TOLERANCE_BF16 -vv
 
 $DIR/../mlir_to_cvimodel.sh \
@@ -52,6 +54,7 @@ cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_bf16.npz \
     ${NET}_tensor_all_bf16.npz \
     --op_info ${NET}_op_info_bf16.csv \
+    --excepts ${EXCEPTS_BF16} \
     --tolerance=$TOLERANCE_BF16_CMDBUF -vv
 
 # VERDICT
