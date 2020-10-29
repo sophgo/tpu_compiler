@@ -2616,6 +2616,8 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         // transpose ic <-> kh*kw
         // if kh*kw == 1 or ic/g == 1, transposeConvolutionFilter() will do nothing
         assert(shape.size() == 4 || shape.size() == 5);
+        if (isa<tpu::DeConv2DOp>(op))
+          rotateConvolutionFilter<uint16_t>(filter_bf16, shape);
         transposeConvolutionFilter<uint16_t>(filter_bf16, shape);
 
         // save it

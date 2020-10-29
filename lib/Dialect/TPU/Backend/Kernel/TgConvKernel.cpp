@@ -4815,7 +4815,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     int input_n, int input_c, int input_h, int input_w, int groups,
     int output_c, uint16_t kh, uint16_t kw, uint16_t dilation_h,
     uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left,
-    uint8_t pad_right, uint8_t stride_h, uint8_t stride_w, int do_bias,
+    uint8_t pad_right, uint8_t ins_h, uint8_t ins_w,
+    uint8_t stride_h, uint8_t stride_w, int do_bias,
     int do_activation, bool fp32_output) {
 
   // this message is too long for llvm::format, so seperate it
@@ -4825,11 +4826,11 @@ void cvi_backend_tg_bf16_conv_kernel(
              "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
              "    nchw = (%d, %d, %d, %d), group = %d, oc = (%d)\n"
              "    kernel = (%d, %d), dilation = (%d, %d)\n"
-             "    pad = (%d, %d, %d, %d), stride = (%d, %d)\n",
+             "    pad = (%d, %d, %d, %d), ins=(%d, %d) stride = (%d, %d)\n",
              layer_id, ga_ifmap, ga_ofmap, ga_weight, ga_bias, input_n,
              input_c, input_h, input_w, groups, output_c, kh, kw,
              dilation_h, dilation_w, pad_top, pad_bottom, pad_left,
-             pad_right, stride_h, stride_w));
+             pad_right, ins_h, ins_w, stride_h, stride_w));
   LLVM_DEBUG(llvm::errs() << llvm::format(
              "    do_activation = %d\n",
              do_activation));
@@ -4857,8 +4858,8 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args_.pad_bottom = pad_bottom;
   conv->args_.pad_left = pad_left;
   conv->args_.pad_right = pad_right;
-  conv->args_.insert_h = 0;
-  conv->args_.insert_w = 0;
+  conv->args_.insert_h = ins_h;
+  conv->args_.insert_w = ins_w;
   conv->args_.stride_h = stride_h;
   conv->args_.stride_w = stride_w;
   conv->args_.do_bias = static_cast<bool>(do_bias);

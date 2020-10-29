@@ -256,7 +256,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     int input_n, int input_c, int input_h, int input_w, int groups,
     int output_c, uint16_t kh, uint16_t kw, uint16_t dilation_h,
     uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left,
-    uint8_t pad_right, uint8_t stride_h, uint8_t stride_w, int do_bias,
+    uint8_t pad_right, uint8_t ins_h, uint8_t ins_w,
+    uint8_t stride_h, uint8_t stride_w, int do_bias,
     int do_activation, bool fp32_output);
 
 void cvi_backend_tg_bf16_conv3d_kernel(

@@ -857,6 +857,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
+      0, 0,
       sh, sw,
       with_bias,
       do_relu ? 1 : 0,
@@ -945,13 +946,7 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
 
-  std::string errorMsg = "unsupported tg op " + getOpName().str();
-  llvm_unreachable(errorMsg.c_str());
-#if 0
-  // not correct
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -977,10 +972,14 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
 
   int kh_ext = (kh - 1) * dh + 1;
   int kw_ext = (kw - 1) * dw + 1;
+  int ins_h = sh - 1;
+  int ins_w = sw - 1;
   int pad_t = kh_ext - pt - 1;
   int pad_l = kw_ext - pl - 1;
   int pad_b = oh + pt - (ih - 1) * sh - 1;
   int pad_r = ow + pr - (iw - 1) * sw - 1;
+  sh = 1;
+  sw = 1;
 
   cvi_backend_tg_bf16_conv_kernel(
       *backend_ctx,
@@ -995,12 +994,13 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pad_t, pad_b, pad_l, pad_r,
+      ins_h, ins_w,
       sh, sw,
       with_bias, // bias_term,
-      do_relu ? 1 : 0 // do_activation,
+      do_relu ? 1 : 0, // do_activation,
       false
       );
-#endif
+
   return success();
 }
 
@@ -2086,6 +2086,7 @@ LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
       h, w,
       1, 1,
       0, 0, 0, 0,
+      0, 0,
       h, w,
       false,
       false,
