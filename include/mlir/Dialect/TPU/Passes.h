@@ -85,6 +85,7 @@ std::unique_ptr<OpPassBase<FuncOp>> createAssignNeuronAddressMemRefPass();
 std::unique_ptr<OpPassBase<FuncOp>> createCompressActivationPass();
 std::unique_ptr<OpPassBase<FuncOp>> createCompressWeightPass();
 std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionGroupSlice();
+std::unique_ptr<OpPassBase<FuncOp>> createDeepFusionOpt();
 
 std::unique_ptr<OpPassBase<FuncOp>> createTgOpTilePass();
 

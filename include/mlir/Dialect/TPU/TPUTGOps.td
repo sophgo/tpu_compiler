@@ -128,6 +128,42 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_ConcatOp : TPU_TG_ConcatOp<"tg_int8_concat", "Int8">;
 def TPU_TG_BF16_ConcatOp : TPU_TG_ConcatOp<"tg_bf16_concat", "Bf16">;
 
+def TPU_TG_ConcatNOp: TPU_Op<"tg_concat_n",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Concat operator.";
+
+  let description = [{
+    Inputs:
+      `inputs`          : required, the variadic activation memref.
+
+    Attributes:
+      `axis`            : required, the axis the concat is applying
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    I32Attr:$axis,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

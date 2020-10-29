@@ -35,6 +35,11 @@ public:
       std::map<Operation *, int64_t> &gaddrMap,
       std::set<Operation *> &gmemReusedSet,
       uint32_t alignment);
+  static int64_t assignSpecifiedGmemToOp(
+      Operation *op,
+      std::map<Operation *, int64_t> &gaddrMap,
+      int64_t baseGaddr,
+      uint32_t alignment);
 
   std::map<Operation *, int64_t> &gaddrMap;
 

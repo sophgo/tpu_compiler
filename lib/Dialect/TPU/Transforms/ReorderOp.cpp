@@ -148,6 +148,30 @@ static bool isUnaryOp(Operation *op) {
   return (opd_num == 1);
 }
 
+static uint32_t getOpLine(Operation *op) {
+  auto loc = op->getLoc().cast<FileLineColLoc>();
+  return loc.getLine();
+}
+
+static void handleEltwiseOp(Operation *op) {
+  auto opd0 = op->getOperand(0)->getDefiningOp();
+  auto opd1 = op->getOperand(1)->getDefiningOp();
+  auto prevOp = op->getPrevNode();
+  if (prevOp == opd0 || prevOp == opd1) {
+    return;
+  }
+  auto moveOp = (getOpLine(opd0) > getOpLine(opd1)) ? opd0 : opd1;
+  uint32_t firstUseLineNo = -1;
+  for (auto &use : moveOp->getResult(0)->getUses()) {
+    auto lineNo = getOpLine(use.getOwner());
+    if (lineNo < firstUseLineNo) {
+      firstUseLineNo = lineNo;
+    }
+  }
+  if (firstUseLineNo == getOpLine(op))
+    moveOp->moveBefore(op);
+}
+
 class ReorderOpPass : public FunctionPass<ReorderOpPass> {
 public:
   explicit ReorderOpPass() {}
@@ -166,6 +190,10 @@ public:
         return;
       } else {
          auto current = op;
+         if (isa<tpu::TG_INT8_EltwiseAddOp>(op) ||
+             isa<tpu::TG_INT8_EltwiseMulOp>(op)) {
+           handleEltwiseOp(op);
+         }
          while (current->getResult(0)->hasOneUse()) {
           auto use = getNextOp(current);
           if (isa<ReturnOp>(use) || !isUnaryOp(use))

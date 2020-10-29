@@ -3913,5 +3913,10 @@ LogicalResult tpu::TG_MemRef_BF16_ZeroMaskOp::codegen(void *ctx) {
 LogicalResult tpu::TG_CallOp::codegen(void *ctx) {
   return success();
 }
+
+LogicalResult tpu::TG_ConcatNOp::codegen(void *ctx) {
+  return success();
+}
+
 }
 

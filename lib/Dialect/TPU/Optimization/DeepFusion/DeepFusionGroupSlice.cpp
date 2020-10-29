@@ -34,6 +34,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/MathExtras.h"
+#include "llvm/IR/Function.h"
 #include "mlir/Dialect/TPU/SimpleAnalysis.h"
 #include <algorithm>
 #include <map>
@@ -89,6 +90,9 @@ private:
                std::vector<std::vector<Operation *>> &fusionGroups,
                int batchSize);
 
+  template<typename opTy>
+  bool canEltwiseFused(Operation *opInst);
+
   void findBestSubGroups(std::vector<SubGroup> &subGroups,
                        std::vector<Operation *> group,
                        std::vector<SubGroup> &bestSubGroups);
@@ -96,6 +100,7 @@ private:
   void mergeSubGroups(std::vector<SubGroup> &subGroups,
                       unsigned int searchIdx = 0);
   void doSlice(std::vector<Operation *> &group);
+  void tg2TL(std::vector<Operation *> &group);
 
   bool isFusionOp(Operation *opInst, int batchSize = -1);
   void findInOutOps(std::vector<Operation *> group,
@@ -113,27 +118,27 @@ private:
   void insertSliceOp(std::pair<Operation *, Operation *> &sliceOpPair,
                      int sliceIdx, int curN);
 
-  template<typename OpTy>
-  void copyEltwiseOp(Operation *srcOp, std::vector<Value *> opds,
-                     Operation *&dstOp, int loopIdx, int curN);
-  void copyPoolAvgOp(Operation *srcOp, std::vector<Value *> opds,
-                     Operation *&dstOp, int loopIdx, int curN);
-  void copyConvOp(Operation *srcOp, std::vector<Value *> opds,
-                  Operation *&dstOp, int loopIdx, int curN);
+  template<typename srcOpTy, typename dstOpTy>
+  void genTLEltwiseOp(Operation *srcOp, std::vector<Value *> opds,
+                      Operation *&dstOp, int loopIdx, int curN);
+  void genTLPoolAvgOp(Operation *srcOp, std::vector<Value *> opds,
+                      Operation *&dstOp, int loopIdx, int curN);
+  void genTLConvOp(Operation *srcOp, std::vector<Value *> opds,
+                   Operation *&dstOp, int loopIdx, int curN);
   void concatOps(std::vector<std::vector<Operation *>> outOps,
                  std::vector<Operation *> &orderedGroupOutOps);
-  void copyLutOp(Operation *srcOp, std::vector<Value *> opds,
-                 Operation *&dstOp, int loopIdx, int curN);
-  void copyBroadcastMulOp(Operation *srcOp, std::vector<Value *> opds,
-                          Operation *&dstOp, int loopIdx, int curN);
-  void copyOp(Operation *srcOp, std::vector<Value *> opds,
-              Operation *&dstOp, int loopIdx, int curN);
+  void genTLLutOp(Operation *srcOp, std::vector<Value *> opds,
+                  Operation *&dstOp, int loopIdx, int curN);
+  void genTLBroadcastMulOp(Operation *srcOp, std::vector<Value *> opds,
+                           Operation *&dstOp, int loopIdx, int curN);
+  void genTLOp(Operation *srcOp, std::vector<Value *> opds,
+               Operation *&dstOp, int loopIdx, int curN);
 };
 
 
 void DeepFusionGroupSlice::init() {
   auto fn = getFunction();
-  auto fnResultType = fn.getType().getResult(0);
+  auto fnResultType = fn.getType().getInput(0);
   auto fnResultShape = fnResultType.cast<RankedTensorType>().getShape();
   batchSize_ = fnResultShape[0];
   nSecs_ = 1;
@@ -152,6 +157,45 @@ void DeepFusionGroupSlice::setAllNSecs() {
   }
 }
 
+template<typename opTy>
+bool DeepFusionGroupSlice::canEltwiseFused(Operation *opInst) {
+  auto eltwiseOp = cast<opTy>(opInst);
+  auto opd0Inst = opInst->getOperand(0)->getDefiningOp();
+  auto opd1Inst = opInst->getOperand(1)->getDefiningOp();
+  auto getPrevOpInst = [](Operation *curOp) -> Operation * {
+    auto prevOp = curOp->getPrevNode();
+    while(isa<tpu::LoadWeightOp>(prevOp)) {
+      prevOp = prevOp->getPrevNode();
+    }
+    return prevOp;
+  };
+  auto prevOp = getPrevOpInst(opInst);
+  if (prevOp == opd0Inst) {
+    return true;
+  }
+  if (prevOp == opd1Inst) {
+    if(eltwiseOp.m_i8_inputs().hasValue()){
+      std::vector<int32_t> m_i8_inputs_array;
+      arrayAttrToVector(eltwiseOp.m_i8_inputs().getValue(), m_i8_inputs_array);
+      assert(m_i8_inputs_array.size() == 2);
+
+      int32_t m_i8_inputs[2];
+      m_i8_inputs[0] = m_i8_inputs_array[1];
+      m_i8_inputs[1] = m_i8_inputs_array[0];
+      Builder builder(context_);
+      eltwiseOp.setAttr("m_i8_inputs",
+                  builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs})));
+    }
+    opInst->setOperand(0, opd1Inst->getResult(0));
+    opInst->setOperand(1, opd0Inst->getResult(0));
+    return true;
+  }
+  return false;
+}
+
+// This pass mainly optimizes deep fusion.
+// Find the most suitable combination by dividing batch number
+// to do deep fusion.
 void DeepFusionGroupSlice::deepFusionGroupOpt() {
   auto fn = getFunction();
   std::vector<std::vector<Operation *>> fusionGroups;
@@ -221,14 +265,26 @@ void DeepFusionGroupSlice::deepFusionGroupOpt() {
         }
         subGroup.begin = cutPoint.first;
 
-        if (cutPoint == cutPoints.back()) {
+        if (cutPoint.first == group.back()) {
           subGroup.end = group.back();
-          subGroup.nSec = 1;
+          subGroup.nSec = getNextSec(cutPoint.second);
           subGroup.included = true;
         } else {
-          subGroup.end = getNextOp(cutPoint.first);
-          subGroup.nSec = getNextSec(cutPoint.second);
-          subGroup.included = false;
+          if (cutPoint == cutPoints.back()) {
+            subGroup.end = getNextOp(cutPoint.first);
+            subGroup.nSec = getNextSec(cutPoint.second);
+            subGroup.included = false;
+            subGroups.push_back(subGroup);
+            
+            subGroup.begin = getNextOp(cutPoint.first);
+            subGroup.end = group.back();
+            subGroup.nSec = 1;
+            subGroup.included = true;
+          } else {
+            subGroup.end = getNextOp(cutPoint.first);
+            subGroup.nSec = getNextSec(cutPoint.second);
+            subGroup.included = false;
+          }
         }
 
         begin = getNextOp(cutPoint.first);
@@ -280,15 +336,17 @@ void DeepFusionGroupSlice::deepFusionGroupOpt() {
         std::vector<Operation *> subGroupOps;
         auto beginIter = std::find(group.begin(), group.end(), subGroup.begin);
         auto endIter = std::find(group.begin(), group.end(), subGroup.end);
-        if (subGroup.end == group.back()) {
+        if (subGroup.included) {
           endIter = group.end();
         }
         subGroupOps.insert(subGroupOps.end(), beginIter, endIter);
         nSecs_ = subGroup.nSec;
-        if (nSecs_ == 1)
-          continue;
         if (subGroupOps.size() == 1)
           continue;
+        if (nSecs_ == 1) {
+          tg2TL(subGroupOps);
+          continue;
+        }
         doSlice(subGroupOps);
       }
     }
@@ -381,6 +439,7 @@ void DeepFusionGroupSlice::findBestSubGroups(std::vector<SubGroup> &subGroups,
   }
 }
 
+// Combine the group with the same segmentation size.
 void DeepFusionGroupSlice::mergeSubGroups(std::vector<SubGroup> &subGroups,
                                           unsigned int searchIdx) {
   unsigned int curIdx = searchIdx + 1;
@@ -408,6 +467,7 @@ void DeepFusionGroupSlice::mergeSubGroups(std::vector<SubGroup> &subGroups,
   mergeSubGroups(subGroups, searchIdx);
 }
 
+// Find the group that can do deep fusion
 void DeepFusionGroupSlice::doGroup(FuncOp &fn,
                       std::vector<std::vector<Operation *>> &fusionGroups,
                       int batchSize) {
@@ -415,6 +475,13 @@ void DeepFusionGroupSlice::doGroup(FuncOp &fn,
   fn.walk([&](mlir::Operation *opInst) {
     if (isa<tpu::LoadWeightOp>(opInst))
       return;
+    if (isa<tpu::InputOp>(opInst)) {
+      for (auto &use : opInst->getResult(0)->getUses()) {
+        skippedOps_.push_back(use.getOwner());
+      }
+      return;
+    }
+
     auto iter = std::find(skippedOps_.begin(), skippedOps_.end(), opInst);
     if (iter != skippedOps_.end()) {
       if (fusionGroup.size())
@@ -423,6 +490,11 @@ void DeepFusionGroupSlice::doGroup(FuncOp &fn,
       return;
     }
     if (isFusionOp(opInst, batchSize)) {
+      if (isa<tpu::TG_INT8_EltwiseAddOp>(opInst))
+        assert(canEltwiseFused<tpu::TG_INT8_EltwiseAddOp>(opInst));
+      if (isa<tpu::TG_INT8_EltwiseMulOp>(opInst))
+        assert(canEltwiseFused<tpu::TG_INT8_EltwiseMulOp>(opInst));
+
       fusionGroup.push_back(opInst);
     } else {
       if (fusionGroup.size())
@@ -432,6 +504,7 @@ void DeepFusionGroupSlice::doGroup(FuncOp &fn,
   });
 }
 
+// Calculate the profit after deep fusion
 int DeepFusionGroupSlice::computeCost(
                     SubGroup subGroup, std::vector<Operation*> group) {
   if (group.size() < 1)
@@ -483,6 +556,16 @@ int DeepFusionGroupSlice::computeCost(
   return profitableLmem;
 }
 
+void DeepFusionGroupSlice::tg2TL(std::vector<Operation *> &group) {
+  Operation * dstOp = nullptr;
+  for (auto op : group) {
+    setInsertionPoint(op);
+    std::vector<Value *> opds;
+    opds.push_back(op->getOperand(0));
+    genTLOp(op, opds, dstOp, 0, batchSize_);
+  }
+}
+
 void DeepFusionGroupSlice::doSlice(std::vector<Operation *> &group) {
   std::vector<Operation *> groupInOps;
   std::vector<Operation *> groupOutOps;
@@ -524,7 +607,7 @@ void DeepFusionGroupSlice::doSlice(std::vector<Operation *> &group) {
       }
 
       Operation *dstOp = nullptr;
-      copyOp(groupOp, opds, dstOp, i, curN);
+      genTLOp(groupOp, opds, dstOp, i, curN);
       opsMap[groupOp] = dstOp;
       skippedOps_.push_back(dstOp);
       skippedOps_.push_back(groupOp);
@@ -645,30 +728,31 @@ void DeepFusionGroupSlice::insertSliceOp(
   sliceOpPair.second = sliceOp;
 }
 
-void DeepFusionGroupSlice::copyOp(Operation *srcOp,
+void DeepFusionGroupSlice::genTLOp(Operation *srcOp,
                                   std::vector<Value *> opds,
                                   Operation *&dstOp, int loopIdx, int curN) {
   if (isa<tpu::TG_INT8_PC_Conv2DOp>(srcOp)) {
-    copyConvOp(srcOp, opds, dstOp, loopIdx, curN);
+    genTLConvOp(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_EltwiseAddOp>(srcOp)) {
-    copyEltwiseOp<tpu::TG_INT8_EltwiseAddOp>(srcOp, opds, dstOp, loopIdx, curN);
+    genTLEltwiseOp<tpu::TG_INT8_EltwiseAddOp, tpu::TL_EltwiseAddOp>(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_EltwiseMulOp>(srcOp)) {
-    copyEltwiseOp<tpu::TG_INT8_EltwiseMulOp>(srcOp, opds, dstOp, loopIdx, curN);
+    genTLEltwiseOp<tpu::TG_INT8_EltwiseMulOp, tpu::TL_EltwiseMulOp>(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_LutOp>(srcOp)) {
-    copyLutOp(srcOp, opds, dstOp, loopIdx, curN);
+    genTLLutOp(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_PoolAvg2DOp>(srcOp)) {
-    copyPoolAvgOp(srcOp, opds, dstOp, loopIdx, curN);
+    genTLPoolAvgOp(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_BroadcastMulOp>(srcOp)) {
-    copyBroadcastMulOp(srcOp, opds, dstOp, loopIdx, curN);
+    genTLBroadcastMulOp(srcOp, opds, dstOp, loopIdx, curN);
   } else {
     llvm_unreachable("unsupported op");
   }
 }
 
-void DeepFusionGroupSlice::copyLutOp(Operation *srcOp,
+void DeepFusionGroupSlice::genTLLutOp(Operation *srcOp,
                                      std::vector<Value *> opds,
                                      Operation *&dstOp, int loopIdx, int curN) {
   Builder builder(context_);
+  bool bSlice = (curN == batchSize_) ? false : true;
   auto op = cast<tpu::TG_INT8_LutOp>(srcOp);
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
@@ -685,23 +769,37 @@ void DeepFusionGroupSlice::copyLutOp(Operation *srcOp,
   operands.push_back(op.getOperand(2));
 
   std::vector<NamedAttribute> attrs;
-  std::string lutName = op.getOpName().str() + std::string("_") +
-                        std::to_string(loopIdx);
+  uint32_t la_invalid = 0xffffffff;
+  attrs.push_back(builder.getNamedAttr("lm_layout", builder.getStringAttr("NONE")));
+  attrs.push_back(builder.getNamedAttr("la_input", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_working", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_output", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("tl_load_flag", builder.getBoolAttr(true)));
+  attrs.push_back(builder.getNamedAttr("tl_store_flag", builder.getBoolAttr(true)));
+
+  std::string lutName = op.getOpName().str();
+  if (bSlice)
+    lutName += std::string("_") + std::to_string(loopIdx);
+
   attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(lutName)));
 
-  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TG_INT8_LutOp>(
+  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_LutOp>(
                       srcOp->getLoc(), resultType,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
+  if (!bSlice) {
+    srcOp->replaceAllUsesWith(dstOp);
+  }
 }
 
-template<typename OpTy>
-void DeepFusionGroupSlice::copyEltwiseOp(Operation *srcOp,
+template<typename srcOpTy, typename dstOpTy>
+void DeepFusionGroupSlice::genTLEltwiseOp(Operation *srcOp,
                                          std::vector<Value *> opds,
                                          Operation *&dstOp,
                                          int loopIdx, int curN) {
   Builder builder(context_);
-  auto op = cast<OpTy>(srcOp);
+  bool bSlice = (curN == batchSize_) ? false : true;
+  auto op = cast<srcOpTy>(srcOp);
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
   shape = getTensorShape(srcOp->getResult(0));
@@ -732,7 +830,7 @@ void DeepFusionGroupSlice::copyEltwiseOp(Operation *srcOp,
                                           op.m_i32_outputAttr()));
 
   attrs.push_back(builder.getNamedAttr("do_relu",
-     builder.getBoolAttr(op.do_relu())));
+                  builder.getBoolAttr(op.do_relu())));
   if (op.do_early_stride()) {
     attrs.push_back(builder.getNamedAttr("do_early_stride",
                                          builder.getBoolAttr(true)));
@@ -741,23 +839,36 @@ void DeepFusionGroupSlice::copyEltwiseOp(Operation *srcOp,
     attrs.push_back(builder.getNamedAttr("early_stride_w",
                                          op.early_stride_wAttr()));
   }
+  uint32_t la_invalid = 0xffffffff;
+  attrs.push_back(builder.getNamedAttr("lm_layout", builder.getStringAttr("NONE")));
+  attrs.push_back(builder.getNamedAttr("la_input", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_working", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_output", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("tl_load_flag", builder.getBoolAttr(true)));
+  attrs.push_back(builder.getNamedAttr("tl_store_flag", builder.getBoolAttr(true)));
 
-  std::string eltwiseName = op.getOpName().str() + std::string("_") +
-                                                   std::to_string(loopIdx);
+  std::string eltwiseName = op.getOpName().str();
+  if (bSlice)
+    eltwiseName += std::string("_") + std::to_string(loopIdx);
+
   attrs.push_back(builder.getNamedAttr("name",
                                      builder.getStringAttr(eltwiseName)));
 
-  dstOp = OpBuilder(getInsertionPoint()).create<OpTy>(
+  dstOp = OpBuilder(getInsertionPoint()).create<dstOpTy>(
                       srcOp->getLoc(), resultType,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
+  if (!bSlice) {
+    srcOp->replaceAllUsesWith(dstOp);
+  }
 }
 
-void DeepFusionGroupSlice::copyPoolAvgOp(Operation *srcOp,
+void DeepFusionGroupSlice::genTLPoolAvgOp(Operation *srcOp,
                                          std::vector<Value *> opds,
                                          Operation *&dstOp,
                                          int loopIdx, int curN) {
   Builder builder(context_);
+  bool bSlice = (curN == batchSize_) ? false : true;
   auto op = cast<tpu::TG_INT8_PoolAvg2DOp>(srcOp);
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
@@ -772,8 +883,10 @@ void DeepFusionGroupSlice::copyPoolAvgOp(Operation *srcOp,
   operands.push_back(opds[0]);
 
   std::vector<NamedAttribute> attrs;
-  std::string poolAvgName = op.getOpName().str() + std::string("_") +
-                                                   std::to_string(loopIdx);
+  std::string poolAvgName = op.getOpName().str();
+  if (bSlice)
+    poolAvgName += std::string("_") + std::to_string(loopIdx);
+
   attrs.push_back(builder.getNamedAttr("param", op.paramAttr()));
   attrs.push_back(builder.getNamedAttr("name",
                                      builder.getStringAttr(poolAvgName)));
@@ -785,17 +898,29 @@ void DeepFusionGroupSlice::copyPoolAvgOp(Operation *srcOp,
     attrs.push_back(builder.getNamedAttr("m_i8", op.m_i8Attr()));
   }
 
-  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TG_INT8_PoolAvg2DOp>(
+  uint32_t la_invalid = 0xffffffff;
+  attrs.push_back(builder.getNamedAttr("lm_layout", builder.getStringAttr("NONE")));
+  attrs.push_back(builder.getNamedAttr("la_input", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_working", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_output", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("tl_load_flag", builder.getBoolAttr(true)));
+  attrs.push_back(builder.getNamedAttr("tl_store_flag", builder.getBoolAttr(true)));
+
+  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_PoolAvg2DOp>(
                       srcOp->getLoc(), resultType,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
+  if (!bSlice) {
+    srcOp->replaceAllUsesWith(dstOp);
+  }
 }
 
-void DeepFusionGroupSlice::copyConvOp(Operation *srcOp,
+void DeepFusionGroupSlice::genTLConvOp(Operation *srcOp,
                                       std::vector<Value *> opds,
                                       Operation *&dstOp,
                                       int loopIdx, int curN) {
   Builder builder(context_);
+  bool bSlice = (curN == batchSize_) ? false : true;
   auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(srcOp);
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
@@ -812,8 +937,10 @@ void DeepFusionGroupSlice::copyConvOp(Operation *srcOp,
   operands.push_back(op.getOperand(2));
 
   std::vector<NamedAttribute> attrs;
-  std::string convName = op.getOpName().str() + std::string("_") +
-                                                std::to_string(loopIdx);
+  std::string convName = op.getOpName().str();
+  if (bSlice)
+    convName += std::string("_") + std::to_string(loopIdx);
+
   attrs.push_back(builder.getNamedAttr("param", op.paramAttr()));
   attrs.push_back(builder.getNamedAttr("name",
                                       builder.getStringAttr(convName)));
@@ -836,17 +963,21 @@ void DeepFusionGroupSlice::copyConvOp(Operation *srcOp,
       attrs.push_back(builder.getNamedAttr("m_i8_neg", op.m_i8_negAttr()));
   }
 
-  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TG_INT8_PC_Conv2DOp>(
+  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_LA_Conv2DOp>(
                       srcOp->getLoc(), resultType,
                       ArrayRef<Value *>{operands},
                       ArrayRef<NamedAttribute>{attrs});
+  if (!bSlice) {
+    srcOp->replaceAllUsesWith(dstOp);
+  }
 }
 
-void DeepFusionGroupSlice::copyBroadcastMulOp(Operation *srcOp,
+void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
                                               std::vector<Value *> opds,
                                               Operation *&dstOp,
                                               int loopIdx, int curN) {
   Builder builder(context_);
+  bool bSlice = (curN == batchSize_) ? false : true;
   auto op = cast<tpu::TG_INT8_BroadcastMulOp>(srcOp);
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
@@ -868,33 +999,46 @@ void DeepFusionGroupSlice::copyBroadcastMulOp(Operation *srcOp,
 
   std::vector<NamedAttribute> attrs;
 
-  std::string bdcastName = op.getOpName().str() + std::string("_") +
-                                                  std::to_string(loopIdx);
-  attrs.push_back(builder.getNamedAttr("param", op.paramAttr()));
+  std::string bdcastName = op.getOpName().str();
+  if (bSlice)
+    bdcastName += std::string("_") + std::to_string(loopIdx);
+                                                  
   attrs.push_back(builder.getNamedAttr("name",
                                        builder.getStringAttr(bdcastName)));
-  if(op.do_ic_alignment().hasValue()){
-    attrs.push_back(builder.getNamedAttr("do_ic_alignment",
-                    builder.getBoolAttr(op.do_ic_alignment().getValue())));
-  }
 
-  if (op.do_leaky_relu()) {
-    attrs.push_back(builder.getNamedAttr("do_leaky_relu",
-                                         op.do_leaky_reluAttr()));
-    if (op.rshift_pos().hasValue())
-      attrs.push_back(builder.getNamedAttr("rshift_pos", op.rshift_posAttr()));
-    if (op.m_i8_pos().hasValue())
-      attrs.push_back(builder.getNamedAttr("m_i8_pos", op.m_i8_posAttr()));
-    if (op.rshift_neg().hasValue())
-      attrs.push_back(builder.getNamedAttr("rshift_neg", op.rshift_negAttr()));
-    if (op.m_i8_neg().hasValue())
-      attrs.push_back(builder.getNamedAttr("m_i8_neg", op.m_i8_negAttr()));
-  }
+  uint32_t la_invalid = 0xffffffff;
+  attrs.push_back(builder.getNamedAttr("lm_layout", builder.getStringAttr("NONE")));
+  attrs.push_back(builder.getNamedAttr("la_input", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_working", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_output", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("tl_load_flag", builder.getBoolAttr(true)));
+  attrs.push_back(builder.getNamedAttr("tl_store_flag", builder.getBoolAttr(true)));
 
-  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TG_INT8_BroadcastMulOp>(
-                      srcOp->getLoc(), resultType,
-                      ArrayRef<Value *>{operands},
-                      ArrayRef<NamedAttribute>{attrs});
+  attrs.push_back(builder.getNamedAttr("param",
+    tpu::ConvParam::get(
+        builder.getI32IntegerAttr(1),
+        builder.getI32IntegerAttr(1),
+        builder.getStringAttr("VALID"),
+        builder.getI32IntegerAttr(1),
+        builder.getI32IntegerAttr(1),
+        builder.getI32IntegerAttr(0), // pd_t
+        builder.getI32IntegerAttr(0), // pd_b
+        builder.getI32IntegerAttr(0), // pd_l
+        builder.getI32IntegerAttr(0), // pd_r
+        builder.getI32IntegerAttr(1),
+        builder.getBoolAttr(true),    // is_dw
+        builder.getBoolAttr(false),   // with_bias
+        builder.getBoolAttr(false),   // do_relu
+        builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+        builder.getContext())));
+
+  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_BroadcastMulOp>(
+                    srcOp->getLoc(), resultType,
+                    ArrayRef<Value *>{operands},
+                    ArrayRef<NamedAttribute>{attrs});
+  if (!bSlice) {
+    srcOp->replaceAllUsesWith(dstOp);
+  }
 }
 
 void DeepFusionGroupSlice::concatOps(
@@ -914,7 +1058,7 @@ void DeepFusionGroupSlice::concatOps(
     attrs.push_back(builder.getNamedAttr("name",
                                          builder.getStringAttr(concatOpName)));
     auto insertionPoint = getInsertionPoint();
-    auto concatOp = OpBuilder(insertionPoint).create<tpu::TG_INT8_ConcatOp>(
+    auto concatOp = OpBuilder(insertionPoint).create<tpu::TG_ConcatNOp>(
                     insertionPoint->getLoc(),
                     orderedGroupOutOps[i]->getResult(0)->getType(),
                     ArrayRef<Value *>{operands},

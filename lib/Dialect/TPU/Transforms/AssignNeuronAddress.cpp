@@ -417,6 +417,19 @@ public:
       }
     }
 
+    // To solve concat opt when axis = 0, it need the operand should be
+    // continuous global memory.
+    auto assignedGaddr = sharedGmemSize;
+    for (auto &targetOps : opsInSharedMemoryRegions) {
+      for (auto &op : targetOps) {
+        auto size  = GmemAllocator::assignSpecifiedGmemToOp(op, gaddrMap,
+                                                       assignedGaddr,
+                                                       clNeuronAlignment);
+        assignedGaddr += size;
+      }
+    }
+    sharedGmemSize = assignedGaddr ;
+
     int64_t baseGaddr = (((uint64_t)2) << 40);
     int64_t privateGmemSize = 0;
     // 2. Assign gaddr for ops in CPU private region.
@@ -477,8 +490,7 @@ public:
     OwningRewritePatternList patterns;
     patterns.insert<TgSliceAddressPattern<tpu::TG_INT8_SliceOp>,
                     TgSliceAddressPattern<tpu::TG_BF16_SliceOp>,
-                    TgConcatAddressPattern<tpu::TG_INT8_ConcatOp>,
-                    TgConcatAddressPattern<tpu::TG_BF16_ConcatOp>>(context);
+                    TgConcatAddressPattern<tpu::TG_ConcatNOp>>(context);
     applyPatternsGreedily(fn, patterns);
     patterns.clear();
     patterns.insert<TlLgStoreAddressNeuronPattern<tpu::TL_LG_StoreOp>,

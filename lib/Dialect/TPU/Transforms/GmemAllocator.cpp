@@ -250,4 +250,21 @@ void GmemAllocator::markGmemReusedOp(
   }
 }
 
+int64_t GmemAllocator::assignSpecifiedGmemToOp(
+                                       Operation *op,
+                                       std::map<Operation *, int64_t> &gaddrMap,
+                                       int64_t baseGaddr,
+                                       uint32_t alignment) {
+  int64_t size = 0;
+  if (auto concatOp = dyn_cast_or_null<tpu::TG_ConcatNOp>(op)) {
+    int axis = concatOp.axis().getLimitedValue();
+    if (axis != 0) {
+      return 0;
+    }
+    size = getTensorGmemSize(op, alignment);
+    gaddrMap[op] = baseGaddr;
+  }
+  return size;
+}
+
 }

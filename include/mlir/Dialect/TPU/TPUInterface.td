@@ -204,6 +204,45 @@ def TpuTGOpCodegenInterface : OpInterface<"TpuTGOpCodegenInterface"> {
   ];
 }
 
+def TpuTLSimpleOpCodegenInterface : OpInterface<"TpuTLSimpleOpCodegenInterface"> {
+  let description = [{
+    TPU_TL simple genenrate TPU instructions.
+  }];
+
+  let methods = [
+    InterfaceMethod<[{
+        Set load flag.
+      }],
+      "LogicalResult", "setLoadFlag", (ins "bool":$load_flag)
+    >,
+    InterfaceMethod<[{
+        Get load flag.
+      }],
+      "bool", "getLoadFlag"
+    >,
+    InterfaceMethod<[{
+        Set store flag.
+      }],
+      "LogicalResult", "setStoreFlag", (ins "bool":$store_flag)
+    >,
+    InterfaceMethod<[{
+        Get store flag.
+      }],
+      "bool", "getStoreFlag"
+    >,
+    InterfaceMethod<[{
+    }],
+    "StringRef", "getLmLayout"
+    >,
+
+    InterfaceMethod<[{
+    }],
+    "LogicalResult", "setLmLayout", (ins "std::string":$lm_layout)
+    >,
+
+  ];
+}
+
 def TpuTLOpCodegenInterface : OpInterface<"TpuTLOpCodegenInterface"> {
   let description = [{
     TPU_TL_Op genenrate TPU instructions.

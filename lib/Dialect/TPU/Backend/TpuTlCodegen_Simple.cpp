@@ -242,31 +242,18 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   //    - if opd0 is conv, check in_short_path() flag
   // 2. for mobilenet_v2 (always both conv, and the is_short_path() is not valid)
   //    - if opd0 has more than one use, it is the short path
-  int augend_idx = 0;
-  auto prev_op = op->getOperand(0)->getDefiningOp();
-  auto prev_conv_op = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(prev_op);
-  if (!prev_conv_op) {
-    augend_idx = 1;
-  } else {
-    if (!op->getOperand(0)->hasOneUse()) {
-      augend_idx = 1;
-    } else if (prev_conv_op.in_short_path().getValue()) {
-      augend_idx = 1;
-    }
-  }
-
   gaddr_t ga_input = GA_INVALID;
   if (tl_load_flag()) {
-    auto weightOp = op->getOperand(augend_idx)->getDefiningOp();
+    auto weightOp = op->getOperand(0)->getDefiningOp();
     if (isa<tpu::LoadWeightOp>(weightOp)) {
       // load from weight
       ga_input = getWeightOpAddress(weightOp);
     }
     else {
-      ga_input = getPreviousOpAddress(op, augend_idx);
+      ga_input = getPreviousOpAddress(op, 0);
     }
   }
-  gaddr_t ga_addend = getPreviousOpAddress(op, 1 - augend_idx);
+  gaddr_t ga_addend = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
   int layer_id = getOpLayerId(op);
 
@@ -309,7 +296,7 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
     ga_input, ga_output, ga_addend,
     op_code, n, c, h, w, do_relu,
     do_early_stride, early_stride_h, early_stride_w,
-    rshift, m_i8_input[augend_idx], m_i8_input[1-augend_idx], 0,
+    rshift, m_i8_input[0], m_i8_input[1], 0,
     tl_load_flag(), tl_store_flag());
 
   return success();
@@ -322,20 +309,6 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
-
-  int augend_idx = 0;
-  auto prev_op = op->getOperand(0)->getDefiningOp();
-  auto prev_conv_op = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(prev_op);
-  if (!prev_conv_op) {
-    augend_idx = 1;
-  } else {
-    if (!op->getOperand(0)->hasOneUse()) {
-      augend_idx = 1;
-    } else if (prev_conv_op.in_short_path().getValue()) {
-      augend_idx = 1;
-    }
-  }
-
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
@@ -343,8 +316,8 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   bool do_relu = this->do_relu();
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
-  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, augend_idx) : GA_INVALID; //Closest op
-  auto opd2 = op->getOperand(1 - augend_idx)->getDefiningOp();
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, 0) : GA_INVALID; //Closest op
+  auto opd2 = op->getOperand(1)->getDefiningOp();
   gaddr_t ga_input2 = opd2->getAttr("gaddr") ?
                       opd2->getAttr("gaddr").cast<IntegerAttr>().getInt() : GA_INVALID;
   bool isAllInLocalMem = (ga_input2 == GA_INVALID) && (tl_load_flag() == false);

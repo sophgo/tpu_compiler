@@ -20,8 +20,8 @@ mlir-opt \
     --conv-ic-alignment \
     --group-ops \
     --dce \
-    --deep-fusion-tg2tl-la \
-    --deep-fusion-tl-la2lw \
+    --deep-fusion-group-slice \
+    --deep-fusion-opt \
     -o $optimized_mlir
 
     #--tg-op-tile \

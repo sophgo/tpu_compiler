@@ -78,6 +78,7 @@ add_llvm_library(MLIRTPU
   Optimization/DeepFusion/ConvertTL_LA2LW.cpp
   Optimization/DeepFusion/SimpleAnalysis.cpp
   Optimization/DeepFusion/DeepFusionGroupSlice.cpp
+  Optimization/DeepFusion/DeepFusionOpt.cpp
   Optimization/LayerGroup/GroupOps.cpp
   Optimization/LayerGroup/NetGraph.cpp
   Optimization/LayerGroup/ImLayer.cpp

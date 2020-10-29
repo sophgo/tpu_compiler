@@ -100,7 +100,7 @@ void cvi_backend_tl_eltwise_op(
     prealloc = true;
     assert(la_output != LA_INVALID && la_working != LA_INVALID);
     laddr_t la_max = std::max(la_input, la_output);
-    assert(la_working >= input_size);
+    //assert(la_working >= input_size);
     assert(la_max + output_size <= (uint32_t)LOCAL_MEM_SIZE);
     uint32_t one_working_size
         = (inputTileShapeC / NPU_NUM) * align_up((inputTileShapeH / stride_h) * (inputTileShapeW / stride_w), EU_NUM);

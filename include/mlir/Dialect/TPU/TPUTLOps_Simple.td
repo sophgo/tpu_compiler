@@ -39,6 +39,17 @@ def TPU_LMLayoutAttr : StrEnumAttr<
       TPU_LM_LO_NONE,  TPU_LM_LO_IWO,  TPU_LM_LO_OWI
     ]>;
 
+// Allowed quantization methods cases
+def TPU_LM_NONE : StrEnumAttrCase<"NONE">;
+def TPU_LM_I    : StrEnumAttrCase<"I">;
+def TPU_LM_O    : StrEnumAttrCase<"O">;
+
+def TPU_LMOrderAttr : StrEnumAttr<
+    "TpuLMOrderType", "TL lmem order enum", [
+      TPU_LM_NONE,  TPU_LM_I,  TPU_LM_O
+    ]>;
+
+
 //===----------------------------------------------------------------------===//
 // TL op definitions.
 //===----------------------------------------------------------------------===//
@@ -85,7 +96,8 @@ def TPU_TL_LA_Conv2DOp : TPU_Op<"tl_la_conv_2d",
 def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>,
+       DeclareOpInterfaceMethods<TpuTLSimpleOpCodegenInterface>] > {
   let summary = "TL Load Weight Convolution operator";
 
   let description = [{
@@ -143,7 +155,8 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
 def TPU_TL_BroadcastMulOp : TPU_Op<"tl_broadcast_mul",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>,
+       DeclareOpInterfaceMethods<TpuTLSimpleOpCodegenInterface>]> {
   let summary = "TL BroadcastMul operator";
 
   let description = [{
@@ -174,7 +187,8 @@ def TPU_TL_BroadcastMulOp : TPU_Op<"tl_broadcast_mul",
 class TPU_TL_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>,
+       DeclareOpInterfaceMethods<TpuTLSimpleOpCodegenInterface>]> {
   let summary = "TL " # opQuant # " Eltwise " # opType # " operator.";
 
   let description = [{
@@ -212,7 +226,8 @@ def TPU_TL_EltwiseMulOp : TPU_TL_EltwiseOp<"tl_eltwise_mul", "Int8", "Mul">;
 class TPU_TL_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>,
+       DeclareOpInterfaceMethods<TpuTLSimpleOpCodegenInterface>]> {
   let summary = "TL " # opQuant # " Pool2D " # opType # " operator.";
 
   let description = [{
@@ -269,7 +284,8 @@ def TPU_TL_PoolAvg2DOp : TPU_TL_Pool2DOp<"tl_pool_avg_2d", "Int8", "Avg">;
 def TPU_TL_LutOp : TPU_Op<"tl_lut",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>,
+       DeclareOpInterfaceMethods<TpuTLSimpleOpCodegenInterface>]> {
   let summary = "TL " # opQuant # "lut operator.";
 
   let description = [{
@@ -308,6 +324,45 @@ def TPU_TL_LutOp : TPU_Op<"tl_lut",
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_Fake_LoadOp : TPU_Op<"tl_fake_load",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>
+       ]> {
+  let summary = "TL Fake Load operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_LMOrderAttr:$lm_order,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+
+def TPU_TL_Fake_StoreOp : TPU_Op<"tl_fake_store",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>
+      ]> {
+  let summary = "TL Fake Store operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_LMOrderAttr:$lm_order,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
