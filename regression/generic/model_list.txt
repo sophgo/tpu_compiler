@@ -10,7 +10,8 @@ mobilenet_v2              Y        Y        N        N        N        N
 googlenet                 N        N        N        Y        Y        Y
 inception_v3              N        N        N        Y        Y        N
 inception_v4              Y        N        N        N        Y        Y
-squeezenet                Y        Y        N        N        N        Y
+squeezenet_v1.0           Y        Y        N        N        N        Y
+squeezenet_v1.1           Y        Y        N        N        N        Y
 shufflenet_v2             Y        N        N        N        Y        Y
 densenet_121              N        N        N        Y        Y        Y
 densenet_201              N        N        N        Y        Y        N

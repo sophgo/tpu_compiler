@@ -369,14 +369,36 @@ export TOLERANCE_BF16=0.99,0.99,0.92
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
 
-if [ $NET = "squeezenet" ]; then
+if [ $NET = "squeezenet_v1.0" ]; then
+export MODEL_DEF=$MODEL_PATH/imagenet/squeezenet/caffe/deploy_v1.0.prototxt
+export MODEL_DAT=$MODEL_PATH/imagenet/squeezenet/caffe/squeezenet_v1.0.caffemodel
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export NET_INPUT_DIMS=227,227
+export IMAGE_RESIZE_DIMS=256,256
+export RAW_SCALE=255.0
+export MEAN=104,117,123
+export INPUT_SCALE=1.0
+export INPUT=data
+export OUTPUTS_FP32=prob
+export OUTPUTS=pool10
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.9,0.55
+export TOLERANCE_INT8_RSHIFT_ONLY=0.9,0.9,0.6
+export TOLERANCE_INT8_MULTIPLER=0.9,0.9,0.55
+export DO_QUANT_BF16=1
+export DO_CMDBUF_BF16=1
+export DO_LG_WITH_BF16=1
+export TOLERANCE_BF16=0.99,0.99,0.93
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+fi
+
+if [ $NET = "squeezenet_v1.1" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/squeezenet/caffe/deploy_v1.1.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/squeezenet/caffe/squeezenet_v1.1.caffemodel
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export NET_INPUT_DIMS=227,227
 export IMAGE_RESIZE_DIMS=256,256
 export RAW_SCALE=255.0
-export MEAN=104.01,116.67,122.68  # from ilsvrc_2012_mean.npy
+export MEAN=104,117,123
 export INPUT_SCALE=1.0
 export INPUT=data
 export OUTPUTS_FP32=prob
