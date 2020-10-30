@@ -422,7 +422,8 @@ class TFLiteConverter(BaseConverter):
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I8",
             'threshold_max': threshold_y,
-            'threshold_min': 0
+            'threshold_min': 0,
+            'zero_point': 0,
         }
         # add quant info to param
         add_param.update(int8_quant_info)
@@ -651,7 +652,8 @@ class TFLiteConverter(BaseConverter):
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I32",
             'threshold_max': threshold_y,
-            'threshold_min': 0
+            'threshold_min': 0,
+            'zero_point': 0,
         }
 
         # add quant info to param
@@ -929,7 +931,8 @@ class TFLiteConverter(BaseConverter):
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_ONLY",
             'threshold_max': threshold_y,
-            'threshold_min': 0
+            'threshold_min': 0,
+            'zero_point': 0,
         }
         # add quant info to param
 
@@ -978,7 +981,8 @@ class TFLiteConverter(BaseConverter):
             'mode': TPU_MODE.INT8,
             'param_type': "NONE",
             'threshold_max': threshold_y,
-            'threshold_min': 0
+            'threshold_min': 0,
+            'zero_point':0,
         }
         # add quant info to param
         pool_max_2d_param.update(int8_quant_info)
@@ -1056,7 +1060,8 @@ class TFLiteConverter(BaseConverter):
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I8",
             'threshold_max': threshold_y,
-            'threshold_min': 0
+            'threshold_min': 0,
+            'zero_point': 0,
         }
         # add quant info to param
         pool_avg_2d_param.update(int8_quant_info)
@@ -1139,7 +1144,8 @@ class TFLiteConverter(BaseConverter):
             'mode': TPU_MODE.INT8,
             'param_type': "NONE",
             'threshold_max': threshold_y,
-            'threshold_min': 0
+            'threshold_min': 0,
+            'zero_point': 0,
         }
 
         # add quant info to param
