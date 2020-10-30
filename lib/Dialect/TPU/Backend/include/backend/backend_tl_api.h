@@ -89,7 +89,7 @@ void cvi_backend_tl_copy(
     const CviBackendContext &ctx, uint32_t layer_id,
     int la_src, int la_dst,
     int n, int c, int h, int w,
-    bool align);
+    bool align, cvk_fmt_t fmt);
 
 ///
 /// Self Load/Store All

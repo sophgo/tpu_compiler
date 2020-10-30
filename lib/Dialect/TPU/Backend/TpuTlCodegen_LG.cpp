@@ -1196,14 +1196,21 @@ LogicalResult tpu::TL_LG_CopyOp::codegen(void *ctx) {
   laddr_t la_src = this->la_src()->getLimitedValue();
   laddr_t la_dst = this->la_dst()->getLimitedValue();
   bool align = this->align();
+  cvk_fmt_t fmt = CVK_FMT_I8;
+  RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
+
+  // convert type to `cvi_backend_fmt`
+  if (out_type.getElementType().isBF16() ||
+      out_type.getElementType().isInteger(16))
+      fmt = CVK_FMT_BF16;
 
   cvi_backend_tl_copy(*backend_ctx,
                       layer_id,
                       la_src,
                       la_dst,
                       n, c, h, w,
-                      align
-                      );
+                      align,
+                      fmt);
 
   return success();
 }

@@ -332,7 +332,16 @@ void cvi_backend_tl_copy(
   const CviBackendContext &ctx, uint32_t layer_id,
   int la_src, int la_dst,
   int n, int c, int h, int w,
-  bool align) {
+  bool align, cvk_fmt_t fmt) {
+
+  LLVM_DEBUG(
+    llvm::errs() << llvm::format("cvi_backend_tl_copy:\n"
+                                  "    layer_id %d\n"
+                                  "    shape (%d, %d, %d, %d)\n"
+                                  "    src 0x%lx, dst 0x%lx\n"
+                                  "    DoAligned %d, fmt: %d\n",
+                                  layer_id, n, c, h, w, la_src, la_dst, align, fmt
+                                  ););
 
   ctx.set_layer_id(layer_id);
 
@@ -340,30 +349,19 @@ void cvi_backend_tl_copy(
   cvk_tl_t tl_src;
 
   tl_src.start_address = la_src;
-  tl_src.fmt = CVK_FMT_I8;
+  tl_src.fmt = fmt;
   tl_src.shape = ctx.tl_shape_t4(n, c, h, w);
-  tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_I8, align);
+  tl_src.stride = ctx.tl_default_stride(tl_src.shape, fmt, align);
 
   tl_dst.start_address = la_dst;
-  tl_dst.fmt = CVK_FMT_I8;
+  tl_dst.fmt = fmt;
   tl_dst.shape = ctx.tl_shape_t4(n, c, h, w);
-  tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_I8, align);
+  tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, fmt, align);
 
-  // tl_copy.dst = &tl_dst;
-  // tl_copy.src = &tl_src;
-  // ctx.tdma_l2l_tensor_copy(&tl_copy);
-
-  cvk_tiu_mul_param_t p2 = {0};
-  p2.res_high = nullptr;
-  p2.res_low = &tl_dst;
-  p2.a = &tl_src;
-  p2.b_const.val = 1;
-  p2.b_const.is_signed = true;
-  p2.b_is_const = 1;
-  p2.rshift_bits = 0;
-  p2.layer_id = layer_id;
-  p2.relu_enable = 0;
-  ctx.tiu_mul(&p2);
+  cvk_tdma_l2l_tensor_copy_param_t p0 = {0};
+  p0.dst = &tl_dst;
+  p0.src = &tl_src;
+  ctx.tdma_l2l_tensor_copy(&p0);
 }
 
 void cvi_backend_tl_bf16_ps32_to_fp32(const CviBackendContext &ctx,

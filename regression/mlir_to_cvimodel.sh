@@ -11,7 +11,8 @@ optimized_mlir="_lower_opt_$1"
 final_mlir="_final_$1"
 
 mlir-opt $mlir_file \
-    --tpu-lower \
+    --tpu-lower | \
+mlir-opt \
     --reorder-op \
     --tg-fuse-leakyrelu \
     --conv-ic-alignment \
