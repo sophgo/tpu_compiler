@@ -154,7 +154,7 @@ class MLIRImporter(object):
             'param_type': self.module.stringAttr("NONE"),
             'threshold_max': self.module.floatAttr(0),
             'threshold_min': self.module.floatAttr(0),
-            'zero_point': self.module.integerAttr(self.i8Type, 0),
+            'zero_point': self.module.integerAttr(self.i32Type, 0),
         }
         self.quant_param = self.module.dictAttr(**quant_param)
         self.input_type = input_type
@@ -164,15 +164,16 @@ class MLIRImporter(object):
         logger.debug('Close mlir builder context')
         self.func_ctx.__exit__(None, None, None)
 
-    def create_quant_param(self, is_asymmetric=False, is_perchannel=False, mode=TPU_MODE.INT8.value,
-                           param_type="NONE", threshold_max=0, threshold_min=0):
+    def _create_int8_quant_attr(self, is_asymmetric=False, is_perchannel=False, mode=TPU_MODE.INT8.value,
+                           param_type="NONE", threshold_max=0, threshold_min=0, zero_point=0):
         quant_param = {
             'is_asymmetric': self.module.boolAttr(is_asymmetric),
             'is_perchannel': self.module.boolAttr(is_perchannel),
             'mode': self.module.stringAttr(mode),
             'param_type': self.module.stringAttr(param_type),
             'threshold_max': self.module.floatAttr(threshold_max),
-            'threshold_min': self.module.floatAttr(threshold_min)
+            'threshold_min': self.module.floatAttr(threshold_min),
+            'zero_point': self.module.integerAttr(self.i32Type, zero_point)
         }
         return quant_param
 
@@ -182,15 +183,17 @@ class MLIRImporter(object):
         checkKey(kargs, 'param_type')
         checkKey(kargs, 'threshold_max')
         checkKey(kargs, 'threshold_min')
+        checkKey(kargs, 'zero_point')
 
-    def create_int8_quant_param(self, **kargs):
+    def create_int8_quant_attr(self, **kargs):
         self.check_int8_param(**kargs)
-        param = self.create_quant_param(
+        param = self._create_int8_quant_attr(
             is_asymmetric=kargs['is_asymmetric'],
             is_perchannel=kargs['is_perchannel'],
             param_type=kargs['param_type'],
             threshold_max=kargs['threshold_max'],
-            threshold_min=kargs['threshold_min']
+            threshold_min=kargs['threshold_min'],
+            zero_point=kargs['zero_point']
         )
 
         return self.module.dictAttr(**param)
@@ -235,7 +238,7 @@ class MLIRImporter(object):
             'param_type': self.module.stringAttr("NONE"),
             'threshold_max': self.module.floatAttr(0),
             'threshold_min': self.module.floatAttr(0),
-            'zero_point': self.module.integerAttr(self.i8Type, 0),
+            'zero_point': self.module.integerAttr(self.i32Type, 0),
         }
         if self.input_type == "UINT8":
             quant_param['mode'] = self.module.stringAttr("INT8")
@@ -419,7 +422,7 @@ class MLIRImporter(object):
                 raise RuntimeError(
                     "{} input, need more than 4 input operands".format(len(inputOperands)))
 
-            quant_param = self.create_int8_quant_param(**kargs)
+            quant_param = self.create_int8_quant_attr(**kargs)
 
             # input, weight, (bias), rshift, multipiler
             rshift, multipiler = inputOperands[-2:]
@@ -552,8 +555,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.DetectionOutput.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
 
-
-    def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         """
             inputOperands: List[pybind.op]
             output_tensorshape: List[int] output tensor type
@@ -619,7 +621,7 @@ class MLIRImporter(object):
         do_relu = self.module.boolAttr(do_relu)
         eltwise_add = self.module.stringAttr(op_name)
         if mode == TPU_MODE.INT8:
-            quant_param = self.create_int8_quant_param(**kargs)
+            quant_param = self.create_int8_quant_attr(**kargs)
 
             # input, weight, (bias), rshift, multipiler
             rshift, multipiler = inputOperands[-2:]
@@ -699,7 +701,7 @@ class MLIRImporter(object):
             # No bias
         if mode == TPU_MODE.INT8:
             assert(kargs['param_type'] == "RSHIFT_ONLY")
-            quant_param = self.create_int8_quant_param(**kargs)
+            quant_param = self.create_int8_quant_attr(**kargs)
             rshift_op = inputOperands[-1]
             inputOperands = inputOperands[:-1]
             none = self.add_none_op()
@@ -776,7 +778,7 @@ class MLIRImporter(object):
                 raise RuntimeError(
                     "{} input, need more than 4 input operands".format(len(inputOperands)))
 
-            quant_param = self.create_int8_quant_param(**kargs)
+            quant_param = self.create_int8_quant_attr(**kargs)
 
             # [input, quant_pos_rshift, quant_pos_multiplier, quant_neg_rshift, quant_neg_multiplier]
             activation_op = inputOperands[0]
@@ -913,7 +915,7 @@ class MLIRImporter(object):
         pads_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in pads])
         const_val_attr = self.module.floatAttr(const_val)
         if mode == TPU_MODE.INT8:
-            quant_param = self.create_int8_quant_param(**kargs)
+            quant_param = self.create_int8_quant_attr(**kargs)
         elif mode == TPU_MODE.FP32:
             quant_param = self.quant_param
         else:
@@ -963,7 +965,7 @@ class MLIRImporter(object):
         }
         dict_attr = self.module.dictAttr(**pool_avg_2d_param)
         if mode == TPU_MODE.INT8:
-            quant_param = self.create_int8_quant_param(**kargs)
+            quant_param = self.create_int8_quant_attr(**kargs)
 
             # input, weight, (bias), rshift, multipiler
             rshift, multipiler = inputOperands[-2:]
@@ -1011,7 +1013,7 @@ class MLIRImporter(object):
         }
         dict_attr = self.module.dictAttr(**pool_max_2d_param)
         if mode == TPU_MODE.INT8:
-            quant_param = self.create_int8_quant_param(**kargs)
+            quant_param = self.create_int8_quant_attr(**kargs)
         elif mode == TPU_MODE.FP32:
             quant_param = self.quant_param
         elif mode == TPU_MODE.BF16:
@@ -1179,7 +1181,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Proposal.value, inputOperands, [
             tensor_output_type], name=proposal_name, quant=self.quant_param, **attr_dict)
 
-    def add_quant_op(self, op_name, inputOperands, output_tensor_shape, from_type, to_type, **kargs):
+    def add_quant_op(self, op_name, inputOperands, output_tensor_shape, from_type, to_type, zero_point=0, **kargs):
         if to_type == "NONE":
             tensor_output_type = self.module.make_ranked_tensor_type(
                 self.f32Type, output_tensor_shape)
@@ -1188,13 +1190,14 @@ class MLIRImporter(object):
                 self.i8Type, output_tensor_shape)
         else:
             raise RuntimeError("No support {} to_type".format(to_type))
-        checkKey(kargs, 'threshold')
 
+        checkKey(kargs, 'threshold')
         quant_name = self.module.stringAttr(op_name)
         attr_dict = {
             'from': self.module.stringAttr(from_type),
             'to': self.module.stringAttr(to_type),
-            'threshold': self.module.floatAttr(kargs['threshold'])
+            'threshold': self.module.floatAttr(kargs['threshold']),
+            'zero_point': self.module.integerAttr(self.i32Type, zero_point),
         }
         return self.buildOp(TPU_OpType.Quant.value, inputOperands, [
             tensor_output_type], name=quant_name, **attr_dict)
