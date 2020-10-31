@@ -156,7 +156,7 @@ CviTensor::CviTensor(std::string name, TensorType &type, int64_t offset, bool is
     llvm_unreachable("unsupported data type");
   }
 
-  for (int i = 0; i < (int)tensorShape.size(); i++) {
+  for (int i = 0; i < std::min((int)tensorShape.size(), 4); i++) {
     shape[i] = tensorShape[i];
   }
   if (tensorShape.size() > 4) {
