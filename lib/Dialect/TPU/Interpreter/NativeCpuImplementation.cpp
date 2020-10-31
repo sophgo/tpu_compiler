@@ -2624,3 +2624,60 @@ void conv3d_float_ref(float *input, float *weight, float *bias, float *output,
     }
   }
 }
+
+// input (n, c, id, ih, iw)
+// weight (kd, kh, kw), stride (sd, sh, sw)
+// output (n, c, od, oh, ow)
+void pool3d_float_ref(float *input, float *output,
+    int input_n, int input_c, int input_d, int input_h, int input_w,
+    int output_d, int output_h, int output_w,
+    int kernel_d, int kernel_h, int kernel_w,
+    int stride_d, int stride_h, int stride_w,
+    int pad_d0, int pad_d1,
+    int pad_top, int pad_bot, int pad_left, int pad_right)
+{
+  (void)pad_d1;
+  (void)pad_bot;
+  (void)pad_right;
+
+  int input_shapes[5] = {input_n, input_c, input_d, input_h, input_w};
+  int input_strides[5];
+
+  int output_shapes[5] = {input_n, input_c, output_d, output_h, output_w};
+  int output_strides[5];
+
+  // logical stride, in unit of float
+  get_strides_from_shapes5d(input_strides, input_shapes, 1);
+  get_strides_from_shapes5d(output_strides, output_shapes, 1);
+
+  for (int i = 0; i < input_n; i++) {
+    for (int c = 0; c < input_c; c++) {
+      for (int oz = 0; oz < output_d; oz++) {
+        for (int oy = 0; oy < output_h; oy++) {
+          for (int ox = 0; ox < output_w; ox++) {
+            float max_value = -std::numeric_limits<float>::infinity();
+
+            for (int pd = 0; pd < kernel_d; pd++) {
+              int iz = oz * stride_d + pd - pad_d0;
+              for (int py = 0; py < kernel_h; py++) {
+                int iy = oy * stride_h + py - pad_top;
+                for (int px = 0; px < kernel_w; px++) {
+                  int ix = ox * stride_w + px - pad_left;
+                  if (iz < input_d && iy < input_h && ix < input_w) {
+                    int poss[5] = {i, c, iz, iy, ix};
+                    int input_offset = get_tensor5d_offset(poss, input_strides);
+                    max_value = std::fmax(max_value, input[input_offset]);
+                  }
+                }
+              }
+            }
+
+            int output_poss[5] = {i, c, oz, oy, ox};
+            int output_offset = get_tensor5d_offset(output_poss, output_strides);
+            output[output_offset] = max_value;
+          }
+        }
+      }
+    }
+  }
+}

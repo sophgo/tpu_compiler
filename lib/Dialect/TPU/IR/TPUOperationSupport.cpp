@@ -677,6 +677,49 @@ void parsePoolParam(const tpu::PoolParam &p,
   count_include_pad = p.count_include_pad().getValue();
 }
 
+void parsePool3dParam(const tpu::Pool3dParam &p,
+    Value *input, Value *output,
+    int &n, int &c, int &id, int &ih, int &iw,
+    int &od, int &oh, int &ow,
+    int &kd, int &kh, int &kw,
+    int &sd, int &sh, int &sw,
+    int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
+    bool &is_global, bool &do_relu, bool &count_include_pad) {
+  kd = p.kernel_d().getValue().getLimitedValue();
+  kh = p.kernel_h().getValue().getLimitedValue();
+  kw = p.kernel_w().getValue().getLimitedValue();
+  sd = p.stride_d().getValue().getLimitedValue();
+  sh = p.stride_h().getValue().getLimitedValue();
+  sw = p.stride_w().getValue().getLimitedValue();
+  auto input_type = input->getType().template cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+  auto output_type = output->getType().template cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+  assert((i_s[0] == o_s[0]) && "input N not equal to output N");
+  assert((i_s[1] == o_s[1]) && "input C not equal to output C");
+  n = i_s[0];
+  c = i_s[1];
+  id = i_s[2];
+  ih = i_s[3];
+  iw = i_s[4];
+  od = o_s[2];
+  oh = o_s[3];
+  ow = o_s[4];
+  pd0 = p.padding_d0().getValue().getLimitedValue();
+  pd1 = p.padding_d1().getValue().getLimitedValue();
+  pt = p.padding_t().getValue().getLimitedValue();
+  pb = p.padding_b().getValue().getLimitedValue();
+  pl = p.padding_l().getValue().getLimitedValue();
+  pr = p.padding_r().getValue().getLimitedValue();
+  is_global = false;
+  if (kh == ih && kw == iw && oh == 1 && ow == 1) {
+    //assert(oh == 1 && ow == 1);
+    is_global = true;
+  }
+  do_relu = p.do_relu().getValue();
+  count_include_pad = p.count_include_pad().getValue();
+}
+
 void parseFullyConnectedParam(
     Value *input, Value *output, Value *filter,
     int &m, int &k, int &n) {

@@ -1332,6 +1332,7 @@ LogicalResult tpu::PoolAvg2DOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PoolMax2DOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PoolMax3DOp)
 
 LogicalResult tpu::PowerOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()

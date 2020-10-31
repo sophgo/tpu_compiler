@@ -1222,6 +1222,34 @@ Value* tpu::PoolMax2DOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value* tpu::PoolMax3DOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("param", paramAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_PoolMax3DOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_PoolMax3DOp>(op->getLoc(),
+        getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value* tpu::PowerOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4025,6 +4053,7 @@ public:
         DefaultToTGPattern<tpu::PixelShuffleOp>,
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
+        DefaultToTGPattern<tpu::PoolMax3DOp>,
         DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::QuantOp>,
         DefaultToTGPattern<tpu::ReluOp>,

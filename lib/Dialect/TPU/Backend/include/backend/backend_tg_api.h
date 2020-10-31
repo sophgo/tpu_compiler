@@ -287,6 +287,17 @@ void cvi_backend_tg_bf16_pooling_kernel(
     int stride_h, int stride_w, int is_avg_pooling, float avg_const,
     int do_relu, const bool ceil_mode);
 
+void cvi_backend_tg_bf16_max_pooling3d_kernel(
+    const CviBackendContext &ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int input_n, int input_c, int input_d, int input_h, int input_w,
+    int output_d, int output_h, int output_w,
+    int kd, int kh, int kw,
+    int pad_d0, int pad_d1,
+    int pad_top, int pad_bot, int pad_left, int pad_right,
+    int stride_d, int stride_h, int stride_w,
+    bool do_relu, const bool ceil_mode);
+
 void cvi_backend_tg_bf16_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t bottom_data_gaddr, gaddr_t weight_data_gaddr,

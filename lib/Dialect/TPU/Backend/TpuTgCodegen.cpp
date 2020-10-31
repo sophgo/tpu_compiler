@@ -2421,6 +2421,50 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_PoolMax3DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  return failure();
+}
+
+LogicalResult tpu::TG_BF16_PoolMax3DOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  // parse param
+  bool is_global, do_relu, count_include_pad;
+  int n, c, id, ih, iw, od, oh, ow, kd, kh, kw, sd, sh, sw;
+  int pd0, pd1, pt, pb, pl, pr;
+  parsePool3dParam(param(), input(), output(),
+                   n, c, id, ih, iw, od, oh, ow,
+                   kd, kh, kw, sd, sh, sw,
+                   pd0, pd1, pt, pb, pl, pr,
+                   is_global, do_relu, count_include_pad);
+  assert(!do_relu);
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_max_pooling3d_kernel(
+      *backend_ctx,
+      layer_id,
+      ga_input,
+      ga_output,
+      n, c, id, ih, iw,
+      od, oh, ow,
+      kd, kh, kw,
+      pd0, pd1, pt, pb, pl, pr, // pad (d0, d1, t, b, l, r)
+      sd, sh, sw,
+      do_relu,        // int do_relu,
+      true);
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

@@ -193,4 +193,12 @@ void conv3d_float_ref(float *input, float *weight, float *bias, float *output,
                       int pad_d0, int pad_top, int pad_bottom,
                       int pad_d1, int pad_left, int pad_right);
 
+void pool3d_float_ref(float *input, float *output,
+    int input_n, int input_c, int input_d, int input_h, int input_w,
+    int output_d, int output_h, int output_w,
+    int kernel_d, int kernel_h, int kernel_w,
+    int stride_d, int stride_h, int stride_w,
+    int pad_d0, int pad_d1,
+    int pad_top, int pad_bot, int pad_left, int pad_right);
+
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

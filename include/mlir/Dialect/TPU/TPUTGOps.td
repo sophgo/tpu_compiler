@@ -988,6 +988,56 @@ def TPU_TG_INT8_PoolMax2DOp : TPU_TG_Pool2DOp<"tg_int8_pool_max_2d", "Int8", "Ma
 def TPU_TG_BF16_PoolAvg2DOp : TPU_TG_Pool2DOp<"tg_bf16_pool_avg_2d", "Bf16", "Avg">;
 def TPU_TG_BF16_PoolMax2DOp : TPU_TG_Pool2DOp<"tg_bf16_pool_max_2d", "Bf16", "Max">;
 
+class TPU_TG_Pool3DOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Pool3D " # opType # " operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the input1 activation memref.
+
+    Attributes:
+      `rshift`          : optional, rshift, an int8 value.
+      `m_i8`            : optional, multiplier for output.
+      `param`           : required, a PoolParam struct attributes, carrying
+                          filter size, stride, padding, and do_relu.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I8Attr>:$m_i8,
+    TPU_Pool3dParamAttr:$param,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TG_INT8_PoolMax3DOp : TPU_TG_Pool3DOp<"tg_int8_pool_max_3d", "Int8", "Max">;
+def TPU_TG_BF16_PoolMax3DOp : TPU_TG_Pool3DOp<"tg_bf16_pool_max_3d", "Bf16", "Max">;
 
 class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

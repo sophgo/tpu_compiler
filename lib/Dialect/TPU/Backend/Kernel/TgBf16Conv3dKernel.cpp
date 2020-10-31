@@ -150,6 +150,7 @@ static void storeOutput(const CviBackendContext &ctx, int oc, int od, int oh,
 
   cvk_tg_t gm_res;
   ctx.gmem_init_tensor(&gm_res, tg_res_shape, fmt);
+  gm_res.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_res);
   gm_res.start_address = ga_res + od_stride * odi;
   gm_res.stride = tg_stride;
 

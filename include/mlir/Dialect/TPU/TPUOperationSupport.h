@@ -101,6 +101,15 @@ void parsePoolParam(const tpu::PoolParam &p,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu, bool &count_include_pad);
 
+void parsePool3dParam(const tpu::Pool3dParam &p,
+    Value *input, Value *output,
+    int &n, int &c, int &id, int &ih, int &iw,
+    int &od, int &oh, int &ow,
+    int &kd, int &kh, int &kw,
+    int &sd, int &sh, int &sw,
+    int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
+    bool &is_global, bool &do_relu, bool &count_include_pad);
+
 void parseFullyConnectedParam(
     Value *input, Value *output, Value *filter,
     int &m, int &k, int &n);

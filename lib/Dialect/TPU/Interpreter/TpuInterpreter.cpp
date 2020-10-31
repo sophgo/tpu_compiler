@@ -2025,6 +2025,91 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   return success();
 }
 
+template <typename OpTy>
+static LogicalResult doPool3DOpInterpret(Operation *op, bool is_average,
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  auto castOp = dyn_cast<OpTy>(op);
+  assert(castOp);
+  assert(!is_average && "Only support max pool");
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = op->getResult(0);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  bool is_global, do_relu, count_include_pad;
+  int n, c, id, ih, iw, od, oh, ow, kd, kh, kw, sd, sh, sw;
+  int pd0, pd1, pt, pb, pl, pr;
+  parsePool3dParam(castOp.param(), castOp.input(), castOp.output(),
+                   n, c, id, ih, iw,
+                   od, oh, ow,
+                   kd, kh, kw,
+                   sd, sh, sw,
+                   pd0, pd1, pt, pb, pl, pr,
+                   is_global, do_relu, count_include_pad);
+
+  // get tensors
+  float *input = opdT[0]->data();
+  float *output = resultT->data();
+  std::shared_ptr<std::vector<float> > quant_rshift = nullptr;
+  std::shared_ptr<std::vector<float> > quant_multiplier = nullptr;
+
+  // no qscale on input tensors before f32 compute
+
+  // compute in fp32
+  pool3d_float_ref(input, output,
+                   n, c, id, ih, iw,
+                   od, oh, ow,
+                   kd, kh, kw,
+                   sd, sh, sw,
+                   pd0, pd1, pt, pb, pl, pr);
+
+  // apply qscale on output for average pooling, max poolings are bypassed
+  if (is_average && getOpQuant(op) == "INT8") {
+    assert(quant_rshift && quant_multiplier);
+    std::vector<float> conv_result(size);
+
+    {
+      // sumulate hw that not support Division,
+      // we add it in kernel and divide by (rightshift)
+      // it should call by "pool sum", we leverage by depthwise conv
+      int filter_shape = c * kh * kw;
+      int g = c;
+      int oc = c;
+      int dh = 1, dw = 1;
+      std::vector<float> conv_filter(filter_shape, 1);
+      int ret = mkldnn_conv(input, conv_filter.data(), NULL,
+          conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
+          sh, sw, dh, dw, pt, pb, pl, pr, g);
+      assert(ret == 0);
+    }
+
+    for (int64_t i = 0; i < size; ++i) {
+      // multiplier is taking avg_const into account
+      // restore sum value first
+      float sum;
+      if (is_global){
+        sum = output[i];
+      } else {
+        sum = conv_result[i];
+        //sum = std::round(output[i] * kh * kw);
+      }
+      output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          sum, (uint32_t)quant_rshift->at(0),
+          (uint32_t)quant_multiplier->at(0), false);
+    }
+  } else if (getOpQuant(op) == "BF16") {
+    auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
+    FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  }
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::LrnOneOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -2377,6 +2462,14 @@ LogicalResult tpu::PoolMax2DOp::interpret(
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   return doPool2DOpInterpret<tpu::PoolMax2DOp>(op, false, valueMapping);
+}
+
+LogicalResult tpu::PoolMax3DOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  return doPool3DOpInterpret<tpu::PoolMax3DOp>(op, false, valueMapping);
+  return failure();
 }
 
 LogicalResult tpu::PowerOp::interpret(

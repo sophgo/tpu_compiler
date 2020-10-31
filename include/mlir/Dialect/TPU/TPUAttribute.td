@@ -228,6 +228,27 @@ def TPU_PoolParamAttr : StructAttr<"PoolParam", TPU_Dialect, [
 }
 
 //===----------------------------------------------------------------------===//
+// Pool3d dimension parameters structure.
+//===----------------------------------------------------------------------===//
+def TPU_Pool3dParamAttr : StructAttr<"Pool3dParam", TPU_Dialect, [
+    StructFieldAttr<"kernel_d", I32Attr>,
+    StructFieldAttr<"kernel_h", I32Attr>,
+    StructFieldAttr<"kernel_w", I32Attr>,
+    StructFieldAttr<"padding_d0", I32Attr>,
+    StructFieldAttr<"padding_d1", I32Attr>,
+    StructFieldAttr<"padding_t", I32Attr>,
+    StructFieldAttr<"padding_b", I32Attr>,
+    StructFieldAttr<"padding_l", I32Attr>,
+    StructFieldAttr<"padding_r", I32Attr>,
+    StructFieldAttr<"stride_d", I32Attr>,
+    StructFieldAttr<"stride_h", I32Attr>,
+    StructFieldAttr<"stride_w", I32Attr>,
+    StructFieldAttr<"do_relu", BoolAttr>,
+    StructFieldAttr<"count_include_pad", BoolAttr>]> {
+  let description = "Structure of dimension parameters for pool op";
+}
+
+//===----------------------------------------------------------------------===//
 // FC tile parameters structure.
 //===----------------------------------------------------------------------===//
 def TPU_FcTileParamAttr : StructAttr<"FcTileParam", TPU_Dialect, [
