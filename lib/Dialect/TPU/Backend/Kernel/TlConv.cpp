@@ -402,7 +402,7 @@ static void conv_lw_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
   bool do_relu = args.do_relu;
   assert(result_add == false);
   bool is_dw = false;
-  if (g == oc) {
+  if (g != 1 && g == oc && g == ic) {
     is_dw = true;
   } else {
     assert(g == 1);
