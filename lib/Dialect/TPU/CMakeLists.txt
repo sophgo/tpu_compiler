@@ -56,18 +56,6 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertPower.cpp
   Transforms/ConvertMatMul.cpp
   Transforms/LowerToTG.cpp
-  Transforms/group_ops/GroupOps.cpp
-  Transforms/group_ops/NetGraph.cpp
-  Transforms/group_ops/ImLayer.cpp
-  Transforms/group_ops/Tensor.cpp
-  Transforms/group_ops/GroupOptimizer.cpp
-  Transforms/group_ops/Group.cpp
-  Transforms/group_ops/LayerStage.cpp
-  Transforms/group_ops/Steps.cpp
-  Transforms/group_ops/LMemManager.cpp
-  Transforms/group_ops/MixNet.cpp
-  Transforms/group_ops/DeadCodeEliminate.cpp
-  Transforms/group_ops/utils.cpp
   Interpreter/TpuInterpreter.cpp
   Interpreter/NativeCpuImplementation.cpp
   Interpreter/CpuLayer_DetectionOutput.cpp
@@ -85,6 +73,23 @@ add_llvm_library(MLIRTPU
   Optimization/FuseLeakyRelu.cpp
   Optimization/FullyConnectedTile.cpp
   Optimization/TgOpTile.cpp
+  Optimization/DeepFusion/SimpleDeepFusion.cpp
+  Optimization/DeepFusion/ConvertTG2TL_LA.cpp
+  Optimization/DeepFusion/ConvertTL_LA2LW.cpp
+  Optimization/DeepFusion/SimpleAnalysis.cpp
+  Optimization/DeepFusion/DeepFusionGroupSlice.cpp
+  Optimization/LayerGroup/GroupOps.cpp
+  Optimization/LayerGroup/NetGraph.cpp
+  Optimization/LayerGroup/ImLayer.cpp
+  Optimization/LayerGroup/Tensor.cpp
+  Optimization/LayerGroup/GroupOptimizer.cpp
+  Optimization/LayerGroup/Group.cpp
+  Optimization/LayerGroup/LayerStage.cpp
+  Optimization/LayerGroup/Steps.cpp
+  Optimization/LayerGroup/LMemManager.cpp
+  Optimization/LayerGroup/MixNet.cpp
+  Optimization/LayerGroup/DeadCodeEliminate.cpp
+  Optimization/LayerGroup/utils.cpp
   Backend/TpuTgCodegen.cpp
   Backend/TpuTlCodegen_Simple.cpp
   Backend/TpuTlCodegen_LG.cpp
@@ -188,7 +193,6 @@ if (${USE_GPU})
   target_link_libraries(MLIRTPU
     MLIRIR
     MLIRStandardOps
-    MLIRTPUDeepFusion
     LLVMSupport
     cvikernel
     MLIRGPUOps
@@ -200,7 +204,6 @@ else()
   target_link_libraries(MLIRTPU
     MLIRIR
     MLIRStandardOps
-    MLIRTPUDeepFusion
     LLVMSupport
     cvikernel
     ${tpu_LINKER_LIBS}
@@ -215,5 +218,4 @@ add_dependencies(MLIRTPU
   LLVMSupport
 )
 add_subdirectory(Translate)
-add_subdirectory(DeepFusion)
 add_subdirectory(MemRefLowering)
