@@ -556,15 +556,13 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     if (!isOpQuantPerchannel(op)) {
       assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
       assert(quant_rshift);
-      assert(!is_asymmetric && "TODO: per-tensor asymmetric not ready");
       quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
-          size, (uint32_t)quant_rshift->at(0));
+          size, (uint32_t)quant_rshift->at(0), output_offset);
     } else if (isOpQuantPerchannel(op)
                && getOpQuantParamType(op) == "RSHIFT_ONLY") {
       assert(quant_rshift);
-      assert(!is_asymmetric && "TODO: per-channel rshift asymmetric not ready");
       quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
-          n, oc, size / oc / n, quant_rshift->data());
+          n, oc, size / oc / n, quant_rshift->data(), output_offset);
     } else if (isOpQuantPerchannel(op)
                && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
       assert(quant_rshift);
@@ -1846,15 +1844,25 @@ LogicalResult tpu::LeakyReluOp::interpret(
 
   // get tensors
   assert(opdT.size() == 9);
-  std::shared_ptr<std::vector<float> > input = opdT[0];
-  //std::shared_ptr<std::vector<float> > quant_pos_scale = opdT[1];
-  //std::shared_ptr<std::vector<float> > quant_pos_zeropoint = opdT[2];
-  //std::shared_ptr<std::vector<float> > quant_neg_scale = opdT[3];
-  //std::shared_ptr<std::vector<float> > quant_neg_zeropoint = opdT[4];
   std::shared_ptr<std::vector<float> > quant_pos_rshift = opdT[5];
   std::shared_ptr<std::vector<float> > quant_pos_multiplier = opdT[6];
   std::shared_ptr<std::vector<float> > quant_neg_rshift = opdT[7];
   std::shared_ptr<std::vector<float> > quant_neg_multiplier = opdT[8];
+
+  std::vector<float> input(opdT[0]->begin(), opdT[0]->end());
+  int input_offset = 0;
+  int output_offset = 0;
+  bool is_asymmetric = isOpQuantAsymmetric();
+
+  if (getOpQuant() == "INT8" && is_asymmetric) {
+    input_offset = -getPreviousOpZeroPoint(op);
+    output_offset = getOpZeroPoint(op);
+    if (input_offset != 0) {
+      for (size_t i = 0; i < input.size(); i++) {
+        input.at(i) += input_offset;
+      }
+    }
+  }
 
   // compute in fp32
   // skipped because if quantization is needed, the negative_slop
@@ -1862,7 +1870,7 @@ LogicalResult tpu::LeakyReluOp::interpret(
 
   // rshift and saturate on output
   if (getOpQuant() == "NONE") {
-    int ret = my_relu(input->data(), resultT->data(), n, c, h, w, negative_slope);
+    int ret = my_relu(input.data(), resultT->data(), n, c, h, w, negative_slope);
     assert(ret == 0);
   } else if (getOpQuant() == "INT8") {
     LLVM_DEBUG(llvm::errs() << "    rshift_pos "
@@ -1877,23 +1885,24 @@ LogicalResult tpu::LeakyReluOp::interpret(
     bool do_pos_scale = (quant_pos_multiplier->at(0) != 0.0) ? true : false;
     LLVM_DEBUG(llvm::errs() << "    do_pos_scale " << std::to_string(do_pos_scale) << "\n";);
 
-    float *data_i = input->data();
+    float *data_i = input.data();
     float *data_o = resultT->data();
     for (int i = 0; i < size; ++i) {
       if (data_i[i] > 0){
         if (do_pos_scale) {
           data_o[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(data_i[i],
-              (uint32_t)quant_pos_rshift->at(0), quant_pos_multiplier->at(0), false);
+              (uint32_t)quant_pos_rshift->at(0), quant_pos_multiplier->at(0), false, output_offset);
         } else {
           data_o[i] = data_i[i];
         }
       } else {
-        data_o[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(data_i[i],
-            (uint32_t)quant_neg_rshift->at(0), quant_neg_multiplier->at(0), false);
+        data_o[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            data_i[i], (uint32_t)quant_neg_rshift->at(0),
+            quant_neg_multiplier->at(0), false, output_offset);
       }
     }
   } else if (getOpQuant() == "BF16") {
-    int ret = my_relu(input->data(), resultT->data(), n, c, h, w, negative_slope);
+    int ret = my_relu(input.data(), resultT->data(), n, c, h, w, negative_slope);
     assert(ret == 0);
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding

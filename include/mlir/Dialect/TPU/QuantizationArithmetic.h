@@ -123,10 +123,10 @@ void dequantizeActivationFromInt8ToBf16WithThreshold(float *output, float *input
     int64_t size, float threshold);
 
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,
-    int64_t size, uint32_t rshift);
+    int64_t size, uint32_t rshift,int offset=0);
 
 void quantizeActivationInt8PerChannelRShift(float *output, float *input,
-    int64_t on, int64_t oc, int64_t isz, float *rshift_per_channel);
+    int64_t on, int64_t oc, int64_t isz, float *rshift_per_channel, int offset=0);
 
 void quantizeActivationInt8PerChannelMultiplierAndRShift(
     float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
