@@ -2698,6 +2698,7 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
   if (gmOutputDesc_->getCompressed()) {
     // Store compressed output
     cvk_cmpr_tg_t cmpr_dst = {0};
+    cmpr_dst.bias0 = (gmOutputDesc_->getDataFormat() == CVK_FMT_BF16) ? 127 : 0;
     cmpr_dst.t.base_reg_index =
         ctx_.getTdmaBaseSelectIndexFromGaddr(gmOutputDesc_->getAddress());
     cmpr_dst.t.start_address = ga_output_store;
@@ -2710,12 +2711,7 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
     cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
     param.src = &tl_output;
     param.dst = &cmpr_dst;
-
-    if (args_.output_fmt == CVK_FMT_I8)
-      ctx_.tdma_l2g_tensor_copy_compressed(&param);
-    else {
-      assert(0 && "Compressed output only supports i8");
-    }
+    ctx_.tdma_l2g_tensor_copy_compressed(&param);
   } else {
 
     // Store normal output

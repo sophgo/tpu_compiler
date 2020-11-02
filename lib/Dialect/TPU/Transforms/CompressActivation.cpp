@@ -516,10 +516,17 @@ public:
 
     auto enableLoadCmprAct = [&](Operation *op) {
       if (auto tpuOp = llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(op)) {
+        auto resultTy =
+            op->getResult(0)->getType().template dyn_cast<RankedTensorType>();
+        auto eltType = resultTy.getElementType();
+        int eltSize = llvm::divideCeil(eltType.getIntOrFloatBitWidth(), 8);
+
+        // Physical offset(in byte) -> logical offset
         std::vector<int64_t> resShapes = getTensorShape(op->getResult(0));
-        int64_t hOffset = tpuOp.offset().getValue().getSExtValue() / resShapes[3];
-        // assert(hOffset < resShapes[2]);
-        int64_t offset = step_size * hOffset;
+        int64_t hOffset = tpuOp.offset().getValue().getSExtValue() /
+                          resShapes[3] / eltSize;
+
+        int64_t offset = step_size * hOffset; // in byte
         LLVM_DEBUG(llvm::dbgs()
             << "      " << getOpName(op)
             << ", offset " << tpuOp.offset().getValue().getSExtValue()

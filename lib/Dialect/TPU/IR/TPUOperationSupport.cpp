@@ -873,7 +873,8 @@ int64_t getTotalCompressedActivationSize(Operation *op) {
 //
 void getTiledCompressedSize(int n, int c, int h, int w, int n_step, int c_step,
     int h_step, int isBf16, int64_t &stepSize, int64_t &totalSize) {
-  int tiledSize = n_step * c_step * h_step * w;
+  int data_type_size = isBf16 ? 2 : 1;
+  int tiledSize = n_step * c_step * h_step * w * data_type_size;
   stepSize = getCompressedDataSize(tiledSize, isBf16);
 
   // Compressed tiled activation size

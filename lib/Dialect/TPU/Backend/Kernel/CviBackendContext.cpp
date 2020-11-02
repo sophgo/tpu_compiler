@@ -222,9 +222,8 @@ void CviBackendContext::tdma_store_stride(cvk_tl_t *tlp, uint64_t ga_dst,
     p1.dst = &ts_data;
     tdma_l2g_tensor_copy_nc_transposed(&p1);
   } else if (do_compress) {
-    assert(ts_data.fmt != CVK_FMT_BF16 &&
-           "bf16 tdma store does not suppport compress yet");
     cvk_cmpr_tg_t cmpr_dst = {0};
+    cmpr_dst.bias0 = (ts_data.fmt == CVK_FMT_BF16) ? 127 : 0;
     cmpr_dst.t = ts_data;
 
     cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};

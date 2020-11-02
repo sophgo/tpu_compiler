@@ -115,7 +115,7 @@ void cvi_backend_tl_load_stride(
                                   "    src (, %d, %d, %d), dst (%d, %d, %d, %d)\n"
                                   "    src 0x%lx, dst 0x%lx\n"
                                   "    DoTranspose %d, DoAligned %d, isNeuron %d\n"
-                                  "    from %d to %d, Compressed %d\n",
+                                  "    from %d to %d, DoDeCompress %d\n",
                                   layer_id, Global_C, Global_H, Global_W, Local_N, Local_C,
                                   Local_H, Local_W, ga_src, la_dst, DoTranspose, DoAligned,
                                   isNeuron, from, to, DoDecompress));
@@ -228,10 +228,10 @@ void cvi_backend_tl_store_stride(
                                   "    src (%d, %d, %d, %d), dst (, %d, %d, %d)\n"
                                   "    src 0x%lx, dst 0x%lx\n"
                                   "    DoTranspose %d, DoAligned %d, isNeuron %d"
-                                  "    from %d to %d \n",
+                                  "    from %d to %d, DoCompress %d\n",
                                   layer_id, Local_N, Local_C, Local_H, Local_W, Global_C,
                                   Global_H, Global_W, la_src, ga_dst, DoTranspose, DoAligned,
-                                  isNeuron, from, to));
+                                  isNeuron, from, to, DoCompress));
   // tensor in local memory
   cvk_tl_shape_t tl_shape;
   tl_shape.n = DoTranspose ? Local_C : Local_N;
@@ -313,6 +313,7 @@ void cvi_backend_tl_store_compressed(
     tl_src.start_address = la_src + i * Local_W * tl_stride.w;
 
     cvk_cmpr_tg_t tg_cmpr_dst = {0};
+    tg_cmpr_dst.bias0 = (to == CVK_FMT_BF16) ? 127 : 0;
     ctx.gmem_init_tensor(&tg_cmpr_dst.t,
                          {(uint32_t)Local_N, (uint32_t)Global_C, (uint32_t)cur_h,
                           (uint32_t)Global_W},
