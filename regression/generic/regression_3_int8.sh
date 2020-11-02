@@ -40,8 +40,7 @@ if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   if [ $BATCH_SIZE -eq 1 ]; then
     cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
     mv ${NET}_int8.cvimodel $CVIMODEL_REL_PATH/${NET}.cvimodel
-    cp ${NET}_cmdbuf_out_all_int8.npz $CVIMODEL_REL_PATH
-    cp ${NET}_out_all.npz $CVIMODEL_REL_PATH
+    cp ${NET}_cmdbuf_out_all_int8.npz $CVIMODEL_REL_PATH/${NET}_out_all.npz
   else
     cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_in_fp32.npz
     mv ${NET}_int8.cvimodel $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}.cvimodel
