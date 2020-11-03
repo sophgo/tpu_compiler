@@ -85,6 +85,7 @@ class CaffeConverter(BaseConverter):
             'PriorBox': lambda layer: self.convert_priorbox_op(layer),
             'Proposal': lambda layer: self.convert_proposal_op(layer),
             'ReLU': lambda layer: self.convert_relu_op(layer),
+            'ReLU6': lambda layer: self.convert_relu6_op(layer),
             'Reorg': lambda layer: self.convert_reorg_op(layer),
             'Reshape': lambda layer: self.convert_reshape_op(layer),
             'RetinaFaceDetection': lambda layer: self.convert_retinaface_detection_op(layer),
@@ -112,7 +113,7 @@ class CaffeConverter(BaseConverter):
             14: 'InnerProduct', 15: 'LRN', 29: 'MemoryData', 16: 'MultinomialLogisticLoss',
             34: 'MVN', 17: 'Pooling', 26: 'Power', 18: 'ReLU', 19: 'Sigmoid',
             27: 'SigmoidCrossEntropyLoss', 36: 'Silence', 20: 'Softmax', 21: 'SoftmaxLoss',
-            22: 'Split', 33: 'Slice', 23: 'Tanh', 24: 'WindowData', 31: 'Threshold',
+            22: 'Split', 33: 'Slice', 23: 'Tanh', 24: 'WindowData', 31: 'Threshold', 32: 'Relu6'
         }
         self.init_importer()
 
@@ -1079,6 +1080,35 @@ class CaffeConverter(BaseConverter):
             new_op = self.CVI.add_leaky_relu_op(
                 layer.name, operands, output_shape, **param)
             self.addOperand(layer.top[0], new_op, output_shape,
+                            TensorType.ACTIVATION)
+
+    def convert_relu6_op(self, layer):
+        assert(self.layerType(layer) == 'ReLU6')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        assert(len(input_shape) == 4 or len(input_shape) == 2)
+        negative_slope = layer.relu_param.negative_slope
+        output_shape = input_shape
+
+        clip_param = {
+            'min': 0.0,
+            'max': 6.0,
+        }
+        if negative_slope == 0.0:
+            relu_op = self.CVI.add_relu_op(
+                "{}_0".format(layer.name), operands, output_shape)
+            clip_op = self.CVI.add_clip_op(layer.name, [relu_op], output_shape, **clip_param)
+            self.addOperand(layer.top[0], clip_op, output_shape,
+                            TensorType.ACTIVATION)
+        else:
+            param = {
+                'negative_slope': negative_slope
+            }
+            leaky_relu_op = self.CVI.add_leaky_relu_op(
+                layer.name, operands, output_shape, **param)
+            clip_op = self.CVI.add_clip_op(layer.name, [leaky_relu_op], output_shape, **clip_param)
+            self.addOperand(layer.top[0], clip_op, output_shape,
                             TensorType.ACTIVATION)
 
     def convert_reorg_op(self, layer):
