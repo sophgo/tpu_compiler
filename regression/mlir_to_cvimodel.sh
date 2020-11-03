@@ -7,11 +7,13 @@ fi
 
 mlir_file=$1
 out_cvimodel=$2
+output_fp32_results=$3
 optimized_mlir="_lower_opt_$1"
 final_mlir="_final_$1"
 
 mlir-opt $mlir_file \
-    --tpu-lower | \
+    --tpu-lower \
+    --dequant-results-to-fp32=$output_fp32_results | \
 mlir-opt \
     --reorder-op \
     --tg-fuse-leakyrelu \

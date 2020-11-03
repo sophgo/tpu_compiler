@@ -29,6 +29,7 @@ usage()
   echo -e "\t-y Fused preprocess image resize dims          [default: [none], use net dim]"
   echo -e "\t-f Fused preprocess crop offset                [default: [none], center]"
   echo -e "\t-g Do TPU Softmax inference                    [default: 0]"
+  echo -e "\t-x Don't dequant results to fp32"
   echo -e "\t-h help"
   exit 1
 }
@@ -39,8 +40,9 @@ do_fused_preprocess="0"
 do_crop="0"
 do_tpu_softmax="0"
 chip_ver="cv183x"
+dequant_results_to_fp32="true"
 
-while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:g:f:h" opt
+while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:g:f:xu" opt
 do
   case "$opt" in
     i ) model_def="$OPTARG" ;;
@@ -61,7 +63,8 @@ do
     y ) image_resize_dims="$OPTARG" ;;
     f ) crop_offset="$OPTARG" ;;
     g ) do_tpu_softmax="$OPTARG" ;;
-    h ) usage ;;
+    x ) dequant_results_to_fp32="false" ;;
+    u ) usage ;;
   esac
 done
 
@@ -152,4 +155,4 @@ mlir-opt \
     --tpu-op-info-filename op_info_int8.csv \
     -o $int8_mlir
 
-${DIR}/mlir_to_cvimodel.sh $int8_mlir $output
+${DIR}/mlir_to_cvimodel.sh $int8_mlir $output $dequant_results_to_fp32
