@@ -8,9 +8,6 @@ echo "$0 net=$NET"
 if [ $DO_NOT_BF16_UNDER_182x -eq 1 ]; then
   exit 0
 fi
-if [ $DO_LG_WITH_BF16 -eq 0 ]; then
-  exit 0
-fi
 
 mlir-opt \
     --assign-chip-name \
