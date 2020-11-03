@@ -877,7 +877,7 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
 
   if (tpu_mode) {
     if (zero_point != 0) {
-      assert("zero_point in tpu mode not ready, todo");
+      llvm_unreachable("zero_point in tpu mode not ready, todo");
     }
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
@@ -914,7 +914,7 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
   float scale = threshold / 128.0;
   if (tpu_mode) {
     if (zero_point != 0) {
-      assert("zero_point in tpu mode not ready, todo");
+      llvm_unreachable("zero_point in tpu mode not ready, todo");
     }
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);

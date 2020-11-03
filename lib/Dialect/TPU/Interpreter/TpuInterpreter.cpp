@@ -4001,17 +4001,19 @@ LogicalResult tpu::QuantOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float> >(size);
-
+  int zero_point = this->zero_point().getLimitedValue();
+  bool is_symmetric = zero_point == 0;
   if (this->from() == "NONE" && this->to() == "INT8") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
     float threshold = this->threshold().getValue().convertToFloat();
-    int zero_point = this->zero_point().getLimitedValue();
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
     auto prevOp = getOperand()->getDefiningOp();
     bool useTpuQuantOp = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
-    quantizeActivationInt8WithThreshold(output, input, size, threshold, useTpuQuantOp, zero_point);
+    quantizeActivationInt8WithThreshold(output, input, size, threshold,
+                                        useTpuQuantOp && is_symmetric,
+                                        zero_point);
   } else if (this->from() == "INT8" && this->to() == "NONE") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
@@ -4019,7 +4021,8 @@ LogicalResult tpu::QuantOp::interpret(
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
     dequantizeActivationInt8WithThreshold(output, input, size, threshold,
-                                          true /*clUseTPUQuantOp*/);
+                                          clUseTPUQuantOp && is_symmetric,
+                                          zero_point);
   } else if (this->from() == "NONE" && this->to() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
     FloatToBFloat16(opdT[0]->data(), tensor_bf16->data(),
