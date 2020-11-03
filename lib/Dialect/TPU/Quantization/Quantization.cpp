@@ -180,7 +180,12 @@ static void insertQuantOp(Operation *op) {
           continue;
         }
         threshold = getOpThreshold(prev_op);
-        name = getOpName(prev_op).str() + "_dequant";
+        auto fuse_op = prev_op->getResult(0)->use_begin()->getOwner();
+        if (isa<tpu::ReshapeOp>(fuse_op)) {
+          name = getOpName(fuse_op).str() + "_dequant";
+        } else {
+          name = getOpName(prev_op).str() + "_dequant";
+        }
       } else if (curr_quant == "BF16") {
         threshold = getOpThreshold(prev_op);
         name = getOpName(prev_op).str() + "_quant";
