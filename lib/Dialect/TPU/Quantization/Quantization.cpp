@@ -648,8 +648,8 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     if (color_orders.size()){
       assert(color_orders.size() == 3 && "color_order must be 3");
       std::vector<float> tmp_scale_value(scale_value.begin(),
-      scale_value.end()); std::vector<float>
-      tmp_bias_value(bias_value.begin(), bias_value.end());
+      scale_value.end());
+      std::vector<float> tmp_bias_value(bias_value.begin(), bias_value.end());
 
       for(size_t i = 0; i < color_orders.size(); ++i){
         auto it = std::find(color_orders.begin(), color_orders.end(), i);
@@ -719,7 +719,12 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     setOpQuantParamType(scale_op, "THRESHOLD");
     setOpQuant(scale_op, "BF16");
 
+    std::vector<int> no_change_swap = {0, 1, 2};
 
+    if (std::equal(color_orders.begin(), color_orders.end(), no_change_swap.begin())) {
+      rewriter.replaceOp(preprocessOp, {scale_op.getResult()});
+      return matchSuccess();
+    }
     // swapaxis, rgb to bgr or bgr to rgb
     std::string swapaxis_name =
         getOpName(preprocessOp).str() + "_preprocess_swapaxis";
