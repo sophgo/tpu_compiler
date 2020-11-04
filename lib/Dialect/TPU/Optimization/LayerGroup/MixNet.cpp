@@ -1225,7 +1225,6 @@ void MixNet::_add_tl_broadcast_mul_op(
   std::string name = mix_op->name();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_scale = net_graph_->get_tensor_local_offset(in_tensors[1]);
-  uint32_t la_bias = net_graph_->get_tensor_local_offset(in_tensors[2]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
   RankedTensorType input_type =
@@ -1245,8 +1244,15 @@ void MixNet::_add_tl_broadcast_mul_op(
                            builder_.getI32IntegerAttr(la_output)));
   attrs.push_back(builder_.getNamedAttr("la_scale",
                            builder_.getI32IntegerAttr(la_scale)));
-  attrs.push_back(builder_.getNamedAttr("la_bias",
-                           builder_.getI32IntegerAttr(la_bias)));
+  if (bInt8Op) {
+    uint32_t la_bias = net_graph_->get_tensor_local_offset(in_tensors[2]);
+    attrs.push_back(builder_.getNamedAttr("la_bias",
+                            builder_.getI32IntegerAttr(la_bias)));
+  } else {
+    attrs.push_back(builder_.getNamedAttr("la_bias",
+                            builder_.getI32IntegerAttr(0)));
+  }
+
   bool do_relu = false;
   if(auto tmp_op = dyn_cast<tpu::TG_INT8_BroadcastMulOp>(op)) {
     do_relu = tmp_op.param().do_relu().getValue();

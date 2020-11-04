@@ -1,20 +1,22 @@
 #!/bin/bash
 set -xe
 
-if [ $# != 3 ]; then
+if [ $# -lt 2 ]; then
   echo "$1 mlir_file out_cvimodel"
 fi
 
 mlir_file=$1
 out_cvimodel=$2
-output_fp32_results=$3
+output_fp32_results="true"
+if [ $# -ge 3 ]; then
+  output_fp32_results=$3
+fi
 optimized_mlir="_lower_opt_$1"
 final_mlir="_final_$1"
 
 mlir-opt $mlir_file \
     --tpu-lower \
-    --dequant-results-to-fp32=$output_fp32_results | \
-mlir-opt \
+    --dequant-results-to-fp32=$output_fp32_results \
     --reorder-op \
     --tg-fuse-leakyrelu \
     --conv-ic-alignment \
