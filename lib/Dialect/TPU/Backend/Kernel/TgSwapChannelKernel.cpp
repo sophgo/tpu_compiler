@@ -17,18 +17,16 @@ void cvi_backend_tg_swap_channel_kernel(const CviBackendContext &ctx,
                                         int input_dim_size, int *input_dim,
                                         int *channel_order, cvk_fmt_t fmt) {
   assert(input_dim_size == 4 && input_dim[1] == 3 && "paramter error");
-  uint32_t fmt_size = ((fmt == CVK_FMT_BF16) ? sizeof(uint16_t) : sizeof(uint8_t));
-  uint32_t n = input_dim[0];
-  uint32_t c = input_dim[1];
-  uint32_t h = input_dim[2];
-  uint32_t w = input_dim[3] * fmt_size;
-  cvk_tg_shape_t shape = {n, 1, h, w};
-  cvk_tg_stride_t stride = {c * h * w, h * w, w};
-  for (uint32_t i = 0; i < c; i++) {
-    assert((uint32_t)channel_order[i] < c && "channel_order is illegal");
-    gaddr_t s_gaddr = input_gaddr + h * w * channel_order[i];
-    gaddr_t d_gaddr = output_gaddr + h * w * i;
-    ctx.tdma_g2g_tensor_copy(s_gaddr, shape, stride, CVK_FMT_I8, d_gaddr, shape, stride,
-                             CVK_FMT_I8);
+  cvk_tg_shape_t shape =
+      ctx.tg_shape_t4(input_dim[0], 1, input_dim[2], input_dim[3]);
+  cvk_tg_stride_t stride =
+      ctx.tg_default_stride(input_dim[1], input_dim[2], input_dim[3], fmt);
+  uint64_t frame_size = input_dim[2] * input_dim[3] * ctx.bytesize_of_fmt(fmt);
+  for (uint32_t i = 0; i < 3; i++) {
+    assert((uint32_t)channel_order[i] < 3 && "channel_order is illegal");
+    gaddr_t s_gaddr = input_gaddr + frame_size * channel_order[i];
+    gaddr_t d_gaddr = output_gaddr + frame_size * i;
+    ctx.tdma_g2g_tensor_copy(s_gaddr, shape, stride, fmt, d_gaddr, shape,
+                             stride, fmt);
   }
 }

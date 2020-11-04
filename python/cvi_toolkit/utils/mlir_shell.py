@@ -106,7 +106,7 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
                     "--tpu-weight-bin-filename=weight.bin",
                     "--assign-neuron-address",
                     "--tpu-neuron-memory-reuse",
-                    "--tpu-neuron-address-align=16",
+                    "--tpu-neuron-address-align=64",
                     "--tpu-neuron-map-filename=neuron_map.csv",
                     mlirfile,
                     "-o", int8_addr
@@ -150,7 +150,7 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
                "--tpu-weight-map-filename=weight_map.csv",
                "--tpu-weight-bin-filename=weight.bin",
                "--assign-neuron-address",
-               "--tpu-neuron-address-align=16",
+               "--tpu-neuron-address-align=64",
                "--tpu-neuron-map-filename=neuron_map.csv",
                mlirfile,
                "-o", addr_mlir

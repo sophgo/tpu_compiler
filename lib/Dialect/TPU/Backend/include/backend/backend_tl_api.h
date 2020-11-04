@@ -297,13 +297,13 @@ void cvi_backend_tl_scale_qi32(
 void cvi_backend_tl_concat(
     const CviBackendContext &ctx, uint32_t layer_id,
     int *input_dim_c, int input_size, int *output_dim,
-    laddr_t *la_input, laddr_t la_output, laddr_t la_working, bool do_relu,
-    int8_t rshift, int8_t * m_i8);
+    laddr_t *la_input, laddr_t la_output, bool do_relu,
+    int8_t rshift, int32_t * m_i8);
 
 void cvi_backend_tl_bf16_concat(
     const CviBackendContext &ctx, uint32_t layer_id,
     int *input_dim_c, int input_size, int *output_dim,
-    laddr_t *la_input, laddr_t la_output, laddr_t la_working);
+    laddr_t *la_input, laddr_t la_output, bool do_relu);
 
 void cvi_backend_tl_depthwise_deconv(
     const CviBackendContext &ctx, uint32_t layer_id,

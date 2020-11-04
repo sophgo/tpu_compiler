@@ -792,8 +792,8 @@ LogicalResult tpu::TL_LG_BF16_QuantOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -802,69 +802,47 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
   int axis = this->axis().getLimitedValue();
 
   std::vector<int32_t> la_input_array;
-  auto la_input = new laddr_t[nInputs];
+  std::vector<laddr_t> la_input(nInputs);
   arrayAttrToVector(this->la_input().getValue(), la_input_array);
   for (unsigned i = 0; i < nInputs; ++i) {
     la_input[i] = static_cast<laddr_t>(la_input_array[i]);
   }
 
   laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
 
-  #define SHAPE_DIM 4
-  auto input_dims = new int32_t[nInputs * SHAPE_DIM];
-  for ( unsigned i = 0; i < nInputs; i++) {
-    std::vector<int64_t> shape;
-    int64_t size;
-    getTensorShapeAndSize(op->getOperand(i), shape, size);
-    // TODO: this looks very strange. 4 allocated for each input
-    // TODO: but only 1 is set for each input
+  std::vector<int32_t> input_dims(nInputs);
+  for (unsigned i = 0; i < nInputs; i++) {
+    std::vector<int64_t> shape = getTensorShape(op->getOperand(i));
     input_dims[i] = shape[axis];
   }
-  int output_dim[SHAPE_DIM];
-  std::vector<int64_t> shape;
-  int64_t size;
-  getTensorShapeAndSize(this->getResult(), shape, size);
-  output_dim[0] = shape[0];
-  output_dim[1] = shape[1];
-  output_dim[2] = shape[2];
-  output_dim[3] = shape[3];
-
-  // prepare quant info
-  int8_t r_i8;
-  auto m_i8 = new int8_t[nInputs];
-  if (this->r_i8().hasValue() && this->m_i8().hasValue()) {
-    r_i8 = this->r_i8().getValue().getLimitedValue();
-
-    std::vector<int32_t> m_i8_array;
-    arrayAttrToVector(this->m_i8().getValue(), m_i8_array);
-    assert(m_i8_array.size() == nInputs);
-    for (unsigned i = 0; i < nInputs; ++i) {
-      m_i8[i] = static_cast<int8_t>(m_i8_array[i]);
-    }
+  std::vector<int> output_dim;
+  std::vector<int64_t> output_shape = getTensorShape(getResult());
+  for (auto &dim : output_shape) {
+    output_dim.push_back(dim);
+  }
+  for (uint32_t i = output_dim.size(); i < 4; i++) {
+    output_dim.push_back(1); // fill to 4 dim
   }
 
-  cvi_backend_tl_concat( *backend_ctx,
-                      layer_id,
-                      input_dims,
-                      nInputs,
-                      output_dim,
-                      la_input,
-                      la_output,
-                      la_working,
-                      do_relu(),
-                      r_i8,
-                      m_i8);
-  delete[] input_dims;
-  delete[] m_i8;
-  delete[] la_input;
-  return success();
+  // prepare quant info
+  int8_t r_i8 = 0;
+  int32_t *m_i8 = nullptr;
+  std::vector<int32_t> m_i8_array;
+  if (this->r_i8().hasValue() && this->m_i8().hasValue()) {
+    r_i8 = this->r_i8().getValue().getLimitedValue();
+    arrayAttrToVector(this->m_i8().getValue(), m_i8_array);
+    m_i8 = m_i8_array.data();
+  }
 
+  cvi_backend_tl_concat(*backend_ctx, layer_id, input_dims.data(), nInputs,
+                        output_dim.data(), la_input.data(), la_output,
+                        do_relu(), r_i8, m_i8);
+  return success();
 }
 
 LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -873,44 +851,31 @@ LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
   int axis = this->axis().getLimitedValue();
 
   std::vector<int32_t> la_input_array;
-  auto la_input = new laddr_t[nInputs];
+  std::vector<laddr_t> la_input(nInputs);
   arrayAttrToVector(this->la_input().getValue(), la_input_array);
   for (unsigned i = 0; i < nInputs; ++i) {
     la_input[i] = static_cast<laddr_t>(la_input_array[i]);
   }
 
   laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
 
-  #define SHAPE_DIM 4
-  auto input_dims = new int32_t[nInputs * SHAPE_DIM];
-  for ( unsigned i = 0; i < nInputs; i++) {
-    std::vector<int64_t> shape;
-    int64_t size;
-    getTensorShapeAndSize(op->getOperand(i), shape, size);
-    // TODO: this looks very strange. 4 allocated for each input
-    // TODO: but only 1 is set for each input
+  std::vector<int32_t> input_dims(nInputs);
+  for (unsigned i = 0; i < nInputs; i++) {
+    std::vector<int64_t> shape = getTensorShape(op->getOperand(i));
     input_dims[i] = shape[axis];
   }
-  int output_dim[SHAPE_DIM];
-  std::vector<int64_t> shape;
-  int64_t size;
-  getTensorShapeAndSize(this->getResult(), shape, size);
-  output_dim[0] = shape[0];
-  output_dim[1] = shape[1];
-  output_dim[2] = shape[2];
-  output_dim[3] = shape[3];
+  std::vector<int> output_dim;
+  std::vector<int64_t> shape = getTensorShape(this->getResult());
+  for (auto &dim : shape) {
+    output_dim.push_back(dim);
+  }
+  for (uint32_t i = output_dim.size(); i < 4; i++) {
+    output_dim.push_back(1); // fill to 4 dim
+  }
 
-  cvi_backend_tl_bf16_concat( *backend_ctx,
-                      layer_id,
-                      input_dims,
-                      nInputs,
-                      output_dim,
-                      la_input,
-                      la_output,
-                      la_working);
-  delete[] la_input;
-  delete[] input_dims;
+  cvi_backend_tl_bf16_concat(*backend_ctx, layer_id, input_dims.data(), nInputs,
+                             output_dim.data(), la_input.data(), la_output,
+                             do_relu());
   return success();
 }
 

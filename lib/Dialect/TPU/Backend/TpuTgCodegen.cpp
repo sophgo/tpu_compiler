@@ -448,12 +448,6 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
     p_m_i8 = m_i8_input.data();
   }
 
-  if (axis == 0 && do_relu() == false && p_rshift == nullptr &&
-      p_m_i8 == nullptr) {
-    // TODO: should be fixed when normal concat N
-    return success();
-  }
-
   cvi_backend_tg_concat_kernel(*backend_ctx, layer_id, nInputs,
                                ga_inputs.data(), ga_output, axis_dims.data(),
                                axis, output_dim_size, output_dim.data(),
@@ -2725,46 +2719,42 @@ LogicalResult tpu::TG_BF16_ReorgOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
   getNCHW(shape, n, c, h, w);
-  int frame_size = h * w;
   uint32_t group = this->group().getLimitedValue();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, layer_id,
-                                       input_gaddr, output_gaddr, n, c,
-                                       frame_size, group, CVK_FMT_I8);
+  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, layer_id, input_gaddr,
+                                        output_gaddr, n, c, h, w, group,
+                                        CVK_FMT_I8);
   return success();
 }
 
 LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
   getNCHW(shape, n, c, h, w);
-  int frame_size = h * w;
   uint32_t group = this->group().getLimitedValue();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, layer_id,
-                                       input_gaddr, output_gaddr, n, c,
-                                       frame_size, group, CVK_FMT_BF16);
+  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, layer_id, input_gaddr,
+                                        output_gaddr, n, c, h, w, group,
+                                        CVK_FMT_BF16);
   return success();
 }
 

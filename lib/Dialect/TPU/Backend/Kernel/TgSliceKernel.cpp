@@ -18,32 +18,22 @@ void cvi_backend_tg_slice_kernel(const CviBackendContext &ctx,
                                  int length, cvk_fmt_t fmt) {
   assert(input_dim_size > axis && (offset + length <= input_dim[axis]) &&
          "paramter error");
-
-  int32_t dtype_sz = ((cvk_fmt_t)fmt == CVK_FMT_BF16) ? 2 : 1;
-  if (axis == 3) {
-    cvk_tg_shape_t shape = ctx.tg_shape_t4(input_dim[0],input_dim[1],input_dim[2],length);
-    cvk_tg_shape_t orig_shape = ctx.tg_shape_t4(input_dim[0],input_dim[1],input_dim[2],input_dim[3]);
-    cvk_tg_stride_t d_stride = ctx.tg_default_stride(shape, fmt);
-    cvk_tg_stride_t s_stride = ctx.tg_default_stride(orig_shape, fmt);
-    ctx.tdma_g2g_tensor_copy(input_gaddr + offset * dtype_sz, shape, s_stride, fmt,
-                             output_gaddr, shape, d_stride, fmt);
-  } else {
-    uint32_t former_dim = 1;
-    uint32_t later_dim = dtype_sz;
-    for (int i = 0; i < axis; i++) {
-      former_dim *= input_dim[i];
-    }
-    for (int i = axis + 1; i < input_dim_size; i++) {
-      later_dim *= input_dim[i];
-    }
-    cvk_tg_shape_t shape = ctx.tg_shape_t4(1,former_dim,length,later_dim);
-    cvk_tg_stride_t s_stride = {
-        (uint32_t)(former_dim * later_dim * input_dim[axis]),
-        (uint32_t)(later_dim * input_dim[axis]),
-        (uint32_t)(later_dim)
-    };
-    cvk_tg_stride_t d_stride = ctx.tg_default_stride(shape, CVK_FMT_I8);
-    ctx.tdma_g2g_tensor_copy(input_gaddr + offset * later_dim, shape, s_stride, CVK_FMT_I8,
-                             output_gaddr, shape, d_stride, CVK_FMT_I8);
+  assert(input_dim_size <= 4 && "dim size should <= 4");
+  int shape[4] = {1, 1, 1, 1};
+  for (int i = 0; i < input_dim_size; i++) {
+    shape[i] = input_dim[i];
   }
+  uint64_t offset_size = ctx.bytesize_of_fmt(fmt);
+  for (int i = axis + 1; i < input_dim_size; i++) {
+    offset_size *= input_dim[i];
+  }
+  cvk_tg_stride_t src_stride =
+      ctx.tg_default_stride(shape[1], shape[2], shape[3], fmt);
+  shape[axis] = length;
+  cvk_tg_shape_t dst_shape =
+      ctx.tg_shape_t4(shape[0], shape[1], shape[2], shape[3]);
+  cvk_tg_stride_t dst_stride = ctx.tg_default_stride(dst_shape, fmt);
+  ctx.tdma_g2g_tensor_copy(input_gaddr + offset * offset_size, dst_shape,
+                           src_stride, fmt, output_gaddr, dst_shape, dst_stride,
+                           fmt);
 }

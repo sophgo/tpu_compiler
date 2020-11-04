@@ -445,13 +445,9 @@ void cvi_backend_tg_permute_kernel(
     int input_c, int input_h, int input_w, int order_n, int order_c, int order_h,
     int order_w, cvk_fmt_t fmt);
 
-// shuffle channel, batch = shape[0], channel = shape[1], frame_size = shape[2]
-// * shape[3] * ... suppor int8 and bf16
 void cvi_backend_tg_shuffle_channel_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t output_gaddr,
-    int batch, int channel, int frame_size,
-    int group, cvk_fmt_t fmt);
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t output_gaddr, int n, int c, int h, int w, int group, cvk_fmt_t fmt);
 
 // slice, refer to tg op, support int8 and bf16
 void cvi_backend_tg_slice_kernel(
