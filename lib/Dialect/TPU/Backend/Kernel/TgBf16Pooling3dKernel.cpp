@@ -82,6 +82,8 @@ static void compute(
     param.pad_right = (uint8_t)pad_right;
     param.stride_h = (uint8_t)stride_h;
     param.stride_w = (uint8_t)stride_w;
+    param.ins_val = -128;
+    param.ins_fp = 0xff7f;
     ctx.tiu_max_pooling(&param);
   }
 
@@ -154,6 +156,8 @@ static void compute(
       param.pad_right = 0;
       param.stride_h = 1;
       param.stride_w = 1;
+      param.ins_val = -128;
+      param.ins_fp = 0xff7f;
       ctx.tiu_max_pooling(&param);
     }
   }

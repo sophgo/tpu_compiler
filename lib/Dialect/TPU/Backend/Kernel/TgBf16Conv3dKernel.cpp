@@ -132,6 +132,8 @@ static void compute(const CviBackendContext &ctx, int n, int ic,
   param.dilation_h = 1;
   param.dilation_w = 1;
   param.ps32_mode = ps32_mode;
+  param.ins_val = 0;                            // symmetric quantization
+  param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
   ctx.tiu_pt_convolution(&param);
 }
 

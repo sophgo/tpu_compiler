@@ -222,6 +222,8 @@ void cvi_backend_tg_fixed_prelu_kernel(
   param.rshift_bits = 0;
   param.relu_enable = 0;
   param.layer_id = layer_id;
+  param.ins_val = 0;                            // symmetric quantization
+  param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
   ctx.tiu_pt_depthwise_convolution(&param);
 
   //4. top = or(top, bottom)
@@ -358,6 +360,8 @@ void cvi_backend_tg_fixed_prelu_kernel(
       param.rshift_bits = LE_right_shift_width;
       param.relu_enable = 0;
       param.layer_id = layer_id;
+      param.ins_val = 0;                            // symmetric quantization
+      param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
       ctx.tiu_pt_depthwise_convolution(&param);
 
       // 4. bottom = or relu, neg

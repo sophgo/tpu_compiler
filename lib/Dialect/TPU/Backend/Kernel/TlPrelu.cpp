@@ -109,6 +109,8 @@ void cvi_backend_tl_prelu(const CviBackendContext &ctx, uint32_t layer_id,
   p4.rshift_bits = r_i8_neg;
   p4.relu_enable = 0;
   p4.layer_id = layer_id;
+  p4.ins_val = 0;                            // symmetric quantization
+  p4.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
   ctx.tiu_pt_depthwise_convolution(&p4);
 
   // 4. bottom = or relu, neg
@@ -193,6 +195,8 @@ void cvi_backend_tl_bf16_prelu(const CviBackendContext &ctx,
   p2.rshift_bits = 0;
   p2.relu_enable = 0;
   p2.layer_id = layer_id;
+  p2.ins_val = 0;                            // symmetric quantization
+  p2.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
   ctx.tiu_pt_depthwise_convolution(&p2);
 
   // 3. relu = relu(bottom), dirty it

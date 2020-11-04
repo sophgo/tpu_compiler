@@ -98,6 +98,8 @@ static void one_step(
           p5.relu_enable = 0;
           p5.layer_id = layer_id;
           p5.rshift_bits = right_shift_width;
+          p5.ins_val = 0;                            // symmetric quantization
+          p5.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
           ctx.tiu_pt_depthwise_convolution(&p5);
         }
       }

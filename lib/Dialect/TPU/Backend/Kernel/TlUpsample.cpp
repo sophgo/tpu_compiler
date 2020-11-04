@@ -58,6 +58,8 @@ void cvi_backend_tl_upsample(
   param.avg_pooling_const = 1.0;
   param.rshift_bits = 0;
   param.layer_id = layer_id;
+  param.ins_val = param.avg_pooling_const;
+  param.ins_fp = ctx.convert_fp32_to_bf16(param.avg_pooling_const);
   ctx.tiu_average_pooling(&param);
 }
 

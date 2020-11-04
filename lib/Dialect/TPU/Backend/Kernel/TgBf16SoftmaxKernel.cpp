@@ -130,6 +130,8 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
         max_pool_param.stride_h = 1;
         max_pool_param.stride_w = 1;
         max_pool_param.layer_id = layer_id;
+        max_pool_param.ins_val = -128;
+        max_pool_param.ins_fp = 0xff7f;
         ctx.tiu_max_pooling(&max_pool_param);
 
         LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -282,6 +284,8 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             //kernel will fill avg_pooling_const / (kh * kw)
             param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * inner_size);
             param.layer_id = layer_id;
+            param.ins_val = 0;
+            param.ins_fp = param.avg_pooling_const;
 
             LLVM_DEBUG(llvm::errs() << llvm::format(
                 "  tiu_bf16_avg_pooling\n"
@@ -543,6 +547,8 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
             max_pool_param.stride_h = 1;
             max_pool_param.stride_w = 1;
             max_pool_param.layer_id = layer_id;
+            max_pool_param.ins_val = -128;
+            max_pool_param.ins_fp = 0xff7f;
             ctx.tiu_max_pooling(&max_pool_param);
 
             //Input = Input - maxOfInput
@@ -602,6 +608,8 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
                 //kernel will fill avg_pooling_const / (kh * kw)
                 param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * c);
                 param.layer_id = layer_id;
+                param.ins_val = 0;
+                param.ins_fp = param.avg_pooling_const;
 
                 LLVM_DEBUG(llvm::errs() << llvm::format(
                     "  tiu_bf16_avg_pooling\n"

@@ -156,6 +156,8 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
     param.ps32_mode = 0;
     param.w_is_const = 0;
     param.layer_id = layer_id;
+    param.ins_val = 0;                            // symmetric quantization
+    param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
                     "    conv:\n"
@@ -221,6 +223,8 @@ void cvi_backend_tg_bf16_lstm_kernel(const CviBackendContext &ctx, uint32_t laye
         param.ps32_mode = 0;
         param.w_is_const = 0;
         param.layer_id = layer_id;
+        param.ins_val = 0;                            // symmetric quantization
+        param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
 
         LLVM_DEBUG(llvm::errs() << llvm::format(
                         "    conv:\n"

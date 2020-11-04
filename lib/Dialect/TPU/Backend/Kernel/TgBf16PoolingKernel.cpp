@@ -208,7 +208,8 @@ static void pooling_forward_slice(const CviBackendContext &ctx, uint32_t layer_i
     param.pad_right = s->pad_right + s->extra_pad_r;
     param.stride_h = s->stride_h;
     param.stride_w = s->stride_w;
-    param.ins_fp = 0;
+    param.ins_val = -128;
+    param.ins_fp = 0xff7f;
     param.layer_id = layer_id;
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -249,6 +250,8 @@ static void pooling_forward_slice(const CviBackendContext &ctx, uint32_t layer_i
     param.stride_w = s->stride_w;
     param.avg_pooling_const = ctx.convert_fp32_to_bf16(avg_const);
     param.layer_id = layer_id;
+    param.ins_val = 0;
+    param.ins_fp = ctx.convert_fp32_to_bf16(0.0);
 
     LLVM_DEBUG(llvm::errs() << llvm::format(
         "  tiu_bf16_avg_pooling\n"

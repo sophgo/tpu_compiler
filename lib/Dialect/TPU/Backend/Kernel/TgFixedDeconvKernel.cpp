@@ -390,6 +390,8 @@ void node_depthwise_cvi_backend_tg_int8_deconv_kernel(
             param.has_bias = do_bias;
             param.relu_enable = do_relu;
             param.layer_id = layer_id;
+            param.ins_val = 0;                            // symmetric quantization
+            param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
             ctx.tiu_depthwise_convolution(&param);
 
           } else {
@@ -413,6 +415,8 @@ void node_depthwise_cvi_backend_tg_int8_deconv_kernel(
             param.relu_enable = do_relu;
             param.rshift_bits = right_shift_width;
             param.layer_id = layer_id;
+            param.ins_val = 0;                            // symmetric quantization
+            param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
             ctx.tiu_pt_depthwise_convolution(&param);
           }
           ctx.lmem_free_tensor(tl_weight);
@@ -627,6 +631,8 @@ void cvi_backend_tg_fixed_deconv_kernel(
             param.w_is_const = 0;
             param.layer_id = layer_id;
             param.has_bias = do_bias ? 1 : 0;
+            param.ins_val = 0;                            // symmetric quantization
+            param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
             ctx.tiu_convolution(&param);
             dump(param, ifmap_offset, weight_offset, ofmap_offset);
           } else {
@@ -652,6 +658,8 @@ void cvi_backend_tg_fixed_deconv_kernel(
             param.ps32_mode = 0;
             param.w_is_const = 0;
             param.layer_id = layer_id;
+            param.ins_val = 0;                            // symmetric quantization
+            param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
             ctx.tiu_pt_convolution(&param);
           }
           ctx.tdma_store_stride(tl_ofmap, ofmap_offset, ofmap_gstride);

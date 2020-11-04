@@ -55,7 +55,8 @@ static void cvi_backend_tg_fixed_reduce_max_chl_kernel(
     param.pad_right = 0;
     param.stride_h = 1;
     param.stride_w = 1;
-    param.ins_fp = 0;
+    param.ins_val = -128;
+    param.ins_fp = 0xff7f;
     param.layer_id = layer_id;
 
     ctx.tiu_max_pooling(&param);
@@ -127,7 +128,8 @@ static void cvi_backend_tg_fixed_reduce_max_hw_kernel(
     param.pad_right = 0;
     param.stride_h = 1;
     param.stride_w = 1;
-    param.ins_fp = 0;
+    param.ins_val = -128;
+    param.ins_fp = 0xff7f;
     param.layer_id = layer_id;
 
     ctx.tiu_max_pooling(&param);
@@ -203,6 +205,8 @@ static void cvi_backend_tg_fixed_reduce_mean_hw_kernel(
     param.avg_pooling_const = multiplier;
     param.rshift_bits = rshift;
     param.layer_id = layer_id;
+    param.ins_val = param.avg_pooling_const;
+    param.ins_fp = 0;
 
     ctx.tiu_average_pooling(&param);
   }

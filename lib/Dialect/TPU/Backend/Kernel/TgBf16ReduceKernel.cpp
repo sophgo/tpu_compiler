@@ -55,7 +55,8 @@ static void cvi_backend_tg_bf16_reduce_max_chl_kernel(
     param.pad_right = 0;
     param.stride_h = 1;
     param.stride_w = 1;
-    param.ins_fp = 0;
+    param.ins_val = -128;
+    param.ins_fp = 0xff7f;
     param.layer_id = layer_id;
 
     ctx.tiu_max_pooling(&param);
@@ -128,7 +129,8 @@ static void cvi_backend_tg_bf16_reduce_max_hw_kernel(
     param.pad_right = 0;
     param.stride_h = 1;
     param.stride_w = 1;
-    param.ins_fp = 0;
+    param.ins_val = -128;
+    param.ins_fp = 0xff7f;
     param.layer_id = layer_id;
 
     ctx.tiu_max_pooling(&param);
@@ -202,6 +204,8 @@ static void cvi_backend_tg_bf16_reduce_mean_hw_kernel(
     param.stride_w = 1;
     param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0);
     param.layer_id = layer_id;
+    param.ins_val = 0;
+    param.ins_fp = param.avg_pooling_const;
 
     ctx.tiu_average_pooling(&param);
   }

@@ -117,6 +117,8 @@ void cvi_backend_tl_depthwise_deconv(
   param.pad_right = pad_w_right;
   param.has_bias = do_bias;
   param.relu_enable = do_relu;
+  param.ins_val = 0;                            // symmetric quantization
+  param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
   ctx.tiu_depthwise_convolution(&param);
 }
 
@@ -240,6 +242,8 @@ void cvi_backend_tl_deconv(
     param.w_is_const = 0;
     param.layer_id = layer_id;
     param.has_bias = do_bias ? 1 : 0;
+    param.ins_val = 0;                            // symmetric quantization
+    param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
     ctx.tiu_convolution(&param);
     dump(param, ifmap_offset, weight_offset, ofmap_offset);
   }
@@ -309,6 +313,8 @@ void cvi_backend_tl_bf16_depthwise_deconv(
   param.pad_left = pad_w_left;
   param.pad_right = pad_w_right;
   param.relu_enable = do_relu;
+  param.ins_val = 0;                            // symmetric quantization
+  param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
   ctx.tiu_pt_depthwise_convolution(&param);
 }
 
@@ -417,6 +423,8 @@ void cvi_backend_tl_bf16_deconv(
     param.ps32_mode = 0;
     param.w_is_const = 0;
     param.layer_id = layer_id;
+    param.ins_val = 0;                            // symmetric quantization
+    param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
     ctx.tiu_pt_convolution(&param);
   }
 }

@@ -162,6 +162,8 @@ void cvi_backend_tg_bf16_scale_kernel(
       param.dilation_w = 1;
       param.relu_enable = fused_relu;
       param.layer_id = layer_id;
+      param.ins_val = 0;                            // symmetric quantization
+      param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
       ctx.tiu_pt_depthwise_convolution(&param);
 
 

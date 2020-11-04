@@ -64,6 +64,8 @@ void cvi_backend_tl_pooling(
     param.stride_h = stride_h;
     param.stride_w = stride_w;
     param.layer_id = layer_id;
+    param.ins_val = -128;
+    param.ins_fp = 0xff7f;
     ctx.tiu_max_pooling(&param);
   } else {
     cvk_tiu_average_pooling_param_t param = {0};
@@ -84,6 +86,8 @@ void cvi_backend_tl_pooling(
     param.avg_pooling_const = m_i8;
     param.rshift_bits = rshift;
     param.layer_id = layer_id;
+    param.ins_val = 0;
+    param.ins_fp = ctx.convert_fp32_to_bf16(0.0);
     ctx.tiu_average_pooling(&param);
   }
 }
@@ -137,6 +141,7 @@ void cvi_backend_tl_bf16_pooling(
     param.stride_h = stride_h;
     param.stride_w = stride_w;
     param.layer_id = layer_id;
+    param.ins_val = -128;
     param.ins_fp = 0xff7f;//ctx.convert_fp32_to_bf16(0.0);
     ctx.tiu_max_pooling(&param);
 
@@ -158,6 +163,8 @@ void cvi_backend_tl_bf16_pooling(
     param.stride_w = stride_w;
     param.layer_id = layer_id;
     param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0);
+    param.ins_val = 0;
+    param.ins_fp = ctx.convert_fp32_to_bf16(0.0);
     ctx.tiu_average_pooling(&param);
   }
 }

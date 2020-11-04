@@ -2388,6 +2388,8 @@ void Conv::computeConv(
   param.cmd_pre_exe_typ = intraCmdParal ? 1 : 0;  // wait weight
   param.cmd_pre_exe = intraCmdParal ? 3 : 0;      // load and store
                                                   // pre exec
+  param.ins_val = 0;                             // symmetric quantization
+  param.ins_fp = ctx_.convert_fp32_to_bf16(0.0); // symmetric quantization
   ctx_.tiu_convolution(&param);
 }
 
@@ -2424,6 +2426,8 @@ void Conv::computePerTensorConv(
   param.cmd_pre_exe_typ = intraCmdParal ? 1 : 0;  // wait weight
   param.cmd_pre_exe = intraCmdParal ? 3 : 0;      // load and store
                                                   // pre exec
+  param.ins_val = 0;                             // symmetric quantization
+  param.ins_fp = ctx_.convert_fp32_to_bf16(0.0); // symmetric quantization
 
   ctx_.tiu_pt_convolution(&param);
 }
@@ -4019,6 +4023,8 @@ void Conv::dwConv() {
               param.has_bias = do_bias ? 1 : 0;
               param.relu_enable = fused_conv_relu;
               param.layer_id = layer_id;
+              param.ins_val = 0;                             // symmetric quantization
+              param.ins_fp = ctx_.convert_fp32_to_bf16(0.0); // symmetric quantization
 
               LLVM_DEBUG(llvm::errs() << llvm::format(
                          "  [ig=%d][n_pos=%d][oh_pos=%d][ow_pos=%d] dwconv:\n"
@@ -4058,6 +4064,8 @@ void Conv::dwConv() {
               param.rshift_bits = right_shift_width;
               param.ps32_mode = args_.ps32_output ? 2 : 0;
               param.layer_id = layer_id;
+              param.ins_val = 0;                             // symmetric quantization
+              param.ins_fp = ctx_.convert_fp32_to_bf16(0.0); // symmetric quantization
 
               LLVM_DEBUG(llvm::errs() << llvm::format(
                          "  [ig=%d][n_pos=%d][oh_pos=%d][ow_pos=%d] conv:\n"

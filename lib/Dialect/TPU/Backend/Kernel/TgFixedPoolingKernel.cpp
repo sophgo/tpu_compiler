@@ -271,6 +271,8 @@ void TgInt8PoolingKernel::compute(int32_t step_idx, int32_t flip) {
     param.stride_h = stride_h;
     param.stride_w = stride_w;
     param.layer_id = layer_id;
+    param.ins_val = -128;
+    param.ins_fp = 0xff7f;
     ctx.tiu_max_pooling(&param);
   } else {
     cvk_tiu_average_pooling_param_t param = {0};
@@ -291,6 +293,8 @@ void TgInt8PoolingKernel::compute(int32_t step_idx, int32_t flip) {
     param.avg_pooling_const = multiplier;
     param.rshift_bits = rshift;
     param.layer_id = layer_id;
+    param.ins_val = 0;
+    param.ins_fp = ctx.convert_fp32_to_bf16(0.0);
     ctx.tiu_average_pooling(&param);
   }
 }

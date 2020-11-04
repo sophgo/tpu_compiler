@@ -138,6 +138,8 @@ void cvi_backend_tl_scale(const CviBackendContext &ctx, uint32_t layer_id,
       param.rshift_bits = right_shift_width;
       param.relu_enable = fused_relu;
       param.layer_id = layer_id;
+      param.ins_val = 0;                            // symmetric quantization
+      param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
       ctx.tiu_pt_depthwise_convolution(&param);
     }
     else if (qmode == CviBackendContext::QuantizeMode::INT8_32_MULTIPLER) {
@@ -166,6 +168,8 @@ void cvi_backend_tl_scale(const CviBackendContext &ctx, uint32_t layer_id,
       param.has_bias = do_bias ? 1 : 0;
       param.relu_enable = fused_relu;
       param.layer_id = layer_id;
+      param.ins_val = 0;                            // symmetric quantization
+      param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
 
       ctx.tiu_depthwise_convolution(&param);
     }
