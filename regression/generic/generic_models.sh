@@ -1557,7 +1557,7 @@ export DO_QUANT_BF16=1
 export DO_CMDBUF_BF16=1
 export DO_LG_WITH_BF16=1
 export TOLERANCE_BF16=0.99,0.99,0.95
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
 if [ $NET = "mobilenet_v1_tf" ]; then
