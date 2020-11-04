@@ -112,10 +112,8 @@ static void one_step(
 }
 
 void cvi_backend_tg_fixed_power_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-    gaddr_t input_gaddr, gaddr_t output_gaddr,
-    int input_n, int input_c, int input_h, int input_w,
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t output_gaddr, int input_n, int input_c, int input_h, int input_w,
     const int power, const gaddr_t scale_gaddr, const gaddr_t shift_gaddr,
     int right_shift_width, gaddr_t mulpy_offset, cvk_fmt_t fmt) {
 

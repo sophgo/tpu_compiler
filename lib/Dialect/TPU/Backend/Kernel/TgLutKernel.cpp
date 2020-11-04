@@ -18,11 +18,10 @@
 #define DEBUG_TYPE "lut_kernel"
 
 
-void cvi_backend_tg_lut_kernel(const CviBackendContext &ctx, uint32_t stream_id,
-                                          uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-                                          uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-                                          gaddr_t sg_lut_gaddr, int input_n, int input_c,
-                                          int input_h, int input_w, cvk_fmt_t fmt) {
+void cvi_backend_tg_lut_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+                               gaddr_t bottom_gaddr, gaddr_t top_gaddr,
+                               gaddr_t sg_lut_gaddr, int input_n, int input_c,
+                               int input_h, int input_w, cvk_fmt_t fmt) {
 
   ctx.set_layer_id(layer_id);
 
@@ -203,8 +202,7 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
 }
 
 void cvi_backend_tg_bf16_lut_interpolation_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id,
-    const uint32_t *depends, uint32_t depends_len, gaddr_t bottom_gaddr,
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,
     gaddr_t top_gaddr, gaddr_t y0_table_gaddr, gaddr_t slope_gaddr, int input_n,
     int input_c, int input_h, int input_w, float range_min, float range_max,
     float scale) {
@@ -290,11 +288,10 @@ void bf16_lut_tl_scientific_forward_kernel(const CviBackendContext &ctx,
   ctx.tiu_bf16_lookup_interp_table(&param);
 }
 
-void cvi_backend_tg_bf16_lut_scientific_kernel (const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-    gaddr_t exp_lut_table, gaddr_t mantissa_lut_table, int input_n, int input_c,
-    int input_h, int input_w, cvk_fmt_t fmt) {
+void cvi_backend_tg_bf16_lut_scientific_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,
+    gaddr_t top_gaddr, gaddr_t exp_lut_table, gaddr_t mantissa_lut_table,
+    int input_n, int input_c, int input_h, int input_w, cvk_fmt_t fmt) {
 
   cvk_tl_shape_t table_shape;
   ctx.bf16_table_shape(&table_shape);

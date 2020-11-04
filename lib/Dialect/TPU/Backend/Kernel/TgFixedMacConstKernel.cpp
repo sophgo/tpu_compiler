@@ -15,10 +15,9 @@
 
 // y = x * multiplier + const_val
 void cvi_backend_tg_fixed_mac_const_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
-    int input_h, int input_w, int multiplier, int const_val, bool do_relu) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t output_gaddr, int input_n, int input_c, int input_h, int input_w,
+    int multiplier, int const_val, bool do_relu) {
 
   int require_shape = input_n * input_c * input_h * input_w;
   int blob_num = 3; // 3 means we allocate input/output/output_high
@@ -79,10 +78,9 @@ void cvi_backend_tg_fixed_mac_const_kernel(
 }
 
 void cvi_backend_tg_bf16_mac_const_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
-    int input_h, int input_w, float multiplier, float const_val, bool do_relu) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t output_gaddr, int input_n, int input_c, int input_h, int input_w,
+    float multiplier, float const_val, bool do_relu) {
 
   int require_shape = input_n * input_c * input_h * input_w;
   int blob_num = 2; // 2 means we allocate input/output

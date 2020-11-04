@@ -21,12 +21,10 @@
  * \TODO merge to eltwise prod
  * \fmt_s source format
  */
-static void _mixed_precision_ss_bf16_quant(const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-    int input_n, int input_c, int input_h, int input_w , float const_scale,
-    cvk_fmt_t fmt_s, cvk_fmt_t fmt_d
-    ) {
+static void _mixed_precision_ss_bf16_quant(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,
+    gaddr_t top_gaddr, int input_n, int input_c, int input_h, int input_w,
+    float const_scale, cvk_fmt_t fmt_s, cvk_fmt_t fmt_d) {
 
   assert(fmt_s == CVK_FMT_BF16 || fmt_s == CVK_FMT_F32);
   assert(fmt_d == CVK_FMT_I8 || fmt_d == CVK_FMT_U8);
@@ -116,12 +114,10 @@ static void _mixed_precision_ss_bf16_quant(const CviBackendContext &ctx, uint32_
 /*
  * \brief dequant means from narrow one extend to large one
  */
-static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-    int input_n, int input_c, int input_h, int input_w , float const_scale,
-    cvk_fmt_t fmt_s, cvk_fmt_t fmt_d
-    ) {
+static void _mixed_precision_ss_8bit_dequant(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,
+    gaddr_t top_gaddr, int input_n, int input_c, int input_h, int input_w,
+    float const_scale, cvk_fmt_t fmt_s, cvk_fmt_t fmt_d) {
 
   assert(fmt_s == CVK_FMT_I8 || fmt_s == CVK_FMT_U8);
   assert(fmt_d == CVK_FMT_BF16 || fmt_d == CVK_FMT_F32);
@@ -265,33 +261,26 @@ static void _mixed_precision_ss_8bit_dequant(const CviBackendContext &ctx, uint3
  * \brief load from tg(tensor global, sys) to tl(tensor local, local)
  * with bf16 format and store back as uint8_t to tg
  */
-void mixed_precision_tg_bf16_u8(const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-    int input_n, int input_c, int input_h, int input_w, float const_scale
-    ) {
+void mixed_precision_tg_bf16_u8(const CviBackendContext &ctx, uint32_t layer_id,
+                                gaddr_t bottom_gaddr, gaddr_t top_gaddr,
+                                int input_n, int input_c, int input_h,
+                                int input_w, float const_scale) {
 
-  _mixed_precision_ss_bf16_quant(ctx, stream_id,
-      inst_id, layer_id, depends,
-      depends_len, bottom_gaddr, top_gaddr,
-      input_n, input_c, input_h, input_w, const_scale,
-      CVK_FMT_BF16, CVK_FMT_U8);
+  _mixed_precision_ss_bf16_quant(ctx, layer_id, bottom_gaddr, top_gaddr,
+                                 input_n, input_c, input_h, input_w,
+                                 const_scale, CVK_FMT_BF16, CVK_FMT_U8);
 }
-
 
 /**
  * \brief load from tg(tensor global, sys) to tl(tensor local, local)
  * with bf16 format and store back as s8 to tg
  */
-void mixed_precision_tg_bf16_s8(const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
+void mixed_precision_tg_bf16_s8(const CviBackendContext &ctx,
+    uint32_t layer_id, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
     int input_n, int input_c, int input_h, int input_w, float const_scale
     ) {
 
-  _mixed_precision_ss_bf16_quant(ctx, stream_id,
-      inst_id, layer_id, depends,
-      depends_len, bottom_gaddr, top_gaddr,
+  _mixed_precision_ss_bf16_quant(ctx, layer_id, bottom_gaddr, top_gaddr,
       input_n, input_c, input_h, input_w, const_scale,
       CVK_FMT_BF16, CVK_FMT_I8);
 }
@@ -303,26 +292,21 @@ void mixed_precision_quant(const CviBackendContext &ctx,
     int input_n, int input_c, int input_h, int input_w, float const_scale
     ) {
 
-  _mixed_precision_ss_bf16_quant(ctx, 0,
-      0, layer_id, NULL,
-      0, bottom_gaddr, top_gaddr,
-      input_n, input_c, input_h, input_w, const_scale,
-      from, to);
+  _mixed_precision_ss_bf16_quant(ctx, layer_id, bottom_gaddr, top_gaddr,
+                                 input_n, input_c, input_h, input_w,
+                                 const_scale, from, to);
 }
 
 /**
  * \brief load from tg(tensor global, sys) to tl(tensor local, local)
  * with uint8_t format and store back as bf16 to tg
  */
-void mixed_precision_tg_u8_bf16(const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
+void mixed_precision_tg_u8_bf16(const CviBackendContext &ctx,
+    uint32_t layer_id, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
     int input_n, int input_c, int input_h, int input_w, float const_scale
     ) {
 
-  _mixed_precision_ss_8bit_dequant(ctx, stream_id,
-      inst_id, layer_id, depends,
-      depends_len, bottom_gaddr, top_gaddr,
+  _mixed_precision_ss_8bit_dequant(ctx, layer_id, bottom_gaddr, top_gaddr,
       input_n, input_c, input_h, input_w, const_scale,
       CVK_FMT_U8, CVK_FMT_BF16);
 }
@@ -331,29 +315,23 @@ void mixed_precision_tg_u8_bf16(const CviBackendContext &ctx, uint32_t stream_id
  * \brief load from tg(tensor global, sys) to tl(tensor local, local)
  * with s8 format and store back as bf16 to tg
  */
-void mixed_precision_tg_s8_bf16(const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-    int input_n, int input_c, int input_h, int input_w, float const_scale
-    ) {
+void mixed_precision_tg_s8_bf16(const CviBackendContext &ctx, uint32_t layer_id,
+                                const uint32_t *depends, uint32_t depends_len,
+                                gaddr_t bottom_gaddr, gaddr_t top_gaddr,
+                                int input_n, int input_c, int input_h,
+                                int input_w, float const_scale) {
 
-  _mixed_precision_ss_8bit_dequant(ctx, stream_id,
-      inst_id, layer_id, depends,
-      depends_len, bottom_gaddr, top_gaddr,
-      input_n, input_c, input_h, input_w, const_scale,
-      CVK_FMT_I8, CVK_FMT_BF16);
+  _mixed_precision_ss_8bit_dequant(ctx, layer_id, bottom_gaddr, top_gaddr,
+                                   input_n, input_c, input_h, input_w,
+                                   const_scale, CVK_FMT_I8, CVK_FMT_BF16);
 }
 
-void mixed_precision_dequant(const CviBackendContext &ctx,
-    uint32_t layer_id,
-    cvk_fmt_t from, cvk_fmt_t to,
-    gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-    int input_n, int input_c, int input_h, int input_w, float const_scale
-    ) {
+void mixed_precision_dequant(const CviBackendContext &ctx, uint32_t layer_id,
+                             cvk_fmt_t from, cvk_fmt_t to, gaddr_t bottom_gaddr,
+                             gaddr_t top_gaddr, int input_n, int input_c,
+                             int input_h, int input_w, float const_scale) {
 
-  _mixed_precision_ss_8bit_dequant(ctx, 0,
-      0, layer_id, NULL,
-      0, bottom_gaddr, top_gaddr,
-      input_n, input_c, input_h, input_w, const_scale,
-      from, to);
+  _mixed_precision_ss_8bit_dequant(ctx, layer_id, bottom_gaddr, top_gaddr,
+                                   input_n, input_c, input_h, input_w,
+                                   const_scale, from, to);
 }

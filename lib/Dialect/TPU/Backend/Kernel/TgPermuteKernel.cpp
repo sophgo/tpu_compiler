@@ -281,9 +281,7 @@ void TgPermuteKernel::schedule() {
 }
 
 void cvi_backend_tg_permute_kernel(const CviBackendContext &ctx,
-                                   uint32_t stream_id, uint32_t inst_id,
-                                   uint32_t layer_id, const uint32_t *depends,
-                                   uint32_t depends_len, gaddr_t ga_input,
+                                   uint32_t layer_id, gaddr_t ga_input,
                                    gaddr_t ga_output, int n, int c, int h,
                                    int w, int order_n, int order_c, int order_h,
                                    int order_w, cvk_fmt_t fmt) {

@@ -11,10 +11,11 @@
 #include <llvm/Support/raw_ostream.h>
 #include <cmath>
 
-
-void cvi_backend_tg_fixed_reorg_kernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id,
-                          const uint32_t *depends, uint32_t depends_len, gaddr_t input_gaddr, gaddr_t output_gaddr,
-                          int batch, int channel, int height, int width, int stride) {
+void cvi_backend_tg_fixed_reorg_kernel(const CviBackendContext &ctx,
+                                       uint32_t layer_id, gaddr_t input_gaddr,
+                                       gaddr_t output_gaddr, int batch,
+                                       int channel, int height, int width,
+                                       int stride) {
   uint64_t output_c_stride = channel * (height / stride) * (width / stride) * sizeof(uint8_t);
   for (int n = 0; n < batch; n++) {
     for (int h = 0; h < stride; h++) {

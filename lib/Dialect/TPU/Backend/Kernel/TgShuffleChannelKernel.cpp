@@ -13,10 +13,12 @@
 
 #define DEBUG_TYPE "cvi_backend_shuffle_channel_kernel"
 
-void cvi_backend_tg_shuffle_channel_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id,
-    const uint32_t *depends, uint32_t depends_len, gaddr_t input_gaddr,
-    gaddr_t output_gaddr, int batch, int channel, int frame_size, int group,  cvk_fmt_t fmt) {
+void cvi_backend_tg_shuffle_channel_kernel(const CviBackendContext &ctx,
+                                           uint32_t layer_id,
+                                           gaddr_t input_gaddr,
+                                           gaddr_t output_gaddr, int batch,
+                                           int channel, int frame_size,
+                                           int group, cvk_fmt_t fmt) {
   int unit_size = ((fmt == CVK_FMT_BF16) ? sizeof(uint16_t) : sizeof(uint8_t));
   frame_size *= unit_size;
   uint32_t feature_size = (uint32_t)(channel * frame_size);

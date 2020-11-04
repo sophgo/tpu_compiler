@@ -19,18 +19,14 @@
 // #define LOCAL_MEM_ADDRWIDTH (ctx.hw.local_mem_shift)
 // #define LOCAL_MEM_SIZE (1 << LOCAL_MEM_ADDRWIDTH)
 
-void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t stream_id,
-                               uint32_t inst_id, uint32_t layer_id,
-                               const uint32_t *depends, uint32_t depends_len,
-                               gaddr_t input_gaddr, gaddr_t scale_gaddr, gaddr_t bias_gaddr, gaddr_t output_gaddr,
-                               int input_n, int input_c, int input_h, int input_w,
-                               int scale_dim, int inner_dim,
-                               bool is_scale_const, int const_scale,
-                               int do_activation,
-                               int activation_method,
-                               float activation_arg[],
-                               bool do_bias,
-                               bool second_is_load_weight // true means second comes from weight, otherwise comes from another input
+void cvi_backend_tg_bf16_scale_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t scale_gaddr, gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
+    int input_c, int input_h, int input_w, int scale_dim, int inner_dim,
+    bool is_scale_const, int const_scale, int do_activation,
+    int activation_method, float activation_arg[], bool do_bias,
+    bool second_is_load_weight // true means second comes from weight, otherwise
+                               // comes from another input
 ) {
 #define RELU (0)
     bool fused_relu = (do_activation && activation_method == RELU && (activation_arg[0] == 0.0f));
@@ -185,4 +181,3 @@ void cvi_backend_tg_bf16_scale_kernel(const CviBackendContext &ctx, uint32_t str
   }
   ctx.lmem_free_tensor(tl_scale);
 }
-

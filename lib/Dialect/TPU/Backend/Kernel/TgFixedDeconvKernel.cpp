@@ -236,13 +236,15 @@ bool do_split(const CviBackendContext &ctx, int n, int ic, int ih, int iw, int o
 }
 
 void node_depthwise_cvi_backend_tg_int8_deconv_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t ga_ifmap, gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias,
-    int input_n, int input_c, int input_h, int input_w, int groups, int output_c, int output_h,
-    int output_w, int kh, int kw, int dh, int dw, int pad_h_top, int pad_h_bottom, int pad_w_left,
-    int pad_w_right, int stride_h, int stride_w, bool do_bias, bool result_add, bool do_relu,
-    int right_shift_width, bool use_winograd, int right_shift_array_len, gaddr_t ga_per_channel) {
-  //assert(input_n == 1);
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
+    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, int input_n,
+    int input_c, int input_h, int input_w, int groups, int output_c,
+    int output_h, int output_w, int kh, int kw, int dh, int dw, int pad_h_top,
+    int pad_h_bottom, int pad_w_left, int pad_w_right, int stride_h,
+    int stride_w, bool do_bias, bool result_add, bool do_relu,
+    int right_shift_width, bool use_winograd, int right_shift_array_len,
+    gaddr_t ga_per_channel) {
+  // assert(input_n == 1);
   int kh_ext = (kh - 1) * dh + 1;
   int kw_ext = (kw - 1) * dw + 1;
   int ins_h = stride_h - 1;
@@ -429,33 +431,35 @@ void node_depthwise_cvi_backend_tg_int8_deconv_kernel(
 }
 
 void cvi_backend_tg_fixed_deconv_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t ga_ifmap, gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias,
-    int input_n, int input_c, int input_h, int input_w, int groups, int output_c, int output_h,
-    int output_w, int kh, int kw, int dh, int dw, int pad_h_top, int pad_h_bottom, int pad_w_left,
-    int pad_w_right, int stride_h, int stride_w, bool do_bias, bool result_add, bool do_relu,
-    int right_shift_width, bool use_winograd, int right_shift_array_len, gaddr_t ga_per_channel) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
+    gaddr_t ga_ofmap, gaddr_t ga_weight, gaddr_t ga_bias, int input_n,
+    int input_c, int input_h, int input_w, int groups, int output_c,
+    int output_h, int output_w, int kh, int kw, int dh, int dw, int pad_h_top,
+    int pad_h_bottom, int pad_w_left, int pad_w_right, int stride_h,
+    int stride_w, bool do_bias, bool result_add, bool do_relu,
+    int right_shift_width, bool use_winograd, int right_shift_array_len,
+    gaddr_t ga_per_channel) {
 
-    LLVM_DEBUG(llvm::errs() << llvm::format(
-             "cvi_backend_tg_fixed_deconv_kernel:\n"
-             "    layer_id %d\n"
-             "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
-             "    bottom shape = (%d, %d, %d, %d)\n"
-             "    top shape = (%d, %d, %d, %d)\n"
-             "    group = %d kernel = (%d, %d), dilation = (%d, %d)\n"
-             "    pad = (%d, %d, %d, %d), stride = (%d, %d)\n",
-             layer_id, ga_ifmap, ga_ofmap, ga_weight, ga_bias, input_n,
-             input_c, input_h, input_w, input_n, output_c, output_h, output_w,
-             groups, kh, kw, dh, dw, pad_h_top, pad_h_bottom,
-             pad_w_left, pad_w_right, stride_h, stride_w););
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+                 "cvi_backend_tg_fixed_deconv_kernel:\n"
+                 "    layer_id %d\n"
+                 "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
+                 "    bottom shape = (%d, %d, %d, %d)\n"
+                 "    top shape = (%d, %d, %d, %d)\n"
+                 "    group = %d kernel = (%d, %d), dilation = (%d, %d)\n"
+                 "    pad = (%d, %d, %d, %d), stride = (%d, %d)\n",
+                 layer_id, ga_ifmap, ga_ofmap, ga_weight, ga_bias, input_n,
+                 input_c, input_h, input_w, input_n, output_c, output_h,
+                 output_w, groups, kh, kw, dh, dw, pad_h_top, pad_h_bottom,
+                 pad_w_left, pad_w_right, stride_h, stride_w););
 
   if (input_c == groups && output_c == groups && groups != 1) {
     node_depthwise_cvi_backend_tg_int8_deconv_kernel(
-        ctx, stream_id, inst_id, layer_id, depends, depends_len, ga_ifmap, ga_ofmap, ga_weight,
-        ga_bias, input_n, input_c, input_h, input_w, groups, output_c, output_h, output_w, kh, kw,
-        dh, dw, pad_h_top, pad_h_bottom, pad_w_left, pad_w_right, stride_h, stride_w, do_bias,
-        result_add, do_relu, right_shift_width, use_winograd, right_shift_array_len,
-        ga_per_channel);
+        ctx, layer_id, ga_ifmap, ga_ofmap, ga_weight, ga_bias, input_n, input_c,
+        input_h, input_w, groups, output_c, output_h, output_w, kh, kw, dh, dw,
+        pad_h_top, pad_h_bottom, pad_w_left, pad_w_right, stride_h, stride_w,
+        do_bias, result_add, do_relu, right_shift_width, use_winograd,
+        right_shift_array_len, ga_per_channel);
     return;
   }
 

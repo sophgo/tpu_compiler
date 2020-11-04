@@ -15,13 +15,11 @@
 #define DEBUG_SPLIT "bm1880_kernel_dilate_split"
 
 void cvi_backend_tg_fixed_dilate_kernel(const CviBackendContext &ctx,
-                                 uint32_t stream_id, uint32_t inst_id, uint32_t layer_id,
-                                 const uint32_t *depends, uint32_t depends_len,
-                                 gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-                                 int n, int c, int ih, int iw,
-                                 int oh, int ow, int fill_constant,
-                                 int ins_h, int ins_w,
-                                 cvk_fmt_t fmt) {
+                                        uint32_t layer_id, gaddr_t bottom_gaddr,
+                                        gaddr_t top_gaddr, int n, int c, int ih,
+                                        int iw, int oh, int ow,
+                                        int fill_constant, int ins_h, int ins_w,
+                                        cvk_fmt_t fmt) {
   ctx.assert_support_fmt(fmt);
   int data_size = ctx.bytesize_of_fmt(fmt);
 

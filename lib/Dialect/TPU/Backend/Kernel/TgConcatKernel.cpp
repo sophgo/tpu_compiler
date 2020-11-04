@@ -228,13 +228,14 @@ void TgConcatKernel::schedule() {
   }
 }
 
-void cvi_backend_tg_concat_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-    int input_num, gaddr_t input_gaddrs[], gaddr_t output_gaddr,
-    int axis_dims[], int concat_axis, int output_dim_size, int output_dim[],
-    bool do_relu, const int8_t *right_shift_width,
-    const int *threshold_x_quantized, cvk_fmt_t fmt) {
+void cvi_backend_tg_concat_kernel(const CviBackendContext &ctx,
+                                  uint32_t layer_id, int input_num,
+                                  gaddr_t input_gaddrs[], gaddr_t output_gaddr,
+                                  int axis_dims[], int concat_axis,
+                                  int output_dim_size, int output_dim[],
+                                  bool do_relu, const int8_t *right_shift_width,
+                                  const int *threshold_x_quantized,
+                                  cvk_fmt_t fmt) {
   TgConcatKernel kernel(ctx);
   kernel.init(layer_id, input_num, output_dim_size, concat_axis, input_gaddrs,
               output_gaddr, axis_dims, output_dim, do_relu, right_shift_width,

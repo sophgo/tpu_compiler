@@ -172,19 +172,16 @@ void cvi_backend_tl_scale(const CviBackendContext &ctx, uint32_t layer_id,
 }
 
 // wrapper for quantize for int 8, INT8_PER_LAYER
-void cvi_backend_tl_scale_qi8(const CviBackendContext &ctx, uint32_t stream_id,
-                                        uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-                                        uint32_t depends_len, gaddr_t input_gaddr, gaddr_t scale_gaddr,
-                                        gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
-                                        int input_c, int input_h, int input_w, int scale_dim,
-                                        int inner_dim, bool is_scale_const, int const_scale,
-                                        int right_shift_width,
-                                        int do_activation,
-                                        int activation_method,
-                                        float activation_arg[],
-                                        const int *i8_multiplier, // INT8_PER_LAYER
-                                        bool do_bias,
-                                        bool is2ndSrcFromWeight // true means second comes from weight, otherwise comes from another input
+void cvi_backend_tl_scale_qi8(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t scale_gaddr, gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
+    int input_c, int input_h, int input_w, int scale_dim, int inner_dim,
+    bool is_scale_const, int const_scale, int right_shift_width,
+    int do_activation, int activation_method, float activation_arg[],
+    const int *i8_multiplier, // INT8_PER_LAYER
+    bool do_bias,
+    bool is2ndSrcFromWeight // true means second comes from weight, otherwise
+                            // comes from another input
 ) {
   assert(i8_multiplier && "must give scalar");
   assert(0);

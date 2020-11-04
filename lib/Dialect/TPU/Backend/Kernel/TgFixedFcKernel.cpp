@@ -718,14 +718,16 @@ void cvi_backend_tg_fixed_fc(
 }
 
 void cvi_backend_tg_fixed_fc_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, gaddr_t bottom_data_gaddr, gaddr_t weight_data_gaddr, gaddr_t bias_data_gaddr,
-    gaddr_t top_data_gaddr, int in_row, int in_col, int out_col, int have_bias, int do_activation,
-    int activation_method, gaddr_t activation_ga_slope, int activation_channel_shared,
-    int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
-    int activation_le_rshift, bool weight_tp, int left_shift_width, int right_shift_width,
-    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array,
-    bool compressed_weight, std::vector<int> compr_weight_poss) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_data_gaddr,
+    gaddr_t weight_data_gaddr, gaddr_t bias_data_gaddr, gaddr_t top_data_gaddr,
+    int in_row, int in_col, int out_col, int have_bias, int do_activation,
+    int activation_method, gaddr_t activation_ga_slope,
+    int activation_channel_shared, int activation_gt_scale,
+    int activation_gt_rshift, int activation_le_scale, int activation_le_rshift,
+    bool weight_tp, int left_shift_width, int right_shift_width,
+    int threshold_x_quantized_len, const int *threshold_x_quantized,
+    const int *right_shift_array, bool compressed_weight,
+    std::vector<int> compr_weight_poss) {
   LLVM_DEBUG(llvm::errs() << llvm::format("cvi_backend_tg_fixed_fc_kernel\n"
                                         "    in (%d, %d), out (%d), has_bias %d, do_activation %d, "
                                         "activation_method %d, weight_tp %d\n",

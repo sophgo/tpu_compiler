@@ -257,7 +257,7 @@ static void upsample_tensor_store(
   ctx.tdma_l2g_tensor_copy(&param);
 }
 
-void cvi_backend_tg_upsample(
+void cvi_backend_tg_upsample_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_ifmap, gaddr_t ga_ofmap, uint32_t input_n, uint32_t input_c,
     uint32_t input_h, uint32_t input_w, uint32_t h_factor, uint32_t w_factor,
@@ -321,22 +321,4 @@ void cvi_backend_tg_upsample(
       }
     } //for (uint32_t c_pos = 0; c_pos < input_c; c_pos += c_step) {
   } // for (uint32_t n_pos = 0; n_pos < input_n; n_pos += n_step)
-}
-
-void cvi_backend_tg_fixed_upsample_kernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-                             uint32_t layer_id, const uint32_t *depends, uint32_t depends_len, gaddr_t ga_ifmap,
-                             gaddr_t ga_ofmap, int input_n, int input_c, int input_h, int input_w,
-                             int h_factor, int w_factor) {
-  cvi_backend_tg_upsample(ctx, layer_id, ga_ifmap, ga_ofmap, input_n,
-                          input_c, input_h, input_w, h_factor, w_factor,
-                          CVK_FMT_I8);
-}
-
-void cvi_backend_tg_bf16_upsample_kernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-                                  uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-                                  gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n, int input_c,
-                                  int input_h, int input_w, int h_factor, int w_factor) {
-  cvi_backend_tg_upsample(ctx, layer_id, ga_ifmap, ga_ofmap, input_n,
-                          input_c, input_h, input_w, h_factor, w_factor,
-                          CVK_FMT_BF16);
 }

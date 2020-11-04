@@ -243,9 +243,12 @@ static void _pixel_shuffle_fixed_kernel_new(const CviBackendContext &ctx, uint32
   } // for (uint32_t n_pos = 0; n_pos < input_n; n_pos += n_step)
 }
 
-void cvi_backend_tg_fixed_pixel_shuffle_kernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-                             uint32_t layer_id, const uint32_t *depends, uint32_t depends_len, gaddr_t ga_ifmap,
-                             gaddr_t ga_ofmap, int input_n, int input_c, int input_h, int input_w, int factor) {
+void cvi_backend_tg_fixed_pixel_shuffle_kernel(const CviBackendContext &ctx,
+                                               uint32_t layer_id,
+                                               gaddr_t ga_ifmap,
+                                               gaddr_t ga_ofmap, int input_n,
+                                               int input_c, int input_h,
+                                               int input_w, int factor) {
 
   // For tdma
   ctx.set_layer_id(layer_id);
@@ -257,10 +260,12 @@ void cvi_backend_tg_fixed_pixel_shuffle_kernel(const CviBackendContext &ctx, uin
       (uint32_t)factor, CVK_FMT_I8);
 }
 
-void cvi_backend_tg_bf16_pixel_shuffle_kernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-                                  uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-                                  gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n, int input_c,
-                                  int input_h, int input_w, int factor) {
+void cvi_backend_tg_bf16_pixel_shuffle_kernel(const CviBackendContext &ctx,
+                                              uint32_t layer_id,
+                                              gaddr_t ga_ifmap,
+                                              gaddr_t ga_ofmap, int input_n,
+                                              int input_c, int input_h,
+                                              int input_w, int factor) {
   // For tdma
   ctx.set_layer_id(layer_id);
 

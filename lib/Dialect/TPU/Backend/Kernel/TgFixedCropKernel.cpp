@@ -14,12 +14,11 @@
 #define DEBUG_TYPE "bm1880_kernel_crop"
 #define DEBUG_SPLIT "bm1880_kernel_crop_split"
 
-void cvi_backend_tg_fixed_crop_kernel(const CviBackendContext &ctx, uint32_t stream_id,
-                                 uint32_t inst_id, uint32_t layer_id,
-                                 const uint32_t *depends, uint32_t depends_len,
-                                 gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input1_dim,
-                                 int *input2_dim, int *output_dim, int *offsets,
-                                 cvk_fmt_t fmt) {
+void cvi_backend_tg_fixed_crop_kernel(const CviBackendContext &ctx,
+                                      uint32_t layer_id, gaddr_t bottom_gaddr,
+                                      gaddr_t top_gaddr, int *input1_dim,
+                                      int *input2_dim, int *output_dim,
+                                      int *offsets, cvk_fmt_t fmt) {
 
   int data_size = ctx.bytesize_of_fmt(fmt);
   int offset_n = offsets[0];

@@ -26,14 +26,12 @@
 
 //namespace bmnet {
 
-void cvi_backend_tg_fixed_relu_kernel(const CviBackendContext &ctx, uint32_t stream_id,
-                                       uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-                                       uint32_t depends_len, uint64_t bottom_gaddr, uint64_t top_gaddr,
-                                       float negative_slope, int input_n, int input_c, int input_h,
-                                       int input_w, int threshold_x_quantized_len,
-                                       const int *threshold_x_quantized,
-                                       const int *right_shift_array,
-                                       cvk_fmt_t fmt) {
+void cvi_backend_tg_fixed_relu_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, uint64_t bottom_gaddr,
+    uint64_t top_gaddr, float negative_slope, int input_n, int input_c,
+    int input_h, int input_w, int threshold_x_quantized_len,
+    const int *threshold_x_quantized, const int *right_shift_array,
+    cvk_fmt_t fmt) {
   // for (int i = 0; i < threshold_x_quantized_len; i++) {
   //  VLOG(3) << "threshold_x_quantized/right_shift_array[" << i << "]:" << threshold_x_quantized[i]
   //          << "/" << right_shift_array[i];
@@ -483,19 +481,21 @@ static void tl_leaky_relu(const CviBackendContext &ctx, uint32_t layer_id,
 }
 
 void cvi_backend_tg_fixed_leakyrelu_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-    uint32_t depends_len, uint64_t input_gaddr, uint64_t output_gaddr, int input_n, int input_c, int input_h,
-    int input_w, int GT_right_shift_width, int LE_right_shift_width, int GT_scale, int LE_scale,
-    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array) {
-  LLVM_DEBUG(llvm::errs() << llvm::format("cvi_backend_tg_fixed_leakyrelu_kernel:\n"
-                                        "  layer_id %d\n"
-                                        "  input_gddr: %lx, output_gaddr: %lx\n"
-                                        "  input (%d, %d, %d, %d)\n"
-                                        "  GT_scale:%d, LE_scale:%d\n"
-                                        "  GT_right_shift_width:%d, LE_right_shift_width:%d\n",
-                                        layer_id, input_gaddr, output_gaddr, input_n, input_c,
-                                        input_h, input_w, GT_scale, LE_scale, GT_right_shift_width,
-                                        LE_right_shift_width););
+    const CviBackendContext &ctx, uint32_t layer_id, uint64_t input_gaddr,
+    uint64_t output_gaddr, int input_n, int input_c, int input_h, int input_w,
+    int GT_right_shift_width, int LE_right_shift_width, int GT_scale,
+    int LE_scale, int threshold_x_quantized_len,
+    const int *threshold_x_quantized, const int *right_shift_array) {
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+                 "cvi_backend_tg_fixed_leakyrelu_kernel:\n"
+                 "  layer_id %d\n"
+                 "  input_gddr: %lx, output_gaddr: %lx\n"
+                 "  input (%d, %d, %d, %d)\n"
+                 "  GT_scale:%d, LE_scale:%d\n"
+                 "  GT_right_shift_width:%d, LE_right_shift_width:%d\n",
+                 layer_id, input_gaddr, output_gaddr, input_n, input_c, input_h,
+                 input_w, GT_scale, LE_scale, GT_right_shift_width,
+                 LE_right_shift_width););
 
   for (int i = 0; i < threshold_x_quantized_len; i++) {
     LLVM_DEBUG(llvm::errs() << "threshold_x_quantized/right_shift_array[" << i << "]:" << threshold_x_quantized[i]
@@ -669,8 +669,7 @@ void cvi_backend_tg_fixed_leakyrelu_kernel(
   }
 }
 #else
-void cvi_backend_tg_fixed_leakyrelu_kernel(const CviBackendContext &ctx, uint32_t stream_id,
-                                            uint32_t inst_id, const uint32_t *depends, uint32_t depends_len,
+void cvi_backend_tg_fixed_leakyrelu_kernel(const CviBackendContext &ctx,
                                             uint64_t input_gaddr, uint64_t output_gaddr, int input_n,
                                             int input_c, int input_h, int input_w,
                                             int GT_right_shift_width, int LE_right_shift_width,

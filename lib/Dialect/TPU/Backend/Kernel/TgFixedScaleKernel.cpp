@@ -16,19 +16,16 @@
 #define MAX_W (1 << 11)
 // align to EU_NUM point, return in unit of byte
 
-void cvi_backend_tg_fixed_scale_kernel(const CviBackendContext &ctx, uint32_t stream_id,
-                                        uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-                                        uint32_t depends_len, gaddr_t input_gaddr, gaddr_t scale_gaddr,
-                                        gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
-                                        int input_c, int input_h, int input_w, int scale_dim,
-                                        int inner_dim, bool is_scale_const, int const_scale,
-                                        int right_shift_width,
-                                        int do_activation,
-                                        int activation_method,
-                                        float activation_arg[],
-                                        const int *i8_multiplier, // INT8_PER_LAYER
-                                        bool do_bias,
-                                        bool second_is_blob // true means second comes from weight, otherwise comes from another input
+void cvi_backend_tg_fixed_scale_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t scale_gaddr, gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
+    int input_c, int input_h, int input_w, int scale_dim, int inner_dim,
+    bool is_scale_const, int const_scale, int right_shift_width,
+    int do_activation, int activation_method, float activation_arg[],
+    const int *i8_multiplier, // INT8_PER_LAYER
+    bool do_bias,
+    bool second_is_blob // true means second comes from weight, otherwise comes
+                        // from another input
 ) {
 #define RELU (0)
     bool fused_relu = (do_activation && activation_method == RELU && (activation_arg[0] == 0.0f));
@@ -298,19 +295,16 @@ void cvi_backend_tg_fixed_scale_kernel(const CviBackendContext &ctx, uint32_t st
 }
 
 // wrapper for quantize for int 8, INT8_PER_LAYER
-void cvi_backend_tg_fixed_scale_qi8_kernel(const CviBackendContext &ctx, uint32_t stream_id,
-                                        uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-                                        uint32_t depends_len, gaddr_t input_gaddr, gaddr_t scale_gaddr,
-                                        gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
-                                        int input_c, int input_h, int input_w, int scale_dim,
-                                        int inner_dim, bool is_scale_const, int const_scale,
-                                        int right_shift_width,
-                                        int do_activation,
-                                        int activation_method,
-                                        float activation_arg[],
-                                        const int *i8_multiplier, // INT8_PER_LAYER
-                                        bool do_bias,
-                                        bool second_is_blob // true means second comes from weight, otherwise comes from another input
+void cvi_backend_tg_fixed_scale_qi8_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t scale_gaddr, gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
+    int input_c, int input_h, int input_w, int scale_dim, int inner_dim,
+    bool is_scale_const, int const_scale, int right_shift_width,
+    int do_activation, int activation_method, float activation_arg[],
+    const int *i8_multiplier, // INT8_PER_LAYER
+    bool do_bias,
+    bool second_is_blob // true means second comes from weight, otherwise comes
+                        // from another input
 ) {
   assert(i8_multiplier && "must give scalar");
 
@@ -318,11 +312,7 @@ void cvi_backend_tg_fixed_scale_qi8_kernel(const CviBackendContext &ctx, uint32_
   ctx.set_layer_id(layer_id);
 
   cvi_backend_tg_fixed_scale_kernel(ctx,
-      stream_id,
-      inst_id,
       layer_id,
-      depends,
-      depends_len,
       input_gaddr,
       scale_gaddr,
       bias_gaddr,
@@ -341,27 +331,20 @@ void cvi_backend_tg_fixed_scale_qi8_kernel(const CviBackendContext &ctx, uint32_
 }
 
 // wrapper for quantize for int 32, INT8_32_MULTIPLER
-void cvi_backend_tg_fixed_scale_qi32_kernel(const CviBackendContext &ctx, uint32_t stream_id,
-                                        uint32_t inst_id, uint32_t layer_id, const uint32_t *depends,
-                                        uint32_t depends_len, gaddr_t input_gaddr, gaddr_t scale_gaddr,
-                                        gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
-                                        int input_c, int input_h, int input_w, int scale_dim,
-                                        int inner_dim, bool is_scale_const, int const_scale,
-                                        int do_activation,
-                                        int activation_method,
-                                        float activation_arg[],
-                                        bool do_bias,
-                                        bool second_is_blob // true means second comes from weight, otherwise comes from another input
+void cvi_backend_tg_fixed_scale_qi32_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t scale_gaddr, gaddr_t bias_gaddr, gaddr_t output_gaddr, int input_n,
+    int input_c, int input_h, int input_w, int scale_dim, int inner_dim,
+    bool is_scale_const, int const_scale, int do_activation,
+    int activation_method, float activation_arg[], bool do_bias,
+    bool second_is_blob // true means second comes from weight, otherwise comes
+                        // from another input
 ) {
   // For tdma
   ctx.set_layer_id(layer_id);
 
   cvi_backend_tg_fixed_scale_kernel(ctx,
-      stream_id,
-      inst_id,
       layer_id,
-      depends,
-      depends_len,
       input_gaddr,
       scale_gaddr,
       bias_gaddr,

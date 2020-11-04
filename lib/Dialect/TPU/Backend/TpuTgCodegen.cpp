@@ -147,11 +147,7 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_scale_qi32_kernel(
       *backend_ctx, // ctx
-      0,            // stream_id
-      0,            // inst_id
       layer_id,     // layer_id
-      nullptr,      // depends
-      0,            // depends_len
       ga_input,     // input_addr
       ga_scale, // scale_addr
       ga_pc_info,   // pack_addr
@@ -196,11 +192,7 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
 
   cvi_backend_tg_bf16_scale_kernel(
       *backend_ctx, // ctx
-      0,            // stream_id
-      0,            // inst_id
       layer_id,     // layer_id
-      nullptr,      // depends
-      0,            // depends_len
       ga_input,     // input_addr
       ga_scale, // scale_addr
       GA_INVALID,   // pack_addr
@@ -242,11 +234,7 @@ LogicalResult tpu::TG_INT8_BroadcastAddOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_scale_qi32_kernel(
       *backend_ctx, // ctx
-      0,            // stream_id
-      0,            // inst_id
       layer_id,     // layer_id
-      nullptr,      // depends
-      0,            // depends_len
       ga_input,     // input_addr
       ga_scale, // scale_addr
       ga_pc_info,   // pack_addr
@@ -293,11 +281,7 @@ LogicalResult tpu::TG_BF16_BroadcastAddOp::codegen(void *ctx) {
 
   cvi_backend_tg_bf16_scale_kernel(
       *backend_ctx, // ctx
-      0,            // stream_id
-      0,            // inst_id
       layer_id,     // layer_id
-      nullptr,      // depends
-      0,            // depends_len
       ga_input,     // input_addr
       ga_scale, // scale_addr
       GA_INVALID,   // pack_addr
@@ -339,11 +323,7 @@ LogicalResult tpu::TG_INT8_BroadcastSubOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_scale_qi32_kernel(
       *backend_ctx, // ctx
-      0,            // stream_id
-      0,            // inst_id
       layer_id,     // layer_id
-      nullptr,      // depends
-      0,            // depends_len
       ga_input,     // input_addr
       ga_scale, // scale_addr
       ga_pc_info,   // pack_addr
@@ -411,13 +391,11 @@ LogicalResult tpu::TG_CastOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   if (from() == "FP32" && to() == "BF16") {
-    convert_fp32_bf16_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
-                                       input_gaddr, output_gaddr, n, c,
-                                       h, w);
+    convert_fp32_bf16_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
+                             n, c, h, w);
   } else if (from() == "BF16" && to() == "FP32") {
-    convert_bf16_fp32_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
-                                       input_gaddr, output_gaddr, n, c,
-                                       h, w);
+    convert_bf16_fp32_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
+                             n, c, h, w);
   } else {
     llvm_unreachable("unsupport other type cast");
   }
@@ -477,10 +455,10 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
     return success();
   }
 
-  cvi_backend_tg_concat_kernel(
-      *backend_ctx, 0, 0, layer_id, nullptr, 0, nInputs, ga_inputs.data(),
-      ga_output, axis_dims.data(), axis, output_dim_size, output_dim.data(),
-      do_relu(), p_rshift, p_m_i8, CVK_FMT_I8);
+  cvi_backend_tg_concat_kernel(*backend_ctx, layer_id, nInputs,
+                               ga_inputs.data(), ga_output, axis_dims.data(),
+                               axis, output_dim_size, output_dim.data(),
+                               do_relu(), p_rshift, p_m_i8, CVK_FMT_I8);
 
   return success();
 }
@@ -515,7 +493,7 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
   }
 
   cvi_backend_tg_concat_kernel(
-      *backend_ctx, 0, 0, layer_id, nullptr, 0, nInputs, ga_inputs.data(),
+      *backend_ctx, layer_id, nInputs, ga_inputs.data(),
       ga_output, axis_dims.data(), axis, output_dim_size, output_dim.data(),
       do_relu(), nullptr, nullptr, CVK_FMT_BF16);
 
@@ -546,11 +524,7 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
   arrayAttrToVector(this->crop_offset().getValue(), offsets);
 
   cvi_backend_tg_fixed_crop_kernel(*backend_ctx, // ctx,
-                              0,            // stream_id
-                              0,            // inst_id
                               layer_id,
-                              nullptr,      // depends
-                              0,            // depends_len
                               input_gaddr,  // bottom_gaddr,
                               output_gaddr, // top_gaddr
                               i1_s.data(), i2_s.data(), o_s.data(),
@@ -583,11 +557,7 @@ LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
   arrayAttrToVector(this->crop_offset().getValue(), offsets);
 
   cvi_backend_tg_fixed_crop_kernel(*backend_ctx, // ctx,
-                              0,            // stream_id
-                              0,            // inst_id
                               layer_id,
-                              nullptr,      // depends
-                              0,            // depends_len
                               input_gaddr,  // bottom_gaddr,
                               output_gaddr, // top_gaddr
                               i1_s.data(), i2_s.data(), o_s.data(),
@@ -1030,11 +1000,7 @@ LogicalResult tpu::TG_INT8_DilateOp::codegen(void *ctx) {
     }
 
     cvi_backend_tg_fixed_dilate_kernel(*backend_ctx, // ctx,
-        0,            // stream_id
-        0,            // inst_id
         layer_id,
-        nullptr,      // depends
-        0,            // depends_len
         input_gaddr,  // bottom_gaddr,
         output_gaddr, // top_gaddr
         in, ic, ih, iw,
@@ -1473,11 +1439,7 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_fc_kernel(
       *backend_ctx,
-      0, // stream_id,
-      0, // inst_id,
       layer_id, // layer_id,
-      nullptr, // depends
-      0, // depends_len
       ga_input, // input_data_gaddr,
       ga_filter, // weight_data_gaddr,
       ga_bias, // bias_data_gaddr,
@@ -1655,11 +1617,7 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_leakyrelu_kernel(
     *backend_ctx,         // ctx
-    0,                    // stream_id
-    0,                    // inst_id
     layer_id,             // layer_id
-    nullptr,              // depends
-    0,                    // depends_len
     ga_input,             // input_gaddr
     ga_output,            // output_gaddr
     n,                    // input_n
@@ -1723,7 +1681,7 @@ LogicalResult tpu::TG_INT8_LrnOp::codegen(void *ctx) {
   gaddr_t sqr_lut_gaddr = getWeightOpAddress(sqr_lut()->getDefiningOp());
   int layer_id = getOpLayerId(op);
   cvi_backend_tg_fixed_lrn_kernel(
-      *backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr, output_gaddr,
+      *backend_ctx, layer_id, input_gaddr, output_gaddr,
       sqr_lut_gaddr, power_lut_gaddr, n, c, h, w,
       local_size().getLimitedValue(), sum_rshift().getLimitedValue(),
       lrn_rshift().getLimitedValue(), quant_data0().getLimitedValue(),
@@ -1758,11 +1716,7 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tg_lut_kernel(*backend_ctx,
-                             0,        // stream_id,
-                             0,        // inst_id,
                              layer_id, // layer_id,
-                             nullptr,  // const u32 *depends,
-                             0,        // depends_len,
                              input_gaddr, output_gaddr, y0_table_gaddr, n, c, h,
                              w, CVK_FMT_I8);
 
@@ -2106,23 +2060,14 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "lut method:" << lut_method << " [" << getOpName()
                           << "]\n";);
   if(lut_method == "mantissa") {
-    cvi_backend_tg_bf16_lut_scientific_kernel(*backend_ctx,
-                                  0,        // stream_id,
-                                  0,        // inst_id,
-                                  layer_id, // layer_id,
-                                  nullptr,  // const u32 *depends,
-                                  0,        // depends_len,
-                                  input_gaddr, output_gaddr, table_data_lut, table_data_mantissa_lut,
-                                  n, c, h, w, CVK_FMT_BF16);
+    cvi_backend_tg_bf16_lut_scientific_kernel(
+        *backend_ctx, layer_id, input_gaddr, output_gaddr, table_data_lut,
+        table_data_mantissa_lut, n, c, h, w, CVK_FMT_BF16);
   } else if (lut_method == "slope") {
     cvi_backend_tg_bf16_lut_interpolation_kernel(
-        *backend_ctx,
-        0, // strean_id
-        0, // inst_id,
-        layer_id, nullptr, 0, input_gaddr, output_gaddr, table_data_lut,
+        *backend_ctx, layer_id, input_gaddr, output_gaddr, table_data_lut,
         table_data_mantissa_lut, n, c, h, w, BF16_TABLE_START, BF16_TABLE_END,
-        16 // scale
-    );
+        16);
   } else {
     std::string errorMsg = "unsupported lut method op: (manntissa or slope)" + lut_method + "\n";
     llvm_unreachable(errorMsg.c_str());
@@ -2150,16 +2095,8 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tg_permute_kernel(
-      *backend_ctx,
-      0, //stream_id,
-      0, //inst_id,
-      layer_id, //layer_id,
-      nullptr, //const u32 *depends,
-      0, //depends_len,
-      input_gaddr,
-      output_gaddr,
-      i_s[0], i_s[1], i_s[2], i_s[3],
-      orders[0], orders[1], orders[2], orders[3], CVK_FMT_I8);
+      *backend_ctx, layer_id, input_gaddr, output_gaddr, i_s[0], i_s[1], i_s[2],
+      i_s[3], orders[0], orders[1], orders[2], orders[3], CVK_FMT_I8);
   return success();
 }
 
@@ -2187,18 +2124,10 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_permute_kernel(
-      *backend_ctx,
-      0, //stream_id,
-      0, //inst_id,
-      layer_id, //layer_id,
-      nullptr, //const u32 *depends,
-      0, //depends_len,
-      input_gaddr,
-      output_gaddr,
-      i_nchw[0], i_nchw[1], i_nchw[2], i_nchw[3],
-      orders[0], orders[1], orders[2], orders[3],
-      CVK_FMT_BF16);
+  cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, input_gaddr,
+                                output_gaddr, i_nchw[0], i_nchw[1], i_nchw[2],
+                                i_nchw[3], orders[0], orders[1], orders[2],
+                                orders[3], CVK_FMT_BF16);
   return success();
 }
 
@@ -2612,7 +2541,7 @@ LogicalResult tpu::TG_FP32_BF16_CastOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
 
   convert_fp32_bf16_kernel(
-      *backend_ctx, 0, 0, layer_id, nullptr, 0,
+      *backend_ctx, layer_id,
       ga_input, ga_output, n, c, h, w);
   return success();
 }
@@ -2684,7 +2613,7 @@ LogicalResult tpu::TG_BF16_FP32_CastOp::codegen(void *ctx) {
   }
 
   convert_bf16_fp32_kernel(
-      *backend_ctx, 0, 0, layer_id, nullptr, 0,
+      *backend_ctx, layer_id,
       ga_input, ga_output, n, c, h, w);
   return success();
 }
@@ -2706,11 +2635,7 @@ LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_relu_kernel(
       *backend_ctx,
-      0, //u32 stream_id,
-      0, //u32 inst_id
       layer_id,
-      NULL,
-      0, //
       ga_input,             // input_data_gaddr,
       ga_output,            // output_data_gaddr,
       -1, // float negative_slope,
@@ -2741,11 +2666,7 @@ LogicalResult tpu::TG_BF16_ReluOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_relu_kernel(
       *backend_ctx,
-      0, //u32 stream_id,
-      0, //u32 inst_id
       layer_id,
-      NULL,
-      0, //
       ga_input,             // input_data_gaddr,
       ga_output,            // output_data_gaddr,
       -1, // float negative_slope,
@@ -2774,7 +2695,7 @@ LogicalResult tpu::TG_INT8_ReorgOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_fixed_reorg_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+  cvi_backend_tg_fixed_reorg_kernel(*backend_ctx, layer_id,
                                        input_gaddr, output_gaddr, n, c,
                                        h, w, stride);
 
@@ -2820,7 +2741,7 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, layer_id,
                                        input_gaddr, output_gaddr, n, c,
                                        frame_size, group, CVK_FMT_I8);
   return success();
@@ -2842,7 +2763,7 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, layer_id,
                                        input_gaddr, output_gaddr, n, c,
                                        frame_size, group, CVK_FMT_BF16);
   return success();
@@ -2865,7 +2786,7 @@ LogicalResult tpu::TG_INT8_SwapChannelOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   std::vector<int32_t> order;
   arrayAttrToVector(this->channel_order().getValue(), order);
-  cvi_backend_tg_swap_channel_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+  cvi_backend_tg_swap_channel_kernel(*backend_ctx, layer_id,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
                                        input_shape_fix.data(), order.data(), CVK_FMT_I8);
   return success();
@@ -2888,7 +2809,7 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  cvi_backend_tg_swap_channel_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+  cvi_backend_tg_swap_channel_kernel(*backend_ctx, layer_id,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
                                        input_shape_fix.data(), order.data(), CVK_FMT_BF16);
   return success();
@@ -2949,7 +2870,7 @@ LogicalResult tpu::TG_BF16_TileOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   std::vector<int32_t> resp;
   arrayAttrToVector(this->resp().getValue(), resp);
-  tile_forward_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0,
+  tile_forward_kernel(*backend_ctx, layer_id,
                       input_gaddr, output_gaddr,
                       input_shape.size(), input_shape.data(),
                       output_shape.size(), output_shape.data(),
@@ -3012,20 +2933,9 @@ LogicalResult tpu::TG_INT8_PixelShuffleOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  cvi_backend_tg_fixed_pixel_shuffle_kernel(
-      *backend_ctx, //const CviBackendContext &ctx,
-      0, //u32 stream_id,
-      0, //u32 inst_id,
-      layer_id,
-      NULL, //const u32 *depends,
-      0, //u32 depends_len,
-      input_gaddr,
-      output_gaddr,
-      n,
-      c,
-      h,
-      w,
-      upscale_factor);
+  cvi_backend_tg_fixed_pixel_shuffle_kernel(*backend_ctx, layer_id, input_gaddr,
+                                            output_gaddr, n, c, h, w,
+                                            upscale_factor);
 
   return success();
 }
@@ -3050,20 +2960,9 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_bf16_pixel_shuffle_kernel(
-      *backend_ctx, //const CviBackendContext &ctx,
-      0, //u32 stream_id,
-      0, //u32 inst_id,
-      layer_id,
-      NULL, //const u32 *depends,
-      0, //u32 depends_len,
-      input_gaddr,
-      output_gaddr,
-      n,
-      c,
-      h,
-      w,
-      upscale_factor);
+  cvi_backend_tg_bf16_pixel_shuffle_kernel(*backend_ctx, layer_id, input_gaddr,
+                                           output_gaddr, n, c, h, w,
+                                           upscale_factor);
 
   return success();
 }
@@ -3186,7 +3085,7 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   std::vector<int64_t> output_shape = getTensorShape(this->getResult());
-  cvi_backend_tg_slice_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
+  cvi_backend_tg_slice_kernel(*backend_ctx, layer_id, input_gaddr,
                        output_gaddr, (int)input_shape.size(),
                        input_shape_fix.data(), axis, offset,
                        (int)output_shape[axis], CVK_FMT_I8);
@@ -3218,7 +3117,7 @@ LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   std::vector<int64_t> output_shape = getTensorShape(this->getResult());
-  cvi_backend_tg_slice_kernel(*backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr,
+  cvi_backend_tg_slice_kernel(*backend_ctx, layer_id, input_gaddr,
                        output_gaddr, (int)input_shape.size(),
                        input_shape_fix.data(), axis, offset,
                        (int)output_shape[axis], CVK_FMT_BF16);
@@ -3243,22 +3142,8 @@ LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_fixed_upsample_kernel(
-      *backend_ctx,
-      0, //stream_id,
-      0, //inst_id,
-      layer_id, //layer_id,
-      nullptr, //const u32 *depends,
-      0, //depends_len,
-      ga_input,
-      ga_output,
-      n,
-      c,
-      h,
-      w,
-      scale_h,
-      scale_w
-  );
+  cvi_backend_tg_upsample_kernel(*backend_ctx, layer_id, ga_input, ga_output, n,
+                                 c, h, w, scale_h, scale_w, CVK_FMT_I8);
 
   return success();
 }
@@ -3280,22 +3165,8 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_bf16_upsample_kernel(
-      *backend_ctx,
-      0, //stream_id,
-      0, //inst_id,
-      layer_id, //layer_id,
-      nullptr, //const u32 *depends,
-      0, //depends_len,
-      ga_input,
-      ga_output,
-      n,
-      c,
-      h,
-      w,
-      scale_h,
-      scale_w
-  );
+  cvi_backend_tg_upsample_kernel(*backend_ctx, layer_id, ga_input, ga_output, n,
+                                 c, h, w, scale_h, scale_w, CVK_FMT_BF16);
 
   return success();
 }
@@ -3448,21 +3319,13 @@ LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
   if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
     // Replace with tdma global memory copy via TG permute
     std::vector<int64_t> output_shape = getTensorShape(output());
-    cvi_backend_tg_permute_kernel(*backend_ctx,
-                                        0,  // stream_id
-                                        0,  // inst_id
-                                        layer_id,
-                                        nullptr,  // depends
-                                        0,        // depends_len
-                                        ga_input,
-                                        ga_output,
-                                        (uint32_t)output_shape[0], // input_n
-                                        (uint32_t)output_shape[1], // input_c
-                                        (uint32_t)output_shape[2], // input_h
-                                        (uint32_t)output_shape[3], // input_w
-                                        0,1,2,3,   // order
-                                        CVK_FMT_I8
-                                        );
+    cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, ga_input, ga_output,
+                                  (uint32_t)output_shape[0], // input_n
+                                  (uint32_t)output_shape[1], // input_c
+                                  (uint32_t)output_shape[2], // input_h
+                                  (uint32_t)output_shape[3], // input_w
+                                  0, 1, 2, 3,                // order
+                                  CVK_FMT_I8);
   } else {
     cvi_backend_tg_fixed_reduce_max_kernel(*backend_ctx,
                                           layer_id,
@@ -3546,24 +3409,16 @@ LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
   if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
     // Replace with tdma global memory copy via TG permute
     std::vector<int64_t> output_shape = getTensorShape(output());
-    cvi_backend_tg_permute_kernel(*backend_ctx,
-                                        0,  // stream_id
-                                        0,  // inst_id
-                                        layer_id,
-                                        nullptr,  // depends
-                                        0,        // depends_len
-                                        ga_input,
-                                        ga_output,
-                                        (uint32_t)output_shape[0], // input_n
-                                        (uint32_t)output_shape[1], // input_c
-                                        (uint32_t)output_shape[2], // input_h
-                                        (uint32_t)output_shape[3], // input_w
-                                        0,                         // order_n
-                                        1,                         // order_c
-                                        2,                         // order_h
-                                        3,                         // order_w
-                                        CVK_FMT_BF16
-                                        );
+    cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, ga_input, ga_output,
+                                  (uint32_t)output_shape[0], // input_n
+                                  (uint32_t)output_shape[1], // input_c
+                                  (uint32_t)output_shape[2], // input_h
+                                  (uint32_t)output_shape[3], // input_w
+                                  0,                         // order_n
+                                  1,                         // order_c
+                                  2,                         // order_h
+                                  3,                         // order_w
+                                  CVK_FMT_BF16);
   } else {
     cvi_backend_tg_bf16_reduce_max_kernel(*backend_ctx,
                                           layer_id,
@@ -3596,7 +3451,7 @@ LogicalResult tpu::TG_INT8_ZeroMaskOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   // y = relu(x * 1 + 1)
   cvi_backend_tg_fixed_mac_const_kernel(
-      *backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr, output_gaddr,
+      *backend_ctx, layer_id, input_gaddr, output_gaddr,
       (int)input_shape[0], (int)input_shape[1], (int)input_shape[2],
       (int)input_shape[3], 1, 1, true);
   return success();
@@ -3615,7 +3470,7 @@ LogicalResult tpu::TG_BF16_ZeroMaskOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   // y = relu(x * 1000000.0 + 1)
   cvi_backend_tg_bf16_mac_const_kernel(
-      *backend_ctx, 0, 0, layer_id, nullptr, 0, input_gaddr, output_gaddr,
+      *backend_ctx, layer_id, input_gaddr, output_gaddr,
       (int)input_shape[0], (int)input_shape[1], (int)input_shape[2],
       (int)input_shape[3], 1000000.0f, 1.0f, true);
   return success();

@@ -14,12 +14,11 @@
 #include <llvm/Support/raw_ostream.h>
 
 void cvi_backend_tg_fixed_lrn_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id,
-    uint32_t layer_id, const uint32_t *depends, uint32_t depends_len,
-    gaddr_t input_gaddr, gaddr_t output_gaddr, gaddr_t sqr_lut_gaddr,
-    gaddr_t power_lut_gaddr, int input_n, int input_c, int input_h, int input_w,
-    int local_size, int sum_right_shift_width, int lrn_right_shift_width,
-    int quant_data0, int quant_data1) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t output_gaddr, gaddr_t sqr_lut_gaddr, gaddr_t power_lut_gaddr,
+    int input_n, int input_c, int input_h, int input_w, int local_size,
+    int sum_right_shift_width, int lrn_right_shift_width, int quant_data0,
+    int quant_data1) {
 
   int blob_num = 6;
   int require_shape = 0;

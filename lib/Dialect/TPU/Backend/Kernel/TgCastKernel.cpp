@@ -4,9 +4,9 @@
 #include <cmath>
 #include "CviBackendContext.h"
 
-void convert_fp32_bf16_kernel(const CviBackendContext &ctx, uint32_t stream_id, uint32_t inst_id, uint32_t layer_id,
-                          const uint32_t *depends, uint32_t depends_len, gaddr_t input_gaddr, gaddr_t output_gaddr,
-                          int batch, int channel, int height, int width) {
+void convert_fp32_bf16_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+                              gaddr_t input_gaddr, gaddr_t output_gaddr,
+                              int batch, int channel, int height, int width) {
 
   ctx.set_layer_id(layer_id);
 
@@ -58,12 +58,9 @@ void convert_fp32_bf16_kernel(const CviBackendContext &ctx, uint32_t stream_id, 
   }
 }
 
-void convert_bf16_fp32_kernel(
-    const CviBackendContext &ctx, uint32_t stream_id,
-    uint32_t inst_id, uint32_t layer_id,
-    const uint32_t *depends, uint32_t depends_len,
-    gaddr_t input_gaddr, gaddr_t output_gaddr, int batch,
-    int channel, int height, int width) {
+void convert_bf16_fp32_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+                              gaddr_t input_gaddr, gaddr_t output_gaddr,
+                              int batch, int channel, int height, int width) {
 
   ctx.set_layer_id(layer_id);
 
