@@ -132,21 +132,16 @@ class CaffeConverter(BaseConverter):
             input_shape = list(self.blobs[i].shape)
             input_shape[0] = self.batch_size
             if self.convert_preprocess:
-                if self.preprocess_args.get("data_format") == "nchw":
-                    resize_h, resize_w = self.preprocess_args.get(
-                        "resize_dims")
-
-
-                    if self.preprocess_args.get("crop_method") == "aspect_ratio":
-                        aspect_h = self.preprocess_args.get("input_shape")[0]
-                        aspect_w = self.preprocess_args.get("input_shape")[1]
-                        input_shape = [input_shape[0], aspect_h,
-                                       aspect_w, input_shape[1]]
-                    else:
-                        # beacause of opencv imread data_format default is nhwc
-                        # if model data format is nchw, fused preprocess need to change it
-                        input_shape = [input_shape[0], resize_h,
-                                    resize_w, input_shape[1]]
+                resize_h, resize_w = self.preprocess_args.get(
+                    "resize_dims")
+                if self.preprocess_args.get("data_format") == "nchw" and \
+                        self.preprocess_args.get('preprocess_input_data_format') == "nhwc":
+                    input_shape = [input_shape[0],
+                                   resize_h, resize_w, input_shape[1]]
+                elif self.preprocess_args.get("data_format") == "nchw" and \
+                        self.preprocess_args.get('preprocess_input_data_format') == "nchw":
+                    input_shape = [input_shape[0],
+                                   input_shape[1], resize_h, resize_w]
             self.input_shapes.append(input_shape)
         # get output shape
         self.output_shapes = list()
@@ -1658,10 +1653,16 @@ class CaffeConverter(BaseConverter):
                     # we read image use opencv, opencv default is bgr
                     # we need to swap to rgb
                     color_order = np.array([2,1,0])
-                if self.preprocess_args.get('data_format') == "nchw":
-                    # opencv default is nhwc
-                    # we need to transpose to nchw
+                if self.preprocess_args.get('data_format') == "nchw" and \
+                        self.preprocess_args.get('preprocess_input_data_format') == "nhwc":
                     transpose_order = np.array([0, 3, 1, 2])
+                elif self.preprocess_args.get('data_format') == "nchw" and \
+                        self.preprocess_args.get('preprocess_input_data_format') == "nchw":
+                    pass
+                else:
+                    raise RuntimeError("No support fused preprocess data_format: {} \ preprocess_input_data_format: {}",
+                                       self.preprocess_args.get('data_format'),  self.preprocess_args.get(
+                                           'preprocess_input_data_format'))
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))

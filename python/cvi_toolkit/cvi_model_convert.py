@@ -32,6 +32,7 @@ def Convert(args):
                         std=args.std,
                         rgb_order=args.model_channel_order,
                         crop_method=args.crop_method,
+                        data_format=args.data_format,
                         only_aspect_ratio_img=args.only_aspect_ratio_img)
     # only caffe support
     preprocess_args = {
@@ -51,8 +52,9 @@ def Convert(args):
         onnx_model = onnx.load(args.model_path)
         c = OnnxConverter(args.model_name, onnx_model,
                           args.mlir_file_path, batch_size=args.batch_size,
-                          convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(input_h=input_shape[1], input_w=input_shape[2])
-                        )
+                          convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(
+                              input_h=input_shape[1], input_w=input_shape[2], preprocess_input_data_format=args.preprocess_input_data_format),
+                          )
     elif args.model_type == "tflite_int8":
         c = TFLiteInt8Converter(
             args.model_name, args.model_path, args.mlir_file_path)
@@ -63,7 +65,7 @@ def Convert(args):
         c = CaffeConverter(args.model_name, args.model_path, args.model_dat,
                            args.mlir_file_path, batch_size=args.batch_size, preprocess=preprocess_args,
                            convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(
-                               input_h=input_shape[1], input_w=input_shape[2])
+                               input_h=input_shape[1], input_w=input_shape[2], preprocess_input_data_format=args.preprocess_input_data_format)
         )
     c.run()
 
@@ -124,6 +126,14 @@ def main():
         """,
         type=str,
         default="0,0,0,0"
+    )
+    parser.add_argument(
+        "--preprocess_input_data_format",
+        help="""
+                Fusing preprocess input data_format,
+        """,
+        type=str,
+        default="nhwc"
     )
     parser = add_preprocess_parser(parser)
     args = parser.parse_args()

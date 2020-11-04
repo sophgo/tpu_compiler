@@ -57,6 +57,7 @@ cvi_model_convert.py \
     --input_scale ${INPUT_SCALE} \
     --model_channel_order $MODEL_CHANNEL_ORDER \
     --batch_size $BATCH_SIZE \
+    --preprocess_input_data_format "nhwc" \
     --convert_preprocess 1 \
     --mlir_file_path ${NET}_fused_preprocess.mlir
 
