@@ -329,11 +329,10 @@ LogicalResult doConv2DOpInterpret(Operation *op,
 
   // parse param
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
-  parseConvParam(castOp.param(), is_deconv,
-                 castOp.input(), castOp.output(), castOp.filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+  parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
+                 castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
+                 pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   // get tensors
   assert(opdT.size() == 7);
@@ -399,7 +398,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     }else{
       ret = mkldnn_conv(input->data(), filter->data(), bias ? bias->data() : nullptr,
                   resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw, sh, sw,
-                  dh, dw, pt, pb, pl, pr, g);
+                  dh, dw, pt, pb, pl, pr, g, 0);
     }
 #else
     float *bias_data = bias ? bias->data() : nullptr;
@@ -417,7 +416,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     }
     int ret = mkldnn_conv(input.data(), filter->data(), bias_data,
                           resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw,
-                          sh, sw, dh, dw, pt, pb, pl, pr, g);
+                          sh, sw, dh, dw, pt, pb, pl, pr, g, pad_value);
     assert(ret == 0);
 #endif
   } else {
@@ -1882,7 +1881,7 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
       std::vector<float> conv_filter(filter_shape, 1);
       int ret = mkldnn_conv(input.data(), conv_filter.data(), NULL,
           conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
-          sh, sw, dh, dw, pt, pb, pl, pr, g);
+          sh, sw, dh, dw, pt, pb, pl, pr, g, 0);
       assert(ret == 0);
     }
 
@@ -1973,7 +1972,7 @@ static LogicalResult doPool3DOpInterpret(Operation *op, bool is_average,
       std::vector<float> conv_filter(filter_shape, 1);
       int ret = mkldnn_conv(input, conv_filter.data(), NULL,
           conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
-          sh, sw, dh, dw, pt, pb, pl, pr, g);
+          sh, sw, dh, dw, pt, pb, pl, pr, g, 0);
       assert(ret == 0);
     }
 
@@ -3460,7 +3459,7 @@ LogicalResult tpu::QuadraticSumOp::interpret(
   // compute in fp32
   mkldnn_conv(opdT[0]->data(), opdT[0]->data(), nullptr,
               resultT->data(), n, c, h, w, c, 1, 1, h, w,
-              h, w, 1, 1, 0, 0, 0, 0, c);
+              h, w, 1, 1, 0, 0, 0, 0, c, 0);
   // rshift and saturate on output
   if (getOpQuant() == "NONE" || this->high_precision()) {
     // do nothing

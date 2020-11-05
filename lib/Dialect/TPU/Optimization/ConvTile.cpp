@@ -78,6 +78,7 @@ public:
   int pad_bottom = {0};
   int pad_left = {0};
   int pad_right = {0};
+  int pad_value = {0};
   int insert_h = {0};
   int insert_w = {0};
   int stride_h = {1};
@@ -299,7 +300,7 @@ public:
                    tpuOp.filter(), input_n, input_c, input_h, input_w,
                    output_c, output_h, output_w, groups, kh, kw, stride_h,
                    stride_w, pad_top, pad_bottom, pad_left, pad_right,
-                   dilation_h, dilation_w, is_dw, with_bias, do_relu);
+                   dilation_h, dilation_w, is_dw, with_bias, do_relu, pad_value);
 
     do_ic_alignment = tpuOp.do_ic_alignment().hasValue()
                          ? tpuOp.do_ic_alignment().getValue() : false;

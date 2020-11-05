@@ -144,7 +144,7 @@ void getConvParam(Operation *p, int &n, int &ic, int &ih, int &iw, int &oc,
                          int &oh, int &ow, int &g, int &kh, int &kw, int &sh, int &sw,
                          int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
                          bool &is_dw, bool &with_bias, bool &do_relu, bool &do_ic_align,
-                         bool &fuse_leaky);
+                         bool &fuse_leaky, int &pad_value);
 
 void getConcatParam(Operation *op, int &axis, bool &do_relu);
 

@@ -216,16 +216,13 @@ static std::string getWeightStorage(Operation *p) {
 ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
-  int sh, sw, pt, pb, pl, pr, dh, dw;
+  int sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   bool do_ic_align = false;
   bool fuse_leaky = false;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(p);
-  getConvParam(p, n, ic, ih, iw, oc, oh, ow,
-               g, kh, kw, sh, sw,
-               pt, pb, pl, pr, dh, dw,
-               is_dw, with_bias,
-               do_relu, do_ic_align,
-               fuse_leaky);
+  getConvParam(p, n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+               dh, dw, is_dw, with_bias, do_relu, do_ic_align, fuse_leaky,
+               pad_value);
 
   if (g == 1 && ic > 4095) {
     // hw limitation: ic should be smaller than 4096, otherwise
@@ -321,13 +318,14 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh, dw;
+  int pad_value;
   bool do_ic_align, do_leaky_relu;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(p);
   getConvParam(p, n, ic, ih, iw, oc, oh, ow,
                  g, kh, kw, sh, sw,
                  pt, pb, pl, pr, dh, dw,
                  is_dw, with_bias,
-                 do_relu, do_ic_align, do_leaky_relu);
+                 do_relu, do_ic_align, do_leaky_relu, pad_value);
 
   // handle ic align for double conv
   int w_ic = ic;

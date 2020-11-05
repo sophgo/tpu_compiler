@@ -105,6 +105,7 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
               convOp.param().with_bias(),
               convOp.param().do_relu(),
               convOp.param().ins(),
+              convOp.param().pad_value(),
               rewriter.getContext()));//rewrite strideH
     }
 

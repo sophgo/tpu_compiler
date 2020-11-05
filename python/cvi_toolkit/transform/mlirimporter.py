@@ -370,8 +370,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Concat.value, inputOperands, [
             tensor_output_type], name=concat_name, axis=axis_attr, quant=self.quant_param)
 
-
-    def add_conv_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
+    def add_conv_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
         """
             inputOperands: List[pybind.op]
             output_tensorshape: List[int] output tensor type
@@ -411,7 +410,8 @@ class MLIRImporter(object):
             'with_bias': self.module.boolAttr(kargs['with_bias']),
             'do_relu': self.module.boolAttr(kargs['do_relu']),
             'ins': self.module.arrayAttr(
-                [self.module.integerAttr(self.i32Type, x) for x in kargs['ins']])
+                [self.module.integerAttr(self.i32Type, x) for x in kargs['ins']]),
+            'pad_value': self.module.integerAttr(self.i32Type, pad_value),
           }
 
         dict_attr = self.module.dictAttr(**conv_param)
@@ -555,7 +555,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.DetectionOutput.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
 
-    def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
+    def add_deconv_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
         """
             inputOperands: List[pybind.op]
             output_tensorshape: List[int] output tensor type
@@ -596,6 +596,7 @@ class MLIRImporter(object):
             'do_relu': self.module.boolAttr(kargs['do_relu']),
             'ins': self.module.arrayAttr(
                 [self.module.integerAttr(self.i32Type, x) for x in kargs['ins']]),
+            'pad_value': self.module.integerAttr(self.i32Type, pad_value),
         }
 
         dict_attr = self.module.dictAttr(**deconv_param)

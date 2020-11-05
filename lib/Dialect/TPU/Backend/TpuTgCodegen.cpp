@@ -572,10 +572,10 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                 with_bias, do_relu);
+                 with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -658,10 +658,10 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                 with_bias, do_relu);
+                 with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -738,10 +738,10 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -793,10 +793,10 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -860,10 +860,10 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);

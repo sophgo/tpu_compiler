@@ -181,7 +181,8 @@ def TPU_ConvParamAttr : StructAttr<"ConvParam", TPU_Dialect, [
     StructFieldAttr<"is_dw", BoolAttr>,
     StructFieldAttr<"with_bias", BoolAttr>,
     StructFieldAttr<"do_relu", BoolAttr>,
-    StructFieldAttr<"ins", I32ArrayAttr>]> {
+    StructFieldAttr<"ins", I32ArrayAttr>,
+    StructFieldAttr<"pad_value", I32Attr>]> {
   let description = "Structure of dimension parameters for conv op";
 }
 

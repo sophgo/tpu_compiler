@@ -275,7 +275,7 @@ void DeepFusionGroupSlice::deepFusionGroupOpt() {
             subGroup.nSec = getNextSec(cutPoint.second);
             subGroup.included = false;
             subGroups.push_back(subGroup);
-            
+
             subGroup.begin = getNextOp(cutPoint.first);
             subGroup.end = group.back();
             subGroup.nSec = 1;
@@ -542,12 +542,12 @@ int DeepFusionGroupSlice::computeCost(
       auto convOp = cast<tpu::TG_INT8_PC_Conv2DOp>(*iter);
       bool is_dw, with_bias, do_relu;
       int n, ic, ih, iw, oc, oh, ow, g;
-      int kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+      int kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
       bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(convOp.getOperation());
       parseConvParam(convOp.param(), is_deconv, convOp.input(), convOp.output(),
-                     convOp.filter(), n, ic, ih, iw, oc, oh, ow, g,
-                     kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                     with_bias, do_relu);
+                     convOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh,
+                     sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu,
+                     pad_value);
       addedLmem += MInfo::getSizePerLane(1, oc, kh * kw, ic / g, false);
       addedLmem += MInfo::getSizePerLane(1, oc, 1, with_bias ? 9 : 5, false);
     }
@@ -1002,7 +1002,7 @@ void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
   std::string bdcastName = op.getOpName().str();
   if (bSlice)
     bdcastName += std::string("_") + std::to_string(loopIdx);
-                                                  
+
   attrs.push_back(builder.getNamedAttr("name",
                                        builder.getStringAttr(bdcastName)));
 
@@ -1030,6 +1030,7 @@ void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
         builder.getBoolAttr(false),   // with_bias
         builder.getBoolAttr(false),   // do_relu
         builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+        builder.getI32IntegerAttr(0), // pad_value
         builder.getContext())));
 
   dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_BroadcastMulOp>(

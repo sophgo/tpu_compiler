@@ -480,7 +480,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value *input, Value *output, Value *filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
-    bool &is_dw, bool &with_bias, bool &do_relu) {
+    bool &is_dw, bool &with_bias, bool &do_relu, int &pad_value) {
   dh = p.dilation_h().getValue().getLimitedValue();
   dw = p.dilation_w().getValue().getLimitedValue();
   sh = p.stride_h().getValue().getLimitedValue();
@@ -560,6 +560,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   }
   do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
+  pad_value= p.pad_value().getValue().getLimitedValue();
 }
 
 void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,

@@ -121,6 +121,7 @@ Value* tpu::BroadcastMulOp::convertToTG() {
           builder.getBoolAttr(false),   // with_bias
           builder.getBoolAttr(this->do_relu()),   // do_relu
           builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+          builder.getI32IntegerAttr(0), //pad_value
           builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {
@@ -413,6 +414,7 @@ Value* tpu::Conv2DOp::convertToTG() {
               param().with_bias(),
               param().do_relu(),
               param().ins(),
+              param().pad_value(),
               builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {

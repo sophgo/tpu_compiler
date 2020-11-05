@@ -706,6 +706,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
             builder.getBoolAttr(true),
             builder.getBoolAttr(false),
             builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+            builder.getI32IntegerAttr(0), //pad_value
             builder.getContext())));
     scale_attrs.push_back(
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
@@ -952,6 +953,7 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
                 convOp.param().with_bias(),
                 convOp.param().do_relu(),
                 convOp.param().ins(),
+                convOp.param().pad_value(),
                 rewriter.getContext()));
 
     return matchSuccess();

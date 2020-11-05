@@ -476,6 +476,7 @@ struct TpuUpsampleOpPattern : public RewritePattern {
                                      rewriter.getBoolAttr(false),
                                      rewriter.getI32ArrayAttr(ArrayRef<int32_t>(
                                          {})), // [0]ins_w/[1]ins_h
+                                     rewriter.getI32IntegerAttr(0), // pad_value
                                      rewriter.getContext())));
     attrs.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));

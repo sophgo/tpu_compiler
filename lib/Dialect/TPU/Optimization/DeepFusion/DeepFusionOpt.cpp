@@ -53,10 +53,11 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
     assert(op);
 
     bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
-    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g,
-                   kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+        pad_value;
+    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(), n,
+                   ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   dh, dw, is_dw, with_bias, do_relu, pad_value);
 
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", convert to LW\n";);
@@ -155,10 +156,11 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
     //auto loc = op->getLoc();
 
     bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
-    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g,
-                   kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+        pad_value;
+    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(), n,
+                   ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   dh, dw, is_dw, with_bias, do_relu, pad_value);
 
     assert (op.lm_layout() != "NONE");
     if (op.la_output() != 0xffffffff) {
@@ -339,24 +341,24 @@ struct TpuInsertFakeLdStPattern : public RewritePattern {
 
     std::vector<Value *> loadOperands;
     loadOperands.push_back(opInst->getOperand(0));
-  
+
     std::string loadOpName = mlir::getOpName(op).str() + std::string("_load");
     attrs.push_back(rewriter.getNamedAttr("name",
                                          rewriter.getStringAttr(loadOpName)));
-  
+
     attrs.push_back(rewriter.getNamedAttr("lm_order",
                                           rewriter.getStringAttr("NONE")));
     fakeBuilder.setInsertionPoint(opInst);
     auto loadOp = fakeBuilder.create<tpu::TL_Fake_LoadOp>(
                    opInst->getLoc(), opInst->getOperand(0)->getType(),
                    loadOperands, attrs);
-    
+
     opInst->replaceUsesOfWith(opInst->getOperand(0), loadOp.getResult());
 
     std::vector<Value *> storeOperands;
     storeOperands.push_back(opInst->getResult(0));
     auto uses = opInst->getResult(0)->getUses();
- 
+
     attrs.clear();
     std::string storeOpName = mlir::getOpName(op).str() + std::string("_store");
     attrs.push_back(rewriter.getNamedAttr("name",
@@ -367,7 +369,7 @@ struct TpuInsertFakeLdStPattern : public RewritePattern {
     auto storeOp = fakeBuilder.create<tpu::TL_Fake_StoreOp>(
                    opInst->getLoc(), opInst->getResult(0)->getType(),
                    storeOperands, attrs);
-    
+
     for (auto &use : uses) {
       auto useOp = use.getOwner();
       useOp->replaceUsesOfWith(opInst->getResult(0), storeOp.getResult());
@@ -406,7 +408,7 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
 
     // handle last store
     for (auto &use : nextStoreOp->getResult(0)->getUses()) {
-      auto useOp = use.getOwner(); 
+      auto useOp = use.getOwner();
       if (!isa<tpu::TL_Fake_LoadOp>(useOp)) {
           nextFakeStoreOp.setAttr("lm_order", rewriter.getStringAttr("O"));
       }
@@ -414,7 +416,7 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
 
     // %1 = load(%0)
     // %2 = conv(%1)  ----> prevNormalOp
-    // %3 = store(%2) ----> prevStoreOp     
+    // %3 = store(%2) ----> prevStoreOp
     // %4 = load(%3)  ----> opInst
     // %5 = conv(%4)  ----> nextNormalOp
     // %6 = store(%5) ----> nextStoreOp
@@ -498,7 +500,7 @@ struct TpuMarkLayoutPattern: public RewritePattern {
     // %1 = load(%0)
     // %2 = conv(%1)
     // %3 = store(%2)
-    
+
     auto tlNormalOp =
          dyn_cast_or_null<tpu::TpuTLSimpleOpCodegenInterface>(normalOp);
 

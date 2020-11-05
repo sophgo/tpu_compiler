@@ -61,10 +61,11 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+      pad_value;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -89,10 +90,11 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+      pad_value;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;

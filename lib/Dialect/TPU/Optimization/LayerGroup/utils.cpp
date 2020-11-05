@@ -11,36 +11,37 @@ void getConvParam(Operation *p,
                   bool &is_dw, bool &with_bias,
                   bool &do_relu,
                   bool &do_ic_align,
-                  bool &do_leaky_relu) {
+                  bool &do_leaky_relu,
+                  int &pad_value) {
   if (auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p)) {
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                    n, ic, ih, iw, oc, oh, ow, g,
-                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();
   } else if (auto op = dyn_cast<tpu::TG_BF16_Conv2DOp>(p)) {
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                    n, ic, ih, iw, oc, oh, ow, g,
-                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();
   } else if (auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(p)) {
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                    n, ic, ih, iw, oc, oh, ow, g,
-                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();
   }else if (auto op = dyn_cast<tpu::TG_BF16_DeConv2DOp>(p)) {
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                    n, ic, ih, iw, oc, oh, ow, g,
-                    kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();

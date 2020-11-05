@@ -43,11 +43,12 @@ namespace {
 template <typename OpTy>
 uint64_t calcConv2DMemoryUsage(OpTy &op) {
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+      pad_value;
   bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
-  parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+  parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(), n,
+                 ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh,
+                 dw, is_dw, with_bias, do_relu, pad_value);
   uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
   uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
   uint64_t filterSizePerLane = 0;

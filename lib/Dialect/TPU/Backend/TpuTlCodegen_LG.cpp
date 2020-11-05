@@ -196,10 +196,10 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
@@ -256,11 +256,11 @@ LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
 
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
-  int sh, sw, pt, pb, pl, pr, dh, dw;
+  int sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
                  kh, kw, sh, sw, pt, pb, pl, pr,
-                 dh, dw, is_dw, with_bias, do_relu);
+                 dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
@@ -300,10 +300,10 @@ LogicalResult tpu::TL_LG_INT8_DeConv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 with_bias, do_relu, pad_value);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();
@@ -349,11 +349,10 @@ LogicalResult tpu::TL_LG_BF16_DeConv2DOp::codegen(void *ctx) {
 
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g;
-  int kh, kw, sh, sw, pt, pb, pl, pr, dh, dw;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
-                 dh, dw, is_dw, with_bias, do_relu);
+  int kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 with_bias, do_relu, pad_value);
 
   laddr_t la_input = this->la_input().getLimitedValue();
   laddr_t la_output = this->la_output().getLimitedValue();

@@ -94,6 +94,7 @@ struct TpuFuseReluPattern : public RewritePattern {
               convOp.param().with_bias(),
               rewriter.getBoolAttr(true),
               convOp.param().ins(),
+              convOp.param().pad_value(),
               rewriter.getContext()));
       convOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::DeConv2DOp>())) {
@@ -121,6 +122,7 @@ struct TpuFuseReluPattern : public RewritePattern {
               deconvOp.param().with_bias(),
               rewriter.getBoolAttr(true),
               deconvOp.param().ins(),
+              deconvOp.param().pad_value(),
               rewriter.getContext()));
       deconvOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseAddOp>())) {

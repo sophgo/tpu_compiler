@@ -2,6 +2,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Format.h"
+#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
 
 #include <numeric>
 #include <functional>
@@ -40,7 +41,7 @@ static size_t write_bianry_file(std::string filename, const char *data,
 
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
-    int kh, int kw, int sh, int sw, int dh, int dw, int pt, int pb, int pl, int pr, int g) {
+    int kh, int kw, int sh, int sw, int dh, int dw, int pt, int pb, int pl, int pr, int g, int pad_value) {
   std::shared_ptr<std::vector<float>> zero_bias = NULL;
   if (!bias) {
     zero_bias = std::make_shared<std::vector<float>>(oc, 0.0f);
@@ -62,10 +63,11 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   LLVM_DEBUG(
     llvm::errs() << "  k: (" << kh << "*" << kw << "), "
                  << "s: (" << sh << "*" << sw << "), "
-                 << "pt:" << pt << " pb:" << pb << "pl: " << pl << " pr:" << pr
-                 << "g: " << g << "\n";
+                 << "pt: " << pt << " pb: " << pb << " pl: " << pl << " pr: " << pr
+                 << " g: " << g << "\n";
     llvm::errs() << "n:" << n << " c: " << ic << " h:" << ih << " w:" << iw << "\n"
-                << " oc: " << oc << " oh:" << oh << " ow:" << ow << "\n"
+                << " oc: " << oc << " oh:" << oh << " ow:" << ow << "\n";
+    llvm::errs() << "pad value: " << pad_value << "\n";
   );
 
   using tag = memory::format_tag;
@@ -77,6 +79,26 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   std::vector<primitive> net;
   std::vector<std::unordered_map<int, memory>> net_args;
 
+  std::vector<float> input_after_pad;
+  // mkldnn not support non zero padding
+  // we handle it.
+  if (pad_value != 0) {
+    if (pt != 0 || pl != 0 || pb != 0 || pr != 0) {
+      input_after_pad.resize(n * ic * (ih + pt + pb) * (iw + pl + pr));
+      std::vector<int> pads = {0, 0, pt, pl, 0, 0, pb, pr};
+      std::vector<int64_t> input_shape = {n, ic, ih, iw};
+      my_pad_constant(input, input_after_pad.data(), input_shape, pads,
+                      pad_value);
+      input = input_after_pad.data();
+      ih = ih + pt + pb;
+      iw = iw + pl + pr;
+      pt = 0;
+      pb = 0;
+      pl = 0;
+      pr = 0;
+    }
+  }
+
   const memory::dim batch = n;
   memory::dims src_tz = { batch, ic, ih, iw };
   memory::dims weights_tz = (g != 1) ? memory::dims{g, oc/g, ic/g, kh, kw}
@@ -84,12 +106,9 @@ int mkldnn_conv(float *input, float *weight, float *bias,
   memory::dims bias_tz = { oc };
   memory::dims dst_tz = { batch, oc, oh, ow };
   memory::dims strides = { sh, sw };
-  int ph_t = pt;
-  int pw_l = pl;
-  int ph_b = pb;
-  int pw_r = pr;
-  memory::dims padding_l = { ph_t, pw_l };
-  memory::dims padding_r = { ph_b, pw_r };
+
+  memory::dims padding_l = { pt, pl };
+  memory::dims padding_r = { pb, pr };
   memory::dims dilation = { dh-1, dw-1 }; // mkldnn dialtion is different with caffe
 
   // memory

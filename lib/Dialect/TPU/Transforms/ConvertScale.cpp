@@ -356,6 +356,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
             rewriter.getBoolAttr(true),
             convOp.param().do_relu(),
             convOp.param().ins(),
+            convOp.param().pad_value(),
             rewriter.getContext()));
     auto origAttrs = convOp.getAttrs();
     // update name with the later op name, because this name is for
@@ -466,6 +467,7 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
             rewriter.getBoolAttr(bias?true:false),
             rewriter.getBoolAttr(scaleOp.do_relu()),
             rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+            rewriter.getI32IntegerAttr(0), // pad_value
             rewriter.getContext())));
     attrs.push_back(rewriter.getNamedAttr("quant",
                                           getDefaultQuantParam(rewriter)));
