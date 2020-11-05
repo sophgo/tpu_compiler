@@ -343,15 +343,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[6];
 
-  int input_offset = -getPreviousOpZeroPoint(op);
-  int output_offset = getOpZeroPoint(op);
   bool is_asymmetric = isOpQuantAsymmetric(op);
-
-  if (input_offset != 0) {
-    for(size_t i = 0;i < input.size(); i++){
-      input.at(i) += input_offset;
-    }
-  }
 
   // get is dilate activation
   std::vector<int32_t> ins;
@@ -416,7 +408,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     }
     int ret = mkldnn_conv(input.data(), filter->data(), bias_data,
                           resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw,
-                          sh, sw, dh, dw, pt, pb, pl, pr, g, pad_value);
+                          sh, sw, dh, dw, pt, pb, pl, pr, g, -pad_value);
     assert(ret == 0);
 #endif
   } else {
@@ -426,11 +418,10 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     assert(ret == 0);
   }
 
-  if (do_relu) {
+  if (do_relu && !is_asymmetric) {
     int ret = my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
     assert(ret == 0);
   }
-
   // rshift and saturate on output
   if (getOpQuant(op) == "NONE") {
     // do nothing
@@ -439,12 +430,12 @@ LogicalResult doConv2DOpInterpret(Operation *op,
       assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
       assert(quant_rshift);
       quantizeActivationInt8PerLayerRshift(resultT->data(), resultT->data(),
-          size, (uint32_t)quant_rshift->at(0), output_offset);
+          size, (uint32_t)quant_rshift->at(0));
     } else if (isOpQuantPerchannel(op)
                && getOpQuantParamType(op) == "RSHIFT_ONLY") {
       assert(quant_rshift);
       quantizeActivationInt8PerChannelRShift(resultT->data(), resultT->data(),
-          n, oc, size / oc / n, quant_rshift->data(), output_offset);
+          n, oc, size / oc / n, quant_rshift->data());
     } else if (isOpQuantPerchannel(op)
                && getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
       assert(quant_rshift);
@@ -453,8 +444,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
       quantizeActivationInt8PerChannelMultiplierAndRShift(
           resultT->data(), resultT->data(),
           do_bias_later ? bias->data() : nullptr, do_relu_later && !is_asymmetric, n, oc,
-          size / oc / n, quant_rshift->data(), quant_multiplier->data(),
-          output_offset);
+          size / oc / n, quant_rshift->data(), quant_multiplier->data());
     } else {
       assert(false);
     }
