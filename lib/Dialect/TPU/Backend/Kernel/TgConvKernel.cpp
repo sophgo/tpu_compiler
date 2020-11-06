@@ -4670,16 +4670,11 @@ void Conv::doConvByTilePolicy() {
     break;
 
     case ReuseWeightPolicyType:
-      assert((!args_.store_compr_act && !args_.load_compr_act) &&
-         "Activation compression does not support tiling");
       use_double_buffer_ = true;
       convReuseWeight();
     break;
 
     case ReuseActivationPolicyType:
-      assert((!args_.store_compr_act && !args_.load_compr_act) &&
-            "Activation compression does not support tiling");
-
       use_double_buffer_ = true;
       convReuseActivation();
     break;
