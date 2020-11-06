@@ -427,9 +427,6 @@ public:
     return n * c * h * w * bytesize_of_fmt(fmt);
   }
 
-  int tensor_size_lmem(int n, int c, int h, int w,
-                       cvk_fmt_t fmt = CVK_FMT_I8) const;
-
   inline uint32_t get_lmem_usage(int n, int c, int h, int w,
                                  cvk_fmt_t fmt = CVK_FMT_I8) const {
     return lmem_tensor_to_size(tl_shape_t4(n, c, h, w), fmt, /*eu_align*/ 1);
@@ -439,17 +436,28 @@ public:
   // tiling functions
   //
 
-  enum TilingDim {
+  typedef enum TilingDim {
     TilingDimAll = 0, // reshape data and tiling
-    TilingDimNH,      // keep shape and ONLY tiling n/h dim
-    TilingDimNo,      // no tiling
-  };
+    TilingDimNH,      // tiling nh, keep c/w
+    TilingDimNHW,     // tiling nhw, keep c
+    TilingDimNCHW,    // tiling nchw
+  } tiling_pattern_t;
+
+  typedef struct tiling_info {
+    int32_t n;
+    int32_t c;
+    int32_t h;
+    int32_t w;
+    int32_t pos_n;
+    int32_t pos_c;
+    int32_t pos_h;
+    int32_t pos_w;
+    uint64_t offset;
+  } tiling_info_t;
 
   int split(int blob_num, int count) const;
   void split_nh(int n, int c, int h, int w, int blob_num, uint32_t reserved,
                 int *n_slices, int *h_slices) const;
-  void split_cnh(int n, int c, int h, int w, int blob_num, uint32_t reserved,
-                 int *c_slices, int *n_slices, int *h_slices) const;
 
   // tiling pack data with specified dims
   // shape for TilingDimNH used, we need to keep origin shape and tile with
@@ -464,8 +472,12 @@ public:
   tiling_packing(int require_shape, int coeff_lane_shape, int blob_num,
                  cvk_fmt_t fmt,
                  std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> *tiling_info,
-                 enum TilingDim tiling_along = TilingDimAll,
+                 tiling_pattern_t tiling_along = TilingDimAll,
                  cvk_tg_shape_t *shape = NULL) const;
+  void tiling_packing(std::vector<tiling_info_t> &tiling_result,
+                      cvk_tg_shape_t shape, cvk_fmt_t fmt,
+                      uint32_t reserved_lmem = 0,
+                      tiling_pattern_t type = TilingDimNCHW) const;
 
   //
   // Hardware feature
@@ -506,14 +518,6 @@ public:
   };
 
   void *get_cvk_ctx() const { return cvk_ctx_; }
-
-private:
-  //
-  // local use functions
-  //
-  inline int get_csize_local(int h, int w, cvk_fmt_t fmt = CVK_FMT_I8) const {
-    return get_lmem_usage(/*n=*/1, /*c=*/1, h, w, fmt);
-  }
 
 private:
   // Mapping between tdma base selection and global memory region.

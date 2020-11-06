@@ -162,87 +162,31 @@ void TgPermuteKernel::init(uint32_t layer_id, gaddr_t ga_input,
   ctx.set_layer_id(layer_id);
 }
 
-void TgPermuteKernel::doTileForNormalCase() {
-  int step_w, step_h, step_c, step_n;
-  int max_w = std::min(w, MAX_WIDTH);
-  int max_h = std::min(h, MAX_HEIGHT);
-  int max_c = std::min(c, MAX_CHANNEL);
-  int max_n = std::min(n, MAX_CHANNEL);
-  uint32_t lmem_required = (uint32_t)LOCAL_MEM_SIZE + 1;
-  for (step_w = max_w; step_w > 0; --step_w) {
-    for (step_h = max_h; step_h > 0; --step_h) {
-      for (step_n = max_n; step_n > 0; --step_n) {
-        for (step_c = max_c; step_c > 0; step_c -= NPU_NUM) {
-          max_shape = ctx.tl_shape_t4(step_n, step_c, step_h, step_w);
-          lmem_required = ctx.lmem_tensor_to_size(max_shape, fmt, 1);
-          if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
-            goto after_loop;
-          }
-        }
-      }
-    }
-  }
-after_loop:
-  if (lmem_required > (uint32_t)LOCAL_MEM_SIZE) {
-    llvm::errs() << llvm::format(
-        "Tilling failed, src shape:(%d,%d,%d,%d), order:(%d,%d,%d,%d)\n", n, c,
-        h, w, order[0], order[1], order[2], order[3]);
-    assert(0);
-  }
-
-  tile_info_t tile;
-  for (tile.pos_n = 0; tile.pos_n < n; tile.pos_n += step_n) {
-    tile.n = std::min(n - tile.pos_n, step_n);
-    for (tile.pos_c = 0; tile.pos_c < c; tile.pos_c += step_c) {
-      tile.c = std::min(c - tile.pos_c, step_c);
-      for (tile.pos_h = 0; tile.pos_h < h; tile.pos_h += step_h) {
-        tile.h = std::min(h - tile.pos_h, step_h);
-        for (tile.pos_w = 0; tile.pos_w < w; tile.pos_w += step_w) {
-          tile.w = std::min(w - tile.pos_w, step_w);
-          tile.src_offset =
-              tile.pos_w * src_stride.w + tile.pos_h * src_stride.h +
-              tile.pos_c * src_stride.c + tile.pos_n * src_stride.n;
-          tile.dst_offset = tile.pos_w * dst_stride_order.w +
-                            tile.pos_h * dst_stride_order.h +
-                            tile.pos_c * dst_stride_order.c +
-                            tile.pos_n * dst_stride_order.n;
-          tiles.push_back(tile);
-          LLVM_DEBUG(llvm::errs() << llvm::format(
-                         "Tiles, tile:(%d,%d,%d,%d), pos:(%d,%d,%d,%d), "
-                         "src_offset:%lu, "
-                         "dst_offset:%lu\n",
-                         tile.n, tile.c, tile.h, tile.w, tile.pos_n, tile.pos_c,
-                         tile.pos_h, tile.pos_w, tile.src_offset,
-                         tile.dst_offset););
-        }
-      }
-    }
-  }
+void TgPermuteKernel::selectTilePolicy() {
+  ctx.tiling_packing(tiles, ctx.tg_shape_t4(n, c, h, w), fmt);
 }
 
-void TgPermuteKernel::selectTilePolicy() { doTileForNormalCase(); }
-
 void TgPermuteKernel::load(int32_t step_idx, cvk_tl_t &tl_ifmap) const {
-  const tile_info_t &tile = tiles[step_idx];
+  const CviBackendContext::tiling_info_t &tile = tiles[step_idx];
   tl_ifmap.start_address = tl_input->start_address;
   tl_ifmap.shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   tl_ifmap.stride = ctx.tl_default_stride(tl_ifmap.shape, fmt, 1);
   tl_ifmap.fmt = fmt;
   ctx.tdma_load_stride(
-      &tl_ifmap, ga_input + n_index * n_offset + tile.src_offset, src_stride);
+      &tl_ifmap, ga_input + n_index * n_offset + tile.offset, src_stride);
 }
 
 void TgPermuteKernel::store_normal(int32_t step_idx, cvk_tl_t &tl_ifmap) const {
-  const tile_info_t &tile = tiles[step_idx];
+  const CviBackendContext::tiling_info_t &tile = tiles[step_idx];
   ctx.tdma_store_stride(&tl_ifmap,
-                        ga_output + n_index * n_offset + tile.dst_offset,
+                        ga_output + n_index * n_offset + dst_offset(tile),
                         dst_stride_order);
 }
 
 void TgPermuteKernel::store_0321(int32_t step_idx, cvk_tl_t &tl_ifmap) const {
-  const tile_info_t &tile = tiles[step_idx];
+  const CviBackendContext::tiling_info_t &tile = tiles[step_idx];
   cvk_tg_t ofmap = {0};
-  ofmap.start_address = ga_output + n_index * n_offset + tile.dst_offset;
+  ofmap.start_address = ga_output + n_index * n_offset + dst_offset(tile);
   ofmap.shape = ctx.tg_shape_t4(tile.n, tile.w, tile.h, tile.c);
   ofmap.stride = dst_stride;
   ofmap.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
@@ -251,6 +195,12 @@ void TgPermuteKernel::store_0321(int32_t step_idx, cvk_tl_t &tl_ifmap) const {
   param.src = &tl_ifmap;
   param.dst = &ofmap;
   ctx.tdma_l2g_tensor_copy_cw_transposed(&param);
+}
+
+uint64_t TgPermuteKernel::dst_offset(
+    const CviBackendContext::tiling_info_t &tile) const {
+  return tile.pos_w * dst_stride_order.w + tile.pos_h * dst_stride_order.h +
+         tile.pos_c * dst_stride_order.c + tile.pos_n * dst_stride_order.n;
 }
 
 void TgPermuteKernel::store(int32_t step_idx, cvk_tl_t &tl_ifmap) const {

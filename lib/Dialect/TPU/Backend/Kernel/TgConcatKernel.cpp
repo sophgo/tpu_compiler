@@ -127,63 +127,17 @@ void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
     inputs.emplace_back(info);
   }
 }
-
-void TgConcatKernel::doTileForNormalCase() {
-  for (auto &input : inputs) {
-    int n = input.shape.n, c = input.shape.c, h = input.shape.h,
-        w = input.shape.w;
-    int step_w, step_h, step_c, step_n;
-    int max_w = std::min(w, MAX_WIDTH);
-    int max_h = std::min(h, MAX_HEIGHT);
-    int max_c = std::min(c, MAX_CHANNEL);
-    int max_n = std::min(n, MAX_CHANNEL);
-
-    uint32_t lmem_required = (uint32_t)LOCAL_MEM_SIZE + 1;
-    for (step_w = max_w; step_w > 0; --step_w) {
-      for (step_h = max_h; step_h > 0; --step_h) {
-        for (step_n = max_n; step_n > 0; --step_n) {
-          for (step_c = max_c; step_c > 0; step_c -= NPU_NUM) {
-            auto max_shape = ctx.tl_shape_t4(step_n, step_c, step_h, step_w);
-            lmem_required = ctx.lmem_tensor_to_size(max_shape, fmt, 1);
-            if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
-              goto after_loop;
-            }
-          }
-        }
-      }
-    }
-  after_loop:
-    if (lmem_required > (uint32_t)LOCAL_MEM_SIZE) {
-      llvm::errs() << llvm::format("Tilling failed, src shape:(%d,%d,%d,%d)\n",
-                                   n, c, h, w);
-      assert(0);
-    }
-
-    tile_info_t tile;
-    cvk_tg_stride_t input_stride = ctx.tg_default_stride(input.shape, fmt);
-    for (tile.pos_n = 0; tile.pos_n < n; tile.pos_n += step_n) {
-      tile.n = std::min(n - tile.pos_n, step_n);
-      for (tile.pos_c = 0; tile.pos_c < c; tile.pos_c += step_c) {
-        tile.c = std::min(c - tile.pos_c, step_c);
-        for (tile.pos_h = 0; tile.pos_h < h; tile.pos_h += step_h) {
-          tile.h = std::min(h - tile.pos_h, step_h);
-          for (tile.pos_w = 0; tile.pos_w < w; tile.pos_w += step_w) {
-            tile.w = std::min(w - tile.pos_w, step_w);
-            tile.src_offset =
-                tile.pos_w * input_stride.w + tile.pos_h * input_stride.h +
-                tile.pos_c * input_stride.c + tile.pos_n * input_stride.n;
-            tile.dst_offset =
-                tile.pos_w * output_stride.w + tile.pos_h * output_stride.h +
-                tile.pos_c * output_stride.c + tile.pos_n * output_stride.n;
-            input.tiles.push_back(tile);
-          }
-        }
-      }
-    }
-  }
+uint64_t
+TgConcatKernel::dst_offset(const CviBackendContext::tiling_info_t &tile) const {
+  return tile.pos_w * output_stride.w + tile.pos_h * output_stride.h +
+         tile.pos_c * output_stride.c + tile.pos_n * output_stride.n;
 }
 
-void TgConcatKernel::selectTilePolicy() { doTileForNormalCase(); }
+void TgConcatKernel::selectTilePolicy() {
+  for (auto &input : inputs) {
+    ctx.tiling_packing(input.tiles, input.shape, fmt);
+  }
+}
 
 void TgConcatKernel::schedule() {
   for (auto &input : inputs) {
@@ -198,7 +152,7 @@ void TgConcatKernel::schedule() {
       tl_ifmap.shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
       tl_ifmap.stride = ctx.tl_default_stride(tl_ifmap.shape, fmt, 1);
       tl_ifmap.fmt = fmt;
-      ctx.tdma_load_stride(&tl_ifmap, input.ga_input + tile.src_offset,
+      ctx.tdma_load_stride(&tl_ifmap, input.ga_input + tile.offset,
                            input.stride);
       // do quantize
       if (input.do_quantize) {
@@ -221,7 +175,7 @@ void TgConcatKernel::schedule() {
         ctx.tiu_mul(&p);
       }
       // store
-      ctx.tdma_store_stride(&tl_ifmap, input.ga_output + tile.dst_offset,
+      ctx.tdma_store_stride(&tl_ifmap, input.ga_output + dst_offset(tile),
                             output_stride);
     }
     ctx.lmem_free_tensor(tl_input);

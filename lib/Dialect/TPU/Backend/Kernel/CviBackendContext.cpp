@@ -82,7 +82,8 @@ int CviBackendContext::cvi_chip_info_context(
     assert(0);
 }
 
-uint8_t CviBackendContext::getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const {
+uint8_t
+CviBackendContext::getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const {
   // we store memory region value in bits (40 ~ 42) of gaddr;
   uint32_t memoryRegion = ((((uint64_t)gaddr) >> 40) & 0x07);
   if (memoryRegion < MAX_GLOBAL_MEMORY_REGION) {
@@ -581,38 +582,11 @@ void CviBackendContext::split_nh(int n, int c, int h, int w, int blob_num,
   }
 }
 
-void CviBackendContext::split_cnh(int n, int c, int h, int w, int blob_num,
-                                  uint32_t reserved, int *c_slices,
-                                  int *n_slices, int *h_slices) const {
-  *c_slices = 1;
-  *n_slices = 1;
-  *h_slices = 1;
-  uint32_t total_lmem_needs = blob_num * get_lmem_usage(n, c, h, w) + reserved;
-
-  if (total_lmem_needs > (uint32_t)LOCAL_MEM_SIZE) {
-    if (c > NPU_NUM) {
-      int c_units_per_npu = (c + NPU_NUM - 1) / NPU_NUM;
-
-      if (total_lmem_needs / c_units_per_npu <= LOCAL_MEM_SIZE - reserved) {
-        int _c = (c + *c_slices - 1) / *c_slices;
-
-        while (blob_num * get_lmem_usage(n, _c, h, w) + reserved >
-               (uint32_t)LOCAL_MEM_SIZE) {
-          *c_slices += 1;
-          _c = (c + *c_slices - 1) / *c_slices;
-        }
-        return;
-      }
-    }
-    split_nh(n, c, h, w, blob_num, reserved, n_slices, h_slices);
-  }
-}
-
 int CviBackendContext::split(int blob_num, int count) const {
   int slice_num = 1;
   int W_param = EU_NUM;
   int C_param = (count + EU_NUM - 1) / EU_NUM;
-  int aligned_csize = get_csize_local(1, W_param);
+  int aligned_csize = get_lmem_usage(1, 1, 1, W_param);
   int c_per_npu = (C_param + NPU_NUM - 1) / NPU_NUM;
   int local_mem_usage = c_per_npu * aligned_csize * blob_num;
   const int local_mem_size = LOCAL_MEM_SIZE;
@@ -636,6 +610,88 @@ int CviBackendContext::split(int blob_num, int count) const {
       slice_num++;
     } else {
       assert(0);
+    }
+  }
+}
+
+void CviBackendContext::tiling_packing(
+    std::vector<tiling_info_t> &tiling_result, cvk_tg_shape_t shape,
+    cvk_fmt_t fmt, uint32_t reserved_lmem, tiling_pattern_t type) const {
+  uint32_t lmem_size = (uint32_t)LOCAL_MEM_SIZE - reserved_lmem;
+  int n = static_cast<int>(shape.n);
+  int c = static_cast<int>(shape.c);
+  int h = static_cast<int>(shape.h);
+  int w = static_cast<int>(shape.w);
+  int max_w = std::min(w, MAX_WIDTH);
+  int max_h = std::min(h, MAX_HEIGHT);
+  int max_c = std::min(c, MAX_CHANNEL);
+  int max_n = std::min(n, MAX_CHANNEL);
+  int min_c = 1, min_w = 1;
+  assert(type != TilingDimAll);                      // not support
+  if (type == TilingDimNHW || type == TilingDimNH) { // keep c
+    if (max_c != c) {
+      llvm::errs() << llvm::format(
+          "Tilling[%d] failed, c=[%d] should less then %d\n", type, c,
+          MAX_CHANNEL);
+      assert(0);
+    }
+    min_c = max_c;
+  }
+  if (type == TilingDimNH) { // keep w
+    if (max_w != w) {
+      llvm::errs() << llvm::format(
+          "Tilling[%d] failed, w=[%d] should less then %d\n", type, w,
+          MAX_WIDTH);
+      assert(0);
+    }
+    min_w = max_w;
+  }
+
+  uint32_t lmem_required = lmem_size + 1;
+  int step_w, step_h, step_c, step_n;
+  for (step_w = max_w; step_w >= min_w; --step_w) {
+    for (step_h = max_h; step_h >= 1; --step_h) {
+      for (step_n = max_n; step_n >= 1; --step_n) {
+        for (step_c = max_c; step_c >= min_c; step_c -= NPU_NUM) {
+          cvk_tl_shape_t max_shape =
+              tl_shape_t4(step_n, step_c, step_h, step_w);
+          lmem_required = lmem_tensor_to_size(max_shape, fmt, 1);
+          if (lmem_required <= lmem_size) {
+            goto after_loop;
+          }
+        }
+      }
+    }
+  }
+after_loop:
+  if (lmem_required > lmem_size) {
+    llvm::errs() << llvm::format(
+        "Tilling[%d] failed, src shape:(%d,%d,%d,%d), fmt:%d\n", n, c, h, w,
+        fmt);
+    assert(0);
+  }
+
+  tiling_info_t tile;
+  tiling_result.clear();
+  cvk_tg_stride_t src_stride = tg_default_stride(shape, fmt);
+  for (tile.pos_n = 0; tile.pos_n < n; tile.pos_n += step_n) {
+    tile.n = std::min(n - tile.pos_n, step_n);
+    for (tile.pos_c = 0; tile.pos_c < c; tile.pos_c += step_c) {
+      tile.c = std::min(c - tile.pos_c, step_c);
+      for (tile.pos_h = 0; tile.pos_h < h; tile.pos_h += step_h) {
+        tile.h = std::min(h - tile.pos_h, step_h);
+        for (tile.pos_w = 0; tile.pos_w < w; tile.pos_w += step_w) {
+          tile.w = std::min(w - tile.pos_w, step_w);
+          tile.offset = tile.pos_w * src_stride.w + tile.pos_h * src_stride.h +
+                        tile.pos_c * src_stride.c + tile.pos_n * src_stride.n;
+          tiling_result.emplace_back(tile);
+          LLVM_DEBUG(llvm::errs() << llvm::format(
+                         "Tiles, tile:(%d,%d,%d,%d), pos:(%d,%d,%d,%d), "
+                         "src_offset:%lu\n",
+                         tile.n, tile.c, tile.h, tile.w, tile.pos_n, tile.pos_c,
+                         tile.pos_h, tile.pos_w, tile.offset););
+        }
+      }
     }
   }
 }
@@ -706,11 +762,6 @@ void CviBackendContext::apply_qi8(cvk_tl_t *ifmap, uint32_t layer_id,
   p.layer_id = layer_id;
   p.relu_enable = do_relu;
   tiu_mul(&p);
-}
-
-int CviBackendContext::tensor_size_lmem(int n, int c, int h, int w,
-                                        cvk_fmt_t fmt) const {
-  return n * ALIGN(c, NPU_NUM) * get_csize_local(h, w, fmt);
 }
 
 void CviBackendContext::assert_support_fmt(cvk_fmt_t fmt) const {

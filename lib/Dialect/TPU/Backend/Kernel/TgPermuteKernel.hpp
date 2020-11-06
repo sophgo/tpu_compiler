@@ -36,7 +36,7 @@ protected:
   void store(int32_t step_idx, cvk_tl_t &tl_ifmap) const;
   void store_normal(int32_t step_idx, cvk_tl_t &tl_ifmap) const;
   void store_0321(int32_t step_idx, cvk_tl_t &tl_ifmap) const;
-  void doTileForNormalCase();
+  uint64_t dst_offset(const CviBackendContext::tiling_info_t &tile) const;
   const CviBackendContext &ctx;
 
   gaddr_t ga_input;
@@ -60,20 +60,7 @@ protected:
   } store_mode_t;
   store_mode_t store_mode;
 
-  typedef struct {
-    int32_t n;
-    int32_t c;
-    int32_t h;
-    int32_t w;
-    int32_t pos_n;
-    int32_t pos_c;
-    int32_t pos_h;
-    int32_t pos_w;
-    uint64_t src_offset;
-    uint64_t dst_offset;
-  } tile_info_t;
-
-  std::vector<tile_info_t> tiles;
+  std::vector<CviBackendContext::tiling_info_t> tiles;
 };
 
 #endif

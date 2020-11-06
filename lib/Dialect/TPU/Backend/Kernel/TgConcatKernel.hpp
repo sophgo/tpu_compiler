@@ -28,7 +28,7 @@ protected:
   void update_output(int output_dim[], int dim_size, int concat_axis);
   uint32_t &axis_dim(cvk_tg_shape_t &shape);
   uint64_t axis_size(const cvk_tg_shape_t &shape) const;
-  void doTileForNormalCase();
+  uint64_t dst_offset(const CviBackendContext::tiling_info_t &tile) const;
 
 protected:
   const CviBackendContext &ctx;
@@ -43,19 +43,6 @@ protected:
   int32_t layer_id;
 
   typedef struct {
-    int32_t n;
-    int32_t c;
-    int32_t h;
-    int32_t w;
-    int32_t pos_n;
-    int32_t pos_c;
-    int32_t pos_h;
-    int32_t pos_w;
-    uint64_t src_offset;
-    uint64_t dst_offset;
-  } tile_info_t;
-
-  typedef struct {
     bool do_quantize;
     gaddr_t ga_input;
     gaddr_t ga_output;
@@ -63,7 +50,7 @@ protected:
     cvk_tg_stride_t stride;
     int8_t rshift_width;
     int data_quantized;
-    std::vector<tile_info_t> tiles;
+    std::vector<CviBackendContext::tiling_info_t> tiles;
   } input_info_t;
   std::vector<input_info_t> inputs;
 };
