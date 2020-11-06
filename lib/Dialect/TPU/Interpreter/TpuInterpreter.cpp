@@ -1810,20 +1810,13 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   // get tensors
   float *output = resultT->data();
   std::vector<float> input(opdT[0]->begin(), opdT[0]->end());
-  int input_offset = 0;
-  int output_offset = 0;
   bool is_asymmetric = isOpQuantAsymmetric(op);
-
-  if (getOpQuant(op) == "INT8" && is_asymmetric){
-    input_offset = -getPreviousOpZeroPoint(op);
-    output_offset = getOpZeroPoint(op);
-    if (input_offset != 0) {
-      for (size_t i = 0; i < input.size(); i++) {
-        input.at(i) += input_offset;
-      }
-    }
+  if (getOpQuant(op) == "INT8" && is_asymmetric && is_average){
+    // [Sam]becasue our hardware(cv1835) can't do offset at input and output
+    // therefore, we can't implement average use hardware api
+    // in average pool case, we can use depthwise conv replace it
+    llvm_unreachable("avg pool can't not do asymmetric quantization with our hardware api, please use conv");
   }
-
 
   std::shared_ptr<std::vector<float> > quant_rshift = nullptr;
   std::shared_ptr<std::vector<float> > quant_multiplier = nullptr;
@@ -1887,19 +1880,12 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
       }
       output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
           sum, (uint32_t)quant_rshift->at(0),
-          (uint32_t)quant_multiplier->at(0), false, output_offset);
+          (uint32_t)quant_multiplier->at(0), false);
     }
   } else if (is_average && getOpQuant(op) == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
     BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-  }
-  // if asymmetric avg pool, it's already done zero_point, pass
-  if (getOpQuant(op) == "INT8" && is_asymmetric && !is_average) {
-    for (size_t i = 0; i < resultT->size(); i++) {
-      resultT->at(i) =
-          applyZeroPointSaturateInt8(resultT->at(i), output_offset);
-    }
   }
   valueMapping[result] = std::move(resultT);
 
