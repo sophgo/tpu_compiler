@@ -47,6 +47,9 @@ struct ConvertQuantOpPattern : public RewritePattern {
     auto quantOp = cast<tpu::QuantOp>(op);
     LLVM_DEBUG(llvm::errs() << quantOp.getOperationName() << ":"
                             << getOpName(quantOp)<< "\n";);
+    if (1) {
+      return matchFailure();
+    }
 
     auto builder = Builder(op->getContext());
     auto elementType = mlir::FloatType::getBF16(builder.getContext());

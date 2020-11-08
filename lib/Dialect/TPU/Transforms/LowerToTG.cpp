@@ -33,6 +33,8 @@
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "mlir/Support/TensorFile.h"
+#include "mlir/Support/FileUtilities.h"
+#include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <sstream>
@@ -3900,6 +3902,7 @@ struct LowerCustomOpPattern : public RewritePattern {
   }
 };
 
+
 template <typename OpTy>
 struct LowerFunctionTypePattern: public RewritePattern {
   LowerFunctionTypePattern(MLIRContext *context)
@@ -3961,6 +3964,49 @@ struct LowerFunctionTypePattern: public RewritePattern {
   }
 };
 
+static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
+  srand(time(0));
+  uint32_t unique = (uint32_t)random();
+  uint32_t pid = getpid();
+  auto int2Hex = [&](uint32_t i) {
+    std::stringstream stream;
+    stream << std::hex << i;
+    return stream.str();
+  };
+  std::string tableName = "__" + int2Hex(pid) + "_" + int2Hex(unique)
+        + "_qscale_table.txt";
+  std::string errorMessage;
+  std::unique_ptr<llvm::ToolOutputFile> table;
+  table = openOutputFile(tableName, &errorMessage);
+  if (!table) {
+    llvm_unreachable(errorMessage.c_str());
+  }
+
+  float qscale = 1.0f;
+  auto &os = table->os();
+  fn.walk([&](Operation *op) {
+    if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
+      float threshold =
+          (float)castOp.quant().threshold_max().getValue().convertToFloat();
+      qscale = (threshold == 0) ? 1.0f : (128.0 / threshold);
+      os << castOp.name() << " " << qscale << "\n";
+    } else if (auto castOp = llvm::dyn_cast<ReturnOp>(op)) {
+      for (int i = 0; i < (int)op->getNumOperands(); i++) {
+        auto opd = op->getOperand(i)->getDefiningOp();
+        if (isa<tpu::QuantOp>(opd)) {
+          opd = opd->getOperand(0)->getDefiningOp();
+        }
+        float threshold = getOpThreshold(opd);
+        qscale = (threshold == 0) ? 1.0f : (threshold / 128.0);
+        os << getOpName(opd) << " " << qscale << "\n";
+      }
+    }
+  });
+
+  fn.setAttr("qscale_table", Builder(ctx).getStringAttr(tableName));
+  table->keep();
+}
+
 class TpuLowerPass : public FunctionPass<TpuLowerPass> {
 public:
   void runOnFunction() override {
@@ -3972,6 +4018,8 @@ public:
         LowerFunctionTypePattern<tpu::QuantOp>
         >(context);
     applyPatternsGreedily(fn, patterns);
+
+    storeQscaleTableToFile(fn, context);
 
     // first, merge conv rshift/multiplier/bias into one packed tensor
     patterns.clear();

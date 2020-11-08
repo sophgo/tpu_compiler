@@ -21,6 +21,10 @@
 //===----------------------------------------------------------------------===//
 #include <set>
 #include <memory>
+#include <sstream>
+#include <fstream>
+#include <regex>
+#include <map>
 #include <elf.h>
 #include <openssl/md5.h>
 #include "mlir/Dialect/TPU/TPUDialect.h"
@@ -358,6 +362,29 @@ void CviModelBuilder::addRoutine(std::string funcName) {
   routines_.push_back(rt);
 }
 
+static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap) {
+  auto tableName = fn.getAttr("qscale_table").cast<StringAttr>().getValue();
+  std::ifstream infile(tableName);
+
+  std::string line;
+  std::regex pattern("[a-zA-Z0-9.:;_\\/-]+ [-+0-9.e]+");
+  while (std::getline(infile, line)) {
+    std::istringstream iss(line);
+    std::string name;
+    if (std::regex_match(line, pattern)) {
+      float qscale;
+      if (!(iss >> name >> qscale)) {
+        break;
+      }
+      qscaleMap[name] = qscale;
+    } else {
+      llvm::errs() << line;
+      llvm::errs() << "\n  => not match required format\n";
+      assert(false);
+    }
+  }
+}
+
 void CviModelBuilder::parseModule() {
   mainFunc_.walk([&](Operation *op) {
     if (op->getName().getDialect().str() != "tpu" || isa<tpu::InputOp>(op) ||
@@ -366,7 +393,12 @@ void CviModelBuilder::parseModule() {
       ops_.push_back(op);
     }
   });
+
+  std::map<std::string, float> qscaleMap;
+  loadQScaleTable(mainFunc_, qscaleMap);
+
   getOpGroupInputsOutputs(ops_, inputs_, outputs_);
+
   mainFunc_.walk([&](Operation *op) {
     if (op->getName().getDialect().str() != "tpu" || isa<tpu::NoneOp>(op) ||
         isa<ReturnOp>(op)) {
@@ -410,22 +442,11 @@ void CviModelBuilder::parseModule() {
       int64_t offset =
           op->getAttr("gaddr") ? op->getAttr("gaddr").cast<IntegerAttr>().getInt() : -1;
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
-      if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
-        float threshold =
-            (float)castOp.quant().threshold_max().getValue().convertToFloat();
-        tensor->setInt8SymQuantInfo(threshold);
-      } else if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
-        if (castOp.operation_name() == "tpu.quant" &&
-            castOp.param().get("from").cast<StringAttr>().getValue() == "NONE" &&
-            castOp.param().get("to").cast<StringAttr>().getValue() == "INT8") {
-          float threshold = (float)castOp.param()
-                                .get("threshold")
-                                .cast<FloatAttr>()
-                                .getValue()
-                                .convertToFloat();
-          tensor->setInt8SymQuantInfo(threshold);
-        }
+
+      if (qscaleMap.find(name) != qscaleMap.end()) {
+        tensor->setInt8SymQuantInfo(qscaleMap[name]);
       }
+
       if (!batchNum_) {
         batchNum_ = tensor->shape[0];
       }
