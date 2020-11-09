@@ -3989,16 +3989,18 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
       float threshold =
           (float)castOp.quant().threshold_max().getValue().convertToFloat();
       qscale = (threshold == 0) ? 1.0f : (128.0 / threshold);
-      os << castOp.name() << " " << qscale << "\n";
+      os << castOp.name() << " " << std::to_string(qscale) << "\n";
     } else if (auto castOp = llvm::dyn_cast<ReturnOp>(op)) {
       for (int i = 0; i < (int)op->getNumOperands(); i++) {
         auto opd = op->getOperand(i)->getDefiningOp();
         if (isa<tpu::QuantOp>(opd)) {
           opd = opd->getOperand(0)->getDefiningOp();
         }
-        float threshold = getOpThreshold(opd);
-        qscale = (threshold == 0) ? 1.0f : (threshold / 128.0);
-        os << getOpName(opd) << " " << qscale << "\n";
+        if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(opd)) {
+          float threshold = tpuOp.getOpQuantThreshold();
+          qscale = (threshold == 0) ? 1.0f : (threshold / 128.0);
+          os << getOpName(opd) << " " << std::to_string(qscale) << "\n";
+        }
       }
     }
   });
