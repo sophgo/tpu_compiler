@@ -4,7 +4,7 @@ set -xe
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 MLIR_MODEL=$DIR/$1
-BATCH_SIZE=$2
+BATCH_SIZE=`sed -r -n 's/^.+?tpu_func\(%arg0: tensor<([[:digit:]]+?)x.+?$/\1/p' $MLIR_MODEL`
 echo "to compile $MLIR_MODEL batch=$BATCH_SIZE"
 
 export SET_CHIP_NAME="cv183x"
@@ -46,6 +46,10 @@ mlir-opt \
      --reorder-op \
      --tg-fuse-leakyrelu \
      --conv-ic-alignment \
+     --group-ops \
+     --dce \
+     --deep-fusion-group-slice \
+     --deep-fusion-opt \
      test_bf16.mlir \
      -o test_bf16_opt.mlir
 mlir-opt \
