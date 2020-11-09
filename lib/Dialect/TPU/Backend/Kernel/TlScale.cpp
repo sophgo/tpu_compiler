@@ -92,7 +92,7 @@ void cvi_backend_tl_scale(const CviBackendContext &ctx, uint32_t layer_id,
    * put bias to lmem
    */
 
-  uint32_t scale_size = ctx.get_lmem_usage(1, input_c, 1, 1);
+  uint32_t scale_size = ctx.lmem_tensor_to_size(1, input_c, 1, 1);
   laddr_t la_perchannel = la_working + scale_size;
   int perchannel_size = ctx.chan_quan_param_size(do_bias);
 

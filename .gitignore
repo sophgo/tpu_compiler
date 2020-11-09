@@ -16,4 +16,6 @@
 *.so
 *.yml
 *.yaml
+lib/Dialect/TPU/Backend/test/tmp/*
+regression/regression_out/*
 Dockerfile

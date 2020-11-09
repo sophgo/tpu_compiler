@@ -94,36 +94,6 @@ void cvi_backend_tg_fixed_power_kernel(
     const gaddr_t shift_gaddr, int right_shift_width,
     gaddr_t mulpy_offset, cvk_fmt_t fmt);
 
-void cvi_backend_tg_fixed_scale_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t scale_gaddr, gaddr_t bias_gaddr,
-    gaddr_t output_gaddr, int input_n, int input_c, int input_h, int input_w, int scale_dim,
-    int inner_dim, bool is_scale_const, int const_scale, int right_shift_width, int do_activation,
-    int activation_method, float activation_arg[], const int *i8_multiplier, bool do_bias,
-    bool second_is_blob);
-
-// wrapper for quantize for int 8, INT8_PER_LAYER
-void cvi_backend_tg_fixed_scale_qi8_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t scale_gaddr, gaddr_t bias_gaddr,
-    gaddr_t output_gaddr, int input_n, int input_c, int input_h, int input_w, int scale_dim,
-    int inner_dim, bool is_scale_const, int const_scale, int right_shift_width, int do_activation,
-    int activation_method, float activation_arg[],
-    const int *i8_multiplier,  // INT8_PER_LAYER
-    bool do_bias,
-    bool second_is_blob  // true means second comes from weight, otherwise comes from another input
-);
-
-// wrapper for quantize for int 32, INT8_32_MULTIPLER
-void cvi_backend_tg_fixed_scale_qi32_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t scale_gaddr, gaddr_t bias_gaddr,
-    gaddr_t output_gaddr, int input_n, int input_c, int input_h, int input_w, int scale_dim,
-    int inner_dim, bool is_scale_const, int const_scale, int do_activation, int activation_method,
-    float activation_arg[], bool do_bias,
-    bool second_is_blob  // true means second comes from weight, otherwise comes from another input
-);
-
 void cvi_backend_tg_lut_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr, gaddr_t sg_lut_gaddr,
@@ -293,14 +263,6 @@ void cvi_backend_tg_bf16_prelu_kernel(
     gaddr_t ga_top, gaddr_t ga_negative_slope, int input_n, int input_c,
     int input_h, int input_w);
 
-void cvi_backend_tg_bf16_scale_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t scale_gaddr, gaddr_t bias_gaddr,
-    gaddr_t output_gaddr, int input_n, int input_c, int input_h,
-    int input_w, int scale_dim, int inner_dim, bool is_scale_const,
-    int const_scale, int do_activation, int activation_method,
-    float activation_arg[], bool do_bias, bool second_is_load_weight);
-
 void cvi_backend_tg_bf16_lut_scientific_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,
     gaddr_t top_gaddr, gaddr_t exp_lut_table, gaddr_t mantissa_lut_table,
@@ -454,6 +416,13 @@ void cvi_backend_tg_slice_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t input_gaddr, gaddr_t output_gaddr, int input_dim_size,
     int *input_dim, int axis, int offset, int length, cvk_fmt_t fmt);
+
+void cvi_backend_tg_scale_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t input_gaddr, gaddr_t scale_gaddr, gaddr_t bias_gaddr,
+    gaddr_t output_gaddr, int input_n, int input_c, int input_h,
+    int input_w, int scale_dim, int inner_dim, bool is_scale_const,
+    int const_scale, int do_relu, bool do_bias, cvk_fmt_t fmt);
 
 // tile h/w, plz refer np.tile for more details
 int cvi_backend_tg_tile_kernel(

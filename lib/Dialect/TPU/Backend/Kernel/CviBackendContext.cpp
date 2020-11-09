@@ -541,7 +541,7 @@ void CviBackendContext::split_nh(int n, int c, int h, int w, int blob_num,
                                  int *h_slices) const {
   *h_slices = 1;
   *n_slices = 1;
-  uint32_t total_lmem_needs = blob_num * get_lmem_usage(n, c, h, w);
+  uint32_t total_lmem_needs = blob_num * lmem_tensor_to_size(n, c, h, w);
 
   LLVM_DEBUG(
       llvm::errs() << llvm::format("<%d,%d,%d,%d>, reserved:%u, total:%u\n", n,
@@ -561,7 +561,7 @@ void CviBackendContext::split_nh(int n, int c, int h, int w, int blob_num,
     LLVM_DEBUG(llvm::errs() << "h_units_per_slice is " << h_units_per_slice
                             << ", h_slices is " << *h_slices << "\n";);
 
-    while (blob_num * get_lmem_usage(1, c, h_units_per_slice, w) + reserved >
+    while (blob_num * lmem_tensor_to_size(1, c, h_units_per_slice, w) + reserved >
                (uint32_t)LOCAL_MEM_SIZE ||
            h_units_per_slice > (4095 - 32)) {
       *h_slices += 1;
@@ -574,42 +574,10 @@ void CviBackendContext::split_nh(int n, int c, int h, int w, int blob_num,
     *n_slices = (total_lmem_needs + LOCAL_MEM_SIZE - 1) / LOCAL_MEM_SIZE;
     int n_units_per_slice = (n + *n_slices - 1) / *n_slices;
 
-    while (blob_num * get_lmem_usage(n_units_per_slice, c, h, w) + reserved >
+    while (blob_num * lmem_tensor_to_size(n_units_per_slice, c, h, w) + reserved >
            (uint32_t)LOCAL_MEM_SIZE) {
       *n_slices += 1;
       n_units_per_slice = (n + *n_slices - 1) / *n_slices;
-    }
-  }
-}
-
-int CviBackendContext::split(int blob_num, int count) const {
-  int slice_num = 1;
-  int W_param = EU_NUM;
-  int C_param = (count + EU_NUM - 1) / EU_NUM;
-  int aligned_csize = get_lmem_usage(1, 1, 1, W_param);
-  int c_per_npu = (C_param + NPU_NUM - 1) / NPU_NUM;
-  int local_mem_usage = c_per_npu * aligned_csize * blob_num;
-  const int local_mem_size = LOCAL_MEM_SIZE;
-  int proportion_mem_usage =
-      (local_mem_usage + local_mem_size - 1) / local_mem_size;
-
-  if (proportion_mem_usage == 1 && c_per_npu < 0x1000) {
-    return slice_num;
-  } else {
-    slice_num = proportion_mem_usage;
-  }
-
-  while (true) {
-    int count_slice = count / slice_num + 1;
-    C_param = (count_slice + EU_NUM - 1) / EU_NUM;
-    c_per_npu = (C_param + NPU_NUM - 1) / NPU_NUM;
-    local_mem_usage = c_per_npu * aligned_csize * blob_num;
-    if (local_mem_usage <= local_mem_size && c_per_npu < 0x1000) {
-      return slice_num;
-    } else if (slice_num < count) {
-      slice_num++;
-    } else {
-      assert(0);
     }
   }
 }
@@ -694,57 +662,6 @@ after_loop:
       }
     }
   }
-}
-
-/**
- * \brief load bias(16bytes) or 32 bit multiplier, cus multiplier store int
- * 'bias' \tl_bias set nullptr once INT8_PER_LAYER && !do_bias
- */
-void CviBackendContext::load_bias_multiplier(int oc_step, // output channel
-                                             bool do_bias, gaddr_t bias_gaddr,
-                                             int qmode,
-                                             cvk_tl_t **tl_bias) const {
-
-  if (qmode == QuantizeMode::INT8_32_MULTIPLER) {
-    load_32byte_multiplier(oc_step, do_bias, bias_gaddr, tl_bias);
-  } else if (qmode == QuantizeMode::INT8_PER_LAYER) {
-    if (do_bias) {
-      load_16bytes_bias(oc_step, tl_bias, bias_gaddr);
-    } else {
-      *tl_bias = nullptr;
-    }
-  }
-}
-
-void CviBackendContext::load_32byte_multiplier(
-    int oc_step, bool do_bias, gaddr_t bias_gaddr,
-    cvk_tl_t **tl_chl_quan_param // 32 byte multiplier
-) const {
-
-  if (do_bias) {
-    // call tl_default_stride
-    cvk_tl_shape_t coeff_shape_9byte = tl_shape_t4(1, oc_step, 1, 9);
-    *tl_chl_quan_param =
-        lmem_alloc_tensor(coeff_shape_9byte, CVK_FMT_U8, /*eu_align=*/0);
-  } else {
-    cvk_tl_shape_t coeff_shape_5byte = tl_shape_t4(1, oc_step, 1, 5);
-    *tl_chl_quan_param =
-        lmem_alloc_tensor(coeff_shape_5byte, CVK_FMT_U8, /*eu_align=*/0);
-  }
-
-  tdma_load(*tl_chl_quan_param, bias_gaddr);
-}
-
-void CviBackendContext::load_16bytes_bias(int oc, cvk_tl_t **tl_bias,
-                                          gaddr_t bias_gaddr) const {
-
-  cvk_tl_shape_t tl_bias_shape;
-  tl_bias_shape.n = 2;
-  tl_bias_shape.c = oc;
-  tl_bias_shape.h = 1;
-  tl_bias_shape.w = 1;
-  *tl_bias = lmem_alloc_tensor(tl_bias_shape, CVK_FMT_I8, 0);
-  tdma_load(*tl_bias, bias_gaddr);
 }
 
 // apply quantize int 8 mode

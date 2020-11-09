@@ -130,9 +130,9 @@ static int pooling_size_lmem(const CviBackendContext &ctx, const pooling_t *p) {
   int out_h = pooling_out_h(p);
   int out_w = pooling_out_w(p);
   int in_size = p->n * ALIGN(p->c, NPU_NUM) *
-                ctx.get_lmem_usage(1, 1, p->h, p->w, CVK_FMT_BF16);
+                ctx.lmem_tensor_to_size(1, 1, p->h, p->w, CVK_FMT_BF16);
   int out_size = p->n * ALIGN(p->c, NPU_NUM) *
-                 ctx.get_lmem_usage(1, 1, out_h, out_w, CVK_FMT_BF16);
+                 ctx.lmem_tensor_to_size(1, 1, out_h, out_w, CVK_FMT_BF16);
 
   return in_size + out_size;
 }

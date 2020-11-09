@@ -128,8 +128,8 @@ LogicalResult tpu::TG_BF16_AbsOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -137,7 +137,8 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  bool do_relu = this->param().do_relu().getValue();;
+  bool do_relu = this->param().do_relu().getValue();
+  ;
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -145,24 +146,20 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_fixed_scale_qi32_kernel(
-      *backend_ctx, // ctx
-      layer_id,     // layer_id
-      ga_input,     // input_addr
-      ga_scale, // scale_addr
-      ga_pc_info,   // pack_addr
-      ga_output,    // output_addr
-      n, c, h, w,
-      n * c,        // scale_dim (axis = 1  =>  n * c)
-      h * w,        // inner_dim (axis = 1  =>  h * w)
-      false,        // is_scale_const
-      0,            // const_scale
-      do_relu,      // do_activation,
-      0,            // activation_method
-      nullptr,      // activation_arg
-      false,        // with_bias
-      false         // second_is_load_weight
-      );
+  cvi_backend_tg_scale_kernel(*backend_ctx, // ctx
+                              layer_id,     // layer_id
+                              ga_input,     // input_addr
+                              ga_scale,     // scale_addr
+                              ga_pc_info,   // bias_addr
+                              ga_output,    // output_addr
+                              n, c, h, w,
+                              n * c,   // scale_dim (axis = 1  =>  n * c)
+                              h * w,   // inner_dim (axis = 1  =>  h * w)
+                              false,   // is_scale_const
+                              0,       // const_scale
+                              do_relu, // do_activation,
+                              false,   // with_bias
+                              CVK_FMT_I8);
 
   return success();
 }
@@ -190,24 +187,19 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   //gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_bf16_scale_kernel(
-      *backend_ctx, // ctx
-      layer_id,     // layer_id
-      ga_input,     // input_addr
-      ga_scale, // scale_addr
-      GA_INVALID,   // pack_addr
-      ga_output,    // output_addr
-      n, c, h, w,
-      n * c,        // scale_dim (axis = 1  =>  n * c)
-      h * w,        // inner_dim (axis = 1  =>  h * w)
-      false,        // is_scale_const
-      0,            // const_scale
-      do_relu,      // do_activation,
-      0,            // activation_method
-      nullptr,      // activation_arg
-      false,        // with_bias
-      false         // second_is_load_weight
-      );
+  cvi_backend_tg_scale_kernel(*backend_ctx, // ctx
+                              layer_id,     // layer_id
+                              ga_input,     // input_addr
+                              ga_scale,     // scale_addr
+                              GA_INVALID,   // bias_addr
+                              ga_output,    // output_addr
+                              n, c, h, w,
+                              n * c,   // scale_dim (axis = 1  =>  n * c)
+                              h * w,   // inner_dim (axis = 1  =>  h * w)
+                              false,   // is_scale_const
+                              0,       // const_scale
+                              do_relu, // do_activation
+                              false, CVK_FMT_BF16);
 
   return success();
 }

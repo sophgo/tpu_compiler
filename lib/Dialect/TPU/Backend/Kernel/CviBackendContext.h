@@ -326,14 +326,6 @@ public:
   //
   // tl calc
   //
-  void load_bias_multiplier(int oc_step, // output channel
-                            bool do_bias, gaddr_t bias_gaddr, int qmode,
-                            cvk_tl_t **tl_bias) const;
-
-  void load_32byte_multiplier(int oc_step, bool do_bias, gaddr_t bias_gaddr,
-                              cvk_tl_t **tl_chl_quan_param) const;
-
-  void load_16bytes_bias(int oc, cvk_tl_t **tl_bias, gaddr_t bias_gaddr) const;
 
   // apply quantize int 8 mode
   void apply_qi8(cvk_tl_t *ifmap, uint32_t layer_id, int do_relu,
@@ -419,17 +411,19 @@ public:
             static_cast<uint32_t>(h), static_cast<uint32_t>(w)};
   }
 
-  inline cvk_tg_stride_t tg_default_stride(int c, int h, int w, cvk_fmt_t fmt) const {
-    return tg_default_stride(tg_shape_t4(1,c,h,w), fmt);
+  inline cvk_tg_stride_t tg_default_stride(int c, int h, int w,
+                                           cvk_fmt_t fmt) const {
+    return tg_default_stride(tg_shape_t4(1, c, h, w), fmt);
   }
 
   inline int tensor_size(int n, int c, int h, int w, cvk_fmt_t fmt) const {
     return n * c * h * w * bytesize_of_fmt(fmt);
   }
 
-  inline uint32_t get_lmem_usage(int n, int c, int h, int w,
-                                 cvk_fmt_t fmt = CVK_FMT_I8) const {
-    return lmem_tensor_to_size(tl_shape_t4(n, c, h, w), fmt, /*eu_align*/ 1);
+  inline uint32_t lmem_tensor_to_size(int n, int c, int h, int w,
+                                      cvk_fmt_t fmt = CVK_FMT_I8,
+                                      int eu_align = 1) const {
+    return lmem_tensor_to_size(tl_shape_t4(n, c, h, w), fmt, eu_align);
   }
 
   //
@@ -455,7 +449,6 @@ public:
     uint64_t offset;
   } tiling_info_t;
 
-  int split(int blob_num, int count) const;
   void split_nh(int n, int c, int h, int w, int blob_num, uint32_t reserved,
                 int *n_slices, int *h_slices) const;
 
