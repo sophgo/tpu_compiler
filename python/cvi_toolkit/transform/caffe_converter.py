@@ -78,6 +78,7 @@ class CaffeConverter(BaseConverter):
             'LRN': lambda layer: self.convert_lrn_op(layer),
             'Normalize': lambda layer: self.convert_normalize_op(layer),
             'Mish': lambda layer: self.convert_mish_op(layer),
+            'Padding': lambda layer: self.convert_padding_op(layer),
             'Permute': lambda layer: self.convert_permute_op(layer),
             'Pooling': lambda layer: self.convert_pooling_op(layer),
             'Power': lambda layer: self.convert_power_op(layer),
@@ -767,6 +768,29 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
+
+    def convert_padding_op(self, layer):
+        assert(self.layerType(layer) == 'Padding')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+
+        pad_t = layer.padding_param.pad_t
+        pad_l = layer.padding_param.pad_l
+        pad_b = layer.padding_param.pad_b
+        pad_r = layer.padding_param.pad_r
+        pads = [0, 0, pad_t, pad_l, 0, 0, pad_b, pad_r]
+
+        dims = len(input_shape)
+        output_shape = np.sum([input_shape, pads[:dims], pads[dims:]], axis=0)
+        output_shape = [int(i) for i in output_shape]
+
+        pads_param = {
+          "pads": pads,
+          "const_val": layer.padding_param.pad_value,
+        }
+        pads_op = self.CVI.add_pad_op(layer.name, operands, output_shape, **pads_param)
+        self.addOperand(layer.top[0], pads_op, output_shape, TensorType.ACTIVATION)
 
     def convert_permute_op(self, layer):
         assert(self.layerType(layer) == 'Permute')
