@@ -26,9 +26,9 @@ mlir-opt $mlir_file \
     --deep-fusion-opt \
     -o $optimized_mlir
 
-    #--tg-op-tile \
-    #--compress-activation \
 mlir-opt $optimized_mlir \
+    --tg-op-tile \
+    --compress-activation \
     --compress-weight \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
