@@ -2156,8 +2156,17 @@ LogicalResult tpu::LrnOp::interpret(
   std::shared_ptr<std::vector<float>> input = opdT[0];
   if (quant == "NONE") {
     std::shared_ptr<std::vector<float>> scaleT = opdT[3];
-    ret =
-        my_lrn_main(input->data(), scaleT->data(), resultT->data(), n, c, h, w);
+    if (scaleT == NULL) {
+      scaleT = std::make_shared<std::vector<float>>(input_size);
+      ret = my_lrn_one(input->data(), scaleT->data(), n, c, h, w, local_size(), alpha().convertToFloat());
+      assert(ret == 0);
+      ret = my_lrn_two(scaleT->data(), resultT->data(), n, c, h, w,local_size());
+      assert(ret == 0);
+      ret = my_lrn_three(resultT->data(), scaleT->data(), n, c, h, w,
+                         beta().convertToFloat(), k().convertToFloat());
+      assert(ret == 0);
+    }
+    ret = my_lrn_main(input->data(), scaleT->data(), resultT->data(), n, c, h, w);
     assert(ret == 0);
   } else if (quant == "INT8") {
     std::shared_ptr<std::vector<float>> sqr_lut = opdT[1];

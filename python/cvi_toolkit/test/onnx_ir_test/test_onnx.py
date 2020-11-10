@@ -124,9 +124,13 @@ class ONNX_IR_TESTER(object):
 
         print(batch_size)
         onnx_out = onnx_inference(input_data, model_def, model_name, input_cb)
+         # opt
+        fp32_opt_mlir = "{}_opt.mlir".format(model_name)
+        fp32_csv = "{}_fp32.csv".format(model_name)
+        mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv, chip=chip)
         self.mlir_model = None
         self.mlir_model = MLIRModel()
-        self.mlir_model.load_model(fp32_mlir)
+        self.mlir_model.load_model(fp32_opt_mlir)
         mlir_out = self.mlir_model.inference(input_data)
 
         # Test output
@@ -140,10 +144,6 @@ class ONNX_IR_TESTER(object):
 
             tensors = self.mlir_model.get_all_tensor()
             if self.quant_mode == "int8":
-                # opt
-                fp32_opt_mlir = "{}_opt.mlir".format(model_name)
-                fp32_csv = "{}_fp32.csv".format(model_name)
-                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv, chip=chip)
                 table_name = "{}_cali_table".format(model_name)
                 # gen cali table
                 make_test_calibration_table(tensors, table_name)

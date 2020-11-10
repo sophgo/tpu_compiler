@@ -1021,7 +1021,7 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
   let summary = opSummary # " operator";
 
   let description = [{
-    LRN Part on input to calc threshold.
+    LRN Part on input to calc threshold and will be removed.
 
     Inputs:
       `input`           : required, the input activation tensor.
@@ -1123,6 +1123,7 @@ def TPU_LrnOp: TPU_Op<"lrn",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 def TPU_LstmOp: TPU_Op<"lstm",

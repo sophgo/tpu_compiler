@@ -911,42 +911,24 @@ class MLIRImporter(object):
             'alpha': FloatAttr.get_f32(kargs['alpha']),
             'beta': FloatAttr.get_f32(kargs['beta']),
             'k': FloatAttr.get_f32(kargs['bias']),
-            'local_size':  IntegerAttr.get(self.i32Type, kargs['size']),
+            'local_size': IntegerAttr.get(self.i32Type, kargs['size']),
+            'sum_rshift': IntegerAttr.get(self.i32Type, 0),
+            'lrn_rshift': IntegerAttr.get(self.i32Type, 0),
+            'quant_data0': IntegerAttr.get(self.i32Type, 0),
+            'quant_data1': IntegerAttr.get(self.i32Type, 0),
+            'norm_region': IntegerAttr.get(self.i32Type, 0)
         }
 
-        lrn_name_1 = StringAttr.get("{}_one".format(op_name))
-        lrn_name_2 = StringAttr.get("{}_two".format(op_name))
-        lrn_name_3 = StringAttr.get("{}_three".format(op_name))
-        lrn_name_main = StringAttr.get("{}".format(op_name))
-
+        lrn_name = StringAttr.get("{}".format(op_name))
         input_op = inputOperands[0]
-        # lrn one
-        lrn_one_op = self.buildOp(TPU_OpType.LrnOne.value, inputOperands, [
-            tensor_output_type], name=lrn_name_1, quant=self.quant_param, **lrn_param)
-        # lrn two
-        operands2 = list()
-        operands2.append(lrn_one_op)
-        lrn_two_op = self.buildOp(TPU_OpType.LrnTwo.value, operands2, [
-            tensor_output_type], name=lrn_name_2, quant=self.quant_param, **lrn_param)
-        # lrn three
-        operands3 = list()
-        operands3.append(lrn_two_op)
-        lrn_three_op = self.buildOp(TPU_OpType.LrnThree.value, operands3, [
-            tensor_output_type], name=lrn_name_3, quant=self.quant_param, **lrn_param)
-        # lrn
         none = self.add_none_op()
         operands = list()
         operands.append(input_op)
         operands.append(none)
         operands.append(none)
-        operands.append(lrn_three_op)
-        lrn_param['sum_rshift'] = IntegerAttr.get(self.i32Type, 0)
-        lrn_param['lrn_rshift'] = IntegerAttr.get(self.i32Type, 0)
-        lrn_param['quant_data0'] = IntegerAttr.get(self.i32Type, 0)
-        lrn_param['quant_data1'] = IntegerAttr.get(self.i32Type, 0)
-        lrn_param['norm_region'] = IntegerAttr.get(self.i32Type, 0)
+        operands.append(none)
         return self.buildOp(TPU_OpType.Lrn.value, operands, [
-            tensor_output_type], name=lrn_name_main, quant=self.quant_param, **lrn_param)
+            tensor_output_type], name=lrn_name, quant=self.quant_param, **lrn_param)
 
     def add_lstm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

@@ -49,6 +49,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertInterp.cpp
   Transforms/ConvertConv2D.cpp
   Transforms/ConvertConv3D.cpp
+  Transforms/ConvertLrn.cpp
   Transforms/ConvertUpsample.cpp
   Transforms/ConvertPoolMask.cpp
   Transforms/ConvertTile.cpp
