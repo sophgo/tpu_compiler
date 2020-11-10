@@ -78,8 +78,8 @@ void cvi_backend_tg_scale_kernel(const CviBackendContext &ctx,
   }
 
   std::vector<CviBackendContext::tiling_info_t> tiles;
-  ctx.tiling_packing(tiles, ts_bottom_shape, fmt, lmem_usage,
-                     CviBackendContext::TilingDimNHW); // keep c
+  ctx.tiling_packing(tiles, ts_bottom_shape, fmt, 1, lmem_usage,
+                     CviBackendContext::TilingDimNHW);
   cvk_tl_shape_t max_shape =
       ctx.tl_shape_t4(tiles[0].n, tiles[0].c, tiles[0].h, tiles[0].w);
   cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(max_shape, fmt, 1);

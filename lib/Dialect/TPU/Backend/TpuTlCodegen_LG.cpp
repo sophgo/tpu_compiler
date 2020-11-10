@@ -738,7 +738,7 @@ LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_INT8_QuantOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_QuantOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
@@ -781,13 +781,6 @@ LogicalResult tpu::TL_LG_INT8_QuantOp::codegen(void *ctx) {
                       from, to,
                       this->const_scale().convertToFloat(),
                       n, c, h, w);
-  return success();
-}
-
-LogicalResult tpu::TL_LG_BF16_QuantOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  assert(0);
   return success();
 }
 

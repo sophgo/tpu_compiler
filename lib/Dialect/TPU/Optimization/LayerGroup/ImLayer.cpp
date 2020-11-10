@@ -167,15 +167,13 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
           << "Not support crop with channel setting, : " << getOpName(op) << "\n";);
       layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
     }
-  } else if (isa<tpu::TG_INT8_ReluOp>(op) ||
-             isa<tpu::TG_BF16_ReluOp>(op)) {
+  } else if (isa<tpu::TG_INT8_ReluOp>(op) || isa<tpu::TG_BF16_ReluOp>(op)) {
     layer = std::make_shared<ImRelu>(op);
-  } else if (isa<tpu::TG_CastOp>(op)) {
+  } else if (isa<tpu::TG_QuantOp>(op)) {
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
-  } else if (isa<tpu::TG_BF16_INT8_CastOp>(op) ||
-             isa<tpu::TG_INT8_BF16_CastOp>(op)) {
+  } else if (isa<tpu::TG_QuantOp>(op)) {
     layer = std::make_shared<ImQuant>(op);
   } else if (isa<tpu::QuantOp>(op) ||
              isa<tpu::InputOp>(op) ) {
@@ -185,7 +183,7 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImZeroMask>(op);
   } else {
     LLVM_DEBUG(llvm::errs()
-      << "Not support ImLayer: " << getOpName(op) << "\n";);
+                   << "Not support ImLayer: " << getOpName(op) << "\n";);
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
   }
   return layer;
@@ -509,7 +507,17 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
   }
 }
 
-ImQuant::ImQuant(Operation* op) : ImLayer(IR_QUANT, op, true) {
+ImQuant::ImQuant(Operation *op) : ImLayer(IR_QUANT, op, true) {
+  auto quantOp = cast<tpu::TG_QuantOp>(op);
+  std::string from = quantOp.from();
+  std::string to = quantOp.to();
+  if (quantOp.threshold().hasValue() == false) {
+    fusible = false;
+  } else if ((from == "INT8" || from == "UINT8") && to == "BF16") {
+  } else if (from == "BF16" && to == "INT8") {
+  } else {
+    fusible = false;
+  }
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }

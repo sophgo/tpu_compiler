@@ -135,7 +135,7 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<tpu::LoadWeightOp>();
     target.addLegalOp<tpu::ReshapeOp>();
 
-    target.addLegalOp<tpu::TG_CastOp>();
+    target.addLegalOp<tpu::TG_QuantOp>();
     target.addLegalOp<tpu::TG_INT8_BroadcastMulOp>();
     target.addLegalOp<tpu::TG_BF16_BroadcastMulOp>();
     target.addLegalOp<tpu::TG_INT8_ConcatOp>();
@@ -214,7 +214,7 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
     target.addLegalOp<TensorStoreOp>();
 
     patterns.insert<
-        convertTgOpToTensorPattern<tpu::TG_MemRef_CastOp, tpu::TG_CastOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_QuantOp, tpu::TG_QuantOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_BroadcastMulOp, tpu::TG_INT8_BroadcastMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_BroadcastMulOp, tpu::TG_BF16_BroadcastMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ConcatOp, tpu::TG_INT8_ConcatOp>,

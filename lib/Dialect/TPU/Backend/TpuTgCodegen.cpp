@@ -366,34 +366,6 @@ LogicalResult tpu::TG_BF16_BroadcastSubOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_CastOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-
-  if (from() == "FP32" && to() == "BF16") {
-    convert_fp32_bf16_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
-                             n, c, h, w);
-  } else if (from() == "BF16" && to() == "FP32") {
-    convert_bf16_fp32_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
-                             n, c, h, w);
-  } else {
-    llvm_unreachable("unsupport other type cast");
-  }
-
-  return success();
-}
-
 LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -2382,136 +2354,25 @@ LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_BF16_INT8_CastOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-
-  assert(this->from() == "BF16");
-  assert(this->to() == "INT8");
-  cvk_fmt_t from = CVK_FMT_BF16;
-  cvk_fmt_t to = CVK_FMT_I8;
-
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int layer_id = getOpLayerId(op);
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-  // quant:
-  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-  float threshold = this->threshold().getValue().convertToFloat();
-  float quant = 128.0 / threshold;
-
-  //  quant to int8
-  mixed_precision_quant(
-          *backend_ctx,//CviBackendContext &ctx,
-          layer_id,//u32 layer_id,
-          from, to,
-          ga_input,//gaddr_t bottom_gaddr,
-          ga_output,//gaddr_t top_gaddr,
-          n,//int input_n,
-          c,//int input_c,
-          h,//int input_h,
-          w,//int input_w,
-          quant//float const_scale
-          );
-
-  return success();
+static cvk_fmt_t get_fmt(std::string fmt_str){
+  if (fmt_str == "FP32" || fmt_str == "NONE") {
+    return CVK_FMT_F32;
+  }
+  if (fmt_str == "BF16") {
+    return CVK_FMT_BF16;
+  }
+  if (fmt_str == "INT8") {
+    return CVK_FMT_I8;
+  }
+  if (fmt_str == "UINT8") {
+    return CVK_FMT_U8;
+  }
+  llvm_unreachable("unsupport other type cast");
 }
 
-LogicalResult tpu::TG_FP32_INT8_CastOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  assert(this->from() == "NONE");
-  assert(this->to() == "INT8");
-  cvk_fmt_t from = CVK_FMT_F32;
-  cvk_fmt_t to = CVK_FMT_I8;
-
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int layer_id = getOpLayerId(op);
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-  // quant:
-  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-  float threshold = this->threshold().getValue().convertToFloat();
-  float quant = 128.0 / threshold;
-
-  //  quant to int8
-  mixed_precision_quant(
-          *backend_ctx,//CviBackendContext &ctx,
-          layer_id,//u32 layer_id,
-          from, to,
-          ga_input,//gaddr_t bottom_gaddr,
-          ga_output,//gaddr_t top_gaddr,
-          n,//int input_n,
-          c,//int input_c,
-          h,//int input_h,
-          w,//int input_w,
-          quant//float const_scale
-          );
-
-  return success();
-}
-
-LogicalResult tpu::TG_INT8_BF16_CastOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-
-  assert(this->from() == "INT8" || this->from() == "UINT8");
-  assert(this->to() == "BF16");
-  cvk_fmt_t from = (this->from() == "INT8") ? CVK_FMT_I8 : CVK_FMT_U8;
-  cvk_fmt_t to = CVK_FMT_BF16;
-
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int layer_id = getOpLayerId(op);
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-  // quant:
-  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-  float threshold = this->threshold().getValue().convertToFloat();
-  float dequant = threshold / 128.0;
-
-  //  quant to int8
-  mixed_precision_dequant(
-          *backend_ctx,//CviBackendContext &ctx,
-          layer_id,//u32 layer_id,
-          from, to,
-          ga_input,//gaddr_t bottom_gaddr,
-          ga_output,//gaddr_t top_gaddr,
-          n,//int input_n,
-          c,//int input_c,
-          h,//int input_h,
-          w,//int input_w,
-          dequant//float const_scale
-          );
-
-  return success();
-}
-
-LogicalResult tpu::TG_FP32_BF16_CastOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  assert(this->from() == "NONE");
-  assert(this->to() == "BF16");
+LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
+  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -2525,81 +2386,22 @@ LogicalResult tpu::TG_FP32_BF16_CastOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  convert_fp32_bf16_kernel(
-      *backend_ctx, layer_id,
-      ga_input, ga_output, n, c, h, w);
-  return success();
-}
-
-LogicalResult tpu::TG_INT8_FP32_CastOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-  assert(this->from() == "INT8" || this->from() == "UINT8");
-  assert(this->to() == "NONE");
-  cvk_fmt_t from = (this->from() == "INT8") ? CVK_FMT_I8 : CVK_FMT_U8;
-  cvk_fmt_t to = CVK_FMT_F32;
-
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int layer_id = getOpLayerId(op);
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-  // quant:
-  // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-  float threshold = this->threshold().getValue().convertToFloat();
-  float dequant = threshold / 128.0;
-
-  //  quant to int8
-  mixed_precision_dequant(
-          *backend_ctx,//CviBackendContext &ctx,
-          layer_id,//u32 layer_id,
-          from, to,
-          ga_input,//gaddr_t bottom_gaddr,
-          ga_output,//gaddr_t top_gaddr,
-          n,//int input_n,
-          c,//int input_c,
-          h,//int input_h,
-          w,//int input_w,
-          dequant//float const_scale
-          );
-
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_FP32_CastOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";
-
-  assert(this->from() == "BF16");
-  assert(this->to() == "NONE");
-
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int layer_id = getOpLayerId(op);
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  if (shape.size() == 5) {
-    int64_t d;
-    getNCDHW(shape, n, c, d, h, w);
-    h *= d; // Merge depth into height
-  } else {
-    getNCHW(shape, n, c, h, w);
+  float scale = 1.0;
+  cvk_fmt_t from = get_fmt(this->from());
+  cvk_fmt_t to = get_fmt(this->to());
+  if (this->threshold().hasValue()) {
+    float threshold = this->threshold().getValue().convertToFloat();
+    if (from == CVK_FMT_I8 || from == CVK_FMT_U8) {
+      scale = threshold / 128.0;
+    } else if (to == CVK_FMT_I8 || to == CVK_FMT_U8) {
+      scale = 128.0 / threshold;
+    }
   }
 
-  convert_bf16_fp32_kernel(
-      *backend_ctx, layer_id,
-      ga_input, ga_output, n, c, h, w);
+  //  quant to int8
+  cvi_backend_tg_quant_kernel(*backend_ctx, layer_id, from, to, ga_input,
+                             ga_output, n, c, h, w, scale);
+
   return success();
 }
 
@@ -3642,14 +3444,6 @@ LogicalResult tpu::TG_MemRef_BF16_PReluOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_MemRef_INT8_QuantOp::codegen(void *ctx) {
-  return success();
-}
-
-LogicalResult tpu::TG_MemRef_BF16_QuantOp::codegen(void *ctx) {
-  return success();
-}
-
 LogicalResult tpu::TG_MemRef_INT8_ReluOp::codegen(void *ctx) {
   return success();
 }
@@ -3706,7 +3500,7 @@ LogicalResult tpu::TG_MemRef_BF16_PixelShuffleOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_MemRef_CastOp::codegen(void *ctx) {
+LogicalResult tpu::TG_MemRef_QuantOp::codegen(void *ctx) {
   return success();
 }
 

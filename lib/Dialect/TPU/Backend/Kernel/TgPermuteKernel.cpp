@@ -163,7 +163,7 @@ void TgPermuteKernel::init(uint32_t layer_id, gaddr_t ga_input,
 }
 
 void TgPermuteKernel::selectTilePolicy() {
-  ctx.tiling_packing(tiles, ctx.tg_shape_t4(n, c, h, w), fmt);
+  ctx.tiling_packing(tiles, n, c, h, w, fmt);
 }
 
 void TgPermuteKernel::load(int32_t step_idx, cvk_tl_t &tl_ifmap) const {

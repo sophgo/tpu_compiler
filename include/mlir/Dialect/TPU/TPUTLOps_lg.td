@@ -340,7 +340,7 @@ class TPU_TL_LG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TL_LG_INT8_LutOp : TPU_TL_LG_LutOp<"tl_lg_int8_lut", "Int8">;
 def TPU_TL_LG_BF16_LutOp : TPU_TL_LG_LutOp<"tl_lg_bf16_lut", "Bf16">;
 
-class TPU_TL_LG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+def TPU_TL_LG_QuantOp : TPU_Op<"tl_lg_quant",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
@@ -367,9 +367,6 @@ class TPU_TL_LG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-
-def TPU_TL_LG_INT8_QuantOp : TPU_TL_LG_QuantOp<"tl_lg_int8_quant", "Int8">;
-def TPU_TL_LG_BF16_QuantOp : TPU_TL_LG_QuantOp<"tl_lg_bf16_quant", "Bf16">;
 
 class TPU_TL_LG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

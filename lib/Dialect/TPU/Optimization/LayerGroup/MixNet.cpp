@@ -1417,38 +1417,27 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   }
 }
 
-void MixNet::_add_tl_quant_op(MixOp * mix_op,
-                              const std::vector<int>& in_tensors,
-                              const std::vector<int>& out_tensors,
-                              net_timestep* time_step,
-                              int timestep_idx, bool is_h_split) {
+void MixNet::_add_tl_quant_op(MixOp *mix_op, const std::vector<int> &in_tensors,
+                              const std::vector<int> &out_tensors,
+                              net_timestep *time_step, int timestep_idx,
+                              bool is_h_split) {
   int bottom_dim[4];
-  float const_scale;
+  float const_scale = 1.0;
   float threshold;
   StringRef from, to;
-  const ImLayer* im_layer =
-      net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  const ImLayer *im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
 
   // it MUST quant op
   RankedTensorType old_input_type, old_output_type;
 
-  if (auto quantOp = dyn_cast<tpu::TG_BF16_INT8_CastOp>(im_layer->op())) {
-    old_input_type = quantOp.getOperand()->getType().cast<RankedTensorType>();
-    old_output_type = quantOp.getResult()->getType().cast<RankedTensorType>();
-    threshold = quantOp.threshold().getValue().convertToFloat();
-    from = quantOp.from();
-    to = quantOp.to();
-  } else if (auto quantOp = dyn_cast<tpu::TG_INT8_BF16_CastOp>(im_layer->op())) {
-    old_input_type = quantOp.getOperand()->getType().cast<RankedTensorType>();
-    old_output_type = quantOp.getResult()->getType().cast<RankedTensorType>();
-    threshold = quantOp.threshold().getValue().convertToFloat();
-    from = quantOp.from();
-    to = quantOp.to();
-  } else {
-    assert(0 && "it should be quant interface");
-  }
+  auto quantOp = cast<tpu::TG_QuantOp>(im_layer->op());
+  old_input_type = quantOp.getOperand()->getType().cast<RankedTensorType>();
+  old_output_type = quantOp.getResult()->getType().cast<RankedTensorType>();
+  threshold = quantOp.threshold().getValue().convertToFloat();
+  from = quantOp.from();
+  to = quantOp.to();
 
-  Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
+  Tensor *in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
   bottom_dim[0] = in_tensor->n_slice;
   bottom_dim[2] = in_tensor->h_slice;
@@ -1460,8 +1449,7 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
   if ((from == "INT8" || from == "UINT8") && to == "BF16") {
     // dequant
     const_scale = threshold / 128.0;
-  }
-  else if (from == "BF16" && to == "INT8") {
+  } else if (from == "BF16" && to == "INT8") {
     // quant
     const_scale = 128.0 / threshold;
   }
@@ -1469,43 +1457,38 @@ void MixNet::_add_tl_quant_op(MixOp * mix_op,
   // attrs
   Builder builder_(context_);
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder_.getNamedAttr("name",
-                           builder_.getStringAttr(name)));
-  attrs.push_back(builder_.getNamedAttr("la_input",
-                           builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  attrs.push_back(
+      builder_.getNamedAttr("la_input", builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
-                           builder_.getI32IntegerAttr(la_output)));
-  attrs.push_back(builder_.getNamedAttr("from",
-                           builder_.getStringAttr(from)));
-  attrs.push_back(builder_.getNamedAttr("to",
-                           builder_.getStringAttr(to)));
+                                        builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("from", builder_.getStringAttr(from)));
+  attrs.push_back(builder_.getNamedAttr("to", builder_.getStringAttr(to)));
   attrs.push_back(builder_.getNamedAttr("const_scale",
-                           builder_.getF32FloatAttr(const_scale)));
+                                        builder_.getF32FloatAttr(const_scale)));
 
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
-                          {bottom_dim[0], bottom_dim[1],
-                           bottom_dim[2], bottom_dim[3]},
-                           old_input_type.getElementType());
+      {bottom_dim[0], bottom_dim[1], bottom_dim[2], bottom_dim[3]},
+      old_input_type.getElementType());
 
   RankedTensorType output_type = RankedTensorType::get(
-                          {bottom_dim[0], bottom_dim[1],
-                           bottom_dim[2], bottom_dim[3]},
-                           old_output_type.getElementType());
+      {bottom_dim[0], bottom_dim[1], bottom_dim[2], bottom_dim[3]},
+      old_output_type.getElementType());
 
   // setup operands
   std::vector<Value *> operands;
 
   // only one input
-  Operation * input_op =
-    get_op_from_name(mix_op->bottom_name(0))->getDefiningOp();
+  Operation *input_op =
+      get_op_from_name(mix_op->bottom_name(0))->getDefiningOp();
   input_op->getResult(0)->setType(input_type);
   operands.push_back(input_op->getResult(0));
 
-  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_QuantOp>(
-                      get_start_op()->getLoc(), output_type,
-                      ArrayRef<Value *>{operands},
-                      ArrayRef<NamedAttribute>{attrs});
+  auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_QuantOp>(
+              get_start_op()->getLoc(), output_type,
+              ArrayRef<Value *>{operands},
+              ArrayRef<NamedAttribute>{attrs});
 
   add_opd_to_list(mix_op->name(), op.getResult(), true);
 }

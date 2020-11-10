@@ -582,50 +582,74 @@ void CviBackendContext::split_nh(int n, int c, int h, int w, int blob_num,
   }
 }
 
-void CviBackendContext::tiling_packing(
-    std::vector<tiling_info_t> &tiling_result, cvk_tg_shape_t shape,
-    cvk_fmt_t fmt, uint32_t reserved_lmem, tiling_pattern_t type) const {
-  uint32_t lmem_size = (uint32_t)LOCAL_MEM_SIZE - reserved_lmem;
-  int n = static_cast<int>(shape.n);
-  int c = static_cast<int>(shape.c);
-  int h = static_cast<int>(shape.h);
-  int w = static_cast<int>(shape.w);
+void CviBackendContext::tiling_all(std::vector<tiling_info_t> &tiling_result,
+                                   int64_t total, cvk_fmt_t fmt,
+                                   int blob_num, uint32_t lmem_size) const {
+  tiling_info_t tile;
+  memset(&tile, 0, sizeof(tile));
+  tile.n = 1;
+  tile.c = NPU_NUM;
+  tile.h = std::min(total / (NPU_NUM * EU_NUM), (int64_t)MAX_HEIGHT);
+  tile.w = EU_NUM;
+  if (tile.h == 0) {
+    tile.h = 1;
+  }
+  while (total > 0) {
+    int64_t count = tile.n * tile.c * tile.h * tile.w;
+    uint32_t lsize = blob_num * lmem_tensor_to_size(tile.n, tile.c, tile.h,
+                                                        tile.w, fmt, 1);
+    if (count > total || lsize > lmem_size) {
+      if (tile.h > 1) {
+        tile.h--;
+      } else if (tile.w > 1) {
+        tile.w--;
+      } else if (tile.c > 1) {
+        tile.c--;
+      }
+    } else {
+      tiling_result.emplace_back(tile);
+      total -= count;
+      tile.offset += count * bytesize_of_fmt(fmt);
+    }
+  }
+  assert(total == 0);
+  return;
+}
+
+void CviBackendContext::tiling_nchw(std::vector<tiling_info_t> &tiling_result,
+                                    int n, int c, int h, int w, cvk_fmt_t fmt,
+                                    int blob_num, uint32_t lmem_size,
+                                    tiling_pattern_t type) const {
   int max_w = std::min(w, MAX_WIDTH);
   int max_h = std::min(h, MAX_HEIGHT);
   int max_c = std::min(c, MAX_CHANNEL);
   int max_n = std::min(n, MAX_CHANNEL);
   int min_c = 1, min_w = 1;
-  assert(type != TilingDimAll);                      // not support
   if (type == TilingDimNHW || type == TilingDimNH) { // keep c
-    if (max_c != c) {
-      llvm::errs() << llvm::format(
-          "Tilling[%d] failed, c=[%d] should less then %d\n", type, c,
-          MAX_CHANNEL);
-      assert(0);
-    }
+    assert(max_c == c && "keep c, but c too large");
     min_c = max_c;
   }
   if (type == TilingDimNH) { // keep w
-    if (max_w != w) {
-      llvm::errs() << llvm::format(
-          "Tilling[%d] failed, w=[%d] should less then %d\n", type, w,
-          MAX_WIDTH);
-      assert(0);
-    }
+    assert(max_w == w && "keep w, but w too large");
     min_w = max_w;
   }
 
-  uint32_t lmem_required = lmem_size + 1;
   int step_w, step_h, step_c, step_n;
+  uint32_t lmem_required;
   for (step_w = max_w; step_w >= min_w; --step_w) {
     for (step_h = max_h; step_h >= 1; --step_h) {
       for (step_n = max_n; step_n >= 1; --step_n) {
-        for (step_c = max_c; step_c >= min_c; step_c -= NPU_NUM) {
+        for (step_c = max_c; step_c >= min_c;) {
           cvk_tl_shape_t max_shape =
               tl_shape_t4(step_n, step_c, step_h, step_w);
-          lmem_required = lmem_tensor_to_size(max_shape, fmt, 1);
+          lmem_required = blob_num * lmem_tensor_to_size(max_shape, fmt, 1);
           if (lmem_required <= lmem_size) {
             goto after_loop;
+          }
+          if (step_c % NPU_NUM) {
+            step_c -= step_c % NPU_NUM;
+          } else {
+            step_c -= NPU_NUM;
           }
         }
       }
@@ -640,8 +664,7 @@ after_loop:
   }
 
   tiling_info_t tile;
-  tiling_result.clear();
-  cvk_tg_stride_t src_stride = tg_default_stride(shape, fmt);
+  cvk_tg_stride_t src_stride = tg_default_stride(c, h, w, fmt);
   for (tile.pos_n = 0; tile.pos_n < n; tile.pos_n += step_n) {
     tile.n = std::min(n - tile.pos_n, step_n);
     for (tile.pos_c = 0; tile.pos_c < c; tile.pos_c += step_c) {
@@ -664,117 +687,34 @@ after_loop:
   }
 }
 
-// apply quantize int 8 mode
-void CviBackendContext::apply_qi8(cvk_tl_t *ifmap, uint32_t layer_id,
-                                  int do_relu, int right_shift_width,
-                                  int threshold_x_quantized) const {
-  cvk_tiu_mul_param_t p = {0};
-  p.res_high = nullptr;
-  p.res_low = ifmap;
-  p.a = ifmap;
-  p.b_const.val = threshold_x_quantized;
-  p.b_const.is_signed = false;
-  p.b_is_const = 1;
-  p.rshift_bits = right_shift_width;
-  p.layer_id = layer_id;
-  p.relu_enable = do_relu;
-  tiu_mul(&p);
+void CviBackendContext::tiling_packing(
+    std::vector<tiling_info_t> &tiling_result, cvk_tg_shape_t shape,
+    cvk_fmt_t fmt, int blob_num, uint32_t reserved_lmem,
+    tiling_pattern_t type) const {
+  int n = static_cast<int>(shape.n);
+  int c = static_cast<int>(shape.c);
+  int h = static_cast<int>(shape.h);
+  int w = static_cast<int>(shape.w);
+  tiling_packing(tiling_result, n, c, h, w, fmt, blob_num, reserved_lmem, type);
+}
+
+void CviBackendContext::tiling_packing(
+    std::vector<tiling_info_t> &tiling_result, int n, int c, int h, int w,
+    cvk_fmt_t fmt, int blob_num, uint32_t reserved_lmem,
+    tiling_pattern_t type) const {
+  uint32_t lmem_size = (uint32_t)LOCAL_MEM_SIZE - reserved_lmem;
+  assert((uint32_t)LOCAL_MEM_SIZE > reserved_lmem && "reserved_lmem too large");
+
+  if (type == TilingDimAll) {
+    tiling_all(tiling_result, n * c * h * w, fmt, blob_num, lmem_size);
+  } else {
+    tiling_nchw(tiling_result, n, c, h, w, fmt, blob_num, lmem_size, type);
+  }
 }
 
 void CviBackendContext::assert_support_fmt(cvk_fmt_t fmt) const {
   assert((fmt == CVK_FMT_I8 || fmt == CVK_FMT_U8 || fmt == CVK_FMT_BF16) &&
          "others not supported");
-}
-
-cvk_tl_stride_t CviBackendContext::tl_fp32_stride(cvk_tl_t *tl,
-                                                  int eu_align) const {
-  int fmt_sz = 4; // 4 means fp32 takes 4 bytes
-  cvk_tl_stride_t s;
-
-  s.w = fmt_sz;
-  s.h = tl->shape.w * fmt_sz;
-  s.c = tl->shape.h * tl->shape.w * fmt_sz;
-
-  if (eu_align) {
-    s.c = align_up(s.c, EU_NUM);
-  }
-
-  s.n = s.c * ceiling_func(tl->shape.c, NPU_NUM);
-  return s;
-}
-
-void CviBackendContext::fill_fp32_lmem_0(uint32_t layer_id, int batch,
-                                         int channel, int height,
-                                         int width) const {
-  int blob_num = 3; // 2 for output fp32, 1 for load bf16
-  int input_n = batch;
-  int input_c = channel;
-  int input_h = height;
-  int input_w = width;
-
-  cvk_fmt_t fmt = CVK_FMT_BF16;
-
-  // +2 means we prevent wrap to top, reserver it
-  int require_shape = input_n * input_c * input_h * input_w;
-  int coeff_lane_shape = 2;
-
-  std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
-
-  // lmem fmt store as bf16
-  tiling_packing(require_shape, coeff_lane_shape, blob_num, fmt, &tiling_info);
-
-  int i = 0;
-  int n = tiling_info[i].first.n;
-  int c = tiling_info[i].first.c;
-  int h = tiling_info[i].first.h;
-  int w = tiling_info[i].first.w;
-
-  cvk_tl_t *bottom;
-
-  // force clean all
-  cvk_tl_shape_t input_shape =
-      tl_shape_t4(n, c, h * 2, w * 2); // fp32 takes 4 times than int8
-  bottom = lmem_alloc_tensor(input_shape, CVK_FMT_I8, /*eu_align=*/0);
-  cvk_tiu_xor_int8_param_t param = {0};
-  param.res = bottom;
-  param.a = bottom;
-  param.b = bottom;
-  param.layer_id = layer_id;
-  tiu_xor_int8(&param);
-
-  lmem_free_tensor(bottom);
-}
-
-void CviBackendContext::lmem_shrink_fp32_bf16(cvk_tl_t *lmem_bf16,
-                                              cvk_tl_t *lmem_fp32, int bf16_n,
-                                              int bf16_c, int bf16_h,
-                                              int bf16_w,
-                                              uint32_t layer_id) const {
-
-  assert((uint32_t)bf16_w * 2 == lmem_fp32->shape.w &&
-         lmem_fp32->shape.h == (uint32_t)bf16_h &&
-         lmem_fp32->shape.c == (uint32_t)bf16_c &&
-         lmem_fp32->shape.n == (uint32_t)bf16_n &&
-         "the fp32's width should be twice than bf16's");
-
-  // move high 16bit as bf16 format
-  *lmem_bf16 = *lmem_fp32;
-  lmem_bf16->shape = tl_shape_t4(bf16_n, bf16_c, bf16_h, bf16_w);
-  lmem_bf16->stride =
-      tl_default_stride(lmem_bf16->shape, lmem_bf16->fmt, /*eu_align=*/0);
-
-  // fake shape for cmodel constrain that shape SHOULD be equal
-  lmem_fp32->shape = tl_shape_t4(bf16_n, bf16_c, bf16_h, bf16_w);
-  lmem_fp32->stride = tl_fp32_stride(lmem_fp32);
-
-  laddr_t lmem_fp32_addr = lmem_fp32->start_address;
-  lmem_fp32->start_address = lmem_fp32_addr + 2; // start with high 16 bits
-
-  cvk_tiu_copy_param_t param = {0};
-  param.src = lmem_fp32;
-  param.dst = lmem_bf16;
-  param.layer_id = layer_id;
-  tiu_copy(&param);
 }
 
 void *cvi_backend_get_cvk_ctx(const CviBackendContext &ctx) {

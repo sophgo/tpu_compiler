@@ -204,32 +204,6 @@ LogicalResult tpu::BroadcastMulOp::interpret(
   return success();
 }
 
-LogicalResult tpu::CastOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float> >(size);
-
-  if (this->from() == "FP32" && this->to() == "BF16") {
-    auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
-    // without round, alignment with backend cast
-    FloatToBFloat16(opdT[0]->data(), tensor_bf16->data(), opdT[0]->size(), false);
-    BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-  } else if (this->from() == "BF16" && this->to() == "FP32") {
-    resultT->assign(opdT[0]->begin(), opdT[0]->end());
-  } else {
-    llvm_unreachable("unsupported type");
-  }
-
-  valueMapping[result] = std::move(resultT);
-
-  return success();
-}
-
 LogicalResult tpu::ConcatOp::interpret(
     DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();

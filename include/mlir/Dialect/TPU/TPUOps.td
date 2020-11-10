@@ -443,47 +443,6 @@ def TPU_BroadcastAddOp : TPU_BroadcastOp<"broadcast_add", "Add">;
 def TPU_BroadcastSubOp : TPU_BroadcastOp<"broadcast_sub", "Sub">;
 def TPU_BroadcastMulOp : TPU_BroadcastOp<"broadcast_mul", "Mul">;
 
-def TPU_CastOp: TPU_Op<"cast",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "cast operator";
-
-  let description = [{
-    Performs cast on input.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-      `from`            : required, input data type.
-      `to`              : required, output data type.
-      `chipname`        : optional, chipname.
-
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpLowerInterface`  : support lower to tg op
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    StrAttr:$name,
-    StrAttr:$from,
-    StrAttr:$to,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_ConcatOp: TPU_Op<"concat",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

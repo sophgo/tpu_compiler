@@ -95,7 +95,6 @@ mlir-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
     --tpu-quant --quant-full-bf16 \
-    --convert-quant-op \
     --canonicalize \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_bf16_fused_preprocess.csv \

@@ -1126,7 +1126,7 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_PReluOp : TPU_TG_PReluOp<"tg_int8_prelu", "Int8">;
 def TPU_TG_BF16_PReluOp : TPU_TG_PReluOp<"tg_bf16_prelu", "Bf16">;
 
-class TPU_TG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+def TPU_TG_QuantOp : TPU_Op<"tg_quant",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -1139,7 +1139,9 @@ class TPU_TG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `from`           : required, the source type to be dequantized/quantized.
       `to`             : required, the destination type that quantize/dequantize to.
-      `region`          : required, the memory region to reside in, could be
+      `threshold`      : optional, scale = threshold/128.0 (from int8) or 128/threshold.0 (to int8);
+                         if none, scale = 1.0
+      `region`         : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
@@ -1171,12 +1173,6 @@ class TPU_TG_QuantOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_FP32_INT8_CastOp : TPU_TG_QuantOp<"tg_fp32_int8_cast", "Int8">;
-def TPU_TG_BF16_INT8_CastOp : TPU_TG_QuantOp<"tg_bf16_int8_cast", "Int8">;
-def TPU_TG_INT8_BF16_CastOp : TPU_TG_QuantOp<"tg_int8_bf16_cast", "Bf16">;
-def TPU_TG_FP32_BF16_CastOp : TPU_TG_QuantOp<"tg_fp32_bf16_cast", "Bf16">;
-def TPU_TG_INT8_FP32_CastOp : TPU_TG_QuantOp<"tg_int8_fp32_cast", "Fp32">;
-def TPU_TG_BF16_FP32_CastOp : TPU_TG_QuantOp<"tg_bf16_fp32_cast", "Fp32">;
 
 class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -1746,53 +1742,6 @@ def TPU_TG_CallOp : TPU_Op <"tg_call",
   let printer = [{ return ::print(p, *this); }];
   let results = (outs Variadic<AnyType>);
 }
-
-
-def TPU_TG_CastOp : TPU_Op<"tg_cast",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "cast operator.";
-
-  let description = [{
-    Inputs:
-      `input`          : required, the input1 activation memref.
-
-    Attributes:
-      `from`           : required, the source type to be cast.
-      `to`             : required, the destination type that cast to.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `buffer_reused`   : optional, whether buffer is reused.
-      `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    StrAttr:$from,
-    StrAttr:$to,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
-    OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 
 class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

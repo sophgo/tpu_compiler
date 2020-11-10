@@ -259,26 +259,6 @@ Value *tpu::BroadcastSubOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-Value *tpu::CastOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-
-  std::vector<Value *> operands;
-  operands.push_back(input());
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("from", fromAttr()));
-  attrs.push_back(builder.getNamedAttr("to", toAttr()));
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-
-  auto newOp = OpBuilder(op).create<tpu::TG_CastOp>(
-      op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-      ArrayRef<NamedAttribute>{attrs});
-  return newOp.getResult();
-}
-
 Value* tpu::ConcatOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1336,23 +1316,23 @@ Value* tpu::ZeroMaskOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+static bool is_fmt_support(std::string fmt_str) {
+  return (fmt_str == "INT8" || fmt_str == "NONE" || fmt_str == "UINT8" ||
+          fmt_str == "BF16" || fmt_str == "FP32");
+}
+
 Value *tpu::QuantOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
 
   std::vector<Value *> operands;
   operands.push_back(input());
 
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("from", fromAttr()));
-  attrs.push_back(builder.getNamedAttr("to", toAttr()));
-  attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
-
   auto parentOp = this->getOperand()->getDefiningOp();
-  if (isa<tpu::InputOp>(parentOp)) {
+  if (isa<tpu::InputOp>(parentOp) || false == is_fmt_support(from()) ||
+      false == is_fmt_support(to())) {
     std::vector<NamedAttribute> param;
     param.push_back(builder.getNamedAttr("from", fromAttr()));
     param.push_back(builder.getNamedAttr("to", toAttr()));
@@ -1364,59 +1344,16 @@ Value *tpu::QuantOp::convertToTG() {
     attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
     attrs.push_back(builder.getNamedAttr("param", paramAttr));
     auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if ((this->from() == "NONE" && this->to() == "INT8") &&
-             true /*clUseTPUQuantOp*/) {
-    // quant fp32->int8
-    auto newOp = OpBuilder(op).create<tpu::TG_FP32_INT8_CastOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (this->from() == "BF16" && this->to() == "INT8") {
-    // quant
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_INT8_CastOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if ((this->from() == "INT8" ||
-              this->from() == "UINT8") && this->to() == "BF16") {
-    // dequant
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_BF16_CastOp>(
-        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (this->from() == "NONE" && this->to() == "BF16" &&
-              true /*clUseTPUQuantOp*/) {
-    auto newOp = OpBuilder(op).create<tpu::TG_FP32_BF16_CastOp>(
-      op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-      ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (this->from() == "BF16" && this->to() == "NONE" &&
-             true /*clUseTPUQuantOp*/) {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_FP32_CastOp>(
-      op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
-      ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (this->from() == "INT8" && this->to() == "NONE" &&
-             true /*clUseTPUQuantOp*/) {
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_FP32_CastOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else {
-    std::vector<NamedAttribute> param;
-    param.push_back(builder.getNamedAttr("from", fromAttr()));
-    param.push_back(builder.getNamedAttr("to", toAttr()));
-    param.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
-    auto paramAttr = builder.getDictionaryAttr(param);
-    auto operationAttr = builder.getStringAttr(getOperationName());
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
-    attrs.push_back(builder.getNamedAttr("param", paramAttr));
-    auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+    attrs.push_back(builder.getNamedAttr("from", fromAttr()));
+    attrs.push_back(builder.getNamedAttr("to", toAttr()));
+    attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
+    auto newOp = OpBuilder(op).create<tpu::TG_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -4086,7 +4023,6 @@ public:
         DefaultToTGPattern<tpu::BroadcastMulOp>,
         DefaultToTGPattern<tpu::BroadcastAddOp>,
         DefaultToTGPattern<tpu::BroadcastSubOp>,
-        DefaultToTGPattern<tpu::CastOp>,
         DefaultToTGPattern<tpu::ClipOp>,
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,

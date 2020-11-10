@@ -323,67 +323,6 @@ public:
   void tdma_g2g_tensor_copy(uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride, cvk_fmt_t src_fmt,
                             uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt) const;
 
-  //
-  // tl calc
-  //
-
-  // apply quantize int 8 mode
-  void apply_qi8(cvk_tl_t *ifmap, uint32_t layer_id, int do_relu,
-                 int right_shift_width, int threshold_x_quantized) const;
-
-  /*
-   * fill fp32 range to 0
-   *
-   * we tiling all local memory and seperate fp32 / bf16 region
-   * fill fp32 region to 0 for export fp32 format
-   * for instance:
-   *
-   *  0       16      32              64       80        96
-   *  +------fp0------+------fp1------+-bf16_0--+--bf16_1-+
-   *  +
-   *  |0x0|0x0|0x0|0x0|0x0|0x0|0x0|0x0|0x13|0x14|0x13|0x23|
-   *  +
-   *
-   *  and we could copy bf16 region with stride to convert fp32 format
-   *
-   *  0       16        32                64        80        96
-   *  +------fp0--------+------fp1--------+--bf16_0--+--bf16_1-+
-   *  +
-   *  |0x0|0x0|0x13|0x14|0x0|0x0|0x13|0x23|0x13|0x14|0x13|0x23|
-   *  +
-   */
-  void fill_fp32_lmem_0(uint32_t layer_id, int batch, int channel, int height,
-                        int width) const;
-  /*
-   * \brief truncat fp32 low 16bit and concat it
-   *
-   * it will overwrite itself with different stride,
-   * for instance:
-   *  fp32 layout in lmem
-   *
-   *  0         16        32         48       64
-   *  +--------fp0--------+--------fp1--------+
-   *  +
-   *  |0xaa|0x12|0x13|0x14|0xaa|0x12|0x13|0x23|
-   *  +
-   *
-   *  shrink it to bf16, takes high 16bits of fp32,
-   *  thie memory layout could be:
-   *
-   *  0         16        32
-   *  +--bf16_0--+--bf16_1+
-   *  +
-   *  |0x13|0x14|0x13|0x23|
-   *  +
-   *
-   *  \bottom_fp32 fp32 lmem pointer, it should NOT eu_align
-   *  \bottom_bf16 bf16 lmem pointer, it should NOT eu_align
-   */
-  void lmem_shrink_fp32_bf16(cvk_tl_t *lmem_bf16, cvk_tl_t *lmem_fp32,
-                             int bf16_n, int bf16_c, int bf16_h, int bf16_w,
-                             uint32_t layer_id) const;
-
-  cvk_tl_stride_t tl_fp32_stride(cvk_tl_t *tl, int eu_align = 0) const;
 
 public:
   // ####################################################
@@ -467,8 +406,12 @@ public:
                  std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> *tiling_info,
                  tiling_pattern_t tiling_along = TilingDimAll,
                  cvk_tg_shape_t *shape = NULL) const;
+  void tiling_packing(std::vector<tiling_info_t> &tiling_result, int n, int c,
+                      int h, int w, cvk_fmt_t fmt, int blob_num = 1,
+                      uint32_t reserved_lmem = 0,
+                      tiling_pattern_t type = TilingDimNCHW) const;
   void tiling_packing(std::vector<tiling_info_t> &tiling_result,
-                      cvk_tg_shape_t shape, cvk_fmt_t fmt,
+                      cvk_tg_shape_t shape, cvk_fmt_t fmt, int blob_num = 1,
                       uint32_t reserved_lmem = 0,
                       tiling_pattern_t type = TilingDimNCHW) const;
 
@@ -511,6 +454,13 @@ public:
   };
 
   void *get_cvk_ctx() const { return cvk_ctx_; }
+
+private:
+  void tiling_all(std::vector<tiling_info_t> &tiling_result, int64_t total,
+                  cvk_fmt_t fmt, int blob_num, uint32_t lmem_size) const;
+  void tiling_nchw(std::vector<tiling_info_t> &tiling_result, int n, int c,
+                   int h, int w, cvk_fmt_t fmt, int blob_num,
+                   uint32_t lmem_size, tiling_pattern_t type) const;
 
 private:
   // Mapping between tdma base selection and global memory region.
