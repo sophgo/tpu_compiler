@@ -95,7 +95,7 @@ static llvm::cl::opt<bool> clQuantMixEltwiseMul(
 static llvm::cl::opt<bool> clQuantMixSoftmax(
     "quant-bf16-softmax",
     llvm::cl::desc("Enable bf16 Softmax Ops"),
-    llvm::cl::init(false),
+    llvm::cl::init(true),
     llvm::cl::cat(clOptionsCategory));
 
 static llvm::cl::list<std::string> clQuantLayer(
