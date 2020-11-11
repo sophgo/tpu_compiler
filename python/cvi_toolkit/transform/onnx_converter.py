@@ -2006,7 +2006,7 @@ class OnnxConverter(BaseConverter):
             else:
                 steps = self.getTensor(onnx_node.inputs[4]).tensor_data
                 assert(len(steps) == 1)  # steps only has one value
-                if steps[0] != 1 and step[0] != -1:
+                if steps[0] != 1 and steps[0] != -1:
                     raise RuntimeError("only support one steps slices")
 
         assert(len(starts) == len(ends))
