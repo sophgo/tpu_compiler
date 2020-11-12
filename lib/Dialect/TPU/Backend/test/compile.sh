@@ -21,11 +21,21 @@ mlir-opt \
      -o tmp.mlir
 mv input.npz test_in_fp32_bs${BATCH_SIZE}.npz
 
+# opt
+
+mlir-opt ${MLIR_MODEL} \
+    --convert-bn-to-scale \
+    --canonicalize \
+    --fuse-relu \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info.csv \
+    -o test_opt_fp32.mlir
+
 # quantization.
 mlir-opt \
      --import-calibration-table \
      --calibration-table test_calibration_table \
-     ${MLIR_MODEL} \
+     test_opt_fp32.mlir \
      -o test_cali.mlir
 mlir-opt \
      --assign-chip-name \

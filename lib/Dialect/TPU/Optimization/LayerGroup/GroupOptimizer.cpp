@@ -383,6 +383,7 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_INT8_ReluOp>,
       LGLoweringPattern<tpu::TG_BF16_INT8_CastOp>,
       LGLoweringPattern<tpu::TG_INT8_ZeroMaskOp>,
+      LGLoweringPattern<tpu::TG_INT8_SliceOp>,
       // BF16
       LGLoweringPattern<tpu::TG_BF16_Conv2DOp>,
       LGLoweringPattern<tpu::TG_BF16_DeConv2DOp>,
@@ -402,7 +403,8 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_BF16_CropOp>,
       LGLoweringPattern<tpu::TG_BF16_ReluOp>,
       LGLoweringPattern<tpu::TG_INT8_BF16_CastOp>,
-      LGLoweringPattern<tpu::TG_BF16_ZeroMaskOp>
+      LGLoweringPattern<tpu::TG_BF16_ZeroMaskOp>,
+      LGLoweringPattern<tpu::TG_BF16_SliceOp>
       >(fn_, context, this);
   applyPatternsGreedily(*fn_, patterns_pack);
 

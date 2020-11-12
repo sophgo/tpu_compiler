@@ -431,6 +431,18 @@ void cvi_backend_tl_quant(
     float const_scale,
     int n, int c, int h, int w);
 
+void cvi_backend_tl_slice(
+     const CviBackendContext &ctx, uint32_t layer_id,
+     int64_t *input_dim, int64_t *output_dim,
+     laddr_t la_input, laddr_t la_output,
+     int axis, int offset);
+
+void cvi_backend_tl_bf16_slice(
+     const CviBackendContext &ctx, uint32_t layer_id,
+     int64_t *input_dim, int64_t *output_dim,
+     laddr_t la_input, laddr_t la_output,
+     int axis, int offset);
+
 // output = input * multiplier + const_val
 void cvi_backend_tl_mac_const(const CviBackendContext &ctx, uint32_t layer_id,
                               gaddr_t input_addr, gaddr_t output_addr,

@@ -283,6 +283,12 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
       _add_tl_zero_mask_op(mix_op, in_tensors, out_tensors, time_step,
                             timestep_idx, is_h_split);
       break;
+    case IR_SLICE:
+      mix_op->set_type("tl_slice");
+      _add_tl_slice_op(mix_op, in_tensors, out_tensors, time_step,
+                      timestep_idx, is_h_split);
+     break;
+
     default:
       llvm::errs() << "unknown layer type:" << layer_type << "\n";
   }
@@ -2593,6 +2599,115 @@ void MixNet::_add_tl_zero_mask_op(MixOp * mix_op,
     attrs.push_back(builder_.getNamedAttr("la_working",
                            builder_.getI32IntegerAttr(0)));
     auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_BF16_ZeroMaskOp>(
+                        get_start_op()->getLoc(), output_type,
+                        ArrayRef<Value *>{operands},
+                        ArrayRef<NamedAttribute>{attrs});
+    add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
+  }
+}
+
+void MixNet::_add_tl_slice_op(MixOp * mix_op,
+                             const std::vector<int>& in_tensors,
+                             const std::vector<int>& out_tensors,
+                             net_timestep* time_step,
+                             int timestep_idx,
+                             bool is_h_split) {
+  const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
+  const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
+  Operation* op = im_layer->op();
+  auto opd0 = op->getOperand(0);
+  auto old_input_type = opd0->getType().cast<RankedTensorType>();
+
+  int offset = 0;
+  int axis = 0;
+  if (auto slice_op = dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
+    offset = slice_op.offset().getLimitedValue();
+    axis = slice_op.axis().getLimitedValue();
+  } else if(auto slice_op = dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
+    offset = slice_op.offset().getLimitedValue();
+    axis = slice_op.axis().getLimitedValue();
+  }
+
+  int bottom_dim[4];
+  int top_dim[4];
+
+  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
+  net_graph_->get_tensor_dim(out_tensors[0], top_dim);
+  bottom_dim[0] = in_tensor->n_slice;
+  bottom_dim[2] = in_tensor->h_slice;
+
+  top_dim[0] = out_tensor->n_slice;
+  top_dim[2] = out_tensor->h_slice;
+
+  if (is_h_split) {
+    int real_h_slice = 0;
+    int real_h_idx = 0;
+
+    // bottom
+    if (in_tensor->h_idx > 0) {
+      real_h_idx = in_tensor->h_idx;
+    } else {
+      real_h_idx = 0;
+    }
+    int h_end = in_tensor->h_idx + in_tensor->h_slice;
+    if (h_end >= in_tensor->h()) {
+      real_h_slice = in_tensor->h() - real_h_idx;
+    } else {
+      real_h_slice = h_end - real_h_idx;
+    }
+    bottom_dim[2] = real_h_slice;
+    top_dim[2] = bottom_dim[2];
+  }
+
+  std::string name = mix_op->name();
+  uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+
+  Builder builder_(context_);
+  std::vector<NamedAttribute> attrs;
+
+  attrs.push_back(builder_.getNamedAttr("name",
+                           builder_.getStringAttr(name)));
+  attrs.push_back(builder_.getNamedAttr("align",
+                           builder_.getBoolAttr(true)));
+  attrs.push_back(builder_.getNamedAttr("la_input",
+                           builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                           builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("offset",
+                           builder_.getI32IntegerAttr(offset)));
+  attrs.push_back(builder_.getNamedAttr("axis",
+                           builder_.getI32IntegerAttr(axis)));
+
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+                          {bottom_dim[0], bottom_dim[1],
+                           bottom_dim[2], bottom_dim[3]},
+                           old_input_type.getElementType());
+
+  RankedTensorType output_type = RankedTensorType::get(
+                          {top_dim[0], top_dim[1],
+                           top_dim[2], top_dim[3]},
+                           old_input_type.getElementType());
+
+
+   // setup input operation
+  std::vector<Value *> operands;
+  Operation * input_op =
+                    get_op_from_name(mix_op->bottom_name(0))->getDefiningOp();
+  input_op->getResult(0)->setType(input_type);
+  operands.push_back(input_op->getResult(0));
+
+  // build tl_slice operation
+  if (isa<tpu::TG_INT8_SliceOp>(op)) {
+    auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_SliceOp>(
+                        get_start_op()->getLoc(), output_type,
+                        ArrayRef<Value *>{operands},
+                        ArrayRef<NamedAttribute>{attrs});
+    add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
+  } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
+    auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_BF16_SliceOp>(
                         get_start_op()->getLoc(), output_type,
                         ArrayRef<Value *>{operands},
                         ArrayRef<NamedAttribute>{attrs});
