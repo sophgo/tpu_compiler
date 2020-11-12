@@ -13,7 +13,7 @@ inception_v4              Y        N        N        N        Y        Y
 squeezenet_v1.0           Y        Y        N        N        N        Y
 squeezenet_v1.1           Y        Y        N        N        N        Y
 shufflenet_v2             Y        N        N        N        Y        Y
-densenet_121              N        N        N        Y        Y        Y
+densenet_121              N        N        N        Y        Y        N
 densenet_201              N        N        N        Y        Y        N
 senet_res50               N        N        N        Y        Y        Y
 resnext50                 N        N        N        Y        Y        N
