@@ -233,10 +233,10 @@ class TPU_TL_LG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_INT8_EltwiseAddOp : TPU_TL_LG_EltwiseOp<"tL_lg_int8_eltwise_add", "Int8", "Add">;
-def TPU_TL_LG_BF16_EltwiseAddOp : TPU_TL_LG_EltwiseOp<"tL_lg_bf16_eltwise_add", "Bf16", "Add">;
-def TPU_TL_LG_INT8_EltwiseMulOp : TPU_TL_LG_EltwiseOp<"tL_lg_int8_eltwise_mul", "Int8", "Mul">;
-def TPU_TL_LG_BF16_EltwiseMulOp : TPU_TL_LG_EltwiseOp<"tL_lg_bf16_eltwise_mul", "Bf16", "Mul">;
+def TPU_TL_LG_INT8_EltwiseAddOp : TPU_TL_LG_EltwiseOp<"tl_lg_int8_eltwise_add", "Int8", "Add">;
+def TPU_TL_LG_BF16_EltwiseAddOp : TPU_TL_LG_EltwiseOp<"tl_lg_bf16_eltwise_add", "Bf16", "Add">;
+def TPU_TL_LG_INT8_EltwiseMulOp : TPU_TL_LG_EltwiseOp<"tl_lg_int8_eltwise_mul", "Int8", "Mul">;
+def TPU_TL_LG_BF16_EltwiseMulOp : TPU_TL_LG_EltwiseOp<"tl_lg_bf16_eltwise_mul", "Bf16", "Mul">;
 
 class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
