@@ -24,6 +24,7 @@
 
 #include "mlir/Dialect/TPU/QuantizationArithmetic.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"

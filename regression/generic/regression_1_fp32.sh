@@ -35,12 +35,15 @@ mlir-tpu-interpreter ${NET}_opt_fp32.mlir \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
 
 #cvi_npz_tool.py compare ${NET}_out_fp32.npz ${NET}_out_fp32_prob.npz -v
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_fp32.npz \
-    ${NET}_blobs.npz \
-    --op_info ${NET}_op_info.csv \
-    --excepts $EXCEPTS \
-    --tolerance=${TOLERANCE_FP32} -vv
+
+if [ "$NOT_COMPARE_FP32" != "1" ]; then
+    cvi_npz_tool.py compare \
+        ${NET}_tensor_all_fp32.npz \
+        ${NET}_blobs.npz \
+        --op_info ${NET}_op_info.csv \
+        --excepts $EXCEPTS \
+        --tolerance=${TOLERANCE_FP32} -vv
+fi
 
 # VERDICT
 echo $0 PASSED

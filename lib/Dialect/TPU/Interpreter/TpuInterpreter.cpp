@@ -32,6 +32,7 @@
 #include "mlir/Dialect/TPU/CpuLayer_RetinaFaceDetection.h"
 #include "mlir/Dialect/TPU/CpuLayer_YoloDetection.h"
 #include "mlir/Dialect/TPU/CustomOpPlugin.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -63,6 +64,7 @@ extern float BF16_TABLE_END;
 namespace mlir {
 
 static DeviceMode dm;
+
 static std::vector<std::shared_ptr<std::vector<float> > >
     getOperandTensors(Operation *op, const value_map_t &valueMapping) {
   std::vector<std::shared_ptr<std::vector<float> > > opdT;
@@ -1832,7 +1834,7 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr,
                  is_global, do_relu, count_include_pad);
-
+  std::vector<int64_t> input_shape = {n, c, ih, iw};
   // get tensors
   float *output = resultT->data();
   std::vector<float> input(opdT[0]->begin(), opdT[0]->end());
@@ -1858,26 +1860,71 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
 
   // compute in fp32
   int ret;
-  if (getOpQuant(op) == "INT8" && is_average && is_global) {
-    // Average pool should sum by self, we use conv to help us by filter all 1
-    // if use mkldnn, it will dive kh * kw by float,
-    // calculate method different from 1880v2
-    // 1880v2 will prod (qscale / kh * kw) together
 
-    // Todo: my case only has global average, if your model has other case,
-    //       plz add and test
-    ret = my_avg_pooling(input.data(), output, n, c, ih, iw, oh,
-                         ow, kh, kw, sh, sw, pt, pb, pl, pr);
-  } else {
-    ret = mkldnn_pool(input.data(), output, n, c, ih, iw, oh, ow, kh, kw,
-                      sh, sw, pt, pb, pl, pr, is_average, count_include_pad);
-  }
+  ret = mkldnn_pool(input.data(), output, n, c, ih, iw, oh, ow, kh, kw,
+                    sh, sw, pt, pb, pl, pr, is_average, count_include_pad);
+
   assert(ret == 0);
-
   // apply qscale on output for average pooling, max poolings are bypassed
   if (is_average && getOpQuant(op) == "INT8") {
     assert(quant_rshift && quant_multiplier);
     std::vector<float> conv_result(size);
+    MInfo minfo;
+    // In hardware limitation, we can not put avg pool with large kernel
+    // if avg pool ih * iw > local memory, in our hardware
+    // need to split it then sum
+    // TODO:This case mostly happenend in global average,
+    /// if avg pool kernel size bigger than local memory size, todo
+    auto function = cast<FuncOp>(op->getParentOp());
+    minfo.getChipInfo(function);
+    int lmem_size = minfo.lmem_per_lane;
+    if ((ih * iw) > ((lmem_size - size) / 2) && is_global) {
+
+      std::vector<int> h_slices;
+      int h_slice_size = (int)(((32768 - size) / iw) / 2);
+      int total_h = ih;
+      while (total_h > 0) {
+        if (total_h > h_slice_size) {
+          total_h -= h_slice_size;
+          h_slices.push_back(h_slice_size);
+        } else {
+          h_slices.push_back(total_h);
+          break;
+        }
+      }
+      int offset = 0;
+      std::vector<float> output_data(size, 0);
+      for(auto &slice: h_slices){
+          int filter_shape = c * slice * kw;
+          int g = c;
+          int oc = c;
+          int dh = 1, dw = 1;
+          int input_slice_size = n * c * slice * kw;
+          std::vector<float> conv_filter(filter_shape, 1);
+          std::vector<float> input_slice(input_slice_size);
+          std::vector<float> output_tmp_data(size);
+          std::vector<int64_t> tmp_shape = {n, c, slice, iw};
+          my_slice(input.data(), input_slice.data(), 2, offset, input_shape, tmp_shape);
+          int ret =
+              mkldnn_conv(input_slice.data(), conv_filter.data(), NULL,
+                          output_tmp_data.data(), n, c, slice, iw, oc, 1, 1,
+                          slice, kw, sh, sw, dh, dw, pt, pb, pl, pr, g, 0);
+          offset += slice;
+          assert(ret == 0);
+          for (int64_t i = 0; i < size; ++i) {
+            float sum = output_tmp_data[i];
+            output_tmp_data[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+                sum, (uint32_t)quant_rshift->at(0),
+                (uint32_t)quant_multiplier->at(0), false);
+            output_data[i] += output_tmp_data[i];
+          }
+      }
+      for (int64_t i = 0; i < size; ++i) {
+        output[i] = output_data[i];
+      }
+      valueMapping[result] = std::move(resultT);
+      return success();
+    }
 
     {
       // sumulate hw that not support Division,
@@ -1897,13 +1944,7 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
     for (int64_t i = 0; i < size; ++i) {
       // multiplier is taking avg_const into account
       // restore sum value first
-      float sum;
-      if (is_global){
-        sum = output[i];
-      } else {
-        sum = conv_result[i];
-        //sum = std::round(output[i] * kh * kw);
-      }
+      float sum = conv_result[i];
       output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
           sum, (uint32_t)quant_rshift->at(0),
           (uint32_t)quant_multiplier->at(0), false);
@@ -4146,6 +4187,7 @@ LogicalResult ModuleInterpreter::runFunctions() {
       //continue;
       llvm_unreachable("only has tpu func");
     }
+
     if (failed(runOneFunction(function)))
       return failure();
   }

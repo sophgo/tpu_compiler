@@ -41,6 +41,7 @@ export DO_QUANT_BF16=1
 export DO_ADJUST_LUT=0
 export DO_NOT_BF16_UNDER_182x=0
 export DENSITY_TABLE="density_table"
+export NOT_COMPARE_FP32=0
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -1094,6 +1095,30 @@ export TOLERANCE_INT8_MULTIPLER=0.68,0.43,0.13
 export TOLERANCE_BF16=0.99,0.99,0.91
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+fi
+
+
+
+if [ $NET = "efficientdet_d0" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/object_detection/efficientdet-d0/onnx/efficientdet-d0.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+export NOT_COMPARE_FP32=1
+# export DO_CALIBRATION=1
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/efficientdet_d0_onnx_calibration_table_1000
+export IMAGE_RESIZE_DIMS=512,512
+export NET_INPUT_DIMS=512,512
+export RAW_SCALE=1.0
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=0.485,0.456,0.406  # in RGB,
+export STD=0.229,0.224,0.225   # in RGB
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS_FP32=output
+export OUTPUTS=output
+export DO_QUANT_BF16=0
 fi
 
 if [ $NET = "lstm_toy" ]; then

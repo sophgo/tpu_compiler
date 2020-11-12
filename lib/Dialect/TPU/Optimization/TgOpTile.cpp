@@ -64,6 +64,7 @@ struct TgOpTilePass : public FunctionPass<TgOpTilePass> {
     OwningRewritePatternList patterns;
     tpu::PopulateConvTilePatterns(&getContext(), &patterns, mInfo);
     tpu::PopulateFullyConnectedTilePatterns(&getContext(), &patterns, mInfo);
+    tpu::PopulateSplitPoolPatterns(&getContext(), &patterns, mInfo);
     applyPatternsGreedily(getFunction(), patterns);
   }
 };
