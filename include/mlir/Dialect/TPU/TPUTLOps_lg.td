@@ -824,50 +824,5 @@ class TPU_TL_LG_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TL_LG_INT8_ZeroMaskOp : TPU_TL_LG_ZeroMaskOp<"tl_lg_int8_zero_mask", "Int8">;
 def TPU_TL_LG_BF16_ZeroMaskOp : TPU_TL_LG_ZeroMaskOp<"tl_lg_bf16_zero_mask", "Bf16">;
 
-class TPU_TL_LG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
-  let summary = "TL Slice operator" ;
-  let description = [{
-    Inputs:
-      `input`           : required, the input activation memref.
-
-    Attributes:
-      `axis`            : required, the axis to slice.
-      `offset`          : required, the offset the output is sliced within the
-                          input, along the specified axis.
-      `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTLOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    StrAttr:$name,
-    I32Attr:$la_input,
-    I32Attr:$la_output,
-    DefaultValuedAttr<I32Attr, "1">:$axis,
-    I32Attr:$offset,
-    BoolAttr:$align,
-    OptionalAttr<NonNegativeI64Attr>:$gaddr,
-    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_TL_LG_INT8_SliceOp : TPU_TL_LG_SliceOp<"tl_lg_int8_slice", "Int8">;
-def TPU_TL_LG_BF16_SliceOp : TPU_TL_LG_SliceOp<"tl_lg_bf16_slice", "Bf16">;
-
 
 #endif // TPU_TL_OPS_LG

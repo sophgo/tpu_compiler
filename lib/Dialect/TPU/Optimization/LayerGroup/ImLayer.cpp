@@ -526,7 +526,7 @@ ImShuffleChannel::ImShuffleChannel(Operation *op): ImLayer(IR_SHUFFLECHANNEL, op
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
-ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, true) {
+ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
   std::vector<int64_t> dst_shape = getTensorShape(op->getResult(0));
   int axis = 0;
   getSliceParam(op, axis);
