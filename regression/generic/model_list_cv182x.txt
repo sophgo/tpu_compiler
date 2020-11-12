@@ -9,7 +9,7 @@ mobilenet_v1              N        N        N        Y        Y        Y
 mobilenet_v2              Y        Y        N        N        N        N
 googlenet                 N        N        N        Y        Y        Y
 inception_v3              N        N        N        Y        N        N
-inception_v4              N        N        N        Y        Y        Y
+#inception_v4              N        N        N        Y        Y        Y
 squeezenet_v1.0           N        N        N        Y        Y        Y
 squeezenet_v1.1           N        N        N        Y        Y        Y
 shufflenet_v2             Y        N        N        N        Y        Y
@@ -24,13 +24,13 @@ retinaface_res50          N        N        N        Y        N        N
 #ssd300                    N        N        N        Y        Y        N
 mobilenet_ssd             N        N        N        Y        Y        N
 yolo_v1_448               N        N        N        Y        N        N
-yolo_v2_1080              N        N        N        Y        N        N
+#yolo_v2_1080              N        N        N        Y        N        N
 yolo_v2_416               N        N        N        Y        N        N
 yolo_v3_608               N        N        N        Y        N        N
 yolo_v3_416               N        N        N        Y        N        N
 yolo_v3_320               N        N        N        Y        N        N
 yolo_v3_tiny              N        N        N        Y        N        N
-yolo_v3_spp               N        N        N        Y        N        N
+#yolo_v3_spp               N        N        N        Y        N        N
 # yolo_v4_tiny              N        N        N        Y        N        N
 # yolo_v4                   N        N        N        Y        N        N
 # faster_rcnn               N        N        N        Y        N        N
@@ -45,7 +45,7 @@ resnet18                  N        N        N        Y        Y        N
 efficientnet-lite_b0      N        N        N        Y        Y        N
 alphapose                 N        N        N        Y        Y        N
 #espcn_3x                  N        N        N        Y        Y        N
-unet                      N        N        N        Y        N        N
+#unet                      N        N        N        Y        N        N
 nasnet_mobile             N        N        N        Y        N        N
 #ecanet50                  N        N        N        Y        N        N
 res2net50                 N        N        N        Y        N        N

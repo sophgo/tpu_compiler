@@ -2350,8 +2350,6 @@ void MixNet::_add_tl_crop_op(MixOp * mix_op,
   net_graph_->get_tensor_dim(out_tensors[0], top_dim);
   bottom_dim[0] = in_tensor->n_slice;
   bottom_dim[2] = in_tensor->h_slice;
-
-  assert(bottom_dim[2] > crop_offsets[2]);
   top_dim[0] = out_tensor->n_slice;
   top_dim[2] = out_tensor->h_slice;
 
@@ -2376,6 +2374,8 @@ void MixNet::_add_tl_crop_op(MixOp * mix_op,
     }
     bottom_dim[2] = real_h_slice;
   }
+
+  assert(bottom_dim[2] > crop_offsets[2]);
 
   std::string name = mix_op->name();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
