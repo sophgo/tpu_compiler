@@ -21,9 +21,9 @@ void cvi_backend_tl_slice(
   ctx.parallel_disable();
   for (int i = 0; i < input_dim[0]; i++) {
     auto n_start_laddr = la_input +
-           ctx.get_lmem_usage(1, input_dim[1], input_dim[2], input_dim[3]) * i;
+           ctx.lmem_tensor_to_size(1, input_dim[1], input_dim[2], input_dim[3]) * i;
 
-    auto cur_lane_size = ctx.get_lmem_usage(1, 1, input_dim[2], input_dim[3]);
+    auto cur_lane_size = ctx.lmem_tensor_to_size(1, 1, input_dim[2], input_dim[3]);
     auto cur_npu_idx = la_input / LOCAL_MEM_SIZE;
     auto cur_laddr = (cur_npu_idx + offset) % NPU_NUM * LOCAL_MEM_SIZE +
               (cur_npu_idx + offset) / NPU_NUM * cur_lane_size + n_start_laddr;
@@ -57,14 +57,14 @@ void cvi_backend_tl_bf16_slice(
   ctx.parallel_disable();
   for (int i = 0; i < input_dim[0]; i++) {
     auto n_start_laddr = la_input +
-           ctx.get_lmem_usage(1, input_dim[1], input_dim[2], input_dim[3]) * i;
+           ctx.lmem_tensor_to_size(1, input_dim[1], input_dim[2], input_dim[3]) * i;
 
-    auto cur_lane_size = ctx.get_lmem_usage(1, 1, input_dim[2],
+    auto cur_lane_size = ctx.lmem_tensor_to_size(1, 1, input_dim[2],
                                             input_dim[3], CVK_FMT_BF16);
     auto cur_npu_idx = la_input / LOCAL_MEM_SIZE;
     auto cur_laddr = (cur_npu_idx + offset) % NPU_NUM * LOCAL_MEM_SIZE +
               (cur_npu_idx + offset) / NPU_NUM * cur_lane_size + n_start_laddr;
-                    
+
     cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(1,
                                   output_dim[1], output_dim[2], output_dim[3]);
     cvk_tl_t tl_input;
