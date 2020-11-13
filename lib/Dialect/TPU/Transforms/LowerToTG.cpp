@@ -3931,6 +3931,8 @@ struct LowerFunctionTypePattern: public RewritePattern {
         setOpResultType(argument, StandardTypes::Integer, 8);
         setOpResultType(prevOp->getResult(0), StandardTypes::Integer, 8);
         prevOp->setAttr("name", quantOp.nameAttr());
+        setOpThreshold(prevOp,
+                       quantOp.thresholdAttr().getValue().convertToFloat());
         rewriter.replaceOp(op, {op->getOperand(0)});
       }
     } else if (isa<ReturnOp>(nextOp) && !clDequantResultsToFp32) {
