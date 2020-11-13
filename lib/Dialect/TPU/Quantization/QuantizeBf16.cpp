@@ -885,6 +885,8 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
   lstmOp.setOperand(8, y0_tanh_table_op);
   lstmOp.setOperand(9, mantissa_tanh_table_op);
 
+  setOpResultType(op->getResult(0), StandardTypes::BF16);
+
   return success();
 }
 
