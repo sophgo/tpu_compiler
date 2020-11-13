@@ -288,4 +288,16 @@ def TPU_ActCmprParamAttr : StructAttr<"ActCmprParam", TPU_Dialect, [
   let description = "Structure of parameters for activation compression";
 }
 
+//===----------------------------------------------------------------------===//
+// Input preprocess parameters structure.
+//===----------------------------------------------------------------------===//
+def TPU_PreprocessParamAttr : StructAttr<"PreprocessParam", TPU_Dialect, [
+    StructFieldAttr<"raw_scale", F32Attr>,
+    StructFieldAttr<"mean", F32ArrayAttr>,
+    StructFieldAttr<"std", F32ArrayAttr>,
+    StructFieldAttr<"input_scale", F32Attr>,
+    StructFieldAttr<"color_order", StrAttr>]> {
+  let description = "Structure of parameters for preprocess";
+}
+
 #endif // TPU_ATTRIBUTE

@@ -227,9 +227,30 @@ class MLIRImporter(object):
             opreands.append(none)
         return opreands
 
-    def add_input_op(self, name, index):
+    def add_input_op(self, name, index, **kargs):
         name = self.module.stringAttr(name)
         assert (index < len(self.func_args))
+
+        if kargs:
+            color_order = "bgr" if kargs['color_order'].tolist() == [0,1,2] else "rgb"
+
+            preprocess_param = {
+                'mean': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['mean']]),
+                'std':  self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['std']]),
+                'input_scale': self.module.floatAttr(kargs['scale']),
+                'raw_scale': self.module.floatAttr(kargs['raw_scale']),
+                'color_order': self.module.stringAttr(color_order)
+            }
+        else:
+            # use default preprocess param
+            preprocess_param = {
+                'mean': self.module.arrayAttr([self.module.floatAttr(x) for x in [0,0,0]]),
+                'std':  self.module.arrayAttr([self.module.floatAttr(x) for x in [1,1,1]]),
+                'input_scale': self.module.floatAttr(1.0),
+                'raw_scale': self.module.floatAttr(255.0),
+                'color_order': self.module.stringAttr("bgr")
+            }
+        preprocess_param_attr = self.module.dictAttr(**preprocess_param)
 
         quant_param = {
             'is_asymmetric': self.module.boolAttr(False),
@@ -243,7 +264,8 @@ class MLIRImporter(object):
         if self.input_type == "UINT8":
             quant_param['mode'] = self.module.stringAttr("INT8")
         quant_param_attr = self.module.dictAttr(**quant_param)
-        return pybind.op(TPU_OpType.Input.value, [self.func_args[index]], [self.tensor_inputs_type[index]], name=name, quant=quant_param_attr)
+        return pybind.op(TPU_OpType.Input.value, [self.func_args[index]], [self.tensor_inputs_type[index]],
+                name=name, quant=quant_param_attr, preprocess=preprocess_param_attr)
 
     def add_weight_file_op(self, name):
         filename = self.module.stringAttr(name)
