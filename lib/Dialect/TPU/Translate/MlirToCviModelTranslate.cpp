@@ -367,13 +367,14 @@ static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap)
   std::ifstream infile(tableName);
 
   std::string line;
-  std::regex pattern("[a-zA-Z0-9.:;_\\/-]+ [-+0-9.e]+");
+  std::regex pattern("[a-zA-Z0-9.:;_\\/-]+ [-+0-9.e]+ [-+0-9]+");
   while (std::getline(infile, line)) {
     std::istringstream iss(line);
     std::string name;
     if (std::regex_match(line, pattern)) {
       float qscale;
-      if (!(iss >> name >> qscale)) {
+      int32_t zero_point;
+      if (!(iss >> name >> qscale >> zero_point)) {
         break;
       }
       qscaleMap[name] = qscale;

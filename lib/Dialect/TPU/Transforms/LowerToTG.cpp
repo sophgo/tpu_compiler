@@ -3985,13 +3985,14 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
   }
 
   float qscale = 1.0f;
+  int32_t zero_point = 0;
   auto &os = table->os();
   fn.walk([&](Operation *op) {
     if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
       float threshold =
           (float)castOp.quant().threshold_max().getValue().convertToFloat();
       qscale = (threshold == 0) ? 1.0f : (128.0 / threshold);
-      os << castOp.name() << " " << std::to_string(qscale) << "\n";
+      os << castOp.name() << " " << std::to_string(qscale) << " "<< zero_point << "\n";
     } else if (auto castOp = llvm::dyn_cast<ReturnOp>(op)) {
       for (int i = 0; i < (int)op->getNumOperands(); i++) {
         auto opd = op->getOperand(i)->getDefiningOp();
@@ -4001,7 +4002,8 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
         if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(opd)) {
           float threshold = tpuOp.getOpQuantThreshold();
           qscale = (threshold == 0) ? 1.0f : (threshold / 128.0);
-          os << getOpName(opd) << " " << std::to_string(qscale) << "\n";
+          os << getOpName(opd) << " " << std::to_string(qscale) << " "
+             << zero_point << "\n";
         }
       }
     }
