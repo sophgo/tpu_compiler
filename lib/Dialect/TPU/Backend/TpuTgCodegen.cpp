@@ -1586,10 +1586,7 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
     pos_rshift,           // GT_right_shift_width
     neg_rshift,           // LE_right_shift_width
     pos_m_i8,             // GT_scale
-    neg_m_i8,             // LE_scale
-    0,                    // threshold_x_quantized_len
-    nullptr,              // threshold_x_quantized
-    nullptr               // right_shift_array
+    neg_m_i8              // LE_scale
   );
 
   return success();
@@ -2321,13 +2318,9 @@ LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   int8_t m_i8_pos = this->m_i8_pos().getValue().getLimitedValue();
   assert(this->rshift_neg().hasValue());
   int8_t rshift_neg = this->rshift_neg().getValue().getLimitedValue();
-  cvi_backend_tg_fixed_prelu_kernel(
-      *backend_ctx,
-      layer_id,             // layer_id,
-      ga_input,             // input_data_gaddr,
-      ga_output,            // output_data_gaddr,
-      negative_scope_gaddr, // float negative_slope,
-      n, c, h, w, rshift_pos, m_i8_pos, rshift_neg, CVK_FMT_I8);
+  cvi_backend_tg_fixed_prelu_kernel(*backend_ctx, layer_id, ga_input, ga_output,
+                                    negative_scope_gaddr, n, c, h, w,
+                                    rshift_pos, m_i8_pos, rshift_neg);
 
   return success();
 }
@@ -2427,17 +2420,8 @@ LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_fixed_relu_kernel(
-      *backend_ctx,
-      layer_id,
-      ga_input,             // input_data_gaddr,
-      ga_output,            // output_data_gaddr,
-      -1, // float negative_slope,
-      n, c, h, w,
-      0,
-      NULL, // *threshold_x_quantized,
-      NULL, // *right_shift_array,
-      CVK_FMT_I8);
+  cvi_backend_tg_relu_kernel(*backend_ctx, layer_id, ga_input, ga_output, n, c,
+                             h, w, CVK_FMT_I8);
 
   return success();
 }
@@ -2458,17 +2442,8 @@ LogicalResult tpu::TG_BF16_ReluOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
 
-  cvi_backend_tg_fixed_relu_kernel(
-      *backend_ctx,
-      layer_id,
-      ga_input,             // input_data_gaddr,
-      ga_output,            // output_data_gaddr,
-      -1, // float negative_slope,
-      n, c, h, w,
-      0,
-      NULL, // *threshold_x_quantized,
-      NULL, // *right_shift_array,
-      CVK_FMT_BF16);
+  cvi_backend_tg_relu_kernel(*backend_ctx, layer_id, ga_input, ga_output, n, c,
+                             h, w, CVK_FMT_BF16);
 
   return success();
 }

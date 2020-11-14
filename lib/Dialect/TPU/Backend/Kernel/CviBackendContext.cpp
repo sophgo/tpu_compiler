@@ -583,60 +583,95 @@ void CviBackendContext::split_nh(int n, int c, int h, int w, int blob_num,
 }
 
 void CviBackendContext::tiling_all(std::vector<tiling_info_t> &tiling_result,
-                                   int64_t total, cvk_fmt_t fmt,
-                                   int blob_num, uint32_t lmem_size) const {
+                                   int64_t total, cvk_fmt_t fmt, int blob_num,
+                                   uint32_t lmem_size, bool do_parallel) const {
   tiling_info_t tile;
   memset(&tile, 0, sizeof(tile));
+  int max_slice = (do_parallel ? TILING_SLICE_NUM : 1);
   tile.n = 1;
   tile.c = NPU_NUM;
-  tile.h = std::min(total / (NPU_NUM * EU_NUM), (int64_t)MAX_HEIGHT);
   tile.w = EU_NUM;
-  if (tile.h == 0) {
-    tile.h = 1;
-  }
+  tile.h = std::max(1, ceiling_func(total / (NPU_NUM * EU_NUM), max_slice));
+  tile.h = std::min(tile.h, MAX_HEIGHT);
+  bool lmem_ok = false;
   while (total > 0) {
     int64_t count = tile.n * tile.c * tile.h * tile.w;
-    uint32_t lsize = blob_num * lmem_tensor_to_size(tile.n, tile.c, tile.h,
-                                                        tile.w, fmt, 1);
-    if (count > total || lsize > lmem_size) {
+    if (lmem_ok == false) {
+      uint32_t lsize = blob_num * lmem_tensor_to_size(tile.n, tile.c, tile.h,
+                                                      tile.w, fmt, 1);
+      lmem_ok = (lsize <= lmem_size);
+    }
+    if (count > total || lmem_ok == false) {
       if (tile.h > 1) {
         tile.h--;
       } else if (tile.w > 1) {
         tile.w--;
       } else if (tile.c > 1) {
         tile.c--;
+      } else {
+        assert(0 && "lmem is not enough");
       }
     } else {
+      LLVM_DEBUG(llvm::errs() << llvm::format(
+                     "Tiles all, tile:(%d,%d,%d,%d), offset:%lu\n", tile.n,
+                     tile.c, tile.h, tile.w, tile.offset););
       tiling_result.emplace_back(tile);
       total -= count;
       tile.offset += count * bytesize_of_fmt(fmt);
     }
   }
-  assert(total == 0);
+  assert(total == 0 && "tiling error");
   return;
+}
+
+static int slice_dim(int & max_dim, int dim, int max_num, int max_slice, int unit = 1) {
+  if (dim <= unit || max_slice <= 1) {
+    max_dim = dim;
+    return max_slice;
+  }
+  int slice = ceiling_func(dim, unit);
+  max_dim = ceiling_func(slice, max_slice) * unit;
+  max_dim = std::min(max_dim, ALIGN(max_num, unit));
+  slice = ceiling_func(dim, max_dim);
+  return ceiling_func(max_slice, slice);
 }
 
 void CviBackendContext::tiling_nchw(std::vector<tiling_info_t> &tiling_result,
                                     int n, int c, int h, int w, cvk_fmt_t fmt,
                                     int blob_num, uint32_t lmem_size,
-                                    tiling_pattern_t type) const {
+                                    tiling_mode_t mode,
+                                    bool do_parallel) const {
   int max_w = std::min(w, MAX_WIDTH);
   int max_h = std::min(h, MAX_HEIGHT);
   int max_c = std::min(c, MAX_CHANNEL);
   int max_n = std::min(n, MAX_CHANNEL);
-  int min_c = 1, min_w = 1;
-  if (type == TilingDimNHW || type == TilingDimNH) { // keep c
+  int min_c = 1;
+  int max_slice = (do_parallel ? TILING_SLICE_NUM : 1);
+  if (mode == TilingDimNHW) { // keep c
     assert(max_c == c && "keep c, but c too large");
     min_c = max_c;
+  } else if (do_parallel) {
+    // slice c
+    // e.g c = 97 and npu_num = 32, then c will slice to 32,32,32,1
+    max_slice = slice_dim(max_c, c, MAX_CHANNEL, max_slice, NPU_NUM);
   }
-  if (type == TilingDimNH) { // keep w
-    assert(max_w == w && "keep w, but w too large");
-    min_w = max_w;
+  if (max_slice > 1) {
+    // slice n
+    // e.g n = 3, then will slice to 1,1,1
+    max_slice = slice_dim(max_n, n, MAX_CHANNEL, max_slice);
+    if (h >= EU_NUM || w >= EU_NUM) { // slice h and w
+      int &a = (h > w ? h : w);
+      int &b = (h > w ? w : h);
+      int &max_a = (h > w ? max_h : max_w);
+      int &max_b = (h > w ? max_w : max_h);
+      max_slice = slice_dim(max_a, a, MAX_WIDTH, max_slice, EU_NUM);
+      max_slice = slice_dim(max_b, b, MAX_WIDTH, max_slice);
+    }
   }
 
   int step_w, step_h, step_c, step_n;
   uint32_t lmem_required;
-  for (step_w = max_w; step_w >= min_w; --step_w) {
+  for (step_w = max_w; step_w >= 1; --step_w) {
     for (step_h = max_h; step_h >= 1; --step_h) {
       for (step_n = max_n; step_n >= 1; --step_n) {
         for (step_c = max_c; step_c >= min_c;) {
@@ -677,10 +712,10 @@ after_loop:
                         tile.pos_c * src_stride.c + tile.pos_n * src_stride.n;
           tiling_result.emplace_back(tile);
           LLVM_DEBUG(llvm::errs() << llvm::format(
-                         "Tiles, tile:(%d,%d,%d,%d), pos:(%d,%d,%d,%d), "
-                         "src_offset:%lu\n",
-                         tile.n, tile.c, tile.h, tile.w, tile.pos_n, tile.pos_c,
-                         tile.pos_h, tile.pos_w, tile.offset););
+                         "Tiles[%d], tile:(%d,%d,%d,%d), pos:(%d,%d,%d,%d), "
+                         "offset:%lu\n",
+                         mode, tile.n, tile.c, tile.h, tile.w, tile.pos_n,
+                         tile.pos_c, tile.pos_h, tile.pos_w, tile.offset););
         }
       }
     }
@@ -690,25 +725,25 @@ after_loop:
 void CviBackendContext::tiling_packing(
     std::vector<tiling_info_t> &tiling_result, cvk_tg_shape_t shape,
     cvk_fmt_t fmt, int blob_num, uint32_t reserved_lmem,
-    tiling_pattern_t type) const {
+    tiling_mode_t mode, bool do_parallel) const {
   int n = static_cast<int>(shape.n);
   int c = static_cast<int>(shape.c);
   int h = static_cast<int>(shape.h);
   int w = static_cast<int>(shape.w);
-  tiling_packing(tiling_result, n, c, h, w, fmt, blob_num, reserved_lmem, type);
+  tiling_packing(tiling_result, n, c, h, w, fmt, blob_num, reserved_lmem, mode, do_parallel);
 }
 
 void CviBackendContext::tiling_packing(
     std::vector<tiling_info_t> &tiling_result, int n, int c, int h, int w,
     cvk_fmt_t fmt, int blob_num, uint32_t reserved_lmem,
-    tiling_pattern_t type) const {
+    tiling_mode_t mode, bool do_parallel) const {
   uint32_t lmem_size = (uint32_t)LOCAL_MEM_SIZE - reserved_lmem;
   assert((uint32_t)LOCAL_MEM_SIZE > reserved_lmem && "reserved_lmem too large");
 
-  if (type == TilingDimAll) {
-    tiling_all(tiling_result, n * c * h * w, fmt, blob_num, lmem_size);
+  if (mode == TilingDimAll) {
+    tiling_all(tiling_result, n * c * h * w, fmt, blob_num, lmem_size, do_parallel);
   } else {
-    tiling_nchw(tiling_result, n, c, h, w, fmt, blob_num, lmem_size, type);
+    tiling_nchw(tiling_result, n, c, h, w, fmt, blob_num, lmem_size, mode, do_parallel);
   }
 }
 

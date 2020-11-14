@@ -4,6 +4,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 mlir_list=(
   concat.mlir
+  relu.mlir
   permute.mlir
   permute_large.mlir
 #  avg_pool.mlir
