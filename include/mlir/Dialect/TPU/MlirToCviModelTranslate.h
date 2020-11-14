@@ -73,11 +73,10 @@ public:
     this->qscale = qscale;
   }
 
-  void setInt8AsymQuantInfo(float max, float min, float zero) {
-    quant_type = QuantType_INT8_ASYM;
-    max_value = max;
-    min_value = min;
-    zero_point = zero;
+  void setInt8AsymQuantInfo(float qscale, int zero_point) {
+    this->quant_type = QuantType_INT8_ASYM;
+    this->qscale = qscale;
+    this->zero_point = zero_point;
   }
 
   std::string name;
@@ -89,9 +88,7 @@ public:
   int dsize;
 
   QuantType quant_type = QuantType_NONE;
-  float max_value;
-  float min_value;
-  float zero_point;
+  int zero_point = 0;
   float qscale = 0.0f;
 
   bool is_weight = false;

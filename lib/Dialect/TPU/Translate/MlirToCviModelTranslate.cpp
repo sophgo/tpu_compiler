@@ -362,7 +362,7 @@ void CviModelBuilder::addRoutine(std::string funcName) {
   routines_.push_back(rt);
 }
 
-static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap) {
+static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap, std::map<std::string, int> &zpMap) {
   auto tableName = fn.getAttr("qscale_table").cast<StringAttr>().getValue();
   std::ifstream infile(tableName);
 
@@ -378,6 +378,7 @@ static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap)
         break;
       }
       qscaleMap[name] = qscale;
+      zpMap[name] = zero_point;
     } else {
       llvm::errs() << line;
       llvm::errs() << "\n  => not match required format\n";
@@ -396,7 +397,8 @@ void CviModelBuilder::parseModule() {
   });
 
   std::map<std::string, float> qscaleMap;
-  loadQScaleTable(mainFunc_, qscaleMap);
+  std::map<std::string, int> zpMap;
+  loadQScaleTable(mainFunc_, qscaleMap, zpMap);
 
   getOpGroupInputsOutputs(ops_, inputs_, outputs_);
 
@@ -445,7 +447,11 @@ void CviModelBuilder::parseModule() {
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
 
       if (qscaleMap.find(name) != qscaleMap.end()) {
-        tensor->setInt8SymQuantInfo(qscaleMap[name]);
+        if(zpMap[name] == 0){
+          tensor->setInt8SymQuantInfo(qscaleMap[name]);
+        }else{
+          tensor->setInt8AsymQuantInfo(qscaleMap[name], zpMap[name]);
+        }
       }
 
       if (!batchNum_) {
@@ -611,7 +617,7 @@ FBTensorVector CviModelBuilder::buildNeuronMap() {
     auto fbName = fbb_.CreateString(tensor->name);
     auto fbShapeVec = fbb_.CreateVector(shape);
     auto fbShape = CreateShape(fbb_, fbShapeVec);
-    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type, 0, 0, 0, tensor->qscale);
+    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type, 0, 0, tensor->zero_point, tensor->qscale);
     auto fbTensor = CreateTensor(fbb_, 0, fbName, tensor->offset, tensor->dtype, fbShape,
                                  0, fbQuant, tensor->overwritten);
     tensorVec.push_back(fbTensor);
