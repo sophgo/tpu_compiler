@@ -30,7 +30,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     float activation_arg[], int activation_gt_scale, int activation_gt_rshift,
     int activation_le_scale, int activation_le_rshift, int right_shift_width,
     bool do_chl_quan, bool do_ic_alignment, bool store_compr_act,
-    bool load_compr_act);
+    bool load_compr_act, int pad_value=0);
 
 void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

@@ -1176,6 +1176,7 @@ struct Conv_ARGS {
   uint8_t gm_activation_region;
   uint8_t gm_weight_region;
   bool ps32_output;
+  int pad_value;
 };
 
 typedef struct {
@@ -1418,6 +1419,10 @@ public:
 
   uint32_t padding_right() {
     return args_.pad_right;
+  }
+
+  int pad_value(){
+    return args_.pad_value;
   }
 
   uint32_t subsampling_height() {
@@ -2388,8 +2393,8 @@ void Conv::computeConv(
   param.cmd_pre_exe_typ = intraCmdParal ? 1 : 0;  // wait weight
   param.cmd_pre_exe = intraCmdParal ? 3 : 0;      // load and store
                                                   // pre exec
-  param.ins_val = 0;                             // symmetric quantization
-  param.ins_fp = ctx_.convert_fp32_to_bf16(0.0); // symmetric quantization
+  param.ins_val = pad_value();                      // symmetric quantization
+  param.ins_fp = ctx_.convert_fp32_to_bf16((float)pad_value()); // symmetric quantization
   ctx_.tiu_convolution(&param);
 }
 
@@ -2426,8 +2431,8 @@ void Conv::computePerTensorConv(
   param.cmd_pre_exe_typ = intraCmdParal ? 1 : 0;  // wait weight
   param.cmd_pre_exe = intraCmdParal ? 3 : 0;      // load and store
                                                   // pre exec
-  param.ins_val = 0;                             // symmetric quantization
-  param.ins_fp = ctx_.convert_fp32_to_bf16(0.0); // symmetric quantization
+  param.ins_val = pad_value();                      // symmetric quantization
+  param.ins_fp = ctx_.convert_fp32_to_bf16(float(pad_value())); // symmetric quantization
 
   ctx_.tiu_pt_convolution(&param);
 }
@@ -4696,7 +4701,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     int do_bias, int do_activation, float activation_arg[],
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
-    bool do_ic_alignment, bool store_compr_act, bool load_compr_act) {
+    bool do_ic_alignment, bool store_compr_act, bool load_compr_act, int pad_value) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
              "cvi_backend_tg_fixed_conv_kernel:\n"
@@ -4759,7 +4764,7 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args_.do_ic_alignment = do_ic_alignment;
   conv->args_.store_compr_act = store_compr_act;
   conv->args_.load_compr_act = load_compr_act;
-
+  conv->args_.pad_value = pad_value;
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32
   conv->args_.input_fmt = CVK_FMT_I8;

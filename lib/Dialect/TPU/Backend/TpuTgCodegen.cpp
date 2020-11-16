@@ -603,7 +603,8 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       false,     // do_chl_quan
       do_ic_alignment,
       false,     // store_compr_act
-      false      // load_compr_act
+      false,      // load_compr_act
+      pad_value /// pad_value
       );
 
   return success();
@@ -683,7 +684,8 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       true,      // do_chl_quan
       do_ic_alignment,
       storeComprAct,
-      loadComprAct
+      loadComprAct,
+      pad_value // pad_value
       );
 
   return success();

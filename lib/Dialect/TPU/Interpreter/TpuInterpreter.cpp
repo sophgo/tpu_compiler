@@ -382,7 +382,7 @@ LogicalResult doConv2DOpInterpret(Operation *op,
     }
     int ret = mkldnn_conv(input.data(), filter->data(), bias_data,
                           resultT->data(), n, ic, ih, iw, oc, oh, ow, kh, kw,
-                          sh, sw, dh, dw, pt, pb, pl, pr, g, -pad_value);
+                          sh, sw, dh, dw, pt, pb, pl, pr, g, pad_value);
     assert(ret == 0);
 #endif
   } else {
