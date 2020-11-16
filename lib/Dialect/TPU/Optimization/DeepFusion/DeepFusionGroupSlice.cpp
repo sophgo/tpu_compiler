@@ -203,6 +203,13 @@ void DeepFusionGroupSlice::deepFusionGroupOpt() {
   for (auto &group : fusionGroups) {
     std::vector<SubGroup> subGroups;
     std::vector<std::pair<Operation *, int>> cutPoints;
+    // temp: for group with only 1 op, generate tl_lw_xxxop 
+    // so that we can use weight compression.
+    // TO-DO: support tg conv with weight compress
+    if ((group.size() == 1) && isFusionOp(group[0], batchSize_)) {
+      tg2TL(group);
+      continue;
+    }
     if (group.size() > 1) {
       std::vector<Operation *> traversedOps;
       for (auto beginIter = allNSecs_.rbegin(), endIter = allNSecs_.rend();
