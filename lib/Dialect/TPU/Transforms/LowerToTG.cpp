@@ -3951,6 +3951,8 @@ struct LowerFunctionTypePattern: public RewritePattern {
         prevOp->setAttr("name", quantOp.nameAttr());
         setOpThreshold(prevOp,
                        quantOp.thresholdAttr().getValue().convertToFloat());
+        setOpZeroPoint(prevOp,
+                       quantOp.zero_pointAttr().getValue().getLimitedValue());
         rewriter.replaceOp(op, {op->getOperand(0)});
       }
     } else if (isa<ReturnOp>(nextOp) && !clDequantResultsToFp32) {
@@ -4010,6 +4012,7 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
       float threshold =
           (float)castOp.quant().threshold_max().getValue().convertToFloat();
       qscale = (threshold == 0) ? 1.0f : (128.0 / threshold);
+      zero_point = castOp.quant().zero_point().getValue().getLimitedValue();
       os << castOp.name() << " " << std::to_string(qscale) << " "<< zero_point << "\n";
     } else if (auto castOp = llvm::dyn_cast<ReturnOp>(op)) {
       for (int i = 0; i < (int)op->getNumOperands(); i++) {

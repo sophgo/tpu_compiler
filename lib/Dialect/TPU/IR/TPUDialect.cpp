@@ -542,7 +542,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
               quant().is_asymmetric(), \
               quant().threshold_max(), \
               quant().threshold_min(), \
-              Builder(getOperation()->getContext()).getI8IntegerAttr(zero_point), \
+              Builder(getOperation()->getContext()).getI32IntegerAttr(zero_point), \
               getOperation()->getContext())); \
       return success(); \
     }

@@ -177,15 +177,18 @@ static void insertQuantOp(Operation *op) {
       attrs.push_back(builder.getNamedAttr("to",
           builder.getStringAttr(curr_quant)));
       float threshold = 0.0f;
+      int zero_point =0;
       std::string name;
       if (curr_quant == "INT8") {
         threshold = getOpThreshold(prev_op);
+        zero_point = getOpZeroPoint(prev_op);
         name = getOpName(prev_op).str() + "_quant";
       } else if (prev_quant == "INT8") {
         if (curr_quant == "UINT8") {
           continue;
         }
         threshold = getOpThreshold(prev_op);
+        zero_point = getOpZeroPoint(prev_op);
         auto fuse_op = prev_op->getResult(0)->use_begin()->getOwner();
         if (isa<tpu::ReshapeOp>(fuse_op)) {
           name = getOpName(fuse_op).str() + "_dequant";
@@ -194,6 +197,7 @@ static void insertQuantOp(Operation *op) {
         }
       } else if (curr_quant == "BF16") {
         threshold = getOpThreshold(prev_op);
+        zero_point = getOpZeroPoint(prev_op);
         name = getOpName(prev_op).str() + "_quant";
       } else if (prev_quant == "BF16") {
         auto fuse_op = prev_op->getResult(0)->use_begin()->getOwner();
@@ -227,6 +231,8 @@ static void insertQuantOp(Operation *op) {
 
       attrs.push_back(builder.getNamedAttr("threshold",
           builder.getF32FloatAttr(threshold)));
+      attrs.push_back(builder.getNamedAttr("zero_point",
+          builder.getI32IntegerAttr(zero_point)));
       attrs.push_back(builder.getNamedAttr("name",
           builder.getStringAttr(name)));
 
@@ -246,7 +252,7 @@ static void insertQuantOp(Operation *op) {
       op->setOperand(i, quantOp.getResult());
 
       LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
-                  << prev_quant << " => " << curr_quant <<  " threshold: "<< threshold<<"\n";);
+                  << prev_quant << " => " << curr_quant <<  " threshold: "<< threshold<< " zero_point: " << zero_point << "\n";);
     }
   }
 }

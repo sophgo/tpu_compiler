@@ -160,7 +160,7 @@ def TPU_QuantParamAttr : StructAttr<"QuantParam", TPU_Dialect, [
     StructFieldAttr<"is_asymmetric", BoolAttr>,
     StructFieldAttr<"threshold_max", F32Attr>,
     StructFieldAttr<"threshold_min", F32Attr>,
-    StructFieldAttr<"zero_point", I8Attr>]> {
+    StructFieldAttr<"zero_point", I32Attr>]> {
   let description = "Structure of quantization parameters";
 }
 
