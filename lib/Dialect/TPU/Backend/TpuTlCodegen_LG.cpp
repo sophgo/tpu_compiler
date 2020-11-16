@@ -1182,10 +1182,10 @@ LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
 
   laddr_t la_input = this->la_input().getLimitedValue();
@@ -1218,10 +1218,10 @@ LogicalResult tpu::TL_LG_BF16_PoolAvg2DOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
 
   laddr_t la_input = this->la_input().getLimitedValue();
@@ -1246,10 +1246,10 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
 
   laddr_t la_input = this->la_input().getLimitedValue();
@@ -1279,10 +1279,10 @@ LogicalResult tpu::TL_LG_BF16_PoolMax2DOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
 
   laddr_t la_input = this->la_input().getLimitedValue();

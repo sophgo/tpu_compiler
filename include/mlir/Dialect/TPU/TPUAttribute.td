@@ -221,6 +221,7 @@ def TPU_PoolParamAttr : StructAttr<"PoolParam", TPU_Dialect, [
     StructFieldAttr<"padding_b", I32Attr>,
     StructFieldAttr<"padding_l", I32Attr>,
     StructFieldAttr<"padding_r", I32Attr>,
+    StructFieldAttr<"pad_value", I32Attr>,
     StructFieldAttr<"stride_h", I32Attr>,
     StructFieldAttr<"stride_w", I32Attr>,
     StructFieldAttr<"do_relu", BoolAttr>,

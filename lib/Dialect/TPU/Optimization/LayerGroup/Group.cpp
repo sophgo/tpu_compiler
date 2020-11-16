@@ -385,7 +385,7 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
     bool count_include_pad;
     getPoolingParam(im_layer->op(),
                     n, ic, ih, iw, oh, ow,
-                    kh, kw, sh, sw, pt, pb, pl, pr,
+                    kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                     is_global, do_relu, count_include_pad);
   }
 

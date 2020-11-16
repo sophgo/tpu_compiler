@@ -98,6 +98,7 @@ void getPoolingParam(Operation * op,
                     int &oh, int &ow,
                     int &kh, int &kw, int &sh, int &sw,
                     int &pt, int &pb, int &pl, int &pr,
+                    int &pad_value,
                     bool &is_global, bool &do_relu,
                     bool &count_include_pad) {
   if (isa<tpu::TG_INT8_PoolAvg2DOp>(op)) {
@@ -105,28 +106,28 @@ void getPoolingParam(Operation * op,
     parsePoolParam(pooling_op.param(), pooling_op.input(),
                    pooling_op.output(),
                    n, c, ih, iw, oh, ow,
-                   kh, kw, sh, sw, pt, pb, pl, pr,
+                   kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                    is_global, do_relu, count_include_pad);
   } else if (isa<tpu::TG_INT8_PoolMax2DOp>(op)) {
     auto pooling_op = cast<tpu::TG_INT8_PoolMax2DOp>(op);
     parsePoolParam(pooling_op.param(), pooling_op.input(),
                    pooling_op.output(),
                    n, c, ih, iw, oh, ow,
-                   kh, kw, sh, sw, pt, pb, pl, pr,
+                   kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                    is_global, do_relu, count_include_pad);
   } else if (isa<tpu::TG_BF16_PoolAvg2DOp>(op)) {
     auto pooling_op = cast<tpu::TG_BF16_PoolAvg2DOp>(op);
     parsePoolParam(pooling_op.param(), pooling_op.input(),
                    pooling_op.output(),
                    n, c, ih, iw, oh, ow,
-                   kh, kw, sh, sw, pt, pb, pl, pr,
+                   kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                    is_global, do_relu, count_include_pad);
   } else if (isa<tpu::TG_BF16_PoolMax2DOp>(op)) {
     auto pooling_op = cast<tpu::TG_BF16_PoolMax2DOp>(op);
     parsePoolParam(pooling_op.param(), pooling_op.input(),
                    pooling_op.output(),
                    n, c, ih, iw, oh, ow,
-                   kh, kw, sh, sw, pt, pb, pl, pr,
+                   kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                    is_global, do_relu, count_include_pad);
   } else {
     assert(!"Only support INT8/BF16 Pooling in LayerGroup");

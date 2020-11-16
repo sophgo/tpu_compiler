@@ -12,7 +12,7 @@ int mkldnn_deconv(float *input, float *weight, float *bias,
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
     int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
-    bool is_avg, bool count_include_pad);
+    bool is_avg, bool count_include_pad, int pad_value=0);
 
 int mkldnn_ip(float *input, float *weight, float *bias,
     float *output, int m, int k, int n, bool transpose);

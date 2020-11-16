@@ -1132,7 +1132,7 @@ class TFLiteConverter(BaseConverter):
         dims = len(input_shape)
         pads_param = {
             "pads": padding_data.tolist(),
-            "const_val": 0,
+            "const_val": zero_point_x,
         }
 
         output_shape = np.sum(

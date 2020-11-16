@@ -1829,10 +1829,10 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
 
   // parse param
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(castOp.param(), castOp.input(), castOp.output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
   std::vector<int64_t> input_shape = {n, c, ih, iw};
   // get tensors
@@ -1844,6 +1844,10 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
     // therefore, we can't implement average use hardware api
     // in average pool case, we can use depthwise conv replace it
     llvm_unreachable("avg pool can't not do asymmetric quantization with our hardware api, please use conv");
+  }
+  if (!is_asymmetric && pad_value != 0){
+    llvm::errs() << "pad value:" << pad_value << "\n";
+    llvm_unreachable("symmetric pad is zero");
   }
 
   std::shared_ptr<std::vector<float> > quant_rshift = nullptr;
@@ -1862,7 +1866,7 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   int ret;
 
   ret = mkldnn_pool(input.data(), output, n, c, ih, iw, oh, ow, kh, kw,
-                    sh, sw, pt, pb, pl, pr, is_average, count_include_pad);
+                    sh, sw, pt, pb, pl, pr, is_average, count_include_pad, pad_value);
 
   assert(ret == 0);
   // apply qscale on output for average pooling, max poolings are bypassed

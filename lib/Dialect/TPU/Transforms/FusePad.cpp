@@ -94,7 +94,7 @@ struct TpuFusePadPattern : public RewritePattern {
 
   template <class T>
   void updatePoolParam(T &poolOp, PatternRewriter &rewriter,
-                       std::vector<int32_t> &pads) const {
+                       std::vector<int32_t> &pads, int pad_value) const {
 
     auto pad_h_begin = pads[2];
     auto pad_w_begin = pads[3];
@@ -119,6 +119,7 @@ struct TpuFusePadPattern : public RewritePattern {
                 rewriter.getI32IntegerAttr(pb),
                 rewriter.getI32IntegerAttr(pl),
                 rewriter.getI32IntegerAttr(pr),
+                rewriter.getI32IntegerAttr(pad_value),
                 poolOp.param().stride_h(),
                 poolOp.param().stride_w(),
                 poolOp.param().do_relu(),
@@ -128,7 +129,7 @@ struct TpuFusePadPattern : public RewritePattern {
 
   template <class T>
   void updateConvParam(T &convOp, PatternRewriter &rewriter,
-                       std::vector<int32_t> &pads) const {
+                       std::vector<int32_t> &pads, int pad_value) const {
     auto pad_h_begin = pads[2];
     auto pad_w_begin = pads[3];
     auto pad_h_end = pads[6];
@@ -161,7 +162,7 @@ struct TpuFusePadPattern : public RewritePattern {
                 convOp.param().with_bias(),
                 convOp.param().do_relu(),
                 convOp.param().ins(),
-                convOp.param().pad_value(),
+                rewriter.getI32IntegerAttr(pad_value),
                 rewriter.getContext()));
   }
 
@@ -196,9 +197,6 @@ struct TpuFusePadPattern : public RewritePattern {
     auto pad_c_begin = pads[1];
     auto pad_n_end = pads[4];
     auto pad_c_end = pads[5];
-
-    if (const_val != 0)
-      return matchFailure();
 
     if (pad_n_begin != 0 || pad_n_end != 0 ||
         pad_c_begin != 0 || pad_c_end != 0)
@@ -243,20 +241,22 @@ struct TpuFusePadPattern : public RewritePattern {
 
       if (llvm::isa<tpu::PoolAvg2DOp>(useOp)) {
         auto poolOp = dyn_cast<tpu::PoolAvg2DOp>(useOp);
-        updatePoolParam<tpu::PoolAvg2DOp>(poolOp, rewriter, pads);
+        updatePoolParam<tpu::PoolAvg2DOp>(poolOp, rewriter, pads, const_val);
       } else if (llvm::isa<tpu::PoolMax2DOp>(useOp)) {
         auto poolOp = dyn_cast<tpu::PoolMax2DOp>(useOp);
-        updatePoolParam<tpu::PoolMax2DOp>(poolOp, rewriter, pads);
+        updatePoolParam<tpu::PoolMax2DOp>(poolOp, rewriter, pads, const_val);
       } else if (llvm::isa<tpu::Conv2DOp>(useOp)) {
         auto convOp = dyn_cast<tpu::Conv2DOp>(useOp);
-        updateConvParam<tpu::Conv2DOp>(convOp, rewriter, pads);
+        updateConvParam<tpu::Conv2DOp>(convOp, rewriter, pads, const_val);
       } else if(llvm::isa<tpu::DeConv2DOp>(useOp)) {
         auto deconvOp = dyn_cast<tpu::DeConv2DOp>(useOp);
-        updateConvParam<tpu::DeConv2DOp>(deconvOp, rewriter, pads);
+        updateConvParam<tpu::DeConv2DOp>(deconvOp, rewriter, pads, const_val);
       } else {
         assert("unsupported fused op");
       }
     }
+    LLVM_DEBUG(llvm::errs() << "fused pad op: " << getOpName(op)
+                            << " to op:" << getOpName(op->getOperand(0)->getDefiningOp()) << "\n";);
     rewriter.replaceOp(op, {op->getOperand(0)});
     return matchSuccess();
   }

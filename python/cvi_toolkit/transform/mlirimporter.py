@@ -937,7 +937,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PoolMask.value, inputOperands, [
             tensor_output_type], name=pool_mask_name, **pool_mask_param)
 
-    def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
+    def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
         checkKey(kargs, 'kernel_h')
@@ -961,6 +961,7 @@ class MLIRImporter(object):
             'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
             'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
             'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
+            'pad_value': self.module.integerAttr(self.i32Type, pad_value),
             'do_relu': self.module.boolAttr(kargs['do_relu']),
             'count_include_pad': self.module.boolAttr(kargs['count_include_pad']),
         }
@@ -985,7 +986,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
             tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=quant_param)
 
-    def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
+    def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
 
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
@@ -1009,6 +1010,7 @@ class MLIRImporter(object):
             'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
             'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
             'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
+            'pad_value': self.module.integerAttr(self.i32Type, pad_value),
             'do_relu': self.module.boolAttr(kargs['do_relu']),
             'count_include_pad': self.module.boolAttr(False), # max pool has no count_include_pad method
         }

@@ -295,14 +295,14 @@ int mkldnn_deconv(float *input, float *weight, float *bias,
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
     int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
-    bool is_avg, bool count_include_pad) {
+    bool is_avg, bool count_include_pad, int pad_value) {
   LLVM_DEBUG(llvm::errs() << "mkldnn_pool: "
                           << "  i: (" << ih << "*" << iw << "), "
                           << "o: (" << oh << "*" << ow << "), "
                           << "k: (" << kh << "*" << kw << "), "
                           << "s: (" << sh << ", " << sw << "), "
                           << "p: (" << pt << ", " << pb << ", " << pl << ", "
-                          << pr << "), count_include_pad"
+                          << pr << ")," << "pad_value:" << pad_value << ", count_include_pad"
                           << ": " << count_include_pad << "\n";);
 
 #ifdef DUMP_FLAG

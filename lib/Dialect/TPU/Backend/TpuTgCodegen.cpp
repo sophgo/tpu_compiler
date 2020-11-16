@@ -2121,10 +2121,10 @@ LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
 
   // parse param
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
   assert(!do_relu);
 
@@ -2166,10 +2166,10 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
 
   // parse param
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
   assert(!do_relu);
 
@@ -2204,10 +2204,10 @@ LogicalResult tpu::TG_BF16_PoolAvg2DOp::codegen(void *ctx) {
 
   // parse param
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
   assert(!do_relu);
 
@@ -2242,10 +2242,10 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
 
   // parse param
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
   assert(!do_relu);
 

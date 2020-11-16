@@ -239,10 +239,15 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
         "param",
         tpu::PoolParam::get(
             rewriter.getI32IntegerAttr(scale),
-            rewriter.getI32IntegerAttr(scale), rewriter.getI32IntegerAttr(0),
-            rewriter.getI32IntegerAttr(0), rewriter.getI32IntegerAttr(0),
-            rewriter.getI32IntegerAttr(0), rewriter.getI32IntegerAttr(scale),
-            rewriter.getI32IntegerAttr(scale), rewriter.getBoolAttr(false),
+            rewriter.getI32IntegerAttr(scale),
+            rewriter.getI32IntegerAttr(0),
+            rewriter.getI32IntegerAttr(0),
+            rewriter.getI32IntegerAttr(0),
+            rewriter.getI32IntegerAttr(0),
+            rewriter.getI32IntegerAttr(0),
+            rewriter.getI32IntegerAttr(scale),
+            rewriter.getI32IntegerAttr(scale),
+            rewriter.getBoolAttr(false),
             rewriter.getBoolAttr(true), rewriter.getContext())));
     operands.push_back(op_e);
     auto op_f = rewriter.create<tpu::PoolMax2DOp>(

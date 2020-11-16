@@ -682,6 +682,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
             castOp.param().padding_b(),
             castOp.param().padding_l(),
             castOp.param().padding_r(),
+            castOp.param().pad_value(),
             castOp.param().stride_h(),
             castOp.param().stride_w(),
             castOp.param().do_relu(),
