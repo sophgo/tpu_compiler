@@ -78,11 +78,13 @@ static void getOpGroupInputsOutputs(std::vector<Operation *> &group,
                                     std::vector<std::string> &outputs) {
   std::set<Operation *> producers;
   std::set<Operation *> consumers;
-  std::vector<Operation *> inputVec;
-  std::vector<Operation *> outputVec;
+  std::set<Operation *> inputSet;
+  std::set<Operation *> outputSet;
+  std::vector<Operation *> output_candicates;
 
   for (auto op : group) {
     producers.insert(op);
+    output_candicates.push_back(op);
     if (!llvm::isa<tpu::LoadWeightOp>(op) &&
         !llvm::isa<tpu::TL_LG_LoadCoeffOp>(op) &&
         !llvm::isa<tpu::NoneOp>(op)) {
@@ -93,14 +95,17 @@ static void getOpGroupInputsOutputs(std::vector<Operation *> &group,
     }
   }
   std::set_difference(consumers.begin(), consumers.end(), producers.begin(),
-                      producers.end(), std::inserter(inputVec, inputVec.begin()));
+                      producers.end(), std::inserter(inputSet, inputSet.begin()));
   std::set_difference(producers.begin(), producers.end(), consumers.begin(),
-                      consumers.end(), std::inserter(outputVec, outputVec.begin()));
-  for (auto op : inputVec) {
+                      consumers.end(), std::inserter(outputSet, outputSet.begin()));
+  for (auto op : inputSet) {
     inputs.push_back(op->getAttr("name").cast<StringAttr>().getValue());
   }
-  for (auto op : outputVec) {
-    outputs.push_back(op->getAttr("name").cast<StringAttr>().getValue());
+  // should keep output tensors in an inherent order.
+  for (auto op : output_candicates) {
+    if (outputSet.find(op) != outputSet.end()) {
+      outputs.push_back(op->getAttr("name").cast<StringAttr>().getValue());
+    }
   }
 }
 
