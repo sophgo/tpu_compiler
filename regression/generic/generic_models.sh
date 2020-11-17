@@ -896,7 +896,7 @@ export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.84,0.78,0.41
 export DO_QUANT_BF16=1
-export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16=0.99,0.99,0.92
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export YOLO_PREPROCESS="true"
 export EXCEPTS_BF16=proposal,roi_pool5,roi_pool5_quant,fc6_reshape,relu6,relu7,cls_score,cls_score_dequant,bbox_pred,bbox_pred_dequant,cls_prob #output is euclidean_similarity   = 0.995603
