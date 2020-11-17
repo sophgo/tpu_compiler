@@ -917,13 +917,17 @@ Value *tpu::FullyConnectedOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_ONLY");
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
     // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     assert(rshift->size() == 1);
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "mutliplier",
+        builder.getI32IntegerAttr(static_cast<int32_t>(multiplier->at(0)))));
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_FullyConnectedOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -1804,7 +1808,7 @@ Value* tpu::TanHOp::convertToTG() {
       builder.getF32FloatAttr(min_range().convertToFloat())));
   attrs.push_back(builder.getNamedAttr("added_offset",
       builder.getBoolAttr(added_offset())));
-  
+
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -2099,7 +2103,7 @@ Value* tpu::SoftPlusOp::convertToTG() {
       builder.getF32FloatAttr(max_range().convertToFloat())));
   attrs.push_back(builder.getNamedAttr("min_range",
       builder.getF32FloatAttr(min_range().convertToFloat())));
-  
+
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
@@ -2588,6 +2592,18 @@ static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
   memcpy(ptr, w_t.data(), w_t.size());
 }
 
+static void transposeBiasInt32(std::vector<int32_t> &w_int32) {
+  int8_t *ptr = reinterpret_cast<int8_t *>(w_int32.data());
+  std::vector<int8_t> w(ptr, ptr + w_int32.size() * sizeof(int32_t));
+  std::vector<int8_t> w_t(w.size());
+  for (size_t i = 0; i < w_int32.size(); i++) {
+    for (size_t j = 0; j < 4; j++) {
+      w_t[j * w_int32.size() + i] = w[i * 4 + j];
+    }
+  }
+  memcpy(ptr, w_t.data(), w_t.size());
+}
+
 template <typename OpTy>
 struct LowerWeightConv2DOpPattern : public RewritePattern {
   LowerWeightConv2DOpPattern(MLIRContext *context)
@@ -2926,23 +2942,23 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       // lower bias
       if ( !isTensorNone(fcOp.bias()) ) {
         auto biasOp = cast<tpu::LoadWeightOp>(fcOp.bias()->getDefiningOp());
-        // per-tensor mode, bias is INT16
-        assert(biasOp.storage() == "INT16");
+        // per-tensor mode, bias is INT32
+        assert(biasOp.storage() == "INT32");
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(fcOp.bias(), shape, size);
         auto bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
-        std::vector<int16_t> bias_int16(bias->begin(), bias->end());
-        transposeBiasInt16(bias_int16);
-        std::vector<uint16_t> bias_uint16(size);
-        memcpy(bias_uint16.data(), bias_int16.data(), size * sizeof(int16_t));
+        std::vector<int32_t> bias_int32(bias->begin(), bias->end());
+        transposeBiasInt32(bias_int32);
+        std::vector<uint32_t> bias_uint32(size);
+        memcpy(bias_uint32.data(), bias_int32.data(), size * sizeof(int32_t));
 
         // save it
-        // after transpose, this is not INT16 anymore, it is 2 stripes of UINT8
-        // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
+        // after transpose, this is not INT32 anymore, it is 2 stripes of UINT8
+        // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
         // to change the shape.
-        addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.bias(),
-            "lowered", bias_uint16, shape, "UINT16", wTF);
+        addWeightTensorAndUpdateWeightOp<uint32_t>(fcOp.bias(),
+            "lowered", bias_uint32, shape, "UINT32", wTF);
         biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
     } else if (getOpQuant(op) == "BF16") {

@@ -188,7 +188,7 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
   // support per-tensor only for now
   setOpQuantPerchannel(op, false);
   // support rshift-only only for now
-  setOpQuantParamType(op, "RSHIFT_ONLY");
+  setOpQuantParamType(op, "RSHIFT_AND_M_I32");
 
   TensorFile *wTF = getWeightTensorFile(op);
   Value *wfV = getWeightFileValue(op);
@@ -225,7 +225,7 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
 
   // create tensors for rshift and multiplier
   auto rshift = std::make_unique<std::vector<float> >(1);
-
+  auto multiplier_per_layer = std::make_unique<std::vector<float>>(1);
   // get threshold
   float threshold_x = getPreviousOpThreshold(op);
   float threshold_y = getOpThreshold(op);
@@ -234,18 +234,19 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
                << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
 
   // quantization
-  quantizeWeightInt8PerLayer(filter->data(), bias ? bias->data() : nullptr,
-                             n, k, threshold_y, threshold_x,
-                             new_filter->data(), bias ? new_bias->data() : nullptr,
-                             rshift->data());
+  quantizeWeightInt8PerLayerMultiplier(filter->data(), bias ? bias->data() : nullptr,
+                               n, k, threshold_y, threshold_x,
+                               new_filter->data(), bias ? new_bias->data() : nullptr,
+                               rshift->data(),
+                               multiplier_per_layer->data());
 
   // update op
   addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(1),
       "quant", *new_filter, filterShape, "INT8", wTF);
   if (bias) {
-    // for per layer, bias use INT16
+    // qdm mode, bias use INT32
     addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(2),
-        "quant", *new_bias, biasShape, "INT16", wTF);
+        "quant", *new_bias, biasShape, "INT32", wTF);
   }
 
   // add rshift to weight
@@ -254,6 +255,10 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
       op, "rshift", *rshift, shape, "NONE",
       wTF, wfV);
   fcOp.setOperand(5, rshift_op);
+
+  auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "multiplier", *multiplier_per_layer, shape, "NONE", wTF, wfV);
+  fcOp.setOperand(6, multiplier_op);
 
   setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 

@@ -1411,19 +1411,12 @@ LogicalResult tpu::FullyConnectedOp::interpret(
   std::shared_ptr<std::vector<float> > filter = opdT[1];
   std::shared_ptr<std::vector<float> > bias = opdT[2];
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
+  std::shared_ptr<std::vector<float>> quant_multiplier = opdT[6];
 
-  int input_offset = 0;
-  int output_offset = 0;
-  bool is_asymmetric = isOpQuantAsymmetric();
-  if (is_asymmetric) {
-    input_offset = -getPreviousOpZeroPoint(op);
-    output_offset = getOpZeroPoint(op);
-    if (input_offset != 0) {
-      for (size_t i = 0; i < input.size(); i++) {
-        input.at(i) += input_offset;
-      }
-    }
-  }
+  // int input_offset = 0;
+  // int output_offset = 0;
+  // bool is_asymmetric = isOpQuantAsymmetric();
+
   int ret = mkldnn_ip(input.data(), filter->data(),
       bias ? bias->data() : nullptr, resultT->data(), m, k, n, false);
   assert(ret == 0);
@@ -1437,10 +1430,14 @@ LogicalResult tpu::FullyConnectedOp::interpret(
     // do nothing
   } else if (getOpQuant() == "INT8") {
     assert(quant_rshift);
-    for (int i = 0; i < size; ++i) {
-      resultT->at(i) = (float)applyRShiftAndSaturateInt8(
-          resultT->at(i), (uint32_t)quant_rshift->at(0), output_offset);
+      assert(quant_rshift);
+      assert(quant_multiplier);
+      for (int i = 0; i < size; ++i) {
+        resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            resultT->at(i), (uint32_t)quant_rshift->at(0),
+            quant_multiplier->at(0), true);
     }
+
   } else if (getOpQuant() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding

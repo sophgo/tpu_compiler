@@ -749,18 +749,19 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
                    << std::to_string(multiplier_per_layer[0]) << " : "
                    << std::to_string(rshift_per_layer[0]) << "]\n";);
   }
+
   // quantize weight
   for (int64_t i = 0; i < oc * isz; ++i) {
     new_filter[i] = (float)quantizeFilterRShiftAndMultiplier(
         filter[i], threshold_y, threshold_x, rshift_per_layer[0],
         multiplier_per_layer[0], true);
+  }
 
-    if (bias) {
-      for (int64_t i = 0; i < oc; ++i) {
-        new_bias[i] = (float)quantizeBiasRShiftAndMultiplier(
-            bias[i], threshold_y, rshift_per_layer[0], multiplier_per_layer[0],
-            true);
-      }
+  if (bias) {
+    for (int64_t i = 0; i < oc; ++i) {
+      new_bias[i] = (float)quantizeBiasRShiftAndMultiplier(
+          bias[i], threshold_y, rshift_per_layer[0], multiplier_per_layer[0],
+          true);
     }
   }
 }

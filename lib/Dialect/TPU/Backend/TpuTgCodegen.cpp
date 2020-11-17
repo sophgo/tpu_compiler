@@ -1422,6 +1422,8 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   int8_t rshift_int8 = rshift().getValue().getLimitedValue();
+  int32_t multiplier = this->mutliplier().getValue().getLimitedValue();
+  std::vector<int32_t> multiplier_array = {multiplier};
   int rshift = static_cast<int>(rshift_int8);
 
   auto fcOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op);
@@ -1458,7 +1460,7 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
       (int)rshift, // rshift
       0,     //int threshold_x_quantized_len,
       nullptr, //const int *threshold_x_quantized,
-      nullptr, //const int *right_shift_array
+      multiplier_array.data(), //const int *right_shift_array
       compressed_weight,
       compr_weight_poss
       );

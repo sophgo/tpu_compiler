@@ -19,24 +19,24 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "mlir/Dialect/TPU/Passes.h"
 #include "mlir/Dialect/TPU/TPUDialect.h"
 #include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/TensorFile.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Support/Debug.h"
-#include "llvm/Support/CommandLine.h"
-#include "llvm/Support/Path.h"
 #include "llvm/ADT/StringRef.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/Debug.h"
+#include "llvm/Support/Path.h"
+#include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "fully-connected-tile"
 
@@ -47,8 +47,8 @@ class FullyConnectedModel {
 public:
   FullyConnectedModel(const MInfo &mInfo, int M, int K, int N, bool hasB,
                       int dataTypeSize)
-      : mInfo(mInfo), M(M), K(K), N(N), hasB(hasB), dataTypeSize(dataTypeSize)
-      {}
+      : mInfo(mInfo), M(M), K(K), N(N), hasB(hasB), dataTypeSize(dataTypeSize) {
+  }
 
   struct TileInfo {
     int m_step;
@@ -74,20 +74,25 @@ public:
 // Y(M, N) = L(M, K) * R(K, N) + B(1, N)
 int FullyConnectedModel::getLmSizePerLane(int tileM, int tileK, int tileN) {
   const int npuNum = mInfo.lane_num;
-  const int euNum = mInfo.eu_num / dataTypeSize;  // bf16: 1/2 eu num
+  const int euNum = mInfo.eu_num / dataTypeSize; // bf16: 1/2 eu num
 
-  int tileLSize = tileM * euNum * llvm::divideCeil(tileK, euNum * npuNum) *
-                  dataTypeSize;
+  int tileLSize =
+      tileM * euNum * llvm::divideCeil(tileK, euNum * npuNum) * dataTypeSize;
 
-  int tileRSize = tileK * euNum * llvm::divideCeil(tileN, euNum * npuNum) *
-                  dataTypeSize;
+  int tileRSize =
+      tileK * euNum * llvm::divideCeil(tileN, euNum * npuNum) * dataTypeSize;
 
-  int tileBSize = hasB ?
-      (2 * euNum * llvm::divideCeil(tileN, euNum * npuNum) * dataTypeSize) : 0;
+  // int8: 4*int8(32bit), bf16: 2*bf16
+  int biasN = (dataTypeSize == 2) ? 2 : 4;
+
+  int tileBSize = hasB
+                      ? (biasN * euNum *
+                         llvm::divideCeil(tileN, euNum * npuNum) * dataTypeSize)
+                      : 0;
 
   // Partial sum 32bit, 2x(bf16), 4x(int8)
-  int tileYSize = tileM * euNum * llvm::divideCeil(tileN, euNum * npuNum) *
-                  dataTypeSize;
+  int tileYSize =
+      tileM * euNum * llvm::divideCeil(tileN, euNum * npuNum) * dataTypeSize;
   if (tileK < K)
     tileYSize *= 4 / dataTypeSize;
 
@@ -95,20 +100,14 @@ int FullyConnectedModel::getLmSizePerLane(int tileM, int tileK, int tileN) {
 
   if (totalSize <= (int)mInfo.lmem_per_lane) {
     LLVM_DEBUG(llvm::dbgs()
-        << "    FullyConnectedModel::getLmSizePerLane:\n      "
-        << "M " << M
-        << ", K " << K
-        << ", N " << N << "\n      "
-        << "tileL(" << tileM
-        << ", " << tileK << ")\n      "
-        << "tileR(" << tileK
-        << ", " << tileN << ")\n      "
-        << "tileY(" << tileM
-        << ", " << tileN << ")\n      "
-        << "tileYSize " << tileYSize
-        << ", tileLSize " << tileLSize
-        << ", tileRSize " << tileRSize
-        << ", tileBSize " << tileBSize << "\n");
+               << "    FullyConnectedModel::getLmSizePerLane:\n      "
+               << "M " << M << ", K " << K << ", N " << N << "\n      "
+               << "tileL(" << tileM << ", " << tileK << ")\n      "
+               << "tileR(" << tileK << ", " << tileN << ")\n      "
+               << "tileY(" << tileM << ", " << tileN << ")\n      "
+               << "tileYSize " << tileYSize << ", tileLSize " << tileLSize
+               << ", tileRSize " << tileRSize << ", tileBSize " << tileBSize
+               << "\n");
   }
 
   return totalSize;
@@ -199,7 +198,7 @@ void FullyConnectedModel::getTilePoss(TileInfo tileInfo,
   }
 }
 
-template<typename OpTy>
+template <typename OpTy>
 class convertFullyConnectedTilePattern : public OpRewritePattern<OpTy> {
 public:
   using OpRewritePattern<OpTy>::OpRewritePattern;
@@ -217,9 +216,8 @@ public:
     auto op = tpuOp.getOperation();
 
     LLVM_DEBUG(llvm::dbgs()
-        << "convertFullyConnectedTilePattern: layer ID "
-        << mlir::getOpLayerId(op)
-        << ", " << tpuOp.name() << "\n");
+               << "convertFullyConnectedTilePattern: layer ID "
+               << mlir::getOpLayerId(op) << ", " << tpuOp.name() << "\n");
 
     int m, k, n;
     parseFullyConnectedParam(tpuOp.input(), tpuOp.output(), tpuOp.filter(), m,
@@ -240,8 +238,8 @@ public:
     if (!tileInfo.m_step || !tileInfo.k_step || !tileInfo.n_step)
       return Pattern::matchFailure();
 
-    SmallVector<int32_t, 4> tileValues = {
-        tileInfo.m_step, tileInfo.k_step, tileInfo.n_step};
+    SmallVector<int32_t, 4> tileValues = {tileInfo.m_step, tileInfo.k_step,
+                                          tileInfo.n_step};
 
     std::vector<int> n_poss;
     std::vector<int> k_poss;
@@ -280,19 +278,20 @@ void FullyConnectedTilePass::runOnFunction() {
   });
 
   OwningRewritePatternList patterns;
-  patterns.insert<
-      convertFullyConnectedTilePattern<tpu::TG_INT8_FullyConnectedOp>,
-      convertFullyConnectedTilePattern<tpu::TG_BF16_FullyConnectedOp>
-      >(&getContext(), machineInfo);
+  patterns
+      .insert<convertFullyConnectedTilePattern<tpu::TG_INT8_FullyConnectedOp>,
+              convertFullyConnectedTilePattern<tpu::TG_BF16_FullyConnectedOp>>(
+          &getContext(), machineInfo);
   applyPatternsGreedily(getFunction(), patterns);
 }
 
-void PopulateFullyConnectedTilePatterns(
-    MLIRContext *context, OwningRewritePatternList *patterns, MInfo &mInfo) {
-  patterns->insert<
-      convertFullyConnectedTilePattern<tpu::TG_INT8_FullyConnectedOp>,
-      convertFullyConnectedTilePattern<tpu::TG_BF16_FullyConnectedOp>
-      >(context, mInfo);
+void PopulateFullyConnectedTilePatterns(MLIRContext *context,
+                                        OwningRewritePatternList *patterns,
+                                        MInfo &mInfo) {
+  patterns
+      ->insert<convertFullyConnectedTilePattern<tpu::TG_INT8_FullyConnectedOp>,
+               convertFullyConnectedTilePattern<tpu::TG_BF16_FullyConnectedOp>>(
+          context, mInfo);
 }
 
 std::unique_ptr<OpPassBase<FuncOp>> createFullyConnectedTilePass() {

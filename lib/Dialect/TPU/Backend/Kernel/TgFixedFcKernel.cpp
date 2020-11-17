@@ -171,12 +171,10 @@ static void fc_slicing_multi_dimension(
   // Tiled B
   cvk_ml_t tl_tiled_B = {0};
   if (do_bias) {
-    // TIU opd2_n = 1, H/W use b_stride to read upper 8-bit
-    // But bmk demand n = 2, but assign opd2_n = 1.
-    // Let dma load and tiu use different shape.
     tl_tiled_B.fmt = CVK_FMT_I8;
-    tl_tiled_B.shape = ctx.ml_default_shape(2, tiled_N, CVK_FMT_I8);  // 16bit
-    tl_tiled_B.stride = ctx.ml_default_stride(tl_tiled_B.shape, tl_tiled_B.fmt, 1);
+    tl_tiled_B.shape = ctx.ml_default_shape(4, tiled_N, CVK_FMT_I8); // 32bit
+    tl_tiled_B.stride =
+        ctx.ml_default_stride(tl_tiled_B.shape, tl_tiled_B.fmt, 1);
   }
 
   // Tiled local memory layout:
@@ -221,7 +219,7 @@ static void fc_slicing_multi_dimension(
     tl_tiled_R.stride = ctx.ml_default_stride(tl_tiled_R.shape, tl_tiled_R.fmt, 1);
     required_size += tl_tiled_R.shape.n * tl_tiled_R.stride.n;
 
-    // tiled B, 16bit
+    // tiled B
     if (do_bias) {
       tl_tiled_B.start_address = required_size;
       required_size += tl_tiled_B.shape.n * tl_tiled_B.stride.n;
@@ -369,14 +367,13 @@ static void fc_slicing_multi_dimension(
         cmpr_weight_index++;
       }
 
-      // Load tiled B from gobale memory at last time, bias
+      // Load tiled B from global memory at last time, bias
       // we need temporary shape to load lower 8bit and upper 8bit
       bool is_last_tile = ((offset_K + tiled_K) >= K) ? true : false;
       bool B_needed = (is_last_tile && do_bias) ? true : false;
       if (B_needed) {
         tl_tiled_B.start_address = required_size;
-
-        tl_tiled_B.shape = ctx.ml_default_shape(2, width_N, CVK_FMT_I8);  // actual width
+        tl_tiled_B.shape = ctx.ml_default_shape(4, width_N, CVK_FMT_I8);  // actual width
         tl_tiled_B.stride =
             ctx.ml_default_stride(tl_tiled_B.shape, tl_tiled_B.fmt, 1);
 
@@ -417,6 +414,7 @@ static void fc_slicing_multi_dimension(
         p.ps32_mode = ps32_mode;
         p.quan_m = quant_multiplier;
         p.layer_id = layer_id;
+        p.res_is_int8=1;
         matrix_multiplication(ctx, p);
       } else {
         cvk_tiu_matrix_multiplication_param_t p = {0};
@@ -684,11 +682,12 @@ void cvi_backend_tg_fixed_fc(
     std::vector<int> compr_weight_poss) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-             "cvi_backend_tg_fixed_fc\n"
-             "    in (%d, %d), out (%d), do_bias %d, do_relu %d, "
-             "weight_tp %d, quant_rshift %d, compressed_weight %d\n",
-             input_row, input_col, output_col, do_bias, do_relu, weight_tp,
-             quant_rshift, quant_multiplier, compressed_weight));
+                 "cvi_backend_tg_fixed_fc\n"
+                 "    in (%d, %d), out (%d), do_bias %d, do_relu %d, "
+                 "weight_tp %d, quant_rshift %d, "
+                 "quant_multiplier %d, compressed_weight %d\n",
+                 input_row, input_col, output_col, do_bias, do_relu, weight_tp,
+                 quant_rshift, quant_multiplier, compressed_weight));
 
 #if 0
   auto fcKernel(std::make_unique<TgFcKernel>(ctx));

@@ -562,6 +562,7 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     TPU_TensorOfOrNone<[I32, I16]>:$bias,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I32Attr>:$mutliplier,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
