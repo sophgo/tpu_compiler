@@ -685,6 +685,21 @@ Value *tpu::EltwiseAddOp::convertToTG() {
       for (unsigned i = 0; i < nInputs; ++i) {
         m_i8_inputs[i] = static_cast<int32_t>(multiplier->at(i));
       }
+
+      bool is_asymmetric = isOpQuantAsymmetric();
+      if (is_asymmetric){
+        const unsigned nInputs = op->getNumOperands() - 4;
+        std::vector<int> input_offset(nInputs, 0);
+        for(size_t i = 0; i < nInputs; ++i){
+          input_offset.at(i) = -getPreviousOpZeroPoint(op, i);
+        }
+        attrs.push_back(builder.getNamedAttr(
+              "input_offset",
+              builder.getI32ArrayAttr(ArrayRef<int32_t>({input_offset}))));
+        attrs.push_back(
+            builder.getNamedAttr("output_offset",
+              builder.getI32IntegerAttr(getOpZeroPoint(op))));
+      }
     }
     attrs.push_back(
         builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));

@@ -1055,9 +1055,20 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       m_int[i] = static_cast<int>(m_i8_input[i]);
     }
   }
+
+  //Asymmetric
+  int output_offset = 0;
+  std::vector<int32_t> inputs_offset;
+
+  if (this->output_offset().hasValue() && this->input_offset().hasValue()) {
+    output_offset = this->output_offset().getValue().getLimitedValue();
+    arrayAttrToVector(this->input_offset().getValue(), inputs_offset);
+    assert(inputs_offset.size() == op->getNumOperands());
+  }
+
   std::vector<int>coeffs(input_number, 1);
 
-   cvi_backend_tg_fixed_eltwise_add_kernel(
+  cvi_backend_tg_fixed_eltwise_add_kernel(
       *backend_ctx, layer_id,
       ga_inputs, ga_output,
       input_number, n, c, h, w,
@@ -1065,7 +1076,8 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       early_stride_h, early_stride_w,
       do_quant_rescale ? rshift_int : 0,
       do_quant_rescale ? m_int : nullptr,
-      coeffs.data());
+      coeffs.data(),
+      inputs_offset.data(), output_offset);
 
   delete[] m_i8_input;
   delete[] m_int;
