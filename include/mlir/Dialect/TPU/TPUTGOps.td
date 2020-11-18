@@ -220,6 +220,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,
     OptionalAttr<TPU_ConvTileParamAttr>:$tile_param,
+    OptionalAttr<BoolAttr>:$compressed_weight,
     OptionalAttr<StrAttr>:$chipname
   );
 
