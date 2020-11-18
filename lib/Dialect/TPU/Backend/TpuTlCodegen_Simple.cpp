@@ -544,6 +544,54 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_PixelShuffleOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, in, ic, ih, iw;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, in, ic, ih, iw);
+  uint32_t factor = this->factor().getLimitedValue();
+  uint32_t oc = ic / (factor * factor);
+  uint32_t oh = ih * factor;
+  uint32_t ow = iw * factor;
+
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
+  uint32_t layer_id = getOpLayerId(op);
+
+  laddr_t la_input = LA_INVALID;
+  laddr_t la_output = LA_INVALID;
+  if (this->lm_layout() != "NONE") {
+    la_input = this->la_input().getLimitedValue();
+    la_output = this->la_output().getLimitedValue();
+  }
+  LLVM_DEBUG(
+    llvm::errs() << "    TL_PixelShuffleOp, layer_id = " << layer_id;
+    llvm::errs() << ", " << this->lm_layout();
+    if (tl_load_flag())
+      llvm::errs() << ", LD";
+    if (tl_store_flag())
+      llvm::errs() << ", ST";
+    if (!tl_load_flag() && !tl_store_flag())
+      llvm::errs() << ", FUSED";
+    llvm::errs() << "\n";
+  );
+
+  cvi_backend_tl_pixel_shuffle_LA(*backend_ctx, layer_id, la_input, la_output,
+                                  ga_input, (uint32_t)in, (uint32_t)ic,
+                                  (uint32_t)ih, (uint32_t)iw, factor);
+
+  if(tl_store_flag()) {
+    cvi_backend_tl_store(*backend_ctx, layer_id, la_output, ga_output,
+                         CVK_FMT_I8, in, oc, oh, ow);
+  }
+  return success();
+}
+
 // MemRefType dummy
 LogicalResult tpu::TL_MemRef_BroadcastMulOp::codegen(void *ctx) {
   return success();
