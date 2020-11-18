@@ -46,7 +46,9 @@ namespace tpu {
 class ConvolutionBaseModel {
 public:
   ConvolutionBaseModel(Operation *op, const MInfo mInfo)
-      : op(op), mInfo(mInfo) {}
+      : op(op), mInfo(mInfo) {
+    dataTypeSize = getDataTypeSize(op->getResult(0));
+  }
 
   struct TileInfo {
     int n_step;
@@ -57,10 +59,13 @@ public:
     int ih_step;
     int iw_step;
     bool use_double_buffer;
+    bool favor_dma;
   };
 
   int getLmSizePerLane(TileInfo &tileInfo);
-  TileInfo getTileSizes();
+  TileInfo getTileSizes(bool use_double_buffer, bool favor_dma);
+  bool checkDmaPolicy(TileInfo &tileInfo);
+  bool isNoTile(TileInfo &tileInfo);
 
   int input_n = {0};
   int input_c = {0};
@@ -95,6 +100,15 @@ public:
   int dataTypeSize = {1};
 };
 
+bool ConvolutionBaseModel::isNoTile(TileInfo &tileInfo) {
+  if (tileInfo.n_step == input_n && tileInfo.oc_step == output_c &&
+      tileInfo.oh_step == output_h && tileInfo.ow_step == output_w &&
+      tileInfo.ic_step == input_c)
+  return true;
+
+  return false;
+}
+
 int ConvolutionBaseModel::getLmSizePerLane(TileInfo &tileInfo) {
   int n_step = tileInfo.n_step;
   int oc_step = tileInfo.oc_step;
@@ -117,16 +131,18 @@ int ConvolutionBaseModel::getLmSizePerLane(TileInfo &tileInfo) {
   ic_step_4_weight = do_ic_alignment ?
                      llvm::alignTo(ic_step, 2) : ic_step_4_weight;
 
-  uint64_t weightSize = mInfo.getSizePerLane(1, oc_step, kh * kw,
+  uint64_t weightSize = mInfo.getSizePerLane(1, oc_step, kh * kw * dataTypeSize,
                                              ic_step_4_weight,
                                              /*eu_align=*/false);
 
   // Input shape (n, ic, ih, iw) in local memory, EU aligned
-  uint64_t inputSize = mInfo.getSizePerLane(n_step, ic_step, ih_step, iw_step,
+  uint64_t inputSize = mInfo.getSizePerLane(n_step, ic_step, ih_step,
+                                            iw_step * dataTypeSize,
                                             /*eu_align=*/true);
 
   // Output shape (n, oc, oh, ow) in local memory, EU aligned
-  uint64_t outputSize = mInfo.getSizePerLane(n_step, oc_step, oh_step, ow_step,
+  uint64_t outputSize = mInfo.getSizePerLane(n_step, oc_step, oh_step,
+                                            ow_step * dataTypeSize,
                                              /*eu_align=*/true);
 
   // Bias shape in local memory, not EU aligned
@@ -138,7 +154,8 @@ int ConvolutionBaseModel::getLmSizePerLane(TileInfo &tileInfo) {
     biasSize = mInfo.getSizePerLane(1, oc_step, 1, unitSize,
                                     /*eu_align=*/false);
   } else if (with_bias) {
-    biasSize = mInfo.getSizePerLane(2, oc_step, 1, 1, /*eu_align=*/false);
+    biasSize = mInfo.getSizePerLane(2, oc_step * dataTypeSize, 1, 1,
+                                    /*eu_align=*/false);
   }
 
   // Leaky relu needs tl_neg, tl_relu.
@@ -154,7 +171,7 @@ int ConvolutionBaseModel::getLmSizePerLane(TileInfo &tileInfo) {
   if (totalSize <= mInfo.lmem_per_lane) {
     LLVM_DEBUG(llvm::dbgs()
         << "  ConvolutionBaseModel::getLmSizePerLane\n    "
-        << "TileInfo(n_step=" << n_step
+        << "Tile (n_step=" << n_step
         << ", oc_step=" << oc_step
         << ", oh_step=" << oh_step
         << ", ow_step=" << ow_step
@@ -168,25 +185,65 @@ int ConvolutionBaseModel::getLmSizePerLane(TileInfo &tileInfo) {
         << "(do_chl_quan " << do_chl_quan
         << ", with_bias " << with_bias << ")"
         << ", totalSize " << totalSize << "\n    "
-        << "input shape (" << n_step
+        << "tiled input shape (" << n_step
         << ", " << ic_step
         << ", " << ih_step
         << ", " << iw_step << ")\n    "
-        << "weight shape (" << oc_step
+        << "tiled weight shape (" << oc_step
         << ", " << ic_step_4_weight
         << ", " << kh
         << ", " << kw << ")\n    "
-        << "output shape (" << n_step
+        << "tiled output shape (" << n_step
         << ", " << oc_step
         << ", " << oh_step
-        << ", " << ow_step
-        << ")\n");
+        << ", " << ow_step << ")\n    "
+        << "use_double_buffer " << tileInfo.use_double_buffer
+        << ", favor_dma " << tileInfo.favor_dma << "\n");
   }
 
   return totalSize;
 }
 
-ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes() {
+// I try to maximize the local memory utilization,
+// but it causes large write latency, especially in cross-layer.
+// However TDMA engine can handle small data transfer efficiently.
+//
+// E.g. Resnet50 scale2b_branch2c in DDR3 platform.
+//   (1, 96, 56, 56) tiu 19471, store 31056, 77 fps
+//   (1, 32, 56, 56) tiu 6535, store 10376, 84 fps
+//
+// The load/store reorder may be useful in intra-layer and
+// inter-layer.
+//
+// The next-generation chip will do DMA store once intermediate
+// result is generated.
+//
+// The following is temporary solution.
+// I decrease the output channel size to trigger frequent DMA store.
+// So local memory is wasted.
+bool ConvolutionBaseModel::checkDmaPolicy(TileInfo &tileInfo) {
+  if (!tileInfo.favor_dma)
+    return true;
+
+  // DMA efficiency: OH * OW >= 256B
+  const int dma_min_size = 256;
+  int ofmap_plane_size = tileInfo.oh_step * tileInfo.ow_step;
+
+  if ((tileInfo.oc_step > (int)mInfo.lane_num) &&
+      (ofmap_plane_size > (1 * dma_min_size))) {
+    return false;
+  }
+  if ((tileInfo.oc_step > (2 * (int)mInfo.lane_num)) &&
+      (ofmap_plane_size < dma_min_size)) {
+    // even oh*ow is smaller, use at most 2xlanes_num
+    return false;
+  }
+
+  return true;
+}
+
+ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes(
+    bool use_double_buffer, bool favor_dma) {
   ConvolutionBaseModel::TileInfo tileInfo = {0};
 
   int oc = output_c / groups;
@@ -202,8 +259,6 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes() {
   int max_oh_step = std::min(output_h, mInfo.MAX_TIU_HEIGHT);
   int max_ow_step = std::min(output_w, mInfo.MAX_TIU_WIDTH);
   int max_ic_step = std::min(ic, mInfo.MAX_TIU_CHANNEL);
-
-  bool use_double_buffer = true;
 
   int kh_extent = dilation_h * (kh - 1) + 1;
   int kw_extent = dilation_w * (kw - 1) + 1;
@@ -245,43 +300,11 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes() {
             tileInfo.iw_step = iw_step;
             tileInfo.ic_step = is_dw ? oc_step : max_ic_step;
             tileInfo.use_double_buffer = use_double_buffer;
+            tileInfo.favor_dma = favor_dma;
 
-            int needed = getLmSizePerLane(tileInfo);
-            if (needed <= (int)mInfo.lmem_per_lane) {
-              // I try to maximize the local memory utilization,
-              // but it causes large write latency, especially in cross-layer.
-              // However TDMA engine can handle small data transfer efficiently.
-              //
-              // E.g. Resnet50 scale2b_branch2c in DDR3 platform.
-              //   (1, 96, 56, 56) tiu 19471, store 31056, 77 fps
-              //   (1, 32, 56, 56) tiu 6535, store 10376, 84 fps
-              //
-              // The load/store reorder may be useful in intra-layer and
-              // inter-layer.
-              //
-              // The next-generation chip will do DMA store once intermediate
-              // result is generated.
-              //
-              // The following is temporary solution.
-              // I decrease the output channel size to trigger frequent DMA store.
-              // So local memory is wasted.
-
-              // DMA efficiency: OH * OW >= 256B
-              const int dma_min_size = 256;
-              int ofmap_plane_size = oh_step * ow_step;
-
-              if ((oc_step > (int)mInfo.lane_num) &&
-                  (ofmap_plane_size > (1 * dma_min_size))) {
-                continue;
-              }
-              if ((oc_step > (2 * (int)mInfo.lane_num)) &&
-                  (ofmap_plane_size < dma_min_size)) {
-                // even oh*ow is smaller, use at most 2xlanes_num
-                continue;
-              }
-
+            uint64_t needed = (uint64_t)getLmSizePerLane(tileInfo);
+            if (needed <= mInfo.lmem_per_lane && checkDmaPolicy(tileInfo))
               return tileInfo;
-            }
         }
       }
     }
@@ -334,7 +357,12 @@ public:
 
     auto convModel(std::make_unique<ConvolutionModel<OpTy>>(tpuOp, mInfo));
 
-    ConvolutionBaseModel::TileInfo tileInfo = convModel->getTileSizes();
+    // Evaluate no-tile, then double buffer
+    ConvolutionBaseModel::TileInfo tileInfo = convModel->getTileSizes(false,
+                                                                      false);
+    if (!convModel->isNoTile(tileInfo))
+      tileInfo = convModel->getTileSizes(true, true);
+
     if (!tileInfo.n_step)
       return Pattern::matchFailure();
 
@@ -373,7 +401,8 @@ void ConvTilePass::runOnFunction() {
   OwningRewritePatternList patterns;
   patterns.insert<
       convertConvTilePattern<tpu::TG_INT8_PC_Conv2DOp>,
-      convertConvTilePattern<tpu::TG_INT8_PT_Conv2DOp>
+      convertConvTilePattern<tpu::TG_INT8_PT_Conv2DOp>,
+      convertConvTilePattern<tpu::TG_BF16_Conv2DOp>
       >(&getContext(), Machineinfo);
   applyPatternsGreedily(getFunction(), patterns);
 }
@@ -382,7 +411,8 @@ void PopulateConvTilePatterns(
     MLIRContext *context, OwningRewritePatternList *patterns, MInfo &mInfo) {
   patterns->insert<
       convertConvTilePattern<tpu::TG_INT8_PC_Conv2DOp>,
-      convertConvTilePattern<tpu::TG_INT8_PT_Conv2DOp>
+      convertConvTilePattern<tpu::TG_INT8_PT_Conv2DOp>,
+      convertConvTilePattern<tpu::TG_BF16_Conv2DOp>
       >(context, mInfo);
 }
 

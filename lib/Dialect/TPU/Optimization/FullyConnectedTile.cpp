@@ -227,11 +227,7 @@ public:
 
     bool hasBias = isTensorNone(tpuOp.bias()) ? false : true;
 
-    auto retType =
-        op->getResult(0)->getType().template dyn_cast<RankedTensorType>();
-    auto elementType = retType.getElementType();
-    int dataTypeSize = elementType.getIntOrFloatBitWidth() / 8;
-
+    int dataTypeSize = getDataTypeSize(op->getResult(0));
     auto fcModel(std::make_unique<FullyConnectedModel>(mInfo, m, k, n,
                                                        hasBias, dataTypeSize));
 

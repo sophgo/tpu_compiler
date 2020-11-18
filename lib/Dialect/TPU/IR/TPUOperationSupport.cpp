@@ -908,4 +908,19 @@ void getTiledCompressedActSize(Operation *op, int n_step, int oc_step,
                          oc_step, oh_step, isBf16, stepSize, totalSize);
 }
 
+int getDataTypeSize(Value *val) {
+  unsigned sizeInBits = 0;
+
+  auto eltType = val->getType();
+  if (auto tp = eltType.dyn_cast<RankedTensorType>()) {
+    auto eltType = tp.getElementType();
+    sizeInBits = eltType.getIntOrFloatBitWidth();
+  } else if (auto tp = eltType.dyn_cast<MemRefType>()) {
+    auto eltType = tp.getElementType();
+    sizeInBits = eltType.getIntOrFloatBitWidth();
+  }
+
+  return (int)llvm::divideCeil(sizeInBits, 8);
+}
+
 } // namespace

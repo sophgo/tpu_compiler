@@ -603,8 +603,9 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       false,     // do_chl_quan
       do_ic_alignment,
       false,     // store_compr_act
-      false,      // load_compr_act
-      pad_value /// pad_value
+      false,     // load_compr_act
+      false,     // compr_wgt
+      pad_value  // pad_value
       );
 
   return success();
@@ -653,10 +654,12 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       do_relu = true;
   }
 
-  bool storeComprAct = this->store_compr_act().hasValue() ?
-                       this->store_compr_act().getValue() : false;
-  bool loadComprAct = this->load_compr_act().hasValue() ?
-                      this->load_compr_act().getValue() : false;
+  bool store_compr_act = this->store_compr_act().hasValue() ?
+                         this->store_compr_act().getValue() : false;
+  bool load_compr_act = this->load_compr_act().hasValue() ?
+                        this->load_compr_act().getValue() : false;
+  bool compr_wgt = this->compressed_weight().hasValue() ?
+                   this->compressed_weight().getValue() : false;
 
   cvi_backend_tg_fixed_conv_kernel(
       *backend_ctx,
@@ -683,8 +686,9 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       0,         // (int)rshift[0], //right_shift_width,
       true,      // do_chl_quan
       do_ic_alignment,
-      storeComprAct,
-      loadComprAct,
+      store_compr_act,
+      load_compr_act,
+      compr_wgt,
       pad_value // pad_value
       );
 
@@ -713,6 +717,13 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   }
   int layer_id = getOpLayerId(op);
 
+  bool store_compr_act = this->store_compr_act().hasValue() ?
+                         this->store_compr_act().getValue() : false;
+  bool load_compr_act = this->load_compr_act().hasValue() ?
+                        this->load_compr_act().getValue() : false;
+  bool compr_wgt = this->compressed_weight().hasValue() ?
+                   this->compressed_weight().getValue() : false;
+
   cvi_backend_tg_bf16_conv_kernel(
       *backend_ctx,
       layer_id,  // layer_id
@@ -730,7 +741,10 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       sh, sw,
       with_bias,
       do_relu ? 1 : 0,
-      false
+      false, // fp32_output
+      store_compr_act,
+      load_compr_act,
+      compr_wgt
       );
 
   return success();
@@ -805,8 +819,9 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
       0,         // (int)rshift[0], //right_shift_width,
       do_chl_quan,      // do_chl_quan
       false,
-      false,
-      false
+      false,  // store_compr_act
+      false,  // load_compr_act
+      false   // compressed_weight
       );
 
   return success();
@@ -867,7 +882,10 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
       sh, sw,
       with_bias, // bias_term,
       do_relu ? 1 : 0, // do_activation,
-      false
+      false, // fp32_output
+      false, // store_compr_act
+      false, // load_compr_act
+      false  // compr_wgt
       );
 
   return success();
@@ -1940,7 +1958,10 @@ LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
       h, w,
       false,
       false,
-      this->high_precision().getValue()
+      this->high_precision().getValue(),
+      false, // store_compr_act
+      false, // load_compr_act
+      false  // compr_wgt
       );
 
   return success();

@@ -142,6 +142,8 @@ void getTiledCompressedSize(int n, int c, int h, int w, int n_step, int c_step,
 void getTiledCompressedActSize(Operation *op, int n_step, int oc_step,
     int oh_step, int ow, int64_t &stepSize, int64_t &totalSize);
 
+int getDataTypeSize(Value *val);
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_

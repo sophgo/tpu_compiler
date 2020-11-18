@@ -30,7 +30,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     float activation_arg[], int activation_gt_scale, int activation_gt_rshift,
     int activation_le_scale, int activation_le_rshift, int right_shift_width,
     bool do_chl_quan, bool do_ic_alignment, bool store_compr_act,
-    bool load_compr_act, int pad_value=0);
+    bool load_compr_act, bool compr_wgt, int pad_value=0);
 
 void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -179,7 +179,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left,
     uint8_t pad_right, uint8_t ins_h, uint8_t ins_w,
     uint8_t stride_h, uint8_t stride_w, int do_bias,
-    int do_activation, bool fp32_output);
+    int do_activation, bool fp32_output,
+    bool store_compr_act, bool load_compr_act, bool compr_wgt);
 
 void cvi_backend_tg_bf16_conv3d_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
