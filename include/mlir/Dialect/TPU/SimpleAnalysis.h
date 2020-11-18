@@ -67,3 +67,7 @@ template <typename OpTy>
 uint64_t SimpleIOMemoryUsageAnalysis(OpTy &op,
     struct SimpleMemoryUsageAnalysis_details *details = nullptr,
     int batch_size = -1);
+
+uint64_t SimplePixelShuffleMemoryUsageAnalysis(tpu::TG_INT8_PixelShuffleOp &op,
+    struct SimpleMemoryUsageAnalysis_details *details,
+    int batch_size);

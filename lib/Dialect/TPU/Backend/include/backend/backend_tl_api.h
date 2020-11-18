@@ -443,6 +443,12 @@ void cvi_backend_tl_bf16_slice(
      laddr_t la_input, laddr_t la_output,
      int axis, int offset);
 
+void cvi_backend_tl_pixel_shuffle_LA(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t ifmap_laddr, laddr_t ofmap_laddr, gaddr_t ga_ifmap,
+    uint32_t input_n, uint32_t input_c, uint32_t input_h, uint32_t input_w,
+    uint32_t factor);
+
 // output = input * multiplier + const_val
 void cvi_backend_tl_mac_const(const CviBackendContext &ctx, uint32_t layer_id,
                               gaddr_t input_addr, gaddr_t output_addr,

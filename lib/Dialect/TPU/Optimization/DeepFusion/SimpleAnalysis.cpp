@@ -331,3 +331,46 @@ template
 uint64_t SimpleIOMemoryUsageAnalysis(tpu::TG_INT8_PoolAvg2DOp &op,
     struct SimpleMemoryUsageAnalysis_details *details = nullptr,
     int batch_size = -1);
+
+uint64_t SimplePixelShuffleMemoryUsageAnalysis(tpu::TG_INT8_PixelShuffleOp &op,
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1) {
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op.getOperand(), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  uint32_t factor = op.upscale_factor().getLimitedValue();
+
+  if (batch_size != -1) {
+    n = batch_size;
+    assert((batch_size <= n) && "batch_size error");
+  }
+  int64_t output_size, on, oc, oh, ow;
+  getTensorShapeAndSize(op.getResult(), shape, output_size);
+  getNCHW(shape, on, oc, oh, ow);
+
+  uint64_t inputNeuronSizePerLane =
+            MInfo::getSizePerLane(factor, factor * MInfo::lane_num, h, w, true);
+  uint64_t outputNeuronSizePerLane =
+                  MInfo::getSizePerLane(on, oc, oh, ow, true);
+  uint64_t filterSizePerLane = 0;
+  uint64_t biasSizePerLane = 0;
+  uint64_t reluWorkingSizePerLane = 0;
+
+  // total
+  uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane;
+
+  // return
+  if (details) {
+    details->inputNeuronSizePerLane = inputNeuronSizePerLane;
+    details->outputNeuronSizePerLane = outputNeuronSizePerLane;
+    details->filterSizePerLane = filterSizePerLane;
+    details->biasSizePerLane = biasSizePerLane;
+    details->reluWorkingSizePerLane = reluWorkingSizePerLane;
+    details->eltwiseInputSizePerLane = 0;
+    details->eltwiseWorkingSizePerLane = 0;
+  }
+  return totalPerLane;
+}
+
+
