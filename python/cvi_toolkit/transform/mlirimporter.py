@@ -357,18 +357,33 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Clip.value, inputOperands, [
             tensor_output_type], name=name, quant=self.quant_param, **attr_dict)
 
-
-    def add_concat_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_concat_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         assert(len(inputOperands) >= 2)
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
         checkKey(kargs, 'axis')
         concat_name = self.module.stringAttr(op_name)
+        none = self.add_none_op()
+        if mode == TPU_MODE.INT8:
+            quant_param = self.create_int8_quant_attr(**kargs)
+            inputOperands = [
+                inputOperands[0],
+                inputOperands[1],
+                none,
+                none,
+                inputOperands[2],
+                inputOperands[3],
+            ]
+        elif mode == TPU_MODE.FP32:
+            quant_param = self.quant_param
+            inputOperands = self.add_quant_reg(inputOperands)
+        elif mode == TPU_MODE.BF16:
+            raise RuntimeError("Not support BF16")
 
         axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
-        inputOperands = self.add_quant_reg(inputOperands)
+
         return self.buildOp(TPU_OpType.Concat.value, inputOperands, [
-            tensor_output_type], name=concat_name, axis=axis_attr, quant=self.quant_param)
+            tensor_output_type], name=concat_name, axis=axis_attr, quant=quant_param)
 
     def add_conv_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
         """
@@ -701,16 +716,17 @@ class MLIRImporter(object):
             inputOperands.append(none)
             # No bias
         if mode == TPU_MODE.INT8:
-            assert(kargs['param_type'] == "RSHIFT_ONLY")
+            assert(kargs['param_type'] == "RSHIFT_AND_M_I32")
             quant_param = self.create_int8_quant_attr(**kargs)
-            rshift_op = inputOperands[-1]
+            rshift_op = inputOperands[-2]
+            multiplier_op = inputOperands[-1]
             inputOperands = inputOperands[:-1]
             none = self.add_none_op()
 
             for _ in range(5 - len(inputOperands)):
                 inputOperands.append(none)
             inputOperands.append(rshift_op)
-            inputOperands.append(none)
+            inputOperands.append(multiplier_op)
 
         else:
             quant_param = self.quant_param
