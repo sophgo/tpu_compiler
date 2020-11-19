@@ -42,6 +42,7 @@ export DO_ADJUST_LUT=0
 export DO_NOT_BF16_UNDER_182x=0
 export DENSITY_TABLE="density_table"
 export NOT_COMPARE_FP32=0
+export INT8_MODEL=0
 
 if [ -z "$DO_BATCHSIZE" ]; then
   BATCH_SIZE=1
@@ -54,6 +55,8 @@ export BATCH_SIZE
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
 
+
+# Caffe
 if [ $NET = "resnet50" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/resnet/caffe/ResNet-50-model.caffemodel
@@ -187,6 +190,33 @@ export TOLERANCE_INT8_MULTIPLER=0.93,0.93,0.63
 export TOLERANCE_BF16=0.99,0.99,0.89
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 fi
+
+if [ $NET = "icnet" ]; then
+export MODEL_DEF=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_bnnomerge.prototxt
+export MODEL_DAT=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_trainval_90k_bnnomerge.caffemodel
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
+export IMAGE_PATH=$REGRESSION_PATH/data/0.png
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_0
+export NET_INPUT_DIMS=1025,2049
+export IMAGE_RESIZE_DIMS=1025,2049
+export RAW_SCALE=255.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export INPUT=data
+export OUTPUTS_FP32=conv5_3_pool1_interp
+export OUTPUTS=conv5_3_pool1_interp
+export CALIBRATION_IMAGE_COUNT=30
+export DO_CALIBRATION=0
+export TOLERANCE_INT8_PER_TENSOR=0.99,0.98,0.91
+export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.98,0.91
+export TOLERANCE_INT8_MULTIPLER=0.85,0.84,0.41
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_DEEPFUSION=0
+export EVAL_MODEL_TYPE="isbi"
+fi
+
 
 if [ $NET = "mobilenet_v1" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v1/caffe/mobilenet_deploy.prototxt
@@ -1040,7 +1070,7 @@ if [ $DO_PREPROCESS -eq 1 ]; then
 fi
 fi
 
-
+# ONNX
 
 if [ $NET = "resnet18" ]; then
 export MODEL_TYPE="onnx"
@@ -1420,7 +1450,7 @@ export EXCEPTS=368_Relu,374_Relu,383_Relu,392_Relu,395_Relu,398_Relu,399_MaxPool
 # just compare last one
 fi
 
-
+# TensorFlow
 if [ $NET = "resnet50_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/tensorflow/resnet50
@@ -1433,7 +1463,7 @@ export NET_INPUT_DIMS=224,224
 export DATA_FORMAT="nhwc"
 export RAW_SCALE=255
 export MODEL_CHANNEL_ORDER="bgr"
-export MEAN=116.67,104.01,122.68 # in BGR
+export MEAN=104.01,116.67,122.68 # in BGR
 export STD=1,1,1
 export INPUT_SCALE=1.0
 export INPUT=input
@@ -1609,28 +1639,29 @@ export DO_DEEPFUSION=0
 export BGRAY="true"
 fi
 
-if [ $NET = "icnet" ]; then
-export MODEL_DEF=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_bnnomerge.prototxt
-export MODEL_DAT=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_trainval_90k_bnnomerge.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
-export IMAGE_PATH=$REGRESSION_PATH/data/0.png
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_0
-export NET_INPUT_DIMS=1025,2049
-export IMAGE_RESIZE_DIMS=1025,2049
-export RAW_SCALE=255.0
-export MEAN=0,0,0
+
+# TFLite
+
+
+# TFLite Int8
+if [ $NET = "resnet50_tflite_int8" ]; then
+export INT8_MODEL=1
+export MODEL_TYPE="tflite_int8"
+export MODEL_DEF=$MODEL_PATH/imagenet/resnet/tflite_int8/resnet50_quant_int8.tflite
+export MODEL_DAT=""
+export INT8_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tflite.sh
+export IMAGE_RESIZE_DIMS=224,224
+export NET_INPUT_DIMS=224,224
+export DATA_FORMAT="nhwc"
+export RAW_SCALE=255
+export MODEL_CHANNEL_ORDER="bgr"
+export MEAN=103.939,116.779,123.68 # in BGR
+export STD=1,1,1
 export INPUT_SCALE=1.0
-export INPUT=data
-export OUTPUTS_FP32=conv5_3_pool1_interp
-export OUTPUTS=conv5_3_pool1_interp
-export CALIBRATION_IMAGE_COUNT=30
-export DO_CALIBRATION=0
-export TOLERANCE_INT8_PER_TENSOR=0.99,0.98,0.91
-export TOLERANCE_INT8_RSHIFT_ONLY=0.99,0.98,0.91
-export TOLERANCE_INT8_MULTIPLER=0.85,0.84,0.41
-export DO_QUANT_BF16=0
-export TOLERANCE_BF16=0.99,0.99,0.96
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export INPUT=input
+export DO_E2E=0
 export DO_DEEPFUSION=0
-export EVAL_MODEL_TYPE="isbi"
+export DO_QUANT_INT8_MULTIPLER=0
+export DO_ACCURACY_FP32_INTERPRETER=0
+export DO_QUANT_BF16=0
 fi
