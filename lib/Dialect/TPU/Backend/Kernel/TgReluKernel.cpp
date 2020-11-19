@@ -52,6 +52,7 @@ void TgReluKernel::allocLmem() {
   if (mode == PRELU) {
     cvk_tl_shape_t slope_shape = ctx.tl_shape_t4(1, c, 1, 1);
     tl_slope = ctx.lmem_alloc_tensor(slope_shape, fmt, 1);
+    ctx.tdma_load(tl_slope, ga_slope);
   }
 
   cvk_tl_shape_t tile_shape =
@@ -422,9 +423,6 @@ void TgReluKernel::store(int32_t step_idx, int32_t flip) {
 
 void TgReluKernel::schedule() {
   allocLmem();
-  if (mode == PRELU) {
-    ctx.tdma_load(tl_slope, ga_slope);
-  }
   int32_t total_steps = tiles.size();
   for (int32_t i = 0; i < total_steps + 2; i++) {
     ctx.parallel_enable();

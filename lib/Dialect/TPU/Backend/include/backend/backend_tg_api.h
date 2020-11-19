@@ -79,10 +79,10 @@ void cvi_backend_tg_fixed_mac_const_kernel(
     gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
     int input_h, int input_w, int multiplier, int const_val, bool do_relu);
 
-void cvi_backend_tg_fixed_crop_kernel(
+void cvi_backend_tg_crop_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input1_dim,
-    int *input2_dim, int *output_dim, int *offsets, cvk_fmt_t fmt);
+    gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input_dim,
+    int *output_dim, int *offsets, cvk_fmt_t fmt);
 
 void cvi_backend_tg_fixed_dilate_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

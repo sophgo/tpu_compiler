@@ -104,7 +104,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgQuantKernel.cpp
   Backend/Kernel/TgConcatKernel.cpp
   Backend/Kernel/TgConvKernel.cpp
-  Backend/Kernel/TgFixedCropKernel.cpp
+  Backend/Kernel/TgCropKernel.cpp
   Backend/Kernel/TgFixedMacConstKernel.cpp
   Backend/Kernel/TgFixedDilateKernel.cpp
   Backend/Kernel/TgFixedLrnKernel.cpp

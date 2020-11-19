@@ -458,67 +458,75 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
 
   gaddr_t output_gaddr = getOpAddress(op);
-  std::vector<int64_t> input_shape1 = getTensorShape(op->getOperand(0));
+  std::vector<int64_t> input_shape = getTensorShape(op->getOperand(0));
   std::vector<int64_t> output_shape = getTensorShape(this->getResult());
 
   // prepare data
-  std::vector<int> i1_s;
-  std::vector<int> i2_s;
+  std::vector<int> i_s;
   std::vector<int> o_s;
   std::vector<int> offsets;
 
-  i1_s.assign(input_shape1.begin(), input_shape1.end());
-  arrayAttrToVector(this->crop_shape().getValue(), i2_s);
+  i_s.assign(input_shape.begin(), input_shape.end());
+  for (uint32_t i = i_s.size(); i < 4; i++) {
+    i_s.push_back(1);
+  }
   o_s.assign(output_shape.begin(), output_shape.end());
+  for (uint32_t i = o_s.size(); i < 4; i++) {
+    o_s.push_back(1);
+  }
   arrayAttrToVector(this->crop_offset().getValue(), offsets);
+  for (uint32_t i = offsets.size(); i < 4; i++) {
+    offsets.push_back(0);
+  }
 
-  cvi_backend_tg_fixed_crop_kernel(*backend_ctx, // ctx,
-                              layer_id,
-                              input_gaddr,  // bottom_gaddr,
-                              output_gaddr, // top_gaddr
-                              i1_s.data(), i2_s.data(), o_s.data(),
-                              offsets.data(), CVK_FMT_I8);
+  cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
+                             i_s.data(), o_s.data(), offsets.data(),
+                             CVK_FMT_I8);
 
   return success();
 }
 
 LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
 
   gaddr_t output_gaddr = getOpAddress(op);
-  std::vector<int64_t> input_shape1 = getTensorShape(op->getOperand(0));
+  std::vector<int64_t> input_shape = getTensorShape(op->getOperand(0));
   std::vector<int64_t> output_shape = getTensorShape(this->getResult());
 
   // prepare data
-  std::vector<int> i1_s;
-  std::vector<int> i2_s;
+  std::vector<int> i_s;
   std::vector<int> o_s;
   std::vector<int> offsets;
 
-  i1_s.assign(input_shape1.begin(), input_shape1.end());
-  arrayAttrToVector(this->crop_shape().getValue(), i2_s);
+  i_s.assign(input_shape.begin(), input_shape.end());
+  for (uint32_t i = i_s.size(); i < 4; i++) {
+    i_s.push_back(1);
+  }
   o_s.assign(output_shape.begin(), output_shape.end());
+  for (uint32_t i = o_s.size(); i < 4; i++) {
+    o_s.push_back(1);
+  }
   arrayAttrToVector(this->crop_offset().getValue(), offsets);
+  for (uint32_t i = offsets.size(); i < 4; i++) {
+    offsets.push_back(0);
+  }
 
-  cvi_backend_tg_fixed_crop_kernel(*backend_ctx, // ctx,
-                              layer_id,
-                              input_gaddr,  // bottom_gaddr,
-                              output_gaddr, // top_gaddr
-                              i1_s.data(), i2_s.data(), o_s.data(),
-                              offsets.data(), CVK_FMT_BF16);
+  cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
+                             i_s.data(), o_s.data(), offsets.data(),
+                             CVK_FMT_BF16);
 
   return success();
 }
