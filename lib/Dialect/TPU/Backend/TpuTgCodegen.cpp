@@ -2404,8 +2404,8 @@ static cvk_fmt_t get_fmt(std::string fmt_str){
 }
 
 LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";);
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -2771,8 +2771,8 @@ LogicalResult tpu::TG_INT8_ClipOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
-  llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
+               << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 

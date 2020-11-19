@@ -966,10 +966,12 @@ class CaffeConverter(BaseConverter):
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
-        assert(len(input_shape) == 4)
-        c = input_shape[1]
+        dim_len = len(input_shape)
+        assert(dim_len > 1)
+        slope_shape = [1] * dim_len
+        slope_shape[1] = input_shape[1]
         # negative_slope
-        slope_op = self.blob_to_weight_op(layer, 0, [1, c, 1, 1])
+        slope_op = self.blob_to_weight_op(layer, 0, slope_shape)
         operands.append(slope_op)
         output_shape = input_shape
         new_op = self.CVI.add_prelu_op(layer.name, operands, output_shape)

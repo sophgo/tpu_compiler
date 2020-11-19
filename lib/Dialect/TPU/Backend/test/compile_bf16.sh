@@ -12,6 +12,8 @@ if [ ! -e "$DIR/tmp" ]; then
   mkdir -p $DIR/tmp
 fi
 
+# DEBUG=-debug
+
 pushd $DIR/tmp
 
 mlir-opt \
@@ -69,7 +71,7 @@ mlir-opt \
      -o test_bf16_func.mlir
 
 # codegen
-mlir-translate -debug \
+mlir-translate ${DEBUG} \
      --mlir-to-cvimodel \
      --weight-file weight.bin \
      test_bf16_func.mlir \
