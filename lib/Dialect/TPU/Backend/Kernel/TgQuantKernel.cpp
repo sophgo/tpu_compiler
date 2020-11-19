@@ -38,7 +38,7 @@ void TgQuantKernel::init(uint32_t layer_id, cvk_fmt_t from, cvk_fmt_t to,
 void TgQuantKernel::selectTilePolicy() {
   int blob_num = 2 * (load_unit + store_unit); // 2 to do flip
   ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_BF16, blob_num, 0,
-                     CviBackendContext::TilingDimAll, true);
+                     CviBackendContext::TilingAll, true);
 }
 
 cvk_tl_t *TgQuantKernel::alloc_lmem(const cvk_tl_shape_t &shape,

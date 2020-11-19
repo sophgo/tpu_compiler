@@ -31,26 +31,25 @@ void cvi_backend_tg_bf16_lrn_kernel(
             input_n, input_c, input_h, input_w, local_size, alpha, k);
 
   int blob_num = 4;
-  int require_shape = 0;
   cvk_fmt_t fmt = CVK_FMT_BF16;
   cvk_tl_shape_t table_shape = ctx.lut_table_shape(fmt);
-  int coeff_lane_shape = 2 * table_shape.h * table_shape.w; // for sqr_lut and power_lut
   cvk_tg_shape_t gshape = ctx.tg_shape_t4(input_n, input_c, input_h, input_w);
   cvk_tg_stride_t gstride = ctx.tg_default_stride(gshape, fmt);
-  std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
-  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, fmt,
-                     &tiling_info, ctx.TilingDimNH, &gshape);
 
   cvk_tl_t *exp_table = ctx.lmem_alloc_tensor(table_shape, fmt, 1);
   cvk_tl_t *mantissa_table = ctx.lmem_alloc_tensor(table_shape, fmt, 1);
   ctx.tdma_load(exp_table, exp_table_gaddr);
   ctx.tdma_load(mantissa_table, mantissa_table_gaddr);
 
+  uint32_t lmem_used = 2 * ctx.lmem_tensor_to_size(table_shape, fmt, 1);
+  std::vector<CviBackendContext::tiling_info_t> tiles;
+  ctx.tiling_packing(tiles, gshape, fmt, blob_num, lmem_used, CviBackendContext::TilingNHW);
+
   int move_counts = (local_size - 1) / 2;
   assert(move_counts <= input_c);
 
-  for (size_t i = 0; i < tiling_info.size(); i++) {
-    cvk_tl_shape_t lshape = tiling_info[i].first;
+  for (auto &tile : tiles) {
+    cvk_tl_shape_t lshape = ctx.tl_shape_t4(tile.n,tile.c,tile.h,tile.w);
     assert(lshape.c == (uint32_t)input_c);
 
     cvk_tl_t *bottom = ctx.lmem_alloc_tensor(lshape, fmt, 1);
@@ -63,8 +62,8 @@ void cvi_backend_tg_bf16_lrn_kernel(
     assert(top);
     cvk_tl_t *tmp = top;
 
-    uint64_t slice_bottom_gaddr = input_gaddr + tiling_info[i].second;
-    uint64_t slice_top_gaddr = output_gaddr + tiling_info[i].second;
+    uint64_t slice_bottom_gaddr = input_gaddr + tile.offset;
+    uint64_t slice_top_gaddr = output_gaddr + tile.offset;
 
     ctx.tdma_load_stride(bottom, slice_bottom_gaddr, gstride);
 

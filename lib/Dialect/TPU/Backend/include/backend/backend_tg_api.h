@@ -95,7 +95,7 @@ void cvi_backend_tg_fixed_dilate_kernel(
 
 void cvi_backend_tg_fixed_lrn_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
-    gaddr_t output_gaddr, gaddr_t sqr_lut_gaddr, gaddr_t power_lut_gaddr,
+    gaddr_t output_gaddr, gaddr_t ga_sqr_lut, gaddr_t ga_power_lut,
     int input_n, int input_c, int input_h, int input_w, int local_size,
     int sum_right_shift_width, int lrn_right_shift_width, int quant_data0,
     int quant_data1);

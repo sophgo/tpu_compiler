@@ -22,7 +22,7 @@ void cvi_backend_tg_reverse_kernel(const CviBackendContext &ctx,
   assert(axis == 0 && "only support axis = 0 now");
   std::vector<CviBackendContext::tiling_info_t> tiles;
   ctx.tiling_packing(tiles, 1, c, h, w, fmt, 1, 0,
-                     CviBackendContext::TilingDimAll);
+                     CviBackendContext::TilingAll);
   uint64_t n_stride = c * h * w * ctx.bytesize_of_fmt(fmt);
   for (int in = 0; in < n; in++) {
     for (auto &tile : tiles) {

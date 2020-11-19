@@ -437,151 +437,6 @@ const cvk_tl_shape_t &CviBackendContext::lut_table_shape(cvk_fmt_t fmt) const {
   return table_fixed;
 }
 
-void CviBackendContext::tiling_packing(
-    int require_shape, int coeff_lane_shape, int blob_num, cvk_fmt_t fmt,
-    std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> *tiling_info,
-    enum TilingDim tiling_along, cvk_tg_shape_t *shape) const {
-
-  assert_support_fmt(fmt);
-  assert(blob_num > 0 && "blob number should >= 1(contain itself)");
-
-  int data_type_size = bytesize_of_fmt(fmt); // byte
-  int coeff_lane_size = coeff_lane_shape * data_type_size;
-  gaddr_t gaddr_offset = 0;
-
-  if (tiling_along == TilingDimNH) {
-    int input_n = shape->n;
-    int input_c = shape->c;
-    int input_h = shape->h;
-    int input_w = shape->w;
-    int nsecs = 1, hsecs = 1;
-
-    uint32_t global_Nstride =
-        static_cast<uint32_t>(input_c) * input_h * input_w;
-
-    if (fmt == CVK_FMT_BF16) {
-      blob_num *= 2; // bf16 takes twice size than int8
-    }
-
-    split_nh(input_n, input_c, input_h, input_w, blob_num, coeff_lane_shape,
-             &nsecs, &hsecs);
-
-    int nslice = input_n / nsecs;
-    int hslice = input_h / hsecs;
-    int nresidual = input_n - nslice * nsecs;
-    int hresidual = input_h - hslice * hsecs;
-
-    for (int nidx = 0, nstart = 0; nidx < nsecs; nidx++) {
-      int sec_len_n = nslice + (nidx < nresidual);
-      for (int hidx = 0, hstart = 0; hidx < hsecs; hidx++) {
-        int sec_len_h = hslice + (hidx < hresidual);
-        uint64_t offset =
-            (nstart * global_Nstride + hstart * input_w) * data_type_size;
-
-        tiling_info->push_back(std::make_pair(
-            tl_shape_t4(sec_len_n, input_c, sec_len_h, input_w), offset));
-
-        hstart += sec_len_h;
-      }
-      nstart += sec_len_n;
-    }
-  } else if (tiling_along == TilingDimAll) {
-    // available size per lane = LOCAL_MEM_SIZE - coeff_lane_size
-    int height = require_shape / (NPU_NUM * EU_NUM);
-    if (require_shape + coeff_lane_shape * NPU_NUM >= (NPU_NUM * EU_NUM) &&
-        height) {
-      do {
-        // Find height
-        height = require_shape / (NPU_NUM * EU_NUM);
-        do {
-          cvk_tl_shape_t tmp_shape = tl_shape_t4(1, 1, height, EU_NUM);
-          int required_size =
-              blob_num * lmem_tensor_to_size(tmp_shape, fmt, /*eu_align=*/1);
-
-          if (required_size <= LOCAL_MEM_SIZE - coeff_lane_size)
-            break;
-        } while (--height);
-
-        int step_shape = height * NPU_NUM * EU_NUM;
-
-        LLVM_DEBUG(
-            llvm::errs() << llvm::format(
-                "    step_shape %d, require_shape %d, gaddr_offset 0x%lx\n",
-                step_shape, require_shape, gaddr_offset););
-
-        tiling_info->push_back(std::make_pair(
-            tl_shape_t4(1, NPU_NUM, height, EU_NUM), gaddr_offset));
-
-        // Update step
-        require_shape -= step_shape;
-        gaddr_offset += step_shape * data_type_size;
-      } while (require_shape >= ((NPU_NUM * EU_NUM)));
-    }
-
-    // Use one lane to handle remaining
-    if (require_shape) {
-      int step_shape = require_shape;
-
-      tiling_info->push_back(
-          std::make_pair(tl_shape_t4(1, 1, 1, step_shape), gaddr_offset));
-
-      LLVM_DEBUG(
-          llvm::errs() << llvm::format(
-              "    (r)step_shape %d, require_shape %d, gaddr_offset 0x%lx\n",
-              step_shape, require_shape, gaddr_offset));
-      require_shape -= step_shape;
-      gaddr_offset += step_shape * data_type_size;
-    }
-  }
-  assert(tiling_info->size());
-}
-
-void CviBackendContext::split_nh(int n, int c, int h, int w, int blob_num,
-                                 uint32_t reserved, int *n_slices,
-                                 int *h_slices) const {
-  *h_slices = 1;
-  *n_slices = 1;
-  uint32_t total_lmem_needs = blob_num * lmem_tensor_to_size(n, c, h, w);
-
-  LLVM_DEBUG(
-      llvm::errs() << llvm::format("<%d,%d,%d,%d>, reserved:%u, total:%u\n", n,
-                                   c, h, w, reserved, total_lmem_needs););
-
-  if (total_lmem_needs + reserved <= (uint32_t)LOCAL_MEM_SIZE) {
-    return;
-  }
-
-  // split h if lmem usage per image is larger than LOCAL_MEM_SIZE
-  if (n == 1 || total_lmem_needs > (uint32_t)(LOCAL_MEM_SIZE * n)) {
-    *n_slices = n;
-    total_lmem_needs = total_lmem_needs / n;
-
-    *h_slices = (total_lmem_needs + LOCAL_MEM_SIZE - 1) / LOCAL_MEM_SIZE;
-    int h_units_per_slice = (h + *h_slices - 1) / *h_slices;
-    LLVM_DEBUG(llvm::errs() << "h_units_per_slice is " << h_units_per_slice
-                            << ", h_slices is " << *h_slices << "\n";);
-
-    while (blob_num * lmem_tensor_to_size(1, c, h_units_per_slice, w) + reserved >
-               (uint32_t)LOCAL_MEM_SIZE ||
-           h_units_per_slice > (4095 - 32)) {
-      *h_slices += 1;
-      h_units_per_slice = (h + *h_slices - 1) / *h_slices;
-
-      LLVM_DEBUG(llvm::errs() << "h_units_per_slice is " << h_units_per_slice
-                              << ", h_slices is " << *h_slices << "\n";);
-    }
-  } else { // split n if local memory can store more than on image
-    *n_slices = (total_lmem_needs + LOCAL_MEM_SIZE - 1) / LOCAL_MEM_SIZE;
-    int n_units_per_slice = (n + *n_slices - 1) / *n_slices;
-
-    while (blob_num * lmem_tensor_to_size(n_units_per_slice, c, h, w) + reserved >
-           (uint32_t)LOCAL_MEM_SIZE) {
-      *n_slices += 1;
-      n_units_per_slice = (n + *n_slices - 1) / *n_slices;
-    }
-  }
-}
-
 void CviBackendContext::tiling_all(std::vector<tiling_info_t> &tiling_result,
                                    int64_t total, cvk_fmt_t fmt, int blob_num,
                                    uint32_t lmem_size, bool do_parallel) const {
@@ -647,7 +502,7 @@ void CviBackendContext::tiling_nchw(std::vector<tiling_info_t> &tiling_result,
   int max_n = std::min(n, MAX_CHANNEL);
   int min_c = 1;
   int max_slice = (do_parallel ? TILING_SLICE_NUM : 1);
-  if (mode == TilingDimNHW) { // keep c
+  if (mode == TilingNHW) { // keep c
     assert(max_c == c && "keep c, but c too large");
     min_c = max_c;
   } else if (do_parallel) {
@@ -740,7 +595,7 @@ void CviBackendContext::tiling_packing(
   uint32_t lmem_size = (uint32_t)LOCAL_MEM_SIZE - reserved_lmem;
   assert((uint32_t)LOCAL_MEM_SIZE > reserved_lmem && "reserved_lmem too large");
 
-  if (mode == TilingDimAll) {
+  if (mode == TilingAll) {
     tiling_all(tiling_result, n * c * h * w, fmt, blob_num, lmem_size, do_parallel);
   } else {
     tiling_nchw(tiling_result, n, c, h, w, fmt, blob_num, lmem_size, mode, do_parallel);

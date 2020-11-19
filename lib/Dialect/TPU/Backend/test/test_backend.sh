@@ -9,6 +9,7 @@ mlir_list=(
   permute_large.mlir
   crop.mlir
   reverse.mlir
+  lrn.mlir
 #  avg_pool.mlir
 #  broadcast_add.mlir
 #  broadcast_sub.mlir

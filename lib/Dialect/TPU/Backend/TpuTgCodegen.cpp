@@ -1681,12 +1681,12 @@ LogicalResult tpu::TG_INT8_LrnOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t power_lut_gaddr = getWeightOpAddress(power_lut()->getDefiningOp());
-  gaddr_t sqr_lut_gaddr = getWeightOpAddress(sqr_lut()->getDefiningOp());
+  gaddr_t ga_power_lut = getWeightOpAddress(power_lut()->getDefiningOp());
+  gaddr_t ga_sqr_lut = getWeightOpAddress(sqr_lut()->getDefiningOp());
   int layer_id = getOpLayerId(op);
   cvi_backend_tg_fixed_lrn_kernel(
       *backend_ctx, layer_id, input_gaddr, output_gaddr,
-      sqr_lut_gaddr, power_lut_gaddr, n, c, h, w,
+      ga_sqr_lut, ga_power_lut, n, c, h, w,
       local_size().getLimitedValue(), sum_rshift().getLimitedValue(),
       lrn_rshift().getLimitedValue(), quant_data0().getLimitedValue(),
       quant_data1().getLimitedValue());

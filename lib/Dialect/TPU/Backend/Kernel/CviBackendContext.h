@@ -370,10 +370,9 @@ public:
   //
 
   typedef enum TilingDim {
-    TilingDimAll = 0, // reshape data and tiling
-    TilingDimNH,      // tiling nh, keep c/w
-    TilingDimNHW,     // tiling nhw, keep c
-    TilingDimNCHW,    // tiling nchw
+    TilingAll = 0, // reshape(NxCxHxW) and tiling to [1, NPU_NUM, x, EU_NUM]
+    TilingNHW,     // keep c, tiling n,h,w
+    TilingNCHW,    // tiling n,c,h,w
   } tiling_mode_t;
 
   typedef struct tiling_info {
@@ -388,32 +387,16 @@ public:
     uint64_t offset;
   } tiling_info_t;
 
-  void split_nh(int n, int c, int h, int w, int blob_num, uint32_t reserved,
-                int *n_slices, int *h_slices) const;
-
-  // tiling pack data with specified dims
-  // shape for TilingDimNH used, we need to keep origin shape and tile with
-  // specified dims blob_num blob number in lmem at same time, start with 1
-  // coeff_lane_shape tensor size of coefficient(bias, etc) in lmem,
-  // the tensor size SHOULD reflect with the fmt, e.g.: the coeff_lane_shape of
-  // <1x1x2x3xi8> should be 6 and <1x1x2x3xbf16> should be 12 that bf16
-  // takes twice size than i8
-  // tiling_info store tiling info in each steps and second shift size reflect
-  // with fmt
-  void
-  tiling_packing(int require_shape, int coeff_lane_shape, int blob_num,
-                 cvk_fmt_t fmt,
-                 std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> *tiling_info,
-                 tiling_mode_t tiling_along = TilingDimAll,
-                 cvk_tg_shape_t *shape = NULL) const;
   void tiling_packing(std::vector<tiling_info_t> &tiling_result, int n, int c,
                       int h, int w, cvk_fmt_t fmt, int blob_num = 1,
                       uint32_t reserved_lmem = 0,
-                      tiling_mode_t mode = TilingDimNCHW, bool do_parallel = false) const;
+                      tiling_mode_t mode = TilingNCHW,
+                      bool do_parallel = false) const;
   void tiling_packing(std::vector<tiling_info_t> &tiling_result,
                       cvk_tg_shape_t shape, cvk_fmt_t fmt, int blob_num = 1,
                       uint32_t reserved_lmem = 0,
-                      tiling_mode_t mode = TilingDimNCHW, bool do_parallel = false) const;
+                      tiling_mode_t mode = TilingNCHW,
+                      bool do_parallel = false) const;
 
   //
   // Hardware feature

@@ -45,11 +45,11 @@ void TgReluKernel::selectTilePolicy() {
   if (mode == PRELU) {
     auto slope_size = ctx.lmem_tensor_to_size(1, c, 1, 1, fmt, 1);
     ctx.tiling_packing(tiles, n, c, h, w, fmt, blob_num, slope_size,
-                       CviBackendContext::TilingDimNHW, true);
+                       CviBackendContext::TilingNHW, true);
 
   } else {
     ctx.tiling_packing(tiles, n, c, h, w, fmt, blob_num, 0,
-                       CviBackendContext::TilingDimAll, true);
+                       CviBackendContext::TilingAll, true);
   }
 }
 
