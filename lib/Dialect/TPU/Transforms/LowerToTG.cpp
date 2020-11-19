@@ -1362,6 +1362,7 @@ Value *tpu::QuantOp::convertToTG() {
     param.push_back(builder.getNamedAttr("from", fromAttr()));
     param.push_back(builder.getNamedAttr("to", toAttr()));
     param.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
+    param.push_back(builder.getNamedAttr("zero_point", zero_pointAttr()));
     auto paramAttr = builder.getDictionaryAttr(param);
     auto operationAttr = builder.getStringAttr(getOperationName());
     std::vector<NamedAttribute> attrs;
@@ -1378,6 +1379,7 @@ Value *tpu::QuantOp::convertToTG() {
     attrs.push_back(builder.getNamedAttr("from", fromAttr()));
     attrs.push_back(builder.getNamedAttr("to", toAttr()));
     attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
+    attrs.push_back(builder.getNamedAttr("zero_point", zero_pointAttr()));
     auto newOp = OpBuilder(op).create<tpu::TG_QuantOp>(
         op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
         ArrayRef<NamedAttribute>{attrs});

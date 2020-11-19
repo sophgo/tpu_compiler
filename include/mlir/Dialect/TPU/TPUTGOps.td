@@ -1154,6 +1154,7 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
       `to`             : required, the destination type that quantize/dequantize to.
       `threshold`      : optional, scale = threshold/128.0 (from int8) or 128/threshold.0 (to int8);
                          if none, scale = 1.0
+      `zero_point`         : optional, offset, asymmetric zero_point
       `region`         : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -1177,6 +1178,7 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
     TPU_QuantModeAttr:$from,
     TPU_QuantModeAttr:$to,
     OptionalAttr<F32Attr>:$threshold,
+    OptionalAttr<I32Attr>:$zero_point,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,

@@ -2440,10 +2440,15 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
       scale = 128.0 / threshold;
     }
   }
+  int offset = 0;
+  if(this->zero_point().hasValue()){
+    offset = this->zero_point().getValue().getLimitedValue();
+  }
+
 
   //  quant to int8
   cvi_backend_tg_quant_kernel(*backend_ctx, layer_id, from, to, ga_input,
-                             ga_output, n, c, h, w, scale);
+                              ga_output, n, c, h, w, scale, offset);
 
   return success();
 }

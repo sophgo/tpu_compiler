@@ -19,7 +19,7 @@ public:
 
   void init(uint32_t layer_id, cvk_fmt_t from, cvk_fmt_t to, gaddr_t ga_input,
             gaddr_t ga_output, int32_t n, int32_t c, int32_t h, int32_t w,
-            float const_scale);
+            float const_scale, int offset);
 
   void selectTilePolicy();
   void schedule();
@@ -52,6 +52,7 @@ protected:
   int32_t layer_id;
   int32_t flip = 0;
   float const_scale;
+  int offset;
   std::vector<CviBackendContext::tiling_info_t> tiles;
 };
 

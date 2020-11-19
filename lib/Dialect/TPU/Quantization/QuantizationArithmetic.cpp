@@ -914,9 +914,6 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold, bool tpu_mode, int zero_point) {
   float scale = threshold / 128.0;
   if (tpu_mode) {
-    if (zero_point != 0) {
-      llvm_unreachable("zero_point in tpu mode not ready, todo");
-    }
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
@@ -925,7 +922,11 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
       // i8->bf16
       bf_tmp = FloatToBFloat16(input[i]);
       float fp_tmp = BFloat16ToFloat(bf_tmp);
-
+      float fp_zp;
+      if (zero_point != 0) {
+        fp_zp = BFloat16ToFloat(FloatToBFloat16((float)zero_point));
+        fp_tmp += fp_zp;
+      }
       // bf16 mul scale
       fp_tmp = fp_tmp * scale;
 

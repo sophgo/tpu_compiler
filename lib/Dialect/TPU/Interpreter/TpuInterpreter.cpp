@@ -4073,7 +4073,7 @@ LogicalResult tpu::QuantOp::interpret(
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
     dequantizeActivationInt8WithThreshold(output, input, size, threshold,
-                                          clUseTPUQuantOp && is_symmetric,
+                                          clUseTPUQuantOp,
                                           zero_point);
   } else if (this->from() == "NONE" && this->to() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
