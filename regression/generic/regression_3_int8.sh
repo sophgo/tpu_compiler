@@ -32,6 +32,15 @@ mlir-tpu-interpreter ${NET}_quant_int8.mlir \
     --dump-all-tensor=${NET}_tensor_all_int8.npz
 
 cvi_npz_tool.py compare \
+    ${NET}_tensor_all_int8.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info_int8.csv \
+    --dequant \
+    --stats_int8_tensor \
+    --except ${EXCEPTS} \
+    --tolerance=${TOLERANCE_INT8_MULTIPLER} -vv
+
+cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_int8.npz \
     ${NET}_tensor_all_int8.npz \
     --op_info ${NET}_op_info_int8.csv
