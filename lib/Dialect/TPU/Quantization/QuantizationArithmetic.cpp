@@ -1,5 +1,5 @@
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/QuantizationArithmetic.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "llvm/Support/raw_ostream.h"

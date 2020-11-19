@@ -19,22 +19,22 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
-#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
+#include "tpuc/NativeCpuImplementation.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/MachineInfo.h"
 
 #include <sstream>
 #include <fstream>
@@ -113,7 +113,7 @@ LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
         "quant", *bias, biasShape, "FP32", wTF);
   }
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   return success();
 }
@@ -135,7 +135,7 @@ LogicalResult quantizeBF16ReciprocalOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "GenReciprocalLut: " << "]\n";);
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
   int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
@@ -174,7 +174,7 @@ LogicalResult quantizeBF16ReciprocalOps(Operation *op) {
       op, "reciprocal_mantissa_table", y0_reciprocal_mantissa_table, shape, storageType, wTF, wfV);
   op->setOperand(1, y0_reciprocal_table_op);
   op->setOperand(2, mantissa_reciprocal_table_op);
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
 
@@ -186,7 +186,7 @@ LogicalResult quantizeBF16SqrtOps(Operation *op) {
   LLVM_DEBUG(llvm::dbgs() << "GenSqrtLut: " << "]\n";);
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
   int npu_num = MInfo::lane_num;
 
   //<! 1880v2 hw bf16 config
@@ -225,7 +225,7 @@ LogicalResult quantizeBF16SqrtOps(Operation *op) {
   op->setOperand(1, y0_sqrt_table_op);
   op->setOperand(2, mantissa_sqrt_table_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
 
@@ -241,7 +241,7 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   setOpQuantParamType(op, "LUT_BF16");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
   auto lutOp = cast<OpTy>(op);
 
   BF16_TABLE_START = lutOp.min_range().convertToFloat();
@@ -335,7 +335,7 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   lutOp.setOperand(1, y0_table_op);
   lutOp.setOperand(2, mantissa_table_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   BF16_TABLE_START = _bf16_table_start;
   BF16_TABLE_END = _bf16_table_end;
@@ -380,7 +380,7 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
         "quant", *bias, biasShape, "FP32", wTF);
   }
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   return success();
 }
@@ -393,7 +393,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
 
   auto gruOp = cast<tpu::GruOp>(op);
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   // get weight tensor
   auto weight = readAndDeleteWeightTensor<float>(gruOp.weight(), wTF);
@@ -563,7 +563,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   gruOp.setOperand(7, y0_tanh_table_op);
   gruOp.setOperand(8, mantissa_tanh_table_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   return success();
 }
@@ -575,7 +575,7 @@ LogicalResult quantizeBf16SoftmaxOps(Operation *op) {
   assert(getOpQuant(op) == "BF16");
   auto softmaxOp = cast<tpu::SoftmaxOp>(op);
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   LLVM_DEBUG(llvm::dbgs() << "GenExponentialLut: " << "]\n";);
   // Add lut table information
@@ -677,7 +677,7 @@ LogicalResult quantizeBf16SoftmaxOps(Operation *op) {
   softmaxOp.setOperand(3, y0_reciprocal_table_op);
   softmaxOp.setOperand(4, mantissa_reciprocal_table_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   return success();
 }
@@ -700,7 +700,7 @@ LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
   BFloat16ToFloat(&bf16_quant_negative_slope, &quant_negative_slope, 1);
   lreluOp.setAttr("negative_slope", builder.getF32FloatAttr(quant_negative_slope));
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   return success();
 }
@@ -713,7 +713,7 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
 
   auto lstmOp = cast<tpu::LstmOp>(op);
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   // get weight tensor
   auto weight = readAndDeleteWeightTensor<float>(lstmOp.weight(), wTF);
@@ -751,9 +751,9 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
   int64_t initial_cSize = 0;
 
   auto initial_h_weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-                  lstmOp.initial_h()->getDefiningOp());
+                  lstmOp.initial_h().getDefiningOp());
   auto initial_c_weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-                  lstmOp.initial_c()->getDefiningOp());
+                  lstmOp.initial_c().getDefiningOp());
 
   bool b_initial_h_is_same_as_initial_c = false;
   assert(initial_h_weightOp.name() == initial_c_weightOp.name());
@@ -916,7 +916,7 @@ LogicalResult quantizeBf16LstmOps(Operation *op) {
   lstmOp.setOperand(8, y0_tanh_table_op);
   lstmOp.setOperand(9, mantissa_tanh_table_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   return success();
 }
@@ -939,7 +939,7 @@ LogicalResult quantizeBf16PReluOps(Operation *op) {
   addWeightTensorAndUpdateWeightOp<bfloat16>(op->getOperand(1),
       "quant", *quant_neg_slope, neg_slope_shape, "BF16", wTF);
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   return success();
 }
@@ -950,7 +950,7 @@ LogicalResult quantizeBf16PReluOps(Operation *op) {
 LogicalResult quantizeBf16BypassOps(Operation *op) {
   assert(getOpQuant(op) == "BF16");
 
-  setOpResultType(op->getResult(0), StandardTypes::BF16);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
   return success();
 }
@@ -1075,7 +1075,7 @@ LogicalResult tpu::QuadraticSumOp::quantizeBf16() {
   Operation *op = this->getOperation();
   // for high precision
   if (high_precision()) {
-    setOpResultType(op->getResult(0), StandardTypes::F32);
+    setOpResultType(op->getResult(0), FloatType::getF32(getContext()));
   }
   return success();
 }

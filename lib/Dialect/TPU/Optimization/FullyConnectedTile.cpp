@@ -19,17 +19,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/raw_ostream.h"
@@ -207,12 +207,12 @@ public:
   convertFullyConnectedTilePattern(MLIRContext *ctx, MInfo &mInfo)
       : OpRewritePattern<OpTy>(ctx), mInfo(mInfo) {}
 
-  PatternMatchResult matchAndRewrite(OpTy tpuOp,
+  LogicalResult matchAndRewrite(OpTy tpuOp,
                                      PatternRewriter &rewriter) const override {
 
     // Already configured
     if (tpuOp.tile_param().hasValue())
-      return Pattern::matchFailure();
+      return failure();
 
     auto op = tpuOp.getOperation();
 
@@ -228,7 +228,7 @@ public:
     bool hasBias = isTensorNone(tpuOp.bias()) ? false : true;
 
     auto retType =
-        op->getResult(0)->getType().template dyn_cast<RankedTensorType>();
+        op->getResult(0).getType().template dyn_cast<RankedTensorType>();
     auto elementType = retType.getElementType();
     int dataTypeSize = elementType.getIntOrFloatBitWidth() / 8;
 
@@ -242,7 +242,7 @@ public:
       tileInfo = fcModel->getBf16TileSizes();
 
     if (!tileInfo.m_step || !tileInfo.k_step || !tileInfo.n_step)
-      return Pattern::matchFailure();
+      return failure();
 
     SmallVector<int32_t, 4> tileValues = {
         tileInfo.m_step, tileInfo.k_step, tileInfo.n_step};
@@ -260,13 +260,13 @@ public:
                                         rewriter.getI32ArrayAttr(k_sizes),
                                         rewriter.getContext()));
 
-    return Pattern::matchSuccess();
+    return success();
   }
 
   MInfo &mInfo;
 };
 
-struct FullyConnectedTilePass : public FunctionPass<FullyConnectedTilePass> {
+struct FullyConnectedTilePass : public mlir::PassWrapper<FullyConnectedTilePass, FunctionPass> {
   void runOnFunction() override;
 };
 
@@ -288,7 +288,7 @@ void FullyConnectedTilePass::runOnFunction() {
       convertFullyConnectedTilePattern<tpu::TG_INT8_FullyConnectedOp>,
       convertFullyConnectedTilePattern<tpu::TG_BF16_FullyConnectedOp>
       >(&getContext(), machineInfo);
-  applyPatternsGreedily(getFunction(), patterns);
+  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 }
 
 void PopulateFullyConnectedTilePatterns(
@@ -299,7 +299,7 @@ void PopulateFullyConnectedTilePatterns(
       >(context, mInfo);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> createFullyConnectedTilePass() {
+std::unique_ptr<mlir::Pass> createFullyConnectedTilePass() {
   return std::make_unique<tpu::FullyConnectedTilePass>();
 }
 

@@ -19,8 +19,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/PatternMatch.h"
 
 #define DEBUG_TYPE "convert_conv3d"

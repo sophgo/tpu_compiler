@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
 #include <float.h>
@@ -44,7 +44,7 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
   TpuQuantTanHOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tanh", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto tanhOp = cast<tpu::TanHOp>(op);
     std::string op_name = tanhOp.getAttrOfType<StringAttr>("name").getValue().str();
@@ -52,10 +52,10 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
 
     if (tanhOp.quant() != "NONE") {
       LLVM_DEBUG(llvm::errs() << tanhOp.name() << " quantized already\n";);
-      return matchFailure();
+      return failure();
     }
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     // find filter and bias tensor
     std::vector<std::unique_ptr<std::vector<float> > > weights(2);
@@ -63,12 +63,12 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
     int weight_idx = 0;
     for (unsigned i = 1; i < tanhOp.getNumOperands(); ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          tanhOp.getOperand(i)->getDefiningOp());
+          tanhOp.getOperand(i).getDefiningOp());
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
       LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";);
-      auto type = weight_op.getResult()->getType().cast<TensorType>();
+      auto type = weight_op.getResult().getType().cast<TensorType>();
       weights[weight_idx] = wTF->readTensor<float>(tensor_name, type);
       weight_idx++;
       // delete the tensor from the weight file
@@ -79,7 +79,7 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
     float *scale = (float *)weights[1]->data();
 
     // create new tensors for quantized y0_table and scale
-    auto y0_table_type = tanhOp.y0_table()->getType().cast<TensorType>();
+    auto y0_table_type = tanhOp.y0_table().getType().cast<TensorType>();
     std::vector<int64_t> y0_table_shape(y0_table_type.getShape());
     assert(y0_table_shape.size() == 4);
 
@@ -98,7 +98,7 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
     FloatToBFloat16(scale, new_scale.data(), y0_table_size);
 
     // update op
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(tanhOp.getOperand(0)); // <! 0 is input
 
     // add new filter and bias weight
@@ -118,7 +118,7 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
@@ -127,10 +127,10 @@ struct TpuQuantTanHOpPattern : public RewritePattern {
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
     newAttrs.push_back(rewriter.getNamedAttr("quant", rewriter.getStringAttr("BF16")));
     rewriter.replaceOpWithNewOp<tpu::TanHOp>(
-        tanhOp, tanhOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+        tanhOp, tanhOp.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 

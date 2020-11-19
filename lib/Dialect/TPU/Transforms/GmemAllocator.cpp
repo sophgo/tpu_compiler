@@ -3,8 +3,8 @@
  * All Rights Reserved.
  */
 #include "llvm/Support/Debug.h"
-#include "mlir/Dialect/TPU/GmemAllocator.hpp"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "tpuc/GmemAllocator.hpp"
+#include "tpuc/TPUOperationSupport.h"
 
 namespace mlir {
 
@@ -15,7 +15,7 @@ static uint32_t getTensorGmemSize(Operation *op, uint32_t alignment) {
     return llvm::alignTo(size, alignment);
 
   uint32_t dsize = 1;
-  auto type = op->getResult(0)->getType().template cast<TensorType>();
+  auto type = op->getResult(0).getType().template cast<TensorType>();
   std::vector<int64_t> shape = type.getShape();
   auto count =
       std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
@@ -257,7 +257,7 @@ int64_t GmemAllocator::assignSpecifiedGmemToOp(
                                        uint32_t alignment) {
   int64_t size = 0;
   if (auto concatOp = dyn_cast_or_null<tpu::TG_ConcatNOp>(op)) {
-    int axis = concatOp.axis().getLimitedValue();
+    int axis = concatOp.axis();
     if (axis != 0) {
       return 0;
     }

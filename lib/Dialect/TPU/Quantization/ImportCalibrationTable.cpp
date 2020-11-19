@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/TPUOperationSupport.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include <sstream>
@@ -71,13 +71,13 @@ namespace {
 struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::ConcatOp> {
   using OpRewritePattern<tpu::ConcatOp>::OpRewritePattern;
 
-  PatternMatchResult matchAndRewrite(tpu::ConcatOp op,
+  LogicalResult matchAndRewrite(tpu::ConcatOp op,
                                      PatternRewriter &rewriter) const {
     float threshold_y = getOpThreshold(op);
     int written = 0;
     unsigned nInputs = op.getNumInputs();
     for (unsigned i = 0; i < nInputs; ++i) {
-      auto formerOp = op.getOperand(i)->getDefiningOp();
+      auto formerOp = op.getOperand(i).getDefiningOp();
       float threshold_x = getOpThreshold(formerOp);
       if (threshold_x == threshold_y) {
           continue;
@@ -130,9 +130,9 @@ struct BackwardOverwriteThresholdConcatPattern : public OpRewritePattern<tpu::Co
     }
 
     if (!written) {
-      return matchFailure();
+      return failure();
     } else {
-      return matchSuccess();
+      return success();
     }
   }
 };
@@ -142,16 +142,16 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
   BackendOverwriteThresholdDefaultPattern(MLIRContext *context)
       : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     float threshold_y = getOpThreshold(op);
-    auto formerOp = op->getOperand(0)->getDefiningOp();
+    auto formerOp = op->getOperand(0).getDefiningOp();
     float threshold_x = getPreviousOpThreshold(op);
     if (threshold_x == threshold_y) {
-      return matchFailure();
+      return failure();
     }
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReshapeOp>(formerOp)) {
-      return matchFailure(); // we skip reshape
+      return failure(); // we skip reshape
     }
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::BroadcastMulOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
@@ -224,7 +224,7 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       }
     );
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -236,21 +236,21 @@ struct ForwardOverwriteThresholdDefaultPattern : public RewritePattern {
   ForwardOverwriteThresholdDefaultPattern(MLIRContext *context)
       : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<TyOp>(opInst);
     float threshold_x = getPreviousOpThreshold(op);
     float threshold_y = getOpThreshold(op);
     if (threshold_y == threshold_x) {
       // overwritten already
-      return matchFailure();
+      return failure();
     } else {
       setOpThreshold(opInst, threshold_x);
       LLVM_DEBUG(llvm::errs() << opInst->getName() << " [" << op.name() << "] "
                    << "set threshold by prev Op threshold, from "
                    << std::to_string(threshold_y) << " to "
                    << std::to_string(threshold_x) << "\n";);
-      return matchSuccess();
+      return success();
     }
   }
 };
@@ -262,7 +262,7 @@ struct BypassThresholdDefaultPattern : public RewritePattern {
   BypassThresholdDefaultPattern(MLIRContext *context)
       : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<TyOp>(opInst);
     if (getOpQuantParamType(op) == "THRESHOLD") {
@@ -270,7 +270,7 @@ struct BypassThresholdDefaultPattern : public RewritePattern {
       float threshold_y = getOpThreshold(opInst);
       if (threshold_y == threshold_x) {
         // assigned already
-        return matchFailure();
+        return failure();
       }
     }
 
@@ -282,7 +282,7 @@ struct BypassThresholdDefaultPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << opInst->getName() << " [" << op.name() << "] "
                  << "set threshold by prev Op threshold "
                  << std::to_string(threshold_x) << "\n";);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -293,12 +293,12 @@ struct ForceThresholdDefaultPattern : public RewritePattern {
       : RewritePattern(TyOp::getOperationName(), 1, context),
         threshold_(threshold) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
     if (getOpQuantParamType(op) == "THRESHOLD") {
       if (getOpThreshold(op) == threshold_) {
         // assigned already
-        return matchFailure();
+        return failure();
       }
     }
     setOpThreshold(op, threshold_);
@@ -306,7 +306,7 @@ struct ForceThresholdDefaultPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << op->getName() << " [" << getOpName(op) << "] "
                  << "force threshold to "
                  << std::to_string(threshold_) << "\n";);
-    return matchSuccess();
+    return success();
   }
 
 private:
@@ -323,7 +323,7 @@ struct ForceThresholdClipOpPattern : public RewritePattern {
   ForceThresholdClipOpPattern(MLIRContext *context)
       : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     float threshold_y;
     float threshold_x;
@@ -333,15 +333,15 @@ struct ForceThresholdClipOpPattern : public RewritePattern {
       threshold_y = getOpThreshold(opInst);
 
     } else {
-      return matchFailure();
+      return failure();
     }
 
-    auto formerOp = opInst->getOperand(0)->getDefiningOp();
+    auto formerOp = opInst->getOperand(0).getDefiningOp();
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
 
     } else {
-      return matchFailure();
+      return failure();
     }
 
     setOpQuantParamType(opInst, "THRESHOLD");
@@ -355,7 +355,7 @@ struct ForceThresholdClipOpPattern : public RewritePattern {
 
     // remove clip op
     rewriter.replaceOp(opInst, {opInst->getOperand(0)});
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -367,7 +367,7 @@ struct ForceThresholdPreprocessOpPattern : public RewritePattern {
   ForceThresholdPreprocessOpPattern(MLIRContext *context)
       : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     float threshold_y;
     float threshold_x;
@@ -376,22 +376,22 @@ struct ForceThresholdPreprocessOpPattern : public RewritePattern {
       threshold_x = getPreviousOpThreshold(opInst, 0);
       threshold_y = getOpThreshold(opInst);
     } else {
-      return matchFailure();
+      return failure();
     }
     if (getOpQuantParamType(opInst) == "THRESHOLD") {
       if (threshold_x == 255) {
         // assigned already
-        return matchFailure();
+        return failure();
       }
     }
 
-    auto formerOp = opInst->getOperand(0)->getDefiningOp();
+    auto formerOp = opInst->getOperand(0).getDefiningOp();
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
       setOpThreshold(opInst, threshold_x);
       setOpThreshold(formerOp, 255);
 
     } else {
-      return matchFailure();
+      return failure();
     }
 
     setOpQuantParamType(opInst, "THRESHOLD");
@@ -402,7 +402,7 @@ struct ForceThresholdPreprocessOpPattern : public RewritePattern {
                                "threshold from "
                             << std::to_string(threshold_x) << " to "
                             << std::to_string(threshold_y) << "\n";);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -411,13 +411,13 @@ struct ForceThresholdCustomOpPattern : public RewritePattern {
   ForceThresholdCustomOpPattern(MLIRContext *context)
       : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto castOp = cast<TyOp>(op);
     auto overwrite = castOp.threshold_overwrite();
     llvm::errs() << "custom op overwrite:" << overwrite << "\n";
     if (overwrite == "none") {
-      return matchFailure();
+      return failure();
     }
 
     float threshold_x = getPreviousOpThreshold(op);
@@ -426,7 +426,7 @@ struct ForceThresholdCustomOpPattern : public RewritePattern {
     if (getOpQuantParamType(op) == "THRESHOLD") {
       if (threshold_y == threshold_x) {
         // assigned already
-        return matchFailure();
+        return failure();
       }
     }
 
@@ -435,15 +435,15 @@ struct ForceThresholdCustomOpPattern : public RewritePattern {
     if (overwrite == "forward") {
       setOpThreshold(op, threshold_x);
     } else if (overwrite == "backward") { // "backward"
-      auto formerOp = op->getOperand(0)->getDefiningOp();
+      auto formerOp = op->getOperand(0).getDefiningOp();
       setOpThreshold(formerOp, threshold_y);
     }
     setOpQuantParamType(op, "THRESHOLD");
-    return matchSuccess();
+    return success();
   }
 };
 
-class ImportCalibrationTablePass : public FunctionPass<ImportCalibrationTablePass> {
+class ImportCalibrationTablePass : public mlir::PassWrapper<ImportCalibrationTablePass, FunctionPass> {
 public:
   explicit ImportCalibrationTablePass() {}
 
@@ -540,7 +540,7 @@ public:
         BypassThresholdDefaultPattern<tpu::TileOp>,
         BypassThresholdDefaultPattern<tpu::ZeroMaskOp>
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     if (clCaliOverwriteThresholdBackwardRelu) {
       //assert(!clCaliOverwriteThresholdForwardRelu);
@@ -562,7 +562,7 @@ public:
             BackwardOverwriteThresholdConcatPattern
             >(context);
       }
-      applyPatternsGreedily(fn, patterns);
+      applyPatternsAndFoldGreedily(fn, std::move(patterns));
     }
     if (clCaliOverwriteThresholdForwardRelu) {
       //assert(!clCaliOverwriteThresholdBackwardRelu);
@@ -578,7 +578,7 @@ public:
           ForwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
           ForwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
           >(context);
-      applyPatternsGreedily(fn, patterns);
+      applyPatternsAndFoldGreedily(fn, std::move(patterns));
     }
 
     if (!clCaliOverwriteThresholdBackwardRelu
@@ -591,7 +591,7 @@ public:
           BackendOverwriteThresholdDefaultPattern<tpu::CropOp>,
           BackendOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
           >(context);
-      applyPatternsGreedily(fn, patterns);
+      applyPatternsAndFoldGreedily(fn, std::move(patterns));
     }
 
     // apply clip overwrite conv threshold
@@ -601,21 +601,21 @@ public:
         ForceThresholdClipOpPattern<tpu::ClipOp>
         >(context);
     //move to ConvertClip.cpp for mix precision
-    //applyPatternsGreedily(fn, patterns);
+    //applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     // apply input overwrite preprocess threshold
     LLVM_DEBUG(llvm::errs() << "Default preprocess threshold overwrite\n";);
     patterns.clear();
     patterns.insert<ForceThresholdPreprocessOpPattern<
         tpu::PreprocessOp>>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     LLVM_DEBUG(llvm::errs() << "set CustomOp's threshold\n";);
     patterns.clear();
     patterns.insert<
         ForceThresholdCustomOpPattern<tpu::CustomOp>
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -650,7 +650,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createImportCalibrationTablePass() {
+std::unique_ptr<mlir::Pass> mlir::createImportCalibrationTablePass() {
   return std::make_unique<ImportCalibrationTablePass>();
 }
 

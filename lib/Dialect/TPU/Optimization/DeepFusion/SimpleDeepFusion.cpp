@@ -19,11 +19,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -33,7 +33,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "mlir/Dialect/TPU/SimpleAnalysis.h"
+#include "tpuc/SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-simple"
 
@@ -59,7 +59,7 @@ public:
       for (auto it = chains.begin(); it != chains.end(); ++it) {
         llvm::errs() << "Chain: size = " << (*it)->size() << "\n";
         for (auto v = (*it)->begin(); v != (*it)->end(); ++v) {
-          auto opInst = (*v)->getDefiningOp();
+          auto opInst = (*v).getDefiningOp();
           if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
             llvm::errs() << "  " << op.name() << "\n";
           } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_DeConv2DOp>(opInst)) {
@@ -75,7 +75,7 @@ public:
           } else if (auto op = dyn_cast<tpu::TG_INT8_LutOp>(opInst)) {
             llvm::errs() << "  " << op.name() << "\n";
           } else {
-            std::string opName = opInst->getName().getStringRef();
+            std::string opName = opInst->getName().getStringRef().str();
             llvm_unreachable(("unsupported tg op " + opName + "\n").c_str());
           }
         }
@@ -83,9 +83,9 @@ public:
     );
   }
 
-  void pushChain(Value *op) {
+  void pushChain(Value op) {
     if (!curChain) {
-      curChain = std::make_unique<std::vector<Value *> >();
+      curChain = std::make_unique<std::vector<Value> >();
     }
     curChain->push_back(op);
   }
@@ -102,11 +102,11 @@ public:
 
 private:
   uint64_t totalMacCount = 0;
-  std::vector<std::unique_ptr<std::vector<Value *> > > chains;
-  std::unique_ptr<std::vector<Value *> > curChain;
+  std::vector<std::unique_ptr<std::vector<Value> > > chains;
+  std::unique_ptr<std::vector<Value> > curChain;
 };
 
-class DeepFusionSimple : public FunctionPass<DeepFusionSimple> {
+class DeepFusionSimple : public mlir::PassWrapper<DeepFusionSimple, FunctionPass> {
 public:
   explicit DeepFusionSimple() {}
 
@@ -360,7 +360,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createDeepFusionSimple() {
+std::unique_ptr<mlir::Pass> mlir::createDeepFusionSimple() {
   return std::make_unique<DeepFusionSimple>();
 }
 

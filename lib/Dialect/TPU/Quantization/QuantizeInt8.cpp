@@ -19,21 +19,21 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
-#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
+#include "tpuc/NativeCpuImplementation.h"
+#include "tpuc/MachineInfo.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include <sstream>
@@ -53,7 +53,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   assert(getOpQuant(op) == "INT8");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
   auto convOp = cast<OpTy>(op);
 
   // get filter tensor
@@ -174,7 +174,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   } else {
     assert(0);
   }
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -191,7 +191,7 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
   setOpQuantParamType(op, "RSHIFT_ONLY");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
 
   // parse param
@@ -255,7 +255,7 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
       wTF, wfV);
   fcOp.setOperand(5, rshift_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -271,7 +271,7 @@ LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
   auto lreluOp = cast<tpu::LeakyReluOp>(op);
 
   float negative_slope = lreluOp.negative_slope().convertToFloat();
@@ -343,7 +343,7 @@ LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
       wTF, wfV);
   lreluOp.setOperand(8, multiplier_neg_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -359,7 +359,7 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
   auto preluOp = cast<tpu::PReluOp>(op);
 
   //get negative slope tensor info
@@ -447,7 +447,7 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
       op, "rshift_neg", rshift_neg, shape, storageType, wTF, wfV);
   preluOp.setOperand(8, rshift_neg_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -464,7 +464,7 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
   setOpQuantParamType(op, "LUT_INT8");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
   auto lutOp = cast<OpTy>(op);
 
   // quantization
@@ -577,7 +577,7 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
   lutOp.setOperand(1, y0_table_op);
   lutOp.setOperand(2, mantissa_table_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -601,7 +601,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   bool bypass = true;
   float bypass_eps = 1e-5;
@@ -644,7 +644,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
                             << ",  quantization bypassed\n";);
     setOpQuantParamType(op, "NONE");
-    setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+    setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
     return success();
   }
@@ -664,8 +664,8 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     assert(nInputs);
     auto castOp = dyn_cast<tpu::PoolAvg2DOp>(op);
     assert(castOp);
-    int kh = castOp.param().kernel_h().getValue().getLimitedValue();
-    int kw = castOp.param().kernel_w().getValue().getLimitedValue();
+    int kh = castOp.param().kernel_h().getSInt();
+    int kw = castOp.param().kernel_w().getSInt();
     qscale[0] = qscale[0] / (kh * kw);
   }
 
@@ -686,7 +686,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
             castOp.param().stride_w(),
             castOp.param().do_relu(),
             rewriter.getBoolAttr(true),
-            rewriter.getContext()));
+            castOp.getContext()));
   }
 
   // special handling
@@ -701,7 +701,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
         axes.push_back(val.cast<IntegerAttr>().getInt());
 
       // Calculate size of reduced axes from input dimensions
-      auto type = castOp.input()->getType().template cast<TensorType>();
+      auto type = castOp.input().getType().template cast<TensorType>();
       std::vector<int64_t> inputShapes(type.getShape());
       int64_t size = 1;
       for (auto dim : axes) {
@@ -756,7 +756,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
       wTF, wfV);
   op->setOperand(nInputs + 3, multiplier_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -780,7 +780,7 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   setOpQuantParamType(op, "RSHIFT_AND_M_I32");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   // get operands
   const unsigned nInputs = op->getNumOperands() - 4;
@@ -793,7 +793,7 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   int const_idx;
 
   for (unsigned i = 0; i < nInputs; ++i) {
-    auto formerOp = op->getOperand(i)->getDefiningOp();
+    auto formerOp = op->getOperand(i).getDefiningOp();
     if (isa<tpu::LoadWeightOp>(formerOp)) {
       const_idx = i;
       continue;
@@ -871,7 +871,7 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -890,7 +890,7 @@ LogicalResult quantizeInt8OpsWithSkip(Operation *op) {
   const unsigned nInputs = op->getNumOperands() - 4;
   for (unsigned i = 0; i < nInputs; ++i) {
     auto formerOp = op->getOperand(i);
-    if (false == isa<tpu::LoadWeightOp>(formerOp->getDefiningOp())) {
+    if (false == isa<tpu::LoadWeightOp>(formerOp.getDefiningOp())) {
       continue;
     }
     auto const_opd = readAndDeleteWeightTensor<float>(formerOp, wTF);
@@ -906,7 +906,7 @@ LogicalResult quantizeInt8OpsWithSkip(Operation *op) {
       "quant", quant_const, const_shape, "INT8", wTF);
   }
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
   return success();
 }
 
@@ -920,7 +920,7 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
   setOpQuantParamType(op, "RSHIFT_AND_M_I32");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   // get operands
   const unsigned nInputs = op->getNumOperands() - 4;
@@ -933,7 +933,7 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
   int const_idx;
 
   for (unsigned i = 0; i < nInputs; ++i) {
-    auto formerOp = op->getOperand(i)->getDefiningOp();
+    auto formerOp = op->getOperand(i).getDefiningOp();
     if (isa<tpu::LoadWeightOp>(formerOp)) {
       const_idx = i;
       continue;
@@ -1019,7 +1019,7 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -1041,7 +1041,7 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
   setOpQuantParamType(op, "RSHIFT_AND_M_I32");
 
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   // get operands
   const unsigned nInputs = op->getNumOperands() - 4;
@@ -1096,7 +1096,7 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -1151,7 +1151,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
     }
   }
 
-  setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
 
   return success();
 }
@@ -1228,7 +1228,7 @@ LogicalResult tpu::EltwiseAddOp::quantizeInt8() {
   Operation *op = this->getOperation();
   bool ConstOpd = false;
   for (unsigned i = 0; i < 2; ++i) {
-    auto formerOp = op->getOperand(i)->getDefiningOp();
+    auto formerOp = op->getOperand(i).getDefiningOp();
     if (isa<tpu::LoadWeightOp>(formerOp)) {
       ConstOpd = true;
       break;
@@ -1266,7 +1266,7 @@ LogicalResult tpu::EltwiseMulOp::quantizeInt8() {
   Operation *op = this->getOperation();
   bool hasConstOpd = false;
   for (unsigned i = 0; i < 2; ++i) {
-    auto formerOp = op->getOperand(i)->getDefiningOp();
+    auto formerOp = op->getOperand(i).getDefiningOp();
     if (isa<tpu::LoadWeightOp>(formerOp)) {
       hasConstOpd = true;
       break;

@@ -1,13 +1,13 @@
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/raw_ostream.h"
@@ -50,7 +50,7 @@ static bool isConvertedOpNeeded(Operation *op) {
      llvm::dbgs() << "  isConvertedOpNeeded op " << op->getName() << ", is not TgCodeGen\n";
   );
 
-  for (auto &user : op->getResult(0)->getUses()) {
+  for (auto &user : op->getResult(0).getUses()) {
     Operation *userOp = user.getOwner();
 
     LLVM_DEBUG(
@@ -128,25 +128,25 @@ public:
   AddTypeConvertedForNotLowedOpPattern(MLIRContext *ctx)
       : OpRewritePattern<TensorTyOp>(ctx) {}
 
-  PatternMatchResult matchAndRewrite(TensorTyOp tensorTyOp,
+  LogicalResult matchAndRewrite(TensorTyOp tensorTyOp,
                                      PatternRewriter &rewriter) const override {
     auto op = tensorTyOp.getOperation();
 
     LLVM_DEBUG(llvm::dbgs() << "AddTypeConvertedForNotLowedOpPattern op "
                  << op->getName() << "\n";);
 
-    for (auto &user : op->getResult(0)->getUses()) {
+    for (auto &user : op->getResult(0).getUses()) {
       Operation *userOp = user.getOwner();
       LLVM_DEBUG(llvm::dbgs() << "  userOp " << userOp->getName() << "\n";);
       if (dyn_cast<TG_TensorToMemRefOp>(userOp)) {
-        LLVM_DEBUG(llvm::dbgs() << "    TensorToMemRefOp already added, matchFailure\n";);
-        return Pattern::matchFailure();
+        LLVM_DEBUG(llvm::dbgs() << "    TensorToMemRefOp already added, failure\n";);
+        return failure();
       }
     }
 
     if (isConvertedOpNeeded(op)) {
       auto newTpuOp = rewriter.template create<TensorTyOp>(op->getLoc(),
-          op->getResult(0)->getType(),
+          op->getResult(0).getType(),
           op->getOperands(),
           op->getAttrs());
 
@@ -161,18 +161,18 @@ public:
       oldResult->replaceAllUsesWith(memRefToTensorOp.getResult());
       rewriter.eraseOp(op);
 
-      return Pattern::matchSuccess();
+      return success();
     }
 
-    return Pattern::matchFailure();
+    return failure();
   }
 };
 
 constexpr StringRef kTempBufferAttr = "temp";
 
-Operation *GetLastUse(Value *value) {
-  Operation *last = value->getDefiningOp();
-  for (auto &user : value->getUses()) {
+Operation *GetLastUse(Value value) {
+  Operation *last = value.getDefiningOp();
+  for (auto &user : value.getUses()) {
     Operation *user_op = user.getOwner();
     if (!user_op->isBeforeInBlock(last)) {
       last = user_op;
@@ -198,7 +198,7 @@ bool isMemoryAliasOp(Operation *op) {
     return true;
   } else if (dyn_cast<tpu::TG_INT8_SliceOp>(op) ||
              dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
-    auto resultType = op->getResult(0)->getType();
+    auto resultType = op->getResult(0).getType();
     auto tensorType = resultType.dyn_cast<RankedTensorType>();
     auto batch = tensorType.getShape()[0];
 
@@ -209,10 +209,10 @@ bool isMemoryAliasOp(Operation *op) {
   return false;
 }
 
-Value *InsertAllocAndDealloc(Location loc, Value *result,
+ValueInsertAllocAndDealloc(Location loc, Valueresult,
                              PatternRewriter *rewriter) {
-  auto *op = result->getDefiningOp();
-  auto result_type = result->getType().dyn_cast<ShapedType>();
+  auto *op = result.getDefiningOp();
+  auto result_type = result.getType().dyn_cast<ShapedType>();
   auto memref_type =
       MemRefType::get(result_type.getShape(), result_type.getElementType(),
                       {}, getMemorySpace(op));
@@ -251,7 +251,7 @@ Value *InsertAllocAndDealloc(Location loc, Value *result,
   return alloc;
 }
 
-Value *GetBufferForResultValue(Location loc, Value *result,
+ValueGetBufferForResultValue(Location loc, Valueresult,
                                PatternRewriter *rewriter) {
   return InsertAllocAndDealloc(loc, result, rewriter);
 }
@@ -262,18 +262,18 @@ public:
   explicit convertTgOpToMemRefPattern(MLIRContext *context)
       : ConversionPattern(TensorTyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
     LLVM_DEBUG(llvm::dbgs() << "convertTgOpToMemRefPattern op " << op->getName() << "\n";);
 
     const auto &original_results = op->getResults();
 
-    SmallVector<Value *, 4> buffer_args;
+    SmallVector<Value, 4> buffer_args;
 
     // Operand from not-lowed Op
     for (auto *operand : operands) {
-      auto operandOp = operand->getDefiningOp();
+      auto operandOp = operand.getDefiningOp();
       bool useOriginalOperand = true;
 
       // It is possible that operandOp is null during conversion.
@@ -283,7 +283,7 @@ public:
         if (dyn_cast<TG_MemRefToTensorOp>(operandOp)) {
           LLVM_DEBUG(llvm::dbgs() << "    erase MemRefToTensorOp\n";);
           auto newOperand = operandOp->getOperand(0);
-          operandOp->getResult(0)->replaceAllUsesWith(newOperand);
+          operandOp->getResult(0).replaceAllUsesWith(newOperand);
           rewriter.eraseOp(operandOp);
           buffer_args.push_back(operandOp->getOperand(0));
 
@@ -297,13 +297,13 @@ public:
 
     // Result used by not-lowed Op
     for (auto result : original_results) {
-      for (auto &user : result->getUses()) {
+      for (auto &user : result.getUses()) {
         auto *userOp = user.getOwner();
         if (userOp) {
           LLVM_DEBUG(llvm::dbgs() << "  result userOp " << userOp->getName() << "\n";);
           if (dyn_cast<TG_TensorToMemRefOp>(userOp)) {
             LLVM_DEBUG(llvm::dbgs() << "    erase TensorToMemRefOp\n";);
-            userOp->getResult(0)->replaceAllUsesWith(result);
+            userOp->getResult(0).replaceAllUsesWith(result);
             rewriter.eraseOp(userOp);
           }
         }
@@ -316,10 +316,10 @@ public:
     rewriter.create<MemRefTyOp>(op->getLoc(), llvm::None, buffer_args,
                                 op->getAttrs());
     rewriter.replaceOp(
-        op, ArrayRef<Value *>(buffer_args).slice(op->getOperands().size()),
+        op, ArrayRef<Value>(buffer_args).slice(op->getOperands().size()),
         original_results);
 
-    return Pattern::matchSuccess();
+    return success();
   }
 };
 
@@ -329,14 +329,14 @@ public:
   explicit convertTgInputOpToMemRefPattern(MLIRContext *context)
       : ConversionPattern(TensorTyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
 
     LLVM_DEBUG(llvm::dbgs() << "convertTgInputOpToMemRefPattern op " << op->getName() << "\n";);
     const auto &original_results = op->getResults();
 
-    SmallVector<Value *, 4> buffer_args(operands.begin(), operands.end());
+    SmallVector<Value, 4> buffer_args(operands.begin(), operands.end());
     for (auto result : original_results) {
       buffer_args.push_back(
           GetBufferForResultValue(op->getLoc(), result, &rewriter));
@@ -345,10 +345,10 @@ public:
     rewriter.create<MemRefTyOp>(op->getLoc(), llvm::None, buffer_args,
                                 op->getAttrs());
     rewriter.replaceOp(op,
-                       ArrayRef<Value *>(buffer_args).slice(operands.size()),
+                       ArrayRef<Value>(buffer_args).slice(operands.size()),
                        original_results);
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -357,21 +357,21 @@ public:
   explicit convertMemRefToTensorOpPattern(MLIRContext *context)
       : ConversionPattern(TG_MemRefToTensorOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
 
     // Not-lowed op -> TensorToMemRef -> MemRefToTensor -> lowed op
     // Not-lowed op -> TensorToMemRef -> lowed op
-    for (auto &user : op->getResult(0)->getUses()) {
+    for (auto &user : op->getResult(0).getUses()) {
       Operation *userOp = user.getOwner();
       if (dyn_cast<TpuTGOpCodegenInterface>(userOp)) {
-        op->getResult(0)->replaceAllUsesWith(op->getOperand(0));
+        op->getResult(0).replaceAllUsesWith(op->getOperand(0));
         rewriter.eraseOp(op);
-        return matchSuccess();
+        return success();
       }
     }
-    return matchFailure();
+    return failure();
   }
 };
 
@@ -380,22 +380,22 @@ public:
   explicit convertTensorStoreOpPattern(MLIRContext *context)
       : ConversionPattern(TensorStoreOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
 
     // Not lowed op -> TensorStore
-    if (!dyn_cast<TpuTGOpCodegenInterface>(operands[0]->getDefiningOp())) {
+    if (!dyn_cast<TpuTGOpCodegenInterface>(operands[0].getDefiningOp())) {
       LLVM_DEBUG(llvm::dbgs() << "convertTensorStoreOpPattern operandOp "
-                   << operands[0]->getDefiningOp()->getName() << ", skipped\n";);
-      return matchFailure();
+                   << operands[0].getDefiningOp()->getName() << ", skipped\n";);
+      return failure();
     }
 
     // Treat QuantOp as not-lowed op
-    if (isQuantOp(operands[0]->getDefiningOp())) {
+    if (isQuantOp(operands[0].getDefiningOp())) {
       LLVM_DEBUG(llvm::dbgs() << "convertTensorStoreOpPattern operandOp "
-                   << operands[0]->getDefiningOp()->getName() << ", skipped\n";);
-      return matchFailure();
+                   << operands[0].getDefiningOp()->getName() << ", skipped\n";);
+      return failure();
     }
 
     // TensorStoreOp does TensorType -> MemRefType conversion.
@@ -404,8 +404,8 @@ public:
     auto dest = op->getOperand(1);
     dest->replaceAllUsesWith(source);
 
-    auto allocOp = dest->getDefiningOp();
-    for (auto &user : allocOp->getResult(0)->getUses()) {
+    auto allocOp = dest.getDefiningOp();
+    for (auto &user : allocOp->getResult(0).getUses()) {
         Operation *user_op = user.getOwner();
         if (auto deallocOp = dyn_cast_or_null<DeallocOp>(user_op))
           rewriter.eraseOp(deallocOp);
@@ -416,11 +416,11 @@ public:
 
     rewriter.eraseOp(op);
 
-    return matchSuccess();
+    return success();
   }
 };
 
-struct ConvertTgOpToMemRefPass : public FunctionPass<ConvertTgOpToMemRefPass> {
+struct ConvertTgOpToMemRefPass : public mlir::PassWrapper<ConvertTgOpToMemRefPass, FunctionPass> {
   void runOnFunction() override;
 };
 } // anonymous namespace
@@ -510,7 +510,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ZeroMaskOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ZeroMaskOp>
       >(context);
-  applyPatternsGreedily(fn, patterns);
+  applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
 #if 1
   // Lower op.
@@ -681,7 +681,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
 
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertTgOpToMemRefPass() {
+std::unique_ptr<mlir::Pass> mlir::createConvertTgOpToMemRefPass() {
   return std::make_unique<ConvertTgOpToMemRefPass>();
 }
 

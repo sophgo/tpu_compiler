@@ -1,14 +1,14 @@
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -22,7 +22,7 @@
 using namespace mlir;
 
 namespace {
-class ConvertFuncToMemRefPass : public ModulePass<ConvertFuncToMemRefPass> {
+class ConvertFuncToMemRefPass : public mlir::PassWrapper<ConvertFuncToMemRefPass, FunctionPass> {
 public:
   void runOnModule() final;
 };
@@ -31,8 +31,8 @@ public:
 // Attemps to resolve the use of a value back to the MemRef it was loaded from.
 // Returns either a MemRef view containing the value or nullptr if the value was
 // not loaded from a MemRef (or is possibly unknown).
-Value *resolveValueToSourceMemRef(Value *value, Operation *useOp) {
-  auto *defInstr = value->getDefiningOp();
+ValueresolveValueToSourceMemRef(Value value, Operation *useOp) {
+  auto *defInstr = value.getDefiningOp();
   if (auto loadOp = dyn_cast_or_null<LoadOp>(defInstr)) {
     return loadOp.getMemRef();
   }
@@ -60,24 +60,24 @@ bool insertLoad(BlockArgument *oldArg, BlockArgument *newArg,
   auto loc = oldArg->getOwner()->getParent()->getLoc();
   // If old arg was a memref we don't need to change anything. We still need
   // to remap so that the use lists match through coversion, though.
-  if (oldArg->getType().isa<MemRefType>()) {
+  if (oldArg.getType().isa<MemRefType>()) {
     mapping->map(oldArg, newArg);
     return false;
-  } else if (oldArg->getType().isa<TensorType>()) {
+  } else if (oldArg.getType().isa<TensorType>()) {
     auto castOp = builder.create<TensorLoadOp>(loc, newArg);
     mapping->map(oldArg, castOp.getResult());
     return false;
   }
 
   // Insert the load we'll use to unbox the value.
-  auto loadedValue = builder.create<LoadOp>(loc, newArg, ArrayRef<Value *>{});
+  auto loadedValue = builder.create<LoadOp>(loc, newArg, ArrayRef<Value>{});
   mapping->map(oldArg, loadedValue);
 
   return false;
 }
 
 // Borrow from IREE
-Value* insertStore(Operation *oldOp, Value *oldValue, OpBuilder &builder,
+Value insertStore(Operation *oldOp, ValueoldValue, OpBuilder &builder,
                    BlockAndValueMapping *mapping) {
   auto *newValue = mapping->lookupOrNull(oldValue);
   if (!newValue) {
@@ -86,19 +86,19 @@ Value* insertStore(Operation *oldOp, Value *oldValue, OpBuilder &builder,
 
   // If the previous value was already a memref we don't need to change
   // anything.
-  if (oldValue->getType().isa<MemRefType>()) {
+  if (oldValue.getType().isa<MemRefType>()) {
     return newValue;
-  } else if (oldValue->getType().isa<TensorType>()) {
+  } else if (oldValue.getType().isa<TensorType>()) {
     // Allocate the memref to store the value.
     // For simpilcity, I do not distingish activation and output.
     // Otherwise we need to consider how to handle last activation and output.
-    auto memRefType = convertLegacyTypeToMemRef(oldValue->getType(),
+    auto memRefType = convertLegacyTypeToMemRef(oldValue.getType(),
                                                 2/*TPU_MEM_REGION_ACTIVATION*/);
     auto newStorage = builder.create<AllocOp>(oldOp->getLoc(), memRefType);
 
     // Insert the store we'll use to box the value.
     // builder.create<StoreOp>(oldOp->getLoc(), newValue, newStorage,
-    //                         ArrayRef<Value *>{});
+    //                         ArrayRef<Value>{});
     builder.create<TensorStoreOp>(oldOp->getLoc(), newValue, newStorage);
     return newStorage;
   }
@@ -110,11 +110,11 @@ Value* insertStore(Operation *oldOp, Value *oldValue, OpBuilder &builder,
 
   // Allocate the memref to store the value.
   auto newStorage = builder.create<AllocOp>(
-      oldOp->getLoc(), convertLegacyTypeToMemRef(oldValue->getType()));
+      oldOp->getLoc(), convertLegacyTypeToMemRef(oldValue.getType()));
 
   // Insert the store we'll use to box the value.
   builder.create<StoreOp>(oldOp->getLoc(), newValue, newStorage,
-                          ArrayRef<Value *>{});
+                          ArrayRef<Value>{});
 
   return newStorage;
 }
@@ -183,10 +183,10 @@ bool convertFunction(FuncOp oldFunc, FuncOp newFunc) {
     auto *newBlock = builder.createBlock(&newFunc.getBody());
     for (auto *oldArg : oldBlock.getArguments()) {
       // Replace the block args with memRefs.
-      auto memRefType = convertLegacyTypeToMemRef(oldArg->getType());
+      auto memRefType = convertLegacyTypeToMemRef(oldArg.getType());
       if (!memRefType) return true;
       auto *newArg = newBlock->addArgument(memRefType);
-      
+
       // Insert loads to preserved type, if needed.
       // This will replace all uses of the oldArg with the loaded value from
       // newArg so that the block contents are still using unwrapped values.

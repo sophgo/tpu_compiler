@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "eltwise_early_stride"
@@ -41,7 +41,7 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
   TpuRefactorEltAndConvPattern(MLIRContext *context)
       : RewritePattern("tpu.eltwise_add", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto eltAddOp = cast<tpu::EltwiseAddOp>(op);
     LLVM_DEBUG(llvm::errs() << eltAddOp.getOperationName()
@@ -50,18 +50,18 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
     Operation *nextOp = nullptr;
     int strideH, strideW;
 
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       nextOp = use.getOwner();
       LLVM_DEBUG(llvm::errs() << nextOp->getName() << "\n");
       // if (matchPattern(nextOp, m_Op<tpu::Conv2DOp>())) {
       if (auto convOp = dyn_cast<tpu::Conv2DOp>(nextOp)) {
         // auto allocOp = dyn_cast<AllocOp>(opInst)
-        auto filter_type = convOp.filter()->getType().template cast<TensorType>();
+        auto filter_type = convOp.filter().getType().template cast<TensorType>();
         std::vector<int64_t> f_s(filter_type.getShape());
         int kh = f_s[f_s.size() - 2];
         int kw = f_s[f_s.size() - 1];
-        strideH = convOp.param().stride_h().getValue().getLimitedValue();
-        strideW = convOp.param().stride_w().getValue().getLimitedValue();
+        strideH = convOp.param().stride_h().getSInt();
+        strideW = convOp.param().stride_w().getSInt();
         LLVM_DEBUG(llvm::errs() << convOp.getOperationName()
                                 << ":" << getOpName(convOp)<< "\n");
         if((kh == 1) && (kw == 1) && (strideH > 1) && (strideW > 1)) {
@@ -70,23 +70,23 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
         } else {
           // if one of uses is not 1x1 conv,
           // we cannot do early stride.
-          return matchFailure();
+          return failure();
         }
       } else {
         // if one of uses is not 1x1 conv,
         // we cannot do early stride.
-        return matchFailure();
+        return failure();
       }
     }
 
-    auto shape = eltAddOp.output()->getType().cast<TensorType>().getShape();//Refactor eltOp
+    auto shape = eltAddOp.output().getType().cast<TensorType>().getShape();//Refactor eltOp
     if (shape[2] % strideH != 0 || shape[3] % strideW != 0) {
       // padding case, stop
-      return matchFailure();
+      return failure();
     }
 
     LLVM_DEBUG(llvm::errs() << "Refactor elt and conv" << "\n";);
-    for (auto &use : op->getResult(0)->getUses()) { //Refactor convOp
+    for (auto &use : op->getResult(0).getUses()) { //Refactor convOp
       nextOp = use.getOwner();
       auto convOp = dyn_cast<tpu::Conv2DOp>(nextOp);
       convOp.setAttr("param",
@@ -119,12 +119,12 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
     eltAddOp.setAttr("early_stride_w", rewriter.getI32IntegerAttr(strideW));
     auto type = RankedTensorType::get({on, oc, oh, ow},
                                 FloatType::getF32(rewriter.getContext()));
-    eltAddOp.getResult()->setType(type);//rewrite inputShape
-    return matchSuccess();
+    eltAddOp.getResult().setType(type);//rewrite inputShape
+    return success();
   }
 };
 
-class RefactorEltAndConvPass : public FunctionPass<RefactorEltAndConvPass> {
+class RefactorEltAndConvPass : public mlir::PassWrapper<RefactorEltAndConvPass, FunctionPass> {
 public:
   explicit RefactorEltAndConvPass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
@@ -137,7 +137,7 @@ public:
     patterns.clear();
 
     patterns.insert<TpuRefactorEltAndConvPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -146,7 +146,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createRefactorEltAndConvPass() {
+std::unique_ptr<mlir::Pass> mlir::createRefactorEltAndConvPass() {
   return std::make_unique<RefactorEltAndConvPass>();
 }
 

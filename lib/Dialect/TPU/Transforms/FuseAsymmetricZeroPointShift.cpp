@@ -21,10 +21,10 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -32,7 +32,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "fuse_asymmetric_zero_point"
@@ -43,14 +43,14 @@ struct TpuFuseAsymmetricZeroPointPattern : public RewritePattern {
   TpuFuseAsymmetricZeroPointPattern(MLIRContext *context)
       : RewritePattern("tpu.conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<tpu::Conv2DOp>(op);
-    auto forop = op->getOperand(0)->getDefiningOp();
+    auto forop = op->getOperand(0).getDefiningOp();
     auto formerOp = llvm::dyn_cast_or_null<tpu::Conv2DOp>(
-        op->getOperand(0)->getDefiningOp());
+        op->getOperand(0).getDefiningOp());
     if (!formerOp) {
-      return matchFailure();
+      return failure();
     }
 
     TensorFile *wTF = getWeightTensorFile(op);
@@ -58,9 +58,9 @@ struct TpuFuseAsymmetricZeroPointPattern : public RewritePattern {
     // and set only rshift is 0,
     // if not rshift_only, pass
     if (getOpQuantParamType(op) != "RSHIFT_ONLY" ||
-        getOpQuantParamType(op->getOperand(0)->getDefiningOp()) !=
+        getOpQuantParamType(op->getOperand(0).getDefiningOp()) !=
             "RSHIFT_ONLY") {
-      return matchFailure();
+      return failure();
     }
 
     std::unique_ptr<std::vector<float>> conv_zero_point;
@@ -68,13 +68,13 @@ struct TpuFuseAsymmetricZeroPointPattern : public RewritePattern {
 
     // zero point save in bias
     auto conv_zero_point_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        convOp.getOperand(2)->getDefiningOp());
+        convOp.getOperand(2).getDefiningOp());
     auto conv_zero_point_name = conv_zero_point_op.name();
-    auto type = conv_zero_point_op.getResult()->getType().cast<TensorType>();
+    auto type = conv_zero_point_op.getResult().getType().cast<TensorType>();
     conv_zero_point = wTF->readTensor<float>(conv_zero_point_name, type);
 
     auto former_zero_point_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        formerOp.getOperand(2)->getDefiningOp());
+        formerOp.getOperand(2).getDefiningOp());
     auto former_zero_point_name = former_zero_point_op.name();
     former_zero_point = wTF->readTensor<float>(former_zero_point_name, type);
 
@@ -83,11 +83,11 @@ struct TpuFuseAsymmetricZeroPointPattern : public RewritePattern {
         !std::equal(former_zero_point->begin() + 1, former_zero_point->end(),
                     former_zero_point->begin())) {
       // zero point must all equal
-      return matchFailure();
+      return failure();
     }
 
     if (conv_zero_point->at(0) != -former_zero_point->at(0)) {
-      return matchFailure();
+      return failure();
     }
     LLVM_DEBUG(llvm::errs()
                    << "Fuse asymmetric zero point, zero point value: "
@@ -97,12 +97,12 @@ struct TpuFuseAsymmetricZeroPointPattern : public RewritePattern {
                    << " : " << getOpName(op) << "\n";);
     rewriter.replaceOp(op, {forop->getOperand(0)});
 
-    return matchSuccess();
+    return success();
   };
 };
 
 class FuseAsymmetricZeroPointPass
-    : public FunctionPass<FuseAsymmetricZeroPointPass> {
+    : public mlir::PassWrapper<FuseAsymmetricZeroPointPass, FunctionPass> {
 public:
   explicit FuseAsymmetricZeroPointPass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
@@ -114,7 +114,7 @@ public:
 
     patterns.clear();
     patterns.insert<TpuFuseAsymmetricZeroPointPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -122,7 +122,7 @@ private:
 };
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createFuseAsymmetricZeroPointPass() {
+std::unique_ptr<mlir::Pass> mlir::createFuseAsymmetricZeroPointPass() {
   return std::make_unique<FuseAsymmetricZeroPointPass>();
 }
 

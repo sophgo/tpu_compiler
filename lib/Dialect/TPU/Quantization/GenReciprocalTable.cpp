@@ -18,22 +18,22 @@
 // This file implements the TPU dialect OP Stats pass.
 //
 //===----------------------------------------------------------------------===//
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "tpuc/Support/TensorFile.h"
+#include "tpuc/TPUOperationSupport.h"
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
-#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
+#include "tpuc/QuantizationArithmetic.h"
+#include "tpuc/NativeCpuImplementation.h"
 
 #include <float.h>
 #include <bmkernel/bm_kernel.h>
@@ -61,10 +61,10 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
   TpuGenReciprocalTablePattern(MLIRContext *context)
       : RewritePattern("tpu.reciprocal", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     auto reciprocalOp = cast<tpu::ReciprocalOp>(op);
     std::vector<std::unique_ptr<std::vector<float> > > weights(1);
@@ -72,7 +72,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
     std::string op_name = reciprocalOp.getAttrOfType<StringAttr>("name").getValue().str();
     if(reciprocalOp.has_table() == true){
       LLVM_DEBUG(llvm::errs() << reciprocalOp.name() << " gen already\n";);
-      return matchFailure();
+      return failure();
     }
     std::vector<float> y0_table(TBL_SHAPE_INT8);
 
@@ -126,7 +126,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
   }
 
     // update op
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(op->getOperand(0));
 
   if (reciprocalOp.getOpQuant() == "INT8") {
@@ -147,7 +147,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
     attrs.push_back(
         rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
     auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
 
     reciprocalOp.setAttr("has_table", rewriter.getBoolAttr("true"));
@@ -170,7 +170,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
       reciprocalOp.setAttr("has_table", rewriter.getBoolAttr("true"));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          op->getLoc(), type, ArrayRef<Value>{wfV},
           ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
@@ -180,13 +180,13 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
   }
 
   rewriter.replaceOpWithNewOp<tpu::ReciprocalOp>(
-        reciprocalOp, reciprocalOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{reciprocalOp.getAttrs()});
+        reciprocalOp, reciprocalOp.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{reciprocalOp.getAttrs()});
 
-    return matchSuccess();
+    return success();
   }
 };
-class GenReciprocalTablePass : public FunctionPass<GenReciprocalTablePass> {
+class GenReciprocalTablePass : public mlir::PassWrapper<GenReciprocalTablePass, FunctionPass> {
 public:
   explicit GenReciprocalTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -195,7 +195,7 @@ public:
     auto *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<TpuGenReciprocalTablePattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -204,7 +204,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createGenReciprocalTablePass() {
+std::unique_ptr<mlir::Pass> mlir::createGenReciprocalTablePass() {
   return std::make_unique<GenReciprocalTablePass>();
 }
 

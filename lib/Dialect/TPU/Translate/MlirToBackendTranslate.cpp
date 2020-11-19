@@ -20,9 +20,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
@@ -35,7 +35,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "cvibuilder/cvimodel_generated.h"
 
 #include <fstream>

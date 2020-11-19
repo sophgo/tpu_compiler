@@ -27,9 +27,9 @@
 #include <map>
 #include <elf.h>
 #include <openssl/md5.h>
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
@@ -43,9 +43,9 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "cvibuilder/cvimodel_generated.h"
-#include "mlir/Dialect/TPU/MlirToCviModelTranslate.h"
+#include "tpuc/MlirToCviModelTranslate.h"
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
 
@@ -89,7 +89,7 @@ static void getOpGroupInputsOutputs(std::vector<Operation *> &group,
         !llvm::isa<tpu::TL_LG_LoadCoeffOp>(op) &&
         !llvm::isa<tpu::NoneOp>(op)) {
       for (int i = 0; i < (int)op->getNumOperands(); i++) {
-        auto opd = op->getOperand(i)->getDefiningOp();
+        auto opd = op->getOperand(i).getDefiningOp();
         consumers.insert(opd);
       }
     }
@@ -99,12 +99,12 @@ static void getOpGroupInputsOutputs(std::vector<Operation *> &group,
   std::set_difference(producers.begin(), producers.end(), consumers.begin(),
                       consumers.end(), std::inserter(outputSet, outputSet.begin()));
   for (auto op : inputSet) {
-    inputs.push_back(op->getAttr("name").cast<StringAttr>().getValue());
+    inputs.push_back(op->getAttr("name").cast<StringAttr>().getValue().str());
   }
   // should keep output tensors in an inherent order.
   for (auto op : output_candicates) {
     if (outputSet.find(op) != outputSet.end()) {
-      outputs.push_back(op->getAttr("name").cast<StringAttr>().getValue());
+      outputs.push_back(op->getAttr("name").cast<StringAttr>().getValue().str());
     }
   }
 }
@@ -198,7 +198,7 @@ CviCpuRoutine::CviCpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
           SmallVector<StringRef, 2> sub_strs;
           auto opName = castOp.operation_name();
           opName.split(sub_strs, ".");
-          name = sub_strs.size() > 1 ? sub_strs[1] : sub_strs[0];
+          name = sub_strs.size() > 1 ? sub_strs[1].str() : sub_strs[0].str();
         }
       }
     }
@@ -343,14 +343,14 @@ CviModelBuilder::CviModelBuilder(ModuleOp &module) : fbb_(1024) {
     if (fn.getName() == "tpu_func") {
       mainFunc_ = fn;
       if (fn.getAttr("chipname")) {
-        clRunChipType = fn.getAttr("chipname").cast<StringAttr>().getValue();
+        clRunChipType = fn.getAttr("chipname").cast<StringAttr>().getValue().str();
       }
       privateGmemSize_ = fn.getAttr("private_gmem").cast<IntegerAttr>().getInt();
       sharedGmemSize_ = fn.getAttr("shared_gmem").cast<IntegerAttr>().getInt();
       continue;
     }
 
-    addRoutine(fn.getName());
+    addRoutine(fn.getName().str());
   }
 
   parseModule();
@@ -368,7 +368,7 @@ void CviModelBuilder::addRoutine(std::string funcName) {
 }
 
 static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap, std::map<std::string, int> &zpMap) {
-  auto tableName = fn.getAttr("qscale_table").cast<StringAttr>().getValue();
+  auto tableName = fn.getAttr("qscale_table").cast<StringAttr>().getValue().str();
   std::ifstream infile(tableName);
 
   std::string line;
@@ -421,10 +421,10 @@ void CviModelBuilder::parseModule() {
         modelName_ = modelName_.substr(0, pos);
       }
     } else if (auto castOp = llvm::dyn_cast<tpu::LoadWeightOp>(op)) {
-      auto type = castOp.getResult()->getType().template cast<TensorType>();
+      auto type = castOp.getResult().getType().template cast<TensorType>();
       auto tensor = std::make_shared<CviTensor>(
           castOp.name().str(), type,
-          castOp.offset().getValue().getSExtValue(),
+          castOp.offset().getValue(),
           true);
       tensorMaps_.push_back(tensor);
     } else if (auto castOp = llvm::dyn_cast<tpu::ReshapeOp>(op)) {
@@ -437,16 +437,16 @@ void CviModelBuilder::parseModule() {
         llvm_unreachable(("cannot find tensor:" + name).c_str());
       };
       auto name = castOp.name().str();
-      auto type = castOp.getResult()->getType().template cast<TensorType>();
-      auto opd = op->getOperand(0)->getDefiningOp();
+      auto type = castOp.getResult().getType().template cast<TensorType>();
+      auto opd = op->getOperand(0).getDefiningOp();
       auto opdName = opd->getAttr("name").cast<StringAttr>().getValue();
       auto opdTensor = findTensor(opdName.str());
       auto tensor = std::make_shared<CviTensor>(name, type, opdTensor->offset, false);
       tensor->overwritten = opdTensor->overwritten;
       tensorMaps_.push_back(tensor);
     } else {
-      auto name = op->getAttr("name").cast<StringAttr>().getValue();
-      auto type = op->getResult(0)->getType().template cast<TensorType>();
+      auto name = op->getAttr("name").cast<StringAttr>().getValue().str();
+      auto type = op->getResult(0).getType().template cast<TensorType>();
       int64_t offset =
           op->getAttr("gaddr") ? op->getAttr("gaddr").cast<IntegerAttr>().getInt() : -1;
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
@@ -477,7 +477,7 @@ void CviModelBuilder::parseModule() {
       }
       if (llvm::dyn_cast<tpu::TL_LG_JoinOp>(op)) {
         auto tpuOp =
-            llvm::dyn_cast<tpu::TL_LG_StoreOp>(op->getOperand(0)->getDefiningOp());
+            llvm::dyn_cast<tpu::TL_LG_StoreOp>(op->getOperand(0).getDefiningOp());
         if (tpuOp.store_compr_act().hasValue())
           overwritten = tpuOp.store_compr_act().getValue();
       }
@@ -564,7 +564,7 @@ FBSectionVector CviModelBuilder::buildSections() {
           llvm::errs() << "unsupported plugin format\n";
           assert(0);
         }
-        auto customSec = buildSection("custom", type, path);
+        auto customSec = buildSection("custom", type, path.str());
         sectionVec.push_back(customSec);
       }
     }

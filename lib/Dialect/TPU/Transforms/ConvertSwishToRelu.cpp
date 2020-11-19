@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "convert_swish_to_relu"
@@ -41,7 +41,7 @@ struct TpuConvertSwishToReLUPattern : public RewritePattern {
   TpuConvertSwishToReLUPattern(MLIRContext *context)
       : RewritePattern("tpu.eltwise_mul", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto eltmulOp = cast<tpu::EltwiseMulOp>(op);
     LLVM_DEBUG(llvm::errs() << eltmulOp.getOperationName() << "\n";);
@@ -50,13 +50,13 @@ struct TpuConvertSwishToReLUPattern : public RewritePattern {
     std::string op_name = eltmulOp.name().str();
     bool is_swish = false;
     // for EltwiseMulOp, handle swish case only, other case needs more tuning
-    if (isa<tpu::Conv2DOp>(op->getOperand(0)->getDefiningOp()) &&
-        isa<tpu::SigmoidOp>(op->getOperand(1)->getDefiningOp())) {
+    if (isa<tpu::Conv2DOp>(op->getOperand(0).getDefiningOp()) &&
+        isa<tpu::SigmoidOp>(op->getOperand(1).getDefiningOp())) {
       is_swish = true;
       LLVM_DEBUG(llvm::errs() << "EltwiseMul Op: " << op_name << " is Swish." <<"\n";);
     }
     if (!is_swish) {
-      return matchFailure();
+      return failure();
     }
 
     // parse param
@@ -65,7 +65,7 @@ struct TpuConvertSwishToReLUPattern : public RewritePattern {
     getTensorShapeAndSize(eltmulOp.getOperand(0), shape, input_size);
     getNCHW(shape, n, c, h, w);
 
-    std::vector<Value *> operands;
+    std::vector<Value> operands;
     operands.push_back(eltmulOp.getOperand(0));
 
     std::vector<NamedAttribute> attrs;
@@ -75,14 +75,14 @@ struct TpuConvertSwishToReLUPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant",
                                           getDefaultQuantParam(rewriter)));
     rewriter.replaceOpWithNewOp<tpu::ReluOp>(
-        eltmulOp, eltmulOp.getResult()->getType(), ArrayRef<Value *>{operands},
+        eltmulOp, eltmulOp.getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 
-class ConvertSwishToReLUPass : public FunctionPass<ConvertSwishToReLUPass> {
+class ConvertSwishToReLUPass : public mlir::PassWrapper<ConvertSwishToReLUPass, FunctionPass> {
 public:
   explicit ConvertSwishToReLUPass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
@@ -93,7 +93,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuConvertSwishToReLUPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -102,7 +102,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertSwishToReLUPass() {
+std::unique_ptr<mlir::Pass> mlir::createConvertSwishToReLUPass() {
   return std::make_unique<ConvertSwishToReLUPass>();
 }
 

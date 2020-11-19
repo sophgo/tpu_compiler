@@ -2,9 +2,9 @@
 #include <ctime>
 #include <iomanip>
 #include <stdlib.h>
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/Function.h"
@@ -16,21 +16,21 @@ namespace mlir {
  * Tensor helpers
  ***********************************************************/
 
-bool isTensorNone(Value *value) {
-  return (!value->getType().dyn_cast_or_null<RankedTensorType>());
+bool isTensorNone(Value value) {
+  return (!value.getType().dyn_cast_or_null<RankedTensorType>());
 }
 
-int64_t getTensorSize(Value *value) {
-  std::vector<int64_t> shape = value->getType().cast<TensorType>().getShape();
+int64_t getTensorSize(Value value) {
+  std::vector<int64_t> shape = value.getType().cast<TensorType>().getShape();
   return std::accumulate(std::begin(shape), std::end(shape), 1,
                          std::multiplies<>());
 }
 
-std::vector<int64_t> getTensorShape(Value *value) {
-  return value->getType().cast<TensorType>().getShape();
+std::vector<int64_t> getTensorShape(Value value) {
+  return value.getType().cast<TensorType>().getShape();
 }
 
-void getTensorShapeAndSize(Value *value, std::vector<int64_t> &shape,
+void getTensorShapeAndSize(Value value, std::vector<int64_t> &shape,
     int64_t &size) {
   shape = getTensorShape(value);
   size = getTensorSize(value);
@@ -87,9 +87,9 @@ std::vector<std::vector<int64_t>> getOperandShapes(Operation *op) {
  * Weight helpers
  ***********************************************************/
 
-Value* getWeightFileValue(Operation *op) {
+Value getWeightFileValue(Operation *op) {
   if (auto fn = cast<FuncOp>(op->getParentOp())) {
-    Value *wfV = nullptr;
+    Value wfV = nullptr;
     fn.walk([&](tpu::WeightFileOp op) {
        wfV = op.getResult();
     });
@@ -114,7 +114,7 @@ Value* getWeightFileValue(Operation *op) {
 
 TensorFile* getWeightTensorFile(Operation *op) {
   auto wfV = getWeightFileValue(op);
-  auto wfOp = cast<tpu::WeightFileOp>(wfV->getDefiningOp());
+  auto wfOp = cast<tpu::WeightFileOp>(wfV.getDefiningOp());
   assert(wfOp && "wfOp is nullptr");
   TensorFile *wTF = wfOp.get();
   assert(wTF && "no tensor file found");
@@ -123,31 +123,31 @@ TensorFile* getWeightTensorFile(Operation *op) {
 
 template<typename T>
 std::unique_ptr<std::vector<T> > readWeightTensor(
-    Value *opd, TensorFile *wTF) {
+    Value opd, TensorFile *wTF) {
   auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-      opd->getDefiningOp());
+      opd.getDefiningOp());
   auto name = weightOp.name();
-  auto type = weightOp.getResult()->getType().cast<TensorType>();
+  auto type = weightOp.getResult().getType().cast<TensorType>();
   auto tensor = wTF->readTensor<T>(name, type);
   return std::move(tensor);
 }
 template std::unique_ptr<std::vector<float> > readWeightTensor(
-    Value *opd, TensorFile *wTF);
+    Value opd, TensorFile *wTF);
 
 template<typename T>
 std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(
-    Value *opd, TensorFile *wTF) {
+    Value opd, TensorFile *wTF) {
   if (auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-                  opd->getDefiningOp())) {
+                  opd.getDefiningOp())) {
     auto name = weightOp.name();
-    auto type = weightOp.getResult()->getType().cast<TensorType>();
+    auto type = weightOp.getResult().getType().cast<TensorType>();
     auto tensor = wTF->readTensor<T>(name, type);
     wTF->deleteTensor<T>(name);
     return std::move(tensor);
   } else if (auto weightOp = llvm::dyn_cast_or_null<tpu::TL_LG_LoadCoeffOp>(
-                  opd->getDefiningOp())) {
+                  opd.getDefiningOp())) {
     auto name = weightOp.name();
-    auto type = weightOp.getResult()->getType().cast<TensorType>();
+    auto type = weightOp.getResult().getType().cast<TensorType>();
     auto tensor = wTF->readTensor<T>(name, type);
     wTF->deleteTensor<T>(name);
     return std::move(tensor);
@@ -156,17 +156,17 @@ std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(
   }
 }
 template std::unique_ptr<std::vector<float> > readAndDeleteWeightTensor(
-    Value *opd, TensorFile *wTF);
+    Value opd, TensorFile *wTF);
 template std::unique_ptr<std::vector<uint16_t> > readAndDeleteWeightTensor(
-    Value *opd, TensorFile *wTF);
+    Value opd, TensorFile *wTF);
 template std::unique_ptr<std::vector<int8_t> > readAndDeleteWeightTensor(
-    Value *opd, TensorFile *wTF);
+    Value opd, TensorFile *wTF);
 
 template<typename T>
-void addWeightTensorAndUpdateWeightOp(Value* opd,
+void addWeightTensorAndUpdateWeightOp(Value opd,
     StringRef suffix, std::vector<T> &weight, std::vector<int64_t> &shape,
     StringRef storageType, TensorFile *wTF) {
-  auto builder = Builder(opd->getContext());
+  auto builder = Builder(opd.getContext());
   Type eltType;
   if ( typeid(T) == typeid(float) ) {
     eltType = FloatType::getF32(builder.getContext());
@@ -191,7 +191,7 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
   }
 
   if (auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-      opd->getDefiningOp())) {
+      opd.getDefiningOp())) {
     auto type = RankedTensorType::get(shape, eltType);
     auto name = weightOp.name().str();
     if (!suffix.empty()) {
@@ -200,9 +200,9 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
     wTF->addTensor<T>(name, &weight, type);
     weightOp.setAttr("name", builder.getStringAttr(name));
     weightOp.setAttr("storage", builder.getStringAttr(storageType));
-    weightOp.getResult()->setType(type);
+    weightOp.getResult().setType(type);
   } else if (auto weightOp = llvm::dyn_cast_or_null<tpu::TL_LG_LoadCoeffOp>(
-      opd->getDefiningOp())) {
+      opd.getDefiningOp())) {
     auto type = RankedTensorType::get(shape, eltType);
     auto name = weightOp.name().str();
     if (!suffix.empty()) {
@@ -211,34 +211,34 @@ void addWeightTensorAndUpdateWeightOp(Value* opd,
     wTF->addTensor<T>(name, &weight, type);
     weightOp.setAttr("name", builder.getStringAttr(name));
     weightOp.setAttr("storage", builder.getStringAttr(storageType));
-    weightOp.getResult()->setType(type);
+    weightOp.getResult().setType(type);
   }
 }
 
-template void addWeightTensorAndUpdateWeightOp(Value* opd,
+template void addWeightTensorAndUpdateWeightOp(Value opd,
     StringRef suffix, std::vector<float> &weight,
     std::vector<int64_t> &shape, StringRef storageType, TensorFile *wTF);
-template void addWeightTensorAndUpdateWeightOp(Value* opd,
+template void addWeightTensorAndUpdateWeightOp(Value opd,
     StringRef suffix, std::vector<int8_t> &weight,
     std::vector<int64_t> &shape, StringRef storageType, TensorFile *wTF);
-template void addWeightTensorAndUpdateWeightOp(Value* opd,
+template void addWeightTensorAndUpdateWeightOp(Value opd,
     StringRef suffix, std::vector<uint8_t> &weight,
     std::vector<int64_t> &shape, StringRef storageType, TensorFile *wTF);
-template void addWeightTensorAndUpdateWeightOp(Value* opd,
+template void addWeightTensorAndUpdateWeightOp(Value opd,
     StringRef suffix, std::vector<int16_t> &weight,
     std::vector<int64_t> &shape, StringRef storageType, TensorFile *wTF);
-template void addWeightTensorAndUpdateWeightOp(Value* opd,
+template void addWeightTensorAndUpdateWeightOp(Value opd,
     StringRef suffix, std::vector<uint16_t> &weight,
     std::vector<int64_t> &shape, StringRef storageType, TensorFile *wTF);
-template void addWeightTensorAndUpdateWeightOp(Value* opd,
+template void addWeightTensorAndUpdateWeightOp(Value opd,
     StringRef suffix, std::vector<uint32_t> &weight,
     std::vector<int64_t> &shape, StringRef storageType, TensorFile *wTF);
 
 template<typename T>
-Value* addWeightTensorAndCreateWeightOp(Operation *op,
+Value addWeightTensorAndCreateWeightOp(Operation *op,
     StringRef suffix, std::vector<T> &weight,
     std::vector<int64_t> &shape, StringRef storageType,
-    TensorFile *wTF, Value *wFV) {
+    TensorFile *wTF, Value wFV) {
   auto name = getOpName(op).str() + "_" + suffix.str();
   auto builder = Builder(op->getContext());
   Type eltType;
@@ -258,15 +258,15 @@ Value* addWeightTensorAndCreateWeightOp(Operation *op,
   attrs.push_back(builder.getNamedAttr("storage",
       builder.getStringAttr(storageType)));
   return OpBuilder(op).create<tpu::LoadWeightOp>(op->getLoc(), type,
-      ArrayRef<Value *>{wFV}, ArrayRef<NamedAttribute>{attrs});
+      ArrayRef<Value>{wFV}, ArrayRef<NamedAttribute>{attrs});
 }
-template Value* addWeightTensorAndCreateWeightOp(Operation *op,
+template Value addWeightTensorAndCreateWeightOp(Operation *op,
     StringRef suffix, std::vector<float> &weight,
     std::vector<int64_t> &shape, StringRef storageType,
-    TensorFile *wTF, Value *wFV);
-template Value* addWeightTensorAndCreateWeightOp(Operation *op,
+    TensorFile *wTF, Value wFV);
+template Value addWeightTensorAndCreateWeightOp(Operation *op,
     StringRef suffix, std::vector<uint8_t> &weight,
     std::vector<int64_t> &shape, StringRef storageType,
-    TensorFile *wTF, Value *wFV);
+    TensorFile *wTF, Value wFV);
 
 } // namespace

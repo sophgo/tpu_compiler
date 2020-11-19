@@ -19,29 +19,29 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
-#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
-#include "mlir/Dialect/TPU/CustomOpPlugin.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
+#include "tpuc/NativeCpuImplementation.h"
+#include "tpuc/MachineInfo.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "tpuc/CustomOpPlugin.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/DynamicLibrary.h"
 #include <sstream>
 #include <fstream>
 #include <bmkernel/bm1880v2/1880v2_fp_convert.h>
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/MachineInfo.h"
 #include <regex>
 
 #define DEBUG_TYPE "quantization"
@@ -146,7 +146,7 @@ static void insertQuantOp(Operation *op) {
 
   StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
   for (unsigned i = 0; i < op->getNumOperands(); i++) {
-    auto prev_op = op->getOperand(i)->getDefiningOp();
+    auto prev_op = op->getOperand(i).getDefiningOp();
     StringRef prev_quant;
     if (!prev_op) {
       prev_quant = "NONE";
@@ -156,7 +156,7 @@ static void insertQuantOp(Operation *op) {
                 || isa<tpu::NoneOp>(prev_op)) {
         continue;
       } else if (isa<tpu::ReshapeOp>(prev_op)) {
-        prev_op = prev_op->getOperand(0)->getDefiningOp();
+        prev_op = prev_op->getOperand(0).getDefiningOp();
       }
       if (auto castOp = dyn_cast<tpu::QuadraticSumOp>(prev_op)) {
         if (castOp.high_precision()) {
@@ -189,7 +189,7 @@ static void insertQuantOp(Operation *op) {
         }
         threshold = getOpThreshold(prev_op);
         zero_point = getOpZeroPoint(prev_op);
-        auto fuse_op = prev_op->getResult(0)->use_begin()->getOwner();
+        auto fuse_op = prev_op->getResult(0).use_begin()->getOwner();
         if (isa<tpu::ReshapeOp>(fuse_op)) {
           name = getOpName(fuse_op).str() + "_dequant";
         } else {
@@ -200,7 +200,7 @@ static void insertQuantOp(Operation *op) {
         zero_point = getOpZeroPoint(prev_op);
         name = getOpName(prev_op).str() + "_quant";
       } else if (prev_quant == "BF16") {
-        auto fuse_op = prev_op->getResult(0)->use_begin()->getOwner();
+        auto fuse_op = prev_op->getResult(0).use_begin()->getOwner();
         if (isa<tpu::ReshapeOp>(fuse_op)) {
           name = getOpName(fuse_op).str() + "_dequant";
         } else {
@@ -213,7 +213,7 @@ static void insertQuantOp(Operation *op) {
       // check if prev op has inserted quant/dequant op
       if (prev_op) {
         bool found = false;
-        for (auto &use : prev_op->getResult(0)->getUses()) {
+        for (auto &use : prev_op->getResult(0).getUses()) {
           auto nextOp = use.getOwner();
           if (getOpName(nextOp) == name) {
             op->setOperand(i, nextOp->getResult(0));
@@ -236,7 +236,7 @@ static void insertQuantOp(Operation *op) {
       attrs.push_back(builder.getNamedAttr("name",
           builder.getStringAttr(name)));
 
-      auto shape = op->getOperand(i)->getType().cast<TensorType>().getShape();
+      auto shape = op->getOperand(i).getType().cast<TensorType>().getShape();
       Type eltType;
       if (curr_quant == "INT8") {
         eltType = IntegerType::get(8, builder.getContext());
@@ -247,7 +247,7 @@ static void insertQuantOp(Operation *op) {
       }
       auto type = RankedTensorType::get(shape, eltType);
       auto quantOp = builder.create<tpu::QuantOp>(op->getLoc(), type,
-          ArrayRef<Value *>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
 
       op->setOperand(i, quantOp.getResult());
 
@@ -260,10 +260,10 @@ static void insertQuantOp(Operation *op) {
 struct TpuConvertSoftmaxToSoftmaxCpu : public RewritePattern {
   TpuConvertSoftmaxToSoftmaxCpu(MLIRContext *context)
       : RewritePattern("tpu.softmax", 1, context) {}
-      PatternMatchResult matchAndRewrite(Operation *op,
+      LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     if(!clQuantMixSoftmax){
-      std::vector<Value *> operands;
+      std::vector<Value> operands;
       const int nInputs =  1;
       for (auto i = 0; i < nInputs; ++i) {
         operands.push_back(op->getOperand(i));
@@ -272,16 +272,16 @@ struct TpuConvertSoftmaxToSoftmaxCpu : public RewritePattern {
         // Return same opValue
       auto loc = op->getLoc();
       auto newOp = rewriter.create<tpu::SoftmaxCpuOp>(loc,
-        op->getResult(0)->getType(),
+        op->getResult(0).getType(),
         operands,
         op->getAttrs());
 
       // replace to relu->clip
       rewriter.replaceOp(op, {newOp});
-      return matchSuccess();
+      return success();
     }
 
-    return matchFailure();
+    return failure();
   }
 };
 
@@ -302,28 +302,28 @@ struct TpuGenLrnTablePattern : public RewritePattern {
     x_quantized = (int)std::floor((x / y) * y_quantized + 0.5);
   }
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
     auto lrnOp = cast<tpu::LrnOp>(op);
-    std::string quant = lrnOp.getOpQuant();
+    auto quant = lrnOp.getOpQuant();
 
     if (quant == "NONE") {
-      return matchFailure();
+      return failure();
     }
 
-    auto sq_table_op = lrnOp.getOperand(1)->getDefiningOp();
+    auto sq_table_op = lrnOp.getOperand(1).getDefiningOp();
     if (isa<tpu::NoneOp>(sq_table_op) == false) {
-      return matchFailure();
+      return failure();
     }
 
-    auto lrnThreeOp = lrnOp.getOperand(3)->getDefiningOp();
+    auto lrnThreeOp = lrnOp.getOperand(3).getDefiningOp();
     if (isa<tpu::NoneOp>(lrnThreeOp) == true) {
-      return matchFailure();
+      return failure();
     }
-    auto lrnTwoOp = lrnThreeOp->getOperand(0)->getDefiningOp();
-    auto lrnOneOp = lrnTwoOp->getOperand(0)->getDefiningOp();
+    auto lrnTwoOp = lrnThreeOp->getOperand(0).getDefiningOp();
+    auto lrnOneOp = lrnTwoOp->getOperand(0).getDefiningOp();
 
     // remote operand 3, not use any more
     lrnOp.setOperand(3, lrnOp.getOperand(1));
@@ -340,7 +340,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
     const int TBL_SHAPE_BF16 = ( TABLE_HW_BF16 * NPU_NUM );
     if (quant == "INT8") {
       auto lrnPartOp = cast<tpu::LrnThreeOp>(lrnThreeOp);
-      uint32_t local_size = lrnPartOp.local_size().getLimitedValue();
+      uint32_t local_size = lrnPartOp.local_size();
       float alpha = lrnPartOp.alpha().convertToFloat();
       float beta = lrnPartOp.beta().convertToFloat();
       float k = lrnPartOp.k().convertToFloat();
@@ -408,7 +408,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
       attrs.push_back(
           rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
       auto sq_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          op->getLoc(), type, ArrayRef<Value>{wfV},
           ArrayRef<NamedAttribute>{attrs});
       lrnOp.setOperand(1, sq_weight_op);
 
@@ -421,7 +421,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
       attrs2.push_back(
           rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
       auto power_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          op->getLoc(), type, ArrayRef<Value>{wfV},
           ArrayRef<NamedAttribute>{attrs2});
       lrnOp.setOperand(2, power_weight_op);
     } else if (quant == "BF16"){
@@ -467,7 +467,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
       attrs.push_back(
           rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
       auto power_exp_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          op->getLoc(), type, ArrayRef<Value>{wfV},
           ArrayRef<NamedAttribute>{attrs});
       lrnOp.setOperand(1, power_exp_op);
 
@@ -480,7 +480,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
       attrs2.push_back(
           rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
       auto power_mantissa_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          op->getLoc(), type, ArrayRef<Value>{wfV},
           ArrayRef<NamedAttribute>{attrs2});
       lrnOp.setOperand(2, power_mantissa_op);
     }
@@ -490,7 +490,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
     rewriter.replaceOp(lrnTwoOp, {lrnOp});
     rewriter.replaceOp(lrnOneOp, {lrnOp});
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -498,11 +498,11 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
   ExtendPreprocessOpPattern(MLIRContext *context)
       : RewritePattern("tpu.preprocess", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto preprocessOp = cast<tpu::PreprocessOp>(op);
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
     auto builder = OpBuilder(op);
     auto input_op = op->getOperand(0);
     auto result = op->getResult(0);
@@ -550,7 +550,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
 
     auto transpose_type = RankedTensorType::get({tn, tc, th, tw}, eltType);
     auto transpose_op = OpBuilder(op).create<tpu::PermuteOp>(
-        op->getLoc(), transpose_type, ArrayRef<Value *>{input_op},
+        op->getLoc(), transpose_type, ArrayRef<Value>{input_op},
         ArrayRef<NamedAttribute>{transpose_attrs});
     setOpThreshold(transpose_op, 128);
     setOpQuantParamType(transpose_op, "THRESHOLD");
@@ -584,7 +584,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
 
     auto pad_type = RankedTensorType::get({pn, pc, ph, pw}, eltType);
     auto pad_op = OpBuilder(op).create<tpu::PadOp>(
-        op->getLoc(), pad_type, ArrayRef<Value *>{transpose_op},
+        op->getLoc(), pad_type, ArrayRef<Value>{transpose_op},
         ArrayRef<NamedAttribute>{pad_attrs});
     setOpThreshold(pad_op, 128);
     setOpQuantParamType(pad_op, "THRESHOLD");
@@ -616,7 +616,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
     // we only accept first input to IR, second input shape will be attribute.
     auto crop_op = OpBuilder(op).create<tpu::CropOp>(
-        op->getLoc(), crop_type, ArrayRef<Value *>{pad_op},
+        op->getLoc(), crop_type, ArrayRef<Value>{pad_op},
         ArrayRef<NamedAttribute>{crop_attrs});
     setOpQuantParamType(crop_op, "THRESHOLD");
     setOpThreshold(crop_op, 128);
@@ -686,13 +686,13 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     bias_weight_attrs.push_back(
         builder.getNamedAttr("name", builder.getStringAttr(scale_name + "_1")));
     auto scale_weight_op = OpBuilder(op).create<tpu::LoadWeightOp>(
-        op->getLoc(), scale_weight_type, ArrayRef<Value *>{wfV},
+        op->getLoc(), scale_weight_type, ArrayRef<Value>{wfV},
         ArrayRef<NamedAttribute>{scale_weight_attrs});
     auto bias_weight_op = OpBuilder(op).create<tpu::LoadWeightOp>(
-        op->getLoc(), bias_weight_type, ArrayRef<Value *>{wfV},
+        op->getLoc(), bias_weight_type, ArrayRef<Value>{wfV},
         ArrayRef<NamedAttribute>{bias_weight_attrs});
 
-    std::vector<Value *> scale_operands;
+    std::vector<Value> scale_operands;
     scale_operands.push_back(crop_op);
     scale_operands.push_back(scale_weight_op);
     scale_operands.push_back(bias_weight_op);
@@ -729,7 +729,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
 
     auto scale_op = OpBuilder(op).create<tpu::Conv2DOp>(
-        op->getLoc(), scale_type, ArrayRef<Value *>{scale_operands},
+        op->getLoc(), scale_type, ArrayRef<Value>{scale_operands},
         ArrayRef<NamedAttribute>{scale_attrs});
 
     // to int8 as input, use input quantize threshold
@@ -741,7 +741,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
 
     if (std::equal(color_orders.begin(), color_orders.end(), no_change_swap.begin())) {
       rewriter.replaceOp(preprocessOp, {scale_op.getResult()});
-      return matchSuccess();
+      return success();
     }
     // swapaxis, rgb to bgr or bgr to rgb
     std::string swapaxis_name =
@@ -759,14 +759,14 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
     // we only accept first input to IR, second input shape will be attribute.
     auto swapaxis_op = OpBuilder(op).create<tpu::SwapChannelOp>(
-        op->getLoc(), swapaxis_type, ArrayRef<Value *>{scale_op},
+        op->getLoc(), swapaxis_type, ArrayRef<Value>{scale_op},
         ArrayRef<NamedAttribute>{swapaxis_attrs});
     setOpThreshold(swapaxis_op, getOpThreshold(op));
     setOpQuantParamType(swapaxis_op, "THRESHOLD");
     setOpQuant(swapaxis_op, "INT8");
 
     rewriter.replaceOp(preprocessOp, {swapaxis_op.getResult()});
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -839,7 +839,7 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
               std::make_unique<std::vector<float> >(input_size, bias);
 
             TensorFile *wTF = getWeightTensorFile(op);
-            Value *wfV = getWeightFileValue(op);
+            Value wfV = getWeightFileValue(op);
             StringRef storageType = "NONE";
             auto shuffix = "bias_zero_point_";
             auto name = op_name + "_" + shuffix + std::to_string(bias);
@@ -850,7 +850,7 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
             attrs.push_back(builder.getNamedAttr("name",
                   builder.getStringAttr(name)));
 
-            std::vector<Value *> operands;
+            std::vector<Value> operands;
             operands.push_back(op->getOperand(0));
             operands.push_back(weight_op);
 
@@ -860,8 +860,8 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
             operands.push_back(NoneOp.getResult());  // quant_multiplier
 
             auto eltwiseAddOp = builder.create<tpu::EltwiseAddOp>(
-                loc, op->getResult(0)->getType(),
-                ArrayRef<Value *>{operands},
+                loc, op->getResult(0).getType(),
+                ArrayRef<Value>{operands},
                 ArrayRef<NamedAttribute>{attrs});
             setOpQuant(eltwiseAddOp, "BF16");
             attrs.pop_back();
@@ -878,14 +878,14 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
             attrs.push_back(builder.getNamedAttr("name",
                   builder.getStringAttr(name)));
             auto softplusOp = builder.create<tpu::SoftPlusOp>(
-                loc, op->getResult(0)->getType(),
+                loc, op->getResult(0).getType(),
                 op->getOperands(),
                 ArrayRef<NamedAttribute>{attrs});
             setOpQuant(softplusOp, "BF16");
             attrs.pop_back();
 
             // tanh
-            std::vector<Value *> operands;
+            std::vector<Value> operands;
             operands.push_back(softplusOp.getResult());
             operands.push_back(NoneOp.getResult());  // quant_scale
             operands.push_back(NoneOp.getResult());  // quant_zeropoint
@@ -896,7 +896,7 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
             attrs.push_back(builder.getNamedAttr("name",
                   builder.getStringAttr(name)));
             auto tanhOp = builder.create<tpu::TanHOp>(
-                loc, softplusOp.getResult()->getType(),
+                loc, softplusOp.getResult().getType(),
                 operands,
                 ArrayRef<NamedAttribute>{attrs});
             setOpQuant(tanhOp, "BF16");
@@ -914,7 +914,7 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
 
             // collect all dependency before insert new relation
             SmallVector<Operation*, 4> uses;
-            for (auto &use : op->getResult(0)->getUses()) {
+            for (auto &use : op->getResult(0).getUses()) {
               // before: a->c
               // after : a->b->c
               Operation *owner = use.getOwner();
@@ -928,8 +928,8 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
                   builder.getStringAttr(name)));
 
             auto eltwiseMulOp = builder.create<tpu::EltwiseMulOp>(
-                loc, op->getResult(0)->getType(),
-                ArrayRef<Value *>{operands},
+                loc, op->getResult(0).getType(),
+                ArrayRef<Value>{operands},
                 ArrayRef<NamedAttribute>{attrs});
 
             setOpQuant(eltwiseMulOp, "BF16");
@@ -956,17 +956,17 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
   TpuTpuQuantClipPassPattern(MLIRContext *context)
       : RewritePattern("tpu.clip", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto builder = OpBuilder(op);
 
     if (auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op)) {
 
       // check quant type
-      auto formerOp = clipOp.getOperand(0)->getDefiningOp();
+      auto formerOp = clipOp.getOperand(0).getDefiningOp();
       auto curr_quant = getOpQuant(op);
       auto prev_quant = getOpQuant(formerOp);
-      auto next_quant = getOpQuant(op->getResult(0)->getDefiningOp());
+      auto next_quant = getOpQuant(op->getResult(0).getDefiningOp());
 
       // check threshold_max/threshold_min has assigned
       auto threshold_max = clipOp.quant().threshold_max().getValue().convertToFloat();
@@ -976,9 +976,9 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       }
 
       std::string formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-      if (!formerOp->getResult(0)->hasOneUse()) {
+      if (!formerOp->getResult(0).hasOneUse()) {
         LLVM_DEBUG(llvm::errs() << "Not overwrtie more users op: " << formerOpName << ", not remove it\n";);
-        return matchFailure();
+        return failure();
       }
 
       auto layer_name = mlir::getOpName(clipOp).str();
@@ -988,7 +988,7 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       // white list priority is more than black one
       if (in_white_list) {
           LLVM_DEBUG(llvm::errs() << "config not quant op: " << layer_name << "\n";);
-          return matchFailure();
+          return failure();
       }
 
       if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(formerOp)) {
@@ -999,13 +999,13 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       }
       else {
         LLVM_DEBUG(llvm::errs() << "cant fuse previous op " << formerOpName << ", not remove it\n";);
-        return matchFailure();
+        return failure();
       }
 
       // always overwrite threshold for high accuracy
       if (curr_quant == "BF16" && prev_quant == "INT8" && next_quant == "INT8") {
         LLVM_DEBUG(llvm::errs() << "need to do in bf16 cuz prev/next is int8\n";);
-        return matchFailure();
+        return failure();
       }
 
       if (curr_quant == "INT8" && prev_quant == "BF16") {
@@ -1016,20 +1016,20 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
         attrs.push_back(builder.getNamedAttr("quant", clipOp.quant()));
 
         auto op = rewriter.create<tpu::ReluOp>(
-            clipOp.getLoc(), clipOp.getResult()->getType(),
-            ArrayRef<Value *>{ clipOp.getOperand(0) },
+            clipOp.getLoc(), clipOp.getResult().getType(),
+            ArrayRef<Value>{ clipOp.getOperand(0) },
             ArrayRef<NamedAttribute>{attrs});
 
         rewriter.replaceOp(clipOp, {op.getResult()});
 
         // overwrite previous one
         setOpThreshold(formerOp, threshold_max);
-        return matchSuccess();
+        return success();
       }
 
       if (prev_quant == "BF16") {
         LLVM_DEBUG(llvm::errs() << "no need to quant to int8 cuz former one " << formerOpName << " is bf16 quant type\n";);
-        return matchFailure();
+        return failure();
       }
 
       // update attr Only
@@ -1039,11 +1039,11 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       // remove clip
       rewriter.replaceOp(clipOp, {clipOp.getOperand(0)});
 
-      return matchSuccess();
+      return success();
     }
 
     // default
-    return matchFailure();
+    return failure();
   }
 };
 
@@ -1052,18 +1052,18 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
   TpuConvertDilationWeightPattern(MLIRContext *context)
       : RewritePattern("tpu.conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<tpu::Conv2DOp>(op);
     LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
                             << getOpName(op)<< "\n";);
 
-    auto dh = convOp.param().dilation_h().getValue().getLimitedValue();
-    auto dw = convOp.param().dilation_w().getValue().getLimitedValue();
+    auto dh = convOp.param().dilation_h().getSInt();
+    auto dw = convOp.param().dilation_w().getSInt();
     const int DILATION_H_MAX = 15;
     const int DILATION_W_MAX = 15;
     if (dh <= DILATION_H_MAX && dw <= DILATION_W_MAX)
-      return matchFailure();
+      return failure();
 
     TensorFile *wTF = getWeightTensorFile(op);
     auto filter = readAndDeleteWeightTensor<float>(convOp.filter(), wTF);
@@ -1155,11 +1155,11 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
                 convOp.param().pad_value(),
                 rewriter.getContext()));
 
-    return matchSuccess();
+    return success();
   }
 };
 
-class TpuQuantPass : public FunctionPass<TpuQuantPass> {
+class TpuQuantPass : public mlir::PassWrapper<TpuQuantPass, FunctionPass> {
 
 public:
   explicit TpuQuantPass() {}
@@ -1253,12 +1253,12 @@ public:
     patterns.insert<TpuTpuQuantClipPassPattern>(context);
     // patch for dialation > 15
     patterns.insert<TpuConvertDilationWeightPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     // unzip preprocess op
     OwningRewritePatternList preprocess_patterns;
     preprocess_patterns.insert<ExtendPreprocessOpPattern>(context);
-    applyPatternsGreedily(fn, preprocess_patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(preprocess_patterns));
 
     // set bf16 lut min/max range
     setBF16LutMinMaxPattern(fn);
@@ -1283,10 +1283,10 @@ public:
           assert(plugin);
           if (getOpQuant(op) == "INT8") {
             plugin->int8Quant(operation_name.c_str(), param, &quant, prevThreshold);
-            setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
+            setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
           } else if (getOpQuant(op) == "BF16") {
             plugin->bf16Quant(operation_name.c_str(), param, &quant, prevThreshold);
-            setOpResultType(op->getResult(0), StandardTypes::BF16);
+            setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
           }
           std::vector<NamedAttribute> newParam, newQuant;
           convertOpParamToAttributes(builder, param, newParam);
@@ -1327,14 +1327,14 @@ public:
     // operand's after quantization
     fn.walk([&](tpu::ReshapeOp op) {
       auto _op = op.getOperation();
-      Operation* parantOp = _op->getOperand(0)->getDefiningOp();
+      Operation* parantOp = _op->getOperand(0).getDefiningOp();
       auto name = parantOp->getName().getStringRef().str();
       Operation* inputQuantOp = NULL;
 
       if (name == "tpu.input") {
         // if reshape input is 'tpu.input', it should replace with it
         for (uint32_t i = 0; i < parantOp->getNumResults(); ++i) {
-          for (auto &use : parantOp->getResult(i)->getUses()) {
+          for (auto &use : parantOp->getResult(i).getUses()) {
             Operation *owner = use.getOwner();
             name = owner->getName().getStringRef().str();
             if (name == "tpu.quant") {
@@ -1350,10 +1350,10 @@ public:
         }
       }
 
-      auto eltType = _op->getOperand(0)->getType().cast<TensorType>().getElementType();
-      auto shape = _op->getResult(0)->getType().cast<TensorType>().getShape();
+      auto eltType = _op->getOperand(0).getType().cast<TensorType>().getElementType();
+      auto shape = _op->getResult(0).getType().cast<TensorType>().getShape();
       auto type = RankedTensorType::get(shape, eltType);
-      _op->getResult(0)->setType(type);
+      _op->getResult(0).setType(type);
     });
 
     // gen special operations
@@ -1361,13 +1361,13 @@ public:
     patterns.insert<
       TpuGenLrnTablePattern
     >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<
       TpuConvertSoftmaxToSoftmaxCpu
     >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 };
 
@@ -1377,10 +1377,8 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
   TpuTpuQuantClipPassPattern(MLIRContext *context)
       : RewritePattern("tpu.clip", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-    auto builder = OpBuilder(op);
-
     if (auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op)) {
       // check threshold_max/threshold_min has assigned
       auto threshold_max = clipOp.quant().threshold_max().getValue().convertToFloat();
@@ -1389,11 +1387,11 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
         assert(0 && "you MUST do import-calibration-table before\n");
       }
 
-      auto formerOp = clipOp.getOperand(0)->getDefiningOp();
+      auto formerOp = clipOp.getOperand(0).getDefiningOp();
       std::string formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-      if (!formerOp->getResult(0)->hasOneUse()) {
+      if (!formerOp->getResult(0).hasOneUse()) {
         LLVM_DEBUG(llvm::errs() << "Not overwrtie more users op: " << formerOpName << ", not remove it\n";);
-        return matchFailure();
+        return failure();
       }
 
       auto layer_name = mlir::getOpName(clipOp).str();
@@ -1403,7 +1401,7 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       // white list priority is more than black one
       if (in_white_list) {
           LLVM_DEBUG(llvm::errs() << "config not quant op: " << layer_name << "\n";);
-          return matchFailure();
+          return failure();
       }
 
       if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(formerOp)) {
@@ -1414,7 +1412,7 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       }
       else {
         LLVM_DEBUG(llvm::errs() << "cant fuse previous op " << formerOpName << ", not remove it\n";);
-        return matchFailure();
+        return failure();
       }
 
       // update attr Only
@@ -1424,15 +1422,15 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
       // remove clip
       rewriter.replaceOp(clipOp, {clipOp.getOperand(0)});
 
-      return matchSuccess();
+      return success();
     }
 
     // default
-    return matchFailure();
+    return failure();
   }
 };
 
-class TpuQuantClipPass : public FunctionPass<TpuQuantClipPass> {
+class TpuQuantClipPass : public mlir::PassWrapper<TpuQuantClipPass, FunctionPass> {
 public:
   explicit TpuQuantClipPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -1456,7 +1454,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuTpuQuantClipPassPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -1464,7 +1462,7 @@ private:
 };
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createTpuQuantPass() {
+std::unique_ptr<mlir::Pass> mlir::createTpuQuantPass() {
   return std::make_unique<TpuQuantPass>();
 }
 
@@ -1472,7 +1470,7 @@ static PassRegistration<TpuQuantPass>
     pass("tpu-quant",
          "Do quantization on TPU Ops");
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createTpuQuantClipPass() {
+std::unique_ptr<mlir::Pass> mlir::createTpuQuantClipPass() {
   return std::make_unique<TpuQuantClipPass>();
 }
 

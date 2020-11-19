@@ -20,11 +20,11 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Matchers.h"
@@ -32,7 +32,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "split_pool"
@@ -45,14 +45,14 @@ struct SplitPoolPattern : public RewritePattern {
       : RewritePattern("tpu.tg_int8_pool_avg_2d", 1, context), mInfo(mInfo) {
   }
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
 
 
     auto avg_pool_op = cast<TG_INT8_PoolAvg2DOp>(op);
     if (!avg_pool_op) {
-      return matchFailure();
+      return failure();
     }
     auto formerOp = op->getOperand(0);
 
@@ -63,7 +63,7 @@ struct SplitPoolPattern : public RewritePattern {
     int64_t output_size = getTensorSize(avg_pool_op);
     uint64_t lmem_size = mInfo.lmem_per_lane;
     if ((uint64_t)(ih * iw) < ((lmem_size - output_size) / 2)) {
-      return matchFailure();
+      return failure();
     }
     LLVM_DEBUG(llvm::errs() << "TG split avg pool");
     LLVM_DEBUG(llvm::errs() << "(input_h * input_w ) "<<ih * iw << " >> (local memory size)" << lmem_size << " output_size " << output_size << "\n";);
@@ -81,11 +81,11 @@ struct SplitPoolPattern : public RewritePattern {
       }
     }
 
-    std::vector<Value *> all_slice_avg_op;
+    std::vector<Value> all_slice_avg_op;
 
     int offset = 0;
     mlir::TensorType result_type;
-    auto elementType_ = formerOp->getType().cast<TensorType>().getElementType();
+    auto elementType_ = formerOp.getType().cast<TensorType>().getElementType();
     for (auto &slice : h_slices) {
       std::vector<NamedAttribute> attrs;
       result_type = RankedTensorType::get({n, c, slice, iw}, elementType_);
@@ -100,7 +100,7 @@ struct SplitPoolPattern : public RewritePattern {
                                          std::to_string(offset))));
 
       auto splitOp = rewriter.create<tpu::TG_INT8_SliceOp>(
-          op->getLoc(), result_type, ArrayRef<Value *>{{formerOp}},
+          op->getLoc(), result_type, ArrayRef<Value>{{formerOp}},
           ArrayRef<NamedAttribute>{attrs});
       attrs.clear();
 
@@ -124,7 +124,7 @@ struct SplitPoolPattern : public RewritePattern {
           "name", rewriter.getStringAttr("pool_" + getOpName(op).str() +
                                          std::to_string(offset))));
       auto pool_op = rewriter.create<tpu::TG_INT8_PoolAvg2DOp>(
-          op->getLoc(), result_type, ArrayRef<Value *>{{splitOp}},
+          op->getLoc(), result_type, ArrayRef<Value>{{splitOp}},
           ArrayRef<NamedAttribute>{attrs});
       all_slice_avg_op.push_back(pool_op);
     }
@@ -145,7 +145,7 @@ struct SplitPoolPattern : public RewritePattern {
 
     result_type = RankedTensorType::get({n, c, h_slices_num, 1}, elementType_);
     auto concat_op = rewriter.create<tpu::TG_INT8_ConcatOp>(
-        op->getLoc(), result_type, ArrayRef<Value *>{all_slice_avg_op},
+        op->getLoc(), result_type, ArrayRef<Value>{all_slice_avg_op},
         ArrayRef<NamedAttribute>{final_attrs});
     final_attrs.clear();
     result_type = RankedTensorType::get({n, c, 1, 1}, elementType_);
@@ -168,11 +168,11 @@ struct SplitPoolPattern : public RewritePattern {
             rewriter.getBoolAttr(false), rewriter.getContext())));
     final_attrs.push_back(rewriter.getNamedAttr("name", avg_pool_op.nameAttr()));
     auto pool_final_op = rewriter.create<tpu::TG_INT8_PoolAvg2DOp>(
-        op->getLoc(), result_type, ArrayRef<Value *>{{concat_op}},
+        op->getLoc(), result_type, ArrayRef<Value>{{concat_op}},
         ArrayRef<NamedAttribute>{final_attrs});
     rewriter.replaceOp(op, {pool_final_op});
 
-    return matchSuccess();
+    return success();
   };
   MInfo &mInfo;
 };

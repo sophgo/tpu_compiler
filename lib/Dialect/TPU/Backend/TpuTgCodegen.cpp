@@ -19,11 +19,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
-#include "mlir/Dialect/TPU/CustomOpPlugin.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
+#include "tpuc/CustomOpPlugin.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
@@ -37,7 +37,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "cvikernel/cvikernel.h"
 #include <fstream>
 
@@ -142,8 +142,8 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  gaddr_t ga_scale = getOpAddress(filter().getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tg_scale_kernel(*backend_ctx, // ctx
@@ -182,9 +182,9 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_scale = getOpAddress(filter().getDefiningOp());
   // FIXME: support bias
-  //gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  //gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tg_scale_kernel(*backend_ctx, // ctx
@@ -226,7 +226,7 @@ LogicalResult tpu::TG_INT8_BroadcastAddOp::codegen(void *ctx) {
   int32_t multiplier[2];
 
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
-    auto rshift_int8 = this->rshift().getValue().getLimitedValue();
+    auto rshift_int8 = this->rshift().getValue();
     rshift = static_cast<int32_t>(rshift_int8);
 
     llvm::errs() << "broadcast add rshift: " << rshift;
@@ -307,7 +307,7 @@ LogicalResult tpu::TG_INT8_BroadcastSubOp::codegen(void *ctx) {
   int32_t multiplier[2];
 
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
-    auto rshift_int8 = this->rshift().getValue().getLimitedValue();
+    auto rshift_int8 = this->rshift().getValue();
     rshift = static_cast<int32_t>(rshift_int8);
 
     llvm::errs() << "broadcast sub rshift: " << rshift;
@@ -372,7 +372,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
   int layer_id = getOpLayerId(op);
   unsigned nInputs = op->getNumOperands();
   std::vector<gaddr_t> ga_inputs(nInputs);
@@ -401,7 +401,7 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   const int8_t *p_rshift = nullptr;
   const int32_t *p_m_i8 = nullptr;
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
-    int8_t rshift_value = this->rshift().getValue().getLimitedValue();
+    int8_t rshift_value = this->rshift().getValue();
 
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_input);
     assert(m_i8_input.size() == nInputs);
@@ -432,7 +432,7 @@ LogicalResult tpu::TG_BF16_ConcatOp::codegen(void *ctx) {
     ga_inputs[i] = getPreviousOpAddress(op, i);
   }
   gaddr_t ga_output = getOpAddress(op);
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
   int layer_id = getOpLayerId(op);
 
   std::vector<int32_t> axis_dims;
@@ -537,14 +537,14 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
   gaddr_t ga_bias = GA_INVALID;
   if ( with_bias ) {
     assert(!isTensorNone(pc_info()));
-    ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
+    ga_bias =  getWeightOpAddress(pc_info().getDefiningOp());
   }
   assert(pt_rshift().hasValue());
-  int8_t rshift = pt_rshift().getValue().getLimitedValue();
+  int8_t rshift = pt_rshift().getValue();
   int layer_id = getOpLayerId(op);
   bool do_ic_alignment = this->do_ic_alignment().hasValue()
                          ? this->do_ic_alignment().getValue() : false;
@@ -624,8 +624,8 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
   int layer_id = getOpLayerId(op);
   bool do_ic_alignment = this->do_ic_alignment().hasValue()
                             ? this->do_ic_alignment().getValue() : false;
@@ -705,11 +705,11 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
   gaddr_t ga_bias = GA_INVALID;
   if ( with_bias ) {
     assert(!isTensorNone(pc_info()));
-    ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
+    ga_bias =  getWeightOpAddress(pc_info().getDefiningOp());
   }
   int layer_id = getOpLayerId(op);
 
@@ -760,8 +760,8 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   if (this->do_leaky_relu()) {
@@ -827,11 +827,11 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
   gaddr_t ga_bias = GA_INVALID;
   if ( with_bias ) {
     assert(!isTensorNone(pc_info()));
-    ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
+    ga_bias =  getWeightOpAddress(pc_info().getDefiningOp());
   }
   int layer_id = getOpLayerId(op);
 
@@ -893,11 +893,11 @@ LogicalResult tpu::TG_BF16_Conv3DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
   gaddr_t ga_bias = GA_INVALID;
   if ( with_bias ) {
     assert(!isTensorNone(pc_info()));
-    ga_bias =  getWeightOpAddress(pc_info()->getDefiningOp());
+    ga_bias =  getWeightOpAddress(pc_info().getDefiningOp());
   }
   int layer_id = getOpLayerId(op);
 
@@ -929,7 +929,7 @@ LogicalResult tpu::TG_INT8_DilateOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
 
-  auto fill_constant = this->fill_constant().getLimitedValue();
+  auto fill_constant = this->fill_constant();
   gaddr_t output_gaddr = getOpAddress(op);
 
   std::vector<int64_t> input_shape;
@@ -998,8 +998,8 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   ow = output_shape[3];
   bool do_relu = this->do_relu();
   bool do_early_stride = this->do_early_stride();
-  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
-  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
   if (do_early_stride) {
     assert(oh == h / early_stride_h);
     assert(ow == w / early_stride_w);
@@ -1018,7 +1018,7 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   auto m_i8_input = new int8_t[input_number];
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
     do_quant_rescale = true;
-    rshift = this->rshift().getValue().getLimitedValue();
+    rshift = this->rshift().getValue();
 
     std::vector<int32_t> m_i8_inputs_array;
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
@@ -1073,8 +1073,8 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
   ow = output_shape[3];
   bool do_relu = this->do_relu();
   bool do_early_stride = this->do_early_stride();
-  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
-  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
   if (do_early_stride) {
     assert(oh == h / early_stride_h);
     assert(ow == w / early_stride_w);
@@ -1093,7 +1093,7 @@ LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
   auto m_i8_input = new int8_t [input_number];
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
     do_quant_rescale = true;
-    rshift = this->rshift().getValue().getLimitedValue();
+    rshift = this->rshift().getValue();
 
     std::vector<int32_t> m_i8_inputs_array;
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
@@ -1147,8 +1147,8 @@ LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
   ow = output_shape[3];
   bool do_relu = this->do_relu();
   bool do_early_stride = this->do_early_stride();
-  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
-  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
   if (do_early_stride) {
     assert(oh == h / early_stride_h);
     assert(ow == w / early_stride_w);
@@ -1167,7 +1167,7 @@ LogicalResult tpu::TG_INT8_EltwiseMinOp::codegen(void *ctx) {
   auto m_i8_input = new int8_t[input_number];
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
     do_quant_rescale = true;
-    rshift = this->rshift().getValue().getLimitedValue();
+    rshift = this->rshift().getValue();
 
     std::vector<int32_t> m_i8_inputs_array;
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_inputs_array);
@@ -1222,7 +1222,7 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   gaddr_t ga_inputs[2];
 
   for (int i = 0; i < 2; i++) {
-    auto defOp = op->getOperand(i)->getDefiningOp();
+    auto defOp = op->getOperand(i).getDefiningOp();
     if (isa<tpu::LoadWeightOp>(defOp)) {
       ga_inputs[i] = getWeightOpAddress(defOp);
     } else {
@@ -1234,9 +1234,9 @@ LogicalResult tpu::TG_INT8_EltwiseMulOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   assert(this->rshift().hasValue());
-  int8_t rshift = this->rshift().getValue().getLimitedValue();
+  int8_t rshift = this->rshift().getValue();
   assert(this->m_i32_output().hasValue());
-  int32_t m_i32_output = this->m_i32_output().getValue().getLimitedValue();
+  int32_t m_i32_output = this->m_i32_output().getValue();
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int = static_cast<int>(rshift);
@@ -1272,8 +1272,8 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   ow = output_shape[3];
   bool do_relu = this->do_relu();
   bool do_early_stride = this->do_early_stride();
-  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
-  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
   if (do_early_stride) {
     assert(oh == h / early_stride_h);
     assert(ow == w / early_stride_w);
@@ -1374,16 +1374,16 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   bool do_relu = this->do_relu();
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
   gaddr_t ga_bias = GA_INVALID;
   bool with_bias = false;
   if ( !isTensorNone(bias()) ) {
-    ga_bias = getWeightOpAddress(bias()->getDefiningOp());
+    ga_bias = getWeightOpAddress(bias().getDefiningOp());
     with_bias = true;
   }
   int layer_id = getOpLayerId(op);
 
-  int8_t rshift_int8 = rshift().getValue().getLimitedValue();
+  int8_t rshift_int8 = rshift().getValue();
   int rshift = static_cast<int>(rshift_int8);
 
   auto fcOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op);
@@ -1439,11 +1439,11 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   bool do_relu = this->do_relu();
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
   gaddr_t ga_bias = GA_INVALID;
   bool with_bias = false;
   if ( !isTensorNone(bias()) ) {
-    ga_bias = getWeightOpAddress(bias()->getDefiningOp());
+    ga_bias = getWeightOpAddress(bias().getDefiningOp());
     with_bias = true;
   }
   int layer_id = getOpLayerId(op);
@@ -1488,7 +1488,7 @@ LogicalResult tpu::TG_INT8_GenericTpuOp::codegen(void *ctx) {
 
   std::vector<uint64_t> operandGaddrs;
   for (auto operand : op->getOperands()) {
-    auto addr = getOpAddress(operand->getDefiningOp());
+    auto addr = getOpAddress(operand.getDefiningOp());
     operandGaddrs.push_back(addr);
   }
   cvi::OpParam param;
@@ -1514,7 +1514,7 @@ LogicalResult tpu::TG_BF16_GenericTpuOp::codegen(void *ctx) {
 
   std::vector<uint64_t> operandGaddrs;
   for (auto operand : op->getOperands()) {
-    auto addr = getOpAddress(operand->getDefiningOp());
+    auto addr = getOpAddress(operand.getDefiningOp());
     operandGaddrs.push_back(addr);
   }
   cvi::OpParam param;
@@ -1636,15 +1636,15 @@ LogicalResult tpu::TG_INT8_LrnOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t power_lut_gaddr = getWeightOpAddress(power_lut()->getDefiningOp());
-  gaddr_t sqr_lut_gaddr = getWeightOpAddress(sqr_lut()->getDefiningOp());
+  gaddr_t power_lut_gaddr = getWeightOpAddress(power_lut().getDefiningOp());
+  gaddr_t sqr_lut_gaddr = getWeightOpAddress(sqr_lut().getDefiningOp());
   int layer_id = getOpLayerId(op);
   cvi_backend_tg_fixed_lrn_kernel(
       *backend_ctx, layer_id, input_gaddr, output_gaddr,
       sqr_lut_gaddr, power_lut_gaddr, n, c, h, w,
-      local_size().getLimitedValue(), sum_rshift().getLimitedValue(),
-      lrn_rshift().getLimitedValue(), quant_data0().getLimitedValue(),
-      quant_data1().getLimitedValue());
+      local_size(), sum_rshift(),
+      lrn_rshift(), quant_data0(),
+      quant_data1());
   return success();
 }
 
@@ -1671,7 +1671,7 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t y0_table_gaddr = getWeightOpAddress(table()->getDefiningOp());
+  gaddr_t y0_table_gaddr = getWeightOpAddress(table().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tg_lut_kernel(*backend_ctx,
@@ -1701,7 +1701,7 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   bool with_bias = (!isTensorNone(bias()));
   gaddr_t ga_bias = GA_INVALID;
   if ( with_bias ) {
-    ga_bias =  getWeightOpAddress(bias()->getDefiningOp());
+    ga_bias =  getWeightOpAddress(bias().getDefiningOp());
   }
 
   bool is_linear_before_reset = this->linear_before_reset();
@@ -1709,13 +1709,13 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t weight_gaddr = getWeightOpAddress(weight()->getDefiningOp());
-  gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence()->getDefiningOp());
-  gaddr_t initial_h_gaddr = getWeightOpAddress(initial_h()->getDefiningOp());
-  gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table()->getDefiningOp());
-  gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table()->getDefiningOp());
-  gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table()->getDefiningOp());
-  gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table()->getDefiningOp());
+  gaddr_t weight_gaddr = getWeightOpAddress(weight().getDefiningOp());
+  gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence().getDefiningOp());
+  gaddr_t initial_h_gaddr = getWeightOpAddress(initial_h().getDefiningOp());
+  gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table().getDefiningOp());
+  gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table().getDefiningOp());
+  gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table().getDefiningOp());
+  gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
@@ -1771,21 +1771,21 @@ LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
   bool with_bias = (!isTensorNone(bias()));
   gaddr_t ga_bias = GA_INVALID;
   if ( with_bias ) {
-    ga_bias =  getWeightOpAddress(bias()->getDefiningOp());
+    ga_bias =  getWeightOpAddress(bias().getDefiningOp());
   }
 
   bool is_bidirectional = this->bidirectional();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t weight_gaddr = getWeightOpAddress(weight()->getDefiningOp());
-  gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence()->getDefiningOp());
-  gaddr_t initial_h_gaddr = getWeightOpAddress(initial_h()->getDefiningOp());
-  gaddr_t initial_c_gaddr = getWeightOpAddress(initial_c()->getDefiningOp());
-  gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table()->getDefiningOp());
-  gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table()->getDefiningOp());
-  gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table()->getDefiningOp());
-  gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table()->getDefiningOp());
+  gaddr_t weight_gaddr = getWeightOpAddress(weight().getDefiningOp());
+  gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence().getDefiningOp());
+  gaddr_t initial_h_gaddr = getWeightOpAddress(initial_h().getDefiningOp());
+  gaddr_t initial_c_gaddr = getWeightOpAddress(initial_c().getDefiningOp());
+  gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table().getDefiningOp());
+  gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table().getDefiningOp());
+  gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table().getDefiningOp());
+  gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
@@ -1834,7 +1834,7 @@ LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
 
   std::vector<int64_t> shape;
   int64_t tensorSize, outer_size, inner_size;
@@ -1860,10 +1860,10 @@ LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t exponential_table_data_lut_gaddr = getWeightOpAddress(exponential_table()->getDefiningOp());
-  gaddr_t exponential_slope_table_data_lut_gaddr = getWeightOpAddress(exponential_slope_table()->getDefiningOp());
-  gaddr_t reciprocal_table_data_lut_gaddr = getWeightOpAddress(reciprocal_table()->getDefiningOp());
-  gaddr_t reciprocal_mantissa_table_data_lut_gaddr = getWeightOpAddress(reciprocal_mantissa_table()->getDefiningOp());
+  gaddr_t exponential_table_data_lut_gaddr = getWeightOpAddress(exponential_table().getDefiningOp());
+  gaddr_t exponential_slope_table_data_lut_gaddr = getWeightOpAddress(exponential_slope_table().getDefiningOp());
+  gaddr_t reciprocal_table_data_lut_gaddr = getWeightOpAddress(reciprocal_table().getDefiningOp());
+  gaddr_t reciprocal_mantissa_table_data_lut_gaddr = getWeightOpAddress(reciprocal_mantissa_table().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
@@ -1963,9 +1963,9 @@ LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
   auto opd_left = op->getOperand(0);
   auto opd_right = op->getOperand(1);
 
-  auto left_type = opd_left->getType().template cast<TensorType>();
+  auto left_type = opd_left.getType().template cast<TensorType>();
   std::vector<int64_t> left_shape(left_type.getShape());
-  auto right_type = opd_right->getType().cast<TensorType>();
+  auto right_type = opd_right.getType().cast<TensorType>();
   std::vector<int64_t> right_shape(right_type.getShape());
   int m = left_shape[0];
   int k = left_shape[1];
@@ -2010,8 +2010,8 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t table_data_lut = getWeightOpAddress(table()->getDefiningOp());
-  gaddr_t table_data_mantissa_lut = getWeightOpAddress(table_mantissa()->getDefiningOp());
+  gaddr_t table_data_lut = getWeightOpAddress(table().getDefiningOp());
+  gaddr_t table_data_mantissa_lut = getWeightOpAddress(table_mantissa().getDefiningOp());
 
 
   int layer_id = getOpLayerId(op);
@@ -2045,14 +2045,14 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  auto input_type = input()->getType().template cast<TensorType>();
+  auto input_type = input().getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
 
   std::vector<int> orders;
-  orders.push_back(this->order0().getLimitedValue());
-  orders.push_back(this->order1().getLimitedValue());
-  orders.push_back(this->order2().getLimitedValue());
-  orders.push_back(this->order3().getLimitedValue());
+  orders.push_back(this->order0());
+  orders.push_back(this->order1());
+  orders.push_back(this->order2());
+  orders.push_back(this->order3());
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2070,7 +2070,7 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  auto input_type = input()->getType().template cast<TensorType>();
+  auto input_type = input().getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
 
   std::vector<int64_t> i_nchw(4,1);
@@ -2079,10 +2079,10 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
   }
 
   std::vector<int> orders;
-  orders.push_back(this->order0().getLimitedValue());
-  orders.push_back(this->order1().getLimitedValue());
-  orders.push_back(this->order2().getLimitedValue());
-  orders.push_back(this->order3().getLimitedValue());
+  orders.push_back(this->order0());
+  orders.push_back(this->order1());
+  orders.push_back(this->order2());
+  orders.push_back(this->order3());
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2115,9 +2115,9 @@ LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   assert(this->rshift().hasValue());
-  int8_t rshift = this->rshift().getValue().getLimitedValue();
+  int8_t rshift = this->rshift().getValue();
   assert(this->m_i8().hasValue());
-  int8_t m_i8 = this->m_i8().getValue().getLimitedValue();
+  int8_t m_i8 = this->m_i8().getValue();
 
   // TODO: should change on backend API, rather than doing cast
   int rshift_int = static_cast<int>(rshift);
@@ -2312,15 +2312,15 @@ LogicalResult tpu::TG_INT8_PReluOp::codegen(void *ctx) {
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t negative_scope_gaddr =
-      getWeightOpAddress(negative_slope()->getDefiningOp());
+      getWeightOpAddress(negative_slope().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   assert(this->rshift_pos().hasValue());
-  int8_t rshift_pos = this->rshift_pos().getValue().getLimitedValue();
+  int8_t rshift_pos = this->rshift_pos().getValue();
   assert(this->m_i8_pos().hasValue());
-  int8_t m_i8_pos = this->m_i8_pos().getValue().getLimitedValue();
+  int8_t m_i8_pos = this->m_i8_pos().getValue();
   assert(this->rshift_neg().hasValue());
-  int8_t rshift_neg = this->rshift_neg().getValue().getLimitedValue();
+  int8_t rshift_neg = this->rshift_neg().getValue();
   cvi_backend_tg_fixed_prelu_kernel(
       *backend_ctx,
       layer_id,             // layer_id,
@@ -2343,7 +2343,7 @@ LogicalResult tpu::TG_BF16_PReluOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
   gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_neg_slope = getWeightOpAddress(op->getOperand(1)->getDefiningOp());
+  gaddr_t ga_neg_slope = getWeightOpAddress(op->getOperand(1).getDefiningOp());
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = mlir::getOpLayerId(op);
 
@@ -2394,8 +2394,8 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
 
   float scale = 1.0;
-  cvk_fmt_t from = get_fmt(this->from());
-  cvk_fmt_t to = get_fmt(this->to());
+  cvk_fmt_t from = get_fmt(this->from().str());
+  cvk_fmt_t to = get_fmt(this->to().str());
   if (this->threshold().hasValue()) {
     float threshold = this->threshold().getValue().convertToFloat();
     if (from == CVK_FMT_I8 || from == CVK_FMT_U8) {
@@ -2483,7 +2483,7 @@ LogicalResult tpu::TG_INT8_ReorgOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  uint32_t stride = this->stride().getLimitedValue();
+  uint32_t stride = this->stride();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2506,7 +2506,7 @@ LogicalResult tpu::TG_BF16_ReorgOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  uint32_t stride = this->stride().getLimitedValue();
+  uint32_t stride = this->stride();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2528,7 +2528,7 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
   int64_t n, c, h, w;
   getNCHW(shape, n, c, h, w);
-  uint32_t group = this->group().getLimitedValue();
+  uint32_t group = this->group();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2548,7 +2548,7 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
   int64_t n, c, h, w;
   getNCHW(shape, n, c, h, w);
-  uint32_t group = this->group().getLimitedValue();
+  uint32_t group = this->group();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2718,7 +2718,7 @@ LogicalResult tpu::TG_INT8_PixelShuffleOp::codegen(void *ctx) {
   c = shape[1];
   h = shape[2];
   w = shape[3];
-  uint32_t upscale_factor = this->upscale_factor().getLimitedValue();
+  uint32_t upscale_factor = this->upscale_factor();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2744,7 +2744,7 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
   c = shape[1];
   h = shape[2];
   w = shape[3];
-  uint32_t upscale_factor = this->upscale_factor().getLimitedValue();
+  uint32_t upscale_factor = this->upscale_factor();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2853,7 +2853,7 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
   std::vector<int64_t> input_shape = getTensorShape(input());
   std::vector<int> input_shape_fix;
   for (auto &dim : input_shape) {
@@ -2870,7 +2870,7 @@ LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
     LLVM_DEBUG(llvm::errs() << "  no copy\n";);
     return success();
   }
-  int offset = this->offset().getLimitedValue();
+  int offset = this->offset();
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
@@ -2889,7 +2889,7 @@ LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
   std::vector<int64_t> input_shape = getTensorShape(input());
   std::vector<int> input_shape_fix;
   for (auto &dim : input_shape) {
@@ -2902,7 +2902,7 @@ LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
     LLVM_DEBUG(llvm::errs() << "  no copy\n";);
     return success();
   }
-  int offset = this->offset().getLimitedValue();
+  int offset = this->offset();
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
@@ -2925,8 +2925,8 @@ LogicalResult tpu::TG_INT8_UpsampleOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  int32_t scale_h = this->scale_h().getLimitedValue();
-  int32_t scale_w = this->scale_w().getLimitedValue();
+  int32_t scale_h = this->scale_h();
+  int32_t scale_w = this->scale_w();
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -2948,8 +2948,8 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  int32_t scale_h = this->scale_h().getLimitedValue();
-  int32_t scale_w = this->scale_w().getLimitedValue();
+  int32_t scale_h = this->scale_h();
+  int32_t scale_w = this->scale_w();
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -3048,11 +3048,11 @@ LogicalResult tpu::TG_INT8_ReduceMeanOp::codegen(void *ctx) {
 
   int rshift = 0;
   if (this->rshift().hasValue())
-    rshift = this->rshift().getValue().getLimitedValue();
+    rshift = this->rshift().getValue();
 
   int multiplier = 1;
   if (this->m_i8().hasValue())
-    multiplier = this->m_i8().getValue().getLimitedValue();
+    multiplier = this->m_i8().getValue();
 
   int num_axes = 0;
   int *axes = nullptr;
@@ -3265,7 +3265,7 @@ LogicalResult tpu::TG_BF16_ZeroMaskOp::codegen(void *ctx) {
       (int)input_shape[3], 1000000.0f, 1.0f, true);
   return success();
 }
-
+#if 0
 // MemRefType dummy
 LogicalResult tpu::TG_MemRef_INT8_BroadcastMulOp::codegen(void *ctx) {
   return success();
@@ -3546,6 +3546,7 @@ LogicalResult tpu::TG_MemRef_INT8_ZeroMaskOp::codegen(void *ctx) {
 LogicalResult tpu::TG_MemRef_BF16_ZeroMaskOp::codegen(void *ctx) {
   return success();
 }
+#endif
 
 LogicalResult tpu::TG_CallOp::codegen(void *ctx) {
   return success();

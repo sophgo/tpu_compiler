@@ -20,16 +20,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "convert_permute"
@@ -46,7 +46,7 @@ struct TpuPermuteToReshapePattern : public RewritePattern {
   TpuPermuteToReshapePattern(MLIRContext *context)
       : RewritePattern("tpu.permute", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto permuteOp = cast<tpu::PermuteOp>(op);
     LLVM_DEBUG(llvm::errs() << permuteOp.getOperationName() << ":"
@@ -60,10 +60,10 @@ struct TpuPermuteToReshapePattern : public RewritePattern {
     assert(dim_size == 4);
     uint32_t start = 0, end = dim_size - 1;
     std::vector<uint32_t> order;
-    order.push_back(permuteOp.order0().getLimitedValue());
-    order.push_back(permuteOp.order1().getLimitedValue());
-    order.push_back(permuteOp.order2().getLimitedValue());
-    order.push_back(permuteOp.order3().getLimitedValue());
+    order.push_back(permuteOp.order0());
+    order.push_back(permuteOp.order1());
+    order.push_back(permuteOp.order2());
+    order.push_back(permuteOp.order3());
     while (start < dim_size && start == order[start]) {
       start++;
     }
@@ -81,10 +81,10 @@ struct TpuPermuteToReshapePattern : public RewritePattern {
     }
 
     if (do_reshape == false) {
-      return matchFailure();
+      return failure();
     }
 
-    std::vector<Value *> operands;
+    std::vector<Value> operands;
     operands.push_back(op->getOperand(0));
     std::vector<NamedAttribute> attrs;
     std::string op_name = permuteOp.name().str();
@@ -92,9 +92,9 @@ struct TpuPermuteToReshapePattern : public RewritePattern {
         rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
 
     rewriter.replaceOpWithNewOp<tpu::ReshapeOp>(
-        permuteOp, permuteOp.getResult()->getType(),
-        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
-    return matchSuccess();
+        permuteOp, permuteOp.getResult().getType(),
+        ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
+    return success();
   }
 };
 

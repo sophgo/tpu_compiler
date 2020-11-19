@@ -14,12 +14,12 @@
 #include <vector>
 #include <sstream>
 #include <fstream>
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -27,10 +27,10 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/MachineInfo.h"
 #include <math.h>
 
 namespace mlir {
@@ -102,7 +102,7 @@ static inline int64_t bottom_size(Operation *op) {
 }
 
 static inline llvm::StringRef top_name(Operation *op, int idx) {
-  auto op_top = op->getResult(idx)->getDefiningOp();
+  auto op_top = op->getResult(idx).getDefiningOp();
   if (op_top && isValidTpuOp(op_top)) {
     auto name = mlir::getOpName(op_top);
     return name;
@@ -113,7 +113,7 @@ static inline llvm::StringRef top_name(Operation *op, int idx) {
 }
 
 static inline llvm::StringRef bottom_name(Operation *op, int idx) {
-  auto op_bottom = op->getOperand(idx)->getDefiningOp();
+  auto op_bottom = op->getOperand(idx).getDefiningOp();
   if (op_bottom && isValidTpuOp(op_bottom)) {
     auto name = mlir::getOpName(op_bottom);
     return name;
@@ -130,13 +130,13 @@ static inline llvm::StringRef name(Operation *op) {
 
 static inline std::vector<int64_t> input_shape(Operation *op, int idx) {
   std::vector<int64_t> shape =
-      op->getOperand(idx)->getType().cast<TensorType>().getShape();
+      op->getOperand(idx).getType().cast<TensorType>().getShape();
   return shape;
 }
 
 static inline std::vector<int64_t> output_shape(Operation *op, int idx) {
   std::vector<int64_t> shape =
-      op->getResult(idx)->getType().cast<TensorType>().getShape();
+      op->getResult(idx).getType().cast<TensorType>().getShape();
   return shape;
 }
 

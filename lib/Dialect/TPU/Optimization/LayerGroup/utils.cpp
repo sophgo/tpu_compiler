@@ -54,11 +54,11 @@ void getConcatParam(Operation *op,
                            int &axis, bool &do_relu) {
   if (isa<tpu::TG_INT8_ConcatOp>(op)) {
     auto concat_op = dyn_cast<tpu::TG_INT8_ConcatOp>(op);
-    axis = concat_op.axis().getLimitedValue();
+    axis = concat_op.axis();
     do_relu = concat_op.do_relu();
   } else if (isa<tpu::TG_BF16_ConcatOp>(op)){
     auto concat_op = dyn_cast<tpu::TG_BF16_ConcatOp>(op);
-    axis = concat_op.axis().getLimitedValue();
+    axis = concat_op.axis();
     do_relu = concat_op.do_relu();
   } else {
     assert(!"Only support INT8/BF16 Concat in LayerGroup");
@@ -69,10 +69,10 @@ void getSliceParam(Operation * op,
                   int &axis) {
   if (isa<tpu::TG_INT8_SliceOp>(op)) {
     auto slice_op = dyn_cast<tpu::TG_INT8_SliceOp>(op);
-    axis = slice_op.axis().getLimitedValue();
+    axis = slice_op.axis();
   } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
     auto slice_op = dyn_cast<tpu::TG_BF16_SliceOp>(op);
-    axis = slice_op.axis().getLimitedValue();
+    axis = slice_op.axis();
   } else {
     assert(!"Only support INT8/BF16 Slice in LayerGroup");
   }
@@ -82,12 +82,12 @@ void getUpsampleParam(Operation * op,
                       int &scale_h, int &scale_w) {
   if (isa<tpu::TG_INT8_UpsampleOp>(op)) {
     auto upsample_op = dyn_cast<tpu::TG_INT8_UpsampleOp>(op);
-    scale_h = upsample_op.scale_h().getLimitedValue();
-    scale_w = upsample_op.scale_w().getLimitedValue();
+    scale_h = upsample_op.scale_h();
+    scale_w = upsample_op.scale_w();
   } else if (isa<tpu::TG_BF16_UpsampleOp>(op)) {
     auto upsample_op = dyn_cast<tpu::TG_BF16_UpsampleOp>(op);
-    scale_h = upsample_op.scale_h().getLimitedValue();
-    scale_w = upsample_op.scale_w().getLimitedValue();
+    scale_h = upsample_op.scale_h();
+    scale_w = upsample_op.scale_w();
   } else {
     assert(!"Only support INT8/BF16 Upsample in LayerGroup");
   }
@@ -139,13 +139,13 @@ void getEltwiseAddParam(Operation * op,
   if (isa<tpu::TG_INT8_EltwiseAddOp>(op)) {
     auto eltwise_op = dyn_cast<tpu::TG_INT8_EltwiseAddOp>(op);
     do_early_stride = eltwise_op.do_early_stride();
-    h_stride = eltwise_op.early_stride_h().getLimitedValue();
-    w_stride = eltwise_op.early_stride_w().getLimitedValue();
+    h_stride = eltwise_op.early_stride_h();
+    w_stride = eltwise_op.early_stride_w();
   } else if(isa<tpu::TG_BF16_EltwiseAddOp>(op)) {
     auto eltwise_op = dyn_cast<tpu::TG_BF16_EltwiseAddOp>(op);
     do_early_stride = eltwise_op.do_early_stride();
-    h_stride = eltwise_op.early_stride_h().getLimitedValue();
-    w_stride = eltwise_op.early_stride_w().getLimitedValue();
+    h_stride = eltwise_op.early_stride_h();
+    w_stride = eltwise_op.early_stride_w();
   } else {
     assert(!"Unsupport eltwise add op in Layergroup.");
   }
@@ -172,13 +172,13 @@ void getLrnParam(Operation * op,
                   int &quant_data0, int &quant_data1,
                   float &alpha, float &k) {
   if (auto lrn_op = dyn_cast<tpu::TG_INT8_LrnOp>(op)) {
-    local_size = lrn_op.local_size().getLimitedValue();
-    sum_rshift = lrn_op.sum_rshift().getLimitedValue();
-    lrn_rshift = lrn_op.lrn_rshift().getLimitedValue();
-    quant_data0 = lrn_op.quant_data0().getLimitedValue();
-    quant_data1 = lrn_op.quant_data1().getLimitedValue();
+    local_size = lrn_op.local_size();
+    sum_rshift = lrn_op.sum_rshift();
+    lrn_rshift = lrn_op.lrn_rshift();
+    quant_data0 = lrn_op.quant_data0();
+    quant_data1 = lrn_op.quant_data1();
   } else if(auto lrn_op = dyn_cast<tpu::TG_BF16_LrnOp>(op)) {
-    local_size = lrn_op.local_size().getLimitedValue();
+    local_size = lrn_op.local_size();
     alpha = lrn_op.alpha().convertToFloat();
     k = lrn_op.k().convertToFloat();
     sum_rshift = 0;

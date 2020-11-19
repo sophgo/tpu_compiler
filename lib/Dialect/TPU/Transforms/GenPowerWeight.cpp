@@ -1,4 +1,4 @@
-//===- GenPowerWeight.cpp - Implementation of dynamice generate 
+//===- GenPowerWeight.cpp - Implementation of dynamice generate
 // tanh lookup table slope --------------------------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
@@ -20,16 +20,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
 #include <float.h>
@@ -45,11 +45,11 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
   TpuGenPowerWeightPattern(MLIRContext *context)
       : RewritePattern("tpu.power", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto pwOp = dyn_cast<tpu::PowerOp>(op);
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     LLVM_DEBUG(llvm::errs() << pwOp.getOperationName()
         << ", scale is " << pwOp.scale().convertToFloat() << "\n"
@@ -62,7 +62,7 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     // TODO: not use name as uniq id
     if (std::find(passed.begin(), passed.end(), op_name) != passed.end()) {
       LLVM_DEBUG(llvm::errs() << pwOp.name() << " gen already\n";);
-      return matchFailure();
+      return failure();
     }
 
     passed.push_back(op_name);
@@ -74,24 +74,24 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     // 0 is input
     for (unsigned i = 1; i < pwOp.getNumOperands(); ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          pwOp.getOperand(i)->getDefiningOp());
+          pwOp.getOperand(i).getDefiningOp());
       assert(weight_op && "weight op should be exist");
       assert(weight_op.name().hasValue() && "weight op should have name");
       auto tensor_name = weight_op.name().getValue();
       LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
                               << tensor_name << "\n";);
-      auto type = weight_op.getResult()->getType().cast<TensorType>();
+      auto type = weight_op.getResult().getType().cast<TensorType>();
       weights[weight_idx] = wTF->readTensor<float>(tensor_name, type);
       weight_idx++;
       // delete the tensor from the weight file
       wTF->deleteTensor<float>(tensor_name);
     }
 
-    auto scale_type = pwOp.scale_table()->getType().cast<TensorType>();
+    auto scale_type = pwOp.scale_table().getType().cast<TensorType>();
     std::vector<int64_t> scale_shape(scale_type.getShape());
     assert(scale_shape.size() == 4 && "scale shape size should be 4");
 
-    auto shift_type = pwOp.shift_table()->getType().cast<TensorType>();
+    auto shift_type = pwOp.shift_table().getType().cast<TensorType>();
     std::vector<int64_t> shift_shape(shift_type.getShape());
     assert(shift_shape.size() == 4 && "shift shape size should be 4");
 
@@ -108,7 +108,7 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     }
 
     // update op
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(pwOp.getOperand(0)); // <! 0 is input
 
     // add new filter and bias weight
@@ -132,7 +132,7 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
                                   rewriter.getStringAttr("FP32")));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(),
-          type, ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+          type, ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
@@ -141,15 +141,15 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
 
     rewriter.replaceOpWithNewOp<tpu::PowerOp>(
-        pwOp, pwOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+        pwOp, pwOp.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
 
-    return matchSuccess();
+    return success();
 
   }
 };
 
-class GenPowerWeightPass : public FunctionPass<GenPowerWeightPass> {
+class GenPowerWeightPass : public mlir::PassWrapper<GenPowerWeightPass, FunctionPass> {
 public:
   explicit GenPowerWeightPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -158,7 +158,7 @@ public:
     auto *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<TpuGenPowerWeightPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -167,7 +167,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createGenPowerWeightPass() {
+std::unique_ptr<mlir::Pass> mlir::createGenPowerWeightPass() {
   return std::make_unique<GenPowerWeightPass>();
 }
 

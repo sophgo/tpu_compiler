@@ -1,5 +1,5 @@
 #include "cuda_runtime.h"
-#include "mlir/Dialect/TPU/GPUInplementation.h"
+#include "tpuc/GPUInplementation.h"
 
 __global__ void ReLUForward(const int n, const float* in, float* out,
     float negative_slope) {

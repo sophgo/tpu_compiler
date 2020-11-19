@@ -19,11 +19,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -34,7 +34,7 @@
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/MathExtras.h"
-#include "mlir/Dialect/TPU/SimpleAnalysis.h"
+#include "tpuc/SimpleAnalysis.h"
 #include <algorithm>
 #include <map>
 #include <set>
@@ -62,7 +62,7 @@ static uint32_t getOpLine(Operation *op) {
   return loc.getLine();
 }
 
-class DeepFusionGroupSlice : public FunctionPass<DeepFusionGroupSlice> {
+class DeepFusionGroupSlice : public mlir::PassWrapper<DeepFusionGroupSlice, FunctionPass> {
 public:
   explicit DeepFusionGroupSlice() {}
 
@@ -118,19 +118,19 @@ private:
                      int sliceIdx, int curN);
 
   template<typename srcOpTy, typename dstOpTy>
-  void genTLEltwiseOp(Operation *srcOp, std::vector<Value *> opds,
+  void genTLEltwiseOp(Operation *srcOp, std::vector<Value> opds,
                       Operation *&dstOp, int loopIdx, int curN);
-  void genTLPoolAvgOp(Operation *srcOp, std::vector<Value *> opds,
+  void genTLPoolAvgOp(Operation *srcOp, std::vector<Value> opds,
                       Operation *&dstOp, int loopIdx, int curN);
-  void genTLConvOp(Operation *srcOp, std::vector<Value *> opds,
+  void genTLConvOp(Operation *srcOp, std::vector<Value> opds,
                    Operation *&dstOp, int loopIdx, int curN);
   void concatOps(std::vector<std::vector<Operation *>> outOps,
                  std::vector<Operation *> &orderedGroupOutOps);
-  void genTLLutOp(Operation *srcOp, std::vector<Value *> opds,
+  void genTLLutOp(Operation *srcOp, std::vector<Value> opds,
                   Operation *&dstOp, int loopIdx, int curN);
-  void genTLBroadcastMulOp(Operation *srcOp, std::vector<Value *> opds,
+  void genTLBroadcastMulOp(Operation *srcOp, std::vector<Value> opds,
                            Operation *&dstOp, int loopIdx, int curN);
-  void genTLOp(Operation *srcOp, std::vector<Value *> opds,
+  void genTLOp(Operation *srcOp, std::vector<Value> opds,
                Operation *&dstOp, int loopIdx, int curN);
 };
 
@@ -159,8 +159,8 @@ void DeepFusionGroupSlice::setAllNSecs() {
 template<typename opTy>
 bool DeepFusionGroupSlice::canEltwiseFused(Operation *opInst) {
   auto eltwiseOp = cast<opTy>(opInst);
-  auto opd0Inst = opInst->getOperand(0)->getDefiningOp();
-  auto opd1Inst = opInst->getOperand(1)->getDefiningOp();
+  auto opd0Inst = opInst->getOperand(0).getDefiningOp();
+  auto opd1Inst = opInst->getOperand(1).getDefiningOp();
   auto getPrevOpInst = [](Operation *curOp) -> Operation * {
     auto prevOp = curOp->getPrevNode();
     while(isa<tpu::LoadWeightOp>(prevOp)) {
@@ -203,7 +203,7 @@ void DeepFusionGroupSlice::deepFusionGroupOpt() {
   for (auto &group : fusionGroups) {
     std::vector<SubGroup> subGroups;
     std::vector<std::pair<Operation *, int>> cutPoints;
-    // temp: for group with only 1 op, generate tl_lw_xxxop 
+    // temp: for group with only 1 op, generate tl_lw_xxxop
     // so that we can use weight compression.
     // TO-DO: support tg conv with weight compress
     if ((group.size() == 1) && isFusionOp(group[0], batchSize_)) {
@@ -482,7 +482,7 @@ void DeepFusionGroupSlice::doGroup(FuncOp &fn,
     if (isa<tpu::LoadWeightOp>(opInst))
       return;
     if (isa<tpu::InputOp>(opInst)) {
-      for (auto &use : opInst->getResult(0)->getUses()) {
+      for (auto &use : opInst->getResult(0).getUses()) {
         skippedOps_.push_back(use.getOwner());
       }
       return;
@@ -566,7 +566,7 @@ void DeepFusionGroupSlice::tg2TL(std::vector<Operation *> &group) {
   Operation * dstOp = nullptr;
   for (auto op : group) {
     setInsertionPoint(op);
-    std::vector<Value *> opds;
+    std::vector<Value> opds;
     opds.push_back(op->getOperand(0));
     genTLOp(op, opds, dstOp, 0, batchSize_);
   }
@@ -603,11 +603,11 @@ void DeepFusionGroupSlice::doSlice(std::vector<Operation *> &group) {
     auto outOpsIter = outOps.begin();
     for (unsigned int j = 0; j < group.size(); j++) {
       auto groupOp = group[j];
-      std::vector<Value *> opds;
+      std::vector<Value> opds;
       for (auto opd : groupOp->getOperands()) {
-        if (isa<tpu::LoadWeightOp>(opd->getDefiningOp()))
+        if (isa<tpu::LoadWeightOp>(opd.getDefiningOp()))
           continue;
-        auto op = opsMap.find(opd->getDefiningOp());
+        auto op = opsMap.find(opd.getDefiningOp());
         if (op != opsMap.end())
           opds.push_back(op->second->getResult(0));
       }
@@ -618,7 +618,7 @@ void DeepFusionGroupSlice::doSlice(std::vector<Operation *> &group) {
       skippedOps_.push_back(dstOp);
       skippedOps_.push_back(groupOp);
 
-      for (auto &use : groupOp->getResult(0)->getUses()) {
+      for (auto &use : groupOp->getResult(0).getUses()) {
         auto iter = find(groupOutOps.begin(), groupOutOps.end(),
                                               use.getOwner());
         if (iter != groupOutOps.end()) {
@@ -676,13 +676,13 @@ void DeepFusionGroupSlice::findInOutOps(std::vector<Operation *> group,
   std::vector<Operation *> outOps;
   for (auto op : group) {
     for (auto opd : op->getOperands()) {
-      if (isa<tpu::LoadWeightOp>(opd->getDefiningOp()))
+      if (isa<tpu::LoadWeightOp>(opd.getDefiningOp()))
         continue;
-      auto iter = std::find(inOps.begin(), inOps.end(), opd->getDefiningOp());
+      auto iter = std::find(inOps.begin(), inOps.end(), opd.getDefiningOp());
       if (iter == inOps.end())
-        inOps.push_back(opd->getDefiningOp());
+        inOps.push_back(opd.getDefiningOp());
     }
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       auto iter = std::find(group.begin(), group.end(), use.getOwner());
       if (iter == group.end())
         outOps.push_back(use.getOwner());
@@ -707,13 +707,13 @@ void DeepFusionGroupSlice::insertSliceOp(
   int64_t n, c, h, w;
   shape = getTensorShape(op->getResult(0));
   getNCHW(shape, n, c, h, w);
-  auto tensorType = op->getResult(0)->getType().cast<RankedTensorType>();
+  auto tensorType = op->getResult(0).getType().cast<RankedTensorType>();
   auto resultType = RankedTensorType::get(
                                    {curN, c, h, w},
                                    tensorType.getElementType());
 
   int offset = sliceIdx * ceiling_func(batchSize_, nSecs_);
-  std::vector<Value *> sliceOperands;
+  std::vector<Value> sliceOperands;
   sliceOperands.push_back(op->getResult(0));
 
   std::vector<NamedAttribute> attrs;
@@ -729,13 +729,13 @@ void DeepFusionGroupSlice::insertSliceOp(
 
   sliceOp = OpBuilder(getInsertionPoint()).create<tpu::TG_INT8_SliceOp>(
                       op->getLoc(),
-                      resultType, ArrayRef<Value *>{sliceOperands},
+                      resultType, ArrayRef<Value>{sliceOperands},
                       ArrayRef<NamedAttribute>{attrs});
   sliceOpPair.second = sliceOp;
 }
 
 void DeepFusionGroupSlice::genTLOp(Operation *srcOp,
-                                  std::vector<Value *> opds,
+                                  std::vector<Value> opds,
                                   Operation *&dstOp, int loopIdx, int curN) {
   if (isa<tpu::TG_INT8_PC_Conv2DOp>(srcOp)) {
     genTLConvOp(srcOp, opds, dstOp, loopIdx, curN);
@@ -755,7 +755,7 @@ void DeepFusionGroupSlice::genTLOp(Operation *srcOp,
 }
 
 void DeepFusionGroupSlice::genTLLutOp(Operation *srcOp,
-                                     std::vector<Value *> opds,
+                                     std::vector<Value> opds,
                                      Operation *&dstOp, int loopIdx, int curN) {
   Builder builder(context_);
   bool bSlice = (curN == batchSize_) ? false : true;
@@ -764,12 +764,12 @@ void DeepFusionGroupSlice::genTLLutOp(Operation *srcOp,
   int64_t n, c, h, w;
   shape = getTensorShape(srcOp->getResult(0));
   getNCHW(shape, n, c, h, w);
-  auto tensorType = srcOp->getResult(0)->getType().cast<RankedTensorType>();
+  auto tensorType = srcOp->getResult(0).getType().cast<RankedTensorType>();
   auto resultType = RankedTensorType::get(
                                    {curN, c, h, w},
                                    tensorType.getElementType());
 
-  std::vector<Value *> operands;
+  std::vector<Value> operands;
   operands.push_back(opds[0]);
   operands.push_back(op.getOperand(1));
   operands.push_back(op.getOperand(2));
@@ -791,7 +791,7 @@ void DeepFusionGroupSlice::genTLLutOp(Operation *srcOp,
 
   dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_LutOp>(
                       srcOp->getLoc(), resultType,
-                      ArrayRef<Value *>{operands},
+                      ArrayRef<Value>{operands},
                       ArrayRef<NamedAttribute>{attrs});
   if (!bSlice) {
     srcOp->replaceAllUsesWith(dstOp);
@@ -800,7 +800,7 @@ void DeepFusionGroupSlice::genTLLutOp(Operation *srcOp,
 
 template<typename srcOpTy, typename dstOpTy>
 void DeepFusionGroupSlice::genTLEltwiseOp(Operation *srcOp,
-                                         std::vector<Value *> opds,
+                                         std::vector<Value> opds,
                                          Operation *&dstOp,
                                          int loopIdx, int curN) {
   Builder builder(context_);
@@ -810,12 +810,12 @@ void DeepFusionGroupSlice::genTLEltwiseOp(Operation *srcOp,
   int64_t n, c, h, w;
   shape = getTensorShape(srcOp->getResult(0));
   getNCHW(shape, n, c, h, w);
-  auto tensorType = srcOp->getResult(0)->getType().cast<RankedTensorType>();
+  auto tensorType = srcOp->getResult(0).getType().cast<RankedTensorType>();
   auto resultType = RankedTensorType::get(
                                    {curN, c, h, w},
                                    tensorType.getElementType());
 
-  std::vector<Value *> operands;
+  std::vector<Value> operands;
   if (opds.size() == 1) {
     operands.push_back(opds[0]);
     operands.push_back(op.getOperand(1));
@@ -862,7 +862,7 @@ void DeepFusionGroupSlice::genTLEltwiseOp(Operation *srcOp,
 
   dstOp = OpBuilder(getInsertionPoint()).create<dstOpTy>(
                       srcOp->getLoc(), resultType,
-                      ArrayRef<Value *>{operands},
+                      ArrayRef<Value>{operands},
                       ArrayRef<NamedAttribute>{attrs});
   if (!bSlice) {
     srcOp->replaceAllUsesWith(dstOp);
@@ -870,7 +870,7 @@ void DeepFusionGroupSlice::genTLEltwiseOp(Operation *srcOp,
 }
 
 void DeepFusionGroupSlice::genTLPoolAvgOp(Operation *srcOp,
-                                         std::vector<Value *> opds,
+                                         std::vector<Value> opds,
                                          Operation *&dstOp,
                                          int loopIdx, int curN) {
   Builder builder(context_);
@@ -880,12 +880,12 @@ void DeepFusionGroupSlice::genTLPoolAvgOp(Operation *srcOp,
   int64_t n, c, h, w;
   shape = getTensorShape(srcOp->getResult(0));
   getNCHW(shape, n, c, h, w);
-  auto tensorType = srcOp->getResult(0)->getType().cast<RankedTensorType>();
+  auto tensorType = srcOp->getResult(0).getType().cast<RankedTensorType>();
   auto resultType = RankedTensorType::get(
                                    {curN, c, h, w},
                                    tensorType.getElementType());
 
-  std::vector<Value *> operands;
+  std::vector<Value> operands;
   operands.push_back(opds[0]);
 
   std::vector<NamedAttribute> attrs;
@@ -914,7 +914,7 @@ void DeepFusionGroupSlice::genTLPoolAvgOp(Operation *srcOp,
 
   dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_PoolAvg2DOp>(
                       srcOp->getLoc(), resultType,
-                      ArrayRef<Value *>{operands},
+                      ArrayRef<Value>{operands},
                       ArrayRef<NamedAttribute>{attrs});
   if (!bSlice) {
     srcOp->replaceAllUsesWith(dstOp);
@@ -922,7 +922,7 @@ void DeepFusionGroupSlice::genTLPoolAvgOp(Operation *srcOp,
 }
 
 void DeepFusionGroupSlice::genTLConvOp(Operation *srcOp,
-                                      std::vector<Value *> opds,
+                                      std::vector<Value> opds,
                                       Operation *&dstOp,
                                       int loopIdx, int curN) {
   Builder builder(context_);
@@ -932,12 +932,12 @@ void DeepFusionGroupSlice::genTLConvOp(Operation *srcOp,
   int64_t n, c, h, w;
   shape = getTensorShape(srcOp->getResult(0));
   getNCHW(shape, n, c, h, w);
-  auto tensorType = srcOp->getResult(0)->getType().cast<RankedTensorType>();
+  auto tensorType = srcOp->getResult(0).getType().cast<RankedTensorType>();
   auto resultType = RankedTensorType::get(
                                    {curN, c, h, w},
                                    tensorType.getElementType());
 
-  std::vector<Value *> operands;
+  std::vector<Value> operands;
   operands.push_back(opds[0]);
   operands.push_back(op.getOperand(1));
   operands.push_back(op.getOperand(2));
@@ -971,7 +971,7 @@ void DeepFusionGroupSlice::genTLConvOp(Operation *srcOp,
 
   dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_LA_Conv2DOp>(
                       srcOp->getLoc(), resultType,
-                      ArrayRef<Value *>{operands},
+                      ArrayRef<Value>{operands},
                       ArrayRef<NamedAttribute>{attrs});
   if (!bSlice) {
     srcOp->replaceAllUsesWith(dstOp);
@@ -979,7 +979,7 @@ void DeepFusionGroupSlice::genTLConvOp(Operation *srcOp,
 }
 
 void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
-                                              std::vector<Value *> opds,
+                                              std::vector<Value> opds,
                                               Operation *&dstOp,
                                               int loopIdx, int curN) {
   Builder builder(context_);
@@ -989,12 +989,12 @@ void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
   int64_t n, c, h, w;
   shape = getTensorShape(srcOp->getResult(0));
   getNCHW(shape, n, c, h, w);
-  auto tensorType = srcOp->getResult(0)->getType().cast<RankedTensorType>();
+  auto tensorType = srcOp->getResult(0).getType().cast<RankedTensorType>();
   auto resultType = RankedTensorType::get(
                                    {curN, c, h, w},
                                    tensorType.getElementType());
 
-  std::vector<Value *> operands;
+  std::vector<Value> operands;
   operands.push_back(opds[0]);
   if (opds.size() == 2) {
     operands.push_back(opds[1]);
@@ -1041,7 +1041,7 @@ void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
 
   dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_BroadcastMulOp>(
                     srcOp->getLoc(), resultType,
-                    ArrayRef<Value *>{operands},
+                    ArrayRef<Value>{operands},
                     ArrayRef<NamedAttribute>{attrs});
   if (!bSlice) {
     srcOp->replaceAllUsesWith(dstOp);
@@ -1054,7 +1054,7 @@ void DeepFusionGroupSlice::concatOps(
   Builder builder(context_);
   for (unsigned int i = 0; i < outOps.size(); i++) {
     auto outOpVec = outOps[i];
-    std::vector<Value *> operands;
+    std::vector<Value> operands;
     for (auto op: outOpVec)
       operands.push_back(op->getResult(0));
 
@@ -1067,12 +1067,12 @@ void DeepFusionGroupSlice::concatOps(
     auto insertionPoint = getInsertionPoint();
     auto concatOp = OpBuilder(insertionPoint).create<tpu::TG_ConcatNOp>(
                     insertionPoint->getLoc(),
-                    orderedGroupOutOps[i]->getResult(0)->getType(),
-                    ArrayRef<Value *>{operands},
+                    orderedGroupOutOps[i]->getResult(0).getType(),
+                    ArrayRef<Value>{operands},
                     ArrayRef<NamedAttribute>{attrs});
 
     std::vector<Operation *> useOps;
-    for (auto &use : orderedGroupOutOps[i]->getResult(0)->getUses()) {
+    for (auto &use : orderedGroupOutOps[i]->getResult(0).getUses()) {
       auto useOp = use.getOwner();
       useOps.push_back(useOp);
     }
@@ -1086,7 +1086,7 @@ void DeepFusionGroupSlice::concatOps(
 }
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createDeepFusionGroupSlice() {
+std::unique_ptr<mlir::Pass> mlir::createDeepFusionGroupSlice() {
   return std::make_unique<DeepFusionGroupSlice>();
 }
 

@@ -8,11 +8,11 @@
 // pure C++ code
 // -------------
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/Interpreter.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/Interpreter.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"

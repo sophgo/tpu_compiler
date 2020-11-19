@@ -19,15 +19,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -42,7 +42,7 @@
 using namespace mlir;
 
 namespace {
-class AssignLayerIdPass : public FunctionPass<AssignLayerIdPass> {
+class AssignLayerIdPass : public mlir::PassWrapper<AssignLayerIdPass, FunctionPass> {
 public:
   explicit AssignLayerIdPass() {}
 
@@ -55,7 +55,7 @@ public:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createAssignLayerIdPass() {
+std::unique_ptr<mlir::Pass> mlir::createAssignLayerIdPass() {
   return std::make_unique<AssignLayerIdPass>();
 }
 

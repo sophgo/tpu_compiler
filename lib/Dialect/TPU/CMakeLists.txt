@@ -17,7 +17,6 @@ add_llvm_library(MLIRTPU
   IR/TPUCompressUtil.cpp
   IR/TPUCompressUtilTest.cpp
   IR/TPUDialect.cpp
-  IR/WeightFileOp.cpp
   IR/DialectRegistration.cpp
   IR/TPUOperationSupport.cpp
   IR/TPUTensorSupport.cpp
@@ -154,7 +153,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TlMacConst.cpp
   Backend/Kernel/TlSlice.cpp
   ADDITIONAL_HEADER_DIRS
-  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
+  ${MLIR_MAIN_INCLUDE_DIR}/tpuc
 )
 
 if (${USE_GPU})
@@ -215,4 +214,4 @@ add_dependencies(MLIRTPU
   LLVMSupport
 )
 add_subdirectory(Translate)
-add_subdirectory(MemRefLowering)
+#add_subdirectory(MemRefLowering)

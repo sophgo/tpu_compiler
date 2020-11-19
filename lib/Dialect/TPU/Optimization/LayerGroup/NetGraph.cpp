@@ -216,7 +216,7 @@ bool NetGraph::is_concat_special_case(int layer_id, int tid, int cluster_size) {
   if (!op)
     return false;
 
-  const int axis = op.axis().getLimitedValue();
+  const int axis = op.axis();
   assert(axis < 4);
   // if you don't consider the in tensor connected to the concat layer, let tid = -1.
   bool is_tg_layer = false;

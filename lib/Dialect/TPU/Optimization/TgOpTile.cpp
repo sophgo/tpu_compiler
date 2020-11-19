@@ -19,17 +19,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/raw_ostream.h"
@@ -45,7 +45,7 @@
 using namespace mlir;
 
 namespace {
-struct TgOpTilePass : public FunctionPass<TgOpTilePass> {
+struct TgOpTilePass : public mlir::PassWrapper<TgOpTilePass, FunctionPass> {
   void runOnFunction() override {
     MInfo mInfo;
     mInfo.getChipInfo(getFunction());
@@ -65,13 +65,13 @@ struct TgOpTilePass : public FunctionPass<TgOpTilePass> {
     tpu::PopulateConvTilePatterns(&getContext(), &patterns, mInfo);
     tpu::PopulateFullyConnectedTilePatterns(&getContext(), &patterns, mInfo);
     tpu::PopulateSplitPoolPatterns(&getContext(), &patterns, mInfo);
-    applyPatternsGreedily(getFunction(), patterns);
+    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };
 
 } // anonymous namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createTgOpTilePass() {
+std::unique_ptr<mlir::Pass> mlir::createTgOpTilePass() {
   return std::make_unique<TgOpTilePass>();
 }
 

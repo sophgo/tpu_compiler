@@ -19,17 +19,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUCompressUtil.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUCompressUtil.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -85,12 +85,12 @@ static tpu::TL_LG_CopyOp build_tl_copy_op(PatternRewriter &rewriter,
   attrs.push_back(rewriter.getNamedAttr("la_dst", dst_op.laddrAttr()));
   attrs.push_back(rewriter.getNamedAttr("align", dst_op.alignAttr()));
 
-  std::vector<Value *> operands;
+  std::vector<Value> operands;
   operands.push_back(src->getOperand(0));
 
   // build tl_load operation
   auto op = rewriter.create<tpu::TL_LG_CopyOp>(dst->getLoc(),
-          dst_op.getType(), ArrayRef<Value *>{operands},
+          dst_op.getType(), ArrayRef<Value>{operands},
           ArrayRef<NamedAttribute>{attrs});
 
   return op;
@@ -102,41 +102,41 @@ struct EliminateDeadcodePattern : public RewritePattern {
       : RewritePattern("tpu.tl_lg_join", 1, context),
         ctx_(context) {}
 
-  PatternMatchResult
+  LogicalResult
       matchAndRewrite(Operation *op,
                      PatternRewriter &rewriter) const override {
     Operation * tl_join = op;
     Operation * load_op;
     if (tl_join->getNumOperands() != 1)
-      return matchFailure();
-    Operation * store_op = tl_join->getOperand(0)->getDefiningOp();
+      return failure();
+    Operation * store_op = tl_join->getOperand(0).getDefiningOp();
     auto tl_store = dyn_cast<tpu::TL_LG_StoreOp>(store_op);
     if (!tl_store)
-      return matchFailure();
+      return failure();
 
-    if (!(tl_join->getResult(0)->hasOneUse()))
-      return matchFailure();
-    for (auto &use : op->getResult(0)->getUses()) {
+    if (!(tl_join->getResult(0).hasOneUse()))
+      return failure();
+    for (auto &use : op->getResult(0).getUses()) {
       load_op = use.getOwner();
       break;
     }
     // should be join + load, or return fail
     Operation * join_next = tl_join->getNextNode();
     if (join_next != load_op)
-      return matchFailure();
+      return failure();
 
     auto tl_load = dyn_cast<tpu::TL_LG_LoadNeuronOp>(load_op);
     if (!tl_load) {
-      return matchFailure();
+      return failure();
     }
 
     // check tl_store and tl_load's local memory address.
-    int32_t store_laddr = tl_store.laddr()->getLimitedValue();
-    int32_t load_laddr = tl_load.laddr()->getLimitedValue();
+    int32_t store_laddr = tl_store.laddr().getValue();
+    int32_t load_laddr = tl_load.laddr().getValue();
     // if store and load share the same laddr, delete
     // load, store and join op
     if (store_laddr == load_laddr) {
-      tl_load.replaceAllUsesWith(tl_store.getOperand()->getDefiningOp());
+      tl_load.replaceAllUsesWith(tl_store.getOperand().getDefiningOp());
     } else {
       // set disable_parallel to previous op
       Operation * prev_op = store_op->getPrevNode();
@@ -154,14 +154,14 @@ struct EliminateDeadcodePattern : public RewritePattern {
       tl_load.replaceAllUsesWith(tl_copy_op.getResult());
     }
     rewriter.eraseOp(tl_load);
-    return matchSuccess();
+    return success();
   }
 
   MLIRContext * ctx_;
 };
 
 
-class EliminateDeadcodePass : public FunctionPass<EliminateDeadcodePass> {
+class EliminateDeadcodePass : public mlir::PassWrapper<EliminateDeadcodePass, FunctionPass> {
 public:
   explicit EliminateDeadcodePass() {}
 
@@ -174,11 +174,11 @@ public:
     patterns.insert<
         EliminateDeadcodePattern
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 };
 
-std::unique_ptr<OpPassBase<FuncOp>> createEliminateDeadcodePass() {
+std::unique_ptr<mlir::Pass> createEliminateDeadcodePass() {
   return std::make_unique<EliminateDeadcodePass>();
 }
 

@@ -18,20 +18,20 @@
 // This file implements the TPU dialect OP Stats pass.
 //
 //===----------------------------------------------------------------------===//
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "tpuc/Support/TensorFile.h"
+#include "tpuc/TPUOperationSupport.h"
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "tpuc/QuantizationArithmetic.h"
 
 #include <float.h>
 #include <bmkernel/bm_kernel.h>
@@ -142,10 +142,10 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
   TpuGenSqrtTablePattern(MLIRContext *context)
       : RewritePattern("tpu.sqrt", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
     auto sqrtOp = cast<tpu::SqrtOp>(op);
     std::vector<std::unique_ptr<std::vector<float> > > weights(1);
 
@@ -153,7 +153,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
 
     if(sqrtOp.has_table() == true){
       LLVM_DEBUG(llvm::errs() << sqrtOp.name() << " gen already\n";);
-      return matchFailure();
+      return failure();
     }
 
     std::vector<float> y0_table(TBL_SHAPE_INT8);
@@ -202,7 +202,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
   }
 
 
-  std::vector<Value *> newOperands;
+  std::vector<Value> newOperands;
   newOperands.push_back(op->getOperand(0));
 
   // update op
@@ -223,7 +223,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
     attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
     auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
 
     sqrtOp.setAttr("has_table", rewriter.getBoolAttr("true"));
@@ -245,7 +245,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
       sqrtOp.setAttr("has_table", rewriter.getBoolAttr("true"));
       attrs.push_back(rewriter.getNamedAttr("storage",rewriter.getStringAttr("BF16")));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          op->getLoc(), type, ArrayRef<Value>{wfV},
           ArrayRef<NamedAttribute>{attrs});
 
       newOperands.push_back(new_weight_op);
@@ -259,15 +259,15 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
   }
 
     rewriter.replaceOpWithNewOp<tpu::SqrtOp>(
-        sqrtOp, sqrtOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{sqrtOp.getAttrs()});
+        sqrtOp, sqrtOp.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{sqrtOp.getAttrs()});
 
 
-    return matchSuccess();
+    return success();
   }
 };
 
-class GenSqrtTablePass : public FunctionPass<GenSqrtTablePass> {
+class GenSqrtTablePass : public mlir::PassWrapper<GenSqrtTablePass, FunctionPass> {
 public:
   explicit GenSqrtTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -276,7 +276,7 @@ public:
     auto *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<TpuGenSqrtTablePattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -285,7 +285,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createGenSqrtTablePass() {
+std::unique_ptr<mlir::Pass> mlir::createGenSqrtTablePass() {
   return std::make_unique<GenSqrtTablePass>();
 }
 

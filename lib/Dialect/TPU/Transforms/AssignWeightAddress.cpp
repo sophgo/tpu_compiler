@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -55,20 +55,20 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
         alignment_(alignment),
         compressedWeight_(compressedWeight) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
     auto weightOp = cast<OpTy>(op);
     if (weightOp.offset().hasValue()) {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
     // read the tensor
     auto tensor_name = weightOp.name();
     LLVM_DEBUG(llvm::errs() << "tensor name " << tensor_name << "\n";);
 
-    auto type = weightOp.getResult()->getType().template cast<TensorType>();
+    auto type = weightOp.getResult().getType().template cast<TensorType>();
     assert(weightOp.lowered() && "weight op should be set lowered");
     auto curPos = weightBinaryFile_->tell();
     size_t size = 0;
@@ -190,7 +190,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       auto weightData = reinterpret_cast<const char*>(weight_fp32.data());
       weightBinaryFile_->write(weightData, weight_fp32.size() * sizeof(float));
     } else if (weightOp.storage() == "NONE") {
-      return matchSuccess();
+      return success();
     } else {
       llvm::errs() << tensor_name << " weight storage type "
                    << weightOp.storage() << "\n";
@@ -214,11 +214,11 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     // Check whether the weight is used by the convolution which indicate it
     // uses the compressed weight.
     if (compressedWeight_) {
-      for (auto &use : op->getResult(0)->getUses()) {
+      for (auto &use : op->getResult(0).getUses()) {
         auto *useOp = use.getOwner();
         if (auto convOp = dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
           // Weight only, exclude bias.
-          if (convOp.filter()->getDefiningOp() == op &&
+          if (convOp.filter().getDefiningOp() == op &&
               convOp.compressed_weight().hasValue() &&
               convOp.compressed_weight().getValue()){
             // Mark the weight compressed
@@ -229,7 +229,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       }
     }
 
-    return matchSuccess();
+    return success();
   }
 
   llvm::raw_fd_ostream *weightBinaryFile_;
@@ -258,7 +258,7 @@ static llvm::cl::opt<bool> clCompressedWeight(
     llvm::cl::desc("Generate the compressed weight"),
     llvm::cl::init(false));
 
-class AssignWeightAddressPass : public FunctionPass<AssignWeightAddressPass> {
+class AssignWeightAddressPass : public mlir::PassWrapper<AssignWeightAddressPass, FunctionPass> {
 public:
   explicit AssignWeightAddressPass() {}
 
@@ -288,7 +288,7 @@ public:
     >(context,
         &weightBinaryFile, weightMapFile->os(), clWeightAlignment,
         clCompressedWeight);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     weightBinaryFile.close();
 
@@ -300,7 +300,7 @@ public:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createAssignWeightAddressPass() {
+std::unique_ptr<mlir::Pass> mlir::createAssignWeightAddressPass() {
   return std::make_unique<AssignWeightAddressPass>();
 }
 

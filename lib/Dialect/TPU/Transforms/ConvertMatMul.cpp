@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "upsample_to_deconv"
@@ -42,15 +42,15 @@ struct TransposeRightMatrixPattern : public RewritePattern {
   TransposeRightMatrixPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
-    auto leftOp = op->getOperand(0)->getDefiningOp();
-    auto rightOp = op->getOperand(1)->getDefiningOp();
+    auto leftOp = op->getOperand(0).getDefiningOp();
+    auto rightOp = op->getOperand(1).getDefiningOp();
 
-    auto leftType = leftOp->getResult(0)->getType().template cast<TensorType>();
+    auto leftType = leftOp->getResult(0).getType().template cast<TensorType>();
     std::vector<int64_t> leftShape(leftType.getShape());
-    auto rightType = rightOp->getResult(0)->getType().cast<TensorType>();
+    auto rightType = rightOp->getResult(0).getType().cast<TensorType>();
     std::vector<int64_t> rightShape(rightType.getShape());
     int k = leftShape[1];
     bool need_transpose = false;
@@ -60,20 +60,20 @@ struct TransposeRightMatrixPattern : public RewritePattern {
       n = rightShape[0];
     }
     if (!need_transpose) {
-      return matchFailure();
+      return failure();
     }
 
-    std::vector<Value *> operands;
+    std::vector<Value> operands;
     std::vector<NamedAttribute> attrs;
 
-    auto elementType = rightOp->getResult(0)->getType().cast<RankedTensorType>().getElementType();
+    auto elementType = rightOp->getResult(0).getType().cast<RankedTensorType>().getElementType();
 
-    auto prevReshapeOp = rightOp->getOperand(0)->getDefiningOp();
+    auto prevReshapeOp = rightOp->getOperand(0).getDefiningOp();
     if (isa<tpu::ReshapeOp>(prevReshapeOp)) {
-      return matchFailure();
+      return failure();
     }
     auto type = RankedTensorType::get({n, k, 1, 1}, elementType);
-    prevReshapeOp->getResult(0)->setType(type);
+    prevReshapeOp->getResult(0).setType(type);
 
     type = RankedTensorType::get({k, n, 1, 1}, elementType);
     std::string name = getOpName(prevReshapeOp).str() + "_transposed";
@@ -87,7 +87,7 @@ struct TransposeRightMatrixPattern : public RewritePattern {
 
     operands.push_back(prevReshapeOp->getResult(0));
     auto permuteOp = rewriter.create<tpu::PermuteOp>(
-        op->getLoc(), type, ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+        op->getLoc(), type, ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
 
     attrs.clear();
     operands.clear();
@@ -96,10 +96,10 @@ struct TransposeRightMatrixPattern : public RewritePattern {
     operands.push_back(permuteOp);
     type = RankedTensorType::get({k, n}, elementType);
     auto reshapeOp = rewriter.create<tpu::ReshapeOp>(
-        op->getLoc(), type, ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+        op->getLoc(), type, ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
 
     op->setOperand(1, reshapeOp.getResult());
-    return matchSuccess();
+    return success();
   }
 };
 

@@ -725,8 +725,8 @@ void OpEmitter::genAttrGetters() {
 
 // Generates the named operand getter methods for the given Operator `op` and
 // puts them in `opClass`.  Uses `rangeType` as the return type of getters that
-// return a range of operands (individual operands are `Value *` and each
-// element in the range must also be `Value *`); use `rangeBeginCall` to get an
+// return a range of operands (individual operands are `Value` and each
+// element in the range must also be `Value`); use `rangeBeginCall` to get an
 // iterator to the beginning of the operand range; use `rangeSizeCall` to obtain
 // the number of operands. `getOperandCallPattern` contains the code necessary
 // to obtain a single operand whose position will be substituted instead of
@@ -802,7 +802,7 @@ static void generateNamedOperandGetters(const Operator &op, Class &opClass,
       auto &m = opClass.newMethod(rangeType, operand.name);
       m.body() << "  return getODSOperands(" << i << ");";
     } else {
-      auto &m = opClass.newMethod("Value *", operand.name);
+      auto &m = opClass.newMethod("Value", operand.name);
       m.body() << "  return *getODSOperands(" << i << ").begin();";
     }
   }
@@ -880,7 +880,7 @@ void OpEmitter::genNamedResultGetters() {
       auto &m = opClass.newMethod("Operation::result_range", result.name);
       m.body() << "  return getODSResults(" << i << ");";
     } else {
-      auto &m = opClass.newMethod("Value *", result.name);
+      auto &m = opClass.newMethod("Value", result.name);
       m.body() << "  return *getODSResults(" << i << ").begin();";
     }
   }
@@ -1001,7 +1001,7 @@ void OpEmitter::genUseOperandAsResultTypeCollectiveParamBuilder() {
   }
 
   // Result types
-  SmallVector<std::string, 2> resultTypes(numResults, "operands[0]->getType()");
+  SmallVector<std::string, 2> resultTypes(numResults, "operands[0].getType()");
   body << "  " << builderOpState << ".addTypes({"
        << llvm::join(resultTypes, ", ") << "});\n\n";
 }
@@ -1041,7 +1041,7 @@ void OpEmitter::genUseOperandAsResultTypeSeparateParamBuilder() {
   // Push all result types to the operation state
   const char *index = op.getOperand(0).isVariadic() ? ".front()" : "";
   std::string resultType =
-      formatv("{0}{1}->getType()", getArgumentName(op, 0), index).str();
+      formatv("{0}{1}.getType()", getArgumentName(op, 0), index).str();
   m.body() << "  " << builderOpState << ".addTypes({" << resultType;
   for (int i = 1; i != numResults; ++i)
     m.body() << ", " << resultType;
@@ -1249,7 +1249,7 @@ void OpEmitter::buildParamList(std::string &paramList,
     auto argument = op.getArg(i);
     if (argument.is<tblgen::NamedTypeConstraint *>()) {
       const auto &operand = op.getOperand(numOperands);
-      paramList.append(operand.isVariadic() ? ", ValueRange " : ", Value *");
+      paramList.append(operand.isVariadic() ? ", ValueRange " : ", Value");
       paramList.append(getArgumentName(op, numOperands));
       ++numOperands;
     } else {
@@ -1538,7 +1538,7 @@ void OpEmitter::genOperandResultVerifier(OpMethodBody &body,
       continue;
 
     // Emit a loop to check all the dynamic values in the pack.
-    body << formatv("    for (Value *v : getODS{0}{1}s({2})) {{\n",
+    body << formatv("    for (Value v : getODS{0}{1}s({2})) {{\n",
                     // Capitalize the first letter to match the function name
                     valueKind.substr(0, 1).upper(), valueKind.substr(1),
                     staticValue.index());
@@ -1548,10 +1548,10 @@ void OpEmitter::genOperandResultVerifier(OpMethodBody &body,
     body << "      (void)v;\n"
          << "      if (!("
          << tgfmt(constraint.getConditionTemplate(),
-                  &fctx.withSelf("v->getType()"))
+                  &fctx.withSelf("v.getType()"))
          << ")) {\n"
          << formatv("        return emitOpError(\"{0} #\") << index "
-                    "<< \" must be {1}, but got \" << v->getType();\n",
+                    "<< \" must be {1}, but got \" << v.getType();\n",
                     valueKind, constraint.getDescription())
          << "      }\n" // if
          << "      ++index;\n"
@@ -1693,7 +1693,7 @@ void OpEmitter::genOpAsmInterface() {
 
 namespace {
 // Helper class to emit Op operand adaptors to an output stream.  Operand
-// adaptors are wrappers around ArrayRef<Value *> that provide named operand
+// adaptors are wrappers around ArrayRef<Value> that provide named operand
 // getters identical to those defined in the Op.
 class OpOperandAdaptorEmitter {
 public:
@@ -1709,12 +1709,12 @@ private:
 
 OpOperandAdaptorEmitter::OpOperandAdaptorEmitter(const Operator &op)
     : adapterClass(op.getCppClassName().str() + "OperandAdaptor") {
-  adapterClass.newField("ArrayRef<Value *>", "tblgen_operands");
-  auto &constructor = adapterClass.newConstructor("ArrayRef<Value *> values");
+  adapterClass.newField("ArrayRef<Value>", "tblgen_operands");
+  auto &constructor = adapterClass.newConstructor("ArrayRef<Value> values");
   constructor.body() << "  tblgen_operands = values;\n";
 
   generateNamedOperandGetters(op, adapterClass,
-                              /*rangeType=*/"ArrayRef<Value *>",
+                              /*rangeType=*/"ArrayRef<Value>",
                               /*rangeBeginCall=*/"tblgen_operands.begin()",
                               /*rangeSizeCall=*/"tblgen_operands.size()",
                               /*getOperandCallPattern=*/"tblgen_operands[{0}]");

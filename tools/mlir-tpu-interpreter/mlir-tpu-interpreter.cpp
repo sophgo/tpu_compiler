@@ -21,9 +21,9 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/Interpreter.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/Interpreter.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"

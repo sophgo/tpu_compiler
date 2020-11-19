@@ -19,11 +19,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -33,7 +33,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "mlir/Dialect/TPU/SimpleAnalysis.h"
+#include "tpuc/SimpleAnalysis.h"
 
 using namespace mlir;
 

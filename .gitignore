@@ -9,7 +9,7 @@
 *.jpg
 *.pt
 *.pth
-*log
+*.log
 *cache
 *.cmake
 *.tgz
@@ -19,3 +19,5 @@
 lib/Dialect/TPU/Backend/test/tmp/*
 regression/regression_out/*
 Dockerfile
+build/
+install/

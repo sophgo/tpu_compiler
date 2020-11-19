@@ -19,10 +19,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -34,8 +34,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
-#include "mlir/Dialect/TPU/SimpleAnalysis.h"
+#include "tpuc/MachineInfo.h"
+#include "tpuc/SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-opt"
 
@@ -47,7 +47,7 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
   TpuTL_LA_Conv2DOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_la_conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_LA_Conv2DOp>(opInst);
     assert(op);
@@ -63,7 +63,7 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
                  << ", convert to LW\n";);
 
     assert(op.getNumOperands() == 3 && "support 3 inputs only");
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(op.getOperand(0));
     newOperands.push_back(op.getOperand(1));
     newOperands.push_back(op.getOperand(2));
@@ -98,10 +98,10 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
 
     // create op
     rewriter.replaceOpWithNewOp<tpu::TL_LW_Conv2DOp>(
-        op, op.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+        op, op.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -109,23 +109,23 @@ struct TpuFuseLeakyReluOpPattern : public RewritePattern {
   TpuFuseLeakyReluOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tg_int8_leaky_relu", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto lreluOp = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst);
-    auto prev_op = opInst->getOperand(0)->getDefiningOp();
+    auto prev_op = opInst->getOperand(0).getDefiningOp();
     if (auto convOp = dyn_cast<tpu::TL_LW_Conv2DOp>(prev_op)) {
       int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
       if (lreluOp.m_i8_pos().hasValue()) {
-        pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
-        pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+        pos_m_i8 = lreluOp.m_i8_pos().getValue();
+        pos_rshift = lreluOp.rshift_pos().getValue();
         assert(pos_m_i8);
       } else {
         pos_m_i8 = 0;
         pos_rshift = 0;
       }
       if (lreluOp.m_i8_neg().hasValue()) {
-        neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
-        neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+        neg_m_i8 = lreluOp.m_i8_neg().getValue();
+        neg_rshift = lreluOp.rshift_neg().getValue();
         assert(neg_m_i8);
       } else {
         neg_m_i8 = 0;
@@ -139,10 +139,10 @@ struct TpuFuseLeakyReluOpPattern : public RewritePattern {
       convOp.setAttr("m_i8_neg", rewriter.getI8IntegerAttr(neg_m_i8));
       convOp.setAttr("name", lreluOp.nameAttr());
       rewriter.replaceOp(opInst, {convOp.getResult()});
-      return matchSuccess();
+      return success();
     }
 
-    return matchFailure();
+    return failure();
   }
 };
 
@@ -150,7 +150,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
   TpuTL_LW_Conv2DOp_AssignLAddrPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_lw_conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_LW_Conv2DOp>(opInst);
     //auto loc = op->getLoc();
@@ -165,7 +165,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
     assert (op.lm_layout() != "NONE");
     if (op.la_output() != 0xffffffff) {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
     uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
@@ -209,7 +209,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
                    << ", la_w=" << op.la_working()
                    <<"\n";);
 
-      return matchSuccess();
+      return success();
     }
   }
 };
@@ -219,7 +219,7 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
   TpuTL_EltwiseOp_AssignLAddrPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<OpTy>(opInst);
 
@@ -237,7 +237,7 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
     assert (op.lm_layout() != "NONE");
     if (op.la_output() != 0xffffffff) {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
     uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
@@ -264,7 +264,7 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
                    << ", la_w=" << op.la_working()
                    <<"\n";);
 
-      return matchSuccess();
+      return success();
     }
   }
 };
@@ -274,7 +274,7 @@ struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
   TpuTL_Default_AssignLAddrPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<OpTy>(opInst);
 
@@ -290,7 +290,7 @@ struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
     assert (op.lm_layout() != "NONE");
     if (op.la_output() != 0xffffffff) {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
     uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
@@ -317,7 +317,7 @@ struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
                    << ", la_w=" << op.la_working()
                    <<"\n";);
 
-      return matchSuccess();
+      return success();
     }
   }
 };
@@ -328,18 +328,18 @@ struct TpuInsertFakeLdStPattern : public RewritePattern {
   TpuInsertFakeLdStPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<OpTy>(opInst);
-    auto prevDefOp = opInst->getOperand(0)->getDefiningOp();
+    auto prevDefOp = opInst->getOperand(0).getDefiningOp();
     if (isa<tpu::TL_Fake_LoadOp>(prevDefOp)) {
-      return matchFailure();
+      return failure();
     }
 
     OpBuilder fakeBuilder(opInst);
     std::vector<NamedAttribute> attrs;
 
-    std::vector<Value *> loadOperands;
+    std::vector<Value> loadOperands;
     loadOperands.push_back(opInst->getOperand(0));
 
     std::string loadOpName = mlir::getOpName(op).str() + std::string("_load");
@@ -350,14 +350,14 @@ struct TpuInsertFakeLdStPattern : public RewritePattern {
                                           rewriter.getStringAttr("NONE")));
     fakeBuilder.setInsertionPoint(opInst);
     auto loadOp = fakeBuilder.create<tpu::TL_Fake_LoadOp>(
-                   opInst->getLoc(), opInst->getOperand(0)->getType(),
+                   opInst->getLoc(), opInst->getOperand(0).getType(),
                    loadOperands, attrs);
 
     opInst->replaceUsesOfWith(opInst->getOperand(0), loadOp.getResult());
 
-    std::vector<Value *> storeOperands;
+    std::vector<Value> storeOperands;
     storeOperands.push_back(opInst->getResult(0));
-    auto uses = opInst->getResult(0)->getUses();
+    auto uses = opInst->getResult(0).getUses();
 
     attrs.clear();
     std::string storeOpName = mlir::getOpName(op).str() + std::string("_store");
@@ -367,14 +367,14 @@ struct TpuInsertFakeLdStPattern : public RewritePattern {
                                           rewriter.getStringAttr("NONE")));
     fakeBuilder.setInsertionPointAfter(opInst);
     auto storeOp = fakeBuilder.create<tpu::TL_Fake_StoreOp>(
-                   opInst->getLoc(), opInst->getResult(0)->getType(),
+                   opInst->getLoc(), opInst->getResult(0).getType(),
                    storeOperands, attrs);
 
     for (auto &use : uses) {
       auto useOp = use.getOwner();
       useOp->replaceUsesOfWith(opInst->getResult(0), storeOp.getResult());
     }
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -387,7 +387,7 @@ static bool isLoadCloseToStore(Operation *loadOp) {
   if (!isa<tpu::TL_Fake_StoreOp>(prevOp))
     return false;
 
-  auto defOp = loadOp->getOperand(0)->getDefiningOp();
+  auto defOp = loadOp->getOperand(0).getDefiningOp();
   if (prevOp == defOp)
     return true;
   return false;
@@ -397,17 +397,17 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
   TpuMarkLdStFlagPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_fake_load", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto nextNormalOp = opInst->getNextNode();
     auto nextStoreOp = nextNormalOp->getNextNode();
-    auto prevStoreOp = opInst->getOperand(0)->getDefiningOp();
+    auto prevStoreOp = opInst->getOperand(0).getDefiningOp();
 
     auto curFakeLoadOp = cast<tpu::TL_Fake_LoadOp>(opInst);
     auto nextFakeStoreOp = cast<tpu::TL_Fake_StoreOp>(nextStoreOp);
 
     // handle last store
-    for (auto &use : nextStoreOp->getResult(0)->getUses()) {
+    for (auto &use : nextStoreOp->getResult(0).getUses()) {
       auto useOp = use.getOwner();
       if (!isa<tpu::TL_Fake_LoadOp>(useOp)) {
           nextFakeStoreOp.setAttr("lm_order", rewriter.getStringAttr("O"));
@@ -423,13 +423,13 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
     if (auto prevFakeStoreOp =
              llvm::dyn_cast_or_null<tpu::TL_Fake_StoreOp>(prevStoreOp)) {
       bool isFirstLoad = isLoadCloseToStore(opInst);
-      auto prevNormalOp = prevStoreOp->getOperand(0)->getDefiningOp();
+      auto prevNormalOp = prevStoreOp->getOperand(0).getDefiningOp();
       auto tlPrevNormalOp =
            dyn_cast_or_null<tpu::TpuTLSimpleOpCodegenInterface>(prevNormalOp);
       if (tlPrevNormalOp ) {
         if (isFirstLoad) {
           tlPrevNormalOp.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
-          if (!prevNormalOp->getResult(0)->hasOneUse())
+          if (!prevNormalOp->getResult(0).hasOneUse())
             tlPrevNormalOp.setAttr("tl_store_flag", rewriter.getBoolAttr(true));
         } else {
           tlPrevNormalOp.setAttr("tl_store_flag", rewriter.getBoolAttr(true));
@@ -465,7 +465,7 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
         }
       }
     } else {
-      for (auto &use : opInst->getResult(0)->getUses()) {
+      for (auto &use : opInst->getResult(0).getUses()) {
         auto useOp = use.getOwner();
         auto tlUseOp =
            dyn_cast_or_null<tpu::TpuTLSimpleOpCodegenInterface>(useOp);
@@ -481,7 +481,7 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
       }
     }
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -489,7 +489,7 @@ struct TpuMarkLayoutPattern: public RewritePattern {
   TpuMarkLayoutPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_fake_load", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto normalOp = opInst->getNextNode();
     auto nextFakeOp = normalOp->getNextNode();
@@ -515,7 +515,7 @@ struct TpuMarkLayoutPattern: public RewritePattern {
         assert("unset lm_order");
       }
     }
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -524,7 +524,7 @@ struct TpuDeleteFakeLdStPattern : public RewritePattern {
   TpuDeleteFakeLdStPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     if (auto loadOp = dyn_cast_or_null<tpu::TL_Fake_LoadOp>(opInst)) {
       auto useLoadOp = opInst->getNextNode();
@@ -533,12 +533,12 @@ struct TpuDeleteFakeLdStPattern : public RewritePattern {
       auto opdDefOp = opInst->getPrevNode();
       opInst->replaceAllUsesWith(opdDefOp);
     }
-    return matchSuccess();
+    return success();
   }
 };
 
 
-class DeepFusionOpt : public FunctionPass<DeepFusionOpt> {
+class DeepFusionOpt : public mlir::PassWrapper<DeepFusionOpt, FunctionPass> {
 public:
   explicit DeepFusionOpt() {}
 
@@ -553,7 +553,7 @@ public:
         TpuTL_LA_Conv2DOpPattern,
         TpuFuseLeakyReluOpPattern
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<TpuInsertFakeLdStPattern<tpu::TL_LW_Conv2DOp>,
@@ -563,23 +563,23 @@ public:
                     TpuInsertFakeLdStPattern<tpu::TL_LutOp>,
                     TpuInsertFakeLdStPattern<tpu::TL_BroadcastMulOp>
                    >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<TpuMarkLdStFlagPattern
                    >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<TpuMarkLayoutPattern
                    >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<TpuDeleteFakeLdStPattern<tpu::TL_Fake_LoadOp>,
                     TpuDeleteFakeLdStPattern<tpu::TL_Fake_StoreOp>
                    >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<
@@ -590,13 +590,13 @@ public:
         TpuTL_Default_AssignLAddrPattern<tpu::TL_PoolAvg2DOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_BroadcastMulOp>
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 };
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createDeepFusionOpt() {
+std::unique_ptr<mlir::Pass> mlir::createDeepFusionOpt() {
   return std::make_unique<DeepFusionOpt>();
 }
 

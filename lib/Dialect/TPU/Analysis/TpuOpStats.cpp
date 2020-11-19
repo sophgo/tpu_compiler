@@ -19,9 +19,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -42,11 +42,11 @@ static llvm::cl::opt<std::string> clOpStatsFilename(
     llvm::cl::desc("dump tpu op statistics into a csv file"),
     llvm::cl::init("-"));
 
-class PrintTpuOpStatsPass : public ModulePass<PrintTpuOpStatsPass> {
+class PrintTpuOpStatsPass : public mlir::PassWrapper<PrintTpuOpStatsPass, FunctionPass> {
 public:
   explicit PrintTpuOpStatsPass() {}
 
-  void runOnModule() override {
+  void runOnFunction() override {
     std::unique_ptr<llvm::ToolOutputFile> file = nullptr;
     if (clOpStatsFilename != "-") {
       std::string errorMessage;
@@ -59,7 +59,6 @@ public:
     }
     llvm::raw_ostream &os = file ? file->os() : llvm::errs();
 
-    mlir::ModuleOp module = getModule();
     //mlir::SymbolTable moduleSymTable(module);
     os << "name" << "," << "n" << "," << "g" << ","
        << "ic" << "," << "ih" << "," << "iw" << ","
@@ -69,21 +68,20 @@ public:
        << "mac_count"
        << "\n";
     total_mac_count = 0;
-    for (auto func : module.getOps<FuncOp>()) {
-      func.walk([&](Operation *opInst) {
-        if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
-          dumpConv2DOpParam<tpu::Conv2DOp>(op, os);
-        } else if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
-          dumpConv2DOpParam<tpu::DeConv2DOp>(op, os);
-        } else if (auto op = dyn_cast<tpu::PoolAvg2DOp>(opInst)) {
-          dumpPool2DOpParam<tpu::PoolAvg2DOp>(op, os, true);
-        } else if (auto op = dyn_cast<tpu::PoolMax2DOp>(opInst)) {
-          dumpPool2DOpParam<tpu::PoolMax2DOp>(op, os, false);
-        } else if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
-          dumpFullyConnectedOpParam(op, os);
-        }
-      });
-    }
+    auto func = getFunction();
+    func.walk([&](Operation *opInst) {
+      if (auto op = dyn_cast<tpu::Conv2DOp>(opInst)) {
+        dumpConv2DOpParam<tpu::Conv2DOp>(op, os);
+      } else if (auto op = dyn_cast<tpu::DeConv2DOp>(opInst)) {
+        dumpConv2DOpParam<tpu::DeConv2DOp>(op, os);
+      } else if (auto op = dyn_cast<tpu::PoolAvg2DOp>(opInst)) {
+        dumpPool2DOpParam<tpu::PoolAvg2DOp>(op, os, true);
+      } else if (auto op = dyn_cast<tpu::PoolMax2DOp>(opInst)) {
+        dumpPool2DOpParam<tpu::PoolMax2DOp>(op, os, false);
+      } else if (auto op = dyn_cast<tpu::FullyConnectedOp>(opInst)) {
+        dumpFullyConnectedOpParam(op, os);
+      }
+    });
     LLVM_DEBUG(llvm::dbgs() << "Total MAC Count: " << total_mac_count << "\n");
   }
 
@@ -152,7 +150,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createPrintTpuOpStatsPass() {
+std::unique_ptr<mlir::Pass> mlir::createPrintTpuOpStatsPass() {
   return std::make_unique<PrintTpuOpStatsPass>();
 }
 

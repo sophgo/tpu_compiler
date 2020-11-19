@@ -20,16 +20,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "convert_tile"
@@ -60,7 +60,7 @@ struct TpuTileToUpsamplePattern : public RewritePattern {
   TpuTileToUpsamplePattern(MLIRContext *context)
       : RewritePattern("tpu.tile", 8, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto tileOp = cast<tpu::TileOp>(op);
     std::vector<int32_t> resp1;
@@ -69,22 +69,22 @@ struct TpuTileToUpsamplePattern : public RewritePattern {
     if (resp1 == ones) {
       // if resp = [1,1,1,1], remove this op
       rewriter.replaceOp(op, {op->getOperand(0)});
-      return matchSuccess();
+      return success();
     }
     std::vector<int64_t> shape1;
     int64_t input_size1;
     getTensorShapeAndSize(tileOp.input(), shape1, input_size1);
     if (shape1.size() != 4) {
-      return matchFailure();
+      return failure();
     }
     int axis1 = 0, tile1 = 0;
     if (false == getAxisAndTile(resp1, axis1, tile1) || axis1 < 2) {
-      return matchFailure();
+      return failure();
     }
 
-    auto formerOp = tileOp.getOperand(0)->getDefiningOp();
+    auto formerOp = tileOp.getOperand(0).getDefiningOp();
     if (false == isa<tpu::TileOp>(formerOp)) {
-      return matchFailure();
+      return failure();
     }
     auto tileOp2 = cast<tpu::TileOp>(formerOp);
     std::vector<int32_t> resp2;
@@ -94,20 +94,20 @@ struct TpuTileToUpsamplePattern : public RewritePattern {
     int64_t input_size2;
     getTensorShapeAndSize(tileOp2.input(), shape2, input_size2);
     if (shape2.size() != 4 || shape2[2] != 1 || shape2[3] != 1) {
-      return matchFailure();
+      return failure();
     }
     int axis2 = 0, tile2 = 0;
     if (false == getAxisAndTile(resp2, axis2, tile2) || axis2 < 2) {
-      return matchFailure();
+      return failure();
     }
     if (tile2 != tile1 || axis2 < 2 || axis2 == axis1) {
-      return matchFailure();
+      return failure();
     }
     // remove this op
     std::string op_name =
         tileOp.getAttrOfType<StringAttr>("name").getValue().str();
 
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(tileOp2.getOperand(0));
     std::vector<NamedAttribute> attrs;
     attrs.push_back(
@@ -119,11 +119,11 @@ struct TpuTileToUpsamplePattern : public RewritePattern {
     attrs.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     auto upsampleOp = rewriter.create<tpu::UpsampleOp>(
-        op->getLoc(), tileOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+        op->getLoc(), tileOp.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
     rewriter.replaceOp(tileOp, {upsampleOp.getResult()});
     rewriter.replaceOp(tileOp2, {upsampleOp.getResult()});
-    return matchSuccess();
+    return success();
   }
 };
 

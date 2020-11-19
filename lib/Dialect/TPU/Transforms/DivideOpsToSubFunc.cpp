@@ -18,7 +18,7 @@
 //
 //===----------------------------------------------------------------------===//
 #include <set>
-#include "mlir/Dialect/TPU/DivideOpsToSubFunc.h"
+#include "tpuc/DivideOpsToSubFunc.h"
 
 namespace mlir {
 
@@ -31,7 +31,7 @@ SubFunction::SubFunction(bool tpu, std::vector<Operation *>& ops, int &idx)
   for (auto op : ops) {
     producers.insert(op);
     for (int i = 0; i < (int)op->getNumOperands(); i++) {
-      auto opd = op->getOperand(i)->getDefiningOp();
+      auto opd = op->getOperand(i).getDefiningOp();
       consumers.insert(opd);
     }
   }
@@ -54,7 +54,7 @@ void SubFunction::generateFuncName(int idx) {
 }
 
 static bool isReshapeOpConnectToTpuOp(Operation *op) {
-  for (auto &use : op->getResult(0)->getUses()) {
+  for (auto &use : op->getResult(0).getUses()) {
     auto nextOp = use.getOwner();
     if (llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(nextOp) ||
         llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(nextOp)) {
@@ -101,7 +101,7 @@ std::vector<SubFunction *> SubFunction::divideOpsToSubFunc(FuncOp *fn) {
       }
       // if op is tpu op, push it to group.
       for (unsigned i = 0; i < op->getNumOperands(); i++) {
-        auto opd = op->getOperand(i)->getDefiningOp();
+        auto opd = op->getOperand(i).getDefiningOp();
         if (isa<tpu::LoadWeightOp>(opd) || isa<tpu::NoneOp>(opd)) {
           ops.push_back(opd);
         }
@@ -118,7 +118,7 @@ std::vector<SubFunction *> SubFunction::divideOpsToSubFunc(FuncOp *fn) {
       }
       // if op is cpu op, push it to group.
       for (unsigned i = 0; i < op->getNumOperands(); i++) {
-        auto opd = op->getOperand(i)->getDefiningOp();
+        auto opd = op->getOperand(i).getDefiningOp();
         if (isa<tpu::LoadWeightOp>(opd) || isa<tpu::NoneOp>(opd)) {
           ops.push_back(opd);
         }

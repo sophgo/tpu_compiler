@@ -20,18 +20,18 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "fuse_reshape"
@@ -43,7 +43,7 @@ struct TpuFuseReshapePattern : public RewritePattern {
   TpuFuseReshapePattern(MLIRContext *context)
       : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
     auto outputShapes = getTensorShape(op->getResult(0));
@@ -66,33 +66,33 @@ struct TpuFuseReshapePattern : public RewritePattern {
             << ", inputs " << inputShapes.size()
             << ", outputs " << outputShapes.size()
             << ", remove " << getOpName(op) << "\n");
-        op->getResult(0)->replaceAllUsesWith(op->getOperand(0));
+        op->getResult(0).replaceAllUsesWith(op->getOperand(0));
         rewriter.eraseOp(op);
-        return matchSuccess();
+        return success();
       }
     }
 
     // 2. Remove redundant reshape -> reshape
     //    e.g. input - reshape - reshape - quant => input - quant
-    auto opdOp = op->getOperand(0)->getDefiningOp();
+    auto opdOp = op->getOperand(0).getDefiningOp();
     if (llvm::dyn_cast<tpu::ReshapeOp>(opdOp)) {
       auto opdInputShape = getTensorShape(opdOp->getOperand(0));
 
       if (opdInputShape.size() != outputShapes.size())
-        return matchFailure();
+        return failure();
 
       for (unsigned i = 0; i < outputShapes.size(); ++i)
         if (opdInputShape[i] != outputShapes[i])
-          return matchFailure();
+          return failure();
 
       // Check reshape - reshape has only one use
-      if (std::distance(op->getOperand(0)->use_begin(),
-                        op->getOperand(0)->use_end()) > 1)
-        return matchFailure();
+      if (std::distance(op->getOperand(0).use_begin(),
+                        op->getOperand(0).use_end()) > 1)
+        return failure();
 
-      if (std::distance(op->getResult(0)->use_begin(),
-                        op->getResult(0)->use_end()) > 1)
-        return matchFailure();
+      if (std::distance(op->getResult(0).use_begin(),
+                        op->getResult(0).use_end()) > 1)
+        return failure();
 
       LLVM_DEBUG(llvm::dbgs()
           << "ReshapePattern: " << getOpName(op)
@@ -102,14 +102,14 @@ struct TpuFuseReshapePattern : public RewritePattern {
           << ", remove " << getOpName(op)
           << ", " << getOpName(opdOp) << "\n");
 
-      op->getResult(0)->replaceAllUsesWith(op->getOperand(0));
-      opdOp->getResult(0)->replaceAllUsesWith(opdOp->getOperand(0));
+      op->getResult(0).replaceAllUsesWith(op->getOperand(0));
+      opdOp->getResult(0).replaceAllUsesWith(opdOp->getOperand(0));
       rewriter.eraseOp(op);
       rewriter.eraseOp(opdOp);
-      return matchSuccess();
+      return success();
     }
 
-    return matchFailure();
+    return failure();
   }
 };
 
@@ -119,37 +119,37 @@ struct TpuReshapeReduceMaxPattern : public RewritePattern {
   TpuReshapeReduceMaxPattern(MLIRContext *context)
       : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
     auto outputShapes = getTensorShape(op->getResult(0));
     auto inputShapes = getTensorShape(op->getOperand(0));
 
     if (outputShapes.size() != 5)
-      return matchFailure();
+      return failure();
 
-    if (std::distance(op->getResult(0)->use_begin(),
-                      op->getResult(0)->use_end()) != 1) {
-      return matchFailure();
+    if (std::distance(op->getResult(0).use_begin(),
+                      op->getResult(0).use_end()) != 1) {
+      return failure();
     }
 
     Operation *nextOp = nullptr;
     std::vector<int32_t> axes_array;
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       if (auto tpuOp = llvm::dyn_cast<tpu::ReduceMaxOp>(use.getOwner())) {
         nextOp = tpuOp.getOperation();
         if (tpuOp.axes().hasValue())
           arrayAttrToVector(tpuOp.axes().getValue(), axes_array);
         break;
       } else
-        return matchFailure();
+        return failure();
     }
 
     if (axes_array.size() != 1)
-      return matchFailure();
+      return failure();
 
     if (outputShapes[axes_array[0]] != 1)
-      return matchFailure();
+      return failure();
 
     LLVM_DEBUG(llvm::dbgs()
       << "ReshapeReduceMaxPattern: " << getOpName(op)
@@ -159,12 +159,12 @@ struct TpuReshapeReduceMaxPattern : public RewritePattern {
       << ", remove " << getOpName(op)
       << ", " << getOpName(nextOp) << "\n");
 
-    nextOp->getResult(0)->replaceAllUsesWith(nextOp->getOperand(0));
-    op->getResult(0)->replaceAllUsesWith(op->getOperand(0));
+    nextOp->getResult(0).replaceAllUsesWith(nextOp->getOperand(0));
+    op->getResult(0).replaceAllUsesWith(op->getOperand(0));
     rewriter.eraseOp(op);
     rewriter.eraseOp(nextOp);
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -175,24 +175,24 @@ struct TpuDReshapeReduceMaxPattern : public RewritePattern {
   TpuDReshapeReduceMaxPattern(MLIRContext *context)
       : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
     auto outputShapes = getTensorShape(op->getResult(0));
     auto inputShapes = getTensorShape(op->getOperand(0));
 
     if (outputShapes.size() != 5)
-      return matchFailure();
+      return failure();
 
-    if (std::distance(op->getResult(0)->use_begin(),
-                      op->getResult(0)->use_end()) != 2) {
-      return matchFailure();
+    if (std::distance(op->getResult(0).use_begin(),
+                      op->getResult(0).use_end()) != 2) {
+      return failure();
     }
 
     Operation *nextOp = nullptr, *nextOp2 = nullptr;
     std::vector<int64_t> nextShapes;
     std::vector<int32_t> axes_array;
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       if (auto tpuOp = llvm::dyn_cast<tpu::ReduceMaxOp>(use.getOwner())) {
         nextOp = tpuOp.getOperation();
         if (tpuOp.axes().hasValue())
@@ -202,21 +202,21 @@ struct TpuDReshapeReduceMaxPattern : public RewritePattern {
         nextOp2 = tpuOp.getOperation();
         nextShapes = getTensorShape(nextOp2->getResult(0));
       } else
-        return matchFailure();
+        return failure();
     }
 
     if (axes_array.size() != 1)
-      return matchFailure();
+      return failure();
 
     if (inputShapes.size() != nextShapes.size())
-      return matchFailure();
+      return failure();
 
     for (unsigned i = 0; i < inputShapes.size(); ++i)
       if (inputShapes[i] != nextShapes[i])
-        return matchFailure();
+        return failure();
 
     if (outputShapes[axes_array[0]] != 1)
-      return matchFailure();
+      return failure();
 
     LLVM_DEBUG(llvm::dbgs()
       << "DReshapeReduceMaxPattern: " << getOpName(op)
@@ -227,18 +227,18 @@ struct TpuDReshapeReduceMaxPattern : public RewritePattern {
       << ", " << getOpName(nextOp)
       << ", " << getOpName(nextOp2) << "\n");
 
-    nextOp2->getResult(0)->replaceAllUsesWith(nextOp2->getOperand(0));
-    nextOp->getResult(0)->replaceAllUsesWith(nextOp->getOperand(0));
-    op->getResult(0)->replaceAllUsesWith(op->getOperand(0));
+    nextOp2->getResult(0).replaceAllUsesWith(nextOp2->getOperand(0));
+    nextOp->getResult(0).replaceAllUsesWith(nextOp->getOperand(0));
+    op->getResult(0).replaceAllUsesWith(op->getOperand(0));
     rewriter.eraseOp(op);
     rewriter.eraseOp(nextOp);
     rewriter.eraseOp(nextOp2);
 
-    return matchSuccess();
+    return success();
   }
 };
 
-class FuseReshapePass : public FunctionPass<FuseReshapePass> {
+class FuseReshapePass : public mlir::PassWrapper<FuseReshapePass, FunctionPass> {
 public:
   explicit FuseReshapePass() {}
 
@@ -247,7 +247,7 @@ public:
     patterns.insert<TpuFuseReshapePattern>(&getContext());
     patterns.insert<TpuReshapeReduceMaxPattern>(&getContext());
     patterns.insert<TpuDReshapeReduceMaxPattern>(&getContext());
-    applyPatternsGreedily(getFunction(), patterns);
+    applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 
 };
@@ -263,7 +263,7 @@ void tpu::ReshapeOp::getCanonicalizationPatterns(
   >(context);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>>  mlir::createFuseReshapePass() {
+std::unique_ptr<mlir::Pass>  mlir::createFuseReshapePass() {
   return std::make_unique<FuseReshapePass>();
 }
 

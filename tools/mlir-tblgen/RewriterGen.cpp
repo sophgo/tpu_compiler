@@ -224,7 +224,7 @@ void PatternEmitter::emitOpMatch(DagNode tree, int depth) {
   // Skip the operand matching at depth 0 as the pattern rewriter already does.
   if (depth != 0) {
     // Skip if there is no defining operation (e.g., arguments to function).
-    os.indent(indent) << formatv("if (!castedOp{0}) return matchFailure();\n",
+    os.indent(indent) << formatv("if (!castedOp{0}) return failure();\n",
                                  depth);
   }
   if (tree.getNumArgs() != op.getNumArgs()) {
@@ -256,7 +256,7 @@ void PatternEmitter::emitOpMatch(DagNode tree, int depth) {
 
       os.indent(indent + 2) << formatv(
           "auto *op{0} = "
-          "(*castedOp{1}.getODSOperands({2}).begin())->getDefiningOp();\n",
+          "(*castedOp{1}.getODSOperands({2}).begin()).getDefiningOp();\n",
           depth + 1, depth, i);
       emitOpMatch(argTree, depth + 1);
       os.indent(indent + 2)
@@ -304,12 +304,12 @@ void PatternEmitter::emitOperandMatch(DagNode tree, int argIndex, int depth,
         PrintFatalError(loc, error);
       }
       auto self =
-          formatv("(*castedOp{0}.getODSOperands({1}).begin())->getType()",
+          formatv("(*castedOp{0}.getODSOperands({1}).begin()).getType()",
                   depth, argIndex);
       os.indent(indent) << "if (!("
                         << tgfmt(matcher.getConditionTemplate(),
                                  &fmtCtx.withSelf(self))
-                        << ")) return matchFailure();\n";
+                        << ")) return failure();\n";
     }
   }
 
@@ -352,7 +352,7 @@ void PatternEmitter::emitAttributeMatch(DagNode tree, int argIndex, int depth,
     // should just capture a mlir::Attribute() to signal the missing state.
     // That is precisely what getAttr() returns on missing attributes.
   } else {
-    os.indent(indent) << "if (!tblgen_attr) return matchFailure();\n";
+    os.indent(indent) << "if (!tblgen_attr) return failure();\n";
   }
 
   auto matcher = tree.getArgAsLeaf(argIndex);
@@ -368,7 +368,7 @@ void PatternEmitter::emitAttributeMatch(DagNode tree, int argIndex, int depth,
     os.indent(indent) << "if (!("
                       << tgfmt(matcher.getConditionTemplate(),
                                &fmtCtx.withSelf("tblgen_attr"))
-                      << ")) return matchFailure();\n";
+                      << ")) return failure();\n";
   }
 
   // Capture the value
@@ -391,10 +391,10 @@ void PatternEmitter::emitMatchLogic(DagNode tree) {
     auto &entities = appliedConstraint.entities;
 
     auto condition = constraint.getConditionTemplate();
-    auto cmd = "if (!({0})) return matchFailure();\n";
+    auto cmd = "if (!({0})) return failure();\n";
 
     if (isa<TypeConstraint>(constraint)) {
-      auto self = formatv("({0}->getType())",
+      auto self = formatv("({0}.getType())",
                           symbolInfoMap.getValueAndRangeUse(entities.front()));
       os.indent(4) << formatv(cmd,
                               tgfmt(condition, &fmtCtx.withSelf(self.str())));
@@ -476,7 +476,7 @@ void PatternEmitter::emit(StringRef rewriteName) {
 
   // Emit matchAndRewrite() function.
   os << R"(
-  PatternMatchResult matchAndRewrite(Operation *op0,
+  LogicalResult matchAndRewrite(Operation *op0,
                                      PatternRewriter &rewriter) const override {
 )";
 
@@ -509,7 +509,7 @@ void PatternEmitter::emit(StringRef rewriteName) {
   os.indent(4) << "// Rewrite\n";
   emitRewriteLogic();
 
-  os.indent(4) << "return matchSuccess();\n";
+  os.indent(4) << "return success();\n";
   os << "  };\n";
   os << "};\n";
 }
@@ -576,7 +576,7 @@ void PatternEmitter::emitRewriteLogic() {
     os.indent(4) << "rewriter.eraseOp(op0);\n";
   } else {
     // Process replacement result patterns.
-    os.indent(4) << "SmallVector<Value *, 4> tblgen_repl_values;\n";
+    os.indent(4) << "SmallVector<Value, 4> tblgen_repl_values;\n";
     for (int i = replStartIndex; i < numResultPatterns; ++i) {
       DagNode resultTree = pattern.getResultPattern(i);
       auto val = handleResultPattern(resultTree, offsets[i], 0);
@@ -820,7 +820,7 @@ std::string PatternEmitter::handleOpCreation(DagNode tree, int resultIndex,
   if (numResults != 0) {
     for (int i = 0; i < numResults; ++i)
       os.indent(6) << formatv("for (auto *v : castedOp0.getODSResults({0})) {{"
-                              "tblgen_types.push_back(v->getType()); }\n",
+                              "tblgen_types.push_back(v.getType()); }\n",
                               resultIndex + i);
   }
   os.indent(6) << formatv("{0} = rewriter.create<{1}>(loc, tblgen_types, "
@@ -835,8 +835,8 @@ void PatternEmitter::createSeparateLocalVarsForOpArgs(
   Operator &resultOp = node.getDialectOp(opMap);
 
   // Now prepare operands used for building this op:
-  // * If the operand is non-variadic, we create a `Value*` local variable.
-  // * If the operand is variadic, we create a `SmallVector<Value*>` local
+  // * If the operand is non-variadic, we create a `Value` local variable.
+  // * If the operand is variadic, we create a `SmallVector<Value>` local
   //   variable.
 
   int valueIndex = 0; // An index for uniquing local variable names.
@@ -851,7 +851,7 @@ void PatternEmitter::createSeparateLocalVarsForOpArgs(
     std::string varName;
     if (operand->isVariadic()) {
       varName = formatv("tblgen_values_{0}", valueIndex++);
-      os.indent(6) << formatv("SmallVector<Value *, 4> {0};\n", varName);
+      os.indent(6) << formatv("SmallVector<Value, 4> {0};\n", varName);
       std::string range;
       if (node.isNestedDagArg(argIndex)) {
         range = childNodeNames[argIndex];
@@ -865,7 +865,7 @@ void PatternEmitter::createSeparateLocalVarsForOpArgs(
                               varName);
     } else {
       varName = formatv("tblgen_value_{0}", valueIndex++);
-      os.indent(6) << formatv("Value *{0} = ", varName);
+      os.indent(6) << formatv("Value{0} = ", varName);
       if (node.isNestedDagArg(argIndex)) {
         os << symbolInfoMap.getValueAndRangeUse(childNodeNames[argIndex]);
       } else {
@@ -934,7 +934,7 @@ void PatternEmitter::createAggregateLocalVarsForOpArgs(
   Operator &resultOp = node.getDialectOp(opMap);
 
   os.indent(6) << formatv(
-      "SmallVector<Value *, 4> tblgen_values; (void)tblgen_values;\n");
+      "SmallVector<Value, 4> tblgen_values; (void)tblgen_values;\n");
   os.indent(6) << formatv(
       "SmallVector<NamedAttribute, 4> tblgen_attrs; (void)tblgen_attrs;\n");
 

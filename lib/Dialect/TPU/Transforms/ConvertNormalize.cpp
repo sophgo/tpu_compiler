@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/TPUOperationSupport.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "convert_normalize"
@@ -41,16 +41,16 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
   TpuDecomposeNormalizePattern(MLIRContext *context)
       : RewritePattern("tpu.normalize", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
     auto normalizeOp = cast<tpu::NormalizeOp>(op);
     LLVM_DEBUG(llvm::errs() <<normalizeOp.getOperationName() << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     auto loc = op->getLoc();
-    mlir::Value *input_var = normalizeOp.getOperand(0);
+    mlir::Value input_var = normalizeOp.getOperand(0);
 
     // op_name
     auto nameAttr = normalizeOp.getAttrOfType<StringAttr>("name");
@@ -64,17 +64,17 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     getNCHW(shape, n, c, h, w);
 
     auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        normalizeOp.getOperand(1)->getDefiningOp());
+        normalizeOp.getOperand(1).getDefiningOp());
     assert(weight_op && "weight should be exist");
     auto tensor_name = weight_op.name();
     std::unique_ptr<std::vector<float> >  scale;
 
-    auto type = weight_op.getResult()->getType().cast<TensorType>();
+    auto type = weight_op.getResult().getType().cast<TensorType>();
 
     scale = wTF->readTensor<float>(tensor_name, type);
     wTF->deleteTensor<float>(tensor_name);
 
-    auto result_type = normalizeOp.getResult()->getType();
+    auto result_type = normalizeOp.getResult().getType();
 
     LLVM_DEBUG(llvm::errs() << "Normalize Op tensor_name : "
                             << tensor_name << "\n";);
@@ -89,7 +89,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     // use power op
 
     assert(false&&"not support normalize decompose to power");
-    std::vector<Value *> operands;
+    std::vector<Value> operands;
     operands.push_back(input_var);
 
     // we leverage depthwise to calculat a*x + b,
@@ -125,11 +125,11 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
     auto power_op = rewriter.create<tpu::PowerOp>(
         builder_.getUnknownLoc(), result_type,
-        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs_power});
+        ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs_power});
     auto power_result_var = power_op.getResult();
 #else
     // use eltwise_mul to do power(2)
-    std::vector<Value *> operands_eltwise_power;
+    std::vector<Value> operands_eltwise_power;
     operands_eltwise_power.push_back(input_var);
     operands_eltwise_power.push_back(input_var);
     auto NoneOp = rewriter.create<tpu::NoneOp>(loc,rewriter.getNoneType());
@@ -146,13 +146,13 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
     auto eltwiseMulOp = rewriter.create<tpu::EltwiseMulOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_eltwise_power},
+        ArrayRef<Value>{operands_eltwise_power},
         ArrayRef<NamedAttribute>{attrs_eltwise_power});
     auto power_result_var = eltwiseMulOp.getResult();
 #endif
 
     /// 2. Reduction(using conv2D Op) OP
-    std::vector<Value *> operands_conv;
+    std::vector<Value> operands_conv;
     operands_conv.push_back(power_result_var);
     // - blobs_[0] holds the filter weights
     // - blobs_[1] holds the biases (optional)
@@ -176,7 +176,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
                     rewriter.getStringAttr(filter_name_conv)));
 
     auto weight_tensor = rewriter.create<tpu::LoadWeightOp>(loc, filter_type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
 
     operands_conv.push_back(weight_tensor);
     operands_conv.push_back(NoneOp.getResult());
@@ -210,11 +210,11 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
                          getDefaultQuantParam(rewriter)));
     auto convOp = rewriter.create<tpu::Conv2DOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_conv}, ArrayRef<NamedAttribute>{attrs_conv});
+        ArrayRef<Value>{operands_conv}, ArrayRef<NamedAttribute>{attrs_conv});
     auto conv_result_var = convOp.getResult();
 
     /// 3. Sqrt OP
-    std::vector<Value *> operands_sqrt;
+    std::vector<Value> operands_sqrt;
     operands_sqrt.push_back(conv_result_var);
     operands_sqrt.push_back(NoneOp.getResult()); // quant_table
     operands_sqrt.push_back(NoneOp.getResult()); // quant_table
@@ -228,11 +228,11 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
                          getDefaultQuantParam(rewriter)));
     auto sqrt_op = rewriter.create<tpu::SqrtOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_sqrt}, ArrayRef<NamedAttribute>{attrs_sqrt});
+        ArrayRef<Value>{operands_sqrt}, ArrayRef<NamedAttribute>{attrs_sqrt});
     auto sqrt_result_var = sqrt_op.getResult();
 
     /// 4. Reciprocal OP
-    std::vector<Value *> operands_reciprocal;
+    std::vector<Value> operands_reciprocal;
     operands_reciprocal.push_back(sqrt_result_var);
     operands_reciprocal.push_back(NoneOp.getResult()); // quant_table
     operands_reciprocal.push_back(NoneOp.getResult()); // quant_table
@@ -245,12 +245,12 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
                                getDefaultQuantParam(rewriter)));
     auto reciprocal_op = rewriter.create<tpu::ReciprocalOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_reciprocal},
+        ArrayRef<Value>{operands_reciprocal},
         ArrayRef<NamedAttribute>{attrs_reciprocal});
     auto reciprocal_result_var = reciprocal_op.getResult();
 
     /// 5. Eltwise_Mul OP
-    std::vector<Value *> operands_eltwise_mul;
+    std::vector<Value> operands_eltwise_mul;
     operands_eltwise_mul.push_back(input_var);
     operands_eltwise_mul.push_back(reciprocal_result_var);
     operands_eltwise_mul.push_back(NoneOp.getResult());
@@ -266,12 +266,12 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
 
     auto eltwise_op = rewriter.create<tpu::EltwiseMulOp>(
         loc, result_type,
-        ArrayRef<Value *>{operands_eltwise_mul},
+        ArrayRef<Value>{operands_eltwise_mul},
         ArrayRef<NamedAttribute>{attrs_eltwise_mul});
     auto eltwise_result_var = eltwise_op.getResult();
 
     /// 6. Scale OP
-    std::vector<Value *> operands_scale;
+    std::vector<Value> operands_scale;
     operands_scale.push_back(eltwise_result_var);
 
     auto scale_name = op_name+"_scale_weight";
@@ -283,7 +283,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     scale_weight_attrs.push_back(rewriter.getNamedAttr("name",
                                  rewriter.getStringAttr(scale_name)));
     weight_tensor = rewriter.create<tpu::LoadWeightOp>(loc, scale_type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{scale_weight_attrs});
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{scale_weight_attrs});
     operands_scale.push_back(weight_tensor);
     //no bias , set none
     operands_scale.push_back(NoneOp.getResult());
@@ -292,7 +292,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     scale_attrs.push_back(rewriter.getNamedAttr("name",
                           rewriter.getStringAttr(op_name + "_scale")));
     auto scale_op = rewriter.create<tpu::ScaleOp>(
-        loc, result_type, ArrayRef<Value *>{operands_scale},
+        loc, result_type, ArrayRef<Value>{operands_scale},
         ArrayRef<NamedAttribute>{scale_attrs});
 
     ///
@@ -300,11 +300,11 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     ///
     rewriter.replaceOp(normalizeOp, {scale_op});
 
-    return matchSuccess();
+    return success();
   }
 };
 
-class DecomposeNormalizePass : public FunctionPass<DecomposeNormalizePass> {
+class DecomposeNormalizePass : public mlir::PassWrapper<DecomposeNormalizePass, FunctionPass> {
 public:
   explicit DecomposeNormalizePass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
@@ -314,7 +314,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuDecomposeNormalizePattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -329,7 +329,7 @@ void tpu::NormalizeOp::getCanonicalizationPatterns(
   results.insert<TpuDecomposeNormalizePattern>(context);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createDecomposeNormalizePass() {
+std::unique_ptr<mlir::Pass> mlir::createDecomposeNormalizePass() {
   return std::make_unique<DecomposeNormalizePass>();
 }
 

@@ -1,14 +1,14 @@
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/raw_ostream.h"
@@ -40,7 +40,7 @@ static llvm::cl::opt<bool> clGlobalMemoryReused(
     llvm::cl::init(false));
 
 struct AssignNeuronAddressMemRefPass :
-    public FunctionPass<AssignNeuronAddressMemRefPass> {
+    public mlir::PassWrapper<AssignNeuronAddressMemRefPass, FunctionPass> {
   void runOnFunction() override;
   void handleAllocOp(Operation *opInst);
   void handleDeallocOp(Operation *opInst);
@@ -85,7 +85,7 @@ Operation *AssignNeuronAddressMemRefPass::findTpuOpFromAllocOp(Operation *op) {
 
   // AllocOp has only one result.
   Operation *firstUseOp = nullptr;
-  for (auto &user : op->getResult(0)->getUses()) {
+  for (auto &user : op->getResult(0).getUses()) {
     Operation *userOp = user.getOwner();
     auto lastOperand = userOp->getOperand(userOp->getNumOperands() - 1);
 
@@ -118,7 +118,7 @@ Operation *
 AssignNeuronAddressMemRefPass::findTpuOpFromDeallocOp(Operation *op) {
   // DeallocOp has only on operand.
   Operation *firstUseOp = nullptr;
-  for (auto &user : op->getOperand(0)->getUses()) {
+  for (auto &user : op->getOperand(0).getUses()) {
     Operation *userOp = user.getOwner();
     auto lastOperand = userOp->getOperand(userOp->getNumOperands() - 1);
 
@@ -139,8 +139,8 @@ AssignNeuronAddressMemRefPass::findTpuOpFromDeallocOp(Operation *op) {
 
 static bool isSliceOpSkip(Operation *op) {
   if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
-    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
-    int axis = sliceOp.axis().getLimitedValue();
+    auto type = sliceOp.getResult().getType().template cast<TensorType>();
+    int axis = sliceOp.axis();
     std::vector<int64_t> shape = type.getShape();
     for (int index = 0; index < axis; index++) {
       if (shape[index] != 1) {
@@ -148,8 +148,8 @@ static bool isSliceOpSkip(Operation *op) {
       }
     }
   } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
-    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
-    int axis = sliceOp.axis().getLimitedValue();
+    auto type = sliceOp.getResult().getType().template cast<TensorType>();
+    int axis = sliceOp.axis();
     std::vector<int64_t> shape = type.getShape();
     for (int index = 0; index < axis; index++) {
       if (shape[index] != 1) {
@@ -192,8 +192,8 @@ bool AssignNeuronAddressMemRefPass::isBypassMemoryReuse(Operation *op) {
     return true;
 
   // Bypass not-lowed TG op, especially for multiple outputs.
-  auto allocOp = op->getOperand(op->getNumOperands() - 1)->getDefiningOp();
-  for (auto &user : allocOp->getResult(0)->getUses()) {
+  auto allocOp = op->getOperand(op->getNumOperands() - 1).getDefiningOp();
+  for (auto &user : allocOp->getResult(0).getUses()) {
     Operation *userOp = user.getOwner();
     if (dyn_cast<tpu::TG_MemRefToTensorOp>(userOp)) {
       return true;
@@ -213,7 +213,7 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
     return true;
   } else if (dyn_cast<tpu::TG_MemRef_INT8_SliceOp>(op) ||
              dyn_cast<tpu::TG_MemRef_BF16_SliceOp>(op)) {
-    auto resultType = op->getOperand(op->getNumOperands()-1)->getType();
+    auto resultType = op->getOperand(op->getNumOperands()-1).getType();
     auto memRefType = resultType.dyn_cast<MemRefType>();
     std::vector<int64_t> shape = memRefType.getShape();
     if (false == isSliceOpSkip(op)) {
@@ -238,15 +238,15 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
 
     // Reuse memory when batch = 1
     // if (batch == 1) {
-      auto operandOp = op->getOperand(0)->getDefiningOp();
+      auto operandOp = op->getOperand(0).getDefiningOp();
       if (dyn_cast<AllocOp>(operandOp)) {
         // Previous op is lowed op
-        auto prevOp = findTpuOpFromAllocOp(op->getOperand(0)->getDefiningOp());
+        auto prevOp = findTpuOpFromAllocOp(op->getOperand(0).getDefiningOp());
         assert(prevOp && "Not tpu op belong to allocOp");
         baseGAddr = getOpAddress(prevOp);
       } else if (dyn_cast<tpu::TG_TensorToMemRefOp>(operandOp)) {
         // Previous op is not lowed op
-        auto prevOp = operandOp->getOperand(0)->getDefiningOp();
+        auto prevOp = operandOp->getOperand(0).getDefiningOp();
         baseGAddr = getOpAddress(prevOp);
       } else {
         assert("Unexpected previous Op of SliceOp");
@@ -256,11 +256,11 @@ bool AssignNeuronAddressMemRefPass::isMemoryAliasedOpHandled(Operation *op) {
     uint64_t axis = 0;
     uint64_t offset = 0;
     if (auto tpuOp = dyn_cast<tpu::TG_MemRef_INT8_SliceOp>(op)) {
-      axis = tpuOp.axis().getLimitedValue();
-      offset = tpuOp.offset().getLimitedValue();
+      axis = tpuOp.axis();
+      offset = tpuOp.offset();
     } else if (auto tpuOp = dyn_cast<tpu::TG_MemRef_BF16_SliceOp>(op)) {
-      axis = tpuOp.axis().getLimitedValue();
-      offset = tpuOp.offset().getLimitedValue();
+      axis = tpuOp.axis();
+      offset = tpuOp.offset();
     }
     offset *= dataTypeSize;
     for (uint64_t i = axis + 1; i < shape.size(); ++i) {
@@ -354,7 +354,7 @@ bool AssignNeuronAddressMemRefPass::findNeuronByName(
 }
 
 void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
-  auto resultType = opInst->getResult(0)->getType();
+  auto resultType = opInst->getResult(0).getType();
   auto memRefType = resultType.dyn_cast<MemRefType>();
 
   // Check activation memory space
@@ -434,7 +434,7 @@ void AssignNeuronAddressMemRefPass::handleAllocOp(Operation *opInst) {
 }
 
 void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
-  auto resultType = opInst->getOperand(0)->getType();
+  auto resultType = opInst->getOperand(0).getType();
   auto memRefType = resultType.dyn_cast<MemRefType>();
 
   // Check activation memory space
@@ -481,7 +481,7 @@ void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
 
 void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
   // Reserved space for quantized/de-quantized result.
-  auto resultType = opInst->getResult(0)->getType().dyn_cast<RankedTensorType>();
+  auto resultType = opInst->getResult(0).getType().dyn_cast<RankedTensorType>();
   assert(resultType && "Expect result is ranked tensor type.");
   if (!resultType)
     return;
@@ -574,7 +574,7 @@ void AssignNeuronAddressMemRefPass::runOnFunction() {
   LLVM_DEBUG(llvm::dbgs() << "total neuron size " << pos_ << "\n";);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>>
+std::unique_ptr<mlir::Pass>
 mlir::createAssignNeuronAddressMemRefPass() {
   return std::make_unique<AssignNeuronAddressMemRefPass>();
 }

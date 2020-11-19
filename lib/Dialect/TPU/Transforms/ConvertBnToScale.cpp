@@ -19,15 +19,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "bn_to_scale"
@@ -42,7 +42,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
   TpuBatchNormOpPattern(MLIRContext *context)
       : RewritePattern("tpu.batch_norm", 7, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto bnOp = cast<tpu::BatchNormOp>(op);
     if (isTensorNone(bnOp.bias())) {
@@ -51,13 +51,13 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     else {
       // pspnet BN
       TpuBNOpPattern(op, rewriter);
-      return matchSuccess();
+      return success();
     }
 
     LLVM_DEBUG(llvm::errs() << bnOp.getOperationName() << "\n";);
     auto loc = op->getLoc();
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     // op_name
     std::string op_name =
@@ -68,12 +68,12 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     std::vector<std::unique_ptr<std::vector<float> > > bnWeights(3);
     for (int i = 0; i < 3; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          bnOp.getOperand(i + 1)->getDefiningOp());
+          bnOp.getOperand(i + 1).getDefiningOp());
       assert(weight_op && "weight op should be exist");
       auto tensor_name = weight_op.name();
       LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
                               << tensor_name << "\n";);
-      auto type = weight_op.getResult()->getType().cast<TensorType>();
+      auto type = weight_op.getResult().getType().cast<TensorType>();
       bnWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
       wTF->deleteTensor<float>(tensor_name);
@@ -109,7 +109,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     }
     std::vector<std::vector<float> *> newWeights{ &new_scale, &new_bias };
 
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(bnOp.getOperand(0));
     // add new scale and bias ops
     for (int i = 0; i < 2; ++i) {
@@ -123,7 +123,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("name",
                                rewriter.getStringAttr(tensor_name)));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
@@ -133,10 +133,10 @@ struct TpuBatchNormOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("name",
                              rewriter.getStringAttr(op_name)));
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
-        bnOp, bnOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+        bnOp, bnOp.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -147,7 +147,7 @@ void TpuBNOpPattern(Operation *op, PatternRewriter &rewriter) {
   LLVM_DEBUG(llvm::errs() << bnOp.getOperationName() << "\n";);
   auto loc = op->getLoc();
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   // op_name
   std::string op_name =
@@ -158,12 +158,12 @@ void TpuBNOpPattern(Operation *op, PatternRewriter &rewriter) {
   std::vector<std::unique_ptr<std::vector<float> > > bnWeights(weightNum);
   for (int i = 0; i < weightNum; ++i) {
     auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        bnOp.getOperand(i + 1)->getDefiningOp());
+        bnOp.getOperand(i + 1).getDefiningOp());
     assert(weight_op && "weight op should be exist");
     auto tensor_name = weight_op.name();
     LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
         << tensor_name << "\n";);
-    auto type = weight_op.getResult()->getType().cast<TensorType>();
+    auto type = weight_op.getResult().getType().cast<TensorType>();
     bnWeights[i] = wTF->readTensor<float>(tensor_name, type);
     // delete the tensor from the weight file
     wTF->deleteTensor<float>(tensor_name);
@@ -201,7 +201,7 @@ void TpuBNOpPattern(Operation *op, PatternRewriter &rewriter) {
   }
   std::vector<std::vector<float> *> newWeights{ &new_scale, &new_bias };
 
-  std::vector<Value *> newOperands;
+  std::vector<Value> newOperands;
   newOperands.push_back(bnOp.getOperand(0));
   // add new scale and bias ops
   for (int i = 0; i < 2; ++i) {
@@ -215,7 +215,7 @@ void TpuBNOpPattern(Operation *op, PatternRewriter &rewriter) {
     attrs.push_back(rewriter.getNamedAttr("name",
           rewriter.getStringAttr(tensor_name)));
     auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
   }
 
@@ -226,12 +226,12 @@ void TpuBNOpPattern(Operation *op, PatternRewriter &rewriter) {
         rewriter.getStringAttr(op_name)));
 
   rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
-      bnOp, bnOp.getResult()->getType(),
-      ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+      bnOp, bnOp.getResult().getType(),
+      ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
 
 }
 
-class ConvertBnToScalePass : public FunctionPass<ConvertBnToScalePass> {
+class ConvertBnToScalePass : public mlir::PassWrapper<ConvertBnToScalePass, FunctionPass> {
 public:
   explicit ConvertBnToScalePass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
@@ -242,7 +242,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuBatchNormOpPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -257,7 +257,7 @@ void tpu::BatchNormOp::getCanonicalizationPatterns(
   results.insert<TpuBatchNormOpPattern>(context);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertBnToScalePass() {
+std::unique_ptr<mlir::Pass> mlir::createConvertBnToScalePass() {
   return std::make_unique<ConvertBnToScalePass>();
 }
 

@@ -48,8 +48,8 @@ class MixNet {
  public:
   explicit MixNet(NetGraph* net_graph, FuncOp * fn, MLIRContext * context);
 
-  Value* get_op_from_name(std::string name);
-  void add_opd_to_list(std::string op_name, Value * opd, bool);
+  Value get_op_from_name(std::string name);
+  void add_opd_to_list(std::string op_name, Value opd, bool);
   void set_net_in_tensor(int tensor_id);
   void set_net_out_tensor(int tensor_id);
   void add_group_start_ops(int group_idx, Group* group,
@@ -220,7 +220,7 @@ class MixNet {
   std::vector<int> net_out_tensors_;
   FuncOp * fn_;
   MLIRContext * context_;
-  std::map<std::string, Value *> name_op_map_;
+  std::map<std::string, Value> name_op_map_;
   std::vector<Operation *> parallel_list_;
   Operation * start_op_;
   Operation * weightFileOp_;

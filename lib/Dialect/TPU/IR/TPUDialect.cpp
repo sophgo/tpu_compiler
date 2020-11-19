@@ -19,8 +19,8 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -32,12 +32,20 @@ using namespace mlir;
 using namespace mlir::tpu;
 
 TPUDialect::TPUDialect(MLIRContext *context)
-    : Dialect(getDialectNamespace(), context) {
+    : Dialect(getDialectNamespace(), context, TypeID::get<TPUDialect>()) {
   addOperations<
-      WeightFileOp,
 #define GET_OP_LIST
-#include "mlir/Dialect/TPU/TPUOps.cpp.inc"
+#include "tpuc/Dialect/TPU/TPUOps.cpp.inc"
       >();
+  #if 0
+  addInterfaces<
+    TpuOpCommonInterface,
+    TpuOpQuantInterface,
+    TpuOpLowerInterface,
+    TpuTGOpCodegenInterface,
+    TpuTLSimpleOpCodegenInterface>();
+  #endif
+
 }
 
 static ParseResult parseTG_CallOp(OpAsmParser &parser, OperationState &result) {
@@ -57,6 +65,7 @@ static ParseResult parseTG_CallOp(OpAsmParser &parser, OperationState &result) {
 }
 
 static void print(OpAsmPrinter &p, TG_CallOp op) {
+  #if 0
   SmallVector<Type, 4> resultTypes(op.getResultTypes());
   SmallVector<Type, 8> argTypes(op.getOperandTypes());
   auto callType = FunctionType::get(argTypes, resultTypes, op.getContext());
@@ -67,25 +76,24 @@ static void print(OpAsmPrinter &p, TG_CallOp op) {
   p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"callee"});
   p << " : ";
   p.printType(callType);
+  #endif
 }
 
 
-
-
+namespace mlir {
 #define GET_OP_CLASSES
-#include "mlir/Dialect/TPU/TPUOps.cpp.inc"
+#include "tpuc/Dialect/TPU/TPUOps.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // TPU OpInterface definitions
 //===----------------------------------------------------------------------===//
-#include "mlir/Dialect/TPU/TPUInterface.cpp.inc"
+#include "tpuc/Dialect/TPU/TPUInterface.cpp.inc"
 
 //===----------------------------------------------------------------------===//
 // TPU Struct Attribute definitions
 //===----------------------------------------------------------------------===//
-namespace mlir {
 
-#include "mlir/Dialect/TPU/TPUAttribute.cpp.inc"
+#include "tpuc/Dialect/TPU/TPUAttribute.cpp.inc"
 
 } // namespace mlir
 
@@ -293,6 +301,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_MatMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_MatMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_ConcatNOp)
 
+#if 0
 // TPU TG MemRef Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_MemRef_INT8_BroadcastMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_MemRef_BF16_BroadcastMulOp)
@@ -365,6 +374,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_MemRef_BF16_ZeroMaskOp)
 
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_MemRef_QuantOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_MemRef_ReshapeOp)
+#endif
 
 // TPU TL Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LA_Conv2DOp)
@@ -377,6 +387,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_BroadcastMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_Fake_LoadOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_Fake_StoreOp)
 
+#if 0
 // TPU TL MemRef Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_LA_Conv2DOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_LW_Conv2DOp)
@@ -385,6 +396,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_EltwiseMulOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_LutOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_PoolAvg2DOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_MemRef_BroadcastMulOp)
+#endif
 
 // TPU TL Ops for layer group
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_INT8_AbsOp)
@@ -531,7 +543,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
 
 // quant().zero_point()
 #define DECLARE_GET_OP_QUANT_ZERO_POINT_METHOD(OP) \
-    int OP::getOpQuantZeroPoint() {return quant().zero_point().getValue().getLimitedValue();}
+    int OP::getOpQuantZeroPoint() {return quant().zero_point().getSInt();}
 #define DECLARE_SET_OP_QUANT_ZERO_POINT_METHOD(OP) \
     LogicalResult OP::setOpQuantZeroPoint(int zero_point) { \
       setAttr("quant", \
@@ -629,7 +641,7 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(ZeroMaskOp)
 //
 #define DECLARE_GET_TG_OP_GADDR_METHOD(OP) \
     uint64_t OP::getGAddr() { \
-      return gaddr().getValue().getLimitedValue(); \
+      return gaddr().getValue(); \
     }
 #define DECLARE_SET_TG_OP_GADDR_METHOD(OP) \
     LogicalResult OP::setGAddr(uint64_t gaddr) { \
@@ -821,6 +833,7 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_MatMulOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_MatMulOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_ConcatNOp)
 
+#if 0
 // TG MemRef Op
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_MemRef_INT8_BroadcastMulOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_MemRef_BF16_BroadcastMulOp)
@@ -893,6 +906,7 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_MemRef_BF16_ZeroMaskOp)
 
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_MemRef_QuantOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_MemRef_ReshapeOp)
+#endif
 
 // TL Ops
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_LA_Conv2DOp)
@@ -911,6 +925,7 @@ DECLARE_TL_SIMPLE_CODEGEN_INTERFACE_METHODS(TL_LutOp)
 DECLARE_TL_SIMPLE_CODEGEN_INTERFACE_METHODS(TL_PoolAvg2DOp)
 DECLARE_TL_SIMPLE_CODEGEN_INTERFACE_METHODS(TL_BroadcastMulOp)
 
+#if 0
 // TL MemRef Ops
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_LA_Conv2DOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_LW_Conv2DOp)
@@ -919,6 +934,7 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_EltwiseMulOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_LutOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_PoolAvg2DOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TL_MemRef_BroadcastMulOp)
+#endif
 
 // TL Ops for layer group
 DECLARE_TL_CODEGEN_INTERFACE_METHODS(TL_LG_INT8_AbsOp)
@@ -969,24 +985,24 @@ DECLARE_TL_CODEGEN_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
 
 // Reshape Op
 uint64_t ReshapeOp::getGAddr() {
-  auto prev_op = this->getOperand()->getDefiningOp();
+  auto prev_op = this->getOperand().getDefiningOp();
   return mlir::getOpAddress(prev_op);
 }
 
 LogicalResult ReshapeOp::setGAddr(uint64_t gaddr) {
   assert(false);
-  auto prev_op = this->getOperand()->getDefiningOp();
+  auto prev_op = this->getOperand().getDefiningOp();
   return mlir::setOpAddress(prev_op, gaddr);
 }
 
 StringRef ReshapeOp::getOpQuant() {
-  auto prev_op = this->getOperand()->getDefiningOp();
+  auto prev_op = this->getOperand().getDefiningOp();
   return mlir::getOpQuant(prev_op);
 }
 
 LogicalResult ReshapeOp::setOpQuantMode(StringRef &mode) {
   assert(false);
-  auto prev_op = this->getOperand()->getDefiningOp();
+  auto prev_op = this->getOperand().getDefiningOp();
   return mlir::setOpQuant(prev_op, mode);
 }
 
@@ -1020,7 +1036,7 @@ LogicalResult ReshapeOp::setOpQuantAsymmetric(bool flag) {
 }
 
 float ReshapeOp::getOpQuantThreshold() { \
-  auto prev_op = this->getOperand()->getDefiningOp();
+  auto prev_op = this->getOperand().getDefiningOp();
   return mlir::getOpThreshold(prev_op);
 }
 
@@ -1030,7 +1046,7 @@ LogicalResult ReshapeOp::setOpQuantThreshold(float threshold) {
 }
 
 int ReshapeOp::getOpQuantZeroPoint() {
-  auto prev_op = this->getOperand()->getDefiningOp();
+  auto prev_op = this->getOperand().getDefiningOp();
   return mlir::getOpZeroPoint(prev_op);
 }
 

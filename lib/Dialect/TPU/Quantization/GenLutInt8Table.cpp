@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
 #include <float.h>
@@ -45,18 +45,18 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
   TpuQuantInt8SigmoidOpPattern(MLIRContext *context)
       : RewritePattern("tpu.sigmoid", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto sigOp = cast<tpu::SigmoidOp>(op);
 
     if (getOpQuant(op) != "NONE") {
       LLVM_DEBUG(llvm::errs()
                      << " < " << getOpName(op) << ", quantized already\n";);
-      return matchFailure();
+      return failure();
     }
     assert(getOpQuantParamType(op) == "THRESHOLD");
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     // quantization
     float threshold_x = getPreviousOpThreshold(op);
@@ -104,9 +104,10 @@ struct TpuQuantInt8SigmoidOpPattern : public RewritePattern {
     sigOp.setOperand(1, y0_table_op);
     setOpQuantPerchannel(op, false);
     setOpQuant(op, "INT8");
-    setOpResultType(op->getResult(0), StandardTypes::Integer, 8);
 
-    return matchSuccess();
+    setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+
+    return success();
   }
 };
 #endif
@@ -119,22 +120,22 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
     TpuQuantPowerOpPattern(MLIRContext *context)
       :RewritePattern("tpu.power", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const {
 
     auto powerOp = cast<tpu::PowerOp>(op);
 
     if(powerOp.has_table() == true){
       LLVM_DEBUG(llvm::errs() << powerOp.name() << " gen already\n";);
-      return matchFailure();
+      return failure();
     }
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     std::string op_name = powerOp.getAttrOfType<StringAttr>("name").getValue().str();
     auto result_var = powerOp.getResult();
 
-    llvm::ArrayRef<int64_t> input_shape = result_var->getType().dyn_cast<mlir::TensorType>().getShape();
+    llvm::ArrayRef<int64_t> input_shape = result_var.getType().dyn_cast<mlir::TensorType>().getShape();
     assert(input_shape.size() == 4);
     auto size = input_shape[1];// get channel number
 
@@ -194,7 +195,7 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
     }
 
     // update op
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(powerOp.getOperand(0));
     auto type = RankedTensorType::get(input_shape,FloatType::getF32(rewriter.getContext()));
 
@@ -205,7 +206,7 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
     attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
     auto new_scale_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_scale_op);
 
 
@@ -216,7 +217,7 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
     attrs_shift.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
     attrs_shift.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("INT8")));
     auto new_shift_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs_shift});
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs_shift});
     newOperands.push_back(new_shift_op);
 
     powerOp.setAttr("has_table", rewriter.getBoolAttr("true"));
@@ -231,10 +232,10 @@ struct TpuQuantPowerOpPattern : public RewritePattern {
       }
 
     rewriter.replaceOpWithNewOp<tpu::PowerOp>(
-        powerOp, powerOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{powerOp.getAttrs()});
+        powerOp, powerOp.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{powerOp.getAttrs()});
 
-    return matchSuccess();
+    return success();
   }
 };
 

@@ -20,19 +20,19 @@
 //===----------------------------------------------------------------------===//
 
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Interpreter.h"
-#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
-#include "mlir/Dialect/TPU/CustomOpParam.h"
-#include "mlir/Dialect/TPU/GPUInplementation.h"
-#include "mlir/Dialect/TPU/CpuLayer_DetectionOutput.h"
-#include "mlir/Dialect/TPU/CpuLayer_FasterRCNN.h"
-#include "mlir/Dialect/TPU/CpuLayer_RetinaFaceDetection.h"
-#include "mlir/Dialect/TPU/CpuLayer_YoloDetection.h"
-#include "mlir/Dialect/TPU/CustomOpPlugin.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Interpreter.h"
+#include "tpuc/NativeCpuImplementation.h"
+#include "tpuc/CustomOpParam.h"
+#include "tpuc/GPUInplementation.h"
+#include "tpuc/CpuLayer_DetectionOutput.h"
+#include "tpuc/CpuLayer_FasterRCNN.h"
+#include "tpuc/CpuLayer_RetinaFaceDetection.h"
+#include "tpuc/CpuLayer_YoloDetection.h"
+#include "tpuc/CustomOpPlugin.h"
+#include "tpuc/MachineInfo.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -40,10 +40,10 @@
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Parser.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 
 #include "llvm/ADT/SmallString.h"
 #include "llvm/ADT/StringRef.h"
@@ -81,7 +81,7 @@ static std::vector<std::shared_ptr<std::vector<float> > >
 }
 
 LogicalResult tpu::AbsOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -119,7 +119,7 @@ LogicalResult tpu::AbsOp::interpret(
 }
 
 LogicalResult tpu::BatchNormOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -150,7 +150,7 @@ LogicalResult tpu::BatchNormOp::interpret(
 }
 
 LogicalResult tpu::BroadcastMulOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -166,7 +166,7 @@ LogicalResult tpu::BroadcastMulOp::interpret(
   assert(input_size == size);
   getNCHW(shape, n, c, h, w);
   bool do_relu = this->do_relu();
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
   assert(axis == 1);
 
   // get tensors
@@ -209,7 +209,7 @@ LogicalResult tpu::BroadcastMulOp::interpret(
 }
 
 LogicalResult tpu::ConcatOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -229,7 +229,7 @@ LogicalResult tpu::ConcatOp::interpret(
   int64_t output_nstride = output_shape[1] * output_cstride;
 
   // parse param
-  int concat_axis = this->axis().getLimitedValue();
+  int concat_axis = this->axis();
   LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
 
   size_t nInputs = this->getNumInputs();
@@ -293,7 +293,7 @@ LogicalResult tpu::ConcatOp::interpret(
 
 template <typename OpTy>
 LogicalResult doConv2DOpInterpret(Operation *op,
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto castOp = cast<OpTy>(op);
   assert(castOp);
   bool is_deconv = isa<tpu::DeConv2DOp>(op);
@@ -440,14 +440,14 @@ LogicalResult doConv2DOpInterpret(Operation *op,
 }
 
 LogicalResult tpu::Conv2DOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   return doConv2DOpInterpret<tpu::Conv2DOp>(op, valueMapping);
 }
 
 LogicalResult tpu::DeConv2DOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   return doConv2DOpInterpret<tpu::DeConv2DOp>(op, valueMapping);
@@ -455,7 +455,7 @@ LogicalResult tpu::DeConv2DOp::interpret(
 
 template <typename OpTy>
 LogicalResult doConv3DOpInterpret(Operation *op,
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto castOp = cast<OpTy>(op);
   assert(castOp);
   bool is_deconv = false; // isa<tpu::DeConv3DOp>(op)
@@ -566,14 +566,14 @@ LogicalResult doConv3DOpInterpret(Operation *op,
 }
 
 LogicalResult tpu::Conv3DOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   return doConv3DOpInterpret<tpu::Conv3DOp>(op, valueMapping);
 }
 
 LogicalResult tpu::DilateOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -589,7 +589,7 @@ LogicalResult tpu::DilateOp::interpret(
 
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
-  auto fill_constant = this->fill_constant().getLimitedValue();
+  auto fill_constant = this->fill_constant();
 
   // get is dilate activation
   std::vector<int32_t> ins;
@@ -622,7 +622,7 @@ LogicalResult tpu::DilateOp::interpret(
 }
 
 LogicalResult tpu::CropOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -653,7 +653,7 @@ LogicalResult tpu::CropOp::interpret(
 }
 
 LogicalResult tpu::DetectionOutputOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -667,10 +667,10 @@ LogicalResult tpu::DetectionOutputOp::interpret(
 
   assert(output_shape.size() <= 4);
 
-    int num_classes_ = this->num_classes().getLimitedValue();
+    int num_classes_ = this->num_classes();
     bool share_location_ = this->share_location();
     int num_loc_classes_ = share_location_ ? 1 : num_classes_;
-    int background_label_id_ = this->background_label_id().getLimitedValue();
+    int background_label_id_ = this->background_label_id();
     Decode_CodeType code_type_;
     if(this->code_type() == "CORNER"){
       code_type_ = PriorBoxParameter_CodeType_CORNER;
@@ -683,19 +683,19 @@ LogicalResult tpu::DetectionOutputOp::interpret(
     }
     bool variance_encoded_in_target_ =  false;
 
-    int keep_top_k_ = this->keep_top_k().getLimitedValue();
+    int keep_top_k_ = this->keep_top_k();
     float confidence_threshold_ = this->confidence_threshold().convertToFloat();
 
     // Parameters used in nms.
     float nms_threshold_ = this->nms_threshold().convertToFloat();
     float eta_ = 1.0;
-    int top_k_ = this->top_k().getLimitedValue();
+    int top_k_ = this->top_k();
 
-    auto input_type0 = this->input()[0]->getType().cast<TensorType>();
+    auto input_type0 = this->input()[0].getType().cast<TensorType>();
     std::vector<int64_t> i_s0(input_type0.getShape());
-    auto input_type1 = this->input()[1]->getType().cast<TensorType>();
+    auto input_type1 = this->input()[1].getType().cast<TensorType>();
     std::vector<int64_t> i_s1(input_type1.getShape());
-    auto input_type2 = this->input()[2]->getType().cast<TensorType>();
+    auto input_type2 = this->input()[2].getType().cast<TensorType>();
     std::vector<int64_t> i_s2(input_type2.getShape());
     int num = i_s0[0];
     int num_priors_ = i_s2[2]/ 4;
@@ -884,7 +884,7 @@ LogicalResult tpu::DetectionOutputOp::interpret(
 }
 
 static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
-     DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = op->getResult(0);
   auto size = getTensorSize(result);
@@ -996,7 +996,7 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
 }
 
 LogicalResult tpu::ReciprocalOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "Reciprocal";
@@ -1004,7 +1004,7 @@ LogicalResult tpu::ReciprocalOp::interpret(
 }
 
 LogicalResult tpu::SqrtOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "Sqrt";
@@ -1012,7 +1012,7 @@ LogicalResult tpu::SqrtOp::interpret(
 }
 
 LogicalResult tpu::SigmoidOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "Sigmoid";
@@ -1020,7 +1020,7 @@ LogicalResult tpu::SigmoidOp::interpret(
 }
 
 LogicalResult tpu::TanHOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -1029,7 +1029,7 @@ LogicalResult tpu::TanHOp::interpret(
 }
 
 LogicalResult tpu::MishOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -1038,7 +1038,7 @@ LogicalResult tpu::MishOp::interpret(
 }
 
 LogicalResult tpu::ExpOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -1048,7 +1048,7 @@ LogicalResult tpu::ExpOp::interpret(
 
 static LogicalResult doBroadcastOpInterpret(Operation *op,
     StringRef &type, bool do_relu,
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = op->getResult(0);
   auto output_size = getTensorSize(result);
@@ -1175,7 +1175,7 @@ static LogicalResult doBroadcastOpInterpret(Operation *op,
 }
 
 LogicalResult tpu::BroadcastAddOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "ADD";
@@ -1183,7 +1183,7 @@ LogicalResult tpu::BroadcastAddOp::interpret(
 }
 
 LogicalResult tpu::BroadcastSubOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "SUB";
@@ -1192,7 +1192,7 @@ LogicalResult tpu::BroadcastSubOp::interpret(
 
 static LogicalResult doEltwiseOpInterpret(Operation *op,
     StringRef &type, bool do_relu,
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = op->getResult(0);
   // auto size = getTensorSize(result);
@@ -1360,7 +1360,7 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
 }
 
 LogicalResult tpu::EltwiseAddOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "ADD";
@@ -1368,7 +1368,7 @@ LogicalResult tpu::EltwiseAddOp::interpret(
 }
 
 LogicalResult tpu::EltwiseMaxOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "MAX";
@@ -1376,7 +1376,7 @@ LogicalResult tpu::EltwiseMaxOp::interpret(
 }
 
 LogicalResult tpu::EltwiseMinOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "MIN";
@@ -1384,7 +1384,7 @@ LogicalResult tpu::EltwiseMinOp::interpret(
 }
 
 LogicalResult tpu::EltwiseMulOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   StringRef type = "MUL";
@@ -1392,7 +1392,7 @@ LogicalResult tpu::EltwiseMulOp::interpret(
 }
 
 LogicalResult tpu::FullyConnectedOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -1456,7 +1456,7 @@ LogicalResult tpu::FullyConnectedOp::interpret(
 
 
 LogicalResult tpu::GruOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -1501,7 +1501,7 @@ LogicalResult tpu::GruOp::interpret(
 }
 
 LogicalResult tpu::LstmOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -1547,7 +1547,7 @@ LogicalResult tpu::LstmOp::interpret(
 }
 
 LogicalResult tpu::FrcnDetectionOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -1556,7 +1556,7 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
   auto size = getTensorSize(result);
 
   auto resultT = std::make_unique<std::vector<float>>(size, 0);
-  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
   assert(shape.size() == 4);
 
   std::vector<int64_t> rois_shape;
@@ -1567,8 +1567,8 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
   float *rois = (float *)opdT[2]->data();
 
   float *output = (float *)resultT.get()->data();
-  int32_t class_num = this->class_num().getLimitedValue();
-  int32_t keep_topk = this->keep_topk().getLimitedValue();
+  int32_t class_num = this->class_num();
+  int32_t keep_topk = this->keep_topk();
   float nms_threshold = this->nms_threshold().convertToFloat();
   float obj_threshold = this->obj_threshold().convertToFloat();
 
@@ -1645,7 +1645,7 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
 }
 
 LogicalResult tpu::InputOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -1663,7 +1663,7 @@ LogicalResult tpu::InputOp::interpret(
 }
 
 LogicalResult tpu::InterpOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -1673,8 +1673,8 @@ LogicalResult tpu::InterpOp::interpret(
   auto resultT = std::make_unique<std::vector<float> >(size);
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
-  auto pad_beg_ = pad_beg().getLimitedValue();
-  auto pad_end_ = pad_end().getLimitedValue();
+  auto pad_beg_ = pad_beg();
+  auto pad_end_ = pad_end();
 
   std::vector<int64_t> shape;
   int64_t input_size, in, ic, ih, iw;
@@ -1687,24 +1687,24 @@ LogicalResult tpu::InterpOp::interpret(
   int width_in_eff_ = width_in_ + pad_beg_ + pad_end_;
   int height_out_ = -1;
   int width_out_ = -1;
-  if (this->shrink_factor().getLimitedValue() && !this->zoom_factor().getLimitedValue()) {
-    const int shrink_factor = this->shrink_factor().getLimitedValue();
+  if (this->shrink_factor() && !this->zoom_factor()) {
+    const int shrink_factor = this->shrink_factor();
     assert(shrink_factor >= 1 && "Shrink factor must be positive");
     height_out_ = (height_in_eff_ - 1) / shrink_factor + 1;
     width_out_ = (width_in_eff_ - 1) / shrink_factor + 1;
-  } else if (this->zoom_factor().getLimitedValue() &&
-             !this->shrink_factor().getLimitedValue()) {
-    const int zoom_factor = this->zoom_factor().getLimitedValue();
+  } else if (this->zoom_factor() &&
+             !this->shrink_factor()) {
+    const int zoom_factor = this->zoom_factor();
     assert(zoom_factor >= 1 && "Zoom factor must be positive");
     height_out_ = height_in_eff_ + (height_in_eff_ - 1) * (zoom_factor - 1);
     width_out_ = width_in_eff_ + (width_in_eff_ - 1) * (zoom_factor - 1);
-  } else if (this->height().getLimitedValue() && this->width().getLimitedValue()) {
-    height_out_  = this->height().getLimitedValue();
-    width_out_  = this->width().getLimitedValue();
-  } else if (this->zoom_factor().getLimitedValue() &&
-             this->shrink_factor().getLimitedValue()) {
-    const int shrink_factor = this->shrink_factor().getLimitedValue();
-    const int zoom_factor = this->zoom_factor().getLimitedValue();
+  } else if (this->height() && this->width()) {
+    height_out_  = this->height();
+    width_out_  = this->width();
+  } else if (this->zoom_factor() &&
+             this->shrink_factor()) {
+    const int shrink_factor = this->shrink_factor();
+    const int zoom_factor = this->zoom_factor();
     assert(shrink_factor >= 1 && "Shrink factor must be positive");
     assert(zoom_factor >= 1 && "Zoom factor must be positive");
 
@@ -1725,7 +1725,7 @@ LogicalResult tpu::InterpOp::interpret(
 }
 
 LogicalResult tpu::LeakyReluOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -1818,7 +1818,7 @@ LogicalResult tpu::LeakyReluOp::interpret(
 
 template <typename OpTy>
 static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto castOp = dyn_cast<OpTy>(op);
   assert(castOp);
 
@@ -1961,7 +1961,7 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
 
 template <typename OpTy>
 static LogicalResult doPool3DOpInterpret(Operation *op, bool is_average,
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto castOp = dyn_cast<OpTy>(op);
   assert(castOp);
   assert(!is_average && "Only support max pool");
@@ -2045,7 +2045,7 @@ static LogicalResult doPool3DOpInterpret(Operation *op, bool is_average,
 }
 
 LogicalResult tpu::LrnOneOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2066,7 +2066,7 @@ LogicalResult tpu::LrnOneOp::interpret(
   std::shared_ptr<std::vector<float>> input = opdT[0];
   int ret =
       my_lrn_one(input->data(), resultT->data(), n, c, h, w,
-                 local_size().getLimitedValue(), alpha().convertToFloat());
+                 local_size(), alpha().convertToFloat());
   assert(ret == 0);
 
   valueMapping[result] = std::move(resultT);
@@ -2074,7 +2074,7 @@ LogicalResult tpu::LrnOneOp::interpret(
 }
 
 LogicalResult tpu::LrnTwoOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2094,7 +2094,7 @@ LogicalResult tpu::LrnTwoOp::interpret(
   w = input_shape[3];
   std::shared_ptr<std::vector<float>> input = opdT[0];
   int ret = my_lrn_two(input->data(), resultT->data(), n, c, h, w,
-                       local_size().getLimitedValue());
+                       local_size());
   assert(ret == 0);
 
   valueMapping[result] = std::move(resultT);
@@ -2102,7 +2102,7 @@ LogicalResult tpu::LrnTwoOp::interpret(
 }
 
 LogicalResult tpu::LrnThreeOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2130,7 +2130,7 @@ LogicalResult tpu::LrnThreeOp::interpret(
 }
 
 LogicalResult tpu::LrnOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2149,7 +2149,7 @@ LogicalResult tpu::LrnOp::interpret(
   h = input_shape[2];
   w = input_shape[3];
   int ret = 0;
-  std::string quant = getOpQuant();
+  auto quant = getOpQuant();
   std::shared_ptr<std::vector<float>> input = opdT[0];
   if (quant == "NONE") {
     std::shared_ptr<std::vector<float>> scaleT = opdT[3];
@@ -2161,17 +2161,17 @@ LogicalResult tpu::LrnOp::interpret(
     std::shared_ptr<std::vector<float>> power_lut = opdT[2];
     ret = my_lrn_int8(
         input->data(), resultT->data(), n, c, h, w,
-        local_size().getLimitedValue(), sqr_lut->data(), power_lut->data(),
-        sum_rshift().getLimitedValue(), lrn_rshift().getLimitedValue(),
-        quant_data0().getLimitedValue(), quant_data1().getLimitedValue());
+        local_size(), sqr_lut->data(), power_lut->data(),
+        sum_rshift(), lrn_rshift(),
+        quant_data0(), quant_data1());
     assert(ret == 0);
   } else if (quant == "BF16") {
     auto scaleT = std::make_unique<std::vector<float>>(size);
     ret = my_lrn_one(input->data(), scaleT->data(), n, c, h, w,
-                     local_size().getLimitedValue(), alpha().convertToFloat());
+                     local_size(), alpha().convertToFloat());
     assert(ret == 0);
     ret = my_lrn_two(scaleT->data(), resultT->data(), n, c, h, w,
-                     local_size().getLimitedValue());
+                     local_size());
     assert(ret == 0);
     ret = my_lrn_three(resultT->data(), scaleT->data(), n, c, h, w,
                        beta().convertToFloat(), k().convertToFloat());
@@ -2189,7 +2189,7 @@ LogicalResult tpu::LrnOp::interpret(
 }
 
 LogicalResult tpu::NormalizeOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   auto opdT = getOperandTensors(op, valueMapping);
 
@@ -2234,7 +2234,7 @@ LogicalResult tpu::NormalizeOp::interpret(
 }
 
 LogicalResult tpu::PermuteOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2256,10 +2256,10 @@ LogicalResult tpu::PermuteOp::interpret(
   ih = input_shape[2];
   iw = input_shape[3];
 
-  order0 = this->order0().getLimitedValue();
-  order1 = this->order1().getLimitedValue();
-  order2 = this->order2().getLimitedValue();
-  order3 = this->order3().getLimitedValue();
+  order0 = this->order0();
+  order1 = this->order1();
+  order2 = this->order2();
+  order3 = this->order3();
 
   std::shared_ptr<std::vector<float>> input = opdT[0];
   int ret = my_permute(input->data(), resultT->data(), in, ic, ih, iw, order0,
@@ -2270,7 +2270,7 @@ LogicalResult tpu::PermuteOp::interpret(
 }
 
 LogicalResult tpu::PixelShuffleOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2289,7 +2289,7 @@ LogicalResult tpu::PixelShuffleOp::interpret(
 
   int in, ic, ih, iw, on, oc, oh, ow;
 
-  int upscale_factor = this->upscale_factor().getLimitedValue();
+  int upscale_factor = this->upscale_factor();
   std::string mode = this->mode().str();
   bool dcr_mode = false;
 
@@ -2320,7 +2320,7 @@ LogicalResult tpu::PixelShuffleOp::interpret(
 }
 
 LogicalResult tpu::ClipOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2385,21 +2385,21 @@ LogicalResult tpu::ClipOp::interpret(
 }
 
 LogicalResult tpu::PoolAvg2DOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   return doPool2DOpInterpret<tpu::PoolAvg2DOp>(op, true, valueMapping);
 }
 
 LogicalResult tpu::PoolMax2DOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   return doPool2DOpInterpret<tpu::PoolMax2DOp>(op, false, valueMapping);
 }
 
 LogicalResult tpu::PoolMax3DOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   return doPool3DOpInterpret<tpu::PoolMax3DOp>(op, false, valueMapping);
@@ -2407,7 +2407,7 @@ LogicalResult tpu::PoolMax3DOp::interpret(
 }
 
 LogicalResult tpu::PowerOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   //Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2417,8 +2417,8 @@ LogicalResult tpu::PowerOp::interpret(
     assert(false);
     auto opdT = getOperandTensors(opInst, valueMapping);
     auto result = op.getResult();
-    LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump(); llvm::errs() << "\n";);
-    std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+    LLVM_DEBUG(llvm::errs() << "  result "; result.getType().dump(); llvm::errs() << "\n";);
+    std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
     assert(shape.size() <= 4);
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float> >(size);
@@ -2429,9 +2429,9 @@ LogicalResult tpu::PowerOp::interpret(
     float shift = op.shift().convertToFloat();
     //float rshift = op.rshift().getValue().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  power" << power << ", scale " << scale << ", shift " << shift << "\n";);
-    auto input_type = op.x()->getType().cast<TensorType>();
+    auto input_type = op.x().getType().cast<TensorType>();
     std::vector<int64_t> i_s(input_type.getShape());
-    auto output_type = op.y()->getType().cast<TensorType>();
+    auto output_type = op.y().getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
     assert((i_s == o_s) && "input shape not equal to output shape");
     for (uint64_t i = 0; i < i_s.size(); i++) {
@@ -2546,7 +2546,7 @@ LogicalResult tpu::PowerOp::interpret(
 }
 
 LogicalResult tpu::PReluOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2599,7 +2599,7 @@ LogicalResult tpu::PReluOp::interpret(
 }
 
 LogicalResult tpu::PreprocessOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2730,7 +2730,7 @@ LogicalResult tpu::PreprocessOp::interpret(
 }
 
 LogicalResult tpu::PriorBoxOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -2753,14 +2753,14 @@ LogicalResult tpu::PriorBoxOp::interpret(
   float offset = this->offset().convertToFloat();
   float step_w = this->step_w().convertToFloat();
   float step_h = this->step_h().convertToFloat();
-  int num_priors = this->num_priors().getLimitedValue();
-  int img_width = this->img_w().getLimitedValue();
-  int img_height = this->img_h().getLimitedValue();
+  int num_priors = this->num_priors();
+  int img_width = this->img_w();
+  int img_height = this->img_h();
 
   std::vector<int64_t> shape1 =
-      this->getOperand(1)->getType().cast<TensorType>().getShape();
+      this->getOperand(1).getType().cast<TensorType>().getShape();
   std::vector<int64_t> shape0 =
-      this->getOperand(0)->getType().cast<TensorType>().getShape();
+      this->getOperand(0).getType().cast<TensorType>().getShape();
   assert(shape1.size() == 4 && shape0.size() == 4);
   const int layer_width = shape0[3];
   const int layer_height = shape0[2];
@@ -2840,7 +2840,7 @@ LogicalResult tpu::PriorBoxOp::interpret(
     }
   }
 
-  auto output_type = this->output()->getType().cast<TensorType>();
+  auto output_type = this->output().getType().cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
 
   // set the variance.
@@ -2863,7 +2863,7 @@ LogicalResult tpu::PriorBoxOp::interpret(
 }
 
 LogicalResult tpu::ProposalOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -2871,7 +2871,7 @@ LogicalResult tpu::ProposalOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float>>(size);
-  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
   assert(shape.size() == 4);
 
   std::vector<int64_t> score_shape, bbox_shape;
@@ -2886,13 +2886,13 @@ LogicalResult tpu::ProposalOp::interpret(
   float *score = (float *)opdT[0]->data();
   float *bbox_deltas = (float *)opdT[1]->data();
   float *output = (float *)resultT.get()->data();
-  auto net_input_h = this->net_input_h().getLimitedValue();
-  auto net_input_w = this->net_input_w().getLimitedValue();
-  auto feat_stride = this->feat_stride().getLimitedValue();
-  auto anchor_base_size = this->anchor_base_size().getLimitedValue();
+  auto net_input_h = this->net_input_h();
+  auto net_input_w = this->net_input_w();
+  auto feat_stride = this->feat_stride();
+  auto anchor_base_size = this->anchor_base_size();
   auto rpn_obj_threshold = this->rpn_obj_threshold().convertToFloat();
   auto rpn_nms_threshold = this->rpn_nms_threshold().convertToFloat();
-  auto rpn_nms_post_top_n = this->rpn_nms_post_top_n().getLimitedValue();
+  auto rpn_nms_post_top_n = this->rpn_nms_post_top_n();
 
   std::vector<float> anchor_scale = {8, 16, 32};
   std::vector<float> anchor_ratio = {0.5, 1, 2};
@@ -2958,7 +2958,7 @@ LogicalResult tpu::ProposalOp::interpret(
 }
 
 LogicalResult tpu::ReluOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -2996,7 +2996,7 @@ LogicalResult tpu::ReluOp::interpret(
 }
 
 LogicalResult tpu::ReorgOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3004,7 +3004,7 @@ LogicalResult tpu::ReorgOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float>>(size);
-  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
   assert(shape.size() == 4);
 
   std::vector<int64_t> input_shape, output_shape;
@@ -3019,7 +3019,7 @@ LogicalResult tpu::ReorgOp::interpret(
 
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
-  auto stride = this->stride().getLimitedValue();
+  auto stride = this->stride();
   int ret = my_reorg(input, output, stride, n, c, h, w);
 
   assert(ret == 0);
@@ -3030,7 +3030,7 @@ LogicalResult tpu::ReorgOp::interpret(
 }
 
 LogicalResult tpu::ReshapeOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3048,7 +3048,7 @@ LogicalResult tpu::ReshapeOp::interpret(
 }
 
 LogicalResult tpu::RetinaFaceDetectionOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3062,7 +3062,7 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
 
   auto confidence_threshold = this->confidence_threshold().convertToFloat();
   auto nms_threshold = this->nms_threshold().convertToFloat();
-  auto keep_topk = this->keep_topk().getLimitedValue();
+  auto keep_topk = this->keep_topk();
 
   std::vector<AnchorCfg> cfg;
   std::unordered_map<std::string, std::vector<AnchorBox>> um_anchors_fpn;
@@ -3191,7 +3191,7 @@ LogicalResult tpu::RetinaFaceDetectionOp::interpret(
 }
 
 LogicalResult tpu::ROIPoolingOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3199,7 +3199,7 @@ LogicalResult tpu::ROIPoolingOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float>>(size, std::numeric_limits<float>::min());
-  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
   assert(shape.size() == 4);
 
   std::vector<int64_t> rois_shape, data_shape;
@@ -3210,8 +3210,8 @@ LogicalResult tpu::ROIPoolingOp::interpret(
   float *data = (float *)opdT[0]->data();
   float *rois = (float *)opdT[1]->data();
   float *output = (float *)resultT.get()->data();
-  auto pooled_h = this->pooled_h().getLimitedValue();
-  auto pooled_w = this->pooled_w().getLimitedValue();
+  auto pooled_h = this->pooled_h();
+  auto pooled_w = this->pooled_w();
   auto spatial_scale = this->spatial_scale().convertToFloat();
 
   int ret = my_roipooling(data, rois, output, pooled_h, pooled_w, spatial_scale, rois_shape[0],
@@ -3225,7 +3225,7 @@ LogicalResult tpu::ROIPoolingOp::interpret(
 }
 
 LogicalResult tpu::ScaleOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3258,7 +3258,7 @@ LogicalResult tpu::ScaleOp::interpret(
 }
 
 LogicalResult tpu::ShuffleChannelOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3266,7 +3266,7 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float>>(size);
-  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
   assert(shape.size() >= 2);
 
   std::vector<int64_t> input_shape, output_shape;
@@ -3283,7 +3283,7 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
       input_shape.begin() + 2, input_shape.end(), 1, std::multiplies<>());
   float *input = (float *)opdT[0]->data();
   float *output = (float *)resultT.get()->data();
-  uint32_t group = this->group().getLimitedValue();
+  uint32_t group = this->group();
   int ret = my_shuffle_channel(input, output, group, n, c, frame_size);
 
   assert(ret == 0);
@@ -3295,7 +3295,7 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
 
 
 LogicalResult tpu::SliceOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3310,8 +3310,8 @@ LogicalResult tpu::SliceOp::interpret(
   std::vector<int64_t> output_shape;
   int64_t output_size;
   getTensorShapeAndSize(this->output(), output_shape, output_size);
-  int axis = this->axis().getLimitedValue();
-  int offset = this->offset().getLimitedValue();
+  int axis = this->axis();
+  int offset = this->offset();
 
   int ret = my_slice(opdT[0]->data(), resultT->data(), axis, offset,
                      input_shape, output_shape);
@@ -3322,7 +3322,7 @@ LogicalResult tpu::SliceOp::interpret(
 }
 
 LogicalResult tpu::CustomOp::interpret(
-    DenseMap<Value*, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
   auto result = this->getResult();
@@ -3358,7 +3358,7 @@ LogicalResult tpu::CustomOp::interpret(
 }
 
 LogicalResult tpu::SoftmaxOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3369,7 +3369,7 @@ LogicalResult tpu::SoftmaxOp::interpret(
   auto resultT = std::make_unique<std::vector<float> >(size);
 
   // parse param
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
   bool isBf16 = getOpQuant() == "BF16";
 
   if (shape.size() == 2) {
@@ -3401,7 +3401,7 @@ LogicalResult tpu::SoftmaxOp::interpret(
 }
 
 LogicalResult tpu::SoftPlusOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -3410,7 +3410,7 @@ LogicalResult tpu::SoftPlusOp::interpret(
 }
 
 LogicalResult tpu::SoftmaxCpuOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3421,7 +3421,7 @@ LogicalResult tpu::SoftmaxCpuOp::interpret(
   auto resultT = std::make_unique<std::vector<float> >(size);
 
   // parse param
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
 
   if (shape.size() == 2) {
     int ret = my_softmax2D(opdT[0]->data(), resultT->data(), shape[0], shape[1], false);
@@ -3452,7 +3452,7 @@ LogicalResult tpu::SoftmaxCpuOp::interpret(
 }
 
 LogicalResult tpu::SquareOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3485,10 +3485,10 @@ LogicalResult tpu::SquareOp::interpret(
 }
 
 LogicalResult tpu::QuadraticSumOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
   assert(axis == 1);
 
   auto opdT = getOperandTensors(op, valueMapping);
@@ -3528,7 +3528,7 @@ LogicalResult tpu::QuadraticSumOp::interpret(
 }
 
 LogicalResult tpu::MatMulOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3542,11 +3542,11 @@ LogicalResult tpu::MatMulOp::interpret(
   auto opd_left = op->getOperand(0);
   auto opd_right = op->getOperand(1);
 
-  auto left_type = opd_left->getType().template cast<TensorType>();
+  auto left_type = opd_left.getType().template cast<TensorType>();
   std::vector<int64_t> left_shape(left_type.getShape());
-  auto right_type = opd_right->getType().cast<TensorType>();
+  auto right_type = opd_right.getType().cast<TensorType>();
   std::vector<int64_t> right_shape(right_type.getShape());
-  auto output_type = output()->getType().template cast<TensorType>();
+  auto output_type = output().getType().template cast<TensorType>();
   std::vector<int64_t> output_shape(output_type.getShape());
   llvm::errs() << "left:" << left_shape[0] << " " << left_shape[1]
                << " right:" << right_shape[0] << " " << right_shape[1]
@@ -3590,7 +3590,7 @@ LogicalResult tpu::MatMulOp::interpret(
 }
 
 LogicalResult tpu::SwapChannelOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
 
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
@@ -3600,7 +3600,7 @@ LogicalResult tpu::SwapChannelOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float>>(size);
-  std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+  std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
   assert(shape.size() == 4);
 
   std::vector<int64_t> input_shape, output_shape;
@@ -3626,7 +3626,7 @@ LogicalResult tpu::SwapChannelOp::interpret(
 }
 
 LogicalResult tpu::TileOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3659,7 +3659,7 @@ LogicalResult tpu::TileOp::interpret(
 }
 
 LogicalResult tpu::TileInterpOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3722,7 +3722,7 @@ LogicalResult tpu::TileInterpOp::interpret(
 }
 
 LogicalResult tpu::TransposeOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
                           << "]\n";);
@@ -3742,7 +3742,7 @@ LogicalResult tpu::TransposeOp::interpret(
 }
 
 LogicalResult tpu::UpsampleOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3761,8 +3761,8 @@ LogicalResult tpu::UpsampleOp::interpret(
   getTensorShapeAndSize(this->output(), output_shape, output_size);
   oh = output_shape[2];
   ow = output_shape[3];
-  int64_t scale_h = this->scale_h().getLimitedValue();
-  int64_t scale_w = this->scale_w().getLimitedValue();
+  int64_t scale_h = this->scale_h();
+  int64_t scale_w = this->scale_w();
   assert(oh == ih * scale_h);
   assert(ow == iw * scale_w);
 
@@ -3780,7 +3780,7 @@ LogicalResult tpu::UpsampleOp::interpret(
 }
 
 LogicalResult tpu::PadOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3816,7 +3816,7 @@ LogicalResult tpu::PadOp::interpret(
 }
 
 LogicalResult tpu::ReduceMeanOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3857,7 +3857,7 @@ LogicalResult tpu::ReduceMeanOp::interpret(
 
 
 LogicalResult tpu::ReduceMaxOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3902,7 +3902,7 @@ LogicalResult tpu::ReduceMaxOp::interpret(
 }
 
 LogicalResult tpu::YoloDetectionOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -3915,15 +3915,15 @@ LogicalResult tpu::YoloDetectionOp::interpret(
 
   auto batch = output_shape[0];
 
-  int net_input_h = this->net_input_h().getLimitedValue();
-  int net_input_w = this->net_input_w().getLimitedValue();
+  int net_input_h = this->net_input_h();
+  int net_input_w = this->net_input_w();
   float obj_threshold = this->obj_threshold().convertToFloat();
   float nms_threshold = this->nms_threshold().convertToFloat();
-  int keep_topk = this->keep_topk().getLimitedValue();
+  int keep_topk = this->keep_topk();
   bool tiny = this->tiny();
   bool yolo_v4 = this->yolo_v4();
-  int class_num = this->class_num().getLimitedValue();
-  std::string str_anchors = this->anchors();
+  int class_num = this->class_num();
+  std::string str_anchors = this->anchors().str();
   std::vector<float> vec_anchors;
   std::stringstream iss(str_anchors);
   std::string s;
@@ -4025,7 +4025,7 @@ LogicalResult tpu::YoloDetectionOp::interpret(
 }
 
 LogicalResult tpu::ZeroMaskOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -4044,7 +4044,7 @@ LogicalResult tpu::ZeroMaskOp::interpret(
 }
 
 LogicalResult tpu::QuantOp::interpret(
-    DenseMap<Value *, std::shared_ptr<std::vector<float> > > &valueMapping) {
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
@@ -4052,7 +4052,7 @@ LogicalResult tpu::QuantOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float> >(size);
-  int zero_point = this->zero_point().getLimitedValue();
+  int zero_point = this->zero_point();
   bool is_symmetric = zero_point == 0;
   if (this->from() == "NONE" && this->to() == "INT8") {
     float *input = (float *)opdT[0]->data();
@@ -4060,7 +4060,7 @@ LogicalResult tpu::QuantOp::interpret(
     float threshold = this->threshold().getValue().convertToFloat();
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
-    auto prevOp = getOperand()->getDefiningOp();
+    auto prevOp = getOperand().getDefiningOp();
     bool useTpuQuantOp = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
     quantizeActivationInt8WithThreshold(output, input, size, threshold,
                                         useTpuQuantOp && is_symmetric,
@@ -4111,9 +4111,9 @@ std::vector<std::shared_ptr<std::vector<float> > >
     value_map_t &valueMapping) {
   std::vector<std::shared_ptr<std::vector<float> > > opdT;
   for (auto operand : opInst.getOperands()) {
-    if ( !operand->getType().dyn_cast_or_null<RankedTensorType>() ) {
+    if ( !operand.getType().dyn_cast_or_null<RankedTensorType>() ) {
       // this is NoneType
-      // isa<tpu::NoneOp>(operand->getDefiningOp());
+      // isa<tpu::NoneOp>(operand.getDefiningOp());
       opdT.push_back(nullptr);
       continue;
     }
@@ -4201,7 +4201,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
   // set inputs
   auto inputs = getInputsList();
   if (inputs.size() == 1) {
-    std::vector<int64_t> shape = inputs[0]->getType().template cast<TensorType>().getShape();
+    std::vector<int64_t> shape = inputs[0].getType().template cast<TensorType>().getShape();
 
     if (input_shape != shape){
       std::string i_s;
@@ -4215,7 +4215,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
       std::stringstream err_msg;
       err_msg << "input shape(" << i_s << ") v.s. shape(" << r_s
         << ") not the same\n";
-      throw std::runtime_error(err_msg.str());
+      llvm_unreachable(err_msg.str().c_str());
     }
     assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
           std::multiplies<int64_t>()));
@@ -4230,7 +4230,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
     int64_t input_size = (int64_t)input_vec.size();
     int64_t total_input_size = 0;
     for (auto i : inputs) {
-      std::vector<int64_t> shape = i->getType().template cast<TensorType>().getShape();
+      std::vector<int64_t> shape = i.getType().template cast<TensorType>().getShape();
       total_input_size += std::accumulate(shape.begin(), shape.end(), 1,
           std::multiplies<int64_t>());
     }
@@ -4240,12 +4240,12 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
       std::stringstream err_msg;
       err_msg << "input size(" << input_size
         << ") not the same with mlir require("<<total_input_size<<")\n";
-      throw std::runtime_error(err_msg.str());
+      llvm_unreachable(err_msg.str().c_str());
     }
 
     total_input_size = 0;
     for (auto i : inputs) {
-      std::vector<int64_t> shape = i->getType().template cast<TensorType>().getShape();
+      std::vector<int64_t> shape = i.getType().template cast<TensorType>().getShape();
       int64_t shape_sz = std::accumulate(shape.begin(), shape.end(), 1,
           std::multiplies<int64_t>());
 
@@ -4270,7 +4270,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
   assert(results);
   value_map_t resultsMap = getResults();
   for (auto it = resultsMap.begin(); it != resultsMap.end(); it++) {
-    auto op = it->first->getDefiningOp();
+    auto op = it->first.getDefiningOp();
     assert(op);
     auto vec = it->second.get();
     assert(vec);
@@ -4282,7 +4282,7 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
   if (allTensorMap) {
     value_map_t valueMap = getValueMap();
     for (auto it = valueMap.begin(); it != valueMap.end(); it++) {
-      auto op = it->first->getDefiningOp();
+      auto op = it->first.getDefiningOp();
       if (!op) {
         //it->first->dump();
         continue;
@@ -4333,7 +4333,7 @@ LogicalResult runTpuModule(ModuleOp m,
         }
         // TODO: Only support one output tesor for now.
         auto result = op.getResult(0);
-        std::vector<int64_t> shape = result->getType().cast<TensorType>().getShape();
+        std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
         (*shapeMap)[getOpName(&op).str()] = shape;
       }
     }

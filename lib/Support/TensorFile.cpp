@@ -19,7 +19,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 
 using namespace mlir;
 

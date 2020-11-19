@@ -21,10 +21,10 @@
 #include <cmath>
 #include <random>
 #include <sstream>
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -42,7 +42,7 @@ static llvm::cl::opt<std::string> clPseudoCaliTableFilename(
     llvm::cl::desc("save pseudo calibration table file"),
     llvm::cl::init("-"));
 
-class GenPseudoWeightNpzPass : public FunctionPass<GenPseudoWeightNpzPass> {
+class GenPseudoWeightNpzPass : public mlir::PassWrapper<GenPseudoWeightNpzPass, FunctionPass> {
 public:
   explicit GenPseudoWeightNpzPass() {}
 
@@ -110,7 +110,7 @@ public:
         auto count = std::accumulate(resultShape.begin(), resultShape.end(), 1,
                                 std::multiplies<int>());
         auto elementType =
-            op->getResult(0)->getType().template cast<TensorType>().getElementType();
+            op->getResult(0).getType().template cast<TensorType>().getElementType();
         if (elementType.isF32()) {
           std::vector<float> data(count);
           std::normal_distribution<float> d{0, 0.2};
@@ -163,7 +163,7 @@ public:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createGenPseudoWeightNpzPass() {
+std::unique_ptr<mlir::Pass> mlir::createGenPseudoWeightNpzPass() {
   return std::make_unique<GenPseudoWeightNpzPass>();
 }
 

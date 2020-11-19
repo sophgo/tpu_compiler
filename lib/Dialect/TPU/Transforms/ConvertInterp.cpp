@@ -19,20 +19,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/FormatVariadic.h"
 #include <math.h> // ceilf/floorf
-#include "mlir/Dialect/TPU/SimpleAnalysis.h"
+#include "tpuc/SimpleAnalysis.h"
 
 #define DEBUG_TYPE "convert_conv"
 
@@ -117,7 +117,7 @@ void fillInterpWeightfilter(float *data2, const int height1, const int width1,
 }
 
 template <typename OpTy>
-std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getHWaxisWeight(
+std::pair<std::vector<Value>, std::vector<NamedAttribute> > getHWaxisWeight(
     OpTy castOp,
     int is_x,
     Operation *op,
@@ -138,7 +138,7 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getHWaxisWeight(
 
   // get weight
   TensorFile *wTF = getWeightTensorFile(op);
-  Value *wfV = getWeightFileValue(op);
+  Value wfV = getWeightFileValue(op);
 
   // calcuate scale
   float rwidth = 0.f;
@@ -173,7 +173,7 @@ std::pair<std::vector<Value *>, std::vector<NamedAttribute> > getHWaxisWeight(
   auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
       rewriter.getNoneType());
 
-  std::vector<Value *> operands;
+  std::vector<Value> operands;
   operands.push_back(input);
   operands.push_back(filterValue);
   operands.push_back(NoneOp.getResult()); // quant_scale
@@ -254,7 +254,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
   TpuMergeInterpToConv2DPattern(MLIRContext *context)
       : RewritePattern("tpu.interp", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto _interpOp = cast<tpu::InterpOp>(op);
     std::string op_name = _interpOp.name().str();
@@ -278,7 +278,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
     if (oh == ih && ow == iw) {
       // no need to do interp, just delete it
       rewriter.eraseOp(op);
-      return matchSuccess();
+      return success();
     }
 
 
@@ -292,14 +292,13 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
     float filter_val = 0;
     std::vector<int64_t> filter_shape;
 
-    auto pad_beg_ = _interpOp.pad_beg().getLimitedValue();
-    auto pad_end_ = _interpOp.pad_end().getLimitedValue();
+    auto pad_beg_ = _interpOp.pad_beg();
+    auto pad_end_ = _interpOp.pad_end();
     assert(!pad_beg_ && !pad_end_ && "not support pad_begin/pad_end yet");
 
-    auto shrink_factor = _interpOp.shrink_factor().getLimitedValue();
-    auto zoom_factor = _interpOp.zoom_factor().getLimitedValue();
+    auto shrink_factor = _interpOp.shrink_factor();
+    auto zoom_factor = _interpOp.zoom_factor();
     if (shrink_factor && !zoom_factor) {
-      const int shrink_factor = shrink_factor;
       assert(shrink_factor >= 1 && "Shrink factor must be positive");
       filter_size = shrink_factor * shrink_factor;
       filter_val = 1 / (float)filter_size;
@@ -309,7 +308,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
     } else if (zoom_factor &&
         !shrink_factor) {
       assert(zoom_factor >= 1 && "Zoom factor must be positive");
-    } else if (_interpOp.height().getLimitedValue() && _interpOp.width().getLimitedValue()) {
+    } else if (_interpOp.height() && _interpOp.width()) {
       if (oh > ih && ow > iw) {
         // zoom
         is_shrink = false;
@@ -367,7 +366,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
     }
 
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
     auto loc = op->getLoc();
 
     if (is_shrink) {
@@ -387,7 +386,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
       std::vector<std::vector<float> *> newWeights{ &new_filter };
       std::vector<std::vector<int64_t> > weightShapes{ filter_shape };
 
-      std::vector<Value *> newOperands;
+      std::vector<Value> newOperands;
       newOperands.push_back(_interpOp.getOperand(0));
 
       // add new filter and no bias ops
@@ -402,7 +401,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         attrs.push_back(rewriter.getNamedAttr("name",
               rewriter.getStringAttr(tensor_name)));
         auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-            ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+            ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
         newOperands.push_back(new_weight_op);
       }
 
@@ -441,8 +440,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
             getDefaultQuantParam(rewriter)));
 
       rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
-          _interpOp, _interpOp.getResult()->getType(),
-          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+          _interpOp, _interpOp.getResult().getType(),
+          ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
     }
     else {
       int kh = -1;
@@ -544,7 +543,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
 
       // construct conv with insert/padding
       auto input = op->getOperand(0);
-      auto input_type = input->getType().cast<RankedTensorType>();
+      auto input_type = input.getType().cast<RankedTensorType>();
       auto input_shape = input_type.getShape();
       int g = input_shape[1]; // g == ic for depthwise
 
@@ -593,8 +592,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           return attrs;
         };
 
-      auto createConv2D = [&](Value* input, int d, bool isNonDivisible = false) mutable ->
-        std::tuple<std::vector<Value *>, std::vector<NamedAttribute>, RankedTensorType > {
+      auto createConv2D = [&](Value input, int d, bool isNonDivisible = false) mutable ->
+        std::tuple<std::vector<Value>, std::vector<NamedAttribute>, RankedTensorType > {
 
           if (_ih == 1 || _iw == 1) {
             assert(_iw == _ih && "not support asymmetrical under _ih = 1 or _iw = 1");
@@ -726,7 +725,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           if (!is1x1Input) {
             // to check memory usage per lane
             // create fake op for check
-            std::vector<Value *> operands;
+            std::vector<Value> operands;
             operands.push_back(input);
             operands.push_back(filterValue);
             operands.push_back(NoneOp.getResult()); // bias
@@ -750,7 +749,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
 
             auto fakeOp = rewriter.create<tpu::Conv2DOp>(loc,
                 dilateOutput,
-                ArrayRef<Value *>{operands},
+                ArrayRef<Value>{operands},
                 ArrayRef<NamedAttribute>{attrs});
 
             // FIXME: no need init every travel
@@ -792,7 +791,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
 
               auto dilateOp = rewriter.create<tpu::DilateOp>(loc,
                   output,
-                  ArrayRef<Value *>{operands},
+                  ArrayRef<Value>{operands},
                   ArrayRef<NamedAttribute>{attrs});
               input = dilateOp.getResult();
               ins = {0, 0}; // no dilate in conv
@@ -800,7 +799,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           }
 
           // prepare output operands
-          std::vector<Value *> operands;
+          std::vector<Value> operands;
           operands.push_back(input);
           operands.push_back(filterValue);
           operands.push_back(NoneOp.getResult()); // bias
@@ -836,7 +835,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
             top_dim[1] = calc_output_hw(iw_ext, kw, stride[1]); // ow
           }
 
-          auto input_type = input->getType().cast<RankedTensorType>();
+          auto input_type = input.getType().cast<RankedTensorType>();
           RankedTensorType output = RankedTensorType::get(
               {in, _oc, top_dim[0], top_dim[1]},
               input_type.getElementType());
@@ -854,7 +853,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
       }
 
       for (int d = 0; d < loop; d++) {
-        std::vector<Value *> operands;
+        std::vector<Value> operands;
         std::vector<NamedAttribute> attrs;
         RankedTensorType output;
         std::tie(operands, attrs, output) = createConv2D(input, d, d == d_start);
@@ -863,20 +862,20 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           // just deconv(upsample) it
           deconv2d = rewriter.create<tpu::DeConv2DOp>(loc,
               output,
-              ArrayRef<Value *>{operands},
+              ArrayRef<Value>{operands},
               ArrayRef<NamedAttribute>{attrs});
           input = deconv2d.getResult();
         }
         else {
           conv2d = rewriter.create<tpu::Conv2DOp>(loc,
               output,
-              ArrayRef<Value *>{operands},
+              ArrayRef<Value>{operands},
               ArrayRef<NamedAttribute>{attrs});
           input = conv2d.getResult();
         }
 
         // intpu as previous output
-        auto input_type = input->getType().cast<RankedTensorType>();
+        auto input_type = input.getType().cast<RankedTensorType>();
         auto input_shape = input_type.getShape();
         _ih = input_shape[2]; // next input's shape
         _iw = input_shape[3];
@@ -889,7 +888,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         if (curr_output_shape[2] > hardwareHWMax || curr_output_shape[3] > hardwareHWMax) {
           LLVM_DEBUG(llvm::errs() << "hw over hardware limitation, leverage cpu, hw is:"
               << curr_output_shape[2] << "/" << curr_output_shape[3] << "\n";);
-          return matchFailure();
+          return failure();
         }
       }
 
@@ -912,11 +911,11 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
       }
     }
 
-    return matchSuccess();
+    return success();
   }
 };
 
-class ConvertInterpToConvDeconvPass : public FunctionPass<ConvertInterpToConvDeconvPass> {
+class ConvertInterpToConvDeconvPass : public mlir::PassWrapper<ConvertInterpToConvDeconvPass, FunctionPass> {
 public:
   explicit ConvertInterpToConvDeconvPass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
@@ -927,7 +926,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuMergeInterpToConv2DPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:

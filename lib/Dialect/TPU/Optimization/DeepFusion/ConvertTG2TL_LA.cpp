@@ -19,11 +19,11 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -35,7 +35,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "mlir/Dialect/TPU/SimpleAnalysis.h"
+#include "tpuc/SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-tg2tl-la"
 
@@ -47,7 +47,7 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
   TpuTG2TLConv2DOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tg_int8_pc_conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(opInst);
     assert(op);
@@ -57,7 +57,7 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     getTensorShapeAndSize(op.getOperand(0), shape, input_size);
     if (shape.size() > 1 && shape[1] == 1) {
       // workaround: input_c == 1 not support
-      return matchFailure();
+      return failure();
     }
 
     uint64_t totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, nullptr);
@@ -66,7 +66,7 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
                    << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
-      return matchFailure();
+      return failure();
     }
 
     LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
@@ -74,7 +74,7 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
 
     // convert to TL_LA_Conv2DOp
     assert(op.getNumOperands() == 3 && "support 3 inputs only");
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(op.getOperand(0));
     newOperands.push_back(op.getOperand(1));
     newOperands.push_back(op.getOperand(2));
@@ -99,10 +99,10 @@ struct TpuTG2TLConv2DOpPattern : public RewritePattern {
     }
 
     rewriter.replaceOpWithNewOp<tpu::TL_LA_Conv2DOp>(
-        op, op.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+        op, op.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -111,7 +111,7 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
   TpuTG2TLElewiseOpPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<OpTy>(opInst);
     assert(op);
@@ -122,27 +122,27 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
                    << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
-      return matchFailure();
+      return failure();
     }
 
     // workaround: if add is after mul, not support now
     if (isa<tpu::TG_INT8_EltwiseMulOp>(opInst)) {
       auto next_op = getNextOp(opInst);
       if (next_op != nullptr && isa<tpu::TG_INT8_EltwiseAddOp>(next_op)) {
-        return matchFailure();
+        return failure();
       }
     } else if(isa<tpu::TG_INT8_EltwiseAddOp>(opInst)) {
       for (auto operand : opInst->getOperands()) {
-        auto operandOp = operand->getDefiningOp();
+        auto operandOp = operand.getDefiningOp();
         if(operandOp != nullptr && isa<tpu::TG_INT8_EltwiseMulOp>(operandOp)){
-          return matchFailure();
+          return failure();
         }
       }
     }
 
     // Check whether operand ConvOp has enough memory
     for (auto operand : opInst->getOperands()) {
-      auto operandOp = operand->getDefiningOp();
+      auto operandOp = operand.getDefiningOp();
       if (auto convOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
         uint64_t totalPerLane =
             SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
@@ -152,7 +152,7 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
                      << ", operandOp " << convOp.name()
                      << ", SKIP, lmem " << totalPerLane
                      << " needed\n";);
-          return matchFailure();
+          return failure();
         }
       }
     }
@@ -162,7 +162,7 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
                    << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
       assert(op.getNumOperands() == 2 && "support 2 inputs only");
-      std::vector<Value *> newOperands;
+      std::vector<Value> newOperands;
       newOperands.push_back(op.getOperand(0));
       newOperands.push_back(op.getOperand(1));
 
@@ -195,9 +195,9 @@ struct TpuTG2TLElewiseOpPattern : public RewritePattern {
         attrs.push_back(rewriter.getNamedAttr("m_i32_output", op.m_i32_outputAttr()));
 
       rewriter.replaceOpWithNewOp<OpTy2>(
-          op, op.getResult()->getType(),
-          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
-      return matchSuccess();
+          op, op.getResult().getType(),
+          ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+      return success();
     }
   }
 };
@@ -206,7 +206,7 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
   TpuTG2TLLutOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tg_int8_lut", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TG_INT8_LutOp>(opInst);
     assert(op);
@@ -217,12 +217,12 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
                    << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
-      return matchFailure();
+      return failure();
     }
 
     // Check whether operand ConvOp has enough memory
     for (auto operand : opInst->getOperands()) {
-      auto operandOp = operand->getDefiningOp();
+      auto operandOp = operand.getDefiningOp();
       if (auto convOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
         uint64_t totalPerLane =
             SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
@@ -232,7 +232,7 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
                      << ", operandOp " << convOp.name()
                      << ", SKIP, lmem " << totalPerLane
                      << " needed\n";);
-          return matchFailure();
+          return failure();
         }
       }
     }
@@ -242,7 +242,7 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
                    << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
       assert(op.getNumOperands() == 3);
-      std::vector<Value *> newOperands;
+      std::vector<Value> newOperands;
       newOperands.push_back(op.getOperand(0));
       newOperands.push_back(op.getOperand(1));
       newOperands.push_back(op.getOperand(2));
@@ -260,9 +260,9 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
 
       rewriter.replaceOpWithNewOp<tpu::TL_LutOp>(
-          op, op.getResult()->getType(),
-          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
-      return matchSuccess();
+          op, op.getResult().getType(),
+          ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+      return success();
     }
   }
 };
@@ -271,7 +271,7 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
   TpuTG2TLBroadcastMulOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tg_int8_broadcast_mul", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TG_INT8_BroadcastMulOp>(opInst);
     assert(op);
@@ -282,12 +282,12 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
                    << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
-      return matchFailure();
+      return failure();
     }
 
     // Check whether operand ConvOp has enough memory
     for (auto operand : opInst->getOperands()) {
-      auto operandOp = operand->getDefiningOp();
+      auto operandOp = operand.getDefiningOp();
       if (auto convOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
         uint64_t totalPerLane =
             SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
@@ -297,7 +297,7 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
                      << ", operandOp " << convOp.name()
                      << ", SKIP, lmem " << totalPerLane
                      << " needed\n";);
-          return matchFailure();
+          return failure();
         }
       }
     }
@@ -307,7 +307,7 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
                    << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
       assert(op.getNumOperands() == 3);
-      std::vector<Value *> newOperands;
+      std::vector<Value> newOperands;
       newOperands.push_back(op.getOperand(0));
       newOperands.push_back(op.getOperand(1));
       newOperands.push_back(op.getOperand(2));
@@ -343,9 +343,9 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
 
       rewriter.replaceOpWithNewOp<tpu::TL_BroadcastMulOp>(
-          op, op.getResult()->getType(),
-          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
-      return matchSuccess();
+          op, op.getResult().getType(),
+          ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+      return success();
     }
   }
 };
@@ -355,7 +355,7 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
   TpuTG2TLPoolOpPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<OpTy>(opInst);
     assert(op);
@@ -366,13 +366,13 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
                    << ", layer ID " << getOpLayerId(opInst)
                    << ", SKIP, lmem " << totalPerLane
                    << " needed\n";);
-      return matchFailure();
+      return failure();
     }
 
     // Check whether operand ConvOp has enough memory
     // ????
     for (auto operand : opInst->getOperands()) {
-      auto operandOp = operand->getDefiningOp();
+      auto operandOp = operand.getDefiningOp();
       if (auto convOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
         uint64_t totalPerLane =
             SimpleConv2DMemoryUsageAnalysis(convOp, nullptr);
@@ -382,7 +382,7 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
                      << ", operandOp " << convOp.name()
                      << ", SKIP, lmem " << totalPerLane
                      << " needed\n";);
-          return matchFailure();
+          return failure();
         }
       }
     }
@@ -391,7 +391,7 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
                    << ", layer ID " << getOpLayerId(opInst) << "\n";);
 
-      std::vector<Value *> newOperands;
+      std::vector<Value> newOperands;
       newOperands.push_back(op.getOperand());
 
       std::vector<NamedAttribute> attrs;
@@ -415,14 +415,14 @@ struct TpuTG2TLPoolOpPattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
 
       rewriter.replaceOpWithNewOp<OpTy2>(
-          op, op.getResult()->getType(),
-          ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
-      return matchSuccess();
+          op, op.getResult().getType(),
+          ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+      return success();
     }
   }
 };
 
-class DeepFusionTG2TL_LA : public FunctionPass<DeepFusionTG2TL_LA> {
+class DeepFusionTG2TL_LA : public mlir::PassWrapper<DeepFusionTG2TL_LA, FunctionPass> {
 public:
   explicit DeepFusionTG2TL_LA() {}
 
@@ -441,13 +441,13 @@ public:
       TpuTG2TLPoolOpPattern<tpu::TG_INT8_PoolAvg2DOp, tpu::TL_PoolAvg2DOp>,
       TpuTG2TLBroadcastMulOpPattern
     >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 };
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createDeepFusionTG2TL_LA() {
+std::unique_ptr<mlir::Pass> mlir::createDeepFusionTG2TL_LA() {
   return std::make_unique<DeepFusionTG2TL_LA>();
 }
 

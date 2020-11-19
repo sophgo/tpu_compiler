@@ -1,13 +1,13 @@
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/raw_ostream.h"
@@ -29,10 +29,10 @@ public:
   explicit convertTgOpToTensorPattern(MLIRContext *context)
      : ConversionPattern(MemRefTyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    SmallVector<Value *, 4> buffer_args;
+    SmallVector<Value, 4> buffer_args;
 
     // Insert tensor_load if op input is function argument
     for (unsigned i = 0; i < operands.size() - 1; ++i) {
@@ -62,15 +62,15 @@ public:
 
     // Last operand is result
     auto lastOperand = operands[op->getNumOperands() - 1];
-    auto memrefResult = lastOperand->getType().cast<MemRefType>();
+    auto memrefResult = lastOperand.getType().cast<MemRefType>();
     auto tensorTypeResult =
         RankedTensorType::get(memrefResult.getShape(),
                               memrefResult.getElementType());
 
     // Remove the lowered AllocOp/DeallocOp
     if (auto allocOp =
-            dyn_cast_or_null<AllocOp>(lastOperand->getDefiningOp())) {
-      for (auto &user : allocOp.getResult()->getUses()) {
+            dyn_cast_or_null<AllocOp>(lastOperand.getDefiningOp())) {
+      for (auto &user : allocOp.getResult().getUses()) {
         Operation *owner = user.getOwner();
         if (auto deallocOp = dyn_cast_or_null<DeallocOp>(owner)) {
           rewriter.eraseOp(deallocOp);
@@ -89,10 +89,10 @@ public:
     // function is still MemRefType, so create new AllocOp to store the last tpu
     // op.
     // And replace the operand of std.return with the result of AllocOp.
-    for (auto &user : newTensorOp.getResult()->getUses()) {
+    for (auto &user : newTensorOp.getResult().getUses()) {
       if (auto returnOp = dyn_cast_or_null<ReturnOp>(user.getOwner())) {
         auto resultType =
-            newTensorOp.getResult()->getType().template cast<TensorType>();
+            newTensorOp.getResult().getType().template cast<TensorType>();
         auto allocOp =
             rewriter.create<AllocOp>(op->getLoc(),
                 MemRefType::get(resultType.getShape(),
@@ -106,7 +106,7 @@ public:
       }
     }
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -116,16 +116,16 @@ public:
   explicit convertTypeConvertedOpPattern(MLIRContext *context)
      : ConversionPattern(TensorTyOp::getOperationName(), 1, context) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
                   ConversionPatternRewriter &rewriter) const final {
-    op->getResult(0)->replaceAllUsesWith(operands[0]);
+    op->getResult(0).replaceAllUsesWith(operands[0]);
     rewriter.eraseOp(op);
-    return matchSuccess();
+    return success();
   }
 };
 
-struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
+struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPass, FunctionPass> {
   void runOnFunction() override {
     auto fn = getFunction();
     auto *context = &getContext();
@@ -298,7 +298,7 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
 
 }  // anonymous space
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertTgOpToTensorPass() {
+std::unique_ptr<mlir::Pass> mlir::createConvertTgOpToTensorPass() {
   return std::make_unique<ConvertTgOpToTensorPass>();
 }
 

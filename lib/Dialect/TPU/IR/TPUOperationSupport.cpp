@@ -1,13 +1,13 @@
 #include <numeric>
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/TPUCompressUtil.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/TPUCompressUtil.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "llvm/Support/raw_ostream.h"
-#include "mlir/Dialect/TPU/CustomOpParam.h"
+#include "tpuc/CustomOpParam.h"
 
 namespace mlir {
 
@@ -16,7 +16,7 @@ void convertAttributesToOpParam(const DictionaryAttr &attrs, cvi::OpParam &param
     return (bool)attr.cast<BoolAttr>().getValue();
   };
   auto getIntValue = [](const Attribute& attr) {
-    return (int32_t)attr.cast<IntegerAttr>().getValue().getSExtValue();
+    return (int32_t)attr.cast<IntegerAttr>().getSInt();
   };
   auto getFloatValue = [](const Attribute& attr) {
     return (float)attr.cast<FloatAttr>().getValue().convertToFloat();
@@ -24,77 +24,54 @@ void convertAttributesToOpParam(const DictionaryAttr &attrs, cvi::OpParam &param
   auto getStringValue = [](const Attribute& attr) {
     return attr.cast<StringAttr>().getValue().str();
   };
-  auto getArrayKind = [](const ArrayAttr& array) {
-    auto& attr = *(array.begin());
-    return attr.getKind();
-  };
 
   for (auto& a : attrs) {
     auto name = a.first.str();
     auto &attr = a.second;
-    switch (attr.getKind()) {
-      case StandardAttributes::Bool:
-        param.put<bool>(name, getBoolValue(attr));
-        break;
-      case StandardAttributes::Integer: {
-        auto intAttr = attr.cast<IntegerAttr>();
-        if (intAttr.getType().isInteger(16)) {
-          param.put<int16_t>(name, (int16_t)getIntValue(attr));
-        } else if (intAttr.getType().isInteger(8)) {
-          param.put<int8_t>(name, (int8_t)getIntValue(attr));
-        } else {
-          param.put<int32_t>(name, (int32_t)getIntValue(attr));
-        }
-        break;
+
+    if (auto boolAttr = attr.dyn_cast<BoolAttr>()) {
+      param.put<bool>(name, getBoolValue(attr));
+    } else if (auto intAttr = attr.dyn_cast<IntegerAttr>()) {
+      if (intAttr.getType().isInteger(16)) {
+        param.put<int16_t>(name, (int16_t)getIntValue(attr));
+      } else if (intAttr.getType().isInteger(8)) {
+        param.put<int8_t>(name, (int8_t)getIntValue(attr));
+      } else {
+        param.put<int32_t>(name, (int32_t)getIntValue(attr));
       }
-      case StandardAttributes::Float:
-        param.put<float>(name, getFloatValue(attr));
-        break;
-      case StandardAttributes::String:
-        param.put<std::string>(name, getStringValue(attr));
-        break;
-      case StandardAttributes::Array: {
-        auto array = attr.cast<ArrayAttr>();
-        switch (getArrayKind(array)) {
-          case StandardAttributes::Bool: {
-            std::vector<bool> vec;
-            for (auto& item : array) {
-              vec.push_back(getBoolValue(item));
-            }
-            param.put<std::vector<bool>>(name, vec);
-            break;
-          }
-          case StandardAttributes::Integer: {
-            std::vector<int32_t> vec;
-            for (auto& item : array) {
-              vec.push_back(getIntValue(item));
-            }
-            param.put<std::vector<int32_t>>(name, vec);
-            break;
-          }
-          case StandardAttributes::Float: {
-            std::vector<float> vec;
-            for (auto& item : array) {
-              vec.push_back(getFloatValue(item));
-            }
-            param.put<std::vector<float>>(name, vec);
-            break;
-          }
-          case StandardAttributes::String: {
-            std::vector<std::string> vec;
-            for (auto& item : array) {
-              vec.push_back(getStringValue(item));
-            }
-            param.put<std::vector<std::string>>(name, vec);
-            break;
-          }
-          default:
-            llvm_unreachable("unsupported attribute");
+    } else if (auto floatAttr = attr.dyn_cast<FloatAttr>()) {
+      param.put<float>(name, getFloatValue(attr));
+    } else if (auto stringAttr = attr.dyn_cast<StringAttr>()) {
+      param.put<std::string>(name, getStringValue(attr));
+    } else if (auto array = attr.dyn_cast<ArrayAttr>()) {
+      auto elementAttr = array[0];
+      if (auto boolAttr = elementAttr.dyn_cast<BoolAttr>()) {
+        std::vector<bool> vec;
+        for (auto& item : array) {
+          vec.push_back(getBoolValue(item));
         }
-        break;
-      }
-      default:
+        param.put<std::vector<bool>>(name, vec);
+      } else if (auto intAttr = elementAttr.dyn_cast<IntegerAttr>()) {
+        std::vector<int32_t> vec;
+        for (auto& item : array) {
+          vec.push_back(getIntValue(item));
+        }
+        param.put<std::vector<int32_t>>(name, vec);
+      } else if (auto floatAttr = elementAttr.dyn_cast<FloatAttr>()) {
+        std::vector<float> vec;
+        for (auto& item : array) {
+          vec.push_back(getFloatValue(item));
+        }
+        param.put<std::vector<float>>(name, vec);
+      } else if (auto stringAttr = elementAttr.dyn_cast<StringAttr>()) {
+        std::vector<std::string> vec;
+        for (auto& item : array) {
+          vec.push_back(getStringValue(item));
+        }
+        param.put<std::vector<std::string>>(name, vec);
+      } else {
         llvm_unreachable("unsupported attribute");
+      }
     }
   }
 }
@@ -174,7 +151,7 @@ llvm::StringRef getPreviousOpName(Operation *op, uint index = 0) {
   if (op->getNumOperands() < (index + 1)) {
     llvm_unreachable("wrong index");
   }
-  return getOpName(op->getOperand(index)->getDefiningOp());
+  return getOpName(op->getOperand(index).getDefiningOp());
 }
 
 int getOpLayerId(Operation *op) {
@@ -242,22 +219,10 @@ LogicalResult setOpQuant(Operation *op, llvm::StringRef mode) {
   }
 }
 
-void setOpResultType(Value *value, StandardTypes::Kind kind, int width) {
-  auto builder = Builder(value->getContext());
-  Type eltType;
-  if (kind == StandardTypes::F32) {
-    eltType = FloatType::getF32(builder.getContext());
-  } else if (kind == StandardTypes::BF16) {
-    eltType = FloatType::getBF16(builder.getContext());
-  } else if (kind == StandardTypes::Integer) {
-    assert(width != 0);
-    eltType = IntegerType::get(width, builder.getContext());
-  } else {
-    llvm_unreachable("unsupported type");
-  }
-  auto shape = value->getType().cast<TensorType>().getShape();
+void setOpResultType(Value value, Type eltType) {
+  auto shape = value.getType().cast<TensorType>().getShape();
   auto type = RankedTensorType::get(shape, eltType);
-  value->setType(type);
+  value.setType(type);
 }
 
 llvm::StringRef getOpQuantParamType(Operation *op) {
@@ -354,7 +319,7 @@ int getOpZeroPoint(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuantZeroPoint();
   } else if(auto quantOp = llvm::dyn_cast<tpu::QuantOp>(op)) {
-    return quantOp.zero_point().getLimitedValue();
+    return quantOp.zero_point();
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";
@@ -368,7 +333,7 @@ int getPreviousOpZeroPoint(Operation *op, uint index = 0) {
                            op->getName().getStringRef().str() + "\n";
     llvm_unreachable(errorMsg.c_str());
   }
-  auto formerOp = op->getOperand(index)->getDefiningOp();
+  auto formerOp = op->getOperand(index).getDefiningOp();
   return getOpZeroPoint(formerOp);
 }
 
@@ -378,7 +343,7 @@ float getPreviousOpThreshold(Operation *op, uint index = 0) {
                            op->getName().getStringRef().str() + "\n";
     llvm_unreachable(errorMsg.c_str());
   }
-  auto formerOp = op->getOperand(index)->getDefiningOp();
+  auto formerOp = op->getOperand(index).getDefiningOp();
   return getOpThreshold(formerOp);
 }
 
@@ -388,7 +353,7 @@ uint64_t getOpAddress(Operation *op) {
     return tpuTGOp.getGAddr();
   } else if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
     if (castOp.gaddr().hasValue()) {
-      return castOp.gaddr().getValue().getZExtValue();
+      return castOp.gaddr().getValue();
     }
     llvm_unreachable("unsupported op");
   } else if (isa<tpu::TpuTLOpCodegenInterface>(op)) {
@@ -396,7 +361,7 @@ uint64_t getOpAddress(Operation *op) {
     return tpuTLOp.getGAddr();
   } else if (auto inputOp = llvm::dyn_cast<tpu::InputOp>(op)) {
     if (inputOp.gaddr().hasValue()) {
-      return inputOp.gaddr().getValue().getZExtValue();
+      return inputOp.gaddr().getValue();
     }
   } else if (isa<tpu::NoneOp>(op)) {
     return 0;
@@ -428,7 +393,7 @@ LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
 
 uint64_t getWeightOpAddress(Operation *op) {
   if (auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op)) {
-    return cast_op.offset().getValue().getLimitedValue();
+    return cast_op.offset().getValue();
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";
@@ -441,7 +406,7 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
   if (op->getNumOperands() < (index + 1)) {
     llvm_unreachable("index exceeds the number of operations");
   }
-  auto formerOp = op->getOperand(index)->getDefiningOp();
+  auto formerOp = op->getOperand(index).getDefiningOp();
   if (isa<tpu::LoadWeightOp>(formerOp)) {
     return getWeightOpAddress(formerOp);
   } else {
@@ -451,8 +416,8 @@ uint64_t getPreviousOpAddress(Operation *op, uint index = 0) {
 
 Operation* getNextOp(Operation *op) {
   Operation *nextOp = nullptr;
-  if (op->getResult(0)->hasOneUse()) {
-    for (auto &use : op->getResult(0)->getUses()) {
+  if (op->getResult(0).hasOneUse()) {
+    for (auto &use : op->getResult(0).getUses()) {
       nextOp = use.getOwner();
       break;
     }
@@ -486,23 +451,23 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
 }
 
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
-    Value *input, Value *output, Value *filter,
+    Value input, Value output, Value filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu, int &pad_value) {
-  dh = p.dilation_h().getValue().getLimitedValue();
-  dw = p.dilation_w().getValue().getLimitedValue();
-  sh = p.stride_h().getValue().getLimitedValue();
-  sw = p.stride_w().getValue().getLimitedValue();
-  pt = p.padding_t().getValue().getLimitedValue();
-  pb = p.padding_b().getValue().getLimitedValue();
-  pl = p.padding_l().getValue().getLimitedValue();
-  pr = p.padding_r().getValue().getLimitedValue();
-  auto input_type = input->getType().template cast<TensorType>();
+  dh = p.dilation_h().getSInt();
+  dw = p.dilation_w().getSInt();
+  sh = p.stride_h().getSInt();
+  sw = p.stride_w().getSInt();
+  pt = p.padding_t().getSInt();
+  pb = p.padding_b().getSInt();
+  pl = p.padding_l().getSInt();
+  pr = p.padding_r().getSInt();
+  auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output->getType().template cast<TensorType>();
+  auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = filter->getType().template cast<TensorType>();
+  auto filter_type = filter.getType().template cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
 
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
@@ -537,7 +502,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   kw = f_s[f_s.size() - 1];
 
 
-  g = p.group().getValue().getLimitedValue();
+  g = p.group().getSInt();
   if (g != 1 || f_s.size() == 5) {
     if (g == oc && g == ic) {
       is_dw = true;
@@ -569,11 +534,11 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   }
   do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
-  pad_value= p.pad_value().getValue().getLimitedValue();
+  pad_value= p.pad_value().getSInt();
 }
 
 void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
-    Value *input, Value *output, Value *filter,
+    Value input, Value output, Value filter,
     int &n, int &ic, int &id, int &ih, int &iw,
     int &oc, int &od, int &oh, int &ow, int &g,
     int &kd, int &kh, int &kw,
@@ -581,23 +546,23 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
     int &dd, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu) {
-  dd = p.dilation_d().getValue().getLimitedValue();
-  dh = p.dilation_h().getValue().getLimitedValue();
-  dw = p.dilation_w().getValue().getLimitedValue();
-  sd = p.stride_d().getValue().getLimitedValue();
-  sh = p.stride_h().getValue().getLimitedValue();
-  sw = p.stride_w().getValue().getLimitedValue();
-  pd0 = p.padding_d0().getValue().getLimitedValue();
-  pd1 = p.padding_d1().getValue().getLimitedValue();
-  pt = p.padding_t().getValue().getLimitedValue();
-  pb = p.padding_b().getValue().getLimitedValue();
-  pl = p.padding_l().getValue().getLimitedValue();
-  pr = p.padding_r().getValue().getLimitedValue();
-  auto input_type = input->getType().template cast<TensorType>();
+  dd = p.dilation_d().getSInt();
+  dh = p.dilation_h().getSInt();
+  dw = p.dilation_w().getSInt();
+  sd = p.stride_d().getSInt();
+  sh = p.stride_h().getSInt();
+  sw = p.stride_w().getSInt();
+  pd0 = p.padding_d0().getSInt();
+  pd1 = p.padding_d1().getSInt();
+  pt = p.padding_t().getSInt();
+  pb = p.padding_b().getSInt();
+  pl = p.padding_l().getSInt();
+  pr = p.padding_r().getSInt();
+  auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output->getType().template cast<TensorType>();
+  auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = filter->getType().template cast<TensorType>();
+  auto filter_type = filter.getType().template cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
 
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
@@ -618,7 +583,7 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
   kh = f_s[f_s.size() - 2];
   kw = f_s[f_s.size() - 1];
 
-  g = p.group().getValue().getLimitedValue();
+  g = p.group().getSInt();
   if (g != 1 || f_s.size() == 5) {
     if (g == oc && g == ic) {
       is_dw = true;
@@ -654,17 +619,17 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
 }
 
 void parsePoolParam(const tpu::PoolParam &p,
-    Value *input, Value *output,
+    Value input, Value output,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu, bool &count_include_pad) {
-  kh = p.kernel_h().getValue().getLimitedValue();
-  kw = p.kernel_w().getValue().getLimitedValue();
-  sh = p.stride_h().getValue().getLimitedValue();
-  sw = p.stride_w().getValue().getLimitedValue();
-  auto input_type = input->getType().template cast<TensorType>();
+  kh = p.kernel_h().getSInt();
+  kw = p.kernel_w().getSInt();
+  sh = p.stride_h().getSInt();
+  sw = p.stride_w().getSInt();
+  auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output->getType().template cast<TensorType>();
+  auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
   assert((i_s[1] == o_s[1]) && "input C not equal to output C");
@@ -674,10 +639,10 @@ void parsePoolParam(const tpu::PoolParam &p,
   iw = i_s[3];
   oh = o_s[2];
   ow = o_s[3];
-  pt = p.padding_t().getValue().getLimitedValue();
-  pb = p.padding_b().getValue().getLimitedValue();
-  pl = p.padding_l().getValue().getLimitedValue();
-  pr = p.padding_r().getValue().getLimitedValue();
+  pt = p.padding_t().getSInt();
+  pb = p.padding_b().getSInt();
+  pl = p.padding_l().getSInt();
+  pr = p.padding_r().getSInt();
   is_global = false;
   if (kh == ih && kw == iw && oh == 1 && ow == 1) {
     //assert(oh == 1 && ow == 1);
@@ -688,22 +653,22 @@ void parsePoolParam(const tpu::PoolParam &p,
 }
 
 void parsePool3dParam(const tpu::Pool3dParam &p,
-    Value *input, Value *output,
+    Value input, Value output,
     int &n, int &c, int &id, int &ih, int &iw,
     int &od, int &oh, int &ow,
     int &kd, int &kh, int &kw,
     int &sd, int &sh, int &sw,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu, bool &count_include_pad) {
-  kd = p.kernel_d().getValue().getLimitedValue();
-  kh = p.kernel_h().getValue().getLimitedValue();
-  kw = p.kernel_w().getValue().getLimitedValue();
-  sd = p.stride_d().getValue().getLimitedValue();
-  sh = p.stride_h().getValue().getLimitedValue();
-  sw = p.stride_w().getValue().getLimitedValue();
-  auto input_type = input->getType().template cast<TensorType>();
+  kd = p.kernel_d().getSInt();
+  kh = p.kernel_h().getSInt();
+  kw = p.kernel_w().getSInt();
+  sd = p.stride_d().getSInt();
+  sh = p.stride_h().getSInt();
+  sw = p.stride_w().getSInt();
+  auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output->getType().template cast<TensorType>();
+  auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
   assert((i_s[1] == o_s[1]) && "input C not equal to output C");
@@ -715,12 +680,12 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
   od = o_s[2];
   oh = o_s[3];
   ow = o_s[4];
-  pd0 = p.padding_d0().getValue().getLimitedValue();
-  pd1 = p.padding_d1().getValue().getLimitedValue();
-  pt = p.padding_t().getValue().getLimitedValue();
-  pb = p.padding_b().getValue().getLimitedValue();
-  pl = p.padding_l().getValue().getLimitedValue();
-  pr = p.padding_r().getValue().getLimitedValue();
+  pd0 = p.padding_d0().getSInt();
+  pd1 = p.padding_d1().getSInt();
+  pt = p.padding_t().getSInt();
+  pb = p.padding_b().getSInt();
+  pl = p.padding_l().getSInt();
+  pr = p.padding_r().getSInt();
   is_global = false;
   if (kh == ih && kw == iw && oh == 1 && ow == 1) {
     //assert(oh == 1 && ow == 1);
@@ -731,13 +696,13 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
 }
 
 void parseFullyConnectedParam(
-    Value *input, Value *output, Value *filter,
+    Value input, Value output, Value filter,
     int &m, int &k, int &n) {
-  auto input_type = input->getType().template cast<TensorType>();
+  auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output->getType().template cast<TensorType>();
+  auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = filter->getType().cast<TensorType>();
+  auto filter_type = filter.getType().cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
   assert((i_s[0] == o_s[0]) && "input M not equal to output M");
   m = i_s[0];
@@ -757,8 +722,8 @@ void parseLeakyReluParam(Operation *op,
   assert(lreluOp);
 
   if (lreluOp.m_i8_pos().hasValue()) {
-    pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
-    pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+    pos_m_i8 = lreluOp.m_i8_pos().getValue();
+    pos_rshift = lreluOp.rshift_pos().getValue();
     assert(pos_m_i8);
   } else {
     pos_m_i8 = 0;
@@ -766,8 +731,8 @@ void parseLeakyReluParam(Operation *op,
   }
 
   if (lreluOp.m_i8_neg().hasValue()) {
-    neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
-    neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+    neg_m_i8 = lreluOp.m_i8_neg().getValue();
+    neg_rshift = lreluOp.rshift_neg().getValue();
     assert(neg_m_i8);
   } else {
     neg_m_i8 = 0;
@@ -792,12 +757,12 @@ template void parseLeakyReluParam<tpu::TG_BF16_LeakyReluOp>(
 
 
 void parseGruParam(
-    Value *input, Value *weight,
+    Value input, Value weight,
     int &seq_len, int &batch_size, int &input_size, int& hidden_size) {
-  auto input_type = input->getType().cast<TensorType>();
+  auto input_type = input.getType().cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
 
-  auto weight_type = weight->getType().cast<TensorType>();
+  auto weight_type = weight.getType().cast<TensorType>();
   std::vector<int64_t> w_s(weight_type.getShape());
 
   seq_len = i_s[0];
@@ -807,12 +772,12 @@ void parseGruParam(
 }
 
 void parseLstmParam(
-    Value *input, Value *weight,
+    Value input, Value weight,
     int &seq_len, int &batch_size, int &input_size, int& hidden_size) {
-  auto input_type = input->getType().cast<TensorType>();
+  auto input_type = input.getType().cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
 
-  auto weight_type = weight->getType().cast<TensorType>();
+  auto weight_type = weight.getType().cast<TensorType>();
   std::vector<int64_t> w_s(weight_type.getShape());
 
   seq_len = i_s[0];
@@ -831,8 +796,8 @@ void parseActCompressParam(const tpu::ActCmprParam &param, int &cmpr_n,
   total_size = param.total_size().getInt();
 }
 
-bool isBf16Tensor(Value *val) {
-  auto valType = val->getType().dyn_cast<TensorType>();
+bool isBf16Tensor(Value val) {
+  auto valType = val.getType().dyn_cast<TensorType>();
   auto elementType = valType.getElementType();
   return elementType.isBF16();
 }
@@ -840,7 +805,7 @@ bool isBf16Tensor(Value *val) {
 int64_t getTotalCompressedActivationSize(Operation *op) {
   if (llvm::dyn_cast<tpu::TL_LG_JoinOp>(op)) {
     auto tpuOp =
-        llvm::dyn_cast<tpu::TL_LG_StoreOp>(op->getOperand(0)->getDefiningOp());
+        llvm::dyn_cast<tpu::TL_LG_StoreOp>(op->getOperand(0).getDefiningOp());
 
     // tl_lg_store -> tl_lg_join
     if (tpuOp.compr_act_param().hasValue()) {

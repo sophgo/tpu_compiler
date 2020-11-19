@@ -1,5 +1,5 @@
 #include "llvm/Support/CommandLine.h"
-#include "mlir/Dialect/TPU/CustomOpPlugin.h"
+#include "tpuc/CustomOpPlugin.h"
 
 namespace cvi {
 

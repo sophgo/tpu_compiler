@@ -19,19 +19,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUCompressUtil.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/DivideOpsToSubFunc.h"
-#include "mlir/Dialect/TPU/GmemAllocator.hpp"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUCompressUtil.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/DivideOpsToSubFunc.h"
+#include "tpuc/GmemAllocator.hpp"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -65,7 +65,7 @@ static llvm::cl::opt<std::string> clNeuronMapFilename(
 static int32_t getOpDtypeSize(Operation *op) {
   int32_t dsize = 1;
   auto elementType =
-      op->getResult(0)->getType().template cast<TensorType>().getElementType();
+      op->getResult(0).getType().template cast<TensorType>().getElementType();
   if (elementType.isF32()) {
     dsize = sizeof(float);
   } else if (elementType.isInteger(8)) {
@@ -83,24 +83,24 @@ struct TlLgLoadNeuronAddressPattern : public RewritePattern {
   TlLgLoadNeuronAddressPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto castOp = cast<OpTy>(op);
     if (castOp.gaddr().hasValue()) {
-      return matchFailure();
+      return failure();
     }
 
     auto curPos = getPreviousOpAddress(castOp);
-    auto offset = (int)castOp.offset().getValue().getSExtValue();
+    auto offset = (int)castOp.offset().getValue();
     setOpAddress(op, curPos + offset);
-    return matchSuccess();
+    return success();
   }
 };
 
 static bool isSliceOpSkip(Operation *op) {
   if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
-    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
-    int axis = sliceOp.axis().getLimitedValue();
+    auto type = sliceOp.getResult().getType().template cast<TensorType>();
+    int axis = sliceOp.axis();
     std::vector<int64_t> shape = type.getShape();
     for (int index = 0; index < axis; index++) {
       if (shape[index] != 1) {
@@ -108,8 +108,8 @@ static bool isSliceOpSkip(Operation *op) {
       }
     }
   } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
-    auto type = sliceOp.getResult()->getType().template cast<TensorType>();
-    int axis = sliceOp.axis().getLimitedValue();
+    auto type = sliceOp.getResult().getType().template cast<TensorType>();
+    int axis = sliceOp.axis();
     std::vector<int64_t> shape = type.getShape();
     for (int index = 0; index < axis; index++) {
       if (shape[index] != 1) {
@@ -127,19 +127,19 @@ struct TgSliceAddressPattern : public RewritePattern {
   TgSliceAddressPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto castOp = cast<OpTy>(op);
     if (castOp.gaddr().hasValue()) {
-      return matchFailure();
+      return failure();
     }
-    int axis = castOp.axis().getLimitedValue();
-    int offset = castOp.offset().getLimitedValue();
+    int axis = castOp.axis();
+    int offset = castOp.offset();
 
     std::vector<int64_t> shape = getTensorShape(castOp.input());
 
     if (false == isSliceOpSkip(op)) {
-      return matchFailure();
+      return failure();
     }
 
     int32_t dsize = getOpDtypeSize(op);
@@ -151,11 +151,11 @@ struct TgSliceAddressPattern : public RewritePattern {
     auto curPos = getPreviousOpAddress(castOp);
     setOpAddress(op, curPos + offset_bytes);
 
-    auto opd = op->getOperand(0)->getDefiningOp();
+    auto opd = op->getOperand(0).getDefiningOp();
     if (opd->getAttr("buffer_reused")) {
       castOp.setAttr("buffer_reused", rewriter.getBoolAttr(true));
     }
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -164,17 +164,17 @@ struct TgConcatAddressPattern : public RewritePattern {
   TgConcatAddressPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto castOp = cast<OpTy>(op);
-    int axis = castOp.axis().getLimitedValue();
+    int axis = castOp.axis();
     if (axis != 0) {
-      return matchFailure();
+      return failure();
     }
     auto concatGAddr = castOp.getGAddr();
     int64_t offset = 0;
     for (auto opd : op->getOperands()) {
-      auto defOp = opd->getDefiningOp();
+      auto defOp = opd.getDefiningOp();
       std::vector<int64_t> shape = getTensorShape(defOp->getResult(0));
       int32_t dsize = getOpDtypeSize(defOp);
       int64_t isz = 1;
@@ -185,7 +185,7 @@ struct TgConcatAddressPattern : public RewritePattern {
       setOpAddress(defOp, updatedGAddr);
       offset += isz * dsize;
     }
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -194,18 +194,18 @@ struct TlLgStoreAddressNeuronPattern : public RewritePattern {
   TlLgStoreAddressNeuronPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto castOp = cast<OpTy>(op);
     if (castOp.gaddr().hasValue()) {
-      return matchFailure();
+      return failure();
     }
 
     auto nextOp = getNextOp(op);
     auto curPos = getOpAddress(nextOp);
-    auto offset = (int)castOp.offset().getValue().getSExtValue();
+    auto offset = (int)castOp.offset().getValue();
     setOpAddress(op, curPos + offset);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -224,7 +224,7 @@ static uint32_t getOpLine(Operation *op) {
 }
 
 static void findInPlaceOpMaxUsePosition(Operation *op, uint32_t &maxPosition) {
-  for (auto &use : op->getResult(0)->getUses()) {
+  for (auto &use : op->getResult(0).getUses()) {
     Operation *next = use.getOwner();
     if (isInPlaceOp(next)) {
       findInPlaceOpMaxUsePosition(next, maxPosition);
@@ -241,7 +241,7 @@ static bool isOpBelongToTPUPrivateMemoryRegion(Operation *op) {
   if (!isa<tpu::GenericCpuOp>(op) && !isa<tpu::InputOp>(op)) {
     return true;
   }
-  for (auto &use : op->getResult(0)->getUses()) {
+  for (auto &use : op->getResult(0).getUses()) {
     Operation *next = use.getOwner();
     if (isa<tpu::GenericCpuOp>(next) || isa<ReturnOp>(next)) {
       return false;
@@ -256,7 +256,7 @@ static bool isOpBelongToIOMemoryRegion(std::vector<Operation *> &ioRegion, Opera
     return false;
   }
   if (isa<tpu::InputOp>(op)) {
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       Operation *next = use.getOwner();
       if (!isa<tpu::GenericCpuOp>(next)) {
         return true;
@@ -277,7 +277,7 @@ updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
 
   auto updateOperandsLiveRange = [&](Operation *op, uint32_t endPosition) {
     for (uint32_t i = 0; i < op->getNumOperands(); i++) {
-      auto opd = op->getOperand(i)->getDefiningOp();
+      auto opd = op->getOperand(i).getDefiningOp();
       if (liveRange.find(opd) != liveRange.end()) {
         if (liveRange[opd][1] == 0xFFFFFFFF || liveRange[opd][1] < endPosition) {
           liveRange[opd][1] = endPosition;
@@ -328,7 +328,7 @@ updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
   });
 }
 
-class AssignNeuronAddressPass : public FunctionPass<AssignNeuronAddressPass> {
+class AssignNeuronAddressPass : public mlir::PassWrapper<AssignNeuronAddressPass, FunctionPass> {
 public:
   explicit AssignNeuronAddressPass() {}
 
@@ -473,7 +473,7 @@ public:
             dtype = "int16";
           }
           std::vector<int64_t> shape =
-              op->getResult(0)->getType().cast<TensorType>().getShape();
+              op->getResult(0).getType().cast<TensorType>().getShape();
           while (shape.size() < 4) {
             shape.insert(shape.begin(), 1);
           }
@@ -491,11 +491,11 @@ public:
     patterns.insert<TgSliceAddressPattern<tpu::TG_INT8_SliceOp>,
                     TgSliceAddressPattern<tpu::TG_BF16_SliceOp>,
                     TgConcatAddressPattern<tpu::TG_ConcatNOp>>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
     patterns.clear();
     patterns.insert<TlLgStoreAddressNeuronPattern<tpu::TL_LG_StoreOp>,
                     TlLgLoadNeuronAddressPattern<tpu::TL_LG_LoadNeuronOp>>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     if (neuronMapFile) {
       neuronMapFile->keep();
@@ -514,7 +514,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createAssignNeuronAddressPass() {
+std::unique_ptr<mlir::Pass> mlir::createAssignNeuronAddressPass() {
   return std::make_unique<AssignNeuronAddressPass>();
 }
 

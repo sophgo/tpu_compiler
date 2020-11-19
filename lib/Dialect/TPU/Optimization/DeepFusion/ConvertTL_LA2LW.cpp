@@ -19,10 +19,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -34,8 +34,8 @@
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/MathExtras.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
-#include "mlir/Dialect/TPU/SimpleAnalysis.h"
+#include "tpuc/MachineInfo.h"
+#include "tpuc/SimpleAnalysis.h"
 
 #define DEBUG_TYPE "deep-fusion-tl-la2lw"
 
@@ -47,7 +47,7 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
   TpuTL_LA_Conv2DOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_la_conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_LA_Conv2DOp>(opInst);
     assert(op);
@@ -63,7 +63,7 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
                  << ", convert to LW\n";);
 
     assert(op.getNumOperands() == 3 && "support 3 inputs only");
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(op.getOperand(0));
     newOperands.push_back(op.getOperand(1));
     newOperands.push_back(op.getOperand(2));
@@ -98,10 +98,10 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
 
     // create op
     rewriter.replaceOpWithNewOp<tpu::TL_LW_Conv2DOp>(
-        op, op.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+        op, op.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -109,23 +109,23 @@ struct TpuFuseLeakyReluOpPattern : public RewritePattern {
   TpuFuseLeakyReluOpPattern(MLIRContext *context)
       : RewritePattern("tpu.tg_int8_leaky_relu", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto lreluOp = dyn_cast<tpu::TG_INT8_LeakyReluOp>(opInst);
-    auto prev_op = opInst->getOperand(0)->getDefiningOp();
+    auto prev_op = opInst->getOperand(0).getDefiningOp();
     if (auto convOp = dyn_cast<tpu::TL_LW_Conv2DOp>(prev_op)) {
       int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
       if (lreluOp.m_i8_pos().hasValue()) {
-        pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
-        pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+        pos_m_i8 = lreluOp.m_i8_pos().getValue();
+        pos_rshift = lreluOp.rshift_pos().getValue();
         assert(pos_m_i8);
       } else {
         pos_m_i8 = 0;
         pos_rshift = 0;
       }
       if (lreluOp.m_i8_neg().hasValue()) {
-        neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
-        neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+        neg_m_i8 = lreluOp.m_i8_neg().getValue();
+        neg_rshift = lreluOp.rshift_neg().getValue();
         assert(neg_m_i8);
       } else {
         neg_m_i8 = 0;
@@ -139,17 +139,17 @@ struct TpuFuseLeakyReluOpPattern : public RewritePattern {
       convOp.setAttr("m_i8_neg", rewriter.getI8IntegerAttr(neg_m_i8));
       convOp.setAttr("name", lreluOp.nameAttr());
       rewriter.replaceOp(opInst, {convOp.getResult()});
-      return matchSuccess();
+      return success();
     }
 
-    return matchFailure();
+    return failure();
   }
 };
 
 static bool isOpCloseToUse(Operation *op) {
   auto successor = op->getNextNode();
   assert(successor);
-  for (auto &use : op->getResult(0)->getUses()) {
+  for (auto &use : op->getResult(0).getUses()) {
     if (successor == use.getOwner()) {
       return true;
     }
@@ -161,28 +161,28 @@ struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
   TpuTL_LW_Conv2DOp_MarkShortPathPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_lw_conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_LW_Conv2DOp>(opInst);
     if (op.in_short_path().hasValue()) {
-      return matchFailure();
+      return failure();
     }
 
-    if (!op.getResult()->hasOneUse()) {
+    if (!op.getResult().hasOneUse()) {
       LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", Conv2D " << op.name()
-                 << " has more than one Use " << op.getResult()->hasOneUse() << "\n";);
+                 << " has more than one Use " << op.getResult().hasOneUse() << "\n";);
       op.setAttr("in_short_path", rewriter.getBoolAttr(false));
-      return matchSuccess();
+      return success();
     }
-    assert(op.getResult()->hasOneUse() && "this op has only one use");
+    assert(op.getResult().hasOneUse() && "this op has only one use");
 
     // TODO: this is a naive version, looking for one step path, mark as short
     auto next_op = getNextOp(op);
     auto prev_op = op.getOperand(0);
 
     if (isa<tpu::TL_EltwiseAddOp>(next_op)) {
-      if (!prev_op->hasOneUse()) { // Why?
+      if (!prev_op.hasOneUse()) { // Why?
         op.setAttr("in_short_path", rewriter.getBoolAttr(true));
       } else if (!isOpCloseToUse(opInst)) { // if op is not close to eltwiseAdd, it must be short path.
         op.setAttr("in_short_path", rewriter.getBoolAttr(true));
@@ -192,7 +192,7 @@ struct TpuTL_LW_Conv2DOp_MarkShortPathPattern : public RewritePattern {
     } else {
       op.setAttr("in_short_path", rewriter.getBoolAttr(false));
     }
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -200,7 +200,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
   TpuTL_LW_Conv2DOp_AssignLayoutPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_lw_conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_LW_Conv2DOp>(opInst);
     //auto loc = op->getLoc();
@@ -213,42 +213,42 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
 
     if (op.lm_layout() != "NONE") {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
-    if (!op.getResult()->hasOneUse()) {
+    if (!op.getResult().hasOneUse()) {
       LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
                  << ", Conv2D " << op.name()
-                 << " has more than one Use " << op.getResult()->hasOneUse() << "\n";);
+                 << " has more than one Use " << op.getResult().hasOneUse() << "\n";);
       std::vector<Operation *> conv_ops;
       std::vector<Operation *> elta_ops;
       std::vector<Operation *> eltm_ops;
       std::vector<Operation *> lut_ops;
-      for (auto &use : op.getResult()->getUses()) {
+      for (auto &use : op.getResult().getUses()) {
         Operation *next_opInst = use.getOwner();
         if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
           // next is TL_LW_Conv2DOp
           if (next_op.lm_layout() == "NONE") {
             // next_op has not been assign layout, return for now
-            return matchSuccess();
+            return success();
           }
           conv_ops.push_back(next_opInst);
         } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_EltwiseAddOp>(next_opInst)) {
           if (next_op.lm_layout() == "NONE") {
             // next_op has not been assign layout, return for now
-            return matchSuccess();
+            return success();
           }
           elta_ops.push_back(next_opInst);
         } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_EltwiseMulOp>(next_opInst)) {
           if (next_op.lm_layout() == "NONE") {
             // next_op has not been assign layout, return for now
-            return matchSuccess();
+            return success();
           }
           eltm_ops.push_back(next_opInst);
         } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LutOp>(next_opInst)) {
           if (next_op.lm_layout() == "NONE") {
             // next_op has not been assign layout, return for now
-            return matchSuccess();
+            return success();
           }
           lut_ops.push_back(next_opInst);
         } else {
@@ -260,8 +260,8 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
                  << ", flow conv2D operation :" <<conv_ops.size()
                  << " flow elta operation :" << elta_ops.size() << "\n";);
       if (conv_ops.size() == 2) {
-        if (conv_ops[0]->getResult(0)->hasOneUse()
-            && conv_ops[1]->getResult(0)->hasOneUse()
+        if (conv_ops[0]->getResult(0).hasOneUse()
+            && conv_ops[1]->getResult(0).hasOneUse()
             && getNextOp(conv_ops[0]) == getNextOp(conv_ops[1])) {
           // inception_v3, two conv Ops, try steal them
           // they needs to have the same use before we can steal it
@@ -295,7 +295,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
           // otherwise, start a new chain
           op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
         }
-        return matchSuccess();
+        return success();
       } else if (conv_ops.size() == 1 && elta_ops.size() == 1) {
         assert(elta_ops.size() == 1);
         // mobilenet_v2, one conv and one eltwise
@@ -320,7 +320,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         // next_conv can skip loading though
         conv_op_next.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
 
-        return matchSuccess();
+        return success();
       } else if((eltm_ops.size() == 1 ) && (lut_ops.size() == 1)) {
         //Efficientnet has one eltMul + lut case
         auto lut_op = llvm::dyn_cast_or_null<tpu::TL_LutOp>(lut_ops[0]);
@@ -336,16 +336,16 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
           llvm_unreachable("unsupported layout");
         }
         lut_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
-        return matchSuccess();
+        return success();
       } else {
         //assert(false);
         // start a new chain
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
-        return matchSuccess();
+        return success();
       }
     }
 
-    assert(op.getResult()->hasOneUse() && "this op only has one use");
+    assert(op.getResult().hasOneUse() && "this op only has one use");
     Operation *next_opInst = getNextOp(op);
     if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
       // next is another TL_LW_Conv2DOp
@@ -358,7 +358,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       //                               ===========
       if (next_op.lm_layout() == "NONE") {
         // next_op not set layout yet, return for now, wait for next round
-        return matchSuccess();
+        return success();
       }
       if (next_op.lm_layout() == "IWO") {
         op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -391,7 +391,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         op.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
       } else if (next_op.lm_layout() == "NONE") {
         // next_op not set layout yet, return for now, wait for next round
-        return matchSuccess();
+        return success();
       } else {
         // for the long path conv Op, fuse them
         if (next_op.lm_layout() == "IWO") {
@@ -415,7 +415,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       //                               ===========
       if (next_op.lm_layout() == "NONE") {
         // next_op not set layout yet, return for now, wait for next round
-        return matchSuccess();
+        return success();
       } else {
         // for the long path conv Op, fuse them
         if (next_op.lm_layout() == "IWO") {
@@ -439,7 +439,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       //                               =============
       if (next_op.lm_layout() == "NONE") {
         // next_op not set layout yet, return for now, wait for next round
-        return matchSuccess();
+        return success();
       } else {
         // for the long path conv Op, fuse them
         if (next_op.lm_layout() == "IWO") {
@@ -462,7 +462,7 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
                  << ", LD " << op.tl_load_flag()
                  << ", ST " << op.tl_store_flag()
                  << "\n";);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -470,16 +470,16 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
   TpuTL_EltwiseAddOp_AssignLayoutPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_eltwise_add", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_EltwiseAddOp>(opInst);
 
     if (op.lm_layout() != "NONE") {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
-    if (op.getResult()->hasOneUse()) {
+    if (op.getResult().hasOneUse()) {
 
       // one user case
       Operation *next_opInst = getNextOp(op);
@@ -495,7 +495,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
        //                               ===========
         if (next_op.lm_layout() == "NONE") {
           // next_op not set layout yet, return for now, wait for next round
-          return matchSuccess();
+          return success();
         }
         if (next_op.lm_layout() == "IWO") {
           op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -520,19 +520,19 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
       // b. one is Conv, another is EltwiseAdd
       std::vector<Operation *> conv_ops;
       std::vector<Operation *> elta_ops;
-      for (auto &use : op.getResult()->getUses()) {
+      for (auto &use : op.getResult().getUses()) {
         Operation *next_opInst = use.getOwner();
         if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
           // next is TL_LW_Conv2DOp
           if (next_op.lm_layout() == "NONE") {
             // next_op has not been assign layout, return for now
-            return matchSuccess();
+            return success();
           }
           conv_ops.push_back(next_opInst);
         } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_EltwiseAddOp>(next_opInst)) {
           if (next_op.lm_layout() == "NONE") {
             // next_op has not been assign layout, return for now
-            return matchSuccess();
+            return success();
           }
           elta_ops.push_back(next_opInst);
         }
@@ -581,7 +581,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         // TODO: figure our how to change walk order
         // for time being, check if short_op_idx == 0 (i.e. next_op_idx == 1)
         if (next_op_idx == 1
-            && conv_op_short.getResult()->hasOneUse()
+            && conv_op_short.getResult().hasOneUse()
             && isa<tpu::TL_EltwiseAddOp>(getNextOp(conv_op_short.getOperation()))) {
           if (conv_op_next.lm_layout() == "IWO") {
             op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -627,7 +627,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
                  << ", ST " << op.tl_store_flag()
                  << "\n";);
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -635,16 +635,16 @@ struct TpuTL_LutOp_AssignLayoutPattern : public RewritePattern {
   TpuTL_LutOp_AssignLayoutPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_lut", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_LutOp>(opInst);
 
     if (op.lm_layout() != "NONE") {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
-    if (op.getResult()->hasOneUse()) {
+    if (op.getResult().hasOneUse()) {
       // one user case
       Operation *next_opInst = getNextOp(op);
       assert(!isa<tpu::TL_EltwiseAddOp>(next_opInst));
@@ -659,7 +659,7 @@ struct TpuTL_LutOp_AssignLayoutPattern : public RewritePattern {
        //                               ===========
         if (next_op.lm_layout() == "NONE") {
           // next_op not set layout yet, return for now, wait for next round
-          return matchSuccess();
+          return success();
         }
         if (next_op.lm_layout() == "IWO") {
           op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -681,7 +681,7 @@ struct TpuTL_LutOp_AssignLayoutPattern : public RewritePattern {
        //                               ===========
         if (next_op.lm_layout() == "NONE") {
           // next_op not set layout yet, return for now, wait for next round
-          return matchSuccess();
+          return success();
         }
         if (next_op.lm_layout() == "IWO") {
           op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -705,7 +705,7 @@ struct TpuTL_LutOp_AssignLayoutPattern : public RewritePattern {
                  << ", ST " << op.tl_store_flag()
                  << "\n";);
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -713,16 +713,16 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
   TpuTL_EltwiseMulOp_AssignLayoutPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_eltwise_mul", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_EltwiseMulOp>(opInst);
 
     if (op.lm_layout() != "NONE") {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
-    if (op.getResult()->hasOneUse()) {
+    if (op.getResult().hasOneUse()) {
       // one user case
       Operation *next_opInst = getNextOp(op);
       assert(!isa<tpu::TL_EltwiseAddOp>(next_opInst));
@@ -737,7 +737,7 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
        //                               ===========
         if (next_op.lm_layout() == "NONE") {
           // next_op not set layout yet, return for now, wait for next round
-          return matchSuccess();
+          return success();
         }
         if (next_op.lm_layout() == "IWO") {
           op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -759,7 +759,7 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
        //                               ===========
         if (next_op.lm_layout() == "NONE") {
           // next_op not set layout yet, return for now, wait for next round
-          return matchSuccess();
+          return success();
         }
         if (next_op.lm_layout() == "IWO") {
           op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -776,13 +776,13 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
       }
     } else {
       bool isOneOfThemIsTlPooling = false;
-      for (auto &use : op.getResult()->getUses()) {
+      for (auto &use : op.getResult().getUses()) {
         Operation *next_opInst = use.getOwner();
         if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_PoolAvg2DOp>(next_opInst)) {
           // next is TL_PoolAvg2DOp
           if (next_op.lm_layout() == "NONE") {
             // next_op has not been assign layout, return for now
-            return matchSuccess();
+            return success();
           } else if (next_op.lm_layout() == "IWO") {
             op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
           } else if (next_op.lm_layout() == "OWI") {
@@ -802,7 +802,7 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
                  << ", ST " << op.tl_store_flag()
                  << "\n";);
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -810,16 +810,16 @@ struct TpuTL_BroadcastMulOp_AssignLayoutPattern : public RewritePattern {
   TpuTL_BroadcastMulOp_AssignLayoutPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_broadcast_mul", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_BroadcastMulOp>(opInst);
 
     if (op.lm_layout() != "NONE") {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
-    if (op.getResult()->hasOneUse()) {
+    if (op.getResult().hasOneUse()) {
       // one user case
       Operation *next_opInst = getNextOp(op);
       if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
@@ -833,7 +833,7 @@ struct TpuTL_BroadcastMulOp_AssignLayoutPattern : public RewritePattern {
        //                                  ===========
         if (next_op.lm_layout() == "NONE") {
           // next_op not set layout yet, return for now, wait for next round
-          return matchSuccess();
+          return success();
         }
         if (next_op.lm_layout() == "IWO") {
           op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -857,7 +857,7 @@ struct TpuTL_BroadcastMulOp_AssignLayoutPattern : public RewritePattern {
                  << ", ST " << op.tl_store_flag()
                  << "\n";);
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -865,16 +865,16 @@ struct TpuTL_PoolAvg2DOp_AssignLayoutPattern : public RewritePattern {
   TpuTL_PoolAvg2DOp_AssignLayoutPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_pool_avg_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_PoolAvg2DOp>(opInst);
 
     if (op.lm_layout() != "NONE") {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
-    if (op.getResult()->hasOneUse()) {
+    if (op.getResult().hasOneUse()) {
       // one user case
       Operation *next_opInst = getNextOp(op);
       assert(!isa<tpu::TL_PoolAvg2DOp>(next_opInst));
@@ -889,7 +889,7 @@ struct TpuTL_PoolAvg2DOp_AssignLayoutPattern : public RewritePattern {
        //                               ===========
         if (next_op.lm_layout() == "NONE") {
           // next_op not set layout yet, return for now, wait for next round
-          return matchSuccess();
+          return success();
         }
         if (next_op.lm_layout() == "IWO") {
           op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -913,7 +913,7 @@ struct TpuTL_PoolAvg2DOp_AssignLayoutPattern : public RewritePattern {
                  << ", ST " << op.tl_store_flag()
                  << "\n";);
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -921,7 +921,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
   TpuTL_LW_Conv2DOp_AssignLAddrPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_lw_conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<tpu::TL_LW_Conv2DOp>(opInst);
     //auto loc = op->getLoc();
@@ -936,7 +936,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
     assert (op.lm_layout() != "NONE");
     if (op.la_output() != 0xffffffff) {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
     uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
@@ -980,7 +980,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
                    << ", la_w=" << op.la_working()
                    <<"\n";);
 
-      return matchSuccess();
+      return success();
     }
   }
 };
@@ -990,7 +990,7 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
   TpuTL_EltwiseOp_AssignLAddrPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<OpTy>(opInst);
 
@@ -1008,7 +1008,7 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
     assert (op.lm_layout() != "NONE");
     if (op.la_output() != 0xffffffff) {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
     uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
@@ -1035,7 +1035,7 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
                    << ", la_w=" << op.la_working()
                    <<"\n";);
 
-      return matchSuccess();
+      return success();
     }
   }
 };
@@ -1045,7 +1045,7 @@ struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
   TpuTL_Default_AssignLAddrPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *opInst,
+  LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
     auto op = cast<OpTy>(opInst);
 
@@ -1061,7 +1061,7 @@ struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
     assert (op.lm_layout() != "NONE");
     if (op.la_output() != 0xffffffff) {
       // assigned already
-      return matchFailure();
+      return failure();
     }
 
     uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, c, h, w, true);
@@ -1088,12 +1088,12 @@ struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
                    << ", la_w=" << op.la_working()
                    <<"\n";);
 
-      return matchSuccess();
+      return success();
     }
   }
 };
 
-class DeepFusionTL_LA2LW : public FunctionPass<DeepFusionTL_LA2LW> {
+class DeepFusionTL_LA2LW : public mlir::PassWrapper<DeepFusionTL_LA2LW, FunctionPass> {
 public:
   explicit DeepFusionTL_LA2LW() {}
 
@@ -1108,13 +1108,13 @@ public:
         TpuTL_LA_Conv2DOpPattern,
         TpuFuseLeakyReluOpPattern
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<
         TpuTL_LW_Conv2DOp_MarkShortPathPattern
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<
@@ -1125,7 +1125,7 @@ public:
         TpuTL_PoolAvg2DOp_AssignLayoutPattern,
         TpuTL_BroadcastMulOp_AssignLayoutPattern
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     patterns.clear();
     patterns.insert<
@@ -1136,13 +1136,13 @@ public:
         TpuTL_Default_AssignLAddrPattern<tpu::TL_PoolAvg2DOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_BroadcastMulOp>
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 };
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createDeepFusionTL_LA2LW() {
+std::unique_ptr<mlir::Pass> mlir::createDeepFusionTL_LA2LW() {
   return std::make_unique<DeepFusionTL_LA2LW>();
 }
 

@@ -18,18 +18,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -58,13 +58,13 @@ public:
   bool tpu = false;
   std::string fnName;
   std::vector<Operation *> ops;
-  std::vector<Value *> inputs;
-  std::vector<Value *> outputs;
+  std::vector<Value> inputs;
+  std::vector<Value> outputs;
   std::map<Operation *, Operation *> mapping;
 };
 
 static bool isReshapeOpConnectToTpuOp(Operation *op) {
-  for (auto &use : op->getResult(0)->getUses()) {
+  for (auto &use : op->getResult(0).getUses()) {
     auto nextOp = use.getOwner();
     if (llvm::dyn_cast<tpu::TpuTGOpCodegenInterface>(nextOp) ||
         llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(nextOp)) {
@@ -74,11 +74,10 @@ static bool isReshapeOpConnectToTpuOp(Operation *op) {
   return false;
 }
 
-
-class DivideOpsToFuncPass : public ModulePass<DivideOpsToFuncPass> {
+class DivideOpsToFuncPass : public mlir::PassWrapper<DivideOpsToFuncPass, OperationPass<ModuleOp>> {
 public:
-  void runOnModule() override {
-    auto module = getModule();
+  void runOnOperation() override {
+    auto module = getOperation();
     // auto *context = &getContext();
 
     std::vector<SubFunction *> subFuncs;
@@ -110,7 +109,7 @@ public:
           }
           // if op is tpu op, push it to group.
           for (unsigned i = 0; i < op->getNumOperands(); i++) {
-            auto opd = op->getOperand(i)->getDefiningOp();
+            auto opd = op->getOperand(i).getDefiningOp();
             if (isa<tpu::LoadWeightOp>(opd) || isa<tpu::NoneOp>(opd)) {
               sf->ops.push_back(opd);
             }
@@ -127,7 +126,7 @@ public:
             }
             // if op is cpu op, push it to group.
             for (unsigned i = 0; i < op->getNumOperands(); i++) {
-              auto opd = op->getOperand(i)->getDefiningOp();
+              auto opd = op->getOperand(i).getDefiningOp();
               if (isa<tpu::LoadWeightOp>(opd) || isa<tpu::NoneOp>(opd)) {
                 sf->ops.push_back(opd);
               }
@@ -140,7 +139,7 @@ public:
             sf = new SubFunction(false);
             // if op is cpu op, push it to group.
             for (unsigned i = 0; i < op->getNumOperands(); i++) {
-              auto opd = op->getOperand(i)->getDefiningOp();
+              auto opd = op->getOperand(i).getDefiningOp();
               if (isa<tpu::LoadWeightOp>(opd) || isa<tpu::NoneOp>(opd)) {
                 sf->ops.push_back(opd);
               }
@@ -171,8 +170,8 @@ private:
 
   void addSubFunction(SubFunction *sf) {
     std::vector<Operation *> fnOps;
-    std::vector<Value *> fnInputs;
-    std::vector<Value *> fnOutputs;
+    std::vector<Value> fnInputs;
+    std::vector<Value> fnOutputs;
 
     BlockAndValueMapping mapper;
     for (auto op : sf->ops) {
@@ -187,10 +186,10 @@ private:
     std::vector<mlir::Type> argType;
     std::vector<mlir::Type> resType;
     for (auto input : fnInputs) {
-      argType.push_back(input->getType());
+      argType.push_back(input.getType());
     }
     for (auto output : fnOutputs) {
-      resType.push_back(output->getType());
+      resType.push_back(output.getType());
     }
 
     auto genUniqueCode = []() {
@@ -205,7 +204,7 @@ private:
     sf->fnName += std::string("subfunc") + std::to_string(fnIdx_++)
                   + "_" + genUniqueCode();
 
-    Builder builder(&getContext());
+    OpBuilder builder(&getContext());
     auto fnType = builder.getFunctionType(llvm::ArrayRef<mlir::Type>{argType},
                                           llvm::ArrayRef<mlir::Type>{resType});
     sf->fnOp = FuncOp::create(builder.getUnknownLoc(), sf->fnName, fnType);
@@ -226,17 +225,17 @@ private:
       block->push_back(op);
     }
 
-    OpBuilder(block).create<ReturnOp>(builder.getUnknownLoc(),
-                                      llvm::ArrayRef<mlir::Value *>{fnOutputs});
+    builder.create<ReturnOp>(builder.getUnknownLoc(),
+                                      llvm::ArrayRef<mlir::Value>{fnOutputs});
     // add fn attribute
     for (unsigned i = 0; i < sf->ops.size(); i++) {
       sf->ops[i]->setAttr("fn", builder.getStringAttr(sf->fnName));
     }
   }
 
-  void getInputsOutputs(std::vector<Operation *> &ops, std::vector<Value *> &inputs,
-                        std::vector<Value *> &outputs) {
-    std::vector<Value *> defValue;
+  void getInputsOutputs(std::vector<Operation *> &ops, std::vector<Value> &inputs,
+                        std::vector<Value> &outputs) {
+    std::vector<Value> defValue;
     for (auto op : ops) {
       for (unsigned int i = 0; i < op->getNumOperands(); i++) {
         auto it = find(defValue.begin(), defValue.end(), op->getOperand(i));
@@ -258,10 +257,10 @@ private:
     }
 
     for (auto value : defValue) {
-      if (value->use_empty()) {
+      if (value.use_empty()) {
         outputs.push_back(value);
       }
-      for (auto it = value->use_begin(); it != value->use_end(); ++it) {
+      for (auto it = value.use_begin(); it != value.use_end(); ++it) {
         auto defOp = it.getUser();
         auto opIt = find(ops.begin(), ops.end(), defOp);
         auto valueIt = find(outputs.begin(), outputs.end(), value);
@@ -275,7 +274,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<ModuleOp>> createDivideOpsToFuncPass() {
+std::unique_ptr<mlir::Pass> createDivideOpsToFuncPass() {
   return std::make_unique<DivideOpsToFuncPass>();
 }
 

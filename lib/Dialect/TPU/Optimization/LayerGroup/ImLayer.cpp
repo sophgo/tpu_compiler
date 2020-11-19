@@ -14,7 +14,7 @@ ImLayer::ImLayer(IR_TYPE type, Operation* op, bool fusible)
       id_(-1),
       type_(type),
       op_(op) {
-  name_ = mlir::getOpName(op);
+  name_ = mlir::getOpName(op).str();
   layer_id_ = getOpLayerId(op);
   //is_inplace_layer = op->in_place();
   is_inplace_layer = false;
@@ -37,19 +37,19 @@ void ImLayer::add_in_tensor(ShapedType* shape, const std::string& name,
   in_tensors.push_back(tensor);
 }
 
-void ImLayer::add_in_tensor(Value * v, tensor_type_t type) {
-  auto def_op = v->getDefiningOp();
-  auto shape = v->getType().dyn_cast<TensorType>();
+void ImLayer::add_in_tensor(Value v, tensor_type_t type) {
+  auto def_op = v.getDefiningOp();
+  auto shape = v.getType().dyn_cast<TensorType>();
   if (def_op && !isa<tpu::NoneOp>(def_op) && !isa<tpu::WeightFileOp>(def_op)
       && !isa<ReturnOp>(def_op)) {
     if (auto load_op = dyn_cast<tpu::LoadWeightOp>(def_op)) {
-      std::string name = load_op.name();
-      std::string storage = load_op.storage();
+      std::string name = load_op.name().str();
+      std::string storage = load_op.storage().str();
       std::shared_ptr<Tensor> tensor =
           Tensor::register_tensor(&shape, name, type, layer_id_, storage);
       in_tensors.push_back(tensor);
     } else {
-      std::string name = mlir::getOpName(def_op);
+      std::string name = mlir::getOpName(def_op).str();
       std::shared_ptr<Tensor> tensor =
           Tensor::register_tensor(&shape, name, type, layer_id_);
       in_tensors.push_back(tensor);
@@ -57,15 +57,15 @@ void ImLayer::add_in_tensor(Value * v, tensor_type_t type) {
   }
 }
 
-void ImLayer::add_out_tensor(Value * v, tensor_type_t type, std::string storage) {
-  auto def_op = v->getDefiningOp();
-  auto shape = v->getType().dyn_cast<TensorType>();
+void ImLayer::add_out_tensor(Value v, tensor_type_t type, std::string storage) {
+  auto def_op = v.getDefiningOp();
+  auto shape = v.getType().dyn_cast<TensorType>();
   if (!isa<tpu::NoneOp>(def_op) && !isa<tpu::WeightFileOp>(def_op)
       && !isa<ReturnOp>(def_op)) {
     if (auto load_op = dyn_cast<tpu::LoadWeightOp>(def_op)) {
       assert(0);
     } else {
-      std::string name = mlir::getOpName(def_op);
+      std::string name = mlir::getOpName(def_op).str();
       std::shared_ptr<Tensor> tensor =
           Tensor::register_tensor(&shape, name, type, layer_id_, storage);
       out_tensors.push_back(tensor);
@@ -189,8 +189,8 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   return layer;
 }
 
-std::string ImLayer::getStorage(Value * v) {
-  RankedTensorType _type = v->getType().cast<RankedTensorType>();
+std::string ImLayer::getStorage(Value v) {
+  RankedTensorType _type = v.getType().cast<RankedTensorType>();
   if (_type.getElementType().isBF16()) {
     return "BF16";
   } else if (_type.getElementType().isF32()) {
@@ -216,7 +216,7 @@ std::vector<std::shared_ptr<ImLayer>> ImLayer::layers;
 
 static int getOpResultUnitSize(Operation *op) {
   RankedTensorType result_type =
-    op->getResult(0)->getType().cast<RankedTensorType>();
+    op->getResult(0).getType().cast<RankedTensorType>();
 
   int usize = result_type.getElementTypeBitWidth()/8;
   return usize;
@@ -224,7 +224,7 @@ static int getOpResultUnitSize(Operation *op) {
 
 static std::string getWeightStorage(Operation *p) {
   auto op = cast<tpu::LoadWeightOp>(p);
-  return op.storage();
+  return op.storage().str();
 }
 
 ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
@@ -263,7 +263,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   add_in_tensor(p->getOperand(0), TENSOR_NEURON);
 
   // add weight tensor
-  auto weightOp = cast<tpu::LoadWeightOp>(p->getOperand(1)->getDefiningOp());
+  auto weightOp = cast<tpu::LoadWeightOp>(p->getOperand(1).getDefiningOp());
   std::string weightOpName = weightOp.name().str();
   int32_t unit_size = getOpResultUnitSize(weightOp);
 
@@ -295,7 +295,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   // add bias tensor
   if (bInt8ConvOp) {
     int perchannel_size = with_bias ? 9 : 5;
-    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
+    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
     std::string bias_storage = getWeightStorage(load_bias);
     int bias_usize = getOpResultUnitSize(load_bias);
@@ -311,7 +311,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     }
   } else if (!bInt8ConvOp && with_bias) {
     // bf16 with bias
-    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
+    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
     std::string bias_storage = "UINT16";
     int bias_usize = 2;
@@ -350,7 +350,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   add_in_tensor(p->getOperand(0), TENSOR_NEURON);
 
   // add weight tensor
-  auto weightOp = cast<tpu::LoadWeightOp>(p->getOperand(1)->getDefiningOp());
+  auto weightOp = cast<tpu::LoadWeightOp>(p->getOperand(1).getDefiningOp());
   std::string weightOpName = weightOp.name().str();
   int32_t unit_size = getOpResultUnitSize(weightOp);
   std::string weight_storage = getWeightStorage(weightOp);
@@ -367,7 +367,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   // add bias tensor
   if (bInt8ConvOp) {
     int perchannel_size = with_bias ? 9 : 5;
-    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
+    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
     std::string bias_storage = getWeightStorage(load_bias);
     int bias_usize = getOpResultUnitSize(load_bias);
@@ -383,7 +383,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
     }
   } else if(!bInt8ConvOp && with_bias) {
     // bf16 with bias
-    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2)->getDefiningOp());
+    auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
     std::string bias_storage = "UINT16";
     int bias_usize = 2;
@@ -411,9 +411,9 @@ ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
   add_in_tensor(op->getOperand(1), TENSOR_COEFF);
 
   // if bias is not noneop
-  if (!isa<tpu::NoneOp>(op->getOperand(2)->getDefiningOp())) {
-    auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
-    auto opd_type = op->getOperand(2)->getType().dyn_cast<TensorType>();
+  if (!isa<tpu::NoneOp>(op->getOperand(2).getDefiningOp())) {
+    auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(2).getDefiningOp());
+    auto opd_type = op->getOperand(2).getType().dyn_cast<TensorType>();
     std::vector<int64_t> shape = opd_type.getShape();
     int bias_usize = getOpResultUnitSize(load_bias);
     std::string storage = getWeightStorage(load_bias);
@@ -432,7 +432,7 @@ ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
   uint32_t nInputs = op->getNumOperands();
   for (uint32_t i = 0; i < nInputs; ++i) {
     //
-    bool isCoeffLoad = isa<tpu::LoadWeightOp>(op->getOperand(i)->getDefiningOp());
+    bool isCoeffLoad = isa<tpu::LoadWeightOp>(op->getOperand(i).getDefiningOp());
     if (isCoeffLoad) {
       // not support weight to split now
       fusible = false;
@@ -460,7 +460,7 @@ ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(
   uint32_t nInputs = op->getNumOperands();
   for (uint32_t i = 0; i < nInputs; ++i) {
     if (BlockArgument::classof(op->getOperand(i))) {
-      auto shape = op->getResult(0)->getType().dyn_cast<TensorType>();
+      auto shape = op->getResult(0).getType().dyn_cast<TensorType>();
       add_in_tensor(&shape, "arg0", TENSOR_NEURON);
     } else {
       add_in_tensor(op->getOperand(i),TENSOR_NEURON);
@@ -502,7 +502,7 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
   }
 
   // add y table
-  auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
+  auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1).getDefiningOp());
   int usize = getOpResultUnitSize(load_y_table);
   std::string storage = getWeightStorage(load_y_table);
   std::string y_table_name = load_y_table.name().str();
@@ -512,7 +512,7 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
   // add m_table
   if (isBF16) {
     // FIXME: support other bf16 activation ops
-    auto load_m_table = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
+    auto load_m_table = cast<tpu::LoadWeightOp>(op->getOperand(2).getDefiningOp());
     int usize = getOpResultUnitSize(load_m_table);
     std::string storage = getWeightStorage(load_m_table);
     std::string m_table_name = load_m_table.name().str();
@@ -525,8 +525,8 @@ ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
 
 ImQuant::ImQuant(Operation *op) : ImLayer(IR_QUANT, op, true) {
   auto quantOp = cast<tpu::TG_QuantOp>(op);
-  std::string from = quantOp.from();
-  std::string to = quantOp.to();
+  std::string from = quantOp.from().str();
+  std::string to = quantOp.to().str();
   if (quantOp.threshold().hasValue() == false) {
     fusible = false;
   } else if ((from == "INT8" || from == "UINT8") && to == "BF16") {
@@ -581,14 +581,14 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   }
 
   // add sqr weight
-  auto load_sqr = cast<tpu::LoadWeightOp>(op->getOperand(1)->getDefiningOp());
+  auto load_sqr = cast<tpu::LoadWeightOp>(op->getOperand(1).getDefiningOp());
   int usize = getOpResultUnitSize(load_sqr);
   std::string storage = getWeightStorage(load_sqr);
   std::string sqr_name = load_sqr.name().str();
   add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, sqr_name, TENSOR_COEFF_LUT);
 
   // add power weight
-  auto load_pow = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
+  auto load_pow = cast<tpu::LoadWeightOp>(op->getOperand(2).getDefiningOp());
   usize = getOpResultUnitSize(load_pow);
   storage = getWeightStorage(load_pow);
   std::string pow_name = load_pow.name().str();
@@ -603,7 +603,7 @@ ImAbs::ImAbs(Operation *op): ImLayer(IR_ABS, op, true) {
 }
 
 ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, true) {
-  auto input_type = op->getOperand(0)->getType().dyn_cast<TensorType>();
+  auto input_type = op->getOperand(0).getType().dyn_cast<TensorType>();
   bool isInt8Op = isa<tpu::TG_INT8_BroadcastMulOp>(op);
   auto input_shape = input_type.getShape();
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
@@ -614,7 +614,7 @@ ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, tru
   if (isInt8Op) {
     bool with_bias = false;
     int perchannel_size = with_bias ? 9 : 5;
-    auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(2)->getDefiningOp());
+    auto load_bias = cast<tpu::LoadWeightOp>(op->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
     std::string bias_storage = getWeightStorage(load_bias);
     int bias_usize = getOpResultUnitSize(load_bias);

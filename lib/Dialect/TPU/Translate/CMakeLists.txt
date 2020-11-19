@@ -32,7 +32,7 @@ add_llvm_library(MLIRTPUTranslate
   MlirToCviModelTranslate.cpp
 
   ADDITIONAL_HEADER_DIRS
-  ${MLIR_MAIN_INCLUDE_DIR}/mlir/Dialect/TPU
+  ${MLIR_MAIN_INCLUDE_DIR}/tpuc
   )
 list(APPEND translate_LINKER_LIBS ssl crypto)
 target_link_libraries(MLIRTPUTranslate

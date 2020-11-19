@@ -19,17 +19,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "convert_priorbox"
@@ -42,19 +42,19 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
   TpuConvertLoadeweightConcatToLoadweightPattern(MLIRContext *context)
       : RewritePattern("tpu.concat", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto loc = op->getLoc();
     auto concatOp = cast<tpu::ConcatOp>(op);
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     unsigned input_loadweight_num = concatOp.getOperands().size() - 4;
 
     for (int i = 0; i < (int)input_loadweight_num; i++) {
-      auto formerOp = concatOp.getOperand(i)->getDefiningOp();
+      auto formerOp = concatOp.getOperand(i).getDefiningOp();
       if (!isa<tpu::LoadWeightOp>(formerOp)) {
-        return matchFailure();
+        return failure();
       }
     }
     LLVM_DEBUG(llvm::errs() << concatOp.getOperationName() << ":"
@@ -63,9 +63,9 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     uint32_t h, w;
     int tmp_w = 0;
     auto result = concatOp.getResult();
-    // LLVM_DEBUG(llvm::errs() << "  result "; result->getType().dump();
+    // LLVM_DEBUG(llvm::errs() << "  result "; result.getType().dump();
     // llvm::errs() << "\n";);
-    auto tensorType = result->getType().cast<TensorType>();
+    auto tensorType = result.getType().cast<TensorType>();
     std::vector<int64_t> shape = tensorType.getShape();
     auto resultT = std::make_unique<std::vector<float>>(0);
 
@@ -74,19 +74,19 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
 
     for (unsigned i = 0; i < input_loadweight_num; ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          concatOp.getOperand(i)->getDefiningOp());
+          concatOp.getOperand(i).getDefiningOp());
       assert(weight_op && "weight op should be exist");
       auto tensor_name = weight_op.name();
       LLVM_DEBUG(llvm::errs()
                      << "  weight[" << i << "] : " << tensor_name << "\n";);
-      auto type = weight_op.getResult()->getType().cast<TensorType>();
+      auto type = weight_op.getResult().getType().cast<TensorType>();
       inputloadweight[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
       wTF->deleteTensor<float>(tensor_name);
     }
 
     for (unsigned i = 0; i < input_loadweight_num; i++) {
-      auto tensorType = concatOp.getOperand(i)->getType().cast<TensorType>();
+      auto tensorType = concatOp.getOperand(i).getType().cast<TensorType>();
       std::vector<int64_t> shape = tensorType.getShape();
       assert(3 == shape.size() && "only do 3 dim concat opt now");
       h = shape[1];
@@ -119,16 +119,16 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     attrs.push_back(
         rewriter.getNamedAttr("storage", rewriter.getStringAttr("FP32")));
     auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
-        loc, type, ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+        loc, type, ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
 
     // replace concat with loadweight
     // the former one will be removed automatically
 
     rewriter.replaceOpWithNewOp<tpu::LoadWeightOp>(
-        concatOp, new_weight_op.getResult()->getType(), ArrayRef<Value *>{wfV},
+        concatOp, new_weight_op.getResult().getType(), ArrayRef<Value>{wfV},
         ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -136,16 +136,16 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
   TpuConvertPriorBoxPattern(MLIRContext *context)
       : RewritePattern("tpu.priorbox", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
     auto loc = op->getLoc();
     auto priorboxOp = cast<tpu::PriorBoxOp>(op);
     auto result = priorboxOp.getResult();
 
     std::vector<int64_t> shape =
-        result->getType().cast<TensorType>().getShape();
+        result.getType().cast<TensorType>().getShape();
     auto size = std::accumulate(std::begin(shape), std::end(shape), 1,
                                 std::multiplies<>());
     auto resultT = std::make_unique<std::vector<float>>(size);
@@ -163,9 +163,9 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     float offset = priorboxOp.offset().convertToFloat();
     float step_w = priorboxOp.step_w().convertToFloat();
     float step_h = priorboxOp.step_h().convertToFloat();
-    int num_priors = priorboxOp.num_priors().getLimitedValue();
-    int img_height = priorboxOp.img_h().getLimitedValue();
-    int img_width = priorboxOp.img_w().getLimitedValue();
+    int num_priors = priorboxOp.num_priors();
+    int img_height = priorboxOp.img_h();
+    int img_width = priorboxOp.img_w();
 
     if (max_size.size() > 0) {
       assert(max_size.size() == min_size.size() &&
@@ -174,8 +174,8 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     // Must and only provide 4 variance.
     assert(variance.size() == 4 && "variance size must be 4");
 
-    auto opd0Type = priorboxOp.getOperand(0)->getType();
-    auto opd1Type = priorboxOp.getOperand(1)->getType();
+    auto opd0Type = priorboxOp.getOperand(0).getType();
+    auto opd1Type = priorboxOp.getOperand(1).getType();
     std::vector<int64_t> shape1 = opd1Type.cast<TensorType>().getShape();
     std::vector<int64_t> shape0 = opd0Type.cast<TensorType>().getShape();
     assert(shape1.size() == 4 && shape0.size() == 4);
@@ -257,7 +257,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
       }
     }
 
-    auto output_type = priorboxOp.output()->getType().cast<TensorType>();
+    auto output_type = priorboxOp.output().getType().cast<TensorType>();
     std::vector<int64_t> o_s(output_type.getShape());
 
     // set the variance.
@@ -284,20 +284,20 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
     attrs.push_back(
         rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
     auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
-        loc, type, ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+        loc, type, ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
 
     // replace priorbox with loadweight
     // the former one will be removed automatically
 
     rewriter.replaceOpWithNewOp<tpu::LoadWeightOp>(
-        priorboxOp, new_weight_op.getResult()->getType(),
-        ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+        priorboxOp, new_weight_op.getResult().getType(),
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 
-class ConvertPriorBoxPass : public FunctionPass<ConvertPriorBoxPass> {
+class ConvertPriorBoxPass : public mlir::PassWrapper<ConvertPriorBoxPass, FunctionPass> {
 public:
   explicit ConvertPriorBoxPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -307,9 +307,9 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuConvertPriorBoxPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
     patterns.insert<TpuConvertLoadeweightConcatToLoadweightPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -325,7 +325,7 @@ void tpu::PriorBoxOp::getCanonicalizationPatterns(
                  TpuConvertLoadeweightConcatToLoadweightPattern>(context);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertPriorBoxPass() {
+std::unique_ptr<mlir::Pass> mlir::createConvertPriorBoxPass() {
   return std::make_unique<ConvertPriorBoxPass>();
 }
 

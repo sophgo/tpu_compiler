@@ -19,20 +19,20 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/FormatVariadic.h"
 #include <math.h> // ceilf/floorf
-#include "mlir/Dialect/TPU/SimpleAnalysis.h"
+#include "tpuc/SimpleAnalysis.h"
 
 #define DEBUG_TYPE "convert_conv"
 
@@ -44,21 +44,21 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
   TpuMergeSwapChannelToConv2DPattern(MLIRContext *context)
       : RewritePattern("tpu.conv_2d", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<tpu::Conv2DOp>(op);
     LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
                             << getOpName(op)<< "\n";);
 
     // match SwapChannel Op that is following conv2d
-    auto formerOp = op->getOperand(0)->getDefiningOp();
+    auto formerOp = op->getOperand(0).getDefiningOp();
 
     if (!isa<tpu::SwapChannelOp>(formerOp)) {
-      return matchFailure();
+      return failure();
     }
 
-    if (convOp.param().group().getValue().getLimitedValue() != 1) {
-      return matchFailure();
+    if (convOp.param().group().getSInt() != 1) {
+      return failure();
     }
 
     auto swapOp = cast<tpu::SwapChannelOp>(formerOp);
@@ -68,18 +68,18 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
     auto inputOp = formerOp->getOperand(0);
     auto loc = op->getLoc();
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
 
     // find filter and bias tensor for conv op
     assert(convOp.getNumOperands() == 7 && "Conv2D op should have 7 operands");
     std::unique_ptr<std::vector<float>> convWeights;
     auto filter_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        convOp.getOperand(1)->getDefiningOp());
+        convOp.getOperand(1).getDefiningOp());
     if (!filter_op) {
-      return matchFailure();
+      return failure();
     }
     auto filter_name = filter_op.name();
-    auto filter_type = filter_op.getResult()->getType().cast<TensorType>();
+    auto filter_type = filter_op.getResult().getType().cast<TensorType>();
     convWeights = wTF->readTensor<float>(filter_name, filter_type);
     // delete the tensor from the weight file
     wTF->deleteTensor<float>(filter_name);
@@ -118,14 +118,14 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr(
         "storage", rewriter.getStringAttr(filter_op.storage().str())));
     auto new_filter_op = rewriter.create<tpu::LoadWeightOp>(
-        loc, filter_type, ArrayRef<Value *>{wfV},
+        loc, filter_type, ArrayRef<Value>{wfV},
         ArrayRef<NamedAttribute>{attrs});
     convOp.setOperand(0, inputOp);
     convOp.setOperand(1, new_filter_op.getResult());
 
     // remove the swap channel Op
     rewriter.replaceOp(formerOp, {convOp});
-    return matchSuccess();
+    return success();
   }
 };
 

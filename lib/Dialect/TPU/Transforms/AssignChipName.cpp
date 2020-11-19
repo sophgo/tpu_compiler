@@ -19,15 +19,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
@@ -49,7 +49,7 @@ llvm::cl::opt<std::string> clRunChipType(
      llvm::cl::init("cv183x"));
 
 namespace {
-class AssignChipNamePass : public FunctionPass<AssignChipNamePass> {
+class AssignChipNamePass : public mlir::PassWrapper<AssignChipNamePass, FunctionPass> {
 public:
   explicit AssignChipNamePass() {}
 
@@ -62,7 +62,7 @@ public:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createAssignChipNamePass() {
+std::unique_ptr<mlir::Pass> mlir::createAssignChipNamePass() {
   return std::make_unique<AssignChipNamePass>();
 }
 

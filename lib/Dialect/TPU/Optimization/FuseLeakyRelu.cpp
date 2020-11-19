@@ -19,15 +19,15 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 using namespace mlir;
@@ -39,12 +39,12 @@ struct TpuTgFusePattern : public RewritePattern {
   TpuTgFusePattern(MLIRContext *context)
       : RewritePattern(NextOpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
     auto leakyReluOp = cast<NextOpTy>(op);
     assert(leakyReluOp);
 
-    auto prevOpInst = op->getOperand(0)->getDefiningOp();
+    auto prevOpInst = op->getOperand(0).getDefiningOp();
     if (matchPattern(prevOpInst, m_Op<PrevOpTy>())) {
       auto convOp = cast<PrevOpTy>(prevOpInst);
       convOp.setAttr("do_leaky_relu", rewriter.getBoolAttr(true));
@@ -61,14 +61,14 @@ struct TpuTgFusePattern : public RewritePattern {
       // remove the relu Op
       convOp.setAttr("name", leakyReluOp.nameAttr());
       rewriter.replaceOp(op, {op->getOperand(0)});
-      return matchSuccess();
+      return success();
     }
 
-    return matchFailure();
+    return failure();
   }
 };
 
-class TgFuseLeakyReluPass : public FunctionPass<TgFuseLeakyReluPass> {
+class TgFuseLeakyReluPass : public mlir::PassWrapper<TgFuseLeakyReluPass, FunctionPass> {
 public:
   explicit TgFuseLeakyReluPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -80,7 +80,7 @@ public:
         TpuTgFusePattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_INT8_PT_Conv2DOp>,
         TpuTgFusePattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_INT8_PC_Conv2DOp>
         >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -89,7 +89,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createTgFuseLeakyReluPass() {
+std::unique_ptr<mlir::Pass> mlir::createTgFuseLeakyReluPass() {
   return std::make_unique<TgFuseLeakyReluPass>();
 }
 

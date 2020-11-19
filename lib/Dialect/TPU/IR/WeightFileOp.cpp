@@ -19,7 +19,7 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
@@ -27,7 +27,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/MemoryBuffer.h"
 
 #define DEBUG_TYPE "weightfile"
@@ -36,11 +36,11 @@ using namespace mlir;
 using namespace mlir::tpu;
 
 WeightFileOpOperandAdaptor::WeightFileOpOperandAdaptor(
-    ArrayRef<Value *> values) {
+    ArrayRef<Value> values) {
   tblgen_operands = values;
 }
 
-ArrayRef<Value *> WeightFileOpOperandAdaptor::getODSOperands(unsigned index) {
+ArrayRef<Value> WeightFileOpOperandAdaptor::getODSOperands(unsigned index) {
   return {std::next(tblgen_operands.begin(), index),
           std::next(tblgen_operands.begin(), index + 1)};
 }
@@ -59,7 +59,7 @@ Operation::result_range WeightFileOp::getODSResults(unsigned index) {
           std::next(getOperation()->result_begin(), index + 1)};
 }
 
-Value *WeightFileOp::weight() {
+Value weightFileOp::weight() {
   return *getODSResults(0).begin();
 }
 
@@ -117,11 +117,11 @@ LogicalResult WeightFileOp::verify() {
   }
   {
     unsigned index = 0; (void)index;
-    for (Value *v : getODSResults(0)) {
+    for (Value v : getODSResults(0)) {
       (void)v;
-      if (!(((v->getType().isa<MemRefType>())) && ((true)))) {
+      if (!(((v.getType().isa<MemRefType>())) && ((true)))) {
         return emitOpError("result #") << index
-            << " must be memref of any type values, but got " << v->getType();
+            << " must be memref of any type values, but got " << v.getType();
       }
       ++index;
     }
@@ -135,7 +135,7 @@ LogicalResult WeightFileOp::verify() {
 
 void WeightFileOp::print(OpAsmPrinter &p) {
   auto *context = getContext();
-  auto dialect = context->getRegisteredDialect("tpu");
+  auto dialect = context->getLoadedDialect("tpu");
   auto tpuDialect = reinterpret_cast<tpu::TPUDialect *>(dialect);
   assert(tpuDialect);
   TensorFile *weightFile = (TensorFile *)tpuDialect->getPriv();

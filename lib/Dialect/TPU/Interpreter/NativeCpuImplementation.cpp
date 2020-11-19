@@ -1,8 +1,8 @@
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/MachineInfo.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Format.h"
-#include "mlir/Dialect/TPU/NativeCpuImplementation.h"
+#include "tpuc/NativeCpuImplementation.h"
 
 #include <numeric>
 #include <functional>

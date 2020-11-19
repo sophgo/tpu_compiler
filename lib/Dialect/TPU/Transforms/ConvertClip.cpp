@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "convert_scale"
@@ -41,30 +41,30 @@ struct TpuClipAsRelu6Pattern : public RewritePattern {
   TpuClipAsRelu6Pattern(MLIRContext *context)
       : RewritePattern("tpu.clip", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
     auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op);
     if (!clipOp) {
-      return matchFailure();
+      return failure();
     }
 
     auto min = clipOp.min().convertToFloat();
     if (min != 0) {
       // keep < 0 part
-      return matchFailure();
+      return failure();
     }
 
-    auto formerOp = clipOp.getOperand(0)->getDefiningOp();
+    auto formerOp = clipOp.getOperand(0).getDefiningOp();
     if (isa<tpu::ReluOp>(formerOp)) {
       // has deal with
-      return matchFailure();
+      return failure();
     }
 
     auto loc = op->getLoc();
 
     auto layer_name = mlir::getOpName(clipOp).str();
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(clipOp.getOperand(0));
 
     // duplicate name for not mess up calibration table name
@@ -74,12 +74,12 @@ struct TpuClipAsRelu6Pattern : public RewritePattern {
     attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     // insert relu before clip op
     auto reluOp = rewriter.create<tpu::ReluOp>(loc,
-        clipOp.getOperand(0)->getType(),
-        ArrayRef<Value *>{newOperands},
+        clipOp.getOperand(0).getType(),
+        ArrayRef<Value>{newOperands},
         ArrayRef<NamedAttribute>{attrs});
 
     // duplicate one
-    std::vector<Value *> operands;
+    std::vector<Value> operands;
     auto NoneOp = rewriter.create<tpu::NoneOp>(
         rewriter.getUnknownLoc(), rewriter.getNoneType());
     operands.push_back(reluOp.getResult());
@@ -89,18 +89,18 @@ struct TpuClipAsRelu6Pattern : public RewritePattern {
     operands.push_back(NoneOp.getResult()); // quant_multiplier
 
     auto newOp = rewriter.create<tpu::ClipOp>(loc,
-        op->getResult(0)->getType(),
+        op->getResult(0).getType(),
         operands,
         op->getAttrs());
 
     // replace to relu->clip
     rewriter.replaceOp(op, {newOp});
 
-    return matchSuccess();
+    return success();
   }
 };
 
-class ClipAsRelu6Pass : public FunctionPass<ClipAsRelu6Pass> {
+class ClipAsRelu6Pass : public mlir::PassWrapper<ClipAsRelu6Pass, FunctionPass> {
 public:
   explicit ClipAsRelu6Pass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -110,7 +110,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuClipAsRelu6Pattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -120,7 +120,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createClipAsRelu6Pass() {
+std::unique_ptr<mlir::Pass> mlir::createClipAsRelu6Pass() {
   return std::make_unique<ClipAsRelu6Pass>();
 }
 

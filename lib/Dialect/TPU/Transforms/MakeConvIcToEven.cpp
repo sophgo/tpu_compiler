@@ -19,18 +19,18 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
+#include "tpuc/TPUTensorSupport.h"
 
 #define DEBUG_TYPE "conv_ic_alignment"
 
@@ -43,24 +43,24 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
   TpuRefactorOddIcConvPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto convOp = cast<OpTy>(op);
     LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
                             << getOpName(convOp)<< "\n";);
 
-    // auto shape = convOp.input()->getType().cast<TensorType>().getShape();//Refactor convOp
+    // auto shape = convOp.input().getType().cast<TensorType>().getShape();//Refactor convOp
     int64_t inputSize;
     std::vector<int64_t> shape;
     getTensorShapeAndSize(convOp.input(), shape, inputSize);
 
-    // auto filter_type = convOp.filter()->getType().template cast<TensorType>();
+    // auto filter_type = convOp.filter().getType().template cast<TensorType>();
     int64_t filterSize;
     std::vector<int64_t> filterShape;
     getTensorShapeAndSize(convOp.filter(), filterShape, filterSize);
     std::vector<int64_t> newFilterShape(filterShape);
     if (filterShape.size() != 4) {
-      return matchFailure();
+      return failure();
     }
     newFilterShape[1] +=1;
     // int in = shape[0];
@@ -71,7 +71,7 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
     int kc = filterShape[1];
     int kh = filterShape[filterShape.size() - 2];
     int kw = filterShape[filterShape.size() - 1];
-    int group = convOp.param().group().getValue().getLimitedValue();
+    int group = convOp.param().group().getSInt();
     if((kc % 2 != 0) && (group == 1) && (kc > 1)) {
       //Support only kc is odd && isConvolutionOp && kc>=3
       int new_ic = kc + 1;
@@ -112,19 +112,19 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
       //Reshpae mlir file
       // input ic will remain the same, pad ic on weight and change shape for weight
       // auto type = RankedTensorType::get({in, new_ic, ih, iw}, IntegerType::get(8, rewriter.getContext()));
-      // convOp.input()->setType(type);//rewrite inputShape
+      // convOp.input().setType(type);//rewrite inputShape
       auto filterType = RankedTensorType::get({kn, new_ic, kh, kw},
                                  IntegerType::get(8, (rewriter.getContext())));
-      convOp.filter()->setType(filterType);//rewrite inputShape
+      convOp.filter().setType(filterType);//rewrite inputShape
       convOp.setAttr("do_ic_alignment", rewriter.getBoolAttr(true));
-      return matchSuccess();
+      return success();
     }
 
-    return matchFailure();
+    return failure();
   }
 };
 
-class RefactorOddIcConvPass : public FunctionPass<RefactorOddIcConvPass> {
+class RefactorOddIcConvPass : public mlir::PassWrapper<RefactorOddIcConvPass, FunctionPass> {
 public:
   explicit RefactorOddIcConvPass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
@@ -138,7 +138,7 @@ public:
 
     patterns.insert<TpuRefactorOddIcConvPattern<tpu::TG_INT8_PC_Conv2DOp>,
                     TpuRefactorOddIcConvPattern<tpu::TG_INT8_PT_Conv2DOp>>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -147,7 +147,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createRefactorOddIcConvPass() {
+std::unique_ptr<mlir::Pass> mlir::createRefactorOddIcConvPass() {
   return std::make_unique<RefactorOddIcConvPass>();
 }
 

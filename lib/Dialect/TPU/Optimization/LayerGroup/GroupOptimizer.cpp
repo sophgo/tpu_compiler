@@ -338,7 +338,7 @@ struct LGLoweringPattern : public RewritePattern {
         //mix_net_ = optimizer->get_net();
       }
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
     // if already lowered to tl, return false
     int group_id = 0;
@@ -347,7 +347,7 @@ struct LGLoweringPattern : public RewritePattern {
         << "Find group start: " << getOpName(op) << "\n";);
       optimizer_->lower_to_tl(op, group_id);
     }
-    return matchSuccess();
+    return success();
   }
 
   GroupOptimizer *optimizer_;
@@ -406,7 +406,7 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       // Other
       LGLoweringPattern<tpu::TG_QuantOp>
       >(fn_, context, this);
-  applyPatternsGreedily(*fn_, patterns_pack);
+  applyPatternsAndFoldGreedily(*fn_, std::move(patterns_pack));
 
 }
 

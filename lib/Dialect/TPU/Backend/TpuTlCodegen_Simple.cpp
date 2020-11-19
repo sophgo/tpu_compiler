@@ -20,10 +20,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
@@ -37,7 +37,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "cvikernel/cvikernel.h"
 #include <fstream>
 
@@ -69,8 +69,8 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
   int layer_id = getOpLayerId(op);
   bool do_ic_alignment = (this->do_ic_alignment().hasValue()) ? this->do_ic_alignment().getValue() : false;
 
@@ -98,11 +98,11 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
-  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
 
   // leaky_relu
   bool do_leaky_relu = this->do_leaky_relu();
@@ -110,15 +110,15 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   int8_t pos_rshift = 0, pos_m_i8 = 0, neg_rshift = 0, neg_m_i8 = 0;
   if (do_leaky_relu) {
     if (this->m_i8_pos().hasValue()) {
-      pos_m_i8 = this->m_i8_pos().getValue().getLimitedValue();
-      pos_rshift = this->rshift_pos().getValue().getLimitedValue();
+      pos_m_i8 = this->m_i8_pos().getValue();
+      pos_rshift = this->rshift_pos().getValue();
     } else {
       pos_m_i8 = 0;
       pos_rshift = 0;
     }
     if (this->m_i8_neg().hasValue()) {
-      neg_m_i8 = this->m_i8_neg().getValue().getLimitedValue();
-      neg_rshift = this->rshift_neg().getValue().getLimitedValue();
+      neg_m_i8 = this->m_i8_neg().getValue();
+      neg_rshift = this->rshift_neg().getValue();
     } else {
       neg_m_i8 = 0;
       neg_rshift = 0;
@@ -227,8 +227,8 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   getNCHW(output_shape, on, oc, oh, ow);
   bool do_relu = this->do_relu();
   bool do_early_stride = this->do_early_stride();
-  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
-  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
   if (do_early_stride) {
     assert(oh == h / early_stride_h);
     assert(ow == w / early_stride_w);
@@ -246,7 +246,7 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   //    - if opd0 has more than one use, it is the short path
   gaddr_t ga_input = GA_INVALID;
   if (tl_load_flag()) {
-    auto weightOp = op->getOperand(0)->getDefiningOp();
+    auto weightOp = op->getOperand(0).getDefiningOp();
     if (isa<tpu::LoadWeightOp>(weightOp)) {
       // load from weight
       ga_input = getWeightOpAddress(weightOp);
@@ -263,12 +263,12 @@ LogicalResult tpu::TL_EltwiseAddOp::codegen(void *ctx) {
   laddr_t la_output = LA_INVALID;
   laddr_t la_working = LA_INVALID;
   if (this->lm_layout() != "NONE") {
-    la_input = this->la_input().getLimitedValue();
-    la_output = this->la_output().getLimitedValue();
-    la_working = this->la_working().getLimitedValue();
+    la_input = this->la_input();
+    la_output = this->la_output();
+    la_working = this->la_working();
   }
 
-  int8_t rshift = this->rshift().getLimitedValue();
+  int8_t rshift = this->rshift();
   int8_t m_i8_input[2];
   if(this->m_i8_inputs().hasValue()){
   std::vector<int32_t> m_i8_inputs_array;
@@ -319,23 +319,23 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, 0) : GA_INVALID; //Closest op
-  auto opd2 = op->getOperand(1)->getDefiningOp();
+  auto opd2 = op->getOperand(1).getDefiningOp();
   gaddr_t ga_input2 = opd2->getAttr("gaddr") ?
                       opd2->getAttr("gaddr").cast<IntegerAttr>().getInt() : GA_INVALID;
   bool isAllInLocalMem = (ga_input2 == GA_INVALID) && (tl_load_flag() == false);
   //Fix me: now use global address to present it's unique ID.
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
 
-  int8_t rshift = this->rshift().getLimitedValue();
+  int8_t rshift = this->rshift();
 
   // op code PROD = 0; SUM = 1; MAX = 2;
   int op_code = 0;
   const int coeffs[2] = {1, 1};
-  const int i32Multiplier = (this->m_i32_output().hasValue()) ? this->m_i32_output().getValue().getLimitedValue() : 0;
+  const int i32Multiplier = (this->m_i32_output().hasValue()) ? this->m_i32_output().getValue() : 0;
 
   if(!isAllInLocalMem) {
     cvi_backend_tl_eltwise_op(
@@ -386,16 +386,16 @@ LogicalResult tpu::TL_LutOp::codegen(void *ctx) {
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
-  gaddr_t y0_table_gaddr = getWeightOpAddress(table()->getDefiningOp());
+  gaddr_t y0_table_gaddr = getWeightOpAddress(table().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   laddr_t la_input = LA_INVALID;
   laddr_t la_output = LA_INVALID;
   laddr_t la_working = LA_INVALID;
   if (this->lm_layout() != "NONE") {
-    la_input = this->la_input().getLimitedValue();
-    la_output = this->la_output().getLimitedValue();
-    la_working = this->la_working().getLimitedValue();
+    la_input = this->la_input();
+    la_output = this->la_output();
+    la_working = this->la_working();
   }
 
   LLVM_DEBUG(
@@ -432,8 +432,8 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
                 n, c, ih, iw, oh, ow,
                 kh, kw, sh, sw, ph, pb, pl, pr,
                 is_global, do_relu, count_include_pad);
-  int8_t rshift = (this->rshift().hasValue()) ? this->rshift().getValue().getLimitedValue() : 0;
-  int8_t m_i8 = (this->m_i8().hasValue()) ? this->m_i8().getValue().getLimitedValue() : 0;
+  int8_t rshift = (this->rshift().hasValue()) ? this->rshift().getValue() : 0;
+  int8_t m_i8 = (this->m_i8().hasValue()) ? this->m_i8().getValue() : 0;
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
@@ -442,8 +442,8 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
   laddr_t la_input = LA_INVALID;
   laddr_t la_output = LA_INVALID;
   if (this->lm_layout() != "NONE") {
-    la_input = this->la_input().getLimitedValue();
-    la_output = this->la_output().getLimitedValue();
+    la_input = this->la_input();
+    la_output = this->la_output();
   }
 
   LLVM_DEBUG(
@@ -491,17 +491,17 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
-  gaddr_t ga_scale = getOpAddress(filter()->getDefiningOp());
-  gaddr_t ga_pc_info = getWeightOpAddress(pc_info()->getDefiningOp());
+  gaddr_t ga_scale = getOpAddress(filter().getDefiningOp());
+  gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   laddr_t la_input = LA_INVALID;
   laddr_t la_output = LA_INVALID;
   laddr_t la_working = LA_INVALID;
   if (this->lm_layout() != "NONE") {
-    la_input = this->la_input().getLimitedValue();
-    la_output = this->la_output().getLimitedValue();
-    la_working = this->la_working().getLimitedValue();
+    la_input = this->la_input();
+    la_output = this->la_output();
+    la_working = this->la_working();
   }
 
   LLVM_DEBUG(
@@ -544,6 +544,7 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
   return success();
 }
 
+#if 0
 // MemRefType dummy
 LogicalResult tpu::TL_MemRef_BroadcastMulOp::codegen(void *ctx) {
   return success();
@@ -572,5 +573,6 @@ LogicalResult tpu::TL_MemRef_LA_Conv2DOp::codegen(void *ctx) {
 LogicalResult tpu::TL_MemRef_LW_Conv2DOp::codegen(void *ctx) {
   return success();
 }
+#endif
 
 }

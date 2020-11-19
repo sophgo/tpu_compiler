@@ -19,19 +19,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/TPUCompressUtil.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/TPUCompressUtil.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "compress-activation"
@@ -76,7 +76,7 @@ bool canStoreCompressedActivation(Operation *op) {
 
   // Check if all user operation does not need to do tiling.
   // Only support conv->conv now.
-  for (auto &use : op->getResult(0)->getUses()) {
+  for (auto &use : op->getResult(0).getUses()) {
     uint64_t totalPerLane = MInfo::lmem_per_lane + 1;
     auto useOp = use.getOwner();
     if (auto useTpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
@@ -103,7 +103,7 @@ bool canLoadCompressedActivation(Operation *op) {
   // Check if input operation store compressed activation.
   // Only support conv->conv now.
   for (auto operand : op->getOperands()) {
-    auto operandOp = operand->getDefiningOp();
+    auto operandOp = operand.getDefiningOp();
     if (auto operandTpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
       if (operandTpuOp.store_compr_act().hasValue())
         return true;
@@ -122,21 +122,21 @@ public:
   StoreCompressedConvActPattern(MLIRContext *ctx)
       : OpRewritePattern<OpTy>(ctx) {}
 
-  PatternMatchResult matchAndRewrite(OpTy convOp,
+  LogicalResult matchAndRewrite(OpTy convOp,
                                      PatternRewriter &rewriter) const override {
     // Already marked.
     if (convOp.store_compr_act().hasValue())
-      return Pattern::matchFailure();
+      return failure();
 
     uint64_t totalPerLane = calcConv2DMemoryUsage<OpTy>(convOp);
     if (totalPerLane > MInfo::lmem_per_lane)
-      return Pattern::matchFailure();
+      return failure();
 
     // A operation needs to generate the compressed activation first then
     // the user operation has to load the compressed activation.
     auto op = convOp.getOperation();
     if (!canStoreCompressedActivation(op))
-      return Pattern::matchFailure();
+      return failure();
 
     convOp.setAttr("store_compr_act",
                    Builder(op->getContext()).getBoolAttr(true));
@@ -147,7 +147,7 @@ public:
                << ", layer ID " << getOpLayerId(op)
                << ", store compressed activation\n");
 
-    return Pattern::matchSuccess();
+    return success();
   }
 };
 
@@ -160,15 +160,15 @@ public:
   LoadCompressedConvActivationPattern(MLIRContext *ctx)
       : OpRewritePattern<OpTy>(ctx) {}
 
-  PatternMatchResult matchAndRewrite(OpTy convOp,
+  LogicalResult matchAndRewrite(OpTy convOp,
                                      PatternRewriter &rewriter) const override {
     // Already marked.
     if (convOp.load_compr_act().hasValue())
-      return Pattern::matchFailure();
+      return failure();
 
     auto op = convOp.getOperation();
     if (!canLoadCompressedActivation(op))
-      return Pattern::matchFailure();
+      return failure();
 
     convOp.setAttr("load_compr_act",
                    Builder(op->getContext()).getBoolAttr(true));
@@ -179,7 +179,7 @@ public:
                << ", layer ID " << getOpLayerId(op)
                << ", load compressed activation\n");
 
-    return Pattern::matchSuccess();
+    return success();
   }
 };
 
@@ -192,7 +192,7 @@ public:
   StoreTlCompressedActPattern(MLIRContext *ctx)
       : OpRewritePattern<OpTy>(ctx) {}
 
-  PatternMatchResult matchAndRewrite(OpTy tpuOp,
+  LogicalResult matchAndRewrite(OpTy tpuOp,
                                      PatternRewriter &rewriter) const override {
 
     Operation *op = tpuOp.getOperation();
@@ -210,11 +210,11 @@ public:
         << ", " << outputShapes[1]
         << ", " << outputShapes[2]
         << ", " << outputShapes[3] << ")\n  "
-        << "operand " << getOpName(op->getOperand(0)->getDefiningOp())
-        << ", " << op->getOperand(0)->getDefiningOp()->getName()
+        << "operand " << getOpName(op->getOperand(0).getDefiningOp())
+        << ", " << op->getOperand(0).getDefiningOp()->getName()
         << "\n");
 
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
       std::vector<int64_t> inputShapes = getTensorShape(useOp->getOperand(0));
       std::vector<int64_t> outputShapes = getTensorShape(useOp->getResult(0));
@@ -233,10 +233,10 @@ public:
           << ")\n");
 
       for (auto *operand : useOp->getOperands()) {
-        std::vector<int64_t> inputShapes = getTensorShape(operand->getDefiningOp()->getOperand(0));
-        std::vector<int64_t> outputShapes = getTensorShape(operand->getDefiningOp()->getResult(0));
+        std::vector<int64_t> inputShapes = getTensorShape(operand.getDefiningOp()->getOperand(0));
+        std::vector<int64_t> outputShapes = getTensorShape(operand.getDefiningOp()->getResult(0));
         LLVM_DEBUG(llvm::dbgs()
-            << "    operand " << operand->getDefiningOp()->getName()
+            << "    operand " << operand.getDefiningOp()->getName()
             << ", operand[0](" << inputShapes[0]
             << ", " << inputShapes[1]
             << ", " << inputShapes[2]
@@ -248,7 +248,7 @@ public:
             << ")\n");
       }
 
-      for (auto &nextUse : useOp->getResult(0)->getUses()) {
+      for (auto &nextUse : useOp->getResult(0).getUses()) {
         auto nextUseOp = nextUse.getOwner();
         std::vector<int64_t> outputShapes = getTensorShape(nextUseOp->getResult(0));
 
@@ -264,7 +264,7 @@ public:
         for (auto nextUseOpOperand : nextUseOp->getOperands()) {
           std::vector<int64_t> inputShapes = getTensorShape(nextUseOpOperand);
           LLVM_DEBUG(llvm::dbgs()
-              << "      operand " << nextUseOpOperand->getDefiningOp()->getName()
+              << "      operand " << nextUseOpOperand.getDefiningOp()->getName()
               << ", (" << inputShapes[0]
               << ", " << inputShapes[1]
               << ", " << inputShapes[2]
@@ -274,7 +274,7 @@ public:
       }
     }
 
-    return Pattern::matchFailure();
+    return failure();
   }
 
 };
@@ -362,7 +362,7 @@ static bool getTiledCompressedActShapeAndSize(Operation *op,
 //
 static bool isValidLoadCompressActForTlLgJoin(Operation *op, int h_step) {
 
-  for (auto &use : op->getResult(0)->getUses()) {
+  for (auto &use : op->getResult(0).getUses()) {
     auto useOp = use.getOwner();
 
     if (llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(useOp)) {
@@ -406,7 +406,7 @@ public:
   TlLgJointCompressedActPattern(MLIRContext *ctx, MInfo &mInfo)
       : OpRewritePattern<tpu::TL_LG_JoinOp>(ctx), mInfo(mInfo) {}
 
-  PatternMatchResult matchAndRewrite(tpu::TL_LG_JoinOp tpuOp,
+  LogicalResult matchAndRewrite(tpu::TL_LG_JoinOp tpuOp,
                                      PatternRewriter &rewriter) const override {
     Operation *op = tpuOp.getOperation();
 
@@ -422,8 +422,8 @@ public:
 
     std::vector<std::vector<int64_t>> storeShapes;
     std::vector<std::vector<int64_t>> loadShapes;
-    for (auto *operand : op->getOperands()) {
-      auto opdOp = operand->getDefiningOp();
+    for (auto operand : op->getOperands()) {
+      auto opdOp = operand.getDefiningOp();
       std::vector<int64_t> inputShapes = getTensorShape(opdOp->getOperand(0));
       std::vector<int64_t> outputShapes = getTensorShape(opdOp->getResult(0));
 
@@ -449,7 +449,7 @@ public:
 
     // tl_lg_join -> tl_lg_load_neuron
     // tl_lg_join -> tl_lw_conv_2d
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
 
       std::vector<int64_t> shapes;
@@ -483,16 +483,16 @@ public:
     if (!getTiledCompressedActShapeAndSize(op, storeShapes, loadShapes, isBf16,
                                            n_step, oc_step, oh_step, step_size,
                                            total_size))
-      return Pattern::matchFailure();
+      return failure();
 
     if (!isValidLoadCompressActForTlLgJoin(op, oh_step))
-      return Pattern::matchFailure();
+      return failure();
 
     auto enableStoreCmprAct = [&](Operation *op, int64_t &offset) {
     if (auto tpuOp = llvm::dyn_cast<tpu::TL_LG_StoreOp>(op)) {
         LLVM_DEBUG(llvm::dbgs()
             << "      " << getOpName(op)
-            << ", offset " << tpuOp.offset().getValue().getSExtValue()
+            << ", offset " << tpuOp.offset().getValue()
             << " -> " << offset << "\n");
 
         tpuOp.removeAttr("offset");
@@ -518,19 +518,19 @@ public:
     auto enableLoadCmprAct = [&](Operation *op) {
       if (auto tpuOp = llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(op)) {
         auto resultTy =
-            op->getResult(0)->getType().template dyn_cast<RankedTensorType>();
+            op->getResult(0).getType().template dyn_cast<RankedTensorType>();
         auto eltType = resultTy.getElementType();
         int eltSize = llvm::divideCeil(eltType.getIntOrFloatBitWidth(), 8);
 
         // Physical offset(in byte) -> logical offset
         std::vector<int64_t> resShapes = getTensorShape(op->getResult(0));
-        int64_t hOffset = tpuOp.offset().getValue().getSExtValue() /
+        int64_t hOffset = tpuOp.offset().getValue() /
                           resShapes[3] / eltSize;
 
         int64_t offset = step_size * hOffset; // in byte
         LLVM_DEBUG(llvm::dbgs()
             << "      " << getOpName(op)
-            << ", offset " << tpuOp.offset().getValue().getSExtValue()
+            << ", offset " << tpuOp.offset().getValue()
             << " -> " << offset
             << "(" << step_size
             << " * " << hOffset
@@ -579,8 +579,8 @@ public:
     //   Enable store_compr_act of tl_lg_store
     int64_t store_offset = 0;
     // int64_t load_offset = 0;
-    for (auto *operand : op->getOperands()) {
-      auto tiuOp = operand->getDefiningOp()->getOperand(0)->getDefiningOp();
+    for (auto operand : op->getOperands()) {
+      auto tiuOp = operand.getDefiningOp()->getOperand(0).getDefiningOp();
 
       LLVM_DEBUG(llvm::dbgs()
         << "  Mark cmpr_store, tiuOp " << getOpName(tiuOp)
@@ -588,10 +588,10 @@ public:
         << "\n");
 
       // Mark lg_store
-      enableStoreCmprAct(operand->getDefiningOp(), store_offset);
+      enableStoreCmprAct(operand.getDefiningOp(), store_offset);
 
       // Mark all user of pre tiu op
-      for (auto &use : tiuOp->getResult(0)->getUses()) {
+      for (auto &use : tiuOp->getResult(0).getUses()) {
         auto useOp = use.getOwner();
         LLVM_DEBUG(llvm::dbgs()
             << "    mark cmpr_load, useOp " << getOpName(useOp)
@@ -609,7 +609,7 @@ public:
     //   Enable load_compr_act of tl_lw_conv2d
     //
     int index = 0;
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
 
       LLVM_DEBUG(llvm::dbgs()
@@ -621,13 +621,13 @@ public:
       index++;
     }
 
-    return Pattern::matchFailure();
+    return failure();
   }
 
   MInfo &mInfo;
 };
 
-struct CompressActivationPass : public FunctionPass<CompressActivationPass> {
+struct CompressActivationPass : public mlir::PassWrapper<CompressActivationPass, FunctionPass> {
   void runOnFunction() override;
 };
 
@@ -643,7 +643,7 @@ void CompressActivationPass::runOnFunction() {
   patterns.insert<
       StoreCompressedConvActPattern<tpu::TG_INT8_PC_Conv2DOp>
       >(&getContext());
-  applyPatternsGreedily(getFunction(), patterns);
+  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
   // Determine whether the operation can load compressed activation.
   patterns.clear();
@@ -651,7 +651,7 @@ void CompressActivationPass::runOnFunction() {
   patterns.insert<
       LoadCompressedConvActivationPattern<tpu::TG_INT8_PC_Conv2DOp>
       >(&getContext());
-  applyPatternsGreedily(getFunction(), patterns);
+  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
   // Determine whether the tl store operations can store tiled compressed
   // activation
@@ -660,10 +660,10 @@ void CompressActivationPass::runOnFunction() {
   patterns.insert<
       TlLgJointCompressedActPattern
       >(&getContext(), mInfo);
-  applyPatternsGreedily(getFunction(), patterns);
+  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createCompressActivationPass() {
+std::unique_ptr<mlir::Pass> mlir::createCompressActivationPass() {
   return std::make_unique<CompressActivationPass>();
 }
 

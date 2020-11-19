@@ -1,4 +1,4 @@
-#include "mlir/Dialect/TPU/TPUCompressUtil.h"
+#include "tpuc/TPUCompressUtil.h"
 #include "llvm/Support/raw_ostream.h"
 #include <vector>
 

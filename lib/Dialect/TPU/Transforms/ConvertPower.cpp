@@ -20,16 +20,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "convert_power"
@@ -43,7 +43,7 @@ struct TpuPowerToScalePattern : public RewritePattern {
   TpuPowerToScalePattern(MLIRContext *context)
       : RewritePattern("tpu.power", 2, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto powerOp = cast<tpu::PowerOp>(op);
     LLVM_DEBUG(llvm::errs() << powerOp.getOperationName() << ":"
@@ -52,15 +52,15 @@ struct TpuPowerToScalePattern : public RewritePattern {
     float scale = powerOp.scale().convertToFloat();
     float shift = powerOp.shift().convertToFloat();
     if (power != 1.0f) {
-      return matchFailure();
+      return failure();
     }
     if (scale == 1.0f && shift == 0.0f) {
       // remove this op
       rewriter.replaceOp(op, {op->getOperand(0)});
-      return matchSuccess();
+      return success();
     }
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
     // op_name
     std::string op_name =
         powerOp.getAttrOfType<StringAttr>("name").getValue().str();
@@ -76,7 +76,7 @@ struct TpuPowerToScalePattern : public RewritePattern {
       new_bias[i] = shift;
     }
     std::vector<std::vector<float> *> newWeights{&new_scale, &new_bias};
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(op->getOperand(0));
     for (int i = 0; i < 2; ++i) {
       auto tensor_name = op_name + "_scale_" + std::to_string(i);
@@ -87,7 +87,7 @@ struct TpuPowerToScalePattern : public RewritePattern {
       attrs.push_back(
           rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value *>{wfV},
+          op->getLoc(), type, ArrayRef<Value>{wfV},
           ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
@@ -95,10 +95,10 @@ struct TpuPowerToScalePattern : public RewritePattern {
     attrs.push_back(
         rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
-        powerOp, powerOp.getResult()->getType(), ArrayRef<Value *>{newOperands},
+        powerOp, powerOp.getResult().getType(), ArrayRef<Value>{newOperands},
         ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 

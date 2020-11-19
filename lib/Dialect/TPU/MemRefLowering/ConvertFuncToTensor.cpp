@@ -1,13 +1,13 @@
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/raw_ostream.h"
@@ -41,14 +41,14 @@ struct AllocOpConverter : public ConversionPattern {
   AllocOpConverter(MLIRContext *ctx)
       : ConversionPattern(AllocOp::getOperationName(), 1, ctx) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const final {
 
     // Cannot erase AllocOp in ReturnOpConverter.
     // AllocOp references is still kept.
     rewriter.eraseOp(op);
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -56,22 +56,22 @@ struct ReturnOpConverter : public ConversionPattern {
   ReturnOpConverter(MLIRContext *ctx)
       : ConversionPattern(ReturnOp::getOperationName(), 1, ctx) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const final {
 
     auto returnOp = dyn_cast<ReturnOp>(op);
 
     // AllocOp and TensorStoreOp were created during lowering.
     // Remove them when back to TensorType.
-    SmallVector<Value *, 4> newOperands;
+    SmallVector<Value, 4> newOperands;
     SmallVector<Operation *, 4> erasedOps;
     for (auto operand : op->getOperands()) {
       bool replaced = false;
-      for (auto &user : operand->getUses()) {
+      for (auto &user : operand.getUses()) {
         Operation *userOp = user.getOwner();
         if (auto tensorStoreOp = dyn_cast<TensorStoreOp>(userOp)) {
-          auto lastTpuOp = userOp->getOperand(0)->getDefiningOp();
+          auto lastTpuOp = userOp->getOperand(0).getDefiningOp();
           newOperands.push_back(lastTpuOp->getResult(0));
           erasedOps.push_back(userOp);
           replaced = true;
@@ -87,7 +87,7 @@ struct ReturnOpConverter : public ConversionPattern {
     for (auto op : erasedOps)
       rewriter.eraseOp(op);
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -95,20 +95,20 @@ struct TensorLoadOpConverter : public ConversionPattern {
   TensorLoadOpConverter(MLIRContext *ctx)
       : ConversionPattern(TensorLoadOp::getOperationName(), 1, ctx) {}
 
-  PatternMatchResult
-  matchAndRewrite(Operation *op, ArrayRef<Value *> operands,
+  LogicalResult
+  matchAndRewrite(Operation *op, ArrayRef<Value> operands,
       ConversionPatternRewriter &rewriter) const final {
 
     // Remove MemRefType to TensorType conversion
-    op->getResult(0)->replaceAllUsesWith(op->getOperand(0));
+    op->getResult(0).replaceAllUsesWith(op->getOperand(0));
 
     rewriter.eraseOp(op);
-    return matchSuccess();
+    return success();
   }
 };
 
 struct ConvertFuncToTensorPass
-    : public ModulePass<ConvertFuncToTensorPass> {
+    : public mlir::PassWrapper<ConvertFuncToTensorPass, FunctionPass> {
   void runOnModule() override {
     MemRefToTensorTypeConverter converter;
     OwningRewritePatternList patterns;
@@ -184,7 +184,7 @@ struct ConvertFuncToTensorPass
 
     target.addDynamicallyLegalOp<ReturnOp>(
         [&] (Operation *op) -> bool {
-          return op->getOperand(0)->getType().isa<TensorType>();
+          return op->getOperand(0).getType().isa<TensorType>();
         });
 
     auto module = getModule();

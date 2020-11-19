@@ -19,9 +19,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -39,12 +39,11 @@ static llvm::cl::opt<std::string> clTpuOpInfoFilename(
     llvm::cl::desc("dump tpu op info"),
     llvm::cl::init("-"));
 
-class PrintTpuOpPass : public ModulePass<PrintTpuOpPass> {
+class PrintTpuOpPass : public mlir::PassWrapper<PrintTpuOpPass, FunctionPass> {
 public:
   explicit PrintTpuOpPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
-  void runOnModule() override {
-    mlir::ModuleOp module = getModule();
+  void runOnFunction() override {
 
     std::unique_ptr<llvm::ToolOutputFile> file = nullptr;
     if (clTpuOpInfoFilename != "-") {
@@ -56,35 +55,33 @@ public:
       }
       file->keep();
       llvm::raw_ostream &file_os = file->os();
-
-      for (auto func : module.getOps<FuncOp>()) {
-        func.walk([&](Operation *op) {
-          if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
-            std::string op_name = mlir::getOpName(op).str();
-            file_os << op_name;
-            file_os << "," << getOpLayerId(op);
-            if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-              file_os << "," << getOpQuant(op);
-              if (getOpQuant(op) == "INT8") {
-                file_os << "," << std::to_string(getOpThreshold(op));
-              } else {
-                file_os << "," << 0;
-              }
+      auto func = getFunction();
+      func.walk([&](Operation *op) {
+        if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
+          std::string op_name = mlir::getOpName(op).str();
+          file_os << op_name;
+          file_os << "," << getOpLayerId(op);
+          if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
+            file_os << "," << getOpQuant(op);
+            if (getOpQuant(op) == "INT8") {
+              file_os << "," << std::to_string(getOpThreshold(op));
             } else {
-              file_os << "," << "NONE";
               file_os << "," << 0;
             }
-            file_os << "\n";
-          } else if (op->getName().getDialect().str() != "tpu"
-                || isa<tpu::WeightFileOp>(op)
-                || isa<tpu::LoadWeightOp>(op)
-                || isa<tpu::NoneOp>(op)) {
           } else {
-            std::string opName = op->getName().getStringRef();
-            llvm_unreachable(("printTpuOpInfo didn't handle " + opName).c_str());
+            file_os << "," << "NONE";
+            file_os << "," << 0;
           }
-        });
-      }
+          file_os << "\n";
+        } else if (op->getName().getDialect().str() != "tpu"
+              || isa<tpu::WeightFileOp>(op)
+              || isa<tpu::LoadWeightOp>(op)
+              || isa<tpu::NoneOp>(op)) {
+        } else {
+          std::string opName = op->getName().getStringRef().str();
+          llvm_unreachable(("printTpuOpInfo didn't handle " + opName).c_str());
+        }
+      });
     }
   }
 
@@ -93,7 +90,7 @@ public:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<ModuleOp>> mlir::createPrintTpuOpPass() {
+std::unique_ptr<mlir::Pass> mlir::createPrintTpuOpPass() {
   return std::make_unique<PrintTpuOpPass>();
 }
 

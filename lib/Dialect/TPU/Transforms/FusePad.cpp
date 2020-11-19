@@ -19,9 +19,9 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -29,7 +29,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "fuse_pad"
@@ -41,20 +41,20 @@ struct TpuMergeCropPattern : public RewritePattern {
   TpuMergeCropPattern(MLIRContext *context)
       : RewritePattern("tpu.crop", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
 
     auto crop0Op = dyn_cast<tpu::CropOp>(op);
-    if (!op->getResult(0)->hasOneUse())
-      return matchFailure();
+    if (!op->getResult(0).hasOneUse())
+      return failure();
 
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
       if (auto crop1Op = dyn_cast<tpu::CropOp>(useOp)) {
         std::vector<int> crop0Offset;
         std::vector<int> crop1Offset;
         std::vector<NamedAttribute> attrs;
-        std::vector<Value *> operands;
+        std::vector<Value> operands;
         SmallVector<Attribute, 4> mergeOffsetAttr;
 
         operands.push_back(op->getOperand(0));
@@ -76,15 +76,15 @@ struct TpuMergeCropPattern : public RewritePattern {
                                               crop1Op.quantAttr()));
 
         auto mergeCropOp = rewriter.create<tpu::CropOp>(op->getLoc(),
-                    crop1Op.getResult()->getType(), ArrayRef<Value *>{operands},
+                    crop1Op.getResult().getType(), ArrayRef<Value>{operands},
                     ArrayRef<NamedAttribute>{attrs});
 
         rewriter.replaceOp(crop1Op, {mergeCropOp.getResult()});
-        return matchSuccess();
+        return success();
       } else
-        return matchFailure();
+        return failure();
     }
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -101,10 +101,10 @@ struct TpuFusePadPattern : public RewritePattern {
     auto pad_h_end = pads[6];
     auto pad_w_end = pads[7];
     auto param = poolOp.param();
-    auto pt = param.padding_t().getValue().getLimitedValue();
-    auto pb = param.padding_b().getValue().getLimitedValue();
-    auto pl = param.padding_l().getValue().getLimitedValue();
-    auto pr = param.padding_r().getValue().getLimitedValue();
+    auto pt = param.padding_t().getSInt();
+    auto pb = param.padding_b().getSInt();
+    auto pl = param.padding_l().getSInt();
+    auto pr = param.padding_r().getSInt();
     pt += pad_h_begin;
     pb += pad_h_end;
     pl += pad_w_begin;
@@ -135,10 +135,10 @@ struct TpuFusePadPattern : public RewritePattern {
     auto pad_w_end = pads[7];
 
     auto param = convOp.param();
-    auto pt = param.padding_t().getValue().getLimitedValue();
-    auto pb = param.padding_b().getValue().getLimitedValue();
-    auto pl = param.padding_l().getValue().getLimitedValue();
-    auto pr = param.padding_r().getValue().getLimitedValue();
+    auto pt = param.padding_t().getSInt();
+    auto pb = param.padding_b().getSInt();
+    auto pl = param.padding_l().getSInt();
+    auto pr = param.padding_r().getSInt();
     pt += pad_h_begin;
     pb += pad_h_end;
     pl += pad_w_begin;
@@ -168,10 +168,10 @@ struct TpuFusePadPattern : public RewritePattern {
   template <class T>
   bool noPaddingPool(T &poolOp) const {
     auto param = poolOp.param();
-    auto pt = param.padding_t().getValue().getLimitedValue();
-    auto pb = param.padding_b().getValue().getLimitedValue();
-    auto pl = param.padding_l().getValue().getLimitedValue();
-    auto pr = param.padding_r().getValue().getLimitedValue();
+    auto pt = param.padding_t().getSInt();
+    auto pb = param.padding_b().getSInt();
+    auto pl = param.padding_l().getSInt();
+    auto pr = param.padding_r().getSInt();
     auto count_include_pad = param.count_include_pad().getValue();
 
     if (pt == 0 && pb == 0 && pl == 0 && pr == 0)
@@ -182,7 +182,7 @@ struct TpuFusePadPattern : public RewritePattern {
       return false;
   }
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto padOp = cast<tpu::PadOp>(op);
     LLVM_DEBUG(llvm::errs() << padOp.getOperationName() << ":"
@@ -198,11 +198,11 @@ struct TpuFusePadPattern : public RewritePattern {
     auto pad_c_end = pads[5];
 
     if (const_val != 0)
-      return matchFailure();
+      return failure();
 
     if (pad_n_begin != 0 || pad_n_end != 0 ||
         pad_c_begin != 0 || pad_c_end != 0)
-      return matchFailure();
+      return failure();
 
     const int PAD_H_MAX = 15;
     const int PAD_W_MAX = 15;
@@ -212,19 +212,19 @@ struct TpuFusePadPattern : public RewritePattern {
     auto pad_w_end = pads[7];
     if (pad_h_begin > PAD_H_MAX || pad_h_end > PAD_H_MAX ||
         pad_w_begin > PAD_W_MAX || pad_w_end > PAD_W_MAX)
-      return matchFailure();
+      return failure();
 
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
       if (auto poolOp = dyn_cast<tpu::PoolAvg2DOp>(useOp)) {
         if (!noPaddingPool<tpu::PoolAvg2DOp>(poolOp))
-          return matchFailure();
+          return failure();
         else
           continue;
       }
       else if (auto poolOp = dyn_cast<tpu::PoolMax2DOp>(useOp)) {
         if (!noPaddingPool<tpu::PoolMax2DOp>(poolOp))
-          return matchFailure();
+          return failure();
         else
           continue;
       }
@@ -234,11 +234,11 @@ struct TpuFusePadPattern : public RewritePattern {
       else if (llvm::isa<tpu::DeConv2DOp>(useOp)) {
         continue;
       } else {
-        return matchFailure();
+        return failure();
       }
     }
 
-    for (auto &use : op->getResult(0)->getUses()) {
+    for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
 
       if (llvm::isa<tpu::PoolAvg2DOp>(useOp)) {
@@ -258,12 +258,12 @@ struct TpuFusePadPattern : public RewritePattern {
       }
     }
     rewriter.replaceOp(op, {op->getOperand(0)});
-    return matchSuccess();
+    return success();
   }
 };
 
 
-class FusePadPass : public FunctionPass<FusePadPass> {
+class FusePadPass : public mlir::PassWrapper<FusePadPass, FunctionPass> {
 public:
   explicit FusePadPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -276,7 +276,7 @@ public:
     patterns.insert<TpuFusePadPattern,
                     TpuMergeCropPattern
                    >(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -297,7 +297,7 @@ void tpu::CropOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
       TpuMergeCropPattern>(context);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createFusePadPass() {
+std::unique_ptr<mlir::Pass> mlir::createFusePadPass() {
   return std::make_unique<FusePadPass>();
 }
 

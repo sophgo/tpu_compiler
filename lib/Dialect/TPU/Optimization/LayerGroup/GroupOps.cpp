@@ -8,7 +8,7 @@
 
 namespace mlir {
 
-class GroupOpsPass : public FunctionPass<GroupOpsPass> {
+class GroupOpsPass : public mlir::PassWrapper<GroupOpsPass, FunctionPass> {
 public:
   explicit GroupOpsPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -36,7 +36,7 @@ void GroupOpsPass::process_fn(FuncOp *fn, MLIRContext * context) {
   optimizer->build_fn(context);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> createGroupOpsPass() {
+std::unique_ptr<mlir::Pass> createGroupOpsPass() {
     return std::make_unique<GroupOpsPass>();
 }
 

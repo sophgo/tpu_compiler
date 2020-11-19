@@ -11,12 +11,12 @@
 #include <set>
 #include <algorithm>
 #include "mlir/IR/Builders.h"
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
@@ -24,7 +24,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Transforms/DialectConversion.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #include "Tensor.hpp"
@@ -87,16 +87,16 @@ class ImLayer {
 
   void add_in_tensor(ShapedType* shape, const std::string &name, tensor_type_t type);
 
-  void add_in_tensor(Value * op, tensor_type_t type);
+  void add_in_tensor(Value op, tensor_type_t type);
 
-  void add_out_tensor(Value * op, tensor_type_t type, std::string storage = "INT8");
+  void add_out_tensor(Value op, tensor_type_t type, std::string storage = "INT8");
 
   void add_imm_tensor(const std::shared_ptr<Tensor> associcate, int count, const std::string &name);
   // // clear temp_data if has.
   virtual void clear_temp_data() {}
 
   static std::shared_ptr<ImLayer> create(Operation *op);
-  static std::string getStorage(Value * v);
+  static std::string getStorage(Value v);
   static void register_it(std::shared_ptr<ImLayer> &layer);
   static void unregister_all();
   static std::vector<std::shared_ptr<ImLayer>> layers;

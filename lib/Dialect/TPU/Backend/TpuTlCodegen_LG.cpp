@@ -20,10 +20,10 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/QuantizationArithmetic.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/QuantizationArithmetic.h"
 #include "mlir/IR/Function.h"
 #include "mlir/IR/Module.h"
 #include "mlir/IR/StandardTypes.h"
@@ -37,7 +37,7 @@
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "mlir/Support/FileUtilities.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "cvikernel/cvikernel.h"
 #include <fstream>
 
@@ -63,16 +63,16 @@ static void parseTLLeakyReluParam(Operation *op,
   assert(lreluOp);
 
   if (lreluOp.m_i8_pos().hasValue()) {
-    pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
-    pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+    pos_m_i8 = lreluOp.m_i8_pos().getValue();
+    pos_rshift = lreluOp.rshift_pos().getValue();
   } else {
     pos_m_i8 = 0;
     pos_rshift = 0;
   }
 
   if (lreluOp.m_i8_neg().hasValue()) {
-    neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
-    neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+    neg_m_i8 = lreluOp.m_i8_neg().getValue();
+    neg_rshift = lreluOp.rshift_neg().getValue();
   } else {
     neg_m_i8 = 0;
     neg_rshift = 0;
@@ -88,16 +88,16 @@ static void parseTLConvLeakyParam(Operation *op,
   assert(lreluOp);
 
   if (lreluOp.m_i8_pos().hasValue()) {
-    pos_m_i8 = lreluOp.m_i8_pos().getValue().getLimitedValue();
-    pos_rshift = lreluOp.rshift_pos().getValue().getLimitedValue();
+    pos_m_i8 = lreluOp.m_i8_pos().getValue();
+    pos_rshift = lreluOp.rshift_pos().getValue();
   } else {
     pos_m_i8 = 0;
     pos_rshift = 0;
   }
 
   if (lreluOp.m_i8_neg().hasValue()) {
-    neg_m_i8 = lreluOp.m_i8_neg().getValue().getLimitedValue();
-    neg_rshift = lreluOp.rshift_neg().getValue().getLimitedValue();
+    neg_m_i8 = lreluOp.m_i8_neg().getValue();
+    neg_rshift = lreluOp.rshift_neg().getValue();
   } else {
     neg_m_i8 = 0;
     neg_rshift = 0;
@@ -118,9 +118,9 @@ LogicalResult tpu::TL_LG_INT8_AbsOp::codegen(void *ctx) {
   int nInputs = op->getNumOperands();
   std::vector<int32_t> la_input_array;
   auto la_input = new laddr_t[nInputs];
-  la_input[0] = this->la_input().getLimitedValue();
+  la_input[0] = this->la_input();
 
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_output = this->la_output();
 
   // parse param
   int layer_id = getOpLayerId(op);
@@ -161,9 +161,9 @@ LogicalResult tpu::TL_LG_BF16_AbsOp::codegen(void *ctx) {
   int nInputs = op->getNumOperands();
   std::vector<int32_t> la_input_array;
   auto la_input = new laddr_t[nInputs];
-  la_input[0] = this->la_input().getLimitedValue();
+  la_input[0] = this->la_input();
 
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_output = this->la_output();
 
   // parse param
   int layer_id = getOpLayerId(op);
@@ -201,19 +201,19 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
                  n, ic, ih, iw, oc, oh, ow, g,
                  kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_weight = this->la_filter().getLimitedValue();
-  laddr_t la_perchanel = this->la_bias().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_weight = this->la_filter();
+  laddr_t la_perchanel = this->la_bias();
+  laddr_t la_working = this->la_working();
   bool do_ic_alignment = this->do_ic_alignment().hasValue()
                             ? this->do_ic_alignment().getValue() : false;
 
   // pad is not "SAME", can not get from conv param
-  int ph_t = this->pad_top_h().getLimitedValue();
-  int ph_b = this->pad_bottom_h().getLimitedValue();
-  int pw_l = this->pad_left_w().getLimitedValue();
-  int pw_r = this->pad_right_w().getLimitedValue();
+  int ph_t = this->pad_top_h();
+  int ph_b = this->pad_bottom_h();
+  int pw_l = this->pad_left_w();
+  int pw_r = this->pad_right_w();
   int layer_id = getOpLayerId(op);
 
   int8_t pos_rshift = 0, pos_m_i8 = 0;
@@ -262,20 +262,20 @@ LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
                  kh, kw, sh, sw, pt, pb, pl, pr,
                  dh, dw, is_dw, with_bias, do_relu, pad_value);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_weight = this->la_filter().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_weight = this->la_filter();
+  laddr_t la_working = this->la_working();
 
   laddr_t la_bias = 0;
   if (with_bias)
-    la_bias = this->la_bias().getLimitedValue();
+    la_bias = this->la_bias();
 
   // pad is not "SAME", can not get from conv param
-  int ph_t = this->pad_top_h().getLimitedValue();
-  int ph_b = this->pad_bottom_h().getLimitedValue();
-  int pw_l = this->pad_left_w().getLimitedValue();
-  int pw_r = this->pad_right_w().getLimitedValue();
+  int ph_t = this->pad_top_h();
+  int ph_b = this->pad_bottom_h();
+  int pw_l = this->pad_left_w();
+  int pw_r = this->pad_right_w();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_bf16_tl_conv(
@@ -305,22 +305,22 @@ LogicalResult tpu::TL_LG_INT8_DeConv2DOp::codegen(void *ctx) {
                  oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu, pad_value);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_weight = this->la_filter().getLimitedValue();
-  laddr_t la_perchannel = this->la_bias().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_weight = this->la_filter();
+  laddr_t la_perchannel = this->la_bias();
   bool do_ic_alignment = this->do_ic_alignment().hasValue()
                             ? this->do_ic_alignment().getValue() : false;
 
   // pad is not "SAME", can not get from conv param
-  int ph_t = this->pad_top_h().getLimitedValue();
-  int ph_b = this->pad_bottom_h().getLimitedValue();
-  int pw_l = this->pad_left_w().getLimitedValue();
-  int pw_r = this->pad_right_w().getLimitedValue();
-  int ins_h = this->ins_h().getLimitedValue();
-  int ins_last_h = this->ins_last_h().getLimitedValue();
-  int ins_w = this->ins_w().getLimitedValue();
-  int ins_last_w = this->ins_last_w().getLimitedValue();
+  int ph_t = this->pad_top_h();
+  int ph_b = this->pad_bottom_h();
+  int pw_l = this->pad_left_w();
+  int pw_r = this->pad_right_w();
+  int ins_h = this->ins_h();
+  int ins_last_h = this->ins_last_h();
+  int ins_w = this->ins_w();
+  int ins_last_w = this->ins_last_w();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_deconv(
@@ -354,22 +354,22 @@ LogicalResult tpu::TL_LG_BF16_DeConv2DOp::codegen(void *ctx) {
                  oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu, pad_value);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_weight = this->la_filter().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_weight = this->la_filter();
   laddr_t la_bias = 0;
   if (with_bias)
-    la_bias = this->la_bias().getLimitedValue();
+    la_bias = this->la_bias();
 
   // pad is not "SAME", can not get from conv param
-  int ph_t = this->pad_top_h().getLimitedValue();
-  int ph_b = this->pad_bottom_h().getLimitedValue();
-  int pw_l = this->pad_left_w().getLimitedValue();
-  int pw_r = this->pad_right_w().getLimitedValue();
-  int ins_h = this->ins_h().getLimitedValue();
-  int ins_last_h = this->ins_last_h().getLimitedValue();
-  int ins_w = this->ins_w().getLimitedValue();
-  int ins_last_w = this->ins_last_w().getLimitedValue();
+  int ph_t = this->pad_top_h();
+  int ph_b = this->pad_bottom_h();
+  int pw_l = this->pad_left_w();
+  int pw_r = this->pad_right_w();
+  int ins_h = this->ins_h();
+  int ins_last_h = this->ins_last_h();
+  int ins_w = this->ins_w();
+  int ins_last_w = this->ins_last_w();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_bf16_deconv(
@@ -414,13 +414,13 @@ LogicalResult tpu::TL_LG_INT8_EltwiseAddOp::codegen(void *ctx) {
       la_input[i] = la_input_array[i];
   }
 
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
 
   int8_t rshift;
   int8_t m_i8_input[2];
   if (this->rshift().hasValue() && this->m_i8().hasValue()) {
-    rshift = this->rshift().getValue().getLimitedValue();
+    rshift = this->rshift().getValue();
 
     std::vector<int32_t> m_i8_inputs_array;
     arrayAttrToVector(this->m_i8().getValue(), m_i8_inputs_array);
@@ -431,8 +431,8 @@ LogicalResult tpu::TL_LG_INT8_EltwiseAddOp::codegen(void *ctx) {
   }
 
   bool do_early_stride = this->do_early_stride();
-  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
-  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
   if (do_early_stride) {
     assert(oh == h / early_stride_h);
     assert(ow == w / early_stride_w);
@@ -491,14 +491,14 @@ LogicalResult tpu::TL_LG_INT8_EltwiseMulOp::codegen(void *ctx) {
     la_input[i] = la_input_array[i];
   }
 
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
 
   int8_t rshift;
   int32_t m_i32;
   if (this->rshift().hasValue() && this->m_i32_output().hasValue()) {
-    rshift = this->rshift().getValue().getLimitedValue();
-    m_i32 = this->m_i32_output().getValue().getLimitedValue();
+    rshift = this->rshift().getValue();
+    m_i32 = this->m_i32_output().getValue();
   }
 
   // op code PROD = 0; SUM = 1; MAX = 2;
@@ -552,12 +552,12 @@ LogicalResult tpu::TL_LG_BF16_EltwiseMulOp::codegen(void *ctx) {
       la_input[i] = la_input_array[i];
   }
 
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
 
   bool do_early_stride = this->do_early_stride();
-  int32_t early_stride_h = this->early_stride_h().getLimitedValue();
-  int32_t early_stride_w = this->early_stride_w().getLimitedValue();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
   if (do_early_stride) {
     assert(oh == h / early_stride_h);
     assert(ow == w / early_stride_w);
@@ -592,17 +592,17 @@ LogicalResult tpu::TL_LG_INT8_LrnOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
-  laddr_t la_sqrt = this->la_sqrt().getLimitedValue();
-  laddr_t la_power = this->la_power().getLimitedValue();
-  int local_size = this->local_size().getLimitedValue();
-  int8_t sum_rshift_i8 = this->sum_rshift().getLimitedValue();
-  int8_t lrn_rshift_i8 = this->lrn_rshift().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
+  laddr_t la_sqrt = this->la_sqrt();
+  laddr_t la_power = this->la_power();
+  int local_size = this->local_size();
+  int8_t sum_rshift_i8 = this->sum_rshift();
+  int8_t lrn_rshift_i8 = this->lrn_rshift();
   int8_t m_i8[2];
-  m_i8[0] = this->quant_data0().getLimitedValue();
-  m_i8[1] = this->quant_data1().getLimitedValue();
+  m_i8[0] = this->quant_data0();
+  m_i8[1] = this->quant_data1();
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -631,12 +631,12 @@ LogicalResult tpu::TL_LG_BF16_LrnOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = mlir::getOpLayerId(op);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
-  laddr_t la_power_exp_table = this->la_sqrt().getLimitedValue();
-  laddr_t la_power_mantissa_table = this->la_power().getLimitedValue();
-  int local_size = this->local_size().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
+  laddr_t la_power_exp_table = this->la_sqrt();
+  laddr_t la_power_mantissa_table = this->la_power();
+  int local_size = this->local_size();
   float alpha = this->alpha().convertToFloat();
   float k = this->k().convertToFloat();
 
@@ -666,11 +666,11 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
-  laddr_t la_slope_lut = this->la_slope_lut().getLimitedValue();
-  laddr_t la_y_table = this->la_y_table().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
+  laddr_t la_slope_lut = this->la_slope_lut();
+  laddr_t la_y_table = this->la_y_table();
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -704,11 +704,11 @@ LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
-  laddr_t la_slope_lut = this->la_slope_lut().getLimitedValue();
-  laddr_t la_y_table = this->la_y_table().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
+  laddr_t la_slope_lut = this->la_slope_lut();
+  laddr_t la_y_table = this->la_y_table();
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -748,8 +748,8 @@ LogicalResult tpu::TL_LG_QuantOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -794,7 +794,7 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   unsigned nInputs = op->getNumOperands();
   int layer_id = getOpLayerId(op);
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
 
   std::vector<int32_t> la_input_array;
   std::vector<laddr_t> la_input(nInputs);
@@ -803,7 +803,7 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
     la_input[i] = static_cast<laddr_t>(la_input_array[i]);
   }
 
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_output = this->la_output();
 
   std::vector<int32_t> input_dims(nInputs);
   for (unsigned i = 0; i < nInputs; i++) {
@@ -824,7 +824,7 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
   int32_t *m_i8 = nullptr;
   std::vector<int32_t> m_i8_array;
   if (this->r_i8().hasValue() && this->m_i8().hasValue()) {
-    r_i8 = this->r_i8().getValue().getLimitedValue();
+    r_i8 = this->r_i8().getValue();
     arrayAttrToVector(this->m_i8().getValue(), m_i8_array);
     m_i8 = m_i8_array.data();
   }
@@ -843,7 +843,7 @@ LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   unsigned nInputs = op->getNumOperands();
   int layer_id = getOpLayerId(op);
-  int axis = this->axis().getLimitedValue();
+  int axis = this->axis();
 
   std::vector<int32_t> la_input_array;
   std::vector<laddr_t> la_input(nInputs);
@@ -852,7 +852,7 @@ LogicalResult tpu::TL_LG_BF16_ConcatOp::codegen(void *ctx) {
     la_input[i] = static_cast<laddr_t>(la_input_array[i]);
   }
 
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_output = this->la_output();
 
   std::vector<int32_t> input_dims(nInputs);
   for (unsigned i = 0; i < nInputs; i++) {
@@ -898,15 +898,15 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
   int local_w = w;
 
 
-  gaddr_t src_gaddr = this->gaddr()->getLimitedValue();
-  laddr_t dst_laddr = this->laddr()->getLimitedValue();
+  gaddr_t src_gaddr = this->gaddr().getValue();
+  laddr_t dst_laddr = this->laddr().getValue();
   bool transpose = this->transpose();
   bool aligned = this->align();
   bool isNeuron = true;
 
   cvk_fmt_t from, to;
-  RankedTensorType in_type = this->getOperand()->getType().cast<RankedTensorType>();
-  RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
+  RankedTensorType in_type = this->getOperand().getType().cast<RankedTensorType>();
+  RankedTensorType out_type = this->getResult().getType().cast<RankedTensorType>();
 
   // convert type to `cvi_backend_fmt`
   if (in_type.getElementType().isBF16()) {
@@ -1000,8 +1000,8 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   int global_h = h;
   int global_w = w;
 
-  gaddr_t src_gaddr = this->offset()->getLimitedValue();
-  laddr_t dst_laddr = this->laddr()->getLimitedValue();
+  gaddr_t src_gaddr = this->offset().getValue();
+  laddr_t dst_laddr = this->laddr().getValue();
   bool transpose = this->transpose();
   bool aligned = this->align();
   bool isNeuron = false;
@@ -1011,7 +1011,7 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
 
   cvk_fmt_t from, to;
   // Coeff dont need to quant, just check result type
-  RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
+  RankedTensorType out_type = this->getResult().getType().cast<RankedTensorType>();
 
   // convert type to `cvi_backend_fmt`
   if (out_type.getElementType().isBF16() ||
@@ -1067,15 +1067,15 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
   int global_h = h;
   int global_w = w;
 
-  gaddr_t src_gaddr = this->gaddr()->getLimitedValue();
-  laddr_t dst_laddr = this->laddr()->getLimitedValue();
+  gaddr_t src_gaddr = this->gaddr().getValue();
+  laddr_t dst_laddr = this->laddr().getValue();
   bool transpose = this->transpose();
   bool aligned = this->align();
   bool isNeuron = true;
 
   cvk_fmt_t from, to;
-  RankedTensorType in_type = this->getOperand()->getType().cast<RankedTensorType>();
-  RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
+  RankedTensorType in_type = this->getOperand().getType().cast<RankedTensorType>();
+  RankedTensorType out_type = this->getResult().getType().cast<RankedTensorType>();
 
   // convert type to `cvi_backend_fmt`
   if (in_type.getElementType().isBF16()) {
@@ -1152,11 +1152,11 @@ LogicalResult tpu::TL_LG_CopyOp::codegen(void *ctx) {
   shape = getTensorShape(op->getOperand(0));
   getNCHW(shape, n, c, h, w);
 
-  laddr_t la_src = this->la_src()->getLimitedValue();
-  laddr_t la_dst = this->la_dst()->getLimitedValue();
+  laddr_t la_src = this->la_src().getValue();
+  laddr_t la_dst = this->la_dst().getValue();
   bool align = this->align();
   cvk_fmt_t fmt = CVK_FMT_I8;
-  RankedTensorType out_type = this->getResult()->getType().cast<RankedTensorType>();
+  RankedTensorType out_type = this->getResult().getType().cast<RankedTensorType>();
 
   // convert type to `cvi_backend_fmt`
   if (out_type.getElementType().isBF16() ||
@@ -1188,13 +1188,13 @@ LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
                  kh, kw, sh, sw, pt, pb, pl, pr,
                  is_global, do_relu, count_include_pad);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   assert(this->rshift().hasValue());
-  int8_t rshift_i8 = this->rshift().getValue().getLimitedValue();
+  int8_t rshift_i8 = this->rshift().getValue();
   assert(this->m_i8().hasValue());
-  int8_t m_i8 = this->m_i8().getValue().getLimitedValue();
+  int8_t m_i8 = this->m_i8().getValue();
 
   cvi_backend_tl_pooling( *backend_ctx,
                           layer_id,
@@ -1224,8 +1224,8 @@ LogicalResult tpu::TL_LG_BF16_PoolAvg2DOp::codegen(void *ctx) {
                  kh, kw, sh, sw, pt, pb, pl, pr,
                  is_global, do_relu, count_include_pad);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   cvi_backend_tl_bf16_pooling( *backend_ctx,
                                 layer_id,
@@ -1252,8 +1252,8 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
                  kh, kw, sh, sw, pt, pb, pl, pr,
                  is_global, do_relu, count_include_pad);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
   int8_t rshift_i8 = 0, multiplier_i8 = 1;
 
   cvi_backend_tl_pooling( *backend_ctx,
@@ -1285,8 +1285,8 @@ LogicalResult tpu::TL_LG_BF16_PoolMax2DOp::codegen(void *ctx) {
                  kh, kw, sh, sw, pt, pb, pl, pr,
                  is_global, do_relu, count_include_pad);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   cvi_backend_tl_bf16_pooling( *backend_ctx,
                                 layer_id,
@@ -1312,10 +1312,10 @@ LogicalResult tpu::TL_LG_INT8_BroadcastMulOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   bool do_relu = this->do_relu();
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_scale = this->la_scale().getLimitedValue();
-  laddr_t la_bias = this->la_bias().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_scale = this->la_scale();
+  laddr_t la_bias = this->la_bias();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_broadcast_mul(
@@ -1353,10 +1353,10 @@ LogicalResult tpu::TL_LG_BF16_BroadcastMulOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
   bool do_relu = this->do_relu();
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_scale = this->la_scale().getLimitedValue();
-  laddr_t la_bias = this->la_bias().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_scale = this->la_scale();
+  laddr_t la_bias = this->la_bias();
   int layer_id = mlir::getOpLayerId(op);
 
   cvi_backend_bf16_tl_broadcast_mul(
@@ -1386,10 +1386,10 @@ LogicalResult tpu::TL_LG_INT8_UpsampleOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  auto scale_h = this->scale_h().getLimitedValue();
-  auto scale_w = this->scale_w().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  auto scale_h = this->scale_h();
+  auto scale_w = this->scale_w();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_upsample(
@@ -1430,8 +1430,8 @@ LogicalResult tpu::TL_LG_INT8_LeakyReluOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_leaky_relu(
@@ -1462,8 +1462,8 @@ LogicalResult tpu::TL_LG_BF16_LeakyReluOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
   int layer_id = mlir::getOpLayerId(op);
 
   cvi_backend_bf16_tl_leaky_relu(
@@ -1491,15 +1491,15 @@ LogicalResult tpu::TL_LG_INT8_PReluOp::codegen(void *ctx) {
   assert(prelu_op);
 
   if (prelu_op.m_i8_pos().hasValue()) {
-    m_i8_pos = prelu_op.m_i8_pos().getValue().getLimitedValue();
-    r_i8_pos = prelu_op.r_i8_pos().getValue().getLimitedValue();
+    m_i8_pos = prelu_op.m_i8_pos().getValue();
+    r_i8_pos = prelu_op.r_i8_pos().getValue();
   } else {
     m_i8_pos = 0;
     r_i8_pos = 0;
   }
 
   if (prelu_op.r_i8_neg().hasValue()) {
-    r_i8_neg = prelu_op.r_i8_neg().getValue().getLimitedValue();
+    r_i8_neg = prelu_op.r_i8_neg().getValue();
   } else {
     r_i8_neg = 0;
   }
@@ -1509,9 +1509,9 @@ LogicalResult tpu::TL_LG_INT8_PReluOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_slope = this->la_slope().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_slope = this->la_slope();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_prelu(
@@ -1539,9 +1539,9 @@ LogicalResult tpu::TL_LG_BF16_PReluOp::codegen(void *ctx) {
   int64_t n, c, h, w;
   getNCHW(input_shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_slope = this->la_slope().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_slope = this->la_slope();
   int layer_id = mlir::getOpLayerId(op);
 
   cvi_backend_tl_bf16_prelu(
@@ -1567,8 +1567,8 @@ LogicalResult tpu::TL_LG_INT8_PadOp::codegen(void *ctx) {
   auto input_shape = getTensorShape(op->getOperand(0));
   auto output_shape = getTensorShape(op->getResult(0));
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   // parse param
   int layer_id = getOpLayerId(op);
@@ -1598,8 +1598,8 @@ LogicalResult tpu::TL_LG_BF16_PadOp::codegen(void *ctx) {
   auto input_shape = getTensorShape(op->getOperand(0));
   auto output_shape = getTensorShape(op->getResult(0));
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   // parse param
   int layer_id = getOpLayerId(op);
@@ -1629,8 +1629,8 @@ LogicalResult tpu::TL_LG_INT8_CropOp::codegen(void *ctx) {
   auto input_shape = getTensorShape(op->getOperand(0));
   auto output_shape = getTensorShape(op->getResult(0));
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   // parse param
   int layer_id = getOpLayerId(op);
@@ -1658,8 +1658,8 @@ LogicalResult tpu::TL_LG_BF16_CropOp::codegen(void *ctx) {
   auto input_shape = getTensorShape(op->getOperand(0));
   auto output_shape = getTensorShape(op->getResult(0));
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   // parse param
   int layer_id = mlir::getOpLayerId(op);
@@ -1688,8 +1688,8 @@ LogicalResult tpu::TL_LG_INT8_ReluOp::codegen(void *ctx) {
   int64_t n, c, h, w;
   getNCHW(input_shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   // parse param
   int layer_id = getOpLayerId(op);
@@ -1714,8 +1714,8 @@ LogicalResult tpu::TL_LG_BF16_ReluOp::codegen(void *ctx) {
   int64_t n, c, h, w;
   getNCHW(input_shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
 
   // parse param
   int layer_id = getOpLayerId(op);
@@ -1741,9 +1741,9 @@ LogicalResult tpu::TL_LG_INT8_ZeroMaskOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  laddr_t la_working = this->la_working().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_mac_const(*backend_ctx,
@@ -1764,8 +1764,8 @@ LogicalResult tpu::TL_LG_BF16_ZeroMaskOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_bf16_tl_mac_const(*backend_ctx,
@@ -1784,10 +1784,10 @@ LogicalResult tpu::TL_LG_INT8_SliceOp::codegen(void *ctx) {
   auto input_shape = getTensorShape(op->getOperand(0));
   auto output_shape = getTensorShape(op->getResult(0));
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
-  int offset = this->offset().getLimitedValue();
-  int axis = this->axis().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  int offset = this->offset();
+  int axis = this->axis();
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tl_slice(
@@ -1812,11 +1812,11 @@ LogicalResult tpu::TL_LG_BF16_SliceOp::codegen(void *ctx) {
   auto input_shape = getTensorShape(op->getOperand(0));
   auto output_shape = getTensorShape(op->getResult(0));
 
-  laddr_t la_input = this->la_input().getLimitedValue();
-  laddr_t la_output = this->la_output().getLimitedValue();
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
   int layer_id = getOpLayerId(op);
-  auto offset = this->offset().getLimitedValue();
-  auto axis = this->axis().getLimitedValue();
+  auto offset = this->offset();
+  auto axis = this->axis();
 
   cvi_backend_tl_bf16_slice(
       *backend_ctx,

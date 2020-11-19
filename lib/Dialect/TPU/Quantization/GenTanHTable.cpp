@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <llvm/Support/Debug.h>
 #include <float.h>
@@ -165,21 +165,21 @@ struct TpuGenTanHTablePattern : public RewritePattern {
   TpuGenTanHTablePattern(MLIRContext *context)
       : RewritePattern("tpu.tanh", 1, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wfV = getWeightFileValue(op);
+    Value wfV = getWeightFileValue(op);
     auto tanhOp = cast<tpu::TanHOp>(op);
     llvm::errs() << tanhOp.getOperationName() <<
       ", scale is " << tanhOp.scale().convertToFloat() << "\n";
 
     if (tanhOp.scale().convertToFloat() != -1) {
       llvm::errs() << tanhOp.name() << " gen already\n";
-      return matchFailure();
+      return failure();
     }
 
     std::string op_name = tanhOp.getAttrOfType<StringAttr>("name").getValue().str();
-    auto formerOp = op->getOperand(0)->getDefiningOp();
+    auto formerOp = op->getOperand(0).getDefiningOp();
     auto threshold_y_attr = formerOp->getAttrOfType<FloatAttr>("threshold_y").getValue().convertToFloat();
 
     // MUST import calibration
@@ -207,12 +207,12 @@ struct TpuGenTanHTablePattern : public RewritePattern {
     // 0 is input
     for (unsigned i = 1; i < tanhOp.getNumOperands(); ++i) {
       auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          tanhOp.getOperand(i)->getDefiningOp());
+          tanhOp.getOperand(i).getDefiningOp());
       assert(weight_op);
       assert(weight_op.name().hasValue());
       auto tensor_name = weight_op.name().getValue();
       llvm::errs() << "  weight[" << i << "] : " << tensor_name << "\n";
-      auto type = weight_op.getResult()->getType().cast<TensorType>();
+      auto type = weight_op.getResult().getType().cast<TensorType>();
       weights[weight_idx] = wTF->readTensor<float>(tensor_name, type);
       weight_idx++;
       // delete the tensor from the weight file
@@ -220,7 +220,7 @@ struct TpuGenTanHTablePattern : public RewritePattern {
     }
 
     int tbl_shape = channel * table_hw;
-    auto y0_table_type = tanhOp.y0_table()->getType().cast<TensorType>();
+    auto y0_table_type = tanhOp.y0_table().getType().cast<TensorType>();
     std::vector<int64_t> y0_table_shape(y0_table_type.getShape());
     assert(y0_table_shape.size() == 4);
 
@@ -235,7 +235,7 @@ struct TpuGenTanHTablePattern : public RewritePattern {
     gen_tanh_slope(channel, range_start, range_end, scale, table_hw, y0_table.data(), scale_table.data());
 
     // update op
-    std::vector<Value *> newOperands;
+    std::vector<Value> newOperands;
     newOperands.push_back(tanhOp.getOperand(0)); // <! 0 is input
 
     // add new filter and bias weight
@@ -256,7 +256,7 @@ struct TpuGenTanHTablePattern : public RewritePattern {
       attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("FP32")));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(op->getLoc(), type,
-          ArrayRef<Value *>{wfV}, ArrayRef<NamedAttribute>{attrs});
+          ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
       newOperands.push_back(new_weight_op);
     }
 
@@ -266,15 +266,15 @@ struct TpuGenTanHTablePattern : public RewritePattern {
     newAttrs.push_back(rewriter.getNamedAttr("scale", rewriter.getF32FloatAttr(scale)));
 
     rewriter.replaceOpWithNewOp<tpu::TanHOp>(
-        tanhOp, tanhOp.getResult()->getType(),
-        ArrayRef<Value *>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
+        tanhOp, tanhOp.getResult().getType(),
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{newAttrs});
 
-    return matchSuccess();
+    return success();
 
   }
 };
 
-class GenTanHTablePass : public FunctionPass<GenTanHTablePass> {
+class GenTanHTablePass : public mlir::PassWrapper<GenTanHTablePass, FunctionPass> {
 public:
   explicit GenTanHTablePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
@@ -283,7 +283,7 @@ public:
     auto *context = &getContext();
     OwningRewritePatternList patterns;
     patterns.insert<TpuGenTanHTablePattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -292,7 +292,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createGenTanHTablePass() {
+std::unique_ptr<mlir::Pass> mlir::createGenTanHTablePass() {
   return std::make_unique<GenTanHTablePass>();
 }
 

@@ -19,17 +19,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
-#include "mlir/Dialect/TPU/MachineInfo.h"
-#include "mlir/Dialect/StandardOps/Ops.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
+#include "tpuc/MachineInfo.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
 #include "llvm/Support/raw_ostream.h"
@@ -320,12 +320,12 @@ public:
   convertConvTilePattern(MLIRContext *ctx, MInfo &mInfo)
     : OpRewritePattern<OpTy>(ctx), mInfo(mInfo) {}
 
-  PatternMatchResult matchAndRewrite(OpTy tpuOp,
+  LogicalResult matchAndRewrite(OpTy tpuOp,
                                      PatternRewriter &rewriter) const override {
 
     // Already configured
     if (tpuOp.tile_param().hasValue())
-      return Pattern::matchFailure();
+      return failure();
 
     LLVM_DEBUG(llvm::dbgs()
         << "convertConvTilePattern: layer ID "
@@ -336,7 +336,7 @@ public:
 
     ConvolutionBaseModel::TileInfo tileInfo = convModel->getTileSizes();
     if (!tileInfo.n_step)
-      return Pattern::matchFailure();
+      return failure();
 
     tpuOp.setAttr("tile_param",
         tpu::ConvTileParam::get(
@@ -349,13 +349,13 @@ public:
             rewriter.getI32IntegerAttr(tileInfo.ic_step),
             rewriter.getBoolAttr(tileInfo.use_double_buffer),
             rewriter.getContext()));
-    return Pattern::matchSuccess();
+    return success();
   }
 
   MInfo &mInfo;
 };
 
-struct ConvTilePass : public FunctionPass<ConvTilePass> {
+struct ConvTilePass : public mlir::PassWrapper<ConvTilePass, FunctionPass> {
   void runOnFunction() override;
 };
 
@@ -375,7 +375,7 @@ void ConvTilePass::runOnFunction() {
       convertConvTilePattern<tpu::TG_INT8_PC_Conv2DOp>,
       convertConvTilePattern<tpu::TG_INT8_PT_Conv2DOp>
       >(&getContext(), Machineinfo);
-  applyPatternsGreedily(getFunction(), patterns);
+  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 }
 
 void PopulateConvTilePatterns(
@@ -386,7 +386,7 @@ void PopulateConvTilePatterns(
       >(context, mInfo);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> createConvTilePass() {
+std::unique_ptr<mlir::Pass> createConvTilePass() {
   return std::make_unique<tpu::ConvTilePass>();
 }
 

@@ -19,16 +19,16 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "mlir/Dialect/TPU/TPUDialect.h"
-#include "mlir/Dialect/TPU/TPUTensorSupport.h"
-#include "mlir/Dialect/TPU/TPUOperationSupport.h"
-#include "mlir/Dialect/TPU/Passes.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
-#include "mlir/Support/TensorFile.h"
+#include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "upsample_to_deconv"
@@ -41,15 +41,15 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
   TpuUpsampleMaskPattern(MLIRContext *context)
       : RewritePattern("tpu.upsample", 8, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto upsampleOp = cast<tpu::UpsampleOp>(op);
     if (upsampleOp.getNumOperands() < 2) {
-        return matchFailure();
+        return failure();
     }
-    auto mask_op = upsampleOp.getOperand(1)->getDefiningOp();
+    auto mask_op = upsampleOp.getOperand(1).getDefiningOp();
     if (isa<tpu::PoolMaskOp>(mask_op) == false) {
-      return matchFailure();
+      return failure();
     }
     std::vector<int64_t> o_shape;
     int64_t output_size;
@@ -62,20 +62,20 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
     assert(poolMaskOp.getNumOperands() == 2 && "operands num should be 2");
 
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wFV = getWeightFileValue(op);
+    Value wFV = getWeightFileValue(op);
 
     // op_name
     std::string op_name =
         upsampleOp.getAttrOfType<StringAttr>("name").getValue().str();
 
-    auto scale = poolMaskOp.scale().getLimitedValue();
+    auto scale = poolMaskOp.scale();
 
-    std::vector<Value *> operands;
+    std::vector<Value> operands;
     std::vector<NamedAttribute> attrs;
     std::vector<int64_t> output_shape;
 
     auto input = poolMaskOp.getOperand(0);
-    auto input_type = input->getType().cast<RankedTensorType>();
+    auto input_type = input.getType().cast<RankedTensorType>();
     auto input_shape = input_type.getShape();
     output_shape.push_back(input_shape[0]);
     output_shape.push_back(input_shape[1]);
@@ -131,7 +131,7 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
         op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
 
     // check whether need pad
-    mlir::Value * temp_op = poolMaskOp.getOperand(1);
+    mlir::Value temp_op = poolMaskOp.getOperand(1);
     if (need_crop) {
         // pad op1
         attrs.clear();
@@ -382,11 +382,11 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
           rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
       operands.push_back(op_l);
       temp_op = rewriter.create<tpu::CropOp>(
-          op->getLoc(), upsampleOp.getResult()->getType(), operands, attrs);
+          op->getLoc(), upsampleOp.getResult().getType(), operands, attrs);
     }
     rewriter.replaceOp(op, {temp_op});
 
-    return matchSuccess();
+    return success();
   }
 };
 
@@ -395,16 +395,16 @@ struct TpuUpsampleOpPattern : public RewritePattern {
   TpuUpsampleOpPattern(MLIRContext *context)
       : RewritePattern("tpu.upsample", 7, context) {}
 
-  PatternMatchResult matchAndRewrite(Operation *op,
+  LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto upsampleOp = cast<tpu::UpsampleOp>(op);
     if(op->getNumOperands() == 2) {
-        auto mask = op->getOperand(1)->getDefiningOp();
+        auto mask = op->getOperand(1).getDefiningOp();
         assert(isa<tpu::NoneOp>(mask) && "upsample op 1 must be none");
     }
     LLVM_DEBUG(llvm::errs() << upsampleOp.getOperationName() << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
-    Value *wFV = getWeightFileValue(op);
+    Value wFV = getWeightFileValue(op);
 
     // op_name
     std::string op_name =
@@ -412,10 +412,10 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << "upsample Op: " << op_name << "\n";);
 
     auto input = op->getOperand(0);
-    auto input_type = input->getType().cast<RankedTensorType>();
+    auto input_type = input.getType().cast<RankedTensorType>();
     auto input_shape = input_type.getShape();
-    auto scale_h = upsampleOp.scale_h().getLimitedValue();
-    auto scale_w = upsampleOp.scale_w().getLimitedValue();
+    auto scale_h = upsampleOp.scale_h();
+    auto scale_w = upsampleOp.scale_w();
     int g = input_shape[1];
     int oc = input_shape[1] / g;
     int ic = input_shape[1] / g;
@@ -424,7 +424,7 @@ struct TpuUpsampleOpPattern : public RewritePattern {
 
     // stride exceed hw limitation, can not convert
     if (scale_h >= MAX_CONV_STRIDE || scale_w >= MAX_CONV_STRIDE) {
-      return matchFailure();
+      return failure();
     }
 
     int count = g * oc * ic * h * w;
@@ -441,7 +441,7 @@ struct TpuUpsampleOpPattern : public RewritePattern {
         op, "filter", filter, filter_shape, "NONE", wTF, wFV);
     auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
                                                     rewriter.getNoneType());
-    std::vector<Value *> operands;
+    std::vector<Value> operands;
     operands.push_back(input);
     operands.push_back(filterValue);
     operands.push_back(NoneOp.getResult()); // bias
@@ -481,15 +481,15 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     attrs.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     rewriter.replaceOpWithNewOp<tpu::DeConv2DOp>(
-        upsampleOp, upsampleOp.getResult()->getType(),
-        ArrayRef<Value *>{operands}, ArrayRef<NamedAttribute>{attrs});
+        upsampleOp, upsampleOp.getResult().getType(),
+        ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
 
-    return matchSuccess();
+    return success();
   }
 };
 
 class ConvertUpsampleToDeconvPass
-    : public FunctionPass<ConvertUpsampleToDeconvPass> {
+    : public mlir::PassWrapper<ConvertUpsampleToDeconvPass, FunctionPass> {
 public:
   explicit ConvertUpsampleToDeconvPass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
@@ -500,7 +500,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<TpuUpsampleOpPattern>(context);
-    applyPatternsGreedily(fn, patterns);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
@@ -514,7 +514,7 @@ void tpu::UpsampleOp::getCanonicalizationPatterns(
   results.insert<TpuUpsampleMaskPattern, TpuUpsampleOpPattern>(context);
 }
 
-std::unique_ptr<OpPassBase<FuncOp>> mlir::createConvertUpsampleToDeconvPass() {
+std::unique_ptr<mlir::Pass> mlir::createConvertUpsampleToDeconvPass() {
   return std::make_unique<ConvertUpsampleToDeconvPass>();
 }
 
