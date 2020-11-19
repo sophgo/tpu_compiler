@@ -34,3 +34,7 @@
 [submodule "third_party/opencv"]
 	path = third_party/opencv
 	url = ../opencv.git
+[submodule "llvm-project"]
+	path = llvm-project
+	url = ssh://jiang.jiang@10.58.65.3:29418/llvm-project
+	branch = master
