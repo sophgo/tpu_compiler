@@ -366,6 +366,12 @@ void cvi_backend_tg_bf16_reorg_kernel(
     gaddr_t input_gaddr, gaddr_t output_gaddr,
     int batch, int channel, int height, int width, int stride);
 
+void cvi_backend_tg_bf16_lrn_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t output_gaddr, gaddr_t exp_table_gaddr, gaddr_t mantissa_table_gaddr,
+    int input_n, int input_c, int input_h, int input_w, int local_size,
+    float alpha, float k);
+
 ////////////// fixed & bf16 kernel api ////////////////
 
 void cvi_backend_tg_concat_kernel(

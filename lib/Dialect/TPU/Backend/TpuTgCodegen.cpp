@@ -1688,11 +1688,28 @@ LogicalResult tpu::TG_INT8_LrnOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_LrnOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  // TODO:
-  // CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  // Operation *op = this->getOperation();
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t exp_gaddr = getWeightOpAddress(sqr_lut()->getDefiningOp());
+  gaddr_t matissa_gaddr = getWeightOpAddress(power_lut()->getDefiningOp());
+  int local_size = this->local_size().getLimitedValue();
+  float alpha = this->alpha().convertToFloat();
+  float k = this->k().convertToFloat();
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_lrn_kernel(
+      *backend_ctx, layer_id, input_gaddr, output_gaddr,
+      exp_gaddr, matissa_gaddr, n, c, h, w,
+      local_size, alpha, k);
+
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
