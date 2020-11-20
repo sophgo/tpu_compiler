@@ -90,6 +90,15 @@ cmake -G Ninja -DFLATBUFFERS_PATH=$INSTALL_PATH/flatbuffers \
 cmake --build . --target install
 popd
 
+# cvibuilder
+mkdir -p $BUILD_PATH/cnpy
+pushd $BUILD_PATH/cnpy
+cmake -G Ninja \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/cnpy \
+    $PROJECT_ROOT/third_party/cnpy
+cmake --build . --target install
+popd
+
 mkdir -p $BUILD_PATH/tpuc
 pushd $BUILD_PATH/tpuc
 cmake -G Ninja \

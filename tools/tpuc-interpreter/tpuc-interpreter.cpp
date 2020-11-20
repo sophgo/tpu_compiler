@@ -77,10 +77,6 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
 }
 
-// Static initialization for TPUOps registration.
-// TODO: don't know why mlir-tpu-interpreter needs this, other tools don't
-static mlir::DialectRegistration<mlir::tpu::TPUDialect> TPUOps;
-
 int main(int argc, char **argv) {
   llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
 
@@ -94,7 +90,9 @@ int main(int argc, char **argv) {
     llvm::errs() << "could not parse the input IR\n";
     return 1;
   }
-
+  auto registry = context.getDialectRegistry();
+  registry.insert<tpu::TPUDialect>();
+  
   auto inputTF = openTensorFile(inputTensorFilename);
   std::vector<std::vector<float> *> input_tensors;
   std::vector<std::vector<int64_t> > input_shapes;

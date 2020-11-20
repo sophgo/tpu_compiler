@@ -188,7 +188,6 @@ if (${USE_GPU})
 
   target_link_libraries(MLIRTPU
     MLIRIR
-    MLIRStandardOps
     LLVMSupport
     cvikernel
     MLIRGPUOps
@@ -199,7 +198,6 @@ if (${USE_GPU})
 else()
   target_link_libraries(MLIRTPU
     MLIRIR
-    MLIRStandardOps
     LLVMSupport
     cvikernel
     ${tpu_LINKER_LIBS}

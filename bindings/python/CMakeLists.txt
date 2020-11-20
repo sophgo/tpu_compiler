@@ -12,7 +12,6 @@ SET(CMAKE_INSTALL_RPATH "\${ORIGIN}/")
 pybind11_add_module(pymlir pymlir.cpp)
 
 whole_archive_link(mlir-tpu-interpreter
-  MLIRStandardOps
   MLIRTransforms
   MLIRTranslation
 )

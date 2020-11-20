@@ -18,8 +18,6 @@
 // Main entry function for mlir-opt for when built as standalone binary.
 //
 //===----------------------------------------------------------------------===//
-
-#include "mlir/Analysis/Passes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
@@ -28,6 +26,7 @@
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
 
 using namespace llvm;
 using namespace mlir;
@@ -39,23 +38,6 @@ static cl::opt<std::string> outputFilename("o", cl::desc("Output filename"),
                                            cl::value_desc("filename"),
                                            cl::init("-"));
 
-static cl::opt<bool>
-    splitInputFile("split-input-file",
-                   cl::desc("Split the input file into pieces and process each "
-                            "chunk independently"),
-                   cl::init(false));
-
-static cl::opt<bool>
-    verifyDiagnostics("verify-diagnostics",
-                      cl::desc("Check that emitted diagnostics match "
-                               "expected-* lines on the corresponding line"),
-                      cl::init(false));
-
-static cl::opt<bool>
-    verifyPasses("verify-each",
-                 cl::desc("Run the verifier after each transformation pass"),
-                 cl::init(true));
-
 int main(int argc, char **argv) {
   llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
   InitLLVM y(argc, argv);
@@ -66,6 +48,9 @@ int main(int argc, char **argv) {
 
   // Parse pass names in main to ensure static initialization completed.
   cl::ParseCommandLineOptions(argc, argv, "MLIR modular optimizer driver\n");
+
+  DialectRegistry registry;
+  registry.insert<tpu::TPUDialect>();
 
   // Set up the input file.
   std::string errorMessage;
@@ -82,7 +67,7 @@ int main(int argc, char **argv) {
   }
 
   auto status = MlirOptMain(output->os(), std::move(file), passPipeline,
-                            splitInputFile, verifyDiagnostics, verifyPasses);
+                            registry, false, false, true, true, false);
 
   output->keep();
   return failed(status);

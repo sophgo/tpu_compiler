@@ -60,6 +60,9 @@ include_directories(${PROJECT_SOURCE_DIR}/third_party/flatbuffers/include)
 include_directories(${PROJECT_SOURCE_DIR}/externals/cvikernel/include)
 include_directories(${CMAKE_INSTALL_PREFIX}/../mkldnn/include)
 include_directories(${PROJECT_BINARY_DIR}/../cvimodel/include)
+link_directories(${CMAKE_INSTALL_PREFIX}/../mkldnn/lib)
+link_directories(${CMAKE_INSTALL_PREFIX}/../cnpy/lib)
+link_directories(${CMAKE_INSTALL_PREFIX}/lib)
 
 execute_process(
   COMMAND git describe --tags --dirty
@@ -75,7 +78,7 @@ add_definitions(-DMLIR_VERSION="${MLIR_VERSION}")
 
 add_subdirectory(include)
 add_subdirectory(lib)
-#add_subdirectory(tools)
+add_subdirectory(tools)
 
 #option(CIRCT_INCLUDE_DOCS "Generate build targets for the CIRCT docs."
 #  ${LLVM_INCLUDE_DOCS} ${MLIR_INCLUDE_DOCS})
