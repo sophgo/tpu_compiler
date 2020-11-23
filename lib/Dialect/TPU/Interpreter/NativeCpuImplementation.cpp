@@ -1555,10 +1555,10 @@ int my_reverse(float *input, float *output, int n, int c, int h, int w,
   for (int in = 0; in < n; in++) {
     for (int ic = 0; ic < c; ic++) {
       for (int ih = 0; ih < h; ih++) {
-        for (int iw = 0; iw < h; iw++) {
+        for (int iw = 0; iw < w; iw++) {
           int src_index[] = {in, ic, ih, iw};
           int dst_index[] = {in, ic, ih, iw};
-          dst_index[axis] = dim[axis] - dst_index[axis] - 1;
+          dst_index[axis] = dim[axis] - src_index[axis] - 1;
           int src_offset = src_index[0] * stride[0] + src_index[1] * stride[1] +
                            src_index[2] * stride[2] + src_index[3] * stride[3];
           int dst_offset = dst_index[0] * stride[0] + dst_index[1] * stride[1] +

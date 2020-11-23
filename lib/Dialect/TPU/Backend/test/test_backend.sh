@@ -10,6 +10,7 @@ mlir_list=(
   crop.mlir
   reverse.mlir
   lrn.mlir
+  fc.mlir
 #  avg_pool.mlir
 #  broadcast_add.mlir
 #  broadcast_sub.mlir

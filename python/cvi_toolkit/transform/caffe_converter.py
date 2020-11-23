@@ -71,6 +71,8 @@ class CaffeConverter(BaseConverter):
             'Input': lambda layer: self.convert_input_op(layer),
             'Interp': lambda layer: self.convert_interp_op(layer),
             'LRN': lambda layer: self.convert_lrn_op(layer),
+            'LSTM': lambda layer: self.convert_lstm_op(layer),
+            'Lstm': lambda layer: self.convert_lstm_jun_op(layer),
             'Normalize': lambda layer: self.convert_normalize_op(layer),
             'Mish': lambda layer: self.convert_mish_op(layer),
             'Padding': lambda layer: self.convert_padding_op(layer),
@@ -140,15 +142,19 @@ class CaffeConverter(BaseConverter):
                     input_shape = [input_shape[0],
                                    input_shape[1], resize_h, resize_w]
             self.input_shapes.append(input_shape)
-        # get output shape
+
         self.output_shapes = list()
         for o in self.outputs:
             o_shape = list(self.blobs[o].shape)
-            o_shape[0] = self.batch_size
+            batch_size = self.batch_size
             for layer in self.layers:
                 if layer.name == o and self.layerType(layer) == 'DetectionOutput':
                     o_shape[2] = layer.detection_output_param.keep_top_k
                     break
+                elif layer.name == o and self.layerType(layer) == "InnerProduct":
+                    batch_size = o_shape[0]
+                    break
+            o_shape[0] = batch_size
             self.output_shapes.append(o_shape)
         self.CVI = MLIRImporter(self.input_shapes, self.output_shapes,
                                 "UINT8" if self.convert_preprocess else "FP32")
@@ -298,18 +304,6 @@ class CaffeConverter(BaseConverter):
     def convert_continuation_indicator_op(self, layer):
         assert(self.layerType(layer) == 'ContinuationIndicator')
         # do nothing
-        #        input_num = len(layer.bottom)
-        #        assert(input_num == 0 and "only support no bttom now")
-        #        p = layer.continuation_indicator_param
-        #        output_shape = [int(p.time_step), int(p.batch_size)]
-        #        data = np.zeros((p.time_step,p.batch_size), dtype=np.float32)
-        #        for t in range(p.time_step):
-        #            for b in range(p.batch_size):
-        #                if p.flag or t != 0:
-        #                    data[t][b] = 1.0
-        #        self.addTensor(layer.name, data, output_shape)
-        #        weight_op = self.CVI.add_load_file_op(layer.name, output_shape)
-        #        self.addOperand(layer.top[0], weight_op, output_shape, TensorType.TENSOR)
 
     @ staticmethod
     def calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_):
@@ -590,26 +584,21 @@ class CaffeConverter(BaseConverter):
         assert(self.layerType(layer) == 'InnerProduct')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
-        assert(len(input_shape) == 4 or len(input_shape) == 2)
         p = layer.inner_product_param
         with_bias = p.bias_term
+        axis = p.axis
         with_transpose = p.transpose
         assert(with_transpose == False)  # transpose not support now
         N = p.num_output
-        M = input_shape[0]
-        K = input_shape[1]
+        output_shape = list()
+        for i in range(axis):
+            output_shape.append(input_shape[i])
+        output_shape.append(N)
         reshape_first = False
-        if len(input_shape) > 2:
-            reshape_first = True
-            for i in range(2, len(input_shape)):
-                K *= input_shape[i]
-        fc_op = op
-        if reshape_first:
-            fc_shape = [M, K]
-            fc_operands = [op]
-            fc_op = self.CVI.add_reshape_op(
-                layer.name + '_reshape', fc_operands, fc_shape)
-        operands.append(fc_op)
+        K = 1
+        for i in range(axis, len(input_shape)):
+            K *= input_shape[i]
+        operands.append(op)
         # filter
         filter_op = self.blob_to_weight_op(layer, 0, [N, K])
         operands.append(filter_op)
@@ -618,7 +607,6 @@ class CaffeConverter(BaseConverter):
             operands.append(bias_op)
         else:
             operands.append(self.noneOp())
-        output_shape = [M, N]
         new_op = self.CVI.add_fully_connected_op(
             layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op, output_shape,
@@ -731,6 +719,46 @@ class CaffeConverter(BaseConverter):
         output_shape = input_shape
         new_op = self.CVI.add_lrn_op(
             layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_lstm_op(self, layer):
+        assert(self.layerType(layer) == 'LSTM')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        seq_length = input_shape[0]
+        batch_size = input_shape[1]
+        num_output = layer.recurrent_param.num_output
+        output_shape = [seq_length, batch_size, num_output]
+        operands = list()
+        operands.append(op)
+        weight_x = self.blob_to_weight_op(layer, 0)
+        bias = self.blob_to_weight_op(layer, 1)
+        weight_h = self.blob_to_weight_op(layer, 2)
+        operands.append(weight_x)
+        operands.append(bias)
+        operands.append(weight_h)
+        new_op = self.CVI.add_lstm_caffe_op(
+            layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_lstm_jun_op(self, layer):
+        assert(self.layerType(layer) == 'Lstm')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        seq_length = input_shape[0]
+        batch_size = input_shape[1]
+        num_output = layer.lstm_param.num_output
+        output_shape = [seq_length, batch_size, num_output]
+        operands = list()
+        operands.append(op)
+        weight_x = self.blob_to_weight_op(layer, 0)
+        weight_h = self.blob_to_weight_op(layer, 1)
+        bias = self.blob_to_weight_op(layer, 2)
+        operands.append(weight_x)
+        operands.append(bias)
+        operands.append(weight_h)
+        new_op = self.CVI.add_lstm_caffe_op(
+            layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 

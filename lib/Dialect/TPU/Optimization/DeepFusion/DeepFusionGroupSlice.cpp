@@ -637,6 +637,11 @@ void DeepFusionGroupSlice::doSlice(std::vector<Operation *> &group) {
 
 bool DeepFusionGroupSlice::isFusionOp(Operation *opInst, int batchSize) {
   uint64_t totalPerLane = -1;
+  if (isa<tpu::TpuTGOpCodegenInterface>(opInst)) {
+    auto shape = getTensorShape(opInst->getResult(0));
+    if (shape.size() != 4)
+      return false;
+  }
   if (isa<tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
     auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(opInst);
     totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, nullptr, batchSize);

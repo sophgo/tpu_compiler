@@ -141,6 +141,12 @@ struct TgSliceAddressPattern : public RewritePattern {
     if (false == isSliceOpSkip(op)) {
       return matchFailure();
     }
+    auto opd = op->getOperand(0)->getDefiningOp();
+    if (auto formerOp = llvm::dyn_cast<OpTy>(opd)) {
+      if (formerOp.gaddr().hasValue() == false) {
+        return matchFailure();
+      }
+    }
 
     int32_t dsize = getOpDtypeSize(op);
     int64_t isz = 1;
@@ -151,7 +157,7 @@ struct TgSliceAddressPattern : public RewritePattern {
     auto curPos = getPreviousOpAddress(castOp);
     setOpAddress(op, curPos + offset_bytes);
 
-    auto opd = op->getOperand(0)->getDefiningOp();
+
     if (opd->getAttr("buffer_reused")) {
       castOp.setAttr("buffer_reused", rewriter.getBoolAttr(true));
     }

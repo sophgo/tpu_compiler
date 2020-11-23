@@ -557,10 +557,13 @@ ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
 
   // if before axis is all 1, we use tg slice
   // since we can remove the slice after
-  for (int i = 0; i < axis; i++) {
-    if (dst_shape[i] != 1) {
-      fusible = true;
-      break;
+  if (axis == 1) {
+    // tl_slice only support axis == 1
+    for (int i = 0; i < axis; i++) {
+      if (dst_shape[i] != 1) {
+        fusible = true;
+        break;
+      }
     }
   }
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);

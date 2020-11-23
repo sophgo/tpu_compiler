@@ -740,13 +740,20 @@ void parseFullyConnectedParam(
   std::vector<int64_t> o_s(output_type.getShape());
   auto filter_type = filter->getType().cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
-  assert((i_s[0] == o_s[0]) && "input M not equal to output M");
-  m = i_s[0];
+  int64_t axis = o_s.size() - 1;
+  m = 1;
+  for (int i = 0; i < axis; i++) {
+    assert((i_s[i] == o_s[i]) && "input M not equal to output M");
+    m *= i_s[i];
+  }
+  k = 1;
+  for (uint32_t i = axis; i < i_s.size(); i++) {
+    k *= i_s[i];
+  }
   // assuming transpose is false
-  assert((i_s[1] == f_s[1]) && "input K not equal to filter K");
-  k = i_s[1];
-  assert((f_s[0] == o_s[1]) && "filter N not equal to output N");
-  n = o_s[1];
+  assert((k == f_s[1]) && "input K not equal to filter K");
+  assert((f_s[0] == o_s[axis]) && "filter N not equal to output N");
+  n = o_s[axis];
 }
 
 template<typename OpTy>

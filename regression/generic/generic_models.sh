@@ -107,6 +107,23 @@ export TOLERANCE_BF16=0.99,0.99,0.95
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.97
 fi
 
+if [ $NET = "resnet_res_blstm" ]; then
+export MODEL_DEF=$MODEL_PATH/rnn/resnet_res_blstm/caffe/deploy_fix.prototxt
+export MODEL_DAT=$MODEL_PATH/rnn/resnet_res_blstm/caffe/model.caffemodel
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export IMAGE_PATH=$REGRESSION_PATH/data/lstm.jpg
+export NET_INPUT_DIMS=32,280
+export IMAGE_RESIZE_DIMS=32,280
+export RAW_SCALE=255.0
+export MEAN=152,152,152
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS=fc1x
+export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.87
+export TOLERANCE_BF16=0.99,0.99,0.98
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+fi
+
 if [ $NET = "vgg16" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/vgg/caffe/VGG_ILSVRC_16_layers_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/vgg/caffe/VGG_ILSVRC_16_layers.caffemodel

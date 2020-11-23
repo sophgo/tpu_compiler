@@ -53,6 +53,7 @@ class TPU_OpType(Enum):
     LrnThree = 'tpu.lrn_three'
     Lrn = 'tpu.lrn'
     LSTM = 'tpu.lstm'
+    LSTM_CAFFE = 'tpu.lstm_caffe'
     Normalize = 'tpu.normalize'
     Mish = 'tpu.mish'
     Pad = 'tpu.pad'
@@ -908,6 +909,13 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.LSTM.value, inputOperands, [
             tensor_output_type], name=lstm_name, quant=self.quant_param, **lstm_param)
+
+    def add_lstm_caffe_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        nameAttr = self.module.stringAttr(op_name)
+        return self.buildOp(TPU_OpType.LSTM_CAFFE.value, inputOperands, [
+            tensor_output_type], name=nameAttr)
 
     def add_normalize_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

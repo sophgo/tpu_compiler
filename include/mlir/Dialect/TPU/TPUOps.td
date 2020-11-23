@@ -1131,7 +1131,7 @@ def TPU_LstmOp: TPU_Op<"lstm",
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "LSTM operator";
+  let summary = "LSTM operator for onnx";
 
   let description = [{
     Performs scale on input.
@@ -1177,6 +1177,45 @@ def TPU_LstmOp: TPU_Op<"lstm",
   );
 
   let results = (outs AnyTensor:$output);
+}
+
+def TPU_LstmCaffeOp: TPU_Op<"lstm_caffe",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
+  let summary = "LSTM operator for caffe";
+
+  let description = [{
+    Performs scale on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `weight_x`        : required, fc weight tensor for input, output, forget, and cell gates.
+      `bias`            : required, bias vectors for input, output, forget, and cell gates.
+      `weight_h`        : required, fc weight tensor for input, output, forget, and cell gates.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor with hidden and cell.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$weight_x,
+    AnyTensor:$bias,
+    AnyTensor:$weight_h,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 def TPU_MatMulOp : TPU_Op<"matmul",
