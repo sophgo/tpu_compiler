@@ -4,7 +4,6 @@ set -e
 PROJECT_ROOT="$( cd "$(dirname "$0")" ; pwd -P )"
 BUILD_PATH=$PROJECT_ROOT/build
 INSTALL_PATH=$PROJECT_ROOT/install
-TPU_PYTHON_PATH=$INSTALL_PATH/python
 
 # prepare install/build dir
 mkdir -p $BUILD_PATH
@@ -34,6 +33,17 @@ if [ ! -e $INSTALL_PATH/mkldnn ]; then
   rm -rf mkldnn_lnx_1.0.2_cpu_gomp
 fi
 
+# build pybind11
+mkdir -p $BUILD_PATH/pybind11
+pushd $BUILD_PATH/pybind11
+cmake -G Ninja \
+    -DPYBIND11_TEST=OFF \
+    -DPYBIND11_PYTHON_VERSION=3 \
+    $PROJECT_ROOT/third_party/pybind11 \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/pybind11
+cmake --build . --target install
+popd
+
 # build llvm
 mkdir -p $BUILD_PATH/llvm
 pushd $BUILD_PATH/llvm
@@ -44,9 +54,15 @@ cmake -G Ninja \
   -DLLVM_ENABLE_RTTI=ON \
   -DLLVM_ENABLE_EH=ON \
   -DLLVM_ENABLE_ASSERTIONS=ON \
+  -DMLIR_BINDINGS_PYTHON_ENABLED=ON \
+  -DPYTHON_EXECUTABLE=/usr/bin/python3 \
   -DCMAKE_BUILD_TYPE=DEBUG
 ninja
 popd
+mkdir -p $INSTALL_PATH/tpuc/python
+mkdir -p $INSTALL_PATH/tpuc/lib
+cp -rf $BUILD_PATH/llvm/python/* $INSTALL_PATH/tpuc/python/
+cp -rf $BUILD_PATH/llvm/lib/libMLIRPublicAPI* $INSTALL_PATH/tpuc/lib
 
 # build caffe
 mkdir -p $BUILD_PATH/caffe
@@ -90,7 +106,7 @@ cmake -G Ninja -DFLATBUFFERS_PATH=$INSTALL_PATH/flatbuffers \
 cmake --build . --target install
 popd
 
-# cvibuilder
+# cnpy
 mkdir -p $BUILD_PATH/cnpy
 pushd $BUILD_PATH/cnpy
 cmake -G Ninja \
@@ -98,6 +114,7 @@ cmake -G Ninja \
     $PROJECT_ROOT/third_party/cnpy
 cmake --build . --target install
 popd
+cp $INSTALL_PATH/cnpy/lib/* $INSTALL_PATH/tpuc/lib/
 
 mkdir -p $BUILD_PATH/tpuc
 pushd $BUILD_PATH/tpuc
@@ -107,6 +124,7 @@ cmake -G Ninja \
     -DCAFFE_PATH=$INSTALL_PATH/caffe \
     -DCVIKERNEL_PATH=$INSTALL_PATH/cvikernel \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
+    -Dpybind11_DIR=$INSTALL_PATH/pybind11/share/cmake/pybind11 \
     -DMLIR_DIR=$BUILD_PATH/llvm/lib/cmake/mlir \
     -DLLVM_DIR=$BUILD_PATH/llvm/lib/cmake/llvm \
     -DLLVM_ENABLE_ASSERTIONS=ON \
@@ -137,125 +155,114 @@ cmake --build . --target install
 popd
 
 
-#CVI_PY_TOOLKIT=$MLIR_SRC_PATH/python/cvi_toolkit
-## python package
-#cp -ar $CVI_PY_TOOLKIT/ $TPU_PYTHON_PATH/
-#cp -ar $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
-#
-## python script
-#cp $CVI_PY_TOOLKIT/binary_helper/*.py $TPU_PYTHON_PATH/
-#cp $CVI_PY_TOOLKIT/calibration/*.py $TPU_PYTHON_PATH/
-#cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
-#cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
-#cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
-#cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
-#cp -ar $CVI_PY_TOOLKIT/test/onnx_ir_test/*.py $TPU_PYTHON_PATH/
-#cp -ar $MLIR_SRC_PATH/python/python_codegen/*.py $TPU_PYTHON_PATH/
-#
-#
-#cp -ar  $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
-#pushd $TPU_PYTHON_PATH/retinaface; make; popd
-#cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
-#
-## Build rcnn cython
-#pushd $TPU_PYTHON_PATH/rcnn/cython
-#python3 setup.py build_ext --inplace
-#python3 setup.py clean
-#popd
-#
-## TFLite flatbuffer Schema
-#${FLATBUFFERS_PATH}/bin/flatc \
-#    -o $TPU_PYTHON_PATH --python \
-#    $MLIR_SRC_PATH/python/tflite_schema/schema.fbs
-#
-## calibration tool
-#if [ ! -e $BUILD_PATH/build_calibration ]; then
-#  mkdir -p $BUILD_PATH/build_calibration
-#fi
-#pushd $BUILD_PATH/build_calibration
-#cmake $CVI_PY_TOOLKIT/calibration && make
-#cp calibration_math.so $INSTALL_PATH/lib
-#popd
-#
-## build cmodel
-#if [ ! -e $BUILD_PATH/build_cmodel ]; then
-#  mkdir -p $BUILD_PATH/build_cmodel
-#fi
-#pushd $BUILD_PATH/build_cmodel
-#cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
-#    -DCVIKERNEL_PATH=$CVIKERNEL_PATH \
-#    -DCMAKE_INSTALL_PREFIX=$CMODEL_PATH \
-#    $MLIR_SRC_PATH/externals/cmodel
-#cmake --build . --target install
-#popd
-#
-## build cviruntime
-#if [ ! -e $BUILD_PATH/build_cviruntime ]; then
-#  mkdir $BUILD_PATH/build_cviruntime
-#fi
-#pushd $BUILD_PATH/build_cviruntime
-#cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL $BUILD_FLAG \
-#    -DCVIKERNEL_PATH=$CVIKERNEL_PATH \
-#    -DCMODEL_PATH=$CMODEL_PATH \
-#    -DENABLE_PYRUNTIME=ON \
-#    -DFLATBUFFERS_PATH=$FLATBUFFERS_PATH \
-#    -DCVIBUILDER_PATH=$BUILD_PATH/build_cvimodel \
-#    -DCMAKE_INSTALL_PREFIX=$RUNTIME_PATH \
-#    -DENABLE_TEST=ON \
-#    $MLIR_SRC_PATH/externals/cviruntime
-#cmake --build . --target install
-##ctest --progress || true
-#popd
-#
-## build cvimath
-#if [ ! -e $BUILD_PATH/build_cvimath ]; then
-#  mkdir $BUILD_PATH/build_cvimath
-#fi
-#pushd $BUILD_PATH/build_cvimath
-#cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL \
-#    -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3 \
-#    -DTPU_SDK_ROOT=$CVIKERNEL_PATH \
-#    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH \
-#    $MLIR_SRC_PATH/externals/cvimath
-#cmake --build . --target install
-##ctest --progress || true
-#popd
-#
-#
-## build systemc (for profiling)
-## building has some issue, has to build in place for now
-## copy the source dir to build dir
-#if [ ! -e $BUILD_PATH/build_systemc ]; then
-#  mkdir $BUILD_PATH/build_systemc
-#fi
-#pushd $BUILD_PATH/build_systemc
-#cp $MLIR_SRC_PATH/third_party/systemc-2.3.3/* . -ur
-#autoreconf -iv
-#./configure CXXFLAGS=-std=c++11
-#make -j`nproc`
-#make install
-#mkdir -p $SYSTEMC_PATH
-#cp -a include $SYSTEMC_PATH/
-#cp -a lib-linux64 $SYSTEMC_PATH/
-#popd
-#
-## build profiling
-#if [ ! -e $BUILD_PATH/build_profiling ]; then
-#  mkdir $BUILD_PATH/build_profiling
-#fi
-#pushd $BUILD_PATH/build_profiling
-#cmake -G Ninja  \
-#    -DSYSTEMC_PATH=$SYSTEMC_PATH \
-#    -DCMAKE_INSTALL_PREFIX=$PROFILING_PATH \
-#    $BUILD_PROFILING_FLAG \
-#    $MLIR_SRC_PATH/externals/profiling
-#cmake --build . --target install
-#popd
-#cp $MLIR_SRC_PATH/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
-#
+CVI_PY_TOOLKIT=$PROJECT_ROOT/python/cvi_toolkit
+# python package
+cp -ar $CVI_PY_TOOLKIT/ $TPU_PYTHON_PATH/
+cp -ar $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
+
+# python script
+cp $CVI_PY_TOOLKIT/binary_helper/*.py $TPU_PYTHON_PATH/
+cp $CVI_PY_TOOLKIT/calibration/*.py $TPU_PYTHON_PATH/
+cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
+cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
+cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
+cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
+cp -ar $CVI_PY_TOOLKIT/test/onnx_ir_test/*.py $TPU_PYTHON_PATH/
+cp -ar $PROJECT_ROOT/python/python_codegen/*.py $TPU_PYTHON_PATH/
+
+
+cp -ar $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
+pushd $TPU_PYTHON_PATH/retinaface; make; popd
+cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
+
+# Build rcnn cython
+pushd $TPU_PYTHON_PATH/rcnn/cython
+python3 setup.py build_ext --inplace
+python3 setup.py clean
+popd
+
+# TFLite flatbuffer Schema
+${FLATBUFFERS_PATH}/bin/flatc \
+    -o $TPU_PYTHON_PATH --python \
+    $PROJECT_ROOT/python/tflite_schema/schema.fbs
+
+# calibration tool
+mkdir -p $BUILD_PATH/calibration
+pushd $BUILD_PATH/calibration
+cmake $CVI_PY_TOOLKIT/calibration && make
+cp calibration_math.so $INSTALL_PATH/tpuc/lib
+popd
+
+# build cmodel
+mkdir -p $BUILD_PATH/cmodel
+pushd $BUILD_PATH/cmodel
+cmake -G Ninja -DCHIP=BM1880v2 $BUILD_FLAG \
+    -DCVIKERNEL_PATH=$INSTALL_PATH/tpuc \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
+    $PROJECT_ROOT/externals/cmodel
+cmake --build . --target install
+popd
+
+# build cviruntime
+mkdir -p $BUILD_PATH/cviruntime
+pushd $BUILD_PATH/cviruntime
+cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL $BUILD_FLAG \
+    -DCVIKERNEL_PATH=$INSTALL_PATH/tpuc \
+    -DCMODEL_PATH=$INSTALL_PATH/tpuc \
+    -DENABLE_PYRUNTIME=ON \
+    -DFLATBUFFERS_PATH=$INSTALL_PATH/flatbuffers \
+    -DCVIBUILDER_PATH=$INSTALL_PATH/tpuc \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
+    -DENABLE_TEST=ON \
+    $PROJECT_ROOT/externals/cviruntime
+cmake --build . --target install
+#ctest --progress || true
+popd
+
+# build cvimath
+mkdir -p $BUILD_PATH/cvimath
+pushd $BUILD_PATH/cvimath
+cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL \
+    -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS_RELEASE=-O3 \
+    -DCMAKE_CXX_FLAGS_RELEASE=-O3 \
+    -DTPU_SDK_ROOT=$INSTALL_PATH/tpuc \
+    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
+    $PROJECT_ROOT/externals/cvimath
+cmake --build . --target install
+#ctest --progress || true
+popd
+
+
+# build systemc (for profiling)
+# building has some issue, has to build in place for now
+# copy the source dir to build dir
+# mkdir $BUILD_PATH/systemc
+# pushd $BUILD_PATH/systemc
+# cp $PROJECT_ROOT/third_party/systemc-2.3.3/* . -ur
+# autoreconf -iv
+# ./configure CXXFLAGS=-std=c++11
+# make -j`nproc`
+# make install
+# mkdir -p $SYSTEMC_PATH
+# cp -a include $SYSTEMC_PATH/
+# cp -a lib-linux64 $SYSTEMC_PATH/
+# popd
+
+# build profiling
+# mkdir $BUILD_PATH/profiling
+# pushd $BUILD_PATH/profiling
+# cmake -G Ninja  \
+#     -DSYSTEMC_PATH=$SYSTEMC_PATH \
+#     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
+#     $BUILD_PROFILING_FLAG \
+#     $PROJECT_ROOT/externals/profiling
+# cmake --build . --target install
+# popd
+# cp $PROJECT_ROOT/externals/profiling/tool/performance.html $PROFILING_PATH/bin/
+
 ## stop generating python3_package, as we release tar.gz for now
 ## build python package
-##pushd $MLIR_SRC_PATH
+##pushd $PROJECT_ROOT
 ##if [ $PYTHON_VERSION == "2" ]; then
 ##  echo "Not support build python2 package"
 ##elif [ $PYTHON_VERSION == "3" ]; then
@@ -304,21 +311,21 @@ popd
 #
 #  # install regression
 #  mkdir -p $INSTALL_PATH/regression
-#  cp -a $MLIR_SRC_PATH/regression/generic $INSTALL_PATH/regression/
-#  # cp -a $MLIR_SRC_PATH/regression/parallel $INSTALL_PATH/regression/
-#  cp -a $MLIR_SRC_PATH/regression/data $INSTALL_PATH/regression/
-#  cp -a $MLIR_SRC_PATH/regression/convert_model.sh $INSTALL_PATH/regression/
-#  cp -a $MLIR_SRC_PATH/regression/mlir_to_cvimodel.sh $INSTALL_PATH/regression/
-#  cp -a $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
-#  cp -a $MLIR_SRC_PATH/regression/run_regression.sh $INSTALL_PATH/regression/
+#  cp -a $PROJECT_ROOT/regression/generic $INSTALL_PATH/regression/
+#  # cp -a $PROJECT_ROOT/regression/parallel $INSTALL_PATH/regression/
+#  cp -a $PROJECT_ROOT/regression/data $INSTALL_PATH/regression/
+#  cp -a $PROJECT_ROOT/regression/convert_model.sh $INSTALL_PATH/regression/
+#  cp -a $PROJECT_ROOT/regression/mlir_to_cvimodel.sh $INSTALL_PATH/regression/
+#  cp -a $PROJECT_ROOT/regression/generate_all_cvimodels.sh $INSTALL_PATH/regression/
+#  cp -a $PROJECT_ROOT/regression/run_regression.sh $INSTALL_PATH/regression/
 #
 #  # install env script
-#  cp $MLIR_SRC_PATH/cvitek_envs.sh $INSTALL_PATH/
+#  cp $PROJECT_ROOT/cvitek_envs.sh $INSTALL_PATH/
 #
 #  # generate models for release and samples
 #  pushd $BUILD_PATH
 #
-#  $MLIR_SRC_PATH/regression/generate_all_cvimodels.sh
+#  $PROJECT_ROOT/regression/generate_all_cvimodels.sh
 #  mkdir -p cvimodel_samples
 #
 #  sample_models_list=(

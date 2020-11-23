@@ -79,7 +79,7 @@ add_definitions(-DMLIR_VERSION="${MLIR_VERSION}")
 add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
-
+add_subdirectory(bindings/python)
 #option(CIRCT_INCLUDE_DOCS "Generate build targets for the CIRCT docs."
 #  ${LLVM_INCLUDE_DOCS} ${MLIR_INCLUDE_DOCS})
 #if (CIRCT_INCLUDE_DOCS)

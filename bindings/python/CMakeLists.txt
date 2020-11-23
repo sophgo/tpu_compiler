@@ -9,17 +9,14 @@ project(pymlir)
 SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 SET(CMAKE_INSTALL_RPATH "\${ORIGIN}/")
 
+find_package(pybind11 REQUIRED CONFIG)
 pybind11_add_module(pymlir pymlir.cpp)
-
-whole_archive_link(mlir-tpu-interpreter
-  MLIRTransforms
-  MLIRTranslation
-)
 
 target_link_libraries(pymlir PRIVATE
   MLIRTransforms
   MLIRTranslation
   MLIRTPU
+  TPUCSupport
   MLIRAnalysis
   MLIREDSC
   MLIRIR

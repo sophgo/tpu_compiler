@@ -109,13 +109,13 @@ static py::dict getTensorDict(tensor_map_t &tensorMap, shape_map_t &shapeMap) {
   return py_ret;
 }
 
-// Static initialization for standard op dialect registration.
-static DialectRegistration<StandardOpsDialect> StandardOps;
-static mlir::DialectRegistration<mlir::tpu::TPUDialect> TPUOps;
-
 class py_module {
 public:
-  py_module() {}
+  py_module() {
+    registry = context.getDialectRegistry();
+    registry.insert<tpu::TPUDialect,
+                    StandardOpsDialect>();
+  }
   ~py_module() {
     if (interpreter_)
       delete interpreter_;
@@ -228,6 +228,7 @@ public:
 
 private:
   MLIRContext context;
+  DialectRegistry registry;
   OwningModuleRef module;
   std::string weightFilePath_;
   tensor_map_t tensorMap_;
