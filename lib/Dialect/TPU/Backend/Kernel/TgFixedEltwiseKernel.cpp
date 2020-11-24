@@ -429,7 +429,7 @@ void TgInt8EltwiseAddKernel::asymmetric_compute(const int opd_idx,
   // refresh input
   reset(&input);
 
-  // then we do mul with low 8bit
+  // then we do mac with low 8bit
   // and add Qx'_high with put in res_high( high 8bit)
   // (Qx_low) * multiplier + (Qx'_high << 8) = (Qx-Zx) * multiplier
   cvk_fmt_t input_fmt = tl_working[0]->fmt;
@@ -449,7 +449,7 @@ void TgInt8EltwiseAddKernel::asymmetric_compute(const int opd_idx,
 
   tl_working[0]->fmt = input_fmt;
 
-  // final we get (Qx-Zx) * multiplier(16bit)
+  // final we get ((Qx-Zx) * multiplier)(16bit)
   // add to output space
   p1.res_high = &output_high;
   p1.res_low = &output;

@@ -1613,6 +1613,12 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
+  int output_offset = 0;
+  int input_offset = 0;
+  if (this->output_offset().hasValue() && this->input_offset().hasValue()) {
+    output_offset = this->output_offset().getValue().getLimitedValue();
+    input_offset = this->input_offset().getValue().getLimitedValue();
+  }
 
   cvi_backend_tg_fixed_leakyrelu_kernel(
     *backend_ctx,         // ctx
@@ -1626,7 +1632,9 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
     pos_rshift,           // GT_right_shift_width
     neg_rshift,           // LE_right_shift_width
     pos_m_i8,             // GT_scale
-    neg_m_i8              // LE_scale
+    neg_m_i8,              // LE_scale
+    input_offset,                    // input_offset
+    output_offset                    // output_offset
   );
 
   return success();

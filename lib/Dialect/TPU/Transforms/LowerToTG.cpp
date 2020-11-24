@@ -1049,7 +1049,14 @@ Value* tpu::LeakyReluOp::convertToTG() {
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
     attrs.push_back(builder.getNamedAttr("m_i8_neg",
         builder.getI8IntegerAttr(static_cast<int8_t>(multiplier_neg->at(0)))));
-
+    bool is_asymmetric = isOpQuantAsymmetric();
+    if (is_asymmetric) {
+      attrs.push_back(builder.getNamedAttr(
+          "input_offset",
+          builder.getI32IntegerAttr(-getPreviousOpZeroPoint(op))));
+      attrs.push_back(builder.getNamedAttr(
+          "output_offset", builder.getI32IntegerAttr(getOpZeroPoint(op))));
+    }
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LeakyReluOp>(op->getLoc(),
         getResult()->getType(), ArrayRef<Value *>{operands},

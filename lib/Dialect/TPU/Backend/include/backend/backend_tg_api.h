@@ -60,7 +60,8 @@ void cvi_backend_tg_fixed_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     uint64_t input_gaddr, uint64_t output_gaddr,
     int input_n, int input_c, int input_h,
-    int input_w, int GT_right_shift_width, int LE_right_shift_width, int GT_scale, int LE_scale);
+    int input_w, int GT_right_shift_width, int LE_right_shift_width, int GT_scale, int LE_scale,
+    int input_offset, int output_offset);
 
 void cvi_backend_tg_fixed_prelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

@@ -1300,7 +1300,6 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
     if (getOpQuantParamType(op) != "NONE") {
       if (type == "ADD" || type == "MAX" || type == "MIN") {
         // apply rshift and saturate
-        //#pragma omp parallel for schedule(static)
         for (int i = 0; i < input_size; ++i) {
           output[i] = (float)applyRShiftAndSaturateInt8(
               output[i], (uint32_t)quant_rshift->at(0), output_offset);
@@ -1430,14 +1429,13 @@ LogicalResult tpu::FullyConnectedOp::interpret(
     // do nothing
   } else if (getOpQuant() == "INT8") {
     assert(quant_rshift);
-      assert(quant_rshift);
-      assert(quant_multiplier);
-      for (int i = 0; i < size; ++i) {
-        resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-            resultT->at(i), (uint32_t)quant_rshift->at(0),
-            quant_multiplier->at(0), true);
+    assert(quant_rshift);
+    assert(quant_multiplier);
+    for (int i = 0; i < size; ++i) {
+      resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          resultT->at(i), (uint32_t)quant_rshift->at(0),
+          quant_multiplier->at(0), true);
     }
-
   } else if (getOpQuant() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
     FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding

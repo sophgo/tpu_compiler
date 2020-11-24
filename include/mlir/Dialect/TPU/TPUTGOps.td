@@ -785,6 +785,8 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
+      `input_offset`    : optional, in asymmetric, add input_offset to input tensor before do leaky relu.
+      `output_offset`    : optional, in asymmetric, add output_offset at final.
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
@@ -807,6 +809,8 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
+    OptionalAttr<I32Attr>:$input_offset,
+    OptionalAttr<I32Attr>:$output_offset,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,

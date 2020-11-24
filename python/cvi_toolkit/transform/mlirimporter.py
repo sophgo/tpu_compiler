@@ -778,7 +778,7 @@ class MLIRImporter(object):
 
     def add_leaky_relu_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
-        self.f32Type, output_tensor_shape)
+            self.get_input_type(inputOperands[0]), output_tensor_shape)
 
         checkKey(kargs, 'negative_slope')
 

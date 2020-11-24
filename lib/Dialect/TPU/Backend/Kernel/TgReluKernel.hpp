@@ -22,7 +22,8 @@ public:
   void init(uint32_t layer_id, int32_t n, int32_t c, int32_t h, int32_t w,
             gaddr_t ga_input, gaddr_t ga_output, gaddr_t ga_negative_slope,
             float negative_slope, int GT_rshift, int GT_scale, int LE_rshift,
-            int LE_scale, cvk_fmt_t fmt, mode_t mode);
+            int LE_scale, int input_offset, int output_offset, cvk_fmt_t fmt,
+            mode_t mode);
 
   void selectTilePolicy();
   void schedule();
@@ -34,12 +35,15 @@ protected:
   void allocLmem();
   void deallocLmem();
   void compute_relu(int32_t step_idx, int32_t flip);
-  void compute_leaky_relu_fixed(int32_t step_idx, int32_t flip);
+  void compute_leaky_relu_fixed_sym(int32_t step_idx, int32_t flip);
+  void compute_leaky_relu_fixed_asym(int32_t step_idx, int32_t flip);
   void compute_leaky_relu_bf16(int32_t step_idx, int32_t flip);
   void compute_prelu_fixed(int32_t step_idx, int32_t flip);
   void compute_prelu_bf16(int32_t step_idx, int32_t flip);
   cvk_tl_t get_input(int32_t step_idx, int32_t flip);
   cvk_tl_t get_output(int32_t step_idx, int32_t flip);
+  void change_workspace_size(int32_t step_idx);
+  void reset(cvk_tl_t *tl);
 
 protected:
   const CviBackendContext &ctx;
@@ -49,6 +53,8 @@ protected:
   cvk_tl_t *tl_input[2];
   cvk_tl_t *tl_output[2];
   cvk_tl_t *tl_slope; // for prelu
+  cvk_tl_t *tl_working[2];
+  cvk_tl_t *tl_pos_neg_map;
   cvk_tg_stride_t gstride;
 
   int32_t n, c, h, w;
@@ -62,6 +68,9 @@ protected:
   int LE_rshift;    // for i8
   int LE_scale;     // for i8
   float negative_slope;
+  int input_offset = 0;
+  int output_offset = 0;
+  bool is_asymmetric = false;
 
   int32_t flip = 0;
   std::vector<CviBackendContext::tiling_info_t> tiles;
