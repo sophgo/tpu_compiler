@@ -17,8 +17,8 @@ mlir-opt ${NET}_opt_fp32.mlir \
     -o ${NET}_quant_int8.mlir
 
 $DIR/../mlir_to_cvimodel.sh \
-   ${NET}_quant_int8.mlir \
-   ${NET}_int8.cvimodel
+   -i ${NET}_quant_int8.mlir \
+   -o ${NET}_int8.cvimodel
 
 model_runner \
     --dump-all-tensors \

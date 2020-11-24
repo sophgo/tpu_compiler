@@ -120,8 +120,8 @@ cvi_npz_tool.py compare \
 
 # cvimodel
 $DIR/../mlir_to_cvimodel.sh \
-    ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
-    ${NET}_fused_preprocess.cvimodel
+    -i ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
+    -o ${NET}_fused_preprocess.cvimodel
 
 model_runner \
     --dump-all-tensors \

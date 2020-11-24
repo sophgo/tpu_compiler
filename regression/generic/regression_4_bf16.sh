@@ -39,8 +39,8 @@ cvi_npz_tool.py compare \
     --tolerance $TOLERANCE_BF16 -vv
 
 $DIR/../mlir_to_cvimodel.sh \
-   ${NET}_quant_bf16.mlir \
-   ${NET}_bf16.cvimodel
+   -i ${NET}_quant_bf16.mlir \
+   -o ${NET}_bf16.cvimodel
 
 # run cvimodel
 model_runner \
