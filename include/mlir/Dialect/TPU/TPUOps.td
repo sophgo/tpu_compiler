@@ -2076,6 +2076,53 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_ReverseOp: TPU_Op<"reverse",
+    [NoSideEffect,
+     DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+     DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+     DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
+
+  let summary = "reverse operator";
+
+  let description = [{
+    Reverse on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `axis`           : required, witch axis to reverse
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TPU_QuantSameInputResultScale` : input and result share same threshold
+                                        or scale (bypassed).
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    I32Attr:$axis,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,

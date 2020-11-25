@@ -478,8 +478,6 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_PoolMax2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_PoolAvg2DOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_PoolMax2DOp>,
-      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ShuffleChannelOp>,
-      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ShuffleChannelOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_PixelShuffleOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_PixelShuffleOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_PReluOp>,
@@ -488,6 +486,10 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ReluOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ReorgOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ReorgOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ReverseOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ReverseOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ShuffleChannelOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_ShuffleChannelOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_SliceOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_SliceOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_SwapChannelOp>,
@@ -556,8 +558,6 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_INT8_PoolMax2DOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_PoolAvg2DOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_PoolMax2DOp>();
-  target.addLegalOp<tpu::TG_MemRef_INT8_ShuffleChannelOp>();
-  target.addLegalOp<tpu::TG_MemRef_BF16_ShuffleChannelOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PixelShuffleOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_PixelShuffleOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_PReluOp>();
@@ -566,6 +566,10 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_BF16_ReluOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_ReorgOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_ReorgOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_ReverseOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_ReverseOp>();
+  target.addLegalOp<tpu::TG_MemRef_INT8_ShuffleChannelOp>();
+  target.addLegalOp<tpu::TG_MemRef_BF16_ShuffleChannelOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_SliceOp>();
   target.addLegalOp<tpu::TG_MemRef_BF16_SliceOp>();
   target.addLegalOp<tpu::TG_MemRef_INT8_SwapChannelOp>();
@@ -639,8 +643,6 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TG_INT8_PoolMax2DOp, tpu::TG_MemRef_INT8_PoolMax2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_PoolAvg2DOp, tpu::TG_MemRef_BF16_PoolAvg2DOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_PoolMax2DOp, tpu::TG_MemRef_BF16_PoolMax2DOp>,
-      convertTgOpToMemRefPattern<tpu::TG_INT8_ShuffleChannelOp, tpu::TG_MemRef_INT8_ShuffleChannelOp>,
-      convertTgOpToMemRefPattern<tpu::TG_BF16_ShuffleChannelOp, tpu::TG_MemRef_BF16_ShuffleChannelOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_PixelShuffleOp, tpu::TG_MemRef_INT8_PixelShuffleOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_PixelShuffleOp, tpu::TG_MemRef_BF16_PixelShuffleOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_PReluOp, tpu::TG_MemRef_INT8_PReluOp>,
@@ -649,6 +651,10 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::TG_BF16_ReluOp, tpu::TG_MemRef_BF16_ReluOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_ReorgOp, tpu::TG_MemRef_INT8_ReorgOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_ReorgOp, tpu::TG_MemRef_BF16_ReorgOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_ReverseOp, tpu::TG_MemRef_INT8_ReverseOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_ReverseOp, tpu::TG_MemRef_BF16_ReverseOp>,
+      convertTgOpToMemRefPattern<tpu::TG_INT8_ShuffleChannelOp, tpu::TG_MemRef_INT8_ShuffleChannelOp>,
+      convertTgOpToMemRefPattern<tpu::TG_BF16_ShuffleChannelOp, tpu::TG_MemRef_BF16_ShuffleChannelOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_SliceOp, tpu::TG_MemRef_INT8_SliceOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_SliceOp, tpu::TG_MemRef_BF16_SliceOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_SwapChannelOp, tpu::TG_MemRef_INT8_SwapChannelOp>,

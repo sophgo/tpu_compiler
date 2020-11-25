@@ -72,6 +72,7 @@ class TPU_OpType(Enum):
     Relu = 'tpu.relu'
     Reorg = 'tpu.reorg'
     RetinaFaceDetection = 'tpu.retinaface_detection'
+    Reverse = 'tpu.reverse'
     ROIPooling = 'tpu.roi_pooling'
     Scale = 'tpu.scale'
     ShuffelChannel = 'tpu.shuffle_channel'
@@ -1278,6 +1279,17 @@ class MLIRImporter(object):
         reshape_name = self.module.stringAttr(op_name)
         return self.buildOp(TPU_OpType.Reshape.value, inputOperands, [
             tensor_output_type], name=reshape_name)
+
+    def add_reverse_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        checkKey(kargs, 'axis')
+        nameAttr = self.module.stringAttr(op_name)
+        attr_dict = {
+            'axis': self.module.integerAttr(self.i32Type, kargs['axis'])
+        }
+        return self.buildOp(TPU_OpType.Reverse.value, inputOperands, [
+            tensor_output_type], name=nameAttr, quant=self.quant_param, **attr_dict)
 
     def add_roipooling_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(

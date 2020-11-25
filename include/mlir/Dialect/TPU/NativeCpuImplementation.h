@@ -82,9 +82,10 @@ int my_lrn_main(float *input, float *scale, float *output, int n, int c, int h,
 int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
                 unsigned int local_size, float *sqr_lut, float *power_lut,
                 int sum_rshift, int lrn_rshit, int quant0, int quant1);
-
-int my_shuffle_channel(float *input, float *output, unsigned int group,
-    int n, int c,  int frame_size);
+int my_reverse(float *input, float *output, int n, int c, int h, int w,
+               int axis);
+int my_shuffle_channel(float *input, float *output, unsigned int group, int n,
+                       int c, int frame_size);
 
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w);

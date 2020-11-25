@@ -1547,6 +1547,30 @@ int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
   return 0;
 }
 
+// reverse
+int my_reverse(float *input, float *output, int n, int c, int h, int w,
+               int axis) {
+  int dim[] = {n, c, h, w};
+  int stride[] = {c * h * w, h * w, w, 1};
+  for (int in = 0; in < n; in++) {
+    for (int ic = 0; ic < c; ic++) {
+      for (int ih = 0; ih < h; ih++) {
+        for (int iw = 0; iw < h; iw++) {
+          int src_index[] = {in, ic, ih, iw};
+          int dst_index[] = {in, ic, ih, iw};
+          dst_index[axis] = dim[axis] - dst_index[axis] - 1;
+          int src_offset = src_index[0] * stride[0] + src_index[1] * stride[1] +
+                           src_index[2] * stride[2] + src_index[3] * stride[3];
+          int dst_offset = dst_index[0] * stride[0] + dst_index[1] * stride[1] +
+                           dst_index[2] * stride[2] + dst_index[3] * stride[3];
+          output[dst_offset] = input[src_offset];
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 // shuffle channel
 int my_shuffle_channel(float *input, float *output, unsigned int group, int n, int c,  int frame_size) {
     LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ",  g: " << group

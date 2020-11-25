@@ -400,6 +400,11 @@ void cvi_backend_tg_quant_kernel(
     int input_n, int input_c, int input_h, int input_w,
     float const_scale = 1.0, int offset=0);
 
+void cvi_backend_tg_reverse_kernel(const CviBackendContext &ctx,
+                                   uint32_t layer_id, gaddr_t ga_input,
+                                   gaddr_t ga_output, int n, int c, int h,
+                                   int w, int axis, cvk_fmt_t fmt);
+
 void cvi_backend_tg_shuffle_channel_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
     gaddr_t output_gaddr, int n, int c, int h, int w, int group, cvk_fmt_t fmt);

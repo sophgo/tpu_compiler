@@ -1478,6 +1478,35 @@ Value *tpu::ReorgOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value *tpu::ReverseOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //   TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<Value *> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReverseOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReverseOp>(
+        op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value *tpu::ShuffleChannelOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4168,6 +4197,7 @@ public:
         DefaultToTGPattern<tpu::QuantOp>,
         DefaultToTGPattern<tpu::ReluOp>,
         DefaultToTGPattern<tpu::ReorgOp>,
+        DefaultToTGPattern<tpu::ReverseOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SliceOp>,

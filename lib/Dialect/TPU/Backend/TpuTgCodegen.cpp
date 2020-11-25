@@ -2559,6 +2559,46 @@ LogicalResult tpu::TG_BF16_ReorgOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ReverseOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+  int32_t axis = this->axis().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  cvi_backend_tg_reverse_kernel(*backend_ctx, layer_id, input_gaddr,
+                                        output_gaddr, n, c, h, w, axis,
+                                        CVK_FMT_I8);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ReverseOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+  int32_t axis = this->axis().getLimitedValue();
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  cvi_backend_tg_reverse_kernel(*backend_ctx, layer_id, input_gaddr,
+                                        output_gaddr, n, c, h, w, axis,
+                                        CVK_FMT_BF16);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -3520,6 +3560,14 @@ LogicalResult tpu::TG_MemRef_BF16_ReduceMeanOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_BF16_ReduceMaxOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_INT8_ReverseOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_BF16_ReverseOp::codegen(void *ctx) {
   return success();
 }
 

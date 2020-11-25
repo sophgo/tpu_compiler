@@ -62,6 +62,7 @@ class CaffeConverter(BaseConverter):
             'BatchNorm': lambda layer: self.convert_batchnorm_op(layer),
             'BN': lambda layer: self.convert_bn_op(layer),
             'Concat': lambda layer: self.convert_concat_op(layer),
+            'ContinuationIndicator': lambda layer: self.convert_continuation_indicator_op(layer),
             'Convolution': lambda layer: self.convert_convolution_op(layer),
             'ConvolutionDepthwise': lambda layer: self.convert_convolution_op(layer),
             'Crop': lambda layer: self.convert_crop_op(layer),
@@ -89,6 +90,7 @@ class CaffeConverter(BaseConverter):
             'ReLU6': lambda layer: self.convert_relu6_op(layer),
             'Reorg': lambda layer: self.convert_reorg_op(layer),
             'Reshape': lambda layer: self.convert_reshape_op(layer),
+            'Reverse': lambda layer: self.convert_reverse_op(layer),
             'RetinaFaceDetection': lambda layer: self.convert_retinaface_detection_op(layer),
             'ROIPooling': lambda layer: self.convert_roipooling_op(layer),
             'Scale': lambda layer: self.convert_scale_op(layer),
@@ -300,6 +302,22 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
+
+    def convert_continuation_indicator_op(self, layer):
+        assert(self.layerType(layer) == 'ContinuationIndicator')
+        # do nothing
+        #        input_num = len(layer.bottom)
+        #        assert(input_num == 0 and "only support no bttom now")
+        #        p = layer.continuation_indicator_param
+        #        output_shape = [int(p.time_step), int(p.batch_size)]
+        #        data = np.zeros((p.time_step,p.batch_size), dtype=np.float32)
+        #        for t in range(p.time_step):
+        #            for b in range(p.batch_size):
+        #                if p.flag or t != 0:
+        #                    data[t][b] = 1.0
+        #        self.addTensor(layer.name, data, output_shape)
+        #        weight_op = self.CVI.add_load_file_op(layer.name, output_shape)
+        #        self.addOperand(layer.top[0], weight_op, output_shape, TensorType.TENSOR)
 
     @ staticmethod
     def calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_):
@@ -1255,6 +1273,21 @@ class CaffeConverter(BaseConverter):
         else:
             raise RuntimeError("ReshapeOp only support input shape = 2 or 4 now")
         new_op = self.CVI.add_reshape_op(layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op, output_shape,
+                        TensorType.ACTIVATION)
+
+    def convert_reverse_op(self, layer):
+        assert(self.layerType(layer) == 'Reverse')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        axis = layer.reverse_param.axis
+        param = {
+            'axis': axis,
+        }
+        output_shape = input_shape
+        new_op = self.CVI.add_reverse_op(
+            layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op, output_shape,
                         TensorType.ACTIVATION)
 
