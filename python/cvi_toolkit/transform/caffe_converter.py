@@ -1426,7 +1426,7 @@ class CaffeConverter(BaseConverter):
         else:
             assert(bottom_slice_axis % top_size == 0)
             for i in range(top_size):
-                slices.append(bottom_slice_axis / top_size)
+                slices.append(int(bottom_slice_axis / top_size))
         offset = 0
         for i in range(top_size):
             output_shape = list(input_shape)
