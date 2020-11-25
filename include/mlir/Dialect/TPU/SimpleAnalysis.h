@@ -71,3 +71,7 @@ uint64_t SimpleIOMemoryUsageAnalysis(OpTy &op,
 uint64_t SimplePixelShuffleMemoryUsageAnalysis(tpu::TG_INT8_PixelShuffleOp &op,
     struct SimpleMemoryUsageAnalysis_details *details,
     int batch_size);
+
+uint64_t SimplePReluMemoryUsageAnalysis(tpu::TG_INT8_PReluOp &op,
+    struct SimpleMemoryUsageAnalysis_details *details,
+    int batch_size);

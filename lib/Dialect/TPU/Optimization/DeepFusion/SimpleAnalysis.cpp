@@ -373,4 +373,37 @@ uint64_t SimplePixelShuffleMemoryUsageAnalysis(tpu::TG_INT8_PixelShuffleOp &op,
   return totalPerLane;
 }
 
+uint64_t SimplePReluMemoryUsageAnalysis(tpu::TG_INT8_PReluOp &op,
+    struct SimpleMemoryUsageAnalysis_details *details = nullptr,
+    int batch_size = -1) {
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op.getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  if (batch_size != -1) {
+    n = batch_size;
+    assert((batch_size <= n) && "batch_size error");
+  }
+  uint64_t inputNeuronSizePerLane =
+                  MInfo::getSizePerLane(n, c, h, w, true);
+  uint64_t filterSizePerLane = MInfo::getSizePerLane(1, c, 1, 1, true);
+  uint64_t biasSizePerLane = 0;
+  uint64_t reluWorkingSizePerLane = 0;
+
+  // total
+  uint64_t totalPerLane = inputNeuronSizePerLane * 2 + filterSizePerLane;
+  // return
+  if (details) {
+    details->inputNeuronSizePerLane = inputNeuronSizePerLane;
+    details->outputNeuronSizePerLane = inputNeuronSizePerLane;
+    details->filterSizePerLane = filterSizePerLane;
+    details->biasSizePerLane = biasSizePerLane;
+    details->reluWorkingSizePerLane = reluWorkingSizePerLane;
+    details->eltwiseInputSizePerLane = 0;
+    details->eltwiseWorkingSizePerLane = 0;
+  }
+
+  return totalPerLane;
+}
 

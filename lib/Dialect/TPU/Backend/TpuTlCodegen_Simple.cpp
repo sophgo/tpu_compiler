@@ -592,6 +592,65 @@ LogicalResult tpu::TL_PixelShuffleOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_PReluOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_input = LA_INVALID;
+  laddr_t la_output = LA_INVALID;
+  laddr_t la_working = LA_INVALID;
+  gaddr_t ga_filter = getWeightOpAddress(filter()->getDefiningOp());
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
+
+  if (this->lm_layout() != "NONE") {
+    la_input = this->la_input().getLimitedValue();
+    la_output = this->la_output().getLimitedValue();
+    la_working = this->la_working().getLimitedValue();
+  }
+
+  int layer_id = getOpLayerId(op);
+  assert(this->rshift_pos().hasValue());
+  int8_t rshift_pos = this->rshift_pos().getValue().getLimitedValue();
+  assert(this->m_i8_pos().hasValue());
+  int8_t m_i8_pos = this->m_i8_pos().getValue().getLimitedValue();
+  assert(this->rshift_neg().hasValue());
+  int8_t rshift_neg = this->rshift_neg().getValue().getLimitedValue();
+
+  cvi_backend_tl_load(*backend_ctx, layer_id, la_working, ga_filter, CVK_FMT_I8,
+                      1, c, 1, 1);
+  if(tl_load_flag()) {
+    cvi_backend_tl_load(*backend_ctx, layer_id, la_input, ga_input, CVK_FMT_I8,
+                        n, c, h, w);
+  }
+
+  cvi_backend_tl_prelu(
+      *backend_ctx,
+      layer_id, //layer_id,
+      la_input,
+      la_output,
+      la_working, // filter
+      n,
+      c,
+      h,
+      w,
+      rshift_pos, m_i8_pos, rshift_neg);
+
+  if(tl_store_flag()) {
+    cvi_backend_tl_store(*backend_ctx, layer_id, la_output, ga_output,
+                         CVK_FMT_I8, n, c, h, w);
+  }
+
+  return success();
+}
+
 // MemRefType dummy
 LogicalResult tpu::TL_MemRef_BroadcastMulOp::codegen(void *ctx) {
   return success();
