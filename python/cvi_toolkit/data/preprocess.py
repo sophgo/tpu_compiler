@@ -160,7 +160,7 @@ class preprocess(object):
             if mean_file != None :
                 self.mean_file = np.load(mean_file)
             else:
-                self.mean = np.array([])
+                self.mean = np.array([0,0,0], dtype=np.float32)
                 self.mean_file = np.array([])
         if std:
             self.std = np.array([float(s) for s in std.split(',')], dtype=np.float32)
