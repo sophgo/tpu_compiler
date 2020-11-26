@@ -114,8 +114,11 @@ class OnnxConverter(BaseConverter):
         self.converted_nodes = list()
         self.converted_tensors = list()
         self.convert_preprocess = convert_preprocess
-        self.preprocess_args = preprocess_args
-
+        if self.convert_preprocess:
+            if preprocess_args:
+                self.preprocess_args = preprocess_args
+            else:
+                raise RuntimeError("preprocess args not exist!")
 
         self.CVI = None
         self.init_importer()
@@ -311,10 +314,13 @@ class OnnxConverter(BaseConverter):
                 else:
                     input_shape.append(dim.dim_value)
 
-            if self.preprocess_args:
+            if self.convert_preprocess:
                 resize_h, resize_w = self.preprocess_args.get(
                         "resize_dims")
 
+                # add preprocess
+                input_no_preprocess_op = self.CVI.add_input_op(
+                    input.name, idx)
                 color_order = np.array([0 ,1, 2])
                 transpose_order = np.array([0, 1, 2, 3])
                 crop_shape = np.array(
@@ -332,8 +338,8 @@ class OnnxConverter(BaseConverter):
                     pass
                 else:
                     raise RuntimeError("No support fused preprocess data_format: {} \ preprocess_input_data_format: {}",
-                                        self.preprocess_args.get('data_format'),  self.preprocess_args.get(
-                                            'preprocess_input_data_format'))
+                                       self.preprocess_args.get('data_format'),  self.preprocess_args.get(
+                                           'preprocess_input_data_format'))
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))
@@ -349,19 +355,12 @@ class OnnxConverter(BaseConverter):
                     'pads': [0,0,0,0,0,0,0,0],
                     'pad_const_val': 0,
                 }
-            else:
-                preprocess_attr = {}
 
-            if self.convert_preprocess:
-                # add preprocess
-                input_no_preprocess_op = self.CVI.add_input_op(
-                    input.name, idx, **preprocess_attr)
- 
                 output_shape = input_shape
                 input_op = self.CVI.add_preprocess_op(
                     "{}_preprocess".format(input.name), [input_no_preprocess_op], output_shape, **preprocess_attr)
             else:
-                input_op = self.CVI.add_input_op(input.name, idx, **preprocess_attr)
+                input_op = self.CVI.add_input_op(input.name, idx)
 
             self.addOperand(input.name, input_op, input_shape, TensorType.ACTIVATION)
         def NoneAndRaise(node):

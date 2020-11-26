@@ -867,7 +867,6 @@ def TPU_InputOp: TPU_Op<"input",
     ins AnyTensor:$input,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    TPU_PreprocessParamAttr:$preprocess,
     OptionalAttr<NonNegativeI64Attr>:$gaddr,
     OptionalAttr<StrAttr>:$chipname
   );

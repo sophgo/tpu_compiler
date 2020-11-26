@@ -63,7 +63,6 @@ using FBRoutine = flatbuffers::Offset<Routine>;
 using FBSection = flatbuffers::Offset<Section>;
 using FBModel = flatbuffers::Offset<Model>;
 using FBWeight = flatbuffers::Offset<Weight>;
-using FBPreProcessHints = flatbuffers::Offset<PreProcessHints>;
 
 class CviTensor {
 public:
@@ -153,14 +152,6 @@ private:
   int64_t sharedGmemSize_ = 0;
   int batchNum_ = 0;
 
-  struct {
-    std::string color;
-    float raw_scale;
-    std::vector<float> mean;
-    std::vector<float> std;
-    float input_scale;
-  } preprocess_;
-
   void addRoutine(std::string funcName);
   void parseModule();
   FBModel build();
@@ -168,7 +159,6 @@ private:
   FBTensorVector buildNeuronMap();
   FBProgram buildProgram();
   FBSectionVector buildSections();
-  FBPreProcessHints buildPreProcessHints();
   FBSection buildSection(std::string name, cvi::model::SectionType type,
                          std::string fileName);
   FBSection buildSection(std::string name, cvi::model::SectionType type,

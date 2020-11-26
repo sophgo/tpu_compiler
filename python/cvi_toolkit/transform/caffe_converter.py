@@ -23,13 +23,14 @@ class CaffeTensor():
 
 
 class CaffeConverter(BaseConverter):
-    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1,
+    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1, preprocess=None,
                  convert_preprocess=False, preprocess_args=None):
         super().__init__()
         self.model_name = model_name
         self.prototxt = prototxt
         self.caffemodel = caffemodel
         self.batch_size = batch_size
+        self.preprocess = preprocess
 
         self.net = caffe.Net(self.prototxt, self.caffemodel, caffe.TEST)
         self.param = caffe_pb2.NetParameter()
@@ -50,7 +51,12 @@ class CaffeConverter(BaseConverter):
 
 
         self.convert_preprocess = convert_preprocess
-        self.preprocess_args = preprocess_args
+        if self.convert_preprocess:
+            if preprocess_args:
+                self.preprocess_args = preprocess_args
+            else:
+                raise RuntimeError("preprocess args not exist!")
+
 
         self.caffeop_factory = {
             'BatchNorm': lambda layer: self.convert_batchnorm_op(layer),
@@ -1693,8 +1699,10 @@ class CaffeConverter(BaseConverter):
         for idx, name in enumerate(self.inputs):
             input_shape = list(self.blobs[name].shape)
             input_shape[0] = self.batch_size
-
-            if self.preprocess_args:
+            if self.convert_preprocess:
+                # add preprocess
+                input_no_preprocess_op = self.CVI.add_input_op(
+                    name, idx)
                 color_order = np.array([0 ,1, 2])
                 transpose_order = np.array([0, 1, 2, 3])
                 crop_shape = np.array(
@@ -1712,8 +1720,8 @@ class CaffeConverter(BaseConverter):
                     pass
                 else:
                     raise RuntimeError("No support fused preprocess data_format: {} \ preprocess_input_data_format: {}",
-                                        self.preprocess_args.get('data_format'),  self.preprocess_args.get(
-                                            'preprocess_input_data_format'))
+                                       self.preprocess_args.get('data_format'),  self.preprocess_args.get(
+                                           'preprocess_input_data_format'))
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))
@@ -1733,20 +1741,12 @@ class CaffeConverter(BaseConverter):
                     'pads': pads,
                     'pad_const_val': 0,
                 }
-            else:
-                preprocess_attr = {}
-
-            if self.convert_preprocess:
-                # add preprocess
-                input_no_preprocess_op = self.CVI.add_input_op(
-                    name, idx, **preprocess_attr)
 
                 output_shape = input_shape
                 input_op = self.CVI.add_preprocess_op(
                     "{}_preprocess".format(name), [input_no_preprocess_op], output_shape, **preprocess_attr)
             else:
-                # add preprocess info to input
-                input_op = self.CVI.add_input_op(name, idx, **preprocess_attr)
+                input_op = self.CVI.add_input_op(name, idx)
 
             self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
 
