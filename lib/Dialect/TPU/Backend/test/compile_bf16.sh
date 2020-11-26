@@ -12,7 +12,7 @@ if [ ! -e "$DIR/tmp" ]; then
   mkdir -p $DIR/tmp
 fi
 
-# DEBUG=-debug
+#DEBUG=-debug
 
 pushd $DIR/tmp
 
@@ -37,6 +37,7 @@ mlir-opt \
      --assign-chip-name \
      --chipname $SET_CHIP_NAME \
      --tpu-quant --quant-full-bf16 \
+     --quant-bf16-softmax \
      --print-tpu-op-info \
      --tpu-op-info-filename test_op_info_bf16.csv \
      test_fp32_opt.mlir \
@@ -45,7 +46,6 @@ mlir-opt \
 # optimization for bf16 mlir model
 mlir-opt \
      --tpu-lower \
-     --reorder-op \
      --tg-fuse-leakyrelu \
      --conv-ic-alignment \
      --group-ops \
