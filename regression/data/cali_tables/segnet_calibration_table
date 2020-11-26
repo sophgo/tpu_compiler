@@ -29,6 +29,7 @@ pool5_mask_scale1 4.0
 pool5_mask_eltwise_add1 4.0
 pool5_mask_zero_mask1 1.0
 upsample5_multi 4.712802886962891
+upsample5_nearst 4.712802886962891
 upsample5 4.712802886962891
 relu5_3_D 5.468230247497559
 relu5_2_D 4.943810939788818

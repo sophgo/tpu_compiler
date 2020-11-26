@@ -2874,6 +2874,7 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
