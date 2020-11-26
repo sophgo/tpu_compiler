@@ -47,7 +47,7 @@ class CaffeConverter(BaseConverter):
         self.input_shapes = list()
         self.output_shapes = list()
         self.CVI = None
-        self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
+        self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
 
 
         self.convert_preprocess = convert_preprocess
@@ -155,7 +155,7 @@ class CaffeConverter(BaseConverter):
                     break
             self.output_shapes.append(o_shape)
         self.CVI = MLIRImporter(self.input_shapes, self.output_shapes,
-                                "UINT8" if self.convert_preprocess else "FP32")
+                                "UINT8" if self.convert_preprocess else "FP32", output_weight_file=self.output_weight_file)
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
         self.converted_tensors.append(CaffeTensor(
@@ -165,7 +165,7 @@ class CaffeConverter(BaseConverter):
         tensor_npz = {}
         for i in self.converted_tensors:
             tensor_npz[i.name] = i.tensor_data.astype(np.float32)
-        np.savez(self.output_tensor_file, **tensor_npz)
+        np.savez(self.output_weight_file, **tensor_npz)
 
     def getTensor(self, op_name):
         find_tensor = [t for t in self.converted_tensors if t.name == op_name]
@@ -1653,8 +1653,6 @@ class CaffeConverter(BaseConverter):
 
     def convert_graph(self):
         """convert all to mlir"""
-        # add weight op
-        self.CVI.add_weight_file_op(self.output_tensor_file)
 
         def NoneAndRaise(layer):
             raise RuntimeError(

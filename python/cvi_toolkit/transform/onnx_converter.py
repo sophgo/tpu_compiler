@@ -121,9 +121,9 @@ class OnnxConverter(BaseConverter):
                 raise RuntimeError("preprocess args not exist!")
 
         self.CVI = None
+        self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.init_importer()
 
-        self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.onnxop_factory = {
             "Abs": lambda node: self.convert_abs_op(node),
             "Add": lambda node: self.convert_add_op(node),
@@ -222,7 +222,7 @@ class OnnxConverter(BaseConverter):
             self.output_shapes.append(output_shape)
 
         # init importer
-        self.CVI = MLIRImporter(inputs, outputs, "UINT8" if self.convert_preprocess else "FP32")
+        self.CVI = MLIRImporter(inputs, outputs, "UINT8" if self.convert_preprocess else "FP32", output_weight_file=self.output_weight_file)
 
     def remove_tensor_from_input_nodes(self):
         def find_name_in_tensor_list(name):
@@ -258,7 +258,7 @@ class OnnxConverter(BaseConverter):
                     print("{} data type {} can not transform to float, skip it".format(i.name, type(i.tensor_data)))
                 except:
                     raise
-        np.savez(self.output_tensor_file, **tensor_npz)
+        np.savez(self.output_weight_file, **tensor_npz)
 
     @staticmethod
     def unsqueeze_shape(shape, axis):
@@ -300,8 +300,6 @@ class OnnxConverter(BaseConverter):
 
     def convert_graph(self):
         """convert all to mlir"""
-        # add weight op
-        self.CVI.add_weight_file_op(self.output_tensor_file)
 
         # add input op
         for idx, input in enumerate(self.input_nodes):

@@ -141,7 +141,7 @@ class TFLiteConverter(BaseConverter):
         self.valueMap = dict() # {op_name: (mlir op, shape)}
         self.CVI = None # mlcvir pybind
         self.init_importer()
-        self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
+        self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.tfliteop_factory = {
             "ADD": lambda node: self.convert_add_op(node),
             "AVERAGE_POOL_2D": lambda node: self.convert_avg_pool_op(node),
@@ -174,7 +174,7 @@ class TFLiteConverter(BaseConverter):
             outputs.append(output_shape)
 
         # init importer
-        self.CVI = MLIRImporter(inputs, outputs)
+        self.CVI = MLIRImporter(inputs, outputs, output_weight_file=self.output_weight_file)
 
     def get_tflite_tensor_shape(self, tensor):
         """
@@ -280,7 +280,7 @@ class TFLiteConverter(BaseConverter):
         tensor_npz = {}
         for i in self.converted_tensors:
             tensor_npz[i.name] = i.tensor_data.astype(np.float32)
-        np.savez(self.output_tensor_file, **tensor_npz)
+        np.savez(self.output_weight_file, **tensor_npz)
 
 
 
@@ -302,7 +302,7 @@ class TFLiteConverter(BaseConverter):
     def convert_graph(self):
         """convert all to mlir"""
         # add weight op
-        self.CVI.add_weight_file_op(self.output_tensor_file)
+        self.CVI.add_weight_file_op(self.output_weight_file)
 
         # add input op
         for idx, input in enumerate(self.input_nodes):

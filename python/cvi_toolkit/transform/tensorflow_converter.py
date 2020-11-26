@@ -121,7 +121,7 @@ class TFConverter(BaseConverter):
 
         self.CVI = None # mlcvir pybind
 
-        self.output_tensor_file = "{}_1_06eeeb7e.npz".format(model_name)
+        self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.tensorflowop_factory = {
             "Add": lambda node: self.convert_add_op(node),
             "AddV2": lambda node: self.convert_add_op(node),
@@ -202,7 +202,7 @@ class TFConverter(BaseConverter):
             self.mlir_outputs.append(o_shape)
 
         # init importer
-        self.CVI = MLIRImporter(self.mlir_inputs, self.mlir_outputs)
+        self.CVI = MLIRImporter(self.mlir_inputs, self.mlir_outputs, output_weight_file=self.output_weight_file)
 
     def addTensor(self, op_name, tensor_data, tensor_shape, op_type):
         self.converted_tensors.append(TFTensor(op_name, tensor_data, tensor_shape))
@@ -223,7 +223,7 @@ class TFConverter(BaseConverter):
         tensor_npz = {}
         for i in self.converted_tensors:
             tensor_npz[i.name] = i.tensor_data.astype(np.float32)
-        np.savez(self.output_tensor_file, **tensor_npz)
+        np.savez(self.output_weight_file, **tensor_npz)
 
     def convert_graph(self):
         """convert all to mlir"""
@@ -246,9 +246,6 @@ class TFConverter(BaseConverter):
 
         self.filter_input_without_placeholder()
         self.init_importer()
-
-        # add weight op
-        self.CVI.add_weight_file_op(self.output_tensor_file)
 
         # add input op
         for idx, input in enumerate(self.inputs):

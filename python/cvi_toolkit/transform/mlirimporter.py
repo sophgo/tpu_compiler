@@ -1,6 +1,6 @@
 from enum import Enum
 import re
-import pybind
+from mlir.ir import *
 import numpy as np
 import sys
 
@@ -120,60 +120,65 @@ def checkAttrType(attr):
     raise AttributeError("unsupported attributes type")
 
 class MLIRImporter(object):
-    def __init__(self, inputs_shape, outputs_shape, input_type="FP32"):
+    def __init__(self, inputs_shape, outputs_shape, input_type="FP32", output_weight_file=None):
         """
             input_shape: List[List], put module input shape. ex: [[1, 3, 224, 224]]
             output_shape: List, put module output shape. ex: [1, 1000]
         """
         assert(isinstance(inputs_shape, list))
         assert(isinstance(outputs_shape, list))
-
-        self.module = pybind.MLIRModule()
+        if output_weight_file is None:
+            raise RuntimeError("output weight file value is None")
+        self.output_weight_file = output_weight_file
+        self.ctx = Context()
+        self.ctx.allow_unregistered_dialects = True
+        self.loc = Location.unknown(self.ctx)
+        self.ctx.__enter__()
+        self.loc.__enter__()
         self.input_shape_list = list()
         self.output_shape_list = list()
+
         for input in inputs_shape:
             assert(isinstance(input, list))
             self.input_shape_list.append(input)
         for output in outputs_shape:
             assert(isinstance(output, list))
             self.output_shape_list.append(output)
+            self.i8Type = IntegerType.get_signless(8)
+            self.i32Type = IntegerType.get_signless(32)
+            self.f32Type = F32Type.get()
 
-        self.boolType = self.module.make_type("i1")
-        self.i8Type = self.module.make_type("i8")
-        self.i32Type = self.module.make_type("i32")
-        self.bf16Type = self.module.make_type("bf16")
-        self.f32Type = self.module.make_type("f32")
-        self.NoneType = self.module.make_none_type()
-        self.indexType = self.module.make_index_type()
-        self.func_ctx =None
+            quant_param = {
+                'is_asymmetric': BoolAttr.get(False),
+                'is_perchannel': BoolAttr.get(False),
+                'mode': StringAttr.get("NONE"),
+                'param_type': StringAttr.get("NONE"),
+                'threshold_max': FloatAttr.get_f32(0),
+                'threshold_min': FloatAttr.get_f32(42.0),
+                'zero_point': IntegerAttr.get(self.i32Type, 0),
+            }
+            self.quant_param = DictAttr.get(quant_param)
+            self.input_type = input_type
 
-        quant_param = {
-            'is_asymmetric': self.module.boolAttr(False),
-            'is_perchannel': self.module.boolAttr(False),
-            'mode': self.module.stringAttr("NONE"),
-            'param_type': self.module.stringAttr("NONE"),
-            'threshold_max': self.module.floatAttr(0),
-            'threshold_min': self.module.floatAttr(0),
-            'zero_point': self.module.integerAttr(self.i32Type, 0),
-        }
-        self.quant_param = self.module.dictAttr(**quant_param)
-        self.input_type = input_type
         self.declare_func(input_type=input_type)
 
     def __del__(self):
-        logger.debug('Close mlir builder context')
-        self.func_ctx.__exit__(None, None, None)
+        # logger.debug('Close mlir builder context')
+        self.loc.__exit__(None, None, None)
+        self.ctx.__exit__(None, None, None)
+
+
 
     def _create_int8_quant_attr(self, is_asymmetric=False, is_perchannel=False, mode=TPU_MODE.INT8.value,
                            param_type="NONE", threshold_max=0, threshold_min=0, zero_point=0):
         quant_param = {
-            'is_asymmetric': self.module.boolAttr(is_asymmetric),
-            'is_perchannel': self.module.boolAttr(is_perchannel),
-            'mode': self.module.stringAttr(mode),
-            'param_type': self.module.stringAttr(param_type),
-            'threshold_max': self.module.floatAttr(threshold_max),
-            'threshold_min': self.module.floatAttr(threshold_min),
-            'zero_point': self.module.integerAttr(self.i32Type, zero_point)
+            'is_asymmetric': BoolAttr.get(is_asymmetric),
+            'is_perchannel': BoolAttr.get(is_perchannel),
+            'mode': StringAttr.get(mode),
+            'param_type':  StringAttr.get(param_type),
+            'threshold_max': FloatAttr.get_f32(threshold_max),
+            'threshold_min': FloatAttr.get_f32(threshold_min),
+            'zero_point': IntegerAttr.get(self.i32Type, zero_point)
         }
         return quant_param
 
@@ -196,10 +201,10 @@ class MLIRImporter(object):
             zero_point=kargs['zero_point']
         )
 
-        return self.module.dictAttr(**param)
+        return DictAttr.get(param)
 
     def get_input_type(self, input_op):
-        _type = str(input_op.type())
+        _type = str(input_op.type)
         _type = _type.split('x')[-1].split('>')[0]
         if _type == "f32":
             return self.f32Type
@@ -208,17 +213,22 @@ class MLIRImporter(object):
         else:
             raise RuntimeError("No support {}".format(_type))
 
-    def buildOp(self, op_type, inputOperands, outputOperands, **kargs):
+    def buildOp(self, op_type, inputOperands, output_types, **kargs):
         """
             op_type: String
             inputOpreands: List[pybind.op]
-            outputOpreands: List[pybind.op]
+            output_types: List[pybind.op]
             kargs: Dict
         """
-        return pybind.op(op_type, inputOperands, outputOperands, **kargs)
+        op = Operation.create(op_type, results=output_types, operands=inputOperands, attributes=kargs)
+        self.insert_point.insert(op)
+        return op.results[0]
+
 
     def add_none_op(self):
-        return pybind.op("tpu.none", [], [self.NoneType])
+        op = Operation.create("tpu.none", results=[NoneType.get()], operands=[])
+        self.insert_point.insert(op)
+        return op.results[0]
 
     def add_quant_reg(self, opreands):
         none = self.add_none_op()
@@ -228,102 +238,98 @@ class MLIRImporter(object):
         return opreands
 
     def add_input_op(self, name, index):
-        name = self.module.stringAttr(name)
         assert (index < len(self.func_args))
 
         quant_param = {
-            'is_asymmetric': self.module.boolAttr(False),
-            'is_perchannel': self.module.boolAttr(False),
-            'mode': self.module.stringAttr("NONE"),
-            'param_type': self.module.stringAttr("NONE"),
-            'threshold_max': self.module.floatAttr(0),
-            'threshold_min': self.module.floatAttr(0),
-            'zero_point': self.module.integerAttr(self.i32Type, 0),
+            'is_asymmetric': BoolAttr.get(False),
+            'is_perchannel': BoolAttr.get(False),
+            'mode': StringAttr.get("NONE"),
+            'param_type': StringAttr.get("NONE"),
+            'threshold_max': FloatAttr.get_f32(0),
+            'threshold_min': FloatAttr.get_f32(0),
+            'zero_point': IntegerAttr.get(self.i32Type, 0),
         }
         if self.input_type == "UINT8":
-            quant_param['mode'] = self.module.stringAttr("INT8")
-        quant_param_attr = self.module.dictAttr(**quant_param)
-        return pybind.op(TPU_OpType.Input.value, [self.func_args[index]], [self.tensor_inputs_type[index]], name=name, quant=quant_param_attr)
+            quant_param['mode'] = StringAttr.get("INT8"),
+        quant_param_attr = DictAttr.get(quant_param)
+        attributes = {
+            "name": StringAttr.get(name),
+            "quant": DictAttr.get(quant_param)
+        }
+        op = Operation.create(TPU_OpType.Input.value, results=[self.tensor_inputs_type[index]], operands=[self.func_args[index]], attributes=attributes)
+        self.insert_point.insert(op)
+        return op.results[0]
 
-    def add_weight_file_op(self, name):
-        filename = self.module.stringAttr(name)
-        # TODO: our mlir not support mem type now
-        mem_ref = self.module.make_memref_type(self.f32Type, [10])
-        self.weightop = self.buildOp(TPU_OpType.Weight_file.value, [], [mem_ref], filename=filename)
 
     def add_load_file_op(self, name, output_tensor_shape, tensor_type=TPU_TensorType.FP32, storage="NONE"):
-        storage = self.module.stringAttr(storage)
         if tensor_type == TPU_TensorType.FP32:
-            tensor_output_type = self.module.make_ranked_tensor_type(
-                 self.f32Type, output_tensor_shape)
+            tensor_output_type = RankedTensorType.get(output_tensor_shape, self.f32Type)
         elif tensor_type == TPU_TensorType.INT32:
-            tensor_output_type = self.module.make_ranked_tensor_type(
-                self.i32Type, output_tensor_shape)
+            tensor_output_type = RankedTensorType.get(output_tensor_shape, self.i32Type)
         elif tensor_type == TPU_TensorType.INT8:
-            tensor_output_type = self.module.make_ranked_tensor_type(
-                self.i8Type, output_tensor_shape)
+            tensor_output_type = RankedTensorType.get(output_tensor_shape, self.i8Type)
         else:
             raise RuntimeError("No support type {}".format(tensor_type))
-        load_name = self.module.stringAttr(name)
-        return self.buildOp(TPU_OpType.Load_Weight.value, [self.weightop], [tensor_output_type], name=load_name, storage=storage)
+        attributes = {
+            "name": StringAttr.get(name),
+            "storage": StringAttr.get(storage),
+        }
+        op = Operation.create(TPU_OpType.Load_Weight.value, results=[tensor_output_type], operands=[self.weight_op], attributes=attributes)
+        self.insert_point.insert(op)
+        return op.results[0]
 
     def add_broadcast_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        broadcast_mul_name = self.module.stringAttr(op_name)
+        broadcast_mul_name = StringAttr.get(op_name)
 
-        axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
+        axis_attr =  IntegerAttr.get(self.i32Type, kargs['axis'])
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.BroadcastMul.value, inputOperands, [
             tensor_output_type], name=broadcast_mul_name, axis=axis_attr, quant=self.quant_param)
 
     def add_broadcast_add_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        broadcast_add_name = self.module.stringAttr(op_name)
+        broadcast_add_name = StringAttr.get(op_name)
 
-        axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
+        axis_attr =  IntegerAttr.get(self.i32Type, kargs['axis'])
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.BroadcastAdd.value, inputOperands, [
             tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
 
     def add_interp_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         mlir_attrs = {}
         for key in kargs:
             checkType(kargs[key], int)
-            mlir_attrs[key] = self.module.integerAttr(self.i32Type, kargs[key])
+            mlir_attrs[key] =  IntegerAttr.get(self.i32Type, kargs[key])
 
-        name = self.module.stringAttr(op_name)
+        name = StringAttr.get(op_name)
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Interp.value, inputOperands, [
             tensor_output_type], name=name, **mlir_attrs,
             quant=self.quant_param)
 
     def add_abs_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        abs_name = self.module.stringAttr(op_name)
+        abs_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Abs.value, inputOperands, [
             tensor_output_type], name=abs_name, quant=self.quant_param)
 
     def add_batchnorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'variance_epsilon')
 
         variance_epsilon = kargs['variance_epsilon']
         checkType(variance_epsilon, float)
 
-        batchnorm_name = self.module.stringAttr(op_name)
-        variance_epsilon_attr = self.module.floatAttr(variance_epsilon)
+        batchnorm_name = StringAttr.get(op_name)
+        variance_epsilon_attr = FloatAttr.get_f32(variance_epsilon)
 
         none = self.add_none_op()
         for _ in range(5 - len(inputOperands)):
@@ -334,10 +340,9 @@ class MLIRImporter(object):
 
     def add_clip_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) == 1)
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        name = self.module.stringAttr(op_name)
+        name = StringAttr.get(op_name)
 
         checkKey(kargs, 'min')
         checkKey(kargs, 'max')
@@ -349,8 +354,8 @@ class MLIRImporter(object):
         checkType(clip_max, float)
 
         attr_dict = {
-            'min': self.module.floatAttr(clip_min),
-            'max': self.module.floatAttr(clip_max),
+            'min': FloatAttr.get_f32(clip_min),
+            'max': FloatAttr.get_f32(clip_max),
         }
         inputOperands = self.add_quant_reg(inputOperands)
 
@@ -360,12 +365,11 @@ class MLIRImporter(object):
 
     def add_concat_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'axis')
-        concat_name = self.module.stringAttr(op_name)
+        concat_name = StringAttr.get(op_name)
 
-        axis_attr = self.module.integerAttr(self.i32Type, kargs['axis'])
+        axis_attr =  IntegerAttr.get(self.i32Type, kargs['axis'])
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Concat.value, inputOperands, [
             tensor_output_type], name=concat_name, axis=axis_attr, quant=self.quant_param)
@@ -376,9 +380,8 @@ class MLIRImporter(object):
             output_tensorshape: List[int] output tensor type
             attrs: Dict, about op attrs
         """
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
-
+        # get_input_type
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'dilation_h')
         checkKey(kargs, 'dilation_w')
         checkKey(kargs, 'stride_h')
@@ -394,27 +397,27 @@ class MLIRImporter(object):
         checkKey(kargs, 'do_relu')
         checkKey(kargs, 'ins')
 
-        conv_name = self.module.stringAttr(op_name)
+        conv_name = StringAttr.get(op_name)
         conv_param = {
-            'stride_h': self.module.integerAttr(self.i32Type, kargs['stride_h']),
-            'stride_w': self.module.integerAttr(self.i32Type, kargs['stride_w']),
-            'padding': self.module.stringAttr(kargs['padding']),
-            'dilation_h': self.module.integerAttr(self.i32Type,  kargs['dilation_h']),
-            'dilation_w': self.module.integerAttr(self.i32Type, kargs['dilation_w']),
-            'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
-            'padding_b': self.module.integerAttr(self.i32Type, kargs['padding_b']),
-            'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
-            'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
-            'group': self.module.integerAttr(self.i32Type, kargs['group']),
-            'is_dw': self.module.boolAttr(kargs['is_dw']),
-            'with_bias': self.module.boolAttr(kargs['with_bias']),
-            'do_relu': self.module.boolAttr(kargs['do_relu']),
-            'ins': self.module.arrayAttr(
-                [self.module.integerAttr(self.i32Type, x) for x in kargs['ins']]),
-            'pad_value': self.module.integerAttr(self.i32Type, pad_value),
+            'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
+            'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
+            'padding': StringAttr.get(kargs['padding']),
+            'dilation_h':  IntegerAttr.get(self.i32Type,  kargs['dilation_h']),
+            'dilation_w':  IntegerAttr.get(self.i32Type, kargs['dilation_w']),
+            'padding_t':  IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'padding_b':  IntegerAttr.get(self.i32Type, kargs['padding_b']),
+            'padding_l':  IntegerAttr.get(self.i32Type, kargs['padding_l']),
+            'padding_r':  IntegerAttr.get(self.i32Type, kargs['padding_r']),
+            'group':  IntegerAttr.get(self.i32Type, kargs['group']),
+            'is_dw': BoolAttr.get(kargs['is_dw']),
+            'with_bias': BoolAttr.get(kargs['with_bias']),
+            'do_relu': BoolAttr.get(kargs['do_relu']),
+            'ins': ArrayAttr.get(
+                [IntegerAttr.get(self.i32Type, x) for x in kargs['ins']]),
+            'pad_value':  IntegerAttr.get(self.i32Type, pad_value),
           }
 
-        dict_attr = self.module.dictAttr(**conv_param)
+        dict_attr = DictAttr.get(conv_param)
         none = self.add_none_op()
 
         if mode == TPU_MODE.INT8:
@@ -456,8 +459,7 @@ class MLIRImporter(object):
                 threshold_overwrite: string, 'none', 'backward' or 'forward'
                 param: dictionary
         """
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'operation_name')
         checkKey(kargs, 'do_quant')
@@ -469,36 +471,36 @@ class MLIRImporter(object):
             raise AttributeError("invalid value of parameter threshold_overwrite: {}"
                   .format(kargs['threshold_overwrite']))
 
-        name = self.module.stringAttr(op_name)
-        operation_name = self.module.stringAttr(kargs['operation_name'])
-        do_quant = self.module.boolAttr(kargs['do_quant'])
-        tpu = self.module.boolAttr(kargs['tpu'])
-        threshold_overwrite = self.module.stringAttr(kargs['threshold_overwrite'])
+        name = StringAttr.get(op_name)
+        operation_name = StringAttr.get(kargs['operation_name'])
+        do_quant = BoolAttr.get(kargs['do_quant'])
+        tpu = BoolAttr.get(kargs['tpu'])
+        threshold_overwrite = StringAttr.get(kargs['threshold_overwrite'])
 
         op_param = {}
         for key, val in kargs['param'].items():
             attr_type = checkAttrType(val)
             if attr_type == 'int':
-                op_param[key] = self.module.integerAttr(self.i32Type, val)
+                op_param[key] =  IntegerAttr.get(self.i32Type, val)
             elif attr_type == 'float':
-                op_param[key] = self.module.floatAttr(val)
+                op_param[key] = FloatAttr.get_f32(val)
             elif attr_type == 'str':
-                op_param[key] = self.module.stringAttr(val)
+                op_param[key] = StringAttr.get(val)
             elif attr_type == 'bool':
-                op_param[key] = self.module.boolAttr(val)
+                op_param[key] = BoolAttr.get(val)
             elif attr_type == 'int_arr':
-                arr = [self.module.integerAttr(self.i32Type, x) for x in val]
-                op_param[key] = self.module.arrayAttr(arr)
+                arr = [ IntegerAttr.get(self.i32Type, x) for x in val]
+                op_param[key] = ArrayAttr.get(arr)
             elif attr_type == 'float_arr':
-                arr = [self.module.floatAttr(x) for x in val]
-                op_param[key] = self.module.arrayAttr(arr)
+                arr = [FloatAttr.get_f32(x) for x in val]
+                op_param[key] = ArrayAttr.get(arr)
             elif attr_type == 'str_arr':
-                arr = [self.module.stringAttr(x) for x in val]
-                op_param[key] = self.module.arrayAttr(arr)
+                arr = [StringAttr.get(x) for x in val]
+                op_param[key] = ArrayAttr.get(arr)
             elif attr_type == 'bool_arr':
-                arr = [self.module.boolAttr(x) for x in val]
-                op_param[key] = self.module.arrayAttr(arr)
-        param = self.module.dictAttr(**op_param)
+                arr = [BoolAttr.get(x) for x in val]
+                op_param[key] = ArrayAttr.get(arr)
+        param = DictAttr.get(op_param)
 
         return self.buildOp(TPU_OpType.CustomOp.value, inputOperands, [
             tensor_output_type], name=name, operation_name=operation_name, quant=self.quant_param,
@@ -510,8 +512,7 @@ class MLIRImporter(object):
                 crop_offset: List[int, int, int, int]
                 crop_shape : List[int, int, int, int]
         """
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'crop_offset')
         checkKey(kargs, 'crop_shape')
@@ -521,17 +522,16 @@ class MLIRImporter(object):
         checkType(crop_offset, list)
         checkType(crop_shape , list)
 
-        crop_name = self.module.stringAttr(op_name)
-        crop_offset_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in crop_offset])
-        crop_shape_attr = self.module.arrayAttr(
-            [self.module.integerAttr(self.i32Type, x) for x in crop_shape])
+        crop_name = StringAttr.get(op_name)
+        crop_offset_attr = ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in crop_offset])
+        crop_shape_attr = ArrayAttr.get(
+            [ IntegerAttr.get(self.i32Type, x) for x in crop_shape])
 
         return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
             tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, quant=self.quant_param, crop_shape=crop_shape_attr)
 
     def add_detection_output_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'num_classes')
         checkKey(kargs, 'share_location')
@@ -541,16 +541,16 @@ class MLIRImporter(object):
         checkKey(kargs, 'code_type')
         checkKey(kargs, 'keep_top_k')
         checkKey(kargs, 'confidence_threshold')
-        name_attr = self.module.stringAttr(op_name)
+        name_attr = StringAttr.get(op_name)
         param = {
-            'num_classes': self.module.integerAttr(self.i32Type, kargs['num_classes']),
-            'share_location': self.module.boolAttr(kargs['share_location']),
-            'background_label_id': self.module.integerAttr(self.i32Type, kargs['background_label_id']),
-            'nms_threshold': self.module.floatAttr(kargs['nms_threshold']),
-            'top_k': self.module.integerAttr(self.i32Type, kargs['top_k']),
-            'code_type': self.module.stringAttr(kargs['code_type']),
-            'keep_top_k': self.module.integerAttr(self.i32Type, kargs['keep_top_k']),
-            'confidence_threshold': self.module.floatAttr(kargs['confidence_threshold']),
+            'num_classes':  IntegerAttr.get(self.i32Type, kargs['num_classes']),
+            'share_location': BoolAttr.get(kargs['share_location']),
+            'background_label_id':  IntegerAttr.get(self.i32Type, kargs['background_label_id']),
+            'nms_threshold': FloatAttr.get_f32(kargs['nms_threshold']),
+            'top_k':  IntegerAttr.get(self.i32Type, kargs['top_k']),
+            'code_type': StringAttr.get(kargs['code_type']),
+            'keep_top_k':  IntegerAttr.get(self.i32Type, kargs['keep_top_k']),
+            'confidence_threshold': FloatAttr.get_f32(kargs['confidence_threshold']),
         }
         return self.buildOp(TPU_OpType.DetectionOutput.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
@@ -561,8 +561,7 @@ class MLIRImporter(object):
             output_tensorshape: List[int] output tensor type
             attrs: Dict, about op attrs
         """
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'dilation_h')
         checkKey(kargs, 'dilation_w')
@@ -579,27 +578,27 @@ class MLIRImporter(object):
         checkKey(kargs, 'do_relu')
         checkKey(kargs, 'ins')
 
-        deconv_name = self.module.stringAttr(op_name)
+        deconv_name = StringAttr.get(op_name)
         deconv_param = {
-            'stride_h': self.module.integerAttr(self.i32Type, kargs['stride_h']),
-            'stride_w': self.module.integerAttr(self.i32Type, kargs['stride_w']),
-            'padding': self.module.stringAttr(kargs['padding']),
-            'dilation_h': self.module.integerAttr(self.i32Type,  kargs['dilation_h']),
-            'dilation_w': self.module.integerAttr(self.i32Type, kargs['dilation_w']),
-            'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
-            'padding_b': self.module.integerAttr(self.i32Type, kargs['padding_b']),
-            'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
-            'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
-            'group': self.module.integerAttr(self.i32Type, kargs['group']),
-            'is_dw': self.module.boolAttr(kargs['is_dw']),
-            'with_bias': self.module.boolAttr(kargs['with_bias']),
-            'do_relu': self.module.boolAttr(kargs['do_relu']),
-            'ins': self.module.arrayAttr(
-                [self.module.integerAttr(self.i32Type, x) for x in kargs['ins']]),
-            'pad_value': self.module.integerAttr(self.i32Type, pad_value),
+            'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
+            'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
+            'padding': StringAttr.get(kargs['padding']),
+            'dilation_h':  IntegerAttr.get(self.i32Type,  kargs['dilation_h']),
+            'dilation_w':  IntegerAttr.get(self.i32Type, kargs['dilation_w']),
+            'padding_t':  IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'padding_b':  IntegerAttr.get(self.i32Type, kargs['padding_b']),
+            'padding_l':  IntegerAttr.get(self.i32Type, kargs['padding_l']),
+            'padding_r':  IntegerAttr.get(self.i32Type, kargs['padding_r']),
+            'group':  IntegerAttr.get(self.i32Type, kargs['group']),
+            'is_dw': BoolAttr.get(kargs['is_dw']),
+            'with_bias': BoolAttr.get(kargs['with_bias']),
+            'do_relu': BoolAttr.get(kargs['do_relu']),
+            'ins': ArrayAttr.get(
+                [ IntegerAttr.get(self.i32Type, x) for x in kargs['ins']]),
+            'pad_value':  IntegerAttr.get(self.i32Type, pad_value),
         }
 
-        dict_attr = self.module.dictAttr(**deconv_param)
+        dict_attr = DictAttr.get(deconv_param)
         none = self.add_none_op()
         for _ in range(7 - len(inputOperands)):
             inputOperands.append(none)
@@ -607,20 +606,18 @@ class MLIRImporter(object):
             tensor_output_type], name=deconv_name, param=dict_attr, quant=self.quant_param)
 
     def add_dummydata_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         assert(len(inputOperands) == 0)
-        name_attr = self.module.stringAttr(op_name)
+        name_attr = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.DummyData.value, inputOperands, [
             tensor_output_type], name=name_attr)
 
     def add_eltwise_add_op(self, op_name, inputOperands, output_tensor_shape,  mode=TPU_MODE.FP32, do_relu=False, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
-        do_relu = self.module.boolAttr(do_relu)
-        eltwise_add = self.module.stringAttr(op_name)
+        do_relu = BoolAttr.get(do_relu)
+        eltwise_add = StringAttr.get(op_name)
         if mode == TPU_MODE.INT8:
             quant_param = self.create_int8_quant_attr(**kargs)
 
@@ -643,44 +640,40 @@ class MLIRImporter(object):
             tensor_output_type], name=eltwise_add, quant=quant_param, do_relu=do_relu)
 
     def add_eltwise_max_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
-        eltwise_max = self.module.stringAttr(op_name)
+        eltwise_max = StringAttr.get(op_name)
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Eltwise_Max.value, inputOperands, [
             tensor_output_type], name=eltwise_max, quant=self.quant_param)
 
     def add_eltwise_min_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
-        eltwise_min = self.module.stringAttr(op_name)
+        eltwise_min = StringAttr.get(op_name)
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Eltwise_Min.value, inputOperands, [
             tensor_output_type], name=eltwise_min, quant=self.quant_param)
 
     def add_eltwise_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
 
-        eltwise_mul = self.module.stringAttr(op_name)
+        eltwise_mul = StringAttr.get(op_name)
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.Eltwise_Mul.value, inputOperands, [
             tensor_output_type], name=eltwise_mul, quant=self.quant_param)
 
     def add_exp_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        op_name = self.module.stringAttr(op_name)
+        op_name = StringAttr.get(op_name)
         none = self.add_none_op()
 
         # We assigne 4 reg for lut quant table
@@ -691,8 +684,7 @@ class MLIRImporter(object):
             tensor_output_type], name=op_name, quant=self.quant_param)
 
     def add_fully_connected_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         if len(inputOperands) < 2:
             raise ArithmeticError("input operand must great than 2")
 
@@ -715,43 +707,41 @@ class MLIRImporter(object):
         else:
             quant_param = self.quant_param
             inputOperands = self.add_quant_reg(inputOperands)
-        fully_connected_name = self.module.stringAttr(op_name)
+        fully_connected_name = StringAttr.get(op_name)
 
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
             tensor_output_type], name=fully_connected_name, quant=quant_param)
 
     def add_frcn_detection_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'class_num')
         checkKey(kargs, 'nms_threshold')
         checkKey(kargs, 'obj_threshold')
         checkKey(kargs, 'keep_topk')
 
-        name_attr=self.module.stringAttr(op_name)
+        name_attr=StringAttr.get(op_name)
         param = {
-            'class_num': self.module.integerAttr(self.i32Type, kargs['class_num']),
-            'nms_threshold': self.module.floatAttr(kargs['nms_threshold']),
-            'obj_threshold': self.module.floatAttr(kargs['obj_threshold']),
-            'keep_topk': self.module.integerAttr(self.i32Type, kargs['keep_topk'])
+            'class_num':  IntegerAttr.get(self.i32Type, kargs['class_num']),
+            'nms_threshold': FloatAttr.get_f32(kargs['nms_threshold']),
+            'obj_threshold': FloatAttr.get_f32(kargs['obj_threshold']),
+            'keep_topk':  IntegerAttr.get(self.i32Type, kargs['keep_topk'])
         }
         return self.buildOp(TPU_OpType.FrcnDetection.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
 
     def add_gru_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         if len(inputOperands) < 5:
             raise ArithmeticError("input operand must great than 5. x, w, r, b, initial_h")
 
         gru_param = {
-            'linear_before_reset': self.module.boolAttr(kargs['linear_before_reset']),
-            'bidirectional': self.module.boolAttr(kargs['bidirectional'])
+            'linear_before_reset': BoolAttr.get(kargs['linear_before_reset']),
+            'bidirectional': BoolAttr.get(kargs['bidirectional'])
         }
 
-        gru_name = self.module.stringAttr(op_name)
+        gru_name = StringAttr.get(op_name)
         none = self.add_none_op()
         for _ in range(4):#add 4 redundant input
             inputOperands.append(none)
@@ -760,16 +750,15 @@ class MLIRImporter(object):
             tensor_output_type], name=gru_name, quant=self.quant_param, **gru_param)
 
     def add_leaky_relu_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-        self.f32Type, output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'negative_slope')
 
         leaky_relu_param = {
-            'negative_slope': self.module.floatAttr(kargs['negative_slope'])
+            'negative_slope': FloatAttr.get_f32(kargs['negative_slope'])
         }
 
-        leaky_relu_name = self.module.stringAttr(op_name)
+        leaky_relu_name = StringAttr.get(op_name)
 
         none = self.add_none_op()
         # quant_pos_scale, quant_pos_zeropoint, quant_neg_scale, quant_neg_zeropoint
@@ -803,7 +792,7 @@ class MLIRImporter(object):
             tensor_output_type], name=leaky_relu_name, quant=quant_param, **leaky_relu_param)
 
     def add_lrn_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(self.f32Type, output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'alpha')
         checkKey(kargs, 'beta')
@@ -811,16 +800,16 @@ class MLIRImporter(object):
         checkKey(kargs, 'size')
 
         lrn_param = {
-            'alpha': self.module.floatAttr(kargs['alpha']),
-            'beta': self.module.floatAttr(kargs['beta']),
-            'k': self.module.floatAttr(kargs['bias']),
-            'local_size': self.module.integerAttr(self.i32Type, kargs['size']),
+            'alpha': FloatAttr.get_f32(kargs['alpha']),
+            'beta': FloatAttr.get_f32(kargs['beta']),
+            'k': FloatAttr.get_f32(kargs['bias']),
+            'local_size':  IntegerAttr.get(self.i32Type, kargs['size']),
         }
 
-        lrn_name_1 = self.module.stringAttr("{}_one".format(op_name))
-        lrn_name_2 = self.module.stringAttr("{}_two".format(op_name))
-        lrn_name_3 = self.module.stringAttr("{}_three".format(op_name))
-        lrn_name_main = self.module.stringAttr("{}".format(op_name))
+        lrn_name_1 = StringAttr.get("{}_one".format(op_name))
+        lrn_name_2 = StringAttr.get("{}_two".format(op_name))
+        lrn_name_3 = StringAttr.get("{}_three".format(op_name))
+        lrn_name_main = StringAttr.get("{}".format(op_name))
 
         input_op = inputOperands[0]
         # lrn one
@@ -843,26 +832,25 @@ class MLIRImporter(object):
         operands.append(none)
         operands.append(none)
         operands.append(lrn_three_op)
-        lrn_param['sum_rshift'] = self.module.integerAttr(self.i32Type, 0)
-        lrn_param['lrn_rshift'] = self.module.integerAttr(self.i32Type, 0)
-        lrn_param['quant_data0'] = self.module.integerAttr(self.i32Type, 0)
-        lrn_param['quant_data1'] = self.module.integerAttr(self.i32Type, 0)
-        lrn_param['norm_region'] = self.module.integerAttr(self.i32Type, 0)
+        lrn_param['sum_rshift'] =  IntegerAttr.get(self.i32Type, 0)
+        lrn_param['lrn_rshift'] =  IntegerAttr.get(self.i32Type, 0)
+        lrn_param['quant_data0'] =  IntegerAttr.get(self.i32Type, 0)
+        lrn_param['quant_data1'] =  IntegerAttr.get(self.i32Type, 0)
+        lrn_param['norm_region'] =  IntegerAttr.get(self.i32Type, 0)
         return self.buildOp(TPU_OpType.Lrn.value, operands, [
             tensor_output_type], name=lrn_name_main, quant=self.quant_param, **lrn_param)
 
     def add_lstm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         if len(inputOperands) < 6:
             raise ArithmeticError("input operand must great than 6. x, w, r, b, initial_h, initial_c")
 
         lstm_param = {
-            'bidirectional': self.module.boolAttr(kargs['bidirectional'])
+            'bidirectional': BoolAttr.get(kargs['bidirectional'])
         }
 
-        lstm_name = self.module.stringAttr(op_name)
+        lstm_name = StringAttr.get(op_name)
         none = self.add_none_op()
         for _ in range(4):#add 4 redundant input
             inputOperands.append(none)
@@ -871,23 +859,21 @@ class MLIRImporter(object):
             tensor_output_type], name=lstm_name, quant=self.quant_param, **lstm_param)
 
     def add_normalize_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'across_spatial')
         checkKey(kargs, 'channel_shared')
-        name_attr = self.module.stringAttr(op_name)
+        name_attr = StringAttr.get(op_name)
         param = {
-            'across_spatial': self.module.boolAttr(kargs['across_spatial']),
-            'channel_shared': self.module.boolAttr(kargs['channel_shared']),
+            'across_spatial': BoolAttr.get(kargs['across_spatial']),
+            'channel_shared': BoolAttr.get(kargs['channel_shared']),
         }
         return self.buildOp(TPU_OpType.Normalize.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
 
     def add_mish_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        mish_name = self.module.stringAttr(op_name)
+        mish_name = StringAttr.get(op_name)
         none = self.add_none_op()
         # We assigne 4 reg for mish quant table
         for _ in range(2):
@@ -902,8 +888,7 @@ class MLIRImporter(object):
                 const_val : int
         """
 
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'pads')
         checkKey(kargs, 'const_val')
@@ -912,9 +897,9 @@ class MLIRImporter(object):
         const_val = kargs['const_val']
         checkType(pads, list)
 
-        pad_name = self.module.stringAttr(op_name)
-        pads_attr = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in pads])
-        const_val_attr = self.module.floatAttr(const_val)
+        pad_name = StringAttr.get(op_name)
+        pads_attr = ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in pads])
+        const_val_attr = FloatAttr.get_f32(const_val)
         if mode == TPU_MODE.INT8:
             quant_param = self.create_int8_quant_attr(**kargs)
         elif mode == TPU_MODE.FP32:
@@ -926,20 +911,18 @@ class MLIRImporter(object):
             tensor_output_type], name=pad_name, quant=quant_param, pads=pads_attr, const_val=const_val_attr)
 
     def add_pool_mask_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'scale')
-        pool_mask_name = self.module.stringAttr(op_name)
+        pool_mask_name = StringAttr.get(op_name)
         pool_mask_param = {
-            'scale': self.module.integerAttr(self.i32Type, kargs['scale'])
+            'scale':  IntegerAttr.get(self.i32Type, kargs['scale'])
         }
         return self.buildOp(TPU_OpType.PoolMask.value, inputOperands, [
             tensor_output_type], name=pool_mask_name, **pool_mask_param)
 
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'kernel_h')
         checkKey(kargs, 'kernel_w')
         checkKey(kargs, 'padding_b')
@@ -951,20 +934,20 @@ class MLIRImporter(object):
         checkKey(kargs, 'do_relu')
         checkKey(kargs, 'count_include_pad')
 
-        pool_avg_2d_name = self.module.stringAttr(op_name)
+        pool_avg_2d_name = StringAttr.get(op_name)
         pool_avg_2d_param = {
-            'stride_h': self.module.integerAttr(self.i32Type, kargs['stride_h']),
-            'stride_w': self.module.integerAttr(self.i32Type, kargs['stride_w']),
-            'kernel_h': self.module.integerAttr(self.i32Type, kargs['kernel_h']),
-            'kernel_w': self.module.integerAttr(self.i32Type, kargs['kernel_w']),
-            'padding_b': self.module.integerAttr(self.i32Type, kargs['padding_b']),
-            'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
-            'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
-            'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
-            'do_relu': self.module.boolAttr(kargs['do_relu']),
-            'count_include_pad': self.module.boolAttr(kargs['count_include_pad']),
+            'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
+            'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
+            'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
+            'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
+            'padding_b':  IntegerAttr.get(self.i32Type, kargs['padding_b']),
+            'padding_l':  IntegerAttr.get(self.i32Type, kargs['padding_l']),
+            'padding_r':  IntegerAttr.get(self.i32Type, kargs['padding_r']),
+            'padding_t':  IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'do_relu': BoolAttr.get(kargs['do_relu']),
+            'count_include_pad': BoolAttr.get(kargs['count_include_pad']),
         }
-        dict_attr = self.module.dictAttr(**pool_avg_2d_param)
+        dict_attr = DictAttr.get(pool_avg_2d_param)
         if mode == TPU_MODE.INT8:
             quant_param = self.create_int8_quant_attr(**kargs)
 
@@ -987,8 +970,7 @@ class MLIRImporter(object):
 
     def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
 
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'kernel_h')
         checkKey(kargs, 'kernel_w')
         checkKey(kargs, 'padding_b')
@@ -999,20 +981,20 @@ class MLIRImporter(object):
         checkKey(kargs, 'stride_w')
         checkKey(kargs, 'do_relu')
 
-        pool_max_2d_name = self.module.stringAttr(op_name)
+        pool_max_2d_name = StringAttr.get(op_name)
         pool_max_2d_param = {
-            'stride_h': self.module.integerAttr(self.i32Type, kargs['stride_h']),
-            'stride_w': self.module.integerAttr(self.i32Type, kargs['stride_w']),
-            'kernel_h': self.module.integerAttr(self.i32Type, kargs['kernel_h']),
-            'kernel_w': self.module.integerAttr(self.i32Type, kargs['kernel_w']),
-            'padding_b': self.module.integerAttr(self.i32Type, kargs['padding_b']),
-            'padding_l': self.module.integerAttr(self.i32Type, kargs['padding_l']),
-            'padding_r': self.module.integerAttr(self.i32Type, kargs['padding_r']),
-            'padding_t': self.module.integerAttr(self.i32Type, kargs['padding_t']),
-            'do_relu': self.module.boolAttr(kargs['do_relu']),
-            'count_include_pad': self.module.boolAttr(False), # max pool has no count_include_pad method
+            'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
+            'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
+            'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
+            'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
+            'padding_b':  IntegerAttr.get(self.i32Type, kargs['padding_b']),
+            'padding_l':  IntegerAttr.get(self.i32Type, kargs['padding_l']),
+            'padding_r':  IntegerAttr.get(self.i32Type, kargs['padding_r']),
+            'padding_t':  IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'do_relu': BoolAttr.get(kargs['do_relu']),
+            'count_include_pad': BoolAttr.get(False), # max pool has no count_include_pad method
         }
-        dict_attr = self.module.dictAttr(**pool_max_2d_param)
+        dict_attr = DictAttr.get(pool_max_2d_param)
         if mode == TPU_MODE.INT8:
             quant_param = self.create_int8_quant_attr(**kargs)
         elif mode == TPU_MODE.FP32:
@@ -1025,24 +1007,22 @@ class MLIRImporter(object):
             tensor_output_type], name=pool_max_2d_name, param=dict_attr, quant=quant_param)
 
     def add_power_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'power')
         checkKey(kargs, 'scale')
         checkKey(kargs, 'shift')
 
-        name_attr = self.module.stringAttr(op_name)
+        name_attr = StringAttr.get(op_name)
         param = {
-            'power': self.module.floatAttr(kargs['power']),
-            'scale': self.module.floatAttr(kargs['scale']),
-            'shift': self.module.floatAttr(kargs['shift']),
+            'power': FloatAttr.get_f32(kargs['power']),
+            'scale': FloatAttr.get_f32(kargs['scale']),
+            'shift': FloatAttr.get_f32(kargs['shift']),
         }
         return self.buildOp(TPU_OpType.Power.value, inputOperands, [
             tensor_output_type], name=name_attr, quant=self.quant_param, **param)
 
     def add_priorbox_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'min_size')
         checkKey(kargs, 'max_size')
@@ -1057,53 +1037,51 @@ class MLIRImporter(object):
         checkKey(kargs, 'num_priors')
         checkKey(kargs, 'use_default_aspect_ratio')
 
-        name_attr = self.module.stringAttr(op_name)
+        name_attr = StringAttr.get(op_name)
         param = {
-            'min_size': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['min_size']]),
-            'max_size': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['max_size']]),
-            'aspect_ratios': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['aspect_ratios']]),
-            'variance': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['variance']]),
-            'clip': self.module.boolAttr(kargs['clip']),
-            'step_h': self.module.floatAttr(kargs['step_h']),
-            'step_w': self.module.floatAttr(kargs['step_w']),
-            'img_h': self.module.integerAttr(self.i32Type, kargs['img_h']),
-            'img_w': self.module.integerAttr(self.i32Type, kargs['img_w']),
-            'offset': self.module.floatAttr(kargs['offset']),
-            'num_priors': self.module.integerAttr(self.i32Type, kargs['num_priors']),
-            'use_default_aspect_ratio': self.module.boolAttr(kargs['use_default_aspect_ratio']),
+            'min_size': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['min_size']]),
+            'max_size': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['max_size']]),
+            'aspect_ratios': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['aspect_ratios']]),
+            'variance': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['variance']]),
+            'clip': BoolAttr.get(kargs['clip']),
+            'step_h': FloatAttr.get_f32(kargs['step_h']),
+            'step_w': FloatAttr.get_f32(kargs['step_w']),
+            'img_h':  IntegerAttr.get(self.i32Type, kargs['img_h']),
+            'img_w':  IntegerAttr.get(self.i32Type, kargs['img_w']),
+            'offset': FloatAttr.get_f32(kargs['offset']),
+            'num_priors':  IntegerAttr.get(self.i32Type, kargs['num_priors']),
+            'use_default_aspect_ratio': BoolAttr.get(kargs['use_default_aspect_ratio']),
         }
         return self.buildOp(TPU_OpType.PriorBox.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
 
     def add_permute_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-        self.f32Type, output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'order0')
         checkKey(kargs, 'order1')
         checkKey(kargs, 'order2')
         checkKey(kargs, 'order3')
 
-        permute_name = self.module.stringAttr(op_name)
+        permute_name = StringAttr.get(op_name)
         attr_dict = {
-            'order0': self.module.integerAttr(self.i32Type, kargs['order0']),
-            'order1': self.module.integerAttr(self.i32Type, kargs['order1']),
-            'order2': self.module.integerAttr(self.i32Type, kargs['order2']),
-            'order3': self.module.integerAttr(self.i32Type, kargs['order3']),
+            'order0':  IntegerAttr.get(self.i32Type, kargs['order0']),
+            'order1':  IntegerAttr.get(self.i32Type, kargs['order1']),
+            'order2':  IntegerAttr.get(self.i32Type, kargs['order2']),
+            'order3':  IntegerAttr.get(self.i32Type, kargs['order3']),
         }
         return self.buildOp(TPU_OpType.Permute.value, inputOperands, [
             tensor_output_type], name=permute_name, quant=self.quant_param, **attr_dict)
 
     def add_pixelshuffle_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-          self.f32Type, output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'upscale_factor')
         checkKey(kargs, 'mode')
 
-        pixelshuffle_name = self.module.stringAttr(op_name)
+        pixelshuffle_name = StringAttr.get(op_name)
         attr_dict = {
-            'upscale_factor': self.module.integerAttr(self.i32Type, kargs['upscale_factor']),
-            'mode': self.module.stringAttr(kargs['mode'])
+            'upscale_factor':  IntegerAttr.get(self.i32Type, kargs['upscale_factor']),
+            'mode': StringAttr.get(kargs['mode'])
         }
         return self.buildOp(TPU_OpType.PixelShuffle.value, inputOperands, [
             tensor_output_type], name=pixelshuffle_name, quant=self.quant_param, **attr_dict)
@@ -1123,29 +1101,28 @@ class MLIRImporter(object):
         checkKey(kargs, 'pads')
         checkKey(kargs, 'pad_const_val')
 
-        preprocess_name = self.module.stringAttr(op_name)
+        preprocess_name = StringAttr.get(op_name)
 
 
         attrs = {
-            'mean': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['mean']]),
-            'std': self.module.arrayAttr([self.module.floatAttr(x) for x in kargs['std']]),
-            'scale': self.module.floatAttr(kargs['scale']),
-            'raw_scale': self.module.floatAttr(kargs['raw_scale']),
-            'color_order': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['color_order']]),
-            'transpose_order': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['transpose_order']]),
-            'crop_offset': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['crop_offset']]),
-            'pads': self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['pads']]),
-            'pad_const_val': self.module.integerAttr(self.i32Type, 0),
+            'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['mean']]),
+            'std': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['std']]),
+            'scale': FloatAttr.get_f32(kargs['scale']),
+            'raw_scale': FloatAttr.get_f32(kargs['raw_scale']),
+            'color_order': ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['color_order']]),
+            'transpose_order': ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['transpose_order']]),
+            'crop_offset': ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['crop_offset']]),
+            'pads': ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['pads']]),
+            'pad_const_val':  IntegerAttr.get(self.i32Type, 0),
         }
 
         return self.buildOp(TPU_OpType.Preprocess.value, inputOperands, [
             tensor_output_type], name=preprocess_name, quant=self.quant_param, **attrs)
 
     def add_prelu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-        self.f32Type, output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        prelu_name = self.module.stringAttr(op_name)
+        prelu_name = StringAttr.get(op_name)
 
         none = self.add_none_op()
         # quant_pos_scale, quant_pos_zeropoint, quant_neg_scale, quant_neg_zeropoint
@@ -1158,8 +1135,7 @@ class MLIRImporter(object):
 
 
     def add_proposal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'net_input_h')
         checkKey(kargs, 'net_input_w')
@@ -1169,46 +1145,43 @@ class MLIRImporter(object):
         checkKey(kargs, 'rpn_nms_threshold')
         checkKey(kargs, 'rpn_nms_post_top_n')
 
-        proposal_name = self.module.stringAttr(op_name)
+        proposal_name = StringAttr.get(op_name)
         attr_dict = {
-            'net_input_h': self.module.integerAttr(self.i32Type, kargs['net_input_h']),
-            'net_input_w': self.module.integerAttr(self.i32Type, kargs['net_input_w']),
-            'feat_stride': self.module.integerAttr(self.i32Type, kargs['feat_stride']),
-            'anchor_base_size': self.module.integerAttr(self.i32Type, kargs['anchor_base_size']),
-            'rpn_obj_threshold': self.module.floatAttr(kargs['rpn_obj_threshold']),
-            'rpn_nms_threshold': self.module.floatAttr(kargs['rpn_nms_threshold']),
-            'rpn_nms_post_top_n': self.module.integerAttr(self.i32Type, kargs['rpn_nms_post_top_n']),
+            'net_input_h':  IntegerAttr.get(self.i32Type, kargs['net_input_h']),
+            'net_input_w':  IntegerAttr.get(self.i32Type, kargs['net_input_w']),
+            'feat_stride':  IntegerAttr.get(self.i32Type, kargs['feat_stride']),
+            'anchor_base_size':  IntegerAttr.get(self.i32Type, kargs['anchor_base_size']),
+            'rpn_obj_threshold': FloatAttr.get_f32(kargs['rpn_obj_threshold']),
+            'rpn_nms_threshold': FloatAttr.get_f32(kargs['rpn_nms_threshold']),
+            'rpn_nms_post_top_n':  IntegerAttr.get(self.i32Type, kargs['rpn_nms_post_top_n']),
         }
         return self.buildOp(TPU_OpType.Proposal.value, inputOperands, [
             tensor_output_type], name=proposal_name, quant=self.quant_param, **attr_dict)
 
     def add_quant_op(self, op_name, inputOperands, output_tensor_shape, from_type, to_type, zero_point=0, **kargs):
         if to_type == "NONE":
-            tensor_output_type = self.module.make_ranked_tensor_type(
-                self.f32Type, output_tensor_shape)
+            tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.f32Type)
         elif to_type == "INT8" or to_type == "UINT8":
-            tensor_output_type = self.module.make_ranked_tensor_type(
-                self.i8Type, output_tensor_shape)
+            tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.i8Type)
         else:
             raise RuntimeError("No support {} to_type".format(to_type))
 
         checkKey(kargs, 'threshold')
-        quant_name = self.module.stringAttr(op_name)
+        quant_name = StringAttr.get(op_name)
         attr_dict = {
-            'from': self.module.stringAttr(from_type),
-            'to': self.module.stringAttr(to_type),
-            'threshold': self.module.floatAttr(kargs['threshold']),
-            'zero_point': self.module.integerAttr(self.i32Type, zero_point),
+            'from': StringAttr.get(from_type),
+            'to': StringAttr.get(to_type),
+            'threshold': FloatAttr.get_f32(kargs['threshold']),
+            'zero_point':  IntegerAttr.get(self.i32Type, zero_point),
         }
         return self.buildOp(TPU_OpType.Quant.value, inputOperands, [
             tensor_output_type], name=quant_name, **attr_dict)
 
 
     def add_reciprocal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        reciprocal_name = self.module.stringAttr(op_name)
+        reciprocal_name = StringAttr.get(op_name)
 
         # table and table_mantissa all are none
         none = self.add_none_op()
@@ -1219,89 +1192,81 @@ class MLIRImporter(object):
             tensor_output_type], name=reciprocal_name, quant=self.quant_param)
 
     def add_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        relu_name = self.module.stringAttr(op_name)
+        relu_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Relu.value, inputOperands, [
             tensor_output_type], name=relu_name, quant=self.quant_param)
 
     def add_reorg_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'stride')
-        name_attr = self.module.stringAttr(op_name)
+        name_attr = StringAttr.get(op_name)
 
         param = {
-            'stride': self.module.integerAttr(self.i32Type, kargs['stride']),
+            'stride':  IntegerAttr.get(self.i32Type, kargs['stride']),
         }
         return self.buildOp(TPU_OpType.Reorg.value, inputOperands, [
             tensor_output_type], name=name_attr, quant=self.quant_param, **param)
 
     def add_retinaface_detection_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'nms_threshold')
         checkKey(kargs, 'confidence_threshold')
         checkKey(kargs, 'keep_topk')
-        name_attr = self.module.stringAttr(op_name)
+        name_attr = StringAttr.get(op_name)
         param = {
-            'nms_threshold':self.module.floatAttr(kargs['nms_threshold']),
-            'confidence_threshold':self.module.floatAttr(kargs['confidence_threshold']),
-            'keep_topk':self.module.integerAttr(self.i32Type, kargs['keep_topk']),
+            'nms_threshold':FloatAttr.get_f32(kargs['nms_threshold']),
+            'confidence_threshold':FloatAttr.get_f32(kargs['confidence_threshold']),
+            'keep_topk': IntegerAttr.get(self.i32Type, kargs['keep_topk']),
         }
         return self.buildOp(TPU_OpType.RetinaFaceDetection.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
 
     def add_reshape_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        reshape_name = self.module.stringAttr(op_name)
+        reshape_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Reshape.value, inputOperands, [
             tensor_output_type], name=reshape_name)
 
     def add_roipooling_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'pooled_h')
         checkKey(kargs, 'pooled_w')
         checkKey(kargs, 'spatial_scale')
 
-        roipooling_name = self.module.stringAttr(op_name)
+        roipooling_name = StringAttr.get(op_name)
         attr_dict = {
-            'pooled_h': self.module.integerAttr(self.i32Type, kargs['pooled_h']),
-            'pooled_w': self.module.integerAttr(self.i32Type, kargs['pooled_w']),
-            'spatial_scale': self.module.floatAttr(kargs['spatial_scale'])
+            'pooled_h':  IntegerAttr.get(self.i32Type, kargs['pooled_h']),
+            'pooled_w':  IntegerAttr.get(self.i32Type, kargs['pooled_w']),
+            'spatial_scale': FloatAttr.get_f32(kargs['spatial_scale'])
         }
         return self.buildOp(TPU_OpType.ROIPooling.value, inputOperands, [
             tensor_output_type], name=roipooling_name, quant=self.quant_param, **attr_dict)
 
     def add_scale_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        scale_name = self.module.stringAttr(op_name)
+        scale_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Scale.value, inputOperands, [
             tensor_output_type], name=scale_name)
 
     def add_shufflechannel_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'group')
         attr_dict = {
-            'group': self.module.integerAttr(self.i32Type, kargs['group']),
+            'group':  IntegerAttr.get(self.i32Type, kargs['group']),
         }
-        sc_name = self.module.stringAttr(op_name)
+        sc_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.ShuffelChannel.value, inputOperands, [
             tensor_output_type], name=sc_name, quant=self.quant_param, **attr_dict)
 
     def add_sigmoid_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        sigmoid_name = self.module.stringAttr(op_name)
+        sigmoid_name = StringAttr.get(op_name)
         none = self.add_none_op()
         # We assigne 4 reg for sigmoid quant table
         for _ in range(2):
@@ -1310,25 +1275,23 @@ class MLIRImporter(object):
             tensor_output_type], name=sigmoid_name, quant=self.quant_param)
 
     def add_slice_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         attr_dict = {
-            'axis': self.module.integerAttr(self.i32Type, kargs['axis']),
-            'offset': self.module.integerAttr(self.i32Type, kargs['offset']),
+            'axis':  IntegerAttr.get(self.i32Type, kargs['axis']),
+            'offset':  IntegerAttr.get(self.i32Type, kargs['offset']),
         }
 
-        slice_name = self.module.stringAttr(op_name)
+        slice_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Slice.value, inputOperands, [
             tensor_output_type], name=slice_name, quant=self.quant_param, **attr_dict)
 
     def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, cpu_mode=False,**kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        softmax_name = self.module.stringAttr(op_name)
+        softmax_name = StringAttr.get(op_name)
         softmax_param = {
-            'axis': self.module.integerAttr(self.i32Type, kargs['axis'])
+            'axis':  IntegerAttr.get(self.i32Type, kargs['axis'])
         }
         none = self.add_none_op()
         if cpu_mode:
@@ -1341,12 +1304,11 @@ class MLIRImporter(object):
             tensor_output_type], name=softmax_name, quant=self.quant_param, **softmax_param)
 
     def add_swap_channel_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        name_attr = self.module.stringAttr(op_name)
+        name_attr = StringAttr.get(op_name)
         checkKey(kargs, 'channel_order')
-        order = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['channel_order']])
+        order = ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['channel_order']])
         param = {
             'channel_order': order,
         }
@@ -1354,10 +1316,9 @@ class MLIRImporter(object):
             tensor_output_type], name=name_attr, quant=self.quant_param, **param)
 
     def add_tanh_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        tanh_name = self.module.stringAttr(op_name)
+        tanh_name = StringAttr.get(op_name)
         none = self.add_none_op()
         # We assigne 4 reg for tanh quant table
         for _ in range(2):
@@ -1366,16 +1327,15 @@ class MLIRImporter(object):
             tensor_output_type], name=tanh_name, quant=self.quant_param)
 
     def add_tile_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'axis')
         checkKey(kargs, 'tiles')
 
-        tile_name = self.module.stringAttr(op_name)
+        tile_name = StringAttr.get(op_name)
         resp = [1,1,1,1]
         resp[kargs['axis']] = kargs['tiles']
-        resp = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in resp])
+        resp = ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in resp])
         tile_param = {
             'resp': resp
         }
@@ -1388,15 +1348,14 @@ class MLIRImporter(object):
             tensor_output_type], name=tile_name, quant=self.quant_param, **tile_param)
 
     def add_upsample_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'scale_h')
         checkKey(kargs, 'scale_w')
 
-        upsample_name = self.module.stringAttr(op_name)
+        upsample_name = StringAttr.get(op_name)
         upsample_param = {
-            'scale_h': self.module.integerAttr(self.i32Type, kargs['scale_h']),
-            'scale_w': self.module.integerAttr(self.i32Type, kargs['scale_w'])
+            'scale_h':  IntegerAttr.get(self.i32Type, kargs['scale_h']),
+            'scale_w':  IntegerAttr.get(self.i32Type, kargs['scale_w'])
         }
         if len(inputOperands) < 2:
             none = self.add_none_op()
@@ -1405,12 +1364,11 @@ class MLIRImporter(object):
             tensor_output_type], name=upsample_name, quant=self.quant_param, **upsample_param)
 
     def add_reduce_mean_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'axes')
 
-        reduce_name = self.module.stringAttr(op_name)
-        axes = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['axes']])
+        reduce_name = StringAttr.get(op_name)
+        axes = ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['axes']])
         reduce_param = {
             'axes': axes
         }
@@ -1421,12 +1379,11 @@ class MLIRImporter(object):
                 tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
 
     def add_reduce_max_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.get_input_type(inputOperands[0]), output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'axes')
 
-        reduce_name = self.module.stringAttr(op_name)
-        axes = self.module.arrayAttr([self.module.integerAttr(self.i32Type, x) for x in kargs['axes']])
+        reduce_name = StringAttr.get(op_name)
+        axes = ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['axes']])
         reduce_param = {
             'axes': axes
         }
@@ -1439,8 +1396,7 @@ class MLIRImporter(object):
                 tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
 
     def add_yolo_detection_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type=self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'net_input_h')
         checkKey(kargs, 'net_input_w')
         checkKey(kargs, 'nms_threshold')
@@ -1452,111 +1408,102 @@ class MLIRImporter(object):
         checkKey(kargs, 'class_num')
         checkKey(kargs, 'anchors')
 
-        name_attr=self.module.stringAttr(op_name)
+        name_attr=StringAttr.get(op_name)
         param = {
-            'net_input_h': self.module.integerAttr(self.i32Type, kargs['net_input_h']),
-            'net_input_w': self.module.integerAttr(self.i32Type, kargs['net_input_w']),
-            'nms_threshold': self.module.floatAttr(kargs['nms_threshold']),
-            'obj_threshold': self.module.floatAttr(kargs['obj_threshold']),
-            'keep_topk': self.module.integerAttr(self.i32Type, kargs['keep_topk']),
-            'spp_net': self.module.boolAttr(kargs['spp_net']),
-            'tiny': self.module.boolAttr(kargs['tiny']),
-            'yolo_v4': self.module.boolAttr(kargs['yolo_v4']),
-            'class_num': self.module.integerAttr(self.i32Type, kargs['class_num']),
-            'anchors': self.module.stringAttr(kargs['anchors'])
+            'net_input_h':  IntegerAttr.get(self.i32Type, kargs['net_input_h']),
+            'net_input_w':  IntegerAttr.get(self.i32Type, kargs['net_input_w']),
+            'nms_threshold': FloatAttr.get_f32(kargs['nms_threshold']),
+            'obj_threshold': FloatAttr.get_f32(kargs['obj_threshold']),
+            'keep_topk':  IntegerAttr.get(self.i32Type, kargs['keep_topk']),
+            'spp_net': BoolAttr.get(kargs['spp_net']),
+            'tiny': BoolAttr.get(kargs['tiny']),
+            'yolo_v4': BoolAttr.get(kargs['yolo_v4']),
+            'class_num':  IntegerAttr.get(self.i32Type, kargs['class_num']),
+            'anchors': StringAttr.get(kargs['anchors'])
         }
         return self.buildOp(TPU_OpType.YoloDetection.value, inputOperands, [
             tensor_output_type], name=name_attr, **param)
 
     def add_matmul_op(self, op_name, inputOperands, output_tensor_shape):
-        tensor_output_type=self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
-        name_attr=self.module.stringAttr(op_name)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        name_attr=StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.MatMul.value, inputOperands, [tensor_output_type],
             name=name_attr, quant=self.quant_param)
 
     def add_square_op(self, op_name, inputOperands, output_tensor_shape):
-        tensor_output_type=self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
-        name_attr=self.module.stringAttr(op_name)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        name_attr=StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Square.value, inputOperands, [tensor_output_type],
             name=name_attr, quant=self.quant_param)
 
     def add_quadratic_sum_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type=self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
-        name_attr=self.module.stringAttr(op_name)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        name_attr=StringAttr.get(op_name)
         param = {}
         if 'high_precision' in kargs:
-            param['high_precision'] = self.module.boolAttr(kargs['high_precision'])
+            param['high_precision'] = BoolAttr.get(kargs['high_precision'])
         if 'axis' in kargs:
-            param['axis'] = self.module.integerAttr(self.i32Type, kargs['axis'])
+            param['axis'] =  IntegerAttr.get(self.i32Type, kargs['axis'])
         return self.buildOp(TPU_OpType.QuadraticSum.value, inputOperands, [tensor_output_type],
             name=name_attr, quant=self.quant_param, **param)
 
     def add_broadcast_sub_op(self, op_name, inputOperands, output_tensor_shape):
-        tensor_output_type=self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         none = self.add_none_op()
         for _ in range(6 - len(inputOperands)):
             inputOperands.append(none)
-        name_attr=self.module.stringAttr(op_name)
+        name_attr=StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.BroadcastSub.value, inputOperands, [tensor_output_type],
             name=name_attr, quant=self.quant_param)
 
     def add_return_op(self, Operands):
-        return pybind.ret(Operands)
+        return_op = Operation.create("std.return", operands=Operands, results=[])
+        self.insert_point.insert(return_op)
+        return
 
     def print_module(self):
-        mlir_format = str(self.module)
-        lines = mlir_format.splitlines()
-
-        new_strings = list()
-        for i in lines:
-            filter = r"\W*(std\.return)\W*"
-            ret = re.match(filter, i)
-            if ret:
-                reg_filter = "%[0-9]+"
-                regs = re.findall(reg_filter, i)
-                shape_filter = r"\<[0-9A-Za-z]+\>"
-                shapes = re.findall(shape_filter, i)
-                if len(regs) != len(shapes): raise RuntimeError("{} is error format, regs v.s shapes number not match.".format(i))
-                regstr = str()
-                shapestr = str()
-                for idx, (r, s) in enumerate(zip(regs, shapes)):
-                    if idx != 0:
-                        regstr += ", "
-                        shapestr += ", "
-                    regstr += r
-                    shapestr += "tensor{}".format(s)
-
-                new_line = "    return {} : {}".format(regstr, shapestr)
-                new_strings.append(new_line)
-            else:
-                new_strings.append(i)
-        ret = '\n'.join(new_strings)
-
-        return ret
+        mlir_format = str(self.mlir_module)
+        return mlir_format
 
     def declare_func(self, input_type:str="FP32"):
         self.tensor_inputs_type = list()
+        self.tensor_outputs_type = list()
+
         if input_type == "FP32":
             for input_shape in self.input_shape_list:
-                self.tensor_inputs_type.append(self.module.make_ranked_tensor_type(
-                    self.f32Type, input_shape))
+                self.tensor_inputs_type.append(RankedTensorType.get(input_shape, self.f32Type))
         elif input_type == "UINT8":
             for input_shape in self.input_shape_list:
-                self.tensor_inputs_type.append(self.module.make_ranked_tensor_type(
-                    self.i8Type, input_shape))
-        self.tensor_outputs_type = list()
-        for output_shape in self.output_shape_list:
-            self.tensor_outputs_type.append(self.module.make_ranked_tensor_type(
-                self.f32Type, output_shape))
+                self.tensor_inputs_type.append(RankedTensorType.get(input_shape, self.i8Type))
 
-        self.func_ctx = self.module.function_context("tpu_func", self.tensor_inputs_type,
-                                                     self.tensor_outputs_type)
-        logger.debug('Open mlir builder context')
-        fun = self.func_ctx.__enter__()
+        for output_shape in self.output_shape_list:
+            self.tensor_outputs_type.append(RankedTensorType.get(output_shape, self.f32Type))
+
+        input_args_type = str()
+        output_tensor_type = str()
+        for idx, input_tensor in enumerate(self.tensor_inputs_type):
+            arg = "%args{}: ".format(idx)
+            input_args_type = arg + input_tensor.__str__()
+            if input_tensor is not self.tensor_inputs_type[-1]:
+                input_args_type+=","
+
+        for output_shape in self.tensor_outputs_type:
+            output_tensor_type += output_shape.__str__()
+            if output_shape is not self.tensor_outputs_type[-1]:
+                output_tensor_type +=","
+
+        tpu_func = """
+            func @tpu_func({input_args_type}) -> {output_tensor_type} {{
+                %0 = \"tpu.weight_file\"() {{filename = \"{weight_file}\"}} : () -> memref<10xf32>
+            }}
+        """.format(input_args_type=input_args_type, output_tensor_type=output_tensor_type, weight_file=self.output_weight_file)
+
+        self.mlir_module = Module.parse(tpu_func, self.ctx)
+        self.func = self.mlir_module.body.operations[0]
+        self.entry_block = self.func.regions[0].blocks[0]
+        self.insert_point = InsertionPoint(self.entry_block)
+        self.weight_op = self.entry_block.operations[0].operation.results[0]
+
         self.func_args = list()
-        for i in range(len(self.input_shape_list)):
-            self.func_args.append(fun.arg(i))
+        for i in self.entry_block.arguments:
+            self.func_args.append(i)

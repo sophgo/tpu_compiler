@@ -55,7 +55,8 @@ cmake -G Ninja \
   -DLLVM_ENABLE_EH=ON \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DMLIR_BINDINGS_PYTHON_ENABLED=ON \
-  -DPYTHON_EXECUTABLE=/usr/bin/python3 \
+  -DPYTHON_EXECUTABLE=$(which python3) \
+  -Dpybind11_DIR=$INSTALL_PATH/pybind11/share/cmake/pybind11 \
   -DCMAKE_BUILD_TYPE=DEBUG
 ninja
 popd
