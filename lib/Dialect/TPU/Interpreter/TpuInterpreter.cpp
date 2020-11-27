@@ -1868,15 +1868,15 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   if (is_average && getOpQuant(op) == "INT8") {
     assert(quant_rshift && quant_multiplier);
     std::vector<float> conv_result(size);
-    MInfo minfo;
+    std::unique_ptr<MInfo> minfo = std::make_unique<MInfo>();
     // In hardware limitation, we can not put avg pool with large kernel
     // if avg pool ih * iw > local memory, in our hardware
     // need to split it then sum
     // TODO:This case mostly happenend in global average,
     /// if avg pool kernel size bigger than local memory size, todo
     auto function = cast<FuncOp>(op->getParentOp());
-    minfo.getChipInfo(function);
-    int lmem_size = minfo.lmem_per_lane;
+    minfo->getChipInfo(function);
+    int lmem_size = minfo->lmem_per_lane;
     if ((ih * iw) > ((lmem_size - size) / 2) && is_global) {
 
       std::vector<int> h_slices;
@@ -1925,27 +1925,25 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
       return success();
     }
 
-    {
-      // sumulate hw that not support Division,
-      // we add it in kernel and divide by (rightshift)
-      // it should call by "pool sum", we leverage by depthwise conv
-      int filter_shape = c * kh * kw;
-      int g = c;
-      int oc = c;
-      int dh = 1, dw = 1;
-      std::vector<float> conv_filter(filter_shape, 1);
-      int ret = mkldnn_conv(input.data(), conv_filter.data(), NULL,
-          conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
-          sh, sw, dh, dw, pt, pb, pl, pr, g, 0);
-      assert(ret == 0);
-    }
+
+    // sumulate hw that not support Division,
+    // we add it in kernel and divide by (rightshift)
+    // it should call by "pool sum", we leverage by depthwise conv
+    int filter_shape = c * kh * kw;
+    int g = c;
+    int oc = c;
+    int dh = 1, dw = 1;
+    std::vector<float> conv_filter(filter_shape, 1);
+    int ret = mkldnn_conv(input.data(), conv_filter.data(), NULL,
+        conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
+        sh, sw, dh, dw, pt, pb, pl, pr, g, 0);
+    assert(ret == 0);
 
     for (int64_t i = 0; i < size; ++i) {
       // multiplier is taking avg_const into account
       // restore sum value first
-      float sum = conv_result[i];
       output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          sum, (uint32_t)quant_rshift->at(0),
+          conv_result[i], (uint32_t)quant_rshift->at(0),
           (uint32_t)quant_multiplier->at(0), false);
     }
   } else if (is_average && getOpQuant(op) == "BF16") {
