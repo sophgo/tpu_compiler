@@ -179,7 +179,7 @@ class CaffeConverter(BaseConverter):
     def noneOp(self):
         return self.CVI.add_none_op()
 
-    def blob_to_weight_op(self, layer, index, shape=None, permute_order=None):
+    def blob_to_weight_op(self, layer, index, shape=None, permute_order=None, channel_idx=0):
         name = layer.name + "_{}".format(index)
         blob = self.layer_dict[layer.name].blobs[index]
         blob_shape = list(blob.shape)
@@ -190,10 +190,8 @@ class CaffeConverter(BaseConverter):
         if new_shape == blob_shape:
             value = blob.data
         elif not blob_shape:
-            # scalar
-            assert(len(new_shape) == 1)
             value = np.array(
-                [blob.data for i in range(new_shape[0])], dtype=np.float32)
+                [blob.data for i in range(new_shape[channel_idx])], dtype=np.float32)
         else:
             value = blob.data.reshape(new_shape)
         if permute_order != None:
@@ -989,7 +987,7 @@ class CaffeConverter(BaseConverter):
         slope_shape = [1] * dim_len
         slope_shape[1] = input_shape[1]
         # negative_slope
-        slope_op = self.blob_to_weight_op(layer, 0, slope_shape)
+        slope_op = self.blob_to_weight_op(layer, 0, slope_shape, None, 1)
         operands.append(slope_op)
         output_shape = input_shape
         new_op = self.CVI.add_prelu_op(layer.name, operands, output_shape)
