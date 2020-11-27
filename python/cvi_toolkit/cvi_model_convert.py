@@ -34,17 +34,6 @@ def Convert(args):
                         crop_method=args.crop_method,
                         data_format=args.data_format,
                         only_aspect_ratio_img=args.only_aspect_ratio_img)
-    # only caffe support
-    preprocess_args = {
-        "swap_channel": args.swap_channel,
-        "raw_scale": args.raw_scale,
-        "mean": args.mean,
-        "scale": args.scale,
-        "input_scale": args.input_scale,
-        "std": args.std,
-        "rgb_order": args.model_channel_order,
-        "data_format": args.data_format,
-    }
 
     input_shape = [int(i) for i in args.input_shape.split(",")]
 
@@ -63,7 +52,7 @@ def Convert(args):
                         args.mlir_file_path, batch_size=args.batch_size)
     elif args.model_type == "caffe":
         c = CaffeConverter(args.model_name, args.model_path, args.model_dat,
-                           args.mlir_file_path, batch_size=args.batch_size, preprocess=preprocess_args,
+                           args.mlir_file_path, batch_size=args.batch_size,
                            convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(
                                input_h=input_shape[1], input_w=input_shape[2], preprocess_input_data_format=args.preprocess_input_data_format)
         )

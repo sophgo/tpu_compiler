@@ -475,6 +475,23 @@ void CviModelBuilder::parseModule() {
           op->getAttr("store_compr_act").cast<BoolAttr>().getValue()) {
         overwritten = true;
       }
+
+      if (op->getAttr("preprocess")) {
+        auto preprocess = llvm::dyn_cast<tpu::InputOp>(op).preprocess();
+        if (preprocess.hasValue()) {
+          auto color = preprocess.getValue().color_order().getValue().str();
+          auto raw_scale = preprocess.getValue().raw_scale().getValue().convertToFloat();;
+          std::vector<float> mean;
+          std::for_each(preprocess.getValue().mean().begin(), preprocess.getValue().mean().end(),
+            [&](mlir::Attribute attr){ mean.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
+          std::vector<float> std;
+                  std::for_each(preprocess.getValue().std().begin(), preprocess.getValue().std().end(),
+            [&](mlir::Attribute attr){ std.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
+          auto input_scale = preprocess.getValue().input_scale().getValue().convertToFloat();
+          preprocess_ = {color, raw_scale, mean, std, input_scale};
+        }
+      }
+
       if (llvm::dyn_cast<tpu::TL_LG_JoinOp>(op)) {
         auto tpuOp =
             llvm::dyn_cast<tpu::TL_LG_StoreOp>(op->getOperand(0)->getDefiningOp());
@@ -578,14 +595,32 @@ FBModel CviModelBuilder::build() {
   auto fbModelName = fbb_.CreateString(modelName_);
   auto fbBuildTime = fbb_.CreateString(getStrOfCurrentTime());
   auto fbMlirVersion = fbb_.CreateString(MLIR_VERSION);
+  auto fbPreProcessHints = buildPreProcessHints();
   auto fbWeightMap = buildWeightMap();
   auto fbSections = buildSections();
   auto fbProgram = buildProgram();
   std::vector<FBProgram> programVec;
   programVec.push_back(fbProgram);
   auto fbProgramVec = fbb_.CreateVector(programVec);
-  return CreateModel(fbb_, &modelVersion, fbModelName, fbBuildTime,  0, 0,
+  return CreateModel(fbb_, &modelVersion, fbModelName, fbBuildTime,  fbPreProcessHints, 0,
                      fbWeightMap, fbProgramVec, fbSections, 0, fbMlirVersion);
+}
+
+FBPreProcessHints CviModelBuilder::buildPreProcessHints() {
+  std::stringstream mean;
+  std::copy(preprocess_.mean.begin(), preprocess_.mean.end(), std::ostream_iterator<float>(mean, ","));
+  std::string mean_str = mean.str();
+  mean_str = mean_str.substr(0, mean_str.length()-1);
+  std::stringstream std;
+  std::copy(preprocess_.std.begin(), preprocess_.std.end(), std::ostream_iterator<float>(std, ","));
+  std::string std_str = std.str();
+  std_str = std_str.substr(0, std_str.length()-1);
+  return CreatePreProcessHintsDirect(fbb_,
+              preprocess_.color.c_str(),
+              preprocess_.raw_scale,
+              mean_str.c_str(),
+              std_str.c_str(),
+              preprocess_.input_scale);
 }
 
 FBWeightVector CviModelBuilder::buildWeightMap() {
