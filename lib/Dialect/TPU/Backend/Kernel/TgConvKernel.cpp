@@ -2042,6 +2042,7 @@ void Conv::loadWeight(std::vector<uint32_t> gmOutputPoss,
     p1.src = &ts_cmpr;
     p1.dst = &tl_load_weight;
     p1.layer_id = args.layer_id;
+    p1.intra_cmd_paral = intraCmdParal;
     ctx.tdma_g2l_tensor_copy_decompressed(&p1);
   }
 
@@ -2401,8 +2402,9 @@ void Conv::computeConv(
   param.w_is_const = 0;
   param.layer_id = args.layer_id;
   param.cmd_pre_exe_typ = intraCmdParal ? 1 : 0;  // wait weight
-  param.cmd_pre_exe = intraCmdParal ? 3 : 0;      // load and store
-                                                  // pre exec
+  param.cmd_pre_exe = intraCmdParal ?              // 1: load
+                      (args.do_leaky_relu ? 1 : 3) // 3: load and store
+                      : 0;
   param.ins_val = pad_value();                      // symmetric quantization
   param.ins_fp = ctx.convert_fp32_to_bf16((float)pad_value()); // symmetric quantization
   ctx.tiu_convolution(&param);
@@ -2438,9 +2440,10 @@ void Conv::computePerTensorConv(
   param.ps32_mode = getPs32Mode(icPos);
   param.w_is_const = 0;
   param.layer_id = args.layer_id;
-  param.cmd_pre_exe_typ = intraCmdParal ? 1 : 0;  // wait weight
-  param.cmd_pre_exe = intraCmdParal ? 3 : 0;      // load and store
-                                                  // pre exec
+  param.cmd_pre_exe_typ = intraCmdParal ? 1 : 0;   // wait weight
+  param.cmd_pre_exe = intraCmdParal ?              // 1: load
+                      (args.do_leaky_relu ? 1 : 3) // 3: load and store
+                      : 0;
   param.ins_val = pad_value();
   param.ins_fp = ctx.convert_fp32_to_bf16(float(pad_value()));
 
@@ -2693,7 +2696,8 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
   tl_output.start_address = lmOutputDescs[lmIndex]->getAddress();
 
   uint8_t intraCmdParal = 0;
-  if (ctx.has_cmd_pre_exe() && cmdQueueIndex < cmdQueue.size())
+  if (ctx.has_cmd_pre_exe() && cmdQueueIndex < cmdQueue.size() &&
+      !args.do_leaky_relu)
     intraCmdParal = cmdQueue[cmdQueueIndex]->isIntraCmdParalEnabled() ? 1 : 0;
 
   LLVM_DEBUG(llvm::dbgs()
@@ -2730,6 +2734,7 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
     cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
     param.src = &tl_output;
     param.dst = &cmpr_dst;
+    param.intra_cmd_paral = intraCmdParal ? 1 : 0;
     ctx.tdma_l2g_tensor_copy_compressed(&param);
   } else {
 
@@ -2748,7 +2753,6 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
     param.src = &tl_output;
     param.dst = &ts_data;
     param.intra_cmd_paral = intraCmdParal ? 1 : 0;
-
     ctx.tdma_l2g_tensor_copy(&param);
   }
 
