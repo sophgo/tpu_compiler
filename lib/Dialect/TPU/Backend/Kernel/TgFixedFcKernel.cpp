@@ -142,11 +142,6 @@ static void fc_slicing_multi_dimension(
   uint32_t K = static_cast<uint32_t>(input_col_num);
   uint32_t N = static_cast<uint32_t>(weight_col_num);
 
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-      "fc_slicing_multi_dimension\n"
-      "  Y(%d, %d) = L(%d, %d) * R(%d, %d) + B(%d, %d)\n",
-      M, N, M, K, K, N, 1, N));
-
   // Split N <= max total eu number
   uint32_t total_eu = NPU_NUM * EU_NUM;
   uint32_t tiled_N = (N >= total_eu) ? total_eu : N;
@@ -202,46 +197,49 @@ static void fc_slicing_multi_dimension(
     //                       tiled_B(1, tiled_N)
 
     // tiled Y, 32bit
+    // Partial sum 32bit, 4x(int8)
     tl_tiled_Y.start_address = required_size;
     tl_tiled_Y.shape = ctx.ml_default_shape(M, tiled_N, CVK_FMT_I8);
     tl_tiled_Y.stride = ctx.ml_default_stride(tl_tiled_Y.shape, tl_tiled_Y.fmt, 1);
-    required_size += 4 * tl_tiled_Y.shape.n * tl_tiled_Y.stride.n;
+    uint32_t tileYSize = tl_tiled_Y.shape.n * tl_tiled_Y.stride.n;
+    if (tiled_K < K)
+      tileYSize *= 4;
 
     // tiled L
     tl_tiled_L.start_address = required_size;
     tl_tiled_L.shape = ctx.ml_default_shape(M, tiled_K, CVK_FMT_I8);
     tl_tiled_L.stride = ctx.ml_default_stride(tl_tiled_L.shape, tl_tiled_L.fmt, 1);
-    required_size += tl_tiled_L.shape.n * tl_tiled_L.stride.n;  // assume n = 2
+    uint32_t tileLSize = tl_tiled_L.shape.n * tl_tiled_L.stride.n;  // assume n = 2
 
     // tiled R
     tl_tiled_R.start_address = required_size;
     tl_tiled_R.shape = ctx.ml_default_shape(tiled_K, tiled_N, CVK_FMT_I8);
     tl_tiled_R.stride = ctx.ml_default_stride(tl_tiled_R.shape, tl_tiled_R.fmt, 1);
-    required_size += tl_tiled_R.shape.n * tl_tiled_R.stride.n;
+    uint32_t tileRSize = tl_tiled_R.shape.n * tl_tiled_R.stride.n;
 
     // tiled B
+    uint32_t tileBSize = 0;
     if (do_bias) {
       tl_tiled_B.start_address = required_size;
-      required_size += tl_tiled_B.shape.n * tl_tiled_B.stride.n;
+      tileBSize = tl_tiled_B.shape.n * tl_tiled_B.stride.n;
     }
 
+    required_size = tileLSize + tileRSize + tileYSize + tileBSize;
+
     if (required_size <= lane_size) {
-      LLVM_DEBUG(llvm::errs() << llvm::format(
-          "  tiled_Y %d, tiled_L %d, tiled_R %d, tiled_B %d\n",
-          4 * tl_tiled_Y.shape.n * tl_tiled_Y.stride.n,
-          tl_tiled_L.shape.n * tl_tiled_L.stride.n,
-          tl_tiled_R.shape.n * tl_tiled_R.stride.n,
-          2 * tl_tiled_B.shape.n * tl_tiled_B.stride.n));
+      LLVM_DEBUG(llvm::dbgs()
+                << "fc_slicing_multi_dimension:\n    "
+                << "M " << M << ", K " << K << ", N " << N << "\n    "
+                << "tileL(" << M << ", " << tiled_K << ")\n    "
+                << "tileR(" << tiled_K << ", " << tiled_N << ")\n    "
+                << "tileY(" << M << ", " << tiled_N << ")\n    "
+                << "tileYSize " << tileYSize << ", tileLSize " << tileLSize
+                << ", tileRSize " << tileRSize << ", tileBSize " << tileBSize
+                << "\n");
       break;
     }
 
   } while (--tiled_K);
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-      "  tiled_Y(%d, %d) = tiled_L(%d, %d) * tiled_R(%d, %d) "
-      "+ tiled_B(%d, %d), required_size %d kB\n",
-      M, tiled_N, M, tiled_K, tiled_K, tiled_N, 1, tiled_N,
-      required_size / 1024));
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
       "  tiled_Y shape (n=%d, c=%d, w=%d, col=%d), stride(n=%d, c=%d, h=%d)\n"
