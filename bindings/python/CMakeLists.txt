@@ -25,4 +25,5 @@ target_link_libraries(pymlir PRIVATE
   LLVMCore
   LLVMSupport
 )
+install(TARGETS pymlir DESTINATION python)
 

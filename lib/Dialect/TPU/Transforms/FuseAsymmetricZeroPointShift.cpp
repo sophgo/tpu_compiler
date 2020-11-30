@@ -125,6 +125,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createFuseAsymmetricZeroPointPass() {
   return std::make_unique<FuseAsymmetricZeroPointPass>();
 }
-
-static PassRegistration<FuseAsymmetricZeroPointPass>
-    pass("fuse-asymmetric-zero-point", "Fuse asymmetric zero point");

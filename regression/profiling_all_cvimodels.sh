@@ -63,7 +63,7 @@ for net in ${model_list_lg[@]}
 do
   echo "profile model for $net"
   pushd ${root_dir}/${net}_bs1
-  mlir-translate \
+  tpuc-translate \
     --mlir-to-cmdbuf \
     ${net}_quant_int8_multiplier_layergroup.mlir \
     -o ${net}_cmdbuf.bin
@@ -81,7 +81,7 @@ for net in ${model_list_df[@]}
 do
   echo "profile model for $net"
   pushd ${root_dir}/${net}_bs1
-  mlir-translate \
+  tpuc-translate \
     --mlir-to-cmdbuf \
     ${net}_quant_int8_multiplier_tl_lw.mlir \
     -o ${net}_cmdbuf.bin

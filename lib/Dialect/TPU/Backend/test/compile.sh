@@ -14,7 +14,7 @@ fi
 
 pushd $DIR/tmp
 
-mlir-opt \
+tpuc-opt \
      --gen-pseudo-weight-npz \
      --pseudo-calibration-table test_calibration_table \
      ${MLIR_MODEL} \
@@ -23,7 +23,7 @@ mv input.npz test_in_fp32_bs${BATCH_SIZE}.npz
 
 # opt
 
-mlir-opt ${MLIR_MODEL} \
+tpuc-opt ${MLIR_MODEL} \
     --convert-bn-to-scale \
     --canonicalize \
     --fuse-relu \
@@ -32,12 +32,12 @@ mlir-opt ${MLIR_MODEL} \
     -o test_opt_fp32.mlir
 
 # quantization.
-mlir-opt \
+tpuc-opt \
      --import-calibration-table \
      --calibration-table test_calibration_table \
      test_opt_fp32.mlir \
      -o test_cali.mlir
-mlir-opt \
+tpuc-opt \
      --assign-chip-name \
      --chipname $SET_CHIP_NAME \
      --tpu-quant \
@@ -47,7 +47,7 @@ mlir-opt \
      -o test_int8.mlir
 
 # optimization for int8 mlir model
-mlir-opt \
+tpuc-opt \
      --tpu-lower \
      --reorder-op \
      --tg-fuse-leakyrelu \
@@ -58,7 +58,7 @@ mlir-opt \
      --deep-fusion-opt \
      test_int8.mlir \
      -o test_int8_opt.mlir
-mlir-opt \
+tpuc-opt \
      --assign-weight-address \
      --tpu-weight-address-align=16 \
      --tpu-weight-map-filename=weight_map_int8_lg.csv \
@@ -69,13 +69,13 @@ mlir-opt \
      --tpu-neuron-map-filename=neuron_map.csv \
      test_int8_opt.mlir \
      -o test_int8_addr.mlir
-mlir-opt \
+tpuc-opt \
      --divide-ops-to-func \
      test_int8_addr.mlir \
      -o test_int8_func.mlir
 
 # codegen
-mlir-translate -debug \
+tpuc-translate -debug \
      --mlir-to-cvimodel \
      --weight-file weight.bin \
      test_int8_func.mlir \
@@ -90,7 +90,7 @@ model_runner \
      --output test_cmdbuf_out_bs${BATCH_SIZE}.npz
 
 # inference with int8 model and get outputs.
-mlir-tpu-interpreter test_int8.mlir \
+tpuc-interpreter test_int8.mlir \
     --tensor-in test_in_fp32_bs${BATCH_SIZE}.npz \
     --tensor-out test_out_int8.npz \
     --dump-all-tensor=test_tensor_all_int8.npz

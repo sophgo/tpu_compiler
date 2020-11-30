@@ -333,7 +333,3 @@ std::unique_ptr<mlir::Pass> mlir::createDecomposeNormalizePass() {
   return std::make_unique<DecomposeNormalizePass>();
 }
 
-static PassRegistration<DecomposeNormalizePass>
-    pass("normalize-decompose",
-         "Decompose Normalize to ltwise(prod)+conv2D+sqrt+"
-         "reciprocal+eltwise(prod)+scale");

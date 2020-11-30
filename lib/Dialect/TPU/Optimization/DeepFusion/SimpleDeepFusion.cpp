@@ -363,7 +363,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createDeepFusionSimple() {
   return std::make_unique<DeepFusionSimple>();
 }
-
-static PassRegistration<DeepFusionSimple>
-    pass("deep-fusion-simple",
-         "Apply simple deep fusion.");

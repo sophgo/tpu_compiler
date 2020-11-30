@@ -22,7 +22,7 @@ fi
 
 echo $REGRESSION_PATH/data/cat.jpg > cali_list_imagenet.txt
 
-mlir-opt ${NET}_opt_fp32.mlir \
+tpuc-opt ${NET}_opt_fp32.mlir \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
@@ -41,7 +41,7 @@ cvi_mix_precision.py \
     --input_num=1 \
     --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM
 
-mlir-opt \
+tpuc-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
     --tpu-quant \
@@ -51,7 +51,7 @@ mlir-opt \
     ${NET}_cali.mlir \
     -o ${NET}_mix.mlir
 
-mlir-tpu-interpreter ${NET}_mix.mlir \
+tpuc-interpreter ${NET}_mix.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_mix.npz \
     --dump-all-tensor=${NET}_tensor_all_mix.npz

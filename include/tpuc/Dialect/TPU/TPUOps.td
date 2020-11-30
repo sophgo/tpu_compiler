@@ -2997,6 +2997,7 @@ def TPU_WeightFileOp: TPU_Op<"weight_file",
         setAttr("filename", Builder(context).getStringAttr(newName));
       }
     }
+    OpState::print(getOperation(), p);
   }];
 
   let results = (outs AnyMemRef:$output);

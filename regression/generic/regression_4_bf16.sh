@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -xe
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -9,7 +9,7 @@ if [ $DO_NOT_BF16_UNDER_182x -eq 1 ]; then
   exit 0
 fi
 
-mlir-opt \
+tpuc-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
     --tpu-quant --quant-full-bf16 \
@@ -20,7 +20,7 @@ mlir-opt \
     -o ${NET}_quant_bf16.mlir
 
 # bf16 inference
-mlir-tpu-interpreter ${NET}_quant_bf16.mlir \
+tpuc-interpreter ${NET}_quant_bf16.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_bf16.npz \
     --dump-all-tensor=${NET}_tensor_all_bf16.npz

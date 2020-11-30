@@ -517,7 +517,3 @@ void tpu::UpsampleOp::getCanonicalizationPatterns(
 std::unique_ptr<mlir::Pass> mlir::createConvertUpsampleToDeconvPass() {
   return std::make_unique<ConvertUpsampleToDeconvPass>();
 }
-
-static PassRegistration<ConvertUpsampleToDeconvPass>
-    pass("convert-upsample-to-deconv",
-         "Convert a upsample operation to deconv");

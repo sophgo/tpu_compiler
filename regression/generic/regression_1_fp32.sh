@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -xe
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -19,7 +19,7 @@ cvi_model_convert.py \
 
 # assign layer_id right away, and apply all frontend optimizations
 # Notes: convert-bn-to-scale has to be done before canonicalizer
-mlir-opt ${NET}.mlir \
+tpuc-opt ${NET}.mlir \
     ${MLIR_OPT_FE_PRE} \
     --canonicalize \
     ${MLIR_OPT_FE_POST} \
@@ -29,7 +29,7 @@ mlir-opt ${NET}.mlir \
     -o ${NET}_opt_fp32.mlir
 
 # test frontend optimizations
-mlir-tpu-interpreter ${NET}_opt_fp32.mlir \
+tpuc-interpreter ${NET}_opt_fp32.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz

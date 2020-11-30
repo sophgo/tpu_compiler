@@ -39,7 +39,7 @@ class Tuner(object):
         if not os.path.isdir(self.output_path):
             os.mkdir(self.output_path)
 
-        self.mlir_opt = os.path.join(args.binary_path, 'mlir-opt')
+        self.mlir_opt = os.path.join(args.binary_path, 'tpuc-opt')
         self.out_table = os.path.join(self.output_path, "tune_threshold_table")
         self.int8_model = os.path.join(self.output_path, 'tune-int8.mlir')
 
@@ -217,7 +217,7 @@ class Tuner_v2(object):
         self.output_path = output_path
         os.makedirs(self.output_path, exist_ok=True)
 
-        self.mlir_opt = "mlir-opt"
+        self.mlir_opt = "tpuc-opt"
         self.out_table = os.path.join(self.output_path, "tune_threshold_table")
         self.int8_model = os.path.join(self.output_path, 'tune-int8.mlir')
         self.cali_model = "{}_cali.mlir".format(model_file.split(".")[0])

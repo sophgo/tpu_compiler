@@ -303,11 +303,11 @@ popd
 #  rm -f $INSTALL_PATH/bin/test_*
 #  rm -f $INSTALL_PATH/bin/sample_*
 #  # strip mlir tools
-#  # strip $INSTALL_PATH/bin/mlir-opt
+#  # strip $INSTALL_PATH/bin/tpuc-opt
 #  # strip $INSTALL_PATH/bin/mlir-tblgen
 #  # strip $INSTALL_PATH/bin/mlir-tblgen
-#  # strip $INSTALL_PATH/bin/mlir-tpu-interpreter
-#  # strip $INSTALL_PATH/bin/mlir-translate
+#  # strip $INSTALL_PATH/bin/tpuc-interpreter
+#  # strip $INSTALL_PATH/bin/tpuc-translate
 #  # strip $INSTALL_PATH/bin/cvi_profiling
 #
 #  # install regression

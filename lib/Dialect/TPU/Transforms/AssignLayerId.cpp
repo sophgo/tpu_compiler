@@ -58,7 +58,3 @@ public:
 std::unique_ptr<mlir::Pass> mlir::createAssignLayerIdPass() {
   return std::make_unique<AssignLayerIdPass>();
 }
-
-static PassRegistration<AssignLayerIdPass>
-    pass("assign-layer-id",
-         "Assign layer id to each tpu op");

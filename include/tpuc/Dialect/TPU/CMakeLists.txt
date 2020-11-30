@@ -15,3 +15,7 @@ set(LLVM_TARGET_DEFINITIONS TPUAttribute.td)
 mlir_tablegen(TPUAttribute.h.inc -gen-struct-attr-decls)
 mlir_tablegen(TPUAttribute.cpp.inc -gen-struct-attr-defs)
 add_public_tablegen_target(MLIRTPUAttributeIncGen)
+
+set(LLVM_TARGET_DEFINITIONS Passes.td)
+mlir_tablegen(Passes.h.inc -gen-pass-decls -name TpucAll)
+add_public_tablegen_target(MLIRTPUPassIncGen)

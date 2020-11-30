@@ -517,6 +517,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createAssignNeuronAddressPass() {
   return std::make_unique<AssignNeuronAddressPass>();
 }
-
-static PassRegistration<AssignNeuronAddressPass> pass("assign-neuron-address",
-                                                      "Assign address to each neuron");

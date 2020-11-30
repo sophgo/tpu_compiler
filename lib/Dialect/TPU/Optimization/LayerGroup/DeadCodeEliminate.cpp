@@ -182,9 +182,4 @@ std::unique_ptr<mlir::Pass> createEliminateDeadcodePass() {
   return std::make_unique<EliminateDeadcodePass>();
 }
 
-static PassRegistration<EliminateDeadcodePass>
-    pass("dce",
-         "Dead Code Eliminate such as tdma");
-
 }
-

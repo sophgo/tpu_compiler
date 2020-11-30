@@ -653,7 +653,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createImportCalibrationTablePass() {
   return std::make_unique<ImportCalibrationTablePass>();
 }
-
-static PassRegistration<ImportCalibrationTablePass>
-    pass("import-calibration-table",
-         "Import calibration table from external tools");

@@ -40,7 +40,4 @@ std::unique_ptr<mlir::Pass> createGroupOpsPass() {
     return std::make_unique<GroupOpsPass>();
 }
 
-static PassRegistration<GroupOpsPass>
-    pass("group-ops",
-         "Group ops together to speedup");
 }

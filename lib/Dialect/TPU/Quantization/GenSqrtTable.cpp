@@ -288,7 +288,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createGenSqrtTablePass() {
   return std::make_unique<GenSqrtTablePass>();
 }
-
-static PassRegistration<GenSqrtTablePass>
-    pass("gen-sqrt-table",
-         "generate sqrt look up table, y0");

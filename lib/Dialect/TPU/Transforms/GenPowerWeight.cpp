@@ -170,7 +170,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createGenPowerWeightPass() {
   return std::make_unique<GenPowerWeightPass>();
 }
-
-static PassRegistration<GenPowerWeightPass>
-    pass("gen-power-weight",
-         "duplicate scale/shift for leverage depthwise op");

@@ -684,6 +684,3 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
 std::unique_ptr<mlir::Pass> mlir::createConvertTgOpToMemRefPass() {
   return std::make_unique<ConvertTgOpToMemRefPass>();
 }
-
-static PassRegistration<ConvertTgOpToMemRefPass>
-    pass("convert-tg-op-to-memref", "Convert tg op from TensorType to MemRefType");

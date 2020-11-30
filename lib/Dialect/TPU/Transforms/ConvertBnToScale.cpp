@@ -261,6 +261,3 @@ std::unique_ptr<mlir::Pass> mlir::createConvertBnToScalePass() {
   return std::make_unique<ConvertBnToScalePass>();
 }
 
-static PassRegistration<ConvertBnToScalePass>
-    pass("convert-bn-to-scale",
-         "Convert a BN operation to Scale operation");

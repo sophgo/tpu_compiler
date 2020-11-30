@@ -61,7 +61,7 @@ cvi_model_convert.py \
     --convert_preprocess 1 \
     --mlir_file_path ${NET}_fused_preprocess.mlir
 
-mlir-opt \
+tpuc-opt \
     --fuse-relu \
     ${MLIR_OPT_FE_PRE} \
     --canonicalize \
@@ -72,7 +72,7 @@ mlir-opt \
     -o ${NET}_opt_fused_preprocess.mlir
 
 # test frontend optimizations
-mlir-tpu-interpreter ${NET}_opt_fused_preprocess.mlir \
+tpuc-interpreter ${NET}_opt_fused_preprocess.mlir \
     --tensor-in ${NET}_only_resize_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
@@ -84,14 +84,14 @@ cvi_npz_tool.py compare \
     --excepts="$EXCEPTS,input,data" \
     --tolerance=0.999,0.999,0.998 -vv
 
-mlir-opt \
+tpuc-opt \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE}\
     ${NET}_opt_fused_preprocess.mlir \
     -o ${NET}_cali_fused_preprocess.mlir
 
-mlir-opt \
+tpuc-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
     --tpu-quant --quant-full-bf16 \
@@ -102,7 +102,7 @@ mlir-opt \
     -o ${NET}_quant_bf16_fused_preprocess.mlir
 
 # test fused preprocess bf16 interpreter
-mlir-tpu-interpreter ${NET}_quant_bf16_fused_preprocess.mlir \
+tpuc-interpreter ${NET}_quant_bf16_fused_preprocess.mlir \
     --tensor-in ${NET}_only_resize_in_fp32.npz \
     --tensor-out ${NET}_out_bf16_fused_preprocess.npz \
     --dump-all-tensor=${NET}_tensor_all_bf16_fused_preprocess.npz \

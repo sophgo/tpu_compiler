@@ -48,7 +48,7 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
                             << ":" << getOpName(eltAddOp)<< "\n";);
 
     Operation *nextOp = nullptr;
-    int strideH, strideW;
+    int strideH = 0, strideW = 0;
 
     for (auto &use : op->getResult(0).getUses()) {
       nextOp = use.getOwner();
@@ -149,7 +149,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createRefactorEltAndConvPass() {
   return std::make_unique<RefactorEltAndConvPass>();
 }
-
-static PassRegistration<RefactorEltAndConvPass>
-    pass("eltwise-early-stride",
-         "Refactor hStride of elt and conv op");

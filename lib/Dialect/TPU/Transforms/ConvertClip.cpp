@@ -123,7 +123,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createClipAsRelu6Pass() {
   return std::make_unique<ClipAsRelu6Pass>();
 }
-
-static PassRegistration<ClipAsRelu6Pass>
-    pass_1("relu6-to-clip",
-         "relu6 convert to clip op");

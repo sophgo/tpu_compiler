@@ -1,4 +1,4 @@
-/workspace/llvm-project/build/bin/mlir-translate --caffe-to-mlir \
+/workspace/llvm-project/build/bin/tpuc-translate --caffe-to-mlir \
     $MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt \
     -debug \
     --debug-only=caffe-to-mlir \

@@ -14,7 +14,7 @@ fi
 
 pushd $DIR/tmp
 
-mlir-opt \
+tpuc-opt \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
@@ -23,7 +23,7 @@ mlir-opt \
     ${MLIR_MODEL} \
     -o test_fp32_opt.mlir
 
-mlir-opt \
+tpuc-opt \
      --gen-pseudo-weight-npz \
      --pseudo-calibration-table test_calibration_table \
      test_fp32_opt.mlir \
@@ -31,7 +31,7 @@ mlir-opt \
 mv input.npz test_in_fp32_bs${BATCH_SIZE}.npz
 
 # quantization.
-mlir-opt \
+tpuc-opt \
      --assign-chip-name \
      --chipname $SET_CHIP_NAME \
      --tpu-quant --quant-full-bf16 \
@@ -41,7 +41,7 @@ mlir-opt \
      -o test_bf16.mlir
 
 # optimization for bf16 mlir model
-mlir-opt \
+tpuc-opt \
      --tpu-lower \
      --reorder-op \
      --tg-fuse-leakyrelu \
@@ -52,7 +52,7 @@ mlir-opt \
      --deep-fusion-opt \
      test_bf16.mlir \
      -o test_bf16_opt.mlir
-mlir-opt \
+tpuc-opt \
      --assign-weight-address \
      --tpu-weight-address-align=16 \
      --tpu-weight-map-filename=weight_map_bf16_lg.csv \
@@ -63,13 +63,13 @@ mlir-opt \
      --tpu-neuron-map-filename=neuron_map.csv \
      test_bf16_opt.mlir \
      -o test_bf16_addr.mlir
-mlir-opt \
+tpuc-opt \
      --divide-ops-to-func \
      test_bf16_addr.mlir \
      -o test_bf16_func.mlir
 
 # codegen
-mlir-translate -debug \
+tpuc-translate -debug \
      --mlir-to-cvimodel \
      --weight-file weight.bin \
      test_bf16_func.mlir \
@@ -84,7 +84,7 @@ model_runner \
      --output test_cmdbuf_out_bs${BATCH_SIZE}.npz
 
 # inference with bf16 model and get outputs.
-mlir-tpu-interpreter test_bf16.mlir \
+tpuc-interpreter test_bf16.mlir \
     --tensor-in test_in_fp32_bs${BATCH_SIZE}.npz \
     --tensor-out test_out_bf16.npz \
     --dump-all-tensor=test_tensor_all_bf16.npz

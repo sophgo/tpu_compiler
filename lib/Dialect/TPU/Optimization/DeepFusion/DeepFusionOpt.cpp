@@ -599,7 +599,3 @@ public:
 std::unique_ptr<mlir::Pass> mlir::createDeepFusionOpt() {
   return std::make_unique<DeepFusionOpt>();
 }
-
-static PassRegistration<DeepFusionOpt>
-    pass("deep-fusion-opt",
-         "deep fusion opt");

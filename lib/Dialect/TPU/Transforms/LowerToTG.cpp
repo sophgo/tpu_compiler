@@ -4192,8 +4192,4 @@ std::unique_ptr<mlir::Pass> createTpuLowerPass() {
   return std::make_unique<TpuLowerPass>();
 }
 
-static PassRegistration<TpuLowerPass>
-    pass("tpu-lower",
-         "Lower TPU Dialect from TPU Ops to TPU_TG Ops");
-
 } // namespace mlir

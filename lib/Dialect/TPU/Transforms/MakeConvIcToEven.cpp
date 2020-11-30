@@ -150,7 +150,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createRefactorOddIcConvPass() {
   return std::make_unique<RefactorOddIcConvPass>();
 }
-
-static PassRegistration<RefactorOddIcConvPass>
-    pass("conv-ic-alignment",
-         "Enable padding odd ic to even to enable double conv for conv layer");

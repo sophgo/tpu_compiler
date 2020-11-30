@@ -32,7 +32,7 @@ def checkReturnValue(ret, func: str):
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=None):
     if not chip:
         chip = get_chip_name()
-    ret = subprocess.run(["mlir-opt",
+    ret = subprocess.run(["tpuc-opt",
                     "--assign-chip-name",
                     "--chipname={}".format(chip),
                     "--convert-bn-to-scale",
@@ -42,24 +42,24 @@ def mlir_opt(mlirfile, opt_mlirfile, op_info_csv, chip=None):
                     mlirfile,
                     "-o", opt_mlirfile
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt")
+    checkReturnValue(ret, "tpuc-opt")
     return ret.returncode
 
 
 def mlir_import_calibration(mlirfile, cali_mlirfile, threshold_table):
-    ret = subprocess.run(["mlir-opt",
+    ret = subprocess.run(["tpuc-opt",
                     "--import-calibration-table",
                     "--calibration-table", threshold_table,
                     mlirfile,
                     "-o", cali_mlirfile
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, import-calibration-table")
+    checkReturnValue(ret, "tpuc-opt, import-calibration-table")
     return ret.returncode
 
 
 def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv, quant_mode="int8"):
     command = [
-        "mlir-opt",
+        "tpuc-opt",
         "--tpu-quant",
         "--print-tpu-op-info",
         "--tpu-op-info-filename", op_info_csv,
@@ -69,29 +69,29 @@ def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv, quant_mode="int8"):
     if quant_mode == "bf16":
         command.insert(2, "--quant-full-bf16")
     ret = subprocess.run(command, **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, mlir_tpu_quant")
+    checkReturnValue(ret, "tpuc-opt, mlir_tpu_quant")
     return ret.returncode
 
 
 def mlir_lower_opt(mlirfile, opt_mlirfile):
     lower_mlir = "lw.mlir"
-    ret = subprocess.run(["mlir-opt",
+    ret = subprocess.run(["tpuc-opt",
                     "--tpu-lower",
                     "--reorder-op",
                     mlirfile,
                     "-o", lower_mlir,
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, mlir_lower_opt")
+    checkReturnValue(ret, "tpuc-opt, mlir_lower_opt")
     if ret.returncode != 0:
         return ret.returncode
     opt_mlir = "opt.mlir"
-    ret = subprocess.run(["mlir-opt",
+    ret = subprocess.run(["tpuc-opt",
                     "--tg-fuse-leakyrelu",
                     "--conv-ic-alignment",
                     lower_mlir,
                     "-o", opt_mlirfile,
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, fuse")
+    checkReturnValue(ret, "tpuc-opt, fuse")
     if ret.returncode != 0:
         return ret.returncode
     return 0
@@ -99,7 +99,7 @@ def mlir_lower_opt(mlirfile, opt_mlirfile):
 def mlir_gen_cvimodel(mlirfile, cvi_module):
 
     int8_addr = "int8_addr_{}".format(mlirfile)
-    ret = subprocess.run(["mlir-opt",
+    ret = subprocess.run(["tpuc-opt",
                     "--assign-weight-address",
                     "--tpu-weight-address-align=16",
                     "--tpu-weight-map-filename=weight_map.csv",
@@ -111,28 +111,28 @@ def mlir_gen_cvimodel(mlirfile, cvi_module):
                     mlirfile,
                     "-o", int8_addr
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, int8_addr")
+    checkReturnValue(ret, "tpuc-opt, int8_addr")
     if ret.returncode != 0:
         return ret.returncode
 
     int8_addr_func = "int8_addr_func_{}".format(mlirfile)
 
-    ret = subprocess.run(["mlir-opt",
+    ret = subprocess.run(["tpuc-opt",
                     "--divide-ops-to-func",
                     int8_addr,
                     "-o", int8_addr_func
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, int8_addr_func")
+    checkReturnValue(ret, "tpuc-opt, int8_addr_func")
     if ret.returncode != 0:
         return ret.returncode
 
-    ret = subprocess.run(["mlir-translate",
+    ret = subprocess.run(["tpuc-translate",
                     "--mlir-to-cvimodel",
                     "--weight-file=weight.bin",
                     int8_addr_func,
                     "-o", cvi_module
                     ], **std_output_flag)
-    checkReturnValue(ret, "mlir-translate, mlir_gen_cmdbuf")
+    checkReturnValue(ret, "tpuc-translate, mlir_gen_cmdbuf")
     if ret.returncode != 0:
         return ret.returncode
 
@@ -144,7 +144,7 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
         only build cvi model
     """
     addr_mlir = "addr_{}".format(mlirfile)
-    command = ["mlir-opt",
+    command = ["tpuc-opt",
                "--assign-weight-address",
                "--tpu-weight-address-align=16",
                "--tpu-weight-map-filename=weight_map.csv",
@@ -158,13 +158,13 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
     if std_log_flag:
         logger.debug(command)
     ret = subprocess.run(command, **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, int8_addr")
+    checkReturnValue(ret, "tpuc-opt, int8_addr")
     if ret.returncode != 0:
         return ret.returncode
 
     fucn_tl_lw = "tl_lw_memopt_func_{}".format(mlirfile)
     # func to tensor
-    command = ["mlir-opt",
+    command = ["tpuc-opt",
                "--divide-ops-to-func",
                addr_mlir,
                "-o", fucn_tl_lw
@@ -172,11 +172,11 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
     if std_log_flag:
         logger.debug(command)
     ret = subprocess.run(command, **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, divide-ops-to-func")
+    checkReturnValue(ret, "tpuc-opt, divide-ops-to-func")
     if ret.returncode != 0:
         return ret.returncode
 
-    command = ["mlir-translate",
+    command = ["tpuc-translate",
                "--mlir-to-cvimodel",
                "--weight-file=weight.bin",
                fucn_tl_lw,
@@ -186,7 +186,7 @@ def mlir_build_cvimodel_no_opt(mlirfile, cvi_model):
     if std_log_flag:
         logger.info(command)
     ret = subprocess.run(command, **std_output_flag)
-    checkReturnValue(ret, "mlir-translate, mlir-to-cvimodel")
+    checkReturnValue(ret, "tpuc-translate, mlir-to-cvimodel")
     if ret.returncode != 0:
         return ret.returncode
 
@@ -209,7 +209,7 @@ def mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune=False):
 
 def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table, op_info_csv):
     chip = get_chip_name()
-    command = ["mlir-opt",
+    command = ["tpuc-opt",
                "--assign-chip-name",
                "--chipname={}".format(chip),
                "--tpu-quant",
@@ -224,7 +224,7 @@ def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table, op_info_csv):
         logger.info(command)
 
     ret = subprocess.run(command, **std_output_flag)
-    checkReturnValue(ret, "mlir-opt, --quant-int8-mix-bf16-layers-from-file")
+    checkReturnValue(ret, "tpuc-opt, --quant-int8-mix-bf16-layers-from-file")
     if ret.returncode != 0:
         return ret.returncode
     return 0

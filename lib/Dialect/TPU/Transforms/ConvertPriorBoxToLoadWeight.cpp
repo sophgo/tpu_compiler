@@ -328,7 +328,3 @@ void tpu::PriorBoxOp::getCanonicalizationPatterns(
 std::unique_ptr<mlir::Pass> mlir::createConvertPriorBoxPass() {
   return std::make_unique<ConvertPriorBoxPass>();
 }
-
-static PassRegistration<ConvertPriorBoxPass>
-    pass("convert-priorbox-to-loadweight",
-         "convert priorbox to leadweight to save each priorbox result");

@@ -154,6 +154,3 @@ std::unique_ptr<mlir::Pass> mlir::createPrintTpuOpStatsPass() {
   return std::make_unique<PrintTpuOpStatsPass>();
 }
 
-static PassRegistration<PrintTpuOpStatsPass>
-    pass("print-tpu-op-stats",
-         "Print statistics of TPU operations.");

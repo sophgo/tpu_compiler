@@ -74,7 +74,3 @@ struct TgOpTilePass : public mlir::PassWrapper<TgOpTilePass, FunctionPass> {
 std::unique_ptr<mlir::Pass> mlir::createTgOpTilePass() {
   return std::make_unique<TgOpTilePass>();
 }
-
-static PassRegistration<TgOpTilePass>
-    pass("tg-op-tile",
-         "TG Op tiling");

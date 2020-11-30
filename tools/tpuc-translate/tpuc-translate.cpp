@@ -1,4 +1,4 @@
-//===- mlir-translate.cpp - MLIR Translate Driver -------------------------===//
+//===- tpuc-translate.cpp - MLIR Translate Driver -------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //

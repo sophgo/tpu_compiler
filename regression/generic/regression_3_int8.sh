@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 echo "$0 net=$NET"
 
-mlir-opt ${NET}_opt_fp32.mlir \
+tpuc-opt ${NET}_opt_fp32.mlir \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
@@ -26,7 +26,7 @@ model_runner \
     --model ${NET}_int8.cvimodel \
     --output ${NET}_cmdbuf_out_all_int8.npz
 
-mlir-tpu-interpreter ${NET}_quant_int8.mlir \
+tpuc-interpreter ${NET}_quant_int8.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_int8.npz \
     --dump-all-tensor=${NET}_tensor_all_int8.npz

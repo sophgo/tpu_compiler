@@ -1,4 +1,4 @@
-//===- mlir-opt.cpp - MLIR Optimizer Driver -------------------------------===//
+//===- tpuc-opt.cpp - MLIR Optimizer Driver -------------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -15,11 +15,13 @@
 // limitations under the License.
 // =============================================================================
 //
-// Main entry function for mlir-opt for when built as standalone binary.
+// Main entry function for tpuc-opt for when built as standalone binary.
 //
 //===----------------------------------------------------------------------===//
+#include "mlir/IR/AsmState.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/MlirOptMain.h"
 #include "llvm/Support/CommandLine.h"
@@ -27,6 +29,7 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
 
 using namespace llvm;
 using namespace mlir;
@@ -34,23 +37,31 @@ using namespace mlir;
 static cl::opt<std::string>
     inputFilename(cl::Positional, cl::desc("<input file>"), cl::init("-"));
 
-static cl::opt<std::string> outputFilename("o", cl::desc("Output filename"),
-                                           cl::value_desc("filename"),
-                                           cl::init("-"));
+static cl::opt<std::string>
+    outputFilename("o", cl::desc("Output filename"),
+                        cl::value_desc("filename"),
+                        cl::init("-"));
 
 int main(int argc, char **argv) {
   llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
   InitLLVM y(argc, argv);
+  
+  DialectRegistry registry;
+  registry.insert<tpu::TPUDialect,
+                  mlir::StandardOpsDialect>();
 
   // Register any pass manager command line options.
+  registerMLIRContextCLOptions();
   registerPassManagerCLOptions();
+  registerTpucAllPasses();
+
+  // Register printer command line options.
+  registerAsmPrinterCLOptions();
+
   PassPipelineCLParser passPipeline("", "Compiler passes to run");
 
   // Parse pass names in main to ensure static initialization completed.
-  cl::ParseCommandLineOptions(argc, argv, "MLIR modular optimizer driver\n");
-
-  DialectRegistry registry;
-  registry.insert<tpu::TPUDialect>();
+  cl::ParseCommandLineOptions(argc, argv, "tpuc modular optimizer driver\n");
 
   // Set up the input file.
   std::string errorMessage;

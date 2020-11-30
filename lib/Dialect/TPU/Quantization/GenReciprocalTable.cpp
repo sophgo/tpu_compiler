@@ -207,7 +207,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createGenReciprocalTablePass() {
   return std::make_unique<GenReciprocalTablePass>();
 }
-
-static PassRegistration<GenReciprocalTablePass>
-    pass("gen-reciprocal-table",
-         "generate reciprocal look up table, y0");

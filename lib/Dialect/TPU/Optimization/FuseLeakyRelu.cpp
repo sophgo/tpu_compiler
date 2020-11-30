@@ -92,7 +92,3 @@ private:
 std::unique_ptr<mlir::Pass> mlir::createTgFuseLeakyReluPass() {
   return std::make_unique<TgFuseLeakyReluPass>();
 }
-
-static PassRegistration<TgFuseLeakyReluPass>
-    pass("tg-fuse-leakyrelu",
-         "Fuse leakyrelu with previous conv op, on TG Ops");

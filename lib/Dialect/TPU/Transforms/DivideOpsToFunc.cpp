@@ -274,9 +274,6 @@ private:
 
 } // namespace
 
-std::unique_ptr<mlir::Pass> createDivideOpsToFuncPass() {
+std::unique_ptr<mlir::Pass> mlir::createDivideOpsToFuncPass() {
   return std::make_unique<DivideOpsToFuncPass>();
 }
-
-static PassRegistration<DivideOpsToFuncPass> pass("divide-ops-to-func",
-                                                  "divide ops into functions");

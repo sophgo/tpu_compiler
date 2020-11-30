@@ -137,13 +137,13 @@ fi
 
 int8_mlir="${name}_int8.mlir"
 
-mlir-opt ${name}.mlir \
+tpuc-opt ${name}.mlir \
     --convert-bn-to-scale \
     --canonicalize \
     --eltwise-early-stride \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv | \
-mlir-opt \
+tpuc-opt \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table $cali_table \

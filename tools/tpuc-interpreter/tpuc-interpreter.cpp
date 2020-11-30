@@ -1,4 +1,4 @@
-//===- mlir-tpu-interpreter.cpp - MLIR TPU Dialect Interpreter Driver---------------------===//
+//===- tpuc-interpreter.cpp - MLIR TPU Dialect Interpreter Driver---------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //

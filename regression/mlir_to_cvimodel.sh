@@ -14,7 +14,7 @@ fi
 optimized_mlir="_lower_opt_$1"
 final_mlir="_final_$1"
 
-mlir-opt $mlir_file \
+tpuc-opt $mlir_file \
     --tpu-lower \
     --dequant-results-to-fp32=$output_fp32_results \
     --reorder-op \
@@ -26,7 +26,7 @@ mlir-opt $mlir_file \
     --deep-fusion-opt \
     -o $optimized_mlir
 
-mlir-opt $optimized_mlir \
+tpuc-opt $optimized_mlir \
     --tg-op-tile \
     --compress-activation \
     --compress-weight \
@@ -42,7 +42,7 @@ mlir-opt $optimized_mlir \
     --divide-ops-to-func \
     -o $final_mlir
 
-mlir-translate $final_mlir \
+tpuc-translate $final_mlir \
     --mlir-to-cvimodel \
     --weight-file weight.bin \
     -o $out_cvimodel

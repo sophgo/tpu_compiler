@@ -300,7 +300,3 @@ void tpu::CropOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 std::unique_ptr<mlir::Pass> mlir::createFusePadPass() {
   return std::make_unique<FusePadPass>();
 }
-
-static PassRegistration<FusePadPass>
-    pass("fuse-pad",
-         "Fuse pad op into next op (pooling/crop etc)");

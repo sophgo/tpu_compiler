@@ -106,5 +106,3 @@ std::unique_ptr<mlir::Pass> mlir::createConvertSwishToReLUPass() {
   return std::make_unique<ConvertSwishToReLUPass>();
 }
 
-static PassRegistration<ConvertSwishToReLUPass>
-    pass("convert-swish-to-relu", "Convert Swish Activation to Relu");

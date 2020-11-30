@@ -238,10 +238,6 @@ public:
 
 } // namespace
 
-std::unique_ptr<mlir::Pass> createReorderOpPass() {
+std::unique_ptr<mlir::Pass> mlir::createReorderOpPass() {
   return std::make_unique<ReorderOpPass>();
 }
-
-static PassRegistration<ReorderOpPass>
-    pass("reorder-op",
-         "Reorder OPs to make defs closing to its uses");

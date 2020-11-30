@@ -1466,14 +1466,6 @@ std::unique_ptr<mlir::Pass> mlir::createTpuQuantPass() {
   return std::make_unique<TpuQuantPass>();
 }
 
-static PassRegistration<TpuQuantPass>
-    pass("tpu-quant",
-         "Do quantization on TPU Ops");
-
 std::unique_ptr<mlir::Pass> mlir::createTpuQuantClipPass() {
   return std::make_unique<TpuQuantClipPass>();
 }
-
-static PassRegistration<TpuQuantClipPass>
-    pass_1("tpu-quant-clip",
-         "merge clip's threshold to former");

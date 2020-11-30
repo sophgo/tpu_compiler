@@ -450,8 +450,3 @@ public:
 std::unique_ptr<mlir::Pass> mlir::createDeepFusionTG2TL_LA() {
   return std::make_unique<DeepFusionTG2TL_LA>();
 }
-
-static PassRegistration<DeepFusionTG2TL_LA>
-    pass("deep-fusion-tg2tl-la",
-         "convert Ops from TG to TL, "
-         "this is a trivial conversion, yielding no improvement at all");

@@ -536,6 +536,3 @@ void CompressWeightPass::runOnFunction() {
 std::unique_ptr<mlir::Pass> mlir::createCompressWeightPass() {
   return std::make_unique<CompressWeightPass>();
 }
-
-static PassRegistration<CompressWeightPass>
-    pass("compress-weight", "Compress weight");

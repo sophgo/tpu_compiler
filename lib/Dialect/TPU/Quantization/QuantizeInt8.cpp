@@ -789,8 +789,8 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   float threshold_y = getOpThreshold(op);
   LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
                << std::to_string(threshold_y) << "\n";);
-  float threshold_x;
-  int const_idx;
+  float threshold_x = 0;
+  int const_idx = 0;
 
   for (unsigned i = 0; i < nInputs; ++i) {
     auto formerOp = op->getOperand(i).getDefiningOp();
@@ -929,7 +929,7 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
   float threshold_y = getOpThreshold(op);
   LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
       << std::to_string(threshold_y) << "\n";);
-  float threshold_x;
+  float threshold_x = 0;
   int const_idx;
 
   for (unsigned i = 0; i < nInputs; ++i) {

@@ -26,9 +26,9 @@
 
 namespace mlir {
 
-class ModuleOp;
-class FuncOp;
-template <typename T> class OpPassBase;
+// class ModuleOp;
+// class FuncOp;
+// template <typename T> class OpPassBase;
 
 std::unique_ptr<mlir::Pass> createPrintTpuOpPass();
 std::unique_ptr<mlir::Pass> createPrintTpuOpStatsPass();
@@ -90,6 +90,16 @@ std::unique_ptr<mlir::Pass> createDeepFusionOpt();
 std::unique_ptr<mlir::Pass> createTgOpTilePass();
 
 std::unique_ptr<mlir::Pass> createFuseReshapePass();
+
+std::unique_ptr<mlir::Pass> createTpucCanonicalizerPass();
+std::unique_ptr<mlir::Pass> createDivideOpsToFuncPass();
+std::unique_ptr<mlir::Pass> createEliminateDeadcodePass();
+std::unique_ptr<mlir::Pass> createGroupOpsPass(); 
+std::unique_ptr<mlir::Pass> createReorderOpPass();
+
+/// Generate the code for registering passes.
+#define GEN_PASS_REGISTRATION
+#include "tpuc/Dialect/TPU/Passes.h.inc"
 
 } // namespace mlir
 

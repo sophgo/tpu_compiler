@@ -207,7 +207,3 @@ struct ConvertFuncToTensorPass
 std::unique_ptr<OpPassBase<ModuleOp>> createConvertFuncToTensorPass() {
   return std::make_unique<ConvertFuncToTensorPass>();
 }
-
-static PassRegistration<ConvertFuncToTensorPass>
-  pass("convert-func-to-tensor",
-       "Convert func from MemRefType to TensorType");

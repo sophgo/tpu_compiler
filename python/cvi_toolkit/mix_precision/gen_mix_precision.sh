@@ -19,7 +19,7 @@ NET=mlir_
 # import calibration table
 #org_path=$PATH
 export PATH=/home/arvin/Documents/mlir/build/bin:$PATH
-mlir-opt \
+tpuc-opt \
     --tpu-quant-clip \
     $INPUT \
     --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
@@ -29,7 +29,7 @@ mlir-opt \
 echo "quant bf16 layers(concat show):"
 cat ${BF16_QUANT_LAYERS_FILE} | tr "\n" ","
 
-mlir-opt \
+tpuc-opt \
     --tpu-quant \
     --quant-int8-mix-bf16-layers-from-file ${BF16_QUANT_LAYERS_FILE} \
     --tpu-op-info-filename ${NET}_op_info_int8_multiplier.csv \
@@ -38,26 +38,26 @@ mlir-opt \
     -o $OUTPUT
 #
 ##  Lower for quantization
-#mlir-opt \
+#tpuc-opt \
 #    --tpu-lower --reorder-op \
 #    ${NET}_quant_int8_multiplier.mlir \
 #    -o ${NET}_quant_int8_multiplier_tg.mlir
 #
 ## FORCE do MemRefType cuz not back compatible
 ## function argument lower to MemRefType
-#mlir-opt \
+#tpuc-opt \
 #    --convert-func-to-memref \
 #    ${NET}_quant_int8_multiplier_tg.mlir \
 #    -o ${NET}_quant_int8_multiplier_tg_opt_memref.mlir
 #
 ## op lower to MemRefType
-#mlir-opt \
+#tpuc-opt \
 #  --convert-tg-op-to-memref \
 #  ${NET}_quant_int8_multiplier_tg_opt_memref.mlir \
 #  -o ${NET}_quant_int8_multiplier_tg_opt_op_memref.mlir
 #
 ## memory space w/ global memory reuse
-#mlir-opt \
+#tpuc-opt \
 #    --enable-reuse-global-memory=false \
 #    --assign-neuron-address-memref \
 #    --tpu-neuron-address-align-memref=16 \
@@ -66,19 +66,19 @@ mlir-opt \
 #    -o ${NET}_quant_int8_multiplier_tg_opt_op_memref_addr.mlir
 #
 ## tg op back to TensorType
-#mlir-opt \
+#tpuc-opt \
 #    --convert-tg-op-to-tensor \
 #    ${NET}_quant_int8_multiplier_tg_opt_op_memref_addr.mlir \
 #    -o ${NET}_quant_int8_multiplier_tg_opt_op_tensor_addr.mlir
 #
 ## function argument back to TensorType
-#mlir-opt \
+#tpuc-opt \
 #    --convert-func-to-tensor \
 #    ${NET}_quant_int8_multiplier_tg_opt_op_tensor_addr.mlir \
 #    -o ${NET}_quant_int8_multiplier_tg_opt_addr.mlir
 #
 ## assign weight address & neuron address
-#mlir-opt \
+#tpuc-opt \
 #    --assign-weight-address \
 #    --tpu-weight-address-align=16 \
 #    --tpu-weight-map-filename=${NET}_weight_map_int8_multiplier.csv \
@@ -89,7 +89,7 @@ mlir-opt \
 #    ${NET}_quant_int8_multiplier_tg_opt_addr.mlir \
 #    -o ${NET}_quant_int8_multiplier_addr.mlir
 #
-#mlir-translate \
+#tpuc-translate \
 #  --mlir-to-cmdbuf \
 #  ${NET}_quant_int8_multiplier_addr.mlir \
 #  -o cmdbuf_int8_multiplier.bin

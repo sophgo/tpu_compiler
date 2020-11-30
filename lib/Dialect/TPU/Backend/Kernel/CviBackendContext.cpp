@@ -634,8 +634,8 @@ void CviBackendContext::tiling_nchw(std::vector<tiling_info_t> &tiling_result,
     min_w = max_w;
   }
 
-  int step_w, step_h, step_c, step_n;
-  uint32_t lmem_required;
+  int step_w = 0, step_h = 0, step_c = 0, step_n = 0;
+  uint32_t lmem_required = 0;
   for (step_w = max_w; step_w >= min_w; --step_w) {
     for (step_h = max_h; step_h >= 1; --step_h) {
       for (step_n = max_n; step_n >= 1; --step_n) {

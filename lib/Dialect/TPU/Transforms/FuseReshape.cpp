@@ -266,7 +266,3 @@ void tpu::ReshapeOp::getCanonicalizationPatterns(
 std::unique_ptr<mlir::Pass>  mlir::createFuseReshapePass() {
   return std::make_unique<FuseReshapePass>();
 }
-
-static PassRegistration<FuseReshapePass>
-    pass("fuse-reshape",
-         "Fuse the input and the output of reshape op");

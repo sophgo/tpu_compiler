@@ -1089,7 +1089,3 @@ void DeepFusionGroupSlice::concatOps(
 std::unique_ptr<mlir::Pass> mlir::createDeepFusionGroupSlice() {
   return std::make_unique<DeepFusionGroupSlice>();
 }
-
-static PassRegistration<DeepFusionGroupSlice>
-    pass("deep-fusion-group-slice",
-         "Apply deep fusion slice.");

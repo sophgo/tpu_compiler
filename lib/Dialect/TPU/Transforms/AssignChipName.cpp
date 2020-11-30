@@ -65,7 +65,3 @@ public:
 std::unique_ptr<mlir::Pass> mlir::createAssignChipNamePass() {
   return std::make_unique<AssignChipNamePass>();
 }
-
-static PassRegistration<AssignChipNamePass>
-    pass("assign-chip-name",
-         "Assign Chip Name to each tpu op");

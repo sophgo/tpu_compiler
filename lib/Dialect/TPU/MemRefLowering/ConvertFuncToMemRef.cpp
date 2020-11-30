@@ -241,6 +241,3 @@ void ConvertFuncToMemRefPass::runOnModule() {
 std::unique_ptr<OpPassBase<ModuleOp>> createConvertFuncToMemRefPass() {
   return std::make_unique<ConvertFuncToMemRefPass>();
 }
-
-static PassRegistration<ConvertFuncToMemRefPass>
-    pass("convert-func-to-memref", "Convert func from TensorType to MemRefType");

@@ -666,6 +666,3 @@ void CompressActivationPass::runOnFunction() {
 std::unique_ptr<mlir::Pass> mlir::createCompressActivationPass() {
   return std::make_unique<CompressActivationPass>();
 }
-
-static PassRegistration<CompressActivationPass>
-    pass("compress-activation", "Compress activation");

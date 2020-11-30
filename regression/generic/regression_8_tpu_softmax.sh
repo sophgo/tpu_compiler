@@ -5,14 +5,14 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 echo "$0 net=$NET"
 
-mlir-opt ${NET}_opt_fp32.mlir \
+tpuc-opt ${NET}_opt_fp32.mlir \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     -o ${NET}_cali.mlir
 
 # add option --quant-bf16-softmax to enable tpu softmax
-mlir-opt \
+tpuc-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
     --tpu-quant \
@@ -22,7 +22,7 @@ mlir-opt \
     ${NET}_cali.mlir \
     -o ${NET}_quant_int8_multiplier_softmax.mlir
 
-mlir-tpu-interpreter ${NET}_quant_int8_multiplier_softmax.mlir \
+tpuc-interpreter ${NET}_quant_int8_multiplier_softmax.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_int8_multiplier_softmax.npz \
     --dump-all-tensor=${NET}_tensor_all_int8_multiplier_softmax.npz

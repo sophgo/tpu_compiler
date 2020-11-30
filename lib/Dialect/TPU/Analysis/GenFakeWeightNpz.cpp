@@ -166,6 +166,3 @@ public:
 std::unique_ptr<mlir::Pass> mlir::createGenPseudoWeightNpzPass() {
   return std::make_unique<GenPseudoWeightNpzPass>();
 }
-
-static PassRegistration<GenPseudoWeightNpzPass>
-    pass("gen-pseudo-weight-npz", "Generic fake weight npz file if only have mlir file");

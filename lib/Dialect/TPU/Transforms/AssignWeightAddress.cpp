@@ -303,8 +303,3 @@ public:
 std::unique_ptr<mlir::Pass> mlir::createAssignWeightAddressPass() {
   return std::make_unique<AssignWeightAddressPass>();
 }
-
-static PassRegistration<AssignWeightAddressPass>
-    pass("assign-weight-address",
-         "Convert .npz weight file into a .bin file, "
-         "and assign weight address to each load weight op");

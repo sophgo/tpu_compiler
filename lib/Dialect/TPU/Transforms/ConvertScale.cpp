@@ -515,22 +515,10 @@ std::unique_ptr<mlir::Pass> mlir::createFoldScalePass() {
   return std::make_unique<FoldScalePass>();
 }
 
-static PassRegistration<FoldScalePass>
-    pass_1("fold-scale",
-         "Fold two consecutive scale operations into one");
-
 std::unique_ptr<mlir::Pass> mlir::createMergeScaleIntoConvPass() {
   return std::make_unique<MergeScaleIntoConvPass>();
 }
 
-static PassRegistration<MergeScaleIntoConvPass>
-    pass_2("merge-scale-into-conv",
-         "Merge scale op into conv op");
-
 std::unique_ptr<mlir::Pass> mlir::createConvertScaleToDWConvPass() {
   return std::make_unique<ConvertScaleToDWConvPass>();
 }
-
-static PassRegistration<ConvertScaleToDWConvPass>
-    pass_3("convert-scale-to-dwconv",
-         "Convert a scale operation to a dwconv operation");

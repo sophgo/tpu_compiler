@@ -940,7 +940,3 @@ void tpu::InterpOp::getCanonicalizationPatterns(
          MLIRContext *context) {
   results.insert<TpuMergeInterpToConv2DPattern>(context);
 }
-
-static PassRegistration<ConvertInterpToConvDeconvPass>
-    pass("convert-intep-to-conv",
-         "Convert a interp operation to conv/decon");

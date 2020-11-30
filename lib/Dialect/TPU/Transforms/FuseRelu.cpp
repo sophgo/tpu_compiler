@@ -304,7 +304,3 @@ void tpu::ReluOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
 std::unique_ptr<mlir::Pass> mlir::createFuseReluPass() {
   return std::make_unique<FuseReluPass>();
 }
-
-static PassRegistration<FuseReluPass>
-    pass("fuse-relu",
-         "Fuse relu op into previous op (conv/eltwise etc)");

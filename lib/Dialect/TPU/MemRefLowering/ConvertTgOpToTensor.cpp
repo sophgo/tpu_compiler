@@ -301,7 +301,3 @@ struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPas
 std::unique_ptr<mlir::Pass> mlir::createConvertTgOpToTensorPass() {
   return std::make_unique<ConvertTgOpToTensorPass>();
 }
-
-static PassRegistration<ConvertTgOpToTensorPass>
-  pass("convert-tg-op-to-tensor",
-       "Convert tg op from MemRefType to TensorType");

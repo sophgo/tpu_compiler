@@ -126,7 +126,7 @@ public:
       if (i < e - 2)
         base += ss[i];
     }
-    unsigned long long index;
+    unsigned long long index = 0;
     ss[ss.size() - 2].consumeInteger(0, index);
     //llvm::errs() << " index : " << index << "\n";
     //llvm::errs() << " base  : " << base << "\n";
@@ -263,7 +263,7 @@ public:
     assert(!readOnly);
     if (cnt_add + cnt_del == 0) {
       if (newName) {
-        *newName = filename.str();
+        *newName = filename;
       }
       return 0;
     }
@@ -282,14 +282,14 @@ public:
       }
 
       cnpy::npz_save_all(fileInc, map);
-      filename = StringRef(fileInc);
+      filename = fileInc;
       //llvm::errs() << "save weight TensorFile to " << filename << "\n";
       if (newName) {
-        *newName = filename.str();
+        *newName = filename;
       }
     } else {
       //llvm::errs() << "keep weight TensorFile to " << filename << "\n";
-      cnpy::npz_save_all(filename.str(), map);
+      cnpy::npz_save_all(filename, map);
     }
     return cnt_add + cnt_del;
   }
@@ -297,7 +297,7 @@ public:
 private:
   /// load the file
   LogicalResult load(void) {
-    map = cnpy::npz_load(filename.str());
+    map = cnpy::npz_load(filename);
     if (map.size() > 0) {
       return success();
     } else {
@@ -305,7 +305,7 @@ private:
     }
   }
 
-  llvm::StringRef filename;
+  std::string filename;
   bool readOnly;
   cnpy::npz_t map;
   std::atomic<int> cnt_del = {0};

@@ -296,7 +296,4 @@ std::unique_ptr<mlir::Pass> mlir::createGenTanHTablePass() {
   return std::make_unique<GenTanHTablePass>();
 }
 
-static PassRegistration<GenTanHTablePass>
-    pass("gen-tanh-table",
-         "generate tanh look up table, y0 and slop");
 #endif

@@ -263,19 +263,20 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         if (conv_ops[0]->getResult(0).hasOneUse()
             && conv_ops[1]->getResult(0).hasOneUse()
             && getNextOp(conv_ops[0]) == getNextOp(conv_ops[1])) {
-          // inception_v3, two conv Ops, try steal them
-          // they needs to have the same use before we can steal it
-          //                               ===========
-          //                               ||     conv        ||
-          //                               ===========
-          //                              /                        \
-          //           ===========              ===========
-          //           ||     conv        ||             ||     conv        ||
-          //           ===========              ===========
-          //                                    \              /
-          //                               ===========
-          //                               ||          X          ||
-          //                               ===========
+          /* inception_v3, two conv Ops, try steal them
+           * they needs to have the same use before we can steal it
+           *                               ===========
+           *                               ||     conv        ||
+           *                               ===========
+           *                              /                        \
+           *           ===========              ===========
+           *           ||     conv        ||             ||     conv        ||
+           *           ===========              ===========
+           *                                    \              /
+           *                               ===========
+           *                               ||          X          ||
+           *                               ===========
+          */
           auto conv_op_next = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
           auto conv_op_steal = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[1]);
           if (conv_op_next.lm_layout() == "IWO") {
@@ -298,15 +299,16 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         return success();
       } else if (conv_ops.size() == 1 && elta_ops.size() == 1) {
         assert(elta_ops.size() == 1);
-        // mobilenet_v2, one conv and one eltwise
-        // fuse with the conv
-        //                               ===========
-        //                               ||     conv        ||
-        //                               ===========
-        //                              /                        \
-        //           ===========              ===========
-        //           ||     conv        ||             ||     eltAdd     ||
-        //           ===========              ===========
+        /* mobilenet_v2, one conv and one eltwise
+         * fuse with the conv
+         *                               ===========
+         *                               ||     conv        ||
+         *                               ===========
+         *                              /                        \
+         *           ===========              ===========
+         *           ||     conv        ||             ||     eltAdd     ||
+         *           ===========              ===========
+        */
         auto conv_op_next = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(conv_ops[0]);
         if (conv_op_next.lm_layout() == "IWO") {
           op.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
@@ -348,14 +350,15 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
     assert(op.getResult().hasOneUse() && "this op only has one use");
     Operation *next_opInst = getNextOp(op);
     if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
-      // next is another TL_LW_Conv2DOp
-      //                               ===========
-      //                               ||     conv        ||
-      //                               ===========
-      //                                            |
-      //                               ===========
-      //                              ||      conv        ||
-      //                               ===========
+      /* next is another TL_LW_Conv2DOp
+       *                               ===========
+       *                               ||     conv        ||
+       *                               ===========
+       *                                            |
+       *                               ===========
+       *                              ||      conv        ||
+       *                               ===========
+      */
       if (next_op.lm_layout() == "NONE") {
         // next_op not set layout yet, return for now, wait for next round
         return success();
@@ -370,14 +373,15 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
       op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
       next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
     } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_EltwiseAddOp>(next_opInst)) {
-      // next is TL_EltwiseAddOp
-      //                               ===========
-      //                               ||     conv        ||
-      //                               ===========
-      //                                            |
-      //                               ===========
-      //                              ||      eltAdd    ||
-      //                               ===========
+      /* next is TL_EltwiseAddOp
+       *                               ===========
+       *                               ||     conv        ||
+       *                               ===========
+       *                                            |
+       *                               ===========
+       *                              ||      eltAdd    ||
+       *                               ===========
+      */
       assert(op.in_short_path().hasValue());
       if (op.in_short_path().getValue()) {
         // for short path Conv Op
@@ -405,14 +409,15 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
       }
     } else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LutOp>(next_opInst)) {
-      //conv fuse lut(sigmoid)
-      //                               ===========
-      //                               ||     conv        ||
-      //                               ===========
-      //                                            |
-      //                               ===========
-      //                              ||        lut         ||
-      //                               ===========
+      /* conv fuse lut(sigmoid)
+       *                               ===========
+       *                               ||     conv        ||
+       *                               ===========
+       *                                            |
+       *                               ===========
+       *                              ||        lut         ||
+       *                               ===========
+      */
       if (next_op.lm_layout() == "NONE") {
         // next_op not set layout yet, return for now, wait for next round
         return success();
@@ -555,7 +560,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         //                               ===========
         //                               ||     eltAdd    ||
         //                               ===========
-        //                              /                        \
+        //                              |                        |
         //           ===========              ===========
         //           ||     conv        ||             ||     conv        ||
         //           ===========              ===========
@@ -604,7 +609,7 @@ struct TpuTL_EltwiseAddOp_AssignLayoutPattern : public RewritePattern {
         //                               ===========
         //                               ||     eltAdd    ||
         //                               ===========
-        //                              /                        \
+        //                              |                        |
         //           ===========              ===========
         //           ||     conv        ||             ||     eltAdd     ||
         //           ===========              ===========
@@ -1145,7 +1150,3 @@ public:
 std::unique_ptr<mlir::Pass> mlir::createDeepFusionTL_LA2LW() {
   return std::make_unique<DeepFusionTL_LA2LW>();
 }
-
-static PassRegistration<DeepFusionTL_LA2LW>
-    pass("deep-fusion-tl-la2lw",
-         "convert TL Conv Ops from LA to LW.");

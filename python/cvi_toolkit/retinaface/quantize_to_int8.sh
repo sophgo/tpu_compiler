@@ -1,4 +1,4 @@
-MLIR_OPT=/workspace/llvm-project/build/bin/mlir-opt
+MLIR_OPT=/workspace/llvm-project/build/bin/tpuc-opt
 
 # Pre-Quantization optimization
 $MLIR_OPT \

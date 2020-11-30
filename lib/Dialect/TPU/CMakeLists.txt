@@ -4,7 +4,7 @@ endif(NOT tpu_LINKER_LIBS)
 list(APPEND tpu_LINKER_LIBS
   mkldnn)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Werror -Wno-pedantic -fno-strict-aliasing")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wall -Werror -Wno-pedantic -fno-strict-aliasing -Wno-maybe-uninitialized")
 
 if(NOT DEFINED FLATBUFFERS_PATH)
   set(FLATBUFFERS_PATH $ENV{FLATBUFFERS_PATH})
@@ -26,6 +26,7 @@ add_llvm_library(MLIRTPU
   Transforms/CompressActivation.cpp
   Transforms/CompressWeight.cpp
   Transforms/ConvertBnToScale.cpp
+  Transforms/RefactorEltAndConv.cpp
   Transforms/ConvertScale.cpp
   Transforms/ConvertClip.cpp
   Transforms/ConvertNormalize.cpp
@@ -35,7 +36,6 @@ add_llvm_library(MLIRTPU
   Transforms/FuseRelu.cpp
   Transforms/FusePad.cpp
   Transforms/FuseReshape.cpp
-  Transforms/RefactorEltAndConv.cpp
   Transforms/MakeConvIcToEven.cpp
   Transforms/AssignWeightAddress.cpp
   Transforms/AssignNeuronAddress.cpp
@@ -53,6 +53,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertTile.cpp
   Transforms/ConvertPower.cpp
   Transforms/ConvertMatMul.cpp
+  Transforms/Canonicalizer.cpp
   Transforms/LowerToTG.cpp
   Interpreter/TpuInterpreter.cpp
   Interpreter/NativeCpuImplementation.cpp
@@ -152,8 +153,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TlUpsample.cpp
   Backend/Kernel/TlMacConst.cpp
   Backend/Kernel/TlSlice.cpp
-  ADDITIONAL_HEADER_DIRS
-  ${MLIR_MAIN_INCLUDE_DIR}/tpuc
 )
 
 if (${USE_GPU})
@@ -208,6 +207,7 @@ add_dependencies(MLIRTPU
   MLIRTPUOpsIncGen
   MLIRTPUInterfaceIncGen
   MLIRTPUAttributeIncGen
+  MLIRTPUPassIncGen
   MLIRIR
   LLVMSupport
 )
