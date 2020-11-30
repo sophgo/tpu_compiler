@@ -296,7 +296,7 @@ void cvi_backend_tg_bf16_lut_scientific_kernel(
     bf16_lut_tl_scientific_forward_kernel(
         ctx, tl_ifmap->start_address, tl_buf->start_address,
         tl_table_answer->start_address, tl_table_answer_mantissa->start_address,
-        tl_ofmap->start_address, n, c, h, w, table_shape.n, table_shape.c,
+        tl_ofmap->start_address, tile.n, tile.c, tile.h, tile.w, table_shape.n, table_shape.c,
         table_shape.h, table_shape.w, fmt);
 
     // TODO checke tfma/tiu pipeline
