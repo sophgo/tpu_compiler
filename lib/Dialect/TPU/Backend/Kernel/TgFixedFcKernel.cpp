@@ -26,7 +26,7 @@ static void initLHSForTiu(const CviBackendContext &ctx, cvk_ml_t *dst,
     const cvk_ml_t *src) {
   ctx.lmem_init_matrix(
       dst,
-      {src->shape.n, src->shape.c, static_cast<uint32_t>(EU_NUM),
+      {src->shape.n, src->shape.c, ctx.tiu_eu_num(src->fmt),
        src->shape.col},
       src->fmt,
       1);
@@ -65,7 +65,7 @@ static void initBiasForTiu(const CviBackendContext &ctx, cvk_ml_t *dst,
 static void matrix_multiplication(const CviBackendContext &ctx,
                                   cvk_tiu_matrix_multiplication_param_t &p) {
   // No need to adjust shape/stride
-  if (p.res->shape.w >= static_cast<uint32_t>(EU_NUM)) {
+  if (p.res->shape.w >= ctx.tiu_eu_num(p.res->fmt)) {
     ctx.tiu_matrix_multiplication(&p);
     return;
   }
@@ -101,7 +101,7 @@ static void matrix_multiplication(
     const CviBackendContext &ctx,
     cvk_tiu_matrix_multiplication_qm_param_t &p) {
   // No need to adjust shape/stride
-  if (p.res->shape.w >= static_cast<uint32_t>(EU_NUM)) {
+  if (p.res->shape.w >= ctx.tiu_eu_num(p.res->fmt)) {
     ctx.tiu_matrix_multiplication_qm(&p);
     return;
   }
@@ -143,7 +143,7 @@ static void fc_slicing_multi_dimension(
   uint32_t N = static_cast<uint32_t>(weight_col_num);
 
   // Split N <= max total eu number
-  uint32_t total_eu = NPU_NUM * EU_NUM;
+  uint32_t total_eu = NPU_NUM * ctx.tiu_eu_num(CVK_FMT_I8);
   uint32_t tiled_N = (N >= total_eu) ? total_eu : N;
 
   // Split K based on lane size
@@ -447,7 +447,7 @@ static void fc_slicing_multi_dimension(
 // Y(M, N) = L(M, K) * R(K, N) + B(1, N)
 int TgFcKernel::getLmSizePerLane(int tileM, int tileK, int tileN, bool hasB) {
   const int npuNum = NPU_NUM;
-  const int euNum = EU_NUM / dataTypeSize;  // bf16: 1/2 eu num
+  const int euNum = ctx.tiu_eu_num(CVK_FMT_I8);  // bf16: 1/2 eu num
 
   //int opd0w = 16;
   //int opd0c = llvm::divideCeil(tileK, opd0w);
@@ -518,7 +518,7 @@ TgFcKernel::TileInfo TgFcKernel::getTileSizes() {
 
   // Split N <= max total eu number
   // 1/2 EU in BF16
-  int total_eu = (fmt == CVK_FMT_BF16) ? (EU_NUM / 2) : EU_NUM;
+  int total_eu = ctx.tiu_eu_num(fmt);
   total_eu *= NPU_NUM;
   int tiled_N = (N >= total_eu) ? total_eu : N;
 

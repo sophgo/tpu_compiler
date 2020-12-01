@@ -365,6 +365,10 @@ public:
     return lmem_tensor_to_size(tl_shape_t4(n, c, h, w), fmt, eu_align);
   }
 
+  inline uint32_t tiu_eu_num(cvk_fmt_t fmt) const {
+    return cvi_chip_info_context(CVI_CHIP_EU_NUM) / (fmt == CVK_FMT_BF16 ? 2 : 1);
+  }
+
   //
   // tiling functions
   //

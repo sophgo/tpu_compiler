@@ -39,7 +39,7 @@
 static void matrix_multiplication(const CviBackendContext &ctx,
                                   cvk_tiu_matrix_multiplication_param_t &p) {
   // No need to adjust shape/stride
-  if (p.res->shape.w >= (uint32_t)EU_NUM / 2) {
+  if (p.res->shape.w >=  ctx.tiu_eu_num(CVK_FMT_BF16)) {
     // LLVM_DEBUG(llvm::errs() << llvm::format("    L(%d, %d), R(%d, %d)\n", p.left->shape.n,
     //                                       p.left->shape.col, p.right->shape.n, p.right->shape.col););
     ctx.tiu_matrix_multiplication(&p);
@@ -54,14 +54,14 @@ static void matrix_multiplication(const CviBackendContext &ctx,
   cvk_ml_t tl_res;
   tl_res.start_address = p.res->start_address;
   tl_res.fmt = p.res->fmt;
-  tl_res.shape = {p.res->shape.n, p.res->shape.c, static_cast<uint32_t>(EU_NUM / 2),
+  tl_res.shape = {p.res->shape.n, p.res->shape.c, ctx.tiu_eu_num(CVK_FMT_BF16),
                   p.res->shape.col};
   tl_res.stride = ctx.ml_default_stride(tl_res.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
   cvk_ml_t tl_right;
   tl_right.start_address = p.right->start_address;
   tl_right.fmt = p.right->fmt;
-  tl_right.shape = {p.right->shape.n, p.right->shape.c, static_cast<uint32_t>(EU_NUM / 2),
+  tl_right.shape = {p.right->shape.n, p.right->shape.c, ctx.tiu_eu_num(CVK_FMT_BF16),
                     p.right->shape.col};
   tl_right.stride = ctx.ml_default_stride(tl_right.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
@@ -69,7 +69,7 @@ static void matrix_multiplication(const CviBackendContext &ctx,
   if (p.bias) {
     tl_bias.start_address = p.bias->start_address;
     tl_bias.fmt = p.bias->fmt;
-    tl_bias.shape = {p.bias->shape.n, p.bias->shape.c, static_cast<uint32_t>(EU_NUM / 2),
+    tl_bias.shape = {p.bias->shape.n, p.bias->shape.c, ctx.tiu_eu_num(CVK_FMT_BF16),
                      p.bias->shape.col};
     tl_bias.stride = ctx.ml_default_stride(tl_bias.shape, CVK_FMT_BF16, /*eu_align=*/1);
   }
@@ -103,7 +103,7 @@ static void fc_slicing_multi_dimention(
                                M, N, M, K, K, N, 1, N););
 
   // Split N <= max total eu number
-  uint32_t total_eu = NPU_NUM * EU_NUM / 2;
+  uint32_t total_eu = NPU_NUM * ctx.tiu_eu_num(CVK_FMT_BF16);
   uint32_t tiled_N = (N >= total_eu) ? total_eu : N;
 
   // Split K based on lane size

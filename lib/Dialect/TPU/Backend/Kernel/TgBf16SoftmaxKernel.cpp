@@ -21,7 +21,7 @@ unsigned int doSplitHeightBf16softmax2D(const CviBackendContext &ctx, int outerS
     //Default tileN, do not split C/W
     uint8_t eu_align = 1; // hardware constrainst
     int tiledOuterSize = outerSize;
-    int bf16_euWorkingOneLane = EU_NUM / 2;
+    int bf16_euWorkingOneLane = ctx.tiu_eu_num(CVK_FMT_BF16);
     int parallelC = ceiling_func(innerSize, bf16_euWorkingOneLane);
 
     cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
@@ -64,7 +64,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             int outer_size, int inner_size) {
     unsigned int tiledOutputSize = doSplitHeightBf16softmax2D(ctx, outer_size, inner_size);
     uint8_t eu_align = 1; // hardware constrainst
-    int bf16_euWorkingOneLane = EU_NUM / 2;
+    int bf16_euWorkingOneLane = ctx.tiu_eu_num(CVK_FMT_BF16);
     int parallelC = ceiling_func(inner_size, bf16_euWorkingOneLane);
     bool isInnerSizeBiggerHWConstraint = inner_size > MAX_WIDTH;
 

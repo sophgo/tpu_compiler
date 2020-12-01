@@ -146,7 +146,7 @@ void CviBackendContext::tdma_load_stride(cvk_tl_t *tlp, uint64_t ga_src,
 
   // tensor in system memory
   // Global shape use local shape
-  cvk_tg_t ts_data;
+  cvk_tg_t ts_data = {0};
   ts_data.base_reg_index = getTdmaBaseSelectIndexFromGaddr(ga_src);
   ts_data.fmt = tlp->fmt;
   ts_data.start_address = ga_src;
@@ -445,8 +445,8 @@ void CviBackendContext::tiling_all(std::vector<tiling_info_t> &tiling_result,
   int max_slice = (do_parallel ? TILING_SLICE_NUM : 1);
   tile.n = 1;
   tile.c = NPU_NUM;
-  tile.w = EU_NUM;
-  tile.h = std::max(1, ceiling_func(total / (NPU_NUM * EU_NUM), max_slice));
+  tile.w = tiu_eu_num(fmt);
+  tile.h = std::max(1, ceiling_func(total / (NPU_NUM * tiu_eu_num(fmt)), max_slice));
   tile.h = std::min(tile.h, MAX_HEIGHT);
   bool lmem_ok = false;
   while (total > 0) {
@@ -514,12 +514,12 @@ void CviBackendContext::tiling_nchw(std::vector<tiling_info_t> &tiling_result,
     // slice n
     // e.g n = 3, then will slice to 1,1,1
     max_slice = slice_dim(max_n, n, MAX_CHANNEL, max_slice);
-    if (h >= EU_NUM || w >= EU_NUM) { // slice h and w
+    if (h >= (int)tiu_eu_num(fmt) || w >= (int)tiu_eu_num(fmt)) { // slice h and w
       int &a = (h > w ? h : w);
       int &b = (h > w ? w : h);
       int &max_a = (h > w ? max_h : max_w);
       int &max_b = (h > w ? max_w : max_h);
-      max_slice = slice_dim(max_a, a, MAX_WIDTH, max_slice, EU_NUM);
+      max_slice = slice_dim(max_a, a, MAX_WIDTH, max_slice, tiu_eu_num(fmt));
       max_slice = slice_dim(max_b, b, MAX_WIDTH, max_slice);
     }
   }

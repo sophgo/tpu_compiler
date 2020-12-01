@@ -1458,37 +1458,9 @@ public:
               + 1;
   }
 
-  uint32_t getNpuNum() {
-    return ctx.cvi_chip_info_context(CVI_CHIP_LANE_NUM);
-  }
-
-  uint32_t getEuNum() {
-    return static_cast<uint32_t>(ctx.cvi_chip_info_context(CVI_CHIP_EU_NUM));
-  }
-
   uint32_t getLmSizePerLane() {
     return static_cast<uint32_t>(
         ctx.cvi_chip_info_context(CVI_CHIP_LMEM_SIZE));
-  }
-
-  uint32_t getMaxBatchOfHardware() {
-    // 12bit, max 4095-32(lanes)
-    return 4095 - 32;
-  }
-
-  uint32_t getMaxHeightOfHardware() {
-    // 12bit, max 4095-32(lanes)
-    return 4095 - 32;
-  }
-
-  uint32_t getMaxWidthOfHardware() {
-    // 12bit, max 4095-32(lanes)
-    return 4095 - 32;
-  }
-
-  uint32_t getMaxChannelOfHardware() {
-    // 12bit, max 4095-32(lanes)
-    return 4095 - 32;
   }
 
   // Arguments from dialect
@@ -2825,16 +2797,16 @@ bool Conv::determineTileSize(bool useDoubleBuffer) {
       oh, ow, kh, kw, pad_top, pad_bottom, pad_left, pad_right, stride_h,
       stride_w, dilation_h, dilation_w, useDoubleBuffer));
 
-  int32_t npu_num = static_cast<int32_t>(getNpuNum());
+  int32_t npu_num = static_cast<int32_t>(NPU_NUM);
   slices.n = 1;
   slices.oc = ceiling_func(oc, npu_num);  // lane parallelism
   slices.ic = 1;
-  slices.h = (ih + (4095 - 32 - 1)) / (4095 - 32);  // 12bit, max 4095-32(lanes)
-  slices.w = (iw + (4095 - 32 - 1)) / (4095 - 32);  // 12bit, max 4095-32(lanes)
+  slices.h = (ih + (MAX_HEIGHT - 1)) / MAX_HEIGHT;
+  slices.w = (iw + (MAX_WIDTH - 1)) / MAX_WIDTH;
 
   int32_t num_oc_step = (oc + npu_num - 1) / npu_num;
-  uint32_t ic_step =
-      std::min(group_input_channels(), getMaxChannelOfHardware());
+  uint32_t ic_step = std::min(group_input_channels(),
+                              static_cast<uint32_t>(MAX_TIU_CHL));
 
   // Not handle ps32 tiling here.
   if (ic_step < group_input_channels()) {
@@ -2875,7 +2847,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer) {
       for (int32_t slice_oc = 0; slice_oc < num_oc_step; ++slice_oc) {
         // Downward, align lanes
         //   E.g. oc = 48, oc_step: 48, 32
-        int32_t npu_num = static_cast<int32_t>(getNpuNum());
+        int32_t npu_num = static_cast<int32_t>(NPU_NUM);
         int32_t oc_step =
             std::min((num_oc_step - slice_oc) * npu_num, oc);
 
@@ -3070,21 +3042,21 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
       oh, ow, kh, kw, pad_top, pad_bottom, pad_left, pad_right, stride_h,
       stride_w, dilation_h, dilation_w, useDoubleBuffer));
 
-  int32_t npu_num = static_cast<int32_t>(getNpuNum());
+  int32_t npu_num = static_cast<int32_t>(NPU_NUM);
   slices.n = 1;
   slices.oc = ceiling_func(oc, npu_num);  // lane parallelism
   slices.ic = 1;
-  slices.h = (ih + (4095 - 32 - 1)) / (4095 - 32);  // 12bit, max 4095-32(lanes)
-  slices.w = (iw + (4095 - 32 - 1)) / (4095 - 32);  // 12bit, max 4095-32(lanes)
+  slices.h = (ih + (MAX_HEIGHT - 1)) / MAX_HEIGHT;
+  slices.w = (iw + (MAX_WIDTH - 1)) / MAX_WIDTH;
 
-  uint32_t max_ic_step =
-      std::min(group_input_channels(), getMaxChannelOfHardware());
+  uint32_t max_ic_step = std::min(group_input_channels(),
+                                  static_cast<uint32_t>(MAX_TIU_CHL));
 
   uint32_t bufferMultiplier = useDoubleBuffer ? 2 : 1;
 
   int32_t n_step = 1;
   int32_t oc_step = std::min(static_cast<int32_t>(group_output_channels()),
-                             static_cast<int32_t>(getNpuNum()));
+                             static_cast<int32_t>(NPU_NUM));
 
   // Split ow
   for (int32_t ow_step = std::min(ow, MAX_WIDTH); ow_step > 0; --ow_step) {
@@ -3574,12 +3546,12 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer) {
              pad_top, pad_bottom, pad_left, pad_right, insert_height(), insert_width(),
              stride_h, stride_w, dilation_h, dilation_w));
 
-  int32_t npu_num = static_cast<int32_t>(getNpuNum());
+  int32_t npu_num = static_cast<int32_t>(NPU_NUM);
   slices.n = 1;
   slices.oc = ceiling_func(oc, npu_num);  // lane parallelism
   slices.ic = ic;
-  slices.h = (ih + (4095 - 32 - 1)) / (4095 - 32);  // 12bit, max 4095-32(lanes)
-  slices.w = (iw + (4095 - 32 - 1)) / (4095 - 32);  // 12bit, max 4095-32(lanes)
+  slices.h = (ih + (MAX_HEIGHT - 1)) / MAX_HEIGHT;
+  slices.w = (iw + (MAX_WIDTH - 1)) / MAX_WIDTH;
 
   int oc_step = (oc >= npu_num) ? npu_num : oc;  // use all lanes
   int ic_step = 1;
@@ -3723,8 +3695,8 @@ void Conv::dwConv() {
   // Not divided by slices.oc.
   // It is better to store step.
   if (slices.oc > 1) {
-    ASSERT(oc > static_cast<int32_t>(getNpuNum()));
-    oc_step = static_cast<int32_t>(getNpuNum());
+    ASSERT(oc > static_cast<int32_t>(NPU_NUM));
+    oc_step = static_cast<int32_t>(NPU_NUM);
   }
 
   if (slices.h > 1) {
@@ -4321,10 +4293,10 @@ bool Conv::canNoTile() {
     return false;
 
   // Hardware limit
-  if ((group_input_channels() > getMaxChannelOfHardware()) ||
-      (group_output_channels() > getMaxChannelOfHardware()) ||
-      (input_height() > getMaxHeightOfHardware()) ||
-      (input_width() > getMaxWidthOfHardware()))
+  if ((group_input_channels() > MAX_TIU_CHL) ||
+      (group_output_channels() > MAX_TIU_CHL) ||
+      (input_height() > MAX_HEIGHT) ||
+      (input_width() > MAX_WIDTH))
     return false;
 
   int input_n = args.input_n;
