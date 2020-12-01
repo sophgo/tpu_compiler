@@ -1868,15 +1868,12 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   if (is_average && getOpQuant(op) == "INT8") {
     assert(quant_rshift && quant_multiplier);
     std::vector<float> conv_result(size);
-    std::unique_ptr<MInfo> minfo = std::make_unique<MInfo>();
     // In hardware limitation, we can not put avg pool with large kernel
     // if avg pool ih * iw > local memory, in our hardware
     // need to split it then sum
     // TODO:This case mostly happenend in global average,
     /// if avg pool kernel size bigger than local memory size, todo
-    auto function = cast<FuncOp>(op->getParentOp());
-    minfo->getChipInfo(function);
-    int lmem_size = minfo->lmem_per_lane;
+    int lmem_size = MInfo::lane_num;
     if ((ih * iw) > ((lmem_size - size) / 2) && is_global) {
 
       std::vector<int> h_slices;

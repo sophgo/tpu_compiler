@@ -1820,15 +1820,16 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
         }
 
         // find softmax divisor
-        float *ex = new float[shape[1]];
-        float *tmp = new float[shape[1]];
+        std::vector<float> ex(shape[1]);
+        std::vector<float> tmp(shape[1]);
+
         for(int C = 0; C < shape[1]; ++C) {
           iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
           tmp[C] = input[iter] - max_val;
         }
         // do exp
-        my_exp(tmp, ex, 1, shape[1], 1, 1, is_bf16);
+        my_exp(tmp.data(), ex.data(), 1, shape[1], 1, 1, is_bf16);
         float sum_of_ex = 0.0f;
         for (int C = 0; C < shape[1]; ++C) {
           sum_of_ex += ex[C];
@@ -1843,8 +1844,6 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
 
           output[iter] = ex[C] * reciprocalValue;
         }
-        delete[] ex;
-        delete[] tmp;
       }
     }
   }
