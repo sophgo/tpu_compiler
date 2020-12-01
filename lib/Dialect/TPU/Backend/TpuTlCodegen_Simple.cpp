@@ -321,7 +321,9 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, 0) : GA_INVALID; //Closest op
   auto opd2 = op->getOperand(1)->getDefiningOp();
   gaddr_t ga_input2 = opd2->getAttr("gaddr") ?
-                      opd2->getAttr("gaddr").cast<IntegerAttr>().getInt() : GA_INVALID;
+                      opd2->getAttr("gaddr").cast<IntegerAttr>().getInt() :
+                      (opd2->getAttr("offset") ? opd2->getAttr("offset").cast<IntegerAttr>().getInt() :
+                                                  GA_INVALID);
   bool isAllInLocalMem = (ga_input2 == GA_INVALID) && (tl_load_flag() == false);
   //Fix me: now use global address to present it's unique ID.
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
