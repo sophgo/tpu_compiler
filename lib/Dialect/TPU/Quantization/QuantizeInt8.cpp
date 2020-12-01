@@ -664,8 +664,8 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     assert(nInputs);
     auto castOp = dyn_cast<tpu::PoolAvg2DOp>(op);
     assert(castOp);
-    int kh = castOp.param().kernel_h().getSInt();
-    int kw = castOp.param().kernel_w().getSInt();
+    int kh = castOp.param().kernel_h().getInt();
+    int kw = castOp.param().kernel_w().getInt();
     qscale[0] = qscale[0] / (kh * kw);
   }
 

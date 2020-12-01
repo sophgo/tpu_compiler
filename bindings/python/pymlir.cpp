@@ -112,7 +112,7 @@ static py::dict getTensorDict(tensor_map_t &tensorMap, shape_map_t &shapeMap) {
 class py_module {
 public:
   py_module() {
-    registry = context.getDialectRegistry();
+    auto &registry = context.getDialectRegistry();
     registry.insert<tpu::TPUDialect,
                     StandardOpsDialect>();
   }
@@ -228,7 +228,6 @@ public:
 
 private:
   MLIRContext context;
-  DialectRegistry registry;
   OwningModuleRef module;
   std::string weightFilePath_;
   tensor_map_t tensorMap_;

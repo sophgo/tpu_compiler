@@ -38,6 +38,11 @@ def DoTgOpTile : FunctionPass<"tg-op-tile"> {
   let constructor = "mlir::createTgOpTilePass()";
 }
 
+def DoTgLeakyReluFuse : FunctionPass<"tg-fuse-leakyrelu"> {
+  let summary = "TG Op tiling";
+  let constructor = "mlir::createTgFuseLeakyReluPass()";
+}
+
 def DoEliminateDeadcode : FunctionPass<"dce"> {
   let summary = "Dead Code Eliminate such as tdma";
   let constructor = "mlir::createEliminateDeadcodePass()";

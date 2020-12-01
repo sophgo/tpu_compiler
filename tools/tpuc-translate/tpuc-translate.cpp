@@ -19,17 +19,25 @@
 // of the registered translations.
 //
 //===----------------------------------------------------------------------===//
-#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/AsmState.h"
+#include "mlir/Pass/Pass.h"
+#include "mlir/Pass/PassManager.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
+#include "mlir/Support/FileUtilities.h"
+#include "mlir/Support/MlirOptMain.h"
+#include "llvm/Support/CommandLine.h"
+#include "llvm/Support/InitLLVM.h"
+#include "llvm/Support/SourceMgr.h"
+#include "llvm/Support/ToolOutputFile.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
 #include "mlir/IR/Diagnostics.h"
 #include "mlir/IR/Dialect.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/ToolUtilities.h"
 #include "mlir/Translation.h"
 #include "llvm/Support/InitLLVM.h"
-#include "llvm/Support/ToolOutputFile.h"
-#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/MlirToCviModelTranslate.h"
 
 using namespace mlir;
 
@@ -45,6 +53,7 @@ int main(int argc, char **argv) {
   llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
 
   llvm::InitLLVM y(argc, argv);
+  mlir::registerToCvimodelTranslation();
 
   // Add flags for all the registered translations.
   llvm::cl::opt<const TranslateFunction *, false, TranslationParser>

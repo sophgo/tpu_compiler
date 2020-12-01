@@ -46,6 +46,7 @@
 #include "tpuc/Support/TensorFile.h"
 #include "cvibuilder/cvimodel_generated.h"
 #include "tpuc/MlirToCviModelTranslate.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
 
@@ -684,8 +685,13 @@ static LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output)
   return success();
 }
 
-static TranslateFromMLIRRegistration
-    registration_cvimodel("mlir-to-cvimodel",
-                          [](ModuleOp module, llvm::raw_ostream &output) {
-                            return translateModule(module, output);
-                          });
+void mlir::registerToCvimodelTranslation() {
+  TranslateFromMLIRRegistration registration(
+      "mlir-to-cvimodel",
+      [](ModuleOp module, raw_ostream &output) {
+        return translateModule(module, output);
+      },
+      [](DialectRegistry &registry) {
+        registry.insert<tpu::TPUDialect, mlir::StandardOpsDialect>();
+      });
+}

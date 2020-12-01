@@ -16,7 +16,7 @@ void convertAttributesToOpParam(const DictionaryAttr &attrs, cvi::OpParam &param
     return (bool)attr.cast<BoolAttr>().getValue();
   };
   auto getIntValue = [](const Attribute& attr) {
-    return (int32_t)attr.cast<IntegerAttr>().getSInt();
+    return (int32_t)attr.cast<IntegerAttr>().getInt();
   };
   auto getFloatValue = [](const Attribute& attr) {
     return (float)attr.cast<FloatAttr>().getValue().convertToFloat();
@@ -455,14 +455,14 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu, int &pad_value) {
-  dh = p.dilation_h().getSInt();
-  dw = p.dilation_w().getSInt();
-  sh = p.stride_h().getSInt();
-  sw = p.stride_w().getSInt();
-  pt = p.padding_t().getSInt();
-  pb = p.padding_b().getSInt();
-  pl = p.padding_l().getSInt();
-  pr = p.padding_r().getSInt();
+  dh = p.dilation_h().getInt();
+  dw = p.dilation_w().getInt();
+  sh = p.stride_h().getInt();
+  sw = p.stride_w().getInt();
+  pt = p.padding_t().getInt();
+  pb = p.padding_b().getInt();
+  pl = p.padding_l().getInt();
+  pr = p.padding_r().getInt();
   auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
@@ -502,7 +502,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   kw = f_s[f_s.size() - 1];
 
 
-  g = p.group().getSInt();
+  g = p.group().getInt();
   if (g != 1 || f_s.size() == 5) {
     if (g == oc && g == ic) {
       is_dw = true;
@@ -534,7 +534,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   }
   do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
-  pad_value= p.pad_value().getSInt();
+  pad_value= p.pad_value().getInt();
 }
 
 void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
@@ -546,18 +546,18 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
     int &dd, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu) {
-  dd = p.dilation_d().getSInt();
-  dh = p.dilation_h().getSInt();
-  dw = p.dilation_w().getSInt();
-  sd = p.stride_d().getSInt();
-  sh = p.stride_h().getSInt();
-  sw = p.stride_w().getSInt();
-  pd0 = p.padding_d0().getSInt();
-  pd1 = p.padding_d1().getSInt();
-  pt = p.padding_t().getSInt();
-  pb = p.padding_b().getSInt();
-  pl = p.padding_l().getSInt();
-  pr = p.padding_r().getSInt();
+  dd = p.dilation_d().getInt();
+  dh = p.dilation_h().getInt();
+  dw = p.dilation_w().getInt();
+  sd = p.stride_d().getInt();
+  sh = p.stride_h().getInt();
+  sw = p.stride_w().getInt();
+  pd0 = p.padding_d0().getInt();
+  pd1 = p.padding_d1().getInt();
+  pt = p.padding_t().getInt();
+  pb = p.padding_b().getInt();
+  pl = p.padding_l().getInt();
+  pr = p.padding_r().getInt();
   auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
@@ -583,7 +583,7 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
   kh = f_s[f_s.size() - 2];
   kw = f_s[f_s.size() - 1];
 
-  g = p.group().getSInt();
+  g = p.group().getInt();
   if (g != 1 || f_s.size() == 5) {
     if (g == oc && g == ic) {
       is_dw = true;
@@ -623,10 +623,10 @@ void parsePoolParam(const tpu::PoolParam &p,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu, bool &count_include_pad) {
-  kh = p.kernel_h().getSInt();
-  kw = p.kernel_w().getSInt();
-  sh = p.stride_h().getSInt();
-  sw = p.stride_w().getSInt();
+  kh = p.kernel_h().getInt();
+  kw = p.kernel_w().getInt();
+  sh = p.stride_h().getInt();
+  sw = p.stride_w().getInt();
   auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
@@ -639,10 +639,10 @@ void parsePoolParam(const tpu::PoolParam &p,
   iw = i_s[3];
   oh = o_s[2];
   ow = o_s[3];
-  pt = p.padding_t().getSInt();
-  pb = p.padding_b().getSInt();
-  pl = p.padding_l().getSInt();
-  pr = p.padding_r().getSInt();
+  pt = p.padding_t().getInt();
+  pb = p.padding_b().getInt();
+  pl = p.padding_l().getInt();
+  pr = p.padding_r().getInt();
   is_global = false;
   if (kh == ih && kw == iw && oh == 1 && ow == 1) {
     //assert(oh == 1 && ow == 1);
@@ -660,12 +660,12 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
     int &sd, int &sh, int &sw,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu, bool &count_include_pad) {
-  kd = p.kernel_d().getSInt();
-  kh = p.kernel_h().getSInt();
-  kw = p.kernel_w().getSInt();
-  sd = p.stride_d().getSInt();
-  sh = p.stride_h().getSInt();
-  sw = p.stride_w().getSInt();
+  kd = p.kernel_d().getInt();
+  kh = p.kernel_h().getInt();
+  kw = p.kernel_w().getInt();
+  sd = p.stride_d().getInt();
+  sh = p.stride_h().getInt();
+  sw = p.stride_w().getInt();
   auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
@@ -680,12 +680,12 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
   od = o_s[2];
   oh = o_s[3];
   ow = o_s[4];
-  pd0 = p.padding_d0().getSInt();
-  pd1 = p.padding_d1().getSInt();
-  pt = p.padding_t().getSInt();
-  pb = p.padding_b().getSInt();
-  pl = p.padding_l().getSInt();
-  pr = p.padding_r().getSInt();
+  pd0 = p.padding_d0().getInt();
+  pd1 = p.padding_d1().getInt();
+  pt = p.padding_t().getInt();
+  pb = p.padding_b().getInt();
+  pl = p.padding_l().getInt();
+  pr = p.padding_r().getInt();
   is_global = false;
   if (kh == ih && kw == iw && oh == 1 && ow == 1) {
     //assert(oh == 1 && ow == 1);

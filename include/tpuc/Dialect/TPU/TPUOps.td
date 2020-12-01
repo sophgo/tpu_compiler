@@ -866,7 +866,7 @@ def TPU_InputOp: TPU_Op<"input",
     ins AnyTensor:$input,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<UI64Attr>:$gaddr,
+    OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1642,7 +1642,7 @@ def TPU_CustomOp : TPU_Op<"custom_op",
     DefaultValuedAttr<BoolAttr, "false">:$tpu,
     DefaultValuedAttr<BoolAttr, "false">:$do_quant,
     DefaultValuedAttr<StrAttr, "none">:$threshold_overwrite,
-    OptionalAttr<UI64Attr>:$gaddr,
+    OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<StrAttr>:$chipname
   );
 

@@ -324,10 +324,10 @@ Value tpu::Conv2DOp::convertToTG() {
   assert(wTF);
   std::vector<Value> operands;
 
-  auto pad_t = param().padding_t().getSInt();
-  auto pad_b = param().padding_b().getSInt();
-  auto pad_l = param().padding_l().getSInt();
-  auto pad_r = param().padding_r().getSInt();
+  auto pad_t = param().padding_t().getInt();
+  auto pad_b = param().padding_b().getInt();
+  auto pad_l = param().padding_l().getInt();
+  auto pad_r = param().padding_r().getInt();
   int32_t pad_h_begin = 0, pad_h_end = 0;
   int32_t pad_w_begin = 0, pad_w_end = 0;
   if (pad_t > 15) {
@@ -438,12 +438,12 @@ Value tpu::Conv3DOp::convertToTG() {
   assert(wTF);
   std::vector<Value> operands;
 
-  auto pad_d0 = param().padding_d0().getSInt();
-  auto pad_d1 = param().padding_d1().getSInt();
-  auto pad_t = param().padding_t().getSInt();
-  auto pad_b = param().padding_b().getSInt();
-  auto pad_l = param().padding_l().getSInt();
-  auto pad_r = param().padding_r().getSInt();
+  auto pad_d0 = param().padding_d0().getInt();
+  auto pad_d1 = param().padding_d1().getInt();
+  auto pad_t = param().padding_t().getInt();
+  auto pad_b = param().padding_b().getInt();
+  auto pad_l = param().padding_l().getInt();
+  auto pad_r = param().padding_r().getInt();
   int32_t pad_h_begin = 0, pad_h_end = 0;
   int32_t pad_w_begin = 0, pad_w_end = 0;
   if (pad_t > 15) {
@@ -2290,7 +2290,7 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
     auto filter_type = convOp.filter().getType().template cast<TensorType>();
     std::vector<int64_t> filter_shape(filter_type.getShape());
     int64_t oc;
-    auto g = convOp.param().group().getSInt();
+    auto g = convOp.param().group().getInt();
     if (g != 1 || filter_shape.size() == 5) {
       oc = filter_shape[0] * filter_shape[1];
     } else {
@@ -3952,7 +3952,7 @@ struct LowerFunctionTypePattern: public RewritePattern {
         setOpThreshold(prevOp,
                        quantOp.thresholdAttr().getValue().convertToFloat());
         setOpZeroPoint(prevOp,
-                       quantOp.zero_pointAttr().getSInt());
+                       quantOp.zero_pointAttr().getInt());
         rewriter.replaceOp(op, {op->getOperand(0)});
       }
     } else if (isa<ReturnOp>(nextOp) && !clDequantResultsToFp32) {
@@ -4012,7 +4012,7 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
       float threshold =
           (float)castOp.quant().threshold_max().getValue().convertToFloat();
       qscale = (threshold == 0) ? 1.0f : (128.0 / threshold);
-      zero_point = castOp.quant().zero_point().getSInt();
+      zero_point = castOp.quant().zero_point().getInt();
       os << castOp.name() << " " << std::to_string(qscale) << " "<< zero_point << "\n";
     } else if (auto castOp = llvm::dyn_cast<ReturnOp>(op)) {
       for (int i = 0; i < (int)op->getNumOperands(); i++) {

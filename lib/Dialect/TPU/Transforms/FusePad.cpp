@@ -101,10 +101,10 @@ struct TpuFusePadPattern : public RewritePattern {
     auto pad_h_end = pads[6];
     auto pad_w_end = pads[7];
     auto param = poolOp.param();
-    auto pt = param.padding_t().getSInt();
-    auto pb = param.padding_b().getSInt();
-    auto pl = param.padding_l().getSInt();
-    auto pr = param.padding_r().getSInt();
+    auto pt = param.padding_t().getInt();
+    auto pb = param.padding_b().getInt();
+    auto pl = param.padding_l().getInt();
+    auto pr = param.padding_r().getInt();
     pt += pad_h_begin;
     pb += pad_h_end;
     pl += pad_w_begin;
@@ -135,10 +135,10 @@ struct TpuFusePadPattern : public RewritePattern {
     auto pad_w_end = pads[7];
 
     auto param = convOp.param();
-    auto pt = param.padding_t().getSInt();
-    auto pb = param.padding_b().getSInt();
-    auto pl = param.padding_l().getSInt();
-    auto pr = param.padding_r().getSInt();
+    auto pt = param.padding_t().getInt();
+    auto pb = param.padding_b().getInt();
+    auto pl = param.padding_l().getInt();
+    auto pr = param.padding_r().getInt();
     pt += pad_h_begin;
     pb += pad_h_end;
     pl += pad_w_begin;
@@ -168,10 +168,10 @@ struct TpuFusePadPattern : public RewritePattern {
   template <class T>
   bool noPaddingPool(T &poolOp) const {
     auto param = poolOp.param();
-    auto pt = param.padding_t().getSInt();
-    auto pb = param.padding_b().getSInt();
-    auto pl = param.padding_l().getSInt();
-    auto pr = param.padding_r().getSInt();
+    auto pt = param.padding_t().getInt();
+    auto pb = param.padding_b().getInt();
+    auto pl = param.padding_l().getInt();
+    auto pr = param.padding_r().getInt();
     auto count_include_pad = param.count_include_pad().getValue();
 
     if (pt == 0 && pb == 0 && pl == 0 && pr == 0)

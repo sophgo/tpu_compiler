@@ -1058,8 +1058,8 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
                             << getOpName(op)<< "\n";);
 
-    auto dh = convOp.param().dilation_h().getSInt();
-    auto dw = convOp.param().dilation_w().getSInt();
+    auto dh = convOp.param().dilation_h().getInt();
+    auto dw = convOp.param().dilation_w().getInt();
     const int DILATION_H_MAX = 15;
     const int DILATION_W_MAX = 15;
     if (dh <= DILATION_H_MAX && dw <= DILATION_W_MAX)

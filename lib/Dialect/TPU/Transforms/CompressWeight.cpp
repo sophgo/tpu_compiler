@@ -89,11 +89,11 @@ public:
     }
 
     // Not support group convolution and depthwise convolution
-    if (convOp.param().group().getSInt() > 1) {
+    if (convOp.param().group().getInt() > 1) {
       LLVM_DEBUG(llvm::dbgs()
           << "CompressWeight: layer ID " << getOpLayerId(op)
           << ", " << convOp.name()
-          << ", groups " << convOp.param().group().getSInt()
+          << ", groups " << convOp.param().group().getInt()
           << ", not support group convolution\n");
       return failure();
     }

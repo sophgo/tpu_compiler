@@ -3,12 +3,13 @@ add_executable(tpuc-interpreter
 )
 target_link_libraries(
   tpuc-interpreter
+  MLIRAnalysis
   MLIRParser
   MLIRPass
-  MLIRSPIRV
-  MLIRSPIRVSerialization
-  MLIRTPU
+  MLIRTransforms
   MLIRSupport
+  MLIRTPU
+  MLIROptLib
   TPUCSupport
 )
 install(TARGETS tpuc-interpreter DESTINATION bin)

@@ -165,4 +165,8 @@ private:
                          std::vector<uint8_t> data);
 };
 
+namespace mlir {
+void registerToCvimodelTranslation();
+}
+
 #endif

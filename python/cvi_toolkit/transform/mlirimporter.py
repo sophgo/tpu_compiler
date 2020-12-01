@@ -154,7 +154,7 @@ class MLIRImporter(object):
                 'mode': StringAttr.get("NONE"),
                 'param_type': StringAttr.get("NONE"),
                 'threshold_max': FloatAttr.get_f32(0),
-                'threshold_min': FloatAttr.get_f32(42.0),
+                'threshold_min': FloatAttr.get_f32(0),
                 'zero_point': IntegerAttr.get(self.i32Type, 0),
             }
             self.quant_param = DictAttr.get(quant_param)

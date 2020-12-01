@@ -504,14 +504,15 @@ public:
 
         tpuOp.setAttr("store_compr_act",
                       Builder(tpuOp.getContext()).getBoolAttr(true));
-        tpuOp.setAttr("compr_act_param",
+        auto value = 
             tpu::ActCmprParam::get(
                 Builder(op->getContext()).getI32IntegerAttr(n_step),
                 Builder(op->getContext()).getI32IntegerAttr(oc_step),
                 Builder(op->getContext()).getI32IntegerAttr(oh_step),
-                Builder(op->getContext()).getI32IntegerAttr(step_size),
-                Builder(op->getContext()).getI32IntegerAttr(total_size),
-                rewriter.getContext()));
+                Builder(op->getContext()).getI64IntegerAttr(step_size),
+                Builder(op->getContext()).getI64IntegerAttr(total_size),
+                rewriter.getContext());
+        tpuOp.setAttr("compr_act_param", value);
       }
     };
 
@@ -547,8 +548,8 @@ public:
                 Builder(op->getContext()).getI32IntegerAttr(n_step),
                 Builder(op->getContext()).getI32IntegerAttr(oc_step),
                 Builder(op->getContext()).getI32IntegerAttr(oh_step),
-                Builder(op->getContext()).getI32IntegerAttr(step_size),
-                Builder(op->getContext()).getI32IntegerAttr(total_size),
+                Builder(op->getContext()).getI64IntegerAttr(step_size),
+                Builder(op->getContext()).getI64IntegerAttr(total_size),
                 rewriter.getContext()));
       } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(op)) {
         tpuOp.setAttr("load_compr_act",
@@ -558,8 +559,8 @@ public:
                 Builder(op->getContext()).getI32IntegerAttr(n_step),
                 Builder(op->getContext()).getI32IntegerAttr(oc_step),
                 Builder(op->getContext()).getI32IntegerAttr(oh_step),
-                Builder(op->getContext()).getI32IntegerAttr(step_size),
-                Builder(op->getContext()).getI32IntegerAttr(total_size),
+                Builder(op->getContext()).getI64IntegerAttr(step_size),
+                Builder(op->getContext()).getI64IntegerAttr(total_size),
                 rewriter.getContext()));
       } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
         std::vector<int64_t> inputShapes = getTensorShape(op->getOperand(0));

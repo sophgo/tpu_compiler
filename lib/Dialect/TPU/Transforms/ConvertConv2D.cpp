@@ -57,7 +57,7 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
       return failure();
     }
 
-    if (convOp.param().group().getSInt() != 1) {
+    if (convOp.param().group().getInt() != 1) {
       return failure();
     }
 

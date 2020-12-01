@@ -1,12 +1,13 @@
 add_executable(tpuc-translate
   tpuc-translate.cpp
 )
-target_link_libraries(
-  tpuc-translate
+target_link_libraries(tpuc-translate
+  MLIRTPUTranslate
+  MLIRTPU
+  MLIRIR
   MLIRParser
   MLIRPass
-  MLIRTPU
-  MLIRTPUTranslate
+  MLIRTransformUtils
   MLIRTranslation
   MLIRSupport
   TPUCSupport

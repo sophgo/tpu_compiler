@@ -57,7 +57,7 @@ def TPU_QuantOp: TPU_Op<"quant",
     OptionalAttr<F32Attr>:$threshold,
     DefaultValuedAttr<I32Attr, "0">:$zero_point,
     StrAttr:$name,
-    OptionalAttr<UI64Attr>:$gaddr,
+    OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -153,7 +153,7 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$lowered,
     DefaultValuedAttr<BoolAttr, "false">:$compressed,
-    OptionalAttr<UI64Attr>:$offset
+    OptionalAttr<I64Attr>:$offset
   );
 
   let results = (outs AnyTensor:$tensor);

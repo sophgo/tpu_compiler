@@ -33,6 +33,7 @@
 #include "mlir/Pass/PassManager.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/Passes.h"
+#include "mlir/Dialect/StandardOps/IR/Ops.h"
 
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/IRBuilder.h"
@@ -79,19 +80,20 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
 
 int main(int argc, char **argv) {
   llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
-
   llvm::InitLLVM y(argc, argv);
+  
+  MLIRContext context;
+  auto &registry = context.getDialectRegistry();
+  registry.insert<tpu::TPUDialect,
+                  mlir::StandardOpsDialect>();
 
   llvm::cl::ParseCommandLineOptions(argc, argv, "MLIR TPU interpreter driver\n");
 
-  MLIRContext context;
   auto m = parseMLIRInput(inputFilename, &context);
   if (!m) {
     llvm::errs() << "could not parse the input IR\n";
     return 1;
   }
-  auto registry = context.getDialectRegistry();
-  registry.insert<tpu::TPUDialect>();
   
   auto inputTF = openTensorFile(inputTensorFilename);
   std::vector<std::vector<float> *> input_tensors;

@@ -543,7 +543,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
 
 // quant().zero_point()
 #define DECLARE_GET_OP_QUANT_ZERO_POINT_METHOD(OP) \
-    int OP::getOpQuantZeroPoint() {return quant().zero_point().getSInt();}
+    int OP::getOpQuantZeroPoint() {return quant().zero_point().getInt();}
 #define DECLARE_SET_OP_QUANT_ZERO_POINT_METHOD(OP) \
     LogicalResult OP::setOpQuantZeroPoint(int zero_point) { \
       setAttr("quant", \

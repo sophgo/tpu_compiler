@@ -60,8 +60,8 @@ struct TpuRefactorEltAndConvPattern : public RewritePattern {
         std::vector<int64_t> f_s(filter_type.getShape());
         int kh = f_s[f_s.size() - 2];
         int kw = f_s[f_s.size() - 1];
-        strideH = convOp.param().stride_h().getSInt();
-        strideW = convOp.param().stride_w().getSInt();
+        strideH = convOp.param().stride_h().getInt();
+        strideW = convOp.param().stride_w().getInt();
         LLVM_DEBUG(llvm::errs() << convOp.getOperationName()
                                 << ":" << getOpName(convOp)<< "\n");
         if((kh == 1) && (kw == 1) && (strideH > 1) && (strideW > 1)) {

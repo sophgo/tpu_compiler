@@ -71,7 +71,7 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
     int kc = filterShape[1];
     int kh = filterShape[filterShape.size() - 2];
     int kw = filterShape[filterShape.size() - 1];
-    int group = convOp.param().group().getSInt();
+    int group = convOp.param().group().getInt();
     if((kc % 2 != 0) && (group == 1) && (kc > 1)) {
       //Support only kc is odd && isConvolutionOp && kc>=3
       int new_ic = kc + 1;

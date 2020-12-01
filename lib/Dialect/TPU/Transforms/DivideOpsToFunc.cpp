@@ -60,7 +60,6 @@ public:
   std::vector<Operation *> ops;
   std::vector<Value> inputs;
   std::vector<Value> outputs;
-  std::map<Operation *, Operation *> mapping;
 };
 
 static bool isReshapeOpConnectToTpuOp(Operation *op) {
@@ -169,20 +168,17 @@ private:
   int fnIdx_ = 0;
 
   void addSubFunction(SubFunction *sf) {
-    std::vector<Operation *> fnOps;
+    // std::vector<Operation *> fnOps;
     std::vector<Value> fnInputs;
     std::vector<Value> fnOutputs;
 
-    BlockAndValueMapping mapper;
-    for (auto op : sf->ops) {
-      auto newOp = op->cloneWithoutRegions(mapper);
-      sf->mapping[newOp] = op;
-      fnOps.push_back(newOp);
-    }
+    //for (auto op : sf->ops) {
+    //  fnOps.push_back(newOp);
+    //}
 
-    getInputsOutputs(sf->ops, sf->inputs, sf->outputs);
-    getInputsOutputs(fnOps, fnInputs, fnOutputs);
-
+    // getInputsOutputs(sf->ops, sf->inputs, sf->outputs);
+    //getInputsOutputs(fnOps, fnInputs, fnOutputs);
+    getInputsOutputs(sf->ops, fnInputs, fnOutputs);
     std::vector<mlir::Type> argType;
     std::vector<mlir::Type> resType;
     for (auto input : fnInputs) {
@@ -209,24 +205,24 @@ private:
                                           llvm::ArrayRef<mlir::Type>{resType});
     sf->fnOp = FuncOp::create(builder.getUnknownLoc(), sf->fnName, fnType);
     auto block = sf->fnOp.addEntryBlock();
-
-    // replaced the use with input value
-    for (unsigned i = 0; i < fnInputs.size(); i++) {
+    builder.setInsertionPointToStart(block);
+    
+    BlockAndValueMapping mapper;
+    for (int i = 0; i < (int)fnInputs.size(); i++) {
       auto arg = block->getArgument(i);
-      for (auto op : fnOps) {
-        for (unsigned j = 0; j < op->getNumOperands(); j++) {
-          if (op->getOperand(j) == fnInputs[i]) {
-            op->setOperand(j, arg);
-          }
-        }
-      }
+      mapper.map(fnInputs[i], arg);
     }
-    for (auto op : fnOps) {
-      block->push_back(op);
+    
+    for (auto op : sf->ops) {
+      builder.clone(*op, mapper);
     }
-
-    builder.create<ReturnOp>(builder.getUnknownLoc(),
-                                      llvm::ArrayRef<mlir::Value>{fnOutputs});
+    
+    SmallVector<Value, 4> terminatorOperands;
+    for (auto &val : fnOutputs) {
+      terminatorOperands.push_back(mapper.lookup(val));
+    }
+    builder.create<ReturnOp>(builder.getUnknownLoc(), terminatorOperands);
+    
     // add fn attribute
     for (unsigned i = 0; i < sf->ops.size(); i++) {
       sf->ops[i]->setAttr("fn", builder.getStringAttr(sf->fnName));
