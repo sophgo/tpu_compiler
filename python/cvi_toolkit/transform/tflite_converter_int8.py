@@ -752,69 +752,156 @@ class TFLiteConverter(BaseConverter):
         assert(node.op_type == "DEPTHWISE_CONV_2D")
 
         op, shape, _ = self.getOperand(str(node.inputs[0]))
+        input_tensor = self.tflite_graph.Tensors(node.inputs[0])
+        input_tensor_attr = self.getTensorAttr(input_tensor)
+        input_scale = input_tensor_attr['scale']
+        input_shape = input_tensor_attr['shape'].tolist()
+        input_shape = [input_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
+        zero_point_x = input_tensor_attr['zero_point']
+        input_offset = -zero_point_x
+
         operands = list()
         operands.append(op)
 
+        depthwise_conv_tensor = self.tflite_graph.Tensors(node.outputs)
+        tensor_attr = self.getTensorAttr(depthwise_conv_tensor)
+        depthwise_conv_name = tensor_attr['name']
+        tensor_shape = tensor_attr['shape'].tolist()
+        tensor_shape = [tensor_shape[i] for i in [0,3,1,2]] # nhwc -> nchw
+        tensor_type = tensor_attr['type']
+        zero_point_y = tensor_attr['zero_point']
+        output_scale = tensor_attr['scale']
+        output_offset = zero_point_y
+        make_sure_type(tensor_type, TFL_TENSORTYPE.INT8)
+
+        group = tensor_shape[1]
+
+        assert(input_shape[1] == tensor_shape[1])
+
         # filter
         filter_tensor_idx = node.inputs[1]
-        filter_name = "{}_add_weight".format(filter_tensor_idx)
-
         filter_tensor = self.tflite_graph.Tensors(filter_tensor_idx)
-        filter_shape = self.get_tflite_tensor_shape(filter_tensor)
-        filter_data = self.get_tflite_tensor_data(filter_tensor)
+        filter_attr = self.getTensorAttr(filter_tensor)
+        filter_type = filter_attr['type']
+        filter_name = filter_attr['name']
+        filter_shape = filter_attr['shape']
+        make_sure_type(filter_type, TFL_TENSORTYPE.INT8)
+        # get quant info
+        filter_scale = filter_attr['scale']
 
-        filter_data = np.frombuffer(filter_data.tobytes(), dtype=np.float32)
+        if len(filter_scale) != filter_shape[3]:  # perchannel
+            raise RuntimeError(
+                "{} filter_scale size is not match filter_shape channel ({})".format(len(filter_scale), filter_shape))
+
+        # get filter data
+        filter_data = self.get_tflite_tensor_data(
+            filter_tensor)
+        filter_data = np.frombuffer(filter_data.tobytes(), dtype=np.int8)
         filter_data = filter_data.reshape(tuple(filter_shape))
 
-        # origin shape is (ic/g, kh, kw, g)
-        g = filter_shape[3]
-        kh = filter_shape[1]
-        kw = filter_shape[2]
-        ic = shape[1]
-        on = shape[0]
-        oc = ic
-        # tranpose to (g, oc/g, ic/g, kh, kw)
-        filter_data = np.transpose(filter_data, (3, 0, 1, 2))  # (g, ic/g, kh, kw)
-
         filter_data = np.ascontiguousarray(
-            filter_data.flatten().reshape(g, int(ic/g), int(oc/g), kh, kw))
-        filter_shape = [g, int(ic/g), int(oc/g), kh, kw]
+            np.transpose(filter_data, (0, 3, 1, 2)))
+        filter_shape = [filter_shape[3], 1, 1, filter_shape[1], filter_shape[2]]
+
+        filter_data = np.reshape(filter_data, tuple(filter_shape))
+
+
         self.addTensor(filter_name, filter_data, filter_shape)
-        filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
+        filter_op = self.CVI.add_load_file_op(
+            filter_name, filter_shape, tensor_type=TPU_TensorType.FP32, storage="INT8")
         operands.append(filter_op)
+
+        # calculate rshift, multipiler
+        CVIMlirQscale = getFilterQscale(
+            filter_scale, input_scale, output_scale)  # [channel]
+
+        rshift_data, multipiler_data = getRShiftAndMultiplierFromQScaleArray(
+            CVIMlirQscale, qdm=True)
 
         # bias
         do_bias = len(node.inputs) == 3
         if do_bias:
             bias_tensor_idx = node.inputs[2]
-            bias_name = "{}_add_bias".format(bias_tensor_idx)
-            bias_op, _  = self.createLoadWeightOp(bias_tensor_idx, bias_name)
+            bias_tensor = self.tflite_graph.Tensors(bias_tensor_idx)
+            bias_attr = self.getTensorAttr(bias_tensor)
+            bias_type = bias_attr['type']
+            bias_name = bias_attr['name']
+            bias_shape = bias_attr['shape']
+
+            make_sure_type(bias_type, TFL_TENSORTYPE.INT32)  # bias is int32
+            bias_scale = bias_attr['scale']
+
+            if len(bias_scale) != bias_shape[0]:
+                raise RuntimeError(
+                    "{} bias_scale size is not match bias_shape channel ({})".format(len(bias_scale), bias_shape))
+
+            # get bias data
+            bias_data = self.get_tflite_tensor_data(
+                bias_tensor)
+            bias_data = np.frombuffer(bias_data.tobytes(), dtype=np.int32)
+            bias_data = bias_data.reshape(tuple(bias_shape))
+
+            # fuesd input offset and output offset to bias
+            # input_offset
+            # ZxQw +  Zy * (Sy/SwSx)
+            fused_input_offset = filter_data*input_offset
+            fused_input_offset = np.reshape(
+                fused_input_offset, (bias_shape[0], -1))
+            fused_input_offset = np.sum(fused_input_offset, axis=1)
+
+            fused_output_offset = output_offset * np.round((1 / CVIMlirQscale))
+
+            bias_data = bias_data + \
+                fused_input_offset.astype(
+                    np.int32) + fused_output_offset.astype(np.int32)
+
+            self.addTensor(bias_name, bias_data, bias_shape)
+            bias_op = self.CVI.add_load_file_op(
+                bias_name, bias_shape, tensor_type=TPU_TensorType.FP32, storage="INT32")
             operands.append(bias_op)
+
+        if log_flag:
+            logger.info("{} {} input_scale: {}".format(
+                node.inputs[0], shape, input_scale))
+            logger.info("{} {} output_scale: {}".format(
+                node.outputs, tensor_shape, output_scale))
+            for idx, (qscale, r, m, b) in enumerate(zip(CVIMlirQscale, rshift_data, mutlipiler_data, bias_scale)):
+                logger.info("idx: {} qscale: {} rshift: {} mutlipiler:{}, b:{}".format(
+                    idx, qscale, r, m, b))
+
+        # add rshift op
+        rshift_name = "{}_rshift".format(node.name)
+        rshift_shape = list(rshift_data.shape)
+        self.addTensor(rshift_name, rshift_data, rshift_shape)
+        rshift_op = self.CVI.add_load_file_op(
+            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+        operands.append(rshift_op)
+
+        # add multipiler op
+        multipiler_name = "{}_multipiler".format(node.name)
+        multipiler_shape = list(multipiler_data.shape)
+        self.addTensor(multipiler_name, multipiler_data,
+                       multipiler_data)
+        mutlipiler_op = self.CVI.add_load_file_op(
+            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+        operands.append(mutlipiler_op)
 
         op_build_info = node.proto.BuiltinOptions()
         # Parse the Table of options.
         depthwise_conv_table = DepthwiseConv2DOptions()
         depthwise_conv_table.Init(op_build_info.Bytes, op_build_info.Pos)
-        # Check if input is padding op
-        padding_data = None
-        try:
-            input_tensor = self.getTensor(str(node.inputs[0]))
-            # Only padding case we handle
-            assert(input_tensor.op_type == "PAD")
-            padding_data = input_tensor.tensor_data
-        except KeyError as k:
-            # Not padding op
-            print(k)
-            pass
+
         stride_h = depthwise_conv_table.StrideH()
         stride_w = depthwise_conv_table.StrideW()
+        dilation_h = depthwise_conv_table.DilationHFactor()
+        dilation_w = depthwise_conv_table.DilationWFactor()
+        padding = depthwise_conv_table.Padding()
 
-        # padding data order is NHWC
-        # if padding data is not np.ndarray (not from bottom layer)
-        # and conv_table.Padding() is SAME, we need to calculate it.
-        if depthwise_conv_table.Padding() == Padding.SAME:
-            padding_along_h = get_TF_SAME_Padding(shape[2], filter_shape[3], stride_h)
-            padding_along_w = get_TF_SAME_Padding(shape[3], filter_shape[4], stride_w)
+        if padding == Padding.SAME:
+            padding_along_h = get_TF_SAME_Padding(
+                shape[2], filter_shape[3], stride_h)
+            padding_along_w = get_TF_SAME_Padding(
+                shape[3], filter_shape[4], stride_w)
             padding_t = padding_along_h // 2
             padding_l = padding_along_w // 2
             padding_b = padding_along_h - padding_t
@@ -828,42 +915,61 @@ class TFLiteConverter(BaseConverter):
         depthwise_conv_param = {
             'stride_h': stride_h,
             'stride_w': stride_w,
-            'padding': "SAME" if depthwise_conv_table.Padding() == Padding.SAME or isinstance(padding_data, np.ndarray) else "VALID",
-            'dilation_h': depthwise_conv_table.DilationHFactor(),
-            'dilation_w': depthwise_conv_table.DilationWFactor(),
+            'padding': "SAME" if padding == Padding.SAME else "VALID",
+            'dilation_h': dilation_h,
+            'dilation_w': dilation_w,
             'padding_t': int(padding_t),
             'padding_b': int(padding_b),
             'padding_l': int(padding_l),
             'padding_r': int(padding_r),
-            'group': filter_shape[0],
+            'group': group,  # Don't have group option?
             'is_dw': True,
             'with_bias': len(node.inputs) > 2,
             'do_relu': False,
             'ins': [],
+            'pad_value': zero_point_x,
         }
+
+        on = shape[0]
+        oc = filter_shape[0]  # feature map size
         oh = calcConv2DSpatial(
             shape[2],
             filter_shape[3],
-            depthwise_conv_param['stride_h'],
+            stride_h,
             padding_t,
             padding_b,
-            depthwise_conv_param['dilation_h'],
+            dilation_h
         )
         ow = calcConv2DSpatial(
             shape[3],
             filter_shape[4],
-            depthwise_conv_param['stride_w'],
+            stride_w,
             padding_l,
             padding_r,
-            depthwise_conv_param['dilation_w'],
+            dilation_w
         )
+
         output_shape = [on, oc, oh, ow]
-        depthwise_conv_op = self.CVI.add_conv_op("{}".format(
-            node.name), operands, output_shape, **depthwise_conv_param)
-        depthwise_conv_op = self.add_activation_op("{}".format(
-            node.name), depthwise_conv_op, output_shape, depthwise_conv_table.FusedActivationFunction())
-        self.addOperand(node.name, depthwise_conv_op, output_shape,
-                        None)
+        assert(tensor_shape[1:] == output_shape[1:])
+
+        int8_quant_info = {
+            'is_asymmetric': True,
+            'is_perchannel': True,
+            'mode': TPU_MODE.INT8,
+            'param_type': "RSHIFT_AND_M_I32",
+            'threshold_max': 0,
+            'threshold_min': 0,
+            'zero_point': output_offset
+        }
+
+        # add quant info to param
+        depthwise_conv_param.update(int8_quant_info)
+
+        # store with int8 mode
+        depthwise_conv_op = self.CVI.add_conv_op(
+            node.name, operands, output_shape, **depthwise_conv_param)
+
+        self.addOperand(node.name, depthwise_conv_op, output_shape, None)
 
     def convert_fc_op(self, node):
         assert(node.op_type == "FULLY_CONNECTED")
