@@ -39,7 +39,7 @@ cvi_preprocess.py  \
 
 input_shape=`cvi_npz_tool.py get_shape ${NET}_only_resize_in_fp32.npz input`
 
-if [ $PREPROCESS_CROPMETHOD -eq "aspect_ratio" ]; then
+if [ x$PREPROCESS_CROPMETHOD = x"aspect_ratio" ]; then
     export IMAGE_RESIZE_DIMS=${NET_INPUT_DIMS}
 fi
 

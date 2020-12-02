@@ -58,7 +58,6 @@ struct TpuLstmCaffeUnrollPattern : public RewritePattern {
     std::vector<int64_t> output_shape = getTensorShape(op->getResult(0));
     int64_t seq_length = output_shape[0];
     int64_t batch_size = output_shape[1];
-    assert(batch_size == 1 && "only support batch 1 now");
     int64_t num_output = output_shape[2];
     std::string op_name = lstmOp.name().str();
     TensorFile *wTF = getWeightTensorFile(op);
@@ -112,9 +111,8 @@ struct TpuLstmCaffeUnrollPattern : public RewritePattern {
           rewriter.getNamedAttr("offset", rewriter.getI32IntegerAttr(i)));
       attrs.push_back(
           rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-      // operands.push_back(x_transform_reshape_op);
       operands.push_back(x_transform_op);
-      output_type = RankedTensorType::get({1, 1, x_shape[0]}, element_type);
+      output_type = RankedTensorType::get({1, batch_size, x_shape[0]}, element_type);
       auto x_slice_op = rewriter.create<tpu::SliceOp>(
           op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
 
@@ -331,7 +329,7 @@ struct TpuLstmCaffeUnrollPattern : public RewritePattern {
     concat_attrs.push_back(
         rewriter.getNamedAttr("axis", rewriter.getI32IntegerAttr(0)));
     output_type =
-        RankedTensorType::get({seq_length, 1, num_output}, element_type);
+        RankedTensorType::get({seq_length, batch_size, num_output}, element_type);
     auto concat_op = rewriter.create<tpu::ConcatOp>(
         op->getLoc(), ArrayRef<mlir::Type>{output_type}, concat_operands,
         concat_attrs);

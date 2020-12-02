@@ -130,6 +130,7 @@ class CaffeConverter(BaseConverter):
         for i in self.inputs:
             input_shape = list(self.blobs[i].shape)
             input_shape[0] = self.batch_size
+            self.blobs[i].reshape(*input_shape)
             if self.convert_preprocess:
                 resize_h, resize_w = self.preprocess_args.get(
                     "resize_dims")
@@ -143,18 +144,15 @@ class CaffeConverter(BaseConverter):
                                    input_shape[1], resize_h, resize_w]
             self.input_shapes.append(input_shape)
 
+        self.net.reshape()
         self.output_shapes = list()
         for o in self.outputs:
             o_shape = list(self.blobs[o].shape)
-            batch_size = self.batch_size
             for layer in self.layers:
                 if layer.name == o and self.layerType(layer) == 'DetectionOutput':
+                    o_shape[0] = self.batch_size
                     o_shape[2] = layer.detection_output_param.keep_top_k
                     break
-                elif layer.name == o and self.layerType(layer) == "InnerProduct":
-                    batch_size = o_shape[0]
-                    break
-            o_shape[0] = batch_size
             self.output_shapes.append(o_shape)
         self.CVI = MLIRImporter(self.input_shapes, self.output_shapes,
                                 "UINT8" if self.convert_preprocess else "FP32")

@@ -41,7 +41,7 @@ erfnet                    N        N        N        Y        N        N
 enet                      N        N        N        Y        N        N
 segnet                    N        N        N        Y        N        N
 fcn-8s                    N        N        N        Y        N        N
-resnet_res_blstm          N        N        N        Y        N        N
+resnet_res_blstm          N        N        N        Y        Y        N
 
 # onnx
 resnet18                  Y        N        N        N        Y        N
