@@ -619,12 +619,12 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<UI32Attr, "0">:$height,
-    DefaultValuedAttr<UI32Attr, "0">:$width,
-    DefaultValuedAttr<UI32Attr, "0">:$shrink_factor,
-    DefaultValuedAttr<UI32Attr, "0">:$zoom_factor,
-    DefaultValuedAttr<UI32Attr, "0">:$pad_beg,
-    DefaultValuedAttr<UI32Attr, "0">:$pad_end,
+    DefaultValuedAttr<I32Attr, "0">:$height,
+    DefaultValuedAttr<I32Attr, "0">:$width,
+    DefaultValuedAttr<I32Attr, "0">:$shrink_factor,
+    DefaultValuedAttr<I32Attr, "0">:$zoom_factor,
+    DefaultValuedAttr<I32Attr, "0">:$pad_beg,
+    DefaultValuedAttr<I32Attr, "0">:$pad_end,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -963,10 +963,10 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    UI32Attr:$order0,
-    UI32Attr:$order1,
-    UI32Attr:$order2,
-    UI32Attr:$order3,
+    I32Attr:$order0,
+    I32Attr:$order1,
+    I32Attr:$order2,
+    I32Attr:$order3,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
@@ -1258,7 +1258,7 @@ class TPU_TG_ReorgOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    UI32Attr:$stride,
+    I32Attr:$stride,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
@@ -1305,7 +1305,7 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 
   let arguments = (
     ins AnyTensor:$input,
-    UI32Attr:$group,
+    I32Attr:$group,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
@@ -1400,7 +1400,7 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    UI32Attr:$upscale_factor,
+    I32Attr:$upscale_factor,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,

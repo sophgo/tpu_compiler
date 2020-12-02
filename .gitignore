@@ -21,3 +21,4 @@ regression/regression_out/*
 Dockerfile
 build/
 install/
+regression_out

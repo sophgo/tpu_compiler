@@ -221,6 +221,10 @@ void CviCpuRoutine::serializeFuncArgs(std::vector<uint8_t> &args) {
       auto flatValue = fbb.CreateString(strValue);
       auto strAttr = cvi::cpu_op::CreateStrAttr(fbb, flatKey, flatValue);
       attr = cvi::cpu_op::CreateAttribute(fbb, 0, 0, 0, strAttr, 0, 0);
+    } else if (iter.second.isa<BoolAttr>()) {
+      auto value = iter.second.cast<BoolAttr>().getValue();
+      auto boolAttr = cvi::cpu_op::CreateBoolAttr(fbb, flatKey, value);
+      attr = cvi::cpu_op::CreateAttribute(fbb, 0, boolAttr, 0, 0, 0, 0);
     } else if (iter.second.isa<IntegerAttr>()) {
       auto value = iter.second.cast<IntegerAttr>().getInt();
       auto intAttr = cvi::cpu_op::CreateIntAttr(fbb, flatKey, value);
@@ -229,10 +233,6 @@ void CviCpuRoutine::serializeFuncArgs(std::vector<uint8_t> &args) {
       auto value = iter.second.cast<FloatAttr>().getValueAsDouble();
       auto floatAttr = cvi::cpu_op::CreateFloatAttr(fbb, flatKey, value);
       attr = cvi::cpu_op::CreateAttribute(fbb, floatAttr, 0, 0, 0, 0, 0);
-    } else if (iter.second.isa<BoolAttr>()) {
-      auto value = iter.second.cast<BoolAttr>().getValue();
-      auto boolAttr = cvi::cpu_op::CreateBoolAttr(fbb, flatKey, value);
-      attr = cvi::cpu_op::CreateAttribute(fbb, 0, boolAttr, 0, 0, 0, 0);
     } else if (iter.second.isa<DenseFPElementsAttr>()) {
       std::vector<float> fpArray;
       auto value = iter.second.cast<DenseFPElementsAttr>();

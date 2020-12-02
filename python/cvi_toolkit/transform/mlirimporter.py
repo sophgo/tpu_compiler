@@ -250,7 +250,7 @@ class MLIRImporter(object):
             'zero_point': IntegerAttr.get(self.i32Type, 0),
         }
         if self.input_type == "UINT8":
-            quant_param['mode'] = StringAttr.get("INT8"),
+            quant_param['mode'] = StringAttr.get("INT8")
         quant_param_attr = DictAttr.get(quant_param)
         attributes = {
             "name": StringAttr.get(name),
@@ -1089,8 +1089,7 @@ class MLIRImporter(object):
 
     def add_preprocess_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         # preprocess not follow input type
-        tensor_output_type = self.module.make_ranked_tensor_type(
-            self.f32Type, output_tensor_shape)
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.f32Type)
         checkKey(kargs, 'mean')
         checkKey(kargs, 'std')
         checkKey(kargs, 'scale')
@@ -1407,7 +1406,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'yolo_v4')
         checkKey(kargs, 'class_num')
         checkKey(kargs, 'anchors')
-
+        
         name_attr=StringAttr.get(op_name)
         param = {
             'net_input_h':  IntegerAttr.get(self.i32Type, kargs['net_input_h']),
@@ -1490,7 +1489,9 @@ class MLIRImporter(object):
         for output_shape in self.tensor_outputs_type:
             output_tensor_type += output_shape.__str__()
             if output_shape is not self.tensor_outputs_type[-1]:
-                output_tensor_type +=","
+                output_tensor_type +=", "
+        if len(self.tensor_outputs_type) > 1:
+            output_tensor_type = "({})".format(output_tensor_type)
 
         tpu_func = """
             func @tpu_func({input_args_type}) -> {output_tensor_type} {{

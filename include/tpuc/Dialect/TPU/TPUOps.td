@@ -626,7 +626,7 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
     ins Variadic<AnyTensor>:$input,
     I32Attr:$num_classes,
     DefaultValuedAttr<BoolAttr, "true">:$share_location,
-    UI32Attr:$background_label_id,
+    I32Attr:$background_label_id,
     F32Attr:$nms_threshold,
     I32Attr:$top_k,
     TPU_DetectionOutput_Code_typeAttr:$code_type,
@@ -926,12 +926,12 @@ def TPU_InterpOp: TPU_Op<"interp",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<UI32Attr, "0">:$height,
-    DefaultValuedAttr<UI32Attr, "0">:$width,
-    DefaultValuedAttr<UI32Attr, "0">:$shrink_factor,
-    DefaultValuedAttr<UI32Attr, "0">:$zoom_factor,
-    DefaultValuedAttr<UI32Attr, "0">:$pad_beg,
-    DefaultValuedAttr<UI32Attr, "0">:$pad_end,
+    DefaultValuedAttr<I32Attr, "0">:$height,
+    DefaultValuedAttr<I32Attr, "0">:$width,
+    DefaultValuedAttr<I32Attr, "0">:$shrink_factor,
+    DefaultValuedAttr<I32Attr, "0">:$zoom_factor,
+    DefaultValuedAttr<I32Attr, "0">:$pad_beg,
+    DefaultValuedAttr<I32Attr, "0">:$pad_end,
     OptionalAttr<StrAttr>:$chipname
   );
 
@@ -1040,7 +1040,7 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    DefaultValuedAttr<UI32Attr, "5">:$local_size,
+    DefaultValuedAttr<I32Attr, "5">:$local_size,
     DefaultValuedAttr<F32Attr, "1.0">:$alpha,
     DefaultValuedAttr<F32Attr, "0.75">:$beta,
     DefaultValuedAttr<F32Attr, "1.0">:$k,
@@ -1107,7 +1107,7 @@ def TPU_LrnOp: TPU_Op<"lrn",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$sqr_lut,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$power_lut,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$scale,
-    DefaultValuedAttr<UI32Attr, "5">:$local_size,
+    DefaultValuedAttr<I32Attr, "5">:$local_size,
     DefaultValuedAttr<F32Attr, "1.0">:$alpha,
     DefaultValuedAttr<F32Attr, "0.75">:$beta,
     DefaultValuedAttr<F32Attr, "1.0">:$k,
@@ -1351,10 +1351,10 @@ def TPU_PermuteOp: TPU_Op<"permute",
 
   let arguments = (
     ins AnyTensor:$input,
-    UI32Attr:$order0,
-    UI32Attr:$order1,
-    UI32Attr:$order2,
-    UI32Attr:$order3,
+    I32Attr:$order0,
+    I32Attr:$order1,
+    I32Attr:$order2,
+    I32Attr:$order3,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
@@ -1399,7 +1399,7 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
 
   let arguments = (
     ins AnyTensor:$input,
-    UI32Attr:$upscale_factor,
+    I32Attr:$upscale_factor,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     DefaultValuedAttr<StrAttr, "CRD">:$mode,
@@ -2022,7 +2022,7 @@ def TPU_ReorgOp : TPU_Op<"reorg",
 
   let arguments = (
     ins AnyTensor:$input,
-    UI32Attr:$stride,
+    I32Attr:$stride,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
@@ -2109,8 +2109,8 @@ def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
 
   let arguments = (
     ins Variadic<AnyTensor>:$inputs,
-    UI32Attr:$pooled_h,
-    UI32Attr:$pooled_w,
+    I32Attr:$pooled_h,
+    I32Attr:$pooled_w,
     F32Attr:$spatial_scale,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
@@ -2252,7 +2252,7 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
 
   let arguments = (
     ins AnyTensor:$input,
-    UI32Attr:$group,
+    I32Attr:$group,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
@@ -2686,8 +2686,8 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
   let arguments = (
     ins AnyTensor:$input,
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$mask,
-    UI32Attr:$scale_h,
-    UI32Attr:$scale_w,
+    I32Attr:$scale_h,
+    I32Attr:$scale_w,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
@@ -2820,7 +2820,7 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$pool_res,
-    UI32Attr:$scale,
+    I32Attr:$scale,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

@@ -446,7 +446,7 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
       builder.getBoolAttr(false),
       builder.getF32FloatAttr(0.0),
       builder.getF32FloatAttr(0.0),
-      builder.getI8IntegerAttr(0),
+      builder.getI32IntegerAttr(0),
       builder.getContext());
 }
 
