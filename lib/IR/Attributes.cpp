@@ -96,9 +96,18 @@ static int compareNamedAttributes(const NamedAttribute *lhs,
 
 DictionaryAttr DictionaryAttr::get(ArrayRef<NamedAttribute> value,
                                    MLIRContext *context) {
-  assert(llvm::all_of(value,
-                      [](const NamedAttribute &attr) { return attr.second; }) &&
-         "value cannot have null entries");
+  if (!llvm::all_of(value,
+                    [](const NamedAttribute &attr) { return attr.second; })) {
+    for (auto &attr : value) {
+      if (!attr.second) {
+        printf("%s is empty !!!\n", attr.first.c_str());
+      } else {
+        attr.first.dump();
+        attr.second.dump();
+      }
+    }
+    llvm_unreachable("value cannot have null entries");
+  }
 
   // We need to sort the element list to canonicalize it, but we also don't want
   // to do a ton of work in the super common case where the element list is
