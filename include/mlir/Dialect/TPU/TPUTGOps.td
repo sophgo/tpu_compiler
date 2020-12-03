@@ -1193,6 +1193,49 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TG_ReQuantOp : TPU_Op<"tg_requant",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " ReQuant operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the input activation memref.
+
+    Attributes:
+      `input_offset`   : required, input_offset
+      `output_offset`  : required, output_offset
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<F32Attr>:$qscale,
+    OptionalAttr<I32Attr>:$input_offset,
+    OptionalAttr<I32Attr>:$output_offset,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

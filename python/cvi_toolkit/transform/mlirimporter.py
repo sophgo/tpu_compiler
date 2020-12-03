@@ -68,6 +68,7 @@ class TPU_OpType(Enum):
     PRelu = 'tpu.prelu'
     Proposal = 'tpu.proposal'
     Quant = 'tpu.quant'
+    ReQuant = 'tpu.requant'
     Reciprocal = 'tpu.reciprocal'
     Reshape = 'tpu.reshape'
     Relu = 'tpu.relu'
@@ -1252,6 +1253,24 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Quant.value, inputOperands, [
             tensor_output_type], name=quant_name, **attr_dict)
 
+    def add_requant_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.INT8.value, **kargs):
+        if mode != TPU_MODE.INT8.value:
+            raise RuntimeError("Only support asymmetric mode")
+        # Only in i8 case
+        tensor_output_type = self.module.make_ranked_tensor_type(
+            self.i8Type, output_tensor_shape)
+
+        checkKey(kargs, 'zero_point')
+        checkKey(kargs, 'qscale')
+        zero_point = kargs['zero_point']
+        qscale = kargs['qscale']
+        quant_name = self.module.stringAttr(op_name)
+        attr_dict = {
+            'zero_point': self.module.integerAttr(self.i32Type, zero_point),
+            'qscale': self.module.floatAttr(qscale)
+        }
+        return self.buildOp(TPU_OpType.ReQuant.value, inputOperands, [
+            tensor_output_type], name=quant_name, **attr_dict)
 
     def add_reciprocal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
@@ -1382,7 +1401,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Slice.value, inputOperands, [
             tensor_output_type], name=slice_name, quant=self.quant_param, **attr_dict)
 
-    def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, cpu_mode=False,**kargs):
+    def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, cpu_mode=False, **kargs):
         tensor_output_type = self.module.make_ranked_tensor_type(
             self.get_input_type(inputOperands[0]), output_tensor_shape)
 

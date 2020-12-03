@@ -4125,6 +4125,34 @@ LogicalResult tpu::QuantOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ReQuantOp::interpret(
+    DenseMap<Value *, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  Operation *op = this->getOperation();
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  float input_offset = (float)-getPreviousOpZeroPoint(op);
+  float output_offset = (float)getOpZeroPoint(op);
+  float qscale = this->qscale().convertToFloat();
+
+  for(int64_t i = 0; i < size; i++){
+    resultT->at(i) = (input->at(i) + input_offset) * qscale + output_offset;
+  }
+
+  auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
+  FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+  BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+
+
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 std::vector<std::shared_ptr<std::vector<float> > >
     ModuleInterpreter::getOperandTensors(Operation &opInst,
     value_map_t &valueMapping) {

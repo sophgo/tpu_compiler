@@ -217,6 +217,7 @@ struct ConvertTgOpToTensorPass : public FunctionPass<ConvertTgOpToTensorPass> {
 
     patterns.insert<
         convertTgOpToTensorPattern<tpu::TG_MemRef_QuantOp, tpu::TG_QuantOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_ReQuantOp, tpu::TG_ReQuantOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_BroadcastMulOp, tpu::TG_INT8_BroadcastMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_BroadcastMulOp, tpu::TG_BF16_BroadcastMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ConcatOp, tpu::TG_INT8_ConcatOp>,

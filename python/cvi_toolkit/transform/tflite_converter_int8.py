@@ -1434,18 +1434,14 @@ class TFLiteConverter(BaseConverter):
             return
         elif input_type == TFL_TENSORTYPE.INT8 and output_type == TFL_TENSORTYPE.INT8:
             # requantize
-            # dequant
-            input_offset = -input_attr['zero_point']
-            input_threshold = 128 * input_attr['scale']
+            qscale = input_scale / output_scale
 
-            op = self.CVI.add_quant_op("requant_{}_dequant".format(node.name), [
-                op], input_shape, "INT8", "NONE", threshold=input_threshold, zero_point=input_offset)
-
-            # quantize
-            output_threshold = 128 * output_attr['scale']
-            output_offset = output_attr['zero_point']
-            op = self.CVI.add_quant_op("requant_{}_quant".format(node.name), [
-                op], output_shape, "NONE", "INT8", threshold=output_threshold, zero_point=output_offset)
+            attr = {
+                'zero_point': output_offset,
+                'qscale': qscale,
+            }
+            op = self.CVI.add_requant_op(node.name , [
+                op], output_shape, **attr)
             self.addOperand(node.name, op, output_shape, None)
             return
         elif input_type == TFL_TENSORTYPE.INT8 and output_type == TFL_TENSORTYPE.FLOAT32 and node.op_type == "DEQUANTIZE":

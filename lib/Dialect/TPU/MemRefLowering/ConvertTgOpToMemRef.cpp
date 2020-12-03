@@ -440,6 +440,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       AddTypeConvertedForNotLowedOpPattern<tpu::ReshapeOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::GenericCpuOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_QuantOp>,
+      AddTypeConvertedForNotLowedOpPattern<tpu::TG_ReQuantOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_BroadcastMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_BF16_BroadcastMulOp>,
       AddTypeConvertedForNotLowedOpPattern<tpu::TG_INT8_ConcatOp>,
@@ -595,6 +596,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
   target.addLegalOp<tpu::TG_MemRef_BF16_ZeroMaskOp>();
 
   target.addLegalOp<tpu::TG_MemRef_QuantOp>();
+  target.addLegalOp<tpu::TG_MemRef_ReQuantOp>();
   target.addLegalOp<tpu::TG_MemRef_LoadWeightOp>();
   target.addLegalOp<tpu::TG_MemRef_ReshapeOp>();
 
@@ -605,6 +607,7 @@ void ConvertTgOpToMemRefPass::runOnFunction() {
       convertTgOpToMemRefPattern<tpu::LoadWeightOp, tpu::TG_MemRef_LoadWeightOp>,
       convertTgOpToMemRefPattern<tpu::ReshapeOp, tpu::TG_MemRef_ReshapeOp>,
       convertTgOpToMemRefPattern<tpu::TG_QuantOp, tpu::TG_MemRef_QuantOp>,
+      convertTgOpToMemRefPattern<tpu::TG_ReQuantOp, tpu::TG_MemRef_ReQuantOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_BroadcastMulOp, tpu::TG_MemRef_INT8_BroadcastMulOp>,
       convertTgOpToMemRefPattern<tpu::TG_BF16_BroadcastMulOp, tpu::TG_MemRef_BF16_BroadcastMulOp>,
       convertTgOpToMemRefPattern<tpu::TG_INT8_ConcatOp, tpu::TG_MemRef_INT8_ConcatOp>,

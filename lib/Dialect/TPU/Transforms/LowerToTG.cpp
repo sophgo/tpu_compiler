@@ -1394,6 +1394,32 @@ Value *tpu::QuantOp::convertToTG() {
   }
 }
 
+Value *tpu::ReQuantOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  std::vector<Value *> operands;
+  std::vector<NamedAttribute> attrs;
+  operands.push_back(input());
+
+  int input_offset = -getPreviousOpZeroPoint(op);
+  int output_offset = getOpZeroPoint(op);
+
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr(
+      "input_offset", builder.getI32IntegerAttr(input_offset)));
+  attrs.push_back(builder.getNamedAttr(
+      "output_offset", builder.getI32IntegerAttr(output_offset)));
+  attrs.push_back(
+      builder.getNamedAttr("qscale", qscaleAttr()));
+
+  auto newOp = OpBuilder(op).create<tpu::TG_ReQuantOp>(
+      op->getLoc(), getResult()->getType(), ArrayRef<Value *>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  return newOp.getResult();
+}
+
 Value *tpu::ReciprocalOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4202,6 +4228,7 @@ public:
         DefaultToTGPattern<tpu::PoolMax3DOp>,
         DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::QuantOp>,
+        DefaultToTGPattern<tpu::ReQuantOp>,
         DefaultToTGPattern<tpu::ReluOp>,
         DefaultToTGPattern<tpu::ReorgOp>,
         DefaultToTGPattern<tpu::ReverseOp>,

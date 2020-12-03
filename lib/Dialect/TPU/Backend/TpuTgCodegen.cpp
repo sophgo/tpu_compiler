@@ -2478,6 +2478,31 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_ReQuantOp::codegen(void *ctx) {
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int layer_id = getOpLayerId(op);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  float scale = this->qscale().getValue().convertToFloat();
+  int input_offset = this->input_offset().getValue().getLimitedValue();
+  int output_offset = this->output_offset().getValue().getLimitedValue();
+
+
+  //  quant to int8
+  cvi_backend_tg_requant_kernel(*backend_ctx, layer_id, ga_input,
+                              ga_output, n, c, h, w, input_offset,
+                              output_offset, scale);
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_ReluOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -3604,6 +3629,10 @@ LogicalResult tpu::TG_MemRef_BF16_PixelShuffleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_MemRef_QuantOp::codegen(void *ctx) {
+  return success();
+}
+
+LogicalResult tpu::TG_MemRef_ReQuantOp::codegen(void *ctx) {
   return success();
 }
 

@@ -944,6 +944,48 @@ def TPU_TG_MemRef_QuantOp: TPU_Op<"tg_memref_quant",
   );
 }
 
+def TPU_TG_MemRef_ReQuantOp: TPU_Op<"tg_memref_requant",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "ReQuant operator";
+
+  let description = [{
+    Convert a tensor with the same values but different type defined by output.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger, BF16]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger, BF16]>:$output,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    DefaultValuedAttr<I32Attr, "0">:$input_offset,
+    DefaultValuedAttr<I32Attr, "0">:$output_offset,
+    DefaultValuedAttr<F32Attr, "0">:$qscale,
+    OptionalAttr<NonNegativeI64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+}
+
 class TPU_TG_MemRef_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

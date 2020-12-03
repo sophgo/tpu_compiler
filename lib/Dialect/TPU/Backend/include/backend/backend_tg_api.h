@@ -401,6 +401,12 @@ void cvi_backend_tg_quant_kernel(
     int input_n, int input_c, int input_h, int input_w,
     float const_scale = 1.0, int offset=0);
 
+void cvi_backend_tg_requant_kernel(const CviBackendContext &ctx,
+                                   uint32_t layer_id, gaddr_t bottom_gaddr,
+                                   gaddr_t top_gaddr, int input_n, int input_c,
+                                   int input_h, int input_w, int input_offset,
+                                   int output_offset, float scale);
+
 void cvi_backend_tg_reverse_kernel(const CviBackendContext &ctx,
                                    uint32_t layer_id, gaddr_t ga_input,
                                    gaddr_t ga_output, int n, int c, int h,

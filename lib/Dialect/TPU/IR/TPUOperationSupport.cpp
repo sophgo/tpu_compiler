@@ -355,6 +355,8 @@ int getOpZeroPoint(Operation *op) {
     return tpuOp.getOpQuantZeroPoint();
   } else if(auto quantOp = llvm::dyn_cast<tpu::QuantOp>(op)) {
     return quantOp.zero_point().getLimitedValue();
+  } else if (auto quantOp = llvm::dyn_cast<tpu::ReQuantOp>(op)) {
+    return quantOp.zero_point().getLimitedValue();
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";
