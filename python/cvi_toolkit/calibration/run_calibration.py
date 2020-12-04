@@ -7,6 +7,7 @@
 import argparse
 import sys, os, cv2
 import numpy as np
+import pymlir
 
 from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
 from cvi_toolkit.calibration.asym_calibrator import Asym_Calibrator
@@ -14,7 +15,8 @@ from cvi_toolkit.calibration.tuner import Tuner_v2
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
 
-def preprocess_func_faster_rcnn(image_path, args):
+
+def preprocess_func_faster_rcnn(image_path):
     image = cv2.imread(str(image_path).rstrip())
     image = cv2.resize(image, (800, 600))
     image = image.astype(np.float32, copy=True)
@@ -23,7 +25,7 @@ def preprocess_func_faster_rcnn(image_path, args):
     image = np.expand_dims(image, axis=0)
     return image
 
-def preprocess_func_gaitset(image_path, args):
+def preprocess_func_gaitset(image_path):
   image = cv2.imread(str(image_path).rstrip(), cv2.IMREAD_GRAYSCALE)
   image = image.astype(np.float32)
   image = cv2.resize(image, (64, 64))
@@ -32,7 +34,7 @@ def preprocess_func_gaitset(image_path, args):
   x = np.expand_dims(x, axis=1)
   return x
 
-def preprocess_func_unet(image_path, args):
+def preprocess_func_unet(image_path):
   image = cv2.imread(str(image_path).rstrip(), cv2.IMREAD_GRAYSCALE)
   image = image.astype(np.float32)
   x = cv2.resize(image, (256, 256))
@@ -40,7 +42,7 @@ def preprocess_func_unet(image_path, args):
   x = np.expand_dims(x, axis=1)
   return x
 
-def preprocess_func_espcn(image_path, args):
+def preprocess_func_espcn(image_path):
   image = cv2.imread(str(image_path).rstrip())
   image = cv2.resize(image, (85, 85))
   image = image / 255.0
@@ -49,7 +51,7 @@ def preprocess_func_espcn(image_path, args):
   image = np.expand_dims(image, axis=0)
   return image
 
-def preprocess_func_arcface(image_path, args):
+def preprocess_func_arcface(image_path):
   image = cv2.imread(str(image_path).rstrip())
   image[:,:,0], image[:,:,2] = image[:,:,2], image[:,:,0]
   image = image.astype(np.float32)
@@ -59,7 +61,7 @@ def preprocess_func_arcface(image_path, args):
   image = np.expand_dims(image, axis=0)
   return image
 
-def preprocess_func_ssd300_face(image_path, args):
+def preprocess_func_ssd300_face(image_path):
   imgnet_mean = np.array([104, 177, 123], dtype=np.float32)
   image = cv2.imread(str(image_path).rstrip())
   image = image.astype(np.float32)
@@ -69,11 +71,11 @@ def preprocess_func_ssd300_face(image_path, args):
   x = np.expand_dims(x, axis=0)
   return x
 
-def preprocess_func_alphapose(npz_path, args):
+def preprocess_func_alphapose(npz_path):
   x = np.load(str(npz_path).rstrip())
   return x
 
-def preprocess_yolov3(image_path, args, net_input_dims=(416,416)):
+def preprocess_yolov3(image_path, net_input_dims=(416,416)):
   bgr_img = cv2.imread(str(image_path).rstrip())
   yolo_w = net_input_dims[1]
   yolo_h = net_input_dims[0]
@@ -173,7 +175,7 @@ def main():
                     std=args.std,
                     rgb_order=args.model_channel_order,
                     bgray=args.bgray)
-    p_func = lambda input_file, _ : preprocessor.run(input_file, output_channel_order=args.model_channel_order)
+    p_func = lambda input_file : preprocessor.run(input_file, output_channel_order=args.model_channel_order)
   elif (args.model_name == 'yolo_v3'):
     p_func = preprocess_yolov3
   elif (args.model_name == 'ssd300_face'):
@@ -193,8 +195,17 @@ def main():
   else:
     assert(False)
 
+  mlir_model = pymlir.module()
+  mlir_model.load(args.model_file)
+  mlir_model.set_plugin(args.custom_op_plugin)
+
   if args.calibrator == 'KLD':
-    calibrator = KLD_Calibrator(args, p_func)
+    calibrator = KLD_Calibrator(image_list_file=args.image_list_file, 
+      mlir_model=mlir_model, 
+      preprocess_func=p_func,
+      input_num=args.input_num, 
+      histogram_bin_num=args.histogram_bin_num, 
+      math_lib_path=args.math_lib_path)
   elif args.calibrator == 'Asym':
     calibrator = Asym_Calibrator(args, p_func)
   else:

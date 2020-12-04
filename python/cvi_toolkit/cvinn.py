@@ -2,7 +2,7 @@ import numpy as np
 import onnx
 from .model.ModelFactory import ModelFactory
 from .transform import OnnxConverter, TFConverter, CaffeConverter
-from .calibration.kld_calibrator import KLD_Calibrator_v2
+from .calibration.kld_calibrator import KLD_Calibrator
 from .calibration.tuner import Tuner_v2
 from .utils.mlir_shell import checkReturnValue, mlir_opt, \
                                 mlir_import_calibration, mlir_tpu_quant, mlir_lower_opt, mlir_gen_cvimodel, \
@@ -71,8 +71,13 @@ class cvinn(object):
         # mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune)
         cvi_model = ModelFactory()
         cvi_model.load_model('mlir', None, mlirfile=mlirfile_fp32)
-        calitor = KLD_Calibrator_v2(dataset, pre_func, cvi_model.model, input_num=input_num, histogram_bin_num=histogram_bin_num)
-        calitor.do_calibration(threshold_table=threshold_table)
+        calitor = KLD_Calibrator(image_list_file=dataset, 
+            mlir_model=cvi_model.model, 
+            preprocess_func=pre_func,
+            input_num=input_num, 
+            histogram_bin_num=histogram_bin_num)
+        thresholds = calitor.do_calibration()
+        calitor.dump_threshold_table(threshold_table, thresholds)
         if auto_tune == True:
             tuner = Tuner_v2(mlirfile_fp32, threshold_table, dataset, tune_iteration=tune_image_num,preprocess_func=pre_func)
             tuner.run_tune()
