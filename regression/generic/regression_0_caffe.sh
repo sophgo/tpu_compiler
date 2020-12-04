@@ -25,4 +25,8 @@ fi
 
 cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz $INPUT
 
+if [ ${DO_POSTPROCESS} -eq 1 ]; then
+  /bin/bash $POSTPROCESS_SCRIPT $CAFFE_BLOBS_NPZ $OUTPUTS
+fi
+
 echo $0 PASSED

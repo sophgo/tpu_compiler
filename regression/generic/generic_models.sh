@@ -55,6 +55,9 @@ export BATCH_SIZE
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
 
+# do postprocess
+export DO_POSTPROCESS=0
+export POSTPROCESS_SCRIPT=-
 
 # Caffe
 if [ $NET = "resnet50" ]; then
@@ -110,8 +113,9 @@ fi
 if [ $NET = "resnet_res_blstm" ]; then
 export MODEL_DEF=$MODEL_PATH/rnn/resnet_res_blstm/caffe/deploy_fix.prototxt
 export MODEL_DAT=$MODEL_PATH/rnn/resnet_res_blstm/caffe/model.caffemodel
+export LABEL_MAP=$MODEL_PATH/rnn/resnet_res_blstm/caffe/label.txt
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
-export IMAGE_PATH=$REGRESSION_PATH/data/lstm.jpg
+export IMAGE_PATH=$REGRESSION_PATH/data/poem.jpg
 export NET_INPUT_DIMS=32,280
 export IMAGE_RESIZE_DIMS=32,280
 export RAW_SCALE=255.0
@@ -122,6 +126,8 @@ export OUTPUTS=fc1x
 export TOLERANCE_INT8_MULTIPLER=0.99,0.99,0.87
 export TOLERANCE_BF16=0.99,0.99,0.98
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_POSTPROCESS=1
+export POSTPROCESS_SCRIPT=$REGRESSION_PATH/data/run_postprocess/ctc_greedy_decoder.sh
 fi
 
 if [ $NET = "vgg16" ]; then

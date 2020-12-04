@@ -26,6 +26,10 @@ model_runner \
     --model ${NET}_int8.cvimodel \
     --output ${NET}_cmdbuf_out_all_int8.npz
 
+if [ ${DO_POSTPROCESS} -eq 1 ]; then
+  /bin/bash $POSTPROCESS_SCRIPT ${NET}_cmdbuf_out_all_int8.npz ${OUTPUTS}_dequant
+fi
+
 mlir-tpu-interpreter ${NET}_quant_int8.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_int8.npz \

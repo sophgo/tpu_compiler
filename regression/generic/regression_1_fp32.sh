@@ -41,6 +41,10 @@ mlir-tpu-interpreter ${NET}_opt_fp32.mlir \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
 
+if [ ${DO_POSTPROCESS} -eq 1 ]; then
+  /bin/bash $POSTPROCESS_SCRIPT ${NET}_tensor_all_fp32.npz $OUTPUTS
+fi
+
 #cvi_npz_tool.py compare ${NET}_out_fp32.npz ${NET}_out_fp32_prob.npz -v
 
 if [ "$NOT_COMPARE_FP32" != "1" ]; then
