@@ -16,7 +16,7 @@ import operator
 import functools
 
 from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
-                    get_shape_size
+    get_shape_size, get_TF_SAME_Padding
 
 from ..utils.log_setting import setup_logger
 
@@ -61,6 +61,9 @@ def convert_onnx_attribute_proto(attr_proto):
     elif attr_proto.strings:
         str_list = list(attr_proto.strings)
         return str_list
+    elif attr_proto.name:
+        name_list = list(attr_proto.name)
+        return name_list
     else:
         raise ValueError("Unsupported ONNX attribute: {}".format(attr_proto))
 
@@ -843,12 +846,42 @@ class OnnxConverter(BaseConverter):
         if len(onnx_node.attrs['kernel_shape']) == 3:
             return self.convert_conv3d_op(onnx_node)
 
+        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        filter_name = onnx_node.inputs[1]
+        filter_tensor = self.getTensor(filter_name)
+        filter_shape = filter_tensor.shape
+        with_bias = False
+        if len(onnx_node.inputs) == 3:
+            #with bias
+            with_bias = True
+            bias_name = onnx_node.inputs[2]
+            bias_tensor = self.getTensor(bias_name)
+
         dilations = onnx_node.attrs.get("dilations", [1, 1])
         group = onnx_node.attrs.get("group", 1)
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
-
-
         strides = onnx_node.attrs.get("strides",[1,1])
+        auto_pad = onnx_node.attrs.get("auto_pad", None)
+        if auto_pad:
+            pad_method = auto_pad.decode('utf-8')
+            if pad_method == "SAME_UPPER":
+                padding_along_h = get_TF_SAME_Padding(
+                    shape[2], filter_shape[2], strides[0])
+                padding_along_w = get_TF_SAME_Padding(
+                    shape[3], filter_shape[3], strides[1])
+                padding_t = padding_along_h // 2
+                padding_l = padding_along_w // 2
+                padding_b = padding_along_h - padding_t
+                padding_r = padding_along_w - padding_l
+                pads = [padding_t, padding_l, padding_b, padding_r]
+            elif pad_method == "VALID":
+                pass
+            elif pad_method == "NOTSET":
+                pass
+            else:
+                raise RuntimeError("Not support conv {} pad method".format(pad_method))
         conv_param = {
             'stride_h':  strides[0],
             'stride_w':  strides[1],
@@ -865,19 +898,6 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
             'ins': [],
         }
-        op, shape, _ = self.getOperand(onnx_node.inputs[0])
-        operands = list()
-        operands.append(op)
-        filter_name = onnx_node.inputs[1]
-        filter_tensor = self.getTensor(filter_name)
-        filter_shape = filter_tensor.shape
-        with_bias = False
-        if (len(onnx_node.inputs) == 3):
-            #with bias
-            with_bias = True
-            bias_name = onnx_node.inputs[2]
-            bias_tensor = self.getTensor(bias_name)
-
 
         on = shape[0]
         oc = filter_tensor.shape[0] # feature map size
@@ -1861,9 +1881,6 @@ class OnnxConverter(BaseConverter):
         mode = onnx_node.attrs.get("mode", "nearest")
 
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[2])
-        if tensor_type1 != TensorType.ACTIVATION or tensor_type2 != TensorType.TENSOR:
-            raise RuntimeError("Unsupported tensor type")
 
         if len(onnx_node.inputs) > 2:
             # onnx opset 11
@@ -1871,8 +1888,13 @@ class OnnxConverter(BaseConverter):
             if len(scale_factor) == 0:
                 # size
                 scale_factor = self.getTensor(onnx_node.inputs[3]).tensor_data
+            use_size = len(self.getTensor(
+                onnx_node.inputs[2]).tensor_data) == 0
         else:
-            scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
+            # opset 10
+            scale_factor = self.getTensor(onnx_node.inputs[1]).tensor_data
+            print(scale_factor)
+            use_size =False
 
         if len(scale_factor) != 4:
             raise RuntimeError("scale_factor length should be 4")
@@ -1915,7 +1937,7 @@ class OnnxConverter(BaseConverter):
 
         elif mode == b"nearest":
             operands = list()
-            use_size = len(self.getTensor(onnx_node.inputs[2]).tensor_data) == 0
+
             operands.append(op1)
             ic = input_shape1[1]
             ih = input_shape1[2]
