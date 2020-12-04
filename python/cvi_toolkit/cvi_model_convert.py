@@ -33,7 +33,8 @@ def Convert(args):
                         rgb_order=args.model_channel_order,
                         crop_method=args.crop_method,
                         data_format=args.data_format,
-                        only_aspect_ratio_img=args.only_aspect_ratio_img)
+                        only_aspect_ratio_img=args.only_aspect_ratio_img,
+                        bgray=args.bgray)
 
     input_shape = [int(i) for i in args.input_shape.split(",")]
 

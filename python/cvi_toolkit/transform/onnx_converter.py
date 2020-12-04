@@ -349,15 +349,25 @@ class OnnxConverter(BaseConverter):
                     'crop_offset': crop_offset,
                     'pads': [0,0,0,0,0,0,0,0],
                     'pad_const_val': 0,
+                    'data_format': "nchw",
+                    'gray': self.preprocess_args.get('gray')
                 }
             else:
                 preprocess_attr = {}
 
             if self.convert_preprocess:
+                input_fused_preprocess_attr = {
+                    'mean': np.array([0,0,0], dtype=np.float32),
+                    'std':  np.array([1,1,1], dtype=np.float32),
+                    'scale': 1.0,
+                    'raw_scale': 255.0,
+                    'color_order': np.array([0,1,2]),
+                    'data_format': "nhwc",
+                    'gray': self.preprocess_args.get('gray')
+                }
                 # add preprocess
-                input_no_preprocess_op = self.CVI.add_input_op(
-                    input.name, idx, **preprocess_attr)
- 
+                input_no_preprocess_op = self.CVI.add_input_op(input.name, idx, **input_fused_preprocess_attr)
+
                 output_shape = input_shape
                 input_op = self.CVI.add_preprocess_op(
                     "{}_preprocess".format(input.name), [input_no_preprocess_op], output_shape, **preprocess_attr)

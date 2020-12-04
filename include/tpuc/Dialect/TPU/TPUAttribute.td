@@ -297,7 +297,8 @@ def TPU_PreprocessParamAttr : StructAttr<"PreprocessParam", TPU_Dialect, [
     StructFieldAttr<"mean", F32ArrayAttr>,
     StructFieldAttr<"std", F32ArrayAttr>,
     StructFieldAttr<"input_scale", F32Attr>,
-    StructFieldAttr<"color_order", StrAttr>]> {
+    StructFieldAttr<"color_order", StrAttr>,
+    StructFieldAttr<"data_format", StrAttr>]> {
   let description = "Structure of parameters for preprocess";
 }
 

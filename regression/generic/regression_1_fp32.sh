@@ -23,6 +23,7 @@ cvi_model_convert.py \
     --std ${STD} \
     --input_scale ${INPUT_SCALE} \
     --model_channel_order $MODEL_CHANNEL_ORDER \
+    --bgray ${BGRAY} \
     --mlir_file_path ${NET}.mlir
 
 # assign layer_id right away, and apply all frontend optimizations

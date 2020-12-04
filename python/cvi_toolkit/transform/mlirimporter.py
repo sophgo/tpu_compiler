@@ -244,14 +244,18 @@ class MLIRImporter(object):
         assert (index < len(self.func_args))
 
         if kargs:
-            color_order = "bgr" if kargs['color_order'].tolist() == [0,1,2] else "rgb"
+            if kargs['gray'] == False:
+                color_order = "bgr" if kargs['color_order'].tolist() == [0,1,2] else "rgb"
+            else:
+                color_order = "gray"
 
             preprocess_param = {
                 'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['mean']]),
                 'std':  ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['std']]),
                 'input_scale': FloatAttr.get_f32(kargs['scale']),
                 'raw_scale': FloatAttr.get_f32(kargs['raw_scale']),
-                'color_order': StringAttr.get(color_order)
+                'color_order': StringAttr.get(color_order),
+                'data_format': StringAttr.get(kargs['data_format'])
             }
         else:
             # use default preprocess param
@@ -260,7 +264,8 @@ class MLIRImporter(object):
                 'std':  ArrayAttr.get([FloatAttr.get_f32(x) for x in [1,1,1]]),
                 'input_scale': FloatAttr.get_f32(1.0),
                 'raw_scale': FloatAttr.get_f32(255.0),
-                'color_order': StringAttr.get("bgr")
+                'color_order': StringAttr.get("bgr"),
+                'data_format': StringAttr.get("nchw")
             }
         preprocess_param_attr = DictAttr.get(preprocess_param)
 

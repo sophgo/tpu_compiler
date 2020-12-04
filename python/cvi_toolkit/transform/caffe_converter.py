@@ -1743,6 +1743,7 @@ class CaffeConverter(BaseConverter):
                 if self.preprocess_args.get('crop_method') == "aspect_ratio":
                     pads = self.preprocess_args.get(
                         'pads', [0, 0, 0, 0, 0, 0, 0, 0])
+
                 # add preprocess
                 preprocess_attr = {
                     'mean': np.array([float(s) for s in self.preprocess_args.get('mean')], dtype=np.float32),
@@ -1754,14 +1755,24 @@ class CaffeConverter(BaseConverter):
                     'crop_offset': crop_offset,
                     'pads': pads,
                     'pad_const_val': 0,
+                    'data_format': "nchw",
+                    'gray': self.preprocess_args.get('gray')
                 }
             else:
                 preprocess_attr = {}
 
             if self.convert_preprocess:
+                input_fused_preprocess_attr = {
+                    'mean': np.array([0,0,0], dtype=np.float32),
+                    'std':  np.array([1,1,1], dtype=np.float32),
+                    'scale': 1.0,
+                    'raw_scale': 255.0,
+                    'color_order': np.array([0,1,2]),
+                    'data_format': "nhwc",
+                    'gray': self.preprocess_args.get('gray')
+                }
                 # add preprocess
-                input_no_preprocess_op = self.CVI.add_input_op(
-                    name, idx, **preprocess_attr)
+                input_no_preprocess_op = self.CVI.add_input_op(name, idx, **input_fused_preprocess_attr)
 
                 output_shape = input_shape
                 input_op = self.CVI.add_preprocess_op(

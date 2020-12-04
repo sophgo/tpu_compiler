@@ -489,7 +489,8 @@ void CviModelBuilder::parseModule() {
                   std::for_each(preprocess.getValue().std().begin(), preprocess.getValue().std().end(),
             [&](mlir::Attribute attr){ std.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
           auto input_scale = preprocess.getValue().input_scale().getValue().convertToFloat();
-          preprocess_ = {color, raw_scale, mean, std, input_scale};
+          auto data_format = preprocess.getValue().data_format().getValue().str();
+          preprocess_ = {color, raw_scale, mean, std, input_scale, data_format};
         }
       }
 
@@ -621,7 +622,8 @@ FBPreProcessHints CviModelBuilder::buildPreProcessHints() {
               preprocess_.raw_scale,
               mean_str.c_str(),
               std_str.c_str(),
-              preprocess_.input_scale);
+              preprocess_.input_scale,
+              preprocess_.data_format.c_str());
 }
 
 FBWeightVector CviModelBuilder::buildWeightMap() {

@@ -194,7 +194,8 @@ class preprocess(object):
                 'pads': [0,0,0,0],
                 'pad_const_val': 0,
                 'crop_method': CropMethod.CENTOR.value,
-                'preprocess_input_data_format': preprocess_input_data_format
+                'preprocess_input_data_format': preprocess_input_data_format,
+                'gray': self.bgray
             }
         elif self.crop_method is CropMethod.ASPECT_RATIO:
             return {
@@ -211,7 +212,8 @@ class preprocess(object):
                 'pad_const_val': 0,
                 'crop_method': CropMethod.ASPECT_RATIO.value,
                 'input_shape': [input_h, input_w],
-                'preprocess_input_data_format': preprocess_input_data_format
+                'preprocess_input_data_format': preprocess_input_data_format,
+                'gray': self.bgray
             }
         else:
             raise RuntimeError(

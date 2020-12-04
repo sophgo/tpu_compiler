@@ -159,6 +159,7 @@ private:
     std::vector<float> mean;
     std::vector<float> std;
     float input_scale;
+    std::string data_format;
   } preprocess_;
 
   void addRoutine(std::string funcName);
