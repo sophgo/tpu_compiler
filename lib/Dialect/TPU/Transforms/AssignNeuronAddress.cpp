@@ -243,39 +243,6 @@ static void findInPlaceOpMaxUsePosition(Operation *op, uint32_t &maxPosition) {
   }
 }
 
-static bool isOpBelongToTPUPrivateMemoryRegion(Operation *op) {
-  if (!isa<tpu::GenericCpuOp>(op) && !isa<tpu::InputOp>(op)) {
-    return true;
-  }
-  for (auto &use : op->getResult(0)->getUses()) {
-    Operation *next = use.getOwner();
-    if (isa<tpu::GenericCpuOp>(next) || isa<ReturnOp>(next)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool isOpBelongToIOMemoryRegion(std::vector<Operation *> &ioRegion, Operation *op) {
-  // Warning, IO memory region can only has capacity to store 5 ops.
-  if (ioRegion.size() >= 5) {
-    return false;
-  }
-  if (isa<tpu::InputOp>(op)) {
-    for (auto &use : op->getResult(0)->getUses()) {
-      Operation *next = use.getOwner();
-      if (!isa<tpu::GenericCpuOp>(next)) {
-        return true;
-      }
-    }
-  } else if (!isa<tpu::GenericCpuOp>(op)) {
-    auto next = getNextOp(op);
-    if (next && isa<ReturnOp>(next)) {
-      return true;
-    }
-  }
-  return false;
-}
 
 static void
 updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
@@ -380,7 +347,7 @@ public:
         std::vector<Operation *> targetOps;
         for (auto op : subFn->ops) {
           if (isOpInVector(op, chosenOps)) {
-            if (!isOpInVector(op, subFn->outputs)) {
+            if (isOpBelongToSharedMemoryRegion(op, subFn->outputs)) {
               targetOps.push_back(op);
             } else if (isOpBelongToIOMemoryRegion(opsInIOMemoryRegion, op)) {
               opsInIOMemoryRegion.push_back(op);
@@ -514,6 +481,53 @@ private:
     for (auto candidate : ops) {
       if (candidate == op)
         return true;
+    }
+    return false;
+  }
+
+  bool isOpBelongToSharedMemoryRegion(Operation *op, std::vector<Operation *> &outputs) {
+    if (isOpInVector(op, outputs)) {
+      return false;
+    }
+    for (auto &use : op->getResult(0)->getUses()) {
+      Operation *next = use.getOwner();
+      if (isInPlaceOp(next) && isOpInVector(next, outputs)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool isOpBelongToTPUPrivateMemoryRegion(Operation *op) {
+    if (!isa<tpu::GenericCpuOp>(op) && !isa<tpu::InputOp>(op)) {
+      return true;
+    }
+    for (auto &use : op->getResult(0)->getUses()) {
+      Operation *next = use.getOwner();
+      if (isa<tpu::GenericCpuOp>(next) || isa<ReturnOp>(next)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool isOpBelongToIOMemoryRegion(std::vector<Operation *> &ioRegion, Operation *op) {
+    // Warning, IO memory region can only has capacity to store 5 ops.
+    if (ioRegion.size() >= 5) {
+      return false;
+    }
+    if (isa<tpu::InputOp>(op)) {
+      for (auto &use : op->getResult(0)->getUses()) {
+        Operation *next = use.getOwner();
+        if (!isa<tpu::GenericCpuOp>(next)) {
+          return true;
+        }
+      }
+    } else if (!isa<tpu::GenericCpuOp>(op)) {
+      auto next = getNextOp(op);
+      if (next && isa<ReturnOp>(next)) {
+        return true;
+      }
     }
     return false;
   }
