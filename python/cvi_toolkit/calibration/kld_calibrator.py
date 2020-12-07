@@ -25,6 +25,8 @@ class KLD_Calibrator(Base_Calibrator):
             histogram_bin_num=2048,
             math_lib_path='calibration_math.so'):
         super().__init__(image_list_file, mlir_model, preprocess_func, input_num)
+        if not self.is_symmetric_quantization:
+            raise RuntimeError("KLD_Calibrator only support symmetric quantization")
 
         self.histogram_bin_num = int(histogram_bin_num)
         self.calibration_math = CDLL(math_lib_path)

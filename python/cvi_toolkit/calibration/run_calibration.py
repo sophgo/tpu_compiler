@@ -9,8 +9,8 @@ import sys, os, cv2
 import numpy as np
 import pymlir
 
+from cvi_toolkit.calibration.base_calibrator import Base_Calibrator
 from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
-from cvi_toolkit.calibration.asym_calibrator import Asym_Calibrator
 from cvi_toolkit.calibration.tuner import Tuner_v2
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
@@ -200,14 +200,20 @@ def main():
   mlir_model.set_plugin(args.custom_op_plugin)
 
   if args.calibrator == 'KLD':
-    calibrator = KLD_Calibrator(image_list_file=args.image_list_file, 
-      mlir_model=mlir_model, 
+    calibrator = KLD_Calibrator(image_list_file=args.image_list_file,
+      mlir_model=mlir_model,
       preprocess_func=p_func,
-      input_num=args.input_num, 
-      histogram_bin_num=args.histogram_bin_num, 
+      input_num=args.input_num,
+      histogram_bin_num=args.histogram_bin_num,
       math_lib_path=args.math_lib_path)
+  # TODO - Refine the argument, asymmetric quantization is not a calibration method.
+  # Just one kind of quantization type, we need to output two threshold for each tensor.
   elif args.calibrator == 'Asym':
-    calibrator = Asym_Calibrator(args, p_func)
+    calibrator = Base_Calibrator(image_list_file=args.image_list_file,
+      mlir_model=mlir_model,
+      preprocess_func=p_func,
+      input_num=args.input_num,
+      is_symmetric_quantization=False)
   else:
     assert(False)
 

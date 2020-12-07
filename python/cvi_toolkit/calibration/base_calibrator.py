@@ -16,13 +16,14 @@ logger = setup_logger('root')
 def is_all_zero(data):
     return np.all((data == 0))
 
-
+# Just use min and max as the quantization range
 class Base_Calibrator(object):
     def __init__(self,
             image_list_file,
             mlir_model,
             preprocess_func,
-            input_num=200):
+            input_num=200,
+            is_symmetric_quantization=True):
 
         with open(image_list_file,'r') as fp:
             self.all_lines = fp.readlines()
@@ -38,6 +39,7 @@ class Base_Calibrator(object):
         self.module = mlir_model
         self.tensor_max = {}
         self.tensor_min = {}
+        self.is_symmetric_quantization = is_symmetric_quantization
 
     def do_find_min_max(self):
         idx = 0
@@ -74,8 +76,12 @@ class Base_Calibrator(object):
         self.tensor_min, self.tensor_max = self.do_find_min_max()
 
         thresholds = {}
-        for item in self.tensor_max:
-            thresholds[item] = [max(abs(self.tensor_max[item]), abs(self.tensor_min[item]))]
+        if self.is_symmetric_quantization:
+            for item in self.tensor_max:
+                thresholds[item] = [max(abs(self.tensor_max[item]), abs(self.tensor_min[item]))]
+        else:
+            for item in self.tensor_max:
+                thresholds[item] = [self.tensor_min[item], self.tensor_max[item]]
 
         return thresholds
 
