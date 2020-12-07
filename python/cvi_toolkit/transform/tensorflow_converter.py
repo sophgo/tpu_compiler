@@ -134,6 +134,7 @@ class TFConverter(BaseConverter):
             "DepthToSpace": lambda node: self.convert_depth_to_space_op(node),
             "Dropout":  lambda node: self.convert_skip_op(node),
             "Identity": lambda node: self.convert_skip_op(node),
+            "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "MatMul": lambda node: self.convert_fc_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Mean": lambda node: self.convert_mean_op(node),
@@ -142,7 +143,8 @@ class TFConverter(BaseConverter):
             "Pack": lambda node: self.convert_skip_op(node),
             "Placeholder": lambda node: None,
             "Relu": lambda node: self.convert_relu_op(node),
-            "Relu6": lambda node:self.convert_relu6_op(node),
+            "Relu6": lambda node: self.convert_relu6_op(node),
+            "ResizeNearestNeighbor": lambda node: self.convert_resize_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Shape": lambda node: self.convert_skip_op(node),
             "Softmax": lambda node: self.convert_softmax_op(node),
@@ -204,7 +206,7 @@ class TFConverter(BaseConverter):
         # init importer
         self.CVI = MLIRImporter(self.mlir_inputs, self.mlir_outputs, output_weight_file=self.output_weight_file)
 
-    def addTensor(self, op_name, tensor_data, tensor_shape, op_type):
+    def addTensor(self, op_name, tensor_data, tensor_shape):
         self.converted_tensors.append(TFTensor(op_name, tensor_data, tensor_shape))
 
     def getTensor(self, op_name):
@@ -215,7 +217,7 @@ class TFConverter(BaseConverter):
             return find_tensor[0]
 
     def createLoadWeightOp(self, tensor_name, tensor_data, tensor_shape):
-        self.addTensor(tensor_name, tensor_data, tensor_shape, None)
+        self.addTensor(tensor_name, tensor_data, tensor_shape)
         weight_op = self.CVI.add_load_file_op(tensor_name, tensor_shape)
         return weight_op
 
@@ -238,7 +240,7 @@ class TFConverter(BaseConverter):
                 if n.op_type == "Const" and n.has_tensor_data:  # weight
                     self.addTensor(
                         n.name, turn_data_hwio_to_oihw(n.tensor_data), \
-                        turn_shape_hwio_to_oihw(n.shape), None)
+                        turn_shape_hwio_to_oihw(n.shape))
                     self.addOperand(
                         n.name, None, turn_shape_hwio_to_oihw(n.shape), TensorType.TENSOR)
                 else:
@@ -378,13 +380,13 @@ class TFConverter(BaseConverter):
 
         scale_op = self.CVI.add_load_file_op(scale_name, scale_value.shape)
         # add new weight tensor
-        self.addTensor(scale_name, scale_value, scale_value.shape, None)
+        self.addTensor(scale_name, scale_value, scale_value.shape)
 
         offset_name =  "{}_1".format(node.name)
         offset_value = (-mean_value * scale_value) + beta_value
         offset_op = self.CVI.add_load_file_op(offset_name, offset_value.shape)
         # add new bias tensor
-        self.addTensor(offset_name, offset_value, offset_value.shape, None)
+        self.addTensor(offset_name, offset_value, offset_value.shape)
 
         operands.append(scale_op)
         operands.append(offset_op)
@@ -418,7 +420,7 @@ class TFConverter(BaseConverter):
 
         weight_data = np.full(input_shape[1], 1) # broadcast via channel
         weight_name = "{}_add_weight".format(node.name)
-        self.addTensor(weight_name, weight_data, weight_data.shape, None)
+        self.addTensor(weight_name, weight_data, weight_data.shape)
         weight_op = self.CVI.add_load_file_op(weight_name, weight_data.shape)
 
         output_shape = input_shape
@@ -445,9 +447,9 @@ class TFConverter(BaseConverter):
             operands.append(op)
         axis_tensor = self.getTensor(node.inputs[-1])
         axis = axis_tensor.tensor_data
-        if len(in_shapes[0]) == 4 and axis != 3:
+        if len(in_shapes[0]) == 4 and  (axis != 3 and axis != -1):
             raise RuntimeError("case of dim 4, data format is NHWC, we handle all op in NCHW, if axis is 3, we change to 1\n axis is {}".format(axis))
-        elif len(in_shapes[0]) == 4 and axis == 3:
+        elif len(in_shapes[0]) == 4 and (axis == 3 or axis == -1):
             logger.info("case of dim 4, data format is NHWC, we handle all op in NCHW, if axis is 3, we change to 1")
             axis = 1
         else:
@@ -687,6 +689,18 @@ class TFConverter(BaseConverter):
         self.addOperand(node.name, fc_op,
                         output_shape, TensorType.ACTIVATION)
 
+    def convert_leaky_relu_op(self, node):
+        assert(node.op_type == "LeakyRelu")
+        op, input_shape, _ = self.getOperand(node.inputs[0])
+        leaky_param = {
+            'negative_slope': node.attr['alpha'],
+        }
+        output_shape = input_shape
+        leaky_relu_op = self.CVI.add_leaky_relu_op("{}".format(
+            node.name), [op], output_shape, **leaky_param)
+        self.addOperand(node.name, leaky_relu_op,
+                        output_shape, TensorType.ACTIVATION)
+
     def convert_global_avg_pool_op(self, node):
         assert(node.op_type == "GlobalAveragePooling2D")
         op, input_shape, _ = self.getOperand(node.inputs[0])
@@ -856,6 +870,43 @@ class TFConverter(BaseConverter):
         assert(output_shape[1:] != node.shape[1:])
         activation_op = self.CVI.add_clip_op(node.name, [relu_op], output_shape, **clip_param)
         self.addOperand(node.name, activation_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_resize_op(self, node):
+        op, input_shape, _ = self.getOperand(node.inputs[0])
+        n, ic, ih, iw= input_shape
+        oc = ic
+        group = ic
+        oh = node.shape[1]
+        ow = node.shape[2]
+        # deconv weight all one
+        weight_shape = [group, int(
+            oc/group), int(ic/group), int(oh / ih), int(ow / iw)]
+        tensor_data = np.full(weight_shape, 1)
+        weight_name = "{}_add_weight".format(node.name)
+        self.addTensor(weight_name, tensor_data, tensor_data.shape)
+
+        deconv_param = {
+                'stride_h':  int(oh / ih),
+                'stride_w':  int(ow / iw),
+                'padding': "VALID",
+                'dilation_h': 1,
+                'dilation_w': 1,
+                'padding_t': 0,
+                'padding_b': 0,
+                'padding_l': 0,
+                'padding_r': 0,
+                'group': ic,
+                'is_dw': False,
+                'with_bias': False,
+                'do_relu': False,
+                'ins': [],
+            }
+        weight_op = self.CVI.add_load_file_op(
+            weight_name, tensor_data.shape)
+        output_shape = [n, ic, oh, ow]
+        resize_op = self.CVI.add_deconv_op(node.name, [op, weight_op], output_shape, **deconv_param)
+        self.addOperand(node.name, resize_op,
                         output_shape, TensorType.ACTIVATION)
 
     def convert_softmax_op(self, node):
