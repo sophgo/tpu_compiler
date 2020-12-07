@@ -4134,19 +4134,57 @@ LogicalResult tpu::ReQuantOp::interpret(
   auto result = this->getResult();
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float>>(size);
-  std::shared_ptr<std::vector<float>> input = opdT[0];
+  float *input = (float *)opdT[0]->data();
+
   float input_offset = (float)-getPreviousOpZeroPoint(op);
   float output_offset = (float)getOpZeroPoint(op);
   float qscale = this->qscale().convertToFloat();
 
-  for(int64_t i = 0; i < size; i++){
-    resultT->at(i) = (input->at(i) + input_offset) * qscale + output_offset;
+  auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
+  bfloat16 input_offset_bf16;
+  bfloat16 output_offset_bf16;
+  bfloat16 qscale_bf16;
+  FloatToBFloat16(&input_offset, &input_offset_bf16, 1);
+  BFloat16ToFloat(&input_offset_bf16, &input_offset, 1);
+  FloatToBFloat16(&output_offset, &output_offset_bf16, 1);
+  BFloat16ToFloat(&output_offset_bf16, &output_offset, 1);
+  FloatToBFloat16(&qscale, &qscale_bf16, 1);
+  BFloat16ToFloat(&qscale_bf16, &qscale, 1);
+  FloatToBFloat16(input, tensor_bf16->data(),
+                  resultT->size()); // with rounding
+  BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  for (size_t i = 0; i < tensor_bf16->size(); i++){
+    resultT->at(i) += (float)input_offset ;
   }
 
-  auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
-  FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+  FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                  resultT->size()); // with rounding
   BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
-
+  for (size_t i = 0; i < tensor_bf16->size(); i++){
+    resultT->at(i) *= qscale ;
+  }
+  FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                  resultT->size()); // with rounding
+  BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  for (size_t i = 0; i < tensor_bf16->size(); i++){
+    resultT->at(i) += (float)output_offset ;
+  }
+  FloatToBFloat16(resultT->data(), tensor_bf16->data(),
+                  resultT->size()); // with rounding
+  BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+  // round
+  for (size_t i = 0; i < tensor_bf16->size(); i++){
+    float sub_part;
+    float int_part;
+    sub_part = std::modf(resultT->at(i), &int_part);
+    // subpart 0.5
+    if(std::abs(std::abs(sub_part) - 0.5f) < 0.001){
+      resultT->at(i) = std::round(resultT->at(i) / 2) * 2;
+    }
+    else if(std::abs(sub_part) > 0.0f){
+       resultT->at(i) = std::nearbyint(resultT->at(i));
+    }
+  }
 
 
   valueMapping[result] = std::move(resultT);

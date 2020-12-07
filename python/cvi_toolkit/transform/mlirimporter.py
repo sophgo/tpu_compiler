@@ -639,10 +639,34 @@ class MLIRImporter(object):
 
         dict_attr = DictAttr.get(deconv_param)
         none = self.add_none_op()
-        for _ in range(7 - len(inputOperands)):
-            inputOperands.append(none)
+
+        if mode == TPU_MODE.INT8:
+            if len(inputOperands) < 4:
+                raise RuntimeError(
+                    "{} input, need more than 4 input operands".format(len(inputOperands)))
+
+            quant_param = self.create_int8_quant_attr(**kargs)
+
+            # input, weight, (bias), rshift, multipiler
+            rshift, multipiler = inputOperands[-2:]
+            inputOperands = inputOperands[:-2]
+            for _ in range(5 - len(inputOperands)):
+                inputOperands.append(none)
+            inputOperands.append(rshift)
+            inputOperands.append(multipiler)
+
+        elif mode == TPU_MODE.FP32:
+            if len(inputOperands) < 2:
+                raise RuntimeError(
+                    "{} input, need more than 2 input operands".format(len(inputOperands)))
+            for _ in range(7 - len(inputOperands)):
+                inputOperands.append(none)
+            quant_param = self.quant_param
+
+        elif mode == TPU_MODE.BF16:
+            raise RuntimeError("Not support BF16")
         return self.buildOp(TPU_OpType.DeConv2d.value, inputOperands, [
-            tensor_output_type], name=deconv_name, param=dict_attr, quant=self.quant_param)
+            tensor_output_type], name=deconv_name, param=dict_attr, quant=quant_param)
 
     def add_dummydata_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))

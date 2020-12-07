@@ -1710,3 +1710,25 @@ export DO_QUANT_INT8_MULTIPLER=0
 export DO_ACCURACY_FP32_INTERPRETER=0
 export DO_QUANT_BF16=0
 fi
+
+# TFLite Int8
+if [ $NET = "yolo_v3_416_without_detection_tflite_int8" ]; then
+export INT8_MODEL=1
+export MODEL_TYPE="tflite_int8"
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/tflite_int8/yolo_v3_416_without_detection_int8_quant.tflite
+export MODEL_DAT=""
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export INT8_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_tflite_int8/regression_yolo_v3_0_tflite_int8.sh
+export IMAGE_RESIZE_DIMS=416,416
+export NET_INPUT_DIMS=416,416
+export NET_INPUT_DIMS=416,416
+export IMAGE_RESIZE_DIMS=416,416
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export INPUT=input_1
+export DO_DEEPFUSION=0
+export DO_QUANT_INT8_MULTIPLER=0
+export DO_ACCURACY_FP32_INTERPRETER=0
+export DO_QUANT_BF16=0
+fi

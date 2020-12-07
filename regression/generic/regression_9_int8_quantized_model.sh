@@ -31,7 +31,6 @@ tpuc-opt ${NET}_quant.mlir\
     --tpu-lower \
     --dequant-results-to-fp32=1 \
     --reorder-op \
-    --tg-fuse-leakyrelu \
     --conv-ic-alignment \
     --dce \
     --deep-fusion-opt \
@@ -73,16 +72,5 @@ cvi_npz_tool.py compare \
     ${NET}_tensor_all_int8.npz \
     --op_info ${NET}_op_info.csv -vv
 
-# if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-#   if [ $BATCH_SIZE -eq 1 ]; then
-#     cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
-#     mv ${NET}_int8.cvimodel $CVIMODEL_REL_PATH/${NET}.cvimodel
-#     cp ${NET}_cmdbuf_out_all_int8.npz $CVIMODEL_REL_PATH/${NET}_out_all.npz
-#   else
-#     cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_in_fp32.npz
-#     mv ${NET}_int8.cvimodel $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}.cvimodel
-#     cp ${NET}_cmdbuf_out_all_int8.npz $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_out_all.npz
-#   fi
-# fi
 
 echo $0 PASSED

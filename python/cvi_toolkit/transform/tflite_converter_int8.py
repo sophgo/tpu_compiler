@@ -248,10 +248,8 @@ class TFLiteConverter(BaseConverter):
             scale = quant_attr.ScaleAsNumpy()
             zero_point = quant_attr.ZeroPointAsNumpy()
             quant_dim = quant_attr.QuantizedDimension()
-        if(not isinstance(quant_max, int) and not isinstance(quant_max, int)):
-            threshold = max(abs(quant_max[0]), abs(quant_min[0]))
-        else:
-            threshold = 0
+
+        threshold = 128 * scale
 
         return {
             "name": tensor_name,
@@ -357,7 +355,7 @@ class TFLiteConverter(BaseConverter):
 
         add_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(add_tensor)
-        threshold_y = tensor_attr['threshold']
+        threshold = tensor_attr['threshold']
         add_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0,3,1,2]] # nhwc -> nchw
@@ -420,7 +418,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': False,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I8",
-            'threshold_max': 0,
+            'threshold_max': threshold,
             'threshold_min': 0,
             'zero_point': output_offset,
         }
@@ -519,12 +517,25 @@ class TFLiteConverter(BaseConverter):
         filter_op = self.CVI.add_load_file_op(
             filter_name, filter_shape, tensor_type=TPU_TensorType.FP32, storage="INT8")
         operands.append(filter_op)
-
+        zero_channel = list()
+        """
+            if filter scale is nearest to zero, we clean weight to 0
+            and set filter_scale as 0.5 to do output offset fused
+        """
+        new_filter_scale = list()
+        for idx, i in enumerate(filter_scale):
+            if i < 1.1920928955078125e-07:
+                new_filter_scale.append(0.3)
+                filter_data[idx, :, :, :] = 0
+                zero_channel.append(idx)
+            else:
+                new_filter_scale.append(i)
+        filter_scale = np.squeeze(np.array(new_filter_scale))
         # calculate rshift, multipiler
         CVIMlirQscale = getFilterQscale(
             filter_scale, input_scale, output_scale)  # [channel]
 
-        rshift_data, mutlipiler_data = getRShiftAndMultiplierFromQScaleArray(
+        rshift_data, multipiler_data = getRShiftAndMultiplierFromQScaleArray(
             CVIMlirQscale, qdm=True)
 
         # bias
@@ -550,6 +561,15 @@ class TFLiteConverter(BaseConverter):
             bias_data = np.frombuffer(bias_data.tobytes(), dtype=np.int32)
             bias_data = bias_data.reshape(tuple(bias_shape))
 
+            # if weight is zero, bias set zero too.
+            new_bias_data = list()
+            for idx, i in enumerate(bias_data):
+                if idx in zero_channel:
+                    new_bias_data.append(0)
+                else:
+                    new_bias_data.append(i)
+            bias_data = np.squeeze(np.array(new_bias_data))
+
             # fuesd input offset and output offset to bias
             # input_offset
             # ZxQw +  Zy * (Sy/SwSx)
@@ -557,7 +577,8 @@ class TFLiteConverter(BaseConverter):
             fused_input_offset = np.reshape(fused_input_offset, (bias_shape[0], -1))
             fused_input_offset = np.sum(fused_input_offset, axis=1)
 
-            fused_output_offset = (output_scale / (filter_scale * input_scale)) * output_offset
+            fused_output_offset = output_offset * np.round((1 / CVIMlirQscale))
+
             bias_data = bias_data + \
                 fused_input_offset.astype(np.int32) + fused_output_offset.astype(np.int32)
 
@@ -584,9 +605,9 @@ class TFLiteConverter(BaseConverter):
 
         # add multipiler op
         multipiler_name = "{}_multipiler".format(node.name)
-        multipiler_shape = list(mutlipiler_data.shape)
-        self.addTensor(multipiler_name, mutlipiler_data,
-                       multipiler_shape)
+        multipiler_shape = list(multipiler_data.shape)
+        self.addTensor(multipiler_name, multipiler_data,
+                       multipiler_data)
         mutlipiler_op = self.CVI.add_load_file_op(
             multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
         operands.append(mutlipiler_op)
@@ -848,6 +869,7 @@ class TFLiteConverter(BaseConverter):
             fused_input_offset = np.sum(fused_input_offset, axis=1)
 
             fused_output_offset = output_offset * np.round((1 / CVIMlirQscale))
+
 
             bias_data = bias_data + \
                 fused_input_offset.astype(
@@ -1289,14 +1311,14 @@ class TFLiteConverter(BaseConverter):
         pos_rshift_shape = list(pos_rshift_data.shape)
         self.addTensor(pos_rshift_name, pos_rshift_data, pos_rshift_shape)
         pos_rshift_op = self.CVI.add_load_file_op(
-            pos_rshift_name, pos_rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+            pos_rshift_name, pos_rshift_shape, tensor_type=TPU_TensorType.FP32, storage="INT8")
 
         pos_multipiler_name = "{}_pos_multipiler".format(leaky_relu_name)
         pos_multipiler_data = np.array([multipiler_pos])
         pos_multipiler_shape = list(pos_multipiler_data.shape)
         self.addTensor(pos_multipiler_name, pos_multipiler_data, pos_multipiler_shape)
         pos_multipiler_op = self.CVI.add_load_file_op(
-            pos_multipiler_name, pos_multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+            pos_multipiler_name, pos_multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="INT32")
 
         # neg rshift and multipiler
         CVIMlirQscale_neg = (input_scale / output_scale) * negative_slope
@@ -1308,14 +1330,14 @@ class TFLiteConverter(BaseConverter):
         neg_rshift_shape = list(neg_rshift_data.shape)
         self.addTensor(neg_rshift_name, neg_rshift_data, neg_rshift_shape)
         neg_rshift_op = self.CVI.add_load_file_op(
-            neg_rshift_name, neg_rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+            neg_rshift_name, neg_rshift_shape, tensor_type=TPU_TensorType.FP32, storage="INT8")
 
         neg_multipiler_name = "{}_neg_multipiler".format(leaky_relu_name)
         neg_multipiler_data = np.array([multipiler_neg])
         neg_multipiler_shape = list(neg_multipiler_data.shape)
         self.addTensor(neg_multipiler_name, neg_multipiler_data, neg_multipiler_shape)
         neg_multipiler_op = self.CVI.add_load_file_op(
-            neg_multipiler_name, neg_multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+            neg_multipiler_name, neg_multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="INT32")
 
         param = {
             'negative_slope': negative_slope
@@ -1409,14 +1431,21 @@ class TFLiteConverter(BaseConverter):
 
         input_tensor = self.tflite_graph.Tensors(node.inputs[0])
         input_attr = self.getTensorAttr(input_tensor)
+        input_scale = input_attr['scale']
+        input_offset = -input_attr['zero_point']
+        input_type = input_attr['type']
+
+
         output_tensor = self.tflite_graph.Tensors(node.outputs)
         output_attr = self.getTensorAttr(output_tensor)
         output_tensor_name = output_attr['name']
-
-        input_type = input_attr['type']
+        output_scale = output_attr['scale']
         output_type = output_attr['type']
+
+
         output_shape = input_shape
 
+        output_offset = output_attr['zero_point']
         if input_type == TFL_TENSORTYPE.FLOAT32 and output_type == TFL_TENSORTYPE.INT8:
             # get quantization attr
             # FIXME: In tpu op , quant op Q(X) = X * 128 / threshold
@@ -1512,6 +1541,7 @@ class TFLiteConverter(BaseConverter):
         resize_name = tensor_attr['name']
         tensor_shape = tensor_attr['shape'].tolist()
         tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
+        threshold = tensor_attr['threshold']
         zero_point_y = tensor_attr['zero_point']
         output_offset = zero_point_y
 
@@ -1541,15 +1571,28 @@ class TFLiteConverter(BaseConverter):
         tensor_data = np.full(weight_shape, 1)
         weight_name = "{}_add_weight".format(node.name)
         self.addTensor(weight_name, tensor_data, tensor_data.shape)
-        weight_op = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+        weight_op = self.CVI.add_load_file_op(
+            weight_name, tensor_data.shape, tensor_type=TPU_TensorType.FP32, storage="INT8")
 
+        CVIMlirQscale = np.full(group, 0.99)
+        rshift_data, multipiler_data = getRShiftAndMultiplierFromQScaleArray(
+            CVIMlirQscale, qdm=True)
         # add rshift op
-        rshift_data = np.full(1, 0)
+        # rshift_data = np.full(1, 0)
         rshift_name = "{}_rshift".format(resize_name)
         rshift_shape = list(rshift_data.shape)
         self.addTensor(rshift_name, rshift_data, rshift_shape)
         rshift_op = self.CVI.add_load_file_op(
             rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+
+        # add multipiler op
+        multipiler_name = "{}_multipiler".format(node.name)
+        multipiler_shape = list(multipiler_data.shape)
+        self.addTensor(multipiler_name, multipiler_data,
+                       multipiler_data)
+        mutlipiler_op = self.CVI.add_load_file_op(
+            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+
 
         # use deconv
         deconv_param = {
@@ -1571,20 +1614,19 @@ class TFLiteConverter(BaseConverter):
 
         int8_quant_info = {
             'is_asymmetric': True,
-            'is_perchannel': False,
+            'is_perchannel': True,
             'mode': TPU_MODE.INT8,
-            'param_type': "RSHIFT_ONLY",
-            'threshold_max': 0,
+            'param_type': "RSHIFT_AND_M_I32",
+            'threshold_max': threshold,
             'threshold_min': 0,
             'zero_point': output_offset,
         }
         # add quant info to param
         deconv_param.update(int8_quant_info)
 
-        none_op = self.CVI.add_none_op()
 
         deconv_op = self.CVI.add_deconv_op(
-            resize_name, [op, weight_op, rshift_op, none_op], output_shape, **deconv_param)
+            resize_name, [op, weight_op, rshift_op, mutlipiler_op], output_shape, **deconv_param)
 
         self.addOperand(node.name, deconv_op, output_shape,
                         None)

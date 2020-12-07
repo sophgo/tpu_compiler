@@ -105,3 +105,30 @@ def getRShiftAndMultiplierFromQScaleArray(QscaleArray, qdm=False):
 
 def getMultiplierI8FromQScaleAndRShift(Qscale, rshift):
     return saturateInt8(Qscale * (1 << rshift))
+
+
+
+def SaturatingRoundingDoublingHighMul(a, b):
+    a_64 = np.int64(a)
+    b_64 = np.int64(b)
+    ab_64 = a_64 * b_64
+    nudge = (1 << 30) if ab_64 >= 0 else ( 1 - (1 << 30))
+    ab_x2_high32 = np.int32((ab_64 + nudge) / (1 << 31)).item()
+    return ab_x2_high32
+
+
+def RoundingDivideByPOT(x, exponent):
+    if x == 0:
+        return 0
+    if exponent == 0:
+        return x
+    x = int(x)
+    exponent = int(exponent)
+    assert(exponent > 0 and exponent <= 31)
+    mask= (1 << exponent) - 1
+    remainder = x & mask
+    threshold = 1 if x < 0 else 0
+    threshold +=(mask >> 1)
+    value = 1 if (remainder > threshold) else 0
+    value += (x >> exponent)
+    return np.int32(value).item()
