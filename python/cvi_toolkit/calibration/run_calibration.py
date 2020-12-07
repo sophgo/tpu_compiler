@@ -152,6 +152,7 @@ def main():
   parser.add_argument('--output_density_table', metavar='output_density_table', help='Output density file for look-up table')
   parser.add_argument('--model_name', metavar='model_name', help='Model name', default='generic')
   parser.add_argument('--calibrator', metavar='calibrator', help='Calibration method', default='KLD')
+  parser.add_argument('--asymmetric', action='store_true', help='Type of quantization ragne')
   parser.add_argument('--math_lib_path', metavar='math_path', help='Calibration math library path', default='calibration_math.so')
   parser.add_argument('--input_num', metavar='input_num', help='Calibration data number', default=10)
   parser.add_argument('--histogram_bin_num', metavar='histogram_bin_num', help='Specify histogram bin numer for kld calculate',
@@ -199,21 +200,21 @@ def main():
   mlir_model.load(args.model_file)
   mlir_model.set_plugin(args.custom_op_plugin)
 
-  if args.calibrator == 'KLD':
+  if args.asymmetric == True:
+    # TODO - Implement new calibrator for asymmetric quantization range.
+    # Use min and max (base_calibrator) as the asymmetric quantization range.
+    calibrator = Base_Calibrator(image_list_file=args.image_list_file,
+      mlir_model=mlir_model,
+      preprocess_func=p_func,
+      input_num=args.input_num,
+      is_symmetric_quantization=False)
+  elif args.calibrator == 'KLD':
     calibrator = KLD_Calibrator(image_list_file=args.image_list_file,
       mlir_model=mlir_model,
       preprocess_func=p_func,
       input_num=args.input_num,
       histogram_bin_num=args.histogram_bin_num,
       math_lib_path=args.math_lib_path)
-  # TODO - Refine the argument, asymmetric quantization is not a calibration method.
-  # Just one kind of quantization type, we need to output two threshold for each tensor.
-  elif args.calibrator == 'Asym':
-    calibrator = Base_Calibrator(image_list_file=args.image_list_file,
-      mlir_model=mlir_model,
-      preprocess_func=p_func,
-      input_num=args.input_num,
-      is_symmetric_quantization=False)
   else:
     assert(False)
 
