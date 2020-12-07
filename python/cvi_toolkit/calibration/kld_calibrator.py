@@ -9,7 +9,7 @@ import numpy as np
 import sys, os, copy, math
 import pymlir
 import logging
-from base_calibrator import Base_Calibrator, is_all_zero, warn_zeros
+from base_calibrator import Base_Calibrator
 from ctypes import *
 
 from cvi_toolkit.utils.log_setting import setup_logger
@@ -17,12 +17,12 @@ from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 
 class KLD_Calibrator(Base_Calibrator):
-    def __init__(self, 
-            image_list_file, 
+    def __init__(self,
+            image_list_file,
             mlir_model,
-            preprocess_func, 
-            input_num=200, 
-            histogram_bin_num=2048, 
+            preprocess_func,
+            input_num=200,
+            histogram_bin_num=2048,
             math_lib_path='calibration_math.so'):
         super().__init__(image_list_file, mlir_model, preprocess_func, input_num)
 
@@ -50,7 +50,7 @@ class KLD_Calibrator(Base_Calibrator):
                 t = np.abs(data[item].flatten())
                 t = t[t!=0]
 
-                width = data_max[item] / (self.histogram_bin_num - 1)
+                width = data_max[item][0] / (self.histogram_bin_num - 1)
                 if t.size > 0:
                     hist, bins = np.histogram(np.floor(t / width + 0.5),
                                               bins=self.histogram_bin_num,
@@ -73,8 +73,8 @@ class KLD_Calibrator(Base_Calibrator):
         return data_hist, width_hist
 
     def do_calibration(self):
-        self.data_min, data_max = self.do_find_min_max()
-        data_hist, width_hist = self.do_histogram(data_max)
+        abs_data_max = super().do_calibration()
+        data_hist, width_hist = self.do_histogram(abs_data_max)
 
         thresholds = {}
         for item in data_hist:

@@ -14,24 +14,14 @@ logger = setup_logger('root')
 
 
 def is_all_zero(data):
-    for num in data:
-        if num != 0:
-            return False
-    return True
-
-# customer may have network output all zero, change it to 1e-5 for them.
-def warn_zeros(layer_name, t):
-    print("WARNING: layer {} is all zeros. Please check the input data "
-          "correctness.".format(layer_name))
-    print("WARNING: Set zero value to 1e-5.")
-    t[0] = 1e-5
+    return np.all((data == 0))
 
 
 class Base_Calibrator(object):
-    def __init__(self, 
-            image_list_file, 
-            mlir_model, 
-            preprocess_func, 
+    def __init__(self,
+            image_list_file,
+            mlir_model,
+            preprocess_func,
             input_num=200):
 
         with open(image_list_file,'r') as fp:
@@ -46,10 +36,10 @@ class Base_Calibrator(object):
         self.preprocess_func = preprocess_func
 
         self.module = mlir_model
-        self.data_min = {}
+        self.tensor_max = {}
+        self.tensor_min = {}
 
     def do_find_min_max(self):
-        data_max = {}
         idx = 0
         for line in self.all_lines:
             print('Calculating max at iteration: ', str(idx))
@@ -59,35 +49,38 @@ class Base_Calibrator(object):
             data = self.module.get_all_tensor()
 
             for item in data:
-                if item not in data_max:
-                    data_max[item] = 0
-                    self.data_min[item] = 0
+                if item not in self.tensor_max:
+                    self.tensor_max[item] = 0
+                    self.tensor_min[item] = 0
 
-                t = np.abs(data[item].flatten())
+                if data[item].size > 0:
+                    if np.all((data[item] == 0)):
+                        # customer may have network output all zero, change it to 1e-5 for them.
+                        print("WARNING: layer {} is all zeros. Please check the input data "
+                            "correctness.".format(item))
+                        self.tensor_max[item] = max(self.tensor_max[item], 1e-5)
+                    else:
+                        self.tensor_max[item] = max(self.tensor_max[item], np.max(data[item]))
 
-                if t.size > 0:
-                    if is_all_zero(t):
-                        warn_zeros(item, t)
-                    data_max[item] = max(data_max[item], np.max(t))
-                    self.data_min[item] = min(self.data_min[item], np.min(data[item].flatten()))
+                    self.tensor_min[item] = min(self.tensor_min[item], np.min(data[item]))
 
             idx += 1
             if idx >= self.input_num:
                 break
 
-        return self.data_min, data_max
+        return self.tensor_min, self.tensor_max
 
     def do_calibration(self):
-        self.data_min, data_max = self.do_find_min_max()
+        self.tensor_min, self.tensor_max = self.do_find_min_max()
 
         thresholds = {}
-        for item in data_max:
-            thresholds[item] = [data_max[item]]
+        for item in self.tensor_max:
+            thresholds[item] = [max(abs(self.tensor_max[item]), abs(self.tensor_min[item]))]
 
         return thresholds
 
     def get_raw_min(self):
-        return self.data_min
+        return self.tensor_min
 
     def dump_threshold_table(self, threshold_table, thresholds):
         op_layer = self.module.op_info
