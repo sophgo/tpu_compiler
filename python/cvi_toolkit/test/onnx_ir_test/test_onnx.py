@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
 
-from onnx import onnx, numpy_helper
-from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.model.mlir_model import MLIRModel
 from cvi_toolkit.utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant, \
     mlir_lower_opt, mlir_build_cvimodel_no_opt, mlir_opt, \
     run_cvimodel, get_chip_name
+from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.numpy_helper import npz_compare
+from onnx import onnx, numpy_helper
 from onnx import helper
 from onnx import AttributeProto, TensorProto, GraphProto
 import yaml

@@ -4,6 +4,7 @@ set -e
 PROJECT_ROOT="$( cd "$(dirname "$0")" ; pwd -P )"
 BUILD_PATH=$PROJECT_ROOT/build
 INSTALL_PATH=$PROJECT_ROOT/install
+TPU_PYTHON_PATH=$INSTALL_PATH/tpuc/python
 
 # prepare install/build dir
 mkdir -p $BUILD_PATH
@@ -183,7 +184,7 @@ python3 setup.py clean
 popd
 
 # TFLite flatbuffer Schema
-${FLATBUFFERS_PATH}/bin/flatc \
+${INSTALL_PATH}/flatbuffers/bin/flatc \
     -o $TPU_PYTHON_PATH --python \
     $PROJECT_ROOT/python/tflite_schema/schema.fbs
 
