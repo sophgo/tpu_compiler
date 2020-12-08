@@ -62,6 +62,7 @@ mobilenet_v2_tf           Y        Y        N        N        Y        N
 resnet50_tf               N        N        N        Y        Y        N
 vgg16_tf                  N        N        N        Y        Y        N
 inception_v3_tf           N        N        N        Y        Y        N
+yolo_v3_416_tf            N        N        N        Y        N        N
 # mobilenet_v3              N        N        N        Y        Y        N
 
 # TFLite int8

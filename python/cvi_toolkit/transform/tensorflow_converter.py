@@ -133,6 +133,7 @@ class TFConverter(BaseConverter):
             "DepthwiseConv2dNative": lambda node: self.convert_depthwise_conv_op(node),
             "DepthToSpace": lambda node: self.convert_depth_to_space_op(node),
             "Dropout":  lambda node: self.convert_skip_op(node),
+            "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "Identity": lambda node: self.convert_skip_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "MatMul": lambda node: self.convert_fc_op(node),
@@ -146,6 +147,7 @@ class TFConverter(BaseConverter):
             "Relu6": lambda node: self.convert_relu6_op(node),
             "ResizeNearestNeighbor": lambda node: self.convert_resize_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
+            "ResizeNearestNeighbor": lambda node: self.convert_resize_op(node),
             "Shape": lambda node: self.convert_skip_op(node),
             "Softmax": lambda node: self.convert_softmax_op(node),
             "StridedSlice": lambda node: self.convert_skip_op(node),
@@ -184,7 +186,11 @@ class TFConverter(BaseConverter):
             i_shape = list(input_node.shape)
             if i_shape[0] == None or i_shape[0] == -1:
                 i_shape[0] = self.batch_size
-            self.mlir_inputs.append(turn_shape_nhwc_to_nchw(i_shape))
+
+            if len(i_shape) == 4:
+                self.mlir_inputs.append(turn_shape_nhwc_to_nchw(i_shape))
+            else:
+                self.mlir_inputs.append(i_shape)
 
         # get output shape
         self.mlir_outputs = list()
@@ -398,7 +404,6 @@ class TFConverter(BaseConverter):
         self.addOperand(node.name, scaleop, output_shape, TensorType.ACTIVATION)
 
     def convert_biasadd_op(self, node):
-        assert(node.op_type == "BiasAdd")
         op, input_shape, _ = self.getOperand(node.inputs[0])
 
         # filter
@@ -726,6 +731,19 @@ class TFConverter(BaseConverter):
         pool_avg_op = self.CVI.add_pool_avg_2d_op("{}".format(
             node.name), operands, output_shape, **pool_avg_2d_param)
         self.addOperand(node.name, pool_avg_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_leaky_relu_op(self, node):
+        op, output_shape, _ = self.getOperand(node.inputs[0])
+
+        negative_slope = node.attr.get('alpha')
+        param = {
+            'negative_slope': negative_slope
+        }
+        assert(output_shape[1:] != node.shape[1:])
+        activation_op = self.CVI.add_leaky_relu_op(
+            node.name, [op], output_shape, **param)
+        self.addOperand(node.name, activation_op,
                         output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, node):

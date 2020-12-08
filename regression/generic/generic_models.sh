@@ -1662,6 +1662,29 @@ export BGRAY="true"
 fi
 
 
+if [ $NET = "yolo_v3_416_tf" ]; then
+export MODEL_TYPE="tensorflow"
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/tensorflow/yolo_v3_416_without_detection
+export MODEL_DAT=""
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_tensorflow/regression_yolo_v3_0_tf.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_416_tf_calibration_table_1000
+export IMAGE_RESIZE_DIMS=416,416
+export NET_INPUT_DIMS=416,416
+export NET_INPUT_DIMS=416,416
+export IMAGE_RESIZE_DIMS=416,416
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export INPUT=input_1
+export TOLERANCE_INT8_MULTIPLER=0.8,0.78,0.26
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_E2E=0
+export DO_DEEPFUSION=0
+fi
+
 # TFLite
 
 

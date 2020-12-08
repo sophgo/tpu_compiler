@@ -177,6 +177,7 @@ cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
+cp $CVI_PY_TOOLKIT/inference/tensorflow/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/postprocess/*.py $TPU_PYTHON_PATH/
 cp -ar $CVI_PY_TOOLKIT/test/onnx_ir_test/*.py $TPU_PYTHON_PATH/
 cp -ar $PROJECT_ROOT/python/python_codegen/*.py $TPU_PYTHON_PATH/
