@@ -174,8 +174,6 @@ struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPas
     target.addLegalOp<tpu::TG_INT8_PoolMax2DOp>();
     target.addLegalOp<tpu::TG_BF16_PoolAvg2DOp>();
     target.addLegalOp<tpu::TG_BF16_PoolMax2DOp>();
-    target.addLegalOp<tpu::TG_INT8_ShuffleChannelOp>();
-    target.addLegalOp<tpu::TG_BF16_ShuffleChannelOp>();
     target.addLegalOp<tpu::TG_INT8_PixelShuffleOp>();
     target.addLegalOp<tpu::TG_BF16_PixelShuffleOp>();
     target.addLegalOp<tpu::TG_INT8_PReluOp>();
@@ -184,6 +182,10 @@ struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPas
     target.addLegalOp<tpu::TG_BF16_ReluOp>();
     target.addLegalOp<tpu::TG_INT8_ReorgOp>();
     target.addLegalOp<tpu::TG_BF16_ReorgOp>();
+    target.addLegalOp<tpu::TG_INT8_ReverseOp>();
+    target.addLegalOp<tpu::TG_BF16_ReverseOp>();
+    target.addLegalOp<tpu::TG_INT8_ShuffleChannelOp>();
+    target.addLegalOp<tpu::TG_BF16_ShuffleChannelOp>();
     target.addLegalOp<tpu::TG_INT8_SliceOp>();
     target.addLegalOp<tpu::TG_BF16_SliceOp>();
     target.addLegalOp<tpu::TG_INT8_SwapChannelOp>();
@@ -215,6 +217,7 @@ struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPas
 
     patterns.insert<
         convertTgOpToTensorPattern<tpu::TG_MemRef_QuantOp, tpu::TG_QuantOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_ReQuantOp, tpu::TG_ReQuantOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_BroadcastMulOp, tpu::TG_INT8_BroadcastMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_BroadcastMulOp, tpu::TG_BF16_BroadcastMulOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ConcatOp, tpu::TG_INT8_ConcatOp>,
@@ -253,8 +256,6 @@ struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPas
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PoolMax2DOp, tpu::TG_INT8_PoolMax2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_PoolAvg2DOp, tpu::TG_BF16_PoolAvg2DOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_PoolMax2DOp, tpu::TG_BF16_PoolMax2DOp>,
-        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ShuffleChannelOp, tpu::TG_INT8_ShuffleChannelOp>,
-        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_ShuffleChannelOp, tpu::TG_BF16_ShuffleChannelOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PixelShuffleOp, tpu::TG_INT8_PixelShuffleOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_PixelShuffleOp, tpu::TG_BF16_PixelShuffleOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_PReluOp, tpu::TG_INT8_PReluOp>,
@@ -263,6 +264,10 @@ struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPas
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_ReluOp, tpu::TG_BF16_ReluOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ReorgOp, tpu::TG_INT8_ReorgOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_ReorgOp, tpu::TG_BF16_ReorgOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ReverseOp, tpu::TG_INT8_ReverseOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_ReverseOp, tpu::TG_BF16_ReverseOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ShuffleChannelOp, tpu::TG_INT8_ShuffleChannelOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_ShuffleChannelOp, tpu::TG_BF16_ShuffleChannelOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_SliceOp, tpu::TG_INT8_SliceOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_SliceOp, tpu::TG_BF16_SliceOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_SwapChannelOp, tpu::TG_INT8_SwapChannelOp>,

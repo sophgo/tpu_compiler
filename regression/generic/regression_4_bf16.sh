@@ -39,8 +39,8 @@ cvi_npz_tool.py compare \
     --tolerance $TOLERANCE_BF16 -vv
 
 $DIR/../mlir_to_cvimodel.sh \
-   ${NET}_quant_bf16.mlir \
-   ${NET}_bf16.cvimodel
+   -i ${NET}_quant_bf16.mlir \
+   -o ${NET}_bf16.cvimodel
 
 # run cvimodel
 model_runner \
@@ -57,6 +57,10 @@ cvi_npz_tool.py compare \
     --op_info ${NET}_op_info_bf16.csv \
     --excepts ${EXCEPTS_BF16} \
     --tolerance=$TOLERANCE_BF16_CMDBUF -vv
+
+if [ ${DO_POSTPROCESS} -eq 1 ]; then
+  /bin/bash $POSTPROCESS_SCRIPT ${NET}_cmdbuf_out_all_bf16.npz ${OUTPUTS}_dequant
+fi
 
 # VERDICT
 echo $0 PASSED

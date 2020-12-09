@@ -141,6 +141,12 @@ struct TgSliceAddressPattern : public RewritePattern {
     if (false == isSliceOpSkip(op)) {
       return failure();
     }
+    auto opd = op->getOperand(0).getDefiningOp();
+    if (auto formerOp = llvm::dyn_cast<OpTy>(opd)) {
+      if (formerOp.gaddr().hasValue() == false) {
+        return failure();
+      }
+    }
 
     int32_t dsize = getOpDtypeSize(op);
     int64_t isz = 1;
@@ -151,7 +157,6 @@ struct TgSliceAddressPattern : public RewritePattern {
     auto curPos = getPreviousOpAddress(castOp);
     setOpAddress(op, curPos + offset_bytes);
 
-    auto opd = op->getOperand(0).getDefiningOp();
     if (opd->getAttr("buffer_reused")) {
       castOp.setAttr("buffer_reused", rewriter.getBoolAttr(true));
     }
@@ -237,39 +242,6 @@ static void findInPlaceOpMaxUsePosition(Operation *op, uint32_t &maxPosition) {
   }
 }
 
-static bool isOpBelongToTPUPrivateMemoryRegion(Operation *op) {
-  if (!isa<tpu::GenericCpuOp>(op) && !isa<tpu::InputOp>(op)) {
-    return true;
-  }
-  for (auto &use : op->getResult(0).getUses()) {
-    Operation *next = use.getOwner();
-    if (isa<tpu::GenericCpuOp>(next) || isa<ReturnOp>(next)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-static bool isOpBelongToIOMemoryRegion(std::vector<Operation *> &ioRegion, Operation *op) {
-  // Warning, IO memory region can only has capacity to store 5 ops.
-  if (ioRegion.size() >= 5) {
-    return false;
-  }
-  if (isa<tpu::InputOp>(op)) {
-    for (auto &use : op->getResult(0).getUses()) {
-      Operation *next = use.getOwner();
-      if (!isa<tpu::GenericCpuOp>(next)) {
-        return true;
-      }
-    }
-  } else if (!isa<tpu::GenericCpuOp>(op)) {
-    auto next = getNextOp(op);
-    if (next && isa<ReturnOp>(next)) {
-      return true;
-    }
-  }
-  return false;
-}
 
 static void
 updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
@@ -290,7 +262,8 @@ updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
     uint32_t endPosition = getOpLine(op) + 1;
     if (isa<tpu::TL_LW_Conv2DOp>(op) || isa<tpu::TL_BroadcastMulOp>(op) ||
         isa<tpu::TL_EltwiseAddOp>(op) || isa<tpu::TL_EltwiseMulOp>(op) ||
-        isa<tpu::TL_PoolAvg2DOp>(op) || isa<tpu::TL_LutOp>(op)) {
+        isa<tpu::TL_PoolAvg2DOp>(op) || isa<tpu::TL_LutOp>(op) ||
+        isa<tpu::TL_PixelShuffleOp>(op)) {
       bool store = op->getAttr("tl_store_flag").cast<BoolAttr>().getValue();
       if (store) {
         chosenOps.push_back(op);
@@ -373,7 +346,7 @@ public:
         std::vector<Operation *> targetOps;
         for (auto op : subFn->ops) {
           if (isOpInVector(op, chosenOps)) {
-            if (!isOpInVector(op, subFn->outputs)) {
+            if (isOpBelongToSharedMemoryRegion(op, subFn->outputs)) {
               targetOps.push_back(op);
             } else if (isOpBelongToIOMemoryRegion(opsInIOMemoryRegion, op)) {
               opsInIOMemoryRegion.push_back(op);
@@ -507,6 +480,53 @@ private:
     for (auto candidate : ops) {
       if (candidate == op)
         return true;
+    }
+    return false;
+  }
+
+  bool isOpBelongToSharedMemoryRegion(Operation *op, std::vector<Operation *> &outputs) {
+    if (isOpInVector(op, outputs)) {
+      return false;
+    }
+    for (auto &use : op->getResult(0).getUses()) {
+      Operation *next = use.getOwner();
+      if (isInPlaceOp(next) && isOpInVector(next, outputs)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool isOpBelongToTPUPrivateMemoryRegion(Operation *op) {
+    if (!isa<tpu::GenericCpuOp>(op) && !isa<tpu::InputOp>(op)) {
+      return true;
+    }
+    for (auto &use : op->getResult(0).getUses()) {
+      Operation *next = use.getOwner();
+      if (isa<tpu::GenericCpuOp>(next) || isa<ReturnOp>(next)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool isOpBelongToIOMemoryRegion(std::vector<Operation *> &ioRegion, Operation *op) {
+    // Warning, IO memory region can only has capacity to store 5 ops.
+    if (ioRegion.size() >= 5) {
+      return false;
+    }
+    if (isa<tpu::InputOp>(op)) {
+      for (auto &use : op->getResult(0).getUses()) {
+        Operation *next = use.getOwner();
+        if (!isa<tpu::GenericCpuOp>(next)) {
+          return true;
+        }
+      }
+    } else if (!isa<tpu::GenericCpuOp>(op)) {
+      auto next = getNextOp(op);
+      if (next && isa<ReturnOp>(next)) {
+        return true;
+      }
     }
     return false;
   }

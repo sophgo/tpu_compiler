@@ -320,6 +320,8 @@ int getOpZeroPoint(Operation *op) {
     return tpuOp.getOpQuantZeroPoint();
   } else if(auto quantOp = llvm::dyn_cast<tpu::QuantOp>(op)) {
     return quantOp.zero_point();
+  } else if (auto quantOp = llvm::dyn_cast<tpu::ReQuantOp>(op)) {
+    return quantOp.zero_point();
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";
@@ -622,7 +624,7 @@ void parsePoolParam(const tpu::PoolParam &p,
     Value input, Value output,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
-    bool &is_global, bool &do_relu, bool &count_include_pad) {
+    int &pad_value, bool &is_global, bool &do_relu, bool &count_include_pad) {
   kh = p.kernel_h().getInt();
   kw = p.kernel_w().getInt();
   sh = p.stride_h().getInt();
@@ -648,6 +650,7 @@ void parsePoolParam(const tpu::PoolParam &p,
     //assert(oh == 1 && ow == 1);
     is_global = true;
   }
+  pad_value = p.pad_value().getInt();
   do_relu = p.do_relu().getValue();
   count_include_pad = p.count_include_pad().getValue();
 }
@@ -704,13 +707,20 @@ void parseFullyConnectedParam(
   std::vector<int64_t> o_s(output_type.getShape());
   auto filter_type = filter.getType().cast<TensorType>();
   std::vector<int64_t> f_s(filter_type.getShape());
-  assert((i_s[0] == o_s[0]) && "input M not equal to output M");
-  m = i_s[0];
+  int64_t axis = o_s.size() - 1;
+  m = 1;
+  for (int i = 0; i < axis; i++) {
+    assert((i_s[i] == o_s[i]) && "input M not equal to output M");
+    m *= i_s[i];
+  }
+  k = 1;
+  for (uint32_t i = axis; i < i_s.size(); i++) {
+    k *= i_s[i];
+  }
   // assuming transpose is false
-  assert((i_s[1] == f_s[1]) && "input K not equal to filter K");
-  k = i_s[1];
-  assert((f_s[0] == o_s[1]) && "filter N not equal to output N");
-  n = o_s[1];
+  assert((k == f_s[1]) && "input K not equal to filter K");
+  assert((f_s[0] == o_s[axis]) && "filter N not equal to output N");
+  n = o_s[axis];
 }
 
 template<typename OpTy>
@@ -871,6 +881,21 @@ void getTiledCompressedActSize(Operation *op, int n_step, int oc_step,
 
   getTiledCompressedSize(shapes[0], shapes[1], shapes[2], shapes[3], n_step,
                          oc_step, oh_step, isBf16, stepSize, totalSize);
+}
+
+int getDataTypeSize(Value val) {
+  unsigned sizeInBits = 0;
+
+  auto eltType = val.getType();
+  if (auto tp = eltType.dyn_cast<RankedTensorType>()) {
+    auto eltType = tp.getElementType();
+    sizeInBits = eltType.getIntOrFloatBitWidth();
+  } else if (auto tp = eltType.dyn_cast<MemRefType>()) {
+    auto eltType = tp.getElementType();
+    sizeInBits = eltType.getIntOrFloatBitWidth();
+  }
+
+  return (int)llvm::divideCeil(sizeInBits, 8);
 }
 
 } // namespace

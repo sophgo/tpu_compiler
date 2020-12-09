@@ -30,7 +30,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     float activation_arg[], int activation_gt_scale, int activation_gt_rshift,
     int activation_le_scale, int activation_le_rshift, int right_shift_width,
     bool do_chl_quan, bool do_ic_alignment, bool store_compr_act,
-    bool load_compr_act, int pad_value=0);
+    bool load_compr_act, bool compr_wgt, int pad_value=0);
 
 void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -56,35 +56,18 @@ void cvi_backend_tg_fixed_avg_pooling_kernel(
     int pad_left, int pad_right, int stride_h, int stride_w,
     bool do_relu, int rshift, int multiplier, bool ceil_mode);
 
-void cvi_backend_tg_fixed_relu_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    uint64_t bottom_gaddr, uint64_t top_gaddr,
-    float negative_slope, int input_n, int input_c, int input_h,
-    int input_w, int threshold_x_quantized_len,
-    const int *threshold_x_quantized,
-    const int *right_shift_array, cvk_fmt_t fmt);
-
 void cvi_backend_tg_fixed_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     uint64_t input_gaddr, uint64_t output_gaddr,
     int input_n, int input_c, int input_h,
     int input_w, int GT_right_shift_width, int LE_right_shift_width, int GT_scale, int LE_scale,
-    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array);
+    int input_offset, int output_offset);
 
 void cvi_backend_tg_fixed_prelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     uint64_t bottom_gaddr, uint64_t top_gaddr, uint64_t negative_scope_gaddr,
     int input_n, int input_c, int input_h, int input_w,
-    int threshold_x_quantized_len,
-    const int *threshold_x_quantized,
-    const int *right_shift_array, cvk_fmt_t fmt);
-
-void cvi_backend_tg_fixed_prelu_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    uint64_t bottom_gaddr, uint64_t top_gaddr, uint64_t negative_scope_gaddr,
-    int input_n, int input_c, int input_h, int input_w,
-    int GT_right_shift_width, int GT_scale,
-    int LE_right_shift_width, cvk_fmt_t fmt);
+    int GT_right_shift_width, int GT_scale, int LE_right_shift_width);
 
 void cvi_backend_tg_lut_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -97,10 +80,10 @@ void cvi_backend_tg_fixed_mac_const_kernel(
     gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
     int input_h, int input_w, int multiplier, int const_val, bool do_relu);
 
-void cvi_backend_tg_fixed_crop_kernel(
+void cvi_backend_tg_crop_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input1_dim,
-    int *input2_dim, int *output_dim, int *offsets, cvk_fmt_t fmt);
+    gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input_dim,
+    int *output_dim, int *offsets, cvk_fmt_t fmt);
 
 void cvi_backend_tg_fixed_dilate_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -112,7 +95,7 @@ void cvi_backend_tg_fixed_dilate_kernel(
 
 void cvi_backend_tg_fixed_lrn_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
-    gaddr_t output_gaddr, gaddr_t sqr_lut_gaddr, gaddr_t power_lut_gaddr,
+    gaddr_t output_gaddr, gaddr_t ga_sqr_lut, gaddr_t ga_power_lut,
     int input_n, int input_c, int input_h, int input_w, int local_size,
     int sum_right_shift_width, int lrn_right_shift_width, int quant_data0,
     int quant_data1);
@@ -130,7 +113,9 @@ void cvi_backend_tg_fixed_eltwise_add_kernel(
     int32_t h, int32_t w, bool do_relu, bool do_early_stride,
     int32_t stride_h, int32_t stride_w, int32_t rshift,
     const int32_t *multipliers,
-    const int32_t *coeffs);
+    const int32_t *coeffs,
+    int32_t *inputs_offset = nullptr,
+    int32_t output_offset = 0);
 
 void cvi_backend_tg_fixed_eltwise_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -197,7 +182,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint16_t dilation_w, uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left,
     uint8_t pad_right, uint8_t ins_h, uint8_t ins_w,
     uint8_t stride_h, uint8_t stride_w, int do_bias,
-    int do_activation, bool fp32_output);
+    int do_activation, bool fp32_output,
+    bool store_compr_act, bool load_compr_act, bool compr_wgt);
 
 void cvi_backend_tg_bf16_conv3d_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -238,9 +224,8 @@ void cvi_backend_tg_bf16_fc_kernel(
     bool compressed_weight, std::vector<int> compr_weight_poss);
 
 void cvi_backend_tg_bf16_leakyrelu_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_bottom, gaddr_t ga_top, float ga_negative_slope,
-    int input_n, int input_c, int input_h, int input_w);
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_output, float negative_slope, int n, int c, int h, int w);
 
 void cvi_backend_tg_bf16_prelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_bottom,
@@ -382,6 +367,12 @@ void cvi_backend_tg_bf16_reorg_kernel(
     gaddr_t input_gaddr, gaddr_t output_gaddr,
     int batch, int channel, int height, int width, int stride);
 
+void cvi_backend_tg_bf16_lrn_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
+    gaddr_t output_gaddr, gaddr_t exp_table_gaddr, gaddr_t mantissa_table_gaddr,
+    int input_n, int input_c, int input_h, int input_w, int local_size,
+    float alpha, float k);
+
 ////////////// fixed & bf16 kernel api ////////////////
 
 void cvi_backend_tg_concat_kernel(
@@ -390,6 +381,11 @@ void cvi_backend_tg_concat_kernel(
     int axis_dims[], int concat_axis, int output_dim_size, int *output_dim,
     bool do_relu, const int8_t *right_shift_width,
     const int *threshold_x_quantized, cvk_fmt_t fmt);
+
+void cvi_backend_tg_relu_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    uint64_t ga_input, uint64_t ga_output, int n,
+    int c, int h, int w, cvk_fmt_t fmt);
 
 void cvi_backend_tg_permute_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -403,7 +399,18 @@ void cvi_backend_tg_quant_kernel(
     cvk_fmt_t from, cvk_fmt_t to,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr,
     int input_n, int input_c, int input_h, int input_w,
-    float const_scale = 1.0);
+    float const_scale = 1.0, int offset=0);
+
+void cvi_backend_tg_requant_kernel(const CviBackendContext &ctx,
+                                   uint32_t layer_id, gaddr_t bottom_gaddr,
+                                   gaddr_t top_gaddr, int input_n, int input_c,
+                                   int input_h, int input_w, int input_offset,
+                                   int output_offset, float scale);
+
+void cvi_backend_tg_reverse_kernel(const CviBackendContext &ctx,
+                                   uint32_t layer_id, gaddr_t ga_input,
+                                   gaddr_t ga_output, int n, int c, int h,
+                                   int w, int axis, cvk_fmt_t fmt);
 
 void cvi_backend_tg_shuffle_channel_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,

@@ -14,34 +14,26 @@
 #define DEBUG_SPLIT "bm1880v2_kernel_mac_const_split"
 
 // y = x * multiplier + const_val
-void cvi_backend_tg_fixed_mac_const_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
-    gaddr_t output_gaddr, int input_n, int input_c, int input_h, int input_w,
-    int multiplier, int const_val, bool do_relu) {
+void cvi_backend_tg_fixed_mac_const_kernel(const CviBackendContext &ctx,
+                                           uint32_t layer_id, gaddr_t ga_input,
+                                           gaddr_t ga_output, int n, int c,
+                                           int h, int w, int multiplier,
+                                           int const_val, bool do_relu) {
 
-  int require_shape = input_n * input_c * input_h * input_w;
   int blob_num = 3; // 3 means we allocate input/output/output_high
-  int coeff_lane_shape = 0;
 
-  std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, CVK_FMT_I8, &tiling_info);
+  std::vector<CviBackendContext::tiling_info_t> tiles;
+  ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_I8, blob_num, 0,
+                     CviBackendContext::TilingAll);
 
-  for (size_t i = 0; i < tiling_info.size(); i++) {
-    int n = tiling_info[i].first.n;
-    int c = tiling_info[i].first.c;
-    int h = tiling_info[i].first.h;
-    int w = tiling_info[i].first.w;
+  for (auto &tile : tiles) {
+    cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, 1);
+    cvk_tl_t *tl_output = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, 1);
+    cvk_tl_t *tl_output_h = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, 1);
 
-    gaddr_t gaddr_offset = tiling_info[i].second;
-
-    cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(n, c, h, w);
-    cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, /*eu_align=*/1);
-    cvk_tl_t *tl_output = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, /*eu_align=*/1);
-    cvk_tl_t *tl_output_h = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_I8, /*eu_align=*/1);
-
-
-    ctx.tdma_load(tl_input, input_gaddr + gaddr_offset);
-    // clear input_high 8 bit
+    ctx.tdma_load(tl_input, ga_input + tile.offset);
+    // clear high 8 bit
     cvk_tdma_g2l_tensor_fill_constant_param_t param = {0};
     param.dst = tl_output;
     param.layer_id = layer_id;
@@ -68,41 +60,32 @@ void cvi_backend_tg_fixed_mac_const_kernel(
     p.relu_enable = do_relu ? 1 : 0;
     ctx.tiu_mac(&p);
 
-    ctx.tdma_store(tl_output, output_gaddr + gaddr_offset);
+    ctx.tdma_store(tl_output, ga_output + tile.offset);
     ctx.lmem_free_tensor(tl_output_h);
     ctx.lmem_free_tensor(tl_output);
     ctx.lmem_free_tensor(tl_input);
-
   }
   return;
 }
 
-void cvi_backend_tg_bf16_mac_const_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
-    gaddr_t output_gaddr, int input_n, int input_c, int input_h, int input_w,
-    float multiplier, float const_val, bool do_relu) {
+void cvi_backend_tg_bf16_mac_const_kernel(const CviBackendContext &ctx,
+                                          uint32_t layer_id, gaddr_t ga_input,
+                                          gaddr_t ga_output, int n, int c,
+                                          int h, int w, float multiplier,
+                                          float const_val, bool do_relu) {
 
-  int require_shape = input_n * input_c * input_h * input_w;
   int blob_num = 2; // 2 means we allocate input/output
-  int coeff_lane_shape = 0;
+  std::vector<CviBackendContext::tiling_info_t> tiles;
+  ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_BF16, blob_num, 0,
+                     CviBackendContext::TilingAll);
 
-  std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, CVK_FMT_BF16, &tiling_info);
+  for (auto &tile : tiles) {
 
-  for (size_t i = 0; i < tiling_info.size(); i++) {
-    int n = tiling_info[i].first.n;
-    int c = tiling_info[i].first.c;
-    int h = tiling_info[i].first.h;
-    int w = tiling_info[i].first.w;
+    cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, 1);
+    cvk_tl_t *tl_output = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, 1);
 
-    gaddr_t gaddr_offset = tiling_info[i].second;
-
-    cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(n, c, h, w);
-    cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, /*eu_align=*/1);
-    cvk_tl_t *tl_output = ctx.lmem_alloc_tensor(tl_shape, CVK_FMT_BF16, /*eu_align=*/1);
-
-
-    ctx.tdma_load(tl_input, input_gaddr + gaddr_offset);
+    ctx.tdma_load(tl_input, ga_input + tile.offset);
 
     cvk_tdma_g2l_tensor_fill_constant_param_t param = {0};
     param.dst = tl_output;
@@ -124,10 +107,9 @@ void cvi_backend_tg_bf16_mac_const_kernel(
     p.relu_enable = do_relu ? 1 : 0;
     ctx.tiu_mac(&p);
 
-    ctx.tdma_store(tl_output, output_gaddr + gaddr_offset);
+    ctx.tdma_store(tl_output, ga_output + tile.offset);
     ctx.lmem_free_tensor(tl_output);
     ctx.lmem_free_tensor(tl_input);
-
   }
   return;
 }

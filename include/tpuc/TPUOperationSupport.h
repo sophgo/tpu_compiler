@@ -99,7 +99,7 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
 void parsePoolParam(const tpu::PoolParam &p,
     Value input, Value output,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,
-    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
+    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &pad_value,
     bool &is_global, bool &do_relu, bool &count_include_pad);
 
 void parsePool3dParam(const tpu::Pool3dParam &p,
@@ -141,6 +141,8 @@ void getTiledCompressedSize(int n, int c, int h, int w, int n_step, int c_step,
 
 void getTiledCompressedActSize(Operation *op, int n_step, int oc_step,
     int oh_step, int ow, int64_t &stepSize, int64_t &totalSize);
+
+int getDataTypeSize(Value val);
 
 } // namespace mlir
 

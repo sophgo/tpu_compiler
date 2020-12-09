@@ -321,7 +321,9 @@ LogicalResult tpu::TL_EltwiseMulOp::codegen(void *ctx) {
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op, 0) : GA_INVALID; //Closest op
   auto opd2 = op->getOperand(1).getDefiningOp();
   gaddr_t ga_input2 = opd2->getAttr("gaddr") ?
-                      opd2->getAttr("gaddr").cast<IntegerAttr>().getInt() : GA_INVALID;
+                      opd2->getAttr("gaddr").cast<IntegerAttr>().getInt() :
+                      (opd2->getAttr("offset") ? opd2->getAttr("offset").cast<IntegerAttr>().getInt() :
+                                                  GA_INVALID);
   bool isAllInLocalMem = (ga_input2 == GA_INVALID) && (tl_load_flag() == false);
   //Fix me: now use global address to present it's unique ID.
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
@@ -426,11 +428,11 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kw, sw, pb, pl, pr, pad_value;
   int kh, sh, ph;
   parsePoolParam(param(), input(), output(),
                 n, c, ih, iw, oh, ow,
-                kh, kw, sh, sw, ph, pb, pl, pr,
+                kh, kw, sh, sw, ph, pb, pl, pr, pad_value,
                 is_global, do_relu, count_include_pad);
   int8_t rshift = (this->rshift().hasValue()) ? this->rshift().getValue() : 0;
   int8_t m_i8 = (this->m_i8().hasValue()) ? this->m_i8().getValue() : 0;
@@ -541,6 +543,113 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
     cvi_backend_tl_store(*backend_ctx, layer_id, la_output, ga_output,
                          CVK_FMT_I8, n, c, h, w);
   }
+  return success();
+}
+
+LogicalResult tpu::TL_PixelShuffleOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, in, ic, ih, iw;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, in, ic, ih, iw);
+  uint32_t factor = this->factor();
+  uint32_t oc = ic / (factor * factor);
+  uint32_t oh = ih * factor;
+  uint32_t ow = iw * factor;
+
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
+  uint32_t layer_id = getOpLayerId(op);
+
+  laddr_t la_input = LA_INVALID;
+  laddr_t la_output = LA_INVALID;
+  if (this->lm_layout() != "NONE") {
+    la_input = this->la_input();
+    la_output = this->la_output();
+  }
+  LLVM_DEBUG(
+    llvm::errs() << "    TL_PixelShuffleOp, layer_id = " << layer_id;
+    llvm::errs() << ", " << this->lm_layout();
+    if (tl_load_flag())
+      llvm::errs() << ", LD";
+    if (tl_store_flag())
+      llvm::errs() << ", ST";
+    if (!tl_load_flag() && !tl_store_flag())
+      llvm::errs() << ", FUSED";
+    llvm::errs() << "\n";
+  );
+
+  cvi_backend_tl_pixel_shuffle_LA(*backend_ctx, layer_id, la_input, la_output,
+                                  ga_input, (uint32_t)in, (uint32_t)ic,
+                                  (uint32_t)ih, (uint32_t)iw, factor);
+
+  if(tl_store_flag()) {
+    cvi_backend_tl_store(*backend_ctx, layer_id, la_output, ga_output,
+                         CVK_FMT_I8, in, oc, oh, ow);
+  }
+  return success();
+}
+
+LogicalResult tpu::TL_PReluOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  laddr_t la_input = LA_INVALID;
+  laddr_t la_output = LA_INVALID;
+  laddr_t la_working = LA_INVALID;
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
+  gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
+
+  if (this->lm_layout() != "NONE") {
+    la_input = this->la_input();
+    la_output = this->la_output();
+    la_working = this->la_working();
+  }
+
+  int layer_id = getOpLayerId(op);
+  assert(this->rshift_pos().hasValue());
+  int8_t rshift_pos = this->rshift_pos().getValue();
+  assert(this->m_i8_pos().hasValue());
+  int8_t m_i8_pos = this->m_i8_pos().getValue();
+  assert(this->rshift_neg().hasValue());
+  int8_t rshift_neg = this->rshift_neg().getValue();
+
+  cvi_backend_tl_load(*backend_ctx, layer_id, la_working, ga_filter, CVK_FMT_I8,
+                      1, c, 1, 1);
+  if(tl_load_flag()) {
+    cvi_backend_tl_load(*backend_ctx, layer_id, la_input, ga_input, CVK_FMT_I8,
+                        n, c, h, w);
+  }
+
+  cvi_backend_tl_prelu(
+      *backend_ctx,
+      layer_id, //layer_id,
+      la_input,
+      la_output,
+      la_working, // filter
+      n,
+      c,
+      h,
+      w,
+      rshift_pos, m_i8_pos, rshift_neg);
+
+  if(tl_store_flag()) {
+    cvi_backend_tl_store(*backend_ctx, layer_id, la_output, ga_output,
+                         CVK_FMT_I8, n, c, h, w);
+  }
+
   return success();
 }
 

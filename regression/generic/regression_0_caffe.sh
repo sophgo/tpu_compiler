@@ -10,6 +10,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
   run_caffe_classifier.py \
       --model_def $MODEL_DEF \
       --pretrained_model $MODEL_DAT \
+      --image_resize_dims $IMAGE_RESIZE_DIMS \
       --net_input_dims $NET_INPUT_DIMS \
       --raw_scale $RAW_SCALE \
       --mean $MEAN \
@@ -23,5 +24,9 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
 fi
 
 cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz $INPUT
+
+if [ ${DO_POSTPROCESS} -eq 1 ]; then
+  /bin/bash $POSTPROCESS_SCRIPT $CAFFE_BLOBS_NPZ $OUTPUTS
+fi
 
 echo $0 PASSED

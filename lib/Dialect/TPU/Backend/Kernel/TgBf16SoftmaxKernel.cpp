@@ -21,7 +21,7 @@ unsigned int doSplitHeightBf16softmax2D(const CviBackendContext &ctx, int outerS
     //Default tileN, do not split C/W
     uint8_t eu_align = 1; // hardware constrainst
     int tiledOuterSize = outerSize;
-    int bf16_euWorkingOneLane = EU_NUM / 2;
+    int bf16_euWorkingOneLane = ctx.tiu_eu_num(CVK_FMT_BF16);
     int parallelC = ceiling_func(innerSize, bf16_euWorkingOneLane);
 
     cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
@@ -64,8 +64,9 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
                             int outer_size, int inner_size) {
     unsigned int tiledOutputSize = doSplitHeightBf16softmax2D(ctx, outer_size, inner_size);
     uint8_t eu_align = 1; // hardware constrainst
-    int bf16_euWorkingOneLane = EU_NUM / 2;
+    int bf16_euWorkingOneLane = ctx.tiu_eu_num(CVK_FMT_BF16);
     int parallelC = ceiling_func(inner_size, bf16_euWorkingOneLane);
+    bool isInnerSizeBiggerHWConstraint = inner_size > MAX_WIDTH;
 
     //Load exponential table
     cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
@@ -122,25 +123,112 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
         tl_maxValue.shape = {(uint32_t)workingOutputSize, 1, 1, 1};
         tl_maxValue.stride = ctx.tl_default_stride(tl_maxValue.shape, CVK_FMT_BF16, /*eu_align=*/1);
 
-        cvk_tiu_max_pooling_param_t max_pool_param = {0};
-        max_pool_param.ofmap = &tl_maxValue;
-        max_pool_param.ifmap = tl_input;
-        max_pool_param.kh = 1;
-        max_pool_param.kw = inner_size;
-        max_pool_param.stride_h = 1;
-        max_pool_param.stride_w = 1;
-        max_pool_param.layer_id = layer_id;
-        max_pool_param.ins_val = -128;
-        max_pool_param.ins_fp = 0xff7f;
-        ctx.tiu_max_pooling(&max_pool_param);
+        if(isInnerSizeBiggerHWConstraint) {
+            cvk_tl_shape_t maxValueTemp_shape = ctx.tl_shape_t4(workingOutputSize,1,1,EU_NUM);
+            cvk_tl_t *tl_maxValueBroadcastedTemp =
+                ctx.lmem_alloc_tensor(maxValueTemp_shape, CVK_FMT_BF16, eu_align);
+            ASSERT(tl_maxValueBroadcastedTemp);
 
-        LLVM_DEBUG(llvm::errs() << llvm::format(
-                "  tiu_bf16_max_pooling\n"
-                "    ifmap shape (%d, %d, %d, %d)\n"
-                "    ofmap shape (%d, %d, %d, %d)\n"
-                "    kh %d, kw %d, stride_h %d, stride_w %d\n",
-                tl_input->shape.n, tl_input->shape.c, tl_input->shape.h, tl_input->shape.w, tl_maxValue.shape.n,
-                tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, inner_size, 1, 1););
+            cvk_tl_t tl_currentInput;
+            tl_currentInput = *tl_input;
+
+            const int stepSize = MAX_WIDTH / 16 * 16; //Align 16B
+            int innerSizeStep = ceiling_func(inner_size, stepSize);
+            for(int innerStepTimes = 0; innerStepTimes < innerSizeStep; innerStepTimes++) {
+                int inner_pos = innerStepTimes * stepSize;
+                unsigned int workingInnerSize = std::min(inner_size - inner_pos, (int)stepSize);
+                tl_currentInput.start_address = tl_input->start_address + inner_pos;
+                tl_currentInput.shape = ctx.tl_shape_t4(workingOutputSize, 1, 1, workingInnerSize);
+
+                cvk_tiu_max_pooling_param_t max_pool_param = {0};
+                max_pool_param.ofmap = &tl_maxValue;
+                max_pool_param.ifmap = &tl_currentInput;
+                max_pool_param.kh = 1;
+                max_pool_param.kw = workingInnerSize;
+                max_pool_param.stride_h = 1;
+                max_pool_param.stride_w = 1;
+                max_pool_param.layer_id = layer_id;
+                max_pool_param.ins_val = -128;
+                max_pool_param.ins_fp = 0xff7f;
+
+                LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                    "  tiu_bf16_max_pooling\n"
+                    "    ifmap shape (%d, %d, %d, %d)\n"
+                    "    ofmap shape (%d, %d, %d, %d)\n"
+                    "    kh %d, kw %d, stride_h %d, stride_w %d\n",
+                    tl_currentInput.shape.n, tl_currentInput.shape.c, tl_currentInput.shape.h, tl_currentInput.shape.w, tl_maxValue.shape.n,
+                    tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, workingInnerSize, 1, 1););
+                ctx.tiu_max_pooling(&max_pool_param);
+
+                cvk_tl_t tl_maxValuePos;
+                tl_maxValuePos.start_address = tl_maxValueBroadcastedTemp->start_address + innerStepTimes * sizeof(uint16_t);  // start of lmem
+                tl_maxValuePos.fmt = CVK_FMT_BF16;
+                tl_maxValuePos.shape = ctx.tl_shape_t4(workingOutputSize,1,1,1);
+                tl_maxValuePos.stride = ctx.tl_default_stride(tl_maxValuePos.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+                cvk_tiu_copy_param_t p_copy_max = {0};
+                p_copy_max.src = &tl_maxValue;
+                p_copy_max.dst = &tl_maxValuePos;
+                p_copy_max.layer_id = layer_id;
+
+                LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                                "        L2L Reshape:\n"
+                                "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                                "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                                p_copy_max.src->start_address, p_copy_max.src->shape.n,
+                                p_copy_max.src->shape.c, p_copy_max.src->shape.h, p_copy_max.src->shape.w, p_copy_max.src->stride.n,
+                                p_copy_max.src->stride.c, p_copy_max.src->stride.h, p_copy_max.src->stride.w, p_copy_max.dst->start_address,
+                                p_copy_max.dst->shape.n, p_copy_max.dst->shape.c, p_copy_max.dst->shape.h, p_copy_max.dst->shape.w,
+                                p_copy_max.dst->stride.n, p_copy_max.dst->stride.c, p_copy_max.dst->stride.h, p_copy_max.dst->stride.w));
+                ctx.tiu_copy(&p_copy_max);
+            }
+            cvk_tl_t tl_maxValueTemp;
+            tl_maxValueTemp.start_address = tl_maxValueBroadcastedTemp->start_address;  // start of lmem
+            tl_maxValueTemp.fmt = CVK_FMT_BF16;
+            tl_maxValueTemp.shape = ctx.tl_shape_t4(workingOutputSize,1,1,innerSizeStep);
+            tl_maxValueTemp.stride = tl_maxValueBroadcastedTemp->stride;
+
+            cvk_tiu_max_pooling_param_t final_max_pool_param = {0};
+            final_max_pool_param.ofmap = &tl_maxValue;
+            final_max_pool_param.ifmap = &tl_maxValueTemp;
+            final_max_pool_param.kh = 1;
+            final_max_pool_param.kw = innerSizeStep;
+            final_max_pool_param.stride_h = 1;
+            final_max_pool_param.stride_w = 1;
+            final_max_pool_param.layer_id = layer_id;
+            final_max_pool_param.ins_val = -128;
+            final_max_pool_param.ins_fp = 0xff7f;
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                    "  tiu_bf16_max_pooling\n"
+                    "    ifmap shape (%d, %d, %d, %d)\n"
+                    "    ofmap shape (%d, %d, %d, %d)\n"
+                    "    kh %d, kw %d, stride_h %d, stride_w %d\n",
+                    final_max_pool_param.ifmap->shape.n, final_max_pool_param.ifmap->shape.c, final_max_pool_param.ifmap->shape.h, final_max_pool_param.ifmap->shape.w, final_max_pool_param.ofmap->shape.n,
+                    final_max_pool_param.ofmap->shape.c, final_max_pool_param.ofmap->shape.h, final_max_pool_param.ofmap->shape.w, 1, innerSizeStep, 1, 1););
+            ctx.tiu_max_pooling(&final_max_pool_param);
+
+            ctx.lmem_free_tensor(tl_maxValueBroadcastedTemp);
+        } else {
+            cvk_tiu_max_pooling_param_t max_pool_param = {0};
+            max_pool_param.ofmap = &tl_maxValue;
+            max_pool_param.ifmap = tl_input;
+            max_pool_param.kh = 1;
+            max_pool_param.kw = inner_size;
+            max_pool_param.stride_h = 1;
+            max_pool_param.stride_w = 1;
+            max_pool_param.layer_id = layer_id;
+            max_pool_param.ins_val = -128;
+            max_pool_param.ins_fp = 0xff7f;
+
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                    "  tiu_bf16_max_pooling\n"
+                    "    ifmap shape (%d, %d, %d, %d)\n"
+                    "    ofmap shape (%d, %d, %d, %d)\n"
+                    "    kh %d, kw %d, stride_h %d, stride_w %d\n",
+                    tl_input->shape.n, tl_input->shape.c, tl_input->shape.h, tl_input->shape.w, tl_maxValue.shape.n,
+                    tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, inner_size, 1, 1););
+            ctx.tiu_max_pooling(&max_pool_param);
+        }
         // Broadcast maxValue (n, 1, 1, 1) -> (n, NPU_NUM, 1, 1)
         // (n, 1, NPU_NUM, 1)->(n, NPU_NUM, 1, 1)
         //                 h_str = 0
@@ -164,7 +252,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             p2.src = &tl_src;
             p2.dst = &tl_dst;
 
-            LLVM_DEBUG(llvm::errs() << llvm::format(
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
                             "         L2L Reshape:\n"
                             "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
                             "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
@@ -185,7 +273,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             p2.src = &tl_enlargeInput;
             p2.dst = tl_parallel_input;
 
-            LLVM_DEBUG(llvm::errs() << llvm::format(
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
                             "         L2L Reshape:\n"
                             "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
                             "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
@@ -255,7 +343,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             p2.src = tl_lut_result;
             p2.dst = &tl_enlargeInput;
 
-            LLVM_DEBUG(llvm::errs() << llvm::format(
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
                             "         L2L Reshape:\n"
                             "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
                             "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
@@ -269,35 +357,143 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
 
         //Accumulate exponential value
         {
-            cvk_tiu_average_pooling_param_t param = {0};
-            param.ofmap = &tl_maxValue;
-            param.ifmap = tl_input;
-            param.kh = 1;
-            param.kw = inner_size;
-            param.ins_h = 0;
-            param.ins_last_h = 0;
-            param.ins_w = 0;
-            param.ins_last_w = 0;
-            param.stride_h = 1;
-            param.stride_w = 1;
-            //Set this value as inner_size instead of 1  to do accumulate
-            //kernel will fill avg_pooling_const / (kh * kw)
-            param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * inner_size);
-            param.layer_id = layer_id;
-            param.ins_val = 0;
-            param.ins_fp = param.avg_pooling_const;
+            if(isInnerSizeBiggerHWConstraint) {
+                cvk_tl_shape_t accValueTemp_shape = ctx.tl_shape_t4(workingOutputSize,1,1,EU_NUM);
+                cvk_tl_t *tl_accValue =
+                    ctx.lmem_alloc_tensor(accValueTemp_shape, CVK_FMT_BF16, eu_align);
+                ASSERT(tl_accValue);
 
-            LLVM_DEBUG(llvm::errs() << llvm::format(
-                "  tiu_bf16_avg_pooling\n"
-                "    ifmap shape (%d, %d, %d, %d)\n"
-                "    ofmap shape (%d, %d, %d, %d)\n"
-                "    kh %d, kw %d, stride_h %d, stride_w %d\n"
-                "    avg_const %f, 0x%x\n",
-                tl_input->shape.n, tl_input->shape.c, tl_input->shape.h, tl_input->shape.w, tl_maxValue.shape.n,
-                tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, inner_size, 1, 1,
-                1.0, param.avg_pooling_const););
+                cvk_tl_t tl_currentInput;
+                tl_currentInput = *tl_input;
 
-            ctx.tiu_average_pooling(&param);
+                const int stepSize = MAX_WIDTH / 16 * 16; //Align 16B
+                int innerSizeStep = ceiling_func(inner_size, stepSize);
+                for(int innerStepTimes = 0; innerStepTimes < innerSizeStep; innerStepTimes++) {
+                    int inner_pos = innerStepTimes * stepSize;
+                    unsigned int workingInnerSize = std::min(inner_size - inner_pos, (int)stepSize);
+                    tl_currentInput.start_address = tl_input->start_address + inner_pos;
+                    tl_currentInput.shape = ctx.tl_shape_t4(workingOutputSize, 1, 1, workingInnerSize);
+
+                    cvk_tiu_average_pooling_param_t param = {0};
+                    param.ofmap = &tl_maxValue;
+                    param.ifmap = &tl_currentInput;
+                    param.kh = 1;
+                    param.kw = workingInnerSize;
+                    param.ins_h = 0;
+                    param.ins_last_h = 0;
+                    param.ins_w = 0;
+                    param.ins_last_w = 0;
+                    param.stride_h = 1;
+                    param.stride_w = 1;
+                    //Set this value as inner_size instead of 1  to do accumulate
+                    //kernel will fill avg_pooling_const / (kh * kw)
+                    param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * workingInnerSize);
+                    param.layer_id = layer_id;
+                    param.ins_val = 0;
+                    param.ins_fp = param.avg_pooling_const;
+
+                    LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                        "  tiu_bf16_avg_pooling\n"
+                        "    ifmap shape (%d, %d, %d, %d)\n"
+                        "    ofmap shape (%d, %d, %d, %d)\n"
+                        "    kh %d, kw %d, stride_h %d, stride_w %d\n"
+                        "    avg_const %f, 0x%x\n",
+                        param.ifmap->shape.n, param.ifmap->shape.c, param.ifmap->shape.h, param.ifmap->shape.w, tl_maxValue.shape.n,
+                        tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, workingInnerSize, 1, 1,
+                        1.0, param.avg_pooling_const););
+
+                    ctx.tiu_average_pooling(&param);
+
+                    cvk_tl_t tl_accValuePos;
+                    tl_accValuePos.start_address = tl_accValue->start_address + innerStepTimes * sizeof(uint16_t);  // start of lmem
+                    tl_accValuePos.fmt = CVK_FMT_BF16;
+                    tl_accValuePos.shape = ctx.tl_shape_t4(workingOutputSize,1,1,1);
+                    tl_accValuePos.stride = ctx.tl_default_stride(tl_accValuePos.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+                    cvk_tiu_copy_param_t p_copy_acc = {0};
+                    p_copy_acc.src = &tl_maxValue;
+                    p_copy_acc.dst = &tl_accValuePos;
+                    p_copy_acc.layer_id = layer_id;
+
+                    LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                                    "        L2L Reshape:\n"
+                                    "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                                    "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                                    p_copy_acc.src->start_address, p_copy_acc.src->shape.n,
+                                    p_copy_acc.src->shape.c, p_copy_acc.src->shape.h, p_copy_acc.src->shape.w, p_copy_acc.src->stride.n,
+                                    p_copy_acc.src->stride.c, p_copy_acc.src->stride.h, p_copy_acc.src->stride.w, p_copy_acc.dst->start_address,
+                                    p_copy_acc.dst->shape.n, p_copy_acc.dst->shape.c, p_copy_acc.dst->shape.h, p_copy_acc.dst->shape.w,
+                                    p_copy_acc.dst->stride.n, p_copy_acc.dst->stride.c, p_copy_acc.dst->stride.h, p_copy_acc.dst->stride.w));
+                    ctx.tiu_copy(&p_copy_acc);
+                }
+                cvk_tl_t tl_accValueTemp;
+                tl_accValueTemp.start_address = tl_accValue->start_address;  // start of lmem
+                tl_accValueTemp.fmt = CVK_FMT_BF16;
+                tl_accValueTemp.shape = ctx.tl_shape_t4(workingOutputSize,1,1,innerSizeStep);
+                tl_accValueTemp.stride = ctx.tl_default_stride(tl_accValueTemp.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+                cvk_tiu_average_pooling_param_t final_acc_param = {0};
+                final_acc_param.ofmap = &tl_maxValue;
+                final_acc_param.ifmap = &tl_accValueTemp;
+                final_acc_param.kh = 1;
+                final_acc_param.kw = innerSizeStep;
+                final_acc_param.ins_h = 0;
+                final_acc_param.ins_last_h = 0;
+                final_acc_param.ins_w = 0;
+                final_acc_param.ins_last_w = 0;
+                final_acc_param.stride_h = 1;
+                final_acc_param.stride_w = 1;
+                //Set this value as inner_size instead of 1  to do accumulate
+                //kernel will fill avg_pooling_const / (kh * kw)
+                final_acc_param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * innerSizeStep);
+                final_acc_param.layer_id = layer_id;
+                final_acc_param.ins_val = 0;
+                final_acc_param.ins_fp = final_acc_param.avg_pooling_const;
+
+                LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                    "  tiu_bf16_avg_pooling\n"
+                    "    ifmap shape (%d, %d, %d, %d)\n"
+                    "    ofmap shape (%d, %d, %d, %d)\n"
+                    "    kh %d, kw %d, stride_h %d, stride_w %d\n"
+                    "    avg_const %f, 0x%x\n",
+                    final_acc_param.ifmap->shape.n, final_acc_param.ifmap->shape.c, final_acc_param.ifmap->shape.h, final_acc_param.ifmap->shape.w, tl_maxValue.shape.n,
+                    tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, innerSizeStep, 1, 1,
+                    1.0, final_acc_param.avg_pooling_const););
+
+                ctx.tiu_average_pooling(&final_acc_param);
+
+                ctx.lmem_free_tensor(tl_accValue);
+            } else {
+                cvk_tiu_average_pooling_param_t param = {0};
+                param.ofmap = &tl_maxValue;
+                param.ifmap = tl_input;
+                param.kh = 1;
+                param.kw = inner_size;
+                param.ins_h = 0;
+                param.ins_last_h = 0;
+                param.ins_w = 0;
+                param.ins_last_w = 0;
+                param.stride_h = 1;
+                param.stride_w = 1;
+                //Set this value as inner_size instead of 1  to do accumulate
+                //kernel will fill avg_pooling_const / (kh * kw)
+                param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * inner_size);
+                param.layer_id = layer_id;
+                param.ins_val = 0;
+                param.ins_fp = param.avg_pooling_const;
+
+                LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                    "  tiu_bf16_avg_pooling\n"
+                    "    ifmap shape (%d, %d, %d, %d)\n"
+                    "    ofmap shape (%d, %d, %d, %d)\n"
+                    "    kh %d, kw %d, stride_h %d, stride_w %d\n"
+                    "    avg_const %f, 0x%x\n",
+                    tl_input->shape.n, tl_input->shape.c, tl_input->shape.h, tl_input->shape.w, tl_maxValue.shape.n,
+                    tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, inner_size, 1, 1,
+                    1.0, param.avg_pooling_const););
+
+                ctx.tiu_average_pooling(&param);
+            }
         }
 
         cvk_tl_t *tl_lut_reciprocal_result =
@@ -332,7 +528,7 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
             p2.src = &tl_src;
             p2.dst = &tl_dst;
 
-            LLVM_DEBUG(llvm::errs() << llvm::format(
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
                             "         L2L Reshape:\n"
                             "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
                             "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
@@ -521,7 +717,7 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
                 p2.dst = &tl_dst;
                 p2.layer_id = layer_id;
 
-                LLVM_DEBUG(llvm::errs() << llvm::format(
+                LLVM_DEBUG(llvm::dbgs() << llvm::format(
                                 "        L2L Reshape:\n"
                                 "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
                                 "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
@@ -611,7 +807,7 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
                 param.ins_val = 0;
                 param.ins_fp = param.avg_pooling_const;
 
-                LLVM_DEBUG(llvm::errs() << llvm::format(
+                LLVM_DEBUG(llvm::dbgs() << llvm::format(
                     "  tiu_bf16_avg_pooling\n"
                     "    ifmap shape (%d, %d, %d, %d)\n"
                     "    ofmap shape (%d, %d, %d, %d)\n"
@@ -676,7 +872,7 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
                     p2.dst = &tl_dst;
                     p2.layer_id = layer_id;
 
-                    LLVM_DEBUG(llvm::errs() << llvm::format(
+                    LLVM_DEBUG(llvm::dbgs() << llvm::format(
                                     "        L2L Reshape:\n"
                                     "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
                                     "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",

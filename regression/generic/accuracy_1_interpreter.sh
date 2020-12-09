@@ -251,4 +251,20 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
     --count=$1
 fi
 
+if [ $INT8_MODEL -eq 1 ]; then
+  echo "Eval int8 model to mlir with interpreter"
+  $EVAL_FUNC \
+    --mlir_file=${NET}_quant.mlir \
+    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+    --net_input_dims $NET_INPUT_DIMS \
+    --image_resize_dims $IMAGE_RESIZE_DIMS \
+    --raw_scale $RAW_SCALE \
+    --mean $MEAN \
+    --std $STD \
+    --input_scale $INPUT_SCALE \
+    --model_type mlir \
+    --model_channel_order $MODEL_CHANNEL_ORDER \
+    --count=$1
+fi
+
 echo $0 DONE

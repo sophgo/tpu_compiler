@@ -46,8 +46,16 @@
 // Permute 0xxx: (I8 & BF16, not good)
 //   N (C,H,W,1), permute(xxx3) ->(N,x,x,x)
 //
-// I8 support: xxx3,0xxx,2301,3120
-// BF16 support: xxx3,0xxx
+// Permute 3012: (I8 & BF16)
+//   (N,C*H,W,1), permute(2013) ->(W,N,C*H,1)
+//
+// Permute 3201: (I8 & BF16)
+//   (N*C,H,W,1), permute(2103) ->(W,H,N*C,1)
+//
+// Permute 2301: (I8 & BF16)
+//   (N*C,H,W,1), permute(1203) ->(H,W,N*C,1)
+//
+// I8/BF16 support: xxx3,0xxx,2301,3120,3012,3201
 //
 
 void TgPermuteKernel::convert_order() {
@@ -78,6 +86,15 @@ void TgPermuteKernel::convert_order() {
     n_offset = c * h * w * ctx.bytesize_of_fmt(fmt);
     update_NCHW(c, h, w, 1);
     update_order(order[1] - 1, order[2] - 1, order[3] - 1, 3);
+  } else if (is_order(3, 0, 1, 2)) {
+    update_NCHW(n, c * h, w, 1);
+    update_order(2, 0, 1, 3);
+  } else if (is_order(3, 2, 0, 1)) {
+    update_NCHW(n * c, h, w, 1);
+    update_order(2, 1, 0, 3);
+  } else if (is_order(2, 3, 0, 1)) {
+    update_NCHW(n * c, h, w, 1);
+    update_order(1, 2, 0, 3);
   } else {
     llvm::errs() << llvm::format("Not support permute case, fmt:%d, "
                                  "order:(%d,%d,%d,%d), shape:(%d,%d,%d,%d)\n",
@@ -172,8 +189,8 @@ void TgPermuteKernel::load(int32_t step_idx, cvk_tl_t &tl_ifmap) const {
   tl_ifmap.shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   tl_ifmap.stride = ctx.tl_default_stride(tl_ifmap.shape, fmt, 1);
   tl_ifmap.fmt = fmt;
-  ctx.tdma_load_stride(
-      &tl_ifmap, ga_input + n_index * n_offset + tile.offset, src_stride);
+  ctx.tdma_load_stride(&tl_ifmap, ga_input + n_index * n_offset + tile.offset,
+                       src_stride);
 }
 
 void TgPermuteKernel::store_normal(int32_t step_idx, cvk_tl_t &tl_ifmap) const {

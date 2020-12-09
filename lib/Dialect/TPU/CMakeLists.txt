@@ -29,6 +29,7 @@ add_llvm_library(MLIRTPU
   Transforms/RefactorEltAndConv.cpp
   Transforms/ConvertScale.cpp
   Transforms/ConvertClip.cpp
+  Transforms/ConvertLstmCaffe.cpp
   Transforms/ConvertNormalize.cpp
   Transforms/ConvertSwishToRelu.cpp
   Transforms/ConvertPermute.cpp
@@ -50,6 +51,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertConv2D.cpp
   Transforms/ConvertConv3D.cpp
   Transforms/ConvertUpsample.cpp
+  Transforms/ConvertPoolMask.cpp
   Transforms/ConvertTile.cpp
   Transforms/ConvertPower.cpp
   Transforms/ConvertMatMul.cpp
@@ -102,9 +104,10 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgFixedFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/TgQuantKernel.cpp
+  Backend/Kernel/TgReQuantKernel.cpp
   Backend/Kernel/TgConcatKernel.cpp
   Backend/Kernel/TgConvKernel.cpp
-  Backend/Kernel/TgFixedCropKernel.cpp
+  Backend/Kernel/TgCropKernel.cpp
   Backend/Kernel/TgFixedMacConstKernel.cpp
   Backend/Kernel/TgFixedDilateKernel.cpp
   Backend/Kernel/TgFixedLrnKernel.cpp
@@ -114,6 +117,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgPixelShuffleKernel.cpp
   Backend/Kernel/TgReluKernel.cpp
   Backend/Kernel/TgReorgKernel.cpp
+  Backend/Kernel/TgReverseKernel.cpp
   Backend/Kernel/TgScaleKernel.cpp
   Backend/Kernel/TgShuffleChannelKernel.cpp
   Backend/Kernel/TgSliceKernel.cpp
@@ -127,12 +131,11 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgBf16LstmKernel.cpp
   Backend/Kernel/TgBf16PoolingKernel.cpp
   Backend/Kernel/TgBf16Pooling3dKernel.cpp
-  Backend/Kernel/TgBf16PreluKernel.cpp
-  Backend/Kernel/TgBf16ReluKernel.cpp
   Backend/Kernel/TgBf16SoftmaxKernel.cpp
   Backend/Kernel/TgBf16SquareKernel.cpp
   Backend/Kernel/TgBf16MatMulKernel.cpp
   Backend/Kernel/TgBf16ReduceKernel.cpp
+  Backend/Kernel/TgBf16LrnKernel.cpp
   Backend/Kernel/TlBroadcastMul.cpp
   Backend/Kernel/TlConcat.cpp
   Backend/Kernel/TlConv.cpp
@@ -147,12 +150,12 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TlPrelu.cpp
   Backend/Kernel/TlRelu.cpp
   Backend/Kernel/TlQuant.cpp
-  Backend/Kernel/TlRelu.cpp
   Backend/Kernel/TlScale.cpp
   Backend/Kernel/TlTdma.cpp
   Backend/Kernel/TlUpsample.cpp
   Backend/Kernel/TlMacConst.cpp
   Backend/Kernel/TlSlice.cpp
+  Backend/Kernel/TlPixelShuffle.cpp
 )
 
 if (${USE_GPU})

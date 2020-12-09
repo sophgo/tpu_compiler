@@ -12,6 +12,8 @@ if [ ! -e "$DIR/tmp" ]; then
   mkdir -p $DIR/tmp
 fi
 
+#DEBUG=-debug
+
 pushd $DIR/tmp
 
 tpuc-opt \
@@ -75,7 +77,7 @@ tpuc-opt \
      -o test_int8_func.mlir
 
 # codegen
-tpuc-translate -debug \
+tpuc-translate ${DEBUG} \
      --mlir-to-cvimodel \
      --weight-file weight.bin \
      test_int8_func.mlir \

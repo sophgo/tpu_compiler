@@ -14,42 +14,30 @@
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
 
-
 #define DEBUG_TYPE "lut_kernel"
 
-
 void cvi_backend_tg_lut_kernel(const CviBackendContext &ctx, uint32_t layer_id,
-                               gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-                               gaddr_t sg_lut_gaddr, int input_n, int input_c,
-                               int input_h, int input_w, cvk_fmt_t fmt) {
+                               gaddr_t ga_input, gaddr_t ga_output,
+                               gaddr_t sg_lut_gaddr, int n, int c, int h, int w,
+                               cvk_fmt_t fmt) {
 
   ctx.set_layer_id(layer_id);
 
-  uint8_t eu_align = 1; // hardware constrainst
   cvk_tl_shape_t table_shape = ctx.lut_table_shape(fmt);
-
-  // extend to channel
-  int require_shape = input_n * input_c * input_h * input_w;
-  int coeff_lane_shape = table_shape.h * table_shape.w;
-  int blob_num = 1; // 1 means only one blob and it chould overwrite itself
-  std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
-  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, fmt, &tiling_info);
-
-  // load lut table
-  cvk_tl_t *sg_lut_table = ctx.lmem_alloc_tensor(table_shape, fmt, eu_align);
+  cvk_tl_t *sg_lut_table = ctx.lmem_alloc_tensor(table_shape, fmt, 1);
   ctx.tdma_load(sg_lut_table, sg_lut_gaddr);
 
-  for (size_t i = 0; i < tiling_info.size(); i++) {
-    int n = tiling_info[i].first.n;
-    int c = tiling_info[i].first.c;
-    int h = tiling_info[i].first.h;
-    int w = tiling_info[i].first.w;
-    gaddr_t gaddr_offset = tiling_info[i].second;
+  int blob_num = 1;
+  uint32_t lmem_used = ctx.lmem_tensor_to_size(table_shape, fmt, 1);
+  std::vector<CviBackendContext::tiling_info_t> tiles;
+  ctx.tiling_packing(tiles, n, c, h, w, fmt, blob_num, lmem_used,
+                     CviBackendContext::TilingAll);
 
-    // load
-    cvk_tl_shape_t input_shape = ctx.tl_shape_t4(n, c, h, w);
-    cvk_tl_t *bottom = ctx.lmem_alloc_tensor(input_shape, fmt, eu_align);
-    ctx.tdma_load(bottom, bottom_gaddr + gaddr_offset);
+  for (auto &tile : tiles) {
+    cvk_tl_shape_t input_shape =
+        ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    cvk_tl_t *bottom = ctx.lmem_alloc_tensor(input_shape, fmt, 1);
+    ctx.tdma_load(bottom, ga_input + tile.offset);
 
     cvk_tiu_lookup_table_param_t p12 = {0};
     p12.ifmap = bottom;
@@ -59,7 +47,7 @@ void cvi_backend_tg_lut_kernel(const CviBackendContext &ctx, uint32_t layer_id,
     ctx.tiu_lookup_table(&p12);
 
     // move result to global
-    ctx.tdma_store(bottom, top_gaddr + gaddr_offset);
+    ctx.tdma_store(bottom, ga_output + tile.offset);
 
     // free
     ctx.lmem_free_tensor(bottom);
@@ -68,25 +56,20 @@ void cvi_backend_tg_lut_kernel(const CviBackendContext &ctx, uint32_t layer_id,
 }
 
 static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
-                     gaddr_t bottom_gaddr, gaddr_t top_gaddr,
-                     cvk_tl_t *tl_table_answer,
-                     cvk_tl_t *tl_table_answer_slope,
-                     int input_n, int input_c, int input_h, int input_w,
-                     gaddr_t gaddr_offset, float scale, float range_min,
-                     float range_max, cvk_fmt_t fmt, uint8_t eu_align) {
+                     gaddr_t ga_input, gaddr_t ga_output,
+                     cvk_tl_t *tl_table_answer, cvk_tl_t *tl_table_answer_slope,
+                     int n, int c, int h, int w, gaddr_t gaddr_offset,
+                     float scale, float range_min, float range_max,
+                     cvk_fmt_t fmt) {
 
-  cvk_tl_shape_t tl_shape =
-      ctx.tl_shape_t4(input_n, input_c, input_h, input_w);
+  cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(n, c, h, w);
 
   // tl_ifmap reuse to input / output
-  cvk_tl_t *tl_ifmap =
-      ctx.lmem_alloc_tensor(tl_shape, fmt, eu_align);
-  cvk_tl_t *tl_ofmap_slope =
-      ctx.lmem_alloc_tensor(tl_shape, fmt, eu_align);
-  cvk_tl_t *tl_ofmap_y0 =
-      ctx.lmem_alloc_tensor(tl_shape, fmt, eu_align);
+  cvk_tl_t *tl_ifmap = ctx.lmem_alloc_tensor(tl_shape, fmt, 1);
+  cvk_tl_t *tl_ofmap_slope = ctx.lmem_alloc_tensor(tl_shape, fmt, 1);
+  cvk_tl_t *tl_ofmap_y0 = ctx.lmem_alloc_tensor(tl_shape, fmt, 1);
 
-  ctx.tdma_load(tl_ifmap, bottom_gaddr + gaddr_offset);
+  ctx.tdma_load(tl_ifmap, ga_input + gaddr_offset);
 
   cvk_tdma_l2l_tensor_copy_param_t p3 = {0};
   // scale input for remap its idx(-x~x) to (-127~127), dirty tl_ifmap
@@ -112,7 +95,7 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   // bf16->int8
   dst.shape = tl_ifmap->shape;
   dst.fmt = CVK_FMT_I8;
-  dst.stride = ctx.tl_default_stride(dst.shape, dst.fmt, eu_align);
+  dst.stride = ctx.tl_default_stride(dst.shape, dst.fmt, 1);
   dst.int8_rnd_mode = 1;
   p3.src = tl_ifmap;
   p3.dst = &dst;
@@ -195,85 +178,74 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
   p7.layer_id = layer_id;
   ctx.tiu_mac(&p7);
 
-  ctx.tdma_store(tl_ofmap_y0, top_gaddr + gaddr_offset);
+  ctx.tdma_store(tl_ofmap_y0, ga_output + gaddr_offset);
   ctx.lmem_free_tensor(tl_ofmap_y0);
   ctx.lmem_free_tensor(tl_ofmap_slope);
   ctx.lmem_free_tensor(tl_ifmap);
 }
 
 void cvi_backend_tg_bf16_lut_interpolation_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,
-    gaddr_t top_gaddr, gaddr_t y0_table_gaddr, gaddr_t slope_gaddr, int input_n,
-    int input_c, int input_h, int input_w, float range_min, float range_max,
-    float scale) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_output, gaddr_t y0_table_gaddr, gaddr_t slope_gaddr, int n,
+    int c, int h, int w, float range_min, float range_max, float scale) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
-                 "activation_kernel : bottom_gaddr %x top_gaddr %x "
+                 "activation_kernel : ga_input %x ga_output %x "
                  "y0_table_gaddr %x slope_gaddr %x "
-                 "input_n %d input_c %d input_h %d input_w %d scale %f\n",
-                 bottom_gaddr, top_gaddr, y0_table_gaddr, slope_gaddr, input_n,
-                 input_c, input_h, input_w, scale));
+                 "n %d c %d h %d w %d scale %f\n",
+                 ga_input, ga_output, y0_table_gaddr, slope_gaddr, n, c, h, w,
+                 scale));
 
-  // for hw setting
-
-  uint8_t eu_align = 1; // hardware constrainst
   cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
   cvk_tl_t *tl_table_answer =
-      ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
+      ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, 1);
   cvk_tl_t *tl_table_answer_slope =
-      ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
+      ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, 1);
 
   ctx.tdma_load(tl_table_answer, y0_table_gaddr);
   ctx.tdma_load(tl_table_answer_slope, slope_gaddr);
 
-  // tiling input
   int blob_num = 3;
-  int require_shape = input_n * input_c * input_h * input_w;
-  int coeff_lane_shape = 2 * table_shape.h * table_shape.w;
-  std::vector<std::pair<cvk_tl_shape_t, gaddr_t>> tiling_info;
-  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, CVK_FMT_BF16,
-                 &tiling_info);
+  uint32_t lmem_used =
+      2 * ctx.lmem_tensor_to_size(table_shape, CVK_FMT_BF16, 1);
+  std::vector<CviBackendContext::tiling_info_t> tiles;
+  ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_BF16, blob_num, lmem_used,
+                     CviBackendContext::TilingAll);
 
-  for (size_t i = 0; i < tiling_info.size(); i++) {
-    int n = tiling_info[i].first.n;
-    int c = tiling_info[i].first.c;
-    int h = tiling_info[i].first.h;
-    int w = tiling_info[i].first.w;
-    gaddr_t gaddr_offset = tiling_info[i].second;
-    one_step(ctx, layer_id, bottom_gaddr, top_gaddr, tl_table_answer,
-             tl_table_answer_slope, n, c, h, w, gaddr_offset, scale, range_min,
-             range_max, CVK_FMT_BF16, eu_align);
+  for (auto &tile : tiles) {
+    one_step(ctx, layer_id, ga_input, ga_output, tl_table_answer,
+             tl_table_answer_slope, tile.n, tile.c, tile.h, tile.w, tile.offset,
+             scale, range_min, range_max, CVK_FMT_BF16);
   }
 
   ctx.lmem_free_tensor(tl_table_answer_slope);
   ctx.lmem_free_tensor(tl_table_answer);
 }
 
-void bf16_lut_tl_scientific_forward_kernel(const CviBackendContext &ctx,
-    laddr_t la_ifmap,
-    laddr_t la_buf,
-    laddr_t la_table_answer,
-    laddr_t la_table_answer_mantissa,
-    laddr_t la_ofmap,
+void bf16_lut_tl_scientific_forward_kernel(
+    const CviBackendContext &ctx, laddr_t la_ifmap, laddr_t la_buf,
+    laddr_t la_table_answer, laddr_t la_table_answer_mantissa, laddr_t la_ofmap,
     uint32_t tensor_n, uint32_t tensor_c, uint32_t tensor_h, uint32_t tensor_w,
     uint32_t table_n, uint32_t table_c, uint32_t table_h, uint32_t table_w,
-    cvk_fmt_t fmt, uint8_t eu_align) {
+    cvk_fmt_t fmt) {
 
   assert(fmt == CVK_FMT_BF16);
 
-  cvk_tl_t tl_ifmap, tl_buf, tl_table_answer, tl_table_answer_mantissa, tl_ofmap;
+  cvk_tl_t tl_ifmap, tl_buf, tl_table_answer, tl_table_answer_mantissa,
+      tl_ofmap;
 
   // restore tensor from  start_address / shape
-  cvi_backend_tl_to_tensor(ctx, &tl_ifmap, la_ifmap,
-      tensor_n, tensor_c, tensor_h, tensor_w, fmt, eu_align);
-  cvi_backend_tl_to_tensor(ctx, &tl_buf, la_buf,
-      tensor_n, tensor_c, tensor_h, tensor_w, fmt, eu_align);
-  cvi_backend_tl_to_tensor(ctx, &tl_table_answer, la_table_answer,
-      table_n, table_c, table_h, table_w,fmt, eu_align);
-  cvi_backend_tl_to_tensor(ctx, &tl_table_answer_mantissa, la_table_answer_mantissa,
-      table_n, table_c, table_h, table_w,fmt, eu_align);
-  cvi_backend_tl_to_tensor(ctx, &tl_ofmap, la_ofmap,
-      tensor_n, tensor_c, tensor_h, tensor_w, fmt, eu_align);
+  cvi_backend_tl_to_tensor(ctx, &tl_ifmap, la_ifmap, tensor_n, tensor_c,
+                           tensor_h, tensor_w, fmt, 1);
+  cvi_backend_tl_to_tensor(ctx, &tl_buf, la_buf, tensor_n, tensor_c, tensor_h,
+                           tensor_w, fmt, 1);
+  cvi_backend_tl_to_tensor(ctx, &tl_table_answer, la_table_answer, table_n,
+                           table_c, table_h, table_w, fmt, 1);
+  cvi_backend_tl_to_tensor(ctx, &tl_table_answer_mantissa,
+                           la_table_answer_mantissa, table_n, table_c, table_h,
+                           table_w, fmt, 1);
+  cvi_backend_tl_to_tensor(ctx, &tl_ofmap, la_ofmap, tensor_n, tensor_c,
+                           tensor_h, tensor_w, fmt, 1);
 
   cvk_tiu_bf16_lookup_interp_table_param_t param = {0};
   param.ifmap = &tl_ifmap;
@@ -289,68 +261,47 @@ void bf16_lut_tl_scientific_forward_kernel(const CviBackendContext &ctx,
 }
 
 void cvi_backend_tg_bf16_lut_scientific_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,
-    gaddr_t top_gaddr, gaddr_t exp_lut_table, gaddr_t mantissa_lut_table,
-    int input_n, int input_c, int input_h, int input_w, cvk_fmt_t fmt) {
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_output, gaddr_t exp_lut_table, gaddr_t mantissa_lut_table, int n,
+    int c, int h, int w, cvk_fmt_t fmt) {
+  cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
 
-  cvk_tl_shape_t table_shape;
-  ctx.bf16_table_shape(&table_shape);
-
-  uint8_t eu_align = 1; // hardware constrainst
-  int blob_num = 3; // 3 means we allocate input / output / temp tensor
-
-  // 2 means exponential / mantissa table
-  int coeff_lane_shape = 2 * table_shape.h * table_shape.w * sizeof(uint16_t);
-  int require_shape = input_n * input_c * input_h * input_w;
-
-  std::vector<std::pair<cvk_tl_shape_t, gaddr_t> > tiling_info;
-  ctx.tiling_packing(require_shape, coeff_lane_shape, blob_num, (cvk_fmt_t)fmt, &tiling_info);
-
-  // alloc coeff(table)
-  ctx.bf16_table_shape(&table_shape);
-
-  cvk_tl_shape_t cvk_table_shape;
-  cvk_table_shape.n = table_shape.n;
-  cvk_table_shape.c = table_shape.c;
-  cvk_table_shape.h = table_shape.h;
-  cvk_table_shape.w = table_shape.w;
-  cvk_tl_t *tl_table_answer = ctx.lmem_alloc_tensor(cvk_table_shape, (cvk_fmt_t)fmt, eu_align);
-  cvk_tl_t *tl_table_answer_mantissa = ctx.lmem_alloc_tensor(cvk_table_shape, (cvk_fmt_t)fmt, eu_align);
+  cvk_tl_t *tl_table_answer = ctx.lmem_alloc_tensor(table_shape, fmt, 1);
+  cvk_tl_t *tl_table_answer_mantissa =
+      ctx.lmem_alloc_tensor(table_shape, fmt, 1);
 
   // load exp / mantissa table
   ctx.tdma_load(tl_table_answer, exp_lut_table);
   ctx.tdma_load(tl_table_answer_mantissa, mantissa_lut_table);
 
-  for (size_t i = 0; i < tiling_info.size(); i++) {
-    int n = tiling_info[i].first.n;
-    int c = tiling_info[i].first.c;
-    int h = tiling_info[i].first.h;
-    int w = tiling_info[i].first.w;
+  int blob_num = 3;
+  uint32_t lmem_used =
+      2 * ctx.lmem_tensor_to_size(table_shape, CVK_FMT_BF16, 1);
+  std::vector<CviBackendContext::tiling_info_t> tiles;
+  ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_BF16, blob_num, lmem_used,
+                     CviBackendContext::TilingAll);
 
-    gaddr_t gaddr_offset = tiling_info[i].second;
+  for (auto &tile : tiles) {
 
-    cvk_tl_shape_t slice_shape = ctx.tl_shape_t4(n, c, h, w);
+    cvk_tl_shape_t slice_shape =
+        ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
 
     // alloc local memory
-    cvk_tl_t* tl_ifmap = ctx.lmem_alloc_tensor(slice_shape, (cvk_fmt_t)fmt, eu_align);
-    cvk_tl_t* tl_buf = ctx.lmem_alloc_tensor(slice_shape, (cvk_fmt_t)fmt, eu_align);
-    cvk_tl_t* tl_ofmap = ctx.lmem_alloc_tensor(slice_shape, (cvk_fmt_t)fmt, eu_align);
+    cvk_tl_t *tl_ifmap = ctx.lmem_alloc_tensor(slice_shape, fmt, 1);
+    cvk_tl_t *tl_buf = ctx.lmem_alloc_tensor(slice_shape, fmt, 1);
+    cvk_tl_t *tl_ofmap = ctx.lmem_alloc_tensor(slice_shape, fmt, 1);
 
     // load input
-    ctx.tdma_load(tl_ifmap, bottom_gaddr + gaddr_offset);
-    bf16_lut_tl_scientific_forward_kernel(ctx,
-        tl_ifmap->start_address,
-        tl_buf->start_address,
-        tl_table_answer->start_address,
-        tl_table_answer_mantissa->start_address,
-        tl_ofmap->start_address,
-        n, c, h, w,
-        table_shape.n, table_shape.c, table_shape.h, table_shape.w,
-        (cvk_fmt_t)fmt, eu_align);
+    ctx.tdma_load(tl_ifmap, ga_input + tile.offset);
+    bf16_lut_tl_scientific_forward_kernel(
+        ctx, tl_ifmap->start_address, tl_buf->start_address,
+        tl_table_answer->start_address, tl_table_answer_mantissa->start_address,
+        tl_ofmap->start_address, tile.n, tile.c, tile.h, tile.w, table_shape.n, table_shape.c,
+        table_shape.h, table_shape.w, fmt);
 
     // TODO checke tfma/tiu pipeline
     // store
-    ctx.tdma_store(tl_ofmap, top_gaddr + gaddr_offset);
+    ctx.tdma_store(tl_ofmap, ga_output + tile.offset);
 
     ctx.lmem_free_tensor(tl_ofmap);
     ctx.lmem_free_tensor(tl_buf);

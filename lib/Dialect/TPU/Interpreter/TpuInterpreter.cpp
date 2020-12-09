@@ -1300,7 +1300,6 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
     if (getOpQuantParamType(op) != "NONE") {
       if (type == "ADD" || type == "MAX" || type == "MIN") {
         // apply rshift and saturate
-        //#pragma omp parallel for schedule(static)
         for (int i = 0; i < input_size; ++i) {
           output[i] = (float)applyRShiftAndSaturateInt8(
               output[i], (uint32_t)quant_rshift->at(0), output_offset);
@@ -1411,19 +1410,12 @@ LogicalResult tpu::FullyConnectedOp::interpret(
   std::shared_ptr<std::vector<float> > filter = opdT[1];
   std::shared_ptr<std::vector<float> > bias = opdT[2];
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[5];
+  std::shared_ptr<std::vector<float>> quant_multiplier = opdT[6];
 
-  int input_offset = 0;
-  int output_offset = 0;
-  bool is_asymmetric = isOpQuantAsymmetric();
-  if (is_asymmetric) {
-    input_offset = -getPreviousOpZeroPoint(op);
-    output_offset = getOpZeroPoint(op);
-    if (input_offset != 0) {
-      for (size_t i = 0; i < input.size(); i++) {
-        input.at(i) += input_offset;
-      }
-    }
-  }
+  // int input_offset = 0;
+  // int output_offset = 0;
+  // bool is_asymmetric = isOpQuantAsymmetric();
+
   int ret = mkldnn_ip(input.data(), filter->data(),
       bias ? bias->data() : nullptr, resultT->data(), m, k, n, false);
   assert(ret == 0);
@@ -1437,9 +1429,12 @@ LogicalResult tpu::FullyConnectedOp::interpret(
     // do nothing
   } else if (getOpQuant() == "INT8") {
     assert(quant_rshift);
+    assert(quant_rshift);
+    assert(quant_multiplier);
     for (int i = 0; i < size; ++i) {
-      resultT->at(i) = (float)applyRShiftAndSaturateInt8(
-          resultT->at(i), (uint32_t)quant_rshift->at(0), output_offset);
+      resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          resultT->at(i), (uint32_t)quant_rshift->at(0),
+          quant_multiplier->at(0), true);
     }
   } else if (getOpQuant() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16> >(resultT->size());
@@ -1829,10 +1824,10 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
 
   // parse param
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(castOp.param(), castOp.input(), castOp.output(),
                  n, c, ih, iw, oh, ow,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                  is_global, do_relu, count_include_pad);
   std::vector<int64_t> input_shape = {n, c, ih, iw};
   // get tensors
@@ -1844,6 +1839,10 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
     // therefore, we can't implement average use hardware api
     // in average pool case, we can use depthwise conv replace it
     llvm_unreachable("avg pool can't not do asymmetric quantization with our hardware api, please use conv");
+  }
+  if (!is_asymmetric && pad_value != 0){
+    llvm::errs() << "pad value:" << pad_value << "\n";
+    llvm_unreachable("symmetric pad is zero");
   }
 
   std::shared_ptr<std::vector<float> > quant_rshift = nullptr;
@@ -1862,22 +1861,19 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
   int ret;
 
   ret = mkldnn_pool(input.data(), output, n, c, ih, iw, oh, ow, kh, kw,
-                    sh, sw, pt, pb, pl, pr, is_average, count_include_pad);
+                    sh, sw, pt, pb, pl, pr, is_average, count_include_pad, pad_value);
 
   assert(ret == 0);
   // apply qscale on output for average pooling, max poolings are bypassed
   if (is_average && getOpQuant(op) == "INT8") {
     assert(quant_rshift && quant_multiplier);
     std::vector<float> conv_result(size);
-    MInfo minfo;
     // In hardware limitation, we can not put avg pool with large kernel
     // if avg pool ih * iw > local memory, in our hardware
     // need to split it then sum
     // TODO:This case mostly happenend in global average,
     /// if avg pool kernel size bigger than local memory size, todo
-    auto function = cast<FuncOp>(op->getParentOp());
-    minfo.getChipInfo(function);
-    int lmem_size = minfo.lmem_per_lane;
+    int lmem_size = MInfo::lane_num;
     if ((ih * iw) > ((lmem_size - size) / 2) && is_global) {
 
       std::vector<int> h_slices;
@@ -1926,27 +1922,25 @@ static LogicalResult doPool2DOpInterpret(Operation *op, bool is_average,
       return success();
     }
 
-    {
-      // sumulate hw that not support Division,
-      // we add it in kernel and divide by (rightshift)
-      // it should call by "pool sum", we leverage by depthwise conv
-      int filter_shape = c * kh * kw;
-      int g = c;
-      int oc = c;
-      int dh = 1, dw = 1;
-      std::vector<float> conv_filter(filter_shape, 1);
-      int ret = mkldnn_conv(input.data(), conv_filter.data(), NULL,
-          conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
-          sh, sw, dh, dw, pt, pb, pl, pr, g, 0);
-      assert(ret == 0);
-    }
+
+    // sumulate hw that not support Division,
+    // we add it in kernel and divide by (rightshift)
+    // it should call by "pool sum", we leverage by depthwise conv
+    int filter_shape = c * kh * kw;
+    int g = c;
+    int oc = c;
+    int dh = 1, dw = 1;
+    std::vector<float> conv_filter(filter_shape, 1);
+    int ret = mkldnn_conv(input.data(), conv_filter.data(), NULL,
+        conv_result.data(), n, c, ih, iw, oc, oh, ow, kh, kw,
+        sh, sw, dh, dw, pt, pb, pl, pr, g, 0);
+    assert(ret == 0);
 
     for (int64_t i = 0; i < size; ++i) {
       // multiplier is taking avg_const into account
       // restore sum value first
-      float sum = conv_result[i];
       output[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          sum, (uint32_t)quant_rshift->at(0),
+          conv_result[i], (uint32_t)quant_rshift->at(0),
           (uint32_t)quant_multiplier->at(0), false);
     }
   } else if (is_average && getOpQuant(op) == "BF16") {
@@ -3257,6 +3251,32 @@ LogicalResult tpu::ScaleOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ReverseOp::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT.get()->data();
+  int32_t axis = this->axis();
+  int ret = my_reverse(input, output, n, c, h, w, axis);
+
+  assert(ret == 0);
+
+  valueMapping[result] = std::move(resultT);
+
+  return success();
+}
+
 LogicalResult tpu::ShuffleChannelOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -3292,7 +3312,6 @@ LogicalResult tpu::ShuffleChannelOp::interpret(
 
   return success();
 }
-
 
 LogicalResult tpu::SliceOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
@@ -4072,7 +4091,7 @@ LogicalResult tpu::QuantOp::interpret(
     LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
                << std::to_string(threshold) << "\n";);
     dequantizeActivationInt8WithThreshold(output, input, size, threshold,
-                                          clUseTPUQuantOp && is_symmetric,
+                                          clUseTPUQuantOp,
                                           zero_point);
   } else if (this->from() == "NONE" && this->to() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
@@ -4103,6 +4122,34 @@ LogicalResult tpu::QuantOp::interpret(
 
   valueMapping[result] = std::move(resultT);
 
+  return success();
+}
+
+LogicalResult tpu::ReQuantOp::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  Operation *op = this->getOperation();
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  std::shared_ptr<std::vector<float>> input = opdT[0];
+  float input_offset = (float)-getPreviousOpZeroPoint(op);
+  float output_offset = (float)getOpZeroPoint(op);
+  float qscale = this->qscale().convertToFloat();
+
+  for(int64_t i = 0; i < size; i++){
+    resultT->at(i) = (input->at(i) + input_offset) * qscale + output_offset;
+  }
+
+  auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
+  FloatToBFloat16(resultT->data(), tensor_bf16->data(), resultT->size()); // with rounding
+  BFloat16ToFloat(tensor_bf16->data(), resultT->data(), resultT->size());
+
+
+
+  valueMapping[result] = std::move(resultT);
   return success();
 }
 

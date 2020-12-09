@@ -23,7 +23,7 @@ output_accuracy='accuracy.xls'
 faceLogs = ['retinaface_mnet25', 'retinaface_res50']
 lfwLogs = ["arcface_res50"]
 detectionLogs = ["ssd300", "yolo_v3_416"]
-imagenetLogs = ["resnet50", "mobilenet_v2", "vgg16", "googlenet", "inception_v4", "shufflenet_v2", "squeezenet"]
+imagenetLogs = ["resnet50", "mobilenet_v2", "vgg16", "googlenet", "inception_v4", "shufflenet_v2", "squeezenet_v1.1"]
 livenessLogs = ["liveness"]
 
 # global excel format
@@ -42,7 +42,7 @@ def gen_report_title(excel):
     title_cells = len(title)
     col_start = 0
 
-    # head - title 
+    # head - title
     excel = excel.write(row=0, col=col_start, content="Quantization", sheet=sheet_all)
     col_start = col_start + 1
 
@@ -53,7 +53,7 @@ def gen_report_title(excel):
     for t in title:
         excel = excel.title(row=1, col=col_start, content = t, sheet=sheet_all)
         col_start = col_start + 1
-     
+
     # head - int8_multiplier
     excel = excel.write(row=0, col=col_start, top_row = 0, end_row = 0,
         left_column=col_start, right_column=col_start + title_cells - 1, content="int8_multiplier", sheet=sheet_all, style="align: horiz center")
@@ -77,7 +77,7 @@ def get_export_csv_name(log_file):
 def parseFace(log_file):
     log_format    = '<Component> AP of <Level> is <Accuracy>' # HDFS log format
     minEventCount = 0 # The minimum number of events in a bin
-    merge_percent = 0.5 # The percentage of different tokens 
+    merge_percent = 0.5 # The percentage of different tokens
     #regex         = [r'blk_-?\d+', r'(\d+\.){3}\d+(:\d+)?'] # Regular expression list for optional preprocessing (default: [])
     regex         = [] # Regular expression list for optional preprocessing (default: [])
 
@@ -116,12 +116,12 @@ def parseFace(log_file):
 def parseLFW(log_file):
     log_format    = '<Component>: <Accuracy>' # HDFS log format
     minEventCount = 2 # The minimum number of events in a bin
-    merge_percent = 0.5 # The percentage of different tokens 
+    merge_percent = 0.5 # The percentage of different tokens
     #regex         = [r'blk_-?\d+', r'(\d+\.){3}\d+(:\d+)?'] # Regular expression list for optional preprocessing (default: [])
     regex         = [r'.+Diff.+'] # Regular expression list for optional preprocessing (default: [])
     exceptRex     = r'Diff' # Regular expression list for optional preprocessing (default: [])
 
-    parser = Face.LogParser(input_dir, output_dir, log_format, rex=regex, 
+    parser = Face.LogParser(input_dir, output_dir, log_format, rex=regex,
                minEventCount=minEventCount, merge_percent=merge_percent,
                keep_para=False, exceptRex=exceptRex)
     parser.parse(log_file)
@@ -153,11 +153,11 @@ def parseLFW(log_file):
 def parseDetection(log_file):
     log_format    = '<Component> = <Accuracy>' # HDFS log format
     minEventCount = 0 # The minimum number of events in a bin
-    merge_percent = 0.5 # The percentage of different tokens 
+    merge_percent = 0.5 # The percentage of different tokens
     #regex         = [r'blk_-?\d+', r'(\d+\.){3}\d+(:\d+)?'] # Regular expression list for optional preprocessing (default: [])
     regex         = [r'(Average.+)'] # Regular expression list for optional preprocessing (default: [])
 
-    parser = Face.LogParser(input_dir, output_dir, log_format, rex=regex, 
+    parser = Face.LogParser(input_dir, output_dir, log_format, rex=regex,
                minEventCount=minEventCount, merge_percent=merge_percent,
                keep_para=False)
     parser.parse(log_file)
@@ -215,7 +215,7 @@ def parseDetection(log_file):
 def parseImagenet(log_file):
     log_format    = '<Component> Acc@1 <Accuracy1> Acc@5 <Accuracy5>' # HDFS log format
     minEventCount = 0 # The minimum number of events in a bin
-    merge_percent = 0.2 # The percentage of different tokens 
+    merge_percent = 0.2 # The percentage of different tokens
     #regex         = [r'blk_-?\d+', r'(\d+\.){3}\d+(:\d+)?'] # Regular expression list for optional preprocessing (default: [])
     regex         = [r'((?!\().)*', r'((?!Loss).)*'] # Regular expression list for optional preprocessing (default: [])
     exceptRex     = r'Time' # Regular expression list for optional preprocessing (default: [])
@@ -253,11 +253,11 @@ def parseImagenet(log_file):
 def parseLiveness(log_file):
     log_format    = 'FPR@<Component> <Content> <FPR> - <TPR>' # HDFS log format
     minEventCount = 0 # The minimum number of events in a bin
-    merge_percent = 0.2 # The percentage of different tokens 
+    merge_percent = 0.2 # The percentage of different tokens
     #regex         = [r'blk_-?\d+', r'(\d+\.){3}\d+(:\d+)?'] # Regular expression list for optional preprocessing (default: [])
     regex         = [] # Regular expression list for optional preprocessing (default: [])
 
-    parser = Face.LogParser(input_dir, output_dir, log_format, rex=regex, 
+    parser = Face.LogParser(input_dir, output_dir, log_format, rex=regex,
                minEventCount=minEventCount, merge_percent=merge_percent)
     parser.parse(log_file)
 
@@ -280,17 +280,17 @@ def parseLiveness(log_file):
     excel.write(row = curr_row, col=6 + 1 * len(title), content=int8_acc, sheet=sheet_all, style=int8_bg_style)
 
     # export detail to sheet
-    # caffe 
-    excel.write(row = 0, col=0, 
+    # caffe
+    excel.write(row = 0, col=0,
         content="FPR:" + str(my_csv["FPR"][0].replace("TPR : ", "")), sheet=net)
-    excel.write(row = 0, col=1, 
+    excel.write(row = 0, col=1,
         content="TPR:" + str(my_csv["TPR"][0]), sheet=net)
     # int8
-    excel.write(row = 1, col=0, 
+    excel.write(row = 1, col=0,
         content="FPR:" + str(my_csv["FPR"][0].replace("TPR : ", "")), sheet=net)
-    excel.write(row = 1, col=1, 
+    excel.write(row = 1, col=1,
         content="TPR:" + str(my_csv["TPR"][0]), sheet=net)
-    
+
     curr_row = curr_row + 1
 
 def rawcount(filename):

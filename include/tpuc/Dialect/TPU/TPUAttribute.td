@@ -221,6 +221,7 @@ def TPU_PoolParamAttr : StructAttr<"PoolParam", TPU_Dialect, [
     StructFieldAttr<"padding_b", I32Attr>,
     StructFieldAttr<"padding_l", I32Attr>,
     StructFieldAttr<"padding_r", I32Attr>,
+    StructFieldAttr<"pad_value", I32Attr>,
     StructFieldAttr<"stride_h", I32Attr>,
     StructFieldAttr<"stride_w", I32Attr>,
     StructFieldAttr<"do_relu", BoolAttr>,
@@ -286,6 +287,18 @@ def TPU_ActCmprParamAttr : StructAttr<"ActCmprParam", TPU_Dialect, [
     StructFieldAttr<"step_size", I64Attr>,
     StructFieldAttr<"total_size", I64Attr>]> {
   let description = "Structure of parameters for activation compression";
+}
+
+//===----------------------------------------------------------------------===//
+// Input preprocess parameters structure.
+//===----------------------------------------------------------------------===//
+def TPU_PreprocessParamAttr : StructAttr<"PreprocessParam", TPU_Dialect, [
+    StructFieldAttr<"raw_scale", F32Attr>,
+    StructFieldAttr<"mean", F32ArrayAttr>,
+    StructFieldAttr<"std", F32ArrayAttr>,
+    StructFieldAttr<"input_scale", F32Attr>,
+    StructFieldAttr<"color_order", StrAttr>]> {
+  let description = "Structure of parameters for preprocess";
 }
 
 #endif // TPU_ATTRIBUTE

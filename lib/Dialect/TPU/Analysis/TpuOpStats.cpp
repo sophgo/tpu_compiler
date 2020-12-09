@@ -113,9 +113,9 @@ private:
   void dumpPool2DOpParam(OpTy &op, llvm::raw_ostream &os,
       bool is_average) {
     bool is_global, do_relu, count_include_pad;
-    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+    int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
     parsePoolParam(op.param(), op.input(), op.output(), n, c, ih, iw, oh, ow,
-                   kh, kw, sh, sw, pt, pb, pl, pr, is_global, do_relu,
+                   kh, kw, sh, sw, pt, pb, pl, pr, pad_value, is_global, do_relu,
                    count_include_pad);
 
     uint64_t mac_count = (uint64_t)ow * oh * kh * kw * c * n;

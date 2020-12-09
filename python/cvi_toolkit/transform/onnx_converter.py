@@ -16,7 +16,7 @@ import operator
 import functools
 
 from .utils import calcConv2DSpatial, calcPool2DFloor, calcPool2DCeil, \
-                    get_shape_size
+    get_shape_size, get_TF_SAME_Padding
 
 from ..utils.log_setting import setup_logger
 
@@ -61,6 +61,9 @@ def convert_onnx_attribute_proto(attr_proto):
     elif attr_proto.strings:
         str_list = list(attr_proto.strings)
         return str_list
+    elif attr_proto.name:
+        name_list = list(attr_proto.name)
+        return name_list
     else:
         raise ValueError("Unsupported ONNX attribute: {}".format(attr_proto))
 
@@ -114,11 +117,8 @@ class OnnxConverter(BaseConverter):
         self.converted_nodes = list()
         self.converted_tensors = list()
         self.convert_preprocess = convert_preprocess
-        if self.convert_preprocess:
-            if preprocess_args:
-                self.preprocess_args = preprocess_args
-            else:
-                raise RuntimeError("preprocess args not exist!")
+        self.preprocess_args = preprocess_args
+
 
         self.CVI = None
         self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
@@ -312,13 +312,10 @@ class OnnxConverter(BaseConverter):
                 else:
                     input_shape.append(dim.dim_value)
 
-            if self.convert_preprocess:
+            if self.preprocess_args:
                 resize_h, resize_w = self.preprocess_args.get(
                         "resize_dims")
 
-                # add preprocess
-                input_no_preprocess_op = self.CVI.add_input_op(
-                    input.name, idx)
                 color_order = np.array([0 ,1, 2])
                 transpose_order = np.array([0, 1, 2, 3])
                 crop_shape = np.array(
@@ -336,8 +333,8 @@ class OnnxConverter(BaseConverter):
                     pass
                 else:
                     raise RuntimeError("No support fused preprocess data_format: {} \ preprocess_input_data_format: {}",
-                                       self.preprocess_args.get('data_format'),  self.preprocess_args.get(
-                                           'preprocess_input_data_format'))
+                                        self.preprocess_args.get('data_format'),  self.preprocess_args.get(
+                                            'preprocess_input_data_format'))
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))
@@ -353,12 +350,19 @@ class OnnxConverter(BaseConverter):
                     'pads': [0,0,0,0,0,0,0,0],
                     'pad_const_val': 0,
                 }
+            else:
+                preprocess_attr = {}
 
+            if self.convert_preprocess:
+                # add preprocess
+                input_no_preprocess_op = self.CVI.add_input_op(
+                    input.name, idx, **preprocess_attr)
+ 
                 output_shape = input_shape
                 input_op = self.CVI.add_preprocess_op(
                     "{}_preprocess".format(input.name), [input_no_preprocess_op], output_shape, **preprocess_attr)
             else:
-                input_op = self.CVI.add_input_op(input.name, idx)
+                input_op = self.CVI.add_input_op(input.name, idx, **preprocess_attr)
 
             self.addOperand(input.name, input_op, input_shape, TensorType.ACTIVATION)
         def NoneAndRaise(node):
@@ -840,12 +844,42 @@ class OnnxConverter(BaseConverter):
         if len(onnx_node.attrs['kernel_shape']) == 3:
             return self.convert_conv3d_op(onnx_node)
 
+        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        filter_name = onnx_node.inputs[1]
+        filter_tensor = self.getTensor(filter_name)
+        filter_shape = filter_tensor.shape
+        with_bias = False
+        if len(onnx_node.inputs) == 3:
+            #with bias
+            with_bias = True
+            bias_name = onnx_node.inputs[2]
+            bias_tensor = self.getTensor(bias_name)
+
         dilations = onnx_node.attrs.get("dilations", [1, 1])
         group = onnx_node.attrs.get("group", 1)
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
-
-
         strides = onnx_node.attrs.get("strides",[1,1])
+        auto_pad = onnx_node.attrs.get("auto_pad", None)
+        if auto_pad:
+            pad_method = auto_pad.decode('utf-8')
+            if pad_method == "SAME_UPPER":
+                padding_along_h = get_TF_SAME_Padding(
+                    shape[2], filter_shape[2], strides[0])
+                padding_along_w = get_TF_SAME_Padding(
+                    shape[3], filter_shape[3], strides[1])
+                padding_t = padding_along_h // 2
+                padding_l = padding_along_w // 2
+                padding_b = padding_along_h - padding_t
+                padding_r = padding_along_w - padding_l
+                pads = [padding_t, padding_l, padding_b, padding_r]
+            elif pad_method == "VALID":
+                pass
+            elif pad_method == "NOTSET":
+                pass
+            else:
+                raise RuntimeError("Not support conv {} pad method".format(pad_method))
         conv_param = {
             'stride_h':  strides[0],
             'stride_w':  strides[1],
@@ -862,19 +896,6 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
             'ins': [],
         }
-        op, shape, _ = self.getOperand(onnx_node.inputs[0])
-        operands = list()
-        operands.append(op)
-        filter_name = onnx_node.inputs[1]
-        filter_tensor = self.getTensor(filter_name)
-        filter_shape = filter_tensor.shape
-        with_bias = False
-        if (len(onnx_node.inputs) == 3):
-            #with bias
-            with_bias = True
-            bias_name = onnx_node.inputs[2]
-            bias_tensor = self.getTensor(bias_name)
-
 
         on = shape[0]
         oc = filter_tensor.shape[0] # feature map size
@@ -1858,9 +1879,6 @@ class OnnxConverter(BaseConverter):
         mode = onnx_node.attrs.get("mode", "nearest")
 
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[2])
-        if tensor_type1 != TensorType.ACTIVATION or tensor_type2 != TensorType.TENSOR:
-            raise RuntimeError("Unsupported tensor type")
 
         if len(onnx_node.inputs) > 2:
             # onnx opset 11
@@ -1868,8 +1886,13 @@ class OnnxConverter(BaseConverter):
             if len(scale_factor) == 0:
                 # size
                 scale_factor = self.getTensor(onnx_node.inputs[3]).tensor_data
+            use_size = len(self.getTensor(
+                onnx_node.inputs[2]).tensor_data) == 0
         else:
-            scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
+            # opset 10
+            scale_factor = self.getTensor(onnx_node.inputs[1]).tensor_data
+            print(scale_factor)
+            use_size =False
 
         if len(scale_factor) != 4:
             raise RuntimeError("scale_factor length should be 4")
@@ -1912,7 +1935,7 @@ class OnnxConverter(BaseConverter):
 
         elif mode == b"nearest":
             operands = list()
-            use_size = len(self.getTensor(onnx_node.inputs[2]).tensor_data) == 0
+
             operands.append(op1)
             ic = input_shape1[1]
             ih = input_shape1[2]

@@ -39,7 +39,7 @@ cvi_preprocess.py  \
 
 input_shape=`cvi_npz_tool.py get_shape ${NET}_only_resize_in_fp32.npz input`
 
-if [[ $PREPROCESS_CROPMETHOD == "aspect_ratio" ]]; then
+if [ x$PREPROCESS_CROPMETHOD = x"aspect_ratio" ]; then
     export IMAGE_RESIZE_DIMS=${NET_INPUT_DIMS}
 fi
 
@@ -120,8 +120,8 @@ cvi_npz_tool.py compare \
 
 # cvimodel
 $DIR/../mlir_to_cvimodel.sh \
-    ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
-    ${NET}_fused_preprocess.cvimodel
+    -i ${NET}_quant_int8_multiplier_fused_preprocess.mlir \
+    -o ${NET}_fused_preprocess.cvimodel
 
 model_runner \
     --dump-all-tensors \

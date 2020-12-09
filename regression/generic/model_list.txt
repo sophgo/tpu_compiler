@@ -41,6 +41,7 @@ erfnet                    N        N        N        Y        N        N
 enet                      N        N        N        Y        N        N
 segnet                    N        N        N        Y        N        N
 fcn-8s                    N        N        N        Y        N        N
+resnet_res_blstm          N        N        N        Y        Y        N
 
 # onnx
 resnet18                  Y        N        N        N        Y        N
@@ -62,3 +63,6 @@ resnet50_tf               N        N        N        Y        Y        N
 vgg16_tf                  N        N        N        Y        Y        N
 inception_v3_tf           N        N        N        Y        Y        N
 # mobilenet_v3              N        N        N        Y        Y        N
+
+# TFLite int8
+resnet50_tflite_int8      N        N        N        Y        N        Y

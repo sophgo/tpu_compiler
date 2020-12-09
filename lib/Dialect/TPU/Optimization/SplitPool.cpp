@@ -113,6 +113,7 @@ struct SplitPoolPattern : public RewritePattern {
                               rewriter.getI32IntegerAttr(0),     // padding_b
                               rewriter.getI32IntegerAttr(0),     // padding_l
                               rewriter.getI32IntegerAttr(0),     // padding_r
+                              rewriter.getI32IntegerAttr(0),     // pad_value
                               rewriter.getI32IntegerAttr(1),     // stride_h
                               rewriter.getI32IntegerAttr(1),     // stride_w
                               rewriter.getBoolAttr(false),       // do_relu
@@ -162,6 +163,7 @@ struct SplitPoolPattern : public RewritePattern {
             rewriter.getI32IntegerAttr(0),            // padding_b
             rewriter.getI32IntegerAttr(0),            // padding_l
             rewriter.getI32IntegerAttr(0),            // padding_r
+            rewriter.getI32IntegerAttr(0),            // pad_value
             rewriter.getI32IntegerAttr(1),            // stride_h
             rewriter.getI32IntegerAttr(1),            // stride_w
             rewriter.getBoolAttr(false),              // do_relu

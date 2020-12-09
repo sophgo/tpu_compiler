@@ -154,6 +154,8 @@ struct ConvertFuncToTensorPass
     target.addLegalOp<tpu::TG_INT8_PoolMax2DOp>();
     target.addLegalOp<tpu::TG_BF16_PoolAvg2DOp>();
     target.addLegalOp<tpu::TG_BF16_PoolMax2DOp>();
+    target.addLegalOp<tpu::TG_INT8_ReverseOp>();
+    target.addLegalOp<tpu::TG_BF16_ReverseOp>();
     target.addLegalOp<tpu::TG_INT8_ShuffleChannelOp>();
     target.addLegalOp<tpu::TG_BF16_ShuffleChannelOp>();
     target.addLegalOp<tpu::TG_INT8_PixelShuffleOp>();

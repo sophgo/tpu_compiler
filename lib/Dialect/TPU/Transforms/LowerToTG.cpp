@@ -685,6 +685,21 @@ Value tpu::EltwiseAddOp::convertToTG() {
       for (unsigned i = 0; i < nInputs; ++i) {
         m_i8_inputs[i] = static_cast<int32_t>(multiplier->at(i));
       }
+
+      bool is_asymmetric = isOpQuantAsymmetric();
+      if (is_asymmetric){
+        const unsigned nInputs = op->getNumOperands() - 4;
+        std::vector<int> input_offset(nInputs, 0);
+        for(size_t i = 0; i < nInputs; ++i){
+          input_offset.at(i) = -getPreviousOpZeroPoint(op, i);
+        }
+        attrs.push_back(builder.getNamedAttr(
+              "input_offset",
+              builder.getI32ArrayAttr(ArrayRef<int32_t>({input_offset}))));
+        attrs.push_back(
+            builder.getNamedAttr("output_offset",
+              builder.getI32IntegerAttr(getOpZeroPoint(op))));
+      }
     }
     attrs.push_back(
         builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
@@ -902,13 +917,17 @@ Value tpu::FullyConnectedOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_ONLY");
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
     // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     assert(rshift->size() == 1);
     attrs.push_back(builder.getNamedAttr("rshift",
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "mutliplier",
+        builder.getI32IntegerAttr(static_cast<int32_t>(multiplier->at(0)))));
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_FullyConnectedOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
@@ -1030,7 +1049,14 @@ Value tpu::LeakyReluOp::convertToTG() {
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
     attrs.push_back(builder.getNamedAttr("m_i8_neg",
         builder.getI8IntegerAttr(static_cast<int8_t>(multiplier_neg->at(0)))));
-
+    bool is_asymmetric = isOpQuantAsymmetric();
+    if (is_asymmetric) {
+      attrs.push_back(builder.getNamedAttr(
+          "input_offset",
+          builder.getI32IntegerAttr(-getPreviousOpZeroPoint(op))));
+      attrs.push_back(builder.getNamedAttr(
+          "output_offset", builder.getI32IntegerAttr(getOpZeroPoint(op))));
+    }
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LeakyReluOp>(op->getLoc(),
         getResult().getType(), ArrayRef<Value>{operands},
@@ -1343,6 +1369,7 @@ Value tpu::QuantOp::convertToTG() {
     param.push_back(builder.getNamedAttr("from", fromAttr()));
     param.push_back(builder.getNamedAttr("to", toAttr()));
     param.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
+    param.push_back(builder.getNamedAttr("zero_point", zero_pointAttr()));
     auto paramAttr = builder.getDictionaryAttr(param);
     auto operationAttr = builder.getStringAttr(getOperationName());
     std::vector<NamedAttribute> attrs;
@@ -1359,11 +1386,38 @@ Value tpu::QuantOp::convertToTG() {
     attrs.push_back(builder.getNamedAttr("from", fromAttr()));
     attrs.push_back(builder.getNamedAttr("to", toAttr()));
     attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
+    attrs.push_back(builder.getNamedAttr("zero_point", zero_pointAttr()));
     auto newOp = OpBuilder(op).create<tpu::TG_QuantOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
+}
+
+Value tpu::ReQuantOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  std::vector<Value> operands;
+  std::vector<NamedAttribute> attrs;
+  operands.push_back(input());
+
+  int input_offset = -getPreviousOpZeroPoint(op);
+  int output_offset = getOpZeroPoint(op);
+
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr(
+      "input_offset", builder.getI32IntegerAttr(input_offset)));
+  attrs.push_back(builder.getNamedAttr(
+      "output_offset", builder.getI32IntegerAttr(output_offset)));
+  attrs.push_back(
+      builder.getNamedAttr("qscale", qscaleAttr()));
+
+  auto newOp = OpBuilder(op).create<tpu::TG_ReQuantOp>(
+      op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  return newOp.getResult();
 }
 
 Value tpu::ReciprocalOp::convertToTG() {
@@ -1450,6 +1504,35 @@ Value tpu::ReorgOp::convertToTG() {
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReorgOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
+Value tpu::ReverseOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //   TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "NONE");
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReverseOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReverseOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -2573,6 +2656,18 @@ static void transposeBiasInt16(std::vector<int16_t> &w_int16) {
   memcpy(ptr, w_t.data(), w_t.size());
 }
 
+static void transposeBiasInt32(std::vector<int32_t> &w_int32) {
+  int8_t *ptr = reinterpret_cast<int8_t *>(w_int32.data());
+  std::vector<int8_t> w(ptr, ptr + w_int32.size() * sizeof(int32_t));
+  std::vector<int8_t> w_t(w.size());
+  for (size_t i = 0; i < w_int32.size(); i++) {
+    for (size_t j = 0; j < 4; j++) {
+      w_t[j * w_int32.size() + i] = w[i * 4 + j];
+    }
+  }
+  memcpy(ptr, w_t.data(), w_t.size());
+}
+
 template <typename OpTy>
 struct LowerWeightConv2DOpPattern : public RewritePattern {
   LowerWeightConv2DOpPattern(MLIRContext *context)
@@ -2911,23 +3006,23 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       // lower bias
       if ( !isTensorNone(fcOp.bias()) ) {
         auto biasOp = cast<tpu::LoadWeightOp>(fcOp.bias().getDefiningOp());
-        // per-tensor mode, bias is INT16
-        assert(biasOp.storage() == "INT16");
+        // per-tensor mode, bias is INT32
+        assert(biasOp.storage() == "INT32");
         std::vector<int64_t> shape;
         int64_t size;
         getTensorShapeAndSize(fcOp.bias(), shape, size);
         auto bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
-        std::vector<int16_t> bias_int16(bias->begin(), bias->end());
-        transposeBiasInt16(bias_int16);
-        std::vector<uint16_t> bias_uint16(size);
-        memcpy(bias_uint16.data(), bias_int16.data(), size * sizeof(int16_t));
+        std::vector<int32_t> bias_int32(bias->begin(), bias->end());
+        transposeBiasInt32(bias_int32);
+        std::vector<uint32_t> bias_uint32(size);
+        memcpy(bias_uint32.data(), bias_int32.data(), size * sizeof(int32_t));
 
         // save it
-        // after transpose, this is not INT16 anymore, it is 2 stripes of UINT8
-        // we save it as UINT16, to carry the eltment bitwidth, so we don`t need
+        // after transpose, this is not INT32 anymore, it is 2 stripes of UINT8
+        // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
         // to change the shape.
-        addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.bias(),
-            "lowered", bias_uint16, shape, "UINT16", wTF);
+        addWeightTensorAndUpdateWeightOp<uint32_t>(fcOp.bias(),
+            "lowered", bias_uint32, shape, "UINT32", wTF);
         biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
       }
     } else if (getOpQuant(op) == "BF16") {
@@ -4133,8 +4228,10 @@ public:
         DefaultToTGPattern<tpu::PoolMax3DOp>,
         DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::QuantOp>,
+        DefaultToTGPattern<tpu::ReQuantOp>,
         DefaultToTGPattern<tpu::ReluOp>,
         DefaultToTGPattern<tpu::ReorgOp>,
+        DefaultToTGPattern<tpu::ReverseOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SliceOp>,

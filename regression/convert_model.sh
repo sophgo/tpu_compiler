@@ -155,4 +155,7 @@ tpuc-opt \
     --tpu-op-info-filename op_info_int8.csv \
     -o $int8_mlir
 
-${DIR}/mlir_to_cvimodel.sh $int8_mlir $output $dequant_results_to_fp32
+${DIR}/mlir_to_cvimodel.sh \
+    -i $int8_mlir \
+    -o $output \
+    --dequant-results-to-fp32=$dequant_results_to_fp32

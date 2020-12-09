@@ -53,6 +53,7 @@ class TPU_OpType(Enum):
     LrnThree = 'tpu.lrn_three'
     Lrn = 'tpu.lrn'
     LSTM = 'tpu.lstm'
+    LSTM_CAFFE = 'tpu.lstm_caffe'
     Normalize = 'tpu.normalize'
     Mish = 'tpu.mish'
     Pad = 'tpu.pad'
@@ -67,11 +68,13 @@ class TPU_OpType(Enum):
     PRelu = 'tpu.prelu'
     Proposal = 'tpu.proposal'
     Quant = 'tpu.quant'
+    ReQuant = 'tpu.requant'
     Reciprocal = 'tpu.reciprocal'
     Reshape = 'tpu.reshape'
     Relu = 'tpu.relu'
     Reorg = 'tpu.reorg'
     RetinaFaceDetection = 'tpu.retinaface_detection'
+    Reverse = 'tpu.reverse'
     ROIPooling = 'tpu.roi_pooling'
     Scale = 'tpu.scale'
     ShuffelChannel = 'tpu.shuffle_channel'
@@ -237,8 +240,29 @@ class MLIRImporter(object):
             opreands.append(none)
         return opreands
 
-    def add_input_op(self, name, index):
+    def add_input_op(self, name, index, **kargs):
         assert (index < len(self.func_args))
+
+        if kargs:
+            color_order = "bgr" if kargs['color_order'].tolist() == [0,1,2] else "rgb"
+
+            preprocess_param = {
+                'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['mean']]),
+                'std':  ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['std']]),
+                'input_scale': FloatAttr.get_f32(kargs['scale']),
+                'raw_scale': FloatAttr.get_f32(kargs['raw_scale']),
+                'color_order': StringAttr.get(color_order)
+            }
+        else:
+            # use default preprocess param
+            preprocess_param = {
+                'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in [0,0,0]]),
+                'std':  ArrayAttr.get([FloatAttr.get_f32(x) for x in [1,1,1]]),
+                'input_scale': FloatAttr.get_f32(1.0),
+                'raw_scale': FloatAttr.get_f32(255.0),
+                'color_order': StringAttr.get("bgr")
+            }
+        preprocess_param_attr = DictAttr.get(preprocess_param)
 
         quant_param = {
             'is_asymmetric': BoolAttr.get(False),
@@ -251,15 +275,15 @@ class MLIRImporter(object):
         }
         if self.input_type == "UINT8":
             quant_param['mode'] = StringAttr.get("INT8")
-        quant_param_attr = DictAttr.get(quant_param)
+        
         attributes = {
             "name": StringAttr.get(name),
-            "quant": DictAttr.get(quant_param)
+            "quant": DictAttr.get(quant_param),
+            "preprocess": DictAttr.get(preprocess_param)
         }
         op = Operation.create(TPU_OpType.Input.value, results=[self.tensor_inputs_type[index]], operands=[self.func_args[index]], attributes=attributes)
         self.insert_point.insert(op)
         return op.results[0]
-
 
     def add_load_file_op(self, name, output_tensor_shape, tensor_type=TPU_TensorType.FP32, storage="NONE"):
         if tensor_type == TPU_TensorType.FP32:
@@ -362,17 +386,32 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Clip.value, inputOperands, [
             tensor_output_type], name=name, quant=self.quant_param, **attr_dict)
 
-
-    def add_concat_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_concat_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         assert(len(inputOperands) >= 2)
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'axis')
         concat_name = StringAttr.get(op_name)
+        none = self.add_none_op()
+        if mode == TPU_MODE.INT8:
+            quant_param = self.create_int8_quant_attr(**kargs)
+            inputOperands = [
+                inputOperands[0],
+                inputOperands[1],
+                none,
+                none,
+                inputOperands[2],
+                inputOperands[3],
+            ]
+        elif mode == TPU_MODE.FP32:
+            quant_param = self.quant_param
+            inputOperands = self.add_quant_reg(inputOperands)
+        elif mode == TPU_MODE.BF16:
+            raise RuntimeError("Not support BF16")
 
-        axis_attr =  IntegerAttr.get(self.i32Type, kargs['axis'])
-        inputOperands = self.add_quant_reg(inputOperands)
+        axis_attr = IntegerAttr.get(self.i32Type, kargs['axis'])
+
         return self.buildOp(TPU_OpType.Concat.value, inputOperands, [
-            tensor_output_type], name=concat_name, axis=axis_attr, quant=self.quant_param)
+            tensor_output_type], name=concat_name, axis=axis_attr, quant=quant_param)
 
     def add_conv_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
         """
@@ -693,16 +732,17 @@ class MLIRImporter(object):
             inputOperands.append(none)
             # No bias
         if mode == TPU_MODE.INT8:
-            assert(kargs['param_type'] == "RSHIFT_ONLY")
+            assert(kargs['param_type'] == "RSHIFT_AND_M_I32")
             quant_param = self.create_int8_quant_attr(**kargs)
-            rshift_op = inputOperands[-1]
+            rshift_op = inputOperands[-2]
+            multiplier_op = inputOperands[-1]
             inputOperands = inputOperands[:-1]
             none = self.add_none_op()
 
             for _ in range(5 - len(inputOperands)):
                 inputOperands.append(none)
             inputOperands.append(rshift_op)
-            inputOperands.append(none)
+            inputOperands.append(multiplier_op)
 
         else:
             quant_param = self.quant_param
@@ -858,6 +898,12 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.LSTM.value, inputOperands, [
             tensor_output_type], name=lstm_name, quant=self.quant_param, **lstm_param)
 
+    def add_lstm_caffe_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        nameAttr = StringAttr.get(op_name)
+        return self.buildOp(TPU_OpType.LSTM_CAFFE.value, inputOperands, [
+            tensor_output_type], name=nameAttr)
+
     def add_normalize_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'across_spatial')
@@ -921,7 +967,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PoolMask.value, inputOperands, [
             tensor_output_type], name=pool_mask_name, **pool_mask_param)
 
-    def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
+    def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'kernel_h')
         checkKey(kargs, 'kernel_w')
@@ -936,14 +982,15 @@ class MLIRImporter(object):
 
         pool_avg_2d_name = StringAttr.get(op_name)
         pool_avg_2d_param = {
-            'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
-            'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
-            'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
-            'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
-            'padding_b':  IntegerAttr.get(self.i32Type, kargs['padding_b']),
-            'padding_l':  IntegerAttr.get(self.i32Type, kargs['padding_l']),
-            'padding_r':  IntegerAttr.get(self.i32Type, kargs['padding_r']),
-            'padding_t':  IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'stride_h': IntegerAttr.get(self.i32Type, kargs['stride_h']),
+            'stride_w': IntegerAttr.get(self.i32Type, kargs['stride_w']),
+            'kernel_h': IntegerAttr.get(self.i32Type, kargs['kernel_h']),
+            'kernel_w': IntegerAttr.get(self.i32Type, kargs['kernel_w']),
+            'padding_b': IntegerAttr.get(self.i32Type, kargs['padding_b']),
+            'padding_l': IntegerAttr.get(self.i32Type, kargs['padding_l']),
+            'padding_r': IntegerAttr.get(self.i32Type, kargs['padding_r']),
+            'padding_t': IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'pad_value': IntegerAttr.get(self.i32Type, pad_value),
             'do_relu': BoolAttr.get(kargs['do_relu']),
             'count_include_pad': BoolAttr.get(kargs['count_include_pad']),
         }
@@ -968,7 +1015,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
             tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=quant_param)
 
-    def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
+    def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
 
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'kernel_h')
@@ -983,14 +1030,15 @@ class MLIRImporter(object):
 
         pool_max_2d_name = StringAttr.get(op_name)
         pool_max_2d_param = {
-            'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
-            'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
-            'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
-            'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
-            'padding_b':  IntegerAttr.get(self.i32Type, kargs['padding_b']),
-            'padding_l':  IntegerAttr.get(self.i32Type, kargs['padding_l']),
-            'padding_r':  IntegerAttr.get(self.i32Type, kargs['padding_r']),
-            'padding_t':  IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'stride_h': IntegerAttr.get(self.i32Type, kargs['stride_h']),
+            'stride_w': IntegerAttr.get(self.i32Type, kargs['stride_w']),
+            'kernel_h': IntegerAttr.get(self.i32Type, kargs['kernel_h']),
+            'kernel_w': IntegerAttr.get(self.i32Type, kargs['kernel_w']),
+            'padding_b': IntegerAttr.get(self.i32Type, kargs['padding_b']),
+            'padding_l': IntegerAttr.get(self.i32Type, kargs['padding_l']),
+            'padding_r': IntegerAttr.get(self.i32Type, kargs['padding_r']),
+            'padding_t': IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'pad_value': IntegerAttr.get(self.i32Type, pad_value),
             'do_relu': BoolAttr.get(kargs['do_relu']),
             'count_include_pad': BoolAttr.get(False), # max pool has no count_include_pad method
         }
@@ -1108,9 +1156,9 @@ class MLIRImporter(object):
             'std': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['std']]),
             'scale': FloatAttr.get_f32(kargs['scale']),
             'raw_scale': FloatAttr.get_f32(kargs['raw_scale']),
-            'color_order': ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['color_order']]),
-            'transpose_order': ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['transpose_order']]),
-            'crop_offset': ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['crop_offset']]),
+            'color_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['color_order']]),
+            'transpose_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['transpose_order']]),
+            'crop_offset': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['crop_offset']]),
             'pads': ArrayAttr.get([ IntegerAttr.get(self.i32Type, x) for x in kargs['pads']]),
             'pad_const_val':  IntegerAttr.get(self.i32Type, 0),
         }
@@ -1176,6 +1224,23 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Quant.value, inputOperands, [
             tensor_output_type], name=quant_name, **attr_dict)
 
+    def add_requant_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.INT8.value, **kargs):
+        if mode != TPU_MODE.INT8.value:
+            raise RuntimeError("Only support asymmetric mode")
+        # Only in i8 case
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.i8Type)
+
+        checkKey(kargs, 'zero_point')
+        checkKey(kargs, 'qscale')
+        zero_point = kargs['zero_point']
+        qscale = kargs['qscale']
+        quant_name = StringAttr.get(op_name)
+        attr_dict = {
+            'zero_point': IntegerAttr.get(self.i32Type, zero_point),
+            'qscale': FloatAttr.get_f32(qscale)
+        }
+        return self.buildOp(TPU_OpType.ReQuant.value, inputOperands, [
+            tensor_output_type], name=quant_name, **attr_dict)
 
     def add_reciprocal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
@@ -1228,6 +1293,16 @@ class MLIRImporter(object):
         reshape_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Reshape.value, inputOperands, [
             tensor_output_type], name=reshape_name)
+
+    def add_reverse_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        checkKey(kargs, 'axis')
+        nameAttr = StringAttr.get(op_name)
+        attr_dict = {
+            'axis': IntegerAttr.get(self.i32Type, kargs['axis'])
+        }
+        return self.buildOp(TPU_OpType.Reverse.value, inputOperands, [
+            tensor_output_type], name=nameAttr, quant=self.quant_param, **attr_dict)
 
     def add_roipooling_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
@@ -1285,7 +1360,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Slice.value, inputOperands, [
             tensor_output_type], name=slice_name, quant=self.quant_param, **attr_dict)
 
-    def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, cpu_mode=False,**kargs):
+    def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, cpu_mode=False, **kargs):
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         softmax_name = StringAttr.get(op_name)

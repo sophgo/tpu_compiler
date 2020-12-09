@@ -31,28 +31,33 @@ fi
 pushd $WORKDIR
 
 # run tests
-/bin/bash $FP32_INFERENCE_SCRIPT
-$DIR/regression_1_fp32.sh
-if [ $DO_QUANT_INT8 -eq 1 ]; then
-  if [ $DO_CALIBRATION -eq 1 ]; then
-    $DIR/regression_2_int8_calibration.sh
+if [ $INT8_MODEL -eq 1 ]; then
+  /bin/bash $INT8_INFERENCE_SCRIPT
+  $DIR/regression_9_int8_quantized_model.sh
+else
+  /bin/bash $FP32_INFERENCE_SCRIPT
+  $DIR/regression_1_fp32.sh
+  if [ $DO_QUANT_INT8 -eq 1 ]; then
+    if [ $DO_CALIBRATION -eq 1 ]; then
+      $DIR/regression_2_int8_calibration.sh
+    fi
+    $DIR/regression_3_int8.sh
   fi
-  $DIR/regression_3_int8.sh
-fi
-if [ $DO_QUANT_BF16 -eq 1 ]; then
-  $DIR/regression_4_bf16.sh
-fi
-if [ $DO_QUANT_MIX -eq 1 ]; then
-  $DIR/regression_5_mix.sh
-fi
-if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
-  $DIR/regression_6_fuse_preprocess.sh
   if [ $DO_QUANT_BF16 -eq 1 ]; then
-    $DIR/regression_7_fuse_preprocess_bf16.sh
+    $DIR/regression_4_bf16.sh
   fi
-fi
-if [ $DO_TPU_SOFTMAX_INFERENCE -eq 1 ]; then
-  $DIR/regression_8_tpu_softmax.sh
+  if [ $DO_QUANT_MIX -eq 1 ]; then
+    $DIR/regression_5_mix.sh
+  fi
+  if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
+    $DIR/regression_6_fuse_preprocess.sh
+    if [ $DO_QUANT_BF16 -eq 1 ]; then
+      $DIR/regression_7_fuse_preprocess_bf16.sh
+    fi
+  fi
+  if [ $DO_TPU_SOFTMAX_INFERENCE -eq 1 ]; then
+    $DIR/regression_8_tpu_softmax.sh
+  fi
 fi
 #if [ $DO_NN_TOOLKIT -eq 1 ]; then
 #  gen_cvi_nn_tool_template.py $NET

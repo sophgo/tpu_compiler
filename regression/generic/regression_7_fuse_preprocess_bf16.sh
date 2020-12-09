@@ -119,8 +119,8 @@ cvi_npz_tool.py compare \
 
 # cvimodel
 $DIR/../mlir_to_cvimodel.sh \
-    ${NET}_quant_bf16_fused_preprocess.mlir \
-    ${NET}_fused_preprocess_bf16.cvimodel
+    -i ${NET}_quant_bf16_fused_preprocess.mlir \
+    -o ${NET}_fused_preprocess_bf16.cvimodel
 
 model_runner \
     --dump-all-tensors \

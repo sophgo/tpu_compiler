@@ -15,6 +15,13 @@ cvi_model_convert.py \
     --model_name ${NET} \
     --model_type $MODEL_TYPE \
     --batch_size $BATCH_SIZE \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --std ${STD} \
+    --input_scale ${INPUT_SCALE} \
+    --model_channel_order $MODEL_CHANNEL_ORDER \
     --mlir_file_path ${NET}.mlir
 
 # assign layer_id right away, and apply all frontend optimizations
@@ -33,6 +40,10 @@ tpuc-interpreter ${NET}_opt_fp32.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
+
+if [ ${DO_POSTPROCESS} -eq 1 ]; then
+  /bin/bash $POSTPROCESS_SCRIPT ${NET}_tensor_all_fp32.npz $OUTPUTS
+fi
 
 #cvi_npz_tool.py compare ${NET}_out_fp32.npz ${NET}_out_fp32_prob.npz -v
 

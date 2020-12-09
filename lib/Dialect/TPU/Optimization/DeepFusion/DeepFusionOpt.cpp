@@ -269,6 +269,60 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
   }
 };
 
+struct TpuTL_PixelShuffle_AssignLAddrPattern : public RewritePattern {
+  TpuTL_PixelShuffle_AssignLAddrPattern(MLIRContext *context)
+      : RewritePattern("tpu.tl_pixel_shuffle", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *opInst,
+                                     PatternRewriter &rewriter) const override {
+    auto op = cast<tpu::TL_PixelShuffleOp>(opInst);
+
+    std::vector<int64_t> shape;
+    int64_t input_size, n, c, h, w;
+    getTensorShapeAndSize(op.input(), shape, input_size);
+    getNCHW(shape, n, c, h, w);
+    std::vector<int64_t> output_shape;
+    int64_t output_size, on, oc, oh, ow;
+    getTensorShapeAndSize(op.getResult(), output_shape, output_size);
+    getNCHW(output_shape, on, oc, oh, ow);
+
+    assert (op.lm_layout() != "NONE");
+    if (op.la_output() != 0xffffffff) {
+      // assigned already
+      return failure();
+    }
+
+    auto factor = op.factor();
+    uint64_t inputNeuronSizePerLane =
+            MInfo::getSizePerLane(factor, factor * MInfo::lane_num, h, w, true);
+    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
+    if (1) {
+      if (op.lm_layout() == "IWO") {
+        op.setAttr("la_input", rewriter.getI32IntegerAttr(0));
+        op.setAttr("la_output", rewriter.getI32IntegerAttr(
+             MInfo::lmem_per_lane - outputNeuronSizePerLane));
+        op.setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
+      } else if (op.lm_layout() == "OWI") {
+        op.setAttr("la_output", rewriter.getI32IntegerAttr(0));
+        op.setAttr("la_input", rewriter.getI32IntegerAttr(
+             MInfo::lmem_per_lane - inputNeuronSizePerLane));
+        op.setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
+      } else {
+        assert(0);
+      }
+
+      LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
+                   << ", PixelShuffle, " << op.lm_layout()
+                   << ", la_i=" << op.la_input()
+                   << ", la_o=" << op.la_output()
+                   << ", la_w=" << op.la_working()
+                   <<"\n";);
+
+      return success();
+    }
+  }
+};
+
 template<typename OpTy>
 struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
   TpuTL_Default_AssignLAddrPattern(MLIRContext *context)
@@ -393,6 +447,13 @@ static bool isLoadCloseToStore(Operation *loadOp) {
   return false;
 }
 
+// some instrurctions must load input data in backend.
+static bool isInnerLoadInst(Operation *opInst) {
+  if (isa<tpu::TL_PixelShuffleOp>(opInst))
+    return true;
+  return false;
+}
+
 struct TpuMarkLdStFlagPattern : public RewritePattern {
   TpuMarkLdStFlagPattern(MLIRContext *context)
       : RewritePattern("tpu.tl_fake_load", 1, context) {}
@@ -445,6 +506,14 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
         }
       }
 
+      // For load input data in backend inst, the prev normal inst need
+      // store the result.
+      if (isInnerLoadInst(tlNextNormalOp)) {
+        tlNextNormalOp.setAttr("tl_load_flag", rewriter.getBoolAttr(true));
+        if (tlPrevNormalOp)
+          tlPrevNormalOp.setAttr("tl_store_flag", rewriter.getBoolAttr(true));
+      }
+
       if (prevFakeStoreOp.lm_order() == "NONE") {
         if (nextFakeStoreOp.lm_order() == "I") {
           prevFakeStoreOp.setAttr("lm_order", rewriter.getStringAttr("O"));
@@ -484,6 +553,7 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
     return success();
   }
 };
+
 
 struct TpuMarkLayoutPattern: public RewritePattern {
   TpuMarkLayoutPattern(MLIRContext *context)
@@ -561,7 +631,9 @@ public:
                     TpuInsertFakeLdStPattern<tpu::TL_EltwiseAddOp>,
                     TpuInsertFakeLdStPattern<tpu::TL_EltwiseMulOp>,
                     TpuInsertFakeLdStPattern<tpu::TL_LutOp>,
-                    TpuInsertFakeLdStPattern<tpu::TL_BroadcastMulOp>
+                    TpuInsertFakeLdStPattern<tpu::TL_BroadcastMulOp>,
+                    TpuInsertFakeLdStPattern<tpu::TL_PixelShuffleOp>,
+                    TpuInsertFakeLdStPattern<tpu::TL_PReluOp>
                    >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
@@ -584,11 +656,13 @@ public:
     patterns.clear();
     patterns.insert<
         TpuTL_LW_Conv2DOp_AssignLAddrPattern,
+        TpuTL_PixelShuffle_AssignLAddrPattern,
         TpuTL_EltwiseOp_AssignLAddrPattern<tpu::TL_EltwiseAddOp>,
         TpuTL_EltwiseOp_AssignLAddrPattern<tpu::TL_EltwiseMulOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_LutOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_PoolAvg2DOp>,
-        TpuTL_Default_AssignLAddrPattern<tpu::TL_BroadcastMulOp>
+        TpuTL_Default_AssignLAddrPattern<tpu::TL_BroadcastMulOp>,
+        TpuTL_Default_AssignLAddrPattern<tpu::TL_PReluOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }

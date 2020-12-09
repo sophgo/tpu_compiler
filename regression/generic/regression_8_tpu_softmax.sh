@@ -28,8 +28,8 @@ tpuc-interpreter ${NET}_quant_int8_multiplier_softmax.mlir \
     --dump-all-tensor=${NET}_tensor_all_int8_multiplier_softmax.npz
 
 $DIR/../mlir_to_cvimodel.sh \
-    ${NET}_quant_int8_multiplier_softmax.mlir \
-    ${NET}_int8_multiplier_softmax.cvimodel
+    -i ${NET}_quant_int8_multiplier_softmax.mlir \
+    -o ${NET}_int8_multiplier_softmax.cvimodel
 
 # run cvimodel
 model_runner \

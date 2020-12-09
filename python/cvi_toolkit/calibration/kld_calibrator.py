@@ -22,10 +22,12 @@ def is_all_zero(data):
             return False
     return True
 
-def warn_zeros(layer_name):
+# customer may have network output all zero, change it to 1e-5 for them.
+def warn_zeros(layer_name, t):
     print("WARNING: layer {} is all zeros. Please check the input data "
           "correctness.".format(layer_name))
-    exit(-1)
+    print("WARNING: Set zero value to 1e-5.")
+    t[0] = 1e-5
 
 class KLD_Calibrator(object):
     def __init__(self, args, preprocess_func):
@@ -72,11 +74,10 @@ class KLD_Calibrator(object):
                     self.data_min[item] = 0
 
                 t = np.abs(data[item].flatten())
-                t = t[t!=0]
 
                 if t.size > 0:
                     if is_all_zero(t):
-                        warn_zeros(item)
+                        warn_zeros(item, t)
                     data_max[item] = max(data_max[item], np.max(t))
                     self.data_min[item] = min(self.data_min[item], np.min(data[item].flatten()))
 
@@ -201,11 +202,10 @@ class KLD_Calibrator_v2(object):
                     self.data_min[item] = 0
 
                 t = np.abs(data[item].flatten())
-                t = t[t!=0]
 
                 if t.size > 0:
                     if is_all_zero(t):
-                        warn_zeros(item)
+                        warn_zeros(item, t)
                     data_max[item] = max(data_max[item], np.max(t))
                     self.data_min[item] = min(self.data_min[item], np.min(data[item].flatten()))
 

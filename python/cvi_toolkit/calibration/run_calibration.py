@@ -171,7 +171,8 @@ def main():
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
                     std=args.std,
-                    rgb_order=args.model_channel_order)
+                    rgb_order=args.model_channel_order,
+                    bgray=args.bgray)
     p_func = lambda input_file, _ : preprocessor.run(input_file, output_channel_order=args.model_channel_order)
   elif (args.model_name == 'yolo_v3'):
     p_func = preprocess_yolov3

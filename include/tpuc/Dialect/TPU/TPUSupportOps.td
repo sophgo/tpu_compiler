@@ -45,7 +45,7 @@ def TPU_QuantOp: TPU_Op<"quant",
 
     - From `INT8` to `None`
       Dequantize a activation tensor from int8 back to float.
-      x = (Q(x) * threshold / 128) - zero_point
+      x = (Q(x) - zero_point) * threshold / 128
 
     zero_point is zero when symmetric quantization
   }];
@@ -63,6 +63,36 @@ def TPU_QuantOp: TPU_Op<"quant",
 
   let results = (outs AnyTensor:$output);
 }
+
+
+def TPU_ReQuantOp: TPU_Op<"requant",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Requantization operator";
+
+  let description = [{
+    Perform requant among asymmteric mode.
+
+    - From `INT8` to `INT8`
+      Qy = scale * (Qx + input_offset) + output_offset
+
+
+    zero_point is zero when symmetric quantization
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<F32Attr, "0">:$qscale,
+    DefaultValuedAttr<I32Attr, "0">:$zero_point,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 
 //===----------------------------------------------------------------------===//
 // Reshape.

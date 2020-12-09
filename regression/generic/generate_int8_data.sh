@@ -7,7 +7,7 @@ model_list_1=(
   "mobilenet_v1"
   "mobilenet_v2"
   "googlenet"
-  "squeezenet"
+  "squeezenet_v1.1"
   "inception_v3"
   "inception_v4"
   "vgg16"

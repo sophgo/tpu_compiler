@@ -12,6 +12,8 @@ if [ ! -e "$DIR/tmp" ]; then
   mkdir -p $DIR/tmp
 fi
 
+#DEBUG=-debug
+
 pushd $DIR/tmp
 
 tpuc-opt \
@@ -35,6 +37,7 @@ tpuc-opt \
      --assign-chip-name \
      --chipname $SET_CHIP_NAME \
      --tpu-quant --quant-full-bf16 \
+     --quant-bf16-softmax \
      --print-tpu-op-info \
      --tpu-op-info-filename test_op_info_bf16.csv \
      test_fp32_opt.mlir \
@@ -43,7 +46,6 @@ tpuc-opt \
 # optimization for bf16 mlir model
 tpuc-opt \
      --tpu-lower \
-     --reorder-op \
      --tg-fuse-leakyrelu \
      --conv-ic-alignment \
      --group-ops \
@@ -69,7 +71,7 @@ tpuc-opt \
      -o test_bf16_func.mlir
 
 # codegen
-tpuc-translate -debug \
+tpuc-translate ${DEBUG} \
      --mlir-to-cvimodel \
      --weight-file weight.bin \
      test_bf16_func.mlir \

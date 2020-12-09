@@ -1065,10 +1065,10 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
   std::vector<NamedAttribute> attrs;
   // parse param
   bool is_global, do_relu, count_include_pad;
-  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr;
+  int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   getPoolingParam(op,
                   n, c, ih, iw, oh, ow,
-                  kh, kw, sh, sw, pt, pb, pl, pr,
+                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
                   is_global, do_relu, count_include_pad);
 
   int bottom_dim[4];
@@ -1145,6 +1145,7 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
       builder_.getI32IntegerAttr(bottom_pad_h),
       builder_.getI32IntegerAttr(left_pad_w),
       builder_.getI32IntegerAttr(right_pad_w),
+      builder_.getI32IntegerAttr(pad_value),
       builder_.getI32IntegerAttr(sh),
       builder_.getI32IntegerAttr(sw),
       builder_.getBoolAttr(do_relu),

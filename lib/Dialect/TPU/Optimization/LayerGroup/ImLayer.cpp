@@ -550,17 +550,20 @@ ImShuffleChannel::ImShuffleChannel(Operation *op): ImLayer(IR_SHUFFLECHANNEL, op
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
-ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, true) {
+ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
   std::vector<int64_t> dst_shape = getTensorShape(op->getResult(0));
   int axis = 0;
   getSliceParam(op, axis);
 
-  // optimization for batch 1, set as inplace layer
-  is_inplace_layer = true;
-  for (int i = 0; i < axis; i++) {
-    if (dst_shape[i] != 1) {
-      is_inplace_layer = false;
-      break;
+  // if before axis is all 1, we use tg slice
+  // since we can remove the slice after
+  if (axis == 1) {
+    // tl_slice only support axis == 1
+    for (int i = 0; i < axis; i++) {
+      if (dst_shape[i] != 1) {
+        fusible = true;
+        break;
+      }
     }
   }
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);

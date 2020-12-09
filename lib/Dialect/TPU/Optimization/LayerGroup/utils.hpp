@@ -154,7 +154,7 @@ void getUpsampleParam(Operation *op, int &scale_h, int &scale_w);
 
 void getPoolingParam(Operation *op, int &n, int &c, int &ih, int &iw, int &oh,
                             int &ow, int &kh, int &kw, int &sh, int &sw, int &pt, int &pb,
-                            int &pl, int &pr, bool &is_global, bool &do_relu,
+                            int &pl, int &pr, int &pad_value, bool &is_global, bool &do_relu,
                             bool &count_include_pad);
 
 void getEltwiseAddParam(Operation *op, bool &do_early_stride, int &h_stride,

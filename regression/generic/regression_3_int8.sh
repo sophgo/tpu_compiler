@@ -17,8 +17,8 @@ tpuc-opt ${NET}_opt_fp32.mlir \
     -o ${NET}_quant_int8.mlir
 
 $DIR/../mlir_to_cvimodel.sh \
-   ${NET}_quant_int8.mlir \
-   ${NET}_int8.cvimodel
+   -i ${NET}_quant_int8.mlir \
+   -o ${NET}_int8.cvimodel
 
 model_runner \
     --dump-all-tensors \
@@ -26,10 +26,25 @@ model_runner \
     --model ${NET}_int8.cvimodel \
     --output ${NET}_cmdbuf_out_all_int8.npz
 
+if [ ${DO_POSTPROCESS} -eq 1 ]; then
+  /bin/bash $POSTPROCESS_SCRIPT ${NET}_cmdbuf_out_all_int8.npz ${OUTPUTS}_dequant
+fi
+
 tpuc-interpreter ${NET}_quant_int8.mlir \
     --tensor-in ${NET}_in_fp32.npz \
     --tensor-out ${NET}_out_int8.npz \
     --dump-all-tensor=${NET}_tensor_all_int8.npz
+
+if [ ! -z ${TOLERANCE_INT8_MULTIPLER} ]; then
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_int8.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info_int8.csv \
+    --dequant \
+    --stats_int8_tensor \
+    --except ${EXCEPTS} \
+    --tolerance=${TOLERANCE_INT8_MULTIPLER} -vv
+fi
 
 cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_int8.npz \

@@ -295,14 +295,14 @@ int mkldnn_deconv(float *input, float *weight, float *bias,
 int mkldnn_pool(float *input, float *output,
     int n, int c, int ih, int iw, int oh, int ow,
     int kh, int kw, int sh, int sw, int pt, int pb, int pl, int pr,
-    bool is_avg, bool count_include_pad) {
+    bool is_avg, bool count_include_pad, int pad_value) {
   LLVM_DEBUG(llvm::errs() << "mkldnn_pool: "
                           << "  i: (" << ih << "*" << iw << "), "
                           << "o: (" << oh << "*" << ow << "), "
                           << "k: (" << kh << "*" << kw << "), "
                           << "s: (" << sh << ", " << sw << "), "
                           << "p: (" << pt << ", " << pb << ", " << pl << ", "
-                          << pr << "), count_include_pad"
+                          << pr << ")," << "pad_value:" << pad_value << ", count_include_pad"
                           << ": " << count_include_pad << "\n";);
 
 #ifdef DUMP_FLAG
@@ -1547,6 +1547,30 @@ int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
   return 0;
 }
 
+// reverse
+int my_reverse(float *input, float *output, int n, int c, int h, int w,
+               int axis) {
+  int dim[] = {n, c, h, w};
+  int stride[] = {c * h * w, h * w, w, 1};
+  for (int in = 0; in < n; in++) {
+    for (int ic = 0; ic < c; ic++) {
+      for (int ih = 0; ih < h; ih++) {
+        for (int iw = 0; iw < w; iw++) {
+          int src_index[] = {in, ic, ih, iw};
+          int dst_index[] = {in, ic, ih, iw};
+          dst_index[axis] = dim[axis] - src_index[axis] - 1;
+          int src_offset = src_index[0] * stride[0] + src_index[1] * stride[1] +
+                           src_index[2] * stride[2] + src_index[3] * stride[3];
+          int dst_offset = dst_index[0] * stride[0] + dst_index[1] * stride[1] +
+                           dst_index[2] * stride[2] + dst_index[3] * stride[3];
+          output[dst_offset] = input[src_offset];
+        }
+      }
+    }
+  }
+  return 0;
+}
+
 // shuffle channel
 int my_shuffle_channel(float *input, float *output, unsigned int group, int n, int c,  int frame_size) {
     LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ",  g: " << group
@@ -1796,15 +1820,16 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
         }
 
         // find softmax divisor
-        float *ex = new float[shape[1]];
-        float *tmp = new float[shape[1]];
+        std::vector<float> ex(shape[1]);
+        std::vector<float> tmp(shape[1]);
+
         for(int C = 0; C < shape[1]; ++C) {
           iter = (N * shape[1] * shape[2] * shape[3])
             + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
           tmp[C] = input[iter] - max_val;
         }
         // do exp
-        my_exp(tmp, ex, 1, shape[1], 1, 1, is_bf16);
+        my_exp(tmp.data(), ex.data(), 1, shape[1], 1, 1, is_bf16);
         float sum_of_ex = 0.0f;
         for (int C = 0; C < shape[1]; ++C) {
           sum_of_ex += ex[C];
@@ -1819,8 +1844,6 @@ int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_
 
           output[iter] = ex[C] * reciprocalValue;
         }
-        delete[] ex;
-        delete[] tmp;
       }
     }
   }

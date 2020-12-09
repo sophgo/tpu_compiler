@@ -370,4 +370,107 @@ def TPU_TL_Fake_StoreOp : TPU_Op<"tl_fake_store",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TL_PixelShuffleOp : TPU_Op<"tl_pixel_shuffle",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>,
+       DeclareOpInterfaceMethods<TpuTLSimpleOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " PixelShuffle operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `upscale_factor`  : required, indicate for upsample upscale_factor.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    I32Attr:$factor,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    DefaultValuedAttr<StrAttr, "CRD">:$mode,
+    TPU_LMLayoutAttr:$lm_layout,
+    I32Attr:$la_input,
+    I32Attr:$la_working,
+    I32Attr:$la_output,
+    BoolAttr:$tl_load_flag,
+    BoolAttr:$tl_store_flag,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_PReluOp : TPU_Op<"tl_prelu",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>,
+       DeclareOpInterfaceMethods<TpuTLSimpleOpCodegenInterface>]> {
+  let summary = "TL " # opQuant # "lut operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the variadic activation memref.
+      `filter`              : required, the filter weight tensor.
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    TPU_LMLayoutAttr:$lm_layout,
+    I32Attr:$la_input,
+    I32Attr:$la_working,
+    I32Attr:$la_output,
+    OptionalAttr<I8Attr>:$rshift_pos,
+    OptionalAttr<I8Attr>:$m_i8_pos,
+    OptionalAttr<I8Attr>:$rshift_neg,
+    BoolAttr:$tl_load_flag,
+    BoolAttr:$tl_store_flag,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 #endif // TPU_TL_OPS

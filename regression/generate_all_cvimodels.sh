@@ -34,6 +34,11 @@ do
   if [ -z $MODEL_DAT ]; then
     MODEL_DAT="-"
   fi
+  if [[ "$MODEL_TYPE" == "tflite_int8" ]]; then
+    echo "Not Generate $MODEL_TYPE model to cvimodel, only regression test"
+    popd
+    continue
+  fi
   $DIR/convert_model.sh \
       -i ${MODEL_DEF} \
       -d ${MODEL_DAT} \

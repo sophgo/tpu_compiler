@@ -48,6 +48,7 @@ popd
 mkdir -p $BUILD_PATH/llvm
 pushd $BUILD_PATH/llvm
 cmake -G Ninja \
+  $BUILD_FLAG \
   $PROJECT_ROOT/third_party/llvm-project/llvm \
   -DLLVM_ENABLE_PROJECTS="mlir" \
   -DLLVM_TARGETS_TO_BUILD="host" \
@@ -56,8 +57,7 @@ cmake -G Ninja \
   -DLLVM_ENABLE_ASSERTIONS=ON \
   -DMLIR_BINDINGS_PYTHON_ENABLED=ON \
   -DPYTHON_EXECUTABLE=$(which python3) \
-  -Dpybind11_DIR=$INSTALL_PATH/pybind11/share/cmake/pybind11 \
-  -DCMAKE_BUILD_TYPE=DEBUG
+  -Dpybind11_DIR=$INSTALL_PATH/pybind11/share/cmake/pybind11
 ninja
 popd
 mkdir -p $INSTALL_PATH/tpuc/python
@@ -168,6 +168,7 @@ cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
+cp $CVI_PY_TOOLKIT/inference/postprocess/*.py $TPU_PYTHON_PATH/
 cp -ar $CVI_PY_TOOLKIT/test/onnx_ir_test/*.py $TPU_PYTHON_PATH/
 cp -ar $PROJECT_ROOT/python/python_codegen/*.py $TPU_PYTHON_PATH/
 

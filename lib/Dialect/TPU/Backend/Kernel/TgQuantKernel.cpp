@@ -14,7 +14,7 @@
 
 void TgQuantKernel::init(uint32_t layer_id, cvk_fmt_t from, cvk_fmt_t to,
                          gaddr_t ga_input, gaddr_t ga_output, int32_t n,
-                         int32_t c, int32_t h, int32_t w, float const_scale) {
+                         int32_t c, int32_t h, int32_t w, float const_scale, int offset) {
   from_byte = ctx.bytesize_of_fmt(from);
   to_byte = ctx.bytesize_of_fmt(to);
   assert(from_byte != to_byte);
@@ -29,6 +29,7 @@ void TgQuantKernel::init(uint32_t layer_id, cvk_fmt_t from, cvk_fmt_t to,
   this->from = from;
   this->to = to;
   this->const_scale = const_scale;
+  this->offset = offset;
   load_unit = (from_byte + 1) / 2;
   store_unit = (to_byte + 1) / 2;
   ctx.set_layer_id(layer_id);
@@ -37,7 +38,7 @@ void TgQuantKernel::init(uint32_t layer_id, cvk_fmt_t from, cvk_fmt_t to,
 void TgQuantKernel::selectTilePolicy() {
   int blob_num = 2 * (load_unit + store_unit); // 2 to do flip
   ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_BF16, blob_num, 0,
-                     CviBackendContext::TilingDimAll);
+                     CviBackendContext::TilingAll, true);
 }
 
 cvk_tl_t *TgQuantKernel::alloc_lmem(const cvk_tl_shape_t &shape,
@@ -110,15 +111,38 @@ void TgQuantKernel::compute(int32_t step_idx, int32_t flip) {
     tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, CVK_FMT_BF16, 1);
   }
   if (const_scale != 1.0) {
-    cvk_tiu_mul_param_t p = {0};
-    p.res_high = NULL;
-    p.res_low = &tl_ofmap;
-    p.a = &tl_ifmap;
-    p.b_is_const = 1;
-    p.b_const.val = ctx.convert_fp32_to_bf16(const_scale);
-    p.relu_enable = 0;
-    p.layer_id = layer_id;
-    ctx.tiu_mul(&p);
+    if(offset != 0){
+      cvk_tiu_add_param_t p_offset = {0};
+      p_offset.res_high = NULL;
+      p_offset.res_low = &tl_ifmap;
+      p_offset.a_high = NULL;
+      p_offset.a_low = &tl_ifmap;
+      p_offset.b_is_const = 1;
+      p_offset.b_const.val = ctx.convert_fp32_to_bf16(offset);
+      p_offset.relu_enable = 0;
+      p_offset.layer_id = layer_id;
+      ctx.tiu_add(&p_offset);
+
+      cvk_tiu_mul_param_t p = {0};
+      p.res_high = NULL;
+      p.res_low = &tl_ofmap;
+      p.a = &tl_ifmap;
+      p.b_is_const = 1;
+      p.b_const.val = ctx.convert_fp32_to_bf16(const_scale);
+      p.relu_enable = 0;
+      p.layer_id = layer_id;
+      ctx.tiu_mul(&p);
+    }else{
+      cvk_tiu_mul_param_t p = {0};
+      p.res_high = NULL;
+      p.res_low = &tl_ofmap;
+      p.a = &tl_ifmap;
+      p.b_is_const = 1;
+      p.b_const.val = ctx.convert_fp32_to_bf16(const_scale);
+      p.relu_enable = 0;
+      p.layer_id = layer_id;
+      ctx.tiu_mul(&p);
+    }
   } else {
     cvk_tiu_copy_param_t param = {0};
     param.src = &tl_ifmap;
@@ -192,10 +216,10 @@ void cvi_backend_tg_quant_kernel(const CviBackendContext &ctx,
                                  uint32_t layer_id, cvk_fmt_t from,
                                  cvk_fmt_t to, gaddr_t bottom_gaddr,
                                  gaddr_t top_gaddr, int input_n, int input_c,
-                                 int input_h, int input_w, float const_scale) {
+                                 int input_h, int input_w, float const_scale, int offset) {
   TgQuantKernel kernel(ctx);
   kernel.init(layer_id, from, to, bottom_gaddr, top_gaddr, input_n, input_c,
-              input_h, input_w, const_scale);
+              input_h, input_w, const_scale, offset);
 
   kernel.selectTilePolicy();
   kernel.schedule();

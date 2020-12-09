@@ -34,7 +34,9 @@ public:
     bool do_early_stride, int32_t stride_h,
     int32_t stride_w, int32_t rshift,
     const int32_t *multipliers,
-    const int32_t *coeffs);
+    const int32_t *coeffs,
+    int32_t *inputs_offset = nullptr,
+    int32_t output_offset = 0);
 
   void init(uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,
@@ -66,7 +68,10 @@ protected:
 
   cvk_tl_t *tl_input[2];
   cvk_tl_t *tl_output[2];
-  cvk_tl_t *tl_output_h;
+  cvk_tl_t *tl_output_h[2];
+
+  // low/high working space to do asymmetric quant
+  cvk_tl_t *tl_working[2];
 
   int32_t operand_num;
   int32_t n;
@@ -77,11 +82,14 @@ protected:
   int32_t stride_h;
   int32_t stride_w;
   int32_t rshift;
+  int32_t output_offset;
   const int32_t *multipliers;
   const int32_t *coeffs;
+  int32_t *inputs_offset;
   const float *coeffs_float;
   int32_t layer_id;
   bool do_relu;
+  bool is_asymmetric = false;
   cvk_fmt_t fmt;
   uint32_t elementSize;
 
@@ -98,6 +106,17 @@ public:
 
 protected:
   void compute(int32_t step_idx);
+private:
+  void symmetric_compute(const int opd_idx,
+                            cvk_tl_t &input,
+                            cvk_tl_t &output,
+                            cvk_tl_t &output_high);
+  void asymmetric_compute(const int opd_idx,
+                            cvk_tl_t &input,
+                            cvk_tl_t &output,
+                            cvk_tl_t &output_high,
+                            bool last_step);
+  void reset(cvk_tl_t *tl);
 };
 
 class TgInt8EltwiseMaxKernel : public TgEltwiseKernel {

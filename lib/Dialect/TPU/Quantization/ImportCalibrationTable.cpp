@@ -495,9 +495,11 @@ public:
         // no need to assign
       } else if (isa<tpu::ReorgOp>(op) ||
                  isa<tpu::ReshapeOp>(op) ||
+                 isa<tpu::ReverseOp>(op) ||
                  isa<tpu::SliceOp>(op) ||
                  isa<tpu::ShuffleChannelOp>(op) ||
                  isa<tpu::SwapChannelOp>(op) ||
+                 isa<tpu::UpsampleOp>(op) ||
                  isa<tpu::ZeroMaskOp>(op)) {
         // do not assign
       } else if (!failed(setThresholdFromMap(op, threshold_map))) {
@@ -533,11 +535,13 @@ public:
         BypassThresholdDefaultPattern<tpu::ReorgOp>,
         BypassThresholdDefaultPattern<tpu::PadOp>,
         BypassThresholdDefaultPattern<tpu::PixelShuffleOp>,
+        BypassThresholdDefaultPattern<tpu::ReverseOp>,
         BypassThresholdDefaultPattern<tpu::SliceOp>,
         BypassThresholdDefaultPattern<tpu::ShuffleChannelOp>,
         BypassThresholdDefaultPattern<tpu::SwapChannelOp>,
         BypassThresholdDefaultPattern<tpu::ReduceMaxOp>,
         BypassThresholdDefaultPattern<tpu::TileOp>,
+        BypassThresholdDefaultPattern<tpu::UpsampleOp>,
         BypassThresholdDefaultPattern<tpu::ZeroMaskOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));

@@ -23,14 +23,13 @@ class CaffeTensor():
 
 
 class CaffeConverter(BaseConverter):
-    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1, preprocess=None,
+    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1,
                  convert_preprocess=False, preprocess_args=None):
         super().__init__()
         self.model_name = model_name
         self.prototxt = prototxt
         self.caffemodel = caffemodel
         self.batch_size = batch_size
-        self.preprocess = preprocess
 
         self.net = caffe.Net(self.prototxt, self.caffemodel, caffe.TEST)
         self.param = caffe_pb2.NetParameter()
@@ -51,17 +50,13 @@ class CaffeConverter(BaseConverter):
 
 
         self.convert_preprocess = convert_preprocess
-        if self.convert_preprocess:
-            if preprocess_args:
-                self.preprocess_args = preprocess_args
-            else:
-                raise RuntimeError("preprocess args not exist!")
-
+        self.preprocess_args = preprocess_args
 
         self.caffeop_factory = {
             'BatchNorm': lambda layer: self.convert_batchnorm_op(layer),
             'BN': lambda layer: self.convert_bn_op(layer),
             'Concat': lambda layer: self.convert_concat_op(layer),
+            'ContinuationIndicator': lambda layer: self.convert_continuation_indicator_op(layer),
             'Convolution': lambda layer: self.convert_convolution_op(layer),
             'ConvolutionDepthwise': lambda layer: self.convert_convolution_op(layer),
             'Crop': lambda layer: self.convert_crop_op(layer),
@@ -76,6 +71,8 @@ class CaffeConverter(BaseConverter):
             'Input': lambda layer: self.convert_input_op(layer),
             'Interp': lambda layer: self.convert_interp_op(layer),
             'LRN': lambda layer: self.convert_lrn_op(layer),
+            'LSTM': lambda layer: self.convert_lstm_op(layer),
+            'Lstm': lambda layer: self.convert_lstm_jun_op(layer),
             'Normalize': lambda layer: self.convert_normalize_op(layer),
             'Mish': lambda layer: self.convert_mish_op(layer),
             'Padding': lambda layer: self.convert_padding_op(layer),
@@ -89,6 +86,7 @@ class CaffeConverter(BaseConverter):
             'ReLU6': lambda layer: self.convert_relu6_op(layer),
             'Reorg': lambda layer: self.convert_reorg_op(layer),
             'Reshape': lambda layer: self.convert_reshape_op(layer),
+            'Reverse': lambda layer: self.convert_reverse_op(layer),
             'RetinaFaceDetection': lambda layer: self.convert_retinaface_detection_op(layer),
             'ROIPooling': lambda layer: self.convert_roipooling_op(layer),
             'Scale': lambda layer: self.convert_scale_op(layer),
@@ -132,6 +130,7 @@ class CaffeConverter(BaseConverter):
         for i in self.inputs:
             input_shape = list(self.blobs[i].shape)
             input_shape[0] = self.batch_size
+            self.blobs[i].reshape(*input_shape)
             if self.convert_preprocess:
                 resize_h, resize_w = self.preprocess_args.get(
                     "resize_dims")
@@ -144,13 +143,14 @@ class CaffeConverter(BaseConverter):
                     input_shape = [input_shape[0],
                                    input_shape[1], resize_h, resize_w]
             self.input_shapes.append(input_shape)
-        # get output shape
+
+        self.net.reshape()
         self.output_shapes = list()
         for o in self.outputs:
             o_shape = list(self.blobs[o].shape)
-            o_shape[0] = self.batch_size
             for layer in self.layers:
                 if layer.name == o and self.layerType(layer) == 'DetectionOutput':
+                    o_shape[0] = self.batch_size
                     o_shape[2] = layer.detection_output_param.keep_top_k
                     break
             self.output_shapes.append(o_shape)
@@ -177,7 +177,7 @@ class CaffeConverter(BaseConverter):
     def noneOp(self):
         return self.CVI.add_none_op()
 
-    def blob_to_weight_op(self, layer, index, shape=None, permute_order=None):
+    def blob_to_weight_op(self, layer, index, shape=None, permute_order=None, channel_idx=0):
         name = layer.name + "_{}".format(index)
         blob = self.layer_dict[layer.name].blobs[index]
         blob_shape = list(blob.shape)
@@ -188,10 +188,8 @@ class CaffeConverter(BaseConverter):
         if new_shape == blob_shape:
             value = blob.data
         elif not blob_shape:
-            # scalar
-            assert(len(new_shape) == 1)
             value = np.array(
-                [blob.data for i in range(new_shape[0])], dtype=np.float32)
+                [blob.data for i in range(new_shape[channel_idx])], dtype=np.float32)
         else:
             value = blob.data.reshape(new_shape)
         if permute_order != None:
@@ -300,6 +298,10 @@ class CaffeConverter(BaseConverter):
             layer.name, operands, output_shape, **param)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
+
+    def convert_continuation_indicator_op(self, layer):
+        assert(self.layerType(layer) == 'ContinuationIndicator')
+        # do nothing
 
     @ staticmethod
     def calcConv2DSpatialOutput(_i_, _k_, _s_, _p_, _d_):
@@ -580,26 +582,21 @@ class CaffeConverter(BaseConverter):
         assert(self.layerType(layer) == 'InnerProduct')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
-        assert(len(input_shape) == 4 or len(input_shape) == 2)
         p = layer.inner_product_param
         with_bias = p.bias_term
+        axis = p.axis
         with_transpose = p.transpose
         assert(with_transpose == False)  # transpose not support now
         N = p.num_output
-        M = input_shape[0]
-        K = input_shape[1]
+        output_shape = list()
+        for i in range(axis):
+            output_shape.append(input_shape[i])
+        output_shape.append(N)
         reshape_first = False
-        if len(input_shape) > 2:
-            reshape_first = True
-            for i in range(2, len(input_shape)):
-                K *= input_shape[i]
-        fc_op = op
-        if reshape_first:
-            fc_shape = [M, K]
-            fc_operands = [op]
-            fc_op = self.CVI.add_reshape_op(
-                layer.name + '_reshape', fc_operands, fc_shape)
-        operands.append(fc_op)
+        K = 1
+        for i in range(axis, len(input_shape)):
+            K *= input_shape[i]
+        operands.append(op)
         # filter
         filter_op = self.blob_to_weight_op(layer, 0, [N, K])
         operands.append(filter_op)
@@ -608,7 +605,6 @@ class CaffeConverter(BaseConverter):
             operands.append(bias_op)
         else:
             operands.append(self.noneOp())
-        output_shape = [M, N]
         new_op = self.CVI.add_fully_connected_op(
             layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op, output_shape,
@@ -721,6 +717,46 @@ class CaffeConverter(BaseConverter):
         output_shape = input_shape
         new_op = self.CVI.add_lrn_op(
             layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_lstm_op(self, layer):
+        assert(self.layerType(layer) == 'LSTM')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        seq_length = input_shape[0]
+        batch_size = input_shape[1]
+        num_output = layer.recurrent_param.num_output
+        output_shape = [seq_length, batch_size, num_output]
+        operands = list()
+        operands.append(op)
+        weight_x = self.blob_to_weight_op(layer, 0)
+        bias = self.blob_to_weight_op(layer, 1)
+        weight_h = self.blob_to_weight_op(layer, 2)
+        operands.append(weight_x)
+        operands.append(bias)
+        operands.append(weight_h)
+        new_op = self.CVI.add_lstm_caffe_op(
+            layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+    def convert_lstm_jun_op(self, layer):
+        assert(self.layerType(layer) == 'Lstm')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        seq_length = input_shape[0]
+        batch_size = input_shape[1]
+        num_output = layer.lstm_param.num_output
+        output_shape = [seq_length, batch_size, num_output]
+        operands = list()
+        operands.append(op)
+        weight_x = self.blob_to_weight_op(layer, 0)
+        weight_h = self.blob_to_weight_op(layer, 1)
+        bias = self.blob_to_weight_op(layer, 2)
+        operands.append(weight_x)
+        operands.append(bias)
+        operands.append(weight_h)
+        new_op = self.CVI.add_lstm_caffe_op(
+            layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
@@ -966,10 +1002,12 @@ class CaffeConverter(BaseConverter):
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         operands = list()
         operands.append(op)
-        assert(len(input_shape) == 4)
-        c = input_shape[1]
+        dim_len = len(input_shape)
+        assert(dim_len > 1)
+        slope_shape = [1] * dim_len
+        slope_shape[1] = input_shape[1]
         # negative_slope
-        slope_op = self.blob_to_weight_op(layer, 0, [1, c, 1, 1])
+        slope_op = self.blob_to_weight_op(layer, 0, slope_shape, None, 1)
         operands.append(slope_op)
         output_shape = input_shape
         new_op = self.CVI.add_prelu_op(layer.name, operands, output_shape)
@@ -1256,6 +1294,21 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op, output_shape,
                         TensorType.ACTIVATION)
 
+    def convert_reverse_op(self, layer):
+        assert(self.layerType(layer) == 'Reverse')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        axis = layer.reverse_param.axis
+        param = {
+            'axis': axis,
+        }
+        output_shape = input_shape
+        new_op = self.CVI.add_reverse_op(
+            layer.name, operands, output_shape, **param)
+        self.addOperand(layer.top[0], new_op, output_shape,
+                        TensorType.ACTIVATION)
+
     def convert_retinaface_detection_op(self, layer):
         assert(self.layerType(layer) == 'RetinaFaceDetection')
         _, input_shape, _ = self.getOperand(layer.bottom[0])
@@ -1391,7 +1444,7 @@ class CaffeConverter(BaseConverter):
         else:
             assert(bottom_slice_axis % top_size == 0)
             for i in range(top_size):
-                slices.append(bottom_slice_axis / top_size)
+                slices.append(int(bottom_slice_axis / top_size))
         offset = 0
         for i in range(top_size):
             output_shape = list(input_shape)
@@ -1662,10 +1715,8 @@ class CaffeConverter(BaseConverter):
         for idx, name in enumerate(self.inputs):
             input_shape = list(self.blobs[name].shape)
             input_shape[0] = self.batch_size
-            if self.convert_preprocess:
-                # add preprocess
-                input_no_preprocess_op = self.CVI.add_input_op(
-                    name, idx)
+
+            if self.preprocess_args:
                 color_order = np.array([0 ,1, 2])
                 transpose_order = np.array([0, 1, 2, 3])
                 crop_shape = np.array(
@@ -1683,8 +1734,8 @@ class CaffeConverter(BaseConverter):
                     pass
                 else:
                     raise RuntimeError("No support fused preprocess data_format: {} \ preprocess_input_data_format: {}",
-                                       self.preprocess_args.get('data_format'),  self.preprocess_args.get(
-                                           'preprocess_input_data_format'))
+                                        self.preprocess_args.get('data_format'),  self.preprocess_args.get(
+                                            'preprocess_input_data_format'))
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))
@@ -1704,12 +1755,20 @@ class CaffeConverter(BaseConverter):
                     'pads': pads,
                     'pad_const_val': 0,
                 }
+            else:
+                preprocess_attr = {}
+
+            if self.convert_preprocess:
+                # add preprocess
+                input_no_preprocess_op = self.CVI.add_input_op(
+                    name, idx, **preprocess_attr)
 
                 output_shape = input_shape
                 input_op = self.CVI.add_preprocess_op(
                     "{}_preprocess".format(name), [input_no_preprocess_op], output_shape, **preprocess_attr)
             else:
-                input_op = self.CVI.add_input_op(name, idx)
+                # add preprocess info to input
+                input_op = self.CVI.add_input_op(name, idx, **preprocess_attr)
 
             self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
 

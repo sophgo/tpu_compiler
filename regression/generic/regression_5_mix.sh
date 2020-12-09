@@ -65,8 +65,8 @@ cvi_npz_tool.py compare \
     --tolerance=$TOLERANCE_MIX_PRECISION -vv
 
 $DIR/../mlir_to_cvimodel.sh \
-   ${NET}_mix.mlir \
-   ${NET}_mix.cvimodel
+   -i ${NET}_mix.mlir \
+   -o ${NET}_mix.cvimodel
 
 model_runner \
     --dump-all-tensors \

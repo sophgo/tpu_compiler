@@ -130,6 +130,10 @@ private:
                   Operation *&dstOp, int loopIdx, int curN);
   void genTLBroadcastMulOp(Operation *srcOp, std::vector<Value> opds,
                            Operation *&dstOp, int loopIdx, int curN);
+  void genTLPixelShuffleOp(Operation *srcOp, std::vector<Value> opds,
+                           Operation *&dstOp, int loopIdx, int curN);
+  void genTLPReluOp(Operation *srcOp, std::vector<Value> opds,
+                    Operation *&dstOp, int loopIdx, int curN);
   void genTLOp(Operation *srcOp, std::vector<Value> opds,
                Operation *&dstOp, int loopIdx, int curN);
 };
@@ -203,10 +207,7 @@ void DeepFusionGroupSlice::deepFusionGroupOpt() {
   for (auto &group : fusionGroups) {
     std::vector<SubGroup> subGroups;
     std::vector<std::pair<Operation *, int>> cutPoints;
-    // temp: for group with only 1 op, generate tl_lw_xxxop
-    // so that we can use weight compression.
-    // TO-DO: support tg conv with weight compress
-    if ((group.size() == 1) && isFusionOp(group[0], batchSize_)) {
+    if (group.size() == 1 && isFusionOp(group[0], batchSize_)) {
       tg2TL(group);
       continue;
     }
@@ -636,6 +637,11 @@ void DeepFusionGroupSlice::doSlice(std::vector<Operation *> &group) {
 
 bool DeepFusionGroupSlice::isFusionOp(Operation *opInst, int batchSize) {
   uint64_t totalPerLane = -1;
+  if (isa<tpu::TpuTGOpCodegenInterface>(opInst)) {
+    auto shape = getTensorShape(opInst->getResult(0));
+    if (shape.size() != 4)
+      return false;
+  }
   if (isa<tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
     auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(opInst);
     totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, nullptr, batchSize);
@@ -660,6 +666,15 @@ bool DeepFusionGroupSlice::isFusionOp(Operation *opInst, int batchSize) {
     auto op = cast<tpu::TG_INT8_BroadcastMulOp>(opInst);
     totalPerLane = SimpleBroadcastMulMemoryUsageAnalysis(op,
                                                          nullptr, batchSize);
+  } else if (isa<tpu::TG_INT8_PixelShuffleOp>(opInst)) {
+    auto op = cast<tpu::TG_INT8_PixelShuffleOp>(opInst);
+    totalPerLane = SimplePixelShuffleMemoryUsageAnalysis(op,
+                                                         nullptr, batchSize);
+
+  } else if (isa<tpu::TG_INT8_PReluOp>(opInst)) {
+    auto op = cast<tpu::TG_INT8_PReluOp>(opInst);
+    totalPerLane = SimplePReluMemoryUsageAnalysis(op, nullptr, batchSize);
+
   } else {
     return false;
   }
@@ -749,6 +764,10 @@ void DeepFusionGroupSlice::genTLOp(Operation *srcOp,
     genTLPoolAvgOp(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_BroadcastMulOp>(srcOp)) {
     genTLBroadcastMulOp(srcOp, opds, dstOp, loopIdx, curN);
+  } else if (isa<tpu::TG_INT8_PixelShuffleOp>(srcOp)) {
+    genTLPixelShuffleOp(srcOp, opds, dstOp, loopIdx, curN);
+  } else if (isa<tpu::TG_INT8_PReluOp>(srcOp)) {
+    genTLPReluOp(srcOp, opds, dstOp, loopIdx, curN);
   } else {
     llvm_unreachable("unsupported op");
   }
@@ -1040,6 +1059,102 @@ void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
         builder.getContext())));
 
   dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_BroadcastMulOp>(
+                    srcOp->getLoc(), resultType,
+                    ArrayRef<Value>{operands},
+                    ArrayRef<NamedAttribute>{attrs});
+  if (!bSlice) {
+    srcOp->replaceAllUsesWith(dstOp);
+  }
+}
+
+void DeepFusionGroupSlice::genTLPixelShuffleOp(Operation *srcOp,
+                                              std::vector<Value> opds,
+                                              Operation *&dstOp,
+                                              int loopIdx, int curN) {
+  Builder builder(context_);
+  bool bSlice = (curN == batchSize_) ? false : true;
+  auto op = cast<tpu::TG_INT8_PixelShuffleOp>(srcOp);
+  std::vector<int64_t> shape;
+  int64_t n, c, h, w;
+  shape = getTensorShape(srcOp->getResult(0));
+  getNCHW(shape, n, c, h, w);
+  auto tensorType = srcOp->getResult(0).getType().cast<RankedTensorType>();
+  auto resultType = RankedTensorType::get(
+                                   {curN, c, h, w},
+                                   tensorType.getElementType());
+
+  std::vector<Value> operands;
+  operands.push_back(opds[0]);
+  std::vector<NamedAttribute> attrs;
+
+  std::string psName = op.getOpName().str();
+  if (bSlice)
+    psName += std::string("_") + std::to_string(loopIdx);
+
+  attrs.push_back(builder.getNamedAttr("name",
+                                       builder.getStringAttr(psName)));
+
+  uint32_t la_invalid = 0xffffffff;
+  attrs.push_back(builder.getNamedAttr("factor", op.upscale_factorAttr()));
+  attrs.push_back(builder.getNamedAttr("lm_layout", builder.getStringAttr("NONE")));
+  attrs.push_back(builder.getNamedAttr("la_input", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_working", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_output", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("tl_load_flag", builder.getBoolAttr(true)));
+  attrs.push_back(builder.getNamedAttr("tl_store_flag", builder.getBoolAttr(true)));
+
+  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_PixelShuffleOp>(
+                    srcOp->getLoc(), resultType,
+                    ArrayRef<Value>{operands},
+                    ArrayRef<NamedAttribute>{attrs});
+  if (!bSlice) {
+    srcOp->replaceAllUsesWith(dstOp);
+  }
+}
+
+void DeepFusionGroupSlice::genTLPReluOp(Operation *srcOp,
+                                              std::vector<Value> opds,
+                                              Operation *&dstOp,
+                                              int loopIdx, int curN) {
+  Builder builder(context_);
+  bool bSlice = (curN == batchSize_) ? false : true;
+  auto op = cast<tpu::TG_INT8_PReluOp>(srcOp);
+  std::vector<int64_t> shape;
+  int64_t n, c, h, w;
+  shape = getTensorShape(srcOp->getResult(0));
+  getNCHW(shape, n, c, h, w);
+  auto tensorType = srcOp->getResult(0).getType().cast<RankedTensorType>();
+  auto resultType = RankedTensorType::get(
+                                   {curN, c, h, w},
+                                   tensorType.getElementType());
+  std::vector<Value> operands;
+  operands.push_back(opds[0]);
+  operands.push_back(op.getOperand(1));
+  std::vector<NamedAttribute> attrs;
+
+  std::string psName = op.getOpName().str();
+  if (bSlice)
+    psName += std::string("_") + std::to_string(loopIdx);
+
+  attrs.push_back(builder.getNamedAttr("name",
+                                       builder.getStringAttr(psName)));
+
+  uint32_t la_invalid = 0xffffffff;
+  assert(op.rshift_pos().hasValue());
+  assert(op.m_i8_pos().hasValue());
+  assert(op.rshift_neg().hasValue());
+
+  attrs.push_back(builder.getNamedAttr("rshift_pos", op.rshift_posAttr()));
+  attrs.push_back(builder.getNamedAttr("rshift_neg", op.rshift_negAttr()));
+  attrs.push_back(builder.getNamedAttr("m_i8_pos", op.m_i8_posAttr()));
+  attrs.push_back(builder.getNamedAttr("lm_layout", builder.getStringAttr("NONE")));
+  attrs.push_back(builder.getNamedAttr("la_input", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_working", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("la_output", builder.getI32IntegerAttr(la_invalid)));
+  attrs.push_back(builder.getNamedAttr("tl_load_flag", builder.getBoolAttr(true)));
+  attrs.push_back(builder.getNamedAttr("tl_store_flag", builder.getBoolAttr(true)));
+
+  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_PReluOp>(
                     srcOp->getLoc(), resultType,
                     ArrayRef<Value>{operands},
                     ArrayRef<NamedAttribute>{attrs});

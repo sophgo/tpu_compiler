@@ -45,296 +45,46 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
                                      PatternRewriter &rewriter) const override {
     auto upsampleOp = cast<tpu::UpsampleOp>(op);
     if (upsampleOp.getNumOperands() < 2) {
-        return failure();
-    }
-    auto mask_op = upsampleOp.getOperand(1).getDefiningOp();
-    if (isa<tpu::PoolMaskOp>(mask_op) == false) {
       return failure();
     }
-    std::vector<int64_t> o_shape;
-    int64_t output_size;
-    getTensorShapeAndSize(op->getResult(0), o_shape, output_size);
-    bool need_crop = false;
-
-    auto poolMaskOp = cast<tpu::PoolMaskOp>(mask_op);
-
-    LLVM_DEBUG(llvm::errs() << poolMaskOp.getOperationName() << "\n";);
-    assert(poolMaskOp.getNumOperands() == 2 && "operands num should be 2");
-
-    TensorFile *wTF = getWeightTensorFile(op);
-    Value wFV = getWeightFileValue(op);
-
-    // op_name
-    std::string op_name =
-        upsampleOp.getAttrOfType<StringAttr>("name").getValue().str();
-
-    auto scale = poolMaskOp.scale();
-
-    std::vector<Value> operands;
-    std::vector<NamedAttribute> attrs;
-    std::vector<int64_t> output_shape;
-
-    auto input = poolMaskOp.getOperand(0);
-    auto input_type = input.getType().cast<RankedTensorType>();
-    auto input_shape = input_type.getShape();
-    output_shape.push_back(input_shape[0]);
-    output_shape.push_back(input_shape[1]);
-    output_shape.push_back(input_shape[2] * scale);
-    output_shape.push_back(input_shape[3] * scale);
-    RankedTensorType output_type =
-        RankedTensorType::get(output_shape, input_type.getElementType());
-    if (output_shape[2] != o_shape[2] || output_shape[3] != o_shape[3]) {
-      need_crop = true;
+    auto mask_op = upsampleOp.getOperand(1);
+    if (isa<tpu::NoneOp>(mask_op.getDefiningOp()) == true) {
+      return failure();
     }
-
+    if (isa<tpu::PoolMaskOp>(mask_op.getDefiningOp()) == true) {
+      return failure();
+    }
     auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
                                                     rewriter.getNoneType());
 
-    // a = upsample(x0)
-    auto layer_name = poolMaskOp.name().str();
-    auto name = layer_name + "_upsample0";
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    attrs.push_back(
-        rewriter.getNamedAttr("scale_h", rewriter.getI32IntegerAttr(scale)));
-    attrs.push_back(
-        rewriter.getNamedAttr("scale_w", rewriter.getI32IntegerAttr(scale)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    operands.push_back(poolMaskOp.getOperand(0));
-    operands.push_back(NoneOp.getResult());
-    auto op_a = rewriter.create<tpu::UpsampleOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-
-    // b = -1 * a
-    std::vector<float> const_scale_0(output_shape[1], -1);
-    std::vector<float> const_bias_0(output_shape[1], 0);
-    std::vector<int64_t> const_shape;
-    const_shape.push_back(1);
-    const_shape.push_back(output_shape[1]);
-    const_shape.push_back(1);
-    const_shape.push_back(1);
-    auto scale_value_0 = addWeightTensorAndCreateWeightOp<float>(
-        op_a, "scale", const_scale_0, const_shape, "NONE", wTF, wFV);
-    auto bias_value_0 = addWeightTensorAndCreateWeightOp<float>(
-        op_a, "bias", const_bias_0, const_shape, "NONE", wTF, wFV);
-
-    attrs.clear();
-    operands.clear();
-    name = layer_name + "_scale0";
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    operands.push_back(op_a);
-    operands.push_back(scale_value_0);
-    operands.push_back(bias_value_0);
-    auto op_b = rewriter.create<tpu::ScaleOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-
-    // check whether need pad
-    mlir::Value temp_op = poolMaskOp.getOperand(1);
-    if (need_crop) {
-        // pad op1
-        attrs.clear();
-        operands.clear();
-        name = layer_name + "_pad";
-        attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-        attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-        attrs.push_back(rewriter.getNamedAttr("const_val", rewriter.getF32FloatAttr(0.0)));
-        std::vector<int32_t> pads(8, 0);
-        pads[6] = output_shape[2] - o_shape[2]; // pad h right
-        pads[7] = output_shape[3] - o_shape[3]; // pad w right
-        attrs.push_back(rewriter.getNamedAttr(
-          "pads",
-          rewriter.getI32ArrayAttr(ArrayRef<int32_t>({pads}))));
-        operands.push_back(poolMaskOp.getOperand(1));
-        temp_op = rewriter.create<tpu::PadOp>(
-            op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
+    auto mask_shape = getTensorShape(mask_op);
+    auto output_shape = getTensorShape(op->getResult(0));
+    bool need_crop = false;
+    if (mask_shape[3] != output_shape[3] || mask_shape[2] != output_shape[2]) {
+      need_crop = true;
     }
-    // c = b + x1
-    attrs.clear();
-    operands.clear();
-    name = layer_name + "_eltwise_add0";
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant_skip", rewriter.getBoolAttr(true)));
-    operands.push_back(temp_op);
-    operands.push_back(op_b);
-    operands.push_back(NoneOp.getResult()); // quant_scale
-    operands.push_back(NoneOp.getResult()); // quant_zeropoint
-    operands.push_back(NoneOp.getResult()); // quant_rshift
-    operands.push_back(NoneOp.getResult()); // quant_multiplier
 
-    auto op_c = rewriter.create<tpu::EltwiseAddOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
+    // op_name
+    std::string op_name = upsampleOp.name().str();
 
-    // d = zero_mask(c), if c[i] < 0, d[i] = 0; c[i] = 0, d[i] = 1
-    attrs.clear();
-    operands.clear();
-    name = layer_name + "_zero_mask0";
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    operands.push_back(op_c);
-    auto op_d = rewriter.create<tpu::ZeroMaskOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-
-    // e = d * [4, 3, 2, 1]
-    auto count =
-        output_shape[0] * output_shape[1] * output_shape[2] * output_shape[3];
-
-    std::vector<float> const_data(count, 0);
-    for (int i = 0; i < output_shape[0] * output_shape[1]; i++) {
-      for (int j = 0; j < output_shape[2]; j++) {
-        for (int k = 0; k < output_shape[3]; k++) {
-          auto offset =
-              i * output_shape[2] * output_shape[3] + j * output_shape[3] + k;
-          if (j % 2 == 0) {
-            if (k % 2 == 0)
-              const_data[offset] = 4;
-            if (k % 2 == 1)
-              const_data[offset] = 3;
-          } else {
-            if (k % 2 == 0)
-              const_data[offset] = 2;
-            if (k % 2 == 1)
-              const_data[offset] = 1;
-          }
-        }
-      }
-    }
-    auto const_value = addWeightTensorAndCreateWeightOp<float>(
-        op_d, "const", const_data, output_shape, "NONE", wTF, wFV);
-
-    attrs.clear();
-    operands.clear();
-    name = layer_name + "_eltwise_mul0";
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant_skip", rewriter.getBoolAttr(true)));
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    operands.push_back(op_d);
-    operands.push_back(const_value);
-    operands.push_back(NoneOp.getResult()); // quant_scale
-    operands.push_back(NoneOp.getResult()); // quant_zeropoint
-    operands.push_back(NoneOp.getResult()); // quant_rshift
-    operands.push_back(NoneOp.getResult()); // quant_multiplier
-    auto op_e = rewriter.create<tpu::EltwiseMulOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-
-    // f = pool_max(e)
-    attrs.clear();
-    operands.clear();
-    name = layer_name + "_pool_max0";
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    attrs.push_back(rewriter.getNamedAttr(
-        "param",
-        tpu::PoolParam::get(
-            rewriter.getI32IntegerAttr(scale),
-            rewriter.getI32IntegerAttr(scale), rewriter.getI32IntegerAttr(0),
-            rewriter.getI32IntegerAttr(0), rewriter.getI32IntegerAttr(0),
-            rewriter.getI32IntegerAttr(0), rewriter.getI32IntegerAttr(scale),
-            rewriter.getI32IntegerAttr(scale), rewriter.getBoolAttr(false),
-            rewriter.getBoolAttr(true), rewriter.getContext())));
-    operands.push_back(op_e);
-    auto op_f = rewriter.create<tpu::PoolMax2DOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{input_type}, operands, attrs);
-
-    // g = upsample(f)
-    attrs.clear();
-    operands.clear();
-    operands.push_back(op_f);
-    operands.push_back(NoneOp.getResult());
-    name = layer_name + "_" + "upsample1";
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    attrs.push_back(
-        rewriter.getNamedAttr("scale_h", rewriter.getI32IntegerAttr(scale)));
-    attrs.push_back(
-        rewriter.getNamedAttr("scale_w", rewriter.getI32IntegerAttr(scale)));
-    auto op_g = rewriter.create<tpu::UpsampleOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-
-    // h = -1 * g
-    std::vector<float> const_scale_2(output_shape[1], -1);
-    std::vector<float> const_bias_2(output_shape[1], 0);
-    auto scale_value_2 = addWeightTensorAndCreateWeightOp<float>(
-        op_g, "scale", const_scale_2, const_shape, "NONE", wTF, wFV);
-    auto bias_value_2 = addWeightTensorAndCreateWeightOp<float>(
-        op_g, "bias", const_bias_2, const_shape, "NONE", wTF, wFV);
-
-    attrs.clear();
-    operands.clear();
-    name = layer_name + "_scale1";
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    operands.push_back(op_g);
-    operands.push_back(scale_value_2);
-    operands.push_back(bias_value_2);
-    auto op_h = rewriter.create<tpu::ScaleOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-
-    // i = h + e
-    attrs.clear();
-    operands.clear();
-    name = layer_name + "_" + "eltwise_add1";
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant_skip", rewriter.getBoolAttr(true)));
-    operands.push_back(op_h);
-    operands.push_back(op_e);
-    operands.push_back(NoneOp.getResult()); // quant_scale
-    operands.push_back(NoneOp.getResult()); // quant_zeropoint
-    operands.push_back(NoneOp.getResult()); // quant_rshift
-    operands.push_back(NoneOp.getResult()); // quant_multiplier
-    auto op_i = rewriter.create<tpu::EltwiseAddOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-
-    // j = zero_mask(i)
-    attrs.clear();
-    operands.clear();
-    name = layer_name + "_zero_mask1";
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    operands.push_back(op_i);
-    auto op_j = rewriter.create<tpu::ZeroMaskOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-
+    std::vector<Value> operands;
+    std::vector<NamedAttribute> attrs;
+    auto mask_type = mask_op.getType().cast<RankedTensorType>();
     // k = upsampe(input)
-    temp_op = op_a;
-    if (poolMaskOp.getOperand(0) != upsampleOp.getOperand(0)) {
-        name = op_name + "_nearst";
-        attrs.clear();
-        operands.clear();
-        operands.push_back(upsampleOp.getOperand(0));
-        operands.push_back(NoneOp.getResult());
-        attrs.push_back(
-            rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-        attrs.push_back(
-            rewriter.getNamedAttr("scale_h", rewriter.getI32IntegerAttr(scale)));
-        attrs.push_back(
-            rewriter.getNamedAttr("scale_w", rewriter.getI32IntegerAttr(scale)));
-        attrs.push_back(
-            rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    std::string name = op_name + "_nearst";
+    attrs.clear();
+    operands.clear();
+    operands.push_back(upsampleOp.getOperand(0));
+    operands.push_back(NoneOp.getResult());
+    attrs.push_back(
+        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
+    attrs.push_back(rewriter.getNamedAttr("scale_h", upsampleOp.scale_hAttr()));
+    attrs.push_back(rewriter.getNamedAttr("scale_w", upsampleOp.scale_wAttr()));
+    attrs.push_back(
+        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
 
-        temp_op = rewriter.create<tpu::UpsampleOp>(
-            op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-    }
+    auto new_op = rewriter.create<tpu::UpsampleOp>(
+        op->getLoc(), ArrayRef<mlir::Type>{mask_type}, operands, attrs);
 
     // l = j * k
     attrs.clear();
@@ -350,15 +100,15 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     attrs.push_back(
         rewriter.getNamedAttr("quant_skip", rewriter.getBoolAttr(true)));
-    operands.push_back(op_j); // mask
-    operands.push_back(temp_op);
+    operands.push_back(mask_op); // mask
+    operands.push_back(new_op);
     operands.push_back(NoneOp.getResult()); // quant_scale
     operands.push_back(NoneOp.getResult()); // quant_zeropoint
     operands.push_back(NoneOp.getResult()); // quant_rshift
     operands.push_back(NoneOp.getResult()); // quant_multiplier
     auto op_l = rewriter.create<tpu::EltwiseMulOp>(
-        op->getLoc(), ArrayRef<mlir::Type>{output_type}, operands, attrs);
-    temp_op = op_l;
+        op->getLoc(), ArrayRef<mlir::Type>{mask_type}, operands, attrs);
+    Value temp_op = op_l;
 
     // output = crop
     if (need_crop) {
@@ -366,7 +116,7 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
       operands.clear();
       name = op_name;
       std::vector<int> crop_shape;
-      for (auto &dim : o_shape) {
+      for (auto &dim : output_shape) {
         crop_shape.push_back(dim);
       }
       std::vector<int> crop_offset(4, 0);
@@ -398,9 +148,11 @@ struct TpuUpsampleOpPattern : public RewritePattern {
   LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto upsampleOp = cast<tpu::UpsampleOp>(op);
-    if(op->getNumOperands() == 2) {
-        auto mask = op->getOperand(1).getDefiningOp();
-        assert(isa<tpu::NoneOp>(mask) && "upsample op 1 must be none");
+    if (op->getNumOperands() == 2) {
+      auto mask = op->getOperand(1).getDefiningOp();
+      if (isa<tpu::NoneOp>(mask) == false) {
+        return failure();
+      };
     }
     LLVM_DEBUG(llvm::errs() << upsampleOp.getOperationName() << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
