@@ -18,6 +18,25 @@ ImLayer::ImLayer(IR_TYPE type, Operation* op, bool fusible)
   layer_id_ = getOpLayerId(op);
   //is_inplace_layer = op->in_place();
   is_inplace_layer = false;
+
+  // check input's shape that could be handle
+  // TODO: check every dim
+  int axis = 1; // only check channel
+  uint32_t nInputs = op->getNumOperands();
+  for (uint32_t i = 0; i < nInputs; ++i) {
+    auto def_op = op->getOperand(i).getDefiningOp();
+    if (def_op && !isa<tpu::NoneOp>(def_op)) {
+      std::vector<int64_t> src_shape = getTensorShape(op->getOperand(i));
+      if (src_shape.size() == 4 && src_shape[axis] > 4095) {
+        LLVM_DEBUG(llvm::errs()
+            << "src_shape[axis]" << src_shape[axis]
+            << " over spec, skip fuse, (" << getOpName(def_op) << ")\n";);
+        this->fusible = false;
+      }
+    }
+  }
+
+
 }
 
 ImLayer::~ImLayer() = default;

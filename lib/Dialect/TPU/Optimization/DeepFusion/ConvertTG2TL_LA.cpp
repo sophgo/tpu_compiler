@@ -220,6 +220,23 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
       return failure();
     }
 
+    // verify shape
+    // TODO: check every dim
+    int axis = 1; // only check channel
+    uint32_t nInputs = op.getNumOperands();
+    for (uint32_t i = 0; i < nInputs; ++i) {
+      std::vector<int64_t> src_shape = getTensorShape(op.getOperand(i));
+      if (src_shape[axis] > 4095) {
+        LLVM_DEBUG(llvm::errs()
+            << "src_shape[axis]" << src_shape[axis]
+            << " over spec, skip fuse, ("
+            << getOpName(op.getOperand(i).getDefiningOp()) << ")\n";);
+        return failure();
+      }
+    }
+
+
+
     // Check whether operand ConvOp has enough memory
     for (auto operand : opInst->getOperands()) {
       auto operandOp = operand.getDefiningOp();
