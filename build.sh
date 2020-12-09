@@ -2,29 +2,27 @@
 set -e
 
 PROJECT_ROOT="$( cd "$(dirname "$0")" ; pwd -P )"
-BUILD_PATH=$PROJECT_ROOT/build
 INSTALL_PATH=$PROJECT_ROOT/install
 TPU_PYTHON_PATH=$INSTALL_PATH/tpuc/python
+
+BUILD_TYPE="RELEASE"
+if [ "$BUILD_TYPE" == "RELEASE" ]; then
+  BUILD_FLAG="-DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3"
+  BUILD_PATH=$PROJECT_ROOT/build
+else
+  BUILD_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
+  BUILD_PATH=$PROJECT_ROOT/build_debug
+fi
 
 # prepare install/build dir
 mkdir -p $BUILD_PATH
 mkdir -p $INSTALL_PATH
 mkdir -p $TPU_PYTHON_PATH
 
-BUILD_TYPE="DEBUG"
-if [ "$BUILD_TYPE" == "RELEASE" ]; then
-  BUILD_FLAG="-DCMAKE_BUILD_TYPE=RELEASE -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3"
-else
-  BUILD_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
-fi
-
-
-if [ ! -e $BUILD_PATH ]; then
-  mkdir -p $BUILD_PATH
-fi
-
 # download and unzip mkldnn
 if [ ! -e $INSTALL_PATH/mkldnn ]; then
+  mkdir -p $BUILD_PATH/mkldnn
+  pushd $BUILD_PATH/mkldnn
   if [ ! -f mkldnn_lnx_1.0.2_cpu_gomp.tgz ]; then
     wget https://github.com/intel/mkl-dnn/releases/download/v1.0.2/mkldnn_lnx_1.0.2_cpu_gomp.tgz
   fi
@@ -32,6 +30,7 @@ if [ ! -e $INSTALL_PATH/mkldnn ]; then
   mkdir -p $INSTALL_PATH/mkldnn
   mv mkldnn_lnx_1.0.2_cpu_gomp/* $INSTALL_PATH/mkldnn
   rm -rf mkldnn_lnx_1.0.2_cpu_gomp
+  popd
 fi
 
 # build pybind11
