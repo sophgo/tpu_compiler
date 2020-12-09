@@ -24,18 +24,18 @@ fi
 export DATASET_PATH=$DATASET_PATH
 
 # python path
-export TPU_PYTHON_PATH=$MLIR_PATH/python
+export TPU_PYTHON_PATH=$MLIR_PATH/tpuc/python
 
 # regression path
-export REGRESSION_PATH=$MLIR_PATH/regression
+export REGRESSION_PATH=$MLIR_PATH/tpuc/regression
 
 # run path
-export PATH=$MLIR_PATH/bin:$PATH
-export PATH=$MLIR_PATH/python:$PATH
-export PATH=$MLIR_PATH/regression:$PATH
-export PATH=$MLIR_PATH/regression/generic:$PATH
+export PATH=$MLIR_PATH/tpuc/bin:$PATH
+export PATH=$MLIR_PATH/tpuc/python:$PATH
+export PATH=$MLIR_PATH/tpuc/regression:$PATH
+export PATH=$MLIR_PATH/tpuc/regression/generic:$PATH
 
-export LD_LIBRARY_PATH=$MLIR_PATH/lib:$LD_LIBRARY_PATH
+export LD_LIBRARY_PATH=$MLIR_PATH/tpuc/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$MLIR_PATH/mkldnn/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$MLIR_PATH/caffe/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$MLIR_PATH/flatbuffers/lib:$LD_LIBRARY_PATH
