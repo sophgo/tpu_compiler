@@ -4072,7 +4072,6 @@ LogicalResult tpu::QuantOp::interpret(
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float> >(size);
   int zero_point = this->zero_point();
-  bool is_symmetric = zero_point == 0;
   if (this->from() == "NONE" && this->to() == "INT8") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
@@ -4082,7 +4081,7 @@ LogicalResult tpu::QuantOp::interpret(
     auto prevOp = getOperand().getDefiningOp();
     bool useTpuQuantOp = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
     quantizeActivationInt8WithThreshold(output, input, size, threshold,
-                                        useTpuQuantOp && is_symmetric,
+                                        useTpuQuantOp,
                                         zero_point);
   } else if (this->from() == "INT8" && this->to() == "NONE") {
     float *input = (float *)opdT[0]->data();

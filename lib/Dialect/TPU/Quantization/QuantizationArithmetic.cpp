@@ -873,28 +873,29 @@ static inline signed char float2int8(float v, int mode = 0)
 
 /// Quantize an Activation tensor into INT8, given threshold
 void quantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold, bool tpu_mode, int zero_point) {
+                                         int64_t size, float threshold,
+                                         bool tpu_mode, int zero_point) {
   float scale = 128.0 / threshold;
 
   if (tpu_mode) {
-    if (zero_point != 0) {
-      llvm_unreachable("zero_point in tpu mode not ready, todo");
-    }
-    bfloat16 bf_scale, bf_tmp;
+    bfloat16 bf_scale, bf_tmp, bf_zp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
-
+    bf_zp = FloatToBFloat16(zero_point);
+    zero_point = FloatToBFloat16(bf_zp);
     for (int64_t i = 0; i < size; ++i) {
       // note this is using std::round() rather than floor(v+0.5f)
       // to compliance with NEON implemention on runtime
       // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
       float f_tmp = input[i];
       // remove [17:31] mantissa part
-      FloatToBFloat16(&f_tmp, &bf_tmp, 1, false);
-
+      bf_tmp = FloatToBFloat16(f_tmp);
       f_tmp = BFloat16ToFloat(bf_tmp);
       f_tmp = f_tmp * scale;
       // align backend
+      bf_tmp = FloatToBFloat16(f_tmp);
+      f_tmp = BFloat16ToFloat(bf_tmp);
+      f_tmp = f_tmp + zero_point;
       bf_tmp = FloatToBFloat16(f_tmp);
       f_tmp = BFloat16ToFloat(bf_tmp);
       output[i] = (float)float2int8(f_tmp, 1);
@@ -902,10 +903,13 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
   } else {
     for (int64_t i = 0; i < size; ++i) {
       float scale = 128.0 / threshold;
-      // note this is using std::round() rather than floor(v+0.5f)
-      // to compliance with NEON implemention on runtime
-      // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-      output[i] = (float)float2int8((input[i] * scale) + zero_point, 0);
+      int val = std::round(input[i] * scale) + zero_point;
+      if (val > 127) {
+        val = 127;
+      } else if (val < -128) {  
+        val = -128;
+      }
+      output[i] = (float)val;
     }
   }
 }
