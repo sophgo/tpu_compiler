@@ -1700,7 +1700,28 @@ export DO_ACCURACY_FP32_INTERPRETER=0
 export DO_QUANT_BF16=0
 fi
 
-# TFLite Int8
+if [ $NET = "inception_v3_tflite_int8" ]; then
+export INT8_MODEL=1
+export MODEL_TYPE="tflite_int8"
+export MODEL_DEF=$MODEL_PATH/imagenet/inception_v3/tflite_int8/inception_v3_int8_quant.tflite
+export MODEL_DAT=""
+export INT8_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tflite.sh
+export IMAGE_RESIZE_DIMS=299,299
+export NET_INPUT_DIMS=299,299
+export DATA_FORMAT="nhwc"
+export RAW_SCALE=255
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=127.5,127.5,127.5 # in RGB
+export STD=127.5,127.5,127.5
+export INPUT_SCALE=1.0
+export INPUT=input
+export DO_E2E=0
+export DO_DEEPFUSION=0
+export DO_QUANT_INT8_MULTIPLER=0
+export DO_ACCURACY_FP32_INTERPRETER=0
+export DO_QUANT_BF16=0
+fi
+
 if [ $NET = "yolo_v3_416_without_detection_tflite_int8" ]; then
 export INT8_MODEL=1
 export MODEL_TYPE="tflite_int8"

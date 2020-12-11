@@ -3091,7 +3091,7 @@ void Conv::dwConv() {
               param.rshift_bits = right_shift_width;
               param.ps32_mode = args.ps32_output ? 2 : 0;
               param.layer_id = layer_id;
-              param.ins_val = pad_value(); 
+              param.ins_val = pad_value();
               param.ins_fp = ctx.convert_fp32_to_bf16(
                   pad_value());
 
