@@ -280,7 +280,7 @@ class MLIRImporter(object):
         }
         if self.input_type == "UINT8":
             quant_param['mode'] = StringAttr.get("INT8")
-        
+
         attributes = {
             "name": StringAttr.get(name),
             "quant": DictAttr.get(quant_param),
@@ -399,14 +399,7 @@ class MLIRImporter(object):
         none = self.add_none_op()
         if mode == TPU_MODE.INT8:
             quant_param = self.create_int8_quant_attr(**kargs)
-            inputOperands = [
-                inputOperands[0],
-                inputOperands[1],
-                none,
-                none,
-                inputOperands[2],
-                inputOperands[3],
-            ]
+            inputOperands = self.add_quant_reg(inputOperands)
         elif mode == TPU_MODE.FP32:
             quant_param = self.quant_param
             inputOperands = self.add_quant_reg(inputOperands)
@@ -1510,7 +1503,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'yolo_v4')
         checkKey(kargs, 'class_num')
         checkKey(kargs, 'anchors')
-        
+
         name_attr=StringAttr.get(op_name)
         param = {
             'net_input_h':  IntegerAttr.get(self.i32Type, kargs['net_input_h']),

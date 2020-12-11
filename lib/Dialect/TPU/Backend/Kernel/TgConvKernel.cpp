@@ -3049,8 +3049,9 @@ void Conv::dwConv() {
               param.has_bias = do_bias ? 1 : 0;
               param.relu_enable = fused_conv_relu;
               param.layer_id = layer_id;
-              param.ins_val = 0;                             // symmetric quantization
-              param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
+              param.ins_val = pad_value();
+              param.ins_fp = ctx.convert_fp32_to_bf16(
+                  pad_value()); 
 
               LLVM_DEBUG(llvm::errs() << llvm::format(
                          "  [ig=%d][n_pos=%d][oh_pos=%d][ow_pos=%d] dwconv:\n"
@@ -3090,8 +3091,9 @@ void Conv::dwConv() {
               param.rshift_bits = right_shift_width;
               param.ps32_mode = args.ps32_output ? 2 : 0;
               param.layer_id = layer_id;
-              param.ins_val = 0;                             // symmetric quantization
-              param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
+              param.ins_val = pad_value(); 
+              param.ins_fp = ctx.convert_fp32_to_bf16(
+                  pad_value());
 
               LLVM_DEBUG(llvm::errs() << llvm::format(
                          "  [ig=%d][n_pos=%d][oh_pos=%d][ow_pos=%d] conv:\n"

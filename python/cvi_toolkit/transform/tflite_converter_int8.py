@@ -431,35 +431,147 @@ class TFLiteConverter(BaseConverter):
         self.addOperand(node.name, add_op, output_shape, None)
 
     def convert_avg_pool_op(self, node):
+        """
+            In Asymmetric Quantization, hardware not support 16bit avg pooling
+            in avg pool case, we use conv to sum (weight is 1) then set 1/(kh * kw) in qscale,
+            it equal with avg
+        """
         assert(node.op_type == "AVERAGE_POOL_2D")
+        assert(len(node.inputs) == 1)
         op, input_shape, _ = self.getOperand(str(node.inputs[0]))
 
-        avg_tensor = self.tflite_graph.Tensors(node.outputs)
-        tensor_attr = self.getTensorAttr(avg_tensor)
-        avg_name = tensor_attr['name']
-        tensor_shape = tensor_attr['shape'].tolist()
-        tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
+        input_tensor = self.tflite_graph.Tensors(node.inputs[0])
+        input_tensor_attr = self.getTensorAttr(input_tensor)
+        zero_point_x = input_tensor_attr['zero_point']
+        input_scale = input_tensor_attr['scale']
+        input_offset = -zero_point_x
 
+        operands = [op]
 
-        on = input_shape[0]
-        oc = input_shape[1]
+        avg_pool_tensor = self.tflite_graph.Tensors(node.outputs)
+        tensor_attr = self.getTensorAttr(avg_pool_tensor)
+        threshold_y = tensor_attr['threshold']
+        avg_pool_name = tensor_attr['name']
+        output_scale = tensor_attr['scale']
+        zero_point_y = tensor_attr['zero_point']
+        output_offset = zero_point_y
+
         op_build_info = node.proto.BuiltinOptions()
         pool_table = Pool2DOptions()
         pool_table.Init(op_build_info.Bytes, op_build_info.Pos)
-        pool_avg_2d_param = {
-            'stride_h':  pool_table.StrideH(),
-            'stride_w':  pool_table.StrideW(),
-            'kernel_h':  pool_table.FilterWidth(),
-            'kernel_w':  pool_table.FilterWidth(),
-            'padding_b': 0,
-            'padding_r': 0,
-            'padding_t': 0,
-            'padding_l': 0,
+        stride_h = pool_table.StrideH()
+        stride_w = pool_table.StrideW()
+        padding = pool_table.Padding()
+        kernel_h, kernel_w = pool_table.FilterHeight(), pool_table.FilterWidth()
+        if padding == Padding.SAME:
+            padding_along_h = get_TF_SAME_Padding(
+                input_shape[2], kernel_h, stride_h)
+            padding_along_w = get_TF_SAME_Padding(
+                input_shape[3], kernel_w, stride_w)
+            padding_t = padding_along_h // 2
+            padding_l = padding_along_w // 2
+            padding_b = padding_along_h - padding_t
+            padding_r = padding_along_w - padding_l
+        else:
+            padding_t = 0
+            padding_b = 0
+            padding_l = 0
+            padding_r = 0
+
+        on = input_shape[0]
+        oc = input_shape[1]
+
+        conv_param = {
+            'stride_h': stride_h,
+            'stride_w': stride_w,
+            'padding': "SAME" if padding == Padding.SAME else "VALID",
+            'dilation_h': 1,
+            'dilation_w': 1,
+            'padding_t': padding_t,
+            'padding_b': padding_b,
+            'padding_l': padding_l,
+            'padding_r': padding_r,
+            'group': oc,  # Don't have group option?
+            'is_dw': False,
+            'with_bias': True,
             'do_relu': False,
+            'ins': [],
+            'pad_value': zero_point_x,
         }
-        output_shape = [int(on), int(oc), 1, 1]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op(avg_name, [op], output_shape, **pool_avg_2d_param)
-        self.addOperand(node.name, pool_avg_op,
+
+        oh = calcConv2DSpatial(
+            input_shape[2],
+            kernel_h,
+            stride_h,
+            padding_t,
+            padding_b,
+            conv_param['dilation_h'],
+        )
+        ow = calcConv2DSpatial(
+            input_shape[3],
+            kernel_w,
+            stride_w,
+            padding_l,
+            padding_r,
+            conv_param['dilation_w'],
+        )
+
+        CVIMlirQscale = input_scale / (output_scale * kernel_h * kernel_w)
+        CVIMlirQscale = np.full((oc), CVIMlirQscale)
+        rshift_data, multipiler_data = getRShiftAndMultiplierFromQScaleArray(
+            CVIMlirQscale, qdm=True)
+
+        filter_name = "{}_wegiht".format(node.outputs)
+        filter_shape = (oc, 1, 1, kernel_h, kernel_w)
+        filter_data = np.full(filter_shape, 1).astype(np.int)
+
+        self.addTensor(filter_name, filter_data, filter_shape)
+        filter_op = self.CVI.add_load_file_op(
+            filter_name, list(filter_shape), storage="INT8")
+        operands.append(filter_op)
+
+        # bias
+        bias_name = "{}_bias".format(node.outputs)
+        fuesd_input_value = input_offset * kernel_h * kernel_w
+        fuesd_output_value = output_offset / CVIMlirQscale
+        bias_data = fuesd_input_value + fuesd_output_value
+        bias_data = bias_data.astype(np.int32)
+
+        self.addTensor(bias_name, bias_data, bias_data.shape)
+        bias_op = self.CVI.add_load_file_op(
+            bias_name, list(bias_data.shape), storage="INT32")
+        operands.append(bias_op)
+
+        # add rshift op
+        rshift_name = "{}_rshift".format(node.outputs)
+        rshift_shape = list(rshift_data.shape)
+        self.addTensor(rshift_name, rshift_data, rshift_shape)
+        rshift_op = self.CVI.add_load_file_op(
+            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+
+        # add multipiler op
+        multipiler_name = "{}_multipiler".format(node.outputs)
+        multipiler_shape = list(multipiler_data.shape)
+        self.addTensor(multipiler_name, multipiler_data, multipiler_shape)
+        multipiler_op = self.CVI.add_load_file_op(
+            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+
+        int8_quant_info = {
+            'is_asymmetric': True,
+            'is_perchannel': True,
+            'mode': TPU_MODE.INT8,
+            'param_type': "RSHIFT_AND_M_I32",
+            'threshold_max': threshold_y,
+            'threshold_min': 0,
+            'zero_point': output_offset,
+        }
+        # add quant info to param
+        conv_param.update(int8_quant_info)
+
+        output_shape = [int(on), int(oc), int(oh), int(ow)]
+        conv_op = self.CVI.add_conv_op(
+            avg_pool_name, [op, filter_op, bias_op, rshift_op, multipiler_op], output_shape, **conv_param)
+        self.addOperand(node.name, conv_op,
                         output_shape, None)
 
 
@@ -697,9 +809,14 @@ class TFLiteConverter(BaseConverter):
 
     def convert_concat_op(self, node):
         assert(node.op_type == "CONCATENATION")
-        op1, input_shape1, _ = self.getOperand(str(node.inputs[0]))
-        op2, input_shape2, _ = self.getOperand(str(node.inputs[1]))
-        assert(len(input_shape1) == 4 and len(input_shape2) == 4)
+        input_num = len(node.inputs)
+        ops = list()
+        input_shapes = list()
+        for i in range(input_num):
+            op, input_shape, _ = self.getOperand(str(node.inputs[i]))
+            ops.append(op)
+            input_shapes.append(input_shape)
+            assert(len(input_shape) == 4)
 
         concat_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(concat_tensor)
@@ -714,7 +831,7 @@ class TFLiteConverter(BaseConverter):
 
         axis = concat_table.Axis()
         if(axis == -1 or axis == 3):
-            axis = 1 # in tflite is nhwc, but in mlir is nchw
+            axis = 1  # in tflite is nhwc, but in mlir is nchw
 
         concat_param = {
             'axis': axis
@@ -730,24 +847,8 @@ class TFLiteConverter(BaseConverter):
         }
         concat_param.update(int8_quant_info)
 
-        # add rshift op
-        rshift_data = np.full(1, 0)
-        rshift_name = "{}_rshift".format(concat_name)
-        rshift_shape = list(rshift_data.shape)
-        self.addTensor(rshift_name, rshift_data, rshift_shape)
-        rshift_op = self.CVI.add_load_file_op(
-            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
-
-        # add multipiler op
-        multipiler_data = np.full(2, 1)
-        multipiler_name = "{}_multipiler".format(concat_name)
-        multipiler_shape = list(multipiler_data.shape)
-        self.addTensor(multipiler_name, multipiler_data, multipiler_shape)
-        multipiler_op = self.CVI.add_load_file_op(
-            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
-
         output_shape = list()
-        for idx, op_shape in enumerate([input_shape1, input_shape2]):
+        for idx, op_shape in enumerate(input_shapes):
             if idx == 0:
                 # copy rather than referece
                 output_shape = list(op_shape)
@@ -759,10 +860,9 @@ class TFLiteConverter(BaseConverter):
                         if output_shape[dim] != value:
                             raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(
                                 axis, output_shape, op_shape))
-
         assert(tensor_shape[1:] == output_shape[1:])
         concat_op = self.CVI.add_concat_op(
-            concat_name, [op1, op2, rshift_op, multipiler_op], output_shape, **concat_param)
+            concat_name, ops, output_shape, **concat_param)
 
         self.addOperand(node.name, concat_op, output_shape,
                         None)
@@ -987,7 +1087,7 @@ class TFLiteConverter(BaseConverter):
 
         # store with int8 mode
         depthwise_conv_op = self.CVI.add_conv_op(
-            node.name, operands, output_shape, **depthwise_conv_param)
+            depthwise_conv_name, operands, output_shape, **depthwise_conv_param)
 
         self.addOperand(node.name, depthwise_conv_op, output_shape, None)
 
@@ -1011,7 +1111,6 @@ class TFLiteConverter(BaseConverter):
         output_scale = tensor_attr['scale']
         zero_point_y = tensor_attr['zero_point']
         output_offset = zero_point_y
-
 
         # filter
         filter_tensor_idx = node.inputs[1]
@@ -1126,7 +1225,6 @@ class TFLiteConverter(BaseConverter):
         tensor_shape = [tensor_shape[i] for i in [0, 3, 1, 2]]  # nhwc -> nchw
 
         zero_point_y = tensor_attr['zero_point']
-
 
         op_build_info = node.proto.BuiltinOptions()
         pool_table = Pool2DOptions()
@@ -1243,7 +1341,6 @@ class TFLiteConverter(BaseConverter):
         bias_op = self.CVI.add_load_file_op(
             bias_name, list(bias_data.shape), storage="INT32")
         operands.append(bias_op)
-
 
         # add rshift op
         rshift_name = "{}_rshift".format(node.outputs)
@@ -1407,7 +1504,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': False,
             'mode': TPU_MODE.INT8,
             'param_type': "NONE",
-            'threshold_max': 0,
+            'threshold_max': threshold_y,
             'threshold_min': 0,
             'zero_point': output_offset
         }
@@ -1420,7 +1517,6 @@ class TFLiteConverter(BaseConverter):
             pad_name, [op], output_shape, **pads_param)
         self.addOperand(node.name, pads_op, output_shape,
                         None)
-
 
     def convert_quant_op(self, node):
         """
@@ -1435,13 +1531,11 @@ class TFLiteConverter(BaseConverter):
         input_offset = -input_attr['zero_point']
         input_type = input_attr['type']
 
-
         output_tensor = self.tflite_graph.Tensors(node.outputs)
         output_attr = self.getTensorAttr(output_tensor)
         output_tensor_name = output_attr['name']
         output_scale = output_attr['scale']
         output_type = output_attr['type']
-
 
         output_shape = input_shape
 
@@ -1455,7 +1549,7 @@ class TFLiteConverter(BaseConverter):
             threshold = 128 * output_attr['scale']
             zero_point = output_attr['zero_point']
             quant_op = self.CVI.add_quant_op(output_tensor_name, [
-                                 op], output_shape, "NONE", "INT8", threshold=threshold, zero_point=zero_point)
+                op], output_shape, "NONE", "INT8", threshold=threshold, zero_point=zero_point)
 
             self.addOperand(node.name, quant_op, output_shape, None)
             return
@@ -1467,7 +1561,7 @@ class TFLiteConverter(BaseConverter):
                 'zero_point': output_offset,
                 'qscale': qscale,
             }
-            op = self.CVI.add_requant_op(node.name , [
+            op = self.CVI.add_requant_op(output_tensor_name, [
                 op], output_shape, **attr)
             self.addOperand(node.name, op, output_shape, None)
             return
@@ -1526,7 +1620,8 @@ class TFLiteConverter(BaseConverter):
                         total_tensor_size, tmp_size))
                 output_shape[remain_dim] = int(remain_size)
 
-        reshape_op = self.CVI.add_reshape_op(reshape_name, operands, output_shape)
+        reshape_op = self.CVI.add_reshape_op(
+            reshape_name, operands, output_shape)
         self.addOperand(node.name, reshape_op,
                         output_shape, None)
 
@@ -1553,7 +1648,6 @@ class TFLiteConverter(BaseConverter):
         _, resizeding_data = self.get_tensor_shape_and_data(
             resizeding_attr_tensor_idx, data_type=np.int32)
 
-
         ic = input_shape[1]
         ih = input_shape[2]
         iw = input_shape[3]
@@ -1563,7 +1657,6 @@ class TFLiteConverter(BaseConverter):
         ow = int(resizeding_data[1])
         group = ic
         output_shape = [int(on), int(oc), int(oh), int(ow)]
-
 
         # deconv weight all one
         weight_shape = [group, int(
@@ -1592,7 +1685,6 @@ class TFLiteConverter(BaseConverter):
                        multipiler_data)
         mutlipiler_op = self.CVI.add_load_file_op(
             multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
-
 
         # use deconv
         deconv_param = {
@@ -1640,7 +1732,6 @@ class TFLiteConverter(BaseConverter):
         # first input is activate
         assert(len(node.inputs) == 1)
         op, shape, _ = self.getOperand(str(node.inputs[0]))
-
 
         # dequant before do softmax
         input_tensor = self.tflite_graph.Tensors(node.inputs[0])
