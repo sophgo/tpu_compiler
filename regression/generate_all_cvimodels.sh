@@ -4,6 +4,9 @@ set -e
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+WORKING_PATH=${WORKING_PATH:-$DIR}
+mkdir -p $WORKING_PATH/cvimodel_release
+
 all_net_list=()
 
 if [ -z $model_list_file ]; then
@@ -15,14 +18,11 @@ do
   all_net_list+=($net)
 done < ${model_list_file}
 
-if [ ! -e cvimodel_release ]; then
-  mkdir cvimodel_release
-fi
 
 err=0
-pushd cvimodel_release
+pushd $WORKING_PATH/cvimodel_release
 rm -rf working
-mkdir working
+mkdir -p working
 
 for net in ${all_net_list[@]}
 do

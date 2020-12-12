@@ -4,13 +4,10 @@ set -e
 NET=$1
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-if [ -z "$CVIMODEL_REL_PATH" ]; then
-  CVIMODEL_REL_PATH=$PWD/cvimodel_regression
-fi
-export CVIMODEL_REL_PATH=$CVIMODEL_REL_PATH
-if [ ! -e $CVIMODEL_REL_PATH ]; then
-  mkdir $CVIMODEL_REL_PATH
-fi
+export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
+export CVIMODEL_REL_PATH=${CVIMODEL_REL_PATH:-$SCRIPT_DIR/regression_out/cvimodel_regression}
+echo "WORKING_PATH: ${WORKING_PATH}"
+echo "CVIMODEL_REL_PATH: ${CVIMODEL_REL_PATH}"
 
 if [ -z "$2" ]; then
   DO_BATCHSIZE=1
@@ -23,11 +20,8 @@ export DO_BATCHSIZE=$DO_BATCHSIZE
 export NET=$NET
 source $DIR/generic_models.sh
 
-WORKDIR=${NET}_bs${DO_BATCHSIZE}
-
-if [ ! -e $WORKDIR ]; then
-  mkdir $WORKDIR
-fi
+WORKDIR=${WORKING_PATH}/${NET}_bs${DO_BATCHSIZE}
+mkdir -p $WORKDIR
 pushd $WORKDIR
 
 # run tests

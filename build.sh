@@ -3,9 +3,11 @@ set -e
 
 PROJECT_ROOT="$( cd "$(dirname "$0")" ; pwd -P )"
 
-INSTALL_PATH=${INSTALL_PATH:-$PROJECT_ROOT/install}
-BUILD_PATH=${BUILD_PATH:-$PROJECT_ROOT/build}
-TPU_PYTHON_PATH=$INSTALL_PATH/tpuc/python
+if [[ -z "$INSTALL_PATH" ]]; then
+  echo "Please source envsetup.sh firstly."
+  exit 1
+fi
+
 
 BUILD_TYPE="RELEASE"
 if [ "$BUILD_TYPE" == "RELEASE" ]; then
@@ -14,6 +16,8 @@ else
   BUILD_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
   BUILD_PATH=${BUILD_PATH}_debug
 fi
+
+TPU_PYTHON_PATH=$INSTALL_PATH/tpuc/python
 
 echo "BUILD_PATH: $BUILD_PATH"
 echo "INSTALL_PATH: $INSTALL_PATH"

@@ -4,6 +4,11 @@
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
+export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
+export CVIMODEL_REL_PATH=${CVIMODEL_REL_PATH:-$SCRIPT_DIR/regression_out/cvimodel_regression}
+echo "WORKING_PATH: ${WORKING_PATH}"
+echo "CVIMODEL_REL_PATH: ${CVIMODEL_REL_PATH}"
+
 run_generic()
 {
   local net=$1
@@ -205,14 +210,8 @@ if [ -z "$RUN_IN_PARALLEL" ]; then
 fi
 
 # run regression for all
-if [ ! -e regression_out ]; then
-  mkdir regression_out
-fi
-
-export CVIMODEL_REL_PATH=$PWD/regression_out/cvimodel_regression
-if [ ! -e $CVIMODEL_REL_PATH ]; then
-  mkdir $CVIMODEL_REL_PATH
-fi
+mkdir -p $WORKING_PATH
+mkdir -p $CVIMODEL_REL_PATH
 
 net_list_generic=()
 net_list_batch=()
@@ -262,14 +261,10 @@ done < ${model_list_file}
 # printf '%s\n' "${net_list_batch_extra[@]}"
 # printf '%s\n' "${net_list_accuracy_extra[@]}"
 
-pushd regression_out
+pushd $WORKING_PATH
 echo "" > verdict.log
 # run specified network and exit
 if [ ! -z "$network" ]; then
-  export CVIMODEL_REL_PATH=$PWD/cvimodel_regression
-  if [ ! -e $CVIMODEL_REL_PATH ]; then
-    mkdir $CVIMODEL_REL_PATH
-  fi
   run_generic $network $bs
   ERR=$?
   if [ $ERR -eq 0 ]; then
