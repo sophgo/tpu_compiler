@@ -193,6 +193,11 @@ def DoEltwiseEarlyStride : FunctionPass<"eltwise-early-stride"> {
   let constructor = "mlir::createRefactorEltAndConvPass()";
 }
 
+def DoGenPseudoWeightNpz : FunctionPass<"gen-pseudo-weight-npz"> {
+  let summary = "Generic fake weight npz file if only have mlir file";
+  let constructor = "mlir::createGenPseudoWeightNpzPass()";
+}
+
 def TpucCanonicalizer : Pass<"canonicalize"> {
   let summary = "Canonicalize operations";
   let description = [{
