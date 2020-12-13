@@ -83,9 +83,14 @@ def DoFuseReshape : FunctionPass<"fuse-reshape"> {
   let constructor = "mlir::createFuseReshapePass()";
 }
 
-def DoConvertSwishToReLU : FunctionPass<"convert-swish-to-relu"> {
+def DoConvertSwishToRelu : FunctionPass<"convert-swish-to-relu"> {
   let summary = "Convert Swish Activation to Relu";
-  let constructor = "mlir::createConvertSwishToReLUPass()";
+  let constructor = "mlir::createConvertSwishToReluPass()";
+}
+
+def DoConvertClipToRelu6 : FunctionPass<"convert-clip-to-relu6"> {
+  let summary = "Convert clip to relu6";
+  let constructor = "mlir::createConvertClipToRelu6Pass()";
 }
 
 def DoTpuLower : FunctionPass<"tpu-lower"> {

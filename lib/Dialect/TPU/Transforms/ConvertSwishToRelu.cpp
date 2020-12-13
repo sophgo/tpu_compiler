@@ -37,8 +37,8 @@ using namespace mlir;
 
 namespace {
 
-struct TpuConvertSwishToReLUPattern : public RewritePattern {
-  TpuConvertSwishToReLUPattern(MLIRContext *context)
+struct TpuConvertSwishToReluPattern : public RewritePattern {
+  TpuConvertSwishToReluPattern(MLIRContext *context)
       : RewritePattern("tpu.eltwise_mul", 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
@@ -82,9 +82,9 @@ struct TpuConvertSwishToReLUPattern : public RewritePattern {
   }
 };
 
-class ConvertSwishToReLUPass : public mlir::PassWrapper<ConvertSwishToReLUPass, FunctionPass> {
+class ConvertSwishToReluPass : public mlir::PassWrapper<ConvertSwishToReluPass, FunctionPass> {
 public:
-  explicit ConvertSwishToReLUPass(llvm::raw_ostream &os = llvm::errs())
+  explicit ConvertSwishToReluPass(llvm::raw_ostream &os = llvm::errs())
       : os(os) {}
 
   void runOnFunction() override {
@@ -92,7 +92,7 @@ public:
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuConvertSwishToReLUPattern>(context);
+    patterns.insert<TpuConvertSwishToReluPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
@@ -102,7 +102,7 @@ private:
 
 } // namespace
 
-std::unique_ptr<mlir::Pass> mlir::createConvertSwishToReLUPass() {
-  return std::make_unique<ConvertSwishToReLUPass>();
+std::unique_ptr<mlir::Pass> mlir::createConvertSwishToReluPass() {
+  return std::make_unique<ConvertSwishToReluPass>();
 }
 

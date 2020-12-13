@@ -37,8 +37,8 @@ using namespace mlir;
 
 namespace {
 
-struct TpuClipAsRelu6Pattern : public RewritePattern {
-  TpuClipAsRelu6Pattern(MLIRContext *context)
+struct TpuConvertClipToRelu6Pattern : public RewritePattern {
+  TpuConvertClipToRelu6Pattern(MLIRContext *context)
       : RewritePattern("tpu.clip", 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
@@ -100,16 +100,16 @@ struct TpuClipAsRelu6Pattern : public RewritePattern {
   }
 };
 
-class ClipAsRelu6Pass : public mlir::PassWrapper<ClipAsRelu6Pass, FunctionPass> {
+class ConvertClipToRelu6Pass : public mlir::PassWrapper<ConvertClipToRelu6Pass, FunctionPass> {
 public:
-  explicit ClipAsRelu6Pass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
+  explicit ConvertClipToRelu6Pass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   void runOnFunction() override {
     auto fn = getFunction();
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
-    patterns.insert<TpuClipAsRelu6Pattern>(context);
+    patterns.insert<TpuConvertClipToRelu6Pattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
@@ -120,6 +120,6 @@ private:
 
 } // namespace
 
-std::unique_ptr<mlir::Pass> mlir::createClipAsRelu6Pass() {
-  return std::make_unique<ClipAsRelu6Pass>();
+std::unique_ptr<mlir::Pass> mlir::createConvertClipToRelu6Pass() {
+  return std::make_unique<ConvertClipToRelu6Pass>();
 }
