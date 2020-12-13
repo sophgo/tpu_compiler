@@ -733,8 +733,8 @@ struct Conv_ARGS {
   bool do_chl_quan;
   uint32_t layer_id;
   bool do_ic_alignment;
-  bool store_compr_act;
-  bool load_compr_act;
+  int store_compr_act;
+  int load_compr_act;
   bool compr_wgt;
   bool fused_conv_relu;
   bool do_leaky_relu;
@@ -891,6 +891,8 @@ public:
       uint32_t cmdQueueIndex, uint32_t icPos = 0);
   void loadInput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
       uint32_t cmdQueueIndex, uint32_t ic_pos = 0);
+  void loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
+      std::vector<uint32_t> gmInputPoss, cvk_tl_t *tl_dst, cvk_tg_t *tg_src);
   void computeConv(
       cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
       cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
@@ -903,6 +905,8 @@ public:
   void compute(std::vector<uint32_t> gmOutputPoss,
       std::vector<uint32_t> lmIndexes, uint32_t cmdQueueIndex,
       uint32_t icPos = 0);
+  void storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
+      cvk_tg_t *dst, cvk_tl_t *src);
   void storeOutput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
       uint32_t cmdQueueIndex);
 
@@ -911,7 +915,9 @@ public:
   bool getBiasAllowed(uint32_t icPos);
   bool getRshiftAllowed(uint32_t icPos);
 
-  uint8_t getCmdPreExeMode(uint32_t cmdQueueIndex, uint32_t icPos);
+  uint8_t getTdmaLoadWeightIntraCmdParal(uint32_t cmdQueueIndex);
+  uint8_t getTdmaStoreOutputIntraCmdParal(uint32_t cmdQueueIndex);
+  uint8_t getTiuCmdPreExeMode(uint32_t cmdQueueIndex, uint32_t icPos);
 
   bool isDwConv();
   bool isConvPs32();

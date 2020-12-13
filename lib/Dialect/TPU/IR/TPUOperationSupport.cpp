@@ -821,6 +821,18 @@ int64_t getTotalCompressedActivationSize(Operation *op) {
     if (tpuOp.compr_act_param().hasValue()) {
       return tpuOp.compr_act_param().getValue().total_size().getInt();
     }
+  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(op)) {
+    if (tpuOp.store_compr_act_param().hasValue()) {
+      return tpuOp.store_compr_act_param().getValue().total_size().getInt();
+    }
+  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+    if (tpuOp.store_compr_act_param().hasValue()) {
+      return tpuOp.store_compr_act_param().getValue().total_size().getInt();
+    }
+  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(op)) {
+    if (tpuOp.store_compr_act_param().hasValue()) {
+      return tpuOp.store_compr_act_param().getValue().total_size().getInt();
+    }
   }
 
   return 0;

@@ -83,7 +83,8 @@ void cvi_backend_tl_store_compressed(
     int Local_N, int Local_C, int Local_H, int Local_W,
     int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
-    cvk_fmt_t from, cvk_fmt_t to, int h_step, int step_size);
+    cvk_fmt_t from, cvk_fmt_t to, int h_step, int step_size,
+    bool DoIntraCmdParal = false);
 
 void cvi_backend_tl_copy(
     const CviBackendContext &ctx, uint32_t layer_id,

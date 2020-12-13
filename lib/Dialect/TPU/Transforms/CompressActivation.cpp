@@ -40,86 +40,23 @@ using namespace mlir;
 
 namespace {
 
-template <typename OpTy>
-uint64_t calcConv2DMemoryUsage(OpTy &op) {
-  bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
-      pad_value;
-  bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
-  parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(), n,
-                 ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh,
-                 dw, is_dw, with_bias, do_relu, pad_value);
-  uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(n, ic, ih, iw, true);
-  uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
-  uint64_t filterSizePerLane = 0;
-  // filter working size *2 for double buffer
-  if (g != oc) {
-    if(g != 1) { // TODO, not support group convolution now.
-      return MInfo::lmem_per_lane + 1;
-    }
-    filterSizePerLane = MInfo::getSizePerLane(ic, oc, kh, kw, false) ;
-  }
-
-  // load bias all in once
-  int bias_size = with_bias ? 9 : 5;
-  uint64_t biasSizePerLane = MInfo::getSizePerLane(1, oc, 1, bias_size, false);
-
-  // total
-  uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane +
-                          filterSizePerLane + biasSizePerLane;
-
-  return totalPerLane;
-}
-
-bool canStoreCompressedActivation(Operation *op) {
-  bool storeCompressed= false;
-
-  // Check if all user operation does not need to do tiling.
-  // Only support conv->conv now.
-  for (auto &use : op->getResult(0).getUses()) {
-    uint64_t totalPerLane = MInfo::lmem_per_lane + 1;
-    auto useOp = use.getOwner();
-    if (auto useTpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
-      totalPerLane =
-          calcConv2DMemoryUsage<tpu::TG_INT8_PC_Conv2DOp>(useTpuOp);
-    } else {
-      storeCompressed = false;
-      break;
-    }
-
-    if (totalPerLane <= MInfo::lmem_per_lane)
-      storeCompressed = true;
-    else {
-      storeCompressed = false;
-      break;
-    }
-  }
-
-  return storeCompressed;
-}
-
-bool canLoadCompressedActivation(Operation *op) {
-
-  // Check if input operation store compressed activation.
-  // Only support conv->conv now.
-  for (auto operand : op->getOperands()) {
-    auto operandOp = operand.getDefiningOp();
-    if (auto operandTpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(operandOp)) {
-      if (operandTpuOp.store_compr_act().hasValue())
-        return true;
-    }
-  }
-
-  return false;
-}
-
-template <typename OpTy>
-class StoreCompressedConvActPattern
+// Support:
+//   tg conv -> tg conv
+//
+// TODO:
+//   multi-batch
+///  group conv
+//   dw-conv
+//   tg_conv -> tg_conv/tg_elt_add (multiple users) via template variadic
+//   tg_conv -> load_neuron
+//   tg_conv -> tl_lw_conv
+template <typename OpTy, typename NextOpTy>
+class TgConvCompressedActPattern
     : public OpRewritePattern<OpTy> {
 public:
   using OpRewritePattern<OpTy>::OpRewritePattern;
 
-  StoreCompressedConvActPattern(MLIRContext *ctx)
+  TgConvCompressedActPattern(MLIRContext *ctx)
       : OpRewritePattern<OpTy>(ctx) {}
 
   LogicalResult matchAndRewrite(OpTy convOp,
@@ -128,56 +65,104 @@ public:
     if (convOp.store_compr_act().hasValue())
       return failure();
 
-    uint64_t totalPerLane = calcConv2DMemoryUsage<OpTy>(convOp);
-    if (totalPerLane > MInfo::lmem_per_lane)
+    // tg dw-conv not integrated with tg conv
+    if (convOp.param().is_dw().getValue())
       return failure();
 
-    // A operation needs to generate the compressed activation first then
-    // the user operation has to load the compressed activation.
-    auto op = convOp.getOperation();
-    if (!canStoreCompressedActivation(op))
+    // Not support group conv
+    if (convOp.param().group().getInt() > 1)
       return failure();
+
+    if (!convOp.tile_param().hasValue())
+      return failure();
+
+    auto op = convOp.getOperation();
+    std::vector<int64_t> outputShapes = getTensorShape(op->getResult(0));
+    int batch = outputShapes[0];
+    int outputChannel = outputShapes[1];
+    int outputHeight = outputShapes[2];
+    int outputWidth = outputShapes[3];
+    int cmprNStep = 1;
+    int cmprOcStep = MInfo::lane_num;
+    int cmprOhStep = 1;
+    int isBf16 = isBf16Tensor(op->getResult(0)) ? 1 : 0;
+    int64_t stepSize = 0, totalSize = 0;
+    getTiledCompressedSize(batch, outputChannel, outputHeight, outputWidth,
+                           cmprNStep, cmprOcStep, cmprOhStep,
+                           isBf16, stepSize, totalSize);
+
+    if (getOpLayerId(op) == 167) {
+      LLVM_DEBUG(llvm::dbgs()
+          << "StoreTgConvCmprAct: layer ID " << getOpLayerId(op)
+          << "" << getOpName(op)
+          << ", (" << batch << ", " << outputChannel 
+          << ", " << outputHeight << ", " << outputWidth << "), "
+          << ", stepSize " << stepSize << "\n");
+
+      getTiledCompressedSize(batch, outputChannel, outputHeight, outputWidth,
+                            cmprNStep, cmprOcStep, cmprOhStep,
+                            isBf16, stepSize, totalSize);
+
+    }
+
+    // Too trivial
+    if (outputHeight == 1 || outputChannel < (int)MInfo::lane_num)
+      return failure();
+
+    // Cannot compress if tiling in width
+    if (convOp.tile_param().getValue().oh_step().getInt() < outputWidth)
+      return failure();
+
+    // Not support multi-batch
+    if (batch > 1)
+      return failure();
+
+    // tg_conv -> tg_conv, exclude dw-conv, group conv
+    for (auto &use : op->getResult(0).getUses()) {
+      auto useOp = use.getOwner();
+      if (auto nextConvOp = llvm::dyn_cast<NextOpTy>(useOp)) {
+        if (nextConvOp.param().is_dw().getValue())
+        return failure();
+        if (nextConvOp.param().group().getInt() > 1)
+          return failure();
+      } else
+        return failure();
+    }
 
     convOp.setAttr("store_compr_act",
                    Builder(op->getContext()).getBoolAttr(true));
+    convOp.setAttr("store_compr_act_param",
+        tpu::ActCmprParam::get(
+            Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
+            Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
+            Builder(op->getContext()).getI32IntegerAttr(cmprOhStep),
+            Builder(op->getContext()).getI64IntegerAttr(stepSize),
+            Builder(op->getContext()).getI64IntegerAttr(totalSize),
+            rewriter.getContext()));
 
-    LLVM_DEBUG(llvm::dbgs()
-               << "StoreCompressedConvActPattern: op "
-               << convOp.name()
-               << ", layer ID " << getOpLayerId(op)
-               << ", store compressed activation\n");
+    for (auto &use : op->getResult(0).getUses()) {
+      auto useOp = use.getOwner();
+      auto nextConvOp = llvm::dyn_cast<NextOpTy>(useOp);
 
-    return success();
-  }
-};
+      LLVM_DEBUG(llvm::dbgs()
+          << "StoreTgConvCmprAct: layer ID " << getOpLayerId(op)
+          << "" << getOpName(op)
+          << ", " << op->getName() << ", store compressed, next op "
+          << getOpName(nextConvOp.getOperation())
+          << ", " << nextConvOp.getOperation()->getName()
+          << ", load compressed\n");
 
-template <typename OpTy>
-class LoadCompressedConvActivationPattern
-    : public OpRewritePattern<OpTy> {
-public:
-  using OpRewritePattern<OpTy>::OpRewritePattern;
-
-  LoadCompressedConvActivationPattern(MLIRContext *ctx)
-      : OpRewritePattern<OpTy>(ctx) {}
-
-  LogicalResult matchAndRewrite(OpTy convOp,
-                                     PatternRewriter &rewriter) const override {
-    // Already marked.
-    if (convOp.load_compr_act().hasValue())
-      return failure();
-
-    auto op = convOp.getOperation();
-    if (!canLoadCompressedActivation(op))
-      return failure();
-
-    convOp.setAttr("load_compr_act",
-                   Builder(op->getContext()).getBoolAttr(true));
-
-    LLVM_DEBUG(llvm::dbgs()
-               << "LoadCompressedConvActivationPattern: op "
-               << convOp.name()
-               << ", layer ID " << getOpLayerId(op)
-               << ", load compressed activation\n");
+      nextConvOp.setAttr("load_compr_act",
+                         Builder(op->getContext()).getBoolAttr(true));
+      nextConvOp.setAttr("load_compr_act_param",
+          tpu::ActCmprParam::get(
+              Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
+              Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
+              Builder(op->getContext()).getI32IntegerAttr(cmprOhStep),
+              Builder(op->getContext()).getI64IntegerAttr(stepSize),
+              Builder(op->getContext()).getI64IntegerAttr(totalSize),
+              rewriter.getContext()));
+    }
 
     return success();
   }
@@ -194,6 +179,9 @@ public:
 
   LogicalResult matchAndRewrite(OpTy tpuOp,
                                      PatternRewriter &rewriter) const override {
+
+    if (!tpuOp.tl_store_flag())
+      return failure();
 
     Operation *op = tpuOp.getOperation();
 
@@ -212,6 +200,7 @@ public:
         << ", " << outputShapes[3] << ")\n  "
         << "operand " << getOpName(op->getOperand(0).getDefiningOp())
         << ", " << op->getOperand(0).getDefiningOp()->getName()
+        << ", tl_store_flag " << tpuOp.tl_store_flag()
         << "\n");
 
     for (auto &use : op->getResult(0).getUses()) {
@@ -231,47 +220,6 @@ public:
           << ", " << outputShapes[2]
           << ", " << outputShapes[3]
           << ")\n");
-
-      for (auto *operand : useOp->getOperands()) {
-        std::vector<int64_t> inputShapes = getTensorShape(operand.getDefiningOp()->getOperand(0));
-        std::vector<int64_t> outputShapes = getTensorShape(operand.getDefiningOp()->getResult(0));
-        LLVM_DEBUG(llvm::dbgs()
-            << "    operand " << operand.getDefiningOp()->getName()
-            << ", operand[0](" << inputShapes[0]
-            << ", " << inputShapes[1]
-            << ", " << inputShapes[2]
-            << ", " << inputShapes[3]
-            << ") -> (" << outputShapes[0]
-            << ", " << outputShapes[1]
-            << ", " << outputShapes[2]
-            << ", " << outputShapes[3]
-            << ")\n");
-      }
-
-      for (auto &nextUse : useOp->getResult(0).getUses()) {
-        auto nextUseOp = nextUse.getOwner();
-        std::vector<int64_t> outputShapes = getTensorShape(nextUseOp->getResult(0));
-
-        LLVM_DEBUG(llvm::dbgs()
-            << "    nextUserOp " << getOpName(nextUseOp)
-            << ", " << nextUseOp->getName()
-            << ", -> (" << outputShapes[0]
-            << ", " << outputShapes[1]
-            << ", " << outputShapes[2]
-            << ", " << outputShapes[3]
-            << ")\n");
-
-        for (auto nextUseOpOperand : nextUseOp->getOperands()) {
-          std::vector<int64_t> inputShapes = getTensorShape(nextUseOpOperand);
-          LLVM_DEBUG(llvm::dbgs()
-              << "      operand " << nextUseOpOperand.getDefiningOp()->getName()
-              << ", (" << inputShapes[0]
-              << ", " << inputShapes[1]
-              << ", " << inputShapes[2]
-              << ", " << inputShapes[3]
-              << ")\n");
-        }
-      }
     }
 
     return failure();
@@ -642,15 +590,9 @@ void CompressActivationPass::runOnFunction() {
 
   // Determine whether the operation can store compressed activation.
   patterns.insert<
-      StoreCompressedConvActPattern<tpu::TG_INT8_PC_Conv2DOp>
-      >(&getContext());
-  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
-
-  // Determine whether the operation can load compressed activation.
-  patterns.clear();
-
-  patterns.insert<
-      LoadCompressedConvActivationPattern<tpu::TG_INT8_PC_Conv2DOp>
+      TgConvCompressedActPattern<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_INT8_PT_Conv2DOp>,
+      TgConvCompressedActPattern<tpu::TG_INT8_PC_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp>,
+      TgConvCompressedActPattern<tpu::TG_BF16_Conv2DOp, tpu::TG_BF16_Conv2DOp>
       >(&getContext());
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
@@ -661,6 +603,12 @@ void CompressActivationPass::runOnFunction() {
   patterns.insert<
       TlLgJointCompressedActPattern
       >(&getContext(), mInfo);
+  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+
+  patterns.clear();
+  patterns.insert<
+      StoreTlCompressedActPattern<tpu::TL_LW_Conv2DOp>
+      >(&getContext());
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 }
 

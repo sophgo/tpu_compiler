@@ -881,9 +881,7 @@ void Conv::loadWeight(std::vector<uint32_t> gmOutputPoss,
       tl_allocated_weight->fmt, tl_allocated_weight->eu_align);
   tl_load_weight.start_address = tl_allocated_weight->start_address;
 
-  uint8_t intraCmdParal = 0;
-  if (ctx.has_cmd_pre_exe() && cmdQueueIndex < cmdQueue.size())
-    intraCmdParal = cmdQueue[cmdQueueIndex]->isIntraCmdParalEnabled() ? 1 : 0;
+  uint8_t intraCmdParal = getTdmaLoadWeightIntraCmdParal(cmdQueueIndex);
 
   LLVM_DEBUG(llvm::errs()
       << "  [ig=" << ig_pos << "][oc_pos=" << oc_pos << "] tdma_load_stride:\n"
@@ -1091,6 +1089,154 @@ void Conv::adjustComputeForPadOnlyInput(cvk_tl_t *lmInput,
   cur_gm_input_paddings[1] = 0;
 }
 
+uint32_t getCompressedGmOffset(int n, int c, int h, int w,
+                               int n_pos, int c_pos, int h_pos,
+                               int c_step, int step_size) {
+  uint32_t cmpr_n_offset = n_pos * llvm::divideCeil(c, c_step) * h * step_size;
+  uint32_t cmpr_c_offset = (c_pos / c_step) * h * step_size;
+  uint32_t cmpr_h_offset = h_pos * step_size;
+
+  return cmpr_n_offset + cmpr_c_offset + cmpr_h_offset;
+}
+
+static uint32_t addr_after_right_shift(
+    const CviBackendContext &ctx, int addr, uint32_t step, int c_str)
+{
+  uint32_t lmem_i = (addr / LOCAL_MEM_SIZE + step) % NPU_NUM;
+  uint32_t offset = addr % LOCAL_MEM_SIZE + (lmem_i + step) / NPU_NUM * c_str;
+  return lmem_i * LOCAL_MEM_SIZE + offset;
+}
+
+static uint32_t tl_cmpr_c_stride(
+    const CviBackendContext &ctx, int n, int c, int h, int w, cvk_fmt_t fmt) {
+  // (1, ic, ih, iw) -> (1, NPU, 1, iw) ...
+  // Right shift NPU, same as next batch so eu_align = 1
+  cvk_tl_shape_t tl_block_cmpr_shape = ctx.tl_shape_t4(n, c, h, w);
+  cvk_tl_stride_t tl_block_cmpr_stride =
+      ctx.tl_default_stride(tl_block_cmpr_shape, fmt, /*eu_align=*/1);
+
+  return tl_block_cmpr_stride.c;
+}
+
+void Conv::loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
+    std::vector<uint32_t> gmInputPoss, cvk_tl_t *tl_dst, cvk_tg_t *tg_src) {
+  uint32_t channel = tl_dst->shape.c;
+  uint32_t height = tl_dst->shape.h;
+  uint32_t width = tl_dst->shape.w;
+  uint32_t cmpr_h_step = 1;
+  cvk_fmt_t fmt = tl_dst->fmt;
+
+  uint32_t org_len = tl_dst->shape.n * tl_dst->shape.c * tl_dst->shape.h * tl_dst->shape.w;
+  uint32_t org_last_addr = tl_dst->start_address + org_len;
+  uint32_t cmpr_len = 0;
+
+  LLVM_DEBUG(llvm::dbgs()
+      << "\n  TDMA G2L decompressed\n"
+      << "    src " << llvm::format_hex(tg_src->start_address, 10)
+      << ", shape (" << tg_src->shape.n
+      << ", " << tg_src->shape.c
+      << ", " << tg_src->shape.h
+      << ", " << tg_src->shape.w << ")\n"
+      << "    dst " << llvm::format_hex(tl_dst->start_address, 10)
+      << ", shape (" << tl_dst->shape.n
+      << ", " << tl_dst->shape.c
+      << ", " << tl_dst->shape.h
+      << ", " << tl_dst->shape.w
+      << "), stride (" << tl_dst->stride.n
+      << ", " << tl_dst->stride.c
+      << ", " << tl_dst->stride.h
+      << ", " << tl_dst->stride.w << ")\n");
+
+  uint32_t tl_cmpr_block_c_stride =
+      tl_cmpr_c_stride(ctx, 1, NPU_NUM, height, width, fmt);
+  uint32_t tl_dst_addr = tl_dst->start_address;
+  for (uint32_t i = 0; i < channel; i+=NPU_NUM) {
+    uint32_t la_cmpr_start = addr_after_right_shift(ctx, tl_dst_addr, i,
+                                                    tl_cmpr_block_c_stride);
+
+    for (uint32_t j = 0; j < height; j+=cmpr_h_step) {
+      uint32_t cur_h = std::min(cmpr_h_step, height - j);
+
+      // (1, NPU_NUM, 1, w) ... (1, NPU_NUM, 1, w).
+      cvk_tg_shape_t tg_tiled_shape = ctx.tg_shape_t4(1, NPU_NUM, cur_h, width);
+
+      // Output HxW is contigious in each lane, eu_align = 0
+      cvk_tl_shape_t tl_tiled_shape = ctx.tl_shape_t4(1, NPU_NUM, cur_h, width);
+      cvk_tl_stride_t tl_stride =
+          ctx.tl_default_stride(tl_tiled_shape, tl_dst->fmt, /*eu_align=*/0);
+
+      cvk_tl_t tl_tiled_dst;
+      ctx.lmem_init_tensor(&tl_tiled_dst, tl_tiled_shape, tl_dst->fmt,
+                            tl_dst->eu_align);
+      tl_tiled_dst.start_address = la_cmpr_start + j * tl_stride.h;
+
+      uint32_t cmpr_offset = getCompressedGmOffset(
+          args.input_n, args.input_c, args.input_h, args.input_w,
+          gmInputPoss[NGCHW::N], gmInputPoss[NGCHW::C] + i,
+          gmInputPoss[NGCHW::H] + (j / cmpr_h_step),
+          NPU_NUM, args.load_compr_act);
+
+      cvk_cmpr_tg_t tg_cmpr_src = {0};
+      ctx.gmem_init_tensor(&tg_cmpr_src.t, tg_tiled_shape, tg_src->fmt);
+      tg_cmpr_src.t.base_reg_index = tg_src->base_reg_index;
+      tg_cmpr_src.t.start_address =
+          gmInputDesc->getAddress() + cmpr_offset;
+
+      cvk_tdma_g2l_tensor_copy_decompressed_param_t param = {0};
+      param.src = &tg_cmpr_src;
+      param.dst = &tl_tiled_dst;
+
+      LLVM_DEBUG(llvm::dbgs()
+          << "  [ig=" << gmOutputPoss[NGCHW::G]
+          << "][oc_pos=" << gmOutputPoss[NGCHW::C]
+          << "][n_pos=" << gmOutputPoss[NGCHW::N]
+          << "][oh_pos=" << gmOutputPoss[NGCHW::H]
+          << "][ow_pos=" << gmOutputPoss[NGCHW::W]
+          << "][n_pos=" << gmInputPoss[NGCHW::N]
+          << "][ic_pos=" << gmInputPoss[NGCHW::C]
+          << "][ih_pos=" << gmInputPoss[NGCHW::H]
+          << "][c_offset=" << i << "][h_offset=" << j << "]\n      "
+          << "src " << llvm::format_hex(param.src->t.start_address, 10)
+          << "(" << llvm::format_hex(gmInputDesc->getAddress(), 10)
+          << " + " << llvm::format_hex(cmpr_offset, 10)
+          << "), shape (" << param.src->t.shape.n
+          << ", " << param.src->t.shape.c
+          << ", " << param.src->t.shape.h
+          << ", " << param.src->t.shape.w << ")\n      "
+          << "dst " << llvm::format_hex(param.dst->start_address, 10)
+          << "(offset=" << llvm::format_hex(la_cmpr_start, 10) 
+          << "+" << llvm::format_hex(j * tl_stride.h, 10)
+          << "), shape (" << param.dst->shape.n
+          << ", " << param.dst->shape.c
+          << ", " << param.dst->shape.h
+          << ", " << param.dst->shape.w
+          << ", stride (" << param.dst->stride.n
+          << ", " << param.dst->stride.c
+          << ", " << param.dst->stride.h
+          << ", " << param.dst->stride.w << ")\n");
+
+
+      uint32_t tiled_size = tl_tiled_dst.shape.n * tl_tiled_dst.shape.c * tl_tiled_dst.shape.h * tl_tiled_dst.shape.w;
+      cmpr_len += tiled_size;
+      if (cmpr_len > org_len) {
+        LLVM_DEBUG(llvm::dbgs()
+            << "    cmpr_len " << cmpr_len << ", org_len " << org_len << "\n");
+        assert(cmpr_len <= org_len);
+      }
+
+      uint32_t cmpr_last_addr = tl_tiled_dst.start_address + tl_tiled_dst.shape.n * tl_tiled_dst.stride.n;
+      if (cmpr_last_addr > org_last_addr) {
+        LLVM_DEBUG(llvm::dbgs()
+            << "    cmpr_last_addr " << cmpr_last_addr
+            << ", org_last_addr " << org_last_addr << "\n");
+        assert(cmpr_last_addr <= org_last_addr);
+      }
+
+      ctx.tdma_g2l_tensor_copy_decompressed(&param);
+    }
+  }
+}
+
 // Input shape (tiledN, 1, tiledOc, tiledIh, tiledIw)
 //
 // Calculate input shape from output
@@ -1115,52 +1261,21 @@ void Conv::loadInput(std::vector<uint32_t> gmOutputPoss,
       gm_input_strides[NGCHW::N], gm_input_strides[NGCHW::C],
       gm_input_strides[NGCHW::H]};
 
-  if (gmInputDesc->getCompressed()) {
-    // load compressed input
-    assert(ga_input_load == gmInputDesc->getAddress() &&
-           cur_gm_input_shapes[0] == gmInputDesc->getShapes()[0] &&
-           cur_gm_input_shapes[1] == gmInputDesc->getShapes()[1] &&
-           cur_gm_input_shapes[2] == gmInputDesc->getShapes()[2] &&
-           cur_gm_input_shapes[3] == gmInputDesc->getShapes()[3] &&
-           cur_gm_input_shapes[4] == gmInputDesc->getShapes()[4] &&
-           "Expect no tiling for compressed input");
+  cvk_tl_shape_t tl_shape = {
+      cur_gm_input_shapes[NGCHW::N], cur_gm_input_shapes[NGCHW::C],
+      cur_gm_input_shapes[NGCHW::H], cur_gm_input_shapes[NGCHW::W]};
+  cvk_tl_t tl_load;
+  ctx.lmem_init_tensor(&tl_load, tl_shape,
+                       lmInputDescs[lmIndex]->getDataFormat(),
+                       lmInputDescs[lmIndex]->getEuAlign());
+  tl_load.start_address = lmInputDescs[lmIndex]->getAddress();
 
-    cvk_cmpr_tg_t ts_data = {0};
-    ts_data.t.base_reg_index =
-        ctx.getTdmaBaseSelectIndexFromGaddr(gmInputDesc->getAddress());
-    ts_data.t.start_address = ga_input_load;
-    ts_data.t.fmt = gmInputDesc->getDataFormat();
-    ts_data.t.shape = {
-        cur_gm_input_shapes[NGCHW::N], cur_gm_input_shapes[NGCHW::C],
-        cur_gm_input_shapes[NGCHW::H], cur_gm_input_shapes[NGCHW::W]};
-    ts_data.t.stride = cvk_gm_input_stride;
-
-    cvk_tdma_g2l_tensor_copy_decompressed_param_t param = {0};
-    param.src = &ts_data;
-    param.dst = lmInputDescs[lmIndex]->getAllocated();
-
-    if (args.tiu_fmt == CVK_FMT_I8)
-      ctx.tdma_g2l_tensor_copy_decompressed(&param);
-    else {
-      assert(0 && "compressed input only supports i8");
-    }
-  } else {
-    // Load uncompressed input
-    cvk_tl_shape_t tl_shape = {
-        cur_gm_input_shapes[NGCHW::N], cur_gm_input_shapes[NGCHW::C],
-        cur_gm_input_shapes[NGCHW::H], cur_gm_input_shapes[NGCHW::W]};
-    cvk_tl_t tl_load;
-    ctx.lmem_init_tensor(&tl_load, tl_shape,
-                          lmInputDescs[lmIndex]->getDataFormat(),
-                          lmInputDescs[lmIndex]->getEuAlign());
-    tl_load.start_address = lmInputDescs[lmIndex]->getAddress();
-
-    // Input is not altered, use actual shape/stride.
-    if (args.do_ic_alignment) {
-      tl_load.shape.c -= 1;
-      tl_load.stride = ctx.tl_default_stride(tl_load.shape, tl_load.fmt,
-                                              tl_load.eu_align);
-    }
+  // Input is not altered, use actual shape/stride.
+  if (args.do_ic_alignment) {
+    tl_load.shape.c -= 1;
+    tl_load.stride = ctx.tl_default_stride(tl_load.shape, tl_load.fmt,
+                                            tl_load.eu_align);
+  }
 
   LLVM_DEBUG(llvm::dbgs()
       << "\n  [ig=" << gmOutputPoss[NGCHW::G]
@@ -1182,6 +1297,22 @@ void Conv::loadInput(std::vector<uint32_t> gmOutputPoss,
       << ", " << cvk_gm_input_stride.h
       << ")\n\n");
 
+  if (gmInputDesc->getCompressed()) {
+    // load compressed input
+    cvk_tg_t ts_data = {0};
+    ts_data.base_reg_index =
+        ctx.getTdmaBaseSelectIndexFromGaddr(gmInputDesc->getAddress());
+    ts_data.start_address = ga_input_load;
+    ts_data.fmt = gmInputDesc->getDataFormat();
+    ts_data.shape = {
+        cur_gm_input_shapes[NGCHW::N], cur_gm_input_shapes[NGCHW::C],
+        cur_gm_input_shapes[NGCHW::H], cur_gm_input_shapes[NGCHW::W]};
+    ts_data.stride = cvk_gm_input_stride;
+
+    loadPartialCompressedInput(gmOutputPoss, cur_gm_input_poss, &tl_load,
+                               &ts_data);
+  } else {
+    // Load uncompressed input
     if ((args.input_fmt == CVK_FMT_I8) && (args.tiu_fmt == CVK_FMT_I8)) {
       if (tl_load.shape.h)
         ctx.tdma_load_stride(&tl_load, ga_input_load, cvk_gm_input_stride);
@@ -1242,6 +1373,31 @@ bool Conv::getRshiftAllowed(uint32_t icPos) {
   return ((ps32Mode == 0) || (ps32Mode == 1)) ? true : false;
 }
 
+// Disable cmd-pre-exe if compressed output is enabled since compressed output
+// is divided into multiple tdma stores.
+uint8_t Conv::getTdmaLoadWeightIntraCmdParal(uint32_t cmdQueueIndex) {
+  if (gmOutputDesc->getCompressed())
+    return 0;
+
+  uint8_t intraCmdParal = 0;
+  if (ctx.has_cmd_pre_exe() && cmdQueueIndex < cmdQueue.size())
+    intraCmdParal = cmdQueue[cmdQueueIndex]->isIntraCmdParalEnabled() ? 1 : 0;
+
+  return intraCmdParal;
+}
+
+uint8_t Conv::getTdmaStoreOutputIntraCmdParal(uint32_t cmdQueueIndex) {
+  if (gmOutputDesc->getCompressed())
+    return 0;
+
+  uint8_t intraCmdParal = 0;
+  if (ctx.has_cmd_pre_exe() && cmdQueueIndex < cmdQueue.size() &&
+      !args.do_leaky_relu)
+    intraCmdParal = cmdQueue[cmdQueueIndex]->isIntraCmdParalEnabled() ? 1 : 0;
+
+  return intraCmdParal;
+}
+
 // Hardware constraint:
 //   if (des_ps32_md>=2)  {des_cmd_pre_exe <= 1};
 //
@@ -1249,7 +1405,10 @@ bool Conv::getRshiftAllowed(uint32_t icPos) {
 //   Only enable early-store of cmd-pre-exe for no-ps32 mode or final stage of
 //   ps32 mode
 //
-uint8_t Conv::getCmdPreExeMode(uint32_t cmdQueueIndex, uint32_t icPos) {
+uint8_t Conv::getTiuCmdPreExeMode(uint32_t cmdQueueIndex, uint32_t icPos) {
+  if (gmOutputDesc->getCompressed())
+    return 0;
+
   uint8_t cmdPreExeMode = 0;
   if (ctx.has_cmd_pre_exe() && cmdQueueIndex < cmdQueue.size() &&
       cmdQueue[cmdQueueIndex]->isIntraCmdParalEnabled()) {
@@ -1502,7 +1661,7 @@ void Conv::compute(std::vector<uint32_t> gmOutputPoss,
                         lmWeightDescs[lm_weight_index]->getEuAlign());
   tl_weight.start_address = lmWeightDescs[lm_weight_index]->getAddress();
 
-  uint8_t cmdPreExeMode = getCmdPreExeMode(cmdQueueIndex, icPos);
+  uint8_t cmdPreExeMode = getTiuCmdPreExeMode(cmdQueueIndex, icPos);
 
   LLVM_DEBUG(llvm::dbgs()
       << "    compute\n"
@@ -1549,6 +1708,136 @@ void Conv::compute(std::vector<uint32_t> gmOutputPoss,
     computeLeakyRelu(&tl_output);
 }
 
+// TDMA compressed store always split as (N=1, G=1, C=NPU_NUM, H=1, W)
+// Global memory shape: (N, G, c, H, c32, W)
+//
+// output shape       (1, 64, 112, 112)
+// tiled output shape (1, 32,  26, 112)
+//
+// Split one tiled TDMA store (1, 32, 26, 112 ) into
+//  26 x compressed TDMA store (1, 32, 1, 112)
+//
+//  n  g  c  h  w
+//  0  0  0  0  0       | header | compressed (1, 1, c32, 1, w) |
+//  0  0  0  1  0
+//  ...
+//  0  0  0 25  0
+//  --------------------------------------------------------------
+//  0  0 32  0  0
+//  0  0 32  1  0
+// ...
+//  0  0 32 51  0
+//
+void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
+    cvk_tg_t *tg_dst, cvk_tl_t *tl_src) {
+  uint32_t channel = tl_src->shape.c;
+  uint32_t height = tl_src->shape.h;
+  uint32_t width = tl_src->shape.w;
+  uint32_t cmpr_h_step = 1;
+  cvk_fmt_t fmt = tl_src->fmt;
+
+  uint32_t org_len = tl_src->shape.n * tl_src->shape.c * tl_src->shape.h * tl_src->shape.w;
+  uint32_t org_last_addr = tl_src->start_address + org_len;
+  uint32_t cmpr_len = 0;
+
+  assert(channel >= (uint32_t)NPU_NUM && "Expect at least NPU_NUM");
+
+  LLVM_DEBUG(llvm::dbgs()
+      << "\n  TDMA L2G compressed\n"
+      << "    src " << llvm::format_hex(tl_src->start_address, 10)
+      << ", shape (" << tl_src->shape.n
+      << ", " << tl_src->shape.c
+      << ", " << tl_src->shape.h
+      << ", " << tl_src->shape.w << ")\n"
+      << "    dst " << llvm::format_hex(tg_dst->start_address, 10)
+      << ", shape (" << tg_dst->shape.n
+      << ", " << tg_dst->shape.c
+      << ", " << tg_dst->shape.h
+      << ", " << tg_dst->shape.w << ")\n");
+
+  uint32_t tl_cmpr_block_c_stride =
+      tl_cmpr_c_stride(ctx, 1, NPU_NUM, height, width, fmt);
+  uint32_t tl_src_addr = tl_src->start_address;
+  for (uint32_t i = 0; i < channel; i+=NPU_NUM) {
+    uint32_t la_cmpr_start = addr_after_right_shift(ctx, tl_src_addr, i,
+                                                    tl_cmpr_block_c_stride);
+
+    for (uint32_t j = 0; j < height; j+=cmpr_h_step) {
+      uint32_t cur_h = std::min(cmpr_h_step, height - j);
+
+      // (1, NPU_NUM, 1, w) ... (1, NPU_NUM, 1, w).
+      cvk_tg_shape_t tg_tiled_shape = {1, (uint32_t)NPU_NUM, cur_h, width};
+
+      // Output HxW is contigious in each lane, eu_align = 0
+      cvk_tl_shape_t tl_tiled_shape = {1, (uint32_t)NPU_NUM, cur_h, width};
+      cvk_tl_stride_t tl_stride =
+          ctx.tl_default_stride(tl_tiled_shape, tl_src->fmt, /*eu_align=*/0);
+
+      cvk_tl_t tl_tiled_src;
+      ctx.lmem_init_tensor(&tl_tiled_src, tl_tiled_shape, tl_src->fmt,
+                            tl_src->eu_align);
+      tl_tiled_src.start_address = la_cmpr_start + j * tl_stride.h;
+
+      uint32_t cmpr_offset = getCompressedGmOffset(
+          args.input_n, args.output_c, output_height(), output_width(),
+          gmOutputPoss[NGCHW::N], gmOutputPoss[NGCHW::C] + i,
+          gmOutputPoss[NGCHW::H] + (j / cmpr_h_step),
+          NPU_NUM, args.store_compr_act);
+
+      cvk_cmpr_tg_t tg_cmpr_dst = {0};
+      tg_cmpr_dst.bias0 = (gmOutputDesc->getDataFormat() == CVK_FMT_BF16) ? 127 : 0;
+      ctx.gmem_init_tensor(&tg_cmpr_dst.t, tg_tiled_shape, tg_dst->fmt);
+      tg_cmpr_dst.t.base_reg_index = tg_dst->base_reg_index;
+      tg_cmpr_dst.t.start_address = gmOutputDesc->getAddress() + cmpr_offset;
+
+      cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
+      param.src = &tl_tiled_src;
+      param.dst = &tg_cmpr_dst;
+
+      LLVM_DEBUG(llvm::dbgs()
+          << "  [ig=" << gmOutputPoss[NGCHW::G]
+          << "][oc_pos=" << gmOutputPoss[NGCHW::C]
+          << "][n_pos=" << gmOutputPoss[NGCHW::N]
+          << "][oh_pos=" << gmOutputPoss[NGCHW::H]
+          << "][ow_pos=" << gmOutputPoss[NGCHW::W]
+          << "][c_offset=" << i << "][h_offset=" << j << "]\n      "
+          << "src " << llvm::format_hex(param.src->start_address, 10)
+          << "(offset=" << llvm::format_hex(j * tl_stride.h, 10)
+          << "), shape (" << param.src->shape.n
+          << ", " << param.src->shape.c
+          << ", " << param.src->shape.h
+          << ", " << param.src->shape.w << ")\n      "
+          << "dst " << llvm::format_hex(param.dst->t.start_address, 10)
+          << "(" << llvm::format_hex(gmOutputDesc->getAddress(), 10)
+          << " + " << llvm::format_hex(cmpr_offset, 10)
+          << "), shape (" << param.dst->t.shape.n
+          << ", " << param.dst->t.shape.c
+          << ", " << param.dst->t.shape.h
+          << ", " << param.dst->t.shape.w << ")\n");
+
+      uint32_t tiled_size = tl_tiled_src.shape.n * tl_tiled_src.shape.c * tl_tiled_src.shape.h * tl_tiled_src.shape.w;
+      cmpr_len += tiled_size;
+      if (cmpr_len > org_len) {
+        LLVM_DEBUG(llvm::dbgs()
+            << "    cmpr_len " << cmpr_len << ", org_len " << org_len << "\n");
+        assert(cmpr_len <= org_len);
+      }
+
+      uint32_t cmpr_last_addr = tl_tiled_src.start_address + tl_tiled_src.shape.n * tl_tiled_src.stride.n;
+      if (cmpr_last_addr > org_last_addr) {
+        LLVM_DEBUG(llvm::dbgs()
+            << "    cmpr_last_addr " << cmpr_last_addr
+            << ", org_last_addr " << org_last_addr << "\n");
+        assert(cmpr_last_addr <= org_last_addr);
+      }
+
+      ctx.tdma_l2g_tensor_copy_compressed(&param);
+
+    }
+  }
+
+}
+
 void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
     uint32_t lmIndex, uint32_t cmdQueueIndex) {
   assert(gmOutputPoss.size() == 5 && "Expect 5D tensor");
@@ -1574,7 +1863,7 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
                         lmOutputDescs[lmIndex]->getEuAlign());
   tl_output.start_address = lmOutputDescs[lmIndex]->getAddress();
 
-  uint8_t intraCmdParal = 0;
+  uint8_t intraCmdParal = getTdmaStoreOutputIntraCmdParal(cmdQueueIndex);
   if (ctx.has_cmd_pre_exe() && cmdQueueIndex < cmdQueue.size() &&
       !args.do_leaky_relu)
     intraCmdParal = cmdQueue[cmdQueueIndex]->isIntraCmdParalEnabled() ? 1 : 0;
@@ -1597,27 +1886,6 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
       << ", " << cvk_gm_output_stride.h << ")\n"
       << "    intraCmdParal " << (int)intraCmdParal << "\n");
 
-  if (gmOutputDesc->getCompressed()) {
-    // Store compressed output
-    cvk_cmpr_tg_t cmpr_dst = {0};
-    cmpr_dst.bias0 = (gmOutputDesc->getDataFormat() == CVK_FMT_BF16) ? 127 : 0;
-    cmpr_dst.t.base_reg_index =
-        ctx.getTdmaBaseSelectIndexFromGaddr(gmOutputDesc->getAddress());
-    cmpr_dst.t.start_address = ga_output_store;
-    cmpr_dst.t.fmt = gmOutputDesc->getDataFormat();
-    cmpr_dst.t.shape = {
-        gmOutputPossShapes[NGCHW::N], gmOutputPossShapes[NGCHW::C],
-        gmOutputPossShapes[NGCHW::H], gmOutputPossShapes[NGCHW::W]};
-    cmpr_dst.t.stride = cvk_gm_output_stride;
-
-    cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
-    param.src = &tl_output;
-    param.dst = &cmpr_dst;
-    param.intra_cmd_paral = intraCmdParal ? 1 : 0;
-    ctx.tdma_l2g_tensor_copy_compressed(&param);
-  } else {
-
-    // Store normal output
     cvk_tg_t ts_data = {0};
     ts_data.base_reg_index =
         ctx.getTdmaBaseSelectIndexFromGaddr(gmOutputDesc->getAddress());
@@ -1628,6 +1896,11 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss,
         tl_output.shape.w};
     ts_data.stride = cvk_gm_output_stride;
 
+  if (gmOutputDesc->getCompressed()) {
+    // Store compressed output
+    storePartialCompressedOutput(gmOutputPoss, &ts_data, &tl_output);
+  } else {
+    // Store normal output
     cvk_tdma_l2g_tensor_copy_param_t param = {0};
     param.src = &tl_output;
     param.dst = &ts_data;
@@ -3580,7 +3853,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
     bool do_ic_alignment,
-    bool store_compr_act, bool load_compr_act, bool compr_wgt,
+    int store_cmpr_act, int load_cmpr_act, bool do_cmpr_wgt,
     int pad_value) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3602,7 +3875,7 @@ void cvi_backend_tg_fixed_conv_kernel(
              "    store_compr_act %d, load_compr_act %d, compr_wgt %d\n",
              activation_gt_rshift, activation_gt_scale, activation_le_rshift,
              activation_le_scale, do_activation,
-             do_ic_alignment, store_compr_act, load_compr_act, compr_wgt));
+             do_ic_alignment, store_cmpr_act, load_cmpr_act, do_cmpr_wgt));
 
   //
   // Convolution initialization
@@ -3642,9 +3915,9 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args.do_chl_quan = do_chl_quan;
   conv->args.layer_id = layer_id;
   conv->args.do_ic_alignment = do_ic_alignment;
-  conv->args.store_compr_act = store_compr_act;
-  conv->args.load_compr_act = load_compr_act;
-  conv->args.compr_wgt = compr_wgt;
+  conv->args.store_compr_act = store_cmpr_act;
+  conv->args.load_compr_act = load_cmpr_act;
+  conv->args.compr_wgt = do_cmpr_wgt;
   conv->args.pad_value = pad_value;
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32
@@ -3703,7 +3976,7 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint8_t pad_right, uint8_t ins_h, uint8_t ins_w,
     uint8_t stride_h, uint8_t stride_w, int do_bias,
     int do_activation, bool fp32_output,
-    bool store_compr_act, bool load_compr_act, bool compr_wgt) {
+    int store_cmpr_act, int load_cmpr_act, bool do_cmpr_wgt) {
 
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3751,9 +4024,9 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args.do_bias = static_cast<bool>(do_bias);
   conv->args.do_activation = static_cast<bool>(do_activation);
   conv->args.layer_id = layer_id;
-  conv->args.store_compr_act = store_compr_act;
-  conv->args.load_compr_act = load_compr_act;
-  conv->args.compr_wgt = compr_wgt;
+  conv->args.store_compr_act = store_cmpr_act;
+  conv->args.load_compr_act = load_cmpr_act;
+  conv->args.compr_wgt = do_cmpr_wgt;
 
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32

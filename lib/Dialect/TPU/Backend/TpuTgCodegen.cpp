@@ -610,9 +610,9 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       (int)rshift, // right_shift_width,
       false,     // do_chl_quan
       do_ic_alignment,
-      false,     // store_compr_act
-      false,     // load_compr_act
-      false,     // compr_wgt
+      0,         // store_cmpr_act
+      0,         // load_cmpr_act
+      false,     // do_cmpr_wgt
       pad_value  // pad_value
       );
 
@@ -662,12 +662,20 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       do_relu = true;
   }
 
-  bool store_compr_act = this->store_compr_act().hasValue() ?
-                         this->store_compr_act().getValue() : false;
-  bool load_compr_act = this->load_compr_act().hasValue() ?
-                        this->load_compr_act().getValue() : false;
-  bool compr_wgt = this->compressed_weight().hasValue() ?
-                   this->compressed_weight().getValue() : false;
+  int store_cmpr_act = this->store_compr_act().hasValue() ?
+                       this->store_compr_act().getValue() : 0;
+  if (store_cmpr_act)
+    store_cmpr_act =
+        this->store_compr_act_param().getValue().step_size().getInt();
+
+  int load_cmpr_act = this->load_compr_act().hasValue() ?
+                      this->load_compr_act().getValue() : 0;
+  if (load_cmpr_act)
+    load_cmpr_act =
+        this->load_compr_act_param().getValue().step_size().getInt();
+
+  bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
+                     this->compressed_weight().getValue() : false;
 
   cvi_backend_tg_fixed_conv_kernel(
       *backend_ctx,
@@ -694,9 +702,9 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       0,         // (int)rshift[0], //right_shift_width,
       true,      // do_chl_quan
       do_ic_alignment,
-      store_compr_act,
-      load_compr_act,
-      compr_wgt,
+      store_cmpr_act,
+      load_cmpr_act,
+      do_cmpr_wgt,
       pad_value // pad_value
       );
 
@@ -725,12 +733,20 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   }
   int layer_id = getOpLayerId(op);
 
-  bool store_compr_act = this->store_compr_act().hasValue() ?
-                         this->store_compr_act().getValue() : false;
-  bool load_compr_act = this->load_compr_act().hasValue() ?
-                        this->load_compr_act().getValue() : false;
-  bool compr_wgt = this->compressed_weight().hasValue() ?
-                   this->compressed_weight().getValue() : false;
+  int store_cmpr_act = this->store_compr_act().hasValue() ?
+                        this->store_compr_act().getValue() : 0;
+  if (store_cmpr_act)
+    store_cmpr_act =
+        this->store_compr_act_param().getValue().step_size().getInt();
+
+  int load_cmpr_act = this->load_compr_act().hasValue() ?
+                      this->load_compr_act().getValue() : 0;
+  if (load_cmpr_act)
+    load_cmpr_act =
+        this->load_compr_act_param().getValue().step_size().getInt();
+
+  bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
+                     this->compressed_weight().getValue() : false;
 
   cvi_backend_tg_bf16_conv_kernel(
       *backend_ctx,
@@ -750,9 +766,9 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       with_bias,
       do_relu ? 1 : 0,
       false, // fp32_output
-      store_compr_act,
-      load_compr_act,
-      compr_wgt
+      store_cmpr_act,
+      load_cmpr_act,
+      do_cmpr_wgt
       );
 
   return success();

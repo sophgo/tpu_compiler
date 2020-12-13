@@ -292,7 +292,8 @@ void cvi_backend_tl_store_compressed(
     int Local_N, int Local_C, int Local_H, int Local_W,
     int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
-    cvk_fmt_t from, cvk_fmt_t to, int h_step, int step_size) {
+    cvk_fmt_t from, cvk_fmt_t to, int h_step, int step_size,
+    bool DoIntraCmdParal) {
 
   // Global shape is used for stride - global memory layout
   assert(from == to && "Expect same data type");
@@ -305,7 +306,7 @@ void cvi_backend_tl_store_compressed(
   for (int i = 0; i < Local_H; i+=h_step) {
     int cur_h = std::min(h_step, Local_H - i);
 
-  // HxW in each lane is contiguous
+    // HxW in each lane is contiguous
     cvk_tl_t tl_src;
     ctx.lmem_init_tensor(&tl_src, ctx.tl_shape_t4(Local_N, Local_C, cur_h, Local_W),
                          from, eu_align);
@@ -324,7 +325,7 @@ void cvi_backend_tl_store_compressed(
     cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
     param.src = &tl_src;
     param.dst = &tg_cmpr_dst;
-
+    param.intra_cmd_paral = DoIntraCmdParal ? 1 : 0;
     ctx.tdma_l2g_tensor_copy_compressed(&param);
   }
 }
