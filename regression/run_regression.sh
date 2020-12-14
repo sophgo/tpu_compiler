@@ -308,14 +308,13 @@ if [ $run_onnx_test -ne 0 ]; then
   fi
 fi
 
-if [ $run_extra -ne 0 ]; then
-  $MLIR_SRC_PATH/lib/Dialect/TPU/Backend/test/test_backend.sh > test_backend.log
-  if [ "$?" -ne 0 ]; then
-    echo "backend test FAILED" >> verdict.log
-    ERR=1
-  else
-    echo "backend test PASSED" >> verdict.log
-  fi
+# run backend
+$PROJECT_ROOT/lib/Dialect/TPU/Backend/test/test_backend.sh $run_extra > test_backend.log
+if [ "$?" -ne 0 ]; then
+  echo "backend test FAILED" >> verdict.log
+  ERR=1
+else
+  echo "backend test PASSED" >> verdict.log
 fi
 
 cat verdict.log

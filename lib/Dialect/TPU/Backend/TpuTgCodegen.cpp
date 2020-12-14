@@ -1439,47 +1439,16 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
 
   int8_t rshift_int8 = rshift().getValue();
   int32_t multiplier = this->mutliplier().getValue();
-  std::vector<int32_t> multiplier_array = {multiplier};
   int rshift = static_cast<int>(rshift_int8);
 
   auto fcOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op);
-
-  bool compressed_weight = false;
-  if (fcOp.compressed_weight().hasValue())
-    compressed_weight = fcOp.compressed_weight().getValue();
-
   std::vector<int> compr_weight_poss;
   if (fcOp.compr_weight_poss().hasValue())
     arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
 
-  cvi_backend_tg_fixed_fc_kernel(
-      *backend_ctx,
-      layer_id, // layer_id,
-      ga_input, // input_data_gaddr,
-      ga_filter, // weight_data_gaddr,
-      ga_bias, // bias_data_gaddr,
-      ga_output, // output_data_gaddr,
-      m, // int in_row,
-      k, // int in_col,
-      n, // int out_col,
-      with_bias, // int have_bias,
-      do_relu ? 1 : 0, // do_activation,
-      0, // activation_method,
-      GA_INVALID, // activation_ga_slope,
-      0, // int activation_channel_shared,
-      0, // int activation_gt_scale,
-      0, // int activation_gt_rshift,
-      0, // int activation_le_scale,
-      0, // int activation_le_rshift,
-      false, // weight_tp,
-      3,     // int left_shift_width, // #define DEFAULT_FC_LEFT_SHIFT 3
-      (int)rshift, // rshift
-      0,     //int threshold_x_quantized_len,
-      nullptr, //const int *threshold_x_quantized,
-      multiplier_array.data(), //const int *right_shift_array
-      compressed_weight,
-      compr_weight_poss
-      );
+  cvi_backend_tg_fixed_fc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
+                                 ga_bias, ga_output, m, k, n, with_bias,
+                                 do_relu, rshift, multiplier, compr_weight_poss);
 
   return success();
 }
@@ -1504,11 +1473,7 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   }
   int layer_id = getOpLayerId(op);
 
-  bool compressed_weight = false;
   auto fcOp = dyn_cast<tpu::TG_BF16_FullyConnectedOp>(op);
-  if (fcOp.compressed_weight().hasValue())
-    compressed_weight = fcOp.compressed_weight().getValue();
-
   std::vector<int> compr_weight_poss;
   if (fcOp.compr_weight_poss().hasValue())
     arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
@@ -1525,7 +1490,6 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
       n, // in out_col,
       with_bias, // has_bias
       do_relu, // do_activation
-      compressed_weight,
       compr_weight_poss
       );
 
@@ -2069,7 +2033,6 @@ LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
       m,
       k,
       n,
-      false,
       false,
       false,
       compr_weight_poss

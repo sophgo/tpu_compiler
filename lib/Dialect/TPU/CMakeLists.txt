@@ -103,7 +103,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/CviBackendContext.cpp
   Backend/Kernel/TgBroadcastKernel.cpp
   Backend/Kernel/TgFixedEltwiseKernel.cpp
-  Backend/Kernel/TgFixedFcKernel.cpp
+  Backend/Kernel/TgFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/TgQuantKernel.cpp
   Backend/Kernel/TgReQuantKernel.cpp
@@ -128,14 +128,12 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgUpsampleKernel.cpp
   Backend/Kernel/TgFixedReduceKernel.cpp
   Backend/Kernel/TgBf16Conv3dKernel.cpp
-  Backend/Kernel/TgBf16FcKernel.cpp
   Backend/Kernel/TgBf16GruKernel.cpp
   Backend/Kernel/TgBf16LstmKernel.cpp
   Backend/Kernel/TgBf16PoolingKernel.cpp
   Backend/Kernel/TgBf16Pooling3dKernel.cpp
   Backend/Kernel/TgBf16SoftmaxKernel.cpp
   Backend/Kernel/TgBf16SquareKernel.cpp
-  Backend/Kernel/TgBf16MatMulKernel.cpp
   Backend/Kernel/TgBf16ReduceKernel.cpp
   Backend/Kernel/TgBf16LrnKernel.cpp
   Backend/Kernel/TlBroadcastMul.cpp

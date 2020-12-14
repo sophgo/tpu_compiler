@@ -129,7 +129,10 @@ public:
     cvk_ctx_->ops->tdma_g2g_bf16_tensor_copy(cvk_ctx_, param);
   }
 
-  // per-tensor
+  //
+  // tiu kernel api
+  //
+  // per tensor
   void tiu_mul(const cvk_tiu_mul_param_t *param) const {
     cvk_ctx_->ops->tiu_mul(cvk_ctx_, param);
   }
@@ -252,6 +255,7 @@ public:
     return cvk_ctx_->ops->ml_default_stride(cvk_ctx_, shape, fmt, eu_align);
   }
 
+  // lmem kernel
   cvk_tl_t *lmem_alloc_tensor(cvk_tl_shape_t shape, cvk_fmt_t fmt, int eu_align) const {
     return cvk_ctx_->ops->lmem_alloc_tensor(cvk_ctx_, shape, fmt, eu_align);
   }

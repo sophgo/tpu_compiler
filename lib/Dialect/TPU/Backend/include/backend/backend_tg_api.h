@@ -33,14 +33,10 @@ void cvi_backend_tg_fixed_conv_kernel(
     int load_cmpr_act, bool do_cmpr_wgt, int pad_value=0);
 
 void cvi_backend_tg_fixed_fc_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t bottom_data_gaddr, gaddr_t weight_data_gaddr, gaddr_t bias_data_gaddr,
-    gaddr_t top_data_gaddr, int in_row, int in_col, int out_col, int have_bias, int do_activation,
-    int activation_method, gaddr_t activation_ga_slope, int activation_channel_shared,
-    int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
-    int activation_le_rshift, bool weight_tp, int left_shift_width, int right_shift_width,
-    int threshold_x_quantized_len, const int *threshold_x_quantized, const int *right_shift_array,
-    bool compressed_weight, std::vector<int> compr_weight_poss);
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
+    bool have_bias, bool do_relu, int rshift_width, int multiplier,
+    std::vector<int> compressed_pos);
 
 void cvi_backend_tg_fixed_max_pooling_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -218,10 +214,9 @@ void cvi_backend_tg_bf16_max_pooling3d_kernel(
 
 void cvi_backend_tg_bf16_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t bottom_data_gaddr, gaddr_t weight_data_gaddr,
-    gaddr_t bias_data_gaddr, gaddr_t top_data_gaddr, int in_row, int in_col,
-    int out_col, bool have_bias, bool do_relu,
-    bool compressed_weight, std::vector<int> compr_weight_poss);
+    gaddr_t ga_input, gaddr_t ga_weight, gaddr_t ga_bias,
+    gaddr_t ga_output, int M, int K, int N, bool do_bias,
+    bool do_relu, std::vector<int> compr_weight_poss);
 
 void cvi_backend_tg_bf16_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,

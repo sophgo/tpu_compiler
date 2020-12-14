@@ -5,6 +5,7 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 MLIR_MODEL=$DIR/$1
 BATCH_SIZE=`sed -r -n 's/^.+?tpu_func\(%arg0: tensor<([[:digit:]]+?)x.+?$/\1/p' $MLIR_MODEL`
+OP_NAME=`echo $1 | sed -r -n 's/^(.+?)\.mlir$/\1/p'`_bf16
 echo "to compile $MLIR_MODEL batch=$BATCH_SIZE"
 
 export SET_CHIP_NAME="cv183x"
@@ -23,14 +24,14 @@ tpuc-opt \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv \
     ${MLIR_MODEL} \
-    -o test_fp32_opt.mlir
+    -o ${OP_NAME}_fp32_opt.mlir
 
 tpuc-opt \
      --gen-pseudo-weight-npz \
-     --pseudo-calibration-table test_calibration_table \
-     test_fp32_opt.mlir \
-     -o tmp.mlir
-mv input.npz test_in_fp32_bs${BATCH_SIZE}.npz
+     --pseudo-calibration-table ${OP_NAME}_calibration_table \
+     ${OP_NAME}_fp32_opt.mlir \
+     -o ${OP_NAME}_tmp.mlir
+mv input.npz ${OP_NAME}_in_fp32.npz
 
 # quantization.
 tpuc-opt \
@@ -39,63 +40,33 @@ tpuc-opt \
      --tpu-quant --quant-full-bf16 \
      --quant-bf16-softmax \
      --print-tpu-op-info \
-     --tpu-op-info-filename test_op_info_bf16.csv \
-     test_fp32_opt.mlir \
-     -o test_bf16.mlir
+     --tpu-op-info-filename ${OP_NAME}_op_info.csv \
+     ${OP_NAME}_tmp.mlir \
+     -o ${OP_NAME}.mlir
 
-# optimization for bf16 mlir model
-tpuc-opt \
-     --tpu-lower \
-     --tg-fuse-leakyrelu \
-     --conv-ic-alignment \
-     --group-ops \
-     --dce \
-     --deep-fusion-group-slice \
-     --deep-fusion-opt \
-     test_bf16.mlir \
-     -o test_bf16_opt.mlir
-tpuc-opt \
-     --assign-weight-address \
-     --tpu-weight-address-align=16 \
-     --tpu-weight-map-filename=weight_map_bf16_lg.csv \
-     --tpu-weight-bin-filename=weight.bin \
-     --assign-neuron-address \
-     --tpu-neuron-memory-reuse \
-     --tpu-neuron-address-align=64 \
-     --tpu-neuron-map-filename=neuron_map.csv \
-     test_bf16_opt.mlir \
-     -o test_bf16_addr.mlir
-tpuc-opt \
-     --divide-ops-to-func \
-     test_bf16_addr.mlir \
-     -o test_bf16_func.mlir
-
-# codegen
-tpuc-translate ${DEBUG} \
-     --mlir-to-cvimodel \
-     --weight-file weight.bin \
-     test_bf16_func.mlir \
-     -o test_bs${BATCH_SIZE}.cvimodel
+${REGRESSION_PATH}/mlir_to_cvimodel.sh \
+   -i ${OP_NAME}.mlir \
+   -o ${OP_NAME}.cvimodel
 
 # run cvimodel on emulator
 model_runner \
      --dump-all-tensors \
-     --input test_in_fp32_bs${BATCH_SIZE}.npz \
-     --model test_bs${BATCH_SIZE}.cvimodel \
+     --input ${OP_NAME}_in_fp32.npz \
+     --model ${OP_NAME}.cvimodel \
      --batch-num $BATCH_SIZE \
-     --output test_cmdbuf_out_bs${BATCH_SIZE}.npz
+     --output ${OP_NAME}_cmdbuf_out.npz
 
 # inference with bf16 model and get outputs.
-tpuc-interpreter test_bf16.mlir \
-    --tensor-in test_in_fp32_bs${BATCH_SIZE}.npz \
-    --tensor-out test_out_bf16.npz \
-    --dump-all-tensor=test_tensor_all_bf16.npz
+tpuc-interpreter ${OP_NAME}.mlir \
+    --tensor-in ${OP_NAME}_in_fp32.npz \
+    --tensor-out ${OP_NAME}_out.npz \
+    --dump-all-tensor=${OP_NAME}_tensor_all.npz
 
 # compare results
 cvi_npz_tool.py compare \
-    test_cmdbuf_out_bs${BATCH_SIZE}.npz \
-    test_tensor_all_bf16.npz \
-    --op_info test_op_info_bf16.csv \
+    ${OP_NAME}_cmdbuf_out.npz \
+    ${OP_NAME}_tensor_all.npz \
+    --op_info ${OP_NAME}_op_info.csv \
     --tolerance 0.99,0.99,0.99 -vv
 
 popd
