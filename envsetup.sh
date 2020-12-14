@@ -35,6 +35,7 @@ export PATH=$INSTALL_PATH/tpuc/python:$PATH
 export PATH=$PROJECT_ROOT:$PATH
 export PATH=$PROJECT_ROOT/regression:$PATH
 export PATH=$PROJECT_ROOT/regression/generic:$PATH
+export PATH=$PROJECT_ROOT/build/llvm/bin:$PATH
 
 export LD_LIBRARY_PATH=$INSTALL_PATH/tpuc/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$INSTALL_PATH/mkldnn/lib:$LD_LIBRARY_PATH
