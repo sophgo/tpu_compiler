@@ -207,6 +207,47 @@ const std::vector<int>& NetGraph::get_tensor_to_layer(int tensor_id) {
   }
 }
 
+void NetGraph::get_tl_tensor_dim_pads(int t_id, int * dims,
+                                      int * pads, bool is_h_split) {
+  get_tensor_dim(t_id, dims);
+  Tensor* t = get_tensor_by_id(t_id);
+
+  dims[0] = t->n_slice;
+  dims[2] = t->h_slice;
+
+  if (is_h_split) {
+    // update h dim
+    int real_h_idx = (t->h_idx > 0) ? t->h_idx : 0;
+    int h_end = t->h_idx + t->h_slice;
+    int real_h_slice = (h_end > t->h()) ? (t->h() - real_h_idx) :
+                        (h_end - real_h_idx);
+    dims[2] = real_h_slice;
+
+    // update pad
+    pads[0] = (t->h_idx > 0) ? 0 : ( 0 - t->h_idx);
+    pads[1] = (h_end > t->h()) ? (h_end - t->h()) : 0;
+  }
+
+}
+
+void NetGraph::get_tl_tensor_dim(int t_id, int * dims, bool is_h_split) {
+  get_tensor_dim(t_id, dims);
+  Tensor* t = get_tensor_by_id(t_id);
+
+  dims[0] = t->n_slice;
+  dims[2] = t->h_slice;
+
+  if (is_h_split) {
+    // update h dim
+    int real_h_idx = (t->h_idx > 0) ? t->h_idx : 0;
+    int h_end = t->h_idx + t->h_slice;
+    int real_h_slice = (h_end > t->h()) ? (t->h() - real_h_idx) :
+                        (h_end - real_h_idx);
+    dims[2] = real_h_slice;
+  }
+
+}
+
 
 /**
  * cluster_size = 0 UNKNOWN

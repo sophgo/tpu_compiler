@@ -53,6 +53,10 @@ class NetGraph {
   gaddr_t get_tensor_tsm_mem(int tensor_id);
   int get_tensor_local_offset(int tensor_id);
 
+  void get_tl_tensor_dim(int t_id, int * dims, bool is_h_split);
+  void get_tl_tensor_dim_pads(int t_id, int * dims,
+                              int * pads, bool is_h_split);
+
 //   // get tensor parameter
   Tensor* get_tensor_by_id(int id);
   void set_tensor_local_offest(int tensor_id, int local_mem_offset);

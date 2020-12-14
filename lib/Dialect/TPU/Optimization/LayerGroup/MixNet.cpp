@@ -342,8 +342,6 @@ void MixNet::_add_tl_abs_op(MixOp * mix_op,
                              int timestep_idx,
                              bool is_h_split) {
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
-  const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
   Operation *op = im_layer->op();
   auto opd0 = op->getOperand(0);
   auto old_input_type = opd0.getType().cast<RankedTensorType>();
@@ -351,33 +349,8 @@ void MixNet::_add_tl_abs_op(MixOp * mix_op,
   int bottom_dim[4];
   int top_dim[4];
 
-  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
-  net_graph_->get_tensor_dim(out_tensors[0], top_dim);
-  bottom_dim[0] = in_tensor->n_slice;
-  bottom_dim[2] = in_tensor->h_slice;
-
-  top_dim[0] = out_tensor->n_slice;
-  top_dim[2] = out_tensor->h_slice;
-
-  if (is_h_split) {
-    int real_h_slice = 0;
-    int real_h_idx = 0;
-
-    // bottom
-    if (in_tensor->h_idx > 0) {
-      real_h_idx = in_tensor->h_idx;
-    } else {
-      real_h_idx = 0;
-    }
-    int h_end = in_tensor->h_idx + in_tensor->h_slice;
-    if (h_end >= in_tensor->h()) {
-      real_h_slice = in_tensor->h() - real_h_idx;
-    } else {
-      real_h_slice = h_end - real_h_idx;
-    }
-    bottom_dim[2] = real_h_slice;
-    top_dim[2] = bottom_dim[2];
-  }
+  net_graph_->get_tl_tensor_dim(in_tensors[0], bottom_dim, is_h_split);
+  net_graph_->get_tl_tensor_dim(out_tensors[0], top_dim, is_h_split);
 
   std::string name = mix_op->name();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
@@ -444,60 +417,19 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   bool has_bias_op = (bInt8ConvOp || (!bInt8ConvOp && with_bias));
   auto old_input_type = op->getOperand(0).getType().cast<RankedTensorType>();
 
-  int real_h_idx, real_h_slice;
-  int h_end;
   int bottom_dim[4];
   int top_dim[4];
 
-  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
-  net_graph_->get_tensor_dim(out_tensors[0], top_dim);
-  Tensor* in_tensor = im_layer->in_tensors[0].get();
-  Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
+  int pad_h[2];
+  int pad_w[2];
 
-  bottom_dim[0] = in_tensor->n_slice;
-  bottom_dim[2] = in_tensor->h_slice;
-  top_dim[0] = out_tensor->n_slice;
-  top_dim[2] = out_tensor->h_slice;
+  pad_h[0] = pt;
+  pad_h[1] = pb;
+  pad_w[0] = pl;
+  pad_w[1] = pr;
 
-  int top_pad_h = pt;
-  int bottom_pad_h = pb;
-  int left_pad_w = pl;
-  int right_pad_w = pr;
-
-  // bottom shape
-  if (is_h_split) {
-    if (in_tensor->h_idx > 0) {
-      real_h_idx = in_tensor->h_idx;
-      top_pad_h = 0;
-    } else {
-      real_h_idx = 0;
-      top_pad_h = 0 - in_tensor->h_idx;
-    }
-    h_end = in_tensor->h_idx + in_tensor->h_slice;
-    if (h_end > in_tensor->h()) {
-      real_h_slice = in_tensor->h() - real_h_idx;
-      bottom_pad_h = h_end - in_tensor->h();
-    } else {
-      real_h_slice = h_end - real_h_idx;
-      bottom_pad_h = 0;
-    }
-    bottom_dim[2] = real_h_slice;
-  }
-  // top shape
-  if (is_h_split) {
-    if (out_tensor->h_idx > 0) {
-      real_h_idx = out_tensor->h_idx;
-    } else {
-      real_h_idx = 0;
-    }
-    h_end = out_tensor->h_idx + out_tensor->h_slice;
-    if (h_end > out_tensor->h()) {
-      real_h_slice = out_tensor->h() - real_h_idx;
-    } else {
-      real_h_slice = h_end - real_h_idx;
-    }
-    top_dim[2] = real_h_slice;
-  }
+  net_graph_->get_tl_tensor_dim_pads(in_tensors[0], bottom_dim, pad_h, is_h_split);
+  net_graph_->get_tl_tensor_dim(out_tensors[0], top_dim, is_h_split);
 
   uint32_t input_laddr = (net_graph_->get_tensor_local_offset(in_tensors[0]));
   uint32_t weight_laddr = (net_graph_->get_tensor_local_offset(in_tensors[1]));
@@ -532,13 +464,13 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   attrs.push_back(builder_.getNamedAttr("la_bias",
                            builder_.getI32IntegerAttr(bias_laddr)));
   attrs.push_back(builder_.getNamedAttr("pad_top_h",
-                           builder_.getI32IntegerAttr(top_pad_h)));
+                           builder_.getI32IntegerAttr(pad_h[0])));
   attrs.push_back(builder_.getNamedAttr("pad_bottom_h",
-                           builder_.getI32IntegerAttr(bottom_pad_h)));
+                           builder_.getI32IntegerAttr(pad_h[1])));
   attrs.push_back(builder_.getNamedAttr("pad_left_w",
-                           builder_.getI32IntegerAttr(left_pad_w)));
+                           builder_.getI32IntegerAttr(pad_w[0])));
   attrs.push_back(builder_.getNamedAttr("pad_right_w",
-                           builder_.getI32IntegerAttr(right_pad_w)));
+                           builder_.getI32IntegerAttr(pad_w[1])));
   attrs.push_back(builder_.getNamedAttr("param",
     tpu::ConvParam::get(
       builder_.getI32IntegerAttr(sh),
@@ -1073,6 +1005,14 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
 
   int bottom_dim[4];
   int top_dim[4];
+  int pad_h[2];
+  int pad_w[2];
+
+  pad_h[0] = pt;
+  pad_h[1] = pb;
+  pad_w[0] = pl;
+  pad_w[1] = pr;
+
   net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
   net_graph_->get_tensor_dim(out_tensors[0], top_dim);
 
@@ -1082,54 +1022,16 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
   top_dim[0] = out_tensor->n_slice;
   top_dim[2] = out_tensor->h_slice;
 
-  int top_pad_h = pt;
-  int bottom_pad_h = pb;
-  int left_pad_w = pl;
-  int right_pad_w = pr;
-
-  if (sh * (top_dim[2] - 1) + kh > bottom_dim[2] + top_pad_h + bottom_pad_h) {
-    bottom_pad_h = sh * (top_dim[2] - 1) + kh - bottom_dim[2] - pt;
+  if (sh * (top_dim[2] - 1) + kh > bottom_dim[2] + pad_h[0] + pad_h[1]) {
+    pad_h[0] = sh * (top_dim[2] - 1) + kh - bottom_dim[2] - pt;
   }
 
-  if (sw * (top_dim[3] - 1) + kw > bottom_dim[3] + left_pad_w + right_pad_w) {
-    right_pad_w = sw * (top_dim[3] - 1) + kw - bottom_dim[3] - pl;
+  if (sw * (top_dim[3] - 1) + kw > bottom_dim[3] + pad_w[0] + pad_w[1]) {
+    pad_w[0] = sw * (top_dim[3] - 1) + kw - bottom_dim[3] - pl;
   }
 
-  if (is_h_split) {
-    int real_h_idx, real_h_slice;
-
-    // bottom
-    if (in_tensor->h_idx > 0) {
-      real_h_idx = in_tensor->h_idx;
-      top_pad_h = 0;
-    } else {
-      real_h_idx = 0;
-      top_pad_h = 0 - in_tensor->h_idx;
-    }
-    int h_end = in_tensor->h_idx + in_tensor->h_slice;
-    if (h_end > in_tensor->h()) {
-      real_h_slice = in_tensor->h() - real_h_idx;
-      bottom_pad_h = h_end - in_tensor->h();
-    } else {
-      real_h_slice = h_end - real_h_idx;
-      bottom_pad_h = 0;
-    }
-    bottom_dim[2] = real_h_slice;
-
-    // top
-    if (out_tensor->h_idx > 0) {
-      real_h_idx = out_tensor->h_idx;
-    } else {
-      real_h_idx = 0;
-    }
-    h_end = out_tensor->h_idx + out_tensor->h_slice;
-    if (h_end > out_tensor->h()) {
-      real_h_slice = out_tensor->h() - real_h_idx;
-    } else {
-      real_h_slice = h_end - real_h_idx;
-    }
-    top_dim[2] = real_h_slice;
-  }
+  net_graph_->get_tl_tensor_dim_pads(in_tensors[0], bottom_dim, pad_h, is_h_split);
+  net_graph_->get_tl_tensor_dim(out_tensors[0], top_dim, is_h_split);
 
   uint64_t la_input = (net_graph_->get_tensor_local_offset(in_tensors[0]));
   uint64_t la_output = (net_graph_->get_tensor_local_offset(out_tensors[0]));
@@ -1141,10 +1043,10 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
     tpu::PoolParam::get(
       builder_.getI32IntegerAttr(kh),
       builder_.getI32IntegerAttr(kw),
-      builder_.getI32IntegerAttr(top_pad_h),
-      builder_.getI32IntegerAttr(bottom_pad_h),
-      builder_.getI32IntegerAttr(left_pad_w),
-      builder_.getI32IntegerAttr(right_pad_w),
+      builder_.getI32IntegerAttr(pad_h[0]),
+      builder_.getI32IntegerAttr(pad_h[1]),
+      builder_.getI32IntegerAttr(pad_w[0]),
+      builder_.getI32IntegerAttr(pad_w[1]),
       builder_.getI32IntegerAttr(pad_value),
       builder_.getI32IntegerAttr(sh),
       builder_.getI32IntegerAttr(sw),
@@ -2447,8 +2349,6 @@ void MixNet::_add_tl_relu_op(MixOp * mix_op,
                              int timestep_idx,
                              bool is_h_split) {
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
-  const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
   Operation *op = im_layer->op();
   auto opd0 = op->getOperand(0);
   auto old_input_type = opd0.getType().cast<RankedTensorType>();
@@ -2456,33 +2356,8 @@ void MixNet::_add_tl_relu_op(MixOp * mix_op,
   int bottom_dim[4];
   int top_dim[4];
 
-  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
-  net_graph_->get_tensor_dim(out_tensors[0], top_dim);
-  bottom_dim[0] = in_tensor->n_slice;
-  bottom_dim[2] = in_tensor->h_slice;
-
-  top_dim[0] = out_tensor->n_slice;
-  top_dim[2] = out_tensor->h_slice;
-
-  if (is_h_split) {
-    int real_h_slice = 0;
-    int real_h_idx = 0;
-
-    // bottom
-    if (in_tensor->h_idx > 0) {
-      real_h_idx = in_tensor->h_idx;
-    } else {
-      real_h_idx = 0;
-    }
-    int h_end = in_tensor->h_idx + in_tensor->h_slice;
-    if (h_end >= in_tensor->h()) {
-      real_h_slice = in_tensor->h() - real_h_idx;
-    } else {
-      real_h_slice = h_end - real_h_idx;
-    }
-    bottom_dim[2] = real_h_slice;
-    top_dim[2] = bottom_dim[2];
-  }
+  net_graph_->get_tl_tensor_dim(in_tensors[0], bottom_dim, is_h_split);
+  net_graph_->get_tl_tensor_dim(out_tensors[0], top_dim, is_h_split);
 
   std::string name = mix_op->name();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
@@ -2611,8 +2486,6 @@ void MixNet::_add_tl_slice_op(MixOp * mix_op,
                              int timestep_idx,
                              bool is_h_split) {
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
-  const Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
-  const Tensor* out_tensor = net_graph_->get_tensor_by_id(out_tensors[0]);
   Operation* op = im_layer->op();
   auto opd0 = op->getOperand(0);
   auto old_input_type = opd0.getType().cast<RankedTensorType>();
@@ -2630,33 +2503,8 @@ void MixNet::_add_tl_slice_op(MixOp * mix_op,
   int bottom_dim[4];
   int top_dim[4];
 
-  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
-  net_graph_->get_tensor_dim(out_tensors[0], top_dim);
-  bottom_dim[0] = in_tensor->n_slice;
-  bottom_dim[2] = in_tensor->h_slice;
-
-  top_dim[0] = out_tensor->n_slice;
-  top_dim[2] = out_tensor->h_slice;
-
-  if (is_h_split) {
-    int real_h_slice = 0;
-    int real_h_idx = 0;
-
-    // bottom
-    if (in_tensor->h_idx > 0) {
-      real_h_idx = in_tensor->h_idx;
-    } else {
-      real_h_idx = 0;
-    }
-    int h_end = in_tensor->h_idx + in_tensor->h_slice;
-    if (h_end >= in_tensor->h()) {
-      real_h_slice = in_tensor->h() - real_h_idx;
-    } else {
-      real_h_slice = h_end - real_h_idx;
-    }
-    bottom_dim[2] = real_h_slice;
-    top_dim[2] = bottom_dim[2];
-  }
+  net_graph_->get_tl_tensor_dim(in_tensors[0], bottom_dim, is_h_split);
+  net_graph_->get_tl_tensor_dim(out_tensors[0], top_dim, is_h_split);
 
   std::string name = mix_op->name();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);

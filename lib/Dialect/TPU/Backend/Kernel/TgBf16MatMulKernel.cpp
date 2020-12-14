@@ -142,9 +142,9 @@ after_loop:
     assert(0);
   }
 
-  llvm::errs() << llvm::format(
+  LLVM_DEBUG(llvm::errs() << llvm::format(
       "matmul, m:%d, k:%d, n:%d, step:%d,%d,%d, lmem:%d, bias:%d, relu:%d\n", m, k, n,
-      step_m, step_k, step_n, (int)lmem_required, have_bias, do_relu);
+      step_m, step_k, step_n, (int)lmem_required, have_bias, do_relu));
 
   cvk_ml_t *tl_l, *tl_r, *tl_y;
   cvk_ml_t *tl_b = nullptr;
