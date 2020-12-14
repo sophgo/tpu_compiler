@@ -28,9 +28,10 @@ namespace mlir {
 
 class NetGraph {
  public:
-  explicit NetGraph(FuncOp* fn){};
+  explicit NetGraph(FuncOp* fn):fn_(fn){};
   ~NetGraph();
 
+  FuncOp * getFn();
   void parse_graph(FuncOp * fn);
   const ImLayer* get_layer_by_op(Operation * op);
 //   // get tensor type
@@ -73,6 +74,7 @@ class NetGraph {
   std::map<int, std::vector<int> > tensor_to_layer_id;
   std::map<int, int> tensor_from_layer_id;
   std::vector<int> dummy;
+  FuncOp * fn_;
 };
 
 }

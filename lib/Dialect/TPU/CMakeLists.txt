@@ -93,6 +93,8 @@ add_llvm_library(MLIRTPU
   Optimization/LayerGroup/MixNet.cpp
   Optimization/LayerGroup/DeadCodeEliminate.cpp
   Optimization/LayerGroup/utils.cpp
+  Optimization/LayerGroup/TdmaCycle.cpp
+  Optimization/LayerGroup/TiuCycle.cpp
   Backend/TpuTgCodegen.cpp
   Backend/TpuTlCodegen_Simple.cpp
   Backend/TpuTlCodegen_LG.cpp

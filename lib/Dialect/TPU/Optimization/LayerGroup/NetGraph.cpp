@@ -4,6 +4,13 @@
 #define DEBUG_TYPE "group_ops"
 namespace mlir {
 
+FuncOp* NetGraph::getFn() {
+  if (fn_ != NULL)
+    return fn_;
+  llvm::errs() << "Error: FuncOp is Null!\n";
+  assert(0);
+}
+
 void NetGraph::parse_graph(FuncOp * fn){
   fn->walk([&](Operation * op) {
     if (isa<tpu::LoadWeightOp>(op) || isa<tpu::WeightFileOp>(op) ||
