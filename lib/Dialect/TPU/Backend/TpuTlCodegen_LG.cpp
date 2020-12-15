@@ -947,8 +947,10 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
                                 );
   } else {
     int step_size = 0;
+    int c_step = local_c;
     int h_step = local_h;
     if (this->compr_act_param().hasValue()) {
+      c_step = this->compr_act_param().getValue().c_step().getInt();
       h_step = this->compr_act_param().getValue().h_step().getInt();
       step_size = this->compr_act_param().getValue().step_size().getInt();
     }
@@ -961,7 +963,7 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
                                     global_c, global_h, global_w,
                                     transpose, aligned, isNeuron,
                                     from, to,
-                                    h_step, step_size
+                                    h_step, step_size, c_step
                                     );
   }
   return success();
@@ -1104,9 +1106,11 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
   bool do_compress = this->store_compr_act().hasValue() ?
                      this->store_compr_act().getValue() : false;
   int step_size = 0;
+  int c_step = local_c;
   int h_step = local_h;
   if (this->compr_act_param().hasValue()) {
     h_step = this->compr_act_param().getValue().h_step().getInt();
+    c_step = this->compr_act_param().getValue().c_step().getInt();
     step_size = this->compr_act_param().getValue().step_size().getInt();
   }
 
@@ -1129,7 +1133,7 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
                                      global_c, global_h, global_w,
                                      transpose, aligned, isNeuron,
                                      from, to,
-                                     h_step, step_size
+                                     h_step, step_size, c_step
                                      );
   }
 

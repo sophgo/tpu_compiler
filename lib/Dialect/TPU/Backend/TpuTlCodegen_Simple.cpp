@@ -152,8 +152,10 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
                            n, ic, ih, iw);
     } else {
       int step_size = 0;
+      int c_step = ic;
       int h_step = ih;
       if (this->load_compr_act_param().hasValue()) {
+        c_step = this->load_compr_act_param().getValue().c_step().getInt();
         h_step = this->load_compr_act_param().getValue().h_step().getInt();
         step_size = this->load_compr_act_param().getValue().step_size().getInt();
       }
@@ -169,7 +171,7 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
                                      /*isNeuron=*/true,
                                      /*from=*/CVK_FMT_I8,
                                      /*to=*/CVK_FMT_I8,
-                                     h_step, step_size
+                                     h_step, step_size, c_step
                                      );
 
     }

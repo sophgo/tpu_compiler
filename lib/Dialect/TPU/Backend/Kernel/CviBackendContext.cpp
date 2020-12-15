@@ -610,3 +610,31 @@ void CviBackendContext::assert_support_fmt(cvk_fmt_t fmt) const {
 void *cvi_backend_get_cvk_ctx(const CviBackendContext &ctx) {
   return ctx.get_cvk_ctx();
 }
+
+uint32_t CviBackendContext::ga_cmpr_offset(int n, int c, int h, int w,
+                                           int n_pos, int c_pos, int h_pos,
+                                           int c_step, int step_size) const {
+  uint32_t cmpr_n_offset = n_pos * llvm::divideCeil(c, c_step) * h * step_size;
+  uint32_t cmpr_c_offset = (c_pos / c_step) * h * step_size;
+  uint32_t cmpr_h_offset = h_pos * step_size;
+
+  return cmpr_n_offset + cmpr_c_offset + cmpr_h_offset;
+}
+
+uint32_t CviBackendContext::addr_after_right_shift(int addr, uint32_t step,
+                                                   int c_str) const {
+  uint32_t lmem_i = (addr / LOCAL_MEM_SIZE + step) % NPU_NUM;
+  uint32_t offset = addr % LOCAL_MEM_SIZE + (lmem_i + step) / NPU_NUM * c_str;
+  return lmem_i * LOCAL_MEM_SIZE + offset;
+}
+
+uint32_t CviBackendContext::tl_cmpr_c_stride(int n, int c, int h, int w,
+                                             cvk_fmt_t fmt) const {
+  // (1, ic, ih, iw) -> (1, NPU, 1, iw) ...
+  // Right shift NPU, same as next batch so eu_align = 1
+  cvk_tl_shape_t tl_block_cmpr_shape = tl_shape_t4(n, c, h, w);
+  cvk_tl_stride_t tl_block_cmpr_stride = tl_default_stride(tl_block_cmpr_shape,
+                                                           fmt, 1);
+
+  return tl_block_cmpr_stride.c;
+}

@@ -56,7 +56,6 @@ void cvi_backend_tl_load_stride(
 
 }
 
-
 void cvi_backend_tl_load_compressed(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_src, laddr_t la_dst,
@@ -64,7 +63,7 @@ void cvi_backend_tl_load_compressed(
     int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
     cvk_fmt_t from, cvk_fmt_t to,
-    int h_step, int step_size) {
+    int h_step, int step_size, int c_step) {
 
   // Global shape is used for stride - global memory layout
   assert(from == to && "Expect same data type");
@@ -75,29 +74,52 @@ void cvi_backend_tl_load_compressed(
     ctx.tl_default_stride(ctx.tl_shape_t4(Local_N, Local_C, Local_H, Local_W),
                           to, eu_align);
 
-  for (int i = 0; i < Local_H; i+=h_step) {
-    int cur_h = std::min(h_step, Local_H - i);
+  uint32_t tl_cmpr_block_c_stride = ctx.tl_cmpr_c_stride(1,
+                                                         c_step,
+                                                         Local_H,
+                                                         Local_W,
+                                                         from);
 
-    cvk_cmpr_tg_t tg_cmpr_src = {0};
-    ctx.gmem_init_tensor(&tg_cmpr_src.t,
-                         {(uint32_t)Local_N, (uint32_t)Global_C, (uint32_t)cur_h,
-                          (uint32_t)Global_W},
-                         from);
-    tg_cmpr_src.t.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
-    tg_cmpr_src.t.start_address = ga_src + step_size * (i / h_step);
+  for (int i = 0; i < Local_C; i += c_step) {
+    int cur_c = std::min(c_step, Local_C - i);
+    uint32_t la_cmpr_start = ctx.addr_after_right_shift(la_dst,
+                                                        i,
+                                                        tl_cmpr_block_c_stride);
+    for (int j = 0; j < Local_H; j += h_step) {
+      int cur_h = std::min(h_step, Local_H - j);
 
-    // HxW in each lane is contiguous
-    cvk_tl_t tl_dst;
-    ctx.lmem_init_tensor(&tl_dst, ctx.tl_shape_t4(Local_N, Local_C, cur_h, Local_W),
-                         to, eu_align);
-    tl_dst.stride = tl_stride;
-    tl_dst.start_address = la_dst + i * Local_W * tl_stride.w;
+      // Output HxW is contigious in each lane, eu_align = 0
+      cvk_tl_shape_t tl_tiled_shape = ctx.tl_shape_t4(1, c_step, cur_h, Local_W);
 
-    cvk_tdma_g2l_tensor_copy_decompressed_param_t param = {0};
-    param.src = &tg_cmpr_src;
-    param.dst = &tl_dst;
-    param.layer_id = layer_id;
-    ctx.tdma_g2l_tensor_copy_decompressed(&param);
+      cvk_tl_t tl_tiled_dst;
+      ctx.lmem_init_tensor(&tl_tiled_dst, tl_tiled_shape, to, eu_align);
+      tl_tiled_dst.stride = tl_stride;
+      tl_tiled_dst.start_address = la_cmpr_start + j * tl_stride.h;
+
+      uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(Local_N,
+                                                   Global_C,
+                                                   Global_H,
+                                                   Global_W,
+                                                   0,
+                                                   i,
+                                                   j / h_step,
+                                                   c_step,
+                                                   step_size);
+
+      // (1, NPU_NUM, 1, w) ... (1, NPU_NUM, 1, w).
+      cvk_tg_shape_t tg_tiled_shape = ctx.tg_shape_t4(1, cur_c, cur_h, Local_W);
+
+      cvk_cmpr_tg_t tg_cmpr_src = {0};
+      ctx.gmem_init_tensor(&tg_cmpr_src.t, tg_tiled_shape, from);
+      tg_cmpr_src.t.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
+      tg_cmpr_src.t.start_address = ga_src + ga_cmpr_offset;
+
+      cvk_tdma_g2l_tensor_copy_decompressed_param_t param = {0};
+      param.src = &tg_cmpr_src;
+      param.dst = &tl_tiled_dst;
+      param.layer_id = layer_id;
+      ctx.tdma_g2l_tensor_copy_decompressed(&param);
+    }
   }
 }
 
@@ -268,8 +290,8 @@ void cvi_backend_tl_store_stride(
                               false);
 }
 
-// Tiled compressed activation split as (n, c, h_step, w)
-// Global memory layout: (h/h_step, n, c, h_step, w)
+// Tiled compressed activation split as (n, c_step, h_step, w)
+// Global memory layout: (n, c/c_step, h/h_step, c_step, h_step, w)
 //
 // output shape       (1, 64, 35, 112)
 // tiled output shape (1, 64,  1, 112)
@@ -292,7 +314,8 @@ void cvi_backend_tl_store_compressed(
     int Local_N, int Local_C, int Local_H, int Local_W,
     int Global_C, int Global_H, int Global_W,
     bool DoTranspose, bool DoAligned, bool isNeuron,
-    cvk_fmt_t from, cvk_fmt_t to, int h_step, int step_size,
+    cvk_fmt_t from, cvk_fmt_t to,
+    int h_step, int step_size, int c_step,
     bool DoIntraCmdParal) {
 
   // Global shape is used for stride - global memory layout
@@ -303,30 +326,50 @@ void cvi_backend_tl_store_compressed(
     ctx.tl_default_stride(ctx.tl_shape_t4(Local_N, Local_C, Local_H, Local_W),
                           from, eu_align);
 
-  for (int i = 0; i < Local_H; i+=h_step) {
-    int cur_h = std::min(h_step, Local_H - i);
+  uint32_t tl_cmpr_block_c_stride = ctx.tl_cmpr_c_stride(1,
+                                                         c_step,
+                                                         Local_H,
+                                                         Local_W,
+                                                         from);
+  for (int i = 0; i < Local_C; i += c_step) {
+    int cur_c = std::min(c_step, Local_C - i);
+    uint32_t la_cmpr_start = ctx.addr_after_right_shift(la_src,
+                                                        i,
+                                                        tl_cmpr_block_c_stride);
+    for (int j = 0; j < Local_H; j += h_step) {
+      int cur_h = std::min(h_step, Local_H - j);
 
-    // HxW in each lane is contiguous
-    cvk_tl_t tl_src;
-    ctx.lmem_init_tensor(&tl_src, ctx.tl_shape_t4(Local_N, Local_C, cur_h, Local_W),
-                         from, eu_align);
-    tl_src.stride = tl_stride;
-    tl_src.start_address = la_src + i * Local_W * tl_stride.w;
+      // Output HxW is contigious in each lane, eu_align = 0
+      cvk_tl_shape_t tl_tiled_shape = ctx.tl_shape_t4(1, c_step, cur_h, Local_W);
+      cvk_tl_t tl_tiled_src;
+      ctx.lmem_init_tensor(&tl_tiled_src, tl_tiled_shape, from, eu_align);
+      tl_tiled_src.stride = tl_stride;
+      tl_tiled_src.start_address = la_cmpr_start + j * tl_stride.h;
 
-    cvk_cmpr_tg_t tg_cmpr_dst = {0};
-    tg_cmpr_dst.bias0 = (to == CVK_FMT_BF16) ? 127 : 0;
-    ctx.gmem_init_tensor(&tg_cmpr_dst.t,
-                         {(uint32_t)Local_N, (uint32_t)Global_C, (uint32_t)cur_h,
-                          (uint32_t)Global_W},
-                         to);
-    tg_cmpr_dst.t.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_dst);
-    tg_cmpr_dst.t.start_address = ga_dst + step_size * (i / h_step);
+      uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(Local_N,
+                                                   Global_C,
+                                                   Global_H,
+                                                   Global_W,
+                                                   0,
+                                                   i,
+                                                   j / h_step,
+                                                   c_step,
+                                                   step_size);
 
-    cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
-    param.src = &tl_src;
-    param.dst = &tg_cmpr_dst;
-    param.intra_cmd_paral = DoIntraCmdParal ? 1 : 0;
-    ctx.tdma_l2g_tensor_copy_compressed(&param);
+      // (1, NPU_NUM, 1, w) ... (1, NPU_NUM, 1, w).
+      cvk_tg_shape_t tg_tiled_shape = ctx.tg_shape_t4(1, cur_c, cur_h, Local_W);
+      cvk_cmpr_tg_t tg_cmpr_dst = {0};
+      tg_cmpr_dst.bias0 = (to == CVK_FMT_BF16) ? 127 : 0;
+      ctx.gmem_init_tensor(&tg_cmpr_dst.t, tg_tiled_shape, to);
+      tg_cmpr_dst.t.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_dst);
+      tg_cmpr_dst.t.start_address = ga_dst + ga_cmpr_offset;
+
+      cvk_tdma_l2g_tensor_copy_compressed_param_t param = {0};
+      param.src = &tl_tiled_src;
+      param.dst = &tg_cmpr_dst;
+      param.intra_cmd_paral = DoIntraCmdParal ? 1 : 0;
+      ctx.tdma_l2g_tensor_copy_compressed(&param);
+    }
   }
 }
 
