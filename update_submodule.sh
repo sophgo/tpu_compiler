@@ -11,6 +11,7 @@ repo_list=(
 "third_party/opencv"
 "third_party/pybind11"
 "third_party/systemc-2.3.3"
+"third_party/llvm-project"
 )
 
 echo "" > /tmp/sdk_update.txt

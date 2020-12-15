@@ -36,5 +36,5 @@
 	url = ../opencv.git
 [submodule "third_party/llvm-project"]
 	path = third_party/llvm-project
-	url = ../llvm-project
+	url = ../llvm-project.git
 	branch = master
