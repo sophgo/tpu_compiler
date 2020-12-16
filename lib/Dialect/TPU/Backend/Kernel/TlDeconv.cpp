@@ -363,34 +363,48 @@ void cvi_backend_tl_bf16_deconv(
 
   int ic = input_c / group;
   int oc = output_c / group;
+  // 2 means bf16 takes 2 size than int8
+  int topc_per_NPU = ceiling_func(output_c, NPU_NUM);
+  int top_csize_local = ALIGN(output_h * output_w * 2, EU_NUM);
+  int bottomc_per_NPU = ceiling_func(input_c, NPU_NUM);
+  int bottom_csize_local = ALIGN(input_h * input_w * 2, EU_NUM);
 
   for (int ig = 0; ig < group; ig++) {
+    // copy from tl_conv
+
     // input
-    auto ifmap_offset = ((ic * ig) / NPU_NUM) *
-                        align_up(input_h * input_w * 2, EU_NUM) +
-                        ((ic * ig) % NPU_NUM) * LOCAL_MEM_SIZE;
+    // TODO: support n
+    int nidx = 0;
+    int bottom_start_npu_idx = (ig * ic) % NPU_NUM;
+    uint32_t bottom_local_shift =
+      (nidx * bottomc_per_NPU + (ig * ic) / NPU_NUM) * bottom_csize_local;
+    uint32_t bottom_addr =
+      bottom_start_npu_idx * LOCAL_MEM_SIZE + la_ifmap + bottom_local_shift;
 
     cvk_tl_shape_t tl_input_shape = ctx.tl_shape_t4(input_n,ic,input_h,input_w);
-    tl_input.start_address = la_ifmap + ifmap_offset;
+    tl_input.start_address = bottom_addr;
     tl_input.fmt = CVK_FMT_BF16;
     tl_input.shape = tl_input_shape;
     tl_input.stride = ctx.tl_default_stride(tl_input_shape, CVK_FMT_BF16, 1);
 
     // output
-    auto ofmap_offset = ((oc * ig) / NPU_NUM) *
-                        align_up(input_h * input_w * 2, EU_NUM) +
-                        ((oc * ig) % NPU_NUM) * LOCAL_MEM_SIZE;
+    int top_start_npu_idx = (ig * oc) % NPU_NUM;
+    uint32_t top_local_shift =
+      (nidx * topc_per_NPU + (ig * oc) / NPU_NUM) * top_csize_local;
+    uint32_t top_addr =
+      top_start_npu_idx * LOCAL_MEM_SIZE + la_ofmap + top_local_shift;
     cvk_tl_shape_t tl_output_shape = ctx.tl_shape_t4(input_n,oc,output_h,output_w);
-    tl_output.start_address = la_ofmap + ofmap_offset;
+    tl_output.start_address = top_addr;
     tl_output.fmt = CVK_FMT_BF16;
     tl_output.shape = tl_output_shape;
     tl_output.stride = ctx.tl_default_stride(tl_output_shape, CVK_FMT_BF16, 1);
 
     // weight
-    auto weight_offset = ((oc * ig) / NPU_NUM) * ic * input_h * input_w * 2+
-                        ((oc * ig) % NPU_NUM) * LOCAL_MEM_SIZE;
+    // 2 means bf16 takes 2 size than int8
+    uint32_t weight_addr = top_start_npu_idx * LOCAL_MEM_SIZE +
+      ((ig * oc) / NPU_NUM) * ic * (kh * kw * 2) + la_weight;
     cvk_tl_shape_t tl_weight_shape = ctx.tl_shape_t4(ic,oc,kh,kw);
-    tl_weight.start_address = la_weight + weight_offset;
+    tl_weight.start_address = weight_addr;
     tl_weight.fmt = CVK_FMT_BF16;
     tl_weight.shape = tl_weight_shape;
     tl_weight.stride = ctx.tl_default_stride(tl_weight_shape, CVK_FMT_BF16, 1);

@@ -2471,7 +2471,7 @@ void Conv::convReuseActivation() {
         for (uint32_t ow_pos = 0; ow_pos < output_width();
              ow_pos += tile_info.ow_step) {
           enqueueLoadInputCmd(
-              {n_pos, /*g_pos=*/0, /*oc_pos=*/0, oh_pos, ow_pos}, flip);
+              {n_pos, ig, /*oc_pos=*/0, oh_pos, ow_pos}, flip);
 
           // split oc
           for (uint32_t oc_pos = 0; oc_pos < group_output_channels();

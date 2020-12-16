@@ -658,6 +658,23 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   if (has_bias_op)
     bias_laddr = net_graph_->get_tensor_local_offset(in_tensors[2]);
 
+  // hw limitation once set ins_w / ins_h that input w/h should > 1
+  if (ins_h && bottom_dim[2] == 1) {
+    ins_last_h += ins_h;
+    ins_h = 0;
+    if (pad_h_top) {
+      ins_last_h = 0; // included in pad_h_top
+    }
+  }
+  if (ins_w && bottom_dim[3] == 1) {
+    ins_last_w += ins_w;
+    ins_w = 0;
+    if (pad_w_left) {
+      // TODO: need to verify
+      ins_last_w = 0; // included in pad_w_left
+    }
+  }
+
 
   RankedTensorType input_type = RankedTensorType::get(
                           {bottom_dim[0], bottom_dim[1],
