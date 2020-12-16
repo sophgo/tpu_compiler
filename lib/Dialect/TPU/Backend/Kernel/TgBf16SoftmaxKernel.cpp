@@ -702,33 +702,31 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
             // ctx.tdma_load(tl_input, inputAddr);
             ctx.tdma_load_stride(tl_input, inputAddr, ifmap_gstride);
 
-            bool doConcateC = tileHeightSize * w > (unsigned int)NPU_NUM;
-            if(doConcateC) {
-                cvk_tl_t tl_dst;
-                tl_dst.start_address = tl_transpose_input->start_address;  // start of lmem
-                tl_dst.fmt = tl_input->fmt;
-                tl_dst.shape = tl_input->shape;
-                int bytesize = tl_input->stride.w;
-                int cStride = align_up(c * bytesize, EU_NUM);
-                tl_dst.stride = {(uint32_t)bytesize, (uint32_t)cStride, (uint32_t)bytesize, (uint32_t)bytesize};
+            cvk_tl_t tl_dst;
+            tl_dst.start_address = tl_transpose_input->start_address;  // start of lmem
+            tl_dst.fmt = tl_input->fmt;
+            tl_dst.shape = tl_input->shape;
+            int bytesize = tl_input->stride.w;
+            int cStride = align_up(c * bytesize, EU_NUM);
+            tl_dst.stride = {(uint32_t)bytesize, (uint32_t)cStride, (uint32_t)bytesize, (uint32_t)bytesize};
 
-                cvk_tiu_copy_param_t p2 = {0};
-                p2.src = tl_input;
-                p2.dst = &tl_dst;
-                p2.layer_id = layer_id;
+            cvk_tiu_copy_param_t p2 = {0};
+            p2.src = tl_input;
+            p2.dst = &tl_dst;
+            p2.layer_id = layer_id;
 
-                LLVM_DEBUG(llvm::dbgs() << llvm::format(
-                                "        L2L Reshape:\n"
-                                "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
-                                "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
-                                p2.src->start_address, p2.src->shape.n,
-                                p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
-                                p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
-                                p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
-                                p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-                ctx.tiu_copy(&p2);
-            }
-            cvk_tl_t *selected_tl_input = doConcateC ? tl_transpose_input : tl_input;
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                            "        L2L Reshape:\n"
+                            "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                            "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                            p2.src->start_address, p2.src->shape.n,
+                            p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                            p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                            p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                            p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+            ctx.tiu_copy(&p2);
+
+            cvk_tl_t *selected_tl_input = tl_transpose_input;
 
             cvk_tl_shape_t maxValue_shape = ctx.tl_shape_t4(1,tileHeightSize * w,1,1);
             cvk_tl_t *tl_maxValue =
@@ -854,37 +852,35 @@ void bf16_softmax_kernel_4d(const CviBackendContext &ctx, uint32_t layer_id,
 
             {
                 // (1, h*w, 1, c) -> (c, h*w, 1, 1)
-                if(doConcateC) {
-                    cvk_tl_t tl_dst;
-                    tl_dst.start_address = tl_input->start_address;  // start of lmem
-                    tl_dst.fmt = tl_lut_result->fmt;
-                    tl_dst.shape = tl_lut_result->shape;
-                    int bytesize = tl_lut_result->stride.w;
-                    tl_dst.stride = {
-                        (uint32_t)bytesize,
-                        (uint32_t)tl_input->stride.c,
-                        (uint32_t)bytesize,
-                        (uint32_t)tl_input->stride.n
-                    };
+                cvk_tl_t tl_dst;
+                tl_dst.start_address = tl_input->start_address;  // start of lmem
+                tl_dst.fmt = tl_lut_result->fmt;
+                tl_dst.shape = tl_lut_result->shape;
+                int bytesize = tl_lut_result->stride.w;
+                tl_dst.stride = {
+                    (uint32_t)bytesize,
+                    (uint32_t)tl_input->stride.c,
+                    (uint32_t)bytesize,
+                    (uint32_t)tl_input->stride.n
+                };
 
-                    cvk_tiu_copy_param_t p2 = {0};
-                    p2.src = tl_lut_result;
-                    p2.dst = &tl_dst;
-                    p2.layer_id = layer_id;
+                cvk_tiu_copy_param_t p2 = {0};
+                p2.src = tl_lut_result;
+                p2.dst = &tl_dst;
+                p2.layer_id = layer_id;
 
-                    LLVM_DEBUG(llvm::dbgs() << llvm::format(
-                                    "        L2L Reshape:\n"
-                                    "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
-                                    "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
-                                    p2.src->start_address, p2.src->shape.n,
-                                    p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
-                                    p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
-                                    p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
-                                    p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-                    ctx.tiu_copy(&p2);
-                }
+                LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                                "        L2L Reshape:\n"
+                                "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                                "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                                p2.src->start_address, p2.src->shape.n,
+                                p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                                p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                                p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                                p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+                ctx.tiu_copy(&p2);
 
-                cvk_tl_t *selected_tl_output = doConcateC ? tl_input : tl_lut_result;
+                cvk_tl_t *selected_tl_output = tl_input;
                 //store
                 // gaddr_t outputAddr = ga_output + i * h * w * c * sizeof(uint16_t);
                 gaddr_t outputAddr = ga_output + i * h * w * c * sizeof(uint16_t) + h_pos * w * sizeof(uint16_t);
