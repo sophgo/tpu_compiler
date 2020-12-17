@@ -694,6 +694,7 @@ class CaffeConverter(BaseConverter):
                 'shrink_factor': p.shrink_factor,
                 'width': p.width,
                 'zoom_factor': p.zoom_factor,
+                'coordinate_transformation_mode': 'align_corners',
                 }
 
         new_op = self.CVI.add_interp_op(

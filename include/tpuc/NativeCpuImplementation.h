@@ -71,6 +71,8 @@ void my_interp(const int channels,
 int my_interptile(float *input, float *output, int n, int c, int h, int w,
     int _ih, int _iw);
 
+int my_interp_linear(float *input, float* output, int n, int c, int ih, int iw, int oh, int ow);
+
 int my_lrn_one(float *input, float *output, int n, int c, int h, int w,
                unsigned int local_size, float alpha);
 int my_lrn_two(float *input, float *output, int n, int c, int h, int w,

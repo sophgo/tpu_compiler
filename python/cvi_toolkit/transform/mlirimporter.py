@@ -333,9 +333,19 @@ class MLIRImporter(object):
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         mlir_attrs = {}
-        for key in kargs:
-            checkType(kargs[key], int)
-            mlir_attrs[key] =  IntegerAttr.get(self.i32Type, kargs[key])
+        checkKey(kargs, 'height')
+        checkKey(kargs, 'width')
+        checkKey(kargs, 'pad_beg')
+        checkKey(kargs, 'pad_end')
+        checkKey(kargs, 'shrink_factor')
+        checkKey(kargs, 'zoom_factor')
+        checkKey(kargs, 'coordinate_transformation_mode')
+
+        for key, value in kargs.items():
+            if key == "coordinate_transformation_mode":
+                mlir_attrs[key] = StringAttr.get(value)
+            else:
+                mlir_attrs[key] = IntegerAttr.get(self.i32Type, value)
 
         name = StringAttr.get(op_name)
         inputOperands = self.add_quant_reg(inputOperands)

@@ -1931,6 +1931,7 @@ class OnnxConverter(BaseConverter):
                 'shrink_factor': 0,
                 'width': int(size[-1]),
                 'zoom_factor': 0,
+                'coordinate_transformation_mode': coordinate_transformation_mode
             }
 
             # align another hw

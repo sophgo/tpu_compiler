@@ -274,7 +274,10 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
     getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
     oh = output_shape[2];
     ow = output_shape[3];
-
+    std::string ctd = _interpOp.coordinate_transformation_mode().str();
+    if (ctd != "align_corners"){
+      return failure();
+    }
     if (oh == ih && ow == iw) {
       // no need to do interp, just delete it
       rewriter.eraseOp(op);

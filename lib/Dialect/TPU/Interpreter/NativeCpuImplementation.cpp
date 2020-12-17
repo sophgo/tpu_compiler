@@ -2051,6 +2051,71 @@ int my_interptile(float *input, float *output, int n, int c, int h, int w,
   return 0;
 }
 
+template <typename T>
+void upsampleBilinear(int64_t batch_size, int64_t num_channels,
+                      int64_t input_height, int64_t input_width,
+                      float height_scale, float width_scale, const T *Xdata,
+                      T *Ydata) {
+  int64_t output_width = static_cast<int64_t>(input_width * width_scale);
+  int64_t output_height = static_cast<int64_t>(input_height * height_scale);
+
+  for (int64_t n = 0; n < batch_size; ++n) {
+    for (int64_t c = 0; c < num_channels; ++c) {
+      for (int64_t y = 0; y < output_height; ++y) {
+        float in_y =
+            std::min(y / height_scale, static_cast<float>(input_height - 1));
+        const int64_t in_y1 =
+            std::min(static_cast<int64_t>(in_y), input_height - 1);
+        const int64_t in_y2 = std::min(in_y1 + 1, input_height - 1);
+        float dy1 = fabs(in_y - in_y1);
+        float dy2 = fabs(in_y - in_y2);
+        if (in_y1 == in_y2) {
+          dy1 = 0.5f;
+          dy2 = 0.5f;
+        }
+
+        const int64_t input_width_mul_y1 = input_width * in_y1;
+        const int64_t input_width_mul_y2 = input_width * in_y2;
+
+        for (int64_t x = 0; x < output_width; ++x) {
+          float in_x =
+              std::min(x / width_scale, static_cast<float>(input_width - 1));
+          const int64_t in_x1 =
+              std::min(static_cast<int64_t>(in_x), input_width - 1);
+          const int64_t in_x2 = std::min(in_x1 + 1, input_width - 1);
+
+          float dx1 = std::abs(in_x - in_x1);
+          float dx2 = std::abs(in_x - in_x2);
+          if (in_x1 == in_x2) {
+            dx1 = 0.5f;
+            dx2 = 0.5f;
+          }
+
+          T X11 = Xdata[input_width_mul_y1 + in_x1];
+          T X21 = Xdata[input_width_mul_y1 + in_x2];
+          T X12 = Xdata[input_width_mul_y2 + in_x1];
+          T X22 = Xdata[input_width_mul_y2 + in_x2];
+
+          Ydata[output_width * y + x] =
+              static_cast<T>(dx2 * dy2 * X11 + dx1 * dy2 * X21 +
+                             dx2 * dy1 * X12 + dx1 * dy1 * X22);
+        }
+      }
+      Xdata += input_height * input_width;
+      Ydata += output_width * output_height;
+    }
+  }
+}
+
+int my_interp_linear(float *input, float *output, int n, int c, int ih,
+                       int iw, int oh, int ow){
+  float height_scale = (float)oh / (float)ih;
+  float width_scale = (float)ow / (float)iw;
+  upsampleBilinear<float>(n, c, ih, iw, height_scale, width_scale, input,
+                          output);
+  return 0;
+}
+
 int my_permute(float *input, float *output, int in, int ic, int ih, int iw,
                int order0, int order1, int order2, int order3) {
   int shape[4] = {in, ic, ih, iw};

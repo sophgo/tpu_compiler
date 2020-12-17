@@ -1670,11 +1670,16 @@ LogicalResult tpu::InterpOp::interpret(
   float *output = (float *)resultT.get()->data();
   auto pad_beg_ = pad_beg();
   auto pad_end_ = pad_end();
-
+  std::string ctd = coordinate_transformation_mode().str();
   std::vector<int64_t> shape;
   int64_t input_size, in, ic, ih, iw;
+  int64_t output_size, on, oc, oh, ow;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, in, ic, ih, iw);
+
+  std::vector<int64_t> output_shape;
+  getTensorShapeAndSize(result, output_shape, output_size);
+  getNCHW(output_shape, on, oc, oh, ow);
 
   int height_in_ = ih;
   int width_in_ = iw;
@@ -1708,11 +1713,14 @@ LogicalResult tpu::InterpOp::interpret(
     height_out_ = height_out_ + (height_out_ - 1) * (zoom_factor - 1);
     width_out_ = width_out_ + (width_out_ - 1) * (zoom_factor - 1);
   }
-
-  // TODO: verify pad_end_ > 0
-  my_interp(in * ic,
-    input, - pad_beg_, - pad_beg_, height_in_eff_, width_in_eff_, height_in_, width_in_,
-    output, 0, 0, height_out_, width_out_, height_out_, width_out_);
+  if (ctd == "align_corners") {
+    // TODO: verify pad_end_ > 0
+    my_interp(in * ic, input, -pad_beg_, -pad_beg_, height_in_eff_,
+              width_in_eff_, height_in_, width_in_, output, 0, 0, height_out_,
+              width_out_, height_out_, width_out_);
+  } else if (ctd == "half_pixel") {
+    my_interp_linear(input, output, in, ic, ih, iw, oh, ow);
+  }
 
   valueMapping[result] = std::move(resultT);
 

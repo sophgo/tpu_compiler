@@ -901,7 +901,7 @@ def TPU_InterpOp: TPU_Op<"interp",
       `zoom_factor`     : optional, enlarge h/w to larger one, leverage deconv
       `pad_beg`         : optional, padding twice in h/w
       `pad_end`         : optional, padding twice in h/w
-
+      `coordinate_transformation_mode`: optional, This attribute describes how to transform the coordinate in the resized tensor to the coordinate in the original tensor.
       `chipname`        : optional, chipname.
 
     Result:
@@ -933,6 +933,7 @@ def TPU_InterpOp: TPU_Op<"interp",
     DefaultValuedAttr<I32Attr, "0">:$zoom_factor,
     DefaultValuedAttr<I32Attr, "0">:$pad_beg,
     DefaultValuedAttr<I32Attr, "0">:$pad_end,
+    DefaultValuedAttr<StrAttr, "align_corners">:$coordinate_transformation_mode,
     OptionalAttr<StrAttr>:$chipname
   );
 
