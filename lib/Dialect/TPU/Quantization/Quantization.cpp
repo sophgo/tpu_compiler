@@ -136,6 +136,9 @@ static llvm::cl::opt<std::string> clSetLutMinMaxByFile(
     llvm::cl::desc("Set bf16 lut min/max range from file"),
     llvm::cl::cat(clOptionsCategory));
 
+static inline bool is_fix8b(const StringRef&quant) {
+  return quant == "INT8" || quant == "UINT8";
+}
 
 static void insertQuantOp(Operation *op) {
   auto builder = OpBuilder(op);
@@ -169,8 +172,12 @@ static void insertQuantOp(Operation *op) {
       }
     }
 
+    if (prev_quant == "INT8" && isa<tpu::Yuv420CscOp>(prev_op)) {
+      prev_quant = "UINT8";
+    }
+
     // insert quant if prev and curr have different quant mode
-    if (curr_quant != prev_quant) {
+    if (curr_quant != prev_quant && !(is_fix8b(prev_quant) && is_fix8b(curr_quant))) {
       std::vector<NamedAttribute> attrs;
       attrs.push_back(builder.getNamedAttr("from",
           builder.getStringAttr(prev_quant)));
@@ -179,14 +186,11 @@ static void insertQuantOp(Operation *op) {
       float threshold = 0.0f;
       int zero_point =0;
       std::string name;
-      if (curr_quant == "INT8") {
+      if (is_fix8b(curr_quant)) {
         threshold = getOpThreshold(prev_op);
         zero_point = getOpZeroPoint(prev_op);
         name = getOpName(prev_op).str() + "_quant";
-      } else if (prev_quant == "INT8") {
-        if (curr_quant == "UINT8") {
-          continue;
-        }
+      } else if (is_fix8b(prev_quant)) {
         threshold = getOpThreshold(prev_op);
         zero_point = getOpZeroPoint(prev_op);
         auto fuse_op = prev_op->getResult(0).use_begin()->getOwner();
@@ -520,112 +524,165 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     getNCHW(output_shape, on, oc, oh, ow);
 
     Type eltType = FloatType::getF32(builder.getContext());
+    std::vector<int> color_orders;
+    if (preprocessOp.color_order().hasValue()) {
+      for (auto o : llvm::enumerate(preprocessOp.color_order().getValue())) {
+        auto attr = o.value().dyn_cast<IntegerAttr>();
+        color_orders.push_back(attr.getInt());
+      }
+    }
+    mlir::Value current_op = input_op;
+    int64_t tn = in, tc = ic, th = ih, tw = iw;
+    // create yuv420_csc
+    if (preprocessOp.pixel_format().str() == "YUV420") {
+      std::string name =
+          getOpName(preprocessOp).str() + "_preprocess_yuv420_csc";
+      tn = tn;
+      tc = 3;
+      th *= 2;
+      tw *= 2;
+      auto yuv420_type =
+          RankedTensorType::get({tn, tc, th, tw}, eltType);
+      std::vector<NamedAttribute> attrs;
+
+      attrs.push_back(
+          builder.getNamedAttr("name", builder.getStringAttr(name)));
+      if (color_orders.empty() == false) {
+      attrs.push_back(builder.getNamedAttr(
+          "channel_order",
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({color_orders}))));
+      }
+      attrs.push_back(
+          builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+      // we only accept first input to IR, second input shape will be attribute.
+      auto yuv420_op = OpBuilder(op).create<tpu::Yuv420CscOp>(
+          op->getLoc(), yuv420_type, ArrayRef<Value>{current_op},
+          ArrayRef<NamedAttribute>{attrs});
+      setOpThreshold(yuv420_op, 128);
+      setOpQuantParamType(yuv420_op, "THRESHOLD");
+      setOpQuant(yuv420_op, "UINT8");
+      color_orders.clear();
+      current_op = yuv420_op;
+    }
 
     // create int8 transpose
-    int64_t tn, tc, th, tw;
-    std::vector<NamedAttribute> transpose_attrs;
-    std::string tranpose_name =
-        getOpName(preprocessOp).str() + "_preprocess_tranpose";
-    std::vector<int> transpose_orders;
     if (preprocessOp.transpose_order().hasValue()) {
+      std::vector<NamedAttribute> transpose_attrs;
+      std::string tranpose_name =
+          getOpName(preprocessOp).str() + "_preprocess_tranpose";
+      std::vector<int> transpose_orders;
+
       for (auto m :
            llvm::enumerate(preprocessOp.transpose_order().getValue())) {
         auto attr = m.value().dyn_cast<IntegerAttr>();
         transpose_orders.push_back(attr.getInt());
       }
+      int64_t shape[4] = {tn,tc,th,tw};
+
+      tn = shape[transpose_orders.at(0)];
+      tc = shape[transpose_orders.at(1)];
+      th = shape[transpose_orders.at(2)];
+      tw = shape[transpose_orders.at(3)];
+
+      transpose_attrs.push_back(
+          builder.getNamedAttr("name", builder.getStringAttr(tranpose_name)));
+      transpose_attrs.push_back(builder.getNamedAttr(
+          "order0", builder.getI32IntegerAttr(transpose_orders.at(0))));
+      transpose_attrs.push_back(
+          builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+      transpose_attrs.push_back(builder.getNamedAttr(
+          "order1", builder.getI32IntegerAttr(transpose_orders.at(1))));
+      transpose_attrs.push_back(builder.getNamedAttr(
+          "order2", builder.getI32IntegerAttr(transpose_orders.at(2))));
+      transpose_attrs.push_back(builder.getNamedAttr(
+          "order3", builder.getI32IntegerAttr(transpose_orders.at(3))));
+
+      auto transpose_type = RankedTensorType::get({tn, tc, th, tw}, eltType);
+      auto transpose_op = OpBuilder(op).create<tpu::PermuteOp>(
+          op->getLoc(), transpose_type, ArrayRef<Value>{current_op},
+          ArrayRef<NamedAttribute>{transpose_attrs});
+      setOpThreshold(transpose_op, 128);
+      setOpQuantParamType(transpose_op, "THRESHOLD");
+      setOpQuant(transpose_op, "UINT8");
+      current_op = transpose_op;
     }
-
-    tn = input_shape[transpose_orders.at(0)];
-    tc = input_shape[transpose_orders.at(1)];
-    th = input_shape[transpose_orders.at(2)];
-    tw = input_shape[transpose_orders.at(3)];
-
-    transpose_attrs.push_back(
-        builder.getNamedAttr("name", builder.getStringAttr(tranpose_name)));
-    transpose_attrs.push_back(builder.getNamedAttr(
-        "order0", builder.getI32IntegerAttr(transpose_orders.at(0))));
-    transpose_attrs.push_back(
-        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
-    transpose_attrs.push_back(builder.getNamedAttr(
-        "order1", builder.getI32IntegerAttr(transpose_orders.at(1))));
-    transpose_attrs.push_back(builder.getNamedAttr(
-        "order2", builder.getI32IntegerAttr(transpose_orders.at(2))));
-    transpose_attrs.push_back(builder.getNamedAttr(
-        "order3", builder.getI32IntegerAttr(transpose_orders.at(3))));
-
-    auto transpose_type = RankedTensorType::get({tn, tc, th, tw}, eltType);
-    auto transpose_op = OpBuilder(op).create<tpu::PermuteOp>(
-        op->getLoc(), transpose_type, ArrayRef<Value>{input_op},
-        ArrayRef<NamedAttribute>{transpose_attrs});
-    setOpThreshold(transpose_op, 128);
-    setOpQuantParamType(transpose_op, "THRESHOLD");
-    setOpQuant(transpose_op, "UINT8");
 
     // create uint8 pad
-    int64_t pn, pc, ph, pw;
-    std::vector<NamedAttribute> pad_attrs;
-    std::string pad_name =
-        getOpName(preprocessOp).str() + "_preprocess_pad";
-    std::vector<int> pads;
-    for (auto m : llvm::enumerate(preprocessOp.pads().getValue())) {
-      auto attr = m.value().dyn_cast<IntegerAttr>();
-      pads.push_back(attr.getInt());
+    if (preprocessOp.pads().hasValue()) {
+      std::vector<NamedAttribute> pad_attrs;
+      std::string pad_name = getOpName(preprocessOp).str() + "_preprocess_pad";
+      std::vector<int> pads;
+      bool no_pad = true;
+      for (auto m : llvm::enumerate(preprocessOp.pads().getValue())) {
+        int pad = m.value().dyn_cast<IntegerAttr>().getInt();
+        pads.push_back(pad);
+        if (pad != 0 && no_pad) {
+          no_pad = false;
+        }
+      }
+      if (no_pad)
+        goto pad_exit;
+      float const_val = preprocessOp.const_val().convertToFloat();
+
+      tn = pads[0] + pads[4] + tn;
+      tc = pads[1] + pads[5] + tc;
+      th = pads[2] + pads[6] + th;
+      tw = pads[3] + pads[7] + tw;
+
+      pad_attrs.push_back(
+          builder.getNamedAttr("name", builder.getStringAttr(pad_name)));
+      pad_attrs.push_back(builder.getNamedAttr(
+          "pads", builder.getI32ArrayAttr(ArrayRef<int32_t>({pads}))));
+      pad_attrs.push_back(builder.getNamedAttr(
+          "const_val", builder.getF32FloatAttr(const_val)));
+      pad_attrs.push_back(
+          builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+
+      auto pad_type = RankedTensorType::get({tn, tc, th, tw}, eltType);
+      auto pad_op = OpBuilder(op).create<tpu::PadOp>(
+          op->getLoc(), pad_type, ArrayRef<Value>{current_op},
+          ArrayRef<NamedAttribute>{pad_attrs});
+      setOpThreshold(pad_op, 128);
+      setOpQuantParamType(pad_op, "THRESHOLD");
+      setOpQuant(pad_op, "UINT8");
+      current_op = pad_op;
     }
-    float const_val = preprocessOp.const_val().convertToFloat();
-
-    pn = pads[0] + pads[4] + tn;
-    pc = pads[1] + pads[5] + tc;
-    ph = pads[2] + pads[6] + th;
-    pw = pads[3] + pads[7] + tw;
-
-    pad_attrs.push_back(
-        builder.getNamedAttr("name", builder.getStringAttr(pad_name)));
-    pad_attrs.push_back(builder.getNamedAttr(
-        "pads", builder.getI32ArrayAttr(ArrayRef<int32_t>({pads}))));
-    pad_attrs.push_back(
-        builder.getNamedAttr("const_val", builder.getF32FloatAttr(const_val)));
-    pad_attrs.push_back(
-        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
-
-    auto pad_type = RankedTensorType::get({pn, pc, ph, pw}, eltType);
-    auto pad_op = OpBuilder(op).create<tpu::PadOp>(
-        op->getLoc(), pad_type, ArrayRef<Value>{transpose_op},
-        ArrayRef<NamedAttribute>{pad_attrs});
-    setOpThreshold(pad_op, 128);
-    setOpQuantParamType(pad_op, "THRESHOLD");
-    setOpQuant(pad_op, "UINT8");
+pad_exit:
 
     // create int8 crop
-    std::string crop_name =
-        getOpName(preprocessOp).str() + "_preprocess_crop";
-    std::vector<int> crop_offset;
     if (preprocessOp.crop_offset().hasValue()) {
+      std::string crop_name =
+          getOpName(preprocessOp).str() + "_preprocess_crop";
+      std::vector<int> crop_offset;
+
       for (auto m : llvm::enumerate(preprocessOp.crop_offset().getValue())) {
         auto attr = m.value().dyn_cast<IntegerAttr>();
         crop_offset.push_back(attr.getInt());
       }
+
+      std::vector<int> crop_shape(4);
+      crop_shape.assign(output_shape.begin(), output_shape.end());
+      auto crop_type = RankedTensorType::get({on, oc, oh, ow}, eltType);
+      std::vector<NamedAttribute> crop_attrs;
+      crop_attrs.push_back(builder.getNamedAttr(
+          "crop_shape",
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({crop_shape}))));
+      crop_attrs.push_back(builder.getNamedAttr(
+          "crop_offset",
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({crop_offset}))));
+      crop_attrs.push_back(
+          builder.getNamedAttr("name", builder.getStringAttr(crop_name)));
+      crop_attrs.push_back(
+          builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+      // we only accept first input to IR, second input shape will be attribute.
+      auto crop_op = OpBuilder(op).create<tpu::CropOp>(
+          op->getLoc(), crop_type, ArrayRef<Value>{current_op},
+          ArrayRef<NamedAttribute>{crop_attrs});
+      setOpQuantParamType(crop_op, "THRESHOLD");
+      setOpThreshold(crop_op, 128);
+      setOpQuant(crop_op, "UINT8");
+      current_op = crop_op;
     }
-    std::vector<int> crop_shape(4);
-    crop_shape.assign(output_shape.begin(), output_shape.end());
-    auto crop_type = RankedTensorType::get({on, oc, oh, ow}, eltType);
-    std::vector<NamedAttribute> crop_attrs;
-    crop_attrs.push_back(builder.getNamedAttr(
-        "crop_shape",
-        builder.getI32ArrayAttr(ArrayRef<int32_t>({crop_shape}))));
-    crop_attrs.push_back(builder.getNamedAttr(
-        "crop_offset",
-        builder.getI32ArrayAttr(ArrayRef<int32_t>({crop_offset}))));
-    crop_attrs.push_back(
-        builder.getNamedAttr("name", builder.getStringAttr(crop_name)));
-    crop_attrs.push_back(
-        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
-    // we only accept first input to IR, second input shape will be attribute.
-    auto crop_op = OpBuilder(op).create<tpu::CropOp>(
-        op->getLoc(), crop_type, ArrayRef<Value>{pad_op},
-        ArrayRef<NamedAttribute>{crop_attrs});
-    setOpQuantParamType(crop_op, "THRESHOLD");
-    setOpThreshold(crop_op, 128);
-    setOpQuant(crop_op, "UINT8");
 
     // create bf16 scale
     // ((x * raw_scale / 255.0) - mean / std) * scale
@@ -645,13 +702,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     for (auto s : llvm::enumerate(preprocessOp.std().getValue())) {
       auto attr = s.value().dyn_cast<FloatAttr>();
       stds.push_back((float)attr.getValueAsDouble());
-    }
-    std::vector<int> color_orders;
-    if (preprocessOp.color_order().hasValue()) {
-      for (auto o : llvm::enumerate(preprocessOp.color_order().getValue())) {
-        auto attr = o.value().dyn_cast<IntegerAttr>();
-        color_orders.push_back(attr.getInt());
-      }
     }
 
     std::vector<float> scale_value(3), bias_value(3);
@@ -698,7 +748,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         ArrayRef<NamedAttribute>{bias_weight_attrs});
 
     std::vector<Value> scale_operands;
-    scale_operands.push_back(crop_op);
+    scale_operands.push_back(current_op);
     scale_operands.push_back(scale_weight_op);
     scale_operands.push_back(bias_weight_op);
 
@@ -1218,6 +1268,7 @@ public:
               }
             }
           }
+
           // mix-bf16 options
           if (clQuantMixSigmoid && isa<tpu::SigmoidOp>(op)) {
             setOpQuant(op, "BF16");

@@ -1627,6 +1627,35 @@ Value tpu::SwapChannelOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::Yuv420CscOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  //   TensorFile *wTF = getWeightTensorFile(op);
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  if (this->channel_order().hasValue()) {
+    attrs.push_back(builder.getNamedAttr("channel_order", channel_orderAttr()));
+  }
+  if (getOpQuant() == "UINT8" || getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_Yuv420CscOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_Yuv420CscOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::TileOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4279,6 +4308,7 @@ public:
         DefaultToTGPattern<tpu::SoftPlusOp>,
         DefaultToTGPattern<tpu::SquareOp>,
         DefaultToTGPattern<tpu::QuadraticSumOp>,
+        DefaultToTGPattern<tpu::Yuv420CscOp>,
         DefaultToTGPattern<tpu::ZeroMaskOp>,
         DefaultToTGPattern<tpu::MatMulOp>
         >(context);

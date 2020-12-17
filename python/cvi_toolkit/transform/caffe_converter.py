@@ -134,7 +134,9 @@ class CaffeConverter(BaseConverter):
             if self.convert_preprocess:
                 resize_h, resize_w = self.preprocess_args.get(
                     "resize_dims")
-                if self.preprocess_args.get("data_format") == "nchw" and \
+                if self.preprocess_args.get("pixel_format") == "YUV420":
+                    input_shape = [input_shape[0], 6, int(resize_h/2), int(resize_w/2)]
+                elif self.preprocess_args.get("data_format") == "nchw" and \
                         self.preprocess_args.get('preprocess_input_data_format') == "nhwc":
                     input_shape = [input_shape[0],
                                    resize_h, resize_w, input_shape[1]]
@@ -1716,8 +1718,10 @@ class CaffeConverter(BaseConverter):
         for idx, name in enumerate(self.inputs):
             input_shape = list(self.blobs[name].shape)
             input_shape[0] = self.batch_size
+            data_format = 'nhwc'
 
             if self.preprocess_args:
+                data_format = self.preprocess_args.get('preprocess_input_data_format')
                 color_order = np.array([0 ,1, 2])
                 transpose_order = np.array([0, 1, 2, 3])
                 crop_shape = np.array(
@@ -1727,11 +1731,13 @@ class CaffeConverter(BaseConverter):
                     # we read image use opencv, opencv default is bgr
                     # we need to swap to rgb
                     color_order = np.array([2,1,0])
+                if self.preprocess_args.get('pixel_format') == "YUV420":
+                    data_format = 'nchw'
                 if self.preprocess_args.get('data_format') == "nchw" and \
-                        self.preprocess_args.get('preprocess_input_data_format') == "nhwc":
+                        data_format == "nhwc":
                     transpose_order = np.array([0, 3, 1, 2])
                 elif self.preprocess_args.get('data_format') == "nchw" and \
-                        self.preprocess_args.get('preprocess_input_data_format') == "nchw":
+                        data_format == "nchw":
                     pass
                 else:
                     raise RuntimeError("No support fused preprocess data_format: {} \ preprocess_input_data_format: {}",
@@ -1751,6 +1757,7 @@ class CaffeConverter(BaseConverter):
                     'std':  np.array([float(s) for s in self.preprocess_args.get('std')], dtype=np.float32),
                     'scale': self.preprocess_args.get('input_scale'),
                     'raw_scale': self.preprocess_args.get('raw_scale'),
+                    'pixel_format': self.preprocess_args.get('pixel_format'),
                     'color_order': color_order,
                     'transpose_order': transpose_order,
                     'crop_offset': crop_offset,
@@ -1769,7 +1776,7 @@ class CaffeConverter(BaseConverter):
                     'scale': 1.0,
                     'raw_scale': 255.0,
                     'color_order': np.array([0,1,2]),
-                    'data_format': "nhwc",
+                    'data_format': data_format,
                     'gray': self.preprocess_args.get('gray')
                 }
                 # add preprocess

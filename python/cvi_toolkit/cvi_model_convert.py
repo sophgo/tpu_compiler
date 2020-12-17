@@ -30,6 +30,7 @@ def Convert(args):
                         input_scale=args.input_scale,
                         raw_scale=args.raw_scale,
                         std=args.std,
+                        pixel_format=args.pixel_format,
                         rgb_order=args.model_channel_order,
                         crop_method=args.crop_method,
                         data_format=args.data_format,
@@ -91,16 +92,12 @@ def main():
         default=1,
     )
     parser.add_argument(
-        "--swap_channel",
-        help="Do preprocess, specify the channel order to swap",
+        "--pixel_format",
+        help="""Pixel format, default is RGB mode, user can set to YUV420.
+                If YUV420 used, input shape will be [N 6 h/2 w/2]
+        """,
         type=str,
-        default="",
-    )
-    parser.add_argument(
-        "--scale",
-        help="Do preprocess, specify the scale",
-        type=float,
-        default=1.0,
+        default="RGB"
     )
     parser.add_argument(
         "--convert_preprocess",

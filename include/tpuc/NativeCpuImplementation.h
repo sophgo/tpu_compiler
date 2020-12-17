@@ -197,6 +197,10 @@ int my_roipooling(float *data, float *rois, float *output, int pooled_h, int poo
 int my_tile(float *input, float *output, std::vector<int64_t> &input_shape,
             std::vector<int64_t> &output_shape, std::vector<int32_t> &resp);
 
+// type = 0:fp32,=1:u8,=2:bf16
+void my_yuv420_csc(float *input, float *output, int n, int c, int h, int w,
+                   std::vector<int> order, int type = 0);
+
 void conv3d_float_ref(float *input, float *weight, float *bias, float *output,
                       int n, int input_c, int input_d, int input_h, int input_w,
                       int output_c, int output_d, int output_h, int output_w,

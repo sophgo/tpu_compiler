@@ -1174,6 +1174,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'std')
         checkKey(kargs, 'scale')
         checkKey(kargs, 'raw_scale')
+        checkKey(kargs, 'pixel_format')
         checkKey(kargs, 'color_order')
         checkKey(kargs, 'transpose_order')
         checkKey(kargs, 'crop_offset')
@@ -1188,6 +1189,7 @@ class MLIRImporter(object):
             'std': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['std']]),
             'scale': FloatAttr.get_f32(kargs['scale']),
             'raw_scale': FloatAttr.get_f32(kargs['raw_scale']),
+            'pixel_format': StringAttr.get(kargs['pixel_format']),
             'color_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['color_order']]),
             'transpose_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['transpose_order']]),
             'crop_offset': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['crop_offset']]),

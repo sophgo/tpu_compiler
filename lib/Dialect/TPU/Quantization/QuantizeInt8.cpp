@@ -1136,6 +1136,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::PadOp>(op)
       || isa<tpu::PoolMax2DOp>(op)
       || isa<tpu::SoftmaxCpuOp>(op)
+      || isa<tpu::Yuv420CscOp>(op)
       || isa<tpu::ZeroMaskOp>(op)) {
     skip_checking = true;
   }
@@ -1452,6 +1453,7 @@ LogicalResult tpu::ReduceMaxOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::Yuv420CscOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ZeroMaskOp)
 
 #define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \

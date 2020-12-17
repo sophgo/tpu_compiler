@@ -18,6 +18,7 @@ def parse_args():
         '--output_data_format', help='output data format, default: hwc, chw', default='hwc')
     parser.add_argument("--batch_size", type=int, default=1,
                         help="preprocess store batch size")
+    parser.add_argument("--pixel_format", help='RGB or YUV420, default: RGB', default='RGB')
     args = parser.parse_args()
 
     return args
@@ -33,6 +34,7 @@ if __name__ == "__main__":
                         input_scale=args.input_scale,
                         raw_scale=args.raw_scale,
                         std=args.std,
+                        pixel_format=args.pixel_format,
                         rgb_order=args.model_channel_order,
                         data_format=args.data_format,
                         batch=args.batch_size,

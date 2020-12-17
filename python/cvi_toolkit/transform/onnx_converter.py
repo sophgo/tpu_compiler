@@ -344,6 +344,7 @@ class OnnxConverter(BaseConverter):
                     'std':  np.array([float(s) for s in self.preprocess_args.get('std')], dtype=np.float32),
                     'scale': self.preprocess_args.get('input_scale'),
                     'raw_scale': self.preprocess_args.get('raw_scale'),
+                    'pixel_format': self.preprocess_args.get('pixel_format'),
                     'color_order': color_order,
                     'transpose_order': transpose_order,
                     'crop_offset': crop_offset,

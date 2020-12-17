@@ -3,4 +3,5 @@ build/
 build_debug/
 install/
 regression/regression_out/*
+regression/cvimodel_release/*
 lib/Dialect/TPU/Backend/test/tmp/*

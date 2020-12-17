@@ -2669,6 +2669,18 @@ LogicalResult tpu::PreprocessOp::interpret(
       pads.push_back(attr.getInt());
     }
   }
+  std::string pixel_format = this->pixel_format().str();
+  std::vector<float> rgb_tmp_data;
+  if (pixel_format == "YUV420") {
+    rgb_tmp_data.resize(input_size * 2);
+    my_yuv420_csc(input->data(), rgb_tmp_data.data(), n, 3, h * 2, w * 2,
+                  color_orders);
+    color_orders.clear();
+    input_shape = {n, 3, h * 2, w * 2};
+    input_size *= 2;
+  } else {
+    rgb_tmp_data.assign(input->begin(), input->end());
+  }
 
   // Transpose
   std::vector<float> transpose_tmp_data(input_size);
@@ -2680,7 +2692,7 @@ LogicalResult tpu::PreprocessOp::interpret(
     t_oc = input_shape.at(transpose_orders.at(1));
     t_oh = input_shape.at(transpose_orders.at(2));
     t_ow = input_shape.at(transpose_orders.at(3));
-    my_permute(input->data(), transpose_tmp_data.data(),
+    my_permute(rgb_tmp_data.data(), transpose_tmp_data.data(),
                input_shape.at(0),
                input_shape.at(1),
                input_shape.at(2),
@@ -4055,6 +4067,40 @@ LogicalResult tpu::YoloDetectionOp::interpret(
   return success();
 }
 
+LogicalResult tpu::Yuv420CscOp::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto shape = getTensorShape(result);
+  auto resultT = std::make_unique<std::vector<float>>(size);
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+  float *input = (float *)opdT[0]->data();
+  float *output = (float *)resultT->data();
+  std::vector<int> order;
+  if (this->channel_order().hasValue()) {
+    arrayAttrToVector(this->channel_order().getValue(), order);
+  } else {
+    order.push_back(0);
+    order.push_back(1);
+    order.push_back(2);
+  }
+  if (getOpQuant() == "NONE") {
+    my_yuv420_csc(input, output, n, c, h, w, order);
+  } else if (getOpQuant() == "BF16") {
+    my_yuv420_csc(input, output, n, c, h, w, order, 2);
+  } else {
+    my_yuv420_csc(input, output, n, c, h, w, order, 1);
+  }
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::ZeroMaskOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -4095,7 +4141,7 @@ LogicalResult tpu::QuantOp::interpret(
     quantizeActivationInt8WithThreshold(output, input, size, threshold,
                                         useTpuQuantOp,
                                         zero_point);
-  } else if (this->from() == "INT8" && this->to() == "NONE") {
+  } else if ((this->from() == "INT8" || this->from() == "UINT8") && this->to() == "NONE") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
     float threshold = this->threshold().getValue().convertToFloat();

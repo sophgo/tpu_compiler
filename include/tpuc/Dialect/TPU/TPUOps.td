@@ -1821,13 +1821,14 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     Perform preprocessing to input feature maps
 
     Inputs:
-      `input`                   : required, input tensors
+      `input`           : required, input tensors
 
     Attributes:
       `mean`            : required, mean value of each channel
       `std`             : required, standard value of each channel
       `scale`           : required, scale value multipled to input feature maps
       `raw_scale`       : required, Multiply raw input by this scale before preprocessing.
+      `pixel_format`    : required, default is RGB, can be set to YUV420
       `color_order`     : required, color swap order
       `crop_offset`     : required, crop offset.
       `pads`            : tensor containing the number of start and end
@@ -1856,11 +1857,54 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     F32Attr:$scale,
     OptionalAttr<I32ArrayAttr>:$transpose_order,
     StrAttr:$name,
+    DefaultValuedAttr<StrAttr, "RGB">:$pixel_format,
     OptionalAttr<I32ArrayAttr>:$color_order,
     OptionalAttr<I32ArrayAttr>:$crop_offset,
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
     TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_Yuv420CscOp : TPU_Op<"yuv420_csc",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "yuv420_csc preprocess operator";
+
+  let description = [{
+    convert yuv420 to bgr/rgb
+
+    Inputs:
+      `input`           : required, input tensors
+
+    Attributes:
+      `channel_order`   : optional, channel swap order, default convert to bgr
+                          if order is [2,1,0], will convert to rgb
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<I32ArrayAttr>:$channel_order,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
 

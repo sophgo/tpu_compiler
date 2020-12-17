@@ -1584,6 +1584,50 @@ class TPU_TG_MemRef_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemon
 def TPU_TG_MemRef_INT8_ReduceMaxOp : TPU_TG_MemRef_PadOp<"tg_memref_int8_reduce_max", "Int8">;
 def TPU_TG_MemRef_BF16_ReduceMaxOp : TPU_TG_MemRef_PadOp<"tg_memref_bf16_reduce_max", "Bf16">;
 
+class TPU_TG_MemRef_Yuv420CscOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Yuv420 operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                                     offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins MemRefOf<[AnyFloat, AnyInteger]>:$input,
+    MemRefOf<[AnyFloat, AnyInteger]>:$output,
+    OptionalAttr<I32ArrayAttr>:$channel_order,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+}
+def TPU_TG_MemRef_INT8_Yuv420CscOp : TPU_TG_MemRef_Yuv420CscOp<"tg_memref_int8_yuv420_csc", "Int8">;
+def TPU_TG_MemRef_BF16_Yuv420CscOp : TPU_TG_MemRef_Yuv420CscOp<"tg_memref_bf16_yuv420_csc", "Bf16">;
+
 class TPU_TG_MemRef_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

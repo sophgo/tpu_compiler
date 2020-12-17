@@ -104,6 +104,7 @@ class preprocess(object):
                      input_scale=1.0,
                      raw_scale=255.0,
                      data_format="nchw",
+                     pixel_format='RGB',
                      rgb_order='bgr',
                      npy_input=None,
                      batch=1,
@@ -120,6 +121,7 @@ class preprocess(object):
             \tinput_scale   : {}\n    \
             \traw_scale     : {}\n    \
             \tdata_format   : {}\n    \
+            \tpixel_format  : {}\n    \
             \trgb_order     : {}\n    \
             \tnpy_input     : {}\n    \
             \tbatch_size    : {}\n    \
@@ -128,7 +130,7 @@ class preprocess(object):
             \tastype        : {}\n    \
         ".format(net_input_dims, resize_dims, mean, \
                 mean_file, std, input_scale, raw_scale, \
-                data_format, rgb_order, npy_input, \
+                data_format, pixel_format, rgb_order, npy_input, \
                 batch, bgray, crop_method, astype,
         ))
         self.npy_input = npy_input
@@ -175,7 +177,7 @@ class preprocess(object):
         self.input_scale = float(input_scale)
 
         self.data_format = data_format[1:]
-
+        self.pixel_format = pixel_format
         self.rgb_order = rgb_order
         self.ori_channel_order = None
 
@@ -189,6 +191,7 @@ class preprocess(object):
                 'input_scale': self.input_scale,
                 'raw_scale': self.raw_scale,
                 'data_format': "n{}".format(self.data_format),
+                'pixel_format': self.pixel_format,
                 'rgb_order': self.rgb_order,
                 'crop_offset': self.get_center_crop_offset(),
                 'pads': [0,0,0,0],
@@ -206,6 +209,7 @@ class preprocess(object):
                 'input_scale': self.input_scale,
                 'raw_scale': self.raw_scale,
                 'data_format': "n{}".format(self.data_format),
+                'pixel_format': self.pixel_format,
                 'rgb_order': self.rgb_order,
                 'crop_offset': [0,0,0,0],
                 'pads': get_aspect_ratio_pads(self.net_input_dims[0], self.net_input_dims[1], input_h, input_w),
@@ -226,6 +230,22 @@ class preprocess(object):
         starty = h//2-(cropy//2)
         return [0, 0, startx, starty]
 
+    def rgb2yuv420(self, input):
+        h, w, c = input.shape
+        yuv420 = np.zeros(int(h*w*6/4), np.uint8)
+        for h_idx in range(h):
+            for w_idx in range(w):
+                r, g, b = input[h_idx][w_idx]
+                y = int(0.299*r + 0.587*g + 0.114*b)
+                u = int(-0.169*r - 0.331*g + 0.5*b + 128)
+                v = int(0.5*r - 0.419*g - 0.081*b + 128)
+                yuv420[h_idx * w + w_idx] = y
+                if (h_idx % 2 == 0 and w_idx % 2 == 0):
+                    u_idx = int(h*w + h_idx * w / 4 + w_idx / 2)
+                    v_idx = int(u_idx + h * w / 4)
+                    yuv420[u_idx] = u
+                    yuv420[v_idx] = v
+        return yuv420.reshape(6, int(h/2), int(w/2))
 
     def run(self, input, output_npz=None, pfunc=None,
             input_name=None, input_type='file',
@@ -301,48 +321,55 @@ class preprocess(object):
                 # Take center crop.
                 x = center_crop(x, self.net_input_dims)
 
-            # if source data order is different with handle order
-            # swap source data order
-            # only handle rgb to bgr , bgr to rgb
-            if self.rgb_order != self.ori_channel_order:
-                logger.debug("ori image channel order is {}, but we handle order is {}, swap it".format(self.ori_channel_order, self.rgb_order))
-                x = x[[2,1,0], :, :]
-
-            x = x.astype(np.float32)
-            x = x * (self.raw_scale / 255.0)
-            # preprocess
-            if self.mean_file.size != 0 :
-                x -= self.mean_file
-            elif self.mean.size != 0:
-                x -= self.mean
-
-            if self.input_scale != 1.0:
-                x *= self.input_scale
-            if self.std is not None:
-                x /= self.std[:,np.newaxis, np.newaxis]
-
-
-            # if We need output order is not the same with preprocess order
-            # swap it
-            if output_channel_order != self.rgb_order:
-                logger.debug("handle order is {}, but output order need {}, swap it".format(self.rgb_order, output_channel_order))
-                x = x[[2,1,0], :, :]
-
-            if input_data_format == "hwc" and self.data_format == "hwc":
-                # if data format is HWC,  turn it to CHW at first
-                # here we turn back to HWC
+            if self.pixel_format == 'YUV420':
+                if self.ori_channel_order == 'bgr':
+                    x = x[[2,1,0], :, :]
                 x = np.transpose(x, (1, 2, 0))
-            elif input_data_format == "chw" and self.data_format == "hwc":
-                x = np.transpose(x, (1, 2, 0))
-            elif input_data_format == "hwc" and self.data_format == "chw":
-                # input data foramt is hwc
-                # data format is chw
-                # we transpose it before, just return
-                pass
+                x = self.rgb2yuv420(x)
+                x = x.astype(np.float32)
             else:
-                # input data foramt is chw, data format is chw
-                # no need to do anything
-                pass
+                # if source data order is different with handle order
+                # swap source data order
+                # only handle rgb to bgr , bgr to rgb
+                if self.rgb_order != self.ori_channel_order:
+                    logger.debug("ori image channel order is {}, but we handle order is {}, swap it".format(self.ori_channel_order, self.rgb_order))
+                    x = x[[2,1,0], :, :]
+
+                x = x.astype(np.float32)
+                x = x * (self.raw_scale / 255.0)
+                # preprocess
+                if self.mean_file.size != 0 :
+                    x -= self.mean_file
+                elif self.mean.size != 0:
+                    x -= self.mean
+
+                if self.input_scale != 1.0:
+                    x *= self.input_scale
+                if self.std is not None:
+                    x /= self.std[:,np.newaxis, np.newaxis]
+
+
+                # if We need output order is not the same with preprocess order
+                # swap it
+                if output_channel_order != self.rgb_order:
+                    logger.debug("handle order is {}, but output order need {}, swap it".format(self.rgb_order, output_channel_order))
+                    x = x[[2,1,0], :, :]
+
+                if input_data_format == "hwc" and self.data_format == "hwc":
+                    # if data format is HWC,  turn it to CHW at first
+                    # here we turn back to HWC
+                    x = np.transpose(x, (1, 2, 0))
+                elif input_data_format == "chw" and self.data_format == "hwc":
+                    x = np.transpose(x, (1, 2, 0))
+                elif input_data_format == "hwc" and self.data_format == "chw":
+                    # input data foramt is hwc
+                    # data format is chw
+                    # we transpose it before, just return
+                    pass
+                else:
+                    # input data foramt is chw, data format is chw
+                    # no need to do anything
+                    pass
 
             output = np.expand_dims(x, axis=0)
         if self.bgray:

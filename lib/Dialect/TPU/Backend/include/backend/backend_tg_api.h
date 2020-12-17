@@ -453,4 +453,10 @@ void cvi_backend_tg_upsample_kernel(
     uint32_t input_h, uint32_t input_w, uint32_t h_factor, uint32_t w_factor,
     cvk_fmt_t fmt);
 
+void cvi_backend_tg_yuv420_csc_kernel(const CviBackendContext &ctx,
+                                      uint32_t layer_id, gaddr_t ga_input,
+                                      gaddr_t ga_output, int n, int c, int h,
+                                      int w, const std::vector<int> &order,
+                                      cvk_fmt_t fmt);
+
 #endif /* CVI_BACKEND_TG_API */

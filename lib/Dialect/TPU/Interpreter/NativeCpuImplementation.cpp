@@ -2697,6 +2697,63 @@ int my_tile(float *input, float *output, std::vector<int64_t> &input_shape,
   return 0;
 }
 
+static inline float BF16(float data) {
+  return convert_bf16_fp32(convert_fp32_bf16(data));
+}
+
+static inline float UINT8(float data) {
+  return static_cast<float>(convert_fp32_u8(data));
+}
+
+void my_yuv420_csc(float *input, float *output, int n, int c, int h, int w,
+                   std::vector<int> order, int type) {
+  int y_offset = 0;
+  int u_offset = h * w;
+  int v_offset = u_offset + h * w / 4;
+  int n_stride = h * w * 6 / 4;
+  for (int idx_n = 0; idx_n < n; idx_n++) {
+    for (int idx_h = 0; idx_h < h; idx_h++) {
+      for (int idx_w = 0; idx_w < w; idx_w++) {
+        int y_idx = idx_n * n_stride + y_offset + idx_h * w + idx_w;
+        int u_idx = idx_n * n_stride + u_offset + idx_h / 2 * w / 2 + idx_w / 2;
+        int v_idx = idx_n * n_stride + v_offset + idx_h / 2 * w / 2 + idx_w / 2;
+        float y = input[y_idx];
+        float u = input[u_idx];
+        float v = input[v_idx];
+        float r, g, b;
+        if (type == 0) {
+          // float:
+          r = y + 1.4075 * (v - 128);
+          g = y - 0.3455 * (u - 128) - 0.7169 * (v - 128);
+          b = y + 1.779 * (u - 128);
+        } else {
+          // u8 or bf16
+          if (type == 1) {
+            y = (float)(uint8_t)y;
+            u = (float)(uint8_t)u;
+            v = (float)(uint8_t)v;
+          }
+          r = BF16(y + BF16(1.4075f) * (v - 128.0f));
+          g = BF16(BF16(y + BF16(-0.3455f) * (u - 128.0f)) +
+                   BF16(-0.7169f) * (v - 128.0f));
+          b = BF16(y + BF16(1.779f) * (u - 128.0f));
+        }
+        r = UINT8(r);
+        g = UINT8(g);
+        b = UINT8(b);
+
+        float color[3] = {b, g, r};
+        int c0_idx = idx_n * 3 * h * w + idx_h * w + idx_w;
+        int c1_idx = c0_idx + h * w;
+        int c2_idx = c1_idx + h * w;
+        output[c0_idx] = color[order[0]];
+        output[c1_idx] = color[order[1]];
+        output[c2_idx] = color[order[2]];
+      }
+    }
+  }
+}
+
 static void get_strides_from_shapes5d(
     int strides[5], const int shapes[5], int ws)
 {

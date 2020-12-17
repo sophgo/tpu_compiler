@@ -498,17 +498,19 @@ public:
       LLVM_DEBUG(llvm::errs() << op->getName() << "\n";);
 
       if (op->getName().getDialect().str() != "tpu" ||
-          isa<tpu::WeightFileOp>(op) || isa<tpu::LoadWeightOp>(op) ||
-          isa<tpu::NoneOp>(op)|| isa<tpu::PreprocessOp>(op)) {
-        // no need to assign
-      } else if (isa<tpu::ReorgOp>(op) ||
-                 isa<tpu::ReshapeOp>(op) ||
-                 isa<tpu::ReverseOp>(op) ||
-                 isa<tpu::SliceOp>(op) ||
-                 isa<tpu::ShuffleChannelOp>(op) ||
-                 isa<tpu::SwapChannelOp>(op) ||
-                 isa<tpu::UpsampleOp>(op) ||
-                 isa<tpu::ZeroMaskOp>(op)) {
+          isa<tpu::WeightFileOp>(op) ||
+          isa<tpu::LoadWeightOp>(op) ||
+          isa<tpu::NoneOp>(op)||
+          isa<tpu::PreprocessOp>(op) ||
+          isa<tpu::ReorgOp>(op) ||
+          isa<tpu::ReshapeOp>(op) ||
+          isa<tpu::ReverseOp>(op) ||
+          isa<tpu::SliceOp>(op) ||
+          isa<tpu::ShuffleChannelOp>(op) ||
+          isa<tpu::SwapChannelOp>(op) ||
+          isa<tpu::UpsampleOp>(op) ||
+          isa<tpu::Yuv420CscOp>(op) ||
+          isa<tpu::ZeroMaskOp>(op)) {
         // do not assign
       } else if (!failed(setThresholdFromMap(op, threshold_map))) {
         // success
@@ -550,6 +552,7 @@ public:
         BypassThresholdDefaultPattern<tpu::ReduceMaxOp>,
         BypassThresholdDefaultPattern<tpu::TileOp>,
         BypassThresholdDefaultPattern<tpu::UpsampleOp>,
+        BypassThresholdDefaultPattern<tpu::Yuv420CscOp>,
         BypassThresholdDefaultPattern<tpu::ZeroMaskOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));

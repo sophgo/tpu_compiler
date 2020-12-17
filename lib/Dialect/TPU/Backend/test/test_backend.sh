@@ -21,6 +21,7 @@ mlir_list=(
   broadcast_add.mlir
   broadcast_sub.mlir
   quadratic_sum.mlir
+  yuv420.mlir
 #  conv3d.mlir
 #  matmul_transpose.mlir
 #  matmul_with_big_k.mlir

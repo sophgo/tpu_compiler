@@ -207,6 +207,8 @@ struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPas
     target.addLegalOp<tpu::TL_LutOp>();
     target.addLegalOp<tpu::TL_PoolAvg2DOp>();
     target.addLegalOp<tpu::TL_BroadcastMulOp>();
+    target.addLegalOp<tpu::TG_INT8_Yuv420CscOp>();
+    target.addLegalOp<tpu::TG_BF16_Yuv420CscOp>();
     target.addLegalOp<tpu::TG_INT8_ZeroMaskOp>();
     target.addLegalOp<tpu::TG_BF16_ZeroMaskOp>();
 
@@ -291,6 +293,8 @@ struct ConvertTgOpToTensorPass : public mlir::PassWrapper<ConvertTgOpToTensorPas
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_LstmOp, tpu::TG_BF16_LstmOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_SoftmaxOp, tpu::TG_INT8_SoftmaxOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_SoftmaxOp, tpu::TG_BF16_SoftmaxOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_Yuv420CscOp, tpu::TG_INT8_Yuv420CscOp>,
+        convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_Yuv420CscOp, tpu::TG_BF16_Yuv420CscOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_INT8_ZeroMaskOp, tpu::TG_INT8_ZeroMaskOp>,
         convertTgOpToTensorPattern<tpu::TG_MemRef_BF16_ZeroMaskOp, tpu::TG_BF16_ZeroMaskOp>,
         convertTypeConvertedOpPattern<tpu::TG_TensorToMemRefOp>,
