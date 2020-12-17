@@ -4,8 +4,8 @@ set -e
 NET=$1
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
-export CVIMODEL_REL_PATH=${CVIMODEL_REL_PATH:-$SCRIPT_DIR/regression_out/cvimodel_regression}
+export WORKING_PATH=${WORKING_PATH:-$DIR/regression_out}
+export CVIMODEL_REL_PATH=${CVIMODEL_REL_PATH:-$DIR/regression_out/cvimodel_regression}
 echo "WORKING_PATH: ${WORKING_PATH}"
 echo "CVIMODEL_REL_PATH: ${CVIMODEL_REL_PATH}"
 
