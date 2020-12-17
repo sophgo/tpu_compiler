@@ -64,7 +64,6 @@ void MixNet::add_opd_to_list(std::string op_name, Value opd, bool b_generated) {
   if (!ptr.second) {
     LLVM_DEBUG(llvm::errs() << "Value aleady inserted in op_name map, " << op_name << "\n";);
   }
-  LLVM_DEBUG(llvm::errs() << "Add op_name " << op_name << "\n";);
 }
 
 void MixNet::parallel_start() {
@@ -1624,11 +1623,6 @@ void MixNet::_add_load_op(int group_idx,
     laddr = value->local_mem_offset;
     offset = (n_idx * tensor_dim[1] * tensor_dim[2] * tensor_dim[3] + h_idx * tensor_dim[3]) *
               tensor->unit_size();
-
-    LLVM_DEBUG(llvm::errs()
-      << name << ":         n_idx/h_idx = " << n_idx << "/" << h_idx
-      << " tensor_dim: ( "  << tensor_dim[0] << ", " << tensor_dim[1]
-      << "," << tensor_dim[2] << ", " << tensor_dim[3] << ")\n";);
 
     local_shape[0] = (n_slice);
     local_shape[1] = (tensor_dim[1]);

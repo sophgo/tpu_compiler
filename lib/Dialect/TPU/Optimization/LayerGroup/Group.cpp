@@ -253,14 +253,10 @@ bmerr_t Group::assign_steps_without_tsm() {
 
     tmp_timestep->update_mem_buffer_size();
 
-    if (1) {
-      LmemManager lmem(net_graph_);
-      bool one_shot = nsecs_and_hsecs.first == 1 && nsecs_and_hsecs.second == 1;
-      status = lmem.assign_local_memory(this, tmp_timestep, one_shot);
-    } else {
-      assert(0);
-      // status = local_mem_allocate(net_graph_, layers_, tmp_timestep, nsecs_and_hsecs);
-    }
+    LmemManager lmem(net_graph_);
+    bool one_shot = nsecs_and_hsecs.first == 1 && nsecs_and_hsecs.second == 1;
+    status = lmem.assign_local_memory(this, tmp_timestep, one_shot);
+
 
     if (status == BM_ERR_FAILURE) {
       delete tmp_timestep;

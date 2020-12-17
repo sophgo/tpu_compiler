@@ -5,6 +5,9 @@
 #include "Steps.hpp"
 #include "Group.hpp"
 #include "LayerStage.hpp"
+#include "TiuCycle.hpp"
+#include "TdmaCycle.hpp"
+
 
 #define DEBUG_TYPE "group_ops"
 
@@ -340,7 +343,7 @@ static bool tensor_conflict_with_npu_exe(NetGraph* net_graph, net_timestep* time
 
 // This fucntion moved up/down gdma load/store operations for balancing bdc and
 // gdma cycle.
-// The array timestep_cycle_slack holds the number of execution cycles per step.
+// The array timestep_slack holds the number of execution cycles per step.
 // When the value is greater than 0, it means that the execution cycle of bdc
 // instruction covers gdma instruction, otherwise we can move up/down load/store
 // operations to keep balance.
@@ -360,18 +363,17 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
   }
 
   int timestep_num = time_step->get_timestep_num();
-  int* timestep_cycle_slack = new int[timestep_num];
+  int* timestep_slack = new int[timestep_num];
   for (int i = 0; i < timestep_num; ++i) {
-    timestep_cycle_slack[i] = 0;
+    timestep_slack[i] = 0;
   }
 
-  std::map<int, int> tensor_to_gdma_cycle;
-  std::map<int, int> tensor_to_buffer_size;
-  std::vector<std::list<TENSOR_STEP>> tensor_timesteps;
+  std::map<int, int> tensor_gdma_cycle;
+  std::map<int, int> tensor_size;
+  std::vector<std::list<TENSOR_STEP>> ts_tensors;
 
   // get cycle slack of each time step
   int tensor_id;
-  int tensor_gdma_cycle;
   int tensor_local_size;
 
   std::list<TENSOR_STEP> list_tensors;
@@ -381,210 +383,217 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
     const std::vector<TENSOR_STEP>& cur_tensors = time_step->get_tensors(i);
     // add layer cycle for each time step
     if (cur_layer != -1) {
-      //timestep_cycle_slack[i] += get_layer_cycle_count(net_graph, cur_layer);
-      timestep_cycle_slack[i] += 0;//get_layer_cycle_count(net_graph, cur_layer);
+      TiuCycle tc(net_graph);
+      int layer_cycle = tc.get_cycle(cur_layer);
+      timestep_slack[i] += layer_cycle;
+      timestep_slack[i] = 0;
     }
     // sub tensor gdma cycle for each time step
     list_tensors.clear();
     for (uint32_t j = 0; j < cur_tensors.size(); ++j) {
       tensor_id = cur_tensors[j].first;
-      // get cycle
-      //tensor_gdma_cycle = get_gdma_cycle_count(net_graph, cur_tensors[j]);
-      //(MK-TODO)
-      tensor_gdma_cycle = 0;
-      tensor_to_gdma_cycle[tensor_id] = tensor_gdma_cycle;
+      TdmaCycle tc(net_graph);
+      int gdma_cycle = tc.get_cycle(cur_tensors[j]);
+      tensor_gdma_cycle[tensor_id] = gdma_cycle;
+      tensor_gdma_cycle[tensor_id] = 0;
 
       // get local memory require size
       Tensor* tensor = net_graph->get_tensor_by_id(tensor_id);
       tensor_local_size = tensor->lmem_size();
-
-      tensor_to_buffer_size[tensor_id] = tensor_local_size;
-
+      tensor_size[tensor_id] = tensor_local_size;
       // generate tensor gdma std::list
       list_tensors.push_back(cur_tensors[j]);
-
       // slack minus gdma cycle
-      timestep_cycle_slack[i] -= tensor_gdma_cycle;
+      timestep_slack[i] -= tensor_gdma_cycle[tensor_id];
     }
-    tensor_timesteps.push_back(list_tensors);
+    ts_tensors.push_back(list_tensors);
   }
 
   // move gdma time step for reducing total cycle of time steps
   int cycle_profit, max_cycle_profit;
-  int best_ts_to, best_sel_tensor;
+  int sel_to_ts_idx, sel_tensor_id;
   int cur_profit, dst_cost;
-  std::list<TENSOR_STEP>::iterator list_iter;
-  std::list<TENSOR_STEP>::iterator sel_list_iter;
+  std::list<TENSOR_STEP>::iterator ts_tensor;
+  std::list<TENSOR_STEP>::iterator sel_ts_tensor;
 
-  int to_ts_i, pre_ts;
+  int to_ts_idx, pre_ts;
   bool valid_flag;
-  TIMESTEP_LD_ST move_type;
+  TIMESTEP_LD_ST tdma_type;
 
-  for (int ts_i = 0; ts_i < timestep_num;) {
+  LLVM_DEBUG(llvm::errs() << "############ Group "
+                          << cluster->get_group_id() << " ############\n");
+
+  for (int cur_ts_idx = 0; cur_ts_idx < timestep_num;) {
     // if need to move gdma time step
-    int cur_slack = timestep_cycle_slack[ts_i];
+    int cur_slack = timestep_slack[cur_ts_idx];
     if (cur_slack >= 0) {
-      ++ts_i;
+      ++cur_ts_idx;
       continue;
     }
 
     // get the src gdma tensor and dst time step
     max_cycle_profit = 0;
-    best_ts_to = -1;
-
-    for (list_iter = tensor_timesteps[ts_i].begin(); list_iter != tensor_timesteps[ts_i].end();
-         ++list_iter) {
-      tensor_id = list_iter->first;
-      int cur_new_slack = cur_slack + tensor_to_gdma_cycle[tensor_id];
+    sel_to_ts_idx = -1;
+    // check each tensor in current timestep, move it up or down
+    // and check if have profit
+    for (ts_tensor = ts_tensors[cur_ts_idx].begin(); ts_tensor != ts_tensors[cur_ts_idx].end();
+         ++ts_tensor) {
+      tensor_id = ts_tensor->first;
+      int cur_new_slack = cur_slack + tensor_gdma_cycle[tensor_id];
       cur_profit = (cur_new_slack >= 0 ? 0 : cur_new_slack) - cur_slack;
 
-      // add for software pipeline
-      int range_end = time_step->tensor_range_end_timestep(*list_iter);
+      int range_end = time_step->tensor_range_end_timestep(*ts_tensor);
 
-      if (list_iter->second == TIMESTEP_LOAD) {
-        to_ts_i = ts_i - 1;
-        // valid_flag = to_ts_i >=0;
-        valid_flag = to_ts_i >= range_end;
+      if (ts_tensor->second == TIMESTEP_LOAD) {
+        to_ts_idx = cur_ts_idx - 1;
+        valid_flag = to_ts_idx >= range_end;
       } else {
-        to_ts_i = ts_i + 1;
-        // valid_flag = to_ts_i < timestep_num;
-        valid_flag = to_ts_i <= range_end;
+        to_ts_idx = cur_ts_idx + 1;
+        valid_flag = to_ts_idx <= range_end;
       }
 
       while (valid_flag) {
-        if (!(list_iter->second == TIMESTEP_STORE &&
-              tensor_conflict_with_npu_exe(net_graph, time_step, tensor_id, to_ts_i))) {
-          if (timestep_cycle_slack[to_ts_i] > 0) {
-            dst_cost = timestep_cycle_slack[to_ts_i] - tensor_to_gdma_cycle[tensor_id];
+        if (!(ts_tensor->second == TIMESTEP_STORE &&
+              tensor_conflict_with_npu_exe(net_graph, time_step, tensor_id, to_ts_idx))) {
+          if (timestep_slack[to_ts_idx] > 0) {
+            dst_cost = timestep_slack[to_ts_idx] - tensor_gdma_cycle[tensor_id];
             dst_cost = dst_cost >= 0 ? 0 : dst_cost;
 
             cycle_profit = cur_profit + dst_cost;
 
             if (cycle_profit > max_cycle_profit) {
               max_cycle_profit = cycle_profit;
-              best_ts_to = to_ts_i;
-              sel_list_iter = list_iter;
-              best_sel_tensor = tensor_id;
-            } else if (cycle_profit == max_cycle_profit && best_ts_to != -1) {
-              if ((tensor_to_buffer_size[tensor_id] * (abs(to_ts_i - ts_i) + 1)) <
-                  (tensor_to_buffer_size[best_sel_tensor] * (abs(best_ts_to - ts_i) + 1))) {
+              sel_to_ts_idx = to_ts_idx;
+              sel_ts_tensor = ts_tensor;
+              sel_tensor_id = tensor_id;
+            } else if (cycle_profit == max_cycle_profit && sel_to_ts_idx != -1) {
+              if ((tensor_size[tensor_id] * (abs(to_ts_idx - cur_ts_idx) + 1)) <
+                  (tensor_size[sel_tensor_id] * (abs(sel_to_ts_idx - cur_ts_idx) + 1))) {
                 max_cycle_profit = cycle_profit;
-                best_ts_to = to_ts_i;
-                sel_list_iter = list_iter;
-                best_sel_tensor = tensor_id;
+                sel_to_ts_idx = to_ts_idx;
+                sel_ts_tensor = ts_tensor;
+                sel_tensor_id = tensor_id;
               }
             }
           }
         }
-        if (list_iter->second == TIMESTEP_LOAD) {
-          --to_ts_i;
-          // valid_flag = to_ts_i >=0;
-          valid_flag = to_ts_i >= range_end;
+        if (ts_tensor->second == TIMESTEP_LOAD) {
+          --to_ts_idx;
+          valid_flag = to_ts_idx >= range_end;
         } else {
-          ++to_ts_i;
-          // valid_flag = to_ts_i < timestep_num;
-          valid_flag = to_ts_i <= range_end;
+          ++to_ts_idx;
+          valid_flag = to_ts_idx <= range_end;
         }
       }
     }
-    if (best_ts_to == -1) {
-      ++ts_i;
+    if (sel_to_ts_idx == -1) {
+      ++cur_ts_idx;
       continue;
     }
 
-    // bubble src tensor gmda
-    if (sel_list_iter->second == TIMESTEP_LOAD) {
-      to_ts_i = ts_i - 1;
-      valid_flag = to_ts_i >= best_ts_to;
-      move_type = TIMESTEP_LOAD;
+    LLVM_DEBUG(llvm::errs() << "  *** timestep "
+                            << cur_ts_idx << "***\n";);
+    LLVM_DEBUG(llvm::errs() << "  *** Max Profit: Move tensor " << sel_tensor_id
+                            << " from " << cur_ts_idx << " to " << sel_to_ts_idx
+                            << "\n";);
+
+    // update to_ts_idx for following loop
+    if (sel_ts_tensor->second == TIMESTEP_LOAD) {
+      to_ts_idx = cur_ts_idx - 1;
+      valid_flag = to_ts_idx >= sel_to_ts_idx;
+      tdma_type = TIMESTEP_LOAD;
     } else {
-      to_ts_i = ts_i + 1;
-      valid_flag = to_ts_i <= best_ts_to;
-      move_type = TIMESTEP_STORE;
+      to_ts_idx = cur_ts_idx + 1;
+      valid_flag = to_ts_idx <= sel_to_ts_idx;
+      tdma_type = TIMESTEP_STORE;
     }
-    pre_ts = ts_i;
+    pre_ts = cur_ts_idx;
 
+    // bubble cur_tensor from cur_ts_idx to sel_ts_idx
     while (valid_flag) {
-      // bubble gdma tensor
-      tensor_timesteps[to_ts_i].push_back(*sel_list_iter);
-      timestep_cycle_slack[to_ts_i] -= tensor_to_gdma_cycle[best_sel_tensor];
-      tensor_timesteps[pre_ts].erase(sel_list_iter);
-      timestep_cycle_slack[pre_ts] += tensor_to_gdma_cycle[best_sel_tensor];
+      ts_tensors[to_ts_idx].push_back(*sel_ts_tensor);
+      timestep_slack[to_ts_idx] -= tensor_gdma_cycle[sel_tensor_id];
+      ts_tensors[pre_ts].erase(sel_ts_tensor);
+      timestep_slack[pre_ts] += tensor_gdma_cycle[sel_tensor_id];
 
-      if (to_ts_i == best_ts_to) {
+      LLVM_DEBUG(llvm::errs() << "  move tensor " << sel_ts_tensor->first << " from ts "
+                   << pre_ts << " to ts " << to_ts_idx << " with profit: "
+                   << max_cycle_profit << "\n";);
+
+      if (to_ts_idx == sel_to_ts_idx) {
         break;
       }
 
       // find next tensor in the current bubble timestep
-      if (move_type == TIMESTEP_STORE &&
-          tensor_conflict_with_npu_exe(net_graph, time_step, best_sel_tensor, to_ts_i)) {
-        sel_list_iter = tensor_timesteps[to_ts_i].end();
-        --sel_list_iter;
+      if (tdma_type == TIMESTEP_STORE &&
+          tensor_conflict_with_npu_exe(net_graph, time_step, sel_tensor_id, to_ts_idx)) {
+        sel_ts_tensor = ts_tensors[to_ts_idx].end();
+        --sel_ts_tensor;
       } else {
         max_cycle_profit = 0;
-        best_sel_tensor = -1;
-        for (list_iter = tensor_timesteps[to_ts_i].begin();
-             list_iter != tensor_timesteps[to_ts_i].end(); ++list_iter) {
-          if (move_type != list_iter->second) {
+        sel_tensor_id = -1;
+        for (ts_tensor = ts_tensors[to_ts_idx].begin();
+             ts_tensor != ts_tensors[to_ts_idx].end(); ++ts_tensor) {
+          if (tdma_type != ts_tensor->second) {
             continue;
           }
 
           // add for software pipeline
-          int new_range_end = time_step->tensor_range_end_timestep(*list_iter);
-          if ((move_type == TIMESTEP_LOAD && new_range_end > best_ts_to) ||
-              (move_type == TIMESTEP_STORE && new_range_end < best_ts_to)) {
+          int new_range_end = time_step->tensor_range_end_timestep(*ts_tensor);
+          if ((tdma_type == TIMESTEP_LOAD && new_range_end > sel_to_ts_idx) ||
+              (tdma_type == TIMESTEP_STORE && new_range_end < sel_to_ts_idx)) {
             continue;
           }
 
-          tensor_id = list_iter->first;
-          int cur_new_slack = timestep_cycle_slack[to_ts_i] + tensor_to_gdma_cycle[tensor_id];
+          tensor_id = ts_tensor->first;
+          int cur_new_slack = timestep_slack[to_ts_idx] + tensor_gdma_cycle[tensor_id];
           cur_profit = (cur_new_slack >= 0 ? 0 : cur_new_slack) -
-                       (timestep_cycle_slack[to_ts_i] >= 0 ? 0 : timestep_cycle_slack[to_ts_i]);
+                       (timestep_slack[to_ts_idx] >= 0 ? 0 : timestep_slack[to_ts_idx]);
 
-          dst_cost = timestep_cycle_slack[best_ts_to] - tensor_to_gdma_cycle[tensor_id];
+          dst_cost = timestep_slack[sel_to_ts_idx] - tensor_gdma_cycle[tensor_id];
           dst_cost = dst_cost >= 0 ? 0 : dst_cost;
 
           cycle_profit = cur_profit + dst_cost;
 
           if (cycle_profit > max_cycle_profit ||
               (cycle_profit == max_cycle_profit &&
-               tensor_to_buffer_size[tensor_id] < tensor_to_buffer_size[best_sel_tensor])) {
-            sel_list_iter = list_iter;
+               tensor_size[tensor_id] < tensor_size[sel_tensor_id])) {
+            sel_ts_tensor = ts_tensor;
             max_cycle_profit = cycle_profit;
-            best_sel_tensor = tensor_id;
+            sel_tensor_id = tensor_id;
           }
         }
 
-        if (best_sel_tensor == -1) {
+        if (sel_tensor_id == -1) {
           LLVM_DEBUG(llvm::errs()
             << "WARNING: tensor gdma has not been moved to dest time step"
             << "\n";);
           break;
         }
       }
-      pre_ts = to_ts_i;
-      if (move_type == TIMESTEP_LOAD) {
-        --to_ts_i;
-        valid_flag = to_ts_i >= best_ts_to;
+      pre_ts = to_ts_idx;
+      if (tdma_type == TIMESTEP_LOAD) {
+        --to_ts_idx;
+        valid_flag = to_ts_idx >= sel_to_ts_idx;
       } else {
-        ++to_ts_i;
-        valid_flag = to_ts_i <= best_ts_to;
+        ++to_ts_idx;
+        valid_flag = to_ts_idx <= sel_to_ts_idx;
       }
     }
   }
 
   // update time step
   std::vector<TENSOR_STEP> new_tensor_timestep;
-  for (uint32_t i = 0; i < tensor_timesteps.size(); ++i) {
+  for (uint32_t i = 0; i < ts_tensors.size(); ++i) {
     new_tensor_timestep.clear();
-    for (list_iter = tensor_timesteps[i].begin(); list_iter != tensor_timesteps[i].end();
-         ++list_iter) {
-      new_tensor_timestep.push_back(*list_iter);
+    for (ts_tensor = ts_tensors[i].begin(); ts_tensor != ts_tensors[i].end();
+         ++ts_tensor) {
+      new_tensor_timestep.push_back(*ts_tensor);
     }
     time_step->update_tensor_timestep(i, new_tensor_timestep);
   }
 
-  delete[] timestep_cycle_slack;
+  delete[] timestep_slack;
   return status;
 }
 

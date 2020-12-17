@@ -212,8 +212,6 @@ void TdmaCycle::get_tdma_cycle(uint64_t baseAddr, uint64_t data_size, bool isSto
       int headBurstNumber = headOffsetTo4K / (max_burst_size);
       int remainSizeForBurst =
           align_up(headOffsetTo4K % max_burst_size, AXI_BUS_WIDTH);
-      LLVM_DEBUG(llvm::errs() << llvm::format( "headBurstNumber = %d\n", headBurstNumber););
-      LLVM_DEBUG(llvm::errs() << llvm::format( "remainSizeForBurst = %d\n", remainSizeForBurst););
       for(int packetNum = 0; packetNum < headBurstNumber; packetNum++) {
         uint64_t tempBasedAddr = baseAddr + packetNum * max_burst_size;
         tempBasedAddr = (packetNum == 0) ?
@@ -235,10 +233,6 @@ void TdmaCycle::get_tdma_cycle(uint64_t baseAddr, uint64_t data_size, bool isSto
     int tailBurstNumber = tailOffsetTo4K / (max_burst_size);
     int tailRemainSizeForBurst =
         align_up(tailOffsetTo4K % (max_burst_size), AXI_BUS_WIDTH);
-    LLVM_DEBUG(llvm::errs()
-              << llvm::format( "tailBurstNumber = %d\n", tailBurstNumber););
-    LLVM_DEBUG(llvm::errs()
-              << llvm::format( "tailRemainSizeForBurst = %d\n", tailRemainSizeForBurst););
     for(int packetNum = 0; packetNum < tailBurstNumber; packetNum++) {
       uint64_t tempBasedAddr = nearest4KBBoundary + packetNum * max_burst_size;
       tempBasedAddr = (packetNum == 0) ?
@@ -262,10 +256,6 @@ void TdmaCycle::get_tdma_cycle(uint64_t baseAddr, uint64_t data_size, bool isSto
           addressRangePeriod / (max_burst_size);
     int prevRemainSizeForBurst =
           align_up(addressRangePeriod % (max_burst_size), AXI_BUS_WIDTH);
-    LLVM_DEBUG(llvm::errs()
-               << llvm::format( "prevMaxBurstNumber = %d\n", prevMaxBurstNumber););
-    LLVM_DEBUG(llvm::errs()
-              << llvm::format( "prevRemainSizeForBurst = %d\n", prevRemainSizeForBurst););
     for(int packetNum = 0; packetNum < prevMaxBurstNumber; packetNum++) {
       uint64_t tempBasedAddr = baseAddr + packetNum * max_burst_size;
       tempBasedAddr = (packetNum == 0) ?
@@ -330,12 +320,9 @@ void TdmaCycle::cal_load_cycle() {
   bool isCContinuous = isHContinuous &&
                       (c_stride - inst_->src_w * inst_->src_h <= DATA_MAX_DISTANCE) ;
   bool isSrcBf16 = (inst_->src_fmt == 2);
-  bool isDstBf16 = (inst_->dst_fmt == 2);
-  int srcAtomicSize = isSrcBf16 ? 2 : 1;
-  int dataSize = isDstBf16 ? 2 : 1;
-  LLVM_DEBUG(llvm::errs() << llvm::format( "dataSize = %d\n", dataSize););
+  int srcDataSize = isSrcBf16 ? 2 : 1;
   int h_last_valid = (inst_->src_h_stride) * (inst_->src_h - 1) +
-                      inst_->src_w * srcAtomicSize;
+                      inst_->src_w * srcDataSize;
   int c_last_valid = c_stride * (inst_->src_c - 1) + h_last_valid;
   int generalCopySize = inst_->src_n_stride;
   bool isGeneralMove = inst_->trans_fmt;
@@ -388,7 +375,7 @@ void TdmaCycle::cal_load_cycle() {
                               + inst_->src_n_stride * n
                               + c_stride * c
                               + inst_->src_h_stride * h;
-              uint64_t data_size = inst_->src_w * srcAtomicSize;
+              uint64_t data_size = inst_->src_w * srcDataSize;
               get_tdma_cycle(addr, data_size, false);
             }
           }
@@ -403,15 +390,10 @@ void TdmaCycle::cal_load_cycle() {
 uint64_t TdmaCycle::calByteCnt(uint64_t baseAddr, uint64_t size) {
   uint64_t tempBaseAddrAlign16Byte = align_down(baseAddr, AXI_BUS_WIDTH);
   uint64_t tempEndAddrAlign16Byte = tempBaseAddrAlign16Byte + size;
-  uint64_t tempBaseAddr = baseAddr;
-  uint64_t tempEndAddr = tempBaseAddr + size;
-  LLVM_DEBUG(llvm::errs() << llvm::format( "tempEndAddr = %ld\n", tempEndAddr););
   uint64_t nearestTempBasedAddr64BBoundary = align_up(tempBaseAddrAlign16Byte, BYTE64);
   uint64_t nearestTempEndAddr64BBoundary = align_up(tempEndAddrAlign16Byte, BYTE64);
   uint64_t tempByteCnt = !(tempBaseAddrAlign16Byte == nearestTempBasedAddr64BBoundary)
                            + (nearestTempEndAddr64BBoundary - nearestTempBasedAddr64BBoundary) / BYTE64;
-  LLVM_DEBUG(llvm::errs() << llvm::format( "HContinuous baseAddr = 0x%lX\n", baseAddr););
-  LLVM_DEBUG(llvm::errs() << llvm::format( "HContinuous tempByteCnt = %ld\n", tempByteCnt););
   tempByteCnt = tempByteCnt * BYTE64;
   return tempByteCnt;
 }

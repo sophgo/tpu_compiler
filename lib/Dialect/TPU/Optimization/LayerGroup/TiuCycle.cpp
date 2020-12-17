@@ -104,21 +104,20 @@ int TiuCycle::get_cycle(int cur_layer) {
   switch (layer_type) {
     case IR_CONVOLUTION:
       inst.tsk_typ = Conv2D;
-      // check is_dw
-      set_tl_convolution_param();
+      set_tl_conv_param();
       break;
-    // case IR_DECONVOLUTION:
-    //   inst.tsk_typ = Pooling;
-    //   inst.tsk_eu_typ = 2;
-    //   set_tl_deconvolution(is_h_split);
-    //   break;
+    case IR_DECONVOLUTION:
+      inst.tsk_typ = Pooling;
+      inst.tsk_eu_typ = 2;
+      set_tl_deconv_param();
+      break;
     // case IR_ELTWISE:
     //   set_tl_eltwise(is_h_split);
     //   break;
-    // case IR_POOLING:
-    //   inst.tsk_typ = Pooling;
-    //   set_tl_pooling(is_h_split);
-    //   break;
+    case IR_POOLING:
+      inst.tsk_typ = Pooling;
+      set_tl_pooling_param();
+      break;
     // //case IR_LRN:
     // //  set_tl_lrn(is_h_split);
     // //  break;
@@ -190,7 +189,7 @@ int TiuCycle::get_cycle(int cur_layer) {
   return (uint32_t)total_time;
 }
 
-void TiuCycle::set_tl_convolution_param() {
+void TiuCycle::set_tl_conv_param() {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
@@ -228,6 +227,63 @@ void TiuCycle::set_tl_convolution_param() {
     inst.tsk_typ = Pooling;
     inst.tsk_eu_typ = 2;
   }
+}
+
+void TiuCycle::set_tl_deconv_param(){
+  bool is_dw, with_bias, do_relu;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
+  bool do_ic_align = false;
+  bool do_leaky_relu = false;
+  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(op);
+
+  getConvParam(op, n, ic, ih, iw, oc, oh, ow, g,
+               kh, kw, sh, sw, pt, pb, pl, pr,
+               dh, dw, is_dw, with_bias, do_relu, do_ic_align,
+               do_leaky_relu, pad_value);
+
+  bool has_bias_op = (bInt8ConvOp || (!bInt8ConvOp && with_bias));
+
+  isPerChannelQuan = bInt8ConvOp;
+  inst.tsk_opd_num = has_bias_op ? 3 : 2;
+  inst.double_conv = ic % 2 == 0;
+
+  // set weight shape
+  const std::vector<int> & in_tensors =
+        net_graph_->get_in_tensors_of_layer(layer_id_);
+  int dims[4];
+  net_graph_->get_tensor_dim(in_tensors[1], dims);
+  inst.opd1_n = dims[0];
+  inst.opd1_c = dims[1];
+  inst.opd1_h = dims[2];
+  inst.opd1_w = dims[3];
+
+  inst.conv_opd1_x_ins0 = dw - 1;
+  inst.conv_opd1_y_ins0 = dh - 1;
+  inst.conv_op_x_str = 1; //sw
+  inst.conv_op_y_str = 1; //sh;
+
+  if (is_dw) {
+    inst.tsk_typ = Pooling;
+    inst.tsk_eu_typ = 2;
+  }
+}
+
+
+void TiuCycle::set_tl_pooling_param() {
+  bool is_global, do_relu, count_include_pad;
+  int n, c, ih, iw, oh, ow, kh, kw;
+  int sh, sw, pt, pb, pl, pr, pad_value;
+  getPoolingParam(op,
+                  n, c, ih, iw, oh, ow,
+                  kh, kw, sh, sw,
+                  pt, pb, pl, pr, pad_value,
+                  is_global, do_relu, count_include_pad);
+
+  inst.conv_opd1_x_ins0 = 1;
+  inst.conv_opd1_y_ins0 = 1;
+  inst.conv_op_x_str = sw;
+  inst.conv_op_y_str = sh;
 }
 
 uint64_t TiuCycle::calCycle(tiu_inst_t inst) {

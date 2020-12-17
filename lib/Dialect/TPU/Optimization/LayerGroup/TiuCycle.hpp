@@ -150,10 +150,10 @@ class TiuCycle {
   float getEltwiseLatency(int taskType, bool is8BitMode, bool isOpd1Const, int mode);
 
  private:
-  void set_tl_convolution_param();
-  void set_tl_deconvolution(bool is_h_split);
+  void set_tl_conv_param();
+  void set_tl_deconv_param();
   void set_tl_eltwise(bool is_h_split);
-  void set_tl_pooling(bool is_h_split);
+  void set_tl_pooling_param();
   void set_tl_lrn(bool is_h_split);
   void set_tl_broadcast_mul(bool is_h_split);
   void set_tl_activation(bool is_h_split);
