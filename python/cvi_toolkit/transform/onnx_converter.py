@@ -1889,33 +1889,28 @@ class OnnxConverter(BaseConverter):
         mode = onnx_node.attrs.get("mode", "nearest")
 
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-
         if len(onnx_node.inputs) > 2:
             # onnx opset 11
             scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
             if len(scale_factor) == 0:
                 # size
-                scale_factor = self.getTensor(onnx_node.inputs[3]).tensor_data
-            use_size = len(self.getTensor(
-                onnx_node.inputs[2]).tensor_data) == 0
+                sizes = self.getTensor(onnx_node.inputs[3]).tensor_data
+                use_size = True
+            else:
+                use_size = False
+
         else:
             # opset 10
             scale_factor = self.getTensor(onnx_node.inputs[1]).tensor_data
-
             use_size = False
-
-        if len(scale_factor) != 4:
-            raise RuntimeError("scale_factor length should be 4")
 
         if mode == b'linear':
             coordinate_transformation_mode = \
-              onnx_node.attrs.get("coordinate_transformation_mode", "half_pixel")
-
-            if len(scale_factor) == 0:
-                size = self.getTensor(onnx_node.inputs[3]).tensor_data
-            else:
-                size = input_shape * scale_factor
-            on, oc, oh, ow = size
+                onnx_node.attrs.get(
+                    "coordinate_transformation_mode", "half_pixel")
+            if not use_size:
+                sizes = input_shape * scale_factor
+            on, oc, oh, ow = sizes
             attr = {
                 'height': int(oh),
                 'width': int(ow),
@@ -1942,9 +1937,9 @@ class OnnxConverter(BaseConverter):
             iw = input_shape[3]
             on = int(input_shape[0])
             oc = int(input_shape[1])
-            oh = int(scale_factor[2]) if use_size else int(
+            oh = int(sizes[2]) if use_size else int(
                 input_shape[2] * scale_factor[2])
-            ow = int(scale_factor[3]) if use_size else int(
+            ow = int(sizes[3]) if use_size else int(
                 input_shape[3] * scale_factor[3])
             group = ic
             output_shape = [int(on), int(oc), int(oh), int(ow)]
