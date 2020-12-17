@@ -1888,7 +1888,7 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Resize")
         mode = onnx_node.attrs.get("mode", "nearest")
 
-        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
 
         if len(onnx_node.inputs) > 2:
             # onnx opset 11
@@ -1901,8 +1901,8 @@ class OnnxConverter(BaseConverter):
         else:
             # opset 10
             scale_factor = self.getTensor(onnx_node.inputs[1]).tensor_data
-            print(scale_factor)
-            use_size =False
+
+            use_size = False
 
         if len(scale_factor) != 4:
             raise RuntimeError("scale_factor length should be 4")
@@ -1910,51 +1910,42 @@ class OnnxConverter(BaseConverter):
         if mode == b'linear':
             coordinate_transformation_mode = \
               onnx_node.attrs.get("coordinate_transformation_mode", "half_pixel")
-            if coordinate_transformation_mode != b"align_corners":
-                raise RuntimeError("Unsupported mode {}".format(coordinate_transformation_mode))
 
-            scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
             if len(scale_factor) == 0:
                 size = self.getTensor(onnx_node.inputs[3]).tensor_data
             else:
-                size = input_shape1 * scale_factor
-
-            #if len(scale) != 0 and scale[0] != 0:
-            #    size = input_shape1 * scale # ONLY hw
-
-            # direct set output
-            # https://discuss.tvm.ai/t/relay-onnx-frontend-implement-resize-operation/5131
-            mlir_p = {
-                'height': int(size[-2]),
+                size = input_shape * scale_factor
+            on, oc, oh, ow = size
+            attr = {
+                'height': int(oh),
+                'width': int(ow),
                 'pad_beg': 0,
                 'pad_end': 0,
                 'shrink_factor': 0,
-                'width': int(size[-1]),
                 'zoom_factor': 0,
                 'coordinate_transformation_mode': coordinate_transformation_mode
             }
 
-            # align another hw
-            output_shape = input_shape1
-            output_shape[2] = mlir_p['height']
-            output_shape[3] = mlir_p['width']
+            output_shape = [int(i) for i in [on, oc, oh, ow]]
 
-            new_op = self.CVI.add_interp_op(
-                onnx_node.name, [op1], output_shape, **mlir_p)
-            self.addOperand(onnx_node.name, new_op,
-                output_shape, TensorType.ACTIVATION)
+            print(output_shape)
+            interp_op = self.CVI.add_interp_op(
+                "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
+            self.addOperand(onnx_node.name, interp_op,
+                            output_shape, TensorType.ACTIVATION)
+            return
 
         elif mode == b"nearest":
-            operands = list()
-
-            operands.append(op1)
-            ic = input_shape1[1]
-            ih = input_shape1[2]
-            iw = input_shape1[3]
-            on = int(input_shape1[0])
-            oc = int(input_shape1[1])
-            oh = int(scale_factor[2]) if use_size else int(input_shape1[2] * scale_factor[2])
-            ow = int(scale_factor[3]) if use_size else int(input_shape1[3] * scale_factor[3])
+            operands = [op]
+            ic = input_shape[1]
+            ih = input_shape[2]
+            iw = input_shape[3]
+            on = int(input_shape[0])
+            oc = int(input_shape[1])
+            oh = int(scale_factor[2]) if use_size else int(
+                input_shape[2] * scale_factor[2])
+            ow = int(scale_factor[3]) if use_size else int(
+                input_shape[3] * scale_factor[3])
             group = ic
             output_shape = [int(on), int(oc), int(oh), int(ow)]
             # use deconv(depthwise)
@@ -1981,30 +1972,35 @@ class OnnxConverter(BaseConverter):
             tensor_data = np.full(weight_shape, 1)
             weight_name = "{}_add_weight".format(onnx_node.name)
             self.addTensor(weight_name, tensor_data, tensor_data.shape)
-            weight_op = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+            weight_op = self.CVI.add_load_file_op(
+                weight_name, tensor_data.shape)
             operands.append(weight_op)
 
-            deconv_op = self.CVI.add_deconv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **deconv_param)
-            self.addOperand(onnx_node.name, deconv_op, output_shape, TensorType.ACTIVATION)
+            deconv_op = self.CVI.add_deconv_op("{}_{}".format(
+                onnx_node.name, onnx_node.op_type), operands, output_shape, **deconv_param)
+            self.addOperand(onnx_node.name, deconv_op,
+                            output_shape, TensorType.ACTIVATION)
 
         else:
             raise RuntimeError("Unsupported mode {}".format(mode))
 
     def convert_shape_op(self, onnx_node):
         assert(onnx_node.op_type == "Shape")
-        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        _, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         data = np.array(input_shape)
         self.addTensor(onnx_node.name, data, list(data.shape))
-        self.addOperand(onnx_node.name, None, list(data.shape), TensorType.TENSOR)
+        self.addOperand(onnx_node.name, None, list(
+            data.shape), TensorType.TENSOR)
 
     def convert_slice_op(self, onnx_node):
         assert(onnx_node.op_type == "Slice")
         # check if upper op is pad op
         # if it is, pass to next layer
         try:
-            pad_op_data = self.getTensor("{}_pad".format(onnx_node.inputs[0])).tensor_data
+            pad_op_data = self.getTensor(
+                "{}_pad".format(onnx_node.inputs[0])).tensor_data
             self.addTensor("{}_pad".format(onnx_node.name), pad_op_data, None)
-        except KeyError as ke:
+        except KeyError:
             # not pad op, pass
             pass
 
@@ -2012,19 +2008,23 @@ class OnnxConverter(BaseConverter):
         # start
         _, _, _tesnor_type = self.getOperand(onnx_node.inputs[1])
         if _tesnor_type != TensorType.TENSOR:
-            raise RuntimeError("{} start type be tensor, not find".format(onnx_node.name))
+            raise TypeError(
+                "{} start type be tensor, not find".format(onnx_node.name))
         else:
             starts = self.getTensor(onnx_node.inputs[1]).tensor_data
         # ends
         _, _, _tesnor_type = self.getOperand(onnx_node.inputs[2])
         if _tesnor_type != TensorType.TENSOR:
-            raise RuntimeError("{} end type be tensor, not find".format(onnx_node.name))
+            raise TypeError(
+                "{} end type be tensor, not find".format(onnx_node.name))
         else:
             ends = self.getTensor(onnx_node.inputs[2]).tensor_data
+
         # axes
         _, _, _tesnor_type = self.getOperand(onnx_node.inputs[3])
         if _tesnor_type != TensorType.TENSOR:
-           raise RuntimeError("{} axes type be tensor, not find".format(onnx_node.name))
+            raise TypeError(
+                "{} axes type be tensor, not find".format(onnx_node.name))
         else:
             axes = self.getTensor(onnx_node.inputs[3]).tensor_data
 
@@ -2051,11 +2051,17 @@ class OnnxConverter(BaseConverter):
                 if steps[0] == -1:
                     output_data = tensor_data[starts[0]:ends[0]:steps[0]]
                 else:
-                # slice
-                    output_data = tensor_data.take(indices=range(int(starts[0]), int(ends[0])), axis=int(axes[0]))
+                    # slice
+                    axis = int(axes[0])
+                    start = int(starts[0])
+                    end = ends[0] if ends[0] < np.iinfo(
+                        np.int64).max else len(tensor_data) - 1
+                    output_data = tensor_data.take(
+                        indices=range(start, end), axis=axis)
                 output_shape = list(output_data.shape)
                 self.addTensor(onnx_node.name, output_data, output_shape)
-                self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+                self.addOperand(onnx_node.name, None,
+                                output_shape, TensorType.TENSOR)
             return
         else:
             crop_shape = input_shape.copy()
@@ -2066,7 +2072,7 @@ class OnnxConverter(BaseConverter):
                     ends[idx] = input_shape[j] if ends[idx] > input_shape[j] else ends[idx]
                     crop_shape[j] = ends[idx] - starts[idx]
                     crop_offset[j] = starts[idx]
-                    idx +=1
+                    idx += 1
                 else:
                     crop_shape[j] = input_shape[j]
                     crop_offset[j] = 0
@@ -2079,9 +2085,10 @@ class OnnxConverter(BaseConverter):
             }
 
             output_shape = crop_shape
-            crop_op = self.CVI.add_crop_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
-            self.addOperand(onnx_node.name, crop_op, output_shape, TensorType.ACTIVATION)
-
+            crop_op = self.CVI.add_crop_op("{}_{}".format(
+                onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
+            self.addOperand(onnx_node.name, crop_op,
+                            output_shape, TensorType.ACTIVATION)
 
     def convert_softmax_op(self, onnx_node):
         assert(onnx_node.op_type == "Softmax")
