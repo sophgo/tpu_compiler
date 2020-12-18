@@ -6,63 +6,80 @@ set -e
 #
 
 # "/home/ftp/mlir/daily_build"
-RELEASE_DIR=$1
-REGRESSION_DIR=$2
+RELEASE_PATH=$1
+WORKING_PATH=$2
+
+echo "RELEASE_PATH: $RELEASE_PATH"
+echo "WORKING_PATH: $WORKING_PATH"
+
 os_ver=$( lsb_release -sr )
-dest_dir=$RELEASE_DIR/$(date '+%Y-%m-%d')-${os_ver}
+dest_dir=$RELEASE_PATH/$(date '+%Y-%m-%d')-${os_ver}
 rm -rf $dest_dir
 mkdir -p $dest_dir
 
 # check dirs
-if [ ! -e $BUILD_PATH ]; then
-  echo "BUILD_PATH=$BUILD_PATH not exist"
-  exit 1
-fi
-if [ ! -e $INSTALL_PATH ]; then
-  echo "INSTALL_PATH=$INSTALL_PATH not exist"
-  exit 1
-fi
-if [ ! -e $REGRESSION_DIR ]; then
-  echo "REGRESSION_DIR=$REGRESSION_DIR not exist"
-  exit 1
-fi
-if [ ! -e $REGRESSION_DIR/cvimodel_regression ]; then
-  echo "$REGRESSION_DIR/cvimodel_regression not exist"
+if [ ! -e $WORKING_PATH ]; then
+  echo "WORKING_PATH=$WORKING_PATH not exist"
   exit 1
 fi
 
+pushd $WORKING_PATH
 ###########################################################
 # pack cvitek_mlir
 ###########################################################
-pushd $INSTALL_PATH/..
-if [ ! -e ./cvitek_mlir ]; then
+if [ ! -e cvitek_mlir ]; then
   echo "./cvitek_mlir not exist"
   exit 1
 fi
+if [ ! -e cvimodel_release ]; then
+  echo "./cvitek_release not exist"
+  exit 1
+fi
+if [ ! -e regression_out/cvimodel_regression ]; then
+  echo "./regression_out/cvimodel_regression not exist"
+  exit 1
+fi
+
+
+# tpu_samples
+cp -a cvitek_mlir/tpuc/samples -a cvitek_tpu_samples
+tar zcvf $dest_dir/cvitek_tpu_samples.tar.gz cvitek_tpu_samples
+rm -rf cvitek_tpu_samples
+
+# cvitek toolchain
 tar zcvf $dest_dir/cvitek_mlir_ubuntu-${os_ver}.tar.gz cvitek_mlir
-popd
 
 ###########################################################
 # pack cvimodel_samples and samples
 ###########################################################
-pushd $BUILD_PATH
+sample_models_list=(
+  mobilenet_v2.cvimodel
+  mobilenet_v2_fused_preprocess.cvimodel
+  yolo_v3_416_with_detection.cvimodel
+  yolo_v3_416_fused_preprocess_with_detection.cvimodel
+  alphapose.cvimodel
+  alphapose_fused_preprocess.cvimodel
+  retinaface_mnet25_600_with_detection.cvimodel
+  retinaface_mnet25_600_fused_preprocess_with_detection.cvimodel
+  arcface_res50.cvimodel
+  arcface_res50_fused_preprocess.cvimodel
+)
+
+mkdir -p cvimodel_samples
+for sample_model in ${sample_models_list[@]}
+do
+  cp cvimodel_release/${sample_model} cvimodel_samples/
+done
+
 tar zcvf $dest_dir/cvimodel_samples.tar.gz cvimodel_samples
-# tar zcvf $dest_dir/cvimodel_release.tar.gz cvimodel_release
-popd
-# tpu_samples
-cp -a $INSTALL_PATH/samples -a ./cvitek_tpu_samples
-tar zcvf $dest_dir/cvitek_tpu_samples.tar.gz cvitek_tpu_samples
-rm -rf cvitek_tpu_samples
+rm -rf cvimodel_samples
 
 ###########################################################
 # pack regresion cvimodels
 ###########################################################
-pushd $REGRESSION_DIR
-# generate int8 input data (for bs1 only)
-# pushd cvimodel_regression
-# generate_int8_data.sh
-# popd
 # seperate bs1/bs4
+pushd regression_out
+
 mkdir -p cvimodel_regression_bs1
 mkdir -p cvimodel_regression_bs4
 mv cvimodel_regression/*bs4.cvimodel cvimodel_regression_bs4/
@@ -72,4 +89,8 @@ mv cvimodel_regression/* cvimodel_regression_bs1/
 # tar
 tar zcvf $dest_dir/cvimodel_regression_bs1.tar.gz cvimodel_regression_bs1
 tar zcvf $dest_dir/cvimodel_regression_bs4.tar.gz cvimodel_regression_bs4
+rm -rf cvimodel_regression_bs1
+rm -rf cvimodel_regression_bs4
+
+popd
 popd

@@ -5,7 +5,7 @@
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
-export CVIMODEL_REL_PATH=${CVIMODEL_REL_PATH:-$SCRIPT_DIR/regression_out/cvimodel_regression}
+export CVIMODEL_REL_PATH=$WORKING_PATH/cvimodel_regression
 export MAX_PARALLEL_JOBS=${MAX_PARALLEL_JOBS:-8}
 
 echo "WORKING_PATH: ${WORKING_PATH}"
@@ -95,7 +95,7 @@ run_generic_all_parallel()
     done
   fi
   cat regression.txt
-  parallel -j8 --delay 0.5  --joblog job_regression.log < regression.txt
+  parallel -j${MAX_PARALLEL_JOBS} --delay 5  --joblog job_regression.log < regression.txt
   return $?
 }
 

@@ -1,18 +1,5 @@
 cmake_minimum_required(VERSION 3.10)
 
-#if(POLICY CMP0068)
-#  cmake_policy(SET CMP0068 NEW)
-#  set(CMAKE_BUILD_WITH_INSTALL_NAME_DIR ON)
-#endif()
-#
-#if(POLICY CMP0075)
-#  cmake_policy(SET CMP0075 NEW)
-#endif()
-#
-#if(POLICY CMP0077)
-#  cmake_policy(SET CMP0077 NEW)
-#endif()
-
 project(circt LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 14)
@@ -72,51 +59,6 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(bindings/python)
-#option(CIRCT_INCLUDE_DOCS "Generate build targets for the CIRCT docs."
-#  ${LLVM_INCLUDE_DOCS} ${MLIR_INCLUDE_DOCS})
-#if (CIRCT_INCLUDE_DOCS)
-#  add_subdirectory(docs)
-#endif()
 
-#install(DIRECTORY include/circt
-#  DESTINATION include
-#  COMPONENT circt-headers
-#  FILES_MATCHING
-#  PATTERN "*.def"
-#  PATTERN "*.h"
-#  PATTERN "*.inc"
-#  PATTERN "*.td"
-#  PATTERN "LICENSE.TXT"
-#  )
-#
-#install(DIRECTORY include/circt-c
-#  DESTINATION include
-#  COMPONENT circt-headers
-#  FILES_MATCHING
-#  PATTERN "*.def"
-#  PATTERN "*.h"
-#  PATTERN "*.inc"
-#  PATTERN "*.td"
-#  PATTERN "LICENSE.TXT"
-#  )
-#
-#install(DIRECTORY ${CIRCT_INCLUDE_DIR}/circt
-#  DESTINATION include
-#  COMPONENT circt-headers
-#  FILES_MATCHING
-#  PATTERN "*.def"
-#  PATTERN "*.h"
-#  PATTERN "*.gen"
-#  PATTERN "*.inc"
-#  PATTERN "*.td"
-#  PATTERN "CMakeFiles" EXCLUDE
-#  PATTERN "config.h" EXCLUDE
-#  )
-#
-#if (NOT LLVM_ENABLE_IDE)
-#  add_llvm_install_targets(install-circt-headers
-#                           DEPENDS circt-headers
-#                           COMPONENT circt-headers)
-#endif()
-#
-#add_subdirectory(cmake/modules)
+install(FILES cvitek_envs.sh
+  DESTINATION ../)

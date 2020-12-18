@@ -230,6 +230,11 @@ cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL $BUILD_FLAG \
     $PROJECT_ROOT/externals/cviruntime
 cmake --build . --target install
 #ctest --progress || true
+rm -f $INSTALL_PATH/tpuc/README.md
+rm -f $INSTALL_PATH/tpuc/envs_tpu_sdk.sh
+rm -f $INSTALL_PATH/tpuc/regression_models.sh
+rm -f $INSTALL_PATH/tpuc/regression_models_e2e.sh
+rm -f $INSTALL_PATH/tpuc/regression_models_e2e_skip_preprocess.sh
 popd
 
 # build cvimath
@@ -274,10 +279,6 @@ cp $PROJECT_ROOT/externals/profiling/tool/performance.html $INSTALL_PATH/tpuc/bi
 
 # Clean up some files for release build
 if [ "$1" = "RELEASE" ]; then
-  if [ -z $INSTALL_PATH ]; then
-    echo "INSTALL_PATH not specified"
-    exit 1
-  fi
   rm -f $INSTALL_PATH/tpuc/regression_models.sh
   rm -f $INSTALL_PATH/tpuc/regression_models_e2e.sh
   rm -f $INSTALL_PATH/tpuc/regression_models_e2e_skip_preprocess.sh
@@ -289,6 +290,11 @@ if [ "$1" = "RELEASE" ]; then
   strip $INSTALL_PATH/tpuc/bin/tpuc-interpreter
   strip $INSTALL_PATH/tpuc/bin/tpuc-translate
   strip $INSTALL_PATH/tpuc/bin/cvi_profiling
+  pushd $INSTALL_PATH/tpuc/bin/
+  ln -s tpuc-opt mlir-opt
+  ln -s tpuc-interpreter mlir-tpu-interpreter
+  ln -s tpuc-translate mlir-translate
+  popd
 
   # install regression
   mkdir -p $INSTALL_PATH/tpuc/regression
@@ -302,32 +308,4 @@ if [ "$1" = "RELEASE" ]; then
   cp -a $PROJECT_ROOT/regression/run_regression.sh ./
   popd
 
-  # install env script
-  cp $PROJECT_ROOT/cvitek_envs.sh $INSTALL_PATH/
-
-  # generate models for release and samples
-  pushd $BUILD_PATH
-
-  $PROJECT_ROOT/regression/generate_all_cvimodels.sh
-  mkdir -p cvimodel_samples
-
-  sample_models_list=(
-    mobilenet_v2.cvimodel
-    mobilenet_v2_fused_preprocess.cvimodel
-    yolo_v3_416_with_detection.cvimodel
-    yolo_v3_416_fused_preprocess_with_detection.cvimodel
-    alphapose.cvimodel
-    alphapose_fused_preprocess.cvimodel
-    retinaface_mnet25_600_with_detection.cvimodel
-    retinaface_mnet25_600_fused_preprocess_with_detection.cvimodel
-    arcface_res50.cvimodel
-    arcface_res50_fused_preprocess.cvimodel
-  )
-
-  for sample_model in ${sample_models_list[@]}
-  do
-    cp cvimodel_release/${sample_model} cvimodel_samples/
-  done
-
-  popd
 fi
