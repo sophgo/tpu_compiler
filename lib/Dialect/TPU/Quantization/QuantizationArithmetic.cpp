@@ -990,7 +990,9 @@ void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
     for (int64_t i = 0; i < size; ++i) {
-      float f_tmp = input[i] * scale;
+      auto bf_input = FloatToBFloat16(input[i]);
+      auto f_input = BFloat16ToFloat(bf_input);
+      float f_tmp = f_input * scale;
       bf_tmp = FloatToBFloat16(f_tmp);
       f_tmp = BFloat16ToFloat(bf_tmp);
       output[i] = (float)float2int8(f_tmp, 1);

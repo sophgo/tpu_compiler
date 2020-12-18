@@ -114,6 +114,7 @@ if __name__ == '__main__':
                     input_scale=args.input_scale,
                     raw_scale=args.raw_scale,
                     std=args.std,
+                    data_format=args.data_format,
                     rgb_order=args.model_channel_order,
                     crop_method=args.crop_method)
         # read with opencv, bgr, hwc
