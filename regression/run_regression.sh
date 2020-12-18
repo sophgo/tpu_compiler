@@ -6,8 +6,11 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
 export CVIMODEL_REL_PATH=${CVIMODEL_REL_PATH:-$SCRIPT_DIR/regression_out/cvimodel_regression}
+export MAX_PARALLEL_JOBS=${MAX_PARALLEL_JOBS:-8}
+
 echo "WORKING_PATH: ${WORKING_PATH}"
 echo "CVIMODEL_REL_PATH: ${CVIMODEL_REL_PATH}"
+echo "MAX_PARALLEL_JOBS: ${MAX_PARALLEL_JOBS}"
 
 run_generic()
 {

@@ -9,6 +9,7 @@ if [ $MODEL_TYPE != "caffe" ]; then
   MODEL_DAT="-"
 fi
 
+# (x * (raw_scale/255) - mean ) / std * input_scale
 cvi_model_convert.py \
     --model_path $MODEL_DEF \
     --model_dat $MODEL_DAT \
@@ -27,9 +28,10 @@ cvi_model_convert.py \
 # assign layer_id right away, and apply all frontend optimizations
 # Notes: convert-bn-to-scale has to be done before canonicalizer
 tpuc-opt ${NET}.mlir \
-    ${MLIR_OPT_FE_PRE} \
+    --convert-bn-to-scale \
+    --convert-clip-to-relu6 \
     --canonicalize \
-    ${MLIR_OPT_FE_POST} \
+    --eltwise-early-stride \
     --fuse-relu \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info.csv \

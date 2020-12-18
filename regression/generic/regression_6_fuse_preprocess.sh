@@ -62,10 +62,11 @@ cvi_model_convert.py \
     --mlir_file_path ${NET}_fused_preprocess.mlir
 
 tpuc-opt \
-    --fuse-relu \
-    ${MLIR_OPT_FE_PRE} \
+    --convert-bn-to-scale \
+    --convert-clip-to-relu6 \
     --canonicalize \
-    ${MLIR_OPT_FE_POST} \
+    --eltwise-early-stride \
+    --fuse-relu \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_fuesd_preprocess.csv \
     ${NET}_fused_preprocess.mlir \

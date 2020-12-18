@@ -49,9 +49,6 @@ else
       $DIR/regression_7_fuse_preprocess_bf16.sh
     fi
   fi
-  if [ $DO_TPU_SOFTMAX_INFERENCE -eq 1 ]; then
-    $DIR/regression_8_tpu_softmax.sh
-  fi
 fi
 #if [ $DO_NN_TOOLKIT -eq 1 ]; then
 #  gen_cvi_nn_tool_template.py $NET

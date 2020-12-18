@@ -39,7 +39,7 @@ cvi_preprocess.py  \
 
 input_shape=`cvi_npz_tool.py get_shape ${NET}_only_resize_in_fp32.npz input`
 
-if [ $PREPROCESS_CROPMETHOD -eq "aspect_ratio" ]; then
+if [ $PREPROCESS_CROPMETHOD == "aspect_ratio" ]; then
     export IMAGE_RESIZE_DIMS=${NET_INPUT_DIMS}
 fi
 
@@ -62,10 +62,11 @@ cvi_model_convert.py \
     --mlir_file_path ${NET}_fused_preprocess.mlir
 
 tpuc-opt \
-    --fuse-relu \
-    ${MLIR_OPT_FE_PRE} \
+    --convert-bn-to-scale \
+    --convert-clip-to-relu6 \
     --canonicalize \
-    ${MLIR_OPT_FE_POST} \
+    --eltwise-early-stride \
+    --fuse-relu \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_fuesd_preprocess.csv \
     ${NET}_fused_preprocess.mlir \
