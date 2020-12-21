@@ -13,18 +13,6 @@ echo "INSTALL_PATH : ${INSTALL_PATH}"
 echo "MODEL_PATH   : ${MODEL_PATH}"
 echo "DATASET_PATH : ${DATASET_PATH}"
 
-# set PATH for all projects
-# export MKLDNN_PATH=$INSTALL_PATH/mkldnn
-# export CAFFE_PATH=$INSTALL_PATH/caffe
-# export OPENCV_PATH=$INSTALL_PATH/opencv
-# export FLATBUFFERS_PATH=$INSTALL_PATH/flatbuffers
-# export SYSTEMC_PATH=$INSTALL_PATH/systemc-2.3.3
-# export CVIKERNEL_PATH=$INSTALL_PATH
-# export CMODEL_PATH=$INSTALL_PATH
-# export RUNTIME_PATH=$INSTALL_PATH
-# export PROFILING_PATH=$INSTALL_PATH
-# export MLIR_PATH=$INSTALL_PATH
-
 # python path
 export TPU_PYTHON_PATH=$INSTALL_PATH/tpuc/python
 # regression path

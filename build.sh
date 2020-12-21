@@ -131,7 +131,6 @@ pushd $BUILD_PATH/tpuc
 cmake -G Ninja \
     $BUILD_FLAG \
     -DMKLDNN_PATH=$INSTALL_PATH/mkldnn \
-    -DCAFFE_PATH=$INSTALL_PATH/caffe \
     -DCVIKERNEL_PATH=$INSTALL_PATH/cvikernel \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
     -Dpybind11_DIR=$INSTALL_PATH/pybind11/share/cmake/pybind11 \
@@ -286,14 +285,15 @@ if [ "$1" = "RELEASE" ]; then
   rm -f $INSTALL_PATH/tpuc/bin/test_*
   rm -f $INSTALL_PATH/tpuc/bin/sample_*
   # strip mlir tools
-  strip $INSTALL_PATH/tpuc/bin/tpuc-opt
-  strip $INSTALL_PATH/tpuc/bin/tpuc-interpreter
-  strip $INSTALL_PATH/tpuc/bin/tpuc-translate
-  strip $INSTALL_PATH/tpuc/bin/cvi_profiling
-  pushd $INSTALL_PATH/tpuc/bin/
-  ln -s tpuc-opt mlir-opt
-  ln -s tpuc-interpreter mlir-tpu-interpreter
-  ln -s tpuc-translate mlir-translate
+  pushd $INSTALL_PATH/tpuc/
+  find ./ -name "*.so" |xargs strip
+  find ./ -name "*.a" |xargs rm
+  popd
+  pushd $INSTALL_PATH/tpuc/bin
+  find ./ -type f ! -name "*.html" |xargs strip
+  ln -sf tpuc-opt mlir-opt
+  ln -sf tpuc-interpreter mlir-tpu-interpreter
+  ln -sf tpuc-translate mlir-translate
   popd
 
   # install regression

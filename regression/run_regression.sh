@@ -158,7 +158,7 @@ run_accuracy_all_parallel()
   fi
   if [ -f accuracy.txt ]; then
     cat accuracy.txt
-    parallel -j4 --delay 0.5  --joblog job_accuracy.log < accuracy.txt
+    parallel -j0 --delay 5  --joblog job_accuracy.log < accuracy.txt
     return $?
   fi
 }
