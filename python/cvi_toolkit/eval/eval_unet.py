@@ -8,7 +8,7 @@ import time
 import warnings
 import numpy as np
 
-from cvi_toolkit.data.preprocess import preprocess, InputType, get_preprocess_parser
+from cvi_toolkit.data.preprocess import preprocess, get_preprocess_parser
 from cvi_toolkit.model.ModelFactory import ModelFactory
 
 import torch
@@ -212,13 +212,13 @@ if __name__ == '__main__':
     # compute output
     x = image[0].numpy() * 255
     if args.model_type == "caffe":
-        x = preprocessor.run(x, input_type=InputType.NDARRAY,
+        x = preprocessor.run(x, input_type='tensor',
                              output_channel_order=args.model_channel_order)
     elif args.model_type == "onnx":
-        x = preprocessor.run(x, input_type=InputType.NDARRAY, input_data_format = "hwc",
+        x = preprocessor.run(x, input_type='tensor', input_data_format = "hwc",
                              output_channel_order="rgb")
     elif args.model_type == "mlir":
-        x = preprocessor.run(x, input_type=InputType.NDARRAY,
+        x = preprocessor.run(x, input_type='tensor',
                              output_channel_order=args.model_channel_order, input_data_format = "hwc")
 
     # run inference

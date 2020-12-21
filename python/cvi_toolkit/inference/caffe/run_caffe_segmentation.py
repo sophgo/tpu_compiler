@@ -9,6 +9,7 @@ import sys
 import caffe
 import cv2
 import time
+from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.model import CaffeModel
 
 def make_parser():
@@ -29,10 +30,6 @@ def make_parser():
     parser.add_argument(
         "--colours",
         help="LUT file"
-    )
-    parser.add_argument(
-        "--net_input_dims", default='512,1024',
-        help="'height,width' dimensions of net input tensors."
     )
     parser.add_argument(
         "--gpu", type=int, default=0,
@@ -64,24 +61,33 @@ def make_parser():
     return parser
 
 if __name__ == '__main__':
-    parser1 = make_parser()
-    args = parser1.parse_args()
+    parser = make_parser()
+    parser = get_preprocess_parser(existed_parser=parser)
+
+    args = parser.parse_args()
     if args.gpu == 1:
         caffe.set_mode_gpu()
     else:
         caffe.set_mode_cpu()
 
+    preprocessor = preprocess()
+    preprocessor.config(net_input_dims=args.net_input_dims,
+                    resize_dims=args.image_resize_dims,
+                    mean=args.mean,
+                    mean_file=args.mean_file,
+                    input_scale=args.input_scale,
+                    raw_scale=args.raw_scale,
+                    rgb_order=args.model_channel_order,
+                    std=args.std, batch=args.batch_size)
+
+    # Load image file.
+    args.input_file = os.path.expanduser(args.input_file)
+    print("Loading file: %s" % args.input_file)
+
+    inputs = preprocessor.run(args.input_file, output_channel_order=args.model_channel_order)
+
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     label_colours = cv2.imread(args.colours, 1).astype(np.uint8)
-    input_data = cv2.imread(args.input_file, 1).astype(np.float32)
-
-    input_data = cv2.resize(input_data, (net_input_dims[1], net_input_dims[0]))
-    input_data = input_data.transpose((2, 0, 1))
-    input_data = np.asarray([input_data])
-
-    inputs = input_data
-    for i in range(1, args.batch_size):
-      inputs = np.append(inputs, input_data, axis=0)
 
     start = time.time()
     caffemodel = CaffeModel()
@@ -105,7 +111,7 @@ if __name__ == '__main__':
     if (args.draw_image != ''):
         output_shape = outputs[args.output].data.shape
         prediction = outputs[args.output].data
-        if caffemodel.net.layer_dict[args.output].type != "ArgMax":
+        if caffemodel.net.layers[-1].type != "ArgMax":
             prediction = prediction[0].argmax(axis=0)
 
         prediction = np.squeeze(prediction)
