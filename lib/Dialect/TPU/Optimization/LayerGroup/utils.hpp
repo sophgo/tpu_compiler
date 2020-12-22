@@ -51,16 +51,9 @@ static inline int ceiling_func(int numerator, int denominator) {
 #define ALIGN(x, a) __ALIGN_MASK(x, (__typeof__(x))(a)-1)
 
 #define bmerr_t int
-#define BM_SUCCESS 0              // The operation was successful
-#define BM_ERR_AGAIN 1            // Not ready yet
-#define BM_ERR_FAILURE 2          // General failure
-#define BM_ERR_TIMEOUT 3          // Timeout
-#define BM_ERR_UNINITIALIZED 4    // Uninitialzed
-#define BM_ERR_INVALID_ARGUMENT 5 // Arguments invalid
-#define BM_ERR_NOMEM 6            // Not enough memory
-#define BM_ERR_DATA 7             // Data error
-#define BM_ERR_BUSY 8             // Busy
-#define BM_ERR_NOT_SUPPORTED 9    // Not supported yet
+#define BM_SUCCESS 0
+#define BM_ERR_FAILURE 1
+#define BM_ERR_NOT_SUPPORTED 2
 
 typedef enum {
   NEURON = 0,

@@ -15,12 +15,12 @@ namespace mlir {
 
 using TensorStep = std::vector<int>;
 
-class ClusterSteps {
+class GroupSteps {
  public:
-  explicit ClusterSteps(NetGraph* net_graph)
+  explicit GroupSteps(NetGraph* net_graph)
       : net_graph_(net_graph), layers_(), loads_(), stores_(), max_step_num_(0) {}
 
-  ~ClusterSteps() {
+  ~GroupSteps() {
     layers_.clear();
     loads_.clear();
     tsm_to_lmem_.clear();
@@ -33,21 +33,25 @@ class ClusterSteps {
   void append(int layer, TensorStep& load_tensors, TensorStep& store_tensors);
   void insert(int layer, TensorStep& load_tensors, TensorStep& store_tensors, int pos = 0);
   void rearrange_steps();
-  void assign(Group* cluster);
+  void assign(Group* group);
   void to_timestep(net_timestep* time_step);
 
   // TSM Support
-  void assign_with_tsm(Group* cluster);
+  void assign_with_tsm(Group* group);
   void to_timestep_with_tsm(net_timestep* time_step);
 
-  static void timestep_assgin(NetGraph* net_graph, Group* cluster, net_timestep* time_step);
+  static void timestep_assgin(NetGraph* net_graph, Group* group, net_timestep* time_step);
 
-  static void timestep_assign_with_tsm(NetGraph* net_graph, Group* cluster,
+  static void timestep_assign_with_tsm(NetGraph* net_graph, Group* group,
                                        net_timestep* time_step);
 
-  static bmerr_t balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster,
+  static bmerr_t balance_tdma_tiu_steps(NetGraph* net_graph, Group* group,
                                         net_timestep* time_step,
                                         const std::pair<int, int>& nsecs_and_hsec);
+
+  static bmerr_t balance_tdma_tiu(NetGraph* net_graph, Group* group,
+                                  net_timestep** time_step,
+                                  const std::pair<int, int>& nsecs_and_hsec);
 
  private:
   NetGraph* net_graph_;

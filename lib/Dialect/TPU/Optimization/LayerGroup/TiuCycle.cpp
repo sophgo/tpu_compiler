@@ -103,65 +103,38 @@ int TiuCycle::get_cycle(int cur_layer) {
 
   switch (layer_type) {
     case IR_CONVOLUTION:
-      inst.tsk_typ = Conv2D;
       set_tl_conv_param();
       break;
     case IR_DECONVOLUTION:
-      inst.tsk_typ = Pooling;
-      inst.tsk_eu_typ = 2;
       set_tl_deconv_param();
       break;
-    // case IR_ELTWISE:
-    //   set_tl_eltwise(is_h_split);
-    //   break;
+    case IR_ELTWISE:
+      set_tl_eltwise_param();
+      break;
     case IR_POOLING:
       inst.tsk_typ = Pooling;
       set_tl_pooling_param();
       break;
-    // //case IR_LRN:
-    // //  set_tl_lrn(is_h_split);
-    // //  break;
-    // case IR_BROADCAST_MUL:
-    //   // leverage depthwise
-    //   inst.tsk_typ = Pooling;
-    //   inst.tsk_eu_typ = 2;
-    //   // TODO: check per tensor/channel
-    //   isPerChannelQuan = true;
-    //   set_tl_broadcast_mul(is_h_split);
-    //   break;
-    // case IR_ACTIVATION:
-    //   // TODO: expand full op
-    //   inst.tsk_eu_typ = 12;
-    //   inst.tens_lookup = 1;
-    //   set_tl_activation(is_h_split);
-    //   break;
-    //case IR_UPSAMPLE:
-    //  set_tl_upsample(is_h_split);
-    //  break;
-    //case IR_LEAKY_RELU:
-    //  set_tl_leaky_relu(is_h_split);
-    //  break;
-    //case IR_PRELU:
-    //  set_tl_prelu(is_h_split);
-    //  break;
-    //case IR_CONCAT:
-    //  set_tl_concat(is_h_split);
-    //  break;
-    //case IR_PAD:
-    //  set_tl_pad(is_h_split);
-    //  break;
-    //case IR_CROP:
-    //  set_tl_crop(is_h_split);
-    //  break;
-    //case IR_RELU:
-    //  set_tl_relu(is_h_split);
-    //  break;
-    //case IR_QUANT:
-    //  set_tl_quant(is_h_split);
-    //  break;
-    //case IR_ZERO_MASK:
-    //  set_tl_zero_mask(is_h_split);
-    //  break;
+    case IR_RELU:
+    case IR_PRELU:
+    case IR_LEAKY_RELU:
+      break;
+    case IR_BROADCAST_MUL:
+      set_tl_broadcast_mul_param();
+      break;
+    case IR_ACTIVATION:
+      set_tl_activation_param();
+      break;
+    // tdma operation involved
+    case IR_LRN:
+    case IR_QUANT:
+    case IR_ZERO_MASK:
+    case IR_CROP:
+    case IR_PAD:
+    case IR_CONCAT:
+    case IR_UPSAMPLE:
+      is_support = false;
+      break;
     default:
       // TODO: support non-atomic
       is_support = false;
@@ -205,6 +178,7 @@ void TiuCycle::set_tl_conv_param() {
   bool has_bias_op = (bInt8ConvOp || (!bInt8ConvOp && with_bias));
 
   isPerChannelQuan = bInt8ConvOp;
+  inst.tsk_typ = Conv2D;
   inst.tsk_opd_num = has_bias_op ? 3 : 2;
   inst.double_conv = ic % 2 == 0;
 
@@ -258,15 +232,12 @@ void TiuCycle::set_tl_deconv_param(){
   inst.opd1_h = dims[2];
   inst.opd1_w = dims[3];
 
+  inst.tsk_typ = Pooling;
+  inst.tsk_eu_typ = 2;
   inst.conv_opd1_x_ins0 = dw - 1;
   inst.conv_opd1_y_ins0 = dh - 1;
   inst.conv_op_x_str = 1; //sw
   inst.conv_op_y_str = 1; //sh;
-
-  if (is_dw) {
-    inst.tsk_typ = Pooling;
-    inst.tsk_eu_typ = 2;
-  }
 }
 
 
@@ -284,6 +255,47 @@ void TiuCycle::set_tl_pooling_param() {
   inst.conv_opd1_y_ins0 = 1;
   inst.conv_op_x_str = sw;
   inst.conv_op_y_str = sh;
+}
+
+void TiuCycle::set_tl_eltwise_param() {
+  if (isa<tpu::TG_INT8_EltwiseMulOp>(op) ||
+      isa<tpu::TG_BF16_EltwiseMulOp>(op)) {
+    inst.tsk_eu_typ = 0;
+  }
+  else {
+    bool do_early_stride = false;
+    int h_stride, w_stride;
+    getEltwiseAddParam(op, do_early_stride, h_stride, w_stride);
+
+    inst.tsk_eu_typ = 2;
+    if (do_early_stride) {
+      inst.opd0_h = inst.opd0_h / h_stride;
+      inst.opd0_w = inst.opd0_w / w_stride;
+      inst.res0_h = inst.opd0_h;
+      inst.res0_w = inst.opd0_w;
+    }
+  }
+}
+
+void TiuCycle::set_tl_broadcast_mul_param() {
+  // broadcast use depthwise conv
+  inst.tsk_typ = Pooling;
+  inst.tsk_eu_typ = 2;
+  inst.opt_chl_quan = true;
+  inst.conv_opd1_x_ins0 = 0;
+  inst.conv_opd1_y_ins0 = 0;
+  inst.conv_op_x_str = 1; //sw
+  inst.conv_op_y_str = 1; //sh;
+
+  inst.opd1_n = 1;
+  inst.opd1_c = inst.opd0_c;
+  inst.opd1_h = 1;
+  inst.opd1_w = 1;
+}
+
+void TiuCycle::set_tl_activation_param() {
+  inst.tsk_eu_typ = 12;
+  inst.tens_lookup = 1;
 }
 
 uint64_t TiuCycle::calCycle(tiu_inst_t inst) {
@@ -423,7 +435,6 @@ uint64_t TiuCycle::calCycle(tiu_inst_t inst) {
                 ceiling_func(outputShape.w * outputShape.h, activatedEuNumber) *
                 (loopCycle + biasLat + shiftRoundShiftCycle);
               tempCycle += postProcessCycle;
-              // tempCycle = misc * tempCycle;
               break;
             }
           default:

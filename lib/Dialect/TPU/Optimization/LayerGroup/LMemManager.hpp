@@ -24,13 +24,13 @@ class LmemManager {
  public:
   explicit LmemManager(NetGraph* net_graph);
 
-  bmerr_t assign_local_memory(Group* cluster, net_timestep* time_step, bool one_shoot);
+  bmerr_t assign_local_memory(Group* group, net_timestep* time_step, bool one_shoot);
 
  private:
   NetGraph* net_graph_;
   std::vector<std::list<LMEM_BLOCK>> block_record_;
-  std::list<LMEM_BLOCK> block_list;
 
+  void init(std::list<LMEM_BLOCK>& block_list);
   bool is_tensor_resident_in_lmem(int tid);
 
   void recycle_lmem(std::list<LMEM_BLOCK>& block_list, net_timestep* time_step, int cur_step,

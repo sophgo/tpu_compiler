@@ -152,20 +152,20 @@ class TiuCycle {
  private:
   void set_tl_conv_param();
   void set_tl_deconv_param();
-  void set_tl_eltwise(bool is_h_split);
+  void set_tl_eltwise_param();
   void set_tl_pooling_param();
-  void set_tl_lrn(bool is_h_split);
-  void set_tl_broadcast_mul(bool is_h_split);
-  void set_tl_activation(bool is_h_split);
-  void set_tl_upsample(bool is_h_split);
-  void set_tl_leaky_relu(bool is_h_split);
-  void set_tl_prelu(bool is_h_split);
-  void set_tl_concat(bool is_h_split);
-  void set_tl_pad(bool is_h_split);
-  void set_tl_crop(bool is_h_split);
-  void set_tl_relu(bool is_h_split);
-  void set_tl_quant(bool is_h_split);
-  void set_tl_zero_mask(bool is_h_split);
+  void set_tl_broadcast_mul_param();
+  void set_tl_activation_param();
+  void set_tl_upsample();
+  void set_tl_leaky_relu();
+  void set_tl_prelu();
+  void set_tl_concat();
+  void set_tl_pad();
+  void set_tl_crop();
+  void set_tl_relu();
+  void set_tl_quant();
+  void set_tl_lrn();
+  void set_tl_zero_mask();
 
   Operation *op;
   int layer_id_;

@@ -7,13 +7,21 @@
 #include "LayerStage.hpp"
 #include "TiuCycle.hpp"
 #include "TdmaCycle.hpp"
-
+#include "LMemManager.hpp"
 
 #define DEBUG_TYPE "group_ops"
 
 namespace mlir {
 
-void ClusterSteps::append(int layer, TensorStep& load_tensors, TensorStep& store_tensors) {
+static llvm::cl::OptionCategory clOptionsCategory("Layer Group Option");
+
+static llvm::cl::opt<bool> clEnableLayerBalance(
+    "enable-layer-balance",
+    llvm::cl::desc("Enable layer balance in layer group"),
+    llvm::cl::init(false),
+    llvm::cl::cat(clOptionsCategory));
+
+void GroupSteps::append(int layer, TensorStep& load_tensors, TensorStep& store_tensors) {
   if (layer == -1 && load_tensors.empty() && store_tensors.empty()) {
     return;
   }
@@ -25,7 +33,7 @@ void ClusterSteps::append(int layer, TensorStep& load_tensors, TensorStep& store
   max_step_num_++;
 }
 
-void ClusterSteps::insert(int layer, TensorStep& load_tensors, TensorStep& store_tensors, int pos) {
+void GroupSteps::insert(int layer, TensorStep& load_tensors, TensorStep& store_tensors, int pos) {
   if (layer == -1 && load_tensors.empty() && store_tensors.empty()) {
     return;
   }
@@ -75,7 +83,7 @@ static std::vector<int> difference(std::vector<int> v1, std::vector<int> v2) {
 //   1. Insert -1 at the beginning and the end of layers.
 //   2. Insert 2 null at the end of loads_.
 //   3. Insert 2 null at the beginning of stores_
-void ClusterSteps::rearrange_steps() {
+void GroupSteps::rearrange_steps() {
   TensorStep null;
 
   // move load tensor to prev step
@@ -161,16 +169,16 @@ loop:
   }
 }
 
-void ClusterSteps::assign_with_tsm(Group* cluster) {
+void GroupSteps::assign_with_tsm(Group* group) {
   std::set<int> tensors_in_lmem;
   std::set<int> tensors_in_tsm;
 
   // Ignore tg layer
-  if (cluster->size() == 1) {
+  if (group->size() == 1) {
     return;
   }
 
-  for (auto id : cluster->layers()) {
+  for (auto id : group->layers()) {
     int layer_step = -1;
 
     layer_step = id;
@@ -212,14 +220,14 @@ void ClusterSteps::assign_with_tsm(Group* cluster) {
     for (int j = 0; j < static_cast<int>(out_tensors.size()); ++j) {
       int tid = out_tensors[j];
       tensors_in_lmem.insert(tid);
-      if (cluster->is_group_out_tensor(tid)) {
+      if (group->is_group_out_tensor(tid)) {
         // TODO(arcbbb): keep tensor in TSM for next user.
         // Now we flush it to DDR directly.
         lmem_to_ddr.push_back(tid);
       }
     }
 
-    // Add one step in ClusterSteps
+    // Add one step in GroupSteps
     // TODO(arcbbb): overload ClusterStep::append(...)
     {
       // add layer
@@ -237,17 +245,17 @@ void ClusterSteps::assign_with_tsm(Group* cluster) {
   }
 }
 
-// This funtion is used to collect information in the cluster.
+// This funtion is used to collect information in the group.
 // This information including:
 //   1. layers_ save the contained layers.
 //   2. loads_ save the tensor need to load.
 //   3. stores_ save the tensor need to store.
-void ClusterSteps::assign(Group* cluster) {
+void GroupSteps::assign(Group* group) {
   std::set<int> tensors_in_lmem;
 
-  bool single_layer_cluster = (cluster->size() == 1);
+  bool single_layer_cluster = (group->size() == 1);
 
-  for (auto id : cluster->layers()) {
+  for (auto id : group->layers()) {
     int layer_step = -1;
 
     TensorStep load_tensors;
@@ -277,7 +285,7 @@ void ClusterSteps::assign(Group* cluster) {
 
       const std::vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
       // Why need ignore_concat_layer?
-      if (cluster->is_group_out_tensor(tid)) {
+      if (group->is_group_out_tensor(tid)) {
         // you are not concat layer, and your output tensor is shared
         store_tensors.push_back(tid);
         // if your consumer is concat layer in next group,
@@ -285,7 +293,7 @@ void ClusterSteps::assign(Group* cluster) {
         std::vector<std::pair<int, int>> ignore_pair;
         bool is_concat_in_place = true;
         for (int k = 0; k < static_cast<int>(to_layers.size()); ++k) {
-          if (net_graph_->is_concat_optimized_case(to_layers[k], tid, cluster->size())) {
+          if (net_graph_->is_concat_optimized_case(to_layers[k], tid, group->size())) {
             std::vector<int> in_tensors = net_graph_->get_in_tensors_of_layer(to_layers[k]);
             for (int x = 0; x < static_cast<int>(in_tensors.size()); x++) {
               if (in_tensors[x] == tid) {
@@ -306,9 +314,9 @@ void ClusterSteps::assign(Group* cluster) {
       } else {
         for (int k = 0; k < static_cast<int>(to_layers.size()); ++k) {
           int to_layer = to_layers[k];
-          if (net_graph_->is_concat_special_case(to_layer, tid, cluster->size())) {
+          if (net_graph_->is_concat_special_case(to_layer, tid, group->size())) {
             int concat_out_tensor = net_graph_->get_out_tensors_of_layer(to_layer)[0];
-            if (cluster->is_group_out_tensor(concat_out_tensor)) {
+            if (group->is_group_out_tensor(concat_out_tensor)) {
               store_tensors.push_back(tid);
             }
           }
@@ -341,27 +349,67 @@ static bool tensor_conflict_with_npu_exe(NetGraph* net_graph, net_timestep* time
   return false;
 }
 
-// This fucntion moved up/down gdma load/store operations for balancing bdc and
-// gdma cycle.
-// The array timestep_slack holds the number of execution cycles per step.
-// When the value is greater than 0, it means that the execution cycle of bdc
-// instruction covers gdma instruction, otherwise we can move up/down load/store
-// operations to keep balance.
-bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster,
-                                             net_timestep* time_step,
-                                             const std::pair<int, int>& nsecs_and_hsecs) {
-  if (cluster->size() == 1) {
+bmerr_t GroupSteps::balance_tdma_tiu(NetGraph* net_graph, Group* group,
+                                     net_timestep** time_step,
+                                     const std::pair<int, int>& nsecs_and_hsecs) {
+
+  if (group->size() == 1) {
     return BM_SUCCESS;
   }
 
   int nsecs = nsecs_and_hsecs.first;
   int hsecs = nsecs_and_hsecs.second;
 
-  bmerr_t status = cluster->update_tensor_slices(nsecs, hsecs);
+  bmerr_t status = group->update_tensor_slices(nsecs, hsecs);
   if (status == BM_ERR_FAILURE) {
     return BM_ERR_FAILURE;
   }
 
+  bool one_shot = nsecs_and_hsecs.first == 1 && nsecs_and_hsecs.second == 1;
+  LmemManager lmem(net_graph);
+  if (clEnableLayerBalance) {
+    net_timestep* new_timestep = new net_timestep(**time_step);
+    balance_tdma_tiu_steps(net_graph, group, new_timestep, nsecs_and_hsecs);
+
+    // check if satisfy the local memory
+    (*time_step)->update_mem_buffer_size();
+    bmerr_t is_ok_without_balance = lmem.assign_local_memory(group, *time_step, one_shot);
+
+    new_timestep->update_mem_buffer_size();
+    bmerr_t is_ok_with_balance =  lmem.assign_local_memory(group, new_timestep, one_shot);
+
+    if (is_ok_with_balance == BM_ERR_FAILURE) {
+      // if without balance is ok, then revert
+      delete new_timestep;
+      if (is_ok_without_balance == BM_SUCCESS) {
+        (*time_step)->update_mem_buffer_size();
+        lmem.assign_local_memory(group, *time_step, one_shot);
+        return BM_SUCCESS;
+      } else {
+        return BM_ERR_FAILURE;
+      }
+    } else {
+      delete *time_step;
+      *time_step = new_timestep;
+      return BM_SUCCESS;
+    }
+  } else {
+    // disable balance layer
+    (*time_step)->update_mem_buffer_size();
+    return lmem.assign_local_memory(group, *time_step, one_shot);
+  }
+
+}
+
+// This fucntion moved up/down gdma load/store operations for balancing bdc and
+// gdma cycle.
+// The array timestep_slack holds the number of execution cycles per step.
+// When the value is greater than 0, it means that the execution cycle of bdc
+// instruction covers gdma instruction, otherwise we can move up/down load/store
+// operations to keep balance.
+bmerr_t GroupSteps::balance_tdma_tiu_steps(NetGraph* net_graph, Group* group,
+                                           net_timestep* time_step,
+                                           const std::pair<int, int>& nsecs_and_hsecs) {
   int timestep_num = time_step->get_timestep_num();
   int* timestep_slack = new int[timestep_num];
   for (int i = 0; i < timestep_num; ++i) {
@@ -386,7 +434,6 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
       TiuCycle tc(net_graph);
       int layer_cycle = tc.get_cycle(cur_layer);
       timestep_slack[i] += layer_cycle;
-      timestep_slack[i] = 0;
     }
     // sub tensor gdma cycle for each time step
     list_tensors.clear();
@@ -395,7 +442,6 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
       TdmaCycle tc(net_graph);
       int gdma_cycle = tc.get_cycle(cur_tensors[j]);
       tensor_gdma_cycle[tensor_id] = gdma_cycle;
-      tensor_gdma_cycle[tensor_id] = 0;
 
       // get local memory require size
       Tensor* tensor = net_graph->get_tensor_by_id(tensor_id);
@@ -406,6 +452,7 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
       // slack minus gdma cycle
       timestep_slack[i] -= tensor_gdma_cycle[tensor_id];
     }
+
     ts_tensors.push_back(list_tensors);
   }
 
@@ -420,8 +467,8 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
   bool valid_flag;
   TIMESTEP_LD_ST tdma_type;
 
-  LLVM_DEBUG(llvm::errs() << "############ Group "
-                          << cluster->get_group_id() << " ############\n");
+  LLVM_DEBUG(llvm::errs() << "############ Group start layer: "
+                          << group->get_group_id() << " ############\n");
 
   for (int cur_ts_idx = 0; cur_ts_idx < timestep_num;) {
     // if need to move gdma time step
@@ -594,10 +641,10 @@ bmerr_t ClusterSteps::balance_gdma_bdc_steps(NetGraph* net_graph, Group* cluster
   }
 
   delete[] timestep_slack;
-  return status;
+  return BM_SUCCESS;
 }
 
-void ClusterSteps::to_timestep_with_tsm(net_timestep* time_step) {
+void GroupSteps::to_timestep_with_tsm(net_timestep* time_step) {
   struct tmp_step {
     int layer_id;
     std::vector<TENSOR_STEP> tensor_step;
@@ -661,7 +708,7 @@ void ClusterSteps::to_timestep_with_tsm(net_timestep* time_step) {
 
 // Collect information to initialize layer_to_execute, tensor_load_store
 // and timestep_num in time_step.
-void ClusterSteps::to_timestep(net_timestep* time_step) {
+void GroupSteps::to_timestep(net_timestep* time_step) {
   for (int i = 0; i < static_cast<int>(layers_.size()); i++) {
     std::vector<TENSOR_STEP> tensor_step;
 
@@ -680,16 +727,16 @@ void ClusterSteps::to_timestep(net_timestep* time_step) {
   }
 }
 
-void ClusterSteps::timestep_assgin(NetGraph* net_graph, Group* cluster, net_timestep* time_step) {
-  ClusterSteps steps(net_graph);
-  steps.assign(cluster);
+void GroupSteps::timestep_assgin(NetGraph* net_graph, Group* group, net_timestep* time_step) {
+  GroupSteps steps(net_graph);
+  steps.assign(group);
   steps.to_timestep(time_step);
 }
 
-void ClusterSteps::timestep_assign_with_tsm(NetGraph* net_graph, Group* cluster,
+void GroupSteps::timestep_assign_with_tsm(NetGraph* net_graph, Group* group,
                                             net_timestep* time_step) {
-  ClusterSteps steps(net_graph);
-  steps.assign_with_tsm(cluster);
+  GroupSteps steps(net_graph);
+  steps.assign_with_tsm(group);
   steps.to_timestep_with_tsm(time_step);
 }
 

@@ -198,7 +198,7 @@ bmerr_t Group::assign_steps_without_tsm() {
   nsecs_and_hsecs = {1, 1};
   time_step = new net_timestep(net_graph_);
 
-  ClusterSteps::timestep_assgin(net_graph_, this, time_step);
+  GroupSteps::timestep_assgin(net_graph_, this, time_step);
 
   if (layers_.size() == 1) {
     return BM_SUCCESS;
@@ -248,26 +248,15 @@ bmerr_t Group::assign_steps_without_tsm() {
       }
     }
 
-    net_timestep* tmp_timestep = new net_timestep(*time_step);
-    ClusterSteps::balance_gdma_bdc_steps(net_graph_, this, tmp_timestep, nsecs_and_hsecs);
-
-    tmp_timestep->update_mem_buffer_size();
-
-    LmemManager lmem(net_graph_);
-    bool one_shot = nsecs_and_hsecs.first == 1 && nsecs_and_hsecs.second == 1;
-    status = lmem.assign_local_memory(this, tmp_timestep, one_shot);
-
+    status = GroupSteps::balance_tdma_tiu(net_graph_, this, &time_step, nsecs_and_hsecs);
 
     if (status == BM_ERR_FAILURE) {
-      delete tmp_timestep;
       if (nsecs_and_hsecs.first < batch_num) {
         nsecs_and_hsecs.first++;
       } else {
         nsecs_and_hsecs.second++;
       }
     } else {
-      delete time_step;
-      time_step = tmp_timestep;
       break;
     }
   }

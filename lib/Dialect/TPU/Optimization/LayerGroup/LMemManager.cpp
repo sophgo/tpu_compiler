@@ -11,6 +11,10 @@ namespace mlir {
 #define TBD_LADDR 0xFFFFFFFF
 
 LmemManager::LmemManager(NetGraph* net_graph) : net_graph_(net_graph) {
+
+}
+
+void LmemManager::init(std::list<LMEM_BLOCK>& block_list) {
   LMEM_BLOCK block;
   block.start = 0;
   block.size = LOCAL_MEM_SIZE;
@@ -19,13 +23,16 @@ LmemManager::LmemManager(NetGraph* net_graph) : net_graph_(net_graph) {
   block.busy = false;
 
   block_list.push_back(block);
+  block_record_.clear();
   block_record_.push_back(block_list);
 }
 
-bmerr_t LmemManager::assign_local_memory(Group* cluster, net_timestep* time_step, bool one_shoot) {
+bmerr_t LmemManager::assign_local_memory(Group* group, net_timestep* time_step, bool one_shoot) {
   LLVM_DEBUG(llvm::errs() << "====== assign local memory ======" << "\n";);
 
-  for (auto layer_id : cluster->layers()) {
+  std::list<LMEM_BLOCK> block_list;
+  init(block_list);
+  for (auto layer_id : group->layers()) {
     auto* ir = net_graph_->get_layer_by_id(layer_id);
     for (auto& tensor : ir->in_tensors)
       tensor->laddr = 0;
