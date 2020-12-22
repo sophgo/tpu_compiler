@@ -203,6 +203,10 @@ public:
         << ", tl_store_flag " << tpuOp.tl_store_flag()
         << "\n");
 
+    // Not support multi-batch yet
+    if (outputShapes[0] > 1)
+      return failure();
+
     for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
       std::vector<int64_t> inputShapes = getTensorShape(useOp->getOperand(0));
@@ -367,6 +371,10 @@ public:
         << ", " << outputShapes[2]
         << ", " << outputShapes[3]
         << ")\n");
+
+    // Not support multi-batch yet
+    if (outputShapes[0] > 1)
+      return failure();
 
     std::vector<std::vector<int64_t>> storeShapes;
     std::vector<std::vector<int64_t>> loadShapes;
