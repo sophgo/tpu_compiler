@@ -1019,6 +1019,24 @@ LogicalResult tpu::GruOp::quantizeBf16() {
 }
 
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InputOp)
+LogicalResult tpu::InterpOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+
+  auto interpOp = cast<tpu::InterpOp>(op);
+
+  std::string _coordinate_transformation_mode =
+      interpOp.coordinate_transformation_mode().str();
+  if (_coordinate_transformation_mode != "half_pixel") {
+    std::string err_msg =
+        "No support " + _coordinate_transformation_mode + " mode \n";
+    llvm_unreachable(err_msg.c_str());
+  }
+  llvm::StringRef type = "NONE";
+  interpOp.setOpQuantMode(type);
+  return success();
+}
 
 LogicalResult tpu::LeakyReluOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
@@ -1138,7 +1156,6 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SwapChannelOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TileOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TileInterpOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InterpOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ZeroMaskOp)
 
 #define DECLARE_QUANTIZE_BF16_DISABLED_METHOD(OP) \

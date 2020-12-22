@@ -906,7 +906,7 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
       int val = std::round(input[i] * scale) + zero_point;
       if (val > 127) {
         val = 127;
-      } else if (val < -128) {  
+      } else if (val < -128) {
         val = -128;
       }
       output[i] = (float)val;
@@ -918,25 +918,26 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
     int64_t size, float threshold, bool tpu_mode, int zero_point) {
   float scale = threshold / 128.0;
   if (tpu_mode) {
-    bfloat16 bf_scale, bf_tmp;
+    bfloat16 bf_scale, bf_tmp, bf_zp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
+    bf_zp = FloatToBFloat16(zero_point);
+    zero_point = FloatToBFloat16(bf_zp);
 
     for (int64_t i = 0; i < size; ++i) {
       // i8->bf16
+      float fp_tmp = input[i];
       bf_tmp = FloatToBFloat16(input[i]);
-      float fp_tmp = BFloat16ToFloat(bf_tmp);
-      float fp_zp;
-      if (zero_point != 0) {
-        fp_zp = BFloat16ToFloat(FloatToBFloat16((float)zero_point));
-        fp_tmp += fp_zp;
-      }
+      fp_tmp = BFloat16ToFloat(bf_tmp);
+      fp_tmp += zero_point;
+      bf_tmp = FloatToBFloat16(input[i]);
+      fp_tmp = BFloat16ToFloat(bf_tmp);
       // bf16 mul scale
-      fp_tmp = fp_tmp * scale;
-
-      // bf16 -> fp32
+      fp_tmp *= scale;
       bf_tmp = FloatToBFloat16(fp_tmp);
-      output[i] = BFloat16ToFloat(bf_tmp);
+      fp_tmp = BFloat16ToFloat(bf_tmp);
+      // bf16 -> fp32
+      output[i] = fp_tmp;
     }
   } else {
     for (int64_t i = 0; i < size; ++i) {

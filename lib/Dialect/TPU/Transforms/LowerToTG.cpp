@@ -943,15 +943,42 @@ Value tpu::FullyConnectedOp::convertToTG() {
 }
 
 Value tpu::InterpOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  /*
   Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  TensorFile *wTF = getWeightTensorFile(op);
-  */
-  llvm_unreachable("unsupported type");
-  return nullptr;
+  auto castOp = cast<InterpOp>(op);
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  std::string coordinate_transformation_mode =
+      castOp.coordinate_transformation_mode().str();
+  if (coordinate_transformation_mode != "half_pixel") {
+    std::string err_msg =
+        "No support " + coordinate_transformation_mode + "mode";
+    llvm_unreachable(err_msg.c_str());
+  }
+  auto builder =
+          Builder(op->getContext());
+  std::vector<NamedAttribute> param;
+  std::vector<NamedAttribute> attrs;
+  for (auto &attr : castOp.getAttrs()) {
+    if (attr.first == "name" || attr.first == "gaddr" ||
+        attr.first == "quant") {
+      continue;
+    }
+    param.push_back(attr);
+  }
+  auto operationAttr = builder.getStringAttr(castOp.getOperationName());
+  auto paramAttr = builder.getDictionaryAttr(param);
+
+  attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
+  attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+  attrs.push_back(builder.getNamedAttr("param", paramAttr));
+
+  std::vector<Value> operands{castOp.input()};
+
+  auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+      op->getLoc(), castOp.getResult().getType(), ArrayRef<Value>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  return newOp.getResult();
+
 }
 
 Value tpu::LrnOp::convertToTG() {
@@ -4195,7 +4222,6 @@ public:
         LowerCpuOpDefaultPattern<tpu::TransposeOp>,
         LowerCpuOpDefaultPattern<tpu::YoloDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::SoftmaxCpuOp>,
-        LowerCpuOpDefaultPattern<tpu::InterpOp>,
         LowerCustomOpPattern<tpu::CustomOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));

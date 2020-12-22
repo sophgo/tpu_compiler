@@ -1297,6 +1297,25 @@ LogicalResult tpu::FullyConnectedOp::quantizeInt8() {
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)
 
+LogicalResult tpu::InterpOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+
+  auto interpOp = cast<tpu::InterpOp>(op);
+
+  std::string _coordinate_transformation_mode =
+      interpOp.coordinate_transformation_mode().str();
+  if (_coordinate_transformation_mode != "half_pixel") {
+    std::string err_msg = "No support " + _coordinate_transformation_mode
+                                        + " mode \n";
+    llvm_unreachable(err_msg.c_str());
+  }
+  llvm::StringRef type = "NONE";
+  interpOp.setOpQuantMode(type);
+  return success();
+}
+
 LogicalResult tpu::LeakyReluOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1372,7 +1391,7 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReorgOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ROIPoolingOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReverseOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ShuffleChannelOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InterpOp)
+
 
 LogicalResult tpu::SigmoidOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()

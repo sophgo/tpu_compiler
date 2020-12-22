@@ -1816,7 +1816,7 @@ def TPU_GenericCpuOp : TPU_Op<"generic_cpu_op",
   }];
 
   let arguments = (
-    ins Variadic<TPU_TensorOfOrNone<[F32, BF16, I8]>>:$inputs,
+    ins Variadic<TPU_TensorOfOrNone<[F32, BF16, AnyInteger]>>:$inputs,
     StrAttr:$name,
     StrAttr:$operation_name,
     DictionaryAttr:$param,
