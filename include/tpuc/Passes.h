@@ -48,7 +48,7 @@ std::unique_ptr<mlir::Pass> createFuseAsymmetricZeroPointPass();
 std::unique_ptr<mlir::Pass> createFuseReluPass();
 std::unique_ptr<mlir::Pass> createFusePadPass();
 std::unique_ptr<mlir::Pass> createFuseEltwisePass();
-std::unique_ptr<mlir::Pass> createRefactorEltAndConvPass();
+std::unique_ptr<mlir::Pass> createMoveConvStrideToEltwiseOpPass();
 std::unique_ptr<mlir::Pass> createRefactorOddIcConvPass();
 
 std::unique_ptr<mlir::Pass> createGenReciprocalTablePass();
@@ -94,7 +94,7 @@ std::unique_ptr<mlir::Pass> createFuseReshapePass();
 std::unique_ptr<mlir::Pass> createTpucCanonicalizerPass();
 std::unique_ptr<mlir::Pass> createDivideOpsToFuncPass();
 std::unique_ptr<mlir::Pass> createEliminateDeadcodePass();
-std::unique_ptr<mlir::Pass> createGroupOpsPass(); 
+std::unique_ptr<mlir::Pass> createGroupOpsPass();
 std::unique_ptr<mlir::Pass> createReorderOpPass();
 
 /// Generate the code for registering passes.

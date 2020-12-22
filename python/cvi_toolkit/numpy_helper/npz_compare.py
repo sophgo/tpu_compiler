@@ -58,7 +58,21 @@ def bf16_to_fp32(d_bf16):
   return d_fp32.reshape(s)
 
 def align_type_and_shape(d1, d2, force_dtype=np.void):
-  d2 = d2.reshape(d1.shape)
+  try:
+    d2 = d2.reshape(d1.shape)
+  except:
+    print("WARRING: Two narraies are not the same shape." + \
+          " {} v.s. {}, check if continue:".format(d1.shape, d2.shape))
+    # check if do-early-stride case
+    if d2.shape[2] % d1.shape[2] == 0 and \
+       d2.shape[3] % d1.shape[3] == 0:
+      sh = int(d2.shape[2] / d1.shape[2])
+      sw = int(d2.shape[3] / d1.shape[3])
+      d2 = d2[:, :, ::sh, ::sw]
+      print("Ignore this warning, continue")
+    else:
+      raise ValueError("Fatal, stop")
+
   t1 = d1.dtype
   t2 = d2.dtype
   # print(t1, d1.size, d1.shape)

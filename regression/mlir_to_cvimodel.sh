@@ -69,6 +69,7 @@ tpuc-opt $mlir_file \
     --tpu-lower \
     --dequant-results-to-fp32=$dequant_to_fp32 \
     --reorder-op \
+    --eltwise-early-stride \
     --tg-fuse-leakyrelu \
     --conv-ic-alignment \
     --group-ops \

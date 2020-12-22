@@ -14,7 +14,6 @@ tpuc-opt ${1}.mlir \
      --chipname $SET_CHIP_NAME \
     --convert-bn-to-scale \
     --canonicalize \
-    --eltwise-early-stride \
     --print-tpu-op-info \
     --tpu-op-info-filename ${1}_op_info.csv \
     -o ${1}_fp32.mlir

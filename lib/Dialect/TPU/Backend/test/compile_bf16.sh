@@ -20,7 +20,6 @@ pushd $DIR/tmp
 tpuc-opt \
     --convert-bn-to-scale \
     --canonicalize \
-    --eltwise-early-stride \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv \
     ${MLIR_MODEL} \

@@ -103,9 +103,9 @@ def DoConvertPriorBox : FunctionPass<"convert-priorbox-to-loadweight"> {
   let constructor = "mlir::createConvertPriorBoxPass()";
 }
 
-def DoRefactorEltAndConv : FunctionPass<"eltwise-early-stride"> {
+def DoMoveConvStrideToEltwiseOp : FunctionPass<"eltwise-early-stride"> {
   let summary = "Refactor hStride of elt and conv op";
-  let constructor = "mlir::createRefactorEltAndConvPass()";
+  let constructor = "mlir::createMoveConvStrideToEltwiseOpPass()";
 }
 
 def DoAssignChipName : FunctionPass<"assign-chip-name"> {
@@ -186,11 +186,6 @@ def DoAssignLayerId : FunctionPass<"assign-layer-id"> {
 def DoCompressWeight : FunctionPass<"compress-weight"> {
   let summary = "Compress weight";
   let constructor = "mlir::createCompressWeightPass()";
-}
-
-def DoEltwiseEarlyStride : FunctionPass<"eltwise-early-stride"> {
-  let summary = "Refactor hStride of elt and conv op";
-  let constructor = "mlir::createRefactorEltAndConvPass()";
 }
 
 def DoGenPseudoWeightNpz : FunctionPass<"gen-pseudo-weight-npz"> {

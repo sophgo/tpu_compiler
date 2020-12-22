@@ -140,7 +140,6 @@ int8_mlir="${name}_int8.mlir"
 tpuc-opt ${name}.mlir \
     --convert-bn-to-scale \
     --canonicalize \
-    --eltwise-early-stride \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv | \
 tpuc-opt \

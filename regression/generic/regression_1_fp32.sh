@@ -32,7 +32,6 @@ tpuc-opt ${NET}.mlir \
     --convert-bn-to-scale \
     --convert-clip-to-relu6 \
     --canonicalize \
-    --eltwise-early-stride \
     --fuse-relu \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info.csv \

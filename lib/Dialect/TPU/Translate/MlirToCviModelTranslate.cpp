@@ -453,10 +453,27 @@ void CviModelBuilder::parseModule() {
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
 
       if (qscaleMap.find(name) != qscaleMap.end()) {
-        if(zpMap[name] == 0){
+        if (zpMap[name] == 0){
           tensor->setInt8SymQuantInfo(qscaleMap[name]);
-        }else{
+        } else {
           tensor->setInt8AsymQuantInfo(qscaleMap[name], zpMap[name]);
+        }
+      }
+
+      if (op->getAttr("preprocess")) {
+        auto preprocess = llvm::dyn_cast<tpu::InputOp>(op).preprocess();
+        if (preprocess.hasValue()) {
+          auto color = preprocess.getValue().color_order().getValue().str();
+          auto raw_scale = preprocess.getValue().raw_scale().getValue().convertToFloat();;
+          std::vector<float> mean;
+          std::for_each(preprocess.getValue().mean().begin(), preprocess.getValue().mean().end(),
+            [&](mlir::Attribute attr){ mean.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
+          std::vector<float> std;
+                  std::for_each(preprocess.getValue().std().begin(), preprocess.getValue().std().end(),
+            [&](mlir::Attribute attr){ std.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
+          auto input_scale = preprocess.getValue().input_scale().getValue().convertToFloat();
+          auto data_format = preprocess.getValue().data_format().getValue().str();
+          preprocess_ = {color, raw_scale, mean, std, input_scale, data_format};
         }
       }
 
@@ -476,22 +493,9 @@ void CviModelBuilder::parseModule() {
           op->getAttr("store_compr_act").cast<BoolAttr>().getValue()) {
         overwritten = true;
       }
-
-      if (op->getAttr("preprocess")) {
-        auto preprocess = llvm::dyn_cast<tpu::InputOp>(op).preprocess();
-        if (preprocess.hasValue()) {
-          auto color = preprocess.getValue().color_order().getValue().str();
-          auto raw_scale = preprocess.getValue().raw_scale().getValue().convertToFloat();;
-          std::vector<float> mean;
-          std::for_each(preprocess.getValue().mean().begin(), preprocess.getValue().mean().end(),
-            [&](mlir::Attribute attr){ mean.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
-          std::vector<float> std;
-                  std::for_each(preprocess.getValue().std().begin(), preprocess.getValue().std().end(),
-            [&](mlir::Attribute attr){ std.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
-          auto input_scale = preprocess.getValue().input_scale().getValue().convertToFloat();
-          auto data_format = preprocess.getValue().data_format().getValue().str();
-          preprocess_ = {color, raw_scale, mean, std, input_scale, data_format};
-        }
+      if (op->getAttr("do_early_stride") &&
+          op->getAttr("do_early_stride").cast<BoolAttr>().getValue()) {
+        overwritten = true;
       }
 
       if (llvm::dyn_cast<tpu::TL_LG_JoinOp>(op)) {

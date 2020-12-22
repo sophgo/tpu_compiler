@@ -26,7 +26,6 @@ add_llvm_library(MLIRTPU
   Transforms/CompressActivation.cpp
   Transforms/CompressWeight.cpp
   Transforms/ConvertBnToScale.cpp
-  Transforms/RefactorEltAndConv.cpp
   Transforms/ConvertScale.cpp
   Transforms/ConvertClip.cpp
   Transforms/ConvertLstmCaffe.cpp
@@ -75,6 +74,7 @@ add_llvm_library(MLIRTPU
   Optimization/FuseLeakyRelu.cpp
   Optimization/FullyConnectedTile.cpp
   Optimization/TgOpTile.cpp
+  Optimization/DoEarlyStride.cpp
   Optimization/DeepFusion/SimpleDeepFusion.cpp
   Optimization/DeepFusion/ConvertTG2TL_LA.cpp
   Optimization/DeepFusion/ConvertTL_LA2LW.cpp
