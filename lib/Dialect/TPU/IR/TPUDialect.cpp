@@ -107,7 +107,7 @@ namespace mlir {
     int OP::getLayerId() { \
       auto op = getOperation(); \
       auto loc = op->getLoc().cast<FileLineColLoc>(); \
-      return loc.getLine() - 5; \
+      return loc.getLine() - 3; \
     }
 
 #define DECLARE_GET_CHIP_NAME_METHOD(OP) \

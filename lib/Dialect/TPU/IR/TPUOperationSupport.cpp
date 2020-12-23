@@ -158,7 +158,7 @@ int getOpLayerId(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     // get op id according the line number of op's position.
     auto loc = op->getLoc().cast<FileLineColLoc>();
-    return loc.getLine() - 5;
+    return loc.getLine() - 3;
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";
