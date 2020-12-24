@@ -1,12 +1,15 @@
 #!/usr/bin/env python3
 ##
-## Copyright (C) Cristal Vision Technologies Inc.
-## All Rights Reserved.
+# Copyright (C) Cristal Vision Technologies Inc.
+# All Rights Reserved.
 ##
 
 import cv2
 import numpy as np
-import sys, os, copy, math
+import sys
+import os
+import copy
+import math
 import pymlir
 import logging
 from base_calibrator import Base_Calibrator
@@ -16,17 +19,19 @@ from cvi_toolkit.utils.log_setting import setup_logger
 
 logger = setup_logger('root')
 
+
 class KLD_Calibrator(Base_Calibrator):
     def __init__(self,
-            image_list_file,
-            mlir_model,
-            preprocess_func,
-            input_num=200,
-            histogram_bin_num=2048,
-            math_lib_path='calibration_math.so'):
+                 image_list_file,
+                 mlir_model,
+                 preprocess_func,
+                 input_num=200,
+                 histogram_bin_num=2048,
+                 math_lib_path='calibration_math.so'):
         super().__init__(image_list_file, mlir_model, preprocess_func, input_num)
         if not self.is_symmetric_quantization:
-            raise RuntimeError("KLD_Calibrator only support symmetric quantization")
+            raise RuntimeError(
+                "KLD_Calibrator only support symmetric quantization")
 
         self.histogram_bin_num = int(histogram_bin_num)
         self.calibration_math = CDLL(math_lib_path)
@@ -42,21 +47,22 @@ class KLD_Calibrator(Base_Calibrator):
         data_hist = {}
         width_hist = {}
         idx = 0
-        for line in self.all_lines:
+        for line in self.images:
             # print('Generating histogram at iteration: ', str(idx))
             x = self.preprocess_func(line)
-            _ = self.module.run(x)
-            data = self.module.get_all_tensor()
+            _ = self.model.run(x)
+            data = self.model.get_all_tensor()
 
             for item in data:
                 t = np.abs(data[item].flatten())
-                t = t[t!=0]
+                t = t[t != 0]
 
                 width = data_max[item][0] / (self.histogram_bin_num - 1)
                 if t.size > 0:
                     hist, bins = np.histogram(np.floor(t / width + 0.5),
                                               bins=self.histogram_bin_num,
-                                              range=(0, self.histogram_bin_num-1),
+                                              range=(
+                                                  0, self.histogram_bin_num-1),
                                               density=False)
                 else:
                     hist = np.zeros(self.histogram_bin_num)
@@ -75,11 +81,17 @@ class KLD_Calibrator(Base_Calibrator):
         return data_hist, width_hist
 
     def do_calibration(self):
-        abs_data_max = super().do_calibration()
-        data_hist, width_hist = self.do_histogram(abs_data_max)
+        op_tensor_min_max = self.do_find_min_max()
+
+        # In symmetric, find max(abs(min_value), abs(max_value))
+        abs_value = {}
+        for k, v in op_tensor_min_max.items():
+            abs_value[k] = [max(abs(v[0]), abs(v[1]))]
+        data_hist, width_hist = self.do_histogram(abs_value)
 
         thresholds = {}
         for item in data_hist:
-            thresholds[item] = [self.KLD_hist(data_hist[item], width_hist[item])]
+            thresholds[item] = [self.KLD_hist(
+                data_hist[item], width_hist[item])]
 
         return thresholds

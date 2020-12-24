@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
-##
-## Copyright (C) Cristal Vision Technologies Inc.
-## All Rights Reserved.
+#
+# Copyright (C) Cristal Vision Technologies Inc.
+# All Rights Reserved.
 ##
 
 import cv2
 import numpy as np
-import sys, os, copy, math
+import sys
+import os
+import copy
+import math
 import logging
+from tqdm import tqdm
 from cvi_toolkit.utils.log_setting import setup_logger
 
 logger = setup_logger('root')
@@ -16,94 +20,76 @@ logger = setup_logger('root')
 def is_all_zero(data):
     return np.all((data == 0))
 
-# Just use min and max as the quantization range
+
 class Base_Calibrator(object):
     def __init__(self,
-            image_list_file,
-            mlir_model,
-            preprocess_func,
-            input_num=200,
-            is_symmetric_quantization=True):
+                 image_list_file,
+                 mlir_file,
+                 preprocess_func,
+                 input_num=200,
+                 is_symmetric_quantization=True):
+        logger.info("Reading {} file".format(image_list_file))
+        with open(image_list_file, 'r') as fp:
+            self.images = fp.readlines()
 
-        with open(image_list_file,'r') as fp:
-            self.all_lines = fp.readlines()
-
-        if len(self.all_lines) == 0:
-            print("ERROR: No calibration data detect."
-                  " Please check the input file: {}".format(image_list_file))
-            exit(-1)
-
+        logger.info("Images list number: {}".format(len(self.images)))
+        if len(self.images) == 0:
+            raise IOError("ERROR: No calibration data detect."
+                          " Please check the input file: {}".format(image_list_file))
         self.input_num = int(input_num)
-        self.preprocess_func = preprocess_func
+        if len(self.images) < self.input_num:
+            logger.warning(
+                "There are {} number in {}, less than input_num ({}), set input_num to {}"
+                .format(len(self.images), image_list_file, self.input_num, len(self.images)))
+            self.input_num = len(self.images)
 
-        self.module = mlir_model
+        self.preprocess_func = preprocess_func
+        self.model = mlir_file
         self.tensor_max = {}
         self.tensor_min = {}
         self.is_symmetric_quantization = is_symmetric_quantization
 
     def do_find_min_max(self):
-        idx = 0
-        for line in self.all_lines:
-            print('Calculating max at iteration: ', str(idx))
+        tensor_min_max_dict = dict()
 
-            x = self.preprocess_func(line)
-            _ = self.module.run(x)
-            data = self.module.get_all_tensor()
+        pbar = tqdm(self.images, total=self.input_num, position=0, leave=True)
+        for img_path in pbar:
+            pbar.set_description("{}".format(img_path))
+            x = self.preprocess_func(img_path)
+            self.model.run(x)
+            all_activation_data = self.model.get_all_tensor()
 
-            for item in data:
-                if item not in self.tensor_max:
-                    self.tensor_max[item] = 0
-                    self.tensor_min[item] = 0
+            for op_name, activation in all_activation_data.items():
+                if op_name not in tensor_min_max_dict:
+                    tensor_min_max_dict[op_name] = (0, 0)
+                min_value = np.min(activation)
+                max_value = np.max(activation)
+                tensor_min_max_dict[op_name] = (
+                    min(tensor_min_max_dict[op_name][0], min_value),
+                    max(tensor_min_max_dict[op_name][1], max_value),
+                )
 
-                if data[item].size > 0:
-                    if np.all((data[item] == 0)):
-                        # customer may have network output all zero, change it to 1e-5 for them.
-                        print("WARNING: layer {} is all zeros. Please check the input data "
-                            "correctness.".format(item))
-                        self.tensor_max[item] = max(self.tensor_max[item], 1e-5)
-                    else:
-                        self.tensor_max[item] = max(self.tensor_max[item], np.max(data[item]))
+            # check max is zero
+            for op_name, (_min, _max) in tensor_min_max_dict.items():
+                if _max == 0:
+                    # customer may have network output all zero, change it to 1e-5 for them.
+                    logging.warning("WARNING: layer {} is all zeros. Please check the input data "
+                                    "correctness.".format(op_name))
+                    tensor_min_max_dict[op_name] = (_min, 1e-5)
 
-                    self.tensor_min[item] = min(self.tensor_min[item], np.min(data[item]))
-
-            idx += 1
-            if idx >= self.input_num:
-                break
-
-        return self.tensor_min, self.tensor_max
+        return tensor_min_max_dict
 
     def do_calibration(self):
-        self.tensor_min, self.tensor_max = self.do_find_min_max()
+        return self.do_find_min_max()
 
-        thresholds = {}
-        if self.is_symmetric_quantization:
-            for item in self.tensor_max:
-                thresholds[item] = [max(abs(self.tensor_max[item]), abs(self.tensor_min[item]))]
-        else:
-            for item in self.tensor_max:
-                thresholds[item] = [self.tensor_min[item], self.tensor_max[item]]
 
-        return thresholds
+    def dump_threshold_table(self, threshold_table, op_threshold_dict):
+        op_layer = self.model.op_info
 
-    def get_raw_min(self):
-        return self.tensor_min
-
-    def dump_threshold_table(self, threshold_table, thresholds):
-        op_layer = self.module.op_info
-        with open(threshold_table, 'w') as outfile:
+        with open(threshold_table, 'w') as writer:
             for op_dict in op_layer:
-                line = op_dict['name']
-                for num in thresholds[op_dict['name']]:
-                    line += ' ' + str(num)
-                outfile.write(line)
-                outfile.write('\n')
+                op_name = op_dict['name']
+                threshold = op_threshold_dict[op_name][0]
+                threshold_info = "{} {}\n".format(op_name, threshold)
+                writer.write(threshold_info)
 
-    def dump_density_table(self, density_table, low, high):
-        op_layer = self.module.op_info
-        with open(density_table, 'w') as outfile:
-            for op_dict in op_layer:
-                line = op_dict['name']
-                for num in high[op_dict['name']]:
-                    line += ' ' + str(low[op_dict['name']]) + ' ' + str(num)
-                outfile.write(line)
-                outfile.write('\n')

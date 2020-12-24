@@ -225,10 +225,10 @@ def main():
     threshold_table = '{}_threshold_table'.format(args.model_name)
   calibrator.dump_threshold_table(threshold_table, thresholds)
 
-  # export density table for hw look-up table
-  density_table = args.output_density_table if args.output_density_table else '{}_density_table'.format(args.model_name)
+  # # export density table for hw look-up table
+  # density_table = args.output_density_table if args.output_density_table else '{}_density_table'.format(args.model_name)
 
-  calibrator.dump_density_table(density_table, calibrator.get_raw_min(), thresholds)
+  # calibrator.dump_density_table(density_table, calibrator.get_raw_min(), thresholds)
 
 
   def autotune_preprocess(image_path):
