@@ -24,7 +24,7 @@ CviBackendContext::CviBackendContext(const char *runchip) {
   // New kernel API
   cvk_reg_info_t req_info;
   strncpy(req_info.chip_ver_str, runchip, sizeof(req_info.chip_ver_str) - 1);
-  req_info.cmdbuf_size = 0x10000000;
+  req_info.cmdbuf_size = 0x20000000;
   req_info.cmdbuf = static_cast<uint8_t *>(malloc(req_info.cmdbuf_size));
   cvk_ctx_ = cvikernel_register(&req_info);
 
@@ -630,11 +630,10 @@ uint32_t CviBackendContext::addr_after_right_shift(int addr, uint32_t step,
 
 uint32_t CviBackendContext::tl_cmpr_c_stride(int n, int c, int h, int w,
                                              cvk_fmt_t fmt) const {
-  // (1, ic, ih, iw) -> (1, NPU, 1, iw) ...
+  // (1, c, h, w) -> (1, NPU, 1, w) ...
   // Right shift NPU, same as next batch so eu_align = 1
-  cvk_tl_shape_t tl_block_cmpr_shape = tl_shape_t4(n, c, h, w);
-  cvk_tl_stride_t tl_block_cmpr_stride = tl_default_stride(tl_block_cmpr_shape,
-                                                           fmt, 1);
+  cvk_tl_shape_t blck_cmpr_shape = tl_shape_t4(n, c, h, w);
+  cvk_tl_stride_t blck_cmpr_stride = tl_default_stride(blck_cmpr_shape, fmt, 1);
 
-  return tl_block_cmpr_stride.c;
+  return blck_cmpr_stride.c;
 }

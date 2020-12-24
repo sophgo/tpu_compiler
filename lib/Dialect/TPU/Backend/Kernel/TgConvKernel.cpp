@@ -361,7 +361,7 @@ void Conv::initializeGlobalMemInput() {
   gmInputDesc->setMemRegion(args.gm_input_region);
   gmInputDesc->setAddress(args.ga_ifmap);
 
-  if (args.load_compr_act)
+  if (args.load_cmpr_act)
     gmInputDesc->setCompressed(true);
 }
 
@@ -376,7 +376,7 @@ void Conv::initializeGlobalMemOutput() {
   gmOutputDesc->setMemRegion(args.gm_output_region);
   gmOutputDesc->setAddress(args.ga_ofmap);
 
-  if (args.store_compr_act)
+  if (args.store_cmpr_act)
     gmOutputDesc->setCompressed(true);
 }
 
@@ -898,7 +898,7 @@ void Conv::loadWeight(std::vector<uint32_t> gmOutputPoss,
       << ", " << ts_data.stride.h << ")\n"
       << "    intraCmdParal " << (int)intraCmdParal << "\n");
 
-  if (!args.compr_wgt) {
+  if (!args.do_load_cmpr_wgt) {
     cvk_tdma_g2l_tensor_copy_param_t p1 = {0};
     p1.src = &ts_data;
     p1.dst = &tl_load_weight;
@@ -1111,7 +1111,7 @@ void Conv::loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
   uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(
       args.input_n, args.input_c, args.input_h, args.input_w,
       gmInputPoss[NGCHW::N], gmInputPoss[NGCHW::C], gmInputPoss[NGCHW::H],
-      NPU_NUM, args.load_compr_act);
+      NPU_NUM, args.load_cmpr_act);
 
   cvi_backend_tl_load_compressed(ctx, args.layer_id,
                                  gmInputDesc->getAddress() + ga_cmpr_offset,
@@ -1125,7 +1125,7 @@ void Conv::loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
                                  tg_src->fmt,
                                  tl_dst->fmt,
                                  cmpr_h_step,
-                                 args.load_compr_act,
+                                 args.load_cmpr_act,
                                  NPU_NUM
                                  );
 }
@@ -1643,7 +1643,7 @@ void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
   uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(
       args.input_n, args.output_c, output_height(), output_width(),
       gmOutputPoss[NGCHW::N], gmOutputPoss[NGCHW::C], gmOutputPoss[NGCHW::H],
-      NPU_NUM, args.store_compr_act);
+      NPU_NUM, args.store_cmpr_act);
 
   cvi_backend_tl_store_compressed(ctx, args.layer_id,
                                   gmOutputDesc->getAddress() + ga_cmpr_offset,
@@ -1658,7 +1658,7 @@ void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
                                   tl_src->fmt,
                                   tg_dst->fmt,
                                   cmpr_h_step,
-                                  args.store_compr_act,
+                                  args.store_cmpr_act,
                                   NPU_NUM,
                                   false // DoIntraCmdParal
                                   );
@@ -2349,15 +2349,15 @@ void Conv::convReuseWeight() {
       "  do_bias %d, do_chl_quan %d\n"
       "  Slices (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d, ih_step=%d"
       ", iw_step=%d, ic_step=%d)\n"
-      "  store_compr_act %d, load_compr_act %d\n",
+      "  store_cmpr_act %d, load_cmpr_act %d\n",
       args.groups, args.input_n, args.input_c, args.input_h, args.input_w,
       args.input_n, args.output_c, output_height(), output_width(),
       args.kh, args.kw, args.pad_top, args.pad_bottom, args.pad_left,
       args.pad_right, args.stride_h, args.stride_w, args.dilation_h,
       args.dilation_w, args.do_bias, args.do_chl_quan,tile_info.n_step,
       tile_info.oc_step, tile_info.oh_step, tile_info.ow_step, tile_info.ih_step,
-      tile_info.iw_step, tile_info.ic_step, args.store_compr_act,
-      args.load_compr_act));
+      tile_info.iw_step, tile_info.ic_step, args.store_cmpr_act,
+      args.load_cmpr_act));
 
   // split groups
   for (uint32_t ig = 0; ig < groups(); ++ig) {
@@ -2441,15 +2441,15 @@ void Conv::convReuseActivation() {
       "  do_bias %d, do_chl_quan %d\n"
       "  Slices (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d, ih_step=%d"
       ", iw_step=%d, ic_step=%d)\n"
-      "  store_compr_act %d, load_compr_act %d\n",
+      "  store_cmpr_act %d, load_cmpr_act %d\n",
       args.groups, args.input_n, args.input_c, args.input_h, args.input_w,
       args.input_n, args.output_c, output_height(), output_width(),
       args.kh, args.kw, args.pad_top, args.pad_bottom, args.pad_left,
       args.pad_right, args.stride_h, args.stride_w, args.dilation_h,
       args.dilation_w, args.do_bias, args.do_chl_quan, tile_info.n_step,
       tile_info.oc_step, tile_info.oh_step, tile_info.ow_step, tile_info.ih_step,
-      tile_info.iw_step, tile_info.ic_step, args.store_compr_act,
-      args.load_compr_act));
+      tile_info.iw_step, tile_info.ic_step, args.store_cmpr_act,
+      args.load_cmpr_act));
 
   // split groups
   for (uint32_t ig = 0; ig < groups(); ++ig) {
@@ -2694,8 +2694,8 @@ void Conv::dwConv() {
   uint8_t pad_right = args.pad_right;
   uint8_t stride_h = args.stride_h;
   uint8_t stride_w = args.stride_w;
-  //bool load_compr_act = args.load_compr_act;
-  //bool store_compr_act = args.store_compr_act;
+  //bool load_cmpr_act = args.load_cmpr_act;
+  //bool store_cmpr_act = args.store_cmpr_act;
   gaddr_t ga_ifmap = args.ga_ifmap;
   gaddr_t ga_ofmap = args.ga_ofmap;
   gaddr_t ga_weight = args.ga_weight;
@@ -3478,11 +3478,11 @@ void Conv::convNoTile() {
       "    activation_le_rshift = %d, activation_le_scale = %d\n"
       "    do_activation = %d\n"
       "    do_ic_alignment = %d\n"
-      "    store_compr_act %d, load_compr_act %d\n",
+      "    store_cmpr_act %d, load_cmpr_act %d\n",
       args.activation_gt_scale, args.activation_gt_scale,
       args.activation_le_rshift, args.activation_le_scale,
       args.do_activation, args.do_ic_alignment,
-      args.store_compr_act, args.load_compr_act));
+      args.store_cmpr_act, args.load_cmpr_act));
 
   std::vector<uint32_t> poss = {0, 0, 0, 0, 0};
   std::vector<uint32_t> indexes = {0, 0, 0};
@@ -3505,15 +3505,15 @@ void Conv::convNaive() {
       "  do_bias %d, do_chl_quan %d\n"
       "  Slices (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d, ih_step=%d"
       ", iw_step=%d, ic_step=%d)\n"
-      "  store_compr_act %d, load_compr_act %d\n",
+      "  store_cmpr_act %d, load_cmpr_act %d\n",
       args.groups, args.input_n, args.input_c, args.input_h, args.input_w,
       args.input_n, args.output_c, output_height(), output_width(),
       args.kh, args.kw, args.pad_top, args.pad_bottom, args.pad_left,
       args.pad_right, args.stride_h, args.stride_w, args.dilation_h,
       args.dilation_w, args.do_bias, args.do_chl_quan, tile_info.n_step,
       tile_info.oc_step, tile_info.oh_step, tile_info.ow_step, tile_info.ih_step,
-      tile_info.ih_step, tile_info.ic_step, args.store_compr_act,
-      args.load_compr_act));
+      tile_info.ih_step, tile_info.ic_step, args.store_cmpr_act,
+      args.load_cmpr_act));
 
   // split groups
   for (uint32_t ig = 0; ig < groups(); ++ig) {
@@ -3680,7 +3680,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
     bool do_ic_alignment,
-    int store_cmpr_act, int load_cmpr_act, bool do_cmpr_wgt,
+    int store_cmpr_act, int load_cmpr_act, bool do_load_cmpr_wgt,
     int pad_value) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3699,10 +3699,10 @@ void cvi_backend_tg_fixed_conv_kernel(
              "    activation_le_rshift = %d, activation_le_scale = %d\n"
              "    do_activation = %d\n"
              "    do_ic_alignment = %d\n"
-             "    store_compr_act %d, load_compr_act %d, compr_wgt %d\n",
+             "    store_cmpr_act %d, load_cmpr_act %d, do_load_cmpr_wgt %d\n",
              activation_gt_rshift, activation_gt_scale, activation_le_rshift,
              activation_le_scale, do_activation,
-             do_ic_alignment, store_cmpr_act, load_cmpr_act, do_cmpr_wgt));
+             do_ic_alignment, store_cmpr_act, load_cmpr_act, do_load_cmpr_wgt));
 
   //
   // Convolution initialization
@@ -3742,9 +3742,9 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args.do_chl_quan = do_chl_quan;
   conv->args.layer_id = layer_id;
   conv->args.do_ic_alignment = do_ic_alignment;
-  conv->args.store_compr_act = store_cmpr_act;
-  conv->args.load_compr_act = load_cmpr_act;
-  conv->args.compr_wgt = do_cmpr_wgt;
+  conv->args.store_cmpr_act = store_cmpr_act;
+  conv->args.load_cmpr_act = load_cmpr_act;
+  conv->args.do_load_cmpr_wgt = do_load_cmpr_wgt;
   conv->args.pad_value = pad_value;
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32
@@ -3803,7 +3803,7 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint8_t pad_right, uint8_t ins_h, uint8_t ins_w,
     uint8_t stride_h, uint8_t stride_w, int do_bias,
     int do_activation, bool fp32_output,
-    int store_cmpr_act, int load_cmpr_act, bool do_cmpr_wgt) {
+    int store_cmpr_act, int load_cmpr_act, bool do_load_cmpr_wgt) {
 
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3851,9 +3851,9 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args.do_bias = static_cast<bool>(do_bias);
   conv->args.do_activation = static_cast<bool>(do_activation);
   conv->args.layer_id = layer_id;
-  conv->args.store_compr_act = store_cmpr_act;
-  conv->args.load_compr_act = load_cmpr_act;
-  conv->args.compr_wgt = do_cmpr_wgt;
+  conv->args.store_cmpr_act = store_cmpr_act;
+  conv->args.load_cmpr_act = load_cmpr_act;
+  conv->args.do_load_cmpr_wgt = do_load_cmpr_wgt;
 
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32

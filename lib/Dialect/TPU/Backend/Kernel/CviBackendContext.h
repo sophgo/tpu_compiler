@@ -327,9 +327,8 @@ public:
   void tdma_g2g_tensor_copy(uint64_t src_addr, cvk_tg_shape_t src_shape, cvk_tg_stride_t src_stride, cvk_fmt_t src_fmt,
                             uint64_t dst_addr, cvk_tg_shape_t dst_shape, cvk_tg_stride_t dst_stride, cvk_fmt_t dst_fmt) const;
 
-  uint32_t ga_cmpr_offset(int n, int c, int h, int w,
-                          int n_pos, int c_pos, int h_pos,
-                          int c_step, int step_size) const;
+  uint32_t ga_cmpr_offset(int n, int c, int h, int w, int n_pos, int c_pos,
+                          int h_pos, int c_step, int step_size) const;
   uint32_t addr_after_right_shift(int addr, uint32_t step, int c_str) const;
   uint32_t tl_cmpr_c_stride(int n, int c, int h, int w, cvk_fmt_t fmt) const;
 

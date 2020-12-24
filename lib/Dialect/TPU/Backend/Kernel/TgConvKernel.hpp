@@ -733,9 +733,9 @@ struct Conv_ARGS {
   bool do_chl_quan;
   uint32_t layer_id;
   bool do_ic_alignment;
-  int store_compr_act;
-  int load_compr_act;
-  bool compr_wgt;
+  int store_cmpr_act;
+  int load_cmpr_act;
+  bool do_load_cmpr_wgt;
   bool fused_conv_relu;
   bool do_leaky_relu;
   cvk_fmt_t input_fmt;

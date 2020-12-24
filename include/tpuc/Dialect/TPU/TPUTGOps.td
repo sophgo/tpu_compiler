@@ -455,6 +455,8 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     StrAttr:$name,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,
+    OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,
+    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
     OptionalAttr<StrAttr>:$chipname
   );
 

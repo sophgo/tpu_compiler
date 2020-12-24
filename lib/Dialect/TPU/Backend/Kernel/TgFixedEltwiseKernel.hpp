@@ -18,6 +18,9 @@ typedef struct {
   int32_t c;
   int32_t h;
   int32_t w;
+  int32_t n_pos;
+  int32_t c_pos;
+  int32_t h_pos;
   uint64_t input_offset;
   uint64_t output_offset;
 } EltwiseTile;
@@ -36,7 +39,8 @@ public:
     const int32_t *multipliers,
     const int32_t *coeffs,
     int32_t *inputs_offset = nullptr,
-    int32_t output_offset = 0);
+    int32_t output_offset = 0,
+    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0);
 
   void init(uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,
@@ -44,7 +48,8 @@ public:
     int32_t h, int32_t w, bool do_relu,
     bool do_early_stride, int32_t stride_h,
     int32_t stride_w,
-    const float *coeffs);
+    const float *coeffs,
+    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0);
 
   void selectTilePolicy();
   void schedule();
@@ -58,8 +63,13 @@ protected:
   void deallocLmem();
   void doTileForNormalCase();
   void doTileForStrideCase();
+  void doTileForCompressCase();
   void load(int32_t step_idx);
+  void loadDecompressed(int32_t step_idx);
+  void loadTensorStrided(int32_t step_idx);
   void store(int32_t step_idx);
+  void StoreCompressed(int32_t step_idx);
+  void storeTensorStrided(int32_t step_idx);
 
   const CviBackendContext &ctx;
 
@@ -97,6 +107,9 @@ protected:
   int32_t output_flip = 0;
 
   std::vector<EltwiseTile> tiles;
+
+  int32_t store_cmpr_act = 0;
+  int32_t load_cmpr_act = 0;
 };
 
 class TgInt8EltwiseAddKernel : public TgEltwiseKernel {

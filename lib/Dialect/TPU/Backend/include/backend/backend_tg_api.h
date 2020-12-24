@@ -111,7 +111,8 @@ void cvi_backend_tg_fixed_eltwise_add_kernel(
     const int32_t *multipliers,
     const int32_t *coeffs,
     int32_t *inputs_offset = nullptr,
-    int32_t output_offset = 0);
+    int32_t output_offset = 0,
+    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0);
 
 void cvi_backend_tg_fixed_eltwise_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -281,7 +282,8 @@ void cvi_backend_tg_bf16_eltwise_add_kernel(
     int32_t operand_num, int32_t n, int32_t c,
     int32_t h, int32_t w, bool do_relu, bool do_early_stride,
     int32_t stride_h, int32_t stride_w,
-    const float *coeffs);
+    const float *coeffs,
+    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0);
 
 void cvi_backend_tg_bf16_eltwise_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -289,7 +291,8 @@ void cvi_backend_tg_bf16_eltwise_max_kernel(
     int32_t operand_num, int32_t n, int32_t c,
     int32_t h, int32_t w, bool do_relu, bool do_early_stride,
     int32_t stride_h, int32_t stride_w,
-    const float *coeffs);
+    const float *coeffs,
+    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0);
 
 void cvi_backend_tg_bf16_eltwise_min_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

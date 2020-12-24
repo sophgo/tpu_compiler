@@ -734,7 +734,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
-                        this->store_compr_act().getValue() : 0;
+                       this->store_compr_act().getValue() : 0;
   if (store_cmpr_act)
     store_cmpr_act =
         this->store_compr_act_param().getValue().step_size().getInt();
@@ -1092,6 +1092,22 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
 
   std::vector<int>coeffs(input_number, 1);
 
+  int store_cmpr_act = this->store_compr_act().hasValue() ?
+                       this->store_compr_act().getValue() : 0;
+  if (store_cmpr_act) {
+    assert(this->store_compr_act_param().hasValue());
+    store_cmpr_act =
+        this->store_compr_act_param().getValue().step_size().getInt();
+  }
+
+  int load_cmpr_act = this->load_compr_act().hasValue() ?
+                      this->load_compr_act().getValue() : 0;
+  if (load_cmpr_act) {
+    assert(this->load_compr_act_param().hasValue());
+    load_cmpr_act =
+        this->load_compr_act_param().getValue().step_size().getInt();
+  }
+
   cvi_backend_tg_fixed_eltwise_add_kernel(
       *backend_ctx, layer_id,
       ga_inputs, ga_output,
@@ -1101,7 +1117,8 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       do_quant_rescale ? rshift_int : 0,
       do_quant_rescale ? m_int : nullptr,
       coeffs.data(),
-      inputs_offset.data(), output_offset);
+      inputs_offset.data(), output_offset,
+      store_cmpr_act, load_cmpr_act);
 
   delete[] m_i8_input;
   delete[] m_int;
@@ -1344,6 +1361,22 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   // only need two coeff now, here just for safety coding
   std::vector<float> coeffs(input_number, 1.0f);
 
+  int store_cmpr_act = this->store_compr_act().hasValue() ?
+                       this->store_compr_act().getValue() : 0;
+  if (store_cmpr_act) {
+    assert(this->store_compr_act_param().hasValue());
+    store_cmpr_act =
+        this->store_compr_act_param().getValue().step_size().getInt();
+  }
+
+  int load_cmpr_act = this->load_compr_act().hasValue() ?
+                      this->load_compr_act().getValue() : 0;
+  if (load_cmpr_act) {
+    assert(this->load_compr_act_param().hasValue());
+    load_cmpr_act =
+        this->load_compr_act_param().getValue().step_size().getInt();
+  }
+
   cvi_backend_tg_bf16_eltwise_add_kernel(
       *backend_ctx,
       layer_id,     // layer_id
@@ -1353,7 +1386,8 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
       n, c, h, w,
       do_relu,      // bool do_relu
       do_early_stride, early_stride_h, early_stride_w,
-      coeffs.data());
+      coeffs.data(),
+      store_cmpr_act, load_cmpr_act);
 
   delete[] ga_inputs;
   return success();
