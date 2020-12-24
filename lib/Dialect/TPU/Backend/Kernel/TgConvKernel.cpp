@@ -982,10 +982,8 @@ void Conv::getTiledGmPossAndShapesOfInputForTiu(
   //     ifmap (1, 512, 28, 28), kernel (1, 1), stride 2
   //
   //     input (27, 27) needed, but (27, 28) is better
-  if (insert_width() == 0 && cur_iw < tile_info.iw_step && subsampling_width() > 1) {
-    assert((iw_left + tile_info.iw_step) > iw_right);
-    //cur_iw = tile_info.iw_step;
-  }
+  if ((int)tile_info.iw_step == args.input_w && cur_iw < tile_info.iw_step)
+    cur_iw = tile_info.iw_step;
 
   uint32_t pw_left = 0;
   if (iw_left == 0) {
@@ -1830,7 +1828,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer) {
                                    1 + insert_width());
     iw_step = std::min(iw_step, iw);
 
-    if ((iw_step == iw) && (stride_w > 1)) {
+    if ((stride_w > 1) && ((iw_step + stride_w) > iw)) {
       // For better DMA transfer efficiency, use whole width.
       //   E.g.
       //     ifmap (1, 512, 28, 28), kernel (1, 1), stride 2
@@ -2071,8 +2069,7 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
     // int32_t ow_step = ceiling_func(ow, tile_info.w);
     int32_t iw_step = std::min((ow_step - 1) * stride_w + kw_extent, iw);
 
-    // if ((tile_info.w == 1) && (stride_w > 1)) {
-    if ((iw_step == iw) && (stride_w > 1)) {
+    if ((stride_w > 1) && ((iw_step + stride_w) > iw)) {
       // For better DMA transfer efficiency, use whole width.
       //   E.g.
       //     ifmap (1, 512, 28, 28), kernel (1, 1), stride 2

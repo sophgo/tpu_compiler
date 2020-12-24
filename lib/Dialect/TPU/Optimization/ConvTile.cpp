@@ -267,7 +267,7 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes(
   for (int ow_step = max_ow_step; ow_step > 0; --ow_step) {
     int iw_step = std::min((ow_step - 1) * stride_w + kw_extent, input_w);
 
-    if ((iw_step == input_w) && (stride_w > 1)) {
+     if ((stride_w > 1) && ((iw_step + stride_w) > input_w)) {
       // For better DMA transfer efficiency, use whole width.
       //   E.g.
       //     ifmap (1, 512, 28, 28), kernel (1, 1), stride 2
