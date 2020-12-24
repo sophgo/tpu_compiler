@@ -8,9 +8,12 @@ import cv2
 import numpy as np
 import sys
 import os
+import abc
 import copy
 import math
 import logging
+import pymlir
+
 from tqdm import tqdm
 from cvi_toolkit.utils.log_setting import setup_logger
 
@@ -27,7 +30,8 @@ class Base_Calibrator(object):
                  mlir_file,
                  preprocess_func,
                  input_num=200,
-                 is_symmetric_quantization=True):
+                 is_symmetric_quantization=True,
+                 custom_op_plugin=''):
         logger.info("Reading {} file".format(image_list_file))
         with open(image_list_file, 'r') as fp:
             self.images = fp.readlines()
@@ -44,7 +48,9 @@ class Base_Calibrator(object):
             self.input_num = len(self.images)
 
         self.preprocess_func = preprocess_func
-        self.model = mlir_file
+        self.model = pymlir.module()
+        self.model.load(mlir_file)
+        self.model.set_plugin(custom_op_plugin)
         self.tensor_max = {}
         self.tensor_min = {}
         self.is_symmetric_quantization = is_symmetric_quantization
@@ -53,8 +59,11 @@ class Base_Calibrator(object):
         tensor_min_max_dict = dict()
 
         pbar = tqdm(self.images, total=self.input_num, position=0, leave=True)
-        for img_path in pbar:
-            pbar.set_description("{}".format(img_path))
+        for idx, img_path in enumerate(pbar):
+            pbar.set_description("Find Min Max")
+            pbar.update(1)
+            if idx >= self.input_num:
+                break
             x = self.preprocess_func(img_path)
             self.model.run(x)
             all_activation_data = self.model.get_all_tensor()
@@ -76,20 +85,13 @@ class Base_Calibrator(object):
                     logging.warning("WARNING: layer {} is all zeros. Please check the input data "
                                     "correctness.".format(op_name))
                     tensor_min_max_dict[op_name] = (_min, 1e-5)
-
+        pbar.close()
         return tensor_min_max_dict
 
+    @abc.abstractmethod
     def do_calibration(self):
-        return self.do_find_min_max()
+        return NotImplemented
 
-
-    def dump_threshold_table(self, threshold_table, op_threshold_dict):
-        op_layer = self.model.op_info
-
-        with open(threshold_table, 'w') as writer:
-            for op_dict in op_layer:
-                op_name = op_dict['name']
-                threshold = op_threshold_dict[op_name][0]
-                threshold_info = "{} {}\n".format(op_name, threshold)
-                writer.write(threshold_info)
-
+    @abc.abstractmethod
+    def create_threshold_table(self):
+        return NotImplemented

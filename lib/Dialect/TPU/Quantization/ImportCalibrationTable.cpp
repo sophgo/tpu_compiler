@@ -456,25 +456,33 @@ public:
     llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n";
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
-    std::regex sym_pattern("[a-zA-Z0-9.:;_\\/-]+ [-0-9.e]+");
-    std::regex asym_pattern("[a-zA-Z0-9.:;_\\/-]+ [-0-9.e]+ [-0-9.e]+");
+    std::regex old_pattern("[a-zA-Z0-9.:;_\\/-]+ [-0-9.e]+");
+    std::regex new_pattern(
+        "[a-zA-Z0-9.:;_\\/-]+ [-0-9.e]+ [-0-9.e]+ [-0-9.e]+");
+    std::regex info_pattern("#.*");
     while (std::getline(infile, line)) {
       std::istringstream iss(line);
       std::string name;
-      if (std::regex_match(line, sym_pattern)) {
+      if (std::regex_match(line, old_pattern)) {
         float threshold;
         if (!(iss >> name >> threshold)) { break; }
         LLVM_DEBUG(llvm::errs() << "  name " << name << ", threshold "
                      << std::to_string(threshold) << "\n";);
         threshold_map[name] = threshold;
-      } else if (std::regex_match(line, asym_pattern)) {
-        float min_threshold, max_threshold;
-        if (!(iss >> name >> min_threshold >> max_threshold)) { break; }
-        LLVM_DEBUG(llvm::errs() << "  name " << name << ", min_threshold = "
-                     << std::to_string(min_threshold) << ", max_threshold = "
-                     << std::to_string(max_threshold) << "\n";);
-        // Not Support asymmetric quantization so far
-        assert(false);
+      } else if (std::regex_match(line, new_pattern)) {
+        float threshold, min_value, max_value;
+        if (!(iss >> name >> threshold >> min_value >> max_value)) {
+          break;
+        }
+        LLVM_DEBUG(llvm::errs() << "  name " << name
+                                << ", threshold = " << std::to_string(threshold)
+                                << ", min_value = " << std::to_string(min_value)
+                                << ", max_value = " << std::to_string(max_value)
+                                << "\n";);
+        threshold_map[name] = threshold;
+
+      } else if (std::regex_match(line, info_pattern)) {
+        llvm::errs() << "\n  infomation  " << line << "\n";
       } else {
         // Format of threshold table error
         llvm::errs() << line;
