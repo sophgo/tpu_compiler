@@ -55,6 +55,13 @@ static inline int ceiling_func(int numerator, int denominator) {
 #define BM_ERR_FAILURE 1
 #define BM_ERR_NOT_SUPPORTED 2
 
+#define LOG_TAB_L0 ""
+#define LOG_TAB_L1 "  "
+#define LOG_TAB_L2 "    "
+#define LOG_TAB_L3 "      "
+#define LOG_TAB_L4 "        "
+#define LOG_TAB_L5 "          "
+
 typedef enum {
   NEURON = 0,
   COEFF = 1,

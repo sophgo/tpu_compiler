@@ -140,8 +140,8 @@ int TdmaCycle::get_cycle_load() {
   uint64_t sram_time = inst_->sram_byte_count * 1000 / sram_bw_;
   uint64_t total_time = dram_time > sram_time ? dram_time : sram_time;
 
-  LLVM_DEBUG(llvm::errs() << llvm::format( "load %s cycle is %lu ns\n",
-        tensor->name().c_str(), total_time););
+  // LLVM_DEBUG(llvm::errs() << llvm::format( "  [Balance Layer] load %s cycle is %lu ns\n",
+  //       tensor->name().c_str(), total_time););
 
   return total_time;
 }
@@ -189,8 +189,8 @@ int TdmaCycle::get_cycle_store() {
   uint64_t sram_time = inst_->sram_byte_count * 1000 / sram_bw_;
   uint64_t total_time = dram_time > sram_time ? dram_time : sram_time;
 
-  LLVM_DEBUG(llvm::errs() << llvm::format( "store %s cycle is %lu us\n",
-        tensor->name().c_str(), total_time););
+  // LLVM_DEBUG(llvm::errs() << llvm::format( "  [Balance Layer] store %s cycle is %lu us\n",
+  //       tensor->name().c_str(), total_time););
 
   return total_time;
 }
@@ -428,7 +428,6 @@ void TdmaCycle::cal_store_cycle() {
   int c_stride = inst_->dst_c_stride;
   bool isDstBf16 = (inst_->dst_fmt == 2);
   int dataSize = isDstBf16 ? 2 : 1;
-  LLVM_DEBUG(llvm::errs() << llvm::format( "dataSize = %d\n", dataSize););
   bool isCwTranspose = (inst_->transpose_md == 3);
   bool isHContinuous = isCwTranspose ? false :
                       (inst_->dst_h_stride - inst_->dst_w * dataSize <= STORE_DATA_MAX_DISTANCE);

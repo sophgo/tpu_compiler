@@ -343,8 +343,6 @@ struct LGLoweringPattern : public RewritePattern {
     // if already lowered to tl, return false
     int group_id = 0;
     if (optimizer_->is_group_start(op, &group_id)) {
-      LLVM_DEBUG(llvm::errs()
-        << "Find group start: " << getOpName(op) << "\n";);
       optimizer_->lower_to_tl(op, group_id);
     }
     return success();

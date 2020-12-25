@@ -156,16 +156,10 @@ class TiuCycle {
   void set_tl_pooling_param();
   void set_tl_broadcast_mul_param();
   void set_tl_activation_param();
-  void set_tl_upsample();
-  void set_tl_leaky_relu();
-  void set_tl_prelu();
-  void set_tl_concat();
-  void set_tl_pad();
-  void set_tl_crop();
-  void set_tl_relu();
-  void set_tl_quant();
-  void set_tl_lrn();
-  void set_tl_zero_mask();
+  void set_tl_upsample_param();
+  void set_tl_concat_param();
+  void set_tl_pad_param();
+  void set_tl_crop_param();
 
   Operation *op;
   int layer_id_;

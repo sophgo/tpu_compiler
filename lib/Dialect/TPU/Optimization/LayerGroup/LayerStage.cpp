@@ -483,54 +483,77 @@ int net_timestep::get_timestep_memory_req(int time_step) {
 // be saved in nsecs_and_hsecs, that holds the slcing number of cuts
 // by n and h. The slicing strategy is based on the size of local memory
 // used by each step.
-bmerr_t net_timestep::find_best_split(Group* cluster, int batch_num,
+bmerr_t net_timestep::find_minimal_nh_slice(Group* group, int max_n_slice, int max_h_slice,
                                       std::pair<int, int>& nsecs_and_hsecs) {
-  nsecs_and_hsecs.first = batch_num;
+  nsecs_and_hsecs.first = max_n_slice;
   nsecs_and_hsecs.second = 1;
-
+  LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                          << "[Find_Min_NH_Slice] Begin\n";);
   // slice group into n pieces,
   // then we could find the best splits
-  if (BM_ERR_FAILURE == cluster->update_tensor_slices(batch_num, 1)) {
+  if (BM_ERR_FAILURE == group->update_tensor_slices(max_n_slice, 1)) {
     return BM_ERR_FAILURE;
   }
 
   update_mem_buffer_size();
 
-  float max_secs = static_cast<float>(batch_num);
+  float min_secs = 1.0;//static_cast<float>(max_n_slice);
 
   for (int i = 0; i < timestep_num; ++i) {
-    int cur_mem_require = get_timestep_memory_req(i);
-    int cur_coeff_mem_require = get_timestep_coeff_memory_req(i);
-    float max_secs_tmp = static_cast<float>(LOCAL_MEM_SIZE - cur_coeff_mem_require) /
-                         (cur_mem_require - cur_coeff_mem_require);
-    LLVM_DEBUG(llvm::errs() << "cur_mem_require: " << cur_mem_require
-                            << " cur_coeff_mem_require: " << cur_coeff_mem_require
-                            << " max_secs_tmp: " << max_secs_tmp << "\n";);
-    // [xun] to reduce loop count for speed
-    if (max_secs_tmp < 0.0) {
-      LLVM_DEBUG(llvm::errs() << "split data in h dimension failed " << "\n";);
+    int cur_mem_size = get_timestep_memory_req(i);
+    int cur_coeff_size = get_timestep_coeff_memory_req(i);
+    int mem_left = LOCAL_MEM_SIZE - cur_coeff_size;
+    int mem_require = cur_mem_size - cur_coeff_size;
+    float min_secs_tmp = (float)(mem_require) / mem_left;
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
+                            << "[Find_Min_NH_Slice]Step: " << i
+                            << " mem_size: " << cur_mem_size
+                            << " coeff_mem_size: " << cur_coeff_size
+                            << " mem require size: " << mem_require
+                            << " mem left: " << mem_left
+                            << " slice to: " << min_secs_tmp
+                            << "\n";);
+    if (min_secs_tmp <= 0.0) {
+      LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                              << "[Find_Min_NH_Slice] slice data in h dimension failed "
+                              << "\n";);
       return BM_ERR_FAILURE;
     }
 
-    if (max_secs > max_secs_tmp) {
-      max_secs = max_secs_tmp;
+    if (min_secs_tmp > min_secs) {
+      min_secs = min_secs_tmp;
     }
   }
 
-  if (max_secs < 1) {
-    nsecs_and_hsecs.first = batch_num;
-    nsecs_and_hsecs.second = static_cast<int>(ceil(1.0f / (max_secs * SPLIT_RATIO)));
-    if (nsecs_and_hsecs.second < 1) {
-      LLVM_DEBUG(llvm::errs() << "split data in h dimension failed, max_nsecs "
-                              << max_secs << "\n";);
+  if (min_secs > (float)max_n_slice) {
+    if ( min_secs > (float)(max_n_slice * max_h_slice)) {
+      LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                              << "[Find_Min_NH_Slice] End with failed: min slice = "
+                              << min_secs <<" > ( "  << max_n_slice << " * "
+                              << max_h_slice << ") \n";);
       return BM_ERR_FAILURE;
+    } else {
+      nsecs_and_hsecs.first = max_n_slice;
+      nsecs_and_hsecs.second = (int)(ceil(min_secs/max_n_slice));
     }
   } else {
-    int max_num = static_cast<int>(max_secs);
-    nsecs_and_hsecs.first = (batch_num + max_num - 1) / max_num;
+    int max_num = static_cast<int>(ceil(min_secs));
+    nsecs_and_hsecs.first = (max_n_slice + max_num - 1) / max_num;
   }
-  LLVM_DEBUG(llvm::errs() << "[SPLIT] n: " << nsecs_and_hsecs.first
-                          << ", h: " << nsecs_and_hsecs.second << "\n";);
+
+  if(!(nsecs_and_hsecs.first <= max_n_slice && nsecs_and_hsecs.second <= max_h_slice)) {
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                            << "[Find_Min_NH_Slice] End with failed: ("
+                            << nsecs_and_hsecs.first << "/" << max_n_slice
+                            << ", " << nsecs_and_hsecs.second << "/" << max_h_slice << ")\n";);
+    return BM_ERR_FAILURE;
+  } else {
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                            << "[Find_Min_NH_Slice] End with success: min slice = "
+                            << min_secs <<" ==> ( " << max_n_slice << " * "
+                            << nsecs_and_hsecs.second << ") \n";);
+    return BM_SUCCESS;
+  }
 
   return BM_SUCCESS;
 }

@@ -61,6 +61,7 @@ class Group {
   bool is_group_out_tensor(int tensor_id);
 
   void show_group();
+  void show_group_layers();
   bool is_group_in_neuron_tensor(int tensor_id);
   void set_group_id(int group_id) { group_id_ = group_id; }
   int get_group_id() { return group_id_; }

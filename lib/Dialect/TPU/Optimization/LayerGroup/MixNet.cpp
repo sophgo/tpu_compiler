@@ -61,9 +61,9 @@ void MixNet::add_opd_to_list(std::string op_name, Value opd, bool b_generated) {
   ptr = name_op_map_.insert(std::pair<std::string, Value>(op_name, opd));
   if (b_generated)
     parallel_list_.push_back(opd.getDefiningOp());
-  if (!ptr.second) {
-    LLVM_DEBUG(llvm::errs() << "Value aleady inserted in op_name map, " << op_name << "\n";);
-  }
+  // if (!ptr.second) {
+  //   LLVM_DEBUG(llvm::errs() << "Value aleady inserted in op_name map, " << op_name << "\n";);
+  // }
 }
 
 void MixNet::parallel_start() {

@@ -467,8 +467,8 @@ bmerr_t GroupSteps::balance_tdma_tiu_steps(NetGraph* net_graph, Group* group,
   bool valid_flag;
   TIMESTEP_LD_ST tdma_type;
 
-  LLVM_DEBUG(llvm::errs() << "############ Group start layer: "
-                          << group->get_group_id() << " ############\n");
+  LLVM_DEBUG(llvm::errs() << LOG_TAB_L4
+                          <<"[Balance Layer] Begin\n";);
 
   for (int cur_ts_idx = 0; cur_ts_idx < timestep_num;) {
     // if need to move gdma time step
@@ -538,9 +538,10 @@ bmerr_t GroupSteps::balance_tdma_tiu_steps(NetGraph* net_graph, Group* group,
       continue;
     }
 
-    LLVM_DEBUG(llvm::errs() << "  *** timestep "
-                            << cur_ts_idx << "***\n";);
-    LLVM_DEBUG(llvm::errs() << "  *** Max Profit: Move tensor " << sel_tensor_id
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L5
+                            << "[Balance Layer][timestep "
+                            << cur_ts_idx << "]"
+                            << " Max Profit Action: Move tensor " << sel_tensor_id
                             << " from " << cur_ts_idx << " to " << sel_to_ts_idx
                             << "\n";);
 
@@ -563,9 +564,12 @@ bmerr_t GroupSteps::balance_tdma_tiu_steps(NetGraph* net_graph, Group* group,
       ts_tensors[pre_ts].erase(sel_ts_tensor);
       timestep_slack[pre_ts] += tensor_gdma_cycle[sel_tensor_id];
 
-      LLVM_DEBUG(llvm::errs() << "  move tensor " << sel_ts_tensor->first << " from ts "
-                   << pre_ts << " to ts " << to_ts_idx << " with profit: "
-                   << max_cycle_profit << "\n";);
+      LLVM_DEBUG(llvm::errs() << LOG_TAB_L5
+                              << "[Balance Layer] Action Valid: Move tensor "
+                              << sel_ts_tensor->first
+                              << " from ts " << pre_ts
+                              << " to ts " << to_ts_idx << " with profit: "
+                              << max_cycle_profit << "\n";);
 
       if (to_ts_idx == sel_to_ts_idx) {
         break;
@@ -613,7 +617,8 @@ bmerr_t GroupSteps::balance_tdma_tiu_steps(NetGraph* net_graph, Group* group,
 
         if (sel_tensor_id == -1) {
           LLVM_DEBUG(llvm::errs()
-            << "WARNING: tensor gdma has not been moved to dest time step"
+            << LOG_TAB_L5
+            << "[Balance Layer][WARNING]: tensor gdma has not been moved to dest time step"
             << "\n";);
           break;
         }

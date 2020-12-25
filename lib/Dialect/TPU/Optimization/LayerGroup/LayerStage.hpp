@@ -82,7 +82,8 @@ class net_timestep {
 
   int tensor_range_end_timestep(const TENSOR_STEP& tensor_timestep);
 
-  bmerr_t find_best_split(Group* group, int batch_num, std::pair<int, int>& nsecs_and_hsecs);
+  bmerr_t find_minimal_nh_slice(Group* group, int max_n_slice, int max_h_slice,
+                          std::pair<int, int>& nsecs_and_hsecs);
 
  protected:
   NetGraph* net_graph_;

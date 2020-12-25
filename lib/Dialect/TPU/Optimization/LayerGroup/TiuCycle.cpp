@@ -126,13 +126,21 @@ int TiuCycle::get_cycle(int cur_layer) {
       set_tl_activation_param();
       break;
     // tdma operation involved
+    case IR_PAD:
+      set_tl_pad_param();
+      break;
+    case IR_UPSAMPLE:
+      set_tl_upsample_param();
+      break;
+    case IR_CROP:
+      set_tl_crop_param();
+      break;
+    case IR_CONCAT:
+      set_tl_concat_param();
+      break;
     case IR_LRN:
     case IR_QUANT:
     case IR_ZERO_MASK:
-    case IR_CROP:
-    case IR_PAD:
-    case IR_CONCAT:
-    case IR_UPSAMPLE:
       is_support = false;
       break;
     default:
@@ -153,9 +161,8 @@ int TiuCycle::get_cycle(int cur_layer) {
     cycleCount = calCycle(inst);
   }
 
-  // TODO: calulate parallelism
-  LLVM_DEBUG(llvm::errs() << llvm::format( "tpu %s cycle is %d\n",
-        im_layer->name().c_str(), (uint32_t)cycleCount));
+  // LLVM_DEBUG(llvm::errs() << llvm::format( "  [Balance Layer] tpu %s cycle is %d\n",
+  //       im_layer->name().c_str(), (uint32_t)cycleCount));
 
   // convert cycle to time(ns)
   uint64_t total_time = cycleCount * 1000 / tpu_frequency_;
@@ -296,6 +303,47 @@ void TiuCycle::set_tl_broadcast_mul_param() {
 void TiuCycle::set_tl_activation_param() {
   inst.tsk_eu_typ = 12;
   inst.tens_lookup = 1;
+}
+
+void TiuCycle::set_tl_pad_param() {
+  // take pad as ALU operation
+  inst.res0_n = inst.opd0_n;
+  inst.res0_c = inst.opd0_c;
+  inst.res0_h = inst.opd0_h;
+  inst.res0_w = inst.opd0_w;
+}
+
+void TiuCycle::set_tl_upsample_param() {
+  int scale_h = 1;
+  int scale_w = 1;
+  getUpsampleParam(op, scale_h, scale_w);
+
+  inst.tsk_typ = Pooling;
+  inst.tsk_eu_typ = 1;
+  inst.opt_chl_quan = true;
+  inst.conv_opd1_x_ins0 = 0;
+  inst.conv_opd1_y_ins0 = 0;
+  inst.conv_op_x_str = 1;
+  inst.conv_op_x_str = 1;
+
+  inst.opd1_h = scale_h;
+  inst.opd1_w = scale_w;
+}
+
+void TiuCycle::set_tl_concat_param() {
+  // take concat as ALU operation
+  inst.opd0_n = inst.res0_n;
+  inst.opd0_c = inst.res0_c;
+  inst.opd0_h = inst.res0_h;
+  inst.opd0_w = inst.res0_w;
+}
+
+void TiuCycle::set_tl_crop_param() {
+  // take concat as ALU operation
+  inst.opd0_n = inst.res0_n;
+  inst.opd0_c = inst.res0_c;
+  inst.opd0_h = inst.res0_h;
+  inst.opd0_w = inst.res0_w;
 }
 
 uint64_t TiuCycle::calCycle(tiu_inst_t inst) {

@@ -130,21 +130,26 @@ bmerr_t Group::group_winograd_out_tensors_check() {
   return BM_SUCCESS;
 }
 
-bool Group::check_valid() {
-  // return false;
-  bmerr_t status = assign_steps();
-  if (status != BM_SUCCESS) {
-    LLVM_DEBUG(llvm::errs() << "invalid layer group: ";);
-    for (int i = 0; i < (int)layers_.size(); i++)
-      LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
-    LLVM_DEBUG(llvm::errs() << "\n";);
-    return false;
-  }
-
-  LLVM_DEBUG(llvm::errs() << "valid layer group: ";);
+void Group::show_group_layers() {
   for (int i = 0; i < (int)layers_.size(); i++)
     LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
   LLVM_DEBUG(llvm::errs() << "\n";);
+}
+
+bool Group::check_valid() {
+  // return false;
+  LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] Begin: ";);
+  show_group_layers();
+
+  bmerr_t status = assign_steps();
+  if (status != BM_SUCCESS) {
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] End with Failed: ";);
+    show_group_layers();
+    return false;
+  }
+
+  LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] End with Valid: ";);
+  show_group_layers();
 
   return true;
 }
@@ -156,7 +161,7 @@ int Group::get_batch_num() const {
 }
 
 static int get_max_hsecs(NetGraph* net_graph_, const std::vector<int>& layer_group) {
-  int max_hsecs;
+  int max_h_slice;
   int any_layer = layer_group[0];
   int any_tensor = net_graph_->get_in_tensors_of_layer(any_layer)[0];
   // the temporary code for the large input tensor, such as yolo-608
@@ -164,23 +169,23 @@ static int get_max_hsecs(NetGraph* net_graph_, const std::vector<int>& layer_gro
 
   // when FC group with FC, don't split for now.
   if (net_graph_->get_tensor_height(any_tensor) == 0) {
-    max_hsecs = 1;
-    return max_hsecs;
+    max_h_slice = 1;
+    return max_h_slice;
   }
   if (net_graph_->get_tensor_height(any_tensor) >= 600 ||
       net_graph_->get_tensor_width(any_tensor) >= 600) {
-    max_hsecs = 16;
+    max_h_slice = 16;
   } else if (net_graph_->get_tensor_height(any_tensor) >= 400 ||
              net_graph_->get_tensor_width(any_tensor) >= 400) {
-    max_hsecs = 8;
+    max_h_slice = 8;
   } else if (net_graph_->get_tensor_height(any_tensor) >= 250 ||
              net_graph_->get_tensor_width(any_tensor) >= 250) {
-    max_hsecs = 4;
+    max_h_slice = 4;
   } else {
-    max_hsecs = 8;
+    max_h_slice = 8;
   }
 
-  return max_hsecs;
+  return max_h_slice;
 }
 
 bmerr_t Group::assign_steps() {
@@ -190,6 +195,7 @@ bmerr_t Group::assign_steps() {
 // This function is used to construct the time step and find the appropriate partitioning
 // strategy according to the time step.
 bmerr_t Group::assign_steps_without_tsm() {
+  bmerr_t status = BM_ERR_FAILURE;
   // clear time_step and nescs_and_hsecs.
   if (time_step) {
     delete time_step;
@@ -204,26 +210,22 @@ bmerr_t Group::assign_steps_without_tsm() {
     return BM_SUCCESS;
   }
 
-  int batch_num = get_batch_num();
-  int max_hsecs = get_max_hsecs(net_graph_, layers_);
-
+  int max_n_slice = get_batch_num();
+  int max_h_slice = get_max_hsecs(net_graph_, layers_);
   reset_tensor_hslice_max();
-  bmerr_t status = time_step->find_best_split(this, batch_num, nsecs_and_hsecs);
+  status = time_step->find_minimal_nh_slice(this, max_n_slice,
+                                      max_h_slice, nsecs_and_hsecs);
   if (status == BM_ERR_FAILURE) {
     return BM_ERR_FAILURE;
   }
 
-  status = BM_ERR_FAILURE;
-
-  if (!(nsecs_and_hsecs.first <= batch_num && nsecs_and_hsecs.second <= max_hsecs)) {
-    LLVM_DEBUG(llvm::errs() << "FAIL: n_slice and h_slice exceed max value: ("
-                            << nsecs_and_hsecs.first << "/" << batch_num
-                            << ", " << nsecs_and_hsecs.second << "/" << max_hsecs << ")\n";);
-  }
-  while (nsecs_and_hsecs.first <= batch_num && nsecs_and_hsecs.second <= max_hsecs) {
-    LLVM_DEBUG(llvm::errs() << "check n_slice and h_slice after split layer: ("
-                            << nsecs_and_hsecs.first << "/" << batch_num
-                            << ", " << nsecs_and_hsecs.second << "/" << max_hsecs << ")\n";);
+  LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                          << "[Find_Fit_NH_Slice] Begin\n";);
+  while (nsecs_and_hsecs.first <= max_n_slice && nsecs_and_hsecs.second <= max_h_slice) {
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
+                            << "[Find_Fit_NH_Slice] check n_slice and h_slice: ("
+                            << nsecs_and_hsecs.first << "/" << max_n_slice
+                            << ", " << nsecs_and_hsecs.second << "/" << max_h_slice << ")\n";);
     reset_tensor_hslice_max();
     if (group_has_winograd_tensors()) {
       status = group_winograd_out_tensors_check();
@@ -241,7 +243,8 @@ bmerr_t Group::assign_steps_without_tsm() {
           status = update_tensor_slices(nsecs_and_hsecs.first,
                                         nsecs_and_hsecs.second, 0, h_idx);
           if (status == BM_ERR_FAILURE) {
-            LLVM_DEBUG(llvm::errs() << "update tensor_slice fail....\n";);
+            LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
+                                    << "[Find_Fit_NH_Slice] End with failed: Update tensor slice failed\n";);
             return BM_ERR_FAILURE;
           }
         }
@@ -251,7 +254,7 @@ bmerr_t Group::assign_steps_without_tsm() {
     status = GroupSteps::balance_tdma_tiu(net_graph_, this, &time_step, nsecs_and_hsecs);
 
     if (status == BM_ERR_FAILURE) {
-      if (nsecs_and_hsecs.first < batch_num) {
+      if (nsecs_and_hsecs.first < max_n_slice) {
         nsecs_and_hsecs.first++;
       } else {
         nsecs_and_hsecs.second++;
@@ -260,7 +263,10 @@ bmerr_t Group::assign_steps_without_tsm() {
       break;
     }
   }
-
+  LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                          << "[Find_Fit_NH_Slice] Success with n slice: "
+                          << nsecs_and_hsecs.first << " h slice: "
+                          << nsecs_and_hsecs.second << "\n";);
   return status;
 }
 
@@ -447,7 +453,8 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
       getUpsampleParam(im_layer->op(), size_h, size_w);
 
       if (out_h_slice % size_h) {
-        LLVM_DEBUG(llvm::errs() << "FAIL: fractional upsample input h slice" << "\n";);
+        LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
+                                << "FAIL: fractional upsample input h slice" << "\n";);
         return false;
       }
 
@@ -516,17 +523,17 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
       }
     }
 
-
-    LLVM_DEBUG(llvm::errs() << "tensor_id: " << tensor->id() << " n_idx: "
-        << n_idx << " h_idx: " << h_idx
-        << ", n_slice: " << n_slice << ", h_slice: " << h_slice
-        << " out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
-        << " pt: " << pt << " sh: " << sh << " kh: " << kh << "\n";);
-
+    // LLVM_DEBUG(llvm::errs() << "tensor_id: " << tensor->id() << " n_idx: "
+    //     << n_idx << " h_idx: " << h_idx
+    //     << ", n_slice: " << n_slice << ", h_slice: " << h_slice
+    //     << " out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
+    //     << " pt: " << pt << " sh: " << sh << " kh: " << kh << "\n";);
 
     if (cur_h_slice != -1 && (cur_h_slice != h_slice || cur_h_idx != h_idx)) {
       LLVM_DEBUG(llvm::errs()
-        << "FAIL: data slice in h dimension is conflicted for tensor "
+        << LOG_TAB_L3
+        << "[Update Tensor Slice][Warning]: "
+        << "data slice in h dimension is conflicted for tensor "
         << back_tensors[i] << " cur_h_idx:" << cur_h_idx << " h_idx:" << h_idx
         << " cur_h_slice:" << cur_h_slice << " h_slice:" << h_slice << "\n";);
       return false;
@@ -534,7 +541,9 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
 
     if (n_slice < 1 || h_slice < 1) {
       LLVM_DEBUG(llvm::errs()
-        << "slice is smaller than than the minimum"
+        << LOG_TAB_L3
+        << "[Update Tensor Slice][Warning]: "
+        << "Warning: slice is smaller than than the minimum"
         << ", n_slice: " << n_slice << ", h_slice: " << h_slice << "\n";);
       return false;
     }
@@ -624,9 +633,6 @@ void Group::print(std::ostream& pOs) const {
 }
 
 void Group::clear_temp_data() {
-  LLVM_DEBUG(llvm::errs() << "clear temp data, layers_ size: "
-               << layers_.size() << " Imlayer size:"
-               << net_graph_->getImLayerSize() << "\n";);
   for (int id : layers_) {
     ImLayer* layer = const_cast<ImLayer*>(net_graph_->get_layer_by_id(id));
     layer->clear_temp_data();
