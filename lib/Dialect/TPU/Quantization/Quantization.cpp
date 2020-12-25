@@ -501,6 +501,11 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
   LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
     auto preprocessOp = cast<tpu::PreprocessOp>(op);
+    auto nextOp = getNextOp(preprocessOp);
+    assert(nextOp);
+    auto elementType = nextOp->getResult(0).getType().template
+                       cast<TensorType>().getElementType();
+
     TensorFile *wTF = getWeightTensorFile(op);
     Value wfV = getWeightFileValue(op);
     auto builder = OpBuilder(op);
@@ -763,7 +768,8 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
         ArrayRef<NamedAttribute>{swapaxis_attrs});
     setOpThreshold(swapaxis_op, getOpThreshold(op));
     setOpQuantParamType(swapaxis_op, "THRESHOLD");
-    setOpQuant(swapaxis_op, "INT8");
+    // the type of swapaxis_op should be bf16, if successor op is bf16.
+    setOpQuant(swapaxis_op, elementType.isBF16() ? "BF16" : "INT8");
 
     rewriter.replaceOp(preprocessOp, {swapaxis_op.getResult()});
     return success();
