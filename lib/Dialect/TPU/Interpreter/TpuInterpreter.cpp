@@ -224,10 +224,6 @@ LogicalResult tpu::ConcatOp::interpret(
     output_shape.push_back(1); // append to 4 dim
   }
 
-  int64_t output_hstride = output_shape[3];
-  int64_t output_cstride = output_shape[2] * output_hstride;
-  int64_t output_nstride = output_shape[1] * output_cstride;
-
   // parse param
   int concat_axis = this->axis();
   LLVM_DEBUG(llvm::errs() << "concat_axis =" << concat_axis << "\n";);
@@ -246,47 +242,55 @@ LogicalResult tpu::ConcatOp::interpret(
     rshift = quant_rshift->at(0);
   }
 
-  // do concat copy
-  float *output = resultT->data();
   int global_offset = 0;
+  int num_concats = 1;
+  std::vector<int64_t> input_shape = getTensorShape(op->getOperand(0));
+  for (int idx = 0; idx < concat_axis; idx++) {
+    num_concats *= input_shape[idx];
+  }
+
+  int concat_output_size = 1;
+  for (int idx = concat_axis; idx < 4; idx++) {
+    concat_output_size *= output_shape[idx];
+  }
+
   for (uint32_t i = 0; i < nInputs; i++) {
     float *input = (float *)opdT[i]->data();
     std::vector<int64_t> input_shape = getTensorShape(op->getOperand(i));
     for (uint32_t idx = input_shape.size(); idx < 4; idx++) {
       input_shape.push_back(1);
     }
-    int64_t input_hstride = input_shape[3];
-    int64_t input_cstride = input_shape[2] * input_hstride;
-    int64_t input_nstride = input_shape[1] * input_cstride;
-    for (int64_t n = 0; n < input_shape[0]; n++) {
-      for (int64_t c = 0; c < input_shape[1]; c++) {
-        for (int64_t h = 0; h < input_shape[2]; h++) {
-          for (int64_t w = 0; w < input_shape[3]; w++) {
-            int input_offset =
-                w + h * input_hstride + c * input_cstride + n * input_nstride;
-            int output_offset = w + h * output_hstride + c * output_cstride +
-                                n * output_nstride;
-            float data = input[input_offset];
-            // do quant
-            if (need_quant) {
-              data *= quant_multiplier->at(i);
-              data = (float)applyRShiftAndSaturateInt8(data, rshift);
-            }
-            // do relu
-            if (do_relu() && data < 0) {
-              data = 0;
-            }
-            output[output_offset + global_offset] = data;
-          }
+
+    int concat_input_size = 1;
+    for (int idx = concat_axis; idx < 4; idx++) {
+      concat_input_size *= input_shape[idx];
+    }
+
+    for (int num_idx = 0; num_idx < num_concats; num_idx++) {
+      auto inputT = std::make_unique<std::vector<float>>(concat_input_size);
+      inputT.get()->assign(&input[num_idx * concat_input_size],
+                           &input[(num_idx + 1) * concat_input_size]);
+
+      if (need_quant) {
+        for (int idx = 0; idx < concat_input_size; ++idx) {
+          inputT->at(idx) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              inputT->at(idx), rshift,
+              (uint32_t)quant_multiplier->at(i), false);
         }
       }
+
+      auto offset = global_offset + concat_output_size * num_idx;
+      std::memcpy(resultT.get()->data() + offset, inputT.get()->data(),
+                  concat_input_size * sizeof(float));
     }
-    int axis_offset = 1;
-    for (int idx = concat_axis; idx < 4; idx++) {
-      axis_offset *= input_shape[idx];
-    }
-    global_offset += axis_offset;
+    global_offset += concat_input_size;
   }
+
+  if (do_relu()) {
+    my_relu(resultT->data(), resultT->data(), output_shape[0], output_shape[1],
+            output_shape[2], output_shape[3], 0.0f);
+  }
+
   valueMapping[result] = std::move(resultT);
   return success();
 }
