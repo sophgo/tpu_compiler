@@ -56,8 +56,8 @@ void tg_broadcast_kernel(const CviBackendContext &ctx,
                           int w, int bn, int bc, int bh, int bw,
                           bool do_relu, int32_t rshift, const int32_t *multipliers,
                           BroadcastType type, cvk_fmt_t fmt) {
-  llvm::errs() << llvm::format("a shape:[%d,%d,%d,%d] b shape:[%d,%d,%d,%d], relu:%d, fmt:%d\n",
-                               n, c, h, w, bn, bc, bh, bw, do_relu, fmt);
+  LLVM_DEBUG(llvm::errs() << llvm::format("a shape:[%d,%d,%d,%d] b shape:[%d,%d,%d,%d], relu:%d, fmt:%d\n",
+                               n, c, h, w, bn, bc, bh, bw, do_relu, fmt););
   assert(!do_relu);
   // Only support to broadcast in n & c dimension.
   assert(bn == 1);
@@ -98,8 +98,8 @@ after_loop:
     assert(0);
   }
 
-  llvm::errs() << llvm::format("step:[%d,%d,%d,%d],lmem:%d\n", step_n, step_c, step_h,
-                               step_w, (int)lmem_required);
+  LLVM_DEBUG(llvm::errs() << llvm::format("step:[%d,%d,%d,%d],lmem:%d\n", step_n, step_c, step_h,
+                               step_w, (int)lmem_required););
 
   cvk_tl_t *tl_a = ctx.lmem_alloc_tensor(shape_a, fmt, 1);
   cvk_tl_t *tl_b = ctx.lmem_alloc_tensor(shape_b, fmt, 1);
@@ -126,10 +126,10 @@ after_loop:
       cvk_tg_stride_t stride = ctx.tg_default_stride(bc, bh, bw, fmt);
       ctx.tdma_load_stride(&operand, ga_inputs[1] + b_offset, stride);
 
-      llvm::errs() << llvm::format(
+      LLVM_DEBUG(llvm::errs() << llvm::format(
           "load b, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
           operand.start_address, shape_b.n, shape_b.c, shape_b.h, shape_b.w, stride.n,
-          stride.c, stride.h, stride.w, b_offset);
+          stride.c, stride.h, stride.w, b_offset););
 
       // broadcast b to all lanes
       broadcast_one_to_all_lane(ctx, operand, fmt);
@@ -145,8 +145,8 @@ after_loop:
         for (int pos_n = 0; pos_n < n; pos_n += step_n) {
           int cur_n = std::min(n - pos_n, step_n);
 
-          llvm::errs() << llvm::format("cur_n:%d, cur_c:%d, cur_h:%d, cur_w:%d\n", cur_n,
-                                       cur_c, cur_h, cur_w);
+          LLVM_DEBUG(llvm::errs() << llvm::format("cur_n:%d, cur_c:%d, cur_h:%d, cur_w:%d\n", cur_n,
+                                       cur_c, cur_h, cur_w););
           cvk_tl_t operand_a, operand_res, operand_res_h;
           shape_a = ctx.tl_shape_t4(cur_n, cur_c, cur_h, cur_w);
           operand_a.start_address = tl_a->start_address; // start of lmem
@@ -157,10 +157,10 @@ after_loop:
           uint64_t a_offset =
               (pos_n * c * h * w + pos_c * h * w + pos_h * w + pos_w) * elt_size;
           ctx.tdma_load_stride(&operand_a, ga_inputs[0] + a_offset, g_stride);
-          llvm::errs() << llvm::format(
+          LLVM_DEBUG(llvm::errs() << llvm::format(
               "load a, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
               operand_a.start_address, shape_a.n, shape_a.c, shape_a.h, shape_a.w,
-              g_stride.n, g_stride.c, g_stride.h, g_stride.w, a_offset);
+              g_stride.n, g_stride.c, g_stride.h, g_stride.w, a_offset););
 
           operand_res.start_address = tl_a->start_address; // start of lmem
           operand_res.shape = shape_a;
@@ -234,10 +234,10 @@ after_loop:
           }
           // store result
           ctx.tdma_store_stride(&operand_res, ga_output + a_offset, g_stride);
-          llvm::errs() << llvm::format(
+          LLVM_DEBUG(llvm::errs() << llvm::format(
               "store, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
               operand_res.start_address, shape_a.n, shape_a.c, shape_a.h, shape_a.w,
-              g_stride.n, g_stride.c, g_stride.h, g_stride.w, a_offset);
+              g_stride.n, g_stride.c, g_stride.h, g_stride.w, a_offset););
         }
       }
     }

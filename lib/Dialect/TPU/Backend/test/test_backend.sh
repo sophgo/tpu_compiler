@@ -7,26 +7,26 @@ mlir_list=(
   permute.mlir
   permute_large.mlir
   crop.mlir
+  concat.mlir
+  conv.mlir
   reverse.mlir
   lrn.mlir
   fc.mlir
   fc_large.mlir
-#  concat.mlir
-#  avg_pool.mlir
-#  broadcast_add.mlir
-#  broadcast_sub.mlir
-#  conv.mlir
+  eltwise_add.mlir
+  square.mlir
+  deconv.mlir
+  avg_pool.mlir
+  max_pool.mlir
+  broadcast_add.mlir
+  broadcast_sub.mlir
+  quadrstic_sum.mlir
 #  conv3d.mlir
-#  deconv.mlir
-#  eltwise_add.mlir
 #  matmul_transpose.mlir
 #  matmul_with_big_k.mlir
 #  matmul.mlir
-#  max_pool.mlir
 #  max_pool3d.mlir
-#  quadrstic_sum.mlir
 #  search_model.mlir
-#  square.mlir
 )
 
 sample_mlir=reverse.mlir
