@@ -14,6 +14,7 @@ if [ ! -e "$DIR/tmp" ]; then
 fi
 
 #DEBUG=-debug
+cp -f $DIR/simple_cali.py $DIR/tmp/
 
 pushd $DIR/tmp
 
@@ -22,15 +23,21 @@ tpuc-opt ${MLIR_MODEL} \
     --canonicalize \
     --fuse-relu \
     --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info.csv \
+    --tpu-op-info-filename ${OP_NAME}_op_info.csv \
     -o ${OP_NAME}_opt_fp32.mlir
 
 tpuc-opt \
      --gen-pseudo-weight-npz \
-     --pseudo-calibration-table ${OP_NAME}_calibration_table \
      ${OP_NAME}_opt_fp32.mlir \
      -o ${OP_NAME}_tmp.mlir
 mv input.npz ${OP_NAME}_in_fp32.npz
+
+tpuc-interpreter ${OP_NAME}_tmp.mlir \
+    --tensor-in ${OP_NAME}_in_fp32.npz \
+    --tensor-out ${OP_NAME}_out_fp32.npz \
+    --dump-all-tensor=${OP_NAME}_tensor_all_fp32.npz
+
+python simple_cali.py ${OP_NAME}_tensor_all_fp32.npz > ${OP_NAME}_calibration_table
 
 # quantization.
 tpuc-opt \
