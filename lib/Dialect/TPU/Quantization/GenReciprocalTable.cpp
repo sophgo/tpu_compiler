@@ -36,10 +36,6 @@
 #include "tpuc/NativeCpuImplementation.h"
 
 #include <float.h>
-#include <bmkernel/bm_kernel.h>
-#include <bmkernel/bm_kernel_legacy.h>
-#include <bmkernel/bm1880v2/bmkernel_1880v2.h>
-#include <bmkernel/bm1880v2/1880v2_fp_convert.h>
 #define DEBUG_TYPE "gen-Reciprocal-table"
 
 using namespace mlir;

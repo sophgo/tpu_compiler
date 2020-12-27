@@ -626,6 +626,37 @@ void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size) {
 #endif
 }
 
+uint16_t FloatToTpuBfloat16(float fp32)
+{
+  union convert_type_float {
+    float fval;
+    uint16_t bf16[2];
+    uint32_t ival;
+  };
+
+  auto float_isnan = [](float x) -> uint8_t {
+    return x != x;
+  };
+
+  const uint16_t NAN_VALUE = 0x7FC0;
+
+  if (float_isnan(fp32))
+    return NAN_VALUE;
+  convert_type_float convert_val;
+  convert_val.fval = fp32;
+  uint32_t input = convert_val.ival;
+  uint32_t lsb = (input >> 16) & 1;
+  uint32_t rounding_bias = 0x7fff + lsb;
+  input += rounding_bias;
+  convert_val.bf16[1] = (uint16_t) (input >> 16);
+
+  /* HW behavior */
+  if ((convert_val.bf16[1] & 0x7f80) == 0x7f80) {
+    convert_val.bf16[1] = 0x7f7f;
+  }
+  return convert_val.bf16[1];
+}
+
 //
 // Tensors wise API
 //

@@ -86,6 +86,7 @@ typedef uint16_t bfloat16;
 void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
     bool rounding = true);
 void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size);
+uint16_t FloatToTpuBfloat16(float fp32);
 
 bfloat16 FloatToBFloat16(float value);
 float BFloat16ToFloat(bfloat16 value);

@@ -34,10 +34,6 @@
 #include "tpuc/QuantizationArithmetic.h"
 
 #include <float.h>
-#include <bmkernel/bm_kernel.h>
-#include <bmkernel/bm_kernel_legacy.h>
-#include <bmkernel/bm1880v2/bmkernel_1880v2.h>
-#include <bmkernel/bm1880v2/1880v2_fp_convert.h>
 #define DEBUG_TYPE "gen-sqrt-table"
 
 using namespace mlir;
@@ -77,7 +73,7 @@ static void gen_sqrt(uint16_t *table_data, uint64_t table_size) {
   // prepare channel 0
   float s = 0.0;
   FloatToBFloat16(&s,&table_data[idx],(size_t)1); // 0^0.5 = 0
-  table_data[idx] = convert_fp32_bf16(s);
+  table_data[idx] = FloatToTpuBfloat16(s);
 
   idx++;
 
@@ -92,9 +88,9 @@ static void gen_sqrt(uint16_t *table_data, uint64_t table_size) {
     }
 
     double s = _gen_sqrt(2, exp);
-    //table_data[idx] = convert_fp32_bf16(s);
+    //table_data[idx] = FloatToTpuBfloat16(s);
     //FloatToBFloat16((float*)&s,&table_data[idx],(size_t)1);
-    table_data[idx] = convert_fp32_bf16(s);
+    table_data[idx] = FloatToTpuBfloat16(s);
     idx++;
   }
 
@@ -116,7 +112,7 @@ static void gen_sqrt_mantissa(uint16_t* table_mantissa, uint64_t table_size) {
     d = 1 + i * 1 / 128.0;
     d = (double) pow(d, 0.5);
    // FloatToBFloat16((float*)&d,&table_mantissa[idx+128],(size_t)1);
-    table_mantissa[128+idx] = convert_fp32_bf16(d);
+    table_mantissa[128+idx] = FloatToTpuBfloat16(d);
     LLVM_DEBUG(llvm::errs() <<","<< "table_mantissa["<<idx+128<<"] = " <<table_mantissa[128+idx];);
 
     //13=2^3x1.625=(2^2)x(2^1x1.625)
@@ -124,8 +120,8 @@ static void gen_sqrt_mantissa(uint16_t* table_mantissa, uint64_t table_size) {
 
     d = (double) pow(d, 0.5);
     //FloatToBFloat16((float*)&d,&table_mantissa[idx],(size_t)1);
-    //table_mantissa[idx] = convert_fp32_bf16(d);
-    table_mantissa[idx] = convert_fp32_bf16(d);
+    //table_mantissa[idx] = FloatToTpuBfloat16(d);
+    table_mantissa[idx] = FloatToTpuBfloat16(d);
     LLVM_DEBUG(llvm::errs() <<","<< "table_mantissa["<<idx<<"] = " <<table_mantissa[idx];);
     idx++;
   }
