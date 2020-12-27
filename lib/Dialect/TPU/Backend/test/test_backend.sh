@@ -20,7 +20,7 @@ mlir_list=(
   max_pool.mlir
   broadcast_add.mlir
   broadcast_sub.mlir
-  quadrstic_sum.mlir
+  quadratic_sum.mlir
 #  conv3d.mlir
 #  matmul_transpose.mlir
 #  matmul_with_big_k.mlir
