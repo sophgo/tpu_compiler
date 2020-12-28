@@ -272,7 +272,7 @@ static void tl_leaky_relu(const CviBackendContext &ctx, uint32_t layer_id,
                           cvk_tl_t &working,
                           int8_t rshift_pos, int8_t m_i8_pos,
                           int8_t rshift_neg, int8_t m_i8_neg) {
-  bool isIgnorePosPart = (m_i8_pos == 0);
+  bool isIgnorePosPart = (m_i8_pos == 0 || (m_i8_pos == 1 && rshift_pos == 0));
   bool isSlopeSmallerThanOne = ((m_i8_neg >> rshift_neg) == 0);
 
   if(isIgnorePosPart) {

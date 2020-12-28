@@ -21,7 +21,7 @@ void cvi_backend_tl_leaky_relu(
         int input_h, int input_w,
         int GT_right_shift_width, int LE_right_shift_width,
         int GT_scale, int LE_scale) {
-  bool isIgnorePosPart = (GT_scale == 0);
+  bool isIgnorePosPart = (GT_scale == 0 || (GT_scale == 1 && GT_right_shift_width == 0));
   bool isSlopeSmallerThanOne = ((LE_scale >> LE_right_shift_width) == 0);
 
   // input

@@ -66,17 +66,19 @@ void cvi_backend_tl_prelu(const CviBackendContext &ctx, uint32_t layer_id,
   ctx.tiu_max(&p1);
 
   // 1. relu = (relu * m_i8_pos) >> r_i8_pos
-  cvk_tiu_mul_param_t p2 = {0};
-  p2.res_high = nullptr;
-  p2.res_low = tl_output;
-  p2.a = tl_output;
-  p2.b_const.val = m_i8_pos;
-  p2.b_const.is_signed = true;
-  p2.b_is_const = 1;
-  p2.rshift_bits = r_i8_pos;
-  p2.layer_id = layer_id;
-  p2.relu_enable = 0;
-  ctx.tiu_mul(&p2);
+  if (m_i8_pos != 0 && (m_i8_pos != 1 || r_i8_pos != 0)) {
+    cvk_tiu_mul_param_t p2 = {0};
+    p2.res_high = nullptr;
+    p2.res_low = tl_output;
+    p2.a = tl_output;
+    p2.b_const.val = m_i8_pos;
+    p2.b_const.is_signed = true;
+    p2.b_is_const = 1;
+    p2.rshift_bits = r_i8_pos;
+    p2.layer_id = layer_id;
+    p2.relu_enable = 0;
+    ctx.tiu_mul(&p2);
+  }
 
   // 2. neg = neg(0, botom)
   cvk_tiu_min_param_t p3 = {0};

@@ -536,7 +536,7 @@ void TgReluKernel::compute_leaky_relu_fixed_sym(int32_t step_idx, int32_t flip) 
   auto tl_ifmap = get_input(step_idx, flip);
   auto tl_ofmap = get_output(step_idx, flip);
 
-  bool isIgnorePosPart = (GT_scale == 0);
+  bool isIgnorePosPart = (GT_scale == 0 || (GT_scale == 1 && GT_rshift == 0));
   bool isSlopeSmallerThanOne = ((LE_scale >> LE_rshift) == 0);
 
   if (isIgnorePosPart) {
@@ -675,17 +675,19 @@ void TgReluKernel::compute_prelu_fixed(int32_t step_idx, int32_t flip) {
   ctx.tiu_max(&p1);
 
   // 1. relu = (relu * GT_scale) >> GT_rshift
-  cvk_tiu_mul_param_t p2 = {0};
-  p2.res_high = nullptr;
-  p2.res_low = &tl_ofmap;
-  p2.a = &tl_ofmap;
-  p2.b_const.val = GT_scale;
-  p2.b_const.is_signed = true;
-  p2.b_is_const = 1;
-  p2.rshift_bits = GT_rshift;
-  p2.layer_id = layer_id;
-  p2.relu_enable = 0;
-  ctx.tiu_mul(&p2);
+  if (GT_scale != 0 && (GT_scale != 1 || GT_rshift != 0)) {
+    cvk_tiu_mul_param_t p2 = {0};
+    p2.res_high = nullptr;
+    p2.res_low = &tl_ofmap;
+    p2.a = &tl_ofmap;
+    p2.b_const.val = GT_scale;
+    p2.b_const.is_signed = true;
+    p2.b_is_const = 1;
+    p2.rshift_bits = GT_rshift;
+    p2.layer_id = layer_id;
+    p2.relu_enable = 0;
+    ctx.tiu_mul(&p2);
+  }
 
   // 2. neg = neg(0, botom)
   cvk_tiu_min_param_t p3 = {0};

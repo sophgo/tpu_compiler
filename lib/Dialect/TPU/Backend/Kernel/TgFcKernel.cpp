@@ -203,9 +203,12 @@ void TgFcKernel::matrix_for_tiu() {
     return;
   }
   tl_Y.shape.w = ctx.tiu_eu_num(fmt);
+  tl_Y.stride = ctx.ml_default_stride(tl_Y.shape, fmt, 1);
   tl_R.shape.w = ctx.tiu_eu_num(fmt);
+  tl_R.stride = ctx.ml_default_stride(tl_R.shape, fmt, 1);
   if (do_bias) {
     tl_B.shape.w = ctx.tiu_eu_num(fmt);
+    tl_B.stride = ctx.ml_default_stride(tl_B.shape, fmt, 1);
   }
 }
 

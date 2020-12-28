@@ -301,7 +301,7 @@ LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
   if (fabs(threshold_x - threshold_y) < 1e-5 * std::min(threshold_x, threshold_y)) {
     // no positive scale
     rshift_pos[0] = 0;
-    multiplier_pos[0] = 0;
+    multiplier_pos[0] = 1.0f;
     LLVM_DEBUG(llvm::errs() << "  Positive: no_scale\n";);
   } else {
     uint32_t uint_multiplier_pos;
@@ -397,7 +397,7 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
       1e-5 * std::min(threshold_x, threshold_y)) {
     // no positive scale
     rshift_pos[0] = 0;
-    multiplier_pos[0] = 0;
+    multiplier_pos[0] = 1.0f;
     LLVM_DEBUG(llvm::errs() << "  Positive: no_scale\n";);
   } else {
     uint32_t uint_multiplier_pos;
@@ -413,17 +413,15 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
   LLVM_DEBUG(llvm::errs() << "  Negative:";);
 
   // I8 Multiplier
-  float max_abs_negative_qscale = fabs(qscale_pos * negative_slope_weight->at(0));
+  double max_abs_negative_qscale = fabs(qscale_pos * negative_slope_weight->at(0));
   for (int i = 1; i < c; ++i) {
-    if (fabs(qscale_pos * negative_slope_weight->at(i)) >
-        max_abs_negative_qscale) {
-      max_abs_negative_qscale = fabs(qscale_pos * negative_slope_weight->at(i)) >
-                                max_abs_negative_qscale;
+    if (fabs(qscale_pos * negative_slope_weight->at(i)) > max_abs_negative_qscale) {
+      max_abs_negative_qscale = fabs(qscale_pos * negative_slope_weight->at(i));
     }
   }
   uint32_t uint_multiplier_neg = 0;
   float rshift_tmp = (float)findRShiftAndMultiplierFromQScale(
-      fabs(max_abs_negative_qscale), &uint_multiplier_neg, false);
+                max_abs_negative_qscale, &uint_multiplier_neg, false);
   rshift_neg[0] = rshift_tmp;
   LLVM_DEBUG(llvm::errs() << "  [multiplier : rshift] = ["
                           << std::to_string(uint_multiplier_neg) << " : "
