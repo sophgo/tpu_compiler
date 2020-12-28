@@ -2498,16 +2498,18 @@ class OnnxConverter(BaseConverter):
         op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
         output_shape = input_shape0
 
-        print("reduce mean, input: ", input_shape0, "axes: ", axes, "keepdims: ", keepdims)
-        #
         axis = 0
-        if len(axes) == 1 and axes[0] == 3:
-            # remove the last dimension
-            if keepdims == 0:
-                output_shape = input_shape0[:-1]
-            else:
-                output_shape = input_shape0[:-1]
+        if len(axes) == 1:
+            if axes[0] != 2 and axes[0] != 3:
+                raise RuntimeError("{} axis not support, please add".format(axes[0]))
+
+            # deep copy
+            output_shape = list(input_shape0)
+            output_shape.pop(axes[0])
+
+            if keepdims != 0:
                 output_shape.extend([1])
+
         elif len(axes) == 2 and axes[0] == 2 and axes[1] == 3:
             if keepdims == 0:
                 output_shape = input_shape0[:-2]
