@@ -82,6 +82,7 @@ class net_timestep {
 
   int tensor_range_end_timestep(const TENSOR_STEP& tensor_timestep);
 
+  bmerr_t get_min_secs(bool b_hold_coeff, float &min_secs);
   bmerr_t find_minimal_nh_slice(Group* group, int max_n_slice, int max_h_slice,
                           std::pair<int, int>& nsecs_and_hsecs);
 

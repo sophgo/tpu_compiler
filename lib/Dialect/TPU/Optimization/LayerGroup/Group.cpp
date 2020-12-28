@@ -201,6 +201,13 @@ bmerr_t Group::assign_steps_without_tsm() {
     delete time_step;
   }
 
+  status = valid_pattern();
+  if (BM_ERR_FAILURE == status) {
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                          << "[Find_Fit_NH_Slice] Failed with pattern not support\n";);
+    return status;
+  }
+
   nsecs_and_hsecs = {1, 1};
   time_step = new net_timestep(net_graph_);
 
@@ -268,6 +275,25 @@ bmerr_t Group::assign_steps_without_tsm() {
                           << nsecs_and_hsecs.first << " h slice: "
                           << nsecs_and_hsecs.second << "\n";);
   return status;
+}
+
+
+// pattern that not support for group
+bool Group::valid_pattern() {
+  // pattern 1: tl concat's input cannot be group output tensor
+  for (auto id : layers_) {
+    const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
+    if (im_layer->type() == IR_CONCAT){
+      std::vector<int> out_tensors = get_group_out_tensors();
+      for (auto& tensor : im_layer->in_tensors) {
+        int in_id = tensor->id();
+        if (find(out_tensors.begin(), out_tensors.end(), in_id) != out_tensors.end()) {
+          return BM_ERR_FAILURE;
+        }
+      }
+    }
+  }
+  return BM_SUCCESS;
 }
 
 bool Group::validate_tensor_slice() {

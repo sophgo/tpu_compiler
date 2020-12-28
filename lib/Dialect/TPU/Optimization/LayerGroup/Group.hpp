@@ -51,6 +51,7 @@ class Group {
   std::set<int> get_group_in_neuron_tensors();
 
   bool check_valid();
+  bool valid_pattern();
 
   bmerr_t update_tensor_slices(int nsecs, int hsecs, int nslice_idx = -1, int hslice_idx = -1);
 

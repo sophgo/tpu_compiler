@@ -479,6 +479,36 @@ int net_timestep::get_timestep_memory_req(int time_step) {
   return total_memory_req;
 }
 
+bmerr_t net_timestep::get_min_secs(bool b_hold_coeff, float &min_secs) {
+  for (int i = 0; i < timestep_num; ++i) {
+    int cur_mem_size = get_timestep_memory_req(i);
+    int cur_coeff_size = get_timestep_coeff_memory_req(i);
+    if (b_hold_coeff == false)
+      cur_coeff_size = 0;
+    int mem_left = LOCAL_MEM_SIZE - cur_coeff_size;
+    int mem_require = cur_mem_size - cur_coeff_size;
+    float min_secs_tmp = (float)(mem_require) / mem_left;
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
+                            << "[Find_Min_NH_Slice]Step: " << i
+                            << " mem_size: " << cur_mem_size
+                            << " coeff_mem_size: " << cur_coeff_size
+                            << " mem require size: " << mem_require
+                            << " mem left: " << mem_left
+                            << " slice to: " << min_secs_tmp
+                            << "\n";);
+    if (min_secs_tmp < 0.0) {
+      LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                              << "[Find_Min_NH_Slice] slice data in h dimension failed "
+                              << "\n";);
+      return BM_ERR_FAILURE;
+    }
+
+    if (min_secs_tmp > min_secs) {
+      min_secs = min_secs_tmp;
+    }
+  }
+  return BM_SUCCESS;
+}
 // Returns true if a suitable split result is found. The result will
 // be saved in nsecs_and_hsecs, that holds the slcing number of cuts
 // by n and h. The slicing strategy is based on the size of local memory
@@ -497,32 +527,22 @@ bmerr_t net_timestep::find_minimal_nh_slice(Group* group, int max_n_slice, int m
 
   update_mem_buffer_size();
 
-  float min_secs = 1.0;//static_cast<float>(max_n_slice);
+  float min_secs = 0.0;//static_cast<float>(max_n_slice);
 
-  for (int i = 0; i < timestep_num; ++i) {
-    int cur_mem_size = get_timestep_memory_req(i);
-    int cur_coeff_size = get_timestep_coeff_memory_req(i);
-    int mem_left = LOCAL_MEM_SIZE - cur_coeff_size;
-    int mem_require = cur_mem_size - cur_coeff_size;
-    float min_secs_tmp = (float)(mem_require) / mem_left;
-    LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
-                            << "[Find_Min_NH_Slice]Step: " << i
-                            << " mem_size: " << cur_mem_size
-                            << " coeff_mem_size: " << cur_coeff_size
-                            << " mem require size: " << mem_require
-                            << " mem left: " << mem_left
-                            << " slice to: " << min_secs_tmp
-                            << "\n";);
-    if (min_secs_tmp <= 0.0) {
-      LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-                              << "[Find_Min_NH_Slice] slice data in h dimension failed "
-                              << "\n";);
-      return BM_ERR_FAILURE;
-    }
-
-    if (min_secs_tmp > min_secs) {
-      min_secs = min_secs_tmp;
-    }
+  // first try with coeff not hold in local memory
+  hold_coeff_tensor.clear();
+  int ret = get_min_secs(false, min_secs);
+  // no need to slice n/h
+  if (BM_SUCCESS == ret) {
+    if (min_secs > 1.0)
+      ret = BM_ERR_FAILURE;
+  }
+  // need to slice n/h, try coeff hold in local memory
+  if (BM_ERR_FAILURE == ret) {
+    update_mem_buffer_size();
+    ret = get_min_secs(true, min_secs);
+    if (ret == BM_ERR_FAILURE)
+      return ret;
   }
 
   if (min_secs > (float)max_n_slice) {
