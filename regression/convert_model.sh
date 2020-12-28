@@ -30,6 +30,7 @@ usage()
   echo -e "\t-f Fused preprocess crop offset                [default: [none], center]"
   echo -e "\t-g Do TPU Softmax inference                    [default: 0]"
   echo -e "\t-x Don't dequant results to fp32"
+  echo -e "\t-n Quant full Op to BF16"
   echo -e "\t-h help"
   exit 1
 }
@@ -41,8 +42,9 @@ do_crop="0"
 do_tpu_softmax="0"
 chip_ver="cv183x"
 dequant_results_to_fp32="true"
+do_quant_full_bf16="0"
 
-while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:g:f:xu" opt
+while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:g:f:n:xu" opt
 do
   case "$opt" in
     i ) model_def="$OPTARG" ;;
@@ -63,6 +65,7 @@ do
     y ) image_resize_dims="$OPTARG" ;;
     f ) crop_offset="$OPTARG" ;;
     g ) do_tpu_softmax="$OPTARG" ;;
+    n ) do_quant_full_bf16="$OPTARG" ;;
     x ) dequant_results_to_fp32="false" ;;
     u ) usage ;;
   esac
@@ -135,7 +138,15 @@ if [ $do_tpu_softmax = "1" ]; then
   tpu_softmax_opt="--quant-bf16-softmax  "
 fi
 
-int8_mlir="${name}_int8.mlir"
+opt_mlir="${name}_int8.mlir"
+opt_opt_info="op_info_int8.csv"
+
+tpu_quant_full_bf16=""
+if [ $do_quant_full_bf16 = "1" ]; then
+  tpu_quant_full_bf16="--quant-full-bf16  "
+  opt_mlir="${name}_bf16.mlir"
+  opt_opt_info="op_info_bf16.csv"
+fi
 
 tpuc-opt ${name}.mlir \
     --convert-bn-to-scale \
@@ -149,12 +160,13 @@ tpuc-opt \
     --assign-chip-name \
     --chipname $chip_ver \
     --tpu-quant \
+    ${tpu_quant_full_bf16} \
     ${tpu_softmax_opt} \
     --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    -o $int8_mlir
+    --tpu-op-info-filename ${opt_opt_info} \
+    -o $opt_mlir
 
 ${DIR}/mlir_to_cvimodel.sh \
-    -i $int8_mlir \
+    -i $opt_mlir \
     -o $output \
     --dequant-results-to-fp32=$dequant_results_to_fp32
