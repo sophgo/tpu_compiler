@@ -128,10 +128,10 @@ class KLD_Calibrator(Base_Calibrator):
 
         with open(calibration_table_file, 'w') as writer:
 
-            calibration_infomation = "###\n# file: {}, genetated time {}\n# histogram number: {}\n###\n".format(
-                calibration_table_file, datetime.datetime.now(), self.histogram_bin_num)
+            calibration_infomation = "###\n# file: {}\n# genetated time: {}\n# histogram number: {}\n# sample number: {}\n###\n".format(
+                calibration_table_file, datetime.datetime.now(), self.histogram_bin_num, self.input_num)
             writer.write(calibration_infomation)
-            calibration_format = "# op_name    threshold    min    max"
+            calibration_format = "# op_name    threshold    min    max\n"
             writer.write(calibration_format)
             for op_dict in op_layer:
                 op_name = op_dict['name']
