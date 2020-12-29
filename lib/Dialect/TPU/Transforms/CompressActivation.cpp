@@ -1366,14 +1366,6 @@ void CompressActivationPass::markLoadDeCompressed() {
         result = false;
         break;
       }
-
-      // Turn off tg conv + tl load neuron temporaily
-      // because erfnet hang up in evb
-      if (isTgConvOp(op) && isLgLoadNeuronOp(useOp)) {
-        result = false;
-        break;
-      }
-
     }
 
     if (!result) {

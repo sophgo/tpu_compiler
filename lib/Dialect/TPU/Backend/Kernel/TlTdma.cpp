@@ -89,7 +89,7 @@ void cvi_backend_tl_load_compressed(
       int cur_h = std::min(h_step, Local_H - j);
 
       // Output HxW is contigious in each lane, eu_align = 0
-      cvk_tl_shape_t tl_tiled_shape = ctx.tl_shape_t4(1, c_step, cur_h, Local_W);
+      cvk_tl_shape_t tl_tiled_shape = ctx.tl_shape_t4(1, cur_c, cur_h, Local_W);
 
       cvk_tl_t tl_tiled_dst;
       ctx.lmem_init_tensor(&tl_tiled_dst, tl_tiled_shape, to, eu_align);
@@ -340,7 +340,7 @@ void cvi_backend_tl_store_compressed(
       int cur_h = std::min(h_step, Local_H - j);
 
       // Output HxW is contigious in each lane, eu_align = 0
-      cvk_tl_shape_t tl_tiled_shape = ctx.tl_shape_t4(1, c_step, cur_h, Local_W);
+      cvk_tl_shape_t tl_tiled_shape = ctx.tl_shape_t4(1, cur_c, cur_h, Local_W);
       cvk_tl_t tl_tiled_src;
       ctx.lmem_init_tensor(&tl_tiled_src, tl_tiled_shape, from, eu_align);
       tl_tiled_src.stride = tl_stride;
