@@ -174,8 +174,6 @@ def main():
                         help='Model name', default='generic')
     parser.add_argument('--calibrator', metavar='calibrator',
                         help='Calibration method', default='KLD')
-    parser.add_argument('--asymmetric', action='store_true',
-                        help='Type of quantization ragne')
     parser.add_argument('--math_lib_path', metavar='math_path',
                         help='Calibration math library path', default='calibration_math.so')
     parser.add_argument('--input_num', metavar='input_num',
@@ -192,6 +190,8 @@ def main():
                         type=str, help='file path that recode dataset images path')
     parser.add_argument('--custom_op_plugin', metavar='custom_op_plugin',
                         help='set file path of custom op plugin', default='')
+    parser.add_argument('--create_calibration_table', type=int,
+                        default=1, help="create_calibration_table, default: 1")
     parser = get_preprocess_parser(existed_parser=parser)
     args = parser.parse_args()
 
@@ -233,21 +233,18 @@ def main():
         threshold_table = args.output_file
     else:
         threshold_table = '{}_threshold_table'.format(args.model_name)
-
-    calibrator.create_calibration_table(threshold_table)
+    if args.create_calibration_table:
+        calibrator.create_calibration_table(threshold_table)
 
     # # export density table for hw look-up table
     # density_table = args.output_density_table if args.output_density_table else '{}_density_table'.format(args.model_name)
 
     # calibrator.dump_density_table(density_table, calibrator.get_raw_min(), thresholds)
 
-    def autotune_preprocess(image_path):
-        return p_func(image_path, None)
-
     if args.auto_tune == True:
         args.input_threshold_table = threshold_table
-        tuner = Tuner_v2(args.model_file, threshold_table, args.dataset_file_path,
-                         tune_iteration=args.tune_iteration, preprocess_func=autotune_preprocess)
+        tuner = Tuner_v2(args.model_file, threshold_table, args.image_list_file,
+                         tune_iteration=args.tune_iteration, preprocess_func=p_func)
         tuner.run_tune()
 
 

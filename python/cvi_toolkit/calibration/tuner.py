@@ -1,378 +1,302 @@
 #!/usr/bin/env python3
 ##
-## Copyright (C) Cristal Vision Technologies Inc.
-## All Rights Reserved.
+# Copyright (C) Cristal Vision Technologies Inc.
+# All Rights Reserved.
 ##
 
 import numpy as np
-import sys, os, copy, math, shutil, time
+import sys
+import os
+import copy
+import math
+import shutil
+import time
 import pymlir
-IS_PY3 = sys.version_info >= (3,0)
-if IS_PY3:
-    from ..utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant
+import shutil
+from tqdm import tqdm
+
+from ..utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant, mlir_opt
+from cvi_toolkit.utils.log_setting import setup_logger
+logger = setup_logger('root')
+
+general_skip_op = [
+    'tpu.concat',
+    'tpu.crop',
+    'tpu.clip',
+    'tpu.detectionoutput',
+    'tpu.dummy',
+    'tpu.exp',
+    'tpu.frcn_detection',
+    'tpu.load_weight',
+    'tpu.input',
+    'tpu.interp',
+    'tpu.pad',
+    'tpu.permute',
+    'tpu.pixelshuffle',
+    'tpu.pool_max_2d',
+    'tpu.pool_mask',
+    'tpu.power',
+    'tpu.preprocess',
+    'tpu.priorbox',
+    'tpu.proposal',
+    'tpu.quant',
+    'tpu.quadratic_sum'
+    'tpu.requant',
+    'tpu.reshape',
+    'tpu.reorg',
+    'tpu.retinaface_detection',
+    'tpu.reverse',
+    'tpu.roi_pooling',
+    'tpu.shuffle_channel',
+    'tpu.sigmoid',
+    'tpu.slice',
+    'tpu.softmax',
+    'tpu.square',
+    'tpu.swap_channel',
+    'tpu.tanh',
+    'tpu.tile',
+    'tpu.upsample',
+    'tpu.weight_file',
+    'tpu.yolo_detection',
+]
+
+
+def get_mlir_weight_file(mlir_file):
+    model = pymlir.module()
+    model.load(mlir_file)
+    weight_file = model.get_weight_file_path()
+    del model
+    return weight_file
+
+
+def remove_mlir_with_weight(mlir_file):
+    weight_file = get_mlir_weight_file(mlir_file)
+    os.remove(weight_file)
+    os.remove(mlir_file)
+
+
+def get_op_threshold_from_calibration_tabel(calibration_table, target_op):
+    op_threshold_dict = parse_threshold_table(calibration_table)
+    if target_op not in op_threshold_dict:
+        raise KeyError("{} op not in {}".format(target_op, calibration_table))
+    return op_threshold_dict[target_op][0]
 
 
 def parse_threshold_table(threshold_table):
     with open(threshold_table, 'r') as f:
-        contents = f.readlines()
+        op_infos = f.readlines()
 
-    thresholds = {}
-    for item in contents:
-        item = item.rstrip().split()
-        thresholds[item[0]] = float(item[1])
+    op_threshold_dict = {}
+    for op_info in op_infos:
+        op_info = op_info.rstrip()
+        if op_info.startswith("#"):
+            continue
+        else:
+            # op_name    threshold    min    max
+            op_info_list = op_info.split()
+            if len(op_info_list) != 4:
+                logger.error(
+                    "information are op_name, threshold, min, max")
+                raise RuntimeError("Error with parse {}, {}".format(
+                    op_info, threshold_table))
 
-    return thresholds
+            op_name, threshold, _min, _max = op_info_list
+            op_threshold_dict[op_name] = (
+                float(threshold), float(_min), float(_max))
+    return op_threshold_dict
 
-class Tuner(object):
-    def __init__(self, args, preprocess_func):
-        self.fp32_model = args.model_file
-        self.fp32_module = pymlir.module()
-        self.fp32_module.load(args.model_file)
-        self.fp32_module.set_plugin(args.custom_op_plugin)
-        self.custom_op_plugin = args.custom_op_plugin
 
-        with open(args.image_list_file,'r') as fp:
-            self.all_lines = fp.readlines()
+def update_calibration_table(old_calibration_table, new_calibration_table, target_op_name=None, new_threshold=None):
+    new_calibration_txt = ""
+    with open(old_calibration_table, "r") as f:
+        op_infos = f.readlines()
 
-        self.output_path = args.out_path
+    for op_info in op_infos:
+        _op_info = op_info.rstrip()
+        if _op_info.startswith("#"):
+            new_calibration_txt += op_info
+        else:
+            # op_name    threshold    min    max
+            op_info_list = _op_info.split()
+            if len(op_info_list) != 4:
+                logger.error(
+                    "information are op_name, threshold, min, max")
+                raise RuntimeError("Error with parse {}".format(op_info))
 
-        if not os.path.isdir(self.output_path):
-            os.mkdir(self.output_path)
-
-        self.mlir_opt = os.path.join(args.binary_path, 'tpuc-opt')
-        self.out_table = os.path.join(self.output_path, "tune_threshold_table")
-        self.int8_model = os.path.join(self.output_path, 'tune-int8.mlir')
-
-        self.thresholds = parse_threshold_table(args.input_threshold_table)
-
-        self.enlarge_factor = 1.01
-        self.reduce_factor = 0.99
-
-        self.best_threshold = 0
-        self.best_diff = 0
-        self.limit = int(args.tune_iteration)
-
-        self.preprocess_func = preprocess_func
-
-    def run_tune(self, args):
-        time_start = time.time()
-        last_best = ''
-        for info in self.fp32_module.op_info:
-            if info['type'] in ['tpu.input']:
+            op_name, threshold, _min, _max = op_info_list
+            if target_op_name == None:
+                new_calibration_txt += "{} {} {} {}\n".format(
+                    op_name, threshold, _min, _max)
                 continue
-
-            op_name = info["name"]
-            # Run tuner.py to generate tune models
-            best_thres = self.tune_layer(op_name)
-
-            # Move the smallest model
-            # shutil.move(os.path.join(self.output_path, op_name.replace('/', '-') + '_thres_' + str(best_thres)), './')
-            best_table = os.path.join(self.output_path, op_name.replace('/', '-') + '_thres_' + str(best_thres), "tune_threshold_table")
-
-            # Clear all other models
-            # for root, dirs, files in os.walk(self.output_path):
-            #     for dir in dirs:
-            #         shutil.rmtree(os.path.join(self.output_path, dir))
-            #     break
-            print('The best tune model: ' + best_table)
-
-            if last_best != '':
-                shutil.rmtree(last_best[0:last_best.rfind('/')])
-
-            last_best = str(best_table)
-            self.thresholds = parse_threshold_table(last_best)
-
-        time_end = time.time()
-        print("Tune time {}".format(time_end - time_start))
-
-    def run_calibration(self, thresholds):
-        with open(self.out_table, 'w') as f:
-            for item in thresholds:
-                f.write(item + ' ' + str(thresholds[item]) + '\n')
-
-        cmd = self.mlir_opt + ' --import-calibration-table --calibration-table ' + self.out_table + \
-              ' ' + self.fp32_model + ' -o ' + os.path.join(self.output_path, 'resnet-50-cali.mlir')
-        if os.system(cmd) != 0:
-            print('Cmd {} execute failed.'.format(cmd))
-            exit(-1)
-
-        cmd = self.mlir_opt + ' --tpu-quant --custom-op-plugin ' + self.custom_op_plugin + ' \
-               ' + os.path.join(self.output_path, 'resnet-50-cali.mlir') + \
-              ' -o ' + self.int8_model
-        if os.system(cmd) != 0:
-            print('Cmd {} execute failed.'.format(cmd))
-            exit(-1)
-
-    def tune_layer(self, target_layer):
-        ori_diff = sys.float_info.max
-        ori_thres = self.thresholds.get(target_layer)
-        print('ori_thres={}, ori_diff={}'.format(ori_thres, ori_diff))
-
-        self.best_threshold = ori_thres
-        self.best_diff = ori_diff
-
-        self.get_layer_best_threshold(ori_thres, ori_diff, target_layer, self.enlarge_factor)
-        self.get_layer_best_threshold(ori_thres, ori_diff, target_layer, self.reduce_factor)
-
-        print('tuning end, layer: {},  best diff with tune: {}/{}, threshold: {}/{}'.format(
-            target_layer, self.best_diff, ori_diff, self.best_threshold, ori_thres))
-
-        return self.best_threshold
-
-    def get_layer_best_threshold(self, ori_thres, ori_diff, tune_layer, factor):
-        count = 0
-        fail_count = 0
-        pre_diff = ori_diff
-
-        tune_thresholds = copy.deepcopy(self.thresholds)
-
-        self.net32_inference(tune_layer)
-
-        while fail_count < 3:
-            time1 = time.time()
-            tune_thres = ori_thres * math.pow(factor, count)
-            tune_thresholds[tune_layer] = tune_thres
-
-            print('start tuning: {}, layer: {}, tuning threshold: {}'.format(count + 1, tune_layer, tune_thres))
-            self.run_calibration(tune_thresholds)
-            diff = self.net8_calculate_diff(tune_layer, tune_thresholds)
-            print('end tuning: {}, layer: {}, tuning diff: {}'.format(count + 1, tune_layer, diff))
-
-            if self.best_diff > diff:
-                #  Remove previous saved best model/proto
-                if os.path.isdir(os.path.join(self.output_path, "{}_thres_{}".format(tune_layer.replace('/', '-'), self.best_threshold))):
-                    shutil.rmtree(os.path.join(self.output_path, "{}_thres_{}".format(tune_layer.replace('/', '-'), self.best_threshold)))
-                thres_fold = os.path.join(self.output_path, "{}_thres_{}".format(tune_layer.replace('/', '-'), tune_thres))
-
-                try:
-                    if not os.path.isdir(thres_fold):
-                        os.mkdir(thres_fold)
-
-                    shutil.copy(self.out_table, thres_fold)
-                except (OSError, IOError) as e:
-                    print(e)
-
-                self.best_diff = diff
-                self.best_threshold = tune_thres
-                fail_count = 0
+            if op_name == target_op_name:
+                new_calibration_txt += "{} {:.5f} {} {}\n".format(
+                    target_op_name, new_threshold, _min, _max)
             else:
-                if pre_diff <= diff:
-                    fail_count += 1
+                new_calibration_txt += op_info
+    with open(new_calibration_table, "w") as f:
+        f.write(new_calibration_txt)
 
-            pre_diff = diff
-            count += 1
-            time2 = time.time()
-            print(time2-time1)
 
-    def net32_inference(self, tune_layer):
-        self.out32 = {}
+def import_calibration_get_int8_mlir(calibration_table, fp32_mlir_file):
+    fp32_mlir_opt_file = "{}_tune_opt.mlir".format(
+        fp32_mlir_file.split(".")[0])
 
-        num = 0
-        for line in self.all_lines:
-            x = self.preprocess_func(line)
-            x = np.expand_dims(x, axis=0)
-            _ = self.fp32_module.run(x)
-            data = self.fp32_module.get_tensor(tune_layer)
-            self.out32[num] = data
+    mlir_opt(fp32_mlir_file, fp32_mlir_opt_file)
+    calibration_mlir = "{}_tune_cali.mlir".format(
+        fp32_mlir_file.split(".")[0])
 
-            num += 1
-            if num >= self.limit:
-                break
+    ret = mlir_import_calibration(
+        fp32_mlir_opt_file, calibration_mlir, calibration_table)
 
-    def net8_calculate_diff(self, tune_layer, tune_thresholds):
-        int8_module = pymlir.module()
-        int8_module.load(self.int8_model)
-        int8_module.set_plugin(self.custom_op_plugin)
+    if ret != 0:
+        raise RuntimeError("import table failed")
 
-        num = 0
-        layer_dist = 0
-        for line in self.all_lines:
-            x = self.preprocess_func(line)
-            x = np.expand_dims(x, axis=0)
-            _ = int8_module.run(x)
-            out = int8_module.get_tensor(tune_layer)
+    int8_tune_mlir_file = "{}_tune_int8.mlir".format(
+        fp32_mlir_file.split(".")[0])
+    ret = mlir_tpu_quant(calibration_mlir, int8_tune_mlir_file, "no_use")
 
-            out = out * tune_thresholds[tune_layer] / 128.0
-            layer_dist += np.linalg.norm(self.out32[num] - out)
+    # weight_file can not remove, tpu_quant will use
+    os.remove(calibration_mlir)
+    if ret != 0:
+        raise RuntimeError("quant failed")
 
-            num += 1
-            if num >= self.limit:
-                break
+    return int8_tune_mlir_file
 
-        os.remove(int8_module.get_weight_file_path())
-
-        return layer_dist / self.limit
 
 class Tuner_v2(object):
-    def __init__(self, model_file, input_threshold_table,
-            image_list_file, output_path="./", tune_iteration=10,
-            preprocess_func=None):
-        self.fp32_model = model_file
-        self.fp32_module = pymlir.module()
-        self.fp32_module.load(model_file)
+    def __init__(self, model_file, input_calibration_table,
+                 image_list_file, output_path="./", tune_iteration=10,
+                 preprocess_func=None):
+        self.fp32_mlir_file = model_file
+        self.fp32_mlir_opt_file = "{}_tune_opt.mlir".format(
+            model_file.split(".")[0])
+        self.fp32_model = pymlir.module()
+        self.fp32_model.load(model_file)
 
-        with open(image_list_file,'r') as fp:
-            self.all_lines = fp.readlines()
+        with open(image_list_file, 'r') as f:
+            self.images = f.readlines()
 
         self.output_path = output_path
         os.makedirs(self.output_path, exist_ok=True)
 
-        self.mlir_opt = "tpuc-opt"
-        self.out_table = os.path.join(self.output_path, "tune_threshold_table")
+        self.tune_table = "{}_tune_table".format(
+            model_file.split(".")[0])
         self.int8_model = os.path.join(self.output_path, 'tune-int8.mlir')
-        self.cali_model = "{}_cali.mlir".format(model_file.split(".")[0])
-        self.skip_op = ['tpu.cast', 'tpu.crop', 'tpu.input', 
-                        'tpu.pad', 'tpu.permute', 'tpu.pixelshuffle', 
-                        'tpu.quant', 'tpu.reshape', 'tpu.shuffle_channel', 
-                        'tpu.slice', 'tpu.swap_channel', 'tpu.transpose', 'tpu.upsample']
 
-        self.thresholds = parse_threshold_table(input_threshold_table)
+        self.cali_model = "{}_tune_cali.mlir".format(model_file.split(".")[0])
+        self.skip_op = general_skip_op
+        self.orignal_calibration_table = input_calibration_table
+        self.thresholds = parse_threshold_table(input_calibration_table)
 
-        self.enlarge_factor = 1.01
-        self.reduce_factor = 0.99
+        self.enlarge_factor = 0.5
+        self.reduce_factor = -0.5
 
         self.best_threshold = 0
         self.best_diff = 0
-        self.limit = tune_iteration
+        self.limit = min(len(self.images), tune_iteration)
 
         self.preprocess_func = preprocess_func
 
-    def run_tune(self):
-        time_start = time.time()
-        last_best = ''
-        self.run_calibration(self.thresholds)
-        tmp_int8_module = pymlir.module()
-        tmp_int8_module.load(self.int8_model)
 
-        for info in tmp_int8_module.op_info:
-            if info['type'] in self.skip_op:
-                continue
+    def tune_layer(self, target_layer, threshold):
+        original_distance = sys.float_info.max
 
-            op_name = info["name"]
-            # Run tuner.py to generate tune models
-            best_thres = self.tune_layer(op_name)
+        # search up
+        tune_distance = self.get_layer_best_threshold(
+            threshold, original_distance, target_layer, self.enlarge_factor)
+        logger.info(
+            "tuning op: {}, enlarge tuning  down".format(target_layer))
+        # search down
+        # original threshold is calculated above, adjust threshold directly
+        tune_distance = self.get_layer_best_threshold(
+            threshold, tune_distance, target_layer, self.reduce_factor)
+        logger.info(
+            "tuning op: {}, reduce tuning reduce down".format(target_layer))
 
-            # Move the smallest model
-            best_table = os.path.join(self.output_path, op_name.replace('/', '-') + '_thres_' + str(best_thres), "tune_threshold_table")
+        return tune_distance
 
-            print('The best tune model: ' + best_table)
-
-            if last_best != '':
-                shutil.rmtree(last_best[0:last_best.rfind('/')])
-
-            last_best = str(best_table)
-            self.thresholds = parse_threshold_table(last_best)
-
-        time_end = time.time()
-        print("Tune time {}".format(time_end - time_start))
-        del tmp_int8_module
-
-
-    def run_calibration(self, thresholds):
-        with open(self.out_table, 'w') as f:
-            for item in thresholds:
-                f.write(item + ' ' + str(thresholds[item]) + '\n')
-        ret = mlir_import_calibration(self.fp32_model, os.path.join(self.output_path, self.cali_model), self.out_table)
-
-        if ret != 0:
-            exit(-1)
-
-        ret = mlir_tpu_quant(os.path.join(self.output_path, self.cali_model), self.int8_model, "no_use")
-        if ret!= 0:
-            exit(-1)
-
-    def tune_layer(self, target_layer):
-        ori_diff = sys.float_info.max
-        ori_thres = self.thresholds.get(target_layer)
-        print('ori_thres={}, ori_diff={}'.format(ori_thres, ori_diff))
-
-        self.best_threshold = ori_thres
-        self.best_diff = ori_diff
-
-        self.get_layer_best_threshold(ori_thres, ori_diff, target_layer, self.enlarge_factor)
-        self.get_layer_best_threshold(ori_thres, ori_diff, target_layer, self.reduce_factor)
-
-        print('tuning end, layer: {},  best diff with tune: {}/{}, threshold: {}/{}'.format(
-            target_layer, self.best_diff, ori_diff, self.best_threshold, ori_thres))
-
-        return self.best_threshold
-
-    def get_layer_best_threshold(self, ori_thres, ori_diff, tune_layer, factor):
-        count = 0
+    def get_layer_best_threshold(self, original_threshold, original_distance, target_layer, factor):
         fail_count = 0
-        pre_diff = ori_diff
 
-        tune_thresholds = copy.deepcopy(self.thresholds)
-
-        self.net32_inference(tune_layer)
+        inference_count = 0
+        new_threshold = original_threshold
+        # get fp32 target layer activation
+        target_layer_fp32_activation = {}
+        for idx, image in enumerate(self.images):
+            x = self.preprocess_func(image)
+            self.fp32_model.run(x)
+            target_layer_fp32_activation[idx] = self.fp32_model.get_tensor(
+                target_layer)
+            if idx >= self.limit:
+                break
 
         while fail_count < 3:
-            time1 = time.time()
-            tune_thres = ori_thres * math.pow(factor, count)
-            tune_thresholds[tune_layer] = tune_thres
+            distance = 0
+            new_threshold += factor
+            if new_threshold < 0:
+                break
+            # make tmp table
+            tmp_table = "{}_tmp".format(self.tune_table)
+            update_calibration_table(
+                self.tune_table, tmp_table, target_op_name=target_layer, new_threshold=new_threshold)
 
-            print('start tuning: {}, layer: {}, tuning threshold: {}'.format(count + 1, tune_layer, tune_thres))
-            self.run_calibration(tune_thresholds)
-            diff = self.net8_calculate_diff(tune_layer, tune_thresholds)
-            print('end tuning: {}, layer: {}, tuning diff: {}'.format(count + 1, tune_layer, diff))
+            # import and inference
+            tmp_int8_mlir_file = import_calibration_get_int8_mlir(
+                tmp_table, self.fp32_mlir_file)
 
-            if self.best_diff > diff:
-                #  Remove previous saved best model/proto
-                if os.path.isdir(os.path.join(self.output_path, "{}_thres_{}".format(tune_layer.replace('/', '-'), self.best_threshold))):
-                    shutil.rmtree(os.path.join(self.output_path, "{}_thres_{}".format(tune_layer.replace('/', '-'), self.best_threshold)))
-                thres_fold = os.path.join(self.output_path, "{}_thres_{}".format(tune_layer.replace('/', '-'), tune_thres))
+            self.int8_model = pymlir.module()
+            self.int8_model.load(tmp_int8_mlir_file)
 
-                try:
-                    if not os.path.isdir(thres_fold):
-                        os.mkdir(thres_fold)
+            for idx, image in enumerate(self.images):
+                x = self.preprocess_func(image)
+                self.int8_model.run(x)
+                inference_count += 1
+                target_int8_activation = self.int8_model.get_tensor(
+                    target_layer)
 
-                    shutil.copy(self.out_table, thres_fold)
-                except (OSError, IOError) as e:
-                    print(e)
+                # dequant int8 to fp32
+                dequant_target_activation = target_int8_activation * new_threshold / 127.0
+                distance += np.linalg.norm(
+                    target_layer_fp32_activation[idx] - dequant_target_activation) / self.limit
+                if idx >= self.limit:
+                    break
 
-                self.best_diff = diff
-                self.best_threshold = tune_thres
-                fail_count = 0
+            # if distance is small than old one, update it
+            if original_distance > distance:
+                logger.info(
+                    "tuning op: {}, tmp distance: {} < original_distance: {}, update".format(target_layer, distance, original_distance))
+                logger.info("tuning op: {}, old_threshold: {}, new_threshold: {}, update table: {}".format(
+                    target_layer, original_threshold, new_threshold, self.tune_table))
+                update_calibration_table(
+                    self.tune_table, self.tune_table, target_op_name=target_layer, new_threshold=new_threshold)
+                original_distance = distance
             else:
-                if pre_diff <= diff:
-                    fail_count += 1
+                fail_count += 1
 
-            pre_diff = diff
-            count += 1
-            time2 = time.time()
-            print(time2-time1)
+            remove_mlir_with_weight(tmp_int8_mlir_file)
 
-    def net32_inference(self, tune_layer):
-        self.out32 = {}
-        num = 0
-        for line in self.all_lines:
-            x = self.preprocess_func(line)
-            _ = self.fp32_module.run(x)
-            data = self.fp32_module.get_tensor(tune_layer)
-            self.out32[num] = data
-            num += 1
-            if num >= self.limit:
-                break
+        logger.info("all inference count in {} op: {}".format(
+            target_layer, inference_count))
+        return original_distance
 
-    def net8_calculate_diff(self, tune_layer, tune_thresholds):
-        self.int8_module = pymlir.module()
-        self.int8_module.load(self.int8_model)
+    def run_tune(self):
+        update_calibration_table(
+            self.orignal_calibration_table, self.tune_table)
+        int8_tune_mlir = import_calibration_get_int8_mlir(
+            self.orignal_calibration_table, self.fp32_mlir_file)
+        tmp_int8_module = pymlir.module()
+        tmp_int8_module.load(int8_tune_mlir)
+        pbar = tqdm(tmp_int8_module.op_info)
+        for info in pbar:
+            op_name = info["name"]
+            pbar.set_description("tune: {}".format(op_name))
+            pbar.update(1)
+            if info['type'] in self.skip_op:
+                continue
+            # tune layer
+            tune_distance = self.tune_layer(
+                op_name, get_op_threshold_from_calibration_tabel(self.tune_table, op_name))
+            logger.info(
+                "tuning op: {} finish, tune_distance: {}".format(op_name, tune_distance))
 
-        num = 0
-        layer_dist = 0
-        for line in self.all_lines:
-            x = self.preprocess_func(line)
-            self.int8_module.run(x)
-            out = self.int8_module.get_tensor(tune_layer)
-
-            out = out * tune_thresholds[tune_layer] / 127.0
-            layer_dist += np.linalg.norm(self.out32[num] - out)
-
-            num += 1
-            if num >= self.limit:
-                break
-
-        os.remove(self.int8_module.get_weight_file_path())
-        del self.int8_module
-
-        return layer_dist / self.limit
+        logger.info("all tuning down, table path : {}".format(self.tune_table))
