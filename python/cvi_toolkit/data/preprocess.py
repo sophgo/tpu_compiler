@@ -230,22 +230,34 @@ class preprocess(object):
         starty = h//2-(cropy//2)
         return [0, 0, startx, starty]
 
+    def align_up(self, x, n):
+        if n == 0 or n == 1:
+            return x
+        return int((x + n - 1)/n) * n
+
     def rgb2yuv420(self, input):
+        # vpss format, w align is 32, channel align is 4096
         h, w, c = input.shape
-        yuv420 = np.zeros(int(h*w*6/4), np.uint8)
+        y_w_aligned = self.align_up(w, 32)
+        uv_w_aligned = self.align_up(int(w/2), 32)
+        y_offset = 0
+        u_offset = self.align_up(y_offset + h * y_w_aligned, 4096)
+        v_offset = self.align_up(u_offset + int(h/2) * uv_w_aligned, 4096)
+        total_size = self.align_up(v_offset + int(h/2) * uv_w_aligned, 4096)
+        yuv420 = np.zeros(int(total_size), np.uint8)
         for h_idx in range(h):
             for w_idx in range(w):
                 r, g, b = input[h_idx][w_idx]
                 y = int(0.299*r + 0.587*g + 0.114*b)
-                u = int(-0.169*r - 0.331*g + 0.5*b + 128)
-                v = int(0.5*r - 0.419*g - 0.081*b + 128)
-                yuv420[h_idx * w + w_idx] = y
+                u = int(-0.1687*r - 0.3313*g + 0.5*b + 128)
+                v = int(0.5*r - 0.4187*g - 0.0813*b + 128)
+                yuv420[y_offset + h_idx * y_w_aligned + w_idx] = y
                 if (h_idx % 2 == 0 and w_idx % 2 == 0):
-                    u_idx = int(h*w + h_idx * w / 4 + w_idx / 2)
-                    v_idx = int(u_idx + h * w / 4)
+                    u_idx = int(u_offset + h_idx/2 * uv_w_aligned + w_idx / 2)
+                    v_idx = int(v_offset + h_idx/2 * uv_w_aligned + w_idx / 2)
                     yuv420[u_idx] = u
                     yuv420[v_idx] = v
-        return yuv420.reshape(6, int(h/2), int(w/2))
+        return yuv420.reshape(int(total_size), 1, 1)
 
     def run(self, input, output_npz=None, pfunc=None,
             input_name=None, input_type='file',

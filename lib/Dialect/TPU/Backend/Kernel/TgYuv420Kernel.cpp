@@ -13,14 +13,15 @@
 // &tl_v = [n, 1, h/2, w/2]
 // output = [n, 3, h, w]
 
-// r = y + 1.4075 * (v - 128);
-// g = y - 0.3455 * (u - 128) - 0.7169 * (v - 128);
-// b = y + 1.779 * (u - 128);
+// r = y + 1.402 * (v - 128);
+// g = y - 0.34414 * (u - 128) - 0.71414 * (v - 128);
+// b = y + 1.772 * (u - 128);
 //
 
 void TgYuv420Kernel::init(uint32_t layer_id, gaddr_t ga_input,
                           gaddr_t ga_output, int n, int c, int h, int w,
-                          const std::vector<int> &order, cvk_fmt_t fmt) {
+                          const std::vector<int> &order, int channel_align,
+                          int w_align, cvk_fmt_t fmt) {
   assert(c == 3 && "rgb channel must be 3");
   // convert to output shape
   this->layer_id = layer_id;
@@ -46,19 +47,29 @@ void TgYuv420Kernel::init(uint32_t layer_id, gaddr_t ga_input,
     // only support u8, regard i8 as u8
     fmt = CVK_FMT_U8;
   }
-  fmt_size = ctx.bytesize_of_fmt(fmt);
-  y_gstride = {static_cast<uint32_t>(h * w * 6 / 4 * fmt_size),
-               static_cast<uint32_t>(2 * w * fmt_size),
-               static_cast<uint32_t>(2 * fmt_size),
-               static_cast<uint32_t>(fmt_size)};
-  uv_gstride = {static_cast<uint32_t>(h * w * 6 / 4 * fmt_size),
-                static_cast<uint32_t>(w / 2 * fmt_size),
-                static_cast<uint32_t>(fmt_size),
-                static_cast<uint32_t>(fmt_size)};
-  rgb_gstride = {static_cast<uint32_t>(h * w * 3 * fmt_size),
-                 static_cast<uint32_t>(2 * w * fmt_size),
-                 static_cast<uint32_t>(2 * fmt_size),
-                 static_cast<uint32_t>(fmt_size)};
+  assert(fmt == CVK_FMT_U8);
+  y_w_aligned = align_up(w, w_align);
+  uv_w_aligned = align_up(w / 2, w_align);
+  int y_offset = 0;
+  int u_offset = align_up(y_offset + y_w_aligned * h, channel_align);
+  int v_offset = align_up(u_offset + uv_w_aligned * h / 2, channel_align);
+  n_stride = align_up(v_offset + uv_w_aligned * h / 2, channel_align);
+  ga_y = ga_input + y_offset;
+  ga_u = ga_input + u_offset;
+  ga_v = ga_input + v_offset;
+
+  y_gstride = {static_cast<uint32_t>(n_stride),
+               static_cast<uint32_t>(2 * y_w_aligned),
+               static_cast<uint32_t>(2),
+               static_cast<uint32_t>(1)};
+  uv_gstride = {static_cast<uint32_t>(n_stride),
+                static_cast<uint32_t>(uv_w_aligned),
+                static_cast<uint32_t>(1),
+                static_cast<uint32_t>(1)};
+  rgb_gstride = {static_cast<uint32_t>(h * w * 3),
+                 static_cast<uint32_t>(2 * w),
+                 static_cast<uint32_t>(2),
+                 static_cast<uint32_t>(1)};
 }
 
 void TgYuv420Kernel::allocLmem() {
@@ -132,26 +143,18 @@ void TgYuv420Kernel::load(int32_t step_idx) {
   auto &tile = tiles[step_idx / 4];
   int y_index = step_idx % 4;
   if (y_index == 0) {
-    uint64_t u_offset =
-        tile.pos_n * h * w * 6 / 4 + h * w + tile.pos_c * w / 2 + tile.pos_h;
-    uint64_t v_offset = u_offset + h / 2 * w / 2;
-    if (fmt == CVK_FMT_U8) {
-      load_u8_to_bf16(&tl_u, ga_input + u_offset * fmt_size, uv_gstride);
-      load_u8_to_bf16(&tl_v, ga_input + v_offset * fmt_size, uv_gstride);
-    } else {
-      ctx.tdma_load_stride(&tl_u, ga_input + u_offset * fmt_size, uv_gstride);
-      ctx.tdma_load_stride(&tl_v, ga_input + v_offset * fmt_size, uv_gstride);
-    }
+    uint64_t u_gaddr =
+        ga_u + tile.pos_n * n_stride + tile.pos_c * uv_w_aligned + tile.pos_h;
+    uint64_t v_gaddr =
+        ga_v + tile.pos_n * n_stride + tile.pos_c * uv_w_aligned + tile.pos_h;
+    load_u8_to_bf16(&tl_u, u_gaddr, uv_gstride);
+    load_u8_to_bf16(&tl_v, v_gaddr, uv_gstride);
   }
   // load &tl_y
-  uint64_t y_offset = tile.pos_n * h * w * 6 / 4 +
-                      (tile.pos_c * 2 + y_index / 2) * w + tile.pos_h * 2 +
-                      y_index % 2;
-  if (fmt == CVK_FMT_U8) {
-    load_u8_to_bf16(&tl_y, ga_input + y_offset * fmt_size, y_gstride);
-  } else {
-    ctx.tdma_load_stride(&tl_y, ga_input + y_offset * fmt_size, y_gstride);
-  }
+  uint64_t y_gaddr = ga_y + tile.pos_n * n_stride +
+                     (tile.pos_c * 2 + y_index / 2) * y_w_aligned +
+                     tile.pos_h * 2 + y_index % 2;
+  load_u8_to_bf16(&tl_y, y_gaddr, y_gstride);
 }
 
 void TgYuv420Kernel::store(int32_t step_idx) {
@@ -159,24 +162,16 @@ void TgYuv420Kernel::store(int32_t step_idx) {
   auto &tile = tiles[step_idx / 4];
   cvk_tl_t *bgr[3] = {&tl_b, &tl_g, &tl_r};
   int y_index = step_idx % 4;
-  uint64_t y_offset = tile.pos_n * 3 * h * w +
-                      (tile.pos_c * 2 + y_index / 2) * w + tile.pos_h * 2 +
-                      y_index % 2;
+  uint64_t rgb_offset = tile.pos_n * 3 * h * w +
+                        (tile.pos_c * 2 + y_index / 2) * w + tile.pos_h * 2 +
+                        y_index % 2;
   for (int n_idx = 0; n_idx < tile.n; n_idx++) {
     for (int order_idx = 0; order_idx < 3; order_idx++) {
       int c = order[order_idx];
       bgr[c]->shape.n = 1;
-      if (fmt == CVK_FMT_U8) {
-        store_bf16_to_u8(bgr[c],
-                         ga_output + y_offset * fmt_size +
-                             (n_idx * 3 + order_idx) * h * w * fmt_size,
-                         rgb_gstride);
-      } else {
-        ctx.tdma_store_stride(bgr[c],
-                              ga_output + y_offset * fmt_size +
-                                  (n_idx * 3 + order_idx) * h * w * fmt_size,
-                              rgb_gstride);
-      }
+      uint64_t rgb_gaddr =
+          ga_output + rgb_offset + (n_idx * 3 + order_idx) * h * w;
+      store_bf16_to_u8(bgr[c], rgb_gaddr, rgb_gstride);
       bgr[c]->start_address += bgr[c]->stride.n;
     }
   }
@@ -221,7 +216,7 @@ void TgYuv420Kernel::compute(int32_t step_idx) {
   p4.res_low = &tl_r;
   p4.res_is_int8 = 0;
   p4.a = &tl_v;
-  p4.b_const.val = ctx.convert_fp32_to_bf16(1.4075f);
+  p4.b_const.val = ctx.convert_fp32_to_bf16(1.402f);
   p4.b_is_const = 1;
   p4.b_const.is_signed = 1;
   p4.lshift_bits = 0;
@@ -248,7 +243,7 @@ void TgYuv420Kernel::compute(int32_t step_idx) {
   p6.res_low = &tl_b;
   p6.res_is_int8 = 0;
   p6.a = &tl_u;
-  p6.b_const.val = ctx.convert_fp32_to_bf16(1.779f);
+  p6.b_const.val = ctx.convert_fp32_to_bf16(1.772f);
   p6.b_is_const = 1;
   p6.b_const.is_signed = 1;
   p6.lshift_bits = 0;
@@ -274,7 +269,7 @@ void TgYuv420Kernel::compute(int32_t step_idx) {
   p8.res_low = &tl_g;
   p8.res_is_int8 = 0;
   p8.a = &tl_u;
-  p8.b_const.val = ctx.convert_fp32_to_bf16(-0.3455f);
+  p8.b_const.val = ctx.convert_fp32_to_bf16(-0.34414f);
   p8.b_is_const = 1;
   p8.b_const.is_signed = 1;
   p8.lshift_bits = 0;
@@ -286,7 +281,7 @@ void TgYuv420Kernel::compute(int32_t step_idx) {
   p9.res_low = &tl_g;
   p9.res_is_int8 = 0;
   p9.a = &tl_v;
-  p9.b_const.val = ctx.convert_fp32_to_bf16(-0.7169f);
+  p9.b_const.val = ctx.convert_fp32_to_bf16(-0.71414f);
   p9.b_is_const = 1;
   p9.b_const.is_signed = 1;
   p9.lshift_bits = 0;
@@ -328,7 +323,9 @@ void cvi_backend_tg_yuv420_csc_kernel(const CviBackendContext &ctx,
                                       int w, const std::vector<int> &order,
                                       cvk_fmt_t fmt) {
   TgYuv420Kernel kernel(ctx);
-  kernel.init(layer_id, ga_input, ga_output, n, c, h, w, order, fmt);
+  // yuv channel align is 4KB, w_align is 32B
+  kernel.init(layer_id, ga_input, ga_output, n, c, h, w, order, 0x1000,
+              0x20, fmt);
   kernel.selectTilePolicy();
   kernel.schedule();
 }

@@ -3412,29 +3412,8 @@ LogicalResult tpu::TG_INT8_Yuv420CscOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   cvi_backend_tg_yuv420_csc_kernel(*backend_ctx, layer_id, input_gaddr,
-                                   output_gaddr, n, c, h, w, order, CVK_FMT_U8);
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_Yuv420CscOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
-  int64_t n, c, h, w;
-  getNCHW(output_shape, n, c, h, w);
-  std::vector<int32_t> order;
-  if (this->channel_order().hasValue()) {
-    arrayAttrToVector(this->channel_order().getValue(), order);
-  }
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-  cvi_backend_tg_yuv420_csc_kernel(*backend_ctx, layer_id, input_gaddr,
-                               output_gaddr, n, c, h, w, order, CVK_FMT_BF16);
+                                   output_gaddr, n, c, h, w, order,
+                                   CVK_FMT_U8);
   return success();
 }
 

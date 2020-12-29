@@ -1626,7 +1626,6 @@ class TPU_TG_MemRef_Yuv420CscOp<string mnemonic, string opQuant> : TPU_Op<mnemon
   );
 }
 def TPU_TG_MemRef_INT8_Yuv420CscOp : TPU_TG_MemRef_Yuv420CscOp<"tg_memref_int8_yuv420_csc", "Int8">;
-def TPU_TG_MemRef_BF16_Yuv420CscOp : TPU_TG_MemRef_Yuv420CscOp<"tg_memref_bf16_yuv420_csc", "Bf16">;
 
 class TPU_TG_MemRef_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

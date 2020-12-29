@@ -537,10 +537,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     if (preprocessOp.pixel_format().str() == "YUV420") {
       std::string name =
           getOpName(preprocessOp).str() + "_preprocess_yuv420_csc";
-      tn = tn;
-      tc = 3;
-      th *= 2;
-      tw *= 2;
       auto yuv420_type =
           RankedTensorType::get({tn, tc, th, tw}, eltType);
       std::vector<NamedAttribute> attrs;
@@ -548,9 +544,9 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
       attrs.push_back(
           builder.getNamedAttr("name", builder.getStringAttr(name)));
       if (color_orders.empty() == false) {
-      attrs.push_back(builder.getNamedAttr(
-          "channel_order",
-          builder.getI32ArrayAttr(ArrayRef<int32_t>({color_orders}))));
+        attrs.push_back(builder.getNamedAttr(
+            "channel_order",
+            builder.getI32ArrayAttr(ArrayRef<int32_t>({color_orders}))));
       }
       attrs.push_back(
           builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
@@ -650,7 +646,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
 pad_exit:
 
     // create int8 crop
-    if (preprocessOp.crop_offset().hasValue()) {
+    if (preprocessOp.crop_offset().hasValue() && !(tn == on && tc == oc && th == oh && tw == ow)) {
       std::string crop_name =
           getOpName(preprocessOp).str() + "_preprocess_crop";
       std::vector<int> crop_offset;

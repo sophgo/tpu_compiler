@@ -125,6 +125,11 @@ class CaffeConverter(BaseConverter):
         else:
             return layer.type
 
+    def align_up(self, x, n):
+        if n == 0 or n == 1:
+            return x
+        return int((x + n - 1)/n) * n
+
     def init_importer(self):
         self.input_shapes = list()
         for i in self.inputs:
@@ -132,18 +137,15 @@ class CaffeConverter(BaseConverter):
             input_shape[0] = self.batch_size
             self.blobs[i].reshape(*input_shape)
             if self.convert_preprocess:
-                resize_h, resize_w = self.preprocess_args.get(
-                    "resize_dims")
+                resize_h, resize_w = self.preprocess_args.get("resize_dims")
                 if self.preprocess_args.get("pixel_format") == "YUV420":
-                    input_shape = [input_shape[0], 6, int(resize_h/2), int(resize_w/2)]
+                    input_shape = [input_shape[0], input_shape[1], resize_h, resize_w]
                 elif self.preprocess_args.get("data_format") == "nchw" and \
                         self.preprocess_args.get('preprocess_input_data_format') == "nhwc":
-                    input_shape = [input_shape[0],
-                                   resize_h, resize_w, input_shape[1]]
+                    input_shape = [input_shape[0], resize_h, resize_w, input_shape[1]]
                 elif self.preprocess_args.get("data_format") == "nchw" and \
                         self.preprocess_args.get('preprocess_input_data_format') == "nchw":
-                    input_shape = [input_shape[0],
-                                   input_shape[1], resize_h, resize_w]
+                    input_shape = [input_shape[0], input_shape[1], resize_h, resize_w]
             self.input_shapes.append(input_shape)
 
         self.net.reshape()
@@ -1733,16 +1735,16 @@ class CaffeConverter(BaseConverter):
                     color_order = np.array([2,1,0])
                 if self.preprocess_args.get('pixel_format') == "YUV420":
                     data_format = 'nchw'
-                if self.preprocess_args.get('data_format') == "nchw" and \
-                        data_format == "nhwc":
+                if self.preprocess_args.get('data_format') == "nchw" and data_format == "nhwc":
                     transpose_order = np.array([0, 3, 1, 2])
-                elif self.preprocess_args.get('data_format') == "nchw" and \
-                        data_format == "nchw":
+                elif self.preprocess_args.get('data_format') == "nchw" and data_format == "nchw":
                     pass
                 else:
                     raise RuntimeError("No support fused preprocess data_format: {} \ preprocess_input_data_format: {}",
                                         self.preprocess_args.get('data_format'),  self.preprocess_args.get(
                                             'preprocess_input_data_format'))
+                if self.preprocess_args.get('pixel_format') == "YUV420":
+                    data_format = 'yuv420_planar'
                 if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
                     # center crop
                     crop_offset = np.array(self.preprocess_args.get('crop_offset'))

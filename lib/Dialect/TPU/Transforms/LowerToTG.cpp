@@ -1647,11 +1647,6 @@ Value tpu::Yuv420CscOp::convertToTG() {
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_Yuv420CscOp>(
-        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
   }
   llvm_unreachable("unsupported type");
 }

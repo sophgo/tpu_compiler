@@ -1650,8 +1650,7 @@ LogicalResult tpu::InputOp::interpret(
 
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float> >(size);
+  auto resultT = std::make_unique<std::vector<float> >();
 
   // use copy for now
   resultT->assign(opdT[0]->begin(), opdT[0]->end());
@@ -2670,14 +2669,11 @@ LogicalResult tpu::PreprocessOp::interpret(
     }
   }
   std::string pixel_format = this->pixel_format().str();
-  std::vector<float> rgb_tmp_data;
+  std::vector<float> rgb_tmp_data(input_size);
   if (pixel_format == "YUV420") {
-    rgb_tmp_data.resize(input_size * 2);
-    my_yuv420_csc(input->data(), rgb_tmp_data.data(), n, 3, h * 2, w * 2,
+    my_yuv420_csc(input->data(), rgb_tmp_data.data(), n, c, h, w,
                   color_orders);
     color_orders.clear();
-    input_shape = {n, 3, h * 2, w * 2};
-    input_size *= 2;
   } else {
     rgb_tmp_data.assign(input->begin(), input->end());
   }
@@ -4090,13 +4086,15 @@ LogicalResult tpu::Yuv420CscOp::interpret(
     order.push_back(1);
     order.push_back(2);
   }
+  int type = 0;
   if (getOpQuant() == "NONE") {
-    my_yuv420_csc(input, output, n, c, h, w, order);
+    type = 0;
   } else if (getOpQuant() == "BF16") {
-    my_yuv420_csc(input, output, n, c, h, w, order, 2);
+    type = 2;
   } else {
-    my_yuv420_csc(input, output, n, c, h, w, order, 1);
+    type = 1;
   }
+  my_yuv420_csc(input, output, n, c, h, w, order, type);
   valueMapping[result] = std::move(resultT);
   return success();
 }
@@ -4344,23 +4342,28 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
   auto inputs = getInputsList();
   if (inputs.size() == 1) {
     std::vector<int64_t> shape = inputs[0].getType().template cast<TensorType>().getShape();
-
-    if (input_shape != shape){
-      std::string i_s;
-      std::string r_s;
-      for(int i = 0; i < (int)input_shape.size(); i++){
-        i_s = i_s + std::to_string(input_shape.at(i)) + " ";
-      }
-      for (int i = 0; i < (int)shape.size(); i++) {
-        r_s = r_s + std::to_string(shape.at(i)) + " ";
-      }
-      std::stringstream err_msg;
-      err_msg << "input shape(" << i_s << ") v.s. shape(" << r_s
-        << ") not the same\n";
-      llvm_unreachable(err_msg.str().c_str());
+    bool shape_check = true;
+    if (data_format == "yuv420_planar") {
+      shape_check = false;
     }
-    assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
-          std::multiplies<int64_t>()));
+    if (shape_check) {
+      if (input_shape != shape){
+        std::string i_s;
+        std::string r_s;
+        for(int i = 0; i < (int)input_shape.size(); i++){
+          i_s = i_s + std::to_string(input_shape.at(i)) + " ";
+        }
+        for (int i = 0; i < (int)shape.size(); i++) {
+          r_s = r_s + std::to_string(shape.at(i)) + " ";
+        }
+        std::stringstream err_msg;
+        err_msg << "input shape(" << i_s << ") v.s. shape(" << r_s
+          << ") not the same\n";
+        llvm_unreachable(err_msg.str().c_str());
+      }
+      assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
+            std::multiplies<int64_t>()));
+    }
     updateValue(inputs[0], input_vec);
   }
   else {

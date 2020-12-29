@@ -104,7 +104,7 @@ cvi_npz_tool.py compare \
     ${NET}_blobs.npz \
     --op_info ${NET}_op_info_fuesd_preprocess.csv  \
     --excepts="$EXCEPTS,input,data" \
-    --tolerance=0.98,0.98,0.82 -vv
+    --tolerance=0.98,0.98,0.81 -vv
 
 tpuc-opt \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
@@ -136,7 +136,7 @@ cvi_npz_tool.py compare \
     --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv \
     --dequant \
     --excepts="$EXCEPTS,input,data" \
-    --tolerance=0.95,0.94,0.68 \
+    --tolerance=0.94,0.93,0.65 \
     -vv \
     --stats_int8_tensor
 
@@ -155,7 +155,8 @@ model_runner \
 cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz \
     ${NET}_tensor_all_int8_multiplier_fused_preprocess.npz \
-    --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv
+    --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv \
+    --excepts="$EXCEPTS,input,data"
 
 # VERDICT
 echo $0 PASSED

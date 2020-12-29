@@ -10,26 +10,67 @@ namespace mlir {
 
 #define DEBUG_TYPE "gmem-allocator"
 
+static bool isInputYuv420Planar(Operation *op) {
+  auto inputOp = dyn_cast_or_null<tpu::InputOp>(op);
+  if (!inputOp) {
+    return false;
+  }
+  if (inputOp.preprocess().hasValue() == false) {
+    return false;
+  }
+  if (inputOp.preprocess().getValue().data_format().getValue().str() == "yuv420_planar") {
+    return true;
+  }
+  return false;
+}
+
+static inline int align_up(int x, int n) {
+  if (n == 0 || n == 1) {
+    return x;
+  }
+  return ((x + n - 1) / n) * n;
+}
+
+static uint64_t yuv420_size(const std::vector<int64_t> &shape) {
+  assert(shape.size() == 4);
+  int n = shape[0];
+  assert(shape[1] == 3);
+  int h = shape[2];
+  int w = shape[3];
+  int y_w_aligned = align_up(w, 32);
+  int uv_w_aligned = align_up(w / 2, 32);
+  int u = align_up(h * y_w_aligned, 0x1000);
+  int v = align_up(u + h / 2 * uv_w_aligned, 0x1000);
+  int n_stride = align_up(v + h / 2 * uv_w_aligned, 0x1000);
+  return n * n_stride;
+}
+
 static uint32_t getTensorGmemSize(Operation *op, uint32_t alignment) {
   if (uint32_t size = (uint32_t)getTotalCompressedActivationSize(op))
     return llvm::alignTo(size, alignment);
 
   uint32_t dsize = 1;
   auto type = op->getResult(0).getType().template cast<TensorType>();
+  uint32_t size = 0;
+
   std::vector<int64_t> shape = type.getShape();
-  auto count =
-      std::accumulate(std::begin(shape), std::end(shape), 1, std::multiplies<>());
-  auto elementType = type.getElementType();
-  if (elementType.isF32()) {
-    dsize = sizeof(float);
-  } else if (elementType.isInteger(8)) {
-    dsize = sizeof(int8_t);
-  } else if (elementType.isBF16()) {
-    dsize = sizeof(uint16_t);
+  if (isInputYuv420Planar(op)) {
+    size = yuv420_size(shape);
   } else {
-    llvm_unreachable("unsupported data type");
+    auto count = std::accumulate(std::begin(shape), std::end(shape), 1,
+                                 std::multiplies<>());
+    auto elementType = type.getElementType();
+    if (elementType.isF32()) {
+      dsize = sizeof(float);
+    } else if (elementType.isInteger(8)) {
+      dsize = sizeof(int8_t);
+    } else if (elementType.isBF16()) {
+      dsize = sizeof(uint16_t);
+    } else {
+      llvm_unreachable("unsupported data type");
+    }
+    size = (uint32_t)count * dsize;
   }
-  uint32_t size = (uint32_t)count * dsize;
   // pad to alignment
   if (size % alignment) {
     size = size + alignment - (size % alignment);

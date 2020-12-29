@@ -2171,7 +2171,6 @@ class TPU_TG_Yuv420CscOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let results = (outs AnyTensor:$output);
 }
 def TPU_TG_INT8_Yuv420CscOp : TPU_TG_Yuv420CscOp<"tg_int8_yuv420_csc", "Int8">;
-def TPU_TG_BF16_Yuv420CscOp : TPU_TG_Yuv420CscOp<"tg_bf16_yuv420_csc", "Bf16">;
 
 class TPU_TG_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

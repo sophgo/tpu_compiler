@@ -18,7 +18,8 @@ public:
   TgYuv420Kernel(const CviBackendContext &ctx) : ctx(ctx) {}
 
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output, int n,
-            int c, int h, int w, const std::vector<int> &order, cvk_fmt_t fmt);
+            int c, int h, int w, const std::vector<int> &order,
+            int channel_align, int w_align, cvk_fmt_t fmt);
 
   void selectTilePolicy();
   void schedule();
@@ -39,9 +40,12 @@ protected:
   const CviBackendContext &ctx;
   gaddr_t ga_input;
   gaddr_t ga_output;
+  gaddr_t ga_y, ga_u, ga_v;
   int32_t n, c, h, w;
   cvk_fmt_t fmt;
-  int fmt_size;
+  int n_stride;
+  int32_t y_w_aligned;
+  int32_t uv_w_aligned;
   static const int BLOB_NUM = 12; // yuvrgb * 2 for flip
   // current step yuv,rgb
   cvk_tl_t tl_y, tl_u, tl_v, tl_r, tl_g, tl_b;

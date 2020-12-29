@@ -2705,27 +2705,38 @@ static inline float UINT8(float data) {
   return static_cast<float>(convert_fp32_u8(data));
 }
 
+static inline int align_up(int x, int n) {
+  if (n == 0 || n == 1) {
+    return x;
+  }
+  return ((x + n - 1) / n) * n;
+}
+
 void my_yuv420_csc(float *input, float *output, int n, int c, int h, int w,
                    std::vector<int> order, int type) {
+  int y_w_aligned = align_up(w, 32);
+  int uv_w_aligned = align_up(w / 2, 32);
   int y_offset = 0;
-  int u_offset = h * w;
-  int v_offset = u_offset + h * w / 4;
-  int n_stride = h * w * 6 / 4;
+  int u_offset = align_up(h * y_w_aligned, 0x1000);
+  int v_offset = align_up(u_offset + h / 2 * uv_w_aligned, 0x1000);
+  int n_stride = align_up(v_offset + h / 2 * uv_w_aligned, 0x1000);
   for (int idx_n = 0; idx_n < n; idx_n++) {
     for (int idx_h = 0; idx_h < h; idx_h++) {
       for (int idx_w = 0; idx_w < w; idx_w++) {
-        int y_idx = idx_n * n_stride + y_offset + idx_h * w + idx_w;
-        int u_idx = idx_n * n_stride + u_offset + idx_h / 2 * w / 2 + idx_w / 2;
-        int v_idx = idx_n * n_stride + v_offset + idx_h / 2 * w / 2 + idx_w / 2;
+        int y_idx = y_offset + idx_n * n_stride + idx_h * y_w_aligned + idx_w;
+        int u_idx =
+            u_offset + idx_n * n_stride + idx_h / 2 * uv_w_aligned + idx_w / 2;
+        int v_idx =
+            v_offset + idx_n * n_stride + idx_h / 2 * uv_w_aligned + idx_w / 2;
         float y = input[y_idx];
         float u = input[u_idx];
         float v = input[v_idx];
         float r, g, b;
         if (type == 0) {
           // float:
-          r = y + 1.4075 * (v - 128);
-          g = y - 0.3455 * (u - 128) - 0.7169 * (v - 128);
-          b = y + 1.779 * (u - 128);
+          r = y + 1.402 * (v - 128);
+          g = y - 0.34414 * (u - 128) - 0.71414 * (v - 128);
+          b = y + 1.772 * (u - 128);
         } else {
           // u8 or bf16
           if (type == 1) {
@@ -2733,10 +2744,10 @@ void my_yuv420_csc(float *input, float *output, int n, int c, int h, int w,
             u = (float)(uint8_t)u;
             v = (float)(uint8_t)v;
           }
-          r = BF16(y + BF16(1.4075f) * (v - 128.0f));
-          g = BF16(BF16(y + BF16(-0.3455f) * (u - 128.0f)) +
-                   BF16(-0.7169f) * (v - 128.0f));
-          b = BF16(y + BF16(1.779f) * (u - 128.0f));
+          r = BF16(y + BF16(1.402f) * (v - 128.0f));
+          g = BF16(BF16(y + BF16(-0.34414f) * (u - 128.0f)) +
+                   BF16(-0.71414f) * (v - 128.0f));
+          b = BF16(y + BF16(1.772f) * (u - 128.0f));
         }
         r = UINT8(r);
         g = UINT8(g);

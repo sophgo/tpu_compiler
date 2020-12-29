@@ -479,6 +479,38 @@ void AssignNeuronAddressMemRefPass::handleDeallocOp(Operation *opInst) {
   }
 }
 
+static bool isInputYuv420Planar(Operation *op) {
+  auto inputOp = dyn_cast_or_null<tpu::InputOp>(op);
+  if (!inputOp) {
+    return false;
+  }
+  if(inputOp.preprocess().getValue().data_format().getValue().str() == "yuv420_planar") {
+    return true;
+  }
+  return false;
+}
+
+static inline int align_up(int x, int n) {
+  if (n == 0 || n == 1) {
+    return x;
+  }
+  return ((x + n - 1) / n) * n;
+}
+
+static uint64_t yuv420_size(const std::vector<int64_t> &shape) {
+  assert(shape.size() == 4);
+  int n = shape[0];
+  assert(shape[1] == 3);
+  int h = shape[2];
+  int w = shape[3];
+  int y_w_aligned = align_up(w, 32);
+  int uv_w_aligned = align_up(w / 2, 32);
+  int u = align_up(h * y_w_aligned, 0x1000);
+  int v = align_up(u + h / 2 * uv_w_aligned, 0x1000);
+  int n_stride = align_up(v + h / 2 * uv_w_aligned, 0x1000);
+  return n * n_stride;
+}
+
 void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
   // Reserved space for quantized/de-quantized result.
   auto resultType = opInst->getResult(0).getType().dyn_cast<RankedTensorType>();
@@ -496,8 +528,13 @@ void AssignNeuronAddressMemRefPass::handleQuantOp(Operation *opInst) {
   uint64_t dataTypeSize = elementType.getIntOrFloatBitWidth() / 8;
 
   uint64_t allocatedSize = dataTypeSize;
-  for (unsigned i = 0; i < shape.size(); ++i)
-    allocatedSize *= shape[i];
+  if (isInputYuv420Planar()) {
+    assert(dataTypeSize == 1);
+    allocatedSize = yuv420_size(shape);
+  } else {
+    for (unsigned i = 0; i < shape.size(); ++i)
+      allocatedSize *= shape[i];
+  }
 
   std::string dtype;
   if (elementType.dyn_cast<IntegerType>())
