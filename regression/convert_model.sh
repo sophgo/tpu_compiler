@@ -140,12 +140,14 @@ fi
 
 opt_mlir="${name}_int8.mlir"
 opt_opt_info="op_info_int8.csv"
+opt_cali="--import-calibration-table --calibration-table $cali_table"
 
 tpu_quant_full_bf16=""
 if [ $do_quant_full_bf16 = "1" ]; then
   tpu_quant_full_bf16="--quant-full-bf16  "
   opt_mlir="${name}_bf16.mlir"
   opt_opt_info="op_info_bf16.csv"
+  opt_cali=
 fi
 
 tpuc-opt ${name}.mlir \
@@ -155,8 +157,7 @@ tpuc-opt ${name}.mlir \
     --tpu-op-info-filename op_info.csv | \
 tpuc-opt \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
-    --import-calibration-table \
-    --calibration-table $cali_table \
+    ${opt_cali} \
     --assign-chip-name \
     --chipname $chip_ver \
     --tpu-quant \
