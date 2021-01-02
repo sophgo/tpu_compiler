@@ -29,8 +29,10 @@ void cvi_backend_tg_fixed_conv_kernel(
     uint8_t stride_h, uint8_t stride_w, int do_bias, int do_activation,
     float activation_arg[], int activation_gt_scale, int activation_gt_rshift,
     int activation_le_scale, int activation_le_rshift, int right_shift_width,
-    bool do_chl_quan, bool do_ic_alignment, int store_cmpr_act,
-    int load_cmpr_act, bool do_cmpr_wgt, int pad_value=0);
+    bool do_chl_quan, bool do_ic_alignment,
+    int store_cmpr_act, int load_cmpr_act, bool do_cmpr_wgt,
+    int store_cmpr_act_c_step, int load_cmpr_act_c_step,
+    int pad_value=0);
 
 void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
@@ -112,7 +114,8 @@ void cvi_backend_tg_fixed_eltwise_add_kernel(
     const int32_t *coeffs,
     int32_t *inputs_offset = nullptr,
     int32_t output_offset = 0,
-    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0);
+    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
+    int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
 
 void cvi_backend_tg_fixed_eltwise_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -180,7 +183,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint8_t pad_right, uint8_t ins_h, uint8_t ins_w,
     uint8_t stride_h, uint8_t stride_w, int do_bias,
     int do_activation, bool fp32_output,
-    int store_cmpr_act, int load_cmpr_act, bool do_cmpr_wgt);
+    int store_cmpr_act, int load_cmpr_act, bool do_cmpr_wgt,
+    int store_cmpr_act_c_step, int load_cmpr_act_c_step);
 
 void cvi_backend_tg_bf16_conv3d_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -283,7 +287,8 @@ void cvi_backend_tg_bf16_eltwise_add_kernel(
     int32_t h, int32_t w, bool do_relu, bool do_early_stride,
     int32_t stride_h, int32_t stride_w,
     const float *coeffs,
-    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0);
+    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
+    int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
 
 void cvi_backend_tg_bf16_eltwise_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

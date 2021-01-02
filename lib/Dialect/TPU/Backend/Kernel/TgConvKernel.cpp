@@ -6,8 +6,8 @@
  */
 
 #include "TgConvKernel.hpp"
-
 #include "backend/backend_tl_api.h"
+#include <numeric>
 
 #define DEBUG_TYPE "cvi_backend_conv_kernel"
 
@@ -1111,7 +1111,7 @@ void Conv::loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
   uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(
       args.input_n, args.input_c, args.input_h, args.input_w,
       gmInputPoss[NGCHW::N], gmInputPoss[NGCHW::C], gmInputPoss[NGCHW::H],
-      NPU_NUM, args.load_cmpr_act);
+      args.load_cmpr_act_c_step, args.load_cmpr_act);
 
   cvi_backend_tl_load_compressed(ctx, args.layer_id,
                                  gmInputDesc->getAddress() + ga_cmpr_offset,
@@ -1126,7 +1126,7 @@ void Conv::loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
                                  tl_dst->fmt,
                                  cmpr_h_step,
                                  args.load_cmpr_act,
-                                 NPU_NUM
+                                 args.load_cmpr_act_c_step
                                  );
 }
 
@@ -1647,7 +1647,7 @@ void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
   uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(
       args.input_n, args.output_c, output_height(), output_width(),
       gmOutputPoss[NGCHW::N], gmOutputPoss[NGCHW::C], gmOutputPoss[NGCHW::H],
-      NPU_NUM, args.store_cmpr_act);
+      args.store_cmpr_act_c_step, args.store_cmpr_act);
 
   cvi_backend_tl_store_compressed(ctx, args.layer_id,
                                   gmOutputDesc->getAddress() + ga_cmpr_offset,
@@ -1663,7 +1663,7 @@ void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
                                   tg_dst->fmt,
                                   cmpr_h_step,
                                   args.store_cmpr_act,
-                                  NPU_NUM,
+                                  args.store_cmpr_act_c_step,
                                   false // DoIntraCmdParal
                                   );
 }
@@ -3052,7 +3052,7 @@ void Conv::dwConv() {
               param.layer_id = layer_id;
               param.ins_val = pad_value();
               param.ins_fp = ctx.convert_fp32_to_bf16(
-                  pad_value()); 
+                  pad_value());
 
               LLVM_DEBUG(llvm::errs() << llvm::format(
                          "  [ig=%d][n_pos=%d][oh_pos=%d][ow_pos=%d] dwconv:\n"
@@ -3685,6 +3685,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
     bool do_ic_alignment,
     int store_cmpr_act, int load_cmpr_act, bool do_load_cmpr_wgt,
+    int store_cmpr_act_c_step, int load_cmpr_act_c_step,
     int pad_value) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3703,10 +3704,12 @@ void cvi_backend_tg_fixed_conv_kernel(
              "    activation_le_rshift = %d, activation_le_scale = %d\n"
              "    do_activation = %d\n"
              "    do_ic_alignment = %d\n"
-             "    store_cmpr_act %d, load_cmpr_act %d, do_load_cmpr_wgt %d\n",
+             "    store_cmpr_act %d, load_cmpr_act %d, do_load_cmpr_wgt %d\n"
+             "    store_cmpr_act_c_step %d, load_cmpr_act_c_step %d\n",
              activation_gt_rshift, activation_gt_scale, activation_le_rshift,
              activation_le_scale, do_activation,
-             do_ic_alignment, store_cmpr_act, load_cmpr_act, do_load_cmpr_wgt));
+             do_ic_alignment, store_cmpr_act, load_cmpr_act, do_load_cmpr_wgt,
+             store_cmpr_act_c_step, load_cmpr_act_c_step));
 
   //
   // Convolution initialization
@@ -3749,6 +3752,8 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args.store_cmpr_act = store_cmpr_act;
   conv->args.load_cmpr_act = load_cmpr_act;
   conv->args.do_load_cmpr_wgt = do_load_cmpr_wgt;
+  conv->args.store_cmpr_act_c_step = store_cmpr_act_c_step;
+  conv->args.load_cmpr_act_c_step = load_cmpr_act_c_step;
   conv->args.pad_value = pad_value;
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32
@@ -3807,7 +3812,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint8_t pad_right, uint8_t ins_h, uint8_t ins_w,
     uint8_t stride_h, uint8_t stride_w, int do_bias,
     int do_activation, bool fp32_output,
-    int store_cmpr_act, int load_cmpr_act, bool do_load_cmpr_wgt) {
+    int store_cmpr_act, int load_cmpr_act, bool do_load_cmpr_wgt,
+    int store_cmpr_act_c_step, int load_cmpr_act_c_step) {
 
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3816,11 +3822,13 @@ void cvi_backend_tg_bf16_conv_kernel(
              "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
              "    nchw = (%d, %d, %d, %d), group = %d, oc = (%d)\n"
              "    kernel = (%d, %d), dilation = (%d, %d)\n"
-             "    pad = (%d, %d, %d, %d), ins=(%d, %d) stride = (%d, %d)\n",
+             "    pad = (%d, %d, %d, %d), ins=(%d, %d) stride = (%d, %d)\n"
+             "    store_cmpr_act_c_step %d, load_cmpr_act_c_step %d\n",
              layer_id, ga_ifmap, ga_ofmap, ga_weight, ga_bias, input_n,
              input_c, input_h, input_w, groups, output_c, kh, kw,
              dilation_h, dilation_w, pad_top, pad_bottom, pad_left,
-             pad_right, ins_h, ins_w, stride_h, stride_w));
+             pad_right, ins_h, ins_w, stride_h, stride_w,
+             store_cmpr_act_c_step, load_cmpr_act_c_step));
   LLVM_DEBUG(llvm::errs() << llvm::format(
              "    do_activation = %d\n",
              do_activation));
@@ -3858,6 +3866,8 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args.store_cmpr_act = store_cmpr_act;
   conv->args.load_cmpr_act = load_cmpr_act;
   conv->args.do_load_cmpr_wgt = do_load_cmpr_wgt;
+  conv->args.store_cmpr_act_c_step = store_cmpr_act_c_step;
+  conv->args.load_cmpr_act_c_step = load_cmpr_act_c_step;
 
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32

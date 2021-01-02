@@ -736,6 +736,8 @@ struct Conv_ARGS {
   int store_cmpr_act;
   int load_cmpr_act;
   bool do_load_cmpr_wgt;
+  int store_cmpr_act_c_step;
+  int load_cmpr_act_c_step;
   bool fused_conv_relu;
   bool do_leaky_relu;
   cvk_fmt_t input_fmt;

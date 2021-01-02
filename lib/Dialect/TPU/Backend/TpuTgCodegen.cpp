@@ -613,6 +613,8 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       0,         // store_cmpr_act
       0,         // load_cmpr_act
       false,     // do_cmpr_wgt
+      0,         // store_cmpr_act_c_step
+      0,         // load_cmpr_act_c_step
       pad_value  // pad_value
       );
 
@@ -664,15 +666,22 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
                        this->store_compr_act().getValue() : 0;
-  if (store_cmpr_act)
+  int store_cmpr_act_c_step = 0;
+  if (store_cmpr_act) {
     store_cmpr_act =
         this->store_compr_act_param().getValue().step_size().getInt();
-
+    store_cmpr_act_c_step =
+        this->store_compr_act_param().getValue().c_step().getInt();
+  }
   int load_cmpr_act = this->load_compr_act().hasValue() ?
                       this->load_compr_act().getValue() : 0;
-  if (load_cmpr_act)
+  int load_cmpr_act_c_step = 0;
+  if (load_cmpr_act) {
     load_cmpr_act =
         this->load_compr_act_param().getValue().step_size().getInt();
+    load_cmpr_act_c_step =
+        this->load_compr_act_param().getValue().c_step().getInt();
+  }
 
   bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
                      this->compressed_weight().getValue() : false;
@@ -705,6 +714,8 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       store_cmpr_act,
       load_cmpr_act,
       do_cmpr_wgt,
+      store_cmpr_act_c_step,
+      load_cmpr_act_c_step,
       pad_value // pad_value
       );
 
@@ -735,16 +746,23 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
                        this->store_compr_act().getValue() : 0;
-  if (store_cmpr_act)
+  int store_cmpr_act_c_step = 0;
+  if (store_cmpr_act) {
     store_cmpr_act =
         this->store_compr_act_param().getValue().step_size().getInt();
+    store_cmpr_act_c_step =
+        this->store_compr_act_param().getValue().c_step().getInt();
+  }
 
   int load_cmpr_act = this->load_compr_act().hasValue() ?
                       this->load_compr_act().getValue() : 0;
-  if (load_cmpr_act)
+  int load_cmpr_act_c_step = 0;
+  if (load_cmpr_act) {
     load_cmpr_act =
         this->load_compr_act_param().getValue().step_size().getInt();
-
+    load_cmpr_act_c_step =
+        this->load_compr_act_param().getValue().c_step().getInt();
+  }
   bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
                      this->compressed_weight().getValue() : false;
 
@@ -768,7 +786,9 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       false, // fp32_output
       store_cmpr_act,
       load_cmpr_act,
-      do_cmpr_wgt
+      do_cmpr_wgt,
+      store_cmpr_act_c_step,
+      load_cmpr_act_c_step
       );
 
   return success();
@@ -843,9 +863,11 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
       0,         // (int)rshift[0], //right_shift_width,
       do_chl_quan,      // do_chl_quan
       false,
-      false,  // store_compr_act
-      false,  // load_compr_act
-      false   // compressed_weight
+      0,         // store_compr_act
+      0,         // load_compr_act
+      false,     // compressed_weight
+      0,         // store_cmpr_act_c_step
+      0          // load_cmpr_act_c_step
       );
 
   return success();
@@ -907,9 +929,11 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
       with_bias, // bias_term,
       do_relu ? 1 : 0, // do_activation,
       false, // fp32_output
-      false, // store_compr_act
-      false, // load_compr_act
-      false  // compr_wgt
+      0,     // store_compr_act
+      0,     // load_compr_act
+      false, // compr_wgt
+      0,     // store_cmpr_act_c_step
+      0      // load_cmpr_act_c_step
       );
 
   return success();
@@ -1094,18 +1118,24 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
                        this->store_compr_act().getValue() : 0;
+  int store_cmpr_act_c_step = 0;
   if (store_cmpr_act) {
     assert(this->store_compr_act_param().hasValue());
     store_cmpr_act =
         this->store_compr_act_param().getValue().step_size().getInt();
+    store_cmpr_act_c_step =
+        this->store_compr_act_param().getValue().c_step().getInt();
   }
 
   int load_cmpr_act = this->load_compr_act().hasValue() ?
                       this->load_compr_act().getValue() : 0;
+  int load_cmpr_act_c_step = 0;
   if (load_cmpr_act) {
     assert(this->load_compr_act_param().hasValue());
     load_cmpr_act =
         this->load_compr_act_param().getValue().step_size().getInt();
+    load_cmpr_act_c_step =
+        this->load_compr_act_param().getValue().c_step().getInt();
   }
 
   cvi_backend_tg_fixed_eltwise_add_kernel(
@@ -1118,7 +1148,8 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       do_quant_rescale ? m_int : nullptr,
       coeffs.data(),
       inputs_offset.data(), output_offset,
-      store_cmpr_act, load_cmpr_act);
+      store_cmpr_act, load_cmpr_act,
+      store_cmpr_act_c_step, load_cmpr_act_c_step);
 
   delete[] m_i8_input;
   delete[] m_int;
@@ -1363,18 +1394,24 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
                        this->store_compr_act().getValue() : 0;
+  int store_cmpr_act_c_step = 0;
   if (store_cmpr_act) {
     assert(this->store_compr_act_param().hasValue());
     store_cmpr_act =
         this->store_compr_act_param().getValue().step_size().getInt();
+    store_cmpr_act_c_step =
+        this->store_compr_act_param().getValue().c_step().getInt();
   }
 
   int load_cmpr_act = this->load_compr_act().hasValue() ?
                       this->load_compr_act().getValue() : 0;
+  int load_cmpr_act_c_step = 0;
   if (load_cmpr_act) {
     assert(this->load_compr_act_param().hasValue());
     load_cmpr_act =
         this->load_compr_act_param().getValue().step_size().getInt();
+    load_cmpr_act_c_step =
+        this->load_compr_act_param().getValue().c_step().getInt();
   }
 
   cvi_backend_tg_bf16_eltwise_add_kernel(
@@ -1387,7 +1424,8 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
       do_relu,      // bool do_relu
       do_early_stride, early_stride_h, early_stride_w,
       coeffs.data(),
-      store_cmpr_act, load_cmpr_act);
+      store_cmpr_act, load_cmpr_act,
+      store_cmpr_act_c_step, load_cmpr_act_c_step);
 
   delete[] ga_inputs;
   return success();
@@ -2020,9 +2058,11 @@ LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
       false,
       false,
       this->high_precision().getValue(),
-      false, // store_compr_act
-      false, // load_compr_act
-      false  // compr_wgt
+      0,     // store_compr_act
+      0,     // load_compr_act
+      false, // compr_wgt
+      0,     // store_cmpr_act_c_step
+      0      // load_cmpr_act_c_step
       );
 
   return success();
