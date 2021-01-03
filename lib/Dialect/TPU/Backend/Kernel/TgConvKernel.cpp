@@ -3568,6 +3568,136 @@ void Conv::convNaive() {
   LLVM_DEBUG(llvm::errs() << "<= convNaive\n");
 }
 
+void Conv::showCost(CostModel &cost) {
+  LLVM_DEBUG(llvm::dbgs()
+      << "total " << cost.totalRWSize
+      << ", weight read " << cost.wgtReadSize
+      << ", act read " << cost.actReadSize
+      << ", act write " << cost.actWriteSize
+      << "\n");
+}
+
+void Conv::getCost(CostModel &cost) {
+  for (uint32_t i = 0; i < cmdQueue.size(); ++i) {
+    CmdDescriptor::CmdTypeEnum cmdType = cmdQueue[i]->getCmdType();
+    std::vector<uint32_t> gmOutputPoss = cmdQueue[i]->getGmOutputPoss();
+    std::vector<uint32_t> lmIndexes = cmdQueue[i]->getLmIndexes();
+    uint32_t icPos = cmdQueue[i]->getIcPos();
+
+    if (cmdType == CmdDescriptor::LoadBiasCmdType) {
+    } else if (cmdType == CmdDescriptor::LoadInputCmdType) {
+      //loadInput(gmOutputPoss, lmIndexes[0], i, icPos);
+      std::vector<uint32_t> gmOutputPossShapes =
+          getTiledGmShapesOfOutputForTiu(gmOutputPoss);
+
+      std::vector<uint32_t> cur_gm_input_poss;
+      std::vector<uint32_t> shapes;
+      std::vector<uint32_t> cur_gm_input_paddings; // top, bottom, left, right
+      getTiledGmPossAndShapesOfInputForTiu(
+          gmOutputPoss, gmOutputPossShapes, cur_gm_input_poss,
+          shapes, cur_gm_input_paddings, icPos);
+
+      auto count = std::accumulate(std::begin(shapes), std::end(shapes), 1,
+                                   std::multiplies<>());
+      cost.totalRWSize += count;
+      cost.actReadSize += count;
+
+      LLVM_DEBUG(llvm::dbgs()
+            << "  [n_pos=" << gmOutputPoss[NGCHW::N]
+            << "][ig=" << gmOutputPoss[NGCHW::G]
+            << "][oc_pos=" << gmOutputPoss[NGCHW::C]
+            << "][oh_pos=" << gmOutputPoss[NGCHW::H]
+            << "][ow_pos=" << gmOutputPoss[NGCHW::W]
+            << "][ic_pos=" << icPos
+            << "] loadInput (" << shapes[0] << ", " << shapes[1]
+            << ", " << shapes[2] << ", " << shapes[3]
+            << ", " << shapes[4]
+            << "), weight read " << cost.wgtReadSize
+            << ", act read " << cost.actReadSize << "\n");
+
+    } else if (cmdType == CmdDescriptor::LoadWeightCmdType) {
+      //loadWeight(gmOutputPoss, lmIndexes[0], i, icPos);
+      std::vector<uint32_t> shapes =
+          getTiledGmShapesOfWeightForTdmaLoad(gmOutputPoss, icPos);
+      auto count = std::accumulate(std::begin(shapes), std::end(shapes), 1,
+                                   std::multiplies<>());
+      cost.totalRWSize += count;
+      cost.wgtReadSize += count;
+
+      LLVM_DEBUG(llvm::dbgs()
+            << "  [n_pos=" << gmOutputPoss[NGCHW::N]
+            << "][ig=" << gmOutputPoss[NGCHW::G]
+            << "][oc_pos=" << gmOutputPoss[NGCHW::C]
+            << "][oh_pos=" << gmOutputPoss[NGCHW::H]
+            << "][ow_pos=" << gmOutputPoss[NGCHW::W]
+            << "][ic_pos=" << icPos
+            << "] loadWeight (" << shapes[0] << ", " << shapes[1]
+            << ", " << shapes[2] << ", " << shapes[3]
+            << ", " << shapes[4]
+            << "), weight read " << cost.wgtReadSize
+            << ", act read " << cost.actReadSize << "\n");
+
+    } else if (cmdType == CmdDescriptor::ComputCmdType) {
+      //compute(gmOutputPoss, lmIndexes, i, icPos);
+    } else if (cmdType == CmdDescriptor::StoreOutputCmdType) {
+      //storeOutput(gmOutputPoss, lmIndexes[0], i);
+
+      std::vector<uint32_t> shapes =
+          getTiledGmShapesOfOutputForTiu(gmOutputPoss);
+      auto count = std::accumulate(std::begin(shapes), std::end(shapes), 1,
+                                   std::multiplies<>());
+      cost.totalRWSize += count;
+      cost.actWriteSize += count;
+
+      LLVM_DEBUG(llvm::dbgs()
+            << "  [n_pos=" << gmOutputPoss[NGCHW::N]
+            << "][ig=" << gmOutputPoss[NGCHW::G]
+            << "][oc_pos=" << gmOutputPoss[NGCHW::C]
+            << "][oh_pos=" << gmOutputPoss[NGCHW::H]
+            << "][ow_pos=" << gmOutputPoss[NGCHW::W]
+            << "][ic_pos=" << icPos
+            << "] storeOutput (" << shapes[0] << ", " << shapes[1]
+            << ", " << shapes[2] << ", " << shapes[3]
+            << ", " << shapes[4]
+            << "), weight read " << cost.wgtReadSize
+            << ", act read " << cost.actReadSize << "\n");
+
+    } else if (cmdType == CmdDescriptor::ParallelCmdType) {
+      //genParallCmd(i);
+    } else {
+      assert(0 && "Expect valid command");
+    }
+  }
+
+}
+
+bool Conv::isBetterCost(CostModel &from, CostModel &to) {
+  // Since both reuse weight and reuse activation use double buffer,
+  // use total read/write size as cost factor.
+  if (to.totalRWSize < from.totalRWSize)
+    return true;
+
+  return false;
+}
+
+Conv::TilePolicy Conv::getReuseWgtOrActByCost() {
+  CostModel wgtCost = {0}, actCost = {0};
+
+  TilePolicy policy = ReuseWeightPolicyType;
+  convReuseActivation();
+  getCost(actCost);
+
+  cmdQueue.clear();
+  convReuseWeight();
+  getCost(wgtCost);
+  if (isBetterCost(wgtCost, actCost))
+    policy = ReuseActivationPolicyType;
+
+  cmdQueue.clear();
+
+  return policy;
+}
+
 // Priority:
 //   1. No tiling
 //   2. Reuse weight w/ double buffer
@@ -3599,11 +3729,7 @@ void Conv::determineTilePolicy() {
         tilePolicy = SingleBufferPolicyType;
     } else {
       use_double_buffer = true;
-
-      if (args.kh == 1 && args.kw == 1)
-        tilePolicy = ReuseActivationPolicyType;
-      else
-        tilePolicy = ReuseWeightPolicyType;
+      tilePolicy = getReuseWgtOrActByCost();
     }
   } else if (determineTileSize(/*useDoubleBuffer*/false)) {
     // Use ps32 to increase eu efficiency if output height*width is too small.

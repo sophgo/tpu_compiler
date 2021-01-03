@@ -1057,6 +1057,26 @@ public:
         ctx.cvi_chip_info_context(CVI_CHIP_LMEM_SIZE));
   }
 
+  enum TilePolicy {
+    NoTilePolicyType,
+    SingleBufferPolicyType,
+    SingleBufferPs32PolicyType,
+    ReuseWeightPolicyType,
+    ReuseActivationPolicyType,
+    MaxTilePolicyType,
+  };
+  struct CostModel {
+    uint32_t totalRWSize;
+    uint32_t wgtReadSize;
+    uint32_t actReadSize;
+    uint32_t actWriteSize;
+  };
+
+  void showCost(CostModel &cost);
+  void getCost(CostModel &cost);
+  bool isBetterCost(CostModel &from, CostModel &to);
+  TilePolicy getReuseWgtOrActByCost();
+
   // Arguments from dialect
   Conv_ARGS args;
 
@@ -1066,14 +1086,6 @@ private:
   TILE_INFO tile_info;
   bool use_double_buffer;
 
-  enum TilePolicy {
-    NoTilePolicyType,
-    SingleBufferPolicyType,
-    SingleBufferPs32PolicyType,
-    ReuseWeightPolicyType,
-    ReuseActivationPolicyType,
-    MaxTilePolicyType,
-  };
   TilePolicy tilePolicy;
 
   // Global memory descriptor
