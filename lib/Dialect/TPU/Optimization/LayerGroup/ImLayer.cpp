@@ -188,14 +188,11 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     }
   } else if (isa<tpu::TG_INT8_ReluOp>(op) || isa<tpu::TG_BF16_ReluOp>(op)) {
     layer = std::make_shared<ImRelu>(op);
-  } else if (isa<tpu::TG_QuantOp>(op)) {
-    layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::GenericCpuOp>(op)) {
     layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
   } else if (isa<tpu::TG_QuantOp>(op)) {
     layer = std::make_shared<ImQuant>(op);
-  } else if (isa<tpu::QuantOp>(op) ||
-             isa<tpu::InputOp>(op) ) {
+  } else if (isa<tpu::InputOp>(op) ) {
     layer = std::make_shared<ImCommon>(op, true, IR_OTHER);
   } else if (isa<tpu::TG_INT8_ZeroMaskOp>(op) ||
              isa<tpu::TG_BF16_ZeroMaskOp>(op)) {
