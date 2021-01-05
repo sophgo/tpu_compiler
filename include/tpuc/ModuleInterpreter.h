@@ -64,10 +64,14 @@ public:
           if (isa<tpu::InputOp>(op)) {
             auto inputOp = dyn_cast<tpu::InputOp>(op);
             if (inputOp.preprocess().hasValue()) {
-              data_format = inputOp.preprocess().getValue().data_format().getValue().str();
+              data_format = inputOp.preprocess()
+                                .getValue()
+                                .data_format()
+                                .getValue()
+                                .str();
             }
           } else if (isa<ReturnOp>(op)) {
-            for (auto opd: op.getOperands()) {
+            for (auto opd : op.getOperands()) {
               resultsList.push_back(opd);
             }
           } else if (isa<tpu::WeightFileOp>(op)) {
@@ -178,6 +182,12 @@ protected:
   std::vector<Value> inputsList;
 };
 
+LogicalResult
+runTpuModule(ModuleOp m, std::string pluginFile,
+             std::vector<int64_t> input_shape, std::vector<float> &input_data,
+             std::map<std::string, std::vector<float>> *results,
+             std::map<std::string, std::vector<int64_t>> *shapeMap,
+             std::map<std::string, std::vector<float>> *allTensorMap);
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_MODULEINTERPRETER_H_

@@ -23,7 +23,7 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/TPUOperationSupport.h"
 #include "tpuc/TPUTensorSupport.h"
-#include "tpuc/Interpreter.h"
+#include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 #include "tpuc/CustomOpParam.h"
 #include "tpuc/GPUInplementation.h"

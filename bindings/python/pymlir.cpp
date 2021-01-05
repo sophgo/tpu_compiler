@@ -18,7 +18,7 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/Passes.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/Interpreter.h"
+#include "tpuc/ModuleInterpreter.h"
 #include "tpuc/Passes.h"
 #include "tpuc/TPUOperationSupport.h"
 
