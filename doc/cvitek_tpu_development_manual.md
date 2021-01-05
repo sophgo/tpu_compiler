@@ -7,7 +7,7 @@
 
 
 
-> 
+>
 > 文档版本: 1.4.0
 >
 > 发布日期: 2020-12-04
@@ -243,12 +243,12 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 
 -   Tensor类型
 
-  类型                          描述
-  ----------------------------- ------------------------------------------------
-  Tensor\<DataType\>            以DataType为数据类型的Tensor，不许为空
-  TensorOfOrNone\< DataType\>   以DataType为数据类型的Tensor，None表示空Tensor
-  AnyTensor                     以任意DataType为数据类型的Tensor
-  Variadic Tensor               一个或多个Tensor
+  |类型                          |描述|
+  |----------------------------- |------------------------------------------------|
+  |Tensor\<DataType\>            |以DataType为数据类型的Tensor，不许为空|
+  |TensorOfOrNone\< DataType\>   |以DataType为数据类型的Tensor，None表示空Tensor|
+  |AnyTensor                     |以任意DataType为数据类型的Tensor|
+  |Variadic Tensor               |一个或多个Tensor|
 
 -   基础属性类型
 
@@ -566,7 +566,7 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   tanh_slope_table      TPU_TensorOfOrNone        tanh slop 表                  输入
   quant                 TPU_QuantParamAttr        Quant参数                     属性
   linear_before_reset   BoolAttr                  在reset门之前有一个linear层   属性
-  bidirectional         BoolAttr                  是否是bidirectional           
+  bidirectional         BoolAttr                  是否是bidirectional
   name                  StrAttr                   名称                          属性
   chipname              OptionalAttr\<StrAttr\>   芯片名称                      属性
 
@@ -1184,7 +1184,7 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 #### Cvimodel结构
 
 > ![](./assets/cvimodel.png)
-> 
+>
 >Cvimodel的基本结构如上图所示，分为三段。首段为cvimodel文件的header部分，包含magic字串，版本号，中段的数据字节数、md5值等数据，是解析cvimodel文件的基本信息；中段为Model的结构信息，包含Program、Routines等信息，用于解析网络模型的结构和指令信息；尾段为二进制数据段，包含权重数据，各Program的TPU指令序列，以及存储用户自定义CPU段的so文件。
 
 ### 工具链命令参考
@@ -1351,9 +1351,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   -o \<cvimodel_file\>                         输出生成的cvimodel file
 
   \--dequant-results-to-fp32=\<true\|false\>   是否需要将output tensors dequant成fp32.\
-  
+
                                                默认为true, 即所有的output tensors将输出为fp32格式. 如果int8模型需要输出int8格式的outputs，请将其设置为false
-  
+
   -----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ### 前端转换Python API参考
@@ -2299,77 +2299,61 @@ libcviruntime.so，静态库为libcviruntime-static.a。
 
 -   CVI_CONFIG_OPTION：选项配置
 
-##### CVI_FMT 
-
-> typedef enum {
->
-> CVI_FMT_FP32 = 0,
->
-> CVI_FMT_INT32 = 1,
->
-> CVI_FMT_UINT32 = 2,
->
-> CVI_FMT_BF16 = 3,
->
-> CVI_FMT_INT16 = 4,
->
-> CVI_FMT_UINT16 = 5,
->
-> CVI_FMT_INT8 = 6,
->
-> CVI_FMT_UINT8 = 7
->
-> } CVI_FMT;
-
+##### CVI_FMT
+```c++
+typedef enum {
+  CVI_FMT_FP32 = 0,
+  CVI_FMT_INT32 = 1,
+  CVI_FMT_UINT32 = 2,
+  CVI_FMT_BF16 = 3,
+  CVI_FMT_INT16 = 4,
+  CVI_FMT_UINT16 = 5,
+  CVI_FMT_INT8 = 6,
+  CVI_FMT_UINT8 = 7
+} CVI_FMT;
+```
 【描述】
 
 TENSOR的基本数据类型
 
-  名称             描述
----------------- --------------
-  CVI_FMT_FP32     float 32类型
-  CVI_FMT_INT32    int32 类型
-  CVI_FMT_UINT32   uint32类型
-  CVI_FMT_BF16     bfloat16类型
-  CVI_FMT_INT16    int16类型
-  CVI_FMT_UINT16   uint16类型
-  CVI_FMT_INT8     int8类型
-  CVI_FMT_UINT8    uint8类型
+|  名称             |描述|
+|---------------- |--------------|
+|  CVI_FMT_FP32   |  float 32类型|
+|  CVI_FMT_INT32  |  int32 类型|
+|  CVI_FMT_UINT32 |  uint32类型|
+|  CVI_FMT_BF16   |  bfloat16类型|
+|  CVI_FMT_INT16  |  int16类型|
+|  CVI_FMT_UINT16 |  uint16类型|
+|  CVI_FMT_INT8   |  int8类型|
+|  CVI_FMT_UINT8  |  uint8类型|
 
 ##### CVI_MEM_TYPE_E
-
-> typedef enum {
->
->   CVI_MEM_UNSPECIFIED = 0,
->
->   CVI_MEM_SYSTEM      = 1,
->
->   CVI_MEM_DEVICE      = 2
->
-> } CVI_MEM_TYPE_E;
-
+```c++
+typedef enum {
+  CVI_MEM_UNSPECIFIED = 0,
+  CVI_MEM_SYSTEM      = 1,
+  CVI_MEM_DEVICE      = 2
+} CVI_MEM_TYPE_E;
+```
 【描述】
 
 定义数据存储类型，表示数据存储的位置
 
-  名称                  描述
---------------------- -------------------------------
-  CVI_MEM_UNSPECIFIED   初始值，表示未指定MEM内存来源
-  CVI_MEM_SYSTEM        MEM来自于系统内存
-  CVI_MEM_DEVICE        MEM来自于设备内存
+|  名称                  |描述|
+|--------------------- |-------------------------------|
+|  CVI_MEM_UNSPECIFIED |  初始值，表示未指定MEM内存来源|
+|  CVI_MEM_SYSTEM      |  MEM来自于系统内存|
+|  CVI_MEM_DEVICE      |  MEM来自于设备内存|
 
 ##### CVI_SHAPE
+```c++
+#define CVI_DIM_MAX (6)
 
-> \#define CVI_DIM_MAX (6)
->
-> typedef struct {
->
-> int32_t dim\[CVI_DIM_MAX\];
->
-> size_t dim_size;
->
-> } CVI_SHAPE;
-
+typedef struct {
+  int32_t dim[CVI_DIM_MAX];
+  size_t dim_size;
+} CVI_SHAPE;
+```
 【描述】
 
 定义TENSOR数据维度，按照n/channel/height/width四个维度排列.
@@ -2380,99 +2364,81 @@ TENSOR的基本数据类型
   dim_size   维度数量，最多为6个维度
 
 ##### CVI_TENSOR
-
-> typedef struct {
->
-> char \*name;
->
-> CVI_SHAPE shape;
->
-> CVI_FMT fmt;
->
-> size_t count;
->
-> size_t mem_size;
->
-> uint8_t \*sys_mem;
->
-> void \*dev_mem;
->
-> CVI_MEM_TYPE_E mem_type;
->
-> float qscale;
->
-> } CVI_TENSOR;
+```c++
+typedef struct {
+  char *name;
+  CVI_SHAPE shape;
+  CVI_FMT fmt;
+  size_t count;
+  size_t mem_size;
+  uint8_t *sys_mem;
+  void *dev_mem;
+  CVI_MEM_TYPE_E mem_type;
+  float qscale;
+} CVI_TENSOR;
+```
 
 【描述】
 
 定义TENSOR结构体
 
-  名称       描述
----------- ------------------------
-  name       tensor的名称
-  shape      tensor的维度
-  fmt        tensor的基本数据类型
-  count      元素个数
-  mem_size   tensor的mem大小
-  sys_mem    内存指针，指向系统内存
-  dev_mem    指向设备内存指针
-  mem_type   tensor的存储类型
-  qscale     fp32到int8的转换系数
+|  名称       |描述|
+|---------- |------------------------|
+|  name     |  tensor的名称|
+|  shape    |  tensor的维度|
+|  fmt      |  tensor的基本数据类型|
+|  count    |  元素个数|
+|  mem_size |  tensor的mem大小|
+|  sys_mem  |  内存指针，指向系统内存|
+|  dev_mem  |  指向设备内存指针|
+|  mem_type |  tensor的存储类型|
+|  qscale   |  fp32到int8的转换系数|
 
 ##### CVI_FRAM_TYPE
-
-> typedef enum {
->
-> CVI_FRAME_PLANAR = 0,
->
-> CVI_FRAME_PACKAGE = 1,
->
-> CVI_FRAME_UNKNOWN = 2
->
-> } CVI_FRAME_TYPE;
+```c++
+typedef enum {
+  CVI_FRAME_PLANAR = 0,
+  CVI_FRAME_PACKAGE = 1,
+  CVI_FRAME_UNKNOWN = 2
+} CVI_FRAME_TYPE;
+```
 
 【描述】
 
 定义数据帧类型
 
-  名称                描述
-------------------- ----------------------
-  CVI_FRAME_PLANAR    表明通道数据平面化
-  CVI_FRAME_PACKAGE   表明通道数据打包一起
-  CVI_FRAME_UNKNOWN   未知类型
+|  名称                |描述|
+|------------------- |----------------------|
+|  CVI_FRAME_PLANAR  |  表明通道数据平面化|
+|  CVI_FRAME_PACKAGE |  表明通道数据打包一起|
+|  CVI_FRAME_UNKNOWN |  未知类型|
 
 ##### CVI_VIDEO_FRAME_INFO
-
-> typedef struct {
->
-> CVI_FRAME_TYPE type;
->
-> CVI_SHAPE shape;
->
-> CVI_FMT fmt;
->
-> uint32_t stride\[3\];
->
-> uint64_t pyaddr\[3\];
->
-> } CVI_VIDEO_FRAME_INFO;
-
+```c++
+typedef struct {
+  CVI_FRAME_TYPE type;
+  CVI_SHAPE shape;
+  CVI_FMT fmt;
+  uint32_t stride[3];
+  uint64_t pyaddr[3];
+} CVI_VIDEO_FRAME_INFO;
+```
 【描述】
 
 定义数据帧类型
 
-  名称     描述
--------- -------------------------------------------------------------------------------------------
-  type     数据帧类型
-  shape    数据帧的维度数据
-  fmt      基本数据类型
-  stride   数据间隔
-  pyaddr   数据物理地址，当type为PLANAR时需要填入每个通道的地址；当type为PACKAGE时，只用填数据首地址
+|  名称     |描述|
+|---|---|
+|  type     |数据帧类型|
+|  shape    |数据帧的维度数据|
+|  fmt      |基本数据类型|
+|  stride   |数据间隔|
+|  pyaddr   |数据物理地址，当type为PLANAR时需要填入每个通道的地址；当type为PACKAGE时，只用填数据首地址|
 
 ##### CVI_MODEL_HANDLE
-
-typedef void \*CVI_MODEL_HANDLE;
-
+```c++
+typedef void *CVI_MODEL_HANDLE;
+```
 【描述】
 
 神经网络模型句柄，通过接口CVI_NN_RegisterModel得到该句柄，并由接口
@@ -2480,54 +2446,39 @@ typedef void \*CVI_MODEL_HANDLE;
 CVI_NN_CleanupModel释放句柄的资源。
 
 ##### CVI_CONFIG_OPTION
-
-> typedef enum {
->
-> OPTION_BATCH_SIZE = 1,
->
-> OPTION_OUTPUT_ALL_TENSORS = 4,
->
-> OPTION_SKIP_PREPROCESS = 5,
->
-> OPTION_SKIP_POSTPROCESS = 6
->
-> } CVI_CONFIG_OPTION;
-
+```c++
+typedef enum {
+  OPTION_BATCH_SIZE = 1,
+  OPTION_OUTPUT_ALL_TENSORS = 4,
+  OPTION_SKIP_PREPROCESS = 5, // deprecated
+  OPTION_SKIP_POSTPROCESS = 6 // deprecated
+} CVI_CONFIG_OPTION;
+```
 【描述】
 
 定义CVI_NN_GetConfig/CVI_NN_SetConfig接口获取或者设置模型配置的枚举类型:
 
-  名称                        类型   默认值   描述
---------------------------- ------ -------- ---------------------------------------------------------------------------------------------------------------------------------
-  OPTION_BATCH_SIZE           int    1        配置推理模型的batch size，cvimodel可以存放模型多个batch size的指令，如果设置的batch size在cvimodel不存在，则SetConfig会返回失败
-  OPTION_OUTPUT_ALL_TENOSRS   bool   false    配置runtime将模型所有可见的TENSOR作为模型的输出，则选项可以作为debug的手段之一
-  OPTION_SKIP_PREPROCESS      bool   false    配置runtime跳过模型的预处理阶段，即直接以int8类型的数据做为输入(version 1.2后不再使用)
-  OPTION_SKIP_POSTPROCESS     bool   false    配置runtime跳过模型的后处理阶段，即直接输出int8的数据作为输出(version 1.2后不再使用)
+  |名称                       | 类型   |默认值  | 描述|
+  |---|---|---|---|
+  |OPTION_BATCH_SIZE        |   int  |  1     |   配置推理模型的batch size，cvimodel可以存放模型多个batch size的指令，如果设置的batch size在cvimodel不存在，则SetConfig会返回失败|
+  |OPTION_OUTPUT_ALL_TENOSRS|   bool |  false |   配置runtime将模型所有可见的TENSOR作为模型的输出，则选项可以作为debug的手段之一|
+  |OPTION_SKIP_PREPROCESS   |   bool |  false |   配置runtime跳过模型的预处理阶段，即直接以int8类型的数据做为输入(version 1.2后不再使用)|
+  |OPTION_SKIP_POSTPROCESS  |   bool |  false |   配置runtime跳过模型的后处理阶段，即直接输出int8的数据作为输出(version 1.2后不再使用)|
 
 ##### 返回码
-
-> \#define CVI_RC_SUCCESS 0 // The operation was successful
->
-> \#define CVI_RC_AGAIN 1 // Not ready yet
->
-> \#define CVI_RC_FAILURE 2 // General failure
->
-> \#define CVI_RC_TIMEOUT 3 // Timeout
->
-> \#define CVI_RC_UNINIT 4 // Uninitialzed
->
-> \#define CVI_RC_INVALID_ARG 5 // Arguments invalid
->
-> \#define CVI_RC_NOMEM 6 // Not enough memory
->
-> \#define CVI_RC_DATA_ERR 7 // Data error
->
-> \#define CVI_RC_BUSY 8 // Busy
->
-> \#define CVI_RC_UNSUPPORT 9 // Not supported yet
->
-> typedef int CVI_RC;
-
+```c++
+ #define CVI_RC_SUCCESS 0 // The operation was successful
+ #define CVI_RC_AGAIN 1   // Not ready yet
+ #define CVI_RC_FAILURE 2 // General failure
+ #define CVI_RC_TIMEOUT 3 // Timeout
+ #define CVI_RC_UNINIT 4  // Uninitialzed
+ #define CVI_RC_INVALID_ARG 5 // Arguments invalid
+ #define CVI_RC_NOMEM 6       // Not enough memory
+ #define CVI_RC_DATA_ERR 7    // Data error
+ #define CVI_RC_BUSY 8        // Busy
+ #define CVI_RC_UNSUPPORT 9   // Not supported yet
+ typedef int CVI_RC;
+```
 【描述】
 
 返回码用于表示接口执行结果是否存在异常，其中CVI_RC_SUCCESS为成功，其他值为失败。
@@ -2579,54 +2530,46 @@ CVI_NN_CleanupModel释放句柄的资源。
 ##### CVI_NN_RegisterModel
 
 【原型】
-
-+------------------------------------------------------+
-| CVI_RC CVI_NN_RegisterModel(const char \*model_file, |
-|                                                      |
-|  CVI_MODEL_HANDLE \*model)                           |
-+------------------------------------------------------+
-
+```c++
+ CVI_RC CVI_NN_RegisterModel(const char *model_file,
+  CVI_MODEL_HANDLE *model)
+```
 【描述】
 
 > 从文件中加载cvimodel，并返回模型句柄。此句柄将作为后续API调用的接口的参数。当模型不再使用时，需要调用CVI_NN_CleanupModel接口对模型资源进行释放。
 
-  参数名称     描述                 输入/输出
------------- -------------------- -----------
-  Model_file   cvimodel模型文件名   输入
-  model        网络模型句柄         输出
+|参数名称|描述|输入/输出|
+|---|---|---|
+|Model_file |cvimodel模型文件名  |输入|
+|model      |网络模型句柄        |输出|
 
 ##### CVI_NN_RegisterModelFromBuffer
 
 【原型】
-
-+----------------------------------------+
-| CVI_RC CVI_NN_RegisterModelFromBuffer( |
-|                                        |
-| const int8_t \*buf, uint32_t size,     |
-|                                        |
-| CVI_MODEL_HANDLE \*model);             |
-+----------------------------------------+
-
+```c++
+CVI_RC CVI_NN_RegisterModelFromBuffer(
+    const int8_t *buf,
+    uint32_t size,
+    CVI_MODEL_HANDLE *model);
+```
 【描述】
 
 > 从内存中加载cvimodel，并返回模型句柄。此句柄将作为后续API调用的接口的参数。当模型不再使用时，需要调用CVI_NN_CleanupModel接口对模型资源进行释放。
 
-  参数名称   描述             输入/输出
----------- ---------------- -----------
-  buf        内存地址         输入
-  size       模型的内存大小   输入
-  model      网络模型句柄     输出
+|  参数名称   |描述             |输入/输出|
+|---------- |-------------|---|
+|  buf      |  内存地址       |  输入|
+|  size     |  模型的内存大小  | 输入|
+|  model    |  网络模型句柄    | 输出|
 
 ##### CVI_NN_CloneModel
 
 【原型】
-
-+--------------------------------------------------+
-| CVI_RC CVI_NN_CloneModel(CVI_MODEL_HANDLE model, |
-|                                                  |
-|  CVI_MODEL_HANDLE \*cloned)                      |
-+--------------------------------------------------+
-
+```c++
+CVI_RC CVI_NN_CloneModel(
+    CVI_MODEL_HANDLE model,
+    CVI_MODEL_HANDLE *cloned)
+```
 【描述】
 
 > 当需要运行同一个cvimodel模型的不同或者不同batch
@@ -2640,14 +2583,12 @@ CVI_NN_CleanupModel释放句柄的资源。
 ##### CVI_NN_SetConfig
 
 【原型】
-
-+-------------------------------------------------+
-| CVI_RC CVI_NN_SetConfig(CVI_MODEL_HANDLE model, |
-|                                                 |
-|   CVI_CONFIG_OPTION option,                     |
-|                                                 |
-|   \...)                                         |
-+-------------------------------------------------+
+```c++
+CVI_RC CVI_NN_SetConfig(
+    CVI_MODEL_HANDLE model,
+    CVI_CONFIG_OPTION option,
+    ...)
+```
 
 【描述】
 
@@ -2662,29 +2603,19 @@ CVI_NN_CleanupModel释放句柄的资源。
   可变参数   根据option的类型传入配置值   输入
 
 【示例】
-
-+----------------------------------------------------------------+
-| CVI_NN_SetConfig(model, OPTION_BATCH_SIZE, 1);                 |
-|                                                                |
-| CVI_NN_SetConfig(model, OPTION_PREPARE_BUF_FOR_INPUTS, true);  |
-|                                                                |
-| CVI_NN_SetConfig(model, OPTION_PREPARE_BUF_FOR_OUTPUTS, true); |
-|                                                                |
-| CVI_NN_SetConfig(model, OPTION_OUTPUT_ALL_TENSORS, false);     |
-+----------------------------------------------------------------+
-
+```c++
+CVI_NN_SetConfig(model, OPTION_BATCH_SIZE, 1);
+CVI_NN_SetConfig(model, OPTION_OUTPUT_ALL_TENSORS, false);
+```
 ##### CVI_NN_GetConfig
 
 【原型】
-
-+-------------------------------------------------+
-| CVI_RC CVI_NN_GetConfig(CVI_MODEL_HANDLE model, |
-|                                                 |
-|   CVI_CONFIG_OPTION option,                     |
-|                                                 |
-|   \...)                                         |
-+-------------------------------------------------+
-
+```c++
+CVI_RC CVI_NN_GetConfig(
+    CVI_MODEL_HANDLE model,
+    CVI_CONFIG_OPTION option,
+    ...)
+```
 【描述】
 
 > 获取模型的配置，可供选项请参考[CVI_CONFIG_OPTION](#_CVI_CONFIG_OPTION)。
@@ -2696,342 +2627,228 @@ CVI_NN_CleanupModel释放句柄的资源。
   可变参数指针   根据option的类型传入指针   输出
 
 【示例】
+```c++
+int32_t batch_size;
+bool dump_all_tensors;
 
-+-------------------------------------------------------------------------+
-| int32_t batch_size;                                                     |
-|                                                                         |
-| bool prepare_buf_for_inputs, prepare_buf_for_outputs, dump_all_tensors; |
-|                                                                         |
-| bool skip_preprocess, skip_postprocess;                                 |
-|                                                                         |
-| CVI_NN_GetConfig(model, OPTION_BATCH_SIZE, &batch_size);                |
-|                                                                         |
-| CVI_NN_GetConfig(model, OPTION_PREPARE_BUF_FOR_INPUTS,                  |
-|                                                                         |
-| &prepare_buf_for_inputs);                                               |
-|                                                                         |
-| CVI_NN_GetConfig(model, OPTION_PREPARE_BUF_FOR_OUTPUTS,                 |
-|                                                                         |
-| &prepare_buf_for_outputs);                                              |
-|                                                                         |
-| CVI_NN_GetConfig(model, OPTION_OUTPUT_ALL_TENSORS, &dump_all_tensors);  |
-|                                                                         |
-| CVI_NN_GetConfig(model, OPTION_SKIP_PREPROCESS, &skip_preprocess);      |
-+-------------------------------------------------------------------------+
-
+CVI_NN_GetConfig(model, OPTION_BATCH_SIZE, &batch_size);
+CVI_NN_GetConfig(model, OPTION_PREPARE_BUF_FOR_INPUTS,
+                 prepare_buf_for_inputs);
+```
 ##### CVI_NN_GetModelBatchSizes
 
 【原型】
-
-+-------------------------------------------------+
-| CVI_RC CVI_NN_GetModelBatchSizes(               |
-|                                                 |
-| CVI_MODEL_HANDLE model, int32_t \*\*batchSizes, |
-|                                                 |
-| int32_t \*num);                                 |
-+-------------------------------------------------+
+```c++
+CVI_RC CVI_NN_GetModelBatchSizes(
+    CVI_MODEL_HANDLE model, int32_t **batchSizes,
+    int32_t *num);
+```
 
 【描述】
 
 > 获得模型的batch数据
 
-  参数名称     描述            输入/输出
------------- --------------- -----------
-  tensor       tensor指针      输入
-  batchSizes   batch数组指针   输出
-  num          数组元素个数    输出
+|  参数名称     |描述|            输入/输出|
+|---|---|---|
+|  tensor     |  tensor指针   |   输入|
+|  batchSizes |  batch数组指针 |  输出|
+|  num        |  数组元素个数  |  输出|
 
 ##### CVI_NN_GetInputOutputTensors
 
 【原型】
-
-+----------------------------------------------+
-| CVI_RC CVI_NN_GetInputOutputTensors(         |
-|                                              |
-| CVI_MODEL_HANDLE model,                      |
-|                                              |
-| CVI_TENSOR \*\*inputs, int32_t \*input_num,  |
-|                                              |
-| CVI_TENSOR \*\*outputs,int32_t \*output_num) |
-+----------------------------------------------+
-
+```c++
+CVI_RC CVI_NN_GetInputOutputTensors(
+    CVI_MODEL_HANDLE model,
+    CVI_TENSOR **inputs, int32_t *input_num,
+    CVI_TENSOR **outputs, int32_t *output_num)
+```
 【描述】
 
 > 获取输入和输出TENSOR的信息，如果OPTION_PREPARE_FOR_INPUTS或OPTION_PREPARE_OUTPUTS设置为false，则需要用户在获取到输入或输出TENSOR后手动给TENSOR分配内存。
 
-  参数名称     描述             输入/输出
------------- ---------------- -----------
-  model        模型句柄         输入
-  inputs       输入TENSOR数组   输出
-  input_num    输入TENSOR个数   输出
-  outputs      输出TENSOR数组   输出
-  output_num   输出TENSOR个数   输出
+|  参数名称     |描述             |输入/输出|
+|------------ |-------------|---|
+|  model      |  模型句柄       |  输入|
+|  inputs     |  输入TENSOR数组 |  输出|
+|  input_num  |  输入TENSOR个数 |  输出|
+|  outputs    |  输出TENSOR数组 |  输出|
+|  output_num |  输出TENSOR个数 |  输出|
 
 ##### CVI_NN_Forward
 
 【原型】
-
-+--------------------------------------------------+
-| CVI_RC CVI_NN_Forward(CVI_MODEL_HANDLE model,    |
-|                                                  |
-| CVI_TENSOR inputs\[\],int32_t input_num,         |
-|                                                  |
-|      CVI_TENSOR outputs\[\],int32_t output_num); |
-+--------------------------------------------------+
-
+```c++
+CVI_RC CVI_NN_Forward(
+     CVI_MODEL_HANDLE model,
+     CVI_TENSOR inputs[], int32_t input_num,
+     CVI_TENSOR outputs[], int32_t output_num);
+```
 【描述】
 
 > 模型前向推理。此接口为阻塞型，会阻塞直至前向推理完成。inputs和outputs必须已经申请过buffer，且输入数据已经存储在inputs的buffer中，推理的结果会保存在outputs的buffer中。
 
-  参数名称     描述                输入/输出
------------- ------------------- -----------
-  model        网络模型句柄        输入
-  inputs       输入tensors         输入
-  input_num    输入tensor的数量    输入
-  outputs      输出tensors         输出
-  output_num   输出tensors的数量   输入
-
-##### CVI_NN_ForwardAsync
-
-【原型】
-
-+----------------------------------------------------+
-| CVI_RC CVI_NN_ForwardAsync(CVI_MODEL_HANDLE model, |
-|                                                    |
-| CVI_TENSOR inputs\[\],                             |
-|                                                    |
-| int32_t input_num,                                 |
-|                                                    |
-| CVI_TENSOR outputs\[\],                            |
-|                                                    |
-| int32_t output_num,                                |
-|                                                    |
-| void \*\*task_no)                                  |
-+----------------------------------------------------+
-
-【描述】
-
-> 模型前向推理。此接口为异步型，调用后会立即返回。inputs和outputs必须已经申请过buffer，且输入数据已经存储在inputs的buffer中，推理的结果会保存在outputs的buffer中。
-
-  参数名称     描述                输入/输出
------------- ------------------- -----------
-  model        网络模型句柄        输入
-  inputs       输入tensors         输入
-  input_num    输入tensor的数量    输入
-  outputs      输出tensors         输出
-  output_num   输出tensors的数量   输入
-  taskNo       任务句柄            输出
-
-##### CVI_NN_ForwardWait
-
-【原型】
-
-+---------------------------------------------------+
-| CVI_RC CVI_NN_ForwardWait(CVI_MODEL_HANDLE model, |
-|                                                   |
-|  void \*task_no);                                 |
-+---------------------------------------------------+
-
-【描述】
-
-> 等待异步前向推理任务结束。如果返回成功，则可以继续读取输出TENSOR的结果。
-
-  参数名称   描述           输入/输出
----------- -------------- -----------
-  model      网络模型句柄   输入
-  taskNo     任务句柄       输入
+|参数名称|描述|输入/输出|
+|---|---|---|
+|model        |网络模型句柄        |输入|
+|inputs       |输入tensors     |    输入|
+|input_num    |输入tensor的数量   | 输入|
+|outputs      |输出tensors     |    输出|
+|output_num   |输出tensors的数量  | 输入|
 
 ##### CVI_NN_CleanupModel
 
 【原型】
-
-----------------------------------------------------
-  CVI_RC CVI_NN_CleanupModel(CVI_MODEL_HANDLE model)
-  ----------------------------------------------------
-
+```c++
+CVI_RC CVI_NN_CleanupModel(CVI_MODEL_HANDLE model)
+```
 【描述】
 
 > 释放模型所有资源。如果模型被复制过，则此接口只会将模型的引用次数递减。当引用次数为0时，才会释放模型所有资源。
 
-  参数名称   描述           输入/输出
----------- -------------- -----------
-  model      网络模型句柄   输入
+|参数名称|描述|输入/输出|
+|---|---|---|
+|model|网络模型句柄|输入|
 
 ##### CVI_NN_GetTensorByName
 
 【原型】
-
-+--------------------------------------------------------+
-| CVI_TENSOR \*CVI_NN_GetTensorByName(const char \*name, |
-|                                                        |
-| CVI_TENSOR \*tensors,                                  |
-|                                                        |
-| int32_t num);                                          |
-+--------------------------------------------------------+
-
+```c++
+CVI_TENSOR *CVI_NN_GetTensorByName(
+    const char *name,
+    CVI_TENSOR *tensors,
+    int32_t num)
+```
 【描述】
 
 根据名称从tensors中获得对应的tensor指针。
 
-  参数名称    描述                                                                                                 输入/输出
------------ ---------------------------------------------------------------------------------------------------- -----------
-  name        Tensor的名称; 也可以指定为 CVI_NN_DEFAULT_TENSOR, input_num为1时返回唯一的那个tensor，否则返回NULL   输入
-  inputs      tensors集合                                                                                          输入
-  input_num   tensor的数量                                                                                         输入
+|参数名称|描述|输入/输出|
+|---|---|---|
+|name|Tensor的名称;可以指定为 CVI_NN_DEFAULT_TENSOR, input_num为1时返回唯一的那个tensor，否则返回NULL|输入|
+|tensors|tensors数组|输入|
+|num|tensor的个数|输入|
 
 ##### CVI_NN_TensorPtr
 
 【原型】
 
-----------------------------------------------
-  void \*CVI_NN_TensorPtr(CVI_TENSOR \*tensor)
-  ----------------------------------------------
+```c++
+void *CVI_NN_TensorPtr(CVI_TENSOR *tensor)
+```
 
 【描述】
 
 > 获得TENSOR中的系统内存指针。
 
-  参数名称   描述         输入/输出
----------- ------------ -----------
-  tensor     tensor指针   输入
+|  参数名称   |描述        | 输入/输出|
+|---|---|---|
+|  tensor |    tensor指针   |输入|
 
 ##### CVI_NN_TensorSize
 
 【原型】
-
-------------------------------------------------
-  size_t CVI_NN_TensorSize(CVI_TENSOR \*tensor);
-  ------------------------------------------------
-
+```c++
+size_t CVI_NN_TensorSize(CVI_TENSOR *tensor);
+```
 【描述】
 
 > 获得tensor的字节大小。
 
-  参数名称   描述         输入/输出
----------- ------------ -----------
-  tensor     tensor指针   输入
+| 参数名称  | 描述       |  输入/输出|
+|--------|--------|-----------|
+| tensor  |tensor指针 |输入|
 
 ##### CVI_NN_TensorCount
 
 【原型】
-
--------------------------------------------------
-  size_t CVI_NN_TensorCount(CVI_TENSOR \*tensor);
-  -------------------------------------------------
+```c++
+size_t CVI_NN_TensorCount(CVI_TENSOR *tensor);
+```
 
 【描述】
 
 > 获得TENSOR的元素个数。
 
-  参数名称   描述         输入/输出
----------- ------------ -----------
-  tensor     tensor指针   输入
+|参数名称  | 描述 |        输入/输出|
+|--------|------------|----|
+|tensor    | tensor指针   |输入|
 
 ##### CVI_NN_TensorQuantScale
 
 【原型】
 
------------------------------------------------------
-  float CVI_NN_TensorQuantScale(CVI_TENSOR \*tensor);
-  -----------------------------------------------------
-
+```c++
+float CVI_NN_TensorQuantScale(CVI_TENSOR *tensor)
+```
 【描述】
 
 > 获得TENSOR的量化系数，用于fp32到int8的转化
 
-  参数名称   描述         输入/输出
----------- ------------ -----------
-  tensor     tensor指针   输入
+|参数名称 |  描述        | 输入/输出|
+|--------|------------|-----------|
+|tensor   |  tensor指针  | 输入|
 
 ##### CVI_NN_TensorShape
 
 【原型】
-
-----------------------------------------------------
-  CVI_SHAPE CVI_NN_TensorShape(CVI_TENSOR \*tensor);
-  ----------------------------------------------------
-
+```c++
+  CVI_SHAPE CVI_NN_TensorShape(CVI_TENSOR *tensor)
+```
 【描述】
 
 > 获得TENSOR的Shape。
 
-  参数名称   描述         输入/输出
----------- ------------ -----------
-  tensor     tensor指针   输入
+|参数名称|描述|输入/输出|
+|---|---|---|
+|tensor|tensor指针|输入|
 
 ##### CVI_NN_SetTensorPtr
 
 【原型】
-
-+-------------------------------------------------+
-| CVI_RC CVI_NN_SetTensorPtr(CVI_TENSOR \*tensor, |
-|                                                 |
-| uint8_t \*buf, size_t size)                     |
-+-------------------------------------------------+
-
+```c++
+CVI_RC CVI_NN_SetTensorPtr(
+    CVI_TENSOR *tensor,
+    uint8_t *buf,
+    size_t size)
+```
 【描述】
 
 > 设置TENSOR的buffer内存。
 
-  参数名称   描述           输入/输出
----------- -------------- -----------
-  tensor     tensor指针     输入
-  buf        系统内存指针   输入
-  size       buf的大小      输入
+| 参数名称   |描述          | 输入/输出|
+|--------|-----|----|
+| tensor |    tensor指针|     输入|
+| buf    |    系统内存指针  | 输入|
+| size   |    buf的大小  |    输入|
 
-##### CVI_NN_SetTensorDeviceMem
-
-【原型】
-
-+----------------------------------------------+
-| CVI_RC CVI_NN_SetTensorDeviceMem(            |
-|                                              |
-| CVI_MODEL_HANDLE model, CVI_TENSOR \*tensor, |
-|                                              |
-| void \*mem);                                 |
-+----------------------------------------------+
-
-【描述】
-
-> 设置TENSOR的设备内存。
-
-  参数名称   描述           输入/输出
----------- -------------- -----------
-  model      模型句柄       输入
-  tensor     tensor指针     输入
-  mem        设备内存指针   输入
 
 ##### CVI_NN_FeedTensorWithFrames
 
 【原型】
-
-+---------------------------------------------------------+
-| CVI_RC CVI_NN_FeedTensorWithFrames(                     |
-|                                                         |
-| CVI_MODEL_HANDLE model, CVI_TENSOR\* tensor,            |
-|                                                         |
-| CVI_FRAME_TYPE type, CVI_FMT format,                    |
-|                                                         |
-| int32_t frame_num, uint64_t \*frame_paddrs,             |
-|                                                         |
-| int32_t height, int32_t width, uint32_t height_stride); |
-+---------------------------------------------------------+
-
+```c++
+CVI_RC CVI_NN_FeedTensorWithFrames(
+    CVI_MODEL_HANDLE model, CVI_TENSOR *tensor,
+    CVI_FRAME_TYPE type, CVI_FMT format,
+    int32_t frame_num, uint64_t *frame_paddrs,
+    int32_t height, int32_t width,
+    uint32_t height_stride)
+```
 【描述】
 
 > 将视频帧数据拷贝到张量。
 
-  参数名称        描述             输入/输出
---------------- ---------------- -----------
-  model           模型句柄         输入
-  tensor          tensor指针       输入
-  type            视频帧类型       输入
-  format          基础数据类型     输入
-  frame_num       视频帧数量       输入
-  frame_paddrs    视频帧物理地址   输入
-  height          帧数据高度       输入
-  width           帧数据宽度       输入
-  height_stride   每列的间隔       输入
+|参数名称|描述|输入/输出|
+|---|---|---|
+|  model          | 模型句柄      |   输入|
+|  tensor         | tensor指针  |     输入|
+|  type           | 视频帧类型     |  输入|
+|  format         | 基础数据类型    | 输入|
+|  frame_num      | 视频帧数量     |  输入|
+|  frame_paddrs   | 视频帧物理地址   |输入|
+|  height         | 帧数据高度     |  输入|
+|  width          | 帧数据宽度     |  输入|
+|  height_stride  | 每列的间隔     |  输入|
 
 ### Runtime Python API
 
@@ -3046,16 +2863,17 @@ Tensor表示张量对象，
 
 ```python
 class Tensor:
-    def __init__(self):
-        self.name = str()
-        self.data = numpy.ndarray()
+
+  def __init__(self):
+    self.name = str()
+    self.data = numpy.ndarray()
 ```
 【属性】
 
 > Tensor.name为张量的名称；
 >
 > Tensor.data为numpy
-> arrary用于存放张量的数据。可以分别data.shape和data.dtype获取张量的Shape以及基本数据类型。
+> arrary用于存放张量的数据。可以分别用data.shape和data.dtype获取张量的Shape以及基本数据类型。
 
 #### pyruntime.Model
 
@@ -3064,27 +2882,14 @@ class Tensor:
 【原型】
 
 ```python
- class Model:                                       
-                                                    
-   def __init__(self, model_file):
-                                                    
-     self.inputs = \[Tensor\]                       
-                                                    
-     self.outputs = \[Tensor\]                      
-                                                    
-   def config(self, batch_size, output_all_tensors, 
-                                                    
-  skip_prepcoess, skip_postprocess):                
-                                                    
-     pass                                           
-                                                    
-   def forward(self):                               
-                                                    
-     pass                                           
-                                                    
-   def clone(self):                                 
-                                                    
-     pass                                           
+ class Model:
+
+   def __init__(self, model_file, batch_num=0, dump_all_tensors=False):
+     self.inputs = [Tensor]
+     self.outputs = [Tensor]
+
+   def forward(self):
+     pass
 ```
 【属性】
 
@@ -3094,120 +2899,47 @@ class Tensor:
 
 【方法】
 
-+---------------------------+
-| def config(self,          |
-|                           |
-| batch_size=1,             |
-|                           |
-| output_all_tensors=False, |
-|                           |
-|   skip_prepcoess=False,   |
-|                           |
-|   skip_postprocess=False) |
-|                           |
-| 用于对模型进行配置。      |
-+---------------------------+
+```python
+def __init__(self, model_file, batch_num=0, dump_all_tensors=False)
+```
+> Model类的构造方法，用于注册并配置cvimodel模型文件。
 
-  功能说明             注释
--------------------- ------------------------------------------
-  返回值               None
-  batch_size           Int型, 指定模型的batch size
-  output_all_tensors   Bool型, 将网络可见的张量作为输出Tensors
-  skip_preprocess      Bool型, 跳过前处理阶段，直接输入int8数据
-  skip_postprocess     Bool型, 跳过后处理阶段，直接输出int8数据
+|  功能说明              |注释|
+|--------------------|------------------------------------------|
+|  返回值                |None|
+|  batch_size         |  Int型, 指定模型的batch size|
+|  dump_all_tensors |  Bool型, 将网络可见的张量作为输出Tensors|
 
-+----------------------+
-| def forward(self)    |
-|                      |
-| 用于做模型的前向推理 |
-+----------------------+
+```python
+def forward(self)
+```
+> 用于做模型的前向推理
 
-  功能说明   注释
----------- ------
-  返回值     None
+|  功能说明   |注释|
+|----------|------|
+|  返回值    |None|
 
-+----------------------------------+
-| def clone(self)                  |
-|                                  |
-| 用于复制模型，并返回新的模型对象 |
-+----------------------------------+
-
-  功能说明：   注释
------------- -----------------------------
-  返回值       返回新的pyruntime.Model对象
 
 #### 示例
 
-示例1
+```python
+ import pyruntime
 
-+---------------------------------------------------------+
-| import pyruntime                                        |
-|                                                         |
-| model = pyruntime.Model("1.cvimodel")                   |
-|                                                         |
-| if model == None:                                       |
-|                                                         |
-|   raise Exception("cannot load cvimodel")               |
-|                                                         |
-| \# initialize the cvimodel                              |
-|                                                         |
-| model.config(batch_size=1, output_all_tensors=True)     |
-|                                                         |
-| \# fill data to inputs                                  |
-|                                                         |
-| data = model.inputs\[0\].data                           |
-|                                                         |
-| input_data = np.fromfile("input.bin", dtype=data.dtype) |
-|                                                         |
-|                .reshape(data.shape)                     |
-|                                                         |
-| data\[:\] = input_data                                  |
-|                                                         |
-| \# forward                                              |
-|                                                         |
-| model.forward()                                         |
-|                                                         |
-| \# get output date                                      |
-|                                                         |
-| for out in model.outputs:                               |
-|                                                         |
-|   print(outputs)                                        |
-+---------------------------------------------------------+
+ # initialize the cvimodel
+ model = pyruntime.Model("1.cvimodel")
+ if model == None:
+   raise Exception("cannot load cvimodel")
 
-示例2
+# fill data to inputs
+ data = model.inputs[0].data
+ input_data = np.fromfile("input.bin", dtype=data.dtype)
+                .reshape(data.shape)
+ data[:] = input_data
 
-+---------------------------------------------------------+
-| import pyruntime                                        |
-|                                                         |
-| model = pyruntime.Model("1.cvimodel")                   |
-|                                                         |
-| if model == None:                                       |
-|                                                         |
-|   raise Exception("cannot load cvimodel")               |
-|                                                         |
-| cloned = model.clone()                                  |
-|                                                         |
-| \# initialize the cvimodel                              |
-|                                                         |
-| cloned.config(batch_size=1, output_all_tensors=True)    |
-|                                                         |
-| \# fill data to inputs                                  |
-|                                                         |
-| data = cloned.inputs\[0\].data                          |
-|                                                         |
-| input_data = np.fromfile("input.bin", dtype=data.dtype) |
-|                                                         |
-|                .reshape(data.shape)                     |
-|                                                         |
-| data\[:\] = input_data                                  |
-|                                                         |
-| \# forward                                              |
-|                                                         |
-| cloned.forward()                                        |
-|                                                         |
-| \# get output date                                      |
-|                                                         |
-| for out in cloned.outputs:                              |
-|                                                         |
-|   print(outputs)                                        |
-+---------------------------------------------------------+
+ # forward
+ model.forward()
+
+ # get output date
+ for out in model.outputs:
+   print(outputs)
+```
