@@ -63,8 +63,6 @@ extern float BF16_TABLE_START;
 extern float BF16_TABLE_END;
 namespace mlir {
 
-static DeviceMode dm;
-
 static std::vector<std::shared_ptr<std::vector<float> > >
     getOperandTensors(Operation *op, const value_map_t &valueMapping) {
   std::vector<std::shared_ptr<std::vector<float> > > opdT;
@@ -4325,44 +4323,39 @@ LogicalResult ModuleInterpreter::runFunctions() {
   return success();
 }
 
-LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-                                       std::map<std::string, std::vector<float> > *results,
-                                       std::map<std::string, std::vector<float> > *allTensorMap) {
+LogicalResult ModuleInterpreter::doRun(
+    std::vector<int64_t> input_shape, std::vector<float> &input_data,
+    std::map<std::string, std::vector<float>> *results,
+    std::map<std::string, std::vector<float>> *allTensorMap) {
   // set inputs
   auto inputs = getInputsList();
   if (inputs.size() == 1) {
     std::vector<int64_t> shape = inputs[0].getType().template cast<TensorType>().getShape();
-    bool shape_check = true;
-    if (data_format == "yuv420_planar") {
-      shape_check = false;
-    }
-    if (shape_check) {
-      if (input_shape != shape){
-        std::string i_s;
-        std::string r_s;
-        for(int i = 0; i < (int)input_shape.size(); i++){
-          i_s = i_s + std::to_string(input_shape.at(i)) + " ";
-        }
-        for (int i = 0; i < (int)shape.size(); i++) {
-          r_s = r_s + std::to_string(shape.at(i)) + " ";
-        }
-        std::stringstream err_msg;
-        err_msg << "input shape(" << i_s << ") v.s. shape(" << r_s
-          << ") not the same\n";
-        llvm_unreachable(err_msg.str().c_str());
+
+    // check input data shape
+    if (input_shape != shape && data_format != "yuv420_planar"){
+      std::string i_s, r_s;
+      for (auto &dim : input_shape) {
+        i_s = i_s + std::to_string(dim) + " ";
       }
-      assert((int64_t)input_vec.size() == std::accumulate(shape.begin(), shape.end(), 1,
-            std::multiplies<int64_t>()));
+      for (auto &dim : shape) {
+        r_s = r_s + std::to_string(dim) + " ";
+
+      }
+      assert((int64_t)input_data.size() ==
+             std::accumulate(shape.begin(), shape.end(), 1,
+                             std::multiplies<int64_t>()));
     }
-    updateValue(inputs[0], input_vec);
+    updateValue(inputs[0], input_data);
+
   }
   else {
-    // dont care input_shape
-    // we concat all input as 1 * 1 * 1 * n IN ORDER, and we split by mlir function input and reshape it
+    // parse mlir and get each input, we concatenate all inputs
     // e.g: input is func @tpu_func(%arg0: tensor<1x30720x1xf32>, %arg1: tensor<1x7680x1xf32>, %arg2: tensor<1x1920x1xf32>, %arg3: tensor<1x480x1xf32>, %arg4: tensor<1x120x1xf32>) -> tensor<1x40920x1xf32>
-    // and the possible input_vec.size is: 1x30720x1 + 1x7680x1 + 1x1920x1 + 1x480x1 + 1x120x1
-    // check concat size is equal
-    int64_t input_size = (int64_t)input_vec.size();
+    // 1x30720x1 + 1x7680x1 + 1x1920x1 + 1x480x1 + 1x120x1
+
+    // check the total size is same with input data size
+    int64_t input_size = (int64_t)input_data.size();
     int64_t total_input_size = 0;
     for (auto i : inputs) {
       std::vector<int64_t> shape = i.getType().template cast<TensorType>().getShape();
@@ -4370,14 +4363,15 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
           std::multiplies<int64_t>());
     }
 
-    // input size SHOULD be equal with all inputs shape accumulate in function
+    // check input data size with total input size
     if (input_size != total_input_size) {
       std::stringstream err_msg;
-      err_msg << "input size(" << input_size
-        << ") not the same with mlir require("<<total_input_size<<")\n";
+      err_msg << "input data size(" << input_size
+        << ") not the same with total input size required ("<<total_input_size<<")\n";
       llvm_unreachable(err_msg.str().c_str());
     }
 
+    // seperate input data to each  mlir InputOp Value
     total_input_size = 0;
     for (auto i : inputs) {
       std::vector<int64_t> shape = i.getType().template cast<TensorType>().getShape();
@@ -4385,17 +4379,15 @@ LogicalResult ModuleInterpreter::doRun(std::vector<int64_t> input_shape, std::ve
           std::multiplies<int64_t>());
 
       // calculate shift
-      std::vector<float> input_n(input_vec.begin() + total_input_size,
-            input_vec.begin() + total_input_size + shape_sz);
+      std::vector<float> input_n(input_data.begin() + total_input_size,
+                                 input_data.begin() + total_input_size +
+                                     shape_sz);
 
       updateValue(i, input_n);
 
       total_input_size += shape_sz;
     }
   }
-
-  // set device mode
-  dm = this->device;
 
   // inference
   if (failed(runFunctions()))
@@ -4441,26 +4433,11 @@ static bool isValidTpuOp(Operation &op) {
           op.getName().getDialect().str() == "tpu");
 }
 
-LogicalResult runTpuModule(ModuleOp m, std::string pluginFile,
-    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-    std::map<std::string, std::vector<float> > *results,
-    std::map<std::string, std::vector<int64_t> > *shapeMap,
-    std::map<std::string, std::vector<float> > *allTensorMap) {
-  return runTpuModule(m, pluginFile, nullptr, input_shape, input_vec, results, shapeMap, allTensorMap);
-}
-
 std::string ModuleInterpreter::customOpPluginFile_ = "";
 
-LogicalResult runTpuModule(ModuleOp m,
-    std::string pluginFile, ModuleInterpreter *interpreter,
-    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-    std::map<std::string, std::vector<float> > *results,
-    std::map<std::string, std::vector<int64_t> > *shapeMap,
-    std::map<std::string, std::vector<float> > *allTensorMap) {
-
-  ModuleInterpreter::setCustomOpPluginFile(pluginFile);
-
-  for (FuncOp function : m.getOps<FuncOp>()) {
+void ModuleInterpreter::getShape(
+    std::map<std::string, std::vector<int64_t>> *shapeMap) {
+  for (FuncOp function : this->mlirModule.getOps<FuncOp>()) {
     for (Block &bb : function.getBlocks()) {
       for (auto &op : bb) {
         if (!isValidTpuOp(op)) {
@@ -4468,18 +4445,27 @@ LogicalResult runTpuModule(ModuleOp m,
         }
         // TODO: Only support one output tesor for now.
         auto result = op.getResult(0);
-        std::vector<int64_t> shape = result.getType().cast<TensorType>().getShape();
+        std::vector<int64_t> shape =
+            result.getType().cast<TensorType>().getShape();
         (*shapeMap)[getOpName(&op).str()] = shape;
       }
     }
   }
+};
+
+LogicalResult
+runTpuModule(ModuleOp m, std::string pluginFile,
+             std::vector<int64_t> input_shape, std::vector<float> &input_data,
+             std::map<std::string, std::vector<float>> *results,
+             std::map<std::string, std::vector<int64_t>> *shapeMap,
+             std::map<std::string, std::vector<float>> *allTensorMap) {
+
+  ModuleInterpreter::setCustomOpPluginFile(pluginFile);
 
   LogicalResult ret = failure();
-  if (interpreter != nullptr) {
-    ret = ModuleInterpreter::runModule<>(interpreter, input_shape, input_vec, results, allTensorMap);
-  } else {
-    ret = ModuleInterpreter::runModule<>(m, input_shape, input_vec, results, allTensorMap);
-  }
+  std::unique_ptr<ModuleInterpreter> interpreter = std::make_unique<ModuleInterpreter>(m);
+  ret = interpreter->doRun(input_shape, input_data, results, allTensorMap);
+  interpreter->getShape(shapeMap);
 
   return ret;
 }

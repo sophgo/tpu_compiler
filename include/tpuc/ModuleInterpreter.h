@@ -1,4 +1,5 @@
-//===- ModuleInterpreter.h - Interpreter ------------------------------*- C++ -*-===//
+//===- ModuleInterpreter.h - Interpreter ------------------------------*- C++
+//-*-===//
 //
 // Copyright 2019 The MLIR Authors.
 //
@@ -22,31 +23,28 @@
 #ifndef MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 #define MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 
-#include "tpuc/QuantizationArithmetic.h"
-#include "tpuc/TPUOperationSupport.h"
-#include "tpuc/MachineInfo.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Function.h"
+#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
+#include "tpuc/MachineInfo.h"
+#include "tpuc/QuantizationArithmetic.h"
 #include "tpuc/Support/TensorFile.h"
+#include "tpuc/TPUOperationSupport.h"
 
 #include "llvm/Support/Debug.h"
 
-#include <iostream>
 #include <fstream>
+#include <iostream>
 
 #define DEBUG_TYPE "interpreter"
 
 namespace mlir {
 
 class ModuleOp;
-typedef DenseMap<Value, std::shared_ptr<std::vector<float> > > value_map_t;
+typedef DenseMap<Value, std::shared_ptr<std::vector<float>>> value_map_t;
 
-enum class DeviceMode {
-  CPU,
-  GPU
-};
+enum class DeviceMode { CPU, GPU };
 // Implementation class for module interpreter.
 class ModuleInterpreter {
 
@@ -77,28 +75,35 @@ public:
             weightFile_ = weightFileOp.get();
           } else if (isa<tpu::LoadWeightOp>(op)) {
             auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op);
-            LLVM_DEBUG(llvm::errs() << "LoadWeightOp" << "\n";);
+            LLVM_DEBUG(llvm::errs() << "LoadWeightOp"
+                                    << "\n";);
 
             auto result = loadWeightOp.getResult();
-            LLVM_DEBUG(llvm::errs() << "  result "; result.getType().dump(); llvm::errs() << "\n";);
+            LLVM_DEBUG(llvm::errs() << "  result "; result.getType().dump();
+                       llvm::errs() << "\n";);
             auto tensor_name = loadWeightOp.name();
-            LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
+            LLVM_DEBUG(llvm::errs()
+                           << "  tensor_name " << tensor_name << "\n";);
 
             auto type = result.getType().cast<TensorType>();
-            std::unique_ptr<std::vector<float> > tensor= nullptr;
+            std::unique_ptr<std::vector<float>> tensor = nullptr;
             if (type.getElementType().isF32()) {
-              tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
+              tensor =
+                  std::move(weightFile_->readTensor<float>(tensor_name, type));
             } else if (type.getElementType().isInteger(8)) {
               // TODO: we still save int8 weight as fp32 for now
               assert(0);
             } else if (type.getElementType().isBF16()) {
-              auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
+              auto tensor_bf16 =
+                  weightFile_->readTensor<bfloat16>(tensor_name, type);
 
               // TODO: convert bf16 to fp32 here for now
               // as valueMapping is hardcoded as std::vector<float>
               // TODO: more generic valueMapping
-              tensor = std::move(std::make_unique<std::vector<float> >(tensor_bf16->size()));
-              BFloat16ToFloat(tensor_bf16->data(), tensor->data(), tensor_bf16->size());
+              tensor = std::move(
+                  std::make_unique<std::vector<float>>(tensor_bf16->size()));
+              BFloat16ToFloat(tensor_bf16->data(), tensor->data(),
+                              tensor_bf16->size());
             } else {
               assert(0);
             }
@@ -110,33 +115,17 @@ public:
     }
   }
   virtual ~ModuleInterpreter() {
-    if (weightFile_){
+    if (weightFile_) {
       delete weightFile_;
     }
   }
+  LogicalResult
+  doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+        std::map<std::string, std::vector<float>> *results,
+        std::map<std::string, std::vector<float>> *allTensorMap = nullptr);
+  void getShape(std::map<std::string, std::vector<int64_t>> *shapeMap);
 
-  template <typename T = ModuleInterpreter>
-  static LogicalResult runModule(ModuleInterpreter *interpreter,
-      std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-      std::map<std::string, std::vector<float> > *results,
-      std::map<std::string, std::vector<float> > *allTensorMap = nullptr) {
-    return interpreter->doRun(input_shape, input_vec, results, allTensorMap);
-  }
-
-  template <typename T = ModuleInterpreter>
-  static LogicalResult runModule(ModuleOp m,
-      std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-      std::map<std::string, std::vector<float> > *results,
-      std::map<std::string, std::vector<float> > *allTensorMap = nullptr) {
-
-    T interpreter(m);
-
-    return interpreter.doRun(input_shape, input_vec, results, allTensorMap);
-  }
-
-  static std::string& getCustomOpPluginFile() {
-    return customOpPluginFile_;
-  }
+  static std::string &getCustomOpPluginFile() { return customOpPluginFile_; }
 
   static void setCustomOpPluginFile(std::string &file) {
     customOpPluginFile_ = file;
@@ -151,19 +140,16 @@ private:
   LogicalResult runFunctions();
   LogicalResult runOneFunction(FuncOp func);
   LogicalResult runBlock(Block &bb);
-  LogicalResult doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-                      std::map<std::string, std::vector<float> > *results,
-                      std::map<std::string, std::vector<float> > *allTensorMap = nullptr);
 
-  std::vector<std::shared_ptr<std::vector<float> > >
-      getOperandTensors(Operation &opInst, value_map_t &valueMapping);
+  std::vector<std::shared_ptr<std::vector<float>>>
+  getOperandTensors(Operation &opInst, value_map_t &valueMapping);
 
   std::vector<Value> getInputsList() { return inputsList; }
   std::vector<Value> getResultsList() { return resultsList; }
 
   void updateValue(Value v, std::vector<float> &vec) {
     // deep copy
-    valueMapping[v] = std::make_shared<std::vector<float> >(vec);
+    valueMapping[v] = std::make_shared<std::vector<float>>(vec);
   }
 
   value_map_t getResults() {

@@ -30,14 +30,7 @@ namespace mlir {
 class ModuleOp;
 
 LogicalResult runTpuModule(ModuleOp m, std::string pluginFile,
-    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-    std::map<std::string, std::vector<float> > *results,
-    std::map<std::string, std::vector<int64_t> > *shapeMap,
-    std::map<std::string, std::vector<float> > *allTensorMap);
-
-LogicalResult runTpuModule(ModuleOp m,
-    std::string pluginFile, ModuleInterpreter *interpreter,
-    std::vector<int64_t> input_shape, std::vector<float> &input_vec,
+    std::vector<int64_t> input_shape, std::vector<float> &input_data,
     std::map<std::string, std::vector<float> > *results,
     std::map<std::string, std::vector<int64_t> > *shapeMap,
     std::map<std::string, std::vector<float> > *allTensorMap);
