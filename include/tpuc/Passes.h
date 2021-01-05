@@ -33,7 +33,6 @@ namespace mlir {
 std::unique_ptr<mlir::Pass> createPrintTpuOpPass();
 std::unique_ptr<mlir::Pass> createPrintTpuOpStatsPass();
 std::unique_ptr<mlir::Pass> createGenPseudoWeightNpzPass();
-std::unique_ptr<mlir::Pass> createConvertFuncToMemRefPass();
 std::unique_ptr<mlir::Pass> createDecomposeNormalizePass();
 std::unique_ptr<mlir::Pass> createConvertBnToScalePass();
 std::unique_ptr<mlir::Pass> createConvertPoolMaskPass();
@@ -52,10 +51,7 @@ std::unique_ptr<mlir::Pass> createMoveConvStrideToEltwiseOpPass();
 std::unique_ptr<mlir::Pass> createRefactorOddIcConvPass();
 
 std::unique_ptr<mlir::Pass> createGenReciprocalTablePass();
-//std::unique_ptr<mlir::Pass> createGenPowerWeightPass() ;
-std::unique_ptr<mlir::Pass> createGenSigmoidTablePass();
 std::unique_ptr<mlir::Pass> createGenSqrtTablePass();
-//std::unique_ptr<mlir::Pass> createGenTanHTablePass();
 
 std::unique_ptr<mlir::Pass> createImportCalibrationTablePass();
 std::unique_ptr<mlir::Pass> createTpuQuantPass();
@@ -73,14 +69,8 @@ std::unique_ptr<mlir::Pass> createDeepFusionTG2TL_LA();
 std::unique_ptr<mlir::Pass> createDeepFusionTL_LA2LW();
 
 std::unique_ptr<mlir::Pass> createConvertPriorBoxPass();
-std::unique_ptr<mlir::Pass> createConvertLoadeweightConcatToLoadweightPass();
-
 
 std::unique_ptr<mlir::Pass> createTgFuseLeakyReluPass();
-
-std::unique_ptr<mlir::Pass> createConvertTgOpToMemRefPass();
-std::unique_ptr<mlir::Pass> createConvertTgOpToTensorPass();
-std::unique_ptr<mlir::Pass> createAssignNeuronAddressMemRefPass();
 
 std::unique_ptr<mlir::Pass> createCompressActivationPass();
 std::unique_ptr<mlir::Pass> createCompressWeightPass();

@@ -64,9 +64,6 @@ add_llvm_library(MLIRTPU
   Quantization/Quantization.cpp
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizeBf16.cpp
-  Quantization/GenLutInt8Table.cpp
-  Quantization/GenLutBf16Table.cpp
-  Quantization/GenTanHTable.cpp
   Quantization/GenSqrtTable.cpp
   Quantization/GenReciprocalTable.cpp
   Optimization/ConvTile.cpp
@@ -216,4 +213,3 @@ add_dependencies(MLIRTPU
   LLVMSupport
 )
 add_subdirectory(Translate)
-#add_subdirectory(MemRefLowering)
