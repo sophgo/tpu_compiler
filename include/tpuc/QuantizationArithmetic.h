@@ -111,17 +111,17 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
     float *new_filter, float *new_bias,
     float *rshift_per_channel, float *multiplier_per_channel);
 
-void quantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold, bool tpu_mode=false, int zero_point=0);
+void quantizeActivationFromFp32ToInt8(float *output, float *input,
+    int64_t size, float scale, bool tpu_mode=false, int zero_point=0);
 
-void dequantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold, bool tpu_mode=false, int zero_point=0);
+void dequantizeActivationFromInt8ToFp32(float *output, float *input,
+    int64_t size, float scale, bool tpu_mode=false, int zero_point=0);
 
-void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold);
+void quantizeActivationFromBf16ToInt8(float *output, float *input,
+    int64_t size, float scale);
 
-void dequantizeActivationFromInt8ToBf16WithThreshold(float *output, float *input,
-    int64_t size, float threshold);
+void dequantizeActivationFromInt8ToBf16(float *output, float *input,
+    int64_t size, float scale);
 
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,
     int64_t size, uint32_t rshift,int offset=0);

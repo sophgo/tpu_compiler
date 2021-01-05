@@ -1542,14 +1542,9 @@ class TFLiteConverter(BaseConverter):
         output_offset = output_attr['zero_point']
         if input_type == TFL_TENSORTYPE.FLOAT32 and output_type == TFL_TENSORTYPE.INT8:
             # get quantization attr
-            # FIXME: In tpu op , quant op Q(X) = X * 128 / threshold
-            # Scale means 128 / threshold
-            # Here we need to multiple asymmetric scale
-            # threshold = scale * 128
-            threshold = 128 * output_attr['scale']
             zero_point = output_attr['zero_point']
             quant_op = self.CVI.add_quant_op(output_tensor_name, [
-                op], output_shape, "NONE", "INT8", threshold=threshold, zero_point=zero_point)
+                op], output_shape, "NONE", "INT8", scale=output_scale, zero_point=zero_point)
 
             self.addOperand(node.name, quant_op, output_shape, None)
             return
@@ -1571,9 +1566,9 @@ class TFLiteConverter(BaseConverter):
                 self.addOperand(node.name, op, output_shape, None)
             else:
                 input_offset = -input_attr['zero_point']
-                input_threshold = 128 * input_attr['scale']
+                input_scale = input_attr['scale']
                 op = self.CVI.add_quant_op(output_tensor_name, [
-                    op], input_shape, "INT8", "NONE", threshold=input_threshold, zero_point=input_offset)
+                    op], input_shape, "INT8", "NONE", scale=input_scale, zero_point=input_offset)
                 self.addOperand(node.name, op, output_shape, None)
         else:
             # skip this op
@@ -1737,11 +1732,11 @@ class TFLiteConverter(BaseConverter):
         input_tensor = self.tflite_graph.Tensors(node.inputs[0])
         input_tensor_attr = self.getTensorAttr(input_tensor)
         zero_point_x = input_tensor_attr['zero_point']
-        threshold_x = input_tensor_attr['scale'] * 127
+        input_scale = input_tensor_attr['scale']
         input_name = input_tensor_attr['name']
 
         quant_op = self.CVI.add_quant_op("{}_dequant".format(input_name), [
-            op], shape, "INT8", "NONE", threshold=threshold_x, zero_point=zero_point_x)
+            op], shape, "INT8", "NONE", scale=input_scale, zero_point=zero_point_x)
 
         softmax_tensor = self.tflite_graph.Tensors(node.outputs)
         tensor_attr = self.getTensorAttr(softmax_tensor)

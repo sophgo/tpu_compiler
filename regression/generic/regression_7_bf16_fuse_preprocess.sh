@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -xe
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -59,7 +59,7 @@ cvi_model_convert.py \
     --batch_size $BATCH_SIZE \
     --preprocess_input_data_format "nhwc" \
     --convert_preprocess 1 \
-    --mlir_file_path ${NET}_fused_preprocess.mlir
+    --mlir_file_path ${NET}_fp32_fused_preprocess.mlir
 
 tpuc-opt \
     --convert-bn-to-scale \
@@ -68,11 +68,11 @@ tpuc-opt \
     --fuse-relu \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_fuesd_preprocess.csv \
-    ${NET}_fused_preprocess.mlir \
-    -o ${NET}_opt_fused_preprocess.mlir
+    ${NET}_fp32_fused_preprocess.mlir \
+    -o ${NET}_fp32_opt_fused_preprocess.mlir
 
 # test frontend optimizations
-tpuc-interpreter ${NET}_opt_fused_preprocess.mlir \
+tpuc-interpreter ${NET}_fp32_opt_fused_preprocess.mlir \
     --tensor-in ${NET}_only_resize_in_fp32.npz \
     --tensor-out ${NET}_out_fp32.npz \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
@@ -85,20 +85,12 @@ cvi_npz_tool.py compare \
     --tolerance=0.999,0.999,0.998 -vv
 
 tpuc-opt \
-    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
-    --import-calibration-table \
-    --calibration-table ${CALI_TABLE}\
-    ${NET}_opt_fused_preprocess.mlir \
-    -o ${NET}_cali_fused_preprocess.mlir
-
-tpuc-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
     --tpu-quant --quant-full-bf16 \
-    --canonicalize \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_bf16_fused_preprocess.csv \
-    ${NET}_cali_fused_preprocess.mlir \
+    ${NET}_fp32_opt_fused_preprocess.mlir \
     -o ${NET}_quant_bf16_fused_preprocess.mlir
 
 # test fused preprocess bf16 interpreter

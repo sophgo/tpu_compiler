@@ -1356,7 +1356,6 @@ void MixNet::_add_tl_quant_op(MixOp *mix_op, const std::vector<int> &in_tensors,
                               bool is_h_split) {
   int bottom_dim[4];
   float const_scale = 1.0;
-  float threshold;
   StringRef from, to;
   const ImLayer *im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
 
@@ -1366,7 +1365,6 @@ void MixNet::_add_tl_quant_op(MixOp *mix_op, const std::vector<int> &in_tensors,
   auto quantOp = cast<tpu::TG_QuantOp>(im_layer->op());
   old_input_type = quantOp.getOperand().getType().cast<RankedTensorType>();
   old_output_type = quantOp.getResult().getType().cast<RankedTensorType>();
-  threshold = quantOp.threshold().getValue().convertToFloat();
   from = quantOp.from();
   to = quantOp.to();
 
@@ -1379,12 +1377,10 @@ void MixNet::_add_tl_quant_op(MixOp *mix_op, const std::vector<int> &in_tensors,
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
 
-  if ((from == "INT8" || from == "UINT8") && to == "BF16") {
-    // dequant
-    const_scale = threshold / 128.0;
-  } else if (from == "BF16" && to == "INT8") {
+  if (((from == "INT8" || from == "UINT8") && to == "BF16") ||
+      (from == "BF16" && to == "INT8")) {
     // quant
-    const_scale = 128.0 / threshold;
+    const_scale = quantOp.scale().convertToFloat();
   }
 
   // attrs

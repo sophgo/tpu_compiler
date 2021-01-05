@@ -47,7 +47,7 @@ else
   if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
     $DIR/regression_6_fuse_preprocess.sh
     if [ $DO_QUANT_BF16 -eq 1 ]; then
-      $DIR/regression_7_fuse_preprocess_bf16.sh
+      $DIR/regression_7_bf16_fuse_preprocess.sh
     fi
   fi
 fi

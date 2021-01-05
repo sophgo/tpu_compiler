@@ -546,9 +546,7 @@ ImQuant::ImQuant(Operation *op) : ImLayer(IR_QUANT, op, true) {
   auto quantOp = cast<tpu::TG_QuantOp>(op);
   std::string from = quantOp.from().str();
   std::string to = quantOp.to().str();
-  if (quantOp.threshold().hasValue() == false) {
-    fusible = false;
-  } else if ((from == "INT8" || from == "UINT8") && to == "BF16") {
+  if ((from == "INT8" || from == "UINT8") && to == "BF16") {
   } else if (from == "BF16" && to == "INT8") {
   } else {
     fusible = false;

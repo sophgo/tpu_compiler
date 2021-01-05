@@ -150,25 +150,22 @@ static void insertQuantOp(Operation *op) {
   StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
   for (unsigned i = 0; i < op->getNumOperands(); i++) {
     auto prev_op = op->getOperand(i).getDefiningOp();
+    assert(prev_op);
+    if (isa<tpu::QuantOp>(prev_op)
+        || isa<tpu::LoadWeightOp>(prev_op)
+        || isa<tpu::NoneOp>(prev_op)) {
+      continue;
+    }
+
     StringRef prev_quant;
-    if (!prev_op) {
-      prev_quant = "NONE";
-    } else {
-      if (isa<tpu::QuantOp>(prev_op)
-                || isa<tpu::LoadWeightOp>(prev_op)
-                || isa<tpu::NoneOp>(prev_op)) {
-        continue;
-      } else if (isa<tpu::ReshapeOp>(prev_op)) {
-        prev_op = prev_op->getOperand(0).getDefiningOp();
-      }
-      if (auto castOp = dyn_cast<tpu::QuadraticSumOp>(prev_op)) {
-        if (castOp.high_precision()) {
-          prev_quant = "NONE";
-        } else {
-          prev_quant = getOpQuant(prev_op);
-        }
-      } else {
-        prev_quant = getOpQuant(prev_op);
+    auto prev_name = getOpName(prev_op);
+    if (isa<tpu::ReshapeOp>(prev_op)) {
+      prev_op = prev_op->getOperand(0).getDefiningOp();
+    }
+    prev_quant = getOpQuant(prev_op);
+    if (auto castOp = dyn_cast<tpu::QuadraticSumOp>(prev_op)) {
+      if (castOp.high_precision()) {
+        prev_quant = "NONE";
       }
     }
 
@@ -176,88 +173,88 @@ static void insertQuantOp(Operation *op) {
       prev_quant = "UINT8";
     }
 
-    // insert quant if prev and curr have different quant mode
-    if (curr_quant != prev_quant && !(is_fix8b(prev_quant) && is_fix8b(curr_quant))) {
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(builder.getNamedAttr("from",
-          builder.getStringAttr(prev_quant)));
-      attrs.push_back(builder.getNamedAttr("to",
-          builder.getStringAttr(curr_quant)));
-      float threshold = 0.0f;
-      int zero_point =0;
-      std::string name;
-      if (is_fix8b(curr_quant)) {
-        threshold = getOpThreshold(prev_op);
-        zero_point = getOpZeroPoint(prev_op);
-        name = getOpName(prev_op).str() + "_quant";
-      } else if (is_fix8b(prev_quant)) {
-        threshold = getOpThreshold(prev_op);
-        zero_point = getOpZeroPoint(prev_op);
-        auto fuse_op = prev_op->getResult(0).use_begin()->getOwner();
-        if (isa<tpu::ReshapeOp>(fuse_op)) {
-          name = getOpName(fuse_op).str() + "_dequant";
-        } else {
-          name = getOpName(prev_op).str() + "_dequant";
-        }
-      } else if (curr_quant == "BF16") {
-        threshold = getOpThreshold(prev_op);
-        zero_point = getOpZeroPoint(prev_op);
-        name = getOpName(prev_op).str() + "_quant";
-      } else if (prev_quant == "BF16") {
-        auto fuse_op = prev_op->getResult(0).use_begin()->getOwner();
-        if (isa<tpu::ReshapeOp>(fuse_op)) {
-          name = getOpName(fuse_op).str() + "_dequant";
-        } else {
-          name = getOpName(prev_op).str() + "_dequant";
-        }
-      }
-      #if 1
-      // app recognizes _quant as network output
-      //name = name + "_" + prev_quant.str() + "_" + curr_quant.str();
-      // check if prev op has inserted quant/dequant op
-      if (prev_op) {
-        bool found = false;
-        for (auto &use : prev_op->getResult(0).getUses()) {
-          auto nextOp = use.getOwner();
-          if (getOpName(nextOp) == name) {
-            op->setOperand(i, nextOp->getResult(0));
-            LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
-                      << prev_quant << " => " << curr_quant << "\n";);
-            found = true;
-            break;
-          }
-        }
-        if (found) {
-          continue;
-        }
-      }
-      #endif
-
-      attrs.push_back(builder.getNamedAttr("threshold",
-          builder.getF32FloatAttr(threshold)));
-      attrs.push_back(builder.getNamedAttr("zero_point",
-          builder.getI32IntegerAttr(zero_point)));
-      attrs.push_back(builder.getNamedAttr("name",
-          builder.getStringAttr(name)));
-
-      auto shape = op->getOperand(i).getType().cast<TensorType>().getShape();
-      Type eltType;
-      if (curr_quant == "INT8") {
-        eltType = IntegerType::get(8, builder.getContext());
-      } else if (curr_quant == "BF16") {
-        eltType = FloatType::getBF16(builder.getContext());
-      } else {
-        eltType = FloatType::getF32(builder.getContext());
-      }
-      auto type = RankedTensorType::get(shape, eltType);
-      auto quantOp = builder.create<tpu::QuantOp>(op->getLoc(), type,
-          ArrayRef<Value>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
-
-      op->setOperand(i, quantOp.getResult());
-
-      LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
-                  << prev_quant << " => " << curr_quant <<  " threshold: "<< threshold<< " zero_point: " << zero_point << "\n";);
+    // if cur and prev op has same quant type, return directly.
+    if (curr_quant == prev_quant) {
+      continue;
     }
+    // Not to insert quant op if cur and prev op
+    // are same int8 quant type but different in signness.
+    if ((curr_quant == "UINT8" || curr_quant == "INT8") &&
+        (prev_quant == "UINT8" || prev_quant == "INT8")) {
+      continue;
+    }
+
+    // insert quant if prev and curr have different quant mode
+    float scale = 1.0f;
+    int zero_point =0;
+    std::string name;
+    if (curr_quant == "INT8" || curr_quant == "UINT8") {
+      // FP32|BF16 => INT8|UINT8
+      int max_val = (curr_quant == "INT8") ? 128 : 256;
+      scale = max_val / getOpThreshold(prev_op);
+      zero_point = getOpZeroPoint(prev_op);
+      name = prev_name.str() + "_quant";
+    } else if (prev_quant == "INT8" || prev_quant == "UINT8") {
+      // INT8/UINT8 ==> FP32|BF16
+      int max_val = (prev_quant == "INT8") ? 128 : 256;
+      scale = getOpThreshold(prev_op) / max_val;
+      zero_point = getOpZeroPoint(prev_op);
+      name = prev_name.str() + "_dequant";
+    } else if (curr_quant == "BF16") {
+      // FP32 => BF16
+      name = prev_name.str() + "_quant";
+    } else if (prev_quant == "BF16") {
+      // BF16 => FP32
+      name = prev_name.str() + "_dequant";
+    }
+
+    // check if prev op has inserted quant/dequant op
+    if (prev_op) {
+      bool found = false;
+      for (auto &use : prev_op->getResult(0).getUses()) {
+        auto nextOp = use.getOwner();
+        if (getOpName(nextOp) == name) {
+          op->setOperand(i, nextOp->getResult(0));
+          LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
+                    << prev_quant << " => " << curr_quant << "\n";);
+          found = true;
+          break;
+        }
+      }
+      if (found) {
+        continue;
+      }
+    }
+
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder.getNamedAttr("from",
+        builder.getStringAttr(prev_quant)));
+    attrs.push_back(builder.getNamedAttr("to",
+        builder.getStringAttr(curr_quant)));
+    attrs.push_back(builder.getNamedAttr("scale",
+        builder.getF32FloatAttr(scale)));
+    attrs.push_back(builder.getNamedAttr("zero_point",
+        builder.getI32IntegerAttr(zero_point)));
+    attrs.push_back(builder.getNamedAttr("name",
+        builder.getStringAttr(name)));
+
+    auto shape = op->getOperand(i).getType().cast<TensorType>().getShape();
+    Type eltType;
+    if (curr_quant == "INT8") {
+      eltType = IntegerType::get(8, builder.getContext());
+    } else if (curr_quant == "BF16") {
+      eltType = FloatType::getBF16(builder.getContext());
+    } else {
+      eltType = FloatType::getF32(builder.getContext());
+    }
+    auto type = RankedTensorType::get(shape, eltType);
+    auto quantOp = builder.create<tpu::QuantOp>(op->getLoc(), type,
+        ArrayRef<Value>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
+
+    op->setOperand(i, quantOp.getResult());
+    LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
+                << prev_quant << " => " << curr_quant <<  " scale: "
+                << scale << " zero_point: " << zero_point << "\n";);
   }
 }
 
@@ -504,11 +501,12 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
 
   LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
+    int32_t quantThreshold = 256;
     auto preprocessOp = cast<tpu::PreprocessOp>(op);
     auto nextOp = getNextOp(preprocessOp);
     assert(nextOp);
-    auto elementType = nextOp->getResult(0).getType().template
-                       cast<TensorType>().getElementType();
+    auto quantType = getOpQuant(nextOp);
+    llvm::errs() << "name:" << getOpName(nextOp) << " type:" << quantType << "\n";
 
     TensorFile *wTF = getWeightTensorFile(op);
     Value wfV = getWeightFileValue(op);
@@ -554,7 +552,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
       auto yuv420_op = OpBuilder(op).create<tpu::Yuv420CscOp>(
           op->getLoc(), yuv420_type, ArrayRef<Value>{current_op},
           ArrayRef<NamedAttribute>{attrs});
-      setOpThreshold(yuv420_op, 128);
+      setOpThreshold(yuv420_op, quantThreshold);
       setOpQuantParamType(yuv420_op, "THRESHOLD");
       setOpQuant(yuv420_op, "UINT8");
       color_orders.clear();
@@ -597,7 +595,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
       auto transpose_op = OpBuilder(op).create<tpu::PermuteOp>(
           op->getLoc(), transpose_type, ArrayRef<Value>{current_op},
           ArrayRef<NamedAttribute>{transpose_attrs});
-      setOpThreshold(transpose_op, 128);
+      setOpThreshold(transpose_op, quantThreshold);
       setOpQuantParamType(transpose_op, "THRESHOLD");
       setOpQuant(transpose_op, "UINT8");
       current_op = transpose_op;
@@ -638,7 +636,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
       auto pad_op = OpBuilder(op).create<tpu::PadOp>(
           op->getLoc(), pad_type, ArrayRef<Value>{current_op},
           ArrayRef<NamedAttribute>{pad_attrs});
-      setOpThreshold(pad_op, 128);
+      setOpThreshold(pad_op, quantThreshold);
       setOpQuantParamType(pad_op, "THRESHOLD");
       setOpQuant(pad_op, "UINT8");
       current_op = pad_op;
@@ -675,7 +673,7 @@ pad_exit:
           op->getLoc(), crop_type, ArrayRef<Value>{current_op},
           ArrayRef<NamedAttribute>{crop_attrs});
       setOpQuantParamType(crop_op, "THRESHOLD");
-      setOpThreshold(crop_op, 128);
+      setOpThreshold(crop_op, quantThreshold);
       setOpQuant(crop_op, "UINT8");
       current_op = crop_op;
     }
@@ -815,7 +813,7 @@ pad_exit:
     setOpThreshold(swapaxis_op, getOpThreshold(op));
     setOpQuantParamType(swapaxis_op, "THRESHOLD");
     // the type of swapaxis_op should be bf16, if successor op is bf16.
-    setOpQuant(swapaxis_op, elementType.isBF16() ? "BF16" : "INT8");
+    setOpQuant(swapaxis_op, quantType);
 
     rewriter.replaceOp(preprocessOp, {swapaxis_op.getResult()});
     return success();

@@ -4128,26 +4128,22 @@ LogicalResult tpu::QuantOp::interpret(
   auto size = getTensorSize(result);
   auto resultT = std::make_unique<std::vector<float> >(size);
   int zero_point = this->zero_point();
+  float scale = this->scale().convertToFloat();
+  LLVM_DEBUG(llvm::errs() << "quantization/dequantization, scale = "
+              << std::to_string(scale) << "\n";);
+
   if (this->from() == "NONE" && this->to() == "INT8") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
-    float threshold = this->threshold().getValue().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
-               << std::to_string(threshold) << "\n";);
     auto prevOp = getOperand().getDefiningOp();
     bool useTpuQuantOp = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
-    quantizeActivationInt8WithThreshold(output, input, size, threshold,
-                                        useTpuQuantOp,
-                                        zero_point);
+    quantizeActivationFromFp32ToInt8(output, input, size, scale,
+                                     useTpuQuantOp, zero_point);
   } else if ((this->from() == "INT8" || this->from() == "UINT8") && this->to() == "NONE") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
-    float threshold = this->threshold().getValue().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
-               << std::to_string(threshold) << "\n";);
-    dequantizeActivationInt8WithThreshold(output, input, size, threshold,
-                                          clUseTPUQuantOp,
-                                          zero_point);
+    dequantizeActivationFromInt8ToFp32(output, input, size, scale,
+                                       clUseTPUQuantOp, zero_point);
   } else if (this->from() == "NONE" && this->to() == "BF16") {
     auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(resultT->size());
     FloatToBFloat16(opdT[0]->data(), tensor_bf16->data(),
@@ -4158,17 +4154,11 @@ LogicalResult tpu::QuantOp::interpret(
   } else if ((this->from() == "INT8" ||
              this->from() == "UINT8") && this->to() == "BF16") {
     float *input = (float *)opdT[0]->data();
-    float threshold = this->threshold().getValue().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
-               << std::to_string(threshold) << "\n";);
-    dequantizeActivationFromInt8ToBf16WithThreshold(resultT->data(), input, size, threshold);
+    dequantizeActivationFromInt8ToBf16(resultT->data(), input, size, scale);
   } else if (this->from() == "BF16" && this->to() == "INT8") {
     float *input = (float *)opdT[0]->data();
     float *output = (float *)resultT->data();
-    float threshold = this->threshold().getValue().convertToFloat();
-    LLVM_DEBUG(llvm::errs() << "  quantization, threshold = "
-               << std::to_string(threshold) << "\n";);
-    quantizeActivationFromBf16ToInt8WithThreshold(output, input, size, threshold);
+    quantizeActivationFromBf16ToInt8(output, input, size, scale);
   } else {
     LLVM_DEBUG(llvm::errs() << "  From:  "
                             << this->from().str() << "  To: " << this->to().str() << "\n";);

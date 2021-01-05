@@ -903,11 +903,10 @@ static inline signed char float2int8(float v, int mode = 0)
 }
 
 /// Quantize an Activation tensor into INT8, given threshold
-void quantizeActivationInt8WithThreshold(float *output, float *input,
-                                         int64_t size, float threshold,
-                                         bool tpu_mode, int zero_point) {
-  float scale = 128.0 / threshold;
-
+void quantizeActivationFromFp32ToInt8(float *output, float *input,
+                                      int64_t size, float scale,
+                                      bool tpu_mode, int zero_point) {
+  // float scale = 128.0 / threshold;
   if (tpu_mode) {
     bfloat16 bf_scale, bf_tmp, bf_zp;
     bf_scale = FloatToBFloat16(scale);
@@ -933,7 +932,7 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
     }
   } else {
     for (int64_t i = 0; i < size; ++i) {
-      float scale = 128.0 / threshold;
+      // float scale = 128.0 / threshold;
       int val = std::round(input[i] * scale) + zero_point;
       if (val > 127) {
         val = 127;
@@ -944,10 +943,11 @@ void quantizeActivationInt8WithThreshold(float *output, float *input,
     }
   }
 }
+
 /// DeQuantize an Activation tensor from INT8, given threshold
-void dequantizeActivationInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold, bool tpu_mode, int zero_point) {
-  float scale = threshold / 128.0;
+void dequantizeActivationFromInt8ToFp32(float *output, float *input,
+    int64_t size, float scale, bool tpu_mode, int zero_point) {
+  // float scale = threshold / 128.0;
   if (tpu_mode) {
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
@@ -968,7 +968,6 @@ void dequantizeActivationInt8WithThreshold(float *output, float *input,
     }
   } else {
     for (int64_t i = 0; i < size; ++i) {
-      float scale = threshold / 128.0;
       output[i] = (input[i] + zero_point) * scale;
     }
   }
@@ -1015,9 +1014,8 @@ float BFloat16ToFloat(bfloat16 value)
 /// Quantize an Bf16 Activation tensor into INT8, given threshold
 /// Keep interpreter bf16 quant align with TPU
 /// TPU HW round mode support 0: round to nearest even, 1: round to zero
-void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
-    int64_t size, float threshold) {
-    float scale = 128.0 / threshold;
+void quantizeActivationFromBf16ToInt8(float *output, float *input,
+    int64_t size, float scale) {
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
@@ -1033,9 +1031,8 @@ void quantizeActivationFromBf16ToInt8WithThreshold(float *output, float *input,
 
 /// Dequant an Int8 Activation tensor to Bf16, given threshold
 /// Keep interpreter int8 quant align with TPU
-void dequantizeActivationFromInt8ToBf16WithThreshold(float *output, float *input,
-    int64_t size, float threshold) {
-    float scale = threshold / 128.0;
+void dequantizeActivationFromInt8ToBf16(float *output, float *input,
+    int64_t size, float scale) {
     bfloat16 bf_scale;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);

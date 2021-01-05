@@ -153,6 +153,7 @@ class MLIRImporter(object):
         for output in outputs_shape:
             assert(isinstance(output, list))
             self.output_shape_list.append(output)
+            self.u8Type = IntegerType.get_unsigned(8)
             self.i8Type = IntegerType.get_signless(8)
             self.i32Type = IntegerType.get_signless(32)
             self.f32Type = F32Type.get()
@@ -285,7 +286,7 @@ class MLIRImporter(object):
             'zero_point': IntegerAttr.get(self.i32Type, 0),
         }
         if self.input_type == "UINT8":
-            quant_param['mode'] = StringAttr.get("INT8")
+            quant_param['mode'] = StringAttr.get("UINT8")
 
         attributes = {
             "name": StringAttr.get(name),
@@ -1298,12 +1299,12 @@ class MLIRImporter(object):
         else:
             raise RuntimeError("No support {} to_type".format(to_type))
 
-        checkKey(kargs, 'threshold')
+        checkKey(kargs, 'scale')
         quant_name = StringAttr.get(op_name)
         attr_dict = {
             'from': StringAttr.get(from_type),
             'to': StringAttr.get(to_type),
-            'threshold': FloatAttr.get_f32(kargs['threshold']),
+            'scale': FloatAttr.get_f32(kargs['scale']),
             'zero_point':  IntegerAttr.get(self.i32Type, zero_point),
         }
         return self.buildOp(TPU_OpType.Quant.value, inputOperands, [
@@ -1663,7 +1664,7 @@ class MLIRImporter(object):
         elif input_type == "UINT8":
             for input_shape in self.input_shape_list:
                 self.tensor_inputs_type.append(
-                    RankedTensorType.get(input_shape, self.i8Type))
+                    RankedTensorType.get(input_shape, self.u8Type))
 
         for output_shape in self.output_shape_list:
             self.tensor_outputs_type.append(

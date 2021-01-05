@@ -1156,7 +1156,8 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
     }
   }
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  auto bSigned = (getOpQuant(op) == "INT8") ? IntegerType::Signed : IntegerType::Unsigned;
+  setOpResultType(op->getResult(0), IntegerType::get(8, bSigned, op->getContext()));
 
   return success();
 }

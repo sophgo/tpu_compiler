@@ -1395,9 +1395,8 @@ Value tpu::QuantOp::convertToTG() {
     std::vector<NamedAttribute> param;
     param.push_back(builder.getNamedAttr("from", fromAttr()));
     param.push_back(builder.getNamedAttr("to", toAttr()));
-    param.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
-    param.push_back(builder.getNamedAttr(
-        "zero_point", builder.getI32IntegerAttr((int)zero_point())));
+    param.push_back(builder.getNamedAttr("scale", scaleAttr()));
+    param.push_back(builder.getNamedAttr("zero_point", zero_pointAttr()));
     auto paramAttr = builder.getDictionaryAttr(param);
     auto operationAttr = builder.getStringAttr(getOperationName());
     std::vector<NamedAttribute> attrs;
@@ -1413,9 +1412,8 @@ Value tpu::QuantOp::convertToTG() {
     attrs.push_back(builder.getNamedAttr("name", nameAttr()));
     attrs.push_back(builder.getNamedAttr("from", fromAttr()));
     attrs.push_back(builder.getNamedAttr("to", toAttr()));
-    attrs.push_back(builder.getNamedAttr("threshold", thresholdAttr()));
-    attrs.push_back(builder.getNamedAttr(
-        "zero_point", builder.getI32IntegerAttr((int)zero_point())));
+    attrs.push_back(builder.getNamedAttr("scale", scaleAttr()));
+    attrs.push_back(builder.getNamedAttr("zero_point", zero_pointAttr()));
     auto newOp = OpBuilder(op).create<tpu::TG_QuantOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -4090,15 +4088,18 @@ struct LowerFunctionTypePattern: public RewritePattern {
     assert(fn);
     // change the argType of FuncOp
     if (isa<tpu::InputOp>(prevOp)) {
-      if (quantOp.from() == "NONE" && quantOp.to() == "INT8" && !clQuantInputsToInt8) {
+      if (quantOp.from() == "NONE" &&
+          (quantOp.to() == "INT8" || quantOp.to() == "UINT8") &&
+          !clQuantInputsToInt8) {
         // remove quantOp and change argType
         // and inputOp's type to int8
         auto argument = prevOp->getOperand(0);
-        setOpResultType(argument, IntegerType::get(8, IntegerType::Signed, op->getContext()));
-        setOpResultType(prevOp->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+        auto bSigned = (quantOp.to() == "INT8") ? IntegerType::Signed : IntegerType::Unsigned;
+        setOpResultType(argument, IntegerType::get(8, bSigned, op->getContext()));
+        setOpResultType(prevOp->getResult(0), IntegerType::get(8, bSigned, op->getContext()));
         prevOp->setAttr("name", quantOp.nameAttr());
         setOpThreshold(prevOp,
-                       quantOp.thresholdAttr().getValue().convertToFloat());
+                       128 / quantOp.scale().convertToFloat());
         setOpZeroPoint(prevOp,
                        (int)quantOp.zero_point());
         rewriter.replaceOp(op, {op->getOperand(0)});

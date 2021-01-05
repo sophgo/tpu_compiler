@@ -2507,22 +2507,13 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  float scale = 1.0;
   cvk_fmt_t from = get_fmt(this->from().str());
   cvk_fmt_t to = get_fmt(this->to().str());
-  if (this->threshold().hasValue()) {
-    float threshold = this->threshold().getValue().convertToFloat();
-    if (from == CVK_FMT_I8 || from == CVK_FMT_U8) {
-      scale = threshold / 128.0;
-    } else if (to == CVK_FMT_I8 || to == CVK_FMT_U8) {
-      scale = 128.0 / threshold;
-    }
-  }
+  float scale = this->scale().convertToFloat();
   int offset = 0;
   if(this->zero_point().hasValue()){
     offset = this->zero_point().getValue();
   }
-
 
   //  quant to int8
   cvi_backend_tg_quant_kernel(*backend_ctx, layer_id, from, to, ga_input,
