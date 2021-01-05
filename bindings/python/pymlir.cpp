@@ -81,8 +81,8 @@ static py::array getPythonArray(std::vector<Dtype> &vec,
                       sizeof(Dtype), /* size of one scalar        */
                       py::format_descriptor<Dtype>::format(), /* data type */
                       shape.size(), // ndim, /* number of dimensions      */
-                      shape, // shape,                                   /*
-                             // shape of the matrix       */
+                      shape,   // shape,                                   /*
+                               // shape of the matrix       */
                       stride_v // strides                                  /*
                                // strides for each axis     */
                       ));
@@ -115,7 +115,7 @@ public:
   }
   ~py_module() {
     if (interpreter_)
-      delete interpreter_;
+      interpreter_.reset();
   }
 
   void load(std::string filename) {
@@ -125,10 +125,10 @@ public:
       exit(-1);
     }
     if (interpreter_) {
-      delete interpreter_;
-      interpreter_ = new ModuleInterpreter(module.get());
+      interpreter_.reset();
+      interpreter_ = std::make_unique<ModuleInterpreter>(module.get());
     } else {
-      interpreter_ = new ModuleInterpreter(module.get());
+      interpreter_ = std::make_unique<ModuleInterpreter>(module.get());
     }
     parseMLIRInfo();
   }
@@ -192,7 +192,7 @@ public:
   // wrap C++ function with NumPy array IO
   py::dict
   run(py::array_t<float, py::array::c_style | py::array::forcecast> array) {
-    if (!module || !interpreter_) {
+    if (!interpreter_) {
       throw std::runtime_error("Not load mlir Model");
     }
     std::vector<float> input_vec(array.size());
@@ -221,7 +221,7 @@ private:
   std::string weightFilePath_;
   tensor_map_t tensorMap_;
   shape_map_t shapeMap_;
-  ModuleInterpreter *interpreter_ = nullptr;
+  std::unique_ptr<ModuleInterpreter> interpreter_;
   std::string pluginFilePath_ = "";
 };
 
