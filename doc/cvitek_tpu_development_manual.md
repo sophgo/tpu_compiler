@@ -158,7 +158,7 @@
 > 支持的Operation如下表所示**：**
 
   |**操作**              |**Engine**      |**Quantization**   |**Lowering**|
-|---------------------| ---------------| ------------------| --------------|
+|---------------------|---------------|------------------|--------------|
   |BatchNorm             |Optimized       |No                 |No|
   |BroadcastMul          |TPU             |Yes                |Yes|
   |Clip                  |TPU             |Yes                |Yes|
@@ -253,911 +253,918 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 -   基础属性类型
 
   类型                 描述
-  -------------------- ------------------------------
-  StrAttr              属性，字符串类型属性
-  NonNegativeI32Attr   属性，非负32 bit整数类型属性
-  I32Attr              属性，32 bit整数类型属性
-  F32Attr              属性，32 bit浮点类型属性
-  BoolAttr             属性，布尔属性
+  |类型|描述|
+  |---|---|
+  |StrAttr             | 属性，字符串类型属性|
+  |NonNegativeI32Attr  | 属性，非负32 bit整数类型属性|
+  |I32Attr             | 属性，32 bit整数类型属性|
+  |F32Attr             | 属性，32 bit浮点类型属性|
+  |BoolAttr            | 属性，布尔属性|
 
 -   TPU_QuantParamAttr
 
   参数名称        类型                     描述
-  --------------- ------------------------ -------------------------------
-  mode            TPU_QuantModeAttr        Quant的类型
-  param_type      TPU_QuantParamTypeAttr   Quant变量类型
-  is_perchannel   BoolAttr                 是为PerChannel，否为PerTensor
-  is_asymmetric   BoolAttr                 是否为非对称两行
-  threshold_max   F32Attr                  量化最大值
-  threshold_min   F32Attr                  量化最小值（仅限非对称量化）
-  zero_point      I32Attr                  零点值
+  |参数名称|类型|描述|
+  |---|---|---|
+  |mode           | TPU_QuantModeAttr      | Quant的类型|
+  |param_type     | TPU_QuantParamTypeAttr | Quant变量类型|
+  |is_perchannel  | BoolAttr               | 是为PerChannel，否为PerTensor|
+  |is_asymmetric  | BoolAttr               | 是否为非对称两行|
+  |threshold_max  | F32Attr                | 量化最大值|
+  |threshold_min  | F32Attr                | 量化最小值（仅限非对称量化）|
+  |zero_point     | I32Attr                | 零点值|
 
 -   TPU_QuantModeAttr
 
   枚举   描述
-  ------ ------------------
-  NONE   无量化，保持FP32
-  INT8   量化为INT8
-  BF16   量化为BF16
+  |枚举|描述|
+  |---|---|
+  |NONE  | 无量化，保持FP32|
+  |INT8  | 量化为INT8|
+  |BF16  | 量化为BF16|
 
 -   TPU_QuantParamTypeAttr
 
   枚举                描述
-  ------------------- ----------------------------------------------------
-  NONE                当前Op的量化无需变量
-  THRESHOLD           量化变量以Threshold方式描述
-  SCALE               量化变量以Scale描述，支持PerChannel或PerTensor
-  RSHIFT_ONLY         量化变量以RSHIFT描述，支持PerChannel或PerTensor
-  RSHIFT_AND_M\_I32   量化变量以RSHIFT+I32 MULTIPLER描述，支持PerChannel
-  RSHIFT_AND_M\_I8    量化变量以RSHIFT+I8 MULTIPLER描述，支持PerTensor
-  LUT_INT8            量化变量以INT8 LUT描述
-  LUT_BF16            量化变量以BF16 LUT描述
+  |枚举|描述|
+  |---|---|
+  |NONE               | 当前Op的量化无需变量|
+  |THRESHOLD          | 量化变量以Threshold方式描述|
+  |SCALE              | 量化变量以Scale描述，支持PerChannel或PerTensor|
+  |RSHIFT_ONLY        | 量化变量以RSHIFT描述，支持PerChannel或PerTensor|
+  |RSHIFT_AND_M\_I32  | 量化变量以RSHIFT+I32 MULTIPLER描述，支持PerChannel|
+  |RSHIFT_AND_M\_I8   | 量化变量以RSHIFT+I8 MULTIPLER描述，支持PerTensor|
+  |LUT_INT8           | 量化变量以INT8 LUT描述|
+  |LUT_BF16           | 量化变量以BF16 LUT描述|
 
 -   TPU_ConvParamAttr
 
   参数名称     类型              描述
-  ------------ ----------------- ------------------------
-  stride_h     I32Attr           stride_h
-  stride_w     I32Attr           stride_w
-  padding      TPU_PaddingAttr   VALID或SAME
-  dilation_h   I32Attr           dilation_h
-  dilation_w   I32Attr           dilation_w
-  group        I32Attr           group
-  is_dw        BoolAttr          是否为Depthwise
-  with_bias    BoolAttr          是否有Bias
-  do_relu      BoolAttr          是否对结果进行relu操作
-  ins          I32ArrayAttr      对h， w插入0
-  pad_value    I32Attr           填充值
+  |参数名称|类型|描述|
+  |---|---|---|
+  |stride_h    | I32Attr         | stride_h|
+  |stride_w    | I32Attr         | stride_w|
+  |padding     | TPU_PaddingAttr | VALID或SAME|
+  |dilation_h  | I32Attr         | dilation_h|
+  |dilation_w  | I32Attr         | dilation_w|
+  |group       | I32Attr         | group|
+  |is_dw       | BoolAttr        | 是否为Depthwise|
+  |with_bias   | BoolAttr        | 是否有Bias|
+  |do_relu     | BoolAttr        | 是否对结果进行relu操作|
+  |ins         | I32ArrayAttr    | 对h， w插入0|
+  |pad_value   | I32Attr         | 填充值|
 
 -   TPU_PoolParamAttr
 
   参数名称            类型       描述
-  ------------------- ---------- ------------------------
-  kernel_h            I32Attr    kernel_h
-  kernel_w            I32Attr    kernel_w
-  padding_t           I32Attr    padding_t
-  padding_b           I32Attr    padding_b
-  padding_l           I32Attr    padding_l
-  padding_r           I32Attr    padding_r
-  stride_h            I32Attr    stride_h
-  stride_w            I32Attr    stride_w
-  do_relu             BoolAttr   是否对结果进行relu操作
-  count_include_pad   BoolAttr   计算时是否包含pad部分
+  |参数名称|类型|描述|
+  |---|---|---|
+  |kernel_h           | I32Attr  | kernel_h|
+  |kernel_w           | I32Attr  | kernel_w|
+  |padding_t          | I32Attr  | padding_t|
+  |padding_b          | I32Attr  | padding_b|
+  |padding_l          | I32Attr  | padding_l|
+  |padding_r          | I32Attr  | padding_r|
+  |stride_h           | I32Attr  | stride_h|
+  |stride_w           | I32Attr  | stride_w|
+  |do_relu            | BoolAttr | 是否对结果进行relu操作|
+  |count_include_pad  | BoolAttr | 计算时是否包含pad部分|
 
 #### Operation定义
 
 -   BatchNorm
 
   参数名称           类型                      描述               类别
-  ------------------ ------------------------- ------------------ ------
-  output             AnyTensor                 输出Tensor         输出
-  input              AnyTensor                 输入Tensor         输入
-  mean               AnyTensor                 mean参数向量       输入
-  variance           AnyTensor                 variance参数向量   输入
-  scale              AnyTensor                 scale参数          输入
-  variance_epsilon   F32Attr                   epsilon            属性
-  name               StrAttr                   名称               属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称           属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor         | 输出|
+  |input             | AnyTensor               | 输入Tensor         | 输入|
+  |mean              | AnyTensor               | mean参数向量         | 输入|
+  |variance          | AnyTensor               | variance参数向量     | 输入|
+  |scale             | AnyTensor               | scale参数          | 输入|
+  |variance_epsilon  | F32Attr                 | epsilon          | 属性|
+  |name              | StrAttr                 | 名称               | 属性|
 
 -   BroadcastMul
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              AnyTensor                 输入Tensor           输入
-  multiplier         AnyTensor                 乘数向量             输入
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  axis               I32Attr                   广播的axis           属性
-  do_relu            BoolAttr                  是否对结果执行relu   属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | AnyTensor               | 输入Tensor           | 输入|
+  |multiplier        | AnyTensor               | 乘数向量               | 输入|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |axis              | I32Attr                 | 广播的axis            | 属性|
+  |do_relu           | BoolAttr                | 是否对结果执行relu        | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   Clip
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              Variadic Tensor           多个输入Tensor       多输入
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  min                F32Attr                   最小值               属性
-  max                F32Attr                   最大值               属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | Variadic Tensor         | 多个输入Tensor         | 多输入|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |min               | F32Attr                 | 最小值                | 属性|
+  |max               | F32Attr                 | 最大值                | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   Concat
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              Variadic Tensor           多个输入Tensor       多输入
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  axis               I32Attr                   连接的axis           属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | Variadic Tensor         | 多个输入Tensor         | 多输入|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |axis              | I32Attr                 | 连接的axis            | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   Conv2D
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              AnyTensor                 输入Tensor           输入
-  filter             AnyTensor                 Filter Tensor        输入
-  bias               TensorOfOrNone            Bias Tensor          输入(可选)
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  param              TPU_ConvParamAttr         Conv参数             属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | AnyTensor               | 输入Tensor           | 输入|
+  |filter            | AnyTensor               | Filter Tensor      | 输入|
+  |bias              | TensorOfOrNone          | Bias Tensor        | 输入(可选)|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |param             | TPU_ConvParamAttr       | Conv参数             | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   Crop
 
   参数名称      类型                      描述          类别
-  ------------- ------------------------- ------------- ------
-  output        AnyTensor                 输出Tensor    输出
-  input         AnyTensor                 输入Tensor    输入
-  crop_shape    I32ArrayAttr              Crop Shape    属性
-  crop_offset   TI32ArrayAttr             Crop Offset   属性
-  quant         TPU_QuantParamAttr        Quant参数     属性
-  name          StrAttr                   名称          属性
-  chipname      OptionalAttr\<StrAttr\>   芯片名称      属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output       | AnyTensor               | 输出Tensor    | 输出|
+  |input        | AnyTensor               | 输入Tensor    | 输入|
+  |crop_shape   | I32ArrayAttr            | Crop Shape  | 属性|
+  |crop_offset  | TI32ArrayAttr           | Crop Offset | 属性|
+  |quant        | TPU_QuantParamAttr      | Quant参数     | 属性|
+  |name         | StrAttr                 | 名称          | 属性|
 
 -   Custom
 
   参数名称              类型                      描述                类别
-  --------------------- ------------------------- ------------------- ------
-  output                AnyTensor                 输出Tensor          输出
-  input                 AnyTensor                 输入Tensor          输入
-  operation_name        StrAttr                   定制操作名字        属性
-  param                 DictionaryAttr            操作所需参数        属性
-  tpu                   BoolAttr                  是否TPU处理         属性
-  do_quant              BoolAttr                  是否需要量化        属性
-  threshold_overwrite   StrAttr                   直接覆盖threshold   属性
-  name                  StrAttr                   名称                属性
-  chipname              OptionalAttr\<StrAttr\>   芯片名称            属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output               | AnyTensor               | 输出Tensor          | 输出|
+  |input                | AnyTensor               | 输入Tensor          | 输入|
+  |operation_name       | StrAttr                 | 定制操作名字            | 属性|
+  |param                | DictionaryAttr          | 操作所需参数            | 属性|
+  |tpu                  | BoolAttr                | 是否TPU处理           | 属性|
+  |do_quant             | BoolAttr                | 是否需要量化            | 属性|
+  |threshold_overwrite  | StrAttr                 | 直接覆盖threshold     | 属性|
+  |name                 | StrAttr                 | 名称                | 属性|
 
 -   DeConv2D
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              AnyTensor                 输入Tensor           输入
-  filter             AnyTensor                 Filter Tensor        输入
-  bias               TensorOfOrNone            Bias Tensor          输入(可选)
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  param              TPU_ConvParamAttr         Conv参数             属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | AnyTensor               | 输入Tensor           | 输入|
+  |filter            | AnyTensor               | Filter Tensor      | 输入|
+  |bias              | TensorOfOrNone          | Bias Tensor        | 输入(可选)|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |param             | TPU_ConvParamAttr       | Conv参数             | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   DetectionOutput
 
   参数名称               类型                      描述                   类别
-  ---------------------- ------------------------- ---------------------- --------
-  output                 AnyTensor                 输出Tensor             输出
-  input                  Variadic Tensor           输入Tensor             多输入
-  num_classes            I32Attr                   检测类别数量           属性
-  share_location         BoolAttr                  Share Location         属性
-  background_label_id    NonNegativeI32Attr        Background Label ID    属性
-  nms_threshold          F32Attr                   NMS threshold          属性
-  top_k                  I32Attr                   Top K                  属性
-  code_type              CodeTypeAttr              Code Type              属性
-  keep_top_k             I32Attr                   Keep Top K             属性
-  confidence_threshold   F32Attr                   Confidence Threshold   属性
-  name                   StrAttr                   名称                   属性
-  chipname               OptionalAttr\<StrAttr\>   芯片名称               属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output                | AnyTensor               | 输出Tensor             | 输出|
+  |input                 | Variadic Tensor         | 输入Tensor             | 多输入|
+  |num_classes           | I32Attr                 | 检测类别数量               | 属性|
+  |share_location        | BoolAttr                | Share Location       | 属性|
+  |background_label_id   | NonNegativeI32Attr      | Background Label ID  | 属性|
+  |nms_threshold         | F32Attr                 | NMS threshold        | 属性|
+  |top_k                 | I32Attr                 | Top K                | 属性|
+  |code_type             | CodeTypeAttr            | Code Type            | 属性|
+  |keep_top_k            | I32Attr                 | Keep Top K           | 属性|
+  |confidence_threshold  | F32Attr                 | Confidence Threshold | 属性|
+  |name                  | StrAttr                 | 名称                   | 属性|
 
 -   EltwiseAdd
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              Variadic Tensor           多个输入Tensor       多输入
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  do_relu            BoolAttr                  是否对结果执行relu   属性
-  do_early_stride    BoolAttr                  是否提前执行stride   属性
-  early_stride_h     I32Attr                   设置stride h         属性
-  early_stride_w     I32Attr                   设置stride w         属性
-  quant_skip         BoolAttr                  是否需要量化         属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | Variadic Tensor         | 多个输入Tensor         | 多输入|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |do_relu           | BoolAttr                | 是否对结果执行relu        | 属性|
+  |do_early_stride   | BoolAttr                | 是否提前执行stride       | 属性|
+  |early_stride_h    | I32Attr                 | 设置stride h         | 属性|
+  |early_stride_w    | I32Attr                 | 设置stride w         | 属性|
+  |quant_skip        | BoolAttr                | 是否需要量化             | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   EltwiseMax
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              Variadic Tensor           多个输入Tensor       多输入
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  do_relu            BoolAttr                  是否对结果执行relu   属性
-  do_early_stride    BoolAttr                  是否提前执行stride   属性
-  early_stride_h     I32Attr                   设置stride h         属性
-  early_stride_w     I32Attr                   设置stride w         属性
-  quant_skip         BoolAttr                  是否需要量化         属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | Variadic Tensor         | 多个输入Tensor         | 多输入|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |do_relu           | BoolAttr                | 是否对结果执行relu        | 属性|
+  |do_early_stride   | BoolAttr                | 是否提前执行stride       | 属性|
+  |early_stride_h    | I32Attr                 | 设置stride h         | 属性|
+  |early_stride_w    | I32Attr                 | 设置stride w         | 属性|
+  |quant_skip        | BoolAttr                | 是否需要量化             | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   EltwiseMul
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              Variadic Tensor           多个输入Tensor       多输入
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  do_relu            BoolAttr                  是否对结果执行relu   属性
-  do_early_stride    BoolAttr                  是否提前执行stride   属性
-  early_stride_h     I32Attr                   设置stride h         属性
-  early_stride_w     I32Attr                   设置stride w         属性
-  quant_skip         BoolAttr                  是否需要量化         属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | Variadic Tensor         | 多个输入Tensor         | 多输入|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |do_relu           | BoolAttr                | 是否对结果执行relu        | 属性|
+  |do_early_stride   | BoolAttr                | 是否提前执行stride       | 属性|
+  |early_stride_h    | I32Attr                 | 设置stride h         | 属性|
+  |early_stride_w    | I32Attr                 | 设置stride w         | 属性|
+  |quant_skip        | BoolAttr                | 是否需要量化             | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   FrcnDetection
 
   参数名称        类型                      描述               类别
-  --------------- ------------------------- ------------------ --------
-  output          AnyTensor                 输出Tensor         输出
-  input           Variadic Tensor           输入Tensor         多输入
-  class_num       I32Attr                   检测类型数量       属性
-  obj_threshold   F32Attr                   Object Threshold   属性
-  nms_threshold   F32Attr                   NMS threshold      属性
-  keep_top_k      I32Attr                   Keep Top K         属性
-  name            StrAttr                   名称               属性
-  chipname        OptionalAttr\<StrAttr\>   芯片名称           属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output         | AnyTensor               | 输出Tensor         | 输出|
+  |input          | Variadic Tensor         | 输入Tensor         | 多输入|
+  |class_num      | I32Attr                 | 检测类型数量           | 属性|
+  |obj_threshold  | F32Attr                 | Object Threshold | 属性|
+  |nms_threshold  | F32Attr                 | NMS threshold    | 属性|
+  |keep_top_k     | I32Attr                 | Keep Top K       | 属性|
+  |name           | StrAttr                 | 名称               | 属性|
 
 -   FullyConnected
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              AnyTensor                 输入Tensor           输入
-  filter             AnyTensor                 Filter Tensor        输入
-  bias               TensorOfOrNone            Bias Tensor          输入(可选)
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  do_relu            BoolAttr                  是否对结果执行relu   属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | AnyTensor               | 输入Tensor           | 输入|
+  |filter            | AnyTensor               | Filter Tensor      | 输入|
+  |bias              | TensorOfOrNone          | Bias Tensor        | 输入(可选)|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |do_relu           | BoolAttr                | 是否对结果执行relu        | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   Gru
 
   参数名称              类型                      描述                          类别
-  --------------------- ------------------------- ----------------------------- ------
-  output                AnyTensor                 输出Tensor                    输出
-  input                 AnyTensor                 输入Tensor                    输入
-  weight                AnyTensor                 输入Weight                    输入
-  recurrence            AnyTensor                 输入Recurrence                输入
-  bias                  TPU_TensorOfOrNone        输入Bias                      输入
-  initial_h             AnyTensor                 初始h                         输入
-  sigmoid_table         TPU_TensorOfOrNone        sigmoid 表                    输入
-  sigmoid_slope_table   TPU_TensorOfOrNone        sigmoid slop表                输入
-  tanh_table            TPU_TensorOfOrNone        tanh表                        输入
-  tanh_slope_table      TPU_TensorOfOrNone        tanh slop 表                  输入
-  quant                 TPU_QuantParamAttr        Quant参数                     属性
-  linear_before_reset   BoolAttr                  在reset门之前有一个linear层   属性
-  bidirectional         BoolAttr                  是否是bidirectional
-  name                  StrAttr                   名称                          属性
-  chipname              OptionalAttr\<StrAttr\>   芯片名称                      属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output               | AnyTensor               | 输出Tensor                    | 输出|
+  |input                | AnyTensor               | 输入Tensor                    | 输入|
+  |weight               | AnyTensor               | 输入Weight                    | 输入|
+  |recurrence           | AnyTensor               | 输入Recurrence                | 输入|
+  |bias                 | TPU_TensorOfOrNone      | 输入Bias                      | 输入|
+  |initial_h            | AnyTensor               | 初始h                         | 输入|
+  |sigmoid_table        | TPU_TensorOfOrNone      | sigmoid 表                   | 输入|
+  |sigmoid_slope_table  | TPU_TensorOfOrNone      | sigmoid slop表               | 输入|
+  |tanh_table           | TPU_TensorOfOrNone      | tanh表                       | 输入|
+  |tanh_slope_table     | TPU_TensorOfOrNone      | tanh slop 表                 | 输入|
+  |quant                | TPU_QuantParamAttr      | Quant参数                     | 属性|
+  |linear_before_reset  | BoolAttr                | 在reset门之前有一个linear层         | 属性|
+  |bidirectional        | BoolAttr                | 是否是bidirectional|
+  |name                 | StrAttr                 | 名称                          | 属性|
 
 -   Interp
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              AnyTensor                 输入Tensor           输入
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  height             NonNegativeI32Attr        高                   属性
-  width              NonNegativeI32Attr        宽                   属性
-  shrink_facker      NonNegativeI32Attr        缩小因子             属性
-  zoom_factor        NonNegativeI32Attr        放大因子             属性
-  pad_beg            NonNegativeI32Attr        起始填充             属性
-  pad_end            NonNegativeI32Attr        结束填充             属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | AnyTensor               | 输入Tensor           | 输入|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |height            | NonNegativeI32Attr      | 高                  | 属性|
+  |width             | NonNegativeI32Attr      | 宽                  | 属性|
+  |shrink_facker     | NonNegativeI32Attr      | 缩小因子               | 属性|
+  |zoom_factor       | NonNegativeI32Attr      | 放大因子               | 属性|
+  |pad_beg           | NonNegativeI32Attr      | 起始填充               | 属性|
+  |pad_end           | NonNegativeI32Attr      | 结束填充               | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   LeakyRelu
 
   参数名称               类型                      描述                 类别
-  ---------------------- ------------------------- -------------------- ------------
-  output                 AnyTensor                 输出Tensor           输出
-  input                  AnyTensor                 输入Tensor           输入
-  quant_pos_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_pos_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_pos_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_pos_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  quant_neg_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_neg_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_neg_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_neg_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  negative_slope         F32Attr                   负值斜率             属性
-  quant                  TPU_QuantParamAttr        Quant参数            属性
-  name                   StrAttr                   名称                 属性
-  chipname               OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output                | AnyTensor               | 输出Tensor           | 输出|
+  |input                 | AnyTensor               | 输入Tensor           | 输入|
+  |quant_pos_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_pos_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_pos_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_pos_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |quant_neg_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_neg_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_neg_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_neg_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |negative_slope        | F32Attr                 | 负值斜率               | 属性|
+  |quant                 | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name                  | StrAttr                 | 名称                 | 属性|
 
 -   LrnOne
 
   参数名称     类型                      描述         类别
-  ------------ ------------------------- ------------ ------
-  output       AnyTensor                 输出Tensor   输出
-  input        Any Tensor                输入Tensor   输入
-  local_size   NonNegativeI32Attr        local size   属性
-  alpha        F32Attr                   alpha        属性
-  beta         F32Attr                   beta         属性
-  k            I32Attr                   k            属性
-  quant        TPU_QuantParamAttr        Quant参数    属性
-  name         StrAttr                   名称         属性
-  chipname     OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output      | AnyTensor               | 输出Tensor   | 输出|
+  |input       | Any Tensor              | 输入Tensor   | 输入|
+  |local_size  | NonNegativeI32Attr      | local size | 属性|
+  |alpha       | F32Attr                 | alpha      | 属性|
+  |beta        | F32Attr                 | beta       | 属性|
+  |k           | I32Attr                 | k          | 属性|
+  |quant       | TPU_QuantParamAttr      | Quant参数    | 属性|
+  |name        | StrAttr                 | 名称         | 属性|
 
 -   LrnTwo
 
   参数名称     类型                      描述         类别
-  ------------ ------------------------- ------------ ------
-  output       AnyTensor                 输出Tensor   输出
-  input        Any Tensor                输入Tensor   输入
-  local_size   NonNegativeI32Attr        local size   属性
-  alpha        F32Attr                   alpha        属性
-  beta         F32Attr                   beta         属性
-  k            I32Attr                   k            属性
-  quant        TPU_QuantParamAttr        Quant参数    属性
-  name         StrAttr                   名称         属性
-  chipname     OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output      | AnyTensor               | 输出Tensor   | 输出|
+  |input       | Any Tensor              | 输入Tensor   | 输入|
+  |local_size  | NonNegativeI32Attr      | local size | 属性|
+  |alpha       | F32Attr                 | alpha      | 属性|
+  |beta        | F32Attr                 | beta       | 属性|
+  |k           | I32Attr                 | k          | 属性|
+  |quant       | TPU_QuantParamAttr      | Quant参数    | 属性|
+  |name        | StrAttr                 | 名称         | 属性|
 
 -   LrnThree
 
   参数名称     类型                      描述         类别
-  ------------ ------------------------- ------------ ------
-  output       AnyTensor                 输出Tensor   输出
-  input        Any Tensor                输入Tensor   输入
-  local_size   NonNegativeI32Attr        local size   属性
-  alpha        F32Attr                   alpha        属性
-  beta         F32Attr                   beta         属性
-  k            I32Attr                   k            属性
-  quant        TPU_QuantParamAttr        Quant参数    属性
-  name         StrAttr                   名称         属性
-  chipname     OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output      | AnyTensor               | 输出Tensor   | 输出|
+  |input       | Any Tensor              | 输入Tensor   | 输入|
+  |local_size  | NonNegativeI32Attr      | local size | 属性|
+  |alpha       | F32Attr                 | alpha      | 属性|
+  |beta        | F32Attr                 | beta       | 属性|
+  |k           | I32Attr                 | k          | 属性|
+  |quant       | TPU_QuantParamAttr      | Quant参数    | 属性|
+  |name        | StrAttr                 | 名称         | 属性|
 
 -   Lstm
 
   参数名称              类型                      描述                  类别
-  --------------------- ------------------------- --------------------- ------
-  output                AnyTensor                 输出Tensor            输出
-  input                 AnyTensor                 输入Tensor            输入
-  weight                AnyTensor                 输入Weight            输入
-  recurrence            AnyTensor                 输入Recurrence        输入
-  bias                  TPU_TensorOfOrNone        输入Bias              输入
-  initial_h             AnyTensor                 初始h                 输入
-  initial_c             AnyTensor                 初始c                 输入
-  sigmoid_table         TPU_TensorOfOrNone        sigmoid 表            输入
-  sigmoid_slope_table   TPU_TensorOfOrNone        sigmoid slop表        输入
-  tanh_table            TPU_TensorOfOrNone        tanh表                输入
-  tanh_slope_table      TPU_TensorOfOrNone        tanh slop 表          输入
-  quant                 TPU_QuantParamAttr        Quant参数             属性
-  bidirectional         BoolAttr                  是否是bidirectional   属性
-  name                  StrAttr                   名称                  属性
-  chipname              OptionalAttr\<StrAttr\>   芯片名称              属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output               | AnyTensor               | 输出Tensor            | 输出|
+  |input                | AnyTensor               | 输入Tensor            | 输入|
+  |weight               | AnyTensor               | 输入Weight            | 输入|
+  |recurrence           | AnyTensor               | 输入Recurrence        | 输入|
+  |bias                 | TPU_TensorOfOrNone      | 输入Bias              | 输入|
+  |initial_h            | AnyTensor               | 初始h                 | 输入|
+  |initial_c            | AnyTensor               | 初始c                 | 输入|
+  |sigmoid_table        | TPU_TensorOfOrNone      | sigmoid 表           | 输入|
+  |sigmoid_slope_table  | TPU_TensorOfOrNone      | sigmoid slop表       | 输入|
+  |tanh_table           | TPU_TensorOfOrNone      | tanh表               | 输入|
+  |tanh_slope_table     | TPU_TensorOfOrNone      | tanh slop 表         | 输入|
+  |quant                | TPU_QuantParamAttr      | Quant参数             | 属性|
+  |bidirectional        | BoolAttr                | 是否是bidirectional    | 属性|
+  |name                 | StrAttr                 | 名称                  | 属性|
 
 -   MatMul
 
   参数名称   类型                      描述         类别
-  ---------- ------------------------- ------------ --------
-  output     AnyTensor                 输出Tensor   输出
-  input      Variadic Tensor           输入Tensor   多输入
-  do_relu    BoolAttr                  是否relu     属性
-  quant      TPU_QuantParamAttr        Quant参数    属性
-  name       StrAttr                   名称         属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor   | 输出|
+  |input     | Variadic Tensor         | 输入Tensor   | 多输入|
+  |do_relu   | BoolAttr                | 是否relu     | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
+  |name      | StrAttr                 | 名称         | 属性|
 
 -   Mish
 
   参数名称         类型                      描述          类别
-  ---------------- ------------------------- ------------- --------
-  output           AnyTensor                 输出Tensor    输出
-  input            Variadic Tensor           输入Tensor    多输入
-  table            TPU_TensorOfOrNone        lut表         输入
-  table_mantissa   TPU_TensorOfOrNone        mantissa表    输入
-  has_table        BoolAttr                  是否有lut表   属性
-  quant            TPU_QuantParamAttr        Quant参数     属性
-  mish_threshold   F32Attr                   threshold     属性
-  name             StrAttr                   名称          属性
-  chipname         OptionalAttr\<StrAttr\>   芯片名称      属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output          | AnyTensor               | 输出Tensor    | 输出|
+  |input           | Variadic Tensor         | 输入Tensor    | 多输入|
+  |table           | TPU_TensorOfOrNone      | lut表        | 输入|
+  |table_mantissa  | TPU_TensorOfOrNone      | mantissa表   | 输入|
+  |has_table       | BoolAttr                | 是否有lut表     | 属性|
+  |quant           | TPU_QuantParamAttr      | Quant参数     | 属性|
+  |mish_threshold  | F32Attr                 | threshold   | 属性|
+  |name            | StrAttr                 | 名称          | 属性|
 
 - Normalize
 
-  |参数名称         类型                      描述             类别
-
-  ---------------- ------------------------- ---------------- ------
-  |output           AnyTensor                 输出Tensor       输出
-  |input            AnyTensor                 输入Tensor       输入
-  |scale            AnyTensor                 Scale Tensor     输入
-  |across_spatial   BoolAttr                  Across Spatial   属性
-  |channel_shared   BoolAttr                  Channel Shared   属性
-  |name             StrAttr                   名称             属性
-  |chipname         OptionalAttr\<StrAttr\>   芯片名称         属性
+  参数名称         类型                      描述             类别
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output          | AnyTensor               | 输出Tensor       | 输出|
+  |input           | AnyTensor               | 输入Tensor       | 输入|
+  |scale           | AnyTensor               | Scale Tensor   | 输入|
+  |across_spatial  | BoolAttr                | Across Spatial | 属性|
+  |channel_shared  | BoolAttr                | Channel Shared | 属性|
+  |name            | StrAttr                 | 名称             | 属性|
 
 -   Pad
 
   参数名称    类型                      描述             类别
-  ----------- ------------------------- ---------------- --------
-  output      AnyTensor                 输出Tensor       输出
-  input       AnyTensor                 输入Tensor       多输入
-  pads        I32ArrayAttr              填充的索引位置   属性
-  const_val   F32Attr                   填充值           属性
-  quant       TPU_QuantParamAttr        Quant参数        属性
-  name        StrAttr                   名称             属性
-  chipname    OptionalAttr\<StrAttr\>   芯片名称         属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output     | AnyTensor               | 输出Tensor       | 输出|
+  |input      | AnyTensor               | 输入Tensor       | 多输入|
+  |pads       | I32ArrayAttr            | 填充的索引位置        | 属性|
+  |const_val  | F32Attr                 | 填充值            | 属性|
+  |quant      | TPU_QuantParamAttr      | Quant参数        | 属性|
+  |name       | StrAttr                 | 名称             | 属性|
 
 -   Permute
 
   参数名称   类型                      描述             类别
-  ---------- ------------------------- ---------------- ------
-  output     AnyTensor                 输出Tensor       输出
-  input      AnyTensor                 输入Tensor       输入
-  order0     NonNegativeI32Attr        Permute order0   属性
-  order1     NonNegativeI32Attr        Permute order1   属性
-  order2     NonNegativeI32Attr        Permute order2   属性
-  order3     NonNegativeI32Attr        Permute order3   属性
-  quant      TPU_QuantParamAttr        Quant参数        属性
-  name       StrAttr                   名称             属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称         属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor       | 输出|
+  |input     | AnyTensor               | 输入Tensor       | 输入|
+  |order0    | NonNegativeI32Attr      | Permute order0 | 属性|
+  |order1    | NonNegativeI32Attr      | Permute order1 | 属性|
+  |order2    | NonNegativeI32Attr      | Permute order2 | 属性|
+  |order3    | NonNegativeI32Attr      | Permute order3 | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
+  |name      | StrAttr                 | 名称             | 属性|
 
 -   PixelShuffle
 
   参数名称         类型                      描述                     类别
-  ---------------- ------------------------- ------------------------ ------
-  output           AnyTensor                 输出Tensor               输出
-  input            AnyTensor                 输入Tensor               输入
-  upscale_factor   NonNegativeI32Attr        Upscale factor           属性
-  quant            TPU_QuantParamAttr        Quant参数                属性
-  mode             DefaultValuedAttr         mode参数， 默认值是CRD   属性
-  name             StrAttr                   名称                     属性
-  chipname         OptionalAttr\<StrAttr\>   芯片名称                 属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output          | AnyTensor               | 输出Tensor               | 输出|
+  |input           | AnyTensor               | 输入Tensor               | 输入|
+  |upscale_factor  | NonNegativeI32Attr      | Upscale factor         | 属性|
+  |quant           | TPU_QuantParamAttr      | Quant参数                | 属性|
+  |mode            | DefaultValuedAttr       | mode参数， 默认值是CRD        | 属性|
+  |name            | StrAttr                 | 名称                     | 属性|
 
 -   PoolAvg2D
 
   参数名称           类型                      描述                 类别
-  ------------------ ------------------------- -------------------- ------------
-  output             AnyTensor                 输出Tensor           输出
-  input              AnyTensor                 输入Tensor           输入
-  quant_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  param              TPU_PoolParamAttr         Pool参数             属性
-  quant              TPU_QuantParamAttr        Quant参数            属性
-  name               StrAttr                   名称                 属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor           | 输出|
+  |input             | AnyTensor               | 输入Tensor           | 输入|
+  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |param             | TPU_PoolParamAttr       | Pool参数             | 属性|
+  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name              | StrAttr                 | 名称                 | 属性|
 
 -   PoolMask
 
   参数名称    类型                      描述             类别
-  ----------- ------------------------- ---------------- --------
-  output      AnyTensor                 输出Tensor       输出
-  input       AnyTensor                 输入Tensor       多输入
-  pads        I32ArrayAttr              填充的索引位置   属性
-  const_val   F32Attr                   填充值           属性
-  quant       TPU_QuantParamAttr        Quant参数        属性
-  name        StrAttr                   名称             属性
-  chipname    OptionalAttr\<StrAttr\>   芯片名称         属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output     | AnyTensor               | 输出Tensor       | 输出|
+  |input      | AnyTensor               | 输入Tensor       | 多输入|
+  |pads       | I32ArrayAttr            | 填充的索引位置        | 属性|
+  |const_val  | F32Attr                 | 填充值            | 属性|
+  |quant      | TPU_QuantParamAttr      | Quant参数        | 属性|
+  |name       | StrAttr                 | 名称             | 属性|
 
 -   PoolMax2D
 
   参数名称   类型                      描述         类别
-  ---------- ------------------------- ------------ ------
-  output     AnyTensor                 输出Tensor   输出
-  input      AnyTensor                 输入Tensor   输入
-  param      TPU_PoolParamAttr         Pool参数     属性
-  quant      TPU_QuantParamAttr        Quant参数    属性
-  name       StrAttr                   名称         属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor   | 输出|
+  |input     | AnyTensor               | 输入Tensor   | 输入|
+  |param     | TPU_PoolParamAttr       | Pool参数     | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
+  |name      | StrAttr                 | 名称         | 属性|
 
 -   Power
 
 > y = (scale \* x + shift) \^ power
 
   参数名称   类型                      描述         类别
----------- ------------------------- ------------ ------
-  output     AnyTensor                 输出Tensor   输出
-  input      AnyTensor                 输入Tensor   输入
-  power      F32Attr                   Power        属性
-  scale      F32Attr                   Scale        属性
-  shift      F32Attr                   shift        属性
-  quant      TPU_QuantParamAttr        Quant参数    属性
-  name       StrAttr                   名称         属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor   | 输出|
+  |input     | AnyTensor               | 输入Tensor   | 输入|
+  |power     | F32Attr                 | Power      | 属性|
+  |scale     | F32Attr                 | Scale      | 属性|
+  |shift     | F32Attr                 | shift      | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
+  |name      | StrAttr                 | 名称         | 属性|
 
 -   PRelu
 
   参数名称               类型                      描述                 类别
-  ---------------------- ------------------------- -------------------- ------------
-  output                 AnyTensor                 输出Tensor           输出
-  input                  AnyTensor                 输入Tensor           输入
-  filter                 AnyTensor                 负值斜率向量         输入
-  quant_pos_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_pos_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_pos_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_pos_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  quant_neg_scale        TensorOfOrNone            量化scale向量        输入(可选)
-  quant_neg_zeropoint    TensorOfOrNone            量化zeropoint向量    输入(可选)
-  quant_neg_rshift       TensorOfOrNone            量化rshift向量       输入(可选)
-  quant_neg_multiplier   TensorOfOrNone            量化multiplier向量   输入(可选)
-  quant                  TPU_QuantParamAttr        Quant参数            属性
-  name                   StrAttr                   名称                 属性
-  chipname               OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output                | AnyTensor               | 输出Tensor           | 输出|
+  |input                 | AnyTensor               | 输入Tensor           | 输入|
+  |filter                | AnyTensor               | 负值斜率向量             | 输入|
+  |quant_pos_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_pos_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_pos_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_pos_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |quant_neg_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
+  |quant_neg_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
+  |quant_neg_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
+  |quant_neg_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
+  |quant                 | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name                  | StrAttr                 | 名称                 | 属性|
 
 -   Preprocess
 
   参数名称          类型                      描述         类别
-  ----------------- ------------------------- ------------ ------
-  output            AnyTensor                 输出Tensor   输出
-  input             AnyTensor                 输入Tensor   输入
-  color_order       I32ArrayAttr              RGB或者BGR   属性
-  mean              F32ArrayAttr              Mean         属性
-  raw_scale         F32Attr                   Raw Scale    属性
-  scale             F32Attr                   Scale        属性
-  std               F32ArrayAttr              Std          属性
-  transpose_order   I32ArrayAttr              转置顺序     属性
-  crop_offset       I32ArrayAttr              Crop偏移     属性
-  pads              I32ArrayAttr              填充大小     属性
-  const_val         F32Attr                   填充值       属性
-  quant             TPU_QuantParamAttr        Quant参数    属性
-  name              StrAttr                   名称         属性
-  chipname          OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output           | AnyTensor               | 输出Tensor   | 输出|
+  |input            | AnyTensor               | 输入Tensor   | 输入|
+  |color_order      | I32ArrayAttr            | RGB或者BGR   | 属性|
+  |mean             | F32ArrayAttr            | Mean       | 属性|
+  |raw_scale        | F32Attr                 | Raw Scale  | 属性|
+  |scale            | F32Attr                 | Scale      | 属性|
+  |std              | F32ArrayAttr            | Std        | 属性|
+  |transpose_order  | I32ArrayAttr            | 转置顺序       | 属性|
+  |crop_offset      | I32ArrayAttr            | Crop偏移     | 属性|
+  |pads             | I32ArrayAttr            | 填充大小       | 属性|
+  |const_val        | F32Attr                 | 填充值        | 属性|
+  |quant            | TPU_QuantParamAttr      | Quant参数    | 属性|
+  |name             | StrAttr                 | 名称         | 属性|
 
 -   PriorBox
 
   参数名称                   类型                      描述                 类别
-  -------------------------- ------------------------- -------------------- ------
-  output                     AnyTensor                 输出Tensor           输出
-  input                      AnyTensor                 输入Tensor           输入
-  min_size                   F32ArrayAttr              最小框大小           属性
-  max_size                   F32ArrayAttr              最大框大小           属性
-  aspect_ratios              F32ArrayAttr              缩放宽高比           属性
-  variance                   F32ArrayAttr              变量                 属性
-  clip                       BoolAttr                  是否裁剪             属性
-  step_h                     F32Attr                   H维度的step          属性
-  step_w                     F32Attr                   W维度的step          属性
-  img_h                      I32Attr                   输入图像的高度       属性
-  img_w                      I32Attr                   输入图像的宽度       属性
-  offset                     DefaultValuedAttr         默认框中心偏移量     属性
-  num_priors                 I32Attr                   默认框数目           属性
-  use_default_aspect_ratio   DefaultValuedAttr         是否使用默认宽高比   属性
-  name                       StrAttr                   名称                 属性
-  chipname                   OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output                    | AnyTensor               | 输出Tensor           | 输出|
+  |input                     | AnyTensor               | 输入Tensor           | 输入|
+  |min_size                  | F32ArrayAttr            | 最小框大小              | 属性|
+  |max_size                  | F32ArrayAttr            | 最大框大小              | 属性|
+  |aspect_ratios             | F32ArrayAttr            | 缩放宽高比              | 属性|
+  |variance                  | F32ArrayAttr            | 变量                 | 属性|
+  |clip                      | BoolAttr                | 是否裁剪               | 属性|
+  |step_h                    | F32Attr                 | H维度的step           | 属性|
+  |step_w                    | F32Attr                 | W维度的step           | 属性|
+  |img_h                     | I32Attr                 | 输入图像的高度            | 属性|
+  |img_w                     | I32Attr                 | 输入图像的宽度            | 属性|
+  |offset                    | DefaultValuedAttr       | 默认框中心偏移量           | 属性|
+  |num_priors                | I32Attr                 | 默认框数目              | 属性|
+  |use_default_aspect_ratio  | DefaultValuedAttr       | 是否使用默认宽高比          | 属性|
+  |name                      | StrAttr                 | 名称                 | 属性|
 
 -   Proposal
 
   参数名称             类型                      描述                  类别
-  -------------------- ------------------------- --------------------- ------
-  output               AnyTensor                 输出Tensor            输出
-  input                AnyTensor                 输入Tensor            输入
-  net_input_h          I32Attr                   网络的输入高度        属性
-  net_input_w          I32Attr                   网络的输入宽度        属性
-  feat_stride          I32Attr                   anchor box 的stride   属性
-  anchor_base_size     I32Attr                   anchor 起始大小       属性
-  rpn_obj_threshold    F32Attr                   候选框的可信度        属性
-  rpn_nms_threshold    F32Attr                   NMS的可信度           属性
-  rpn_nms_post_top_n   I32Attr                   保存NMS框数目         属性
-  name                 StrAttr                   名称                  属性
-  chipname             OptionalAttr\<StrAttr\>   芯片名称              属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output              | AnyTensor               | 输出Tensor            | 输出|
+  |input               | AnyTensor               | 输入Tensor            | 输入|
+  |net_input_h         | I32Attr                 | 网络的输入高度             | 属性|
+  |net_input_w         | I32Attr                 | 网络的输入宽度             | 属性|
+  |feat_stride         | I32Attr                 | anchor box 的stride  | 属性|
+  |anchor_base_size    | I32Attr                 | anchor 起始大小         | 属性|
+  |rpn_obj_threshold   | F32Attr                 | 候选框的可信度             | 属性|
+  |rpn_nms_threshold   | F32Attr                 | NMS的可信度             | 属性|
+  |rpn_nms_post_top_n  | I32Attr                 | 保存NMS框数目            | 属性|
+  |name                | StrAttr                 | 名称                  | 属性|
 
 -   QuadraticSum
 
   参数名称         类型                      描述           类别
-  ---------------- ------------------------- -------------- ------
-  output           AnyTensor                 输出Tensor     输出
-  input            AnyTensor                 输入Tensor     输入
-  quant            TPU_QuantParamAttr        Quant参数      属性
-  high_precision   OptionalAttr              是否使用FP32   属性
-  axis             DefaultValuedAttr         指定维度       属性
-  name             StrAttr                   名称           属性
-  chipname         OptionalAttr\<StrAttr\>   芯片名称       属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output          | AnyTensor               | 输出Tensor     | 输出|
+  |input           | AnyTensor               | 输入Tensor     | 输入|
+  |quant           | TPU_QuantParamAttr      | Quant参数      | 属性|
+  |high_precision  | OptionalAttr            | 是否使用FP32     | 属性|
+  |axis            | DefaultValuedAttr       | 指定维度         | 属性|
+  |name            | StrAttr                 | 名称           | 属性|
 
 -   Reciprocal
 
   参数名称         类型                      描述                 类别
-  ---------------- ------------------------- -------------------- ------------
-  output           AnyTensor                 输出Tensor           输出
-  input            AnyTensor                 输入Tensor           输入
-  table            TensorOfOrNone            LUT table            输入(可选)
-  Table_mantissa   TensorOfOrNone            LUT table mantissa   输入(可选)
-  has_table        BoolAttr                  是否使用LUT计算      属性
-  quant            TPU_QuantParamAttr        Quant参数            属性
-  name             StrAttr                   名称                 属性
-  chipname         OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output          | AnyTensor               | 输出Tensor           | 输出|
+  |input           | AnyTensor               | 输入Tensor           | 输入|
+  |table           | TensorOfOrNone          | LUT table          | 输入(可选)|
+  |Table_mantissa  | TensorOfOrNone          | LUT table mantissa | 输入(可选)|
+  |has_table       | BoolAttr                | 是否使用LUT计算          | 属性|
+  |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name            | StrAttr                 | 名称                 | 属性|
 
 -   ReduceMax
 
   参数名称           类型                      描述            类别
-  ------------------ ------------------------- --------------- ------
-  output             AnyTensor                 输出Tensor      输出
-  input              AnyTensor                 输入Tensor      输入
-  quant              TPU_QuantParamAttr        Quant参数       属性
-  quant_scale        TPU_TensorOfOrNone        Quant收缩因子   属性
-  quant_zeropoint    TPU_TensorOfOrNone        Quant零点值     属性
-  quant_rshift       TPU_TensorOfOrNone        Quant右移位     属性
-  quant_multiplier   TPU_TensorOfOrNone        Quant乘数       属性
-  axes               OptionalAttr              指定维度        属性
-  keepdims           DefaultValuedAttr         是否保持维度    属性
-  name               StrAttr                   名称            属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称        属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor      | 输出|
+  |input             | AnyTensor               | 输入Tensor      | 输入|
+  |quant             | TPU_QuantParamAttr      | Quant参数       | 属性|
+  |quant_scale       | TPU_TensorOfOrNone      | Quant收缩因子     | 属性|
+  |quant_zeropoint   | TPU_TensorOfOrNone      | Quant零点值      | 属性|
+  |quant_rshift      | TPU_TensorOfOrNone      | Quant右移位      | 属性|
+  |quant_multiplier  | TPU_TensorOfOrNone      | Quant乘数       | 属性|
+  |axes              | OptionalAttr            | 指定维度          | 属性|
+  |keepdims          | DefaultValuedAttr       | 是否保持维度        | 属性|
+  |name              | StrAttr                 | 名称            | 属性|
 
 -   ReduceMean
 
   参数名称           类型                 描述            类别
-  ------------------ -------------------- --------------- ------
-  output             AnyTensor            输出Tensor      输出
-  input              AnyTensor            输入Tensor      输入
-  quant              TPU_QuantParamAttr   Quant参数       属性
-  quant_scale        TPU_TensorOfOrNone   Quant收缩因子   属性
-  quant_zeropoint    TPU_TensorOfOrNone   Quant零点值     属性
-  quant_rshift       TPU_TensorOfOrNone   Quant右移位     属性
-  quant_multiplier   TPU_TensorOfOrNone   Quant乘数       属性
-  keepdims           DefaultValuedAttr    是否保持维度    属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor          | 输出Tensor      | 输出|
+  |input             | AnyTensor          | 输入Tensor      | 输入|
+  |quant             | TPU_QuantParamAttr | Quant参数       | 属性|
+  |quant_scale       | TPU_TensorOfOrNone | Quant收缩因子     | 属性|
+  |quant_zeropoint   | TPU_TensorOfOrNone | Quant零点值      | 属性|
+  |quant_rshift      | TPU_TensorOfOrNone | Quant右移位      | 属性|
+  |quant_multiplier  | TPU_TensorOfOrNone | Quant乘数       | 属性|
+  |keepdims          | DefaultValuedAttr  | 是否保持维度        | 属性|
 
 -   Relu
 
   参数名称   类型                      描述                类别
-  ---------- ------------------------- ------------------- ------------
-  output     AnyTensor                 输出Tensor          输出
-  input      AnyTensor                 输入Tensor          输入
-  maximum    F32Attr                   用于ReluM的最大值   属性(可选)
-  quant      TPU_QuantParamAttr        Quant参数           属性
-  name       StrAttr                   名称                属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称            属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor          | 输出|
+  |input     | AnyTensor               | 输入Tensor          | 输入|
+  |maximum   | F32Attr                 | 用于ReluM的最大值       | 属性(可选)|
+  |quant     | TPU_QuantParamAttr      | Quant参数           | 属性|
+  |name      | StrAttr                 | 名称                | 属性|
 
 -   Reorg
 
   参数名称   类型                      描述             类别
-  ---------- ------------------------- ---------------- ------
-  output     AnyTensor                 输出Tensor       输出
-  input      AnyTensor                 输入Tensor       输入
-  stride     NonNegativeI32Attr        宽和高的stride   属性
-  quant      TPU_QuantParamAttr        Quant参数        属性
-  name       StrAttr                   名称             属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称         属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor       | 输出|
+  |input     | AnyTensor               | 输入Tensor       | 输入|
+  |stride    | NonNegativeI32Attr      | 宽和高的stride     | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
+  |name      | StrAttr                 | 名称             | 属性|
 
 -   RetinaFaceDetection
 
   参数名称               类型                      描述                   类别
-  ---------------------- ------------------------- ---------------------- --------
-  output                 AnyTensor                 输出Tensor             输出
-  input                  Variadic Tensor           输入Tensor             多输入
-  nms_threshold          F32Attr                   NMS threshold          属性
-  confidence_threshold   F32Attr                   Confidence Threshold   属性
-  keep_top_k             I32Attr                   Keep Top K             属性
-  name                   StrAttr                   名称                   属性
-  chipname               OptionalAttr\<StrAttr\>   芯片名称               属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output                | AnyTensor               | 输出Tensor             | 输出|
+  |input                 | Variadic Tensor         | 输入Tensor             | 多输入|
+  |nms_threshold         | F32Attr                 | NMS threshold        | 属性|
+  |confidence_threshold  | F32Attr                 | Confidence Threshold | 属性|
+  |keep_top_k            | I32Attr                 | Keep Top K           | 属性|
+  |name                  | StrAttr                 | 名称                   | 属性|
 
 -   ROIPooling
 
   参数名称   类型        描述         类别
-  ---------- ----------- ------------ ------
-  output     AnyTensor   输出Tensor   输出
-  input      AnyTensor   输入Tensor   输入
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor | 输出Tensor   | 输出|
+  |input     | AnyTensor | 输入Tensor   | 输入|
 
 -   Scale
 
   参数名称   类型                      描述                 类别
-  ---------- ------------------------- -------------------- ------------
-  output     AnyTensor                 输出Tensor           输出
-  input      AnyTensor                 输入Tensor           输入
-  scale      AnyTensor                 scale向量            输入
-  bias       TensorOfOrNone            Bias向量             输入(可选)
-  do_relu    BoolAttr                  是否对结果执行relu   属性
-  quant      TPU_QuantParamAttr        Quant参数            属性
-  name       StrAttr                   名称                 属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor           | 输出|
+  |input     | AnyTensor               | 输入Tensor           | 输入|
+  |scale     | AnyTensor               | scale向量            | 输入|
+  |bias      | TensorOfOrNone          | Bias向量             | 输入(可选)|
+  |do_relu   | BoolAttr                | 是否对结果执行relu        | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name      | StrAttr                 | 名称                 | 属性|
 
 -   ShuffleChannel
 
   参数名称   类型                      描述            类别
-  ---------- ------------------------- --------------- ------
-  output     AnyTensor                 输出Tensor      输出
-  input      AnyTensor                 输入Tensor      输入
-  group      NonNegativeI32Attr        Shuffle Group   属性
-  quant      TPU_QuantParamAttr        Quant参数       属性
-  name       StrAttr                   名称            属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称        属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor      | 输出|
+  |input     | AnyTensor               | 输入Tensor      | 输入|
+  |group     | NonNegativeI32Attr      | Shuffle Group | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数       | 属性|
+  |name      | StrAttr                 | 名称            | 属性|
 
 -   Sigmoid
 
   参数名称         类型                      描述                 类别
-  ---------------- ------------------------- -------------------- ------------
-  output           AnyTensor                 输出Tensor           输出
-  input            AnyTensor                 输入Tensor           输入
-  table            TensorOfOrNone            LUT table            输入(可选)
-  table_mantissa   TensorOfOrNone            LUT table mantissa   输入(可选)
-  has_table        BoolAttr                  是否使用LUT计算      属性
-  quant            TPU_QuantParamAttr        Quant参数            属性
-  name             StrAttr                   名称                 属性
-  chipname         OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output          | AnyTensor               | 输出Tensor           | 输出|
+  |input           | AnyTensor               | 输入Tensor           | 输入|
+  |table           | TensorOfOrNone          | LUT table          | 输入(可选)|
+  |table_mantissa  | TensorOfOrNone          | LUT table mantissa | 输入(可选)|
+  |has_table       | BoolAttr                | 是否使用LUT计算          | 属性|
+  |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name            | StrAttr                 | 名称                 | 属性|
 
 -   Slice
 
   参数名称   类型                      描述                   类别
-  ---------- ------------------------- ---------------------- ------
-  output     AnyTensor                 输出Tensor             输出
-  input      AnyTensor                 输入Tensor             输入
-  axis       I32Attr                   切分的维度             属性
-  offset     I32Attr                   在切分维度上的offset   属性
-  quant      TPU_QuantParamAttr        Quant参数              属性
-  name       StrAttr                   名称                   属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称               属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor             | 输出|
+  |input     | AnyTensor               | 输入Tensor             | 输入|
+  |axis      | I32Attr                 | 切分的维度                | 属性|
+  |offset    | I32Attr                 | 在切分维度上的offset        | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数              | 属性|
+  |name      | StrAttr                 | 名称                   | 属性|
 
 -   Sqrt
 
   参数名称         类型                      描述                 类别
-  ---------------- ------------------------- -------------------- ------------
-  output           AnyTensor                 输出Tensor           输出
-  input            AnyTensor                 输入Tensor           输入
-  table            TensorOfOrNone            LUT table            输入(可选)
-  table_mantissa   TensorOfOrNone            LUT table mantissa   输入(可选)
-  has_table        BoolAttr                  是否使用LUT计算      属性
-  quant            TPU_QuantParamAttr        Quant参数            属性
-  name             StrAttr                   名称                 属性
-  chipname         OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output          | AnyTensor               | 输出Tensor           | 输出|
+  |input           | AnyTensor               | 输入Tensor           | 输入|
+  |table           | TensorOfOrNone          | LUT table          | 输入(可选)|
+  |table_mantissa  | TensorOfOrNone          | LUT table mantissa | 输入(可选)|
+  |has_table       | BoolAttr                | 是否使用LUT计算          | 属性|
+  |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name            | StrAttr                 | 名称                 | 属性|
 
 -   Square
 
   参数名称   类型                      描述         类别
-  ---------- ------------------------- ------------ ------
-  output     AnyTensor                 输出Tensor   输出
-  input      AnyTensor                 输入Tensor   输入
-  quant      TPU_QuantParamAttr        Quant参数    属性
-  name       StrAttr                   名称         属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor   | 输出|
+  |input     | AnyTensor               | 输入Tensor   | 输入|
+  |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
+  |name      | StrAttr                 | 名称         | 属性|
 
 -   Softmax
 
   参数名称                    类型                      描述                    类别
-  --------------------------- ------------------------- ----------------------- ------------
-  output                      AnyTensor                 输出Tensor              输出
-  input                       AnyTensor                 输入Tensor              输入
-  exponential_table           TPU_TensorOfOrNone        exponential表           输入(可选)
-  reciprocal_table            TPU_TensorOfOrNone        Reciprocal表            输入(可选)
-  reciprocal_mantissa_table   TPU_TensorOfOrNone        reciprocal_mantissa表   输入(可选)
-  axis                        I32Attr                   Softmax的维度           属性
-  name                        StrAttr                   名称                    属性
-  chipname                    OptionalAttr\<StrAttr\>   芯片名称                属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output                     | AnyTensor               | 输出Tensor              | 输出|
+  |input                      | AnyTensor               | 输入Tensor              | 输入|
+  |exponential_table          | TPU_TensorOfOrNone      | exponential表          | 输入(可选)|
+  |reciprocal_table           | TPU_TensorOfOrNone      | Reciprocal表           | 输入(可选)|
+  |reciprocal_mantissa_table  | TPU_TensorOfOrNone      | reciprocal_mantissa表  | 输入(可选)|
+  |axis                       | I32Attr                 | Softmax的维度            | 属性|
+  |name                       | StrAttr                 | 名称                    | 属性|
 
 -   SoftmaxCpu
 
   参数名称   类型                      描述            类别
-  ---------- ------------------------- --------------- ------
-  output     AnyTensor                 输出Tensor      输出
-  input      AnyTensor                 输入Tensor      输入
-  axis       I32Attr                   Softmax的维度   属性
-  name       StrAttr                   名称            属性
-  layer_id   NonNegativeI32Attr        Layer ID        属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称        属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor      | 输出|
+  |input     | AnyTensor               | 输入Tensor      | 输入|
+  |axis      | I32Attr                 | Softmax的维度    | 属性|
+  |name      | StrAttr                 | 名称            | 属性|
+  |layer_id  | NonNegativeI32Attr      | Layer ID      | 属性|
 
 -   SwapChannel
 
   参数名称        类型                           描述                类别
-  --------------- ------------------------------ ------------------- ------
-  output          AnyTensor                      输出Tensor          输出
-  input           AnyTensor                      输入Tensor          输入
-  channel_order   OptionalAttr\<I32ArrayAttr\>   交换channel的顺序   属性
-  quant           OptionalAttr\<I32ArrayAttr\>   Quant参数           属性
-  name            StrAttr                        名称                属性
-  chipname        OptionalAttr\<StrAttr\>        芯片名称            属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output         | AnyTensor                    | 输出Tensor          | 输出|
+  |input          | AnyTensor                    | 输入Tensor          | 输入|
+  |channel_order  | OptionalAttr\<I32ArrayAttr\> | 交换channel的顺序      | 属性|
+  |quant          | OptionalAttr\<I32ArrayAttr\> | Quant参数           | 属性|
+  |name           | StrAttr                      | 名称                | 属性|
 
 -   TanH
 
   参数名称         类型                      描述                 类别
-  ---------------- ------------------------- -------------------- ------------
-  output           AnyTensor                 输出Tensor           输出
-  input            AnyTensor                 输入Tensor           输入
-  table            TensorOfOrNone            LUT table            输入(可选)
-  table_mantissa   TensorOfOrNone            LUT table mantissa   输入(可选)
-  has_table        BoolAttr                  是否使用LUT计算      属性
-  quant            TPU_QuantParamAttr        Quant参数            属性
-  name             StrAttr                   名称                 属性
-  chipname         OptionalAttr\<StrAttr\>   芯片名称             属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output          | AnyTensor               | 输出Tensor           | 输出|
+  |input           | AnyTensor               | 输入Tensor           | 输入|
+  |table           | TensorOfOrNone          | LUT table          | 输入(可选)|
+  |table_mantissa  | TensorOfOrNone          | LUT table mantissa | 输入(可选)|
+  |has_table       | BoolAttr                | 是否使用LUT计算          | 属性|
+  |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
+  |name            | StrAttr                 | 名称                 | 属性|
 
 -   Tile
 
   参数名称           类型                      描述            类别
-  ------------------ ------------------------- --------------- ------
-  output             AnyTensor                 输出Tensor      输出
-  input              AnyTensor                 输入Tensor      输入
-  quant              TPU_QuantParamAttr        Quant参数       属性
-  quant_scale        TPU_TensorOfOrNone        Quant收缩因子   属性
-  quant_zeropoint    TPU_TensorOfOrNone        Quant零点值     属性
-  quant_rshift       TPU_TensorOfOrNone        Quant右移位     属性
-  quant_multiplier   TPU_TensorOfOrNone        Quant乘数       属性
-  resp               OptionalAttr              重复次数        属性
-  name               StrAttr                   名称            属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称        属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor      | 输出|
+  |input             | AnyTensor               | 输入Tensor      | 输入|
+  |quant             | TPU_QuantParamAttr      | Quant参数       | 属性|
+  |quant_scale       | TPU_TensorOfOrNone      | Quant收缩因子     | 属性|
+  |quant_zeropoint   | TPU_TensorOfOrNone      | Quant零点值      | 属性|
+  |quant_rshift      | TPU_TensorOfOrNone      | Quant右移位      | 属性|
+  |quant_multiplier  | TPU_TensorOfOrNone      | Quant乘数       | 属性|
+  |resp              | OptionalAttr            | 重复次数          | 属性|
+  |name              | StrAttr                 | 名称            | 属性|
 
 -   TileInterp
 
   参数名称           类型                      描述            类别
-  ------------------ ------------------------- --------------- ------
-  output             AnyTensor                 输出Tensor      输出
-  input              AnyTensor                 输入Tensor      输入
-  quant              TPU_QuantParamAttr        Quant参数       属性
-  quant_scale        TPU_TensorOfOrNone        Quant收缩因子   属性
-  quant_zeropoint    TPU_TensorOfOrNone        Quant零点值     属性
-  quant_rshift       TPU_TensorOfOrNone        Quant右移位     属性
-  quant_multiplier   TPU_TensorOfOrNone        Quant乘数       属性
-  resp               OptionalAttr              重复次数        属性
-  name               StrAttr                   名称            属性
-  chipname           OptionalAttr\<StrAttr\>   芯片名称        属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output            | AnyTensor               | 输出Tensor      | 输出|
+  |input             | AnyTensor               | 输入Tensor      | 输入|
+  |quant             | TPU_QuantParamAttr      | Quant参数       | 属性|
+  |quant_scale       | TPU_TensorOfOrNone      | Quant收缩因子     | 属性|
+  |quant_zeropoint   | TPU_TensorOfOrNone      | Quant零点值      | 属性|
+  |quant_rshift      | TPU_TensorOfOrNone      | Quant右移位      | 属性|
+  |quant_multiplier  | TPU_TensorOfOrNone      | Quant乘数       | 属性|
+  |resp              | OptionalAttr            | 重复次数          | 属性|
+  |name              | StrAttr                 | 名称            | 属性|
 
 -   Transpose
 
   参数名称   类型                      描述         类别
-  ---------- ------------------------- ------------ ------
-  output     AnyTensor                 输出Tensor   输出
-  input      AnyTensor                 输入Tensor   输入
-  name       StrAttr                   名称         属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称     属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor   | 输出|
+  |input     | AnyTensor               | 输入Tensor   | 输入|
+  |name      | StrAttr                 | 名称         | 属性|
 
 -   Upsample
 
   参数名称   类型                      描述            类别
-  ---------- ------------------------- --------------- ------------
-  output     AnyTensor                 输出Tensor      输出
-  input      AnyTensor                 输入Tensor      输入
-  mask       TPU_TensorOfOrNone        mask            输入(可选)
-  group      NonNegativeI32Attr        Shuffle Group   属性
-  quant      TPU_QuantParamAttr        Quant参数       属性
-  name       StrAttr                   名称            属性
-  chipname   OptionalAttr\<StrAttr\>   芯片名称        属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output    | AnyTensor               | 输出Tensor      | 输出|
+  |input     | AnyTensor               | 输入Tensor      | 输入|
+  |mask      | TPU_TensorOfOrNone      | mask          | 输入(可选)|
+  |group     | NonNegativeI32Attr      | Shuffle Group | 属性|
+  |quant     | TPU_QuantParamAttr      | Quant参数       | 属性|
+  |name      | StrAttr                 | 名称            | 属性|
 
 -   YoloDetection
 
   参数名称        类型                      描述               类别
-  --------------- ------------------------- ------------------ --------
-  output          AnyTensor                 输出Tensor         输出
-  input           Variadic Tensor           输入Tensor         多输入
-  net_input_h     I32Attr                   网路输入分辨率h    属性
-  net_input_w     I32Attr                   网路输入分辨率w    属性
-  class_num       I32Attr                   检测类型数量       属性
-  nms_threshold   F32Attr                   NMS threshold      属性
-  obj_threshold   F32Attr                   Object Threshold   属性
-  keep_topk       I32Attr                   Keep Top K         属性
-  spp_net         BoolAttr                  Spp网络            属性
-  tiny_net        BoolAttr                  Tiny网络           属性
-  yolo_v4_net     BoolAttr                  Yolo_v4网络        属性
-  name            StrAttr                   名称               属性
-  chipname        OptionalAttr\<StrAttr\>   芯片名称           属性
+  |参数名称|类型|描述|类别|
+  |---|---|---|---|
+  |output         | AnyTensor               | 输出Tensor         | 输出|
+  |input          | Variadic Tensor         | 输入Tensor         | 多输入|
+  |net_input_h    | I32Attr                 | 网路输入分辨率h         | 属性|
+  |net_input_w    | I32Attr                 | 网路输入分辨率w         | 属性|
+  |class_num      | I32Attr                 | 检测类型数量           | 属性|
+  |nms_threshold  | F32Attr                 | NMS threshold    | 属性|
+  |obj_threshold  | F32Attr                 | Object Threshold | 属性|
+  |keep_topk      | I32Attr                 | Keep Top K       | 属性|
+  |spp_net        | BoolAttr                | Spp网络            | 属性|
+  |tiny_net       | BoolAttr                | Tiny网络           | 属性|
+  |yolo_v4_net    | BoolAttr                | Yolo_v4网络        | 属性|
+  |name           | StrAttr                 | 名称               | 属性|
 
 ### cvimodel文件格式参考
 
@@ -1202,16 +1209,18 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 -   【输入输出】
 
   参数名称          描述
-  ----------------- ------------------
-  \<input file\>    输入文件mlir文件
-  \<output file\>   输出cvimodel文件
+  |参数名称|描述|
+  |---|---|
+  |\<input file\>   | 输入文件mlir文件|
+  |\<output file\>  | 输出cvimodel文件|
 
 -   【选项】
 
   参数名称                    描述
-  --------------------------- ----------------------------------------
-  \--mlir-to-cvimodel         指定将mlir转换为cvimodel文件
-  \--weight-file=\<string\>   模型的weight文件，转cvimodel文件时必选
+  |参数名称|描述|
+  |---|---|
+  |\--mlir-to-cvimodel        | 指定将mlir转换为cvimodel文件|
+  |\--weight-file=\<string\>  | 模型的weight文件，转cvimodel文件时必选|
 
 #### mlir-opt
 
@@ -1226,36 +1235,38 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 -   【输入输出】
 
   参数名称          描述
-  ----------------- ---------------
-  \<input file\>    输入.mlir文件
-  \<output file\>   输出.mlir文件
+  |参数名称|描述|
+  |---|---|
+  |\<input file\>   | 输入.mlir文件|
+  |\<output file\>  | 输出.mlir文件|
 
 -   【选项】
 
   参数名称                                描述
-  --------------------------------------- ---------------------------------------------------------
-  \--canonicalize                         执行所有canonicalize优化
-  \--convert-bn-to-scale                  将BatchNorm操作变换为Scale操做
-  \--fold-scale                           将连续的2个scale变换为1个scale
-  \--merge-scale-into-conv                将Scale操作与之前的Conv操作变换一个操作
-  \--fuse-relu                            将relu与前一个操作融合
-  \--decompose-normalize                  将Normalize操作分解为一系列细粒度操作
-  \--print-tpu-op-info                    输出每个op的信息
-  \--import-calibration-table             导入calibration table
-  \--calibration-table=\<string\>         Calibration table文件名
-  \--tpu-quant                            执行模型量化，默认量化方式为对称，Per-Channel，INT8量化
-  \--quant-int8-per-tensor                指定INT8量化以Per-Tensor方式进行
-  \--quant-full-bf16                      指定量化以全bf16方式进行
-  \--tpu-lower                            Lowering操作
-  \--assign-chip-name                     设置芯片名称
-  \--group-ops                            执行group ops的优化
-  \--tg-fuse-leakyrelu                    将leaky-relu与前一个conv操作融合
-  \--deep-fusion-tg2tl-la                 为SimpleDeepFusion优化进行前置分析
-  \--deep-fusion-tl-la2lw                 执行SimpleDeepFusion优化
-  \--assign-neuron-address                为Neuron Tensor分配地址
-  \--tpu-neuron-address-align=\<ulong\>   指定Neuron Tensor分配地址符合alignment
-  \--assign-weight-address                为Weight Tensor分配地址
-  \--tpu-weight-address-align=\<ulong\>   指定Weight Tensor分配地址符合alignment
+  |参数名称|描述|
+  |---|---|
+  |\--canonicalize                        | 执行所有canonicalize优化|
+  |\--convert-bn-to-scale                 | 将BatchNorm操作变换为Scale操做|
+  |\--fold-scale                          | 将连续的2个scale变换为1个scale|
+  |\--merge-scale-into-conv               | 将Scale操作与之前的Conv操作变换一个操作|
+  |\--fuse-relu                           | 将relu与前一个操作融合|
+  |\--decompose-normalize                 | 将Normalize操作分解为一系列细粒度操作|
+  |\--print-tpu-op-info                   | 输出每个op的信息|
+  |\--import-calibration-table            | 导入calibration table|
+  |\--calibration-table=\<string\>        | Calibration table文件名|
+  |\--tpu-quant                           | 执行模型量化，默认量化方式为对称，Per-Channel，INT8量化|
+  |\--quant-int8-per-tensor               | 指定INT8量化以Per-Tensor方式进行|
+  |\--quant-full-bf16                     | 指定量化以全bf16方式进行|
+  |\--tpu-lower                           | Lowering操作|
+  |\--assign-chip-name                    | 设置芯片名称|
+  |\--group-ops                           | 执行group ops的优化|
+  |\--tg-fuse-leakyrelu                   | 将leaky-relu与前一个conv操作融合|
+  |\--deep-fusion-tg2tl-la                | 为SimpleDeepFusion优化进行前置分析|
+  |\--deep-fusion-tl-la2lw                | 执行SimpleDeepFusion优化|
+  |\--assign-neuron-address               | 为Neuron Tensor分配地址|
+  |\--tpu-neuron-address-align=\<ulong\>  | 指定Neuron Tensor分配地址符合alignment|
+  |\--assign-weight-address               | 为Weight Tensor分配地址|
+  |\--tpu-weight-address-align=\<ulong\>  | 指定Weight Tensor分配地址符合alignment|
 
 #### mlir-tpu-interpreter
 
@@ -1271,16 +1282,18 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 -   【输入输出】
 
   参数名称         描述
-  ---------------- ---------------
-  \<input file\>   输入.mlir文件
+  |参数名称|描述|
+  |---|---|
+  |\<input file\>  | 输入.mlir文件|
 
 -   【选项】
 
   参数名称                        描述
-  ------------------------------- ---------------------------------------
-  \--dump-all-tensor=\<string\>   保存所有Tensor数据到指定文件，npz格式
-  \--tensor-in=\<string\>         输入tensor数据文件，npz格式
-  \--tensor-out=\<string\>        输出tensor数据文件，npz格式
+  |参数名称|描述|
+  |---|---|
+  |\--dump-all-tensor=\<string\>  | 保存所有Tensor数据到指定文件，npz格式|
+  |\--tensor-in=\<string\>        | 输入tensor数据文件，npz格式|
+  |\--tensor-out=\<string\>       | 输出tensor数据文件，npz格式|
 
 #### run-calibration
 
@@ -1297,26 +1310,28 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 -   【输入输出】
 
   参数名称              描述
-  --------------------- ----------------------
-  \<model file\>        输入mlir文件
-  \<image list file\>   校准图像文件列表文件
+  |参数名称|描述|
+  |---|---|
+  |\<model file\>       | 输入mlir文件|
+  |\<image list file\>  | 校准图像文件列表文件|
 
 -   【选项】
 
   参数名称                    描述
-  --------------------------- -----------------------------------------
-  \--output_file=\<string\>   输出calibration table文件
-  \--model_name=\<string\>    Model Name \[1\]，default=generic
-  \--image_resize_dims        图像首先进行resize的大小
-  \--net_input_dims           在Resize基础上进行crop的大小
-  \--raw_scale                预处理raw_scale
-  \--mean                     预处理mean
-  \--mean_file                预处理mean_file
-  \--input_scale              预处理input_scale
-  \--calibrator               校准算法类型,可选KLD或Asym，default=KLD
-  \--math_lib_path            指向底层计算库的路径
-  \--inpu_num                 指定所用的校准图像数量
-  \--histogram_bin_num        直方图bin数量
+  |参数名称|描述|
+  |---|---|
+  |\--output_file=\<string\>  | 输出calibration table文件|
+  |\--model_name=\<string\>   | Model Name \[1\]，default=generic|
+  |\--image_resize_dims       | 图像首先进行resize的大小|
+  |\--net_input_dims          | 在Resize基础上进行crop的大小|
+  |\--raw_scale               | 预处理raw_scale|
+  |\--mean                    | 预处理mean|
+  |\--mean_file               | 预处理mean_file|
+  |\--input_scale             | 预处理input_scale|
+  |\--calibrator              | 校准算法类型,可选KLD或Asym，default=KLD|
+  |\--math_lib_path           | 指向底层计算库的路径|
+  |\--inpu_num                | 指定所用的校准图像数量|
+  |\--histogram_bin_num       | 直方图bin数量|
 
 > 【注意】
 
@@ -1337,16 +1352,18 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 -   【输入输出】
 
   参数名称            描述
-  ------------------- ----------------------
-  quanted_mlir_file   输入量化后的mlir文件
-  out_cvimodel_file   输出的cvimodel文件
+  |参数名称|描述|
+  |---|---|
+  |quanted_mlir_file  | 输入量化后的mlir文件|
+  |out_cvimodel_file  | 输出的cvimodel文件|
 
 -   【选项】
 
   -----------------------------------------------------------------------------------------------------------------------------------------------------------
   参数名称                                     描述
-  -------------------------------------------- --------------------------------------------------------------------------------------------------------------
-  -i \<quanted_mlir_file\>                     输入量化后的mlir模型文件
+  |参数名称|描述|
+  |---|---|
+  |-i \<quanted_mlir_file\>                    | 输入量化后的mlir模型文件|
 
   -o \<cvimodel_file\>                         输出生成的cvimodel file
 
@@ -1405,10 +1422,11 @@ MLIRImport.output_shape_list为模型的输出张量shape。
 +---------------------------------------------------------------+
 
   功能说明   注释
----------- -------------------
-  返回值     Operation \*
-  name       指定input名字
-  index      指定input输入索引
+  |功能说明|注释|
+  |---|---|
+  |返回值       | Operation \*|
+  |name      | 指定input名字|
+  |index     | 指定input输入索引|
 
 +--------------------------------------------+
 | def add_weight_fileOp(self,                |
@@ -1419,9 +1437,10 @@ MLIRImport.output_shape_list为模型的输出张量shape。
 +--------------------------------------------+
 
   功能说明   注释
----------- -------------------
-  返回值     Operation \*
-  name       指定weight 文件名
+  |功能说明|注释|
+  |---|---|
+  |返回值       | Operation \*|
+  |name      | 指定weight 文件名|
 
 +----------------------------------------------------+
 | def add_load_fileOp(self,                          |
@@ -1438,12 +1457,13 @@ MLIRImport.output_shape_list为模型的输出张量shape。
 +----------------------------------------------------+
 
   功能说明              注释
---------------------- ------------------
-  返回值                Operation \*
-  name                  Tensor名
-  output_tensor_shape   输出Tensor shape
-  tensor_type           Tensor类型
-  storage               存储类型
+  |功能说明|注释|
+  |---|---|
+  |返回值                  | Operation \*|
+  |name                 | Tensor名|
+  |output_tensor_shape  | 输出Tensor shape|
+  |tensor_type          | Tensor类型|
+  |storage              | 存储类型|
 
 +---------------------------+
 | def add_conv_Op(self,     |
@@ -1462,32 +1482,34 @@ MLIRImport.output_shape_list为模型的输出张量shape。
 +---------------------------+
 
   功能说明              注释
---------------------- --------------------
-  返回值                Operation \*
-  op_name               指定conv层的名字
-  inputOperands         指定输入操作数
-  output_tensor_shape   指定输出shape
-  mode                  指定数据类型
-  kargs                 指定Conv的属性列表
+  |功能说明|注释|
+  |---|---|
+  |返回值                  | Operation \*|
+  |op_name              | 指定conv层的名字|
+  |inputOperands        | 指定输入操作数|
+  |output_tensor_shape  | 指定输出shape|
+  |mode                 | 指定数据类型|
+  |kargs                | 指定Conv的属性列表|
 
 kargs字典序指定的参数如下
 
   key            value
--------------- ------------------------
-  'dilation_h'   dilation_h值
-  'dilation_w'   dilation_w值
-  'stride_h'     stride_h值
-  'stride_w'     stride_w值
-  'padding'      VALID或SAME
-  'padding_t'    填充top值
-  'padding_b'    填充bottom值
-  'padding_l'    填充左侧值
-  'padding_r'    填充右侧值
-  'group'        group
-  'is_dw'        是否为Depthwise
-  'with_bias'    是否有bias
-  'do_relu'      是否对结果进行relu操作
-  'ins'          对h， w插入0
+  |key|value|
+  |---|---|
+  |'dilation_h'  | dilation_h值|
+  |'dilation_w'  | dilation_w值|
+  |'stride_h'    | stride_h值|
+  |'stride_w'    | stride_w值|
+  |'padding'     | VALID或SAME|
+  |'padding_t'   | 填充top值|
+  |'padding_b'   | 填充bottom值|
+  |'padding_l'   | 填充左侧值|
+  |'padding_r'   | 填充右侧值|
+  |'group'       | group|
+  |'is_dw'       | 是否为Depthwise|
+  |'with_bias'   | 是否有bias|
+  |'do_relu'     | 是否对结果进行relu操作|
+  |'ins'         | 对h， w插入0|
 
 **def add_custom_Op(self,**
 
@@ -1502,22 +1524,24 @@ kargs字典序指定的参数如下
 用于构造定制化的Op操作
 
   功能说明              注释
---------------------- ----------------
-  返回值                Operation \*
-  op_name               指定操作名字
-  inputOperands         指定输入操作数
-  output_tensor_shape   指定输出shape
-  kargs                 指定属性列表
+  |功能说明|注释|
+  |---|---|
+  |返回值                  | Operation \*|
+  |op_name              | 指定操作名字|
+  |inputOperands        | 指定输入操作数|
+  |output_tensor_shape  | 指定输出shape|
+  |kargs                | 指定属性列表|
 
 kargs字典序指定的参数如下
 
   key                     value
------------------------ -------------------------------
-  'operation_name'        定制操作名字
-  'do_quant'              是否需要量化
-  'tpu'                   是否TPU处理
-  'threshold_overwrite'   直接覆盖threshold
-  'param'                 操作所需参数,这也是一个字典序
+  |key|value|
+  |---|---|
+  |'operation_name'       | 定制操作名字|
+  |'do_quant'             | 是否需要量化|
+  |'tpu'                  | 是否TPU处理|
+  |'threshold_overwrite'  | 直接覆盖threshold|
+  |'param'                | 操作所需参数,这也是一个字典序|
 
 其他接口定义类似，所有Op的kargs定义，可以参考3.1.4中指定描述的属性部分，在此不再赘述。
 
@@ -2359,9 +2383,10 @@ typedef struct {
 定义TENSOR数据维度，按照n/channel/height/width四个维度排列.
 
   名称       描述
----------- -------------------------
-  dim        各个维度大小
-  dim_size   维度数量，最多为6个维度
+  |名称|描述|
+  |---|---|
+  |dim       | 各个维度大小|
+  |dim_size  | 维度数量，最多为6个维度|
 
 ##### CVI_TENSOR
 ```c++
@@ -2576,9 +2601,10 @@ CVI_RC CVI_NN_CloneModel(
 > size指令时，可以调用此接口复制模型，复制后的模型句柄将和之前句柄共享部分资源，可以有效的减少系统内存开销。该句柄在不使用后，也需通过CVI_NN_CleanupModel进行释放。
 
   参数名称   描述                 输入/输出
----------- -------------------- -----------
-  model      已经存在模型句柄     输入
-  cloned     返回复制的模型句柄   输出
+  |参数名称|描述|输入/输出|
+  |---|---|---|
+  |model     | 已经存在模型句柄           | 输入|
+  |cloned    | 返回复制的模型句柄          | 输出|
 
 ##### CVI_NN_SetConfig
 
@@ -2597,10 +2623,11 @@ CVI_RC CVI_NN_SetConfig(
 注意，此接口需要在CVI_NN_GetInputOutputTensors之前调用。
 
   参数名称   描述                         输入/输出
----------- ---------------------------- -----------
-  model      模型句柄                     输入
-  option     配置选项                     输入
-  可变参数   根据option的类型传入配置值   输入
+  |参数名称|描述|输入/输出|
+  |---|---|---|
+  |model     | 模型句柄                       | 输入|
+  |option    | 配置选项                       | 输入|
+  |可变参数      | 根据option的类型传入配置值           | 输入|
 
 【示例】
 ```c++
@@ -2621,10 +2648,11 @@ CVI_RC CVI_NN_GetConfig(
 > 获取模型的配置，可供选项请参考[CVI_CONFIG_OPTION](#_CVI_CONFIG_OPTION)。
 
   参数名称       描述                       输入/输出
--------------- -------------------------- -----------
-  model          模型句柄                   输入
-  option         配置选项                   输入
-  可变参数指针   根据option的类型传入指针   输出
+  |参数名称|描述|输入/输出|
+  |---|---|---|
+  |model         | 模型句柄                     | 输入|
+  |option        | 配置选项                     | 输入|
+  |可变参数指针        | 根据option的类型传入指针          | 输出|
 
 【示例】
 ```c++
