@@ -518,25 +518,40 @@ class CaffeConverter(BaseConverter):
             operands.append(op)
         _, input_shape, _ = self.getOperand(layer.bottom[0])
         p = layer.eltwise_param
-        assert(len(p.coeff) == 0)
         operation = p.operation
         output_shape = input_shape
+        input_num = len(layer.bottom)
+
         if operation == 0:
+            assert(len(p.coeff) == 0)
             new_op = self.CVI.add_eltwise_mul_op(
                 layer.name, operands, output_shape)
             self.addOperand(layer.top[0], new_op, output_shape,
                             TensorType.ACTIVATION)
         elif operation == 1:
+            coeff = None
+            if (len(p.coeff) != 0):
+                assert(len(p.coeff) == input_num)
+                coeff = [c for c in p.coeff]
+            else:
+                assert(len(p.coeff) == 0)
+                coeff = [1] * input_num
+
+            param = {
+                'coeff': coeff
+            }
             new_op = self.CVI.add_eltwise_add_op(
-                layer.name, operands, output_shape)
+                layer.name, operands, output_shape, **param)
             self.addOperand(layer.top[0], new_op, output_shape,
                             TensorType.ACTIVATION)
         elif operation == 2:
+            assert(len(p.coeff) == 0)
             new_op = self.CVI.add_eltwise_max_op(
                 layer.name, operands, output_shape)
             self.addOperand(layer.top[0], new_op, output_shape,
                             TensorType.ACTIVATION)
         elif operation == 3:
+            assert(len(p.coeff) == 0)
             new_op = self.CVI.add_eltwise_min_op(
                 layer.name, operands, output_shape)
             self.addOperand(layer.top[0], new_op, output_shape,

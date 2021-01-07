@@ -1070,26 +1070,31 @@ void TgBf16EltwiseAddKernel::compute(int32_t step_idx) {
                  output.stride.h, output.stride.w));
 
   if (opd_idx == 0) {
-    // move first input.
-    cvk_tiu_copy_param_t p3 = {0};
-    p3.src = &input;
-    p3.dst = &output;
-    p3.layer_id = layer_id;
-    ctx.tiu_copy(&p3);
+    cvk_tiu_mul_param_t p1 = {0};
+    p1.res_high = nullptr;
+    p1.res_low = &output;
+    p1.a = &input;
+    p1.b_const.val = ctx.convert_fp32_to_bf16(coeffs_float[opd_idx]);
+    p1.b_const.is_signed = 1;
+    p1.b_is_const = 1;
+    p1.rshift_bits = 0;
+    p1.layer_id = layer_id;
+    p1.relu_enable = 0;
+    ctx.tiu_mul(&p1);
   } else {
     // calculate inputs in middle.
-    cvk_tiu_add_param_t p3 = {0};
-    p3.res_high = nullptr;
-    p3.res_low = &output;
-    p3.a_high = nullptr;
-    p3.a_low = &input;
-    p3.b_is_const = false;
-    p3.b.high = nullptr;
-    p3.b.low = &output;
-    p3.rshift_bits = 0;
-    p3.layer_id = layer_id;
-    p3.relu_enable = (opd_idx != operand_num - 1) ? 0 : do_relu;
-    ctx.tiu_add(&p3);
+    cvk_tiu_mac_param_t p4 = {0};
+    p4.res_high = nullptr;
+    p4.res_low = &output;
+    p4.res_is_int8 = 0;
+    p4.a = &input;
+    p4.b_const.val = ctx.convert_fp32_to_bf16(coeffs_float[opd_idx]);
+    p4.b_is_const = 1;
+    p4.b_const.is_signed = 1;
+    p4.lshift_bits = 0;
+    p4.rshift_bits = 0;
+    p4.relu_enable = (opd_idx != operand_num - 1) ? 0 : do_relu;
+    ctx.tiu_mac(&p4);
     output_flip = (opd_idx != operand_num - 1) ? output_flip : 1 - output_flip;
   }
 }

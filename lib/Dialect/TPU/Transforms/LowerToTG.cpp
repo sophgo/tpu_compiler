@@ -713,6 +713,15 @@ Value tpu::EltwiseAddOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
+    if (coeff().hasValue())
+      attrs.push_back(builder.getNamedAttr("coeff", coeffAttr()));
+    else {
+      std::vector<float> coeffs(nInputs);
+      for (unsigned i = 0; i < nInputs; i++)
+        coeffs[i] = 1.0;
+      attrs.push_back(builder.getNamedAttr("coeff",
+                      builder.getF32ArrayAttr(ArrayRef<float>(coeffs))));
+    }
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_EltwiseAddOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});

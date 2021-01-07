@@ -1380,6 +1380,8 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
     assert(oh == h / early_stride_h);
     assert(ow == w / early_stride_w);
   }
+  std::vector<float> coeffs;
+  arrayAttrToVector(this->coeff().getValue(), coeffs);
 
   int32_t input_number = op->getNumOperands();
   auto ga_inputs = new gaddr_t[input_number];
@@ -1388,9 +1390,6 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   }
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-
-  // only need two coeff now, here just for safety coding
-  std::vector<float> coeffs(input_number, 1.0f);
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
                        this->store_compr_act().getValue() : 0;

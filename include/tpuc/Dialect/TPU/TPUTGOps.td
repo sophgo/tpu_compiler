@@ -453,6 +453,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
+    OptionalAttr<F32ArrayAttr>:$coeff,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,
     OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,

@@ -224,6 +224,7 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     DefaultValuedAttr<BoolAttr, "false">:$quant_skip,
     TPU_QuantParamAttr:$quant,
+    OptionalAttr<F32ArrayAttr>:$coeff,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

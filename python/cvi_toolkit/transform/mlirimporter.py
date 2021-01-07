@@ -734,10 +734,21 @@ class MLIRImporter(object):
         elif mode == TPU_MODE.BF16:
             raise RuntimeError("Not support BF16")
 
+        coeff = None
+        if "coeff" in kargs:
+            coeff = ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['coeff']])
+        else:
+            coeff = ArrayAttr.get([FloatAttr.get_f32(x) for x in [1.0]*len(inputOperands)])
+
+        param = {
+            'coeff':  coeff
+        }
         return self.buildOp(TPU_OpType.Eltwise_Add.value, inputOperands, [
-            tensor_output_type], name=eltwise_add, quant=quant_param, do_relu=do_relu)
+            tensor_output_type], name=eltwise_add, quant=quant_param, do_relu=do_relu, **param)
 
     def add_eltwise_max_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        if "coeff" in kargs:
+            assert(0 and "eltwise max not support coeff")
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         if len(inputOperands) < 2:
@@ -749,6 +760,8 @@ class MLIRImporter(object):
             tensor_output_type], name=eltwise_max, quant=self.quant_param)
 
     def add_eltwise_min_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        if "coeff" in kargs:
+            assert(0 and "eltwise min not support coeff")
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         if len(inputOperands) < 2:
@@ -760,6 +773,8 @@ class MLIRImporter(object):
             tensor_output_type], name=eltwise_min, quant=self.quant_param)
 
     def add_eltwise_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        if "coeff" in kargs:
+            assert(0 and "eltwise mul not support coeff")
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         if len(inputOperands) < 2:

@@ -226,6 +226,7 @@ class TPU_TL_LG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_
     DefaultValuedAttr<BoolAttr, "false">:$do_early_stride,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
+    OptionalAttr<I32ArrayAttr>:$coeff,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

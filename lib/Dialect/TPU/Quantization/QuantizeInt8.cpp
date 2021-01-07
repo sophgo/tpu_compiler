@@ -662,6 +662,17 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     qscale[i] = threshold_x[i] / threshold_y;
   }
 
+  // special handlings for eltwise with coeff
+  if (OpTy::getOperationName() == "tpu.eltwise_add") {
+    auto castOp = dyn_cast<tpu::EltwiseAddOp>(op);
+    std::vector<float> coeff(nInputs);
+    if (castOp.coeff().hasValue()){
+      arrayAttrToVector(castOp.coeff().getValue(), coeff);
+      for (unsigned i = 0; i < nInputs; ++i) {
+        qscale[i] = coeff[i] * threshold_x[i] / threshold_y;
+      }
+    }
+  }
   // special handlings
   if (OpTy::getOperationName() == "tpu.pool_avg_2d") {
     assert(nInputs);
@@ -730,7 +741,15 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   //   qscale[i] = multiplier / (1 << rshift)
   //   find a rshift, that put max(output) into range (64, 127)
   //
-  float max_qscale = *std::max_element(std::begin(qscale), std::end(qscale));
+
+  float max_qscale = 0.0;
+  for (auto & q : qscale) {
+    float p = q > 0.0 ? q : 0 - q;
+    if (max_qscale < p) {
+      max_qscale = p;
+    }
+  }
+
   int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(max_qscale);
   rshift->at(0) = (float)rshift_i8;
   LLVM_DEBUG(llvm::errs() << "  rshift = "

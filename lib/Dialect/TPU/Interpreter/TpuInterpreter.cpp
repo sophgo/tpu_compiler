@@ -1193,7 +1193,7 @@ LogicalResult tpu::BroadcastSubOp::interpret(
 }
 
 static LogicalResult doEltwiseOpInterpret(Operation *op,
-    StringRef &type, bool do_relu,
+    StringRef &type, bool do_relu, std::vector<float> & coeff,
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   auto opdT = getOperandTensors(op, valueMapping);
   auto result = op->getResult(0);
@@ -1246,8 +1246,8 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
           llvm_unreachable("TODO: only ADD has asymmetric, other not ready");
         }
         if(input_offset[i] != 0){
-          for (auto &j: input_copy[i]) {
-            j += input_offset[i];
+          for (auto &data: input_copy[i]) {
+            data += input_offset[i];
           }
         }
         input[i] = input_copy[i].data();
@@ -1256,8 +1256,18 @@ static LogicalResult doEltwiseOpInterpret(Operation *op,
       //#pragma omp parallel for schedule(static)
       for (unsigned i = 0; i < nInputs; ++i) {
         for (size_t j = 0; j < opdT[i]->size(); ++j) {
-          input[i][j] = input[i][j] * (int8_t)quant_multiplier->at(i);
+          input[i][j] = input[i][j] * ((int8_t)quant_multiplier->at(i));
         }
+      }
+    } else if (getOpQuant(op) == "NONE" || getOpQuant(op) == "BF16") {
+      for (unsigned i = 0; i < nInputs; ++i) {
+        // make copy
+        input_copy[i].assign(opdT[i]->begin(),
+                             opdT[i]->end());
+        for (auto &data: input_copy[i]) {
+          data = data * coeff[i];
+        }
+        input[i] = input_copy[i].data();
       }
     }
   } else if (type == "MUL") {
@@ -1364,32 +1374,52 @@ LogicalResult tpu::EltwiseAddOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  const unsigned nInputs = op->getNumOperands() - 4;
+  std::vector<float> coeff(nInputs);
+  if (this->coeff().hasValue()) {
+    arrayAttrToVector(this->coeff().getValue(), coeff);
+  } else {
+    for(unsigned i = 0; i < nInputs;  i++)
+      coeff[i] = 1.0;
+  }
   StringRef type = "ADD";
-  return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
+  return doEltwiseOpInterpret(op, type, do_relu(), coeff, valueMapping);
 }
 
 LogicalResult tpu::EltwiseMaxOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  const unsigned nInputs = op->getNumOperands() - 4;
+  std::vector<float> coeff(nInputs);
+  for(unsigned i = 0; i < nInputs;  i++)
+      coeff[i] = 1.0;
   StringRef type = "MAX";
-  return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
+  return doEltwiseOpInterpret(op, type, do_relu(), coeff, valueMapping);
 }
 
 LogicalResult tpu::EltwiseMinOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  const unsigned nInputs = op->getNumOperands() - 4;
+  std::vector<float> coeff(nInputs);
+  for(unsigned i = 0; i < nInputs;  i++)
+      coeff[i] = 1.0;
   StringRef type = "MIN";
-  return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
+  return doEltwiseOpInterpret(op, type, do_relu(), coeff, valueMapping);
 }
 
 LogicalResult tpu::EltwiseMulOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  const unsigned nInputs = op->getNumOperands() - 4;
+  std::vector<float> coeff(nInputs);
+  for(unsigned i = 0; i < nInputs;  i++)
+      coeff[i] = 1.0;
   StringRef type = "MUL";
-  return doEltwiseOpInterpret(op, type, do_relu(), valueMapping);
+  return doEltwiseOpInterpret(op, type, do_relu(), coeff, valueMapping);
 }
 
 LogicalResult tpu::FullyConnectedOp::interpret(
