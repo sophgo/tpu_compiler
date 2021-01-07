@@ -56,7 +56,7 @@
 ## 1.3 软件框架
 
 > TPU软件开发框图如下图所示。
-<img src="D:\doc\assets\framework.jpg" alt="imagexx" style="zoom: 50%;" />
+<img src="D:\\doc\\assets\\framework.jpg" alt="imagexx" style="zoom: 50%;" />
 > 软件框架由Offline工具链和Runtime模型推理库两部分组成。Offline工具链包括模型转换，编译器，量化工具等组件，完成从用户模型导入，变换，量化，优化，到代码生成等步骤，最终组装为cvimodel格式的推理模型文件。Runtime模型推理库加载cvimodel，读取运行时信息进行设置和资源分配，加载权重数据和指令序列，驱动硬件执行其中的指令序列，完成神经网络推理计算任务，输出推理结果数据。Runtime包含完整仿真平台的支持，客户可以先在仿真平台完成模型移植，验证和精度测试，再加载到真实硬件上验证和执行。
 
 
@@ -70,7 +70,7 @@
 
 > 优化变换，量化变换，Lowering，性能优化，资源优化，分析统计。
 
--   mlir-interpreter：实现基于CPU/TPU的IR推理计算，将输出tensor数据，以及用户指定的全部或部分中间结果tensor数据保存为numpy格式（\*.npz）文件。基于interpreter，开发者可以在模型转换的各个环节随时对转换的正确性和精度进行测试，包括量化前和量化后的各个阶段，验证各种优化路径的正确性，比较各量化选项的精度差异，以及详细比对所有中间计算结果的数据。Interpreter支持python
+-   mlir-interpreter：实现基于CPU/TPU的IR推理计算，将输出tensor数据，以及用户指定的全部或部分中间结果tensor数据保存为numpy格式（\\*.npz）文件。基于interpreter，开发者可以在模型转换的各个环节随时对转换的正确性和精度进行测试，包括量化前和量化后的各个阶段，验证各种优化路径的正确性，比较各量化选项的精度差异，以及详细比对所有中间计算结果的数据。Interpreter支持python
     binding，开发者可以使用python进行数据预处理，后处理，及数据分析。
 
 -   calibration：基于mlir-interpreter实现的量化校准工具，对开发者指定的校准数据集执行推理计算，对每个tensor的数据进行统计，形成模型量化所需的参数。使用python进行数据读取，预处理，后处理和统计分析。
@@ -245,8 +245,8 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 
   |类型                          |描述|
   |----------------------------- |------------------------------------------------|
-  |Tensor\<DataType\>            |以DataType为数据类型的Tensor，不许为空|
-  |TensorOfOrNone\< DataType\>   |以DataType为数据类型的Tensor，None表示空Tensor|
+  |Tensor\\<DataType\\>            |以DataType为数据类型的Tensor，不许为空|
+  |TensorOfOrNone\\< DataType\\>   |以DataType为数据类型的Tensor，None表示空Tensor|
   |AnyTensor                     |以任意DataType为数据类型的Tensor|
   |Variadic Tensor               |一个或多个Tensor|
 
@@ -292,8 +292,8 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |THRESHOLD          | 量化变量以Threshold方式描述|
   |SCALE              | 量化变量以Scale描述，支持PerChannel或PerTensor|
   |RSHIFT_ONLY        | 量化变量以RSHIFT描述，支持PerChannel或PerTensor|
-  |RSHIFT_AND_M\_I32  | 量化变量以RSHIFT+I32 MULTIPLER描述，支持PerChannel|
-  |RSHIFT_AND_M\_I8   | 量化变量以RSHIFT+I8 MULTIPLER描述，支持PerTensor|
+  |RSHIFT_AND_M\\_I32  | 量化变量以RSHIFT+I32 MULTIPLER描述，支持PerChannel|
+  |RSHIFT_AND_M\\_I8   | 量化变量以RSHIFT+I8 MULTIPLER描述，支持PerTensor|
   |LUT_INT8           | 量化变量以INT8 LUT描述|
   |LUT_BF16           | 量化变量以BF16 LUT描述|
 
@@ -792,7 +792,7 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 
 -   Power
 
-> y = (scale \* x + shift) \^ power
+> y = (scale \\* x + shift) \\^ power
 
   参数名称   类型                      描述         类别
   |参数名称|类型|描述|类别|
@@ -1080,8 +1080,8 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |---|---|---|---|
   |output         | AnyTensor                    | 输出Tensor          | 输出|
   |input          | AnyTensor                    | 输入Tensor          | 输入|
-  |channel_order  | OptionalAttr\<I32ArrayAttr\> | 交换channel的顺序      | 属性|
-  |quant          | OptionalAttr\<I32ArrayAttr\> | Quant参数           | 属性|
+  |channel_order  | OptionalAttr\\<I32ArrayAttr\\> | 交换channel的顺序      | 属性|
+  |quant          | OptionalAttr\\<I32ArrayAttr\\> | Quant参数           | 属性|
   |name           | StrAttr                      | 名称                | 属性|
 
 -   TanH
@@ -1200,7 +1200,7 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 
 -   【命令】
 
-> mlir-translate \[options\] \<input file\> -o \<output file\>
+> mlir-translate \\[options\\] \\<input file\\> -o \\<output file\\>
 
 -   【作用】
 
@@ -1219,15 +1219,15 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   参数名称                    描述
   |参数名称|描述|
   |---|---|
-  |\--mlir-to-cvimodel        | 指定将mlir转换为cvimodel文件|
-  |\--weight-file=\<string\>  | 模型的weight文件，转cvimodel文件时必选|
+  |--mlir-to-cvimodel        | 指定将mlir转换为cvimodel文件|
+  |--weight-file=\<string\>  | 模型的weight文件，转cvimodel文件时必选|
 
 #### mlir-opt
 
 -   【命令】
-
-> mlir-opt \[options\] \<input file\> -o \<output file\>
-
+```sh
+mlir-opt [options] <input file> -o <output file>
+```
 -   【作用】
 
 > 用于输入的mlir模型文件进行graph优化、int8/bf16量化、指令融合、内存优化等处理。输出为经过处理或优化后的mlir模型文件
@@ -1245,35 +1245,35 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   参数名称                                描述
   |参数名称|描述|
   |---|---|
-  |\--canonicalize                        | 执行所有canonicalize优化|
-  |\--convert-bn-to-scale                 | 将BatchNorm操作变换为Scale操做|
-  |\--fold-scale                          | 将连续的2个scale变换为1个scale|
-  |\--merge-scale-into-conv               | 将Scale操作与之前的Conv操作变换一个操作|
-  |\--fuse-relu                           | 将relu与前一个操作融合|
-  |\--decompose-normalize                 | 将Normalize操作分解为一系列细粒度操作|
-  |\--print-tpu-op-info                   | 输出每个op的信息|
-  |\--import-calibration-table            | 导入calibration table|
-  |\--calibration-table=\<string\>        | Calibration table文件名|
-  |\--tpu-quant                           | 执行模型量化，默认量化方式为对称，Per-Channel，INT8量化|
-  |\--quant-int8-per-tensor               | 指定INT8量化以Per-Tensor方式进行|
-  |\--quant-full-bf16                     | 指定量化以全bf16方式进行|
-  |\--tpu-lower                           | Lowering操作|
-  |\--assign-chip-name                    | 设置芯片名称|
-  |\--group-ops                           | 执行group ops的优化|
-  |\--tg-fuse-leakyrelu                   | 将leaky-relu与前一个conv操作融合|
-  |\--deep-fusion-tg2tl-la                | 为SimpleDeepFusion优化进行前置分析|
-  |\--deep-fusion-tl-la2lw                | 执行SimpleDeepFusion优化|
-  |\--assign-neuron-address               | 为Neuron Tensor分配地址|
-  |\--tpu-neuron-address-align=\<ulong\>  | 指定Neuron Tensor分配地址符合alignment|
-  |\--assign-weight-address               | 为Weight Tensor分配地址|
-  |\--tpu-weight-address-align=\<ulong\>  | 指定Weight Tensor分配地址符合alignment|
+  |--canonicalize                        | 执行所有canonicalize优化|
+  |--convert-bn-to-scale                 | 将BatchNorm操作变换为Scale操做|
+  |--fold-scale                          | 将连续的2个scale变换为1个scale|
+  |--merge-scale-into-conv               | 将Scale操作与之前的Conv操作变换一个操作|
+  |--fuse-relu                           | 将relu与前一个操作融合|
+  |--decompose-normalize                 | 将Normalize操作分解为一系列细粒度操作|
+  |--print-tpu-op-info                   | 输出每个op的信息|
+  |--import-calibration-table            | 导入calibration table|
+  |--calibration-table=\<string\>        | Calibration table文件名|
+  |--tpu-quant                           | 执行模型量化，默认量化方式为对称，Per-Channel，INT8量化|
+  |--quant-int8-per-tensor               | 指定INT8量化以Per-Tensor方式进行|
+  |--quant-full-bf16                     | 指定量化以全bf16方式进行|
+  |--tpu-lower                           | Lowering操作|
+  |--assign-chip-name                    | 设置芯片名称|
+  |--group-ops                           | 执行group ops的优化|
+  |--tg-fuse-leakyrelu                   | 将leaky-relu与前一个conv操作融合|
+  |--deep-fusion-tg2tl-la                | 为SimpleDeepFusion优化进行前置分析|
+  |--deep-fusion-tl-la2lw                | 执行SimpleDeepFusion优化|
+  |--assign-neuron-address               | 为Neuron Tensor分配地址|
+  |--tpu-neuron-address-align=\<ulong\>  | 指定Neuron Tensor分配地址符合alignment|
+  |--assign-weight-address               | 为Weight Tensor分配地址|
+  |--tpu-weight-address-align=\<ulong\>  | 指定Weight Tensor分配地址符合alignment|
 
 #### mlir-tpu-interpreter
 
 -   【命令】
-
-> mlir-tpu-interpreter \[options\] \<input file\>
-
+```sh
+mlir-tpu-interpreter [options] <input file>
+```
 -   【作用】
 
 > 用于对mlir
@@ -1291,16 +1291,16 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   参数名称                        描述
   |参数名称|描述|
   |---|---|
-  |\--dump-all-tensor=\<string\>  | 保存所有Tensor数据到指定文件，npz格式|
-  |\--tensor-in=\<string\>        | 输入tensor数据文件，npz格式|
-  |\--tensor-out=\<string\>       | 输出tensor数据文件，npz格式|
+  |--dump-all-tensor=\<string\>  | 保存所有Tensor数据到指定文件，npz格式|
+  |--tensor-in=\<string\>        | 输入tensor数据文件，npz格式|
+  |--tensor-out=\<string\>       | 输出tensor数据文件，npz格式|
 
 #### run-calibration
 
 -   【命令】
-
-> python run_calibration.py \<model file\> \<image list file\>
-
+```sh
+python run_calibration.py <model file> <image list file>
+```
 -   【作用】
 
 > 针对mlir
@@ -1320,34 +1320,36 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   参数名称                    描述
   |参数名称|描述|
   |---|---|
-  |\--output_file=\<string\>  | 输出calibration table文件|
-  |\--model_name=\<string\>   | Model Name \[1\]，default=generic|
-  |\--image_resize_dims       | 图像首先进行resize的大小|
-  |\--net_input_dims          | 在Resize基础上进行crop的大小|
-  |\--raw_scale               | 预处理raw_scale|
-  |\--mean                    | 预处理mean|
-  |\--mean_file               | 预处理mean_file|
-  |\--input_scale             | 预处理input_scale|
-  |\--calibrator              | 校准算法类型,可选KLD或Asym，default=KLD|
-  |\--math_lib_path           | 指向底层计算库的路径|
-  |\--inpu_num                | 指定所用的校准图像数量|
-  |\--histogram_bin_num       | 直方图bin数量|
+  |--output_file=\<string\>  | 输出calibration table文件|
+  |--model_name=\<string\>   | Model Name<sup>[1]</sup>，default=generic|
+  |--image_resize_dims       | 图像首先进行resize的大小|
+  |--net_input_dims          | 在Resize基础上进行crop的大小|
+  |--raw_scale               | 预处理raw_scale|
+  |--mean                    | 预处理mean|
+  |--mean_file               | 预处理mean_file|
+  |--input_scale             | 预处理input_scale|
+  |--calibrator              | 校准算法类型,可选KLD或Asym，default=KLD|
+  |--math_lib_path           | 指向底层计算库的路径|
+  |--inpu_num                | 指定所用的校准图像数量|
+  |--histogram_bin_num       | 直方图bin数量|
 
 > 【注意】
 
--   \[1\] Model
+-   [1] Model
     Name这里用来传递一些需要特殊预处理过程的网络名称，如yolo_v3等，对于通用预处理过程建议传递"generic"。由于run_calibration工具为随release开放源码的python工具，用户在扩展新的网络并需要支持新的预处理过程时，可根据需要自行扩展。
 
 #### mlir_to_cvimodel
 
 -   【命令】
-
-> mlir_to_cvimodel.sh -i quanted_mlir_file -o cvimodel_file
-> \[other_options\]
-
+```sh
+mlir_to_cvimodel.sh \
+    -i quanted_mlir_file \
+    -o cvimodel_file \
+    [other_options]
+```
 -   【作用】
 
-> Bash脚本包含lowering, 优化，指令生成和cvimodel生成等命令的整合脚本
+> Bash脚本, 包含lowering, 优化, 指令生成和cvimodel生成等命令的整合脚本
 
 -   【输入输出】
 
@@ -1359,19 +1361,13 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 
 -   【选项】
 
-  -----------------------------------------------------------------------------------------------------------------------------------------------------------
-  参数名称                                     描述
   |参数名称|描述|
   |---|---|
-  |-i \<quanted_mlir_file\>                    | 输入量化后的mlir模型文件|
+  |-i \<quanted_mlir_file\>                  |输入量化后的mlir模型文件|
+  |-o \<cvimodel_file\>                      |输出生成的cvimodel file|
+  |--dequant-results-to-fp32=\<true,false\>  |是否需要将output tensors dequant成fp32.默认为true, 即所有的output tensors将输出为fp32格式. 如果int8模型需要输出int8格式的outputs，请将其设置为false|
 
-  -o \<cvimodel_file\>                         输出生成的cvimodel file
 
-  \--dequant-results-to-fp32=\<true\|false\>   是否需要将output tensors dequant成fp32.\
-
-                                               默认为true, 即所有的output tensors将输出为fp32格式. 如果int8模型需要输出int8格式的outputs，请将其设置为false
-
-  -----------------------------------------------------------------------------------------------------------------------------------------------------------
 
 ### 前端转换Python API参考
 
@@ -1381,28 +1377,19 @@ graph。具体操作指令参见3.1.2中的介绍。
 #### mlirimporter.py
 
 【原型】
+```python
+class MLIRImport:
 
-+----------------------------------------------------------------------+
-| class MLIRImport:                                                    |
-|                                                                      |
-|   def \_\_init\_\_(self, inputs_shape, outputs_shape,                |
-| input_type="FP32"):                                                  |
-|                                                                      |
-|      for input in inputs_shape:                                      |
-|                                                                      |
-| assert(isinstance(input, list))                                      |
-|                                                                      |
-| self.input_shape_list.append(input)                                  |
-|                                                                      |
-| for output in outputs_shape:                                         |
-|                                                                      |
-| assert(isinstance(output, list))                                     |
-|                                                                      |
-| self.output_shape_list.append(output)                                |
-|                                                                      |
-| self.declare_func(input_type=input_type)                             |
-+----------------------------------------------------------------------+
-
+  def __init__(self, inputs_shape, outputs_shape,
+input_type="FP32"):
+    for input in inputs_shape:
+      assert(isinstance(input, list))
+      self.input_shape_list.append(input)
+    for output in outputs_shape:
+      assert(isinstance(output, list))
+       self.output_shape_list.append(output)
+    self.declare_func(input_type=input_type)
+```
 【主要属性】
 
 MLIRImport.input_shape_list为模型的输入张量shape；
@@ -1410,81 +1397,57 @@ MLIRImport.input_shape_list为模型的输入张量shape；
 MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
-
-+---------------------------------------------------------------+
-| def add_input_op(self,                                        |
-|                                                               |
-| name,                                                         |
-|                                                               |
-| index)                                                        |
-|                                                               |
-| 用于构造input指令，用来指定input的数据类型，threshold等属性。 |
-+---------------------------------------------------------------+
+```python
+def add_input_op(self, name, index):
+  pass
+```
+> 用于构造input指令，用来指定input的数据类型，threshold等属性。
 
   功能说明   注释
   |功能说明|注释|
   |---|---|
-  |返回值       | Operation \*|
+  |返回值       | Operation \\*|
   |name      | 指定input名字|
   |index     | 指定input输入索引|
 
-+--------------------------------------------+
-| def add_weight_fileOp(self,                |
-|                                            |
-| name)                                      |
-|                                            |
-| 用于构造weight操作，指定对应的weight文件。 |
-+--------------------------------------------+
+```python
+def add_weight_fileOp(self, name):
+  pass
+```
+用于构造weight操作，指定对应的weight文件。
 
   功能说明   注释
   |功能说明|注释|
   |---|---|
-  |返回值       | Operation \*|
+  |返回值       | Operation *|
   |name      | 指定weight 文件名|
-
-+----------------------------------------------------+
-| def add_load_fileOp(self,                          |
-|                                                    |
-| name,                                              |
-|                                                    |
-| output_tensor_shape,                               |
-|                                                    |
-| tensor_type=TPU_TensorType.Fp32,                   |
-|                                                    |
-| storage="NONE")                                    |
-|                                                    |
-| 用于构造load_file操作,用来load weight相关的Tensor. |
-+----------------------------------------------------+
+```python
+def add_load_fileOp(self, name, output_tensor_shape,
+                    tensor_type=TPU_TensorType.Fp32,
+                    storage="NONE")
+```
+用于构造load_file操作,用来load weight相关的Tensor.
 
   功能说明              注释
   |功能说明|注释|
   |---|---|
-  |返回值                  | Operation \*|
+  |返回值                  | Operation \\*|
   |name                 | Tensor名|
   |output_tensor_shape  | 输出Tensor shape|
   |tensor_type          | Tensor类型|
   |storage              | 存储类型|
-
-+---------------------------+
-| def add_conv_Op(self,     |
-|                           |
-| op_name,                  |
-|                           |
-| inputOperands,            |
-|                           |
-| output_tensor_shape,      |
-|                           |
-| mode=TPU_MODE.FP32,       |
-|                           |
-| \*\*kargs)                |
-|                           |
-| 用于构造convolution操作。 |
-+---------------------------+
+```python
+def add_conv_Op(self, op_name, inputOperands,
+                output_tensor_shape,
+                mode=TPU_MODE.FP32,
+                **kargs)
+```
+用于构造convolution操作。
 
   功能说明              注释
   |功能说明|注释|
   |---|---|
-  |返回值                  | Operation \*|
+  |返回值                  | Operation \\*|
   |op_name              | 指定conv层的名字|
   |inputOperands        | 指定输入操作数|
   |output_tensor_shape  | 指定输出shape|
@@ -1510,40 +1473,6 @@ kargs字典序指定的参数如下
   |'with_bias'   | 是否有bias|
   |'do_relu'     | 是否对结果进行relu操作|
   |'ins'         | 对h， w插入0|
-
-**def add_custom_Op(self,**
-
-**op_name,**
-
-**inputOperands,**
-
-**output_tensor_shape,**
-
-**\*\*kargs)**
-
-用于构造定制化的Op操作
-
-  功能说明              注释
-  |功能说明|注释|
-  |---|---|
-  |返回值                  | Operation \*|
-  |op_name              | 指定操作名字|
-  |inputOperands        | 指定输入操作数|
-  |output_tensor_shape  | 指定输出shape|
-  |kargs                | 指定属性列表|
-
-kargs字典序指定的参数如下
-
-  key                     value
-  |key|value|
-  |---|---|
-  |'operation_name'       | 定制操作名字|
-  |'do_quant'             | 是否需要量化|
-  |'tpu'                  | 是否TPU处理|
-  |'threshold_overwrite'  | 直接覆盖threshold|
-  |'param'                | 操作所需参数,这也是一个字典序|
-
-其他接口定义类似，所有Op的kargs定义，可以参考3.1.4中指定描述的属性部分，在此不再赘述。
 
 ## 模型编译过程
 
@@ -1623,7 +1552,7 @@ kargs字典序指定的参数如下
 > 对INT8量化，存在两种常见量化方法。一种是将需要映射的动态范围映射为正负对称的区间，称为对称量化，这时INT8的0点对应的真实值总是为0。另一种是映射到非对称的区间，称为非对称量化，这时INT8的0点会被映射到一个非零的值。
 
 --------------------------------------------------
-  real_value = (int8_value -- zero_point) \* scale
+  real_value = (int8_value -- zero_point) \\* scale
   --------------------------------------------------
 
 > 理论上，Weight Tensor和Activation
@@ -1684,7 +1613,7 @@ kargs字典序指定的参数如下
 
 -   imagenet测试工具
 
-> \* pytorch是指这个工具借用了pytorch的dataloader来读取数据集
+> \\* pytorch是指这个工具借用了pytorch的dataloader来读取数据集
 
 ### 优化并生成cvimodel文件
 
@@ -1699,81 +1628,51 @@ kargs字典序指定的参数如下
 > 1)执行效率优化
 >
 > 发掘Op间fusion机会并进行fusion的优化。
-
-+-------------------------------+
-| \$ mlir-opt \\                |
-|                               |
-| \--deep-fusion-group-slice \\ |
-|                               |
-| \--deep-fusion-opt \\         |
-|                               |
-| input.mlir \\                 |
-|                               |
-| -o output.mlir                |
-+-------------------------------+
-
+```sh
+$ mlir-opt \
+    --deep-fusion-group-slice \
+    --deep-fusion-opt \
+    input.mlir \
+    -o output.mlir
+```
 > 2)内存占用优化
 >
 > 分析Activation内存使用并回收利用的的优化，在分配neuron
-
-+----------------------------------------------+
-| \$ mlir-opt \\                               |
-|                                              |
-| \--assign-weight-address \\                  |
-|                                              |
-| \--tpu-weight-address-align=16 \\            |
-|                                              |
-| \--tpu-weight-map-filename=weight_map.csv \\ |
-|                                              |
-| \--tpu-weight-bin-filename=weight.bin \\     |
-|                                              |
-| \--assign-neuron-address \\                  |
-|                                              |
-| \--tpu-neuron-address-align=64 \\            |
-|                                              |
-| \--tpu-neuron-map-filename=neuron_map.csv \\ |
-|                                              |
-| test_int8_opt.mlir \\                        |
-|                                              |
-| -o test_int8_addr.mlir                       |
-+----------------------------------------------+
-
+```sh
+$ mlir-opt \
+    --assign-weight-address \
+    --tpu-weight-address-align=16 \
+    --tpu-weight-map-filename=weight_map.csv \
+    --tpu-weight-bin-filename=weight.bin \
+    --assign-neuron-address \
+    --tpu-neuron-address-align=64 \
+    --tpu-neuron-map-filename=neuron_map.csv \
+    test_int8_opt.mlir \
+    -o test_int8_addr.mlir
+```
 #### 生成TPU硬件指令
 
 > 生成TPU硬件指令分为两个步骤，首先利用mlir-opt
 > pass为各tensor分配地址，这个过程会同时提取weight数据并保存为weight
 > bin文件；接下来调用mlir-translate进行指令生成，产生cvimodel模型文件。
-
-+------------------------------+
-| \$ mlir-translate \\         |
-|                              |
-| \--mlir-to-cvimodel \\       |
-|                              |
-| \--weight-file weight.bin \\ |
-|                              |
-| input.mlir \\                |
-|                              |
-| -o out.cvimodel              |
-+------------------------------+
-
+```sh
+$ mlir-translate \
+    --mlir-to-cvimodel \
+    --weight-file weight.bin \
+    input.mlir \
+    -o out.cvimodel
+```
 ### 仿真器测试
 
 > 生成cvimodel文件后，除可以在目标板runtime进行测试验证外，也可以调用仿真器进行离线测试验证。仿真器可以完全模拟硬件的推理精度。
-
-+--------------------------------+
-| \$ model_runner \\             |
-|                                |
-| \--dump-all-tensors \\         |
-|                                |
-| \--input tensor_in_fp32.npz \\ |
-|                                |
-| \--model model.cvimodel \\     |
-|                                |
-| \--batch-num \$BATCH_SIZE \\   |
-|                                |
-| \--output sim_out_all_int8.npz |
-+--------------------------------+
-
+```sh
+$ model_runner \
+    --dump-all-tensors \
+    --input tensor_in_fp32.npz \
+    --model model.cvimodel \
+    --batch-num $BATCH_SIZE \
+    --output sim_out_all_int8.npz
+```
 > model_runner 是集成了runtime
 > 的binary工具，可以直接使用，也可以直接调用runtime
 > API对cvimodel进行离线测试。离线测试的输出结果可以利用cvi_npz_tool.py
@@ -1791,468 +1690,300 @@ kargs字典序指定的参数如下
 > <https://github.com/shicai/MobileNet-Caffe>
 
 下载模型并保存在models_mobilenet_v2目录
+```sh
+$ mkdir models_mobilenet_v2 && cd models_mobilenet_v2
+$ wget -nc
+https://
+github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2.caffemodel
 
-+----------------------------------------------------------------------+
-| \$ mkdir models_mobilenet_v2 && cd models_mobilenet_v2               |
-|                                                                      |
-| \$ wget -nc                                                          |
-| https://                                                             |
-| github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2.caffemodel |
-|                                                                      |
-| \$ wget -nc                                                          |
-| https://githu                                                        |
-| b.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt |
-+----------------------------------------------------------------------+
-
+$ wget -nc
+https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt
+```
 > 创建workspace
-
---------------------
-  \$ mkdir workspace
-  --------------------
-
+```sh
+$ mkdir workspace
+```
 -   **步骤1：执行caffe推理，产生比对数据，供逐层数据比对使用（可选）**
 
 > 加载cvitek_mlir环境
-
-+--------------------------------------+
-| \$ source cvitek_mlir/cvitek_envs.sh |
-|                                      |
-| \$ cd models_mobilenet_v2/workspace  |
-+--------------------------------------+
-
+```sh
+$ source cvitek_mlir/cvitek_envs.sh |
+$ cd models_mobilenet_v2/workspace  |
+```
 > 取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg
-
----------------------------------------------
-  \$ cp \$MLIR_PATH/regression/data/cat.jpg .
-  ---------------------------------------------
-
+```sh
+$ cp $MLIR_PATH/regression/data/cat.jpg .
+```
 > 推理前，我们需要了解这个模型的预处理参数，mobilenet_v2的预处理如下
-
-+--------------------------------------------+
-| transform_param {                          |
-|                                            |
-|     scale: 0.017                           |
-|                                            |
-|     mirror: true                           |
-|                                            |
-|     crop_size: 224                         |
-|                                            |
-|     mean_value: \[103.94, 116.78, 123.68\] |
-|                                            |
-| }                                          |
-+--------------------------------------------+
-
+```sh
+scale: 0.017
+mirror: true
+crop_size: 224
+mean_value: [103.94, 116.78, 123.68]
+```
 > 运行caffe推理
-
-+-------------------------------------------------------+
-| \$ run_caffe_classifier.py \\                         |
-|                                                       |
-|     \--model_def ../mobilenet_v2_deploy.prototxt \\   |
-|                                                       |
-|     \--pretrained_model ../mobilenet_v2.caffemodel \\ |
-|                                                       |
-|     \--net_input_dims 224,224 \\                      |
-|                                                       |
-|     \--raw_scale 255.0 \\                             |
-|                                                       |
-|     \--mean 103.94,116.78,123.68 \\                   |
-|                                                       |
-|     \--input_scale 0.017 \\                           |
-|                                                       |
-|     \--batch_size 1 \\                                |
-|                                                       |
-|     \--dump_blobs mobilenet_v2_blobs.npz \\           |
-|                                                       |
-|     ./cat.jpg \\                                      |
-|                                                       |
-|     caffe_out.npy                                     |
-+-------------------------------------------------------+
-
+```sh
+$ run_caffe_classifier.py \
+    --model_def ../mobilenet_v2_deploy.prototxt \
+    --pretrained_model ../mobilenet_v2.caffemodel \
+    --net_input_dims 224,224 \
+    --raw_scale 255.0 \
+    --mean 103.94,116.78,123.68 \
+    --input_scale 0.017 \
+    --batch_size 1 \
+    --dump_blos mobilenet_v2_blobs.npz \
+    ./cat.jpg \
+    caffe_out.npy
+```
 > 得到mobilenet_v2_blobs.npz文件，包含caffe推理过程中每一层的数据。
 >
 > 下列命令可以用来查看一个npz文件的内容。
+```sh
+# dump blob names
+$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz
 
-+--------------------------------------------------------------+
-| \# dump blob names                                           |
-|                                                              |
-| \$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz               |
-|                                                              |
-| \# dump data for one blob                                    |
-|                                                              |
-| \$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz \[blob_name\] |
-|                                                              |
-| eg.                                                          |
-|                                                              |
-| \$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz input         |
-|                                                              |
-| \$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7           |
-|                                                              |
-| \# show Top-K                                                |
-|                                                              |
-| \$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7 5         |
-|                                                              |
-| Show Top-K 5                                                 |
-|                                                              |
-| (285, 10.666397)                                             |
-|                                                              |
-| (282, 10.424403)                                             |
-|                                                              |
-| (281, 9.640038)                                              |
-|                                                              |
-| (277, 8.616049)                                              |
-|                                                              |
-| (331, 8.516392)                                              |
-+--------------------------------------------------------------+
+# dump data for one blob
+$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz input
+$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7
 
+# show Top-K
+$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7 5
+ Show Top-K 5
+ (285, 10.666397)
+ (282, 10.424403)
+ (281, 9.640038)
+ (277, 8.616049)
+ (331, 8.516392)
+```
 -   **步骤2：转换为mlir，进行前端优化，并逐层比对数据**
 
 > 加载cvitek_mlir环境
-
-+--------------------------------------+
-| \$ source cvitek_mlir/cvitek_envs.sh |
-|                                      |
-| \$ cd models_mobilenet_v2/workspace  |
-+--------------------------------------+
-
+```sh
+$ source cvitek_mlir/cvitek_envs.sh
+$ cd models_mobilenet_v2/workspace
+```
 > 由caffe模型转换为mlir
-
-+------------------------------------------------------+
-| \$ cvi_model_convert.py \\                           |
-|                                                      |
-|     \--model_path ../mobilenet_v2_deploy.prototxt \\ |
-|                                                      |
-| \--model_dat ../mobilenet_v2.caffemodel \\           |
-|                                                      |
-|     \--model_name mobilenet_v2 \\                    |
-|                                                      |
-|     \--model_type caffe \\                           |
-|                                                      |
-|     \--mlir_file_path mobilenet_v2.mlir              |
-+------------------------------------------------------+
-
+```sh
+$ cvi_model_convert.py \
+  --model_path ../mobilenet_v2_deploy.prototxt \
+  --model_dat ../mobilenet_v2.caffemodel \
+  --model_name mobilenet_v2 \
+  --model_type caffe \
+  --mlir_file_path mobilenet_v2.mlir
+```
 > 得到mobilenet_v2.mlir文件。
 >
 > 执行模型前端优化
-
-+--------------------------------------------+
-| \$ mlir-opt mobilenet_v2.mlir \\           |
-|                                            |
-|     \--convert-bn-to-scale \\              |
-|                                            |
-| \--canonicalize \\                         |
-|                                            |
-|     \--eltwise-early-stride \\             |
-|                                            |
-|     \--print-tpu-op-info \\                |
-|                                            |
-|     \--tpu-op-info-filename op_info.csv \\ |
-|                                            |
-|     -o mobilenet_v2_fp32.mlir              |
-+--------------------------------------------+
-
+```sh
+$ mlir-opt mobilenet_v2.mlir \
+   --convert-bn-to-scale \
+   --canonicalize \
+   --eltwise-early-stride \
+   --print-tpu-op-info \
+   --tpu-op-info-filename op_info.csv \
+   -o mobilenet_v2_fp32.mlir
+```
 > 得到mobilenet_v2_fp32.mlir文件。
 >
 > 运行mlir-tpu-interpreter对转换和优化后的mlir模型进行推理，得到的mlir推理的逐层数据。
+```sh
+# extract input data from mobilenet_v2_blobs.npz
+$ cvi_npz_tool.py extract \
+    mobilenet_v2_blobs.npz \
+    mobilenet_v2_in_fp32.npz \
+    input
 
-+---------------------------------------------------------+
-| \# extract input data from mobilenet_v2_blobs.npz       |
-|                                                         |
-| \$ cvi_npz_tool.py extract mobilenet_v2_blobs.npz \\    |
-|                                                         |
-|     mobilenet_v2_in_fp32.npz input                      |
-|                                                         |
-| \# inference with mlir and input data, dump all tensor  |
-|                                                         |
-| \$ mlir-tpu-interpreter mobilenet_v2_fp32.mlir \\       |
-|                                                         |
-|     \--tensor-in mobilenet_v2_in_fp32.npz \\            |
-|                                                         |
-|     \--tensor-out mobilenet_v2_out_fp32.npz \\          |
-|                                                         |
-|     \--dump-all-tensor=mobilenet_v2_tensor_all_fp32.npz |
-+---------------------------------------------------------+
-
+# inference with mlir and input data, dump all tensor
+$ mlir-tpu-interpreter \
+    mobilenet_v2_fp32.mlir \
+    --tensor-in mobilenet_v2_in_fp32.npz \
+    --tensor-out mobilenet_v2_out_fp32.npz \
+    --dump-all-tensor=mobilenet_v2_tensor_all_fp32.npz
+```
 > 得到mobilenet_v2_tensor_all_fp32.npz。
 >
 > 将caffe推理数据和mlir推理数据进行逐层比对
-
-+-----------------------------------------+
-| \$ cvi_npz_tool.py compare \\           |
-|                                         |
-|     mobilenet_v2_tensor_all_fp32.npz \\ |
-|                                         |
-|     mobilenet_v2_blobs.npz \\           |
-|                                         |
-|     \--op_info op_info.csv \\           |
-|                                         |
-|     \--tolerance=0.999,0.999,0.998 -vv  |
-+-----------------------------------------+
-
+```sh
+$ cvi_npz_tool.py compare \
+    mobilenet_v2_tensor_all_fp32.npz \
+    mobilenet_v2_blobs.npz \
+    --op_info op_info.csv \
+    --tolerance=0.999,0.999,0.998 -vv
+```
 -   **步骤3：Calibration**
 
 > Calibration前需要先准备图像文件列表，下述脚本可辅助在指定目录随机选择文件，并将选择结果保存为txt文件（以取1000张为例）。
-
-+---------------------------------------------------+
-| \$ python3 \$MLIR_PATH/python/gen_data_list.py \\ |
-|                                                   |
-|     \$DATASET_PATH/imagenet/img_val_extracted \\  |
-|                                                   |
-|     1000 \\                                       |
-|                                                   |
-|     cali_list_imagenet_1000.txt                   |
-+---------------------------------------------------+
-
+```sh
+$ python3 $MLIR_PATH/python/gen_data_list.py \
+    $DATASET_PATH/imagenet/img_val_extracted \
+    1000 \
+    cali_list_imagenet_1000.txt
+```
 > 得到cali_list_imagenet_1000.txt文件。
 >
 > 执行calibration
-
-+-----------------------------------------------------+
-| \$ python3 \$MLIR_PATH/python/run_calibration.py \\ |
-|                                                     |
-|     mobilenet_v2_fp32.mlir \\                       |
-|                                                     |
-|     cali_list_imagenet_1000.txt \\                  |
-|                                                     |
-|     \--net_input_dims 224,224 \\                    |
-|                                                     |
-|     \--raw_scale 255.0 \\                           |
-|                                                     |
-|     \--mean 103.94,116.78,123.68 \\                 |
-|                                                     |
-|     \--input_scale 0.017 \\                         |
-|                                                     |
-|     \--input_num=1000 \\                            |
-|                                                     |
-|     \--output_file mobilenet_v2_calibration_table   |
-+-----------------------------------------------------+
-
+```sh
+$ python3 $MLIR_PATH/python/run_calibration.py \
+    mobilenet_v2_fp32.mlir \
+    cali_list_imagenet_1000.txt \
+    --net_input_dims 224,224 \
+    --raw_scale 255.0 \
+    --mean 103.94,116.78,123.68 \
+    --input_scale 0.017 \
+    --input_num=1000 \
+    --output_file mobilenet_v2_calibration_table
+```
 > 得到mobilenet_v2_calibration_table
 
 -   **步骤4：执行量化，逐层数据比对，以及验证精度**
 
 > 执行量化，生成量化后mlir文件
-
-+------------------------------------------------------------+
-| \$ mlir-opt mobilenet_v2_fp32.mlir \\                      |
-|                                                            |
-|     \--import-calibration-table \\                         |
-|                                                            |
-|     \--calibration-table mobilenet_v2_calibration_table \\ |
-|                                                            |
-| \--assign-chip-name \\                                     |
-|                                                            |
-|     \--tpu-quant \\                                        |
-|                                                            |
-|     \--print-tpu-op-info \\                                |
-|                                                            |
-|     \--tpu-op-info-filename op_info_int8.csv \\            |
-|                                                            |
-|     -o mobilenet_v2_int8.mlir                              |
-+------------------------------------------------------------+
-
+```sh
+$ mlir-opt mobilenet_v2_fp32.mlir \
+    --import-calibration-table \
+    --calibration-table mobilenet_v2_calibration_table \
+    --assign-chip-name \
+    --tpu-quant \
+    --print-tpu-op-info \
+    --tpu-op-info-filename op_info_int8.csv \
+    -o mobilenet_v2_int8.mlir
+```
 > 得到mobilenet_v2_int8.mlir。
 >
 > 【可选】此时，推荐对量化后的mlir模型进行推理，并与fp32的模型推理结果进行比对。mlir-tpu-interpreter对INT8模型的推理结果与硬件计算结果完全一致。
 >
 > 运行mlir-tpu-interpreter对int8 mlir进行推理，得到的逐层数据。
-
-+---------------------------------------------------------+
-| \$ mlir-tpu-interpreter mobilenet_v2_int8.mlir \\       |
-|                                                         |
-|     \--tensor-in mobilenet_v2_in_fp32.npz \\            |
-|                                                         |
-|     \--tensor-out mobilenet_v2_out_int8.npz \\          |
-|                                                         |
-|     \--dump-all-tensor=mobilenet_v2_tensor_all_int8.npz |
-+---------------------------------------------------------+
-
+```sh
+$ mlir-tpu-interpreter \
+    mobilenet_v2_int8.mlir \
+    --tensor-in mobilenet_v2_in_fp32.npz \
+    --tensor-out mobilenet_v2_out_int8.npz \
+    --dump-all-tensor=mobilenet_v2_tensor_all_int8.npz
+```
 > 得到mobilenet_v2_tensor_all_int8.npz。
 >
 > 将fp32推理数据和int8推理数据进行逐层比对
-
-+-----------------------------------------+
-| \$ cvi_npz_tool.py compare \\           |
-|                                         |
-|     mobilenet_v2_tensor_all_int8.npz \\ |
-|                                         |
-|     mobilenet_v2_tensor_all_fp32.npz \\ |
-|                                         |
-|     \--op_info op_info_int8.csv \\      |
-|                                         |
-|     \--dequant \\                       |
-|                                         |
-|     \--tolerance 0.94,0.93,0.67 -vv     |
-+-----------------------------------------+
-
+```sh
+$ cvi_npz_tool.py compare \
+    mobilenet_v2_tensor_all_int8.npz \
+    mobilenet_v2_tensor_all_fp32.npz \
+    --op_info op_info_int8.csv \
+    --dequant \
+    --tolerance 0.94,0.93,0.67 -vv
+```
 > 这里tolerance是一个初步的衡量指标，具备一定相对比较意义，但是取值随网络结构不同有较大动态范围，需根据具体情形进行调节。
 >
 > 【可选】对数据集进行精度测试(以测试50000张为例，可酌情减少）
-
-+-------------------------------------------------------------+
-| \$ eval_imagenet_pytorch.py \\                              |
-|                                                             |
-|     \--model=mobilenet_v2_int8.mlir \\                      |
-|                                                             |
-|     \--dataset=\$DATASET_PATH/imagenet/img_val_extracted \\ |
-|                                                             |
-|     \--net_input_dims 224,224 \\                            |
-|                                                             |
-|     \--raw_scale 255.0 \\                                   |
-|                                                             |
-|     \--mean 103.94,116.78,123.68 \\                         |
-|                                                             |
-|     \--input_scale 0.017 \\                                 |
-|                                                             |
-|     \--count=50000                                          |
-+-------------------------------------------------------------+
-
+```sh
+$ eval_imagenet_pytorch.py \
+   --model=mobilenet_v2_int8.mlir \
+   --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+   --net_input_dims 224,224 \
+   --raw_scale 255.0 \
+   --mean 103.94,116.78,123.68 \
+   --input_scale 0.017 \
+   --count=50000
+```
 > 注：工具名称含pytorch指data加载和精度计算部分为调用pytorch实现
 
 -   **步骤5：后端优化，代码生成及打包为cvimodel**
 
 > 命令
-
-+------------------------------+
-| \$ mlir_to_cvimodel.sh \\    |
-|                              |
-| -i mobilenet_v2_int8.mlir \\ |
-|                              |
-| -o mobilenet_v2.cvimodel     |
-+------------------------------+
-
-> 得到mobilenet_v2.cvimodel。默认情况下模型的输出会dequant并输出fp32类型的数据。如果特殊网络需要输出tensor不做dequant并输出为int8类型，请在该命令行中加上"*\--dequant-results-to-fp32=false*"。
+```sh
+$ mlir_to_cvimodel.sh \
+    -i mobilenet_v2_int8.mlir \
+    -o mobilenet_v2.cvimodel
+```
+> 得到mobilenet_v2.cvimodel。默认情况下模型的输出会dequant并输出fp32类型的数据。如果特殊网络需要输出tensor不做dequant并输出为int8类型，请在该命令行中加上"*--dequant-results-to-fp32=false*"。
 
 -   **测试cvimodel**
 
 > 使用model_runner进行测试，model_runner同时支持仿真器测试和EVB运行，命令相同。
+```sh
+ $ model_runner \
+     --input moblenet_v2_in_fp32.npz \
+     --model mobilenet_v2.cvimodel \
+     --output out.npz
 
-+------------------------------------------+
-| \$ model_runner \\                       |
-|                                          |
-|     \--input mobilenet_v2_in_fp32.npz \\ |
-|                                          |
-|     \--model mobilenet_v2.cvimodel \\    |
-|                                          |
-|     \--output out.npz                    |
-|                                          |
-| \# check output data                     |
-|                                          |
-| \$ cvi_npz_tool.py dump out.npz prob 5   |
-|                                          |
-| Show Top-K 5                             |
-|                                          |
-| (282, 0.30102175)                        |
-|                                          |
-| (285, 0.30102175)                        |
-|                                          |
-| (281, 0.098654695)                       |
-|                                          |
-| (331, 0.07892632)                        |
-|                                          |
-| (287, 0.0631431)                         |
-+------------------------------------------+
-
+ # check output data
+ $ cvi_npz_tool.py dump out.npz prob 5
+  Show Top-K 5
+  (282, 0.30102175)
+  (285, 0.30102175)
+  (281, 0.098654695)
+  (331, 0.07892632)
+  (287, 0.0631431)
+```
 > 注：随calibraion所选图片不同，calibration结果也不同，因此最终推理结果存在一定差异。
 
 <div STYLE="page-break-after: always;"></div>
 
 # 第3章 Runtime开发指南
 
-## 查看cvimodel
+## 3.1 查看cvimodel
 
 在runtime环境中部署cvimodel，请现在命令行中使用cvimodel_tool去查看cvimodel的详情，如输入、输出tensors的shape、name等，权重、Activations占用空间等信息，具体使用方法如下：
-
--------------------------------------
-  \$ cvimodel -a dump -i xxx.cvimodel
-  -------------------------------------
-
+```sh
+$ cvimodel -a dump -i xxx.cvimodel
+```
 该命令的输出如下：
 
-1)  版本信息部分：
+a. 版本信息部分：
+```sh
+Cvitek Runtime 1.2.0 # runtime lib的版本号
+Mlir Version: tpu_rel_v1.3.4-42-g2bd9f2a54-dirty:20201205
+# 编译此cvimodel所用工具链的版本号
+Cvimodel Version: 1.2.0 # cvimodel的版本号
+Build at 2020-12-05 23:37:09 # cvimodel编译的时间
+```
 
-+----------------------------------------------------------------------+
-| Cvitek Runtime 1.2.0 (runtime lib的版本号)                           |
-|                                                                      |
-| Mlir Version: tpu_rel_v1.3.4-42-g2bd9f2a54-dirty:20201205            |
-| (编译此cvimodel所用工具链的版本号)                                   |
-|                                                                      |
-| Cvimodel Version: 1.2.0 (cvimodel的版本号)                           |
-|                                                                      |
-| Build at 2020-12-05 23:37:09 (cvimodel编译的时间)                    |
-+----------------------------------------------------------------------+
+b. 权重和指令段
+```sh
+ Sections:
 
-2)  权重和指令段
-
-+----------------------------------------------------------------------+
-| Sections:                                                            |
-|                                                                      |
-| ID TYPE NAME SIZE OFFSET ENCRYPT MD5                                 |
-|                                                                      |
-| 000 weight weight 820800 0 False 49974c37bc674fc529d3e2700902aba6    |
-|                                                                      |
-| 001 cmdbuf tpu_func0_3e 1440 820800 False                            |
-| caa5132dfa53ba41d4f2eabd5a98cead                                     |
-+----------------------------------------------------------------------+
-
+ ID   TYPE   NAME        SIZE   OFFSET ENCRYPT MD5
+ 000 weight weight       820800 0      False   49974c...
+ 001 cmdbuf tpu_func0_3e 1440   820800 False   caa513...
+```
 其中size为部署时weight或者cmdbuf(指令)所占用的memory的大小；encrypt表示该段是否为加密保存；MD5为该段数据的hash值，用于检查数据的完整性
 
-3)  权重tensor列表
-
-+--------------------------------------------------------+
-| WeightMap:                                             |
-|                                                        |
-| ID OFFSET SIZE TYPE N C H W NAME                       |
-|                                                        |
-| 000 1600 819200 int8 400 2048 1 1 filter_quant_lowered |
-|                                                        |
-| 001 0 1600 int32 400 1 1 1 bias_quant_lowered          |
-+--------------------------------------------------------+
-
-4)  program信息
+c. 权重tensor列表
+```sh
+WeightMap:
+ID  OFFSET SIZE   TYPE  N   C    H W NAME
+000 1600   819200 int8  400 2048 1 1 filter_quant_lowered
+001 0      1600   int32 400 1    1 1 bias_quant_lowered
+```
+d. program信息
 
 > program对应于执行推理所需要的结构信息，具体包括Activations占用空间，模型的输入、输出tensor的名称，tpu子程序或者cpu子程序的详情以及tensor列表等信息
+```sh
+ Program %0
+  batch_num : 1
+  private_gmem_size: 0  # 私有memory大小
+  shared_gmem_size: 448 # 共有memory\\<多个模型共享的内存区域\\>大小
+  inputs: data_quant    # 模型输入tensor名称，可对应于后面的tensor列表
+  outputs: input.7_Split_dequant # 模型输出tensor名称，可对应于后面的tensor列表
 
-+----------------------------------------------------------------------+
-| Program \#0                                                          |
-|                                                                      |
-| batch_num : 1                                                        |
-|                                                                      |
-| private_gmem_size: 0 （私有memory大小）                              |
-|                                                                      |
-| shared_gmem_size: 448 （共有memory\<多个模型共享的内存区域\>大小）   |
-|                                                                      |
-| inputs: data_quant （模型输入tensor名称，可对应于后面的tensor列表）  |
-|                                                                      |
-| outputs: input.7_Split_dequant                                       |
-| (模型输出tensor名称，可对应于后面的tensor列表)                       |
-|                                                                      |
-| routines: (program可有多个tpu或cpu子程序组成)                        |
-|                                                                      |
-| \#00 tpu （tpu子程序）                                               |
-|                                                                      |
-| inputs : data_quant                                                  |
-|                                                                      |
-| outputs : input.7_Split_dequant                                      |
-|                                                                      |
-| section : tpu_func0_3e                                               |
-|                                                                      |
-| tensor_map: (tensor列表)                                             |
-|                                                                      |
-| ID OFFSET TYPE N C H W QSCALE MEM NAME                               |
-|                                                                      |
-| 000 0 int8 1 1 2048 1 5.314389 io_mem data_quant                     |
-|                                                                      |
-| 001 0 int8 1 1 400 1 - shared fc                                     |
-|                                                                      |
-| 002 10 int8 1 1 100 1 0.095460 shared input.7_Split                  |
-|                                                                      |
-| 003 0 fp32 1 1 100 1 - io_mem input.7_Split_dequant                  |
-+----------------------------------------------------------------------+
+  routines: # program可有多个tpu或cpu子程序组成
+    %000 tpu # tpu子程序
+      inputs : data_quant
+      outputs : input.7_Split_dequant
+      section : tpu_func0_3e
 
-**\
-**
+  tensor_map: # tensor列表
+    ID  OFFSET TYPE N C H    W QSCALE   MEM    NAME
+    000 0      int8 1 1 2048 1 5.314389 io_mem data_quant
+    001 0      int8 1 1 400  1 -        shared fc
+    002 10     int8 1 1 100  1 0.095460 shared input.7_Split
+    003 0      fp32 1 1 100  1 -        io_mem input.7_Split_dequant
+```
 
-## Runtime开发流程
+
+
+
+
+## 3.2 Runtime开发流程
 
 ### 模型加载
 
@@ -2293,9 +2024,9 @@ kargs字典序指定的参数如下
 
 []{#_CVI_CONFIG_OPTION .anchor}
 
-## Runtime API参考
+## 3.3 Runtime API参考
 
-### Runtime C API参考
+### 3.3.1 Runtime C API参考
 
 头文件cviruntime.h中定义了runtime C
 API的数据结构和函数，用于模型的加载和推理，对应的动态库为
@@ -2878,7 +2609,7 @@ CVI_RC CVI_NN_FeedTensorWithFrames(
 |  width          | 帧数据宽度     |  输入|
 |  height_stride  | 每列的间隔     |  输入|
 
-### Runtime Python API
+### 3.3.2 Runtime Python API
 
 > Runtime通过pybind11将底层Runtime C++代码封装为Python API。Runtime
 > Python API目前支持在python3.6环境下执行。其主要API如下所示：
@@ -2943,8 +2674,8 @@ def forward(self)
 ```
 > 用于做模型的前向推理
 
-|  功能说明   |注释|
-|----------|------|
+|功能说明|注释|
+|----|---|
 |  返回值    |None|
 
 
