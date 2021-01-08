@@ -568,7 +568,7 @@ void cvi_backend_bf16_tl_eltwise(
     int input_size, int op,
     bool use_default_coeff,
     bool do_relu, float relu_slope,
-    const int *coeffs,
+    const float *coeffs,
     bool do_early_stride,
     int stride_h, int stride_w) {
 
@@ -588,7 +588,8 @@ void cvi_backend_bf16_tl_eltwise(
   cvk_tl_shape_t origin_shape = ctx.tl_shape_t4(input_n,input_c,input_h,input_w);
   cvk_tl_stride_t bottom_stride = ctx.tl_default_stride(origin_shape, CVK_FMT_BF16, 1);
   if (do_early_stride) {
-    bottom_stride = {bottom_stride.n, bottom_stride.c , (uint32_t)(input_w * stride_h), (uint32_t)stride_w};
+    bottom_stride.h = (uint32_t)(input_w * stride_h * 2);
+    bottom_stride.w = (uint32_t)stride_w * 2;
   }
 
   cvk_tl_shape_t shape = ctx.tl_shape_t4(input_n,input_c,oh,ow);
@@ -659,7 +660,6 @@ void cvi_backend_bf16_tl_eltwise(
           res_high = &output;
           res_low = &working;
         }
-        // res_high->stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
 
         if (use_default_coeff) {
           cvk_tiu_mul_param_t p = {0};

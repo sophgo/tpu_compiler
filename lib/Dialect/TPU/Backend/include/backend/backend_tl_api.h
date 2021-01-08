@@ -194,7 +194,7 @@ void cvi_backend_bf16_tl_eltwise(
     int input_size, int op,
     bool use_default_coeff,
     bool do_relu, float relu_slope,
-    const int *coeffs,
+    const float *coeffs,
     bool do_early_stride,
     int stride_h, int stride_w);
 

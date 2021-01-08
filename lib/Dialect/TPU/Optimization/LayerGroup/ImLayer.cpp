@@ -130,7 +130,7 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImDeconv>(op);
   } else if (isa<tpu::TG_INT8_EltwiseAddOp>(op) ||
              isa<tpu::TG_INT8_EltwiseMulOp>(op) ||
-             isa<tpu::TG_BF16_EltwiseMulOp>(op) ||
+             isa<tpu::TG_BF16_EltwiseAddOp>(op) ||
              isa<tpu::TG_BF16_EltwiseMulOp>(op)) {
     layer = std::make_shared<ImEltwise>(op);
   } else if (isa<tpu::TG_INT8_FullyConnectedOp>(op) ||

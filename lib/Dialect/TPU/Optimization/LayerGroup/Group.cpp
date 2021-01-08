@@ -505,6 +505,14 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
           h_idx = out_h_idx * h_stride;
           h_slice = out_h_slice * h_stride;
         }
+      } else if (auto op = dyn_cast<tpu::TG_BF16_EltwiseAddOp>(im_layer->op())) {
+        bool do_early_stride = false;
+        int h_stride = 0, w_stride = 0;
+        getEltwiseAddParam(im_layer->op(), do_early_stride, h_stride, w_stride);
+        if (do_early_stride) {
+          h_idx = out_h_idx * h_stride;
+          h_slice = out_h_slice * h_stride;
+        }
       }
     } else if (layer_type == IR_PAD) {
       h_slice = out_h_slice;

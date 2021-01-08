@@ -867,6 +867,8 @@ void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
   if (auto add_op = dyn_cast<tpu::TG_INT8_EltwiseAddOp>(op)) {
     attrs.push_back(builder_.getNamedAttr("rshift", add_op.rshiftAttr()));
     attrs.push_back(builder_.getNamedAttr("m_i8", add_op.m_i8_inputsAttr()));
+  } else if (auto add_op = dyn_cast<tpu::TG_BF16_EltwiseAddOp>(op)) {
+    attrs.push_back(builder_.getNamedAttr("coeff", add_op.coeffAttr()));
   }
 
   // setup input/output type

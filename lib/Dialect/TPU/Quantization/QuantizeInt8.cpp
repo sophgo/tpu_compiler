@@ -742,9 +742,10 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   //   find a rshift, that put max(output) into range (64, 127)
   //
 
+  // get the max abs(qscale)
   float max_qscale = 0.0;
   for (auto & q : qscale) {
-    float p = q > 0.0 ? q : 0 - q;
+    float p = q > 0.0 ? q : 0.0 - q;
     if (max_qscale < p) {
       max_qscale = p;
     }

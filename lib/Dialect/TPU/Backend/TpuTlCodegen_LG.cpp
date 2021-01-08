@@ -464,7 +464,60 @@ LogicalResult tpu::TL_LG_INT8_EltwiseAddOp::codegen(void *ctx) {
 LogicalResult tpu::TL_LG_BF16_EltwiseAddOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  assert(0);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = mlir::getOpLayerId(op);
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+  bool do_relu = this->do_relu();
+  int nInputs = op->getNumOperands();
+  assert(op->getNumOperands() == 2 && "support 2 inputs only");
+
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), shape, output_size);
+  oh = shape[2];
+  ow = shape[3];
+
+  std::vector<int32_t> la_input_array;
+  laddr_t la_input[nInputs];
+  arrayAttrToVector(this->la_input().getValue(), la_input_array);
+  for (int i = 0; i < nInputs; ++i) {
+      la_input[i] = la_input_array[i];
+  }
+  std::vector<float> coeffs;
+  arrayAttrToVector(this->coeff().getValue(), coeffs);
+
+  laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
+
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
+
+  // op code PROD = 0; SUM = 1; MAX = 2;
+  int op_code = 1;
+  cvi_backend_bf16_tl_eltwise(*backend_ctx,
+                              layer_id, /*u32 layer_id,*/
+                              la_input,
+                              la_output,
+                              la_working,
+                              n, c, h, w, nInputs,
+                              op_code,
+                              true, /*use_default_coeff,*/
+                              do_relu,
+                              0, /*relu_slope,*/
+                              coeffs.data(),
+                              do_early_stride,
+                              early_stride_h, early_stride_w);
+
   return success();
 }
 
@@ -540,11 +593,6 @@ LogicalResult tpu::TL_LG_BF16_EltwiseMulOp::codegen(void *ctx) {
   int nInputs = op->getNumOperands();
   assert(op->getNumOperands() == 2 && "support 2 inputs only");
 
-  int64_t output_size, oh, ow;
-  getTensorShapeAndSize(op->getResult(0), shape, output_size);
-  oh = shape[2];
-  ow = shape[3];
-
   std::vector<int32_t> la_input_array;
   laddr_t la_input[nInputs];
   arrayAttrToVector(this->la_input().getValue(), la_input_array);
@@ -555,17 +603,9 @@ LogicalResult tpu::TL_LG_BF16_EltwiseMulOp::codegen(void *ctx) {
   laddr_t la_output = this->la_output();
   laddr_t la_working = this->la_working();
 
-  bool do_early_stride = this->do_early_stride();
-  int32_t early_stride_h = this->early_stride_h();
-  int32_t early_stride_w = this->early_stride_w();
-  if (do_early_stride) {
-    assert(oh == h / early_stride_h);
-    assert(ow == w / early_stride_w);
-  }
-
   // op code PROD = 0; SUM = 1; MAX = 2;
   int op_code = 0;
-  const int coeffs[2] = {1, 1};
+  const float coeffs[2] = {1.0, 1.0};
 
   cvi_backend_bf16_tl_eltwise(*backend_ctx,
                               layer_id, /*u32 layer_id,*/
@@ -578,8 +618,8 @@ LogicalResult tpu::TL_LG_BF16_EltwiseMulOp::codegen(void *ctx) {
                               do_relu,
                               0, /*relu_slope,*/
                               coeffs,
-                              do_early_stride,
-                              early_stride_h, early_stride_w);
+                              0,
+                              0, 0);
 
   return success();
 }
