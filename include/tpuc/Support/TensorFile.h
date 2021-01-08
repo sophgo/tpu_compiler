@@ -274,24 +274,27 @@ public:
       if (arr.shape.size() == 0) {
         // first should be create somthing cuz cnpy save flow
         llvm::StringRef name = first_element->first;
-        llvm::errs() << name << "save dummy for prevent open npz file under append mode fail\n";
+        llvm::errs()
+            << name
+            << "save dummy for prevent open npz file under append mode fail\n";
         deleteTensor<float>(name);
-        std::vector<float> fake_data (1);
+        std::vector<float> fake_data(1);
         std::vector<int64_t> shape(1, 1);
         addTensor(name, fake_data.data(), shape);
       }
 
       cnpy::npz_save_all(fileInc, map);
       filename = fileInc;
-      //llvm::errs() << "save weight TensorFile to " << filename << "\n";
       if (newName) {
         *newName = filename;
       }
     } else {
-      //llvm::errs() << "keep weight TensorFile to " << filename << "\n";
       cnpy::npz_save_all(filename, map);
     }
-    return cnt_add + cnt_del;
+    int ret = cnt_add + cnt_del;
+    cnt_add = 0;
+    cnt_del = 0;
+    return ret;
   }
 
 private:
