@@ -5,11 +5,11 @@
  * Description:
  */
 
+#include "TgConcatKernel.hpp"
+#include "CviBackendContext.h"
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
-#include "CviBackendContext.h"
-#include "TgConcatKernel.hpp"
 
 #define DEBUG_TYPE "cvi_backend_concat_kernel"
 
@@ -85,6 +85,13 @@ void TgConcatKernel::update_output(int output_dim[], int dim_size,
     output_stride = ctx.tg_default_stride(output_shape, fmt);
     axis = 2;
   }
+  // TilingAll is better than TilingNCHW
+  for (int i = 0; i < concat_axis; i++) {
+    if (output_dim[i] != 1) {
+      return;
+    }
+  }
+  tiling_mode = CviBackendContext::TilingAll;
 }
 
 void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
@@ -99,9 +106,11 @@ void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
   this->layer_id = layer_id;
   this->fmt = fmt;
   this->do_relu = do_relu;
+  this->input_num = input_num;
+  this->tiling_mode = CviBackendContext::TilingNCHW;
   update_output(output_dim, dim_size, concat_axis);
   uint64_t axis_addr_offset = 0;
-
+  do_parallel = false;
   for (int i = 0; i < input_num; i++) {
     input_info_t info;
     memset((void *)&info, 0, sizeof(input_info_t));
@@ -121,12 +130,16 @@ void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
         do_relu == false) {
       info.do_quantize = false;
     }
+    if (info.do_quantize && false == do_parallel) {
+      do_parallel = true;
+    }
     info.ga_input = input_gaddrs[i];
     info.ga_output = output_gaddr + axis_addr_offset;
     axis_addr_offset += ctx.bytesize_of_fmt(fmt) * axis_size(info.shape);
     inputs.emplace_back(info);
   }
 }
+
 uint64_t
 TgConcatKernel::dst_offset(const CviBackendContext::tiling_info_t &tile) const {
   return tile.pos_w * output_stride.w + tile.pos_h * output_stride.h +
@@ -134,51 +147,127 @@ TgConcatKernel::dst_offset(const CviBackendContext::tiling_info_t &tile) const {
 }
 
 void TgConcatKernel::selectTilePolicy() {
-  for (auto &input : inputs) {
-    ctx.tiling_packing(input.tiles, input.shape, fmt);
+  total_tiles = 0;
+  if (do_parallel) {
+    for (auto &input : inputs) {
+      input.tile_idx = total_tiles;
+      ctx.tiling_packing(input.tiles, input.shape, fmt, 4, 0, tiling_mode,
+                         true);
+      total_tiles += input.tiles.size();
+    }
+    // half the lmem
+    int lsize = ALIGN(LOCAL_MEM_SIZE / 4, EU_NUM);
+    base_addr[0] = 0;
+    base_addr[1] = lsize;
+    base_addr[2] = base_addr[1] + lsize;
+    base_addr[3] = base_addr[2] + lsize;
+  } else {
+    for (auto &input : inputs) {
+      input.tile_idx = total_tiles;
+      ctx.tiling_packing(input.tiles, input.shape, fmt, 1, 0, tiling_mode);
+      total_tiles += input.tiles.size();
+    }
+    memset(base_addr, 0, sizeof(base_addr));
+  }
+}
+
+void TgConcatKernel::prepare(int32_t step_idx,
+                             TgConcatKernel::input_info_t *&input,
+                             CviBackendContext::tiling_info_t *&tile) {
+  for (int idx = input_num - 1; idx >= 0; idx--) {
+    input = &inputs[idx];
+    if (input->tile_idx <= step_idx) {
+      tile = &input->tiles[step_idx - input->tile_idx];
+      ctx.lmem_init_tensor(&tl_input,
+                           ctx.tl_shape_t4(tile->n, tile->c, tile->h, tile->w),
+                           fmt, 1);
+      ctx.lmem_init_tensor(&tl_output,
+                           ctx.tl_shape_t4(tile->n, tile->c, tile->h, tile->w),
+                           fmt, 1);
+      tl_input.start_address = base_addr[step_idx % 2];
+      tl_output.start_address = base_addr[step_idx % 2 + 2];
+      return;
+    }
+  }
+  assert(0 && "tile incorrect");
+}
+
+void TgConcatKernel::load(int32_t step_idx) {
+  TgConcatKernel::input_info_t *input;
+  CviBackendContext::tiling_info_t *tile;
+  prepare(step_idx, input, tile);
+  if (tiling_mode == CviBackendContext::TilingNCHW) {
+    ctx.tdma_load_stride(&tl_input, input->ga_input + tile->offset,
+                         input->stride);
+  } else {
+    ctx.tdma_load(&tl_input, input->ga_input + tile->offset);
+  }
+}
+
+void TgConcatKernel::store(int32_t step_idx) {
+  TgConcatKernel::input_info_t *input;
+  CviBackendContext::tiling_info_t *tile;
+  prepare(step_idx, input, tile);
+  if (tiling_mode == CviBackendContext::TilingNCHW) {
+    ctx.tdma_store_stride(&tl_output, input->ga_output + dst_offset(*tile),
+                          output_stride);
+  } else {
+    ctx.tdma_store(&tl_output, input->ga_output + tile->offset);
+  }
+}
+
+void TgConcatKernel::compute(int32_t step_idx) {
+  TgConcatKernel::input_info_t *input;
+  CviBackendContext::tiling_info_t *tile;
+  prepare(step_idx, input, tile);
+  // do quantize
+  if (input->do_quantize) {
+    cvk_tiu_mul_param_t p = {0};
+    p.res_high = nullptr;
+    p.res_low = &tl_output;
+    p.a = &tl_input;
+    if (fmt == CVK_FMT_BF16) {
+      // bf16 no quant now
+      p.b_const.val = ctx.convert_fp32_to_bf16(1.0);
+      p.rshift_bits = 0;
+    } else {
+      p.b_const.val = static_cast<int16_t>(input->data_quantized);
+      p.rshift_bits = static_cast<uint8_t>(input->rshift_width);
+    }
+    p.b_const.is_signed = false;
+    p.b_is_const = 1;
+    p.layer_id = layer_id;
+    p.relu_enable = do_relu ? 1 : 0;
+    ctx.tiu_mul(&p);
+  } else {
+    cvk_tiu_copy_param_t p;
+    p.layer_id = layer_id;
+    p.src = &tl_input;
+    p.dst = &tl_output;
+    ctx.tiu_copy(&p);
   }
 }
 
 void TgConcatKernel::schedule() {
-  for (auto &input : inputs) {
-    cvk_tl_shape_t max_shape = ctx.tl_shape_t4(
-        input.tiles[0].n, input.tiles[0].c, input.tiles[0].h, input.tiles[0].w);
-    cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(max_shape, fmt, 1);
-
-    for (auto &tile : input.tiles) {
-      cvk_tl_t tl_ifmap = {0};
-      // load
-      tl_ifmap.start_address = tl_input->start_address;
-      tl_ifmap.shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
-      tl_ifmap.stride = ctx.tl_default_stride(tl_ifmap.shape, fmt, 1);
-      tl_ifmap.fmt = fmt;
-      ctx.tdma_load_stride(&tl_ifmap, input.ga_input + tile.offset,
-                           input.stride);
-      // do quantize
-      if (input.do_quantize) {
-        cvk_tiu_mul_param_t p = {0};
-        p.res_high = nullptr;
-        p.res_low = &tl_ifmap;
-        p.a = &tl_ifmap;
-        if (fmt == CVK_FMT_BF16) {
-          // bf16 no quant now
-          p.b_const.val = ctx.convert_fp32_to_bf16(1.0);
-          p.rshift_bits = 0;
-        } else {
-          p.b_const.val = static_cast<int16_t>(input.data_quantized);
-          p.rshift_bits = static_cast<uint8_t>(input.rshift_width);
-        }
-        p.b_const.is_signed = false;
-        p.b_is_const = 1;
-        p.layer_id = layer_id;
-        p.relu_enable = do_relu ? 1 : 0;
-        ctx.tiu_mul(&p);
+  if (do_parallel) {
+    for (int step = 0; step < total_tiles + 2; step++) {
+      ctx.parallel_enable();
+      if (step > 0 && step - 1 < total_tiles) {
+        compute(step - 1);
       }
-      // store
-      ctx.tdma_store_stride(&tl_ifmap, input.ga_output + dst_offset(tile),
-                            output_stride);
+      if (step < total_tiles) {
+        load(step);
+      }
+      if (step > 1) {
+        store(step - 2);
+      }
+      ctx.parallel_disable();
     }
-    ctx.lmem_free_tensor(tl_input);
+  } else {
+    for (int step = 0; step < total_tiles; step++) {
+      load(step);
+      store(step);
+    }
   }
 }
 

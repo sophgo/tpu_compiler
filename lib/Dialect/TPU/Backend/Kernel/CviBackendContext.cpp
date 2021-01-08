@@ -479,14 +479,17 @@ void CviBackendContext::tiling_all(std::vector<tiling_info_t> &tiling_result,
   return;
 }
 
-static int slice_dim(int & max_dim, int dim, int max_num, int max_slice, int unit = 1) {
+static int slice_dim(int &max_dim, int dim, int max_num, int max_slice,
+                     int unit = 1) {
   if (dim <= unit || max_slice <= 1) {
     max_dim = dim;
     return max_slice;
   }
+  if (unit > 1) {
+    max_num -= max_num % unit;
+  }
   int slice = ceiling_func(dim, unit);
-  max_dim = ceiling_func(slice, max_slice) * unit;
-  max_dim = std::min(max_dim, ALIGN(max_num, unit));
+  max_dim = std::min(max_num, ceiling_func(slice, max_slice) * unit);
   slice = ceiling_func(dim, max_dim);
   return ceiling_func(max_slice, slice);
 }

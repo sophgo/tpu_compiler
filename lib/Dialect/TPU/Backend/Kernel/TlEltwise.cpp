@@ -498,12 +498,11 @@ void cvi_backend_tl_eltwise(
           ctx.tiu_mac(&p3);
 
           if (out_is_higher_addr) {
-            ctx.parallel_disable();
-            cvk_tdma_l2l_tensor_copy_param_t p10 = {0};
+            cvk_tiu_copy_param_t p10 = {0};
             p10.dst = &output;
             p10.src = res_low;
             p10.layer_id = layer_id;
-            ctx.tdma_l2l_tensor_copy(&p10);
+            ctx.tiu_copy(&p10);
           }
         } else {
           // Not support
@@ -714,12 +713,11 @@ void cvi_backend_bf16_tl_eltwise(
           ctx.tiu_mac(&p3);
 
           if (out_is_higher_addr) {
-            ctx.parallel_disable();
-            cvk_tdma_l2l_tensor_copy_param_t p10 = {0};
+            cvk_tiu_copy_param_t p10 = {0};
             p10.dst = &output;
             p10.src = res_low;
             p10.layer_id = layer_id;
-            ctx.tdma_l2l_tensor_copy(&p10);
+            ctx.tiu_copy(&p10);
           }
         } else {
           // Not support
