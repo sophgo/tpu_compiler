@@ -34,6 +34,7 @@ cvi_preprocess.py \
     --image_file $IMAGE_PATH \
     --net_input_dims ${IMAGE_RESIZE_DIMS} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
     --raw_scale 255 \
     --mean 0,0,0 \
     --std 1,1,1 \
@@ -41,7 +42,6 @@ cvi_preprocess.py \
     --pixel_format YUV420 \
     --batch_size $BATCH_SIZE \
     --npz_name ${NET}_in_fp32.npz \
-    --crop_method=${PREPROCESS_CROPMETHOD} \
     --input_name input
 
 
@@ -50,6 +50,7 @@ cvi_preprocess.py  \
     --image_file $IMAGE_PATH \
     --net_input_dims ${IMAGE_RESIZE_DIMS} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
     --raw_scale 255 \
     --mean 0,0,0 \
     --std 1,1,1 \
@@ -57,7 +58,6 @@ cvi_preprocess.py  \
     --pixel_format YUV420 \
     --astype uint8 \
     --batch_size $BATCH_SIZE \
-    --crop_method=${PREPROCESS_CROPMETHOD} \
     --npz_name ${NET}_in_uint8.npz \
     --input_name input
 

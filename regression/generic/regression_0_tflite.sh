@@ -16,10 +16,10 @@ if [ ! -f "$TFLITE_BLOBS_NPZ" ]; then
       --std ${STD} \
       --batch_size $BATCH_SIZE \
       --input_scale ${INPUT_SCALE} \
+      --data_format nhwc \
       --dump_tensor $TFLITE_BLOBS_NPZ \
       --input_file $IMAGE_PATH \
       --model_channel_order $MODEL_CHANNEL_ORDER \
-      --data_format $DATA_FORMAT \
       --model_type tflite \
       --output_file tflite_out.npz
 

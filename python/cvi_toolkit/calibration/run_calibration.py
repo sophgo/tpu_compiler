@@ -197,18 +197,8 @@ def main():
 
     if (args.model_name == 'generic'):
         preprocessor = preprocess()
-        preprocessor.config(net_input_dims=args.net_input_dims,
-                            resize_dims=args.image_resize_dims,
-                            mean=args.mean,
-                            mean_file=args.mean_file,
-                            input_scale=args.input_scale,
-                            raw_scale=args.raw_scale,
-                            std=args.std,
-                            rgb_order=args.model_channel_order,
-                            bgray=args.bgray)
-
-        def p_func(input_file): return preprocessor.run(
-            input_file, output_channel_order=args.model_channel_order)
+        preprocessor.config(**vars(args))
+        p_func = lambda input_file: preprocessor.run(input_file)
     elif (args.model_name == 'yolo_v3'):
         p_func = preprocess_yolov3
     elif (args.model_name == 'ssd300_face'):

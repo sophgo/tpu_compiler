@@ -19,7 +19,7 @@ if [ "$EVAL_MODEL_TYPE" = "espcn" ]; then
         --model_type tensorflow \
         --model_channel_order $MODEL_CHANNEL_ORDER \
         --count=$1 \
-        --bgray $BGRAY
+        --gray $BGRAY
 fi
 
 echo $0 DONE

@@ -4107,8 +4107,8 @@ struct LowerFunctionTypePattern: public RewritePattern {
         setOpResultType(argument, IntegerType::get(8, bSigned, op->getContext()));
         setOpResultType(prevOp->getResult(0), IntegerType::get(8, bSigned, op->getContext()));
         prevOp->setAttr("name", quantOp.nameAttr());
-        setOpThreshold(prevOp,
-                       128 / quantOp.scale().convertToFloat());
+        setOpThreshold(prevOp, (quantOp.to() == "INT8" ? 128 : 256) /
+                                quantOp.scale().convertToFloat());
         setOpZeroPoint(prevOp,
                        (int)quantOp.zero_point());
         rewriter.replaceOp(op, {op->getOperand(0)});
@@ -4167,10 +4167,16 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
   auto &os = table->os();
   fn.walk([&](Operation *op) {
     if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
+      qscale = 1.0f;
       float threshold =
           (float)castOp.quant().threshold_max().getValue().convertToFloat();
+      if (threshold != 0) {
+        auto elementType = castOp.getResult().getType().template
+                        cast<TensorType>().getElementType();
+        int max_val = elementType.isUnsignedInteger(8) ? 255 : 128;
+        qscale = max_val / threshold;
+      }
       char qscale_str[64] = {0};
-      qscale = (threshold == 0) ? 1.0f : (128.0 / threshold);
       sprintf(qscale_str, "%.12f", qscale);
       zero_point = castOp.quant().zero_point().getInt();
       os << castOp.name() << " " << qscale_str << " "<< zero_point << "\n";

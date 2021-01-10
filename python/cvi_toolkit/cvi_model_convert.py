@@ -23,29 +23,16 @@ def Convert(args):
     if args.model_type not in CVI_SupportFramework:
         raise ValueError("Not support {} type".format(args.model_type))
     preprocessor = preprocess()
-    preprocessor.config(net_input_dims=args.net_input_dims,
-                        resize_dims=args.image_resize_dims,
-                        mean=args.mean,
-                        mean_file=args.mean_file,
-                        input_scale=args.input_scale,
-                        raw_scale=args.raw_scale,
-                        std=args.std,
-                        pixel_format=args.pixel_format,
-                        rgb_order=args.model_channel_order,
-                        crop_method=args.crop_method,
-                        data_format=args.data_format,
-                        only_aspect_ratio_img=args.only_aspect_ratio_img,
-                        bgray=args.bgray)
 
     input_shape = [int(i) for i in args.input_shape.split(",")]
 
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
+        preprocessor.config(**vars(args))
         c = OnnxConverter(args.model_name, onnx_model,
                           args.mlir_file_path, batch_size=args.batch_size,
-                          convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(
-                              input_h=input_shape[1], input_w=input_shape[2], preprocess_input_data_format=args.preprocess_input_data_format),
-                          )
+                          convert_preprocess=args.convert_preprocess,
+                          preprocess_args=preprocessor.to_dict())
     elif args.model_type == "tflite_int8":
         c = TFLiteInt8Converter(
             args.model_name, args.model_path, args.mlir_file_path)
@@ -53,11 +40,11 @@ def Convert(args):
         c = TFConverter(args.model_name, args.model_path,
                         args.mlir_file_path, batch_size=args.batch_size)
     elif args.model_type == "caffe":
+        preprocessor.config(**vars(args))
         c = CaffeConverter(args.model_name, args.model_path, args.model_dat,
                            args.mlir_file_path, batch_size=args.batch_size,
-                           convert_preprocess=args.convert_preprocess, preprocess_args=preprocessor.to_dict(
-                               input_h=input_shape[1], input_w=input_shape[2], preprocess_input_data_format=args.preprocess_input_data_format)
-        )
+                           convert_preprocess=args.convert_preprocess,
+                           preprocess_args=preprocessor.to_dict())
     c.run()
 
 
@@ -92,14 +79,6 @@ def main():
         default=1,
     )
     parser.add_argument(
-        "--pixel_format",
-        help="""Pixel format, default is RGB mode, user can set to YUV420.
-                If YUV420 used, input shape will be [N 6 h/2 w/2]
-        """,
-        type=str,
-        default="RGB"
-    )
-    parser.add_argument(
         "--convert_preprocess",
         help="Conbine mlir model with preprocess inference",
         type=int,
@@ -113,14 +92,6 @@ def main():
         """,
         type=str,
         default="0,0,0,0"
-    )
-    parser.add_argument(
-        "--preprocess_input_data_format",
-        help="""
-                Fusing preprocess input data_format,
-        """,
-        type=str,
-        default="nhwc"
     )
     parser = add_preprocess_parser(parser)
     args = parser.parse_args()

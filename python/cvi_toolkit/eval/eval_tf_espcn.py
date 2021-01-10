@@ -232,16 +232,8 @@ if __name__ == '__main__':
   preprocessor = preprocess()
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
   # transposed already in ToTensor(),
-  preprocessor.config(net_input_dims=net_input_dims,
-                      resize_dims=net_input_dims,
-                      mean=args.mean,
-                      mean_file=args.mean_file,
-                      input_scale=args.input_scale,
-                      raw_scale=args.raw_scale,
-                      std=args.std,
-                      rgb_order=args.model_channel_order,
-                      data_format="nhwc",
-                      bgray=True)
+  args.pixel_format = 'GRAYSCALE'
+  preprocessor.config(**vars(args))
 
   image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
   net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
@@ -270,9 +262,7 @@ if __name__ == '__main__':
     # slign tf shape order: hwc
     x = np.transpose(x, (1, 2, 0))
     img = np.expand_dims(x, axis=0)
-    # only one channel, input_channel_order/output_channel_order dont care
-    x = preprocessor.run(path, output_channel_order=args.model_channel_order,
-            input_data_format = args.input_data_format)
+    x = preprocessor.run(path)
 
     # run inference
     res = net.inference(x)

@@ -78,18 +78,12 @@ def parse(config: dict):
         t = data_preprocess
         mean = t.get('image_mean', None)
         channel_mean = t.get('channel_mean', None)
-        mean_file = t.get('mean_file', None)
-        check_file_assert(mean_file)
 
         if mean != None and channel_mean != None:
             logger.error("channel_mean and mean should not be set at the same time!")
             exit(-1)
         elif channel_mean != None:
             mean = channel_mean
-
-        if mean != None and mean_file != None:
-            logger.error("mean_file and mean value should not be set at the same time!")
-            exit(-1)
 
         input_scale = t.get('input_scale', 1.0)
         net_input_dims = t.get('net_input_dims')
@@ -98,37 +92,28 @@ def parse(config: dict):
             exit(-1)
         std = t.get('std', "1,1,1")
         raw_scale = t.get('raw_scale', 255.0)
-        data_format = t.get('data_format')
+        pixel_format = t.get('pixel_format')
         resize_dims = t.get('image_resize_dim')
 
         rgb_order = t.get('RGB_order',"bgr")
-        npy_input = t.get('npy_input', None)
-
-        check_file_assert(npy_input)
 
         input_file = t.get('input_file', None)
-        if not npy_input:
-            # if has npy_input, we don't need input_file
-            check_file_assert(input_file)
-        if input_file == None and npy_input == None:
-            logger.error('Please set input file image in yml!')
-            exit(-1)
+        check_file_assert(input_file)
 
         output_npz = t['output_npz']
         fp32_in_npz = output_npz
-        preprocessor.config(net_input_dims=net_input_dims,
+        preprocessor.config(
+                    net_input_dims=net_input_dims,
                     resize_dims=resize_dims,
                     mean=mean,
-                    mean_file=mean_file,
                     input_scale=input_scale,
                     std=std,
                     raw_scale=raw_scale,
-                    data_format=data_format,
-                    rgb_order=rgb_order,
-                    npy_input=npy_input)
+                    pixel_format=pixel_format,
+                    channel_order=rgb_order)
 
-        ret = preprocessor.run(input_file, output_npz=output_npz,
-                               output_channel_order=rgb_order)
+        output = preprocessor.run(input_file)
+        np.savez(output_npz, **{'input': output})
 
         if ret is None:
             logger.error('preprocess image failed!')

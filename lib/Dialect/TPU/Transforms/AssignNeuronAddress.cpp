@@ -200,7 +200,7 @@ struct TlLgStoreAddressNeuronPattern : public RewritePattern {
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
     auto castOp = cast<OpTy>(op);
     if (castOp.gaddr().hasValue()) {
       return failure();

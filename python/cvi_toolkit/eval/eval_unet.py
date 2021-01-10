@@ -179,16 +179,8 @@ if __name__ == '__main__':
   preprocessor = preprocess()
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
   # transposed already in ToTensor(),
-  preprocessor.config(net_input_dims=net_input_dims,
-                      resize_dims=net_input_dims,
-                      mean=args.mean,
-                      mean_file=args.mean_file,
-                      input_scale=args.input_scale,
-                      raw_scale=args.raw_scale,
-                      std=args.std,
-                      rgb_order=args.model_channel_order,
-                      data_format=args.data_format,
-                      bgray=True)
+  args.pixel_format = 'GRAYSCALE'
+  preprocessor.config(**vars(args))
 
   image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
   net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
@@ -211,15 +203,7 @@ if __name__ == '__main__':
     mask = batch['mask']
     # compute output
     x = image[0].numpy() * 255
-    if args.model_type == "caffe":
-        x = preprocessor.run(x, input_type='tensor',
-                             output_channel_order=args.model_channel_order)
-    elif args.model_type == "onnx":
-        x = preprocessor.run(x, input_type='tensor', input_data_format = "hwc",
-                             output_channel_order="rgb")
-    elif args.model_type == "mlir":
-        x = preprocessor.run(x, input_type='tensor',
-                             output_channel_order=args.model_channel_order, input_data_format = "hwc")
+    x = preprocessor.run(x)
 
     # run inference
 

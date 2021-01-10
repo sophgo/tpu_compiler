@@ -79,26 +79,14 @@ def main(argv):
         # read from caffe
         net_input_dims = caffemodel.get_input_shape()
     preprocessor = preprocess()
-    preprocessor.config(net_input_dims=net_input_dims,
-                    resize_dims=args.image_resize_dims,
-                    mean=args.mean,
-                    mean_file=args.mean_file,
-                    input_scale=args.input_scale,
-                    raw_scale=args.raw_scale,
-                    rgb_order=args.model_channel_order,
-                    std=args.std, batch=args.batch_size)
+    preprocessor.config(**vars(args))
 
     # Load image file.
     args.input_file = os.path.expanduser(args.input_file)
     print("Loading file: %s" % args.input_file)
 
-    input_data = preprocessor.run(args.input_file, output_channel_order=args.model_channel_order)
-    inputs = input_data
-    print("Batch size : %d" % args.batch_size)
-    for i in range(1, args.batch_size):
-      inputs = np.append(inputs, input_data, axis=0)
-    # print("Input Shape : ", inputs.shape)
-
+    inputs = preprocessor.run(args.input_file, batch=args.batch_size)
+    print("inputs:", inputs.shape)
     # Classify.
     start = time.time()
     predictions = caffemodel.inference(inputs)

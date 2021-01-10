@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -xe
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -10,32 +10,11 @@ cvi_preprocess.py \
     --image_file $IMAGE_PATH \
     --net_input_dims ${IMAGE_RESIZE_DIMS} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --raw_scale 255 \
-    --mean 0,0,0 \
-    --std 1,1,1 \
-    --input_scale 1 \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
     --data_format nhwc \
     --batch_size $BATCH_SIZE \
-    --npz_name ${NET}_only_resize_in_fp32.npz \
-    --crop_method=${PREPROCESS_CROPMETHOD} \
-    --input_name input
-
-
-# for uint8 dtype, for model runner(cmodel)
-cvi_preprocess.py  \
-    --image_file $IMAGE_PATH \
-    --net_input_dims ${IMAGE_RESIZE_DIMS} \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --raw_scale 255 \
-    --mean 0,0,0 \
-    --std 1,1,1 \
-    --input_scale 1 \
-    --data_format nhwc \
-    --astype uint8 \
-    --batch_size $BATCH_SIZE \
-    --crop_method=${PREPROCESS_CROPMETHOD} \
-    --npz_name ${NET}_only_resize_in_uint8.npz \
-    --input_name input
+    --input_name input \
+    --output_npz ${NET}_only_resize_in_fp32.npz \
 
 input_shape=`cvi_npz_tool.py get_shape ${NET}_only_resize_in_fp32.npz input`
 
@@ -56,8 +35,8 @@ cvi_model_convert.py \
     --std ${STD} \
     --input_scale ${INPUT_SCALE} \
     --model_channel_order $MODEL_CHANNEL_ORDER \
+    --pixel_format BGR_PACKAGE \
     --batch_size $BATCH_SIZE \
-    --preprocess_input_data_format "nhwc" \
     --convert_preprocess 1 \
     --mlir_file_path ${NET}_fused_preprocess.mlir
 
@@ -125,7 +104,7 @@ $DIR/../mlir_to_cvimodel.sh \
 
 model_runner \
     --dump-all-tensors \
-    --input ${NET}_only_resize_in_uint8.npz \
+    --input ${NET}_only_resize_in_fp32.npz \
     --model ${NET}_fused_preprocess.cvimodel \
     --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz
@@ -137,15 +116,15 @@ cvi_npz_tool.py compare \
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   if [ $BATCH_SIZE -eq 1 ]; then
-    cp ${NET}_only_resize_in_uint8.npz \
-        $CVIMODEL_REL_PATH/${NET}_fused_preprocess_in_uint8.npz
+    cp ${NET}_only_resize_in_fp32.npz \
+        $CVIMODEL_REL_PATH/${NET}_fused_preprocess_in_fp32.npz
     mv ${NET}_fused_preprocess.cvimodel $CVIMODEL_REL_PATH
     cp ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz \
         $CVIMODEL_REL_PATH/${NET}_fused_preprocess_out_all.npz
 
   else
-    cp ${NET}_only_resize_in_uint8.npz \
-        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess_in_uint8.npz
+    cp ${NET}_only_resize_in_fp32.npz \
+        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess_in_fp32.npz
     mv ${NET}_fused_preprocess.cvimodel \
         $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess.cvimodel
     cp ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz \

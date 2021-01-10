@@ -27,7 +27,6 @@ parser.add_argument("--image_resize_dims", type=str, default='256,256')
 parser.add_argument("--net_input_dims", type=str, default='224,224')
 parser.add_argument("--raw_scale", type=float, help="Multiply raw input image data by this scale.")
 parser.add_argument("--mean", help="Per Channel image mean values")
-parser.add_argument("--mean_file", type=str, help="the resized ImageNet dataset mean file.")
 parser.add_argument("--input_scale", type=float,
                     help="Multiply input features by this scale.", default=1.0)
 parser.add_argument("--count", type=int, default=50000)
@@ -121,13 +120,7 @@ if __name__ == '__main__':
     print('mean', mean)
     mean = mean[:, np.newaxis, np.newaxis]
   else:
-    if args.mean_file:
-      mean = np.load(args.mean_file)
-      # print('mean shape', mean.shape)
-      # only need the 3D value
-      mean = mean[0]
-    else:
-      mean = np.array([])
+    mean = np.array([])
 
   input_scale = float(args.input_scale)
 

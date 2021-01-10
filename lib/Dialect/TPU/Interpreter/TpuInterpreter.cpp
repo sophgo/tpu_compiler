@@ -2666,7 +2666,7 @@ LogicalResult tpu::PreprocessOp::interpret(
   std::vector<float> means;
   std::vector<float> stds;
   std::vector<int> crop_offset;
-  std::vector<int> pads;
+  // std::vector<int> pads;
 
   if (this->color_order().hasValue()) {
     for (auto o : llvm::enumerate(this->color_order().getValue())) {
@@ -2699,12 +2699,12 @@ LogicalResult tpu::PreprocessOp::interpret(
       crop_offset.push_back(attr.getInt());
     }
   }
-  if (this->pads().hasValue()) {
-    for (auto m : llvm::enumerate(this->pads().getValue())) {
-      auto attr = m.value().dyn_cast<IntegerAttr>();
-      pads.push_back(attr.getInt());
-    }
-  }
+  // if (this->pads().hasValue()) {
+  //   for (auto m : llvm::enumerate(this->pads().getValue())) {
+  //     auto attr = m.value().dyn_cast<IntegerAttr>();
+  //     pads.push_back(attr.getInt());
+  //   }
+  // }
   std::string pixel_format = this->pixel_format().str();
   std::vector<float> rgb_tmp_data(input_size);
   if (pixel_format == "YUV420") {
@@ -2741,34 +2741,34 @@ LogicalResult tpu::PreprocessOp::interpret(
   }
 
   // Pad
-  std::vector<float> pad_tmp_data;
-  assert(pads.size() == 8);
-  int pn = pads[0] + pads[4] + t_shape[0];
-  int pc = pads[1] + pads[5] + t_shape[1];
-  int ph = pads[2] + pads[6] + t_shape[2];
-  int pw = pads[3] + pads[7] + t_shape[3];
-  std::vector<int64_t> p_shape = {pn, pc, ph, pw};
-  float pad_tmp_size = std::accumulate(std::begin(p_shape), std::end(p_shape),
-                                       1, std::multiplies<>());
-  if (pad_tmp_size == input_size) { // no pad
-    pad_tmp_data.assign(transpose_tmp_data.begin(), transpose_tmp_data.end());
-    p_shape.assign(t_shape.begin(), t_shape.end());
-  } else {
-    pad_tmp_data.resize(pad_tmp_size);
-    float const_val = this->const_val().convertToFloat();
-    my_pad_constant(transpose_tmp_data.data(), pad_tmp_data.data(), t_shape,
-                    pads, const_val);
-  }
+  // std::vector<float> pad_tmp_data;
+  // assert(pads.size() == 8);
+  // int pn = pads[0] + pads[4] + t_shape[0];
+  // int pc = pads[1] + pads[5] + t_shape[1];
+  // int ph = pads[2] + pads[6] + t_shape[2];
+  // int pw = pads[3] + pads[7] + t_shape[3];
+  // std::vector<int64_t> p_shape = {pn, pc, ph, pw};
+  // float pad_tmp_size = std::accumulate(std::begin(p_shape), std::end(p_shape),
+  //                                      1, std::multiplies<>());
+  // if (pad_tmp_size == input_size) { // no pad
+  //   pad_tmp_data.assign(transpose_tmp_data.begin(), transpose_tmp_data.end());
+  //   p_shape.assign(t_shape.begin(), t_shape.end());
+  // } else {
+  //   pad_tmp_data.resize(pad_tmp_size);
+  //   float const_val = this->const_val().convertToFloat();
+  //   my_pad_constant(transpose_tmp_data.data(), pad_tmp_data.data(), t_shape,
+  //                   pads, const_val);
+  // }
   // crop
   std::vector<float> crop_tmp_data;
   if (output_size < input_size) {
     crop_tmp_data.resize(output_size);
     std::vector<int> indices(t_shape.size(), 0);
-    my_crop(pad_tmp_data.data(), crop_tmp_data.data(), p_shape.data(),
+    my_crop(transpose_tmp_data.data(), crop_tmp_data.data(), t_shape.data(),
             output_shape.data(), 0, crop_offset.data(), indices.data());
 
   } else {
-    crop_tmp_data.assign(pad_tmp_data.begin(), pad_tmp_data.end());
+    crop_tmp_data.assign(transpose_tmp_data.begin(), transpose_tmp_data.end());
   }
 
   // scale

@@ -19,10 +19,9 @@ if [ ! -f "$TF_BLOBS_NPZ" ]; then
       --dump_tensor $TF_BLOBS_NPZ \
       --input_file $IMAGE_PATH \
       --model_channel_order $MODEL_CHANNEL_ORDER \
-      --data_format $DATA_FORMAT \
       --model_type tensorflow \
       --output_file tf_out.npz \
-      --bgray $BGRAY
+      --gray $BGRAY
 
       cvi_npz_tool.py tranpose $TF_BLOBS_NPZ nhwc nchw
       cvi_npz_tool.py extract $TF_BLOBS_NPZ ${NET}_in_fp32.npz input

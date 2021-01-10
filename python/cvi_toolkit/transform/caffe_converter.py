@@ -138,14 +138,13 @@ class CaffeConverter(BaseConverter):
             self.blobs[i].reshape(*input_shape)
             if self.convert_preprocess:
                 resize_h, resize_w = self.preprocess_args.get("resize_dims")
-                if self.preprocess_args.get("pixel_format") == "YUV420":
+                pixel_format = self.preprocess_args.get('pixel_format')
+                if pixel_format == 'GRAYSCALE':
+                    input_shape = [input_shape[0], 1, resize_h, resize_w]
+                elif pixel_format.endswith('_PLANAR'):
                     input_shape = [input_shape[0], input_shape[1], resize_h, resize_w]
-                elif self.preprocess_args.get("data_format") == "nchw" and \
-                        self.preprocess_args.get('preprocess_input_data_format') == "nhwc":
+                else: # '_PACKAGE'
                     input_shape = [input_shape[0], resize_h, resize_w, input_shape[1]]
-                elif self.preprocess_args.get("data_format") == "nchw" and \
-                        self.preprocess_args.get('preprocess_input_data_format') == "nchw":
-                    input_shape = [input_shape[0], input_shape[1], resize_h, resize_w]
             self.input_shapes.append(input_shape)
 
         self.net.reshape()
@@ -159,7 +158,8 @@ class CaffeConverter(BaseConverter):
                     break
             self.output_shapes.append(o_shape)
         self.CVI = MLIRImporter(self.input_shapes, self.output_shapes,
-                                "UINT8" if self.convert_preprocess else "FP32", output_weight_file=self.output_weight_file)
+                                "UINT8" if self.convert_preprocess else "FP32",
+                                output_weight_file=self.output_weight_file)
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
         self.converted_tensors.append(CaffeTensor(
@@ -1655,76 +1655,27 @@ class CaffeConverter(BaseConverter):
             input_shape[0] = self.batch_size
             data_format = 'nhwc'
 
-            if self.preprocess_args:
-                data_format = self.preprocess_args.get('preprocess_input_data_format')
-                color_order = np.array([0 ,1, 2])
-                transpose_order = np.array([0, 1, 2, 3])
-                crop_shape = np.array(
-                    self.preprocess_args.get('crop_shape'))
-                crop_offset = np.array(self.preprocess_args.get('crop_offset'))
-                if self.preprocess_args.get('rgb_order') == "rgb":
-                    # we read image use opencv, opencv default is bgr
-                    # we need to swap to rgb
-                    color_order = np.array([2,1,0])
-                if self.preprocess_args.get('pixel_format') == "YUV420":
-                    data_format = 'nchw'
-                if self.preprocess_args.get('data_format') == "nchw" and data_format == "nhwc":
-                    transpose_order = np.array([0, 3, 1, 2])
-                elif self.preprocess_args.get('data_format') == "nchw" and data_format == "nchw":
-                    pass
-                else:
-                    raise RuntimeError("No support fused preprocess data_format: {} \ preprocess_input_data_format: {}",
-                                        self.preprocess_args.get('data_format'),  self.preprocess_args.get(
-                                            'preprocess_input_data_format'))
-                if self.preprocess_args.get('pixel_format') == "YUV420":
-                    data_format = 'yuv420_planar'
-                if self.preprocess_args.get('net_input_dims') != self.preprocess_args.get('resize_dims'):
-                    # center crop
-                    crop_offset = np.array(self.preprocess_args.get('crop_offset'))
-                pads=[0,0,0,0,0,0,0,0]
-                if self.preprocess_args.get('crop_method') == "aspect_ratio":
-                    pads = self.preprocess_args.get(
-                        'pads', [0, 0, 0, 0, 0, 0, 0, 0])
-
-                # add preprocess
-                preprocess_attr = {
-                    'mean': np.array([float(s) for s in self.preprocess_args.get('mean')], dtype=np.float32),
-                    'std':  np.array([float(s) for s in self.preprocess_args.get('std')], dtype=np.float32),
-                    'scale': self.preprocess_args.get('input_scale'),
-                    'raw_scale': self.preprocess_args.get('raw_scale'),
-                    'pixel_format': self.preprocess_args.get('pixel_format'),
-                    'color_order': color_order,
-                    'transpose_order': transpose_order,
-                    'crop_offset': crop_offset,
-                    'pads': pads,
-                    'pad_const_val': 0,
-                    'data_format': "nchw",
-                    'gray': self.preprocess_args.get('gray')
-                }
-            else:
-                preprocess_attr = {}
-
             if self.convert_preprocess:
-                input_fused_preprocess_attr = {
+                preprocess_hint = {
                     'mean': np.array([0,0,0], dtype=np.float32),
-                    'std':  np.array([1,1,1], dtype=np.float32),
-                    'scale': 1.0,
-                    'raw_scale': 255.0,
-                    'color_order': np.array([0,1,2]),
-                    'data_format': data_format,
-                    'gray': self.preprocess_args.get('gray')
+                    'scale':  np.array([1,1,1], dtype=np.float32),
+                    'pixel_format': self.preprocess_args["pixel_format"],
                 }
                 # add preprocess
-                input_no_preprocess_op = self.CVI.add_input_op(name, idx, **input_fused_preprocess_attr)
+                input_op = self.CVI.add_input_op(name, idx, **preprocess_hint)
 
                 output_shape = input_shape
-                input_op = self.CVI.add_preprocess_op(
-                    "{}_preprocess".format(name), [input_no_preprocess_op], output_shape, **preprocess_attr)
+                new_op = self.CVI.add_preprocess_op(
+                    "{}_preprocess".format(name), [input_op], output_shape, **self.preprocess_args)
             else:
-                # add preprocess info to input
-                input_op = self.CVI.add_input_op(name, idx, **preprocess_attr)
+                preprocess_hint = {
+                    'mean': self.preprocess_args['perchannel_mean'],
+                    'scale':  self.preprocess_args['perchannel_scale'],
+                    'pixel_format': self.preprocess_args["pixel_format"],
+                }
+                new_op = self.CVI.add_input_op(name, idx, **preprocess_hint)
 
-            self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
+            self.addOperand(name, new_op, input_shape, TensorType.ACTIVATION)
 
         for layer in self.layers:
             is_test_phase = True

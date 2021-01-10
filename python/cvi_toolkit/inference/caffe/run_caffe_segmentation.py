@@ -71,20 +71,13 @@ if __name__ == '__main__':
         caffe.set_mode_cpu()
 
     preprocessor = preprocess()
-    preprocessor.config(net_input_dims=args.net_input_dims,
-                    resize_dims=args.image_resize_dims,
-                    mean=args.mean,
-                    mean_file=args.mean_file,
-                    input_scale=args.input_scale,
-                    raw_scale=args.raw_scale,
-                    rgb_order=args.model_channel_order,
-                    std=args.std, batch=args.batch_size)
+    preprocessor.config(**vars(args))
 
     # Load image file.
     args.input_file = os.path.expanduser(args.input_file)
     print("Loading file: %s" % args.input_file)
 
-    inputs = preprocessor.run(args.input_file, output_channel_order=args.model_channel_order)
+    inputs = preprocessor.run(args.input_file)
 
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     label_colours = cv2.imread(args.colours, 1).astype(np.uint8)

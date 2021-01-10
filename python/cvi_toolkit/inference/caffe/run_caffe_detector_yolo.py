@@ -68,18 +68,9 @@ def parse_args():
 def main(argv):
     args = parse_args()
     preprocessor = preprocess()
-    preprocessor.config(net_input_dims=args.net_input_dims,
-                        resize_dims=args.image_resize_dims,
-                        mean=args.mean,
-                        mean_file=args.mean_file,
-                        input_scale=args.input_scale,
-                        raw_scale=args.raw_scale,
-                        std="1,1,1",
-                        rgb_order="rgb",
-                        data_format=args.data_format,
-                        batch=args.batch_size,
-                        astype=args.astype,
-                        crop_method="aspect_ratio")
+    args.pixel_format = 'RGB_PLANAR'
+    args.keep_aspect_ratio = True
+    preprocessor.config(**vars(args))
     # Make Detector
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     obj_threshold = float(args.obj_threshold)
@@ -95,13 +86,7 @@ def main(argv):
     print("tiny", tiny)
 
     image = cv2.imread(args.input_file)
-    image_x = preprocessor.run(image, input_type="tensor", input_channel_order="bgr",
-            output_channel_order="rgb", input_data_format="hwc", output_data_format="chw")
-
-
-    inputs = image_x
-    for i in range(1, args.batch_size):
-      inputs = np.append(inputs, image_x, axis=0)
+    inputs = preprocessor.run(image, batch=args.batch_size)
 
     caffemodel = CaffeModel()
     caffemodel.load_model(args.model_def, args.pretrained_model)

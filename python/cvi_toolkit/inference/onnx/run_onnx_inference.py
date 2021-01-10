@@ -56,26 +56,12 @@ def main(argv):
     args = parser.parse_args()
 
     preprocessor = preprocess()
-    preprocessor.config(net_input_dims=args.net_input_dims,
-                        resize_dims=args.image_resize_dims,
-                        mean=args.mean,
-                        mean_file=args.mean_file,
-                        input_scale=args.input_scale,
-                        raw_scale=args.raw_scale,
-                        std=args.std,
-                        rgb_order=args.model_channel_order,
-                        data_format=args.data_format,
-                        bgray=args.bgray
-                        )
+    preprocessor.config(**vars(args))
+
     input = None
     file_extension = args.input_file.split(".")[-1].lower()
     if file_extension == "jpg" or file_extension == "png":
-        input = preprocessor.run(
-            args.input_file, output_channel_order=args.model_channel_order)
-        inputs = input
-        for i in range(1, args.batch_size):
-            inputs = np.append(inputs, input, axis=0)
-        input = inputs
+        input = preprocessor.run(args.input_file, batch=args.batch_size)
     elif file_extension == "npz":
         input = np.load(args.input_file)['input']
     else:

@@ -249,32 +249,18 @@ class MLIRImporter(object):
     def add_input_op(self, name, index, **kargs):
         assert (index < len(self.func_args))
 
-        if kargs:
-            if kargs['gray'] == False:
-                color_order = "bgr" if kargs['color_order'].tolist() == [
-                    0, 1, 2] else "rgb"
-            else:
-                color_order = "gray"
+        mean = kargs.get('mean', [0, 0, 0])
+        scale = kargs.get('scale', [1, 1, 1])
+        pixel_format = kargs.get('pixel_format', 'BGR_PLANAR')
 
-            preprocess_param = {
-                'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['mean']]),
-                'std':  ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['std']]),
-                'input_scale': FloatAttr.get_f32(kargs['scale']),
-                'raw_scale': FloatAttr.get_f32(kargs['raw_scale']),
-                'color_order': StringAttr.get(color_order),
-                'data_format': StringAttr.get(kargs['data_format'])
-            }
-        else:
-            # use default preprocess param
-            preprocess_param = {
-                'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in [0, 0, 0]]),
-                'std':  ArrayAttr.get([FloatAttr.get_f32(x) for x in [1, 1, 1]]),
-                'input_scale': FloatAttr.get_f32(1.0),
-                'raw_scale': FloatAttr.get_f32(255.0),
-                'color_order': StringAttr.get("bgr"),
-                'data_format': StringAttr.get("nchw")
-            }
-        preprocess_param_attr = DictAttr.get(preprocess_param)
+        preprocess_param = {
+            'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in mean]),
+            'std':  ArrayAttr.get([FloatAttr.get_f32(x) for x in scale]),
+            'input_scale': FloatAttr.get_f32(1),
+            'raw_scale': FloatAttr.get_f32(255),
+            'color_order': StringAttr.get('bgr'),
+            'data_format': StringAttr.get(pixel_format)
+        }
 
         quant_param = {
             'is_asymmetric': BoolAttr.get(False),
@@ -294,11 +280,15 @@ class MLIRImporter(object):
             "preprocess": DictAttr.get(preprocess_param)
         }
         op = Operation.create(TPU_OpType.Input.value, results=[
-                              self.tensor_inputs_type[index]], operands=[self.func_args[index]], attributes=attributes)
+                              self.tensor_inputs_type[index]],
+                              operands=[self.func_args[index]],
+                              attributes=attributes)
         self.insert_point.insert(op)
         return op.results[0]
 
-    def add_load_file_op(self, name, output_tensor_shape, tensor_type=TPU_TensorType.FP32, storage="NONE"):
+    def add_load_file_op(self, name, output_tensor_shape,
+                         tensor_type=TPU_TensorType.FP32,
+                         storage="NONE"):
         if tensor_type == TPU_TensorType.FP32:
             tensor_output_type = RankedTensorType.get(
                 output_tensor_shape, self.f32Type)
@@ -1217,30 +1207,44 @@ class MLIRImporter(object):
         # preprocess not follow input type
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.f32Type)
-        checkKey(kargs, 'mean')
-        checkKey(kargs, 'std')
-        checkKey(kargs, 'scale')
-        checkKey(kargs, 'raw_scale')
-        checkKey(kargs, 'pixel_format')
-        checkKey(kargs, 'color_order')
-        checkKey(kargs, 'transpose_order')
+
         checkKey(kargs, 'crop_offset')
-        checkKey(kargs, 'pads')
-        checkKey(kargs, 'pad_const_val')
+        checkKey(kargs, 'channel_order')
+        checkKey(kargs, 'perchannel_mean')
+        checkKey(kargs, 'perchannel_scale')
+        checkKey(kargs, 'pixel_format')
+
+        # default color_order and transpose_order
+        color_order = np.array([0 ,1, 2])
+        transpose_order = np.array([0, 1, 2, 3])
+
+        attribute_map = {
+            'RGB_PLANAR'    : ('rgb', 'nchw'),
+            'RGB_PACKAGE'   : ('rgb', 'nhwc'),
+            'BGR_PLANAR'    : ('bgr', 'nchw'),
+            'BGR_PACKAGE'   : ('bgr', 'nhwc'),
+            'YUV420_PLANAR' : ('rgb', 'nchw'),
+            'GRAYSCALE'     : ('bgr', 'nchw')
+        }
+        pixel_format = kargs['pixel_format']
+        src_color_order, src_data_layout = attribute_map[pixel_format]
+
+        if kargs['channel_order'] != src_color_order:
+            color_order = np.array([2,1,0])
+        if src_data_layout == "nhwc":
+            transpose_order = np.array([0, 3, 1, 2])
 
         preprocess_name = StringAttr.get(op_name)
 
         attrs = {
-            'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['mean']]),
-            'std': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['std']]),
-            'scale': FloatAttr.get_f32(kargs['scale']),
-            'raw_scale': FloatAttr.get_f32(kargs['raw_scale']),
+            'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['perchannel_mean']]),
+            'std': ArrayAttr.get([FloatAttr.get_f32(1 / x) for x in kargs['perchannel_scale']]),
+            'scale': FloatAttr.get_f32(1),
+            'raw_scale': FloatAttr.get_f32(255),
             'pixel_format': StringAttr.get(kargs['pixel_format']),
-            'color_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['color_order']]),
-            'transpose_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['transpose_order']]),
+            'color_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in color_order]),
+            'transpose_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in transpose_order]),
             'crop_offset': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['crop_offset']]),
-            'pads': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['pads']]),
-            'pad_const_val':  IntegerAttr.get(self.i32Type, 0),
         }
 
         return self.buildOp(TPU_OpType.Preprocess.value, inputOperands, [
