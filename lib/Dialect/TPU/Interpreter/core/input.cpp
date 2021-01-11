@@ -1,0 +1,45 @@
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpukernel.h"
+#include "tpuc/ModuleInterpreter.h"
+
+namespace mlir {
+InputOpKernel::InputOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto inputOp = dyn_cast<tpu::InputOp>(op);
+  llvm::outs() << " Input op: [" << inputOp.name() << "]\n";
+
+  auto result = inputOp.getResult();
+  auto type = result.getType().cast<TensorType>();
+  int64_t size = getTensorSize(result);
+  llvm::outs() << " =>required memory size: [" << size << "]\n";
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  shape = type.getShape();
+
+  name = inputOp.name().str();
+  data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void InputOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->data->capacity()) {
+    llvm::errs() << " Input op: [" << this->name
+                 << "] required memsize :" << this->data->capacity() << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->data->assign(data.begin(), data.end());
+};
+std::vector<float> InputOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->data->begin(), this->data->end());
+  return ret;
+}
+void InputOpKernel::dump() {
+  std::string shape_str;
+  for (auto &i : this->shape) {
+    shape_str = shape_str + std::to_string(i) + " ";
+  }
+  llvm::outs() << "Input Op\n";
+  llvm::outs() << "\tName: " << this->name << "\n";
+  llvm::outs() << "\tShape: " << shape_str << "\n";
+}
+} // namespace mlir

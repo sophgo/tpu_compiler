@@ -27,6 +27,7 @@
 #include "mlir/IR/Function.h"
 #include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/Module.h"
+#include "tpuc/Interpreter/core.h"
 #include "tpuc/MachineInfo.h"
 #include "tpuc/QuantizationArithmetic.h"
 #include "tpuc/Support/TensorFile.h"
@@ -42,7 +43,8 @@
 namespace mlir {
 
 class ModuleOp;
-typedef DenseMap<Value, std::shared_ptr<std::vector<float>>> value_map_t;
+using value_map_t = DenseMap<Value, std::shared_ptr<std::vector<float>>>;
+using op_kernel_list = std::vector<std::shared_ptr<OpKernel>>;
 
 enum class DeviceMode { CPU, GPU };
 // Implementation class for module interpreter.
@@ -127,6 +129,7 @@ public:
   doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
         std::map<std::string, std::vector<float>> *results,
         std::map<std::string, std::vector<float>> *allTensorMap = nullptr);
+
   void getShape(std::map<std::string, std::vector<int64_t>> *shapeMap);
 
   static std::string &getCustomOpPluginFile() { return customOpPluginFile_; }
@@ -135,7 +138,15 @@ public:
     customOpPluginFile_ = file;
   }
 
-  void setDevice(std::string d);
+  // v2
+  void prepare();
+  void prepareOperation(Operation &op);
+  void invoke();
+  void invoke(std::string name);
+  bool set_tensor(std::string name, const std::vector<float> &data);
+  std::vector<float> get_tensor(std::string name);
+  std::vector<int64_t> get_tensor_shape(std::string name);
+  void dump(std::string name);
 
 protected:
   virtual LogicalResult runOperation(Operation &op);
@@ -144,9 +155,6 @@ private:
   LogicalResult runFunctions();
   LogicalResult runOneFunction(FuncOp func);
   LogicalResult runBlock(Block &bb);
-
-  std::vector<std::shared_ptr<std::vector<float>>>
-  getOperandTensors(Operation &opInst, value_map_t &valueMapping);
 
   std::vector<Value> getInputsList() { return inputsList; }
   std::vector<Value> getResultsList() { return resultsList; }
@@ -180,7 +188,11 @@ protected:
   value_map_t valueMapping;
   std::vector<Value> resultsList;
   std::vector<Value> inputsList;
+  op_kernel_list oplist;
 };
+
+std::vector<std::shared_ptr<std::vector<float>>>
+getOperandTensors(Operation *op, const value_map_t &valueMapping);
 
 LogicalResult
 runTpuModule(ModuleOp m, std::string pluginFile,
@@ -188,6 +200,6 @@ runTpuModule(ModuleOp m, std::string pluginFile,
              std::map<std::string, std::vector<float>> *results,
              std::map<std::string, std::vector<int64_t>> *shapeMap,
              std::map<std::string, std::vector<float>> *allTensorMap);
-} // namespace mlir
+}; // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_MODULEINTERPRETER_H_

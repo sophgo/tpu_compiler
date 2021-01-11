@@ -1,6 +1,7 @@
 #include <pybind11/numpy.h>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
+
 #include <vector>
 
 // -------------
@@ -80,11 +81,9 @@ static py::array getPythonArray(std::vector<Dtype> &vec,
       py::buffer_info(vec.data(),    /* data as contiguous array  */
                       sizeof(Dtype), /* size of one scalar        */
                       py::format_descriptor<Dtype>::format(), /* data type */
-                      shape.size(), // ndim, /* number of dimensions      */
-                      shape,   // shape,                                   /*
-                               // shape of the matrix       */
-                      stride_v // strides                                  /*
-                               // strides for each axis     */
+                      shape.size(),                           // ndim/
+                      shape,                                  // shape
+                      stride_v                                // strides
                       ));
 }
 
@@ -133,7 +132,7 @@ public:
     parseMLIRInfo();
   }
 
-  void dump() { module->dump(); }
+  void dump(std::string name) { interpreter_->dump(name); }
 
   void parseMLIRInfo() {
     ModuleOp m = module.get();
@@ -188,6 +187,21 @@ public:
   }
 
   void setPluginFilePath(std::string path) { pluginFilePath_ = path; }
+  void prepare() { interpreter_->prepare(); };
+  void set_tensor(
+      std::string name,
+      py::array_t<float, py::array::c_style | py::array::forcecast> data) {
+    std::vector<float> input_data(data.size());
+    std::memcpy(input_data.data(), data.data(), data.size() * sizeof(float));
+    interpreter_->set_tensor(name, input_data);
+  }
+  py::array get_tensor(std::string name) {
+    std::vector<float> tensor = interpreter_->get_tensor(name);
+    std::vector<int64_t> shape = interpreter_->get_tensor_shape(name);
+    return getPythonArray(tensor, shape);
+  }
+  void invoke(const std::string name) { interpreter_->invoke(name); }
+  void invoke() { interpreter_->invoke(); }
 
   // wrap C++ function with NumPy array IO
   py::dict
@@ -232,7 +246,6 @@ PYBIND11_MODULE(pymlir, m) {
   py::class_<py_module>(m, "module", "MLIR Module")
       .def(py::init<>())
       .def("load", &py_module::load, "load module from IR")
-      .def("dump", &py_module::dump, "dump module")
       .def("set_plugin", &py_module::setPluginFilePath,
            "set file path of custom op plugin")
       .def("get_all_tensor", &py_module::getAllTensor, "dump all tensor data")
@@ -241,5 +254,11 @@ PYBIND11_MODULE(pymlir, m) {
       .def("get_weight_file_path", &py_module::getWeightFilePath,
            "get weight file path")
       .def("run", &py_module::run,
-           "run module inference with input array, and return output array");
+           "run module inference with input array, and return output array")
+      .def("prepare", &py_module::prepare)
+      .def("set_tensor", &py_module::set_tensor)
+      .def("get_tensors", &py_module::get_tensor)
+      .def("dump", &py_module::dump)
+      .def("invoke", py::overload_cast<>(&py_module::invoke))
+      .def("invoke", py::overload_cast<const std::string>(&py_module::invoke));
 }

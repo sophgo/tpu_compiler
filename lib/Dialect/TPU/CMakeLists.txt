@@ -13,6 +13,8 @@ endif()
 include_directories(${FLATBUFFERS_PATH}/include)
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/Backend/include)
 
+file(GLOB interpreter_sources Interpreter/core/*.cpp)
+
 add_llvm_library(MLIRTPU
   IR/TPUCompressUtil.cpp
   IR/TPUCompressUtilTest.cpp
@@ -58,6 +60,8 @@ add_llvm_library(MLIRTPU
   Transforms/Canonicalizer.cpp
   Transforms/LowerToTG.cpp
   Interpreter/TpuInterpreter.cpp
+  Interpreter/TpuInterpreter_v2.cpp
+  ${interpreter_sources}
   Interpreter/NativeCpuImplementation.cpp
   Interpreter/CpuLayer_DetectionOutput.cpp
   Quantization/QuantizationArithmetic.cpp

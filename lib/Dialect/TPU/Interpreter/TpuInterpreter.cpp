@@ -63,20 +63,24 @@ extern float BF16_TABLE_START;
 extern float BF16_TABLE_END;
 namespace mlir {
 
-static std::vector<std::shared_ptr<std::vector<float> > >
-    getOperandTensors(Operation *op, const value_map_t &valueMapping) {
-  std::vector<std::shared_ptr<std::vector<float> > > opdT;
+std::vector<std::shared_ptr<std::vector<float>>>
+getOperandTensors(Operation *op, const value_map_t &valueMapping) {
+  std::vector<std::shared_ptr<std::vector<float>>> opdT;
   for (auto operand : op->getOperands()) {
-    if ( isTensorNone(operand) ) {
+    if (isTensorNone(operand)) {
       opdT.push_back(nullptr);
       continue;
     }
     auto it = valueMapping.find(operand);
-    assert(it != valueMapping.end());
+    if(it == valueMapping.end()){
+      llvm::errs() << "not find: " << operand.getDefiningOp()->getName() << "\n";
+      llvm_unreachable("value mapping false");
+    };
     opdT.push_back(it->second);
   }
   return opdT;
 }
+
 
 LogicalResult tpu::AbsOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
@@ -4273,33 +4277,7 @@ LogicalResult tpu::ReQuantOp::interpret(
   return success();
 }
 
-std::vector<std::shared_ptr<std::vector<float> > >
-    ModuleInterpreter::getOperandTensors(Operation &opInst,
-    value_map_t &valueMapping) {
-  std::vector<std::shared_ptr<std::vector<float> > > opdT;
-  for (auto operand : opInst.getOperands()) {
-    if ( !operand.getType().dyn_cast_or_null<RankedTensorType>() ) {
-      // this is NoneType
-      // isa<tpu::NoneOp>(operand.getDefiningOp());
-      opdT.push_back(nullptr);
-      continue;
-    }
-    auto it = valueMapping.find(operand);
-    assert(it != valueMapping.end());
-    opdT.push_back(it->second);
-  }
-  return opdT;
-}
 
-void ModuleInterpreter::setDevice(std::string d) {
-  if(d == "GPU" || d == "gpu"){
-    LLVM_DEBUG(llvm::errs() << "Set Interpreter to gpu mode"
-                            << "\n";);
-    device = DeviceMode::GPU;
-  }else{
-    device = DeviceMode::CPU;
-  }
-}
 
 LogicalResult ModuleInterpreter::runOperation(Operation &opInst) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpInterpInterface>(opInst)) {
