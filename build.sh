@@ -233,7 +233,7 @@ rm -f $INSTALL_PATH/tpuc/README.md
 rm -f $INSTALL_PATH/tpuc/envs_tpu_sdk.sh
 rm -f $INSTALL_PATH/tpuc/regression_models.sh
 rm -f $INSTALL_PATH/tpuc/regression_models_e2e.sh
-rm -f $INSTALL_PATH/tpuc/regression_models_e2e_skip_preprocess.sh
+rm -f $INSTALL_PATH/tpuc/regression_models_fused_preprocess.sh
 popd
 
 # build cvimath
@@ -280,7 +280,7 @@ cp $PROJECT_ROOT/externals/profiling/tool/performance.html $INSTALL_PATH/tpuc/bi
 if [ "$1" = "RELEASE" ]; then
   rm -f $INSTALL_PATH/tpuc/regression_models.sh
   rm -f $INSTALL_PATH/tpuc/regression_models_e2e.sh
-  rm -f $INSTALL_PATH/tpuc/regression_models_e2e_skip_preprocess.sh
+  rm -f $INSTALL_PATH/tpuc/regression_models_fused_preprocess.sh
   # rm all test prgram
   rm -f $INSTALL_PATH/tpuc/bin/test_*
   rm -f $INSTALL_PATH/tpuc/bin/sample_*
