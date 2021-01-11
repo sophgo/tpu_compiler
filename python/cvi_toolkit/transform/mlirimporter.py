@@ -1213,6 +1213,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'perchannel_mean')
         checkKey(kargs, 'perchannel_scale')
         checkKey(kargs, 'pixel_format')
+        checkKey(kargs, 'aligned')
 
         # default color_order and transpose_order
         color_order = np.array([0 ,1, 2])
@@ -1223,7 +1224,7 @@ class MLIRImporter(object):
             'RGB_PACKAGE'   : ('rgb', 'nhwc'),
             'BGR_PLANAR'    : ('bgr', 'nchw'),
             'BGR_PACKAGE'   : ('bgr', 'nhwc'),
-            'YUV420_PLANAR' : ('rgb', 'nchw'),
+            'YUV420_PLANAR' : ('bgr', 'nchw'),
             'GRAYSCALE'     : ('bgr', 'nchw')
         }
         pixel_format = kargs['pixel_format']

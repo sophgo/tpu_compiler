@@ -532,7 +532,7 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     mlir::Value current_op = input_op;
     int64_t tn = in, tc = ic, th = ih, tw = iw;
     // create yuv420_csc
-    if (preprocessOp.pixel_format().str() == "YUV420") {
+    if (preprocessOp.pixel_format().str() == "YUV420_PLANAR") {
       std::string name =
           getOpName(preprocessOp).str() + "_preprocess_yuv420_csc";
       auto yuv420_type =

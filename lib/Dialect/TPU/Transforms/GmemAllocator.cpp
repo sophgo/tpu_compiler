@@ -18,7 +18,7 @@ static bool isInputYuv420Planar(Operation *op) {
   if (inputOp.preprocess().hasValue() == false) {
     return false;
   }
-  if (inputOp.preprocess().getValue().data_format().getValue().str() == "yuv420_planar") {
+  if (inputOp.preprocess().getValue().data_format().getValue().str() == "YUV420_PLANAR") {
     return true;
   }
   return false;

@@ -35,30 +35,10 @@ cvi_preprocess.py \
     --net_input_dims ${IMAGE_RESIZE_DIMS} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --raw_scale 255 \
-    --mean 0,0,0 \
-    --std 1,1,1 \
-    --input_scale 1 \
-    --pixel_format YUV420 \
+    --pixel_format YUV420_PLANAR \
+    --aligned true \
     --batch_size $BATCH_SIZE \
-    --npz_name ${NET}_in_fp32.npz \
-    --input_name input
-
-
-# for uint8 dtype, for model runner(cmodel)
-cvi_preprocess.py  \
-    --image_file $IMAGE_PATH \
-    --net_input_dims ${IMAGE_RESIZE_DIMS} \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --raw_scale 255 \
-    --mean 0,0,0 \
-    --std 1,1,1 \
-    --input_scale 1 \
-    --pixel_format YUV420 \
-    --astype uint8 \
-    --batch_size $BATCH_SIZE \
-    --npz_name ${NET}_in_uint8.npz \
+    --output_npz ${NET}_in_fp32.npz \
     --input_name input
 
 input_shape=`cvi_npz_tool.py get_shape ${NET}_in_fp32.npz input`
@@ -78,7 +58,7 @@ cvi_model_convert.py \
     --input_scale ${INPUT_SCALE} \
     --model_channel_order $MODEL_CHANNEL_ORDER \
     --batch_size $BATCH_SIZE \
-    --pixel_format YUV420 \
+    --pixel_format YUV420_PLANAR \
     --convert_preprocess 1 \
     --mlir_file_path ${NET}_fused_preprocess.mlir
 
@@ -147,7 +127,7 @@ $DIR/../mlir_to_cvimodel.sh \
 
 model_runner \
     --dump-all-tensors \
-    --input ${NET}_in_uint8.npz \
+    --input ${NET}_in_fp32.npz \
     --model ${NET}_fused_preprocess.cvimodel \
     --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz

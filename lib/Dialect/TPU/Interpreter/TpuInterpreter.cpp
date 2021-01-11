@@ -2707,7 +2707,7 @@ LogicalResult tpu::PreprocessOp::interpret(
   // }
   std::string pixel_format = this->pixel_format().str();
   std::vector<float> rgb_tmp_data(input_size);
-  if (pixel_format == "YUV420") {
+  if (pixel_format == "YUV420_PLANAR") {
     my_yuv420_csc(input->data(), rgb_tmp_data.data(), n, c, h, w,
                   color_orders);
     color_orders.clear();
@@ -4372,7 +4372,7 @@ LogicalResult ModuleInterpreter::doRun(
     std::vector<int64_t> shape = inputs[0].getType().template cast<TensorType>().getShape();
 
     // check input data shape
-    if (input_shape != shape && data_format != "yuv420_planar"){
+    if (input_shape != shape && data_format != "YUV420_PLANAR"){
       std::string i_s, r_s;
       for (auto &dim : input_shape) {
         i_s = i_s + std::to_string(dim) + " ";

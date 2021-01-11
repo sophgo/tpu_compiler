@@ -1660,6 +1660,7 @@ class CaffeConverter(BaseConverter):
                     'mean': np.array([0,0,0], dtype=np.float32),
                     'scale':  np.array([1,1,1], dtype=np.float32),
                     'pixel_format': self.preprocess_args["pixel_format"],
+                    'aligned': self.preprocess_args['aligned']
                 }
                 # add preprocess
                 input_op = self.CVI.add_input_op(name, idx, **preprocess_hint)
@@ -1668,11 +1669,16 @@ class CaffeConverter(BaseConverter):
                 new_op = self.CVI.add_preprocess_op(
                     "{}_preprocess".format(name), [input_op], output_shape, **self.preprocess_args)
             else:
-                preprocess_hint = {
-                    'mean': self.preprocess_args['perchannel_mean'],
-                    'scale':  self.preprocess_args['perchannel_scale'],
-                    'pixel_format': self.preprocess_args["pixel_format"],
-                }
+                if self.preprocess_args:
+                    preprocess_hint = {
+                        'mean': self.preprocess_args['perchannel_mean'],
+                        'scale':  self.preprocess_args['perchannel_scale'],
+                        'pixel_format': self.preprocess_args["pixel_format"],
+                        'aligned': self.preprocess_args["aligned"]
+                    }
+                else:
+                    preprocess_hint = {}
+
                 new_op = self.CVI.add_input_op(name, idx, **preprocess_hint)
 
             self.addOperand(name, new_op, input_shape, TensorType.ACTIVATION)

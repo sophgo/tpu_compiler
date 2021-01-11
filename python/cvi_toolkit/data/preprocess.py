@@ -11,6 +11,15 @@ supported_pixel_formats = [
     None
 ]
 
+pixel_format_attributes = {
+    'RGB_PLANAR':    ('rgb', 'nchw'),
+    'RGB_PACKAGE':   ('rgb', 'nhwc'),
+    'BGR_PLANAR':    ('bgr', 'nchw'),
+    'BGR_PACKAGE':   ('bgr', 'nhwc'),
+    'GRAYSCALE':     ('bgr', 'nchw'),
+    'YUV420_PLANAR': ('bgr', 'nchw')
+}
+
 # fix bool bug of argparse
 def str2bool(v):
   return v.lower() in ("yes", "true", "1")
@@ -37,7 +46,7 @@ class ImageResizeTool:
         return new_image
 
 def add_preprocess_parser(parser):
-    parser.add_argument("--net_input_dims", type=str,
+    parser.add_argument("--net_input_dims", type=str, default='0,0',
                          help="'h,w', model's input heigh/width dimension")
     parser.add_argument("--resize_dims", type=str,
                         help="Image was resize to fixed 'h,w', default is same as net_input_dims")
@@ -55,6 +64,8 @@ def add_preprocess_parser(parser):
                         help="channel order of model inference used")
     parser.add_argument("--pixel_format", choices=supported_pixel_formats, default=None,
                         help='fixel format of output data that sent into model')
+    parser.add_argument("--aligned", type=str2bool, default=False,
+                        help='if the fixel format is aligned')
     parser.add_argument("--data_format", choices=['nchw', 'nhwc'], default='nchw',
                         help='data layout of output data, ' + \
                              'this value will be ignored if pixel_format is set')
@@ -80,11 +91,11 @@ class preprocess(object):
     def __init__(self):
         pass
 
-    def config(self, net_input_dims,
+    def config(self, net_input_dims='0,0',
                resize_dims=None, crop_method='center', keep_aspect_ratio=False,
                raw_scale=255.0, mean='0,0,0', std='1,1,1', input_scale=1.0,
-               channel_order='bgr', pixel_format=None, data_format='nchw', gray=False,
-               **ignored):
+               channel_order='bgr', pixel_format=None, data_format='nchw',
+               aligned=False, gray=False, **ignored):
 
         self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
         if resize_dims:
@@ -117,6 +128,7 @@ class preprocess(object):
         self.channel_order = channel_order
 
         self.pixel_format = pixel_format
+        self.aligned = aligned
 
         if not self.pixel_format:
             if gray:
@@ -133,6 +145,9 @@ class preprocess(object):
         self.data_format = 'nchw' if self.pixel_format.endswith('PLANAR') else 'nhwc'
         self.gray = True if self.pixel_format == 'GRAYSCALE' else False
 
+        if self.data_format == "YUV420_PLANAR":
+            self.aligned = True
+
         format_str = "  Preprocess args : \n" + \
                "\tnet_input_dims        : {}\n" + \
                "\tresize_dims           : {}\n" + \
@@ -147,12 +162,13 @@ class preprocess(object):
                "\t   std                : {}\n" + \
                "\t   input_scale        : {}\n" + \
                "\t--------------------------\n" + \
-               "\tpixel_format          : {}\n"
+               "\tpixel_format          : {}\n" + \
+               "\taligned               : {}\n"
         print(format_str.format(
-                self.net_input_dims, self.resize_dims, self.crop_method, self.keep_aspect_ratio,
-                self.channel_order, list(self.perchannel_mean.flatten()), list(self.perchannel_scale.flatten()),
+                self.net_input_dims, self.resize_dims, self.crop_method, self.keep_aspect_ratio, self.channel_order,
+                list(self.perchannel_mean.flatten()), list(self.perchannel_scale.flatten()),
                 self.raw_scale, list(self.mean.flatten()), list(self.std.flatten()), self.input_scale,
-                self.pixel_format))
+                self.pixel_format, self.aligned))
 
     def to_dict(self):
         return {
@@ -162,7 +178,8 @@ class preprocess(object):
             'channel_order': self.channel_order,
             'perchannel_mean': list(self.perchannel_mean.flatten()),
             'perchannel_scale': list(self.perchannel_scale.flatten()),
-            'pixel_format': self.pixel_format
+            'pixel_format': self.pixel_format,
+            'aligned': self.aligned
         }
 
     def __get_center_crop_offset(self):
@@ -185,9 +202,9 @@ class preprocess(object):
         return img
 
     def rgb2yuv420(self, input):
-        def align_up(self, x, n):
+        def align_up(x, n):
             return x if n == 0 else ((x + n - 1)// n) * n
-
+        # every 4 y has one u,v
         # vpss format, w align is 32, channel align is 4096
         h, w, c = input.shape
         y_w_aligned = align_up(w, 32)
@@ -276,9 +293,9 @@ class preprocess(object):
         if self.channel_order != 'bgr':
             x = x[[2, 1, 0], :, :]
 
-        if self.pixel_format == 'YUV420':
+        if self.pixel_format == 'YUV420_PLANAR':
             # swap to 'rgb'
-            x = x[[2, 1,0], :, :]
+            x = x[[2,1,0], :, :]
             x = np.transpose(x, (1, 2, 0))
             x = self.rgb2yuv420(x)
             x = x.astype(np.float32)
