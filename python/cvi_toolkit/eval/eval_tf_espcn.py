@@ -235,7 +235,7 @@ if __name__ == '__main__':
   args.pixel_format = 'GRAYSCALE'
   preprocessor.config(**vars(args))
 
-  image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
+  image_resize_dims = [int(s) for s in args.resize_dims.split(',')]
   net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
   image_resize_dims = [max(x, y)
                        for (x, y) in zip(image_resize_dims, net_input_dims)]

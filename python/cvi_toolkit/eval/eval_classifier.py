@@ -120,27 +120,18 @@ if __name__ == '__main__':
   net.load_model(args.model_type, model_file=args.model_def,
                  weight_file=args.pretrained_model, mlirfile=args.mlir_file)
 
-  if args.net_input_dims:
-      net_input_dims = args.net_input_dims
-  else:
-      # read from caffe
-      net_input_dims = net.get_input_shape()
+  args.net_input_dims = args.net_input_dims if args.net_input_dims else \
+                        net.get_input_shape()
 
   preprocessor = preprocess()
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
   # transposed already in ToTensor(),
   preprocessor.config(**vars(args))
 
-  image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
-  net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
-  image_resize_dims = [max(x, y)
-                       for (x, y) in zip(image_resize_dims, net_input_dims)]
-  raw_scale = args.raw_scale
-
   val_loader = torch.utils.data.DataLoader(
       datasets.ImageFolder(valdir, transforms.Compose([
-          transforms.Resize(image_resize_dims),
-          transforms.CenterCrop(net_input_dims),
+          transforms.Resize(preprocessor.resize_dims),
+          transforms.CenterCrop(preprocessor.net_input_dims),
           transforms.ToTensor()
       ])), batch_size=batch_size, shuffle=True)
   # validate(val_loader, module, criterion, args)
@@ -182,8 +173,9 @@ if __name__ == '__main__':
     # Pytorch ToTensor will make tesnor range to [0, 1]
     # recover to [0, 255]
     x = images[0].numpy() * 255
-
-    x = preprocessor.run(x)
+    x -= preprocessor.perchannel_mean
+    x *= preprocessor.perchannel_scale
+    x = np.expand_dims(x, axis=0)
     # run inference
 
     res = net.inference(x)

@@ -122,7 +122,7 @@ def center_crop(img, crop_dim):
 
 
 def preprocess_generic(image_path, args):
-    image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
+    image_resize_dims = [int(s) for s in args.resize_dims.split(',')]
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     image_resize_dims = [max(x, y)
                          for (x, y) in zip(image_resize_dims, net_input_dims)]

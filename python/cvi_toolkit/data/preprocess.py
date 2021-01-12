@@ -237,6 +237,7 @@ class preprocess(object):
             if image is None:
                 raise RuntimeError("{} doesn't existed !!!".format(image_path))
         elif isinstance(input, np.ndarray):
+            assert(input.shape[-1] == 3)
             if self.gray:
                 image = cv2.cvtColor(input, cv2.COLOR_BGR2GRAY)
             else:

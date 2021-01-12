@@ -433,7 +433,7 @@ def main():
         # im = scipy.misc.imresize(im, (256, 256))
         #im = scipy.misc.imresize(im, (label.shape[1], label.shape[2]))
         #im = resize(im, (label.shape[1], label.shape[2]))
-        image_resize_dims = [int(x) for x in args.image_resize_dims.split(",")]
+        image_resize_dims = [int(x) for x in args.resize_dims.split(",")]
         im = resize(im, (image_resize_dims[0], image_resize_dims[1]))
         out = segrun(net, CS.preprocess(im))
         hist_perframe += fast_hist(label.flatten(), out.flatten(), n_cl)

@@ -170,23 +170,14 @@ if __name__ == '__main__':
   net.load_model(args.model_type, model_file=args.model_def,
                  weight_file=args.pretrained_model, mlirfile=args.mlir_file)
 
-  if args.net_input_dims:
-      net_input_dims = args.net_input_dims
-  else:
-      # read from caffe
-      net_input_dims = net.get_input_shape()
-
+  args.net_input_dims = args.net_input_dims if args.net_input_dims else \
+                        net.get_input_shape()
   preprocessor = preprocess()
   # Because of Resize by PyTorch transforms, we set resize dim same with network input(don't do anything )
   # transposed already in ToTensor(),
   args.pixel_format = 'GRAYSCALE'
   preprocessor.config(**vars(args))
 
-  image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
-  net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
-  image_resize_dims = [max(x, y)
-                       for (x, y) in zip(image_resize_dims, net_input_dims)]
-  raw_scale = args.raw_scale
 
   # validate(val_loader, module, criterion, args)
   batch_time = AverageMeter('Time', ':6.3f')
@@ -203,6 +194,7 @@ if __name__ == '__main__':
     mask = batch['mask']
     # compute output
     x = image[0].numpy() * 255
+    x = np.transpose(x, (1,2,0))
     x = preprocessor.run(x)
 
     # run inference
