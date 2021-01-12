@@ -136,7 +136,7 @@ static llvm::cl::opt<std::string> clSetLutMinMaxByFile(
     llvm::cl::desc("Set bf16 lut min/max range from file"),
     llvm::cl::cat(clOptionsCategory));
 
-static inline bool is_fix8b(const StringRef&quant) {
+static inline bool is_fix8b(const StringRef &quant) {
   return quant == "INT8" || quant == "UINT8";
 }
 
@@ -193,21 +193,24 @@ static void insertQuantOp(Operation *op) {
       int max_val = (curr_quant == "INT8") ? 128 : 256;
       scale = max_val / getOpThreshold(prev_op);
       zero_point = getOpZeroPoint(prev_op);
-      name = prev_name.str() + "_quant";
+      name = prev_name.str() + "_quant_i8";
     } else if (prev_quant == "INT8" || prev_quant == "UINT8") {
       // INT8/UINT8 ==> FP32|BF16
       int max_val = (prev_quant == "INT8") ? 128 : 256;
       scale = getOpThreshold(prev_op) / max_val;
       zero_point = getOpZeroPoint(prev_op);
-      name = prev_name.str() + "_dequant";
+      if (curr_quant == "BF16") {
+        name = prev_name.str() + "_dequant_bf16";
+      } else {
+        name = prev_name.str() + "_dequant_f32";
+      }
     } else if (curr_quant == "BF16") {
       // FP32 => BF16
-      name = prev_name.str() + "_quant";
+      name = prev_name.str() + "_quant_bf16";
     } else if (prev_quant == "BF16") {
       // BF16 => FP32
-      name = prev_name.str() + "_dequant";
+      name = prev_name.str() + "_dequant_f32";
     }
-
     // check if prev op has inserted quant/dequant op
     if (prev_op) {
       bool found = false;
