@@ -381,14 +381,14 @@ void TgEltwiseKernel::loadDecompressed(int32_t step_idx) {
 
   assert(!do_early_stride && "Not support early stride yet");
 
-  int c_step = load_cmpr_act_c_step;
   uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(n, c, h, w,
                                                tile.n_pos, tile.c_pos, tile.h_pos,
-                                               c_step, load_cmpr_act);
+                                               load_cmpr_act_c_step,
+                                               load_cmpr_act);
   cvi_backend_tl_load_compressed(ctx, layer_id,
                                  ga_inputs[opd_idx] + ga_cmpr_offset,
                                  tl_input[input_flip]->start_address,
-                                 tile.n, c_step, tile.h, tile.w,
+                                 tile.n, tile.c, tile.h, tile.w,
                                  c, h, w,
                                  false, // DoTranspose
                                  true,  // DoAligned
