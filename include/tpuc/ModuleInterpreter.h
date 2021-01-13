@@ -37,6 +37,7 @@
 
 #include <fstream>
 #include <iostream>
+#include <mutex>
 
 #define DEBUG_TYPE "interpreter"
 
@@ -139,10 +140,11 @@ public:
   }
 
   // v2
-  void prepare();
+  void allocate_tensors();
   void prepareOperation(Operation &op);
   void invoke();
   void invoke(std::string name);
+  std::vector<std::pair<std::string, std::string>> get_tensor_info();
   bool set_tensor(std::string name, const std::vector<float> &data);
   std::vector<float> get_tensor(std::string name);
   std::vector<int64_t> get_tensor_shape(std::string name);
@@ -189,6 +191,7 @@ protected:
   std::vector<Value> resultsList;
   std::vector<Value> inputsList;
   op_kernel_list oplist;
+  std::mutex invoke_lock;
 };
 
 std::vector<std::shared_ptr<std::vector<float>>>

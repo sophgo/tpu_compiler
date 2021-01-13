@@ -22,7 +22,7 @@ public:
   virtual std::vector<float> get_tensor() = 0;
   std::string get_name() { return this->name; }
   SyncedDataShape get_shape() { return this->shape; }
-  std::string get_type() {
+  std::string get_datatype() {
     if (this->datatype == DataType::FP32) {
       return "FP32";
     } else if (this->datatype == DataType::BF16) {
@@ -33,7 +33,7 @@ public:
   }
   void set_name(std::string name) { this->name = name; }
   void set_shape(SyncedDataShape &shape) { this->shape = shape; }
-  void set_type(std::string type) {
+  void set_datatype(std::string type) {
     if (type == "FP32") {
       this->datatype = DataType::FP32;
     } else if (type == "BF16") {
@@ -42,10 +42,12 @@ public:
       this->datatype = DataType::INT8;
     }
   }
+  std::string get_op_type() { return this->op_type; }
 
 protected:
   SyncedDataShape shape;
   std::string name;
+  std::string op_type;
   size_t size;
   DataType datatype = DataType::FP32;
 };

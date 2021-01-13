@@ -40,6 +40,7 @@
 #include <algorithm>
 #include <functional>
 #include <memory>
+#include <mutex>
 #include <numeric>
 
 extern llvm::cl::opt<bool> clUseTPUQuantOp;
@@ -49,11 +50,6 @@ namespace mlir {
 
 void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::InputOp>(op)) {
-
-    // if (inputOp.preprocess().hasValue()) {
-    //   data_format =
-    //       inputOp.preprocess().getValue().data_format().getValue().str();
-    // }
     auto input_kernel_op = std::make_unique<InputOpKernel>(op, valueMapping);
     oplist.push_back(std::move(input_kernel_op));
     return;
@@ -156,11 +152,13 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
 }
 
 void ModuleInterpreter::invoke() {
+  std::lock_guard<std::mutex> lock(invoke_lock);
   for (auto &node : oplist) {
     node->invoke();
   }
 }
 void ModuleInterpreter::invoke(std::string name) {
+  std::lock_guard<std::mutex> lock(invoke_lock);
   for (auto &node : oplist) {
     if (node->get_name() == name) {
       node->invoke();
@@ -182,6 +180,7 @@ bool ModuleInterpreter::set_tensor(std::string name,
 }
 
 std::vector<float> ModuleInterpreter::get_tensor(std::string name) {
+  std::lock_guard<std::mutex> lock(invoke_lock);
   for (auto &node : oplist) {
     if (node->get_name() == name) {
       return node->get_tensor();
@@ -189,6 +188,15 @@ std::vector<float> ModuleInterpreter::get_tensor(std::string name) {
   }
   llvm::errs() << " Not Find Op name: " << name << " tensor \n";
   return std::vector<float>();
+}
+
+std::vector<std::pair<std::string, std::string>>
+ModuleInterpreter::get_tensor_info() {
+  std::vector<std::pair<std::string, std::string>> op_info;
+  for (auto &node : oplist) {
+    op_info.push_back(std::make_pair(node->get_name(), node->get_op_type()));
+  }
+  return op_info;
 }
 
 std::vector<int64_t> ModuleInterpreter::get_tensor_shape(std::string name) {
@@ -209,7 +217,7 @@ void ModuleInterpreter::dump(std::string name) {
   llvm::errs() << " Not Find Op name: " << name << " tensor \n";
 }
 
-void ModuleInterpreter::prepare() {
+void ModuleInterpreter::allocate_tensors() {
   for (FuncOp func : mlirModule.getOps<FuncOp>()) {
     // collect inputsList
     for (auto arg : func.getArguments()) {

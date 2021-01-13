@@ -11,7 +11,7 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = castOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << " =>required memory size: [" << size << "]\n";
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
 
   auto resultTensor = std::make_shared<std::vector<float>>(size);
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
@@ -19,6 +19,7 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
                  pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
   is_asymmetric = isOpQuantAsymmetric(&op);
   this->name = castOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
 
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();

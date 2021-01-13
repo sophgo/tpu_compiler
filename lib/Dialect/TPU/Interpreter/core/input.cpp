@@ -10,12 +10,13 @@ InputOpKernel::InputOpKernel(Operation &op, value_map_t &valueMapping) {
   auto result = inputOp.getResult();
   auto type = result.getType().cast<TensorType>();
   int64_t size = getTensorSize(result);
-  llvm::outs() << " =>required memory size: [" << size << "]\n";
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  shape = type.getShape();
+  this->shape = type.getShape();
 
-  name = inputOp.name().str();
-  data = resultTensor;
+  this->name = inputOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  this->data = resultTensor;
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
 }

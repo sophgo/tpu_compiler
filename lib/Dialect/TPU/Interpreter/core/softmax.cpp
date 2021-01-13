@@ -13,11 +13,13 @@ SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping) {
   auto result = castOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
   this->name = castOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+
   // get tensors
   input_data = opTensors[0];
   output_data = resultTensor;

@@ -118,16 +118,15 @@ public:
   }
 
   void load(std::string filename) {
-    module = parseMLIRInput(filename, &context);
-    if (!module) {
-      llvm::errs() << "could not parse the input IR\n";
-      exit(-1);
+    module_ = parseMLIRInput(filename, &context);
+    if (!module_) {
+      llvm_unreachable("could not parse the input IR\n");
     }
     if (interpreter_) {
       interpreter_.reset();
-      interpreter_ = std::make_unique<ModuleInterpreter>(module.get());
+      interpreter_ = std::make_unique<ModuleInterpreter>(module_.get());
     } else {
-      interpreter_ = std::make_unique<ModuleInterpreter>(module.get());
+      interpreter_ = std::make_unique<ModuleInterpreter>(module_.get());
     }
     parseMLIRInfo();
   }
@@ -135,7 +134,7 @@ public:
   void dump(std::string name) { interpreter_->dump(name); }
 
   void parseMLIRInfo() {
-    ModuleOp m = module.get();
+    ModuleOp m = module_.get();
 
     for (FuncOp function : m.getOps<FuncOp>()) {
       for (Block &bb : function.getBlocks()) {
@@ -161,6 +160,15 @@ public:
   }
 
   py::dict getAllTensor() { return getTensorDict(tensorMap_, shapeMap_); }
+  py::dict get_tensor_info() {
+    std::vector<std::pair<std::string, std::string>> op_infos =
+        interpreter_->get_tensor_info();
+    py::dict ret;
+    for (auto &i : op_infos) {
+      ret[i.first.c_str()] = i.second;
+    }
+    return ret;
+  }
 
   py::array getTensor(std::string op_name) {
     py::array py_ret;
@@ -176,7 +184,6 @@ public:
         break;
       }
     }
-
     return py_ret;
   }
 
@@ -187,7 +194,7 @@ public:
   }
 
   void setPluginFilePath(std::string path) { pluginFilePath_ = path; }
-  void prepare() { interpreter_->prepare(); };
+  void allocate_tensors() { interpreter_->allocate_tensors(); }
   void set_tensor(
       std::string name,
       py::array_t<float, py::array::c_style | py::array::forcecast> data) {
@@ -231,7 +238,7 @@ public:
 
 private:
   MLIRContext context;
-  OwningModuleRef module;
+  OwningModuleRef module_;
   std::string weightFilePath_;
   tensor_map_t tensorMap_;
   shape_map_t shapeMap_;
@@ -255,9 +262,10 @@ PYBIND11_MODULE(pymlir, m) {
            "get weight file path")
       .def("run", &py_module::run,
            "run module inference with input array, and return output array")
-      .def("prepare", &py_module::prepare)
+      .def("allocate_tensors", &py_module::allocate_tensors)
       .def("set_tensor", &py_module::set_tensor)
       .def("get_tensors", &py_module::get_tensor)
+      .def("get_tensors_info", &py_module::get_tensor_info)
       .def("dump", &py_module::dump)
       .def("invoke", py::overload_cast<>(&py_module::invoke))
       .def("invoke", py::overload_cast<const std::string>(&py_module::invoke));

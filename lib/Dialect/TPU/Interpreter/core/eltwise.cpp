@@ -13,9 +13,10 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
   auto result = elt_addOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
+  this->op_type = op.getName().getStringRef().str();
 
   this->name = elt_addOp.name().str();
 

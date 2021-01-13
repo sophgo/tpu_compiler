@@ -11,13 +11,15 @@ BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping) {
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = bnOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << " =>required memory size: [" << size << "]\n";
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
   this->name = bnOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+
   // get tensors
   input_data = opTensors[0];
   mean = opTensors[1];

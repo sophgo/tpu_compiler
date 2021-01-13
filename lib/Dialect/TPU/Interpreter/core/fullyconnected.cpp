@@ -12,11 +12,13 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = fcOp.getResult();
   auto size = getTensorSize(result);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
   this->name = fcOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
 
   parseFullyConnectedParam(fcOp.input(), fcOp.output(), fcOp.filter(), m, k, n);
   // get tensors
