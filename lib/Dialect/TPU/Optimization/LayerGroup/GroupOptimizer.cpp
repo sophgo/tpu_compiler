@@ -8,12 +8,76 @@ namespace mlir {
 GroupOptimizer::GroupOptimizer(NetGraph* net_graph, FuncOp * fn, MLIRContext * context)
     : net_graph_(net_graph),
       mix_net_(net_graph, fn, context),
-      fn_(fn), context_(context) {}
+      fn_(fn), context_(context), strategy_(USE_FIT_H_SLICE) {}
 
 GroupOptimizer::~GroupOptimizer() {
-  for (auto group : groups_) {
-    delete group;
+  for (auto groups: groups_v_){
+    for (auto group: groups) {
+      delete group;
+    }
   }
+}
+
+void GroupOptimizer::choose_best_group() {
+  std::vector<uint64_t> cost;
+  int strategy_idx = 0;
+  // calculate the strategy cost
+  for(auto groups: groups_v_) {
+    cost.push_back(0);
+    int group_idx = 0;
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L1
+               << "[Layer Strategy]: " << strategy_idx << "\n";);
+    for(auto group: groups) {
+      std::set<int> in_tensors = group->get_group_in_neuron_tensors();
+      for (auto tensor_id: in_tensors) {
+        Tensor* tensor = net_graph_->get_tensor_by_id(tensor_id);
+        cost[strategy_idx] += tensor->gmem_size();
+      }
+
+      std::vector<int> out_tensors = group->get_group_out_tensors();
+      for (int j = 0; j < (int32_t)out_tensors.size(); ++j) {
+        Tensor* tensor = net_graph_->get_tensor_by_id(out_tensors[j]);
+        cost[strategy_idx] += tensor->gmem_size();
+      }
+
+      LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+                << "[Layer Strategy] group " << group_idx << " : total cost is: "
+                << cost[strategy_idx] << "\n";);
+      group_idx++;
+    }
+    strategy_idx++;
+  }
+
+  // get the minimal cost
+  int min_idx = std::min_element(cost.begin(),cost.end()) - cost.begin();
+
+  // set group_
+  set_strategy(min_idx);
+  LLVM_DEBUG(llvm::errs() << LOG_TAB_L1
+             <<"[Layer Strategy] set strategy to :" << min_idx << "\n";);
+  groups_.clear();
+  for(auto &group: groups_v_[min_idx]) {
+    group->set_strategy(min_idx);
+    groups_.push_back(group);
+  }
+}
+
+void GroupOptimizer::set_strategy(int s) {
+  strategy_ = (LG_Strategy)s;
+}
+
+void GroupOptimizer::layer_group() {
+  // Try method 1
+  set_strategy(USE_FIT_H_SLICE);
+  do_group(groups_);
+  groups_v_.push_back(groups_);
+  groups_.clear();
+  // Try method 2
+  set_strategy(USE_MAX_H_SLICE);
+  do_group(groups_);
+  groups_v_.push_back(groups_);
+
+  choose_best_group();
 }
 
 // This function is used to group all layers. In a group, the top layer can directly
@@ -78,6 +142,7 @@ void GroupOptimizer::add_valid_custers(std::vector<Group*>& groups, Group* targe
     auto group =
         std::make_shared<Group>(net_graph_, target->begin() + start, target->begin() + cut + 1);
 
+    group->set_strategy((int)strategy_);
     if (group->check_valid()) {
       valid = cut;
       left = cut;
@@ -185,7 +250,8 @@ int GroupOptimizer::calc_group_out_tensors_size(Group* target, const std::vector
 
 bmerr_t GroupOptimizer::optimize() {
 
-  do_group(groups_);
+  // do_group(groups_);
+  layer_group();
 
   int group_id = 0;
   for (auto group : groups_) {

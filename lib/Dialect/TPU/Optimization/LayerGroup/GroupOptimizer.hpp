@@ -21,10 +21,12 @@ class GroupOptimizer {
  private:
   NetGraph* net_graph_;
   std::vector<Group*> groups_;
+  std::vector<std::vector<Group*>> groups_v_;
   MixNet mix_net_;
   FuncOp * fn_;
   FuncOp out_fn_;
   MLIRContext * context_;
+  LG_Strategy strategy_;
 
   void do_group(std::vector<Group*>& groups);
   void do_group_seso(std::vector<Group*>& groups);
@@ -32,6 +34,9 @@ class GroupOptimizer {
   std::vector<int> optimize_cut_points(Group* target, const std::vector<int>& cut_points);
   int calc_group_out_tensors_size(Group* target, const std::vector<int>& cut_points);
   void set_input_output_tensor();
+  void layer_group();
+  void choose_best_group();
+  void set_strategy(int s);
 };
 
 }

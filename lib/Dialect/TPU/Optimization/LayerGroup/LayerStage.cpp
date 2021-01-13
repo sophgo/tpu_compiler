@@ -527,7 +527,7 @@ bmerr_t net_timestep::find_minimal_nh_slice(Group* group, int max_n_slice, int m
 
   update_mem_buffer_size();
 
-  float min_secs = 0.0;//static_cast<float>(max_n_slice);
+  float min_secs = 0.0;
 
   // first try with coeff not hold in local memory
   hold_coeff_tensor.clear();

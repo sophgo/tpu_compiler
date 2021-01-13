@@ -160,29 +160,37 @@ int Group::get_batch_num() const {
   return net_graph_->get_tensor_nums(any_tensor);
 }
 
-static int get_max_hsecs(NetGraph* net_graph_, const std::vector<int>& layer_group) {
-  int max_h_slice;
-  int any_layer = layer_group[0];
-  int any_tensor = net_graph_->get_in_tensors_of_layer(any_layer)[0];
-  // the temporary code for the large input tensor, such as yolo-608
-  // TODO: to get better h split, balance gdma cost and abundant computation
+void Group::set_strategy(int s) {
+  strategy_ = (LG_Strategy)s;
+}
 
-  // when FC group with FC, don't split for now.
-  if (net_graph_->get_tensor_height(any_tensor) == 0) {
-    max_h_slice = 1;
-    return max_h_slice;
-  }
-  if (net_graph_->get_tensor_height(any_tensor) >= 600 ||
-      net_graph_->get_tensor_width(any_tensor) >= 600) {
-    max_h_slice = 16;
-  } else if (net_graph_->get_tensor_height(any_tensor) >= 400 ||
-             net_graph_->get_tensor_width(any_tensor) >= 400) {
-    max_h_slice = 8;
-  } else if (net_graph_->get_tensor_height(any_tensor) >= 250 ||
-             net_graph_->get_tensor_width(any_tensor) >= 250) {
-    max_h_slice = 4;
-  } else {
-    max_h_slice = 8;
+int Group::get_max_hsecs() {
+  int max_h_slice = 32;
+  if (strategy_ == USE_FIT_H_SLICE) {
+    int any_layer = layers_[0];
+    int any_tensor = net_graph_->get_in_tensors_of_layer(any_layer)[0];
+    // the temporary code for the large input tensor, such as yolo-608
+    // TODO: to get better h split, balance gdma cost and abundant computation
+
+    // when FC group with FC, don't split for now.
+    if (net_graph_->get_tensor_height(any_tensor) == 0) {
+      max_h_slice = 1;
+      return max_h_slice;
+    }
+    if (net_graph_->get_tensor_height(any_tensor) >= 600 ||
+        net_graph_->get_tensor_width(any_tensor) >= 600) {
+      max_h_slice = 16;
+    } else if (net_graph_->get_tensor_height(any_tensor) >= 400 ||
+              net_graph_->get_tensor_width(any_tensor) >= 400) {
+      max_h_slice = 8;
+    } else if (net_graph_->get_tensor_height(any_tensor) >= 250 ||
+              net_graph_->get_tensor_width(any_tensor) >= 250) {
+      max_h_slice = 4;
+    } else {
+      max_h_slice = 8;
+    }
+  } else if (strategy_ == USE_MAX_H_SLICE) {
+    max_h_slice = 1024;
   }
 
   return max_h_slice;
@@ -218,7 +226,7 @@ bmerr_t Group::assign_steps_without_tsm() {
   }
 
   int max_n_slice = get_batch_num();
-  int max_h_slice = get_max_hsecs(net_graph_, layers_);
+  int max_h_slice = get_max_hsecs();
   reset_tensor_hslice_max();
   status = time_step->find_minimal_nh_slice(this, max_n_slice,
                                       max_h_slice, nsecs_and_hsecs);
@@ -569,8 +577,8 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
       LLVM_DEBUG(llvm::errs()
         << LOG_TAB_L3
         << "[Update Tensor Slice][Warning]: "
-        << "Warning: slice is smaller than than the minimum"
-        << ", n_slice: " << n_slice << ", h_slice: " << h_slice << "\n";);
+        << "slice length should >= 1, but "
+        << "n_slice is: " << n_slice << ", h_slice is: " << h_slice << "\n";);
       return false;
     }
 

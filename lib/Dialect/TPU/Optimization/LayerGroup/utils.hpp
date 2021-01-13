@@ -62,6 +62,12 @@ static inline int ceiling_func(int numerator, int denominator) {
 #define LOG_TAB_L4 "        "
 #define LOG_TAB_L5 "          "
 
+// layer group strategy
+typedef enum {
+  USE_FIT_H_SLICE = 0,
+  USE_MAX_H_SLICE = 1
+}LG_Strategy;
+
 typedef enum {
   NEURON = 0,
   COEFF = 1,

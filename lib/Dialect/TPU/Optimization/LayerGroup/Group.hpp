@@ -18,13 +18,17 @@ class net_timestep;
 class Group {
  public:
   explicit Group(NetGraph *net_graph) : time_step(nullptr),
-              net_graph_(net_graph), layers_(), lowered_(false) {}
+              net_graph_(net_graph), layers_(), lowered_(false),
+              strategy_(USE_FIT_H_SLICE) {}
 
   Group(NetGraph *net_graph, std::vector<int> layers)
-      : time_step(nullptr), net_graph_(net_graph), layers_(layers), lowered_(false) {}
+      : time_step(nullptr), net_graph_(net_graph), layers_(layers),
+        lowered_(false), strategy_(USE_FIT_H_SLICE) {}
 
-  Group(NetGraph *net_graph, std::vector<int>::iterator begin, std::vector<int>::iterator end)
-      : time_step(nullptr), net_graph_(net_graph), layers_(), lowered_(false) {
+  Group(NetGraph *net_graph, std::vector<int>::iterator begin,
+        std::vector<int>::iterator end)
+      : time_step(nullptr), net_graph_(net_graph), layers_(),
+        lowered_(false), strategy_(USE_FIT_H_SLICE) {
     layers_.assign(begin, end);
   }
 
@@ -46,11 +50,14 @@ class Group {
 
   int get_batch_num() const;
 
+  int get_max_hsecs();
+
   std::vector<int> get_group_out_tensors();
 
   std::set<int> get_group_in_neuron_tensors();
 
   bool check_valid();
+
   bool valid_pattern();
 
   bmerr_t update_tensor_slices(int nsecs, int hsecs, int nslice_idx = -1, int hslice_idx = -1);
@@ -62,11 +69,19 @@ class Group {
   bool is_group_out_tensor(int tensor_id);
 
   void show_group();
+
   void show_group_layers();
+
   bool is_group_in_neuron_tensor(int tensor_id);
+
   void set_group_id(int group_id) { group_id_ = group_id; }
+
   int get_group_id() { return group_id_; }
+
+  void set_strategy(int s);
+
   void clear_temp_data();
+
   void print(std::ostream &pOs) const;
 
   net_timestep *time_step;
@@ -77,16 +92,19 @@ class Group {
   std::vector<int> layers_;
   bool lowered_;
   int group_id_;
+  LG_Strategy strategy_;
 
   bool validate_tensor_slice();
 
   void reset_tensor_slice();
+
   void reset_tensor_hslice_max();
 
   bool backward_slice(int out_tensor_id, std::list<int> &branches,
                       bool max_h_slice, bool no_split_h, int n_loop, int h_loop);
 
   bool group_has_winograd_tensors();
+
   bmerr_t group_winograd_out_tensors_check();
 };
 
