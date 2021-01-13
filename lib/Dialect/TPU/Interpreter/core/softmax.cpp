@@ -19,6 +19,7 @@ SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping) {
 
   this->name = castOp.name().str();
   this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
 
   // get tensors
   input_data = opTensors[0];

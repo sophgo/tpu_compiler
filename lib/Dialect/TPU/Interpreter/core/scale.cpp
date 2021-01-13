@@ -18,6 +18,7 @@ ScaleOpKernel::ScaleOpKernel(Operation &op, value_map_t &valueMapping) {
 
   this->name = scaleOp.name().str();
   this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
 
   // get tensors
   input_data = opTensors[0];
@@ -60,14 +61,5 @@ std::vector<float> ScaleOpKernel::get_tensor() {
   std::vector<float> ret(this->output_data->begin(), this->output_data->end());
   return ret;
 }
-void ScaleOpKernel::dump() {
-  std::string shape_str;
-  for (auto &i : this->shape) {
-    shape_str = shape_str + std::to_string(i) + " ";
-  }
-
-  llvm::outs() << "Scale Op\n";
-  llvm::outs() << "\tName: " << this->name << "\n";
-  llvm::outs() << "\tShape: " << shape_str << "\n";
-}
+void ScaleOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

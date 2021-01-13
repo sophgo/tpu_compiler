@@ -39,7 +39,7 @@ public:
   };
   void set_tensor(const std::vector<float> &data) override;
   std::vector<float> get_tensor() override;
-  void dump() override;
+  void dump();
 
 private:
   SyncedData data;
@@ -55,7 +55,7 @@ public:
   void invoke() override {
     llvm::errs() << "load wegiht op no need to invoke, skip\n";
   };
-  void dump() override{};
+  void dump() { OpKernel::dump(); };
 
 private:
   SyncedData weight_data;

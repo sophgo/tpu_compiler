@@ -27,6 +27,7 @@
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
 #include "tpuc/Interpreter/cpu/pooling.hpp"
+#include "tpuc/Interpreter/cpu/quant.hpp"
 #include "tpuc/Interpreter/cpu/scale.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
@@ -131,6 +132,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::ReluOp>(op)) {
     auto relu_kernel_op = std::make_unique<ReluOpKernel>(op, valueMapping);
     oplist.push_back(std::move(relu_kernel_op));
+    return;
+  }
+  if (isa<tpu::QuantOp>(op)) {
+    auto quant_kernel_op = std::make_unique<QuantOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(quant_kernel_op));
     return;
   }
   if (isa<tpu::ScaleOp>(op)) {

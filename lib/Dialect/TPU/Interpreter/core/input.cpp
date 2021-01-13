@@ -16,6 +16,7 @@ InputOpKernel::InputOpKernel(Operation &op, value_map_t &valueMapping) {
 
   this->name = inputOp.name().str();
   this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
   this->data = resultTensor;
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
@@ -34,13 +35,5 @@ std::vector<float> InputOpKernel::get_tensor() {
   std::vector<float> ret(this->data->begin(), this->data->end());
   return ret;
 }
-void InputOpKernel::dump() {
-  std::string shape_str;
-  for (auto &i : this->shape) {
-    shape_str = shape_str + std::to_string(i) + " ";
-  }
-  llvm::outs() << "Input Op\n";
-  llvm::outs() << "\tName: " << this->name << "\n";
-  llvm::outs() << "\tShape: " << shape_str << "\n";
-}
+void InputOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

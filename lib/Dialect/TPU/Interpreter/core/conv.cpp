@@ -20,6 +20,7 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   is_asymmetric = isOpQuantAsymmetric(&op);
   this->name = castOp.name().str();
   this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
 
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
@@ -151,20 +152,16 @@ void Conv2DOpKernel::invoke() {
 }
 
 void Conv2DOpKernel::dump() {
-  std::string shape_str, input_shape_str, filter_shape_str;
-  for (auto &i : this->shape) {
-    shape_str = shape_str + std::to_string(i) + " ";
-  }
+  OpKernel::dump();
+  std::string filter_shape_str, input_shape_str;
   for (auto &i : this->input_shape) {
     input_shape_str = input_shape_str + std::to_string(i) + " ";
   }
   for (auto &i : this->filter_shape) {
     filter_shape_str = filter_shape_str + std::to_string(i) + " ";
   }
-  llvm::outs() << "Conv Op\n";
-  llvm::outs() << "\tName: " << this->name << "\n";
+
   llvm::outs() << "\tInput Shape: " << input_shape_str << "\n";
-  llvm::outs() << "\tShape: " << shape_str << "\n";
   llvm::outs() << "\tFilter Shape: " << filter_shape_str << "\n";
 }
 } // namespace mlir

@@ -19,7 +19,7 @@ BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping) {
 
   this->name = bnOp.name().str();
   this->op_type = op.getName().getStringRef().str();
-
+  set_datatype(getOpQuant(&op).str());
   // get tensors
   input_data = opTensors[0];
   mean = opTensors[1];
@@ -88,14 +88,5 @@ void BatchNormOpKernel::invoke() {
     variance->at(i) = variance->at(i) * scale->at(0);
   }
 }
-void BatchNormOpKernel::dump() {
-  std::string shape_str;
-  for (auto &i : this->shape) {
-    shape_str = shape_str + std::to_string(i) + " ";
-  }
-
-  llvm::outs() << "Batchnorm Op\n";
-  llvm::outs() << "\tName: " << this->name << "\n";
-  llvm::outs() << "\tShape: " << shape_str << "\n";
-}
+void BatchNormOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

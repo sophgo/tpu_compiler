@@ -1,16 +1,16 @@
-#ifndef INTERPRETER_CPU_SCALE_H
-#define INTERPRETER_CPU_SCALE_H
+#ifndef INTERPRETER_CPU_QUANT_H
+#define INTERPRETER_CPU_QUANT_H
 
 #include "tpuc/Interpreter/cpukernel.h"
 
 #include <memory>
 namespace mlir {
 
-class ScaleOpKernel : public CPUOpKernel<ScaleOpKernel> {
+class QuantOpKernel : public CPUOpKernel<QuantOpKernel> {
 public:
-  static constexpr const char *OpName = "CPUScaleOp";
+  static constexpr const char *OpName = "CPUQuantOp";
 
-  ScaleOpKernel(Operation &op, value_map_t &valueMapping);
+  QuantOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
   void set_tensor(const std::vector<float> &data) override;
@@ -19,14 +19,13 @@ public:
 
 private:
   SyncedData input_data;
-  SyncedData scale;
-  SyncedData bias;
   SyncedData output_data;
   SyncedDataShape input_shape;
   SyncedDataShape output_shape;
-  SyncedDataShape bias_shape;
-  SyncedDataShape scale_shape;
-  // param
+  std::string from;
+  std::string to;
+  float scale;
+  int zero_point = 0;
 };
 } // namespace mlir
 

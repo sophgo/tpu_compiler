@@ -17,7 +17,7 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
   this->op_type = op.getName().getStringRef().str();
-
+  set_datatype(getOpQuant(&op).str());
   this->name = elt_addOp.name().str();
 
   // erase the end 4 elements:
@@ -50,5 +50,5 @@ void EltwiseAddOpKernel::invoke() {
   }
 };
 
-void EltwiseAddOpKernel::dump() { llvm_unreachable("TODO!"); }
+void EltwiseAddOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

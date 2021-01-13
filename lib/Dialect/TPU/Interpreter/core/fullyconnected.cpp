@@ -19,7 +19,7 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   this->shape = type.getShape();
   this->name = fcOp.name().str();
   this->op_type = op.getName().getStringRef().str();
-
+  set_datatype(getOpQuant(&op).str());
   parseFullyConnectedParam(fcOp.input(), fcOp.output(), fcOp.filter(), m, k, n);
   // get tensors
   input_data = opTensors[0];

@@ -29,6 +29,7 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
   llvm::outs() << " Pool op: [" << name << "]\n";
   this->name = name;
   this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
 
   auto opTensors = getOperandTensors(&op, valueMapping);
 
@@ -128,18 +129,11 @@ std::vector<float> PoolingOpKernel::get_tensor() {
   return ret;
 }
 void PoolingOpKernel::dump() {
-  std::string shape_str;
-  if (this->shape.size() == 2) {
-    llvm_unreachable("Not Set shape!");
-  }
-  for (auto &i : this->shape) {
-    shape_str = shape_str + std::to_string(i) + " ";
-  }
   std::string pm = pool_method == POOL_METHOD::AVG ? "Average" : "Max";
-  llvm::outs() << "Pooling Op\n";
+
+  OpKernel::dump();
   llvm::outs() << "\tMethod:" << pm << "\n";
-  llvm::outs() << "\tName: " << this->name << "\n";
-  llvm::outs() << "\tShape: " << shape_str << "\n";
+
   llvm::outs() << "\tStrides: " << sh << "*" << sw << "\n";
   llvm::outs() << "\tPadding: "
                << "top: " << pt << ", buttom: " << pb << ", left: " << pl
