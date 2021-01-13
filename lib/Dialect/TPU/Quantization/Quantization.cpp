@@ -202,14 +202,14 @@ static void insertQuantOp(Operation *op) {
       if (curr_quant == "BF16") {
         name = prev_name.str() + "_dequant_bf16";
       } else {
-        name = prev_name.str() + "_dequant_f32";
+        name = prev_name.str() + "_dequant";
       }
     } else if (curr_quant == "BF16") {
       // FP32 => BF16
       name = prev_name.str() + "_quant_bf16";
     } else if (prev_quant == "BF16") {
       // BF16 => FP32
-      name = prev_name.str() + "_dequant_f32";
+      name = prev_name.str() + "_dequant";
     }
     // check if prev op has inserted quant/dequant op
     if (prev_op) {
