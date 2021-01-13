@@ -60,134 +60,6 @@ void getInterpHWScale(
   }
 }
 
-/**
- * \brief init weight of interp
- * \data2 weight for interp, the size SHOULD be height2 * width2 * 2 * 2
- * \is_x which means get x or y weight
- */
-void fillInterpWeightfilter(float *data2, const int height1, const int width1,
-    const int height2, const int width2, bool is_x) {
-
-  const float rheight = (height2 > 1) ? static_cast<float>(height1 - 1) / (height2 - 1) : 0.f;
-  const float rwidth = (width2 > 1) ? static_cast<float>(width1 - 1) / (width2 - 1) : 0.f;
-  int _width = width2 * 2;
-  for (int h2 = 0; h2 < height2; ++h2) {
-    const float h1r = rheight * h2;
-    const int h1 = h1r;
-    const int h1p = (h1 < height1 - 1) ? 1 : 0;
-    const float h1lambda = h1r - h1;
-    const float h0lambda = float(1.) - h1lambda;
-    for (int w2 = 0; w2 < width2; ++w2) {
-      const float w1r = rwidth * w2;
-      const int w1 = w1r;
-      const int w1p = (w1 < width1 - 1) ? 1 : 0;
-      const float w1lambda = w1r - w1;
-      const float w0lambda = float(1.) - w1lambda;
-      if (is_x) {
-        int _h2 = h2 * 2;
-        int _w2 = w2 * 2;
-        float _w0lambda = w0lambda;
-        float _w1lambda = w1lambda;
-        if (!w1p) {
-          // boundry, swap it
-          _w0lambda = w1lambda;
-          _w1lambda = w0lambda;
-        }
-        data2[_h2 * _width+ _w2] = _w0lambda;
-        data2[(_h2+1) * _width+ _w2] = _w0lambda;
-        data2[_h2 * _width+ _w2+1] = _w1lambda;
-        data2[(_h2+1) * _width+ _w2+1] = _w1lambda;
-      }
-      else {
-        int _h2 = h2 * 2;
-        int _w2 = w2;
-        _width = width2;
-        float _h0lambda = h0lambda;
-        float _h1lambda = h1lambda;
-        if (!h1p) {
-          // boundry, swap it
-          _h0lambda = h1lambda;
-          _h1lambda = h0lambda;
-        }
-        data2[_h2 * _width+ _w2] = _h0lambda;
-        data2[(_h2+1) * _width+ _w2] = _h1lambda;
-      }
-    }
-  }
-}
-
-template <typename OpTy>
-std::pair<std::vector<Value>, std::vector<NamedAttribute> > getHWaxisWeight(
-    OpTy castOp,
-    int is_x,
-    Operation *op,
-    PatternRewriter &rewriter) {
-
-  // input
-  std::vector<int64_t> shape;
-  int64_t input_size, in, ic, ih, iw;
-  getTensorShapeAndSize(castOp.getOperand(0), shape, input_size);
-  getNCHW(shape, in, ic, ih, iw);
-
-  // output
-  std::vector<int64_t> output_shape;
-  int64_t output_size, oh, ow;
-  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
-  oh = output_shape[2];
-  ow = output_shape[3];
-
-  // get weight
-  TensorFile *wTF = getWeightTensorFile(op);
-  Value wfV = getWeightFileValue(op);
-
-  // calcuate scale
-  float rwidth = 0.f;
-  float rheight = 0.f;
-  getInterpHWScale(ih, iw, oh, ow, &rheight, &rwidth);
-
-  // init weight size, 2*2 means all output determined by 4 point
-  // n/c set 1 to broadcast it
-  in = 1;
-  ic = 1;
-  int filterH = ih * 2;
-  int filterW = iw * 2;
-  if (!is_x) {
-    filterW = iw;
-  }
-  int64_t filterSize = in * ic * rheight * rwidth * filterH * filterW;
-  std::vector<int64_t> filterShape;
-  std::vector<float> filter(filterSize, 0);
-  filterShape.push_back(in);
-  filterShape.push_back(ic);
-  filterShape.push_back(filterH);
-  filterShape.push_back(filterW);
-
-  fillInterpWeightfilter(filter.data(), ih, iw, oh, ow, is_x);
-
-  // dynamic add weight as input
-  auto filterValue = addWeightTensorAndCreateWeightOp<float>(op, "filter",
-      filter, filterShape, "NONE", wTF, wfV);
-
-  // construct eltwise
-  auto input = castOp.getResult();
-  auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
-      rewriter.getNoneType());
-
-  std::vector<Value> operands;
-  operands.push_back(input);
-  operands.push_back(filterValue);
-  operands.push_back(NoneOp.getResult()); // quant_scale
-  operands.push_back(NoneOp.getResult()); // quant_zeropoint
-  operands.push_back(NoneOp.getResult()); // quant_rshift
-  operands.push_back(NoneOp.getResult()); // quant_multiplier
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(rewriter.getNamedAttr("name", castOp.nameAttr()));
-  attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-
-  return std::make_pair(operands, attrs);
-}
-
 // \floatDividend if gived, it should be find one divisor that the range should be in
 // floatDividend < x < 2 * floatDividend
 // e.g: getDivisors(32, 5) should be 4 * 8, 5< 8 < 10
@@ -372,89 +244,100 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
     Value wfV = getWeightFileValue(op);
     auto loc = op->getLoc();
 
+    // calcuate scale
+    float rwidth = 0.f;
+    float rheight = 0.f;
+    int rwidthInt = 0;
+    int rheightInt = 0;
+
     if (is_shrink) {
-      // replace with conv
-      int inner_size = filter_size * ic;
-      std::vector<float> new_filter(inner_size * oc, 0);
-      for (int i = 0; i < oc; ++i) {
-        // only fill one channel by oc
-        std::fill(new_filter.begin() + i * inner_size + i * filter_size,
-            new_filter.begin() + i * inner_size + i * filter_size + 1,
-            filter_val); //nearnest
-        //std::fill(new_filter.begin() + i * inner_size + i * filter_size,
-        //    new_filter.begin() + i * inner_size + (i+1) * filter_size,
-        //    filter_val);
-      }
+      getInterpHWScale(oh, ow, ih, iw, &rheight, &rwidth);
+      if ((ceilf(rheight) == rheight && floorf(rheight) == rheight)
+          && ((ceilf(rwidth) == rwidth && floorf(rwidth) == rwidth))) {
+        // replace with conv
+        int inner_size = filter_size * ic;
+        std::vector<float> new_filter(inner_size * oc, 0);
+        for (int i = 0; i < oc; ++i) {
+          // only fill one channel by oc
+          std::fill(new_filter.begin() + i * inner_size + i * filter_size,
+              new_filter.begin() + i * inner_size + i * filter_size + 1,
+              filter_val); //nearnest
+          //std::fill(new_filter.begin() + i * inner_size + i * filter_size,
+          //    new_filter.begin() + i * inner_size + (i+1) * filter_size,
+          //    filter_val);
+        }
 
-      std::vector<std::vector<float> *> newWeights{ &new_filter };
-      std::vector<std::vector<int64_t> > weightShapes{ filter_shape };
+        std::vector<std::vector<float> *> newWeights{ &new_filter };
+        std::vector<std::vector<int64_t> > weightShapes{ filter_shape };
 
-      std::vector<Value> newOperands;
-      newOperands.push_back(_interpOp.getOperand(0));
+        std::vector<Value> newOperands;
+        newOperands.push_back(_interpOp.getOperand(0));
 
-      // add new filter and no bias ops
-      for (int i = 0; i < 1; ++i) {
-        auto tensor_name = op_name + "_conv_" + std::to_string(i);
-        LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : "
-            << tensor_name << "\n";);
-        auto type = RankedTensorType::get(weightShapes[i],
-            FloatType::getF32(rewriter.getContext()));
-        wTF->addTensor<float>(tensor_name, newWeights[i], type);
+        // add new filter and no bias ops
+        for (int i = 0; i < 1; ++i) {
+          auto tensor_name = op_name + "_conv_" + std::to_string(i);
+          LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : "
+              << tensor_name << "\n";);
+          auto type = RankedTensorType::get(weightShapes[i],
+              FloatType::getF32(rewriter.getContext()));
+          wTF->addTensor<float>(tensor_name, newWeights[i], type);
+          std::vector<NamedAttribute> attrs;
+          attrs.push_back(rewriter.getNamedAttr("name",
+                rewriter.getStringAttr(tensor_name)));
+          auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
+              ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
+          newOperands.push_back(new_weight_op);
+        }
+
+        auto NoneOp = rewriter.create<tpu::NoneOp>(
+            rewriter.getUnknownLoc(), rewriter.getNoneType());
+
+        newOperands.push_back(NoneOp.getResult());  // bias
+        newOperands.push_back(NoneOp.getResult());  // quant_scale
+        newOperands.push_back(NoneOp.getResult());  // quant_zeropoint
+        newOperands.push_back(NoneOp.getResult());  // quant_rshift
+        newOperands.push_back(NoneOp.getResult());  // quant_multiplier
+
         std::vector<NamedAttribute> attrs;
         attrs.push_back(rewriter.getNamedAttr("name",
-              rewriter.getStringAttr(tensor_name)));
-        auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-            ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
-        newOperands.push_back(new_weight_op);
+              rewriter.getStringAttr(op_name)));
+        attrs.push_back(rewriter.getNamedAttr("param",
+              tpu::ConvParam::get(
+                rewriter.getI32IntegerAttr(stride_h),
+                rewriter.getI32IntegerAttr(stride_w),
+                rewriter.getStringAttr("VALID"), // convOp.param().padding
+                rewriter.getI32IntegerAttr(dilation_h),
+                rewriter.getI32IntegerAttr(dilation_w),
+                rewriter.getI32IntegerAttr(0), //convOp.param().padding_t(),
+                rewriter.getI32IntegerAttr(1), //convOp.param().padding_b(),
+                rewriter.getI32IntegerAttr(0), //convOp.param().padding_l(),
+                rewriter.getI32IntegerAttr(1), //convOp.param().padding_r(),
+                rewriter.getI32IntegerAttr(1), //convOp.param().group(),
+                rewriter.getBoolAttr(false), //convOp.param().is_dw(),
+                rewriter.getBoolAttr(false), //bias
+                rewriter.getBoolAttr(false), //convOp.param().do_relu(),
+                rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+                rewriter.getI32IntegerAttr(0), //pad_value
+                rewriter.getContext())));
+
+        attrs.push_back(rewriter.getNamedAttr("quant",
+              getDefaultQuantParam(rewriter)));
+
+        rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
+            _interpOp, _interpOp.getResult().getType(),
+            ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
       }
-
-      auto NoneOp = rewriter.create<tpu::NoneOp>(
-          rewriter.getUnknownLoc(), rewriter.getNoneType());
-
-      newOperands.push_back(NoneOp.getResult());  // bias
-      newOperands.push_back(NoneOp.getResult());  // quant_scale
-      newOperands.push_back(NoneOp.getResult());  // quant_zeropoint
-      newOperands.push_back(NoneOp.getResult());  // quant_rshift
-      newOperands.push_back(NoneOp.getResult());  // quant_multiplier
-
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("name",
-            rewriter.getStringAttr(op_name)));
-      attrs.push_back(rewriter.getNamedAttr("param",
-            tpu::ConvParam::get(
-              rewriter.getI32IntegerAttr(stride_h),
-              rewriter.getI32IntegerAttr(stride_w),
-              rewriter.getStringAttr("VALID"), // convOp.param().padding
-              rewriter.getI32IntegerAttr(dilation_h),
-              rewriter.getI32IntegerAttr(dilation_w),
-              rewriter.getI32IntegerAttr(0), //convOp.param().padding_t(),
-              rewriter.getI32IntegerAttr(1), //convOp.param().padding_b(),
-              rewriter.getI32IntegerAttr(0), //convOp.param().padding_l(),
-              rewriter.getI32IntegerAttr(1), //convOp.param().padding_r(),
-              rewriter.getI32IntegerAttr(1), //convOp.param().group(),
-              rewriter.getBoolAttr(false), //convOp.param().is_dw(),
-              rewriter.getBoolAttr(false), //bias
-              rewriter.getBoolAttr(false), //convOp.param().do_relu(),
-              rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
-              rewriter.getI32IntegerAttr(0), //pad_value
-              rewriter.getContext())));
-
-      attrs.push_back(rewriter.getNamedAttr("quant",
-            getDefaultQuantParam(rewriter)));
-
-      rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
-          _interpOp, _interpOp.getResult().getType(),
-          ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
+      else {
+        LLVM_DEBUG(llvm::errs() << " not support shrink from oh/ow("
+            << oh << "/" << ow << ") to ih/iw("
+            << ih << "/" << iw << ") " << op_name << "\n";);
+        return failure();
+      }
     }
     else {
       int kh = -1;
       int kw = -1;
 
-      // calcuate scale
-      float rwidth = 0.f;
-      float rheight = 0.f;
-      int rwidthInt = 0;
-      int rheightInt = 0;
       // keep Dividend / Divisor for later non-divisable
       std::vector<std::pair<int, int> > maxInsertWAtOnce;
       std::vector<std::pair<int, int> > maxInsertHAtOnce;
