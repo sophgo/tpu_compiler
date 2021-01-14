@@ -32,6 +32,8 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
 
   LLVM_DEBUG(llvm::errs() << llvm::format("la_output:%d\n", la_output));
 
+  ctx.parallel_disable();
+
   uint32_t out_csize_local =
       ALIGN(output_dim[2] * output_dim[3] * ctx.bytesize_of_fmt(fmt), EU_NUM);
   uint32_t n = output_dim[0];
@@ -86,10 +88,10 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
     tl_output.shape = shape;
     tl_output.stride = ctx.tl_default_stride(out_shape, fmt, 1);
 
-    cvk_tiu_copy_param_t p10 = {0};
+    cvk_tdma_l2l_tensor_copy_param_t p10 = {0};
     p10.dst = &tl_output;
     p10.src = &tl_input;
-    ctx.tiu_copy(&p10);
+    ctx.tdma_l2l_tensor_copy(&p10);
 
     concat_c += input_dim_c[i];
   }
