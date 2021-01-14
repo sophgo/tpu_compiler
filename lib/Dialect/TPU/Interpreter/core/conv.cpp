@@ -3,6 +3,13 @@
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
+
+static void relu(float *data, size_t size) {
+  for (size_t i = 0; i < size; ++i) {
+    data[i] = data[i] > 0 ? data[i] : 0;
+  }
+}
+
 Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   auto castOp = cast<tpu::Conv2DOp>(op);
   assert(castOp);
@@ -21,6 +28,26 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   this->name = castOp.name().str();
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
+
+  // int8 init
+  if (datatype == DataType::INT8) {
+    auto quant_rshift = opTensors[5];
+    auto quant_multiplier = opTensors[6];
+    assert(quant_rshift);
+    if (!isOpQuantPerchannel(&op)) {
+      this->is_perchannel = false;
+      this->rshift.push_back(quant_rshift->at(0));
+    } else {
+      this->is_perchannel = true;
+      this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
+      if (getOpQuantParamType(&op) == "RSHIFT_AND_M_I32") {
+        assert(quant_multiplier);
+        this->use_mutliplier = true;
+        this->multiplier.assign(quant_multiplier->begin(),
+                                quant_multiplier->end());
+      }
+    }
+  }
 
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
@@ -68,12 +95,21 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
                                 mkl_eng, filter_data->data())
                : mkldnn::memory({{mkl_filter_shape}, dt::f32, tag::oihw},
                                 mkl_eng, filter_data->data());
-  if (!with_bias) {
-    auto zero_bias = std::make_shared<std::vector<float>>(oc, 0.0f);
-    bias_data = zero_bias;
+
+  zero_bias = std::make_shared<std::vector<float>>(oc, 0.0f);
+
+  // in int8 case, bias will be add after mkldnn conv
+  // reason is int8 case, bias format is 32bit
+  bool do_bias = with_bias;
+
+  if (use_mutliplier) {
+    do_bias = false;
   }
-  mkldnn::memory mkl_bias_memory = mkldnn::memory(
-      {{mkl_bias_shape}, dt::f32, tag::x}, mkl_eng, bias_data->data());
+
+
+  mkldnn::memory mkl_bias_memory =
+      mkldnn::memory({{mkl_bias_shape}, dt::f32, tag::x}, mkl_eng,
+                     do_bias ? bias_data->data() : zero_bias->data());
   mkldnn::memory mkl_dst_memory = mkldnn::memory(
       {{mkl_dst_shape}, dt::f32, tag::nchw}, mkl_eng, output_data->data());
 
@@ -144,11 +180,49 @@ std::vector<float> Conv2DOpKernel::get_tensor() {
   return ret;
 }
 
-void Conv2DOpKernel::invoke() {
+void Conv2DOpKernel::fp32_invoke() {
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
   mkl_stream.wait();
+};
+
+void Conv2DOpKernel::i8_invoke() {
+  for (size_t i = 0; i < mkl_net.size(); ++i) {
+    mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
+  }
+  mkl_stream.wait();
+  if (is_perchannel) {
+    if (use_mutliplier) {
+      quantizeActivationInt8PerChannelMultiplierAndRShift(
+          output_data->data(), output_data->data(), bias_data->data(), do_relu,
+          n, oc, oh * ow, rshift.data(), multiplier.data());
+    } else {
+      if (do_relu) {
+        relu(output_data->data(), output_data->size());
+      }
+      quantizeActivationInt8PerChannelRShift(output_data->data(),
+                                             output_data->data(), n, oc,
+                                             oh * ow, rshift.data());
+    }
+  } else {
+    if (do_relu) {
+      relu(output_data->data(), output_data->size());
+    }
+    quantizeActivationInt8PerLayerRshift(
+        output_data->data(), output_data->data(), size, rshift.at(0));
+  }
+};
+
+void Conv2DOpKernel::invoke() {
+  if (this->datatype == DataType::FP32) {
+    fp32_invoke();
+  } else if (this->datatype == DataType::INT8) {
+    i8_invoke();
+  } else {
+    this->dump();
+    llvm_unreachable("TODO");
+  }
 }
 
 void Conv2DOpKernel::dump() {
@@ -163,5 +237,10 @@ void Conv2DOpKernel::dump() {
 
   llvm::outs() << "\tInput Shape: " << input_shape_str << "\n";
   llvm::outs() << "\tFilter Shape: " << filter_shape_str << "\n";
+  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
+  if (this->datatype == DataType::INT8) {
+    llvm::outs() << "\tPERCHANNEL: " << is_perchannel << "\n";
+    llvm::outs() << "\tMUTLIPLIER: " << use_mutliplier << "\n";
+  }
 }
 } // namespace mlir

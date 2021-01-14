@@ -17,7 +17,7 @@ public:
   OpKernel(){};
   ~OpKernel(){};
   virtual void invoke() = 0;
-  void dump() {
+  virtual void dump() {
     std::string shape_str;
     if (this->shape.size() == 0) {
       llvm_unreachable("No shape");
@@ -28,19 +28,19 @@ public:
     llvm::outs() << this->op_type << "\n";
     llvm::outs() << "\tName: " << this->name << "\n";
     llvm::outs() << "\tShape: " << shape_str << "\n";
+    llvm::outs() << "\tDataType: " << this->get_datatype() << "\n";
   };
   virtual void set_tensor(const std::vector<float> &data) = 0;
   virtual std::vector<float> get_tensor() = 0;
   std::string get_name() { return this->name; }
   SyncedDataShape get_shape() { return this->shape; }
   std::string get_datatype() {
-    if (this->datatype == DataType::FP32) {
-      return "FP32";
-    } else if (this->datatype == DataType::BF16) {
+    if (this->datatype == DataType::BF16) {
       return "BF16";
     } else if (this->datatype == DataType::INT8) {
       return "INT8";
     }
+    return "FP32";
   }
   void set_name(std::string name) { this->name = name; }
   void set_shape(SyncedDataShape &shape) { this->shape = shape; }

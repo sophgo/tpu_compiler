@@ -18,6 +18,10 @@ public:
   void dump();
 
 private:
+  void fp32_invoke();
+  void i8_invoke();
+
+private:
   SyncedData input_data;
   SyncedData output_data;
   SyncedData filter_data;
@@ -25,6 +29,12 @@ private:
   SyncedDataShape input_shape;
   SyncedDataShape filter_shape;
   SyncedDataShape bias_shape;
+
+  SyncedData zero_bias;
+  // int8
+  std::vector<float> rshift;
+  std::vector<float> multiplier;
+
   // param
   bool is_dw;
   bool with_bias;
@@ -59,6 +69,10 @@ private:
 
   std::vector<mkldnn::primitive> mkl_net;
   std::vector<std::unordered_map<int, mkldnn::memory>> mkl_net_args;
+
+  // int8 param
+  bool is_perchannel = false;
+  bool use_mutliplier = false;
 };
 } // namespace mlir
 
