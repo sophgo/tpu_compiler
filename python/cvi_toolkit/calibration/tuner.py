@@ -166,7 +166,7 @@ def import_calibration_get_int8_mlir(calibration_table, fp32_mlir_file):
 class Tuner_v2(object):
     def __init__(self, model_file, input_calibration_table,
                  image_list_file, output_path="./", tune_iteration=10,
-                 preprocess_func=None):
+                 preprocess_func=None, tune_table=""):
         self.fp32_mlir_file = model_file
         self.fp32_mlir_opt_file = "{}_tune_opt.mlir".format(
             model_file.split(".")[0])
@@ -178,9 +178,11 @@ class Tuner_v2(object):
 
         self.output_path = output_path
         os.makedirs(self.output_path, exist_ok=True)
-
-        self.tune_table = "{}_tune_table".format(
-            model_file.split(".")[0])
+        if tune_table:
+            self.tune_table = tune_table
+        else:
+            self.tune_table = "{}_tune_table".format(
+                model_file.split(".")[0])
         self.int8_model = os.path.join(self.output_path, 'tune-int8.mlir')
 
         self.cali_model = "{}_tune_cali.mlir".format(model_file.split(".")[0])
@@ -196,7 +198,6 @@ class Tuner_v2(object):
         self.limit = min(len(self.images), tune_iteration)
 
         self.preprocess_func = preprocess_func
-
 
     def tune_layer(self, target_layer, threshold):
         original_distance = sys.float_info.max

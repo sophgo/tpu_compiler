@@ -168,6 +168,8 @@ def main():
         'image_list_file', metavar='image_list_file', help='Input image list file')
     parser.add_argument(
         '--output_file', metavar='output_file', help='Output file')
+    parser.add_argument(
+        '--output_tune_file', metavar='output_tune_file', help='Output tune file', default="", type=str)
     parser.add_argument('--output_density_table', metavar='output_density_table',
                         help='Output density file for look-up table')
     parser.add_argument('--model_name', metavar='model_name',
@@ -198,7 +200,7 @@ def main():
     if (args.model_name == 'generic'):
         preprocessor = preprocess()
         preprocessor.config(**vars(args))
-        p_func = lambda input_file: preprocessor.run(input_file)
+        def p_func(input_file): return preprocessor.run(input_file)
     elif (args.model_name == 'yolo_v3'):
         p_func = preprocess_yolov3
     elif (args.model_name == 'ssd300_face'):
@@ -244,7 +246,7 @@ def main():
     if args.auto_tune == True:
         args.input_threshold_table = threshold_table
         tuner = Tuner_v2(args.model_file, threshold_table, args.image_list_file,
-                         tune_iteration=args.tune_iteration, preprocess_func=p_func)
+                         tune_iteration=args.tune_iteration, preprocess_func=p_func, tune_table=args.output_tune_file)
         tuner.run_tune()
 
 
