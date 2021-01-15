@@ -428,10 +428,11 @@ void cvi_backend_tl_bf16_relu(
 
 void cvi_backend_tl_quant(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t la_input, laddr_t la_output,
+    laddr_t la_input, laddr_t la_output, laddr_t la_working,
     cvk_fmt_t from, cvk_fmt_t to,
     float const_scale,
-    int n, int c, int h, int w);
+    int n, int c, int h, int w,
+    bool bExtraInput);
 
 void cvi_backend_tl_slice(
      const CviBackendContext &ctx, uint32_t layer_id,

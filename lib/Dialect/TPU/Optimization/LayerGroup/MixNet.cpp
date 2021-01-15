@@ -1356,6 +1356,8 @@ void MixNet::_add_tl_quant_op(MixOp *mix_op, const std::vector<int> &in_tensors,
                               bool is_h_split) {
   int bottom_dim[4];
   float const_scale = 1.0;
+  int la_working = 0;
+  bool bExtraInput = false;
   StringRef from, to;
   const ImLayer *im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
 
@@ -1381,6 +1383,14 @@ void MixNet::_add_tl_quant_op(MixOp *mix_op, const std::vector<int> &in_tensors,
       (from == "BF16" && to == "INT8")) {
     // quant
     const_scale = quantOp.scale().convertToFloat();
+    if (from == "BF16" && to == "INT8") {
+      if (im_layer->imm_tensors.size()) {
+        mem_buffer_key_t key = {timestep_idx, im_layer->imm_tensors[0].get()->id(), true};
+        const mem_buffer_value_t* imm = time_step->get_mem_buffer_value(&key);
+        la_working = (imm->local_mem_offset);
+        bExtraInput = true;
+      }
+    }
   }
 
   // attrs
@@ -1391,10 +1401,14 @@ void MixNet::_add_tl_quant_op(MixOp *mix_op, const std::vector<int> &in_tensors,
       builder_.getNamedAttr("la_input", builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
                                         builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("la_working",
+                                        builder_.getI32IntegerAttr(la_working)));
   attrs.push_back(builder_.getNamedAttr("from", builder_.getStringAttr(from)));
   attrs.push_back(builder_.getNamedAttr("to", builder_.getStringAttr(to)));
   attrs.push_back(builder_.getNamedAttr("const_scale",
                                         builder_.getF32FloatAttr(const_scale)));
+  attrs.push_back(builder_.getNamedAttr("bExtraInput",
+                                        builder_.getBoolAttr(bExtraInput)));
 
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(

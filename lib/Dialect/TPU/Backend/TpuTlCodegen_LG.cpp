@@ -750,6 +750,8 @@ LogicalResult tpu::TL_LG_QuantOp::codegen(void *ctx) {
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
+  bool bExtraInput = this->bExtraInput();
 
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
@@ -780,9 +782,11 @@ LogicalResult tpu::TL_LG_QuantOp::codegen(void *ctx) {
                       layer_id,
                       la_input,
                       la_output,
+                      la_working,
                       from, to,
                       this->const_scale().convertToFloat(),
-                      n, c, h, w);
+                      n, c, h, w,
+                      bExtraInput);
   return success();
 }
 

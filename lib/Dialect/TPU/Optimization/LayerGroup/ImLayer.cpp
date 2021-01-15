@@ -543,13 +543,21 @@ ImQuant::ImQuant(Operation *op) : ImLayer(IR_QUANT, op, true) {
   auto quantOp = cast<tpu::TG_QuantOp>(op);
   std::string from = quantOp.from().str();
   std::string to = quantOp.to().str();
+
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+
   if ((from == "INT8" || from == "UINT8") && to == "BF16") {
   } else if (from == "BF16" && to == "INT8") {
+    // to avoid quant input been override
+    // check if quant's input has multi-usage
+    auto input_def_op = op->getOperand(0).getDefiningOp();
+    if (!input_def_op->hasOneUse()) {
+      add_imm_tensor(in_tensors[0], 1, name_ + "_imm");
+    }
   } else {
     fusible = false;
   }
-  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
-  add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
 ImPRelu::ImPRelu(Operation* op) : ImLayer(IR_PRELU, op, true) {

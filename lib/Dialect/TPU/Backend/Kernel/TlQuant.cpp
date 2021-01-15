@@ -18,10 +18,11 @@
 
 void cvi_backend_tl_quant(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t la_input, laddr_t la_output,
+    laddr_t la_input, laddr_t la_output, laddr_t la_working,
     cvk_fmt_t from, cvk_fmt_t to,
     float const_scale,
-    int n, int c, int h, int w) {
+    int n, int c, int h, int w,
+    bool bExtraInput) {
 
   ctx.set_layer_id(layer_id);
   LLVM_DEBUG(
@@ -30,6 +31,7 @@ void cvi_backend_tl_quant(
                  << "\n                     "
                  << "la_i = " << la_input
                  << ", la_o = " << la_output
+                 << ", bExtraInput: " << bExtraInput
                  << "\n";
   );
   assert((from == CVK_FMT_I8 || from == CVK_FMT_U8 || from == CVK_FMT_BF16) &&
@@ -77,11 +79,16 @@ void cvi_backend_tl_quant(
     ctx.tiu_mul(&p);
 
   } else {
+    cvk_tl_t *tl_working = new cvk_tl_t;
+    memcpy(tl_working, tl_input, sizeof(cvk_tl_t));
+
+    if (bExtraInput)
+      tl_working->start_address = la_working;
     // quant, bf16->int8
     // move to high accurcy to calculate quant/dequant
     cvk_tiu_mul_param_t p = {0};
     p.res_high = NULL;
-    p.res_low = tl_input;
+    p.res_low = tl_working;
     p.a = tl_input;
     p.b_is_const = 1;
     p.b_const.val = ctx.convert_fp32_to_bf16(const_scale);
@@ -96,9 +103,11 @@ void cvi_backend_tl_quant(
 
     // leverage l2l to implement bf16->int8
     cvk_tdma_l2l_tensor_copy_param_t p1 = {0};
-    p1.src = tl_input;
+    p1.src = tl_working;
     p1.dst = tl_output;
     ctx.tdma_l2l_tensor_copy(&p1);
+
+    delete tl_working;
   }
 
   delete tl_output;
