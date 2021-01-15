@@ -18,7 +18,7 @@ ScaleOpKernel::ScaleOpKernel(Operation &op, value_map_t &valueMapping) {
 
   this->name = scaleOp.name().str();
   this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
+  set_datatype("NONE");
 
   // get tensors
   input_data = opTensors[0];

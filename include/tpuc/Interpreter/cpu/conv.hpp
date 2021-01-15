@@ -72,7 +72,7 @@ private:
 
   // int8 param
   bool is_perchannel = false;
-  bool use_mutliplier = false;
+  bool use_multiplier = false;
 };
 } // namespace mlir
 

@@ -15,7 +15,7 @@ public:
   void invoke() override;
   void set_tensor(const std::vector<float> &data) override;
   std::vector<float> get_tensor() override;
-  void dump() override{};
+  void dump() override;
 
 private:
   SyncedData input_data;
@@ -31,6 +31,11 @@ private:
   int m;
   int k;
   int n;
+
+  // int8
+  float rshift;
+  float multiplier;
+
   // mkldnn setting
   mkldnn::engine mkl_eng;
   mkldnn::stream mkl_stream;

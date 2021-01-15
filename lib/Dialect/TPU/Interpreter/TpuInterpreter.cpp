@@ -1465,7 +1465,6 @@ LogicalResult tpu::FullyConnectedOp::interpret(
     // do nothing
   } else if (getOpQuant() == "INT8") {
     assert(quant_rshift);
-    assert(quant_rshift);
     assert(quant_multiplier);
     for (int i = 0; i < size; ++i) {
       resultT->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(

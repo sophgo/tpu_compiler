@@ -3,6 +3,13 @@
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
+
+void relu(float *data, size_t size) {
+  for (size_t i = 0; i < size; ++i) {
+    data[i] = data[i] > 0 ? data[i] : 0;
+  }
+}
+
 ReluOpKernel::ReluOpKernel(Operation &op, value_map_t &valueMapping) {
   auto reluOp = cast<tpu::ReluOp>(op);
   assert(reluOp);

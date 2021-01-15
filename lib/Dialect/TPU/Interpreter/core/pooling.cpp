@@ -2,6 +2,7 @@
 #include "mkldnn.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
+
 namespace mlir {
 PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
   tpu::PoolParam pool_param;
@@ -53,60 +54,160 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
   this->mkl_eng = mkldnn::engine(mkldnn::engine::kind::cpu, 0);
   this->mkl_stream = mkldnn::stream(mkl_eng);
 
-  mkldnn::memory::dims mkl_src_shape = {n, c, ih, iw};
-  mkldnn::memory::dims mkl_dst_shape = {n, c, oh, ow};
-  mkldnn::memory::dims mkl_strides = {sh, sw};
-  mkldnn::memory::dims mkl_kernel = {kh, kw};
-  mkldnn::memory::dims mkl_padding_tl = {pt, pl};
-  mkldnn::memory::dims mkl_padding_br = {pb, pr};
+  if (datatype == DataType::INT8 && pool_method == POOL_METHOD::AVG) {
+    // in int8 average pool case:
+    // SyQy = Avg(SxQx)
+    // Qy = 1/Sy *  Sx * Qxi * 1 / (kh * kw)
+    // mkldnn pool can not simulate this case,
+    // we use detphwise conv,  use mutlipiler and rshift to handle 1 / (kh* kw)
+    // clean mkldn and reset
+    auto quant_rshift = opTensors[3];
+    auto quant_multiplier = opTensors[4];
+    if (!quant_rshift) {
+      llvm_unreachable("quant_rshift is null!");
+    }
+    if (!quant_multiplier) {
+      llvm_unreachable("quant_multiplier is null!");
+    }
+    this->rshift = quant_rshift->at(0);
+    this->multiplier = quant_multiplier->at(0);
+    set_i8_avg_mkldnn();
+  } else {
+    mkldnn::memory::dims mkl_src_shape = {n, c, ih, iw};
+    mkldnn::memory::dims mkl_dst_shape = {n, c, oh, ow};
+    mkldnn::memory::dims mkl_strides = {sh, sw};
+    mkldnn::memory::dims mkl_kernel = {kh, kw};
+    mkldnn::memory::dims mkl_padding_tl = {pt, pl};
+    mkldnn::memory::dims mkl_padding_br = {pb, pr};
 
-  mkldnn::memory mkl_src_memory = mkldnn::memory(
-      {{mkl_src_shape}, dt::f32, tag::nchw}, mkl_eng, input_data->data());
+    mkldnn::memory mkl_src_memory = mkldnn::memory(
+        {{mkl_src_shape}, dt::f32, tag::nchw}, mkl_eng, input_data->data());
 
-  mkldnn::memory mkl_dst_memory = mkldnn::memory(
-      {{mkl_dst_shape}, dt::f32, tag::nchw}, mkl_eng, output_data->data());
+    mkldnn::memory mkl_dst_memory = mkldnn::memory(
+        {{mkl_dst_shape}, dt::f32, tag::nchw}, mkl_eng, output_data->data());
 
-  auto pool_avg_algo = count_include_pad
-                           ? mkldnn::algorithm::pooling_avg_include_padding
-                           : mkldnn::algorithm::pooling_avg_exclude_padding;
+    auto pool_avg_algo = count_include_pad
+                             ? mkldnn::algorithm::pooling_avg_include_padding
+                             : mkldnn::algorithm::pooling_avg_exclude_padding;
 
-  // auto src_md = mkldnn::memory::desc({mkl_src_shape}, dt::f32, tag::any);
-  // auto dst_md = mkldnn::memory::desc({mkl_dst_shape}, dt::f32, tag::any);
+    // pool desc
+    auto pool_desc = mkldnn::pooling_forward::desc(
+        mkldnn::prop_kind::forward_inference,
+        is_avg ? pool_avg_algo : mkldnn::algorithm::pooling_max,
+        mkl_src_memory.get_desc(), mkl_dst_memory.get_desc(), mkl_strides,
+        mkl_kernel, mkl_padding_tl, mkl_padding_br);
 
-  // pool desc
-  auto pool_desc = mkldnn::pooling_forward::desc(
-      mkldnn::prop_kind::forward_inference,
-      is_avg ? pool_avg_algo : mkldnn::algorithm::pooling_max,
-      mkl_src_memory.get_desc(), mkl_dst_memory.get_desc(), mkl_strides,
-      mkl_kernel, mkl_padding_tl, mkl_padding_br);
+    auto prim_desc =
+        mkldnn::pooling_forward::primitive_desc(pool_desc, mkl_eng);
 
-  auto prim_desc = mkldnn::pooling_forward::primitive_desc(pool_desc, mkl_eng);
+    // do reorder if needed
+    auto src_memory = mkl_src_memory;
+    if (prim_desc.src_desc() != mkl_src_memory.get_desc()) {
+      src_memory = mkldnn::memory(prim_desc.src_desc(), mkl_eng);
+      mkl_net.push_back(mkldnn::reorder(mkl_src_memory, src_memory));
+      mkl_net_args.push_back(
+          {{MKLDNN_ARG_FROM, mkl_src_memory}, {MKLDNN_ARG_TO, src_memory}});
+    }
 
-  // do reorder if needed
-  auto src_memory = mkl_src_memory;
-  if (prim_desc.src_desc() != mkl_src_memory.get_desc()) {
-    src_memory = mkldnn::memory(prim_desc.src_desc(), mkl_eng);
-    mkl_net.push_back(mkldnn::reorder(mkl_src_memory, src_memory));
+    auto dst_memory = mkldnn::memory(prim_desc.dst_desc(), mkl_eng);
+
+    mkl_net.push_back(mkldnn::pooling_forward(prim_desc));
     mkl_net_args.push_back(
-        {{MKLDNN_ARG_FROM, mkl_src_memory}, {MKLDNN_ARG_TO, src_memory}});
-  }
+        {{MKLDNN_ARG_SRC, src_memory}, {MKLDNN_ARG_DST, dst_memory}});
 
-  auto dst_memory = mkldnn::memory(prim_desc.dst_desc(), mkl_eng);
-
-  mkl_net.push_back(mkldnn::pooling_forward(prim_desc));
-  mkl_net_args.push_back(
-      {{MKLDNN_ARG_SRC, src_memory}, {MKLDNN_ARG_DST, dst_memory}});
-
-  // reorder or copy the output
-  if (dst_memory != mkl_dst_memory) {
-    mkl_net.push_back(mkldnn::reorder(dst_memory, mkl_dst_memory));
-    mkl_net_args.push_back(
-        {{MKLDNN_ARG_FROM, dst_memory}, {MKLDNN_ARG_TO, mkl_dst_memory}});
+    // reorder or copy the output
+    if (dst_memory != mkl_dst_memory) {
+      mkl_net.push_back(mkldnn::reorder(dst_memory, mkl_dst_memory));
+      mkl_net_args.push_back(
+          {{MKLDNN_ARG_FROM, dst_memory}, {MKLDNN_ARG_TO, mkl_dst_memory}});
+    }
   }
   assert(mkl_net.size() == mkl_net_args.size() && "something is missing");
+
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
 }
+
+void PoolingOpKernel::set_i8_avg_mkldnn() {
+
+  mkldnn::memory::dims mkl_src_shape = {n, c, ih, iw};
+  mkldnn::memory::dims mkl_filter_shape = mkldnn::memory::dims{c, 1, 1, kh, kw};
+  mkldnn::memory::dims mkl_bias_shape = {c};
+  mkldnn::memory::dims mkl_dst_shape = {n, c, oh, ow};
+  mkldnn::memory::dims mkl_strides = {sh, sw};
+
+  mkldnn::memory::dims mkl_padding_l = {pt, pl};
+  mkldnn::memory::dims mkl_padding_r = {pb, pr};
+  mkldnn::memory::dims mkl_dilation = {0, 0};
+
+  using tag = mkldnn::memory::format_tag;
+  using dt = mkldnn::memory::data_type;
+
+  size_t filter_size = c * kh * kw;
+
+  filter_data = std::make_shared<std::vector<float>>(filter_size, 1);
+  // set mkldnn memory
+  mkldnn::memory mkl_src_memory = mkldnn::memory(
+      {{mkl_src_shape}, dt::f32, tag::nchw}, mkl_eng, input_data->data());
+
+  mkldnn::memory mkl_filter_memory = mkldnn::memory(
+      {{mkl_filter_shape}, dt::f32, tag::goihw}, mkl_eng, filter_data->data());
+
+  zero_bias = std::make_shared<std::vector<float>>(c, 0.0f);
+
+  mkldnn::memory mkl_bias_memory = mkldnn::memory(
+      {{mkl_bias_shape}, dt::f32, tag::x}, mkl_eng, zero_bias->data());
+  mkldnn::memory mkl_dst_memory = mkldnn::memory(
+      {{mkl_dst_shape}, dt::f32, tag::nchw}, mkl_eng, output_data->data());
+
+  mkldnn::memory::desc src_md =
+      mkldnn::memory::desc({mkl_src_shape}, dt::f32, tag::any);
+
+  mkldnn::memory::desc filter_md =
+      mkldnn::memory::desc({mkl_filter_shape}, dt::f32, tag::any);
+  mkldnn::memory::desc bias_md =
+      mkldnn::memory::desc({mkl_bias_shape}, dt::f32, tag::any);
+  mkldnn::memory::desc dst_md =
+      mkldnn::memory::desc({mkl_dst_shape}, dt::f32, tag::any);
+
+  mkldnn::convolution_forward::desc conv_desc =
+      mkldnn::convolution_forward::desc(
+          mkldnn::prop_kind::forward_inference,
+          mkldnn::algorithm::convolution_direct, src_md, filter_md, bias_md,
+          dst_md, mkl_strides, mkl_dilation, mkl_padding_l, mkl_padding_r);
+  mkldnn::convolution_forward::primitive_desc conv_prim_desc =
+      mkldnn::convolution_forward::primitive_desc(conv_desc, mkl_eng);
+
+  // do reorder if needed
+  auto prim_src_memory = mkl_src_memory;
+  if (conv_prim_desc.src_desc() != mkl_src_memory.get_desc()) {
+    prim_src_memory = mkldnn::memory(conv_prim_desc.src_desc(), mkl_eng);
+    mkl_net.push_back(mkldnn::reorder(mkl_src_memory, prim_src_memory));
+    mkl_net_args.push_back(
+        {{MKLDNN_ARG_FROM, mkl_src_memory}, {MKLDNN_ARG_TO, prim_src_memory}});
+  }
+  auto prim_filter_memory = mkl_filter_memory;
+  if (conv_prim_desc.weights_desc() != mkl_filter_memory.get_desc()) {
+    prim_filter_memory = mkldnn::memory(conv_prim_desc.weights_desc(), mkl_eng);
+    mkldnn::reorder(mkl_filter_memory, prim_filter_memory)
+        .execute(mkl_stream, mkl_filter_memory, prim_filter_memory);
+  }
+  auto prim_dst_memory = mkldnn::memory(conv_prim_desc.dst_desc(), mkl_eng);
+
+  mkl_net.push_back(mkldnn::convolution_forward(conv_prim_desc));
+  mkl_net_args.push_back({{MKLDNN_ARG_SRC, prim_src_memory},
+                          {MKLDNN_ARG_WEIGHTS, prim_filter_memory},
+                          {MKLDNN_ARG_BIAS, mkl_bias_memory},
+                          {MKLDNN_ARG_DST, prim_dst_memory}});
+
+  // reorder or copy the output
+  if (prim_dst_memory != mkl_dst_memory) {
+    mkl_net.push_back(mkldnn::reorder(prim_dst_memory, mkl_dst_memory));
+    mkl_net_args.push_back(
+        {{MKLDNN_ARG_FROM, prim_dst_memory}, {MKLDNN_ARG_TO, mkl_dst_memory}});
+  }
+}
+
 void PoolingOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Pool op: [" << this->name
@@ -117,11 +218,42 @@ void PoolingOpKernel::set_tensor(const std::vector<float> &data) {
   }
   this->input_data->assign(data.begin(), data.end());
 };
-void PoolingOpKernel::invoke() {
+
+void PoolingOpKernel::fp32_invoke() {
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
   mkl_stream.wait();
+}
+
+void PoolingOpKernel::i8_avg_invoke() {
+  for (size_t i = 0; i < mkl_net.size(); ++i) {
+    mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
+  }
+  mkl_stream.wait();
+  int in = this->shape.at(0);
+  int ic = this->shape.at(1);
+  int ih = this->shape.at(2);
+  int iw = this->shape.at(3);
+  size_t size = in * ic * ih * iw;
+
+  for (size_t i = 0; i < size; ++i) {
+    output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+        output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
+  }
+}
+
+void PoolingOpKernel::invoke() {
+  if (datatype == DataType::FP32) {
+    fp32_invoke();
+  } else if (datatype == DataType::INT8) {
+    if (pool_method == POOL_METHOD::AVG) {
+      i8_avg_invoke();
+    } else {
+      // int8 max pool same with fp32 max pool
+      fp32_invoke();
+    }
+  }
 }
 std::vector<float> PoolingOpKernel::get_tensor() {
   // deep copy
@@ -138,5 +270,9 @@ void PoolingOpKernel::dump() {
   llvm::outs() << "\tPadding: "
                << "top: " << pt << ", buttom: " << pb << ", left: " << pl
                << ", right: " << pr << "\n";
+  if (this->datatype == DataType::INT8 && pool_method == POOL_METHOD::AVG) {
+    llvm::outs() << "\tRSHIFT: " << rshift << "\n";
+    llvm::outs() << "\tMULTIPLIER: " << multiplier << "\n";
+  }
 }
 } // namespace mlir

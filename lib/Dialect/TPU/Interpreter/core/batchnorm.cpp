@@ -19,7 +19,7 @@ BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping) {
 
   this->name = bnOp.name().str();
   this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
+  set_datatype("NONE");
   // get tensors
   input_data = opTensors[0];
   mean = opTensors[1];

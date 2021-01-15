@@ -44,4 +44,5 @@ void SoftmaxOpKernel::invoke() {
     llvm_unreachable("TODO");
   }
 };
+void SoftmaxOpKernel::dump() { OpKernel::dump(); };
 } // namespace mlir

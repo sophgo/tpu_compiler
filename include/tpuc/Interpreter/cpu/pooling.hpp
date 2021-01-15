@@ -20,6 +20,11 @@ public:
   void set_tensor(const std::vector<float> &data) override;
   std::vector<float> get_tensor() override;
   void dump() override;
+  void set_i8_avg_mkldnn();
+
+private:
+  void fp32_invoke();
+  void i8_avg_invoke();
 
 private:
   SyncedData input_data;
@@ -47,6 +52,12 @@ private:
   int pr;
   int pad_value = 0;
   bool is_asymmetric = false;
+
+  // int8 param
+  float rshift;
+  float multiplier;
+  SyncedData filter_data;
+  SyncedData zero_bias;
 
   // mkldnn setting
   mkldnn::engine mkl_eng;

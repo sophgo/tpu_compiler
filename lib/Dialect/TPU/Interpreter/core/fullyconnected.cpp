@@ -31,6 +31,19 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   this->mkl_eng = mkldnn::engine(mkldnn::engine::kind::cpu, 0);
   this->mkl_stream = mkldnn::stream(mkl_eng);
 
+  if (datatype == DataType::INT8) {
+    auto quant_rshift = opTensors[5];
+    auto quant_multiplier = opTensors[6];
+    if (!quant_rshift) {
+      llvm_unreachable("quant_rshift is null!");
+    }
+    if (!quant_multiplier) {
+      llvm_unreachable("quant_multiplier is null!");
+    }
+    rshift = quant_rshift->at(0);
+    multiplier = quant_multiplier->at(0);
+  }
+
   using tag = mkldnn::memory::format_tag;
   using dt = mkldnn::memory::data_type;
 
@@ -126,5 +139,19 @@ void FullyConnectedOpKernel::invoke() {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
   mkl_stream.wait();
+
+  if (datatype == DataType::INT8) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, true);
+    }
+  }
+}
+void FullyConnectedOpKernel::dump() {
+  OpKernel::dump();
+  if (this->datatype == DataType::INT8) {
+    llvm::outs() << "\tRSHIFT: " << rshift << "\n";
+    llvm::outs() << "\tMULTIPLIER: " << multiplier << "\n";
+  }
 }
 } // namespace mlir

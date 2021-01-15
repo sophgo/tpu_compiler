@@ -6,6 +6,8 @@
 #include <memory>
 namespace mlir {
 
+void relu(float *data, size_t size);
+
 class ReluOpKernel : public CPUOpKernel<ReluOpKernel> {
 public:
   static constexpr const char *OpName = "CPUReluOp";

@@ -1,14 +1,8 @@
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
-
 namespace mlir {
-
-static void relu(float *data, size_t size) {
-  for (size_t i = 0; i < size; ++i) {
-    data[i] = data[i] > 0 ? data[i] : 0;
-  }
-}
 
 Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   auto castOp = cast<tpu::Conv2DOp>(op);
@@ -42,7 +36,7 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
       this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
       if (getOpQuantParamType(&op) == "RSHIFT_AND_M_I32") {
         assert(quant_multiplier);
-        this->use_mutliplier = true;
+        this->use_multiplier = true;
         this->multiplier.assign(quant_multiplier->begin(),
                                 quant_multiplier->end());
       }
@@ -102,10 +96,9 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   // reason is int8 case, bias format is 32bit
   bool do_bias = with_bias;
 
-  if (use_mutliplier) {
+  if (use_multiplier) {
     do_bias = false;
   }
-
 
   mkldnn::memory mkl_bias_memory =
       mkldnn::memory({{mkl_bias_shape}, dt::f32, tag::x}, mkl_eng,
@@ -193,7 +186,7 @@ void Conv2DOpKernel::i8_invoke() {
   }
   mkl_stream.wait();
   if (is_perchannel) {
-    if (use_mutliplier) {
+    if (use_multiplier) {
       quantizeActivationInt8PerChannelMultiplierAndRShift(
           output_data->data(), output_data->data(), bias_data->data(), do_relu,
           n, oc, oh * ow, rshift.data(), multiplier.data());
@@ -240,7 +233,7 @@ void Conv2DOpKernel::dump() {
   llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
   if (this->datatype == DataType::INT8) {
     llvm::outs() << "\tPERCHANNEL: " << is_perchannel << "\n";
-    llvm::outs() << "\tMUTLIPLIER: " << use_mutliplier << "\n";
+    llvm::outs() << "\tMULTIPLIER: " << use_multiplier << "\n";
   }
 }
 } // namespace mlir
