@@ -160,6 +160,23 @@ public:
   }
 
   py::dict getAllTensor() { return getTensorDict(tensorMap_, shapeMap_); }
+  py::dict get_input_details() {
+    py::dict ret;
+    std::vector<std::pair<std::string, size_t>> inputs =
+        interpreter_->get_input_details();
+    for (auto &i : inputs) {
+      ret[i.first.c_str()] = i.second;
+    }
+    return ret;
+  }
+  py::list get_output_details() {
+    py::list ret;
+    std::vector<std::string> outputs = interpreter_->get_output_details();
+    for (auto &i : outputs) {
+      ret.append(i);
+    }
+    return ret;
+  }
   py::dict get_tensor_info() {
     std::vector<std::pair<std::string, std::string>> op_infos =
         interpreter_->get_tensor_info();
@@ -268,5 +285,7 @@ PYBIND11_MODULE(pymlir, m) {
       .def("get_tensors_info", &py_module::get_tensor_info)
       .def("dump", &py_module::dump)
       .def("invoke", py::overload_cast<>(&py_module::invoke))
-      .def("invoke", py::overload_cast<const std::string>(&py_module::invoke));
+      .def("invoke", py::overload_cast<const std::string>(&py_module::invoke))
+      .def("get_input_details", &py_module::get_input_details)
+      .def("get_output_details", &py_module::get_output_details);
 }

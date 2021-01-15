@@ -33,7 +33,8 @@ public:
   InputOpKernel(SyncedData data, SyncedDataShape shape, int index = 0)
       : data(data), index(index){};
 
-  InputOpKernel(Operation &op, value_map_t &valueMapping);
+  InputOpKernel(Operation &op, value_map_t &valueMapping,
+                std::vector<std::pair<std::string, size_t>> &input_details);
   void invoke() override{
       // input op no need to invoke, skip
   };

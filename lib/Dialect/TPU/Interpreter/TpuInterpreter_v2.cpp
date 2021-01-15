@@ -51,14 +51,15 @@ namespace mlir {
 
 void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::InputOp>(op)) {
-    auto input_kernel_op = std::make_unique<InputOpKernel>(op, valueMapping);
+    auto input_kernel_op =
+        std::make_unique<InputOpKernel>(op, valueMapping, input_details);
     oplist.push_back(std::move(input_kernel_op));
     return;
   }
   if (isa<ReturnOp>(op)) {
     // collect resultsList
     for (auto opd : op.getOperands()) {
-      resultsList.push_back(opd);
+      output_details.push_back(getOpName(opd.getDefiningOp()).str());
     }
     return;
   }
@@ -226,10 +227,6 @@ void ModuleInterpreter::dump(std::string name) {
 
 void ModuleInterpreter::allocate_tensors() {
   for (FuncOp func : mlirModule.getOps<FuncOp>()) {
-    // collect inputsList
-    for (auto arg : func.getArguments()) {
-      inputsList.push_back(arg);
-    }
     for (Block &bb : func.getBlocks()) {
       for (auto &op : bb) {
         prepareOperation(op);

@@ -3,7 +3,9 @@
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
-InputOpKernel::InputOpKernel(Operation &op, value_map_t &valueMapping) {
+InputOpKernel::InputOpKernel(
+    Operation &op, value_map_t &valueMapping,
+    std::vector<std::pair<std::string, size_t>> &input_details) {
   auto inputOp = dyn_cast<tpu::InputOp>(op);
   llvm::outs() << " Input op: [" << inputOp.name() << "]\n";
 
@@ -16,6 +18,8 @@ InputOpKernel::InputOpKernel(Operation &op, value_map_t &valueMapping) {
 
   this->name = inputOp.name().str();
   this->op_type = op.getName().getStringRef().str();
+  input_details.push_back(std::make_pair(name, size));
+
   set_datatype(getOpQuant(&op).str());
   this->data = resultTensor;
   // record mapping table for next op connecting

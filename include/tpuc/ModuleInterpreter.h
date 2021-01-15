@@ -139,6 +139,12 @@ public:
     customOpPluginFile_ = file;
   }
 
+  std::vector<std::pair<std::string, size_t>> get_input_details() {
+    return input_details;
+  }
+
+  std::vector<std::string> get_output_details() { return output_details; }
+
   // v2
   void allocate_tensors();
   void prepareOperation(Operation &op);
@@ -149,6 +155,9 @@ public:
   std::vector<float> get_tensor(std::string name);
   std::vector<int64_t> get_tensor_shape(std::string name);
   void dump(std::string name);
+
+  std::vector<std::pair<std::string, size_t>> input_details;
+  std::vector<std::string> output_details;
 
 protected:
   virtual LogicalResult runOperation(Operation &op);
