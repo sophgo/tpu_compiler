@@ -211,11 +211,10 @@ public:
   void allocate() {
     assert(!cvk_tl_ && "Expect no allocated before");
     assert(shapes_.size() == 5 && "Expect 5D tensor");
-    assert(shapes_[NGCHW::G] == 1 && "Expect 1 group");
 
     cvk_tl_shape_t tl_shape = {
-        shapes_[NGCHW::N], shapes_[NGCHW::C], shapes_[NGCHW::H],
-        shapes_[NGCHW::W]};
+        shapes_[NGCHW::N], shapes_[NGCHW::G] * shapes_[NGCHW::C],
+        shapes_[NGCHW::H], shapes_[NGCHW::W]};
     cvk_tl_ = ctx.lmem_alloc_tensor(tl_shape, fmt_, eu_align_);
     assert(cvk_tl_ && "Expect allocated");
 
@@ -765,7 +764,8 @@ typedef struct {
   uint32_t iw_step;
   uint32_t ic_step;
   uint32_t total_needed;
-} TILE_INFO;
+  bool favor_dma;
+} TileInfo;
 
 //
 // We use the local memory to determine the tiled size in both global and local
@@ -810,13 +810,16 @@ public:
     use_double_buffer = false;
   }
 
-  bool determineTileSize(bool useDoubleBuffer);
+  bool checkDmaPolicy(TileInfo &tileInfo);
+  bool determineTileSize(bool useDoubleBuffer, bool favor_dma);
   bool determinePs32TileSize(bool useDoubleBuffer);
-  bool determineDwTileSize(bool useDoubleBuffer);
+  bool determineDwTileSize(bool useDoubleBuffer, bool favor_dma);
 
   void convReuseWeight();
   void convReuseActivation();
   void dwConv();
+
+  void dwConv_pass();
 
   bool canNoTile();
   void convNoTile();
@@ -886,6 +889,9 @@ public:
       std::vector<uint32_t> &cur_gm_input_paddings);
   void adjustComputeForPadOnlyInput(cvk_tl_t *lmInput,
       std::vector<uint32_t> &cur_gm_input_paddings);
+  void adjustComputeForPs32Output(cvk_tl_t *lmOutput);
+  void adjustStoreForPs32Output(cvk_tl_t *lmOutput, cvk_tg_t *gmOutput,
+                                uint64_t ga_offset);
 
   void loadBias(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
       uint32_t cmdQueueIndex);
@@ -900,6 +906,14 @@ public:
       cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
       uint8_t cmdPreExeMode, uint32_t icPos = 0);
   void computePerTensorConv(
+      cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
+      cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
+      uint8_t cmdPreExeMode, uint32_t icPos = 0);
+  void computeDwConv(
+      cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
+      cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
+      uint8_t cmdPreExeMode, uint32_t icPos = 0);
+  void computePerTensorDwConv(
       cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
       cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
       uint8_t cmdPreExeMode, uint32_t icPos = 0);
@@ -1083,7 +1097,7 @@ public:
 private:
   const CviBackendContext &ctx;
 
-  TILE_INFO tile_info;
+  TileInfo tile_info;
   bool use_double_buffer;
 
   TilePolicy tilePolicy;
