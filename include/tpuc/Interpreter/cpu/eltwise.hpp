@@ -25,7 +25,7 @@ private:
   std::vector<SyncedData> inputs_data;
   SyncedData output_data;
   std::vector<SyncedDataShape> inputs_shape;
-  SyncedDataShape output_shape;
+
 
   // int8
   std::vector<float> rshift;

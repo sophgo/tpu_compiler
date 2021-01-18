@@ -17,6 +17,7 @@ SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping) {
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
+  this->axis = castOp.axis();
   this->name = castOp.name().str();
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
@@ -41,7 +42,18 @@ void SoftmaxOpKernel::invoke() {
     int ret = my_softmax2D(input_data->data(), output_data->data(),
                            this->shape.at(0), this->shape.at(1), isBF16);
     assert(ret == 0);
+  } else if (this->shape.size() == 3) {
+    bool isBF16 = datatype == DataType::BF16;
+    int ret = my_softmax3D(input_data->data(), output_data->data(), this->axis,
+                           this->shape, isBF16);
+    assert(ret == 0);
+  } else if (this->shape.size() == 4) {
+    bool isBF16 = datatype == DataType::BF16;
+    int ret = my_softmax4D(input_data->data(), output_data->data(), this->axis,
+                           this->shape, isBF16);
+    assert(ret == 0);
   } else {
+    OpKernel::dump();
     llvm_unreachable("TODO");
   }
 };

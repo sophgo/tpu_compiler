@@ -24,9 +24,12 @@
 #include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
+#include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
+#include "tpuc/Interpreter/cpu/permute.hpp"
 #include "tpuc/Interpreter/cpu/pooling.hpp"
+#include "tpuc/Interpreter/cpu/preprocess.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
 #include "tpuc/Interpreter/cpu/scale.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
@@ -109,7 +112,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(conv_kernel_op));
     return;
   }
-
+  if (isa<tpu::CropOp>(op)) {
+    auto crop_kernel_op = std::make_unique<CropOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(crop_kernel_op));
+    return;
+  }
   if (isa<tpu::EltwiseAddOp>(op)) {
     auto elt_add_kernel_op =
         std::make_unique<EltwiseAddOpKernel>(op, valueMapping);
@@ -125,9 +132,21 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::NoneOp>(op)) {
     return;
   }
+  if (isa<tpu::PermuteOp>(op)) {
+    auto permute_kernel_op =
+        std::make_unique<PermuteOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(permute_kernel_op));
+    return;
+  }
   if (isa<tpu::PoolAvg2DOp>(op) || isa<tpu::PoolMax2DOp>(op)) {
     auto pool_kernel_op = std::make_unique<PoolingOpKernel>(op, valueMapping);
     oplist.push_back(std::move(pool_kernel_op));
+    return;
+  }
+  if (isa<tpu::PreprocessOp>(op)) {
+    auto preprocess_kernel_op =
+        std::make_unique<PreprocessOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(preprocess_kernel_op));
     return;
   }
   if (isa<tpu::ReluOp>(op)) {

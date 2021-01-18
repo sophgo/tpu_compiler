@@ -21,7 +21,6 @@ private:
   SyncedData input_data;
   SyncedData output_data;
   SyncedDataShape input_shape;
-  SyncedDataShape output_shape;
   std::string from;
   std::string to;
   float scale;

@@ -21,7 +21,9 @@ private:
   SyncedData input_data;
   SyncedData output_data;
   SyncedDataShape input_shape;
-  SyncedDataShape output_shape;
+
+  // param
+  int axis;
 };
 } // namespace mlir
 

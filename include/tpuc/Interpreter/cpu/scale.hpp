@@ -23,7 +23,6 @@ private:
   SyncedData bias;
   SyncedData output_data;
   SyncedDataShape input_shape;
-  SyncedDataShape output_shape;
   SyncedDataShape bias_shape;
   SyncedDataShape scale_shape;
   // param

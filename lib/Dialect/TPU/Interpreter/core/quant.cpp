@@ -160,10 +160,12 @@ void QuantOpKernel::invoke() {
   if (this->from == "NONE" && this->to == "INT8") {
     quantizeFromFp32ToInt8(input_data->data(), output_data->data(),
                            input_data->size(), scale, zero_point, false);
-  } else if (this->from == "INT8" && this->to == "NONE") {
+  } else if ((this->from == "INT8" || this->from == "UINT8") &&
+             this->to == "NONE") {
     dequantizeFromInt8ToFp32(input_data->data(), output_data->data(),
                              input_data->size(), scale, zero_point, false);
-  } else if (this->from == "INT8" && this->to == "BF16") {
+  } else if ((this->from == "INT8" || this->from == "UINT8") &&
+             this->to == "BF16") {
     dequantizeFromInt8ToBf16(input_data->data(), output_data->data(),
                              input_data->size(), scale, zero_point);
   } else if (this->from == "BF16" && this->to == "NONE") {
@@ -174,6 +176,9 @@ void QuantOpKernel::invoke() {
   } else if (this->from == "BF16" && this->to == "INT8") {
     quantizeActivationFromBf16ToInt8(output_data->data(), input_data->data(),
                                      output_data->size(), scale);
+  } else {
+    dump();
+    llvm_unreachable("TODO");
   }
 }
 
