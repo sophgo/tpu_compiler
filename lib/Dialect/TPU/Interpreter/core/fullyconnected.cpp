@@ -1,5 +1,6 @@
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
@@ -26,6 +27,8 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   filter_data = opTensors[1];
   bias_data = opTensors[2];
   output_data = resultTensor;
+
+  this->do_relu = fcOp.do_relu();
 
   // set mkldnn
   this->mkl_eng = mkldnn::engine(mkldnn::engine::kind::cpu, 0);
@@ -140,11 +143,19 @@ void FullyConnectedOpKernel::invoke() {
   }
   mkl_stream.wait();
 
+  if (do_relu) {
+    relu(output_data->data(), output_data->size());
+  }
+
   if (datatype == DataType::INT8) {
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
           output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, true);
     }
+  }
+  if (datatype == DataType::BF16) {
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
   }
 }
 void FullyConnectedOpKernel::dump() {

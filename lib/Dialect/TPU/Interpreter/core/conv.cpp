@@ -178,6 +178,9 @@ void Conv2DOpKernel::fp32_invoke() {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
   mkl_stream.wait();
+  if (do_relu) {
+    relu(output_data->data(), output_data->size());
+  }
 };
 
 void Conv2DOpKernel::i8_invoke() {
@@ -213,8 +216,8 @@ void Conv2DOpKernel::invoke() {
   } else if (this->datatype == DataType::INT8) {
     i8_invoke();
   } else {
-    this->dump();
-    llvm_unreachable("TODO");
+    fp32_invoke();
+    clean16bitmantissa(output_data->data(), output_data->data(), output_data->size());
   }
 }
 

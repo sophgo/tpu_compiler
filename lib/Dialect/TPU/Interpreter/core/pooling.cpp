@@ -253,6 +253,10 @@ void PoolingOpKernel::invoke() {
       // int8 max pool same with fp32 max pool
       fp32_invoke();
     }
+  } else {
+    fp32_invoke();
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
   }
 }
 std::vector<float> PoolingOpKernel::get_tensor() {

@@ -167,12 +167,13 @@ void QuantOpKernel::invoke() {
     dequantizeFromInt8ToBf16(input_data->data(), output_data->data(),
                              input_data->size(), scale, zero_point);
   } else if (this->from == "BF16" && this->to == "NONE") {
-    for (size_t i = 0; i < input_data->size(); ++i) {
-      output_data->assign(input_data->begin(), input_data->end());
-    }
-  } else {
-    this->dump();
-    llvm_unreachable("TODO");
+    output_data->assign(input_data->begin(), input_data->end());
+  } else if (this->from == "NONE" && this->to == "BF16") {
+    clean16bitmantissa(input_data->data(), output_data->data(),
+                       output_data->size());
+  } else if (this->from == "BF16" && this->to == "INT8") {
+    quantizeActivationFromBf16ToInt8(output_data->data(), input_data->data(),
+                                     output_data->size(), scale);
   }
 }
 

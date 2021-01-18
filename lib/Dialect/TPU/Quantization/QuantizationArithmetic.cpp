@@ -1084,5 +1084,11 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
     }
   }
 }
+void clean16bitmantissa(float *src, float *dst, int size) {
+  auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(size);
+  FloatToBFloat16(src, tensor_bf16->data(),
+                  size); // with rounding
+  BFloat16ToFloat(tensor_bf16->data(), dst, size);
+}
 
 } // namespace

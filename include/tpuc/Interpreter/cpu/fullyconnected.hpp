@@ -31,7 +31,7 @@ private:
   int m;
   int k;
   int n;
-
+  bool do_relu = false;
   // int8
   float rshift;
   float multiplier;

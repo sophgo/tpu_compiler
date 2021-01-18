@@ -152,12 +152,22 @@ public:
   void invoke(std::string name);
   std::vector<std::pair<std::string, std::string>> get_tensor_info();
   bool set_tensor(std::string name, const std::vector<float> &data);
+
   std::vector<float> get_tensor(std::string name);
   std::vector<int64_t> get_tensor_shape(std::string name);
   void dump(std::string name);
 
   std::vector<std::pair<std::string, size_t>> input_details;
   std::vector<std::string> output_details;
+
+  std::vector<std::string> get_all_tensor_name() {
+    std::lock_guard<std::mutex> lock(invoke_lock);
+    std::vector<std::string> ret;
+    for (auto &op : oplist) {
+      ret.push_back(op->get_name());
+    }
+    return ret;
+  };
 
 protected:
   virtual LogicalResult runOperation(Operation &op);

@@ -133,6 +133,8 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
     float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
     int64_t isz, float *rshift_per_channel, float *multiplier_per_channel, int output_offset=0);
 
+void clean16bitmantissa(float *src, float *dst, int size);
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_QUANTIZATION_ARITHMETIC_H_

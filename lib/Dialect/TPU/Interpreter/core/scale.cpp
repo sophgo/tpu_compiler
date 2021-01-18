@@ -29,6 +29,9 @@ ScaleOpKernel::ScaleOpKernel(Operation &op, value_map_t &valueMapping) {
   valueMapping[result] = std::move(resultTensor);
 }
 void ScaleOpKernel::invoke() {
+  if (datatype != DataType::FP32) {
+    llvm_unreachable("except fp32, other mode please fused batchnorm");
+  }
   int n = this->shape.at(0);
   int c = this->shape.at(1);
   int h = this->shape.at(2);

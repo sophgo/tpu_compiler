@@ -106,8 +106,9 @@ void EltwiseAddOpKernel::invoke() {
   } else if (datatype == DataType::INT8) {
     i8_invoke();
   } else {
-    dump();
-    llvm_unreachable("TODO!");
+    fp32_invoke();
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
   }
 };
 

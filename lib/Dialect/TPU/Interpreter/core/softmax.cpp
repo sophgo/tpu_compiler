@@ -37,8 +37,9 @@ std::vector<float> SoftmaxOpKernel::get_tensor() {
 }
 void SoftmaxOpKernel::invoke() {
   if (this->shape.size() == 2) {
+    bool isBF16 = datatype == DataType::BF16;
     int ret = my_softmax2D(input_data->data(), output_data->data(),
-                           this->shape.at(0), this->shape.at(1), false);
+                           this->shape.at(0), this->shape.at(1), isBF16);
     assert(ret == 0);
   } else {
     llvm_unreachable("TODO");
