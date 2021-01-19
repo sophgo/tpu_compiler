@@ -95,7 +95,9 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   // in int8 case, bias will be add after mkldnn conv
   // reason is int8 case, bias format is 32bit
   bool do_bias = with_bias;
-
+  if(!do_bias){
+    bias_data = zero_bias;
+  }
   if (use_multiplier) {
     do_bias = false;
   }

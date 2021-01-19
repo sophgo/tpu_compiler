@@ -23,6 +23,7 @@
 
 #include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
+#include "tpuc/Interpreter/cpu/broadcastMul.hpp"
 #include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
@@ -109,6 +110,12 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(bn_kernel_op));
     return;
   }
+  if (isa<tpu::BroadcastMulOp>(op)) {
+    auto broadcastmul_kernel_op =
+        std::make_unique<BroadcastMulOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(broadcastmul_kernel_op));
+    return;
+  }
   if (isa<tpu::ConcatOp>(op)) {
     auto concat_kernel_op = std::make_unique<ConcatOpKernel>(op, valueMapping);
     oplist.push_back(std::move(concat_kernel_op));
@@ -177,6 +184,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(sc_kernel_op));
     return;
   }
+  if (isa<tpu::SigmoidOp>(op)) {
+    auto sig_kernel_op = std::make_unique<SigmoidOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(sig_kernel_op));
+    return;
+  }
   if (isa<tpu::SliceOp>(op)) {
     auto slice_kernel_op = std::make_unique<SliceOpKernel>(op, valueMapping);
     oplist.push_back(std::move(slice_kernel_op));
@@ -198,6 +210,7 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
 void ModuleInterpreter::invoke() {
   std::lock_guard<std::mutex> lock(invoke_lock);
   for (auto &node : oplist) {
+    node->dump();
     node->invoke();
   }
 }
