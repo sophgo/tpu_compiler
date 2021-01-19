@@ -38,6 +38,8 @@
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/Debug.h"
+#include "tpuc/MachineInfo.h"
 
 #define DEBUG_TYPE "group_ops"
 
@@ -141,6 +143,63 @@ struct EliminateDeadcodePattern : public RewritePattern {
       // set disable_parallel to previous op
       Operation * prev_op = store_op->getPrevNode();
       auto prev_tl_op = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(prev_op);
+
+      // travel store / load range that make sure the lmem not dirty
+      // ----group 3---
+      // eltwise-add output addr: 64
+      // conv output 0: shape is 1x64x56x56xsi8, overwrite 64
+      // ----group 4---
+      // tl_copy(eltwise-add) # cnt copy from 64 cuz dirty it in different groups
+
+      std::string store_op_name = mlir::getOpName(store_op).str();
+      std::string load_op_name = mlir::getOpName(load_op).str();
+      // c align up lanes
+      //  #define NPU_NUM (MInfo::lane_num)
+      auto get_output_len = [&](Value v) mutable -> int {
+        std::vector<int64_t> store_shape = getTensorShape(v);
+        //auto type = RankedTensorType::get(store_shape, v.getType().cast<RankedTensorType>());
+        auto eltType = v.getType().cast<TensorType>().getElementType();
+        int bitWidth = eltType.getIntOrFloatBitWidth();
+        // unit: byte
+        return std::ceil(store_shape[1] / MInfo::lane_num)
+          * store_shape[2] * store_shape[3] * (bitWidth / 8);
+      };
+
+      int store_sz = get_output_len(store_op->getResult(0));
+      int x1 = store_laddr;
+      int x2 = store_laddr + store_sz;
+
+      LLVM_DEBUG(llvm::dbgs() << llvm::format("op travel from %s(%d~%d) to %s\n",
+            store_op_name.c_str(), x1, x2, load_op_name.c_str()));
+
+      for (auto node = store_op->getNextNode(); node && node != load_op;
+          node = node->getNextNode()) {
+        std::string curr_name = mlir::getOpName(node).str();
+        LLVM_DEBUG(llvm::dbgs() << llvm::format("op: %s ", curr_name.c_str()));
+        int output_addr = -1;
+        if (auto attr = node->getAttr("la_output")) {
+          output_addr = attr.cast<IntegerAttr>().getInt();
+        }
+        else if (auto attr = node->getAttr("la_dst")) {
+          output_addr = attr.cast<IntegerAttr>().getInt();
+        }
+        else {
+          LLVM_DEBUG(llvm::dbgs() << llvm::format(" cnt get op output, continue it\n", curr_name.c_str()));
+          continue;
+        }
+
+        int output_sz = get_output_len(node->getResult(0));
+        int y1 = output_addr;
+        int y2 = output_addr + output_sz;
+        LLVM_DEBUG(llvm::dbgs() << llvm::format("start %d end %d\n",
+              y1, y2));
+        if (std::max(x1,y1) <= std::min(x2,y2)) {
+          LLVM_DEBUG(llvm::dbgs() << llvm::format("op: %s output range is overlap store's, cant copy it\n", curr_name.c_str()));
+          // overlap, skip copy
+          return failure();
+        }
+      }
+
       if (tl_store.getDisableParallel())
         prev_tl_op.setDisableParallel(true);
       // set enable_parallel to next op
@@ -166,6 +225,7 @@ public:
   explicit EliminateDeadcodePass() {}
 
   void runOnFunction() override {
+    MInfo::getChipInfo(getFunction());
     auto fn = getFunction();
     auto *context = &getContext();
 
