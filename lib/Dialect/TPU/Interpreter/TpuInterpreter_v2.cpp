@@ -23,6 +23,7 @@
 
 #include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
+#include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
@@ -32,6 +33,8 @@
 #include "tpuc/Interpreter/cpu/preprocess.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
 #include "tpuc/Interpreter/cpu/scale.hpp"
+#include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
+#include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
 
@@ -106,7 +109,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(bn_kernel_op));
     return;
   }
-
+  if (isa<tpu::ConcatOp>(op)) {
+    auto concat_kernel_op = std::make_unique<ConcatOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(concat_kernel_op));
+    return;
+  }
   if (isa<tpu::Conv2DOp>(op)) {
     auto conv_kernel_op = std::make_unique<Conv2DOpKernel>(op, valueMapping);
     oplist.push_back(std::move(conv_kernel_op));
@@ -162,6 +169,17 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::ScaleOp>(op)) {
     auto scale_kernel_op = std::make_unique<ScaleOpKernel>(op, valueMapping);
     oplist.push_back(std::move(scale_kernel_op));
+    return;
+  }
+  if (isa<tpu::ShuffleChannelOp>(op)) {
+    auto sc_kernel_op =
+        std::make_unique<ShuffleChannelOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(sc_kernel_op));
+    return;
+  }
+  if (isa<tpu::SliceOp>(op)) {
+    auto slice_kernel_op = std::make_unique<SliceOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(slice_kernel_op));
     return;
   }
   if (isa<tpu::SoftmaxOp>(op)) {
