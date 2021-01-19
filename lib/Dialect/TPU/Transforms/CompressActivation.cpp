@@ -40,6 +40,12 @@ using namespace mlir;
 
 namespace {
 
+static llvm::cl::opt<unsigned> clCmprActOverheadRatio(
+    "tpu-cmpr-act-overhead-ratio",
+    llvm::cl::desc("No activation compression if overhead ratio exceeds. "
+                   "0 - no act cmpr."),
+    llvm::cl::init(1000));
+
 struct CmprStat{
   int store;
   int load;
@@ -181,6 +187,45 @@ bool isValidCompressTgConvParam(OpTy convOp) {
   return true;
 }
 
+//
+// yolo_v2_1080
+//   tdma transfer size 1136.76MB, tdma exec 295.52ms, total 427.55ms
+//
+//   tdma transfer size 1330.83MB, tdma exec 241.87ms, total 373.36ms
+//       (ratio 1000)
+bool isSmallDmaOverHead(Operation *op) {
+  int64_t oc_step = 1;
+  if (auto convOp = llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(op)) {
+    if (!isValidCompressTgConvParam<tpu::TG_INT8_PT_Conv2DOp>(convOp))
+      return false;
+
+    oc_step = convOp.tile_param().getValue().oc_step().getInt();
+  } else if (auto convOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+    if (!isValidCompressTgConvParam<tpu::TG_INT8_PC_Conv2DOp>(convOp))
+      return false;
+
+    oc_step = convOp.tile_param().getValue().oc_step().getInt();
+  } else if (auto convOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(op)) {
+    if (!isValidCompressTgConvParam<tpu::TG_BF16_Conv2DOp>(convOp))
+      return false;
+
+    oc_step = convOp.tile_param().getValue().oc_step().getInt();
+  }
+
+  std::vector<int64_t> shapes = getTensorShape(op->getResult(0));
+  int64_t n, oc, oh, ow;
+  getNCHW(shapes, n, oc, oh, ow);
+
+  // Generated tdma command ratio.
+  // Compressed height is 1 for tg op.
+  int64_t ratio =  (oc / oc_step) * oh;
+
+  if (ratio > clCmprActOverheadRatio)
+    return false;
+
+  return true;
+}
+
 static bool isValidCompressTgConvOp(Operation *op) {
   // tg dw-conv not integrated with tg conv
   int ow_step = 0;
@@ -215,6 +260,9 @@ static bool isValidCompressTgConvOp(Operation *op) {
 
   // Not support multi-batch
   if (n > 1)
+    return false;
+
+  if (!isSmallDmaOverHead(op))
     return false;
 
   return isLargeDmaTransfer(op);
