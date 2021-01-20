@@ -193,6 +193,11 @@ def DoGenPseudoWeightNpz : FunctionPass<"gen-pseudo-weight-npz"> {
   let constructor = "mlir::createGenPseudoWeightNpzPass()";
 }
 
+def DoAddTpuPreprocess: FunctionPass<"add-tpu-preprocess"> {
+  let summary = "Add tpu preprocess (crop, mean, scale, swap channel) to input";
+  let constructor = "mlir::createAddTpuPreprocessPass()";
+}
+
 def TpucCanonicalizer : Pass<"canonicalize"> {
   let summary = "Canonicalize operations";
   let description = [{

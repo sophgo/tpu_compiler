@@ -368,28 +368,38 @@ struct ForceThresholdPreprocessOpPattern : public RewritePattern {
       : RewritePattern(TyOp::getOperationName(), 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *opInst,
-                                     PatternRewriter &rewriter) const override {
-    float threshold_y;
-    float threshold_x;
+                                PatternRewriter &rewriter) const override {
 
-    if (isa<tpu::PreprocessOp>(opInst)) {
-      threshold_x = getPreviousOpThreshold(opInst, 0);
-      threshold_y = getOpThreshold(opInst);
-    } else {
+    float threshold_x = getPreviousOpThreshold(opInst, 0);
+    if (threshold_x == 0) {
       return failure();
     }
+
+    float threshold_y = getOpThreshold(opInst);
     if (getOpQuantParamType(opInst) == "THRESHOLD") {
-      if (threshold_x == 255) {
+      if (threshold_y != 0) {
         // assigned already
         return failure();
       }
     }
 
     auto formerOp = opInst->getOperand(0).getDefiningOp();
-    if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
+    if (auto castOp = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
       setOpThreshold(opInst, threshold_x);
-      setOpThreshold(formerOp, 255);
-
+      auto elementType = castOp.getResult().getType().template
+                      cast<TensorType>().getElementType();
+      int max_val = elementType.isUnsignedInteger(8) ? 255 : 128;
+      setOpThreshold(formerOp, max_val);
+    } else if (auto castOp = llvm::dyn_cast_or_null<tpu::CscOp>(formerOp)) {
+      setOpThreshold(opInst, threshold_x);
+      auto elementType = castOp.getResult().getType().template
+                      cast<TensorType>().getElementType();
+      int max_val = elementType.isUnsignedInteger(8) ? 255 : 128;
+      setOpThreshold(formerOp, max_val);
+      // overwrite input's threshold
+      auto inputOp = formerOp->getOperand(0).getDefiningOp();
+      assert(isa<tpu::InputOp>(inputOp));
+      setOpThreshold(inputOp, max_val);
     } else {
       return failure();
     }
@@ -509,7 +519,7 @@ public:
           isa<tpu::ShuffleChannelOp>(op) ||
           isa<tpu::SwapChannelOp>(op) ||
           isa<tpu::UpsampleOp>(op) ||
-          isa<tpu::Yuv420CscOp>(op) ||
+          isa<tpu::CscOp>(op) ||
           isa<tpu::ZeroMaskOp>(op)) {
         // do not assign
       } else if (!failed(setThresholdFromMap(op, threshold_map))) {
@@ -552,7 +562,7 @@ public:
         BypassThresholdDefaultPattern<tpu::ReduceMaxOp>,
         BypassThresholdDefaultPattern<tpu::TileOp>,
         BypassThresholdDefaultPattern<tpu::UpsampleOp>,
-        BypassThresholdDefaultPattern<tpu::Yuv420CscOp>,
+        BypassThresholdDefaultPattern<tpu::CscOp>,
         BypassThresholdDefaultPattern<tpu::ZeroMaskOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
@@ -619,10 +629,11 @@ public:
     //applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     // apply input overwrite preprocess threshold
-    LLVM_DEBUG(llvm::errs() << "Default preprocess threshold overwrite\n";);
+    LLVM_DEBUG(llvm::errs() << "Default csc & preprocess threshold overwrite\n";);
     patterns.clear();
-    patterns.insert<ForceThresholdPreprocessOpPattern<
-        tpu::PreprocessOp>>(context);
+    patterns.insert<
+        ForceThresholdPreprocessOpPattern<tpu::PreprocessOp>
+        >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     LLVM_DEBUG(llvm::errs() << "set CustomOp's threshold\n";);

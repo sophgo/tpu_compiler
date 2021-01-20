@@ -293,12 +293,13 @@ def TPU_ActCmprParamAttr : StructAttr<"ActCmprParam", TPU_Dialect, [
 // Input preprocess parameters structure.
 //===----------------------------------------------------------------------===//
 def TPU_PreprocessParamAttr : StructAttr<"PreprocessParam", TPU_Dialect, [
-    StructFieldAttr<"raw_scale", F32Attr>,
-    StructFieldAttr<"mean", F32ArrayAttr>,
-    StructFieldAttr<"std", F32ArrayAttr>,
-    StructFieldAttr<"input_scale", F32Attr>,
-    StructFieldAttr<"color_order", StrAttr>,
-    StructFieldAttr<"data_format", StrAttr>]> {
+    StructFieldAttr<"pixel_format", StrAttr>,
+    StructFieldAttr<"aligned", BoolAttr>,
+    StructFieldAttr<"resize_dims", I32ArrayAttr>,
+    StructFieldAttr<"keep_aspect_ratio", BoolAttr>,
+    StructFieldAttr<"channel_order", StrAttr>,
+    StructFieldAttr<"scale", F32ArrayAttr>,
+    StructFieldAttr<"mean", F32ArrayAttr>]> {
   let description = "Structure of parameters for preprocess";
 }
 

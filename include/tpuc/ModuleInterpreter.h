@@ -57,22 +57,12 @@ public:
       : mlirModule(module), weightFile_(nullptr) {
 
     for (FuncOp func : module.getOps<FuncOp>()) {
-      // collect inputsList
-      for (auto arg : func.getArguments()) {
-        inputsList.push_back(arg);
-      }
       // collect resultsList
       for (Block &bb : func.getBlocks()) {
         for (auto &op : bb) {
           if (isa<tpu::InputOp>(op)) {
             auto inputOp = dyn_cast<tpu::InputOp>(op);
-            if (inputOp.preprocess().hasValue()) {
-              data_format = inputOp.preprocess()
-                                .getValue()
-                                .data_format()
-                                .getValue()
-                                .str();
-            }
+            inputsList.push_back(inputOp.getResult());
           } else if (isa<ReturnOp>(op)) {
             for (auto opd : op.getOperands()) {
               resultsList.push_back(opd);
@@ -205,7 +195,6 @@ private:
   static std::string customOpPluginFile_;
 
 protected:
-  std::string data_format;
   value_map_t valueMapping;
   std::vector<Value> resultsList;
   std::vector<Value> inputsList;

@@ -47,6 +47,13 @@ do
       -q ${CALI_TABLE} \
       -l ${USE_LAYERGROUP} \
       -v ${SET_CHIP_NAME} \
+      -z ${NET_INPUT_DIMS} \
+      -y ${IMAGE_RESIZE_DIMS} \
+      -r ${RAW_SCALE} \
+      -m ${MEAN} \
+      -s ${STD} \
+      -a ${INPUT_SCALE} \
+      -w ${MODEL_CHANNEL_ORDER} \
       -o ${NET}.cvimodel
   mv ${NET}.cvimodel ..
   # generate with detection version if DO_FUSED_POSTPROCESS is set
@@ -59,6 +66,13 @@ do
         -q ${CALI_TABLE} \
         -l ${USE_LAYERGROUP} \
         -v ${SET_CHIP_NAME} \
+        -z ${NET_INPUT_DIMS} \
+        -y ${IMAGE_RESIZE_DIMS} \
+        -r ${RAW_SCALE} \
+        -m ${MEAN} \
+        -s ${STD} \
+        -a ${INPUT_SCALE} \
+        -w ${MODEL_CHANNEL_ORDER} \
         -o ${NET}_with_detection.cvimodel
     mv ${NET}_with_detection.cvimodel ..
   fi

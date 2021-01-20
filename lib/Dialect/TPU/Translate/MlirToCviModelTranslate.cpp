@@ -446,6 +446,31 @@ void CviModelBuilder::parseModule() {
       auto tensor = std::make_shared<CviTensor>(name, type, opdTensor->offset, false);
       tensor->overwritten = opdTensor->overwritten;
       tensorMaps_.push_back(tensor);
+    } else if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
+      auto name = castOp.name().str();
+      auto type = op->getOperand(0).getType().template cast<TensorType>();
+      int64_t offset = op->getAttr("gaddr") ?
+                       op->getAttr("gaddr").cast<IntegerAttr>().getInt() : -1;
+      auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
+      if (qscaleMap.find(name) != qscaleMap.end()) {
+        if (zpMap[name] == 0){
+          tensor->setInt8SymQuantInfo(qscaleMap[name]);
+        } else {
+          tensor->setInt8AsymQuantInfo(qscaleMap[name], zpMap[name]);
+        }
+      }
+      if (castOp.preprocessAttr()) {
+        auto preprocess = castOp.preprocessAttr();
+        for (auto s : preprocess.scale().getAsValueRange<FloatAttr>()) {
+          tensor->scale.push_back(s.convertToFloat());
+        }
+        for (auto m : preprocess.mean().getAsValueRange<FloatAttr>()) {
+          tensor->mean.push_back(-1 * m.convertToFloat());
+        }
+        tensor->pixel_format = preprocess.pixel_format().getValue().str();
+        tensor->aligned = preprocess.aligned().getValue();
+      }
+      tensorMaps_.push_back(tensor);
     } else {
       auto name = op->getAttr("name").cast<StringAttr>().getValue().str();
       auto type = op->getResult(0).getType().template cast<TensorType>();
@@ -458,23 +483,6 @@ void CviModelBuilder::parseModule() {
           tensor->setInt8SymQuantInfo(qscaleMap[name]);
         } else {
           tensor->setInt8AsymQuantInfo(qscaleMap[name], zpMap[name]);
-        }
-      }
-
-      if (op->getAttr("preprocess")) {
-        auto preprocess = llvm::dyn_cast<tpu::InputOp>(op).preprocess();
-        if (preprocess.hasValue()) {
-          auto color = preprocess.getValue().color_order().getValue().str();
-          auto raw_scale = preprocess.getValue().raw_scale().getValue().convertToFloat();;
-          std::vector<float> mean;
-          std::for_each(preprocess.getValue().mean().begin(), preprocess.getValue().mean().end(),
-            [&](mlir::Attribute attr){ mean.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
-          std::vector<float> std;
-                  std::for_each(preprocess.getValue().std().begin(), preprocess.getValue().std().end(),
-            [&](mlir::Attribute attr){ std.push_back(attr.cast<FloatAttr>().getValue().convertToFloat()); });
-          auto input_scale = preprocess.getValue().input_scale().getValue().convertToFloat();
-          auto data_format = preprocess.getValue().data_format().getValue().str();
-          preprocess_ = {color, raw_scale, mean, std, input_scale, data_format};
         }
       }
 
@@ -662,12 +670,17 @@ FBTensorVector CviModelBuilder::buildNeuronMap() {
     for (int i = 0; i < 4; i++) {
       shape.push_back(tensor->shape[i]);
     }
-    auto fbName = fbb_.CreateString(tensor->name);
     auto fbShapeVec = fbb_.CreateVector(shape);
     auto fbShape = CreateShape(fbb_, fbShapeVec);
     auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type, 0, 0, tensor->zero_point, tensor->qscale);
-    auto fbTensor = CreateTensor(fbb_, 0, fbName, tensor->offset, tensor->dtype, fbShape,
-                                 0, fbQuant, tensor->overwritten);
+    auto fbTensor = CreateTensorDirect(
+        fbb_, 0, tensor->name.c_str(), tensor->offset, tensor->dtype,
+        fbShape, 0, fbQuant, tensor->overwritten,
+        tensor->scale.size() ? &tensor->scale : nullptr,
+        tensor->mean.size() ? &tensor->mean : nullptr,
+        tensor->pixel_format.length() ?
+            tensor->pixel_format.c_str() : nullptr,
+        tensor->aligned);
     tensorVec.push_back(fbTensor);
   }
   return fbb_.CreateVector(tensorVec);

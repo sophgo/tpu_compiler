@@ -51,6 +51,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertInterp.cpp
   Transforms/ConvertConv2D.cpp
   Transforms/ConvertConv3D.cpp
+  Transforms/ConvertCsc.cpp
   Transforms/ConvertLrn.cpp
   Transforms/ConvertUpsample.cpp
   Transforms/ConvertPoolMask.cpp
@@ -77,6 +78,7 @@ add_llvm_library(MLIRTPU
   Optimization/FullyConnectedTile.cpp
   Optimization/TgOpTile.cpp
   Optimization/DoEarlyStride.cpp
+  Optimization/AddTpuPreprocess.cpp
   Optimization/DeepFusion/SimpleDeepFusion.cpp
   Optimization/DeepFusion/ConvertTG2TL_LA.cpp
   Optimization/DeepFusion/ConvertTL_LA2LW.cpp
@@ -128,6 +130,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgSwapChannelKernel.cpp
   Backend/Kernel/TgYuv420Kernel.cpp
   Backend/Kernel/TgTileKernel.cpp
+  Backend/Kernel/TgTensorCopyKernel.cpp
   Backend/Kernel/TgUpsampleKernel.cpp
   Backend/Kernel/TgFixedReduceKernel.cpp
   Backend/Kernel/TgBf16Conv3dKernel.cpp

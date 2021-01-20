@@ -1620,7 +1620,7 @@ Value tpu::SwapChannelOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("channel_order", channel_orderAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
+    //assert(getOpQuantParamType() == "NONE");
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_SwapChannelOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -1634,28 +1634,58 @@ Value tpu::SwapChannelOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-Value tpu::Yuv420CscOp::convertToTG() {
+Value tpu::CscOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
-  //   TensorFile *wTF = getWeightTensorFile(op);
 
   std::vector<Value> operands;
   operands.push_back(input());
 
+  auto pixel_format = this->pixel_format().str();
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  if (this->channel_order().hasValue()) {
-    attrs.push_back(builder.getNamedAttr("channel_order", channel_orderAttr()));
-  }
-  if (getOpQuant() == "UINT8" || getOpQuant() == "INT8") {
+
+  if (pixel_format == "YUV420_PLANAR") {
+    assert(getOpQuant() == "INT8" || getOpQuant() == "UINT8");
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_Yuv420CscOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
+  } else {
+    assert(getOpQuant() == "INT8" || getOpQuant() == "UINT8");
+    std::vector<int64_t> input_shape;
+    std::vector<int64_t> output_shape;
+    int64_t input_size, n, c, h, w;
+    int64_t output_size, on, oc, oh, ow;
+    getTensorShapeAndSize(op->getOperand(0), input_shape, input_size);
+    getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+    getNCHW(input_shape, n, c, h, w);
+    getNCHW(output_shape, on, oc, oh, ow);
+
+    int unaligned_w = (int)(oc * oh * ow / (c * h));
+    std::vector<int> crop_shape{(int)n, (int)c, (int)h, unaligned_w};
+    std::vector<int> crop_offset{0, 0, 0, 0};
+    attrs.push_back(
+        builder.getNamedAttr("crop_shape", builder.getI32ArrayAttr(crop_shape)));
+    attrs.push_back(
+        builder.getNamedAttr("crop_offset", builder.getI32ArrayAttr(crop_offset)));
+    auto elementType = getResult().getType().cast<TensorType>().getElementType();
+    auto cropType = RankedTensorType::get({n, c, h, unaligned_w}, elementType);
+    auto cropOp = OpBuilder(op).create<tpu::TG_INT8_CropOp>(op->getLoc(),
+        cropType, ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+
+    attrs.clear();
+    attrs.push_back(builder.getNamedAttr("name",
+        builder.getStringAttr(name().str() + "_reshape")));
+    auto newOp = OpBuilder(op).create<tpu::ReshapeOp>(op->getLoc(),
+        getResult().getType(), ArrayRef<Value>{{cropOp}},
+        ArrayRef<NamedAttribute>{attrs});
+
+    return newOp.getResult();
   }
-  llvm_unreachable("unsupported type");
 }
 
 Value tpu::TileOp::convertToTG() {
@@ -4319,7 +4349,7 @@ public:
         DefaultToTGPattern<tpu::SoftPlusOp>,
         DefaultToTGPattern<tpu::SquareOp>,
         DefaultToTGPattern<tpu::QuadraticSumOp>,
-        DefaultToTGPattern<tpu::Yuv420CscOp>,
+        DefaultToTGPattern<tpu::CscOp>,
         DefaultToTGPattern<tpu::ZeroMaskOp>,
         DefaultToTGPattern<tpu::MatMulOp>
         >(context);

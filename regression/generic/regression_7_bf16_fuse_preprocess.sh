@@ -8,68 +8,18 @@ echo "$0 net=$NET"
 # make image data only resize, for interpreter, use fp32
 cvi_preprocess.py \
     --image_file $IMAGE_PATH \
-    --net_input_dims ${IMAGE_RESIZE_DIMS} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --data_format nhwc \
+    --pixel_format RGB_PACKAGE \
+    --aligned 0 \
     --batch_size $BATCH_SIZE \
     --input_name input \
     --output_npz ${NET}_only_resize_in_fp32.npz
 
-input_shape=`cvi_npz_tool.py get_shape ${NET}_only_resize_in_fp32.npz input`
-
-if [ $PREPROCESS_CROPMETHOD == "aspect_ratio" ]; then
-    export IMAGE_RESIZE_DIMS=${NET_INPUT_DIMS}
-fi
-
-cvi_model_convert.py \
-    --model_path $MODEL_DEF \
-    --model_dat=$MODEL_DAT \
-    --model_name ${NET} \
-    --model_type $MODEL_TYPE \
-    --batch_size $BATCH_SIZE \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --raw_scale ${RAW_SCALE} \
-    --mean ${MEAN} \
-    --std ${STD} \
-    --input_scale ${INPUT_SCALE} \
-    --model_channel_order $MODEL_CHANNEL_ORDER \
-    --pixel_format BGR_PACKAGE \
-    --batch_size $BATCH_SIZE \
-    --convert_preprocess 1 \
-    --mlir_file_path ${NET}_fp32_fused_preprocess.mlir
-
 tpuc-opt \
-    --convert-bn-to-scale \
-    --convert-clip-to-relu6 \
-    --canonicalize \
-    --fuse-relu \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_fuesd_preprocess.csv \
-    ${NET}_fp32_fused_preprocess.mlir \
-    -o ${NET}_fp32_opt_fused_preprocess.mlir
-
-# test frontend optimizations
-tpuc-interpreter ${NET}_fp32_opt_fused_preprocess.mlir \
-    --tensor-in ${NET}_only_resize_in_fp32.npz \
-    --tensor-out ${NET}_out_fp32.npz \
-    --dump-all-tensor=${NET}_tensor_all_fp32.npz
-
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_fp32.npz \
-    ${NET}_blobs.npz \
-    --op_info ${NET}_op_info_fuesd_preprocess.csv  \
-    --excepts="$EXCEPTS,input,data" \
-    --tolerance=0.999,0.999,0.998 -vv
-
-tpuc-opt \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
-    --tpu-quant --quant-full-bf16 \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_bf16_fused_preprocess.csv \
-    ${NET}_fp32_opt_fused_preprocess.mlir \
+    --add-tpu-preprocess \
+    --pixel_format RGB_PACKAGE \
+    ${NET}_quant_bf16.mlir \
     -o ${NET}_quant_bf16_fused_preprocess.mlir
 
 # test fused preprocess bf16 interpreter
@@ -82,7 +32,7 @@ tpuc-interpreter ${NET}_quant_bf16_fused_preprocess.mlir \
 cvi_npz_tool.py compare \
     ${NET}_tensor_all_bf16_fused_preprocess.npz \
     ${NET}_blobs.npz \
-    --op_info ${NET}_op_info_bf16_fused_preprocess.csv \
+    --op_info ${NET}_op_info_bf16.csv \
     --dequant \
     --excepts="$EXCEPTS,input,data" \
     --tolerance=$TOLERANCE_BF16 \
@@ -91,36 +41,36 @@ cvi_npz_tool.py compare \
 # cvimodel
 $DIR/../mlir_to_cvimodel.sh \
     -i ${NET}_quant_bf16_fused_preprocess.mlir \
-    -o ${NET}_fused_preprocess_bf16.cvimodel
+    -o ${NET}_bf16_fused_preprocess.cvimodel
 
 model_runner \
     --dump-all-tensors \
     --input ${NET}_only_resize_in_fp32.npz \
-    --model ${NET}_fused_preprocess_bf16.cvimodel \
+    --model ${NET}_bf16_fused_preprocess.cvimodel \
     --batch-num $BATCH_SIZE \
     --output ${NET}_cmdbuf_out_all_bf16_fused_preprocess.npz
 
 cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_bf16_fused_preprocess.npz \
     ${NET}_tensor_all_bf16_fused_preprocess.npz \
-    --op_info ${NET}_op_info_bf16_fused_preprocess.csv \
+    --op_info ${NET}_op_info_bf16.csv \
     --tolerance ${TOLERANCE_BF16_CMDBUF}
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   if [ $BATCH_SIZE -eq 1 ]; then
     cp ${NET}_only_resize_in_fp32.npz \
-        $CVIMODEL_REL_PATH/${NET}_fused_preprocess_in_fp32.npz
-    mv ${NET}_fused_preprocess_bf16.cvimodel $CVIMODEL_REL_PATH
+        $CVIMODEL_REL_PATH/${NET}_bf16_fused_preprocess_in_fp32.npz
+    mv ${NET}_bf16_fused_preprocess.cvimodel $CVIMODEL_REL_PATH
     cp ${NET}_cmdbuf_out_all_bf16_fused_preprocess.npz \
-        $CVIMODEL_REL_PATH/${NET}_fused_preprocess_bf16_out_all.npz
+        $CVIMODEL_REL_PATH/${NET}_bf16_fused_preprocess_out_all.npz
 
   else
     cp ${NET}_only_resize_in_fp32.npz \
-        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess_in_fp32.npz
-    mv ${NET}_fused_preprocess_bf16.cvimodel \
-        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess_bf16.cvimodel
+        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_bf16_fused_preprocess_in_fp32.npz
+    mv ${NET}_bf16_fused_preprocess.cvimodel \
+        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_bf16_fused_preprocess.cvimodel
     cp ${NET}_cmdbuf_out_all_bf16_fused_preprocess.npz \
-        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_fused_preprocess_bf16_out_all.npz
+        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_bf16_fused_preprocess_out_all.npz
   fi
 fi
 

@@ -169,7 +169,7 @@ static void insertQuantOp(Operation *op) {
       }
     }
 
-    if (prev_quant == "INT8" && isa<tpu::Yuv420CscOp>(prev_op)) {
+    if (prev_quant == "INT8" && isa<tpu::CscOp>(prev_op)) {
       prev_quant = "UINT8";
     }
 
@@ -534,33 +534,6 @@ struct ExtendPreprocessOpPattern : public RewritePattern {
     }
     mlir::Value current_op = input_op;
     int64_t tn = in, tc = ic, th = ih, tw = iw;
-    // create yuv420_csc
-    if (preprocessOp.pixel_format().str() == "YUV420_PLANAR") {
-      std::string name =
-          getOpName(preprocessOp).str() + "_preprocess_yuv420_csc";
-      auto yuv420_type =
-          RankedTensorType::get({tn, tc, th, tw}, eltType);
-      std::vector<NamedAttribute> attrs;
-
-      attrs.push_back(
-          builder.getNamedAttr("name", builder.getStringAttr(name)));
-      if (color_orders.empty() == false) {
-        attrs.push_back(builder.getNamedAttr(
-            "channel_order",
-            builder.getI32ArrayAttr(ArrayRef<int32_t>({color_orders}))));
-      }
-      attrs.push_back(
-          builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
-      // we only accept first input to IR, second input shape will be attribute.
-      auto yuv420_op = OpBuilder(op).create<tpu::Yuv420CscOp>(
-          op->getLoc(), yuv420_type, ArrayRef<Value>{current_op},
-          ArrayRef<NamedAttribute>{attrs});
-      setOpThreshold(yuv420_op, quantThreshold);
-      setOpQuantParamType(yuv420_op, "THRESHOLD");
-      setOpQuant(yuv420_op, "UINT8");
-      color_orders.clear();
-      current_op = yuv420_op;
-    }
 
     // create int8 transpose
     if (preprocessOp.transpose_order().hasValue()) {

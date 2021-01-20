@@ -37,6 +37,7 @@ class TPU_OpType(Enum):
     Concat = 'tpu.concat'
     Conv2d = 'tpu.conv_2d'
     Crop = 'tpu.crop'
+    Csc = 'tpu.csc'
     Clip = 'tpu.clip'
     CustomOp = 'tpu.custom_op'
     DeConv2d = 'tpu.deconv_2d'
@@ -218,6 +219,8 @@ class MLIRImporter(object):
             return self.f32Type
         elif _type == "i8":
             return self.i8Type
+        elif _type == "ui8":
+            return self.u8Type
         else:
             raise RuntimeError("No support {}".format(_type))
 
@@ -248,18 +251,24 @@ class MLIRImporter(object):
 
     def add_input_op(self, name, index, **kargs):
         assert (index < len(self.func_args))
-
+        shape = [self.tensor_inputs_type[index].get_dim_size(x) \
+                 for x in range(self.tensor_inputs_type[index].rank)]
+        print("shape:", shape)
         mean = kargs.get('mean', [0, 0, 0])
         scale = kargs.get('scale', [1, 1, 1])
         pixel_format = kargs.get('pixel_format', 'BGR_PLANAR')
+        channel_order = kargs.get('channel_order', 'bgr')
+        keep_aspect_ratio = kargs.get('keep_aspect_ratio', False)
+        resize_dims = kargs.get('resize_dims', shape[-2:])
 
         preprocess_param = {
             'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in mean]),
-            'std':  ArrayAttr.get([FloatAttr.get_f32(x) for x in scale]),
-            'input_scale': FloatAttr.get_f32(1),
-            'raw_scale': FloatAttr.get_f32(255),
-            'color_order': StringAttr.get('bgr'),
-            'data_format': StringAttr.get(pixel_format)
+            'scale':  ArrayAttr.get([FloatAttr.get_f32(x) for x in scale]),
+            'keep_aspect_ratio': BoolAttr.get(keep_aspect_ratio),
+            'resize_dims': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in resize_dims]),
+            'channel_order': StringAttr.get(channel_order),
+            'pixel_format': StringAttr.get(pixel_format),
+            'aligned': BoolAttr.get(False)
         }
 
         quant_param = {
@@ -271,16 +280,15 @@ class MLIRImporter(object):
             'threshold_min': FloatAttr.get_f32(0),
             'zero_point': IntegerAttr.get(self.i32Type, 0),
         }
-        if self.input_type == "UINT8":
-            quant_param['mode'] = StringAttr.get("UINT8")
 
         attributes = {
             "name": StringAttr.get(name),
             "quant": DictAttr.get(quant_param),
             "preprocess": DictAttr.get(preprocess_param)
         }
-        op = Operation.create(TPU_OpType.Input.value, results=[
-                              self.tensor_inputs_type[index]],
+
+        op = Operation.create(TPU_OpType.Input.value,
+                              results=[self.tensor_inputs_type[index]],
                               operands=[self.func_args[index]],
                               attributes=attributes)
         self.insert_point.insert(op)
@@ -506,6 +514,23 @@ class MLIRImporter(object):
         # quant param
         return self.buildOp(TPU_OpType.Conv2d.value, inputOperands, [
             tensor_output_type], name=conv_name, param=dict_attr, quant=quant_param)
+
+    def add_csc_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        assert(len(inputOperands) == 1)
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        name = StringAttr.get(op_name)
+
+        checkKey(kargs, 'pixel_format')
+        checkKey(kargs, 'aligned')
+
+        attr_dict = {
+            'pixel_format': StringAttr.get(kargs['pixel_format']),
+            'aligned': BoolAttr.get(kargs['aligned'])
+        }
+        return self.buildOp(TPU_OpType.Csc.value, inputOperands, [
+            tensor_output_type], name=name, quant=self.quant_param, **attr_dict)
 
     def add_custom_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         """

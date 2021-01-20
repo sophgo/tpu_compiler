@@ -116,9 +116,8 @@ class OnnxConverter(BaseConverter):
 
         self.converted_nodes = list()
         self.converted_tensors = list()
-        self.convert_preprocess = convert_preprocess
         self.preprocess_args = preprocess_args
-
+        self.input_shapes = list()
 
         self.CVI = None
         self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
@@ -196,16 +195,7 @@ class OnnxConverter(BaseConverter):
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
-
-            if self.convert_preprocess:
-                resize_h, resize_w = self.preprocess_args.get("resize_dims")
-                pixel_format = self.preprocess_args.get('pixel_format')
-                if pixel_format == 'GRAYSCALE':
-                    input_shape = [input_shape[0], 1, resize_h, resize_w]
-                elif pixel_format.endswith('_PLANAR'):
-                    input_shape = [input_shape[0], input_shape[1], resize_h, resize_w]
-                else: # '_PACKAGE'
-                    input_shape = [input_shape[0], resize_h, resize_w, input_shape[1]]
+            self.input_shapes.append(input_shape)
             inputs.append(input_shape)
         # get output shape
         outputs = list()
@@ -223,7 +213,7 @@ class OnnxConverter(BaseConverter):
             self.output_shapes.append(output_shape)
 
         # init importer
-        self.CVI = MLIRImporter(inputs, outputs, "UINT8" if self.convert_preprocess else "FP32", output_weight_file=self.output_weight_file)
+        self.CVI = MLIRImporter(inputs, outputs, "FP32", output_weight_file=self.output_weight_file)
 
     def remove_tensor_from_input_nodes(self):
         def find_name_in_tensor_list(name):
@@ -313,32 +303,21 @@ class OnnxConverter(BaseConverter):
                 else:
                     input_shape.append(dim.dim_value)
 
-            if self.convert_preprocess:
-                preprocess_hint = {
-                    'mean': np.array([0,0,0], dtype=np.float32),
-                    'scale':  np.array([1,1,1], dtype=np.float32),
-                    'pixel_format': self.preprocess_args["pixel_format"],
-                    'aligned': self.preprocess_args['aligned']
-                }
-                # add preprocess
-                input_op = self.CVI.add_input_op(input.name, idx, **preprocess_hint)
-
-                output_shape = input_shape
-                new_op = self.CVI.add_preprocess_op(
-                    "{}_preprocess".format(input.name), [input_op], output_shape, **self.preprocess_args)
+            if not self.preprocess_args:
+                input_op = self.CVI.add_input_op(input.name, idx, **{})
             else:
-                if self.preprocess_args:
-                    preprocess_hint = {
-                        'mean': self.preprocess_args['perchannel_mean'],
-                        'scale':  self.preprocess_args['perchannel_scale'],
-                        'pixel_format': self.preprocess_args["pixel_format"],
-                        'aligned': self.preprocess_args['aligned']
-                    }
-                else:
-                    preprocess_hint = {}
-                new_op = self.CVI.add_input_op(input.name, idx, **preprocess_hint)
-
-            self.addOperand(input.name, new_op, input_shape, TensorType.ACTIVATION)
+                preprocess_hint = {
+                    'mean': self.preprocess_args['perchannel_mean'],
+                    'scale':  self.preprocess_args['perchannel_scale'],
+                    'pixel_format': self.preprocess_args["pixel_format"],
+                    'channel_order': self.preprocess_args["channel_order"],
+                    'aligned': self.preprocess_args["aligned"],
+                    'resize_dims': self.preprocess_args['resize_dims'],
+                    'keep_aspect_ratio': self.preprocess_args['keep_aspect_ratio']
+                }
+                # add input op
+                input_op = self.CVI.add_input_op(input.name, idx, **preprocess_hint)
+            self.addOperand(input.name, input_op, input_shape, TensorType.ACTIVATION)
 
         def NoneAndRaise(node):
             raise RuntimeError("{} Op not support now".format(node.op_type))

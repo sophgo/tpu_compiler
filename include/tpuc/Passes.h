@@ -87,6 +87,8 @@ std::unique_ptr<mlir::Pass> createEliminateDeadcodePass();
 std::unique_ptr<mlir::Pass> createGroupOpsPass();
 std::unique_ptr<mlir::Pass> createReorderOpPass();
 
+std::unique_ptr<mlir::Pass> createAddTpuPreprocessPass();
+
 /// Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION
 #include "tpuc/Dialect/TPU/Passes.h.inc"

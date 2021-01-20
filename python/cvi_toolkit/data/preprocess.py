@@ -4,8 +4,10 @@ import cv2
 import argparse
 
 supported_pixel_formats = [
-    'RGB_PLANAR', 'RGB_PACKAGE',
-    'BGR_PLANAR', 'BGR_PACKAGE',
+    'RGB_PLANAR',
+    'RGB_PACKAGE',
+    'BGR_PLANAR',
+    'BGR_PACKAGE',
     'GRAYSCALE',
     'YUV420_PLANAR',
     None
@@ -46,7 +48,7 @@ class ImageResizeTool:
         return new_image
 
 def add_preprocess_parser(parser):
-    parser.add_argument("--net_input_dims", type=str, default='0,0',
+    parser.add_argument("--net_input_dims", type=str,
                          help="'h,w', model's input heigh/width dimension")
     parser.add_argument("--resize_dims", type=str,
                         help="Image was resize to fixed 'h,w', default is same as net_input_dims")
@@ -91,18 +93,23 @@ class preprocess(object):
     def __init__(self):
         pass
 
-    def config(self, net_input_dims='0,0',
+    def config(self, net_input_dims=None,
                resize_dims=None, crop_method='center', keep_aspect_ratio=False,
                raw_scale=255.0, mean='0,0,0', std='1,1,1', input_scale=1.0,
                channel_order='bgr', pixel_format=None, data_format='nchw',
                aligned=False, gray=False, **ignored):
+        if not net_input_dims and not resize_dims:
+            raise RuntimeError("net_input_dims or resize_dims should be set")
 
-        self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
+        if net_input_dims:
+            self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
+            if not resize_dims:
+                self.resize_dims = self.net_input_dims
         if resize_dims:
             self.resize_dims = [int(s) for s in resize_dims.split(',')]
+            if not net_input_dims:
+                self.net_input_dims = self.resize_dims
             self.resize_dims = [max(x,y) for (x,y) in zip(self.resize_dims, self.net_input_dims)]
-        else :
-            self.resize_dims = self.net_input_dims
 
         self.crop_method = crop_method
         self.keep_aspect_ratio = keep_aspect_ratio
@@ -122,8 +129,8 @@ class preprocess(object):
         #     perchannel_scale = (input_scale / std) * (raw_scale / 255)
         sa = self.raw_scale / 255
         sb = self.input_scale / self.std
-        self.perchannel_mean = self.mean / sa
-        self.perchannel_scale = sb * sa
+        self.perchannel_scale = sa * sb
+        self.perchannel_mean = self.mean * sb
 
         self.channel_order = channel_order
 
@@ -145,7 +152,7 @@ class preprocess(object):
         self.data_format = 'nchw' if self.pixel_format.endswith('PLANAR') else 'nhwc'
         self.gray = True if self.pixel_format == 'GRAYSCALE' else False
 
-        if self.data_format == "YUV420_PLANAR":
+        if self.pixel_format == "YUV420_PLANAR":
             self.aligned = True
 
         format_str = "  Preprocess args : \n" + \
@@ -201,18 +208,20 @@ class preprocess(object):
         img = img[:, crop[0]:crop[2], crop[1]:crop[3]]
         return img
 
+    def align_up(self, x, n):
+        return x if n == 0 else ((x + n - 1)// n) * n
+
+
     def rgb2yuv420(self, input):
-        def align_up(x, n):
-            return x if n == 0 else ((x + n - 1)// n) * n
         # every 4 y has one u,v
         # vpss format, w align is 32, channel align is 4096
         h, w, c = input.shape
-        y_w_aligned = align_up(w, 32)
-        uv_w_aligned = align_up(int(w/2), 32)
+        y_w_aligned = self.align_up(w, 32)
+        uv_w_aligned = self.align_up(int(w/2), 32)
         y_offset = 0
-        u_offset = align_up(y_offset + h * y_w_aligned, 4096)
-        v_offset = align_up(u_offset + int(h/2) * uv_w_aligned, 4096)
-        total_size = align_up(v_offset + int(h/2) * uv_w_aligned, 4096)
+        u_offset = self.align_up(y_offset + h * y_w_aligned, 4096)
+        v_offset = self.align_up(u_offset + int(h/2) * uv_w_aligned, 4096)
+        total_size = self.align_up(v_offset + int(h/2) * uv_w_aligned, 4096)
         yuv420 = np.zeros(int(total_size), np.uint8)
         for h_idx in range(h):
             for w_idx in range(w):
@@ -262,6 +271,23 @@ class preprocess(object):
             image = np.transpose(image, (2, 0, 1))
         return image
 
+    def align_package_frame(self, x, aligned):
+        if not aligned:
+            return x
+        h, w, c = x.shape
+        w = w * c
+        x = np.reshape(x, (1, h, w))
+        x_tmp = np.zeros((1, h, self.align_up(w, 32)), x.dtype)
+        x_tmp[:, :, : w] = x
+        return x_tmp
+
+    def align_planar_frame(self, x, aligned):
+        if not aligned:
+            return x
+        c, h, w = x.shape
+        x_tmp = np.zeros((c, h, self.align_up(w, 32)), x.dtype)
+        x_tmp[:, :, :w] = x
+        return x_tmp
 
     def run(self, input, batch=1):
         # load and resize image, the output image is chw format.
@@ -301,16 +327,19 @@ class preprocess(object):
             x = self.rgb2yuv420(x)
             x = x.astype(np.float32)
             assert(batch == 1)
-        elif self.pixel_format.startswith('RGB') or \
-              self.pixel_format.startswith('BGR'):
+        elif self.pixel_format == 'GRAYSCALE':
+            x = self.align_planar_frame(x, self.aligned)
+            x = np.expand_dims(x, axis=0)
+        else:
             if self.pixel_format.startswith('RGB'):
                 # swap to 'rgb'
                 x = x[[2, 1, 0], :, :]
             if self.data_format == 'nhwc':
                 x = np.transpose(x, (1, 2, 0))
+                x = self.align_package_frame(x, self.aligned)
+            else:
+                x = self.align_planar_frame(x, self.aligned)
             # expand to 4 dimensions
-            x = np.expand_dims(x, axis=0)
-        else: # GRAYSCALE
             x = np.expand_dims(x, axis=0)
 
         if batch > 1:

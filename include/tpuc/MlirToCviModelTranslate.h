@@ -91,6 +91,10 @@ public:
   QuantType quant_type = QuantType_NONE;
   int zero_point = 0;
   float qscale = 0.0f;
+  std::vector<float> scale;
+  std::vector<float> mean;
+  std::string pixel_format;
+  bool aligned = false;
 
   bool is_weight = false;
   bool overwritten = false;

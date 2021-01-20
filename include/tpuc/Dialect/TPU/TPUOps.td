@@ -585,6 +585,40 @@ def TPU_CropOp: TPU_Op<"crop",
   let hasCanonicalizer = 1;
 }
 
+def TPU_CscOp: TPU_Op<"csc",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Color space convert for model's inputs";
+
+  let description = [{
+     Performs csc operation on inputs.
+
+    Inputs:
+      `input`          : required, input tensors.
+
+    Attributes:
+      `pixel_format`    : required, pixel format type.
+      `name`            : required, name for calibration, comparing, or debug.
+
+    Result:
+      `output`          : result tensor.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$pixel_format,
+    TPU_QuantParamAttr:$quant,
+    BoolAttr:$aligned,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+  let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
+}
+
 def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
 
 def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
@@ -1865,48 +1899,6 @@ def TPU_PreprocessOp : TPU_Op<"preprocess",
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
     TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_Yuv420CscOp : TPU_Op<"yuv420_csc",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "yuv420_csc preprocess operator";
-
-  let description = [{
-    convert yuv420 to bgr/rgb
-
-    Inputs:
-      `input`           : required, input tensors
-
-    Attributes:
-      `channel_order`   : optional, channel swap order, default convert to bgr
-                          if order is [2,1,0], will convert to rgb
-      `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<I32ArrayAttr>:$channel_order,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
 

@@ -72,30 +72,30 @@ do
 done
 
 fused_preprocess_opt=""
+fused_preprocess_opt+="--net_input_dims ${net_input_dims} "
+if [ ! -z "$raw_scale" ]; then
+  fused_preprocess_opt+="--raw_scale ${raw_scale} "
+fi
+if [ ! -z "$mean" ]; then
+  fused_preprocess_opt+="--mean ${mean} "
+fi
+if [ ! -z "$std" ]; then
+  fused_preprocess_opt+="--std ${std} "
+fi
+if [ ! -z "$input_scale" ]; then
+  fused_preprocess_opt+="--input_scale ${input_scale} "
+fi
+if [ ! -z "$raw_scale" ]; then
+  fused_preprocess_opt+="--raw_scale ${raw_scale} "
+fi
+if [ ! -z "$channel_order" ]; then
+  fused_preprocess_opt+="--model_channel_order ${channel_order} "
+fi
+if [ ! -z $image_resize_dims ]; then
+  fused_preprocess_opt+="--image_resize_dims ${image_resize_dims} "
+fi
 if [ $do_fused_preprocess = "1" ]; then
-  fused_preprocess_opt="--convert_preprocess 1 "
-  fused_preprocess_opt+="--net_input_dims ${net_input_dims} "
-  if [ ! -z "$raw_scale" ]; then
-    fused_preprocess_opt+="--raw_scale ${raw_scale} "
-  fi
-  if [ ! -z "$mean" ]; then
-    fused_preprocess_opt+="--mean ${mean} "
-  fi
-  if [ ! -z "$std" ]; then
-    fused_preprocess_opt+="--std ${std} "
-  fi
-  if [ ! -z "$input_scale" ]; then
-    fused_preprocess_opt+="--input_scale ${input_scale} "
-  fi
-  if [ ! -z "$raw_scale" ]; then
-    fused_preprocess_opt+="--raw_scale ${raw_scale} "
-  fi
-  if [ ! -z "$channel_order" ]; then
-    fused_preprocess_opt+="--model_channel_order ${channel_order} "
-  fi
-  if [ ! -z $image_resize_dims ]; then
-    fused_preprocess_opt+="--image_resize_dims ${image_resize_dims} "
-  fi
+  fused_preprocess_opt+="--convert_preprocess 1 "
   if [ ! -z $crop_offset ]; then
     echo "convert_model.sh NOT support crop_offset yet"
     exit 1
@@ -103,7 +103,6 @@ if [ $do_fused_preprocess = "1" ]; then
 fi
 
 name=$(basename "$model_def" | cut -d. -f1)
-
 if [[ "$model_type" == "caffe" ]]; then
   cvi_model_convert.py \
       --model_path $model_def \

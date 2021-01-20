@@ -49,7 +49,6 @@ class CaffeConverter(BaseConverter):
         self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
 
 
-        self.convert_preprocess = convert_preprocess
         self.preprocess_args = preprocess_args
 
         self.caffeop_factory = {
@@ -136,15 +135,6 @@ class CaffeConverter(BaseConverter):
             input_shape = list(self.blobs[i].shape)
             input_shape[0] = self.batch_size
             self.blobs[i].reshape(*input_shape)
-            if self.convert_preprocess:
-                resize_h, resize_w = self.preprocess_args.get("resize_dims")
-                pixel_format = self.preprocess_args.get('pixel_format')
-                if pixel_format == 'GRAYSCALE':
-                    input_shape = [input_shape[0], 1, resize_h, resize_w]
-                elif pixel_format.endswith('_PLANAR'):
-                    input_shape = [input_shape[0], input_shape[1], resize_h, resize_w]
-                else: # '_PACKAGE'
-                    input_shape = [input_shape[0], resize_h, resize_w, input_shape[1]]
             self.input_shapes.append(input_shape)
 
         self.net.reshape()
@@ -157,8 +147,7 @@ class CaffeConverter(BaseConverter):
                     o_shape[2] = layer.detection_output_param.keep_top_k
                     break
             self.output_shapes.append(o_shape)
-        self.CVI = MLIRImporter(self.input_shapes, self.output_shapes,
-                                "UINT8" if self.convert_preprocess else "FP32",
+        self.CVI = MLIRImporter(self.input_shapes, self.output_shapes, "FP32",
                                 output_weight_file=self.output_weight_file)
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
@@ -1655,33 +1644,21 @@ class CaffeConverter(BaseConverter):
             input_shape[0] = self.batch_size
             data_format = 'nhwc'
 
-            if self.convert_preprocess:
-                preprocess_hint = {
-                    'mean': np.array([0,0,0], dtype=np.float32),
-                    'scale':  np.array([1,1,1], dtype=np.float32),
-                    'pixel_format': self.preprocess_args["pixel_format"],
-                    'aligned': self.preprocess_args['aligned']
-                }
-                # add preprocess
-                input_op = self.CVI.add_input_op(name, idx, **preprocess_hint)
-
-                output_shape = input_shape
-                new_op = self.CVI.add_preprocess_op(
-                    "{}_preprocess".format(name), [input_op], output_shape, **self.preprocess_args)
+            if not self.preprocess_args:
+                input_op = self.CVI.add_input_op(name, idx, **{})
             else:
-                if self.preprocess_args:
-                    preprocess_hint = {
-                        'mean': self.preprocess_args['perchannel_mean'],
-                        'scale':  self.preprocess_args['perchannel_scale'],
-                        'pixel_format': self.preprocess_args["pixel_format"],
-                        'aligned': self.preprocess_args["aligned"]
-                    }
-                else:
-                    preprocess_hint = {}
-
-                new_op = self.CVI.add_input_op(name, idx, **preprocess_hint)
-
-            self.addOperand(name, new_op, input_shape, TensorType.ACTIVATION)
+                preprocess_hint = {
+                    'mean': self.preprocess_args['perchannel_mean'],
+                    'scale':  self.preprocess_args['perchannel_scale'],
+                    'pixel_format': self.preprocess_args["pixel_format"],
+                    'channel_order': self.preprocess_args['channel_order'],
+                    'keep_aspect_ratio': self.preprocess_args['keep_aspect_ratio'],
+                    'resize_dims': self.preprocess_args['resize_dims'],
+                    'aligned': self.preprocess_args["aligned"],
+                }
+                # add input op
+                input_op = self.CVI.add_input_op(name, idx, **preprocess_hint)
+            self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
 
         for layer in self.layers:
             is_test_phase = True

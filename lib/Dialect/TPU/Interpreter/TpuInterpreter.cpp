@@ -1676,17 +1676,17 @@ LogicalResult tpu::FrcnDetectionOp::interpret(
 
 LogicalResult tpu::InputOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
+  // Operation *op = this->getOperation();
   LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
 
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  auto resultT = std::make_unique<std::vector<float> >();
+  // auto opdT = getOperandTensors(op, valueMapping);
+  // auto result = this->getResult();
+  // auto resultT = std::make_unique<std::vector<float> >();
 
-  // use copy for now
-  resultT->assign(opdT[0]->begin(), opdT[0]->end());
+  // // use copy for now
+  // resultT->assign(opdT[0]->begin(), opdT[0]->end());
 
-  valueMapping[result] = std::move(resultT);
+  // valueMapping[result] = std::move(resultT);
 
   return success();
 }
@@ -2643,6 +2643,50 @@ LogicalResult tpu::PReluOp::interpret(
   return success();
 }
 
+LogicalResult tpu::CscOp::interpret(
+  DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
+                          << "]\n";);
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  std::vector<int64_t> input_shape;
+  std::vector<int64_t> output_shape;
+  int64_t input_size, n, c, h, w;
+  int64_t output_size, on, oc, oh, ow;
+  getTensorShapeAndSize(op->getOperand(0), input_shape, input_size);
+  getTensorShapeAndSize(result, output_shape, output_size);
+  getNCHW(input_shape, n, c, h, w);
+  getNCHW(output_shape, on, oc, oh, ow);
+
+  auto resultT = std::make_unique<std::vector<float>>(output_size);
+
+  auto pixel_format = this->pixel_format().str();
+  auto aligned = this->aligned();
+
+  if (pixel_format == "YUV420_PLANAR") {
+    std::vector<int> orders{0, 1, 2};
+    my_yuv420_csc(opdT[0]->data(), resultT->data(), on, oc, oh, ow, orders,
+                  getOpQuant() == "NONE" ? 0 : 1);
+  } else if (aligned) {
+    // do crop to make data unaligned
+    std::vector<int64_t> crop_shape(input_shape.begin(), input_shape.end());
+    crop_shape[3] = (int)(oc * oh * ow / (c * h));
+    std::vector<int> crop_offset{0, 0, 0, 0};
+    std::vector<int> indices(4, 0);
+    llvm::errs() << "crop_shape: <" << crop_shape[0]
+                 << "," << crop_shape[1] << ", " << crop_shape[2]
+                 << "," << crop_shape[3] << "\n";
+
+    my_crop(opdT[0]->data(), resultT->data(), input_shape.data(),
+          crop_shape.data(), 0, crop_offset.data(), indices.data());
+  } else {
+    resultT->assign(opdT[0]->begin(), opdT[0]->end());
+  }
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::PreprocessOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -2710,13 +2754,13 @@ LogicalResult tpu::PreprocessOp::interpret(
   // }
   std::string pixel_format = this->pixel_format().str();
   std::vector<float> rgb_tmp_data(input_size);
-  if (pixel_format == "YUV420_PLANAR") {
-    my_yuv420_csc(input->data(), rgb_tmp_data.data(), n, c, h, w,
-                  color_orders);
-    color_orders.clear();
-  } else {
+  // if (pixel_format == "YUV420_PLANAR") {
+  //   my_yuv420_csc(input->data(), rgb_tmp_data.data(), n, c, h, w,
+  //                 color_orders);
+  //   color_orders.clear();
+  // } else {
     rgb_tmp_data.assign(input->begin(), input->end());
-  }
+  //}
 
   // Transpose
   std::vector<float> transpose_tmp_data(input_size);
@@ -4103,42 +4147,6 @@ LogicalResult tpu::YoloDetectionOp::interpret(
   return success();
 }
 
-LogicalResult tpu::Yuv420CscOp::interpret(
-    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
-                          << "]\n";);
-
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto shape = getTensorShape(result);
-  auto resultT = std::make_unique<std::vector<float>>(size);
-  int64_t n, c, h, w;
-  getNCHW(shape, n, c, h, w);
-  float *input = (float *)opdT[0]->data();
-  float *output = (float *)resultT->data();
-  std::vector<int> order;
-  if (this->channel_order().hasValue()) {
-    arrayAttrToVector(this->channel_order().getValue(), order);
-  } else {
-    order.push_back(0);
-    order.push_back(1);
-    order.push_back(2);
-  }
-  int type = 0;
-  if (getOpQuant() == "NONE") {
-    type = 0;
-  } else if (getOpQuant() == "BF16") {
-    type = 2;
-  } else {
-    type = 1;
-  }
-  my_yuv420_csc(input, output, n, c, h, w, order, type);
-  valueMapping[result] = std::move(resultT);
-  return success();
-}
-
 LogicalResult tpu::ZeroMaskOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();
@@ -4347,25 +4355,8 @@ LogicalResult ModuleInterpreter::doRun(
   auto inputs = getInputsList();
   if (inputs.size() == 1) {
     std::vector<int64_t> shape = inputs[0].getType().template cast<TensorType>().getShape();
-
-    // check input data shape
-    if (input_shape != shape && data_format != "YUV420_PLANAR"){
-      std::string i_s, r_s;
-      for (auto &dim : input_shape) {
-        i_s = i_s + std::to_string(dim) + " ";
-      }
-      for (auto &dim : shape) {
-        r_s = r_s + std::to_string(dim) + " ";
-
-      }
-      assert((int64_t)input_data.size() ==
-             std::accumulate(shape.begin(), shape.end(), 1,
-                             std::multiplies<int64_t>()));
-    }
     updateValue(inputs[0], input_data);
-
-  }
-  else {
+  } else {
     // parse mlir and get each input, we concatenate all inputs
     // e.g: input is func @tpu_func(%arg0: tensor<1x30720x1xf32>, %arg1: tensor<1x7680x1xf32>, %arg2: tensor<1x1920x1xf32>, %arg3: tensor<1x480x1xf32>, %arg4: tensor<1x120x1xf32>) -> tensor<1x40920x1xf32>
     // 1x30720x1 + 1x7680x1 + 1x1920x1 + 1x480x1 + 1x120x1
