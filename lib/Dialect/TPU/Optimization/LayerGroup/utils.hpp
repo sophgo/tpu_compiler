@@ -62,10 +62,12 @@ static inline int ceiling_func(int numerator, int denominator) {
 #define LOG_TAB_L4 "        "
 #define LOG_TAB_L5 "          "
 
+#define SMALL_TDMA_SIZE (10*1024*1024)
 // layer group strategy
 typedef enum {
   USE_FIT_H_SLICE = 0,
-  USE_MAX_H_SLICE = 1
+  USE_MAX_H_SLICE = 1,
+  LG_MAX_H_SLICE
 }LG_Strategy;
 
 typedef enum {

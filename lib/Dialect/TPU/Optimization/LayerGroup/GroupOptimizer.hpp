@@ -27,6 +27,7 @@ class GroupOptimizer {
   FuncOp out_fn_;
   MLIRContext * context_;
   LG_Strategy strategy_;
+  std::vector<uint64_t> cost_;
 
   void do_group(std::vector<Group*>& groups);
   void do_group_seso(std::vector<Group*>& groups);
@@ -35,6 +36,7 @@ class GroupOptimizer {
   int calc_group_out_tensors_size(Group* target, const std::vector<int>& cut_points);
   void set_input_output_tensor();
   void layer_group();
+  uint64_t cal_group_cost();
   void choose_best_group();
   void set_strategy(int s);
 };

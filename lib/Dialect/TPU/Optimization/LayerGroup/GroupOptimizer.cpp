@@ -18,38 +18,64 @@ GroupOptimizer::~GroupOptimizer() {
   }
 }
 
-void GroupOptimizer::choose_best_group() {
-  std::vector<uint64_t> cost;
-  int strategy_idx = 0;
-  // calculate the strategy cost
-  for(auto groups: groups_v_) {
-    cost.push_back(0);
-    int group_idx = 0;
-    LLVM_DEBUG(llvm::errs() << LOG_TAB_L1
-               << "[Layer Strategy]: " << strategy_idx << "\n";);
-    for(auto group: groups) {
-      std::set<int> in_tensors = group->get_group_in_neuron_tensors();
-      for (auto tensor_id: in_tensors) {
-        Tensor* tensor = net_graph_->get_tensor_by_id(tensor_id);
-        cost[strategy_idx] += tensor->gmem_size();
-      }
-
-      std::vector<int> out_tensors = group->get_group_out_tensors();
-      for (int j = 0; j < (int32_t)out_tensors.size(); ++j) {
-        Tensor* tensor = net_graph_->get_tensor_by_id(out_tensors[j]);
-        cost[strategy_idx] += tensor->gmem_size();
-      }
-
-      LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-                << "[Layer Strategy] group " << group_idx << " : total cost is: "
-                << cost[strategy_idx] << "\n";);
-      group_idx++;
+uint64_t GroupOptimizer::cal_group_cost() {
+  int group_idx = 0;
+  uint64_t total_cost = 0;
+  for(auto group: groups_) {
+    uint64_t cost = 0;
+    uint64_t lmem_cost = 0;
+    float ratio = 1.0;
+    std::set<int> in_tensors = group->get_group_in_neuron_tensors();
+    for (auto tensor_id: in_tensors) {
+      Tensor* tensor = net_graph_->get_tensor_by_id(tensor_id);
+      cost += tensor->gmem_size();
+      lmem_cost += tensor->lmem_size();
+      LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
+                              << "[In tensor]: " << tensor->gmem_size() << " " << tensor->lmem_size()
+                              << " n_c_h_w: " << tensor->n() << " " << tensor->c()
+                              << " " << tensor->h() << " " << tensor->w()
+                              << "total cost: " << cost << "\n");
     }
-    strategy_idx++;
-  }
 
+    std::vector<int> out_tensors = group->get_group_out_tensors();
+    for (int j = 0; j < (int32_t)out_tensors.size(); ++j) {
+      Tensor* tensor = net_graph_->get_tensor_by_id(out_tensors[j]);
+      cost += tensor->gmem_size();
+      lmem_cost += tensor->lmem_size();
+      LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
+                              << "[Out tensor]: " << tensor->gmem_size() << " " << tensor->lmem_size()
+                              << " n_c_h_w: " << tensor->n() << " " << tensor->c()
+                              << " " << tensor->h() << " " << tensor->w()
+                              << "total cost: " << cost << "\n");
+    }
+
+    // calculate cost for single layer group since tiu/tdma is parallel
+    if (group->size() == 1) {
+      int id = group->layers()[0];
+      ImLayer* layer = const_cast<ImLayer*>(net_graph_->get_layer_by_id(id));
+      // for convolution, tdma is parallel with tiu, only calculate the first tdma slice
+      if (layer->type() == IR_CONVOLUTION || layer->type() == IR_DECONVOLUTION) {
+        ratio = (float)lmem_cost / LOCAL_MEM_SIZE;
+        cost = (uint64_t)(cost / int(ratio+1));
+      }
+    }
+    total_cost += cost;
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
+              << "[Layer Strategy] group " << group_idx << "ratio: " << ratio
+              << " cost: " << cost << " total: " << total_cost << "\n";);
+    group_idx++;
+  }
+  return total_cost;
+}
+
+void GroupOptimizer::choose_best_group() {
   // get the minimal cost
-  int min_idx = std::min_element(cost.begin(),cost.end()) - cost.begin();
+  int min_idx = std::min_element(cost_.begin(),cost_.end()) - cost_.begin();
+
+  // set the first strategy as the default one
+  // if is small network (tdma size < 10M)
+  if (cost_[min_idx] < SMALL_TDMA_SIZE)
+    min_idx = 0;
 
   // set group_
   set_strategy(min_idx);
@@ -67,15 +93,19 @@ void GroupOptimizer::set_strategy(int s) {
 }
 
 void GroupOptimizer::layer_group() {
+  std::vector<uint64_t> cost;
   // Try method 1
   set_strategy(USE_FIT_H_SLICE);
   do_group(groups_);
+  cost_.push_back(cal_group_cost());
   groups_v_.push_back(groups_);
   groups_.clear();
   // Try method 2
   set_strategy(USE_MAX_H_SLICE);
   do_group(groups_);
+  cost_.push_back(cal_group_cost());
   groups_v_.push_back(groups_);
+  groups_.clear();
 
   choose_best_group();
 }
