@@ -34,8 +34,8 @@ void ScaleOpKernel::invoke() {
   }
   int n = this->shape.at(0);
   int c = this->shape.at(1);
-  int h = this->shape.at(2);
-  int w = this->shape.at(3);
+  int h = this->shape.size() > 2 ? this->shape.at(2) : 1;
+  int w = this->shape.size() > 3 ? this->shape.at(3) : 1;
   for (int ni = 0; ni < n; ++ni) {
     for (int ci = 0; ci < c; ++ci) {
       for (int i = 0; i < h * w; ++i) {

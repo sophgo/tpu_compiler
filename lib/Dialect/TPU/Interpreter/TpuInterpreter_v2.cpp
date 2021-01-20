@@ -37,6 +37,7 @@
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
 #include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
+#include "tpuc/Interpreter/cpu/swap_channel.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
 
 #include "tpuc/ModuleInterpreter.h"
@@ -157,6 +158,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(pool_kernel_op));
     return;
   }
+  if (isa<tpu::PReluOp>(op)) {
+    auto prelu_kernel_op = std::make_unique<PReluOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(prelu_kernel_op));
+    return;
+  }
   if (isa<tpu::PreprocessOp>(op)) {
     auto preprocess_kernel_op =
         std::make_unique<PreprocessOpKernel>(op, valueMapping);
@@ -166,6 +172,12 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::ReluOp>(op)) {
     auto relu_kernel_op = std::make_unique<ReluOpKernel>(op, valueMapping);
     oplist.push_back(std::move(relu_kernel_op));
+    return;
+  }
+  if (isa<tpu::ReshapeOp>(op)) {
+    auto reshape_kernel_op =
+        std::make_unique<ReshapeOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(reshape_kernel_op));
     return;
   }
   if (isa<tpu::QuantOp>(op)) {
@@ -198,6 +210,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     auto softmax_kernel_op =
         std::make_unique<SoftmaxOpKernel>(op, valueMapping);
     oplist.push_back(std::move(softmax_kernel_op));
+    return;
+  }
+  if (isa<tpu::SwapChannelOp>(op)) {
+    auto sc_kernel_op = std::make_unique<SwapChannelOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(sc_kernel_op));
     return;
   }
 

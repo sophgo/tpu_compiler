@@ -52,8 +52,8 @@ void BatchNormOpKernel::invoke() {
   }
   int n = this->shape.at(0);
   int c = this->shape.at(1);
-  int h = this->shape.at(2);
-  int w = this->shape.at(3);
+  int h = this->shape.size() > 2 ? this->shape.at(2) : 1;
+  int w = this->shape.size() > 3 ? this->shape.at(3) : 1;
 
   float scale_factor = 1 / scale->at(0);
   for (int i = 0; i < c; ++i) {

@@ -10,14 +10,11 @@
 
 namespace mlir {
 
-static void hardwareLookUpTable(float *input, float *output, int n, int c,
-                                int h, int w,
+static void hardwareLookUpTable(float *input, float *output, int size,
                                 const std::vector<float> &y0_bf16_table,
                                 const std::vector<float> &y0_bf16_slope_table,
                                 const int bf16_table_start,
                                 const int bf16_table_end) {
-
-  int shape_size = n * c * h * w;
 
   // interger index range
   // from 16(-8~8)->256(lut index size)
@@ -26,7 +23,7 @@ static void hardwareLookUpTable(float *input, float *output, int n, int c,
   // rounding
   scale = convert_bf16_fp32(convert_fp32_bf16(scale));
 
-  for (int i = 0; i < shape_size; ++i) {
+  for (int i = 0; i < size; ++i) {
     float reOffset_input = convert_bf16_fp32(convert_fp32_bf16(input[i]));
     float rescale_input =
         convert_bf16_fp32(convert_fp32_bf16(reOffset_input)) * scale;
@@ -103,6 +100,142 @@ void ReluOpKernel::invoke() {
 
 void ReluOpKernel::dump() { OpKernel::dump(); }
 
+PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto preluOp = cast<tpu::PReluOp>(op);
+  assert(preluOp);
+  llvm::outs() << " PRelu op: [" << preluOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = preluOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->slope_data.assign(opTensors[1]->begin(), opTensors[1]->end());
+
+  this->name = preluOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+
+  if (datatype == DataType::INT8) {
+    assert(opTensors[6]);
+    assert(opTensors[7]);
+    assert(opTensors[8]);
+    this->rshift_postive.assign(opTensors[6]->begin(), opTensors[6]->end());
+    this->multiplier_postive.assign(opTensors[7]->begin(), opTensors[7]->end());
+    this->rshift_negative.assign(opTensors[8]->begin(), opTensors[8]->end());
+  }
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void PReluOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " PRelu op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> PReluOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void PReluOpKernel::invoke() {
+  int n = shape[0];
+  int c = shape[1];
+  int h = shape[2];
+  int w = shape[3];
+  int size = n * c * h * w;
+  for (int batch = 0; batch < n; ++batch) {
+    for (int channel = 0; channel < c; ++channel) {
+      int index = batch * c * w * h + channel * w * h;
+      for (int i = 0; i < w * h; ++i) {
+        if (input_data->at(index + i) > 0) {
+          output_data->at(index + i) = input_data->at(index + i);
+        } else {
+          output_data->at(index + i) =
+              slope_data[channel] * input_data->at(index + i);
+        }
+      }
+    }
+  }
+  if (datatype == DataType::INT8) {
+    for (int i = 0; i < size; ++i) {
+      if (input_data->at(i) > 0) {
+        output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            output_data->at(i), (uint32_t)rshift_postive.at(0),
+            multiplier_postive.at(0), false);
+      } else {
+        output_data->at(i) = (float)applyRShiftAndSaturateInt8(
+            output_data->at(i), (uint32_t)rshift_negative.at(0));
+      }
+    }
+  } else if (datatype == DataType::BF16) {
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
+  }
+}
+
+void PReluOpKernel::dump() { OpKernel::dump(); }
+
+ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto reshapeOp = cast<tpu::ReshapeOp>(op);
+  assert(reshapeOp);
+  llvm::outs() << " PRelu op: [" << reshapeOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = reshapeOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = reshapeOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = opTensors[0];
+
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(opTensors[0]);
+}
+void ReshapeOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " PRelu op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> ReshapeOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void ReshapeOpKernel::invoke() {
+  // reshape op no need to invoke, skip
+}
+
+void ReshapeOpKernel::dump() { OpKernel::dump(); }
+
 SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping) {
   auto sigmoidOp = cast<tpu::SigmoidOp>(op);
   assert(sigmoidOp);
@@ -153,16 +286,15 @@ std::vector<float> SigmoidOpKernel::get_tensor() {
 }
 
 void SigmoidOpKernel::invoke() {
-  int n = shape[0];
-  int c = shape[1];
-  int h = shape[2];
-  int w = shape[3];
+  int size =
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+
   if (datatype == DataType::INT8) {
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    hardwareLookUpTable(input_data->data(), output_data->data(), n, c, h, w,
+    hardwareLookUpTable(input_data->data(), output_data->data(), size,
                         y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
                         bf16_max_range);
   } else {

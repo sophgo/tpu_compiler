@@ -25,6 +25,46 @@ private:
   SyncedDataShape input_shape;
 };
 
+class PReluOpKernel : public CPUOpKernel<PReluOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUPReluOp";
+
+  PReluOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  std::vector<float> slope_data;
+
+  std::vector<float> rshift_postive;
+  std::vector<float> rshift_negative;
+  std::vector<float> multiplier_postive;
+};
+
+class ReshapeOpKernel : public CPUOpKernel<ReshapeOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUReshapeOp";
+
+  ReshapeOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+};
+
 class SigmoidOpKernel : public CPUOpKernel<SigmoidOpKernel> {
 public:
   static constexpr const char *OpName = "CPUSigmoidOp";
@@ -49,7 +89,6 @@ private:
   std::vector<float> y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
-  
 };
 } // namespace mlir
 
