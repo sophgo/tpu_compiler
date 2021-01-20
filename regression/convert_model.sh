@@ -20,7 +20,7 @@ usage()
   echo -e "\t-o Output cvimodel file"
   echo -e "\t-l Do layergroup optimization                  [default: 1]"
   echo -e "\t-p Do fused preprocess                         [default: 0]"
-  echo -e "\t-x Fused preprocess net input dims in h,w"
+  echo -e "\t-z Fused preprocess net input dims in h,w"
   echo -e "\t-r Fused preprocess raw scale                  [default: 255.0]"
   echo -e "\t-m Fused preprocess mean                       [default: 0.0,0.0,0.0]"
   echo -e "\t-s Fused preprocess std                        [default: 1.0,1.0,1.0]"
