@@ -8,7 +8,7 @@ export WORKING_PATH=${WORKING_PATH:-$DIR/regression_out}
 WORKDIR=${WORKING_PATH}/specific
 mkdir -p $WORKDIR
 pushd $WORKDIR
-  $DIR/yuv420_test.sh
+#  $DIR/yuv420_test.sh
 popd
 
 # VERDICT
