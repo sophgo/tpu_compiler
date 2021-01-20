@@ -1,5 +1,5 @@
 #!/bin/bash
-set -xe
+set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 NET=mobilenet_v2
@@ -135,7 +135,8 @@ model_runner \
 cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz \
     ${NET}_tensor_all_int8_multiplier_fused_preprocess.npz \
-    --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv
+    --op_info ${NET}_op_info_int8_multiplier_fused_preprocess.csv \
+    --excepts="$EXCEPTS,input,data"
 
 # VERDICT
 echo $0 PASSED
