@@ -101,7 +101,8 @@ class TFLiteTensor():
 
 
 class TFLiteConverter(BaseConverter):
-    def __init__(self, model_name, tflite_model_file, mlir_file_path):
+    def __init__(self, model_name, tflite_model_file,
+                 mlir_file_path, preprocess_args=None):
         super().__init__()
         self.model_name = model_name
 
@@ -131,7 +132,7 @@ class TFLiteConverter(BaseConverter):
 
         self.converted_nodes = list()
         self.converted_tensors = list()
-
+        self.preprocess_args = preprocess_args
 
         self.valueMap = dict() # {op_name: (mlir op, shape)}
         self.CVI = None # mlcvir pybind
@@ -298,7 +299,21 @@ class TFLiteConverter(BaseConverter):
         for idx, input in enumerate(self.input_nodes):
             input_tensor_idx = input
             input_shape, _ = self.get_tensor_shape_and_data(input_tensor_idx)
-            input_op = self.CVI.add_input_op(str(input_tensor_idx), idx)
+            input_name = str(input_tensor_idx)
+            if not self.preprocess_args:
+                input_op = self.CVI.add_input_op(input_name, idx, **{})
+            else:
+                preprocess_hint = {
+                    'mean': self.preprocess_args['perchannel_mean'],
+                    'scale':  self.preprocess_args['perchannel_scale'],
+                    'pixel_format': self.preprocess_args["pixel_format"],
+                    'channel_order': self.preprocess_args["channel_order"],
+                    'aligned': self.preprocess_args["aligned"],
+                    'resize_dims': self.preprocess_args['resize_dims'],
+                    'keep_aspect_ratio': self.preprocess_args['keep_aspect_ratio']
+                }
+                input_op = self.CVI.add_input_op(input_name, idx, **preprocess_hint)
+
             self.addOperand(input_tensor_idx, input_op, input_shape, None)
 
         def NoneAndRaise(node):

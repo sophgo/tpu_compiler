@@ -23,27 +23,24 @@ def Convert(args):
     if args.model_type not in CVI_SupportFramework:
         raise ValueError("Not support {} type".format(args.model_type))
     preprocessor = preprocess()
-
-    input_shape = [int(i) for i in args.input_shape.split(",")]
+    preprocessor.config(**vars(args))
 
     if args.model_type == "onnx":
         onnx_model = onnx.load(args.model_path)
-        preprocessor.config(**vars(args))
         c = OnnxConverter(args.model_name, onnx_model,
                           args.mlir_file_path, batch_size=args.batch_size,
-                          convert_preprocess=args.convert_preprocess,
                           preprocess_args=preprocessor.to_dict())
     elif args.model_type == "tflite_int8":
-        c = TFLiteInt8Converter(
-            args.model_name, args.model_path, args.mlir_file_path)
+        c = TFLiteInt8Converter(args.model_name,
+                                args.model_path, args.mlir_file_path,
+                                preprocess_args=preprocessor.to_dict())
     elif args.model_type == "tensorflow":
         c = TFConverter(args.model_name, args.model_path,
-                        args.mlir_file_path, batch_size=args.batch_size)
+                        args.mlir_file_path, batch_size=args.batch_size,
+                        preprocess_args=preprocessor.to_dict())
     elif args.model_type == "caffe":
-        preprocessor.config(**vars(args))
         c = CaffeConverter(args.model_name, args.model_path, args.model_dat,
                            args.mlir_file_path, batch_size=args.batch_size,
-                           convert_preprocess=args.convert_preprocess,
                            preprocess_args=preprocessor.to_dict())
     c.run()
 
@@ -77,12 +74,6 @@ def main():
         help="input batch size",
         type=int,
         default=1,
-    )
-    parser.add_argument(
-        "--convert_preprocess",
-        help="Conbine mlir model with preprocess inference",
-        type=int,
-        default=0,
     )
     parser.add_argument(
         "--input_shape",

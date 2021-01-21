@@ -107,7 +107,8 @@ class TFTensor():
 
 
 class TFConverter(BaseConverter):
-    def __init__(self, model_name, model_path, mlir_file_path, batch_size=1):
+    def __init__(self, model_name, model_path, mlir_file_path,
+                 batch_size=1, preprocess_args=None):
         super().__init__()
         self.model_name = model_name
         self.batch_size=batch_size
@@ -118,6 +119,7 @@ class TFConverter(BaseConverter):
 
         self.converted_nodes = list()
         self.converted_tensors = list()
+        self.preprocess_args = preprocess_args
 
         self.CVI = None # mlcvir pybind
 
@@ -258,8 +260,21 @@ class TFConverter(BaseConverter):
         # add input op
         for idx, input in enumerate(self.inputs):
             name = tf_node_name(input)
-            input_op = self.CVI.add_input_op(name, idx)
             input_shape = self.mlir_inputs[idx]
+            if not self.preprocess_args:
+                input_op = self.CVI.add_input_op(name, idx, **{})
+            else:
+                preprocess_hint = {
+                    'mean': self.preprocess_args['perchannel_mean'],
+                    'scale':  self.preprocess_args['perchannel_scale'],
+                    'pixel_format': self.preprocess_args["pixel_format"],
+                    'channel_order': self.preprocess_args["channel_order"],
+                    'aligned': self.preprocess_args["aligned"],
+                    'resize_dims': self.preprocess_args['resize_dims'],
+                    'keep_aspect_ratio': self.preprocess_args['keep_aspect_ratio']
+                }
+                # add input op
+                input_op = self.CVI.add_input_op(name, idx, **preprocess_hint)
             self.addOperand(name, input_op, input_shape, TensorType.ACTIVATION)
 
         def NoneAndRaise(node):

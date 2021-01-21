@@ -23,8 +23,8 @@ class CaffeTensor():
 
 
 class CaffeConverter(BaseConverter):
-    def __init__(self, model_name, prototxt, caffemodel, mlir_file_path, batch_size=1,
-                 convert_preprocess=False, preprocess_args=None):
+    def __init__(self, model_name, prototxt, caffemodel,
+                 mlir_file_path, batch_size=1, preprocess_args=None):
         super().__init__()
         self.model_name = model_name
         self.prototxt = prototxt

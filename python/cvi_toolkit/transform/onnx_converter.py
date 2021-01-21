@@ -99,7 +99,7 @@ class OnnxTensor():
 
 class OnnxConverter(BaseConverter):
     def __init__(self, model_name, onnx_model, mlir_file_path,
-                batch_size=1, convert_preprocess=False, preprocess_args=None):
+                batch_size=1, preprocess_args=None):
         super().__init__()
         if isinstance(onnx_model, str):
             onnx_model = onnx.load(onnx_model)
