@@ -465,7 +465,7 @@ void CviModelBuilder::parseModule() {
           tensor->scale.push_back(s.convertToFloat());
         }
         for (auto m : preprocess.mean().getAsValueRange<FloatAttr>()) {
-          tensor->mean.push_back(-1 * m.convertToFloat());
+          tensor->mean.push_back(m.convertToFloat());
         }
         tensor->pixel_format = preprocess.pixel_format().getValue().str();
         tensor->aligned = preprocess.aligned().getValue();

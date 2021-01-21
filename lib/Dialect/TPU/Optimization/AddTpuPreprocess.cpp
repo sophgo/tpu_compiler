@@ -119,10 +119,6 @@ public:
         uses.push_back(opd);
       }
 
-      auto align_up = [](int x, int n) {
-        return ((x + n - 1) / n) * n;
-      };
-
       // set the real shape of function's args.
       std::vector<int64_t> arg_shape {n, c, resize_h, resize_w};
       std::vector<int64_t> input_shape {n, c, resize_h, resize_w};
@@ -139,6 +135,10 @@ public:
           input_shape[2] = resize_w;
           input_shape[3] = c;
         }
+      } else if (pixel_format == "YUV420_PLANAR") {
+        input_shape[1] = 1;
+        input_shape[2] = 1;
+        input_shape[3] = yuv420_size(1, c, resize_h, resize_w);
       } else if (aligned) {
         input_shape[1] = c;
         input_shape[2] = resize_h;
@@ -219,6 +219,20 @@ private:
   int64_t resize_w;
 
 private:
+  inline int align_up(int x, int n) {
+    return ((x + n - 1) / n) * n;
+  }
+
+  int yuv420_size(int n, int c, int h, int w) {
+    assert(c == 3);
+    int y_w_aligned = align_up(w, 32);
+    int uv_w_aligned = align_up(w / 2, 32);
+    int u = align_up(h * y_w_aligned, 0x1000);
+    int v = align_up(u + h / 2 * uv_w_aligned, 0x1000);
+    int n_stride = align_up(v + h / 2 * uv_w_aligned, 0x1000);
+    return n * n_stride;
+  }
+
   RankedTensorType getTensorType(OpBuilder &builder, const std::vector<int64_t> &shape,
                                  const std::string &quantType) {
     Type eltType;

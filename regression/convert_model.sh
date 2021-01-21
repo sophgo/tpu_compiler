@@ -1,5 +1,6 @@
 #!/bin/bash
-set -xe
+set -e
+set +x
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -95,6 +96,7 @@ if [ ! -z $image_resize_dims ]; then
   fused_preprocess_opt+="--image_resize_dims ${image_resize_dims} "
 fi
 
+set -x
 name=$(basename "$model_def" | cut -d. -f1)
 if [[ "$model_type" == "caffe" ]]; then
   cvi_model_convert.py \

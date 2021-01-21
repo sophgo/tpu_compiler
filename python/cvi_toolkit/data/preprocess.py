@@ -121,12 +121,12 @@ class preprocess(object):
         self.std = self.std[:,np.newaxis, np.newaxis]
         self.input_scale = float(input_scale)
 
-        # preprocess method:
-        # (x * raw_scale / 255 - mean) * input_scale / std
-        # => (x - mean * 255 / raw_scale) * (input_scale / std) * (raw_scale / 255)
-        # => (x - perchannel_mean) * perchannel_scale
-        # so: perchannel_mean = mean * 255 / raw_scale
-        #     perchannel_scale = (input_scale / std) * (raw_scale / 255)
+        # preprocess:
+        #   (x * (raw_scale / 255) - mean) * input_scale / std
+        # => x * raw_scale / 255 * input_scale / std - mean * input_scale / std
+        # => x * perchannel_scale - perchannel_mean
+        # so: perchannel_scale = raw_scale / 255 * input_scale / std
+        #     perchannel_mean  = mean * input_scale / std
         sa = self.raw_scale / 255
         sb = self.input_scale / self.std
         self.perchannel_scale = sa * sb
@@ -155,6 +155,17 @@ class preprocess(object):
         if self.pixel_format == "YUV420_PLANAR":
             self.aligned = True
 
+        info_str = \
+            "\t _______________________________________________________________________ \n" + \
+            "\t| preprocess:                                                           |\n" + \
+            "\t|   (x * (raw_scale / 255) - mean) * input_scale / std                  |\n" + \
+            "\t| => x * raw_scale / 255 * input_scale / std - mean * input_scale / std |\n" + \
+            "\t| => x * perchannel_scale - perchannel_mean                             |\n" + \
+            "\t| so: perchannel_scale = raw_scale / 255 * input_scale / std            |\n" + \
+            "\t|     perchannel_mean  = mean * input_scale / std                       |\n" + \
+            "\t'-----------------------------------------------------------------------'\n"
+        print(info_str)
+
         format_str = "  Preprocess args : \n" + \
                "\tnet_input_dims        : {}\n" + \
                "\tresize_dims           : {}\n" + \
@@ -162,8 +173,8 @@ class preprocess(object):
                "\tkeep_aspect_ratio     : {}\n" + \
                "\t--------------------------\n" + \
                "\tchannel_order         : {}\n" + \
-               "\tperchannel_mean       : {}\n" + \
                "\tperchannel_scale      : {}\n" + \
+               "\tperchannel_mean       : {}\n" + \
                "\t   raw_scale          : {}\n" + \
                "\t   mean               : {}\n" + \
                "\t   std                : {}\n" + \
@@ -173,7 +184,7 @@ class preprocess(object):
                "\taligned               : {}\n"
         print(format_str.format(
                 self.net_input_dims, self.resize_dims, self.crop_method, self.keep_aspect_ratio, self.channel_order,
-                list(self.perchannel_mean.flatten()), list(self.perchannel_scale.flatten()),
+                list(self.perchannel_scale.flatten()), list(self.perchannel_mean.flatten()),
                 self.raw_scale, list(self.mean.flatten()), list(self.std.flatten()), self.input_scale,
                 self.pixel_format, self.aligned))
 

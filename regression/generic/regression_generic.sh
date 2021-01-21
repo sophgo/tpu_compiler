@@ -49,6 +49,9 @@ else
     if [ $DO_QUANT_BF16 -eq 1 ]; then
       $DIR/regression_7_bf16_fuse_preprocess.sh
     fi
+    if [ $DO_YUV420_FUSED_PREPROCESS -eq 1 ]; then
+      $DIR/regression_8_yuv420_fuse_preprocess.sh
+    fi
   fi
 fi
 #if [ $DO_NN_TOOLKIT -eq 1 ]; then

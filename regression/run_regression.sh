@@ -178,20 +178,6 @@ run_onnx_ir_test()
   return $err
 }
 
-run_specific_test()
-{
-  local err=0
-  $SCRIPT_DIR/specific/regression_specific.sh > regression_specific.log | true
-  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-    echo "regression specific FAILED" >> verdict.log
-    return 1
-  else
-    echo "regression specific PASSED" >> verdict.log
-  fi
-
-  return $err
-}
-
 usage()
 {
    echo ""
@@ -320,14 +306,6 @@ fi
 
 if [ $run_onnx_test -ne 0 ]; then
   run_onnx_ir_test
-  if [ "$?" -ne 0 ]; then
-    ERR=1
-  fi
-fi
-
-# run specific test
-if [ $run_extra -eq 1 ]; then
-  run_specific_test
   if [ "$?" -ne 0 ]; then
     ERR=1
   fi
