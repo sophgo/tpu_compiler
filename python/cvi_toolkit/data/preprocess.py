@@ -5,9 +5,9 @@ import argparse
 
 supported_pixel_formats = [
     'RGB_PLANAR',
-    'RGB_PACKAGE',
+    'RGB_PACKED',
     'BGR_PLANAR',
-    'BGR_PACKAGE',
+    'BGR_PACKED',
     'GRAYSCALE',
     'YUV420_PLANAR',
     None
@@ -15,9 +15,9 @@ supported_pixel_formats = [
 
 pixel_format_attributes = {
     'RGB_PLANAR':    ('rgb', 'nchw'),
-    'RGB_PACKAGE':   ('rgb', 'nhwc'),
+    'RGB_PACKED':    ('rgb', 'nhwc'),
     'BGR_PLANAR':    ('bgr', 'nchw'),
-    'BGR_PACKAGE':   ('bgr', 'nhwc'),
+    'BGR_PACKED':    ('bgr', 'nhwc'),
     'GRAYSCALE':     ('bgr', 'nchw'),
     'YUV420_PLANAR': ('bgr', 'nchw')
 }
@@ -144,8 +144,8 @@ class preprocess(object):
                 self.pixel_format = 'BGR_PLANAR' if self.channel_order == 'bgr' else \
                                     'RGB_PLANAR'
             else:
-                self.pixel_format = 'BGR_PACKAGE' if self.channel_order == 'bgr' else \
-                                    'RGB_PACKAGE'
+                self.pixel_format = 'BGR_PACKED' if self.channel_order == 'bgr' else \
+                                    'RGB_PACKED'
         if self.pixel_format not in supported_pixel_formats:
             raise RuntimeError("{} unsupported pixel format".format(pixel_format))
 
@@ -282,7 +282,7 @@ class preprocess(object):
             image = np.transpose(image, (2, 0, 1))
         return image
 
-    def align_package_frame(self, x, aligned):
+    def align_packed_frame(self, x, aligned):
         if not aligned:
             return x
         h, w, c = x.shape
@@ -347,7 +347,7 @@ class preprocess(object):
                 x = x[[2, 1, 0], :, :]
             if self.data_format == 'nhwc':
                 x = np.transpose(x, (1, 2, 0))
-                x = self.align_package_frame(x, self.aligned)
+                x = self.align_packed_frame(x, self.aligned)
             else:
                 x = self.align_planar_frame(x, self.aligned)
             # expand to 4 dimensions
@@ -383,22 +383,22 @@ if __name__ == '__main__':
         raise Exception("2. RGB PLANAR test failed")
     print("2. RGB PLANAR test passed!!")
 
-    preprocesser.config(net_input_dims='244,224', pixel_format='BGR_PACKAGE')
+    preprocesser.config(net_input_dims='244,224', pixel_format='BGR_PACKED')
     x = preprocesser.run(args.image)
     y=cv2.imread(args.image)
     y=cv2.resize(y, (224, 244)) # w,h
     if np.any(x != y):
-        raise Exception("3. BGR PACKAGE test failed")
-    print("3. BGR PACKAGE test passed!!")
+        raise Exception("3. BGR PACKED test failed")
+    print("3. BGR PACKED test passed!!")
 
-    preprocesser.config(net_input_dims='244,224', pixel_format='RGB_PACKAGE')
+    preprocesser.config(net_input_dims='244,224', pixel_format='RGB_PACKED')
     x = preprocesser.run(args.image)
     y=cv2.imread(args.image)
     y=cv2.cvtColor(y, cv2.COLOR_BGR2RGB)
     y=cv2.resize(y, (224, 244)) # w,h
     if np.any(x != y):
-        raise Exception("RGB PACKAGE test failed")
-    print("4. RGB PACKAGE test passed!!")
+        raise Exception("RGB PACKED test failed")
+    print("4. RGB PACKED test passed!!")
 
     preprocesser.config(net_input_dims='244,224', pixel_format='GRAYSCALE')
     x=preprocesser.run(args.image)
@@ -409,7 +409,7 @@ if __name__ == '__main__':
     print("5. GRAYSCALE test passed!!")
 
     preprocesser.config(net_input_dims='244,224', resize_dims='443,424',
-                        crop_method='center', pixel_format='BGR_PACKAGE')
+                        crop_method='center', pixel_format='BGR_PACKED')
     x=preprocesser.run(args.image)
     print("x", x, x.shape)
     y=cv2.imread(args.image)
@@ -423,7 +423,7 @@ if __name__ == '__main__':
     print("6. Center Crop test passed!!")
 
     preprocesser.config(net_input_dims='244,224', keep_aspect_ratio=True,
-                        pixel_format='BGR_PACKAGE')
+                        pixel_format='BGR_PACKED')
     x=preprocesser.run(args.image)
     y=cv2.imread(args.image)
     ih, iw, _ = y.shape

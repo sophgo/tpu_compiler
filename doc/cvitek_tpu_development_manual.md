@@ -2122,15 +2122,15 @@ typedef struct {
 ##### CVI_TENSOR
 ```c++
 typedef struct {
-  char *name;
-  CVI_SHAPE shape;
-  CVI_FMT fmt;
-  size_t count;
-  size_t mem_size;
-  uint8_t *sys_mem;
-  void *dev_mem;
-  CVI_MEM_TYPE_E mem_type;
-  float qscale;
+  char            *name;
+  CVI_SHAPE       shape;
+  CVI_FMT         fmt;
+  size_t          count;
+  size_t          mem_size;
+  uint8_t         *sys_mem;
+  uint64_t        paddr;
+  CVI_MEM_TYPE_E  mem_type;
+  float           qscale;
 } CVI_TENSOR;
 ```
 
@@ -2141,33 +2141,48 @@ typedef struct {
 |  名称       |描述|
 |---------- |------------------------|
 |  name     |  tensor的名称|
-|  shape    |  tensor的维度|
+|  shape    |  tensor代表的维度|
 |  fmt      |  tensor的基本数据类型|
-|  count    |  元素个数|
-|  mem_size |  tensor的mem大小|
+|  count    |  tensor代表的元素个数|
+|  mem_size |  tensor的所占用内存的大小|
 |  sys_mem  |  内存指针，指向系统内存|
-|  dev_mem  |  指向设备内存指针|
-|  mem_type |  tensor的存储类型|
-|  qscale   |  fp32到int8的转换系数|
+|  paddr    |  内存指针的物理地址    |
+|  mem_type |  tensor输入内存的类型 |
+|  qscale   |  量化转换比例系数|
+<br/>
 
 ##### CVI_FRAM_TYPE
 ```c++
 typedef enum {
-  CVI_FRAME_PLANAR = 0,
-  CVI_FRAME_PACKAGE = 1,
-  CVI_FRAME_UNKNOWN = 2
-} CVI_FRAME_TYPE;
+  CVI_NN_PIXEL_RGB_PACKED    = 0,
+  CVI_NN_PIXEL_BGR_PACKED    = 1,
+  CVI_NN_PIXEL_RGB_PLANAR     = 2,
+  CVI_NN_PIXEL_BGR_PLANAR     = 3,
+  CVI_NN_PIXEL_YUV_420_PLANAR = 13,
+  CVI_NN_PIXEL_GRAYSCALE      = 15,
+  CVI_NN_PIXEL_TENSOR         = 100,
+  // please don't use below values,
+  // only for backward compatibility
+  CVI_NN_PIXEL_PLANAR         = 101,
+  CVI_NN_PIXEL_PACKED        = 102
+} CVI_NN_PIXEL_FORMAT_E;
+
+typedef CVI_NN_PIXEL_FRAME_E CVI_FRAME_TYPE;
 ```
 
 【描述】
 
-定义数据帧类型
+定义输入数据的格式
 
 |  名称                |描述|
 |------------------- |----------------------|
-|  CVI_FRAME_PLANAR  |  表明通道数据平面化|
-|  CVI_FRAME_PACKAGE |  表明通道数据打包一起|
-|  CVI_FRAME_UNKNOWN |  未知类型|
+| CVI_NN_PIXEL_RGB_PACKED     | RGB packed类型,格式为nhwc|
+| CVI_NN_PIXEL_BGR_PACKED     | BGR packed类型,格式为nhwc|
+| CVI_NN_PIXEL_RGB_PLANAR     | RGB planar类型,格式为nchw|
+| CVI_NN_PIXEL_BGR_PLANAR     | BGR planar类型,格式为nchw|
+| CVI_NN_PIXEL_YUV_420_PLANAR | YUV420 planar类型|
+| CVI_NN_PIXEL_GRAYSCALE      | 灰度图, YUV400|
+| CVI_NN_PIXEL_TENSOR         | 紧密排布的4维度张量(1.3版本前默认类型|
 
 ##### CVI_VIDEO_FRAME_INFO
 ```c++
@@ -2188,8 +2203,8 @@ typedef struct {
 |  type     |数据帧类型|
 |  shape    |数据帧的维度数据|
 |  fmt      |基本数据类型|
-|  stride   |数据间隔|
-|  pyaddr   |数据物理地址，当type为PLANAR时需要填入每个通道的地址；当type为PACKAGE时，只用填数据首地址|
+|  stride   |frame w维度的间隔，对齐到字节|
+|  pyaddr   |数据物理地址，当type为PLANAR时需要填入每个通道的地址；当type为PACKED时，只用填数据首地址|
 
 ##### CVI_MODEL_HANDLE
 ```c++
@@ -2281,7 +2296,9 @@ typedef enum {
 
 -   CVI_NN_SetTensorDeviceMem：设置张量的设备内存
 
--   CVI_NN_FeedTensorWithFrames：将视频帧数据拷贝到张量
+-   CVI_NN_SetTensorWithVpssFrame：将视频帧数据拷贝到张量
+
+-   CVI_NN_SetTensorWithVideoFrames: 将视频帧数据拷贝到张量(Deprecated)
 
 ##### CVI_NN_RegisterModel
 
@@ -2582,16 +2599,13 @@ CVI_RC CVI_NN_SetTensorPtr(
 | size   |    buf的大小  |    输入|
 
 
-##### CVI_NN_FeedTensorWithFrames
+##### CVI_NN_SetTensorWithVpssFrame
 
 【原型】
 ```c++
-CVI_RC CVI_NN_FeedTensorWithFrames(
-    CVI_MODEL_HANDLE model, CVI_TENSOR *tensor,
-    CVI_FRAME_TYPE type, CVI_FMT format,
-    int32_t frame_num, uint64_t *frame_paddrs,
-    int32_t height, int32_t width,
-    uint32_t height_stride)
+CVI_RC CVI_NN_SetTensorWithVpssFrame(
+    CVI_TENSOR *tensor, uint64_t paddr,
+    CVI_NN_PIXEL_FORMAT_E pixel_format);
 ```
 【描述】
 
@@ -2599,16 +2613,28 @@ CVI_RC CVI_NN_FeedTensorWithFrames(
 
 |参数名称|描述|输入/输出|
 |---|---|---|
-|  model          | 模型句柄      |   输入|
-|  tensor         | tensor指针  |     输入|
-|  type           | 视频帧类型     |  输入|
-|  format         | 基础数据类型    | 输入|
-|  frame_num      | 视频帧数量     |  输入|
-|  frame_paddrs   | 视频帧物理地址   |输入|
-|  height         | 帧数据高度     |  输入|
-|  width          | 帧数据宽度     |  输入|
-|  height_stride  | 每列的间隔     |  输入|
+|  tensor         | tensor指针    |  输入|
+|  paddr          | 视频帧物理地址  |  输入|
+|  pixel_format   | 视频帧格式类型  |  输入|
+##### CVI_NN_SetTensorWithVideoFrame
 
+【原型】
+```c++
+CVI_RC CVI_NN_SetTensorWithVideoFrame(
+    CVI_MODEL_HANDLE model, CVI_TENSOR* tensor,
+    CVI_VIDEO_FRAME_INFO* video_frame_info);
+```
+【描述】
+
+> 将视频帧数据拷贝到张量(不再使用，用于兼容v1.3之前的版本)
+
+|参数名称|描述|输入/输出|
+|---|---|---|
+| model            | 模型句柄       |  输入|
+| tensor           | tensor指针    |  输入|
+| video_frame_info | 视频帧信息     |  输入|
+<br/>
+<br/>
 ### 3.3.2 Runtime Python API
 
 > Runtime通过pybind11将底层Runtime C++代码封装为Python API。Runtime

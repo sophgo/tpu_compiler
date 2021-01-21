@@ -164,7 +164,7 @@ tpuc-opt \
 if [ $do_fused_preprocess = "1" ]; then
   tpuc-opt \
     --add-tpu-preprocess \
-    --pixel_format BGR_PACKAGE \
+    --pixel_format BGR_PACKED \
     --input_aligned=false \
     $opt_mlir \
     -o "${name}_fused_preprocess.mlir"

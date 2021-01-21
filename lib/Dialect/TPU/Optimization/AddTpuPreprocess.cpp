@@ -68,9 +68,9 @@ public:
     std::map<std::string,
              std::pair<std::string, std::string>> attributes_map = {
       {"RGB_PLANAR",    {"rgb", "nchw"}},
-      {"RGB_PACKAGE",   {"rgb", "nhwc"}},
+      {"RGB_PACKED",    {"rgb", "nhwc"}},
       {"BGR_PLANAR",    {"bgr", "nchw"}},
-      {"BGR_PACKAGE",   {"bgr", "nhwc"}},
+      {"BGR_PACKED",    {"bgr", "nhwc"}},
       {"GRAYSCALE",     {"bgr", "nchw"}},
       {"YUV420_PLANAR", {"bgr", "nchw"}}
     };

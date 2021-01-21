@@ -1246,9 +1246,9 @@ class MLIRImporter(object):
 
         attribute_map = {
             'RGB_PLANAR'    : ('rgb', 'nchw'),
-            'RGB_PACKAGE'   : ('rgb', 'nhwc'),
+            'RGB_PACKED'   : ('rgb', 'nhwc'),
             'BGR_PLANAR'    : ('bgr', 'nchw'),
-            'BGR_PACKAGE'   : ('bgr', 'nhwc'),
+            'BGR_PACKED'   : ('bgr', 'nhwc'),
             'YUV420_PLANAR' : ('bgr', 'nchw'),
             'GRAYSCALE'     : ('bgr', 'nchw')
         }

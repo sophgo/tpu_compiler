@@ -10,7 +10,7 @@ cvi_preprocess.py \
     --image_file $IMAGE_PATH \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --pixel_format BGR_PACKAGE \
+    --pixel_format BGR_PACKED \
     --aligned 0 \
     --batch_size $BATCH_SIZE \
     --input_name input \
@@ -18,7 +18,7 @@ cvi_preprocess.py \
 
 tpuc-opt \
     --add-tpu-preprocess \
-    --pixel_format BGR_PACKAGE \
+    --pixel_format BGR_PACKED \
     --input_aligned=false \
     ${NET}_quant_int8.mlir \
     -o ${NET}_quant_int8_multiplier_fused_preprocess.mlir
