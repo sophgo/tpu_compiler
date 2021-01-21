@@ -248,16 +248,24 @@ def npz_compare(args_list):
 
   stats = TensorCompareStats()
 
-  processes = []
-  for name in names:
-    p = multiprocessing.Process(target = compare_one_array,
-        args = (tc, npz1, npz2, name, force_dtype, thresholds,
-                args.verbose, lock, dic))
-    processes.append(p)
-    p.start()
+  names_list = list(names)  # deep copy
+  process_number = multiprocessing.cpu_count()
 
-  for j in processes:
-    j.join()
+  while(len(names_list) > 0):
+      # take process number names
+      # take name which will do compare
+      compare_process_name_list = names_list[:process_number]
+      names_list = names_list[process_number:]  # remove done name
+      processes = []
+      for name in compare_process_name_list:
+          p = multiprocessing.Process(target=compare_one_array,
+                                      args=(tc, npz1, npz2, name, force_dtype, thresholds,
+                                            args.verbose, lock, dic))
+          processes.append(p)
+          p.start()
+
+      for j in processes:
+          j.join()
 
   for name in names:
     stats.update(name, dic.get(name))
