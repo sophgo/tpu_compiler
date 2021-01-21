@@ -1,13 +1,13 @@
-#include "tpuc/Interpreter/cpu/conv.hpp"
+#include "tpuc/Interpreter/cpu/deconv.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
 namespace mlir {
 
-Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto castOp = cast<tpu::Conv2DOp>(op);
+DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto castOp = cast<tpu::DeConv2DOp>(op);
   assert(castOp);
-  llvm::outs() << " Conv op: [" << castOp.name() << "]\n";
+  llvm::outs() << " DeConv op: [" << castOp.name() << "]\n";
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = castOp.getResult();
@@ -118,31 +118,31 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   mkldnn::memory::desc dst_md =
       mkldnn::memory::desc({mkl_dst_shape}, dt::f32, tag::any);
 
-  mkldnn::convolution_forward::desc conv_desc =
-      mkldnn::convolution_forward::desc(
+  mkldnn::deconvolution_forward::desc deconv_desc =
+      mkldnn::deconvolution_forward::desc(
           mkldnn::prop_kind::forward_inference,
-          mkldnn::algorithm::convolution_direct, src_md, filter_md, bias_md,
+          mkldnn::algorithm::deconvolution_direct, src_md, filter_md, bias_md,
           dst_md, mkl_strides, mkl_dilation, mkl_padding_l, mkl_padding_r);
-  mkldnn::convolution_forward::primitive_desc conv_prim_desc =
-      mkldnn::convolution_forward::primitive_desc(conv_desc, mkl_eng);
+  mkldnn::deconvolution_forward::primitive_desc deconv_prim_desc =
+      mkldnn::deconvolution_forward::primitive_desc(deconv_desc, mkl_eng);
 
   // do reorder if needed
   auto prim_src_memory = mkl_src_memory;
-  if (conv_prim_desc.src_desc() != mkl_src_memory.get_desc()) {
-    prim_src_memory = mkldnn::memory(conv_prim_desc.src_desc(), mkl_eng);
+  if (deconv_prim_desc.src_desc() != mkl_src_memory.get_desc()) {
+    prim_src_memory = mkldnn::memory(deconv_prim_desc.src_desc(), mkl_eng);
     mkl_net.push_back(mkldnn::reorder(mkl_src_memory, prim_src_memory));
     mkl_net_args.push_back(
         {{MKLDNN_ARG_FROM, mkl_src_memory}, {MKLDNN_ARG_TO, prim_src_memory}});
   }
   auto prim_filter_memory = mkl_filter_memory;
-  if (conv_prim_desc.weights_desc() != mkl_filter_memory.get_desc()) {
-    prim_filter_memory = mkldnn::memory(conv_prim_desc.weights_desc(), mkl_eng);
+  if (deconv_prim_desc.weights_desc() != mkl_filter_memory.get_desc()) {
+    prim_filter_memory = mkldnn::memory(deconv_prim_desc.weights_desc(), mkl_eng);
     mkldnn::reorder(mkl_filter_memory, prim_filter_memory)
         .execute(mkl_stream, mkl_filter_memory, prim_filter_memory);
   }
-  auto prim_dst_memory = mkldnn::memory(conv_prim_desc.dst_desc(), mkl_eng);
+  auto prim_dst_memory = mkldnn::memory(deconv_prim_desc.dst_desc(), mkl_eng);
 
-  mkl_net.push_back(mkldnn::convolution_forward(conv_prim_desc));
+  mkl_net.push_back(mkldnn::deconvolution_forward(deconv_prim_desc));
   mkl_net_args.push_back({{MKLDNN_ARG_SRC, prim_src_memory},
                           {MKLDNN_ARG_WEIGHTS, prim_filter_memory},
                           {MKLDNN_ARG_BIAS, mkl_bias_memory},
@@ -159,9 +159,9 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
 }
-void Conv2DOpKernel::set_tensor(const std::vector<float> &data) {
+void DeConv2DOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Conv op: [" << this->name
+    llvm::errs() << " DeConv op: [" << this->name
                  << "] required memsize :" << this->input_data->capacity()
                  << "\n";
     llvm::errs() << " input data size: " << data.size() << "\n";
@@ -169,13 +169,13 @@ void Conv2DOpKernel::set_tensor(const std::vector<float> &data) {
   }
   this->input_data->assign(data.begin(), data.end());
 };
-std::vector<float> Conv2DOpKernel::get_tensor() {
+std::vector<float> DeConv2DOpKernel::get_tensor() {
   // deep copy
   std::vector<float> ret(this->output_data->begin(), this->output_data->end());
   return ret;
 }
 
-void Conv2DOpKernel::fp32_invoke() {
+void DeConv2DOpKernel::fp32_invoke() {
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
@@ -185,7 +185,7 @@ void Conv2DOpKernel::fp32_invoke() {
   }
 };
 
-void Conv2DOpKernel::i8_invoke() {
+void DeConv2DOpKernel::i8_invoke() {
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
@@ -212,7 +212,7 @@ void Conv2DOpKernel::i8_invoke() {
   }
 };
 
-void Conv2DOpKernel::invoke() {
+void DeConv2DOpKernel::invoke() {
   if (this->datatype == DataType::FP32) {
     fp32_invoke();
   } else if (this->datatype == DataType::INT8) {
@@ -224,14 +224,14 @@ void Conv2DOpKernel::invoke() {
   }
 }
 
-void Conv2DOpKernel::dump() {
+void DeConv2DOpKernel::dump() {
   OpKernel::dump();
   std::string filter_shape_str, input_shape_str;
   for (auto &i : this->input_shape) {
     input_shape_str = input_shape_str + std::to_string(i) + " ";
   }
   for (auto &i : this->filter_shape) {
-    filter_shape_str = filter_shape_str + std::to_string(i) + " ";
+    filter_shape_str = filter_shape_str + std::to_string(i)  + " ";
   }
 
   llvm::outs() << "\tInput Shape: " << input_shape_str << "\n";

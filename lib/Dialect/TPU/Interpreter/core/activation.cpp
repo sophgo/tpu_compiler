@@ -189,6 +189,79 @@ void PReluOpKernel::invoke() {
 
 void PReluOpKernel::dump() { OpKernel::dump(); }
 
+ReciprocalOpKernel::ReciprocalOpKernel(Operation &op,
+                                       value_map_t &valueMapping) {
+  auto rOp = cast<tpu::ReciprocalOp>(op);
+  assert(rOp);
+  llvm::outs() << " Reciprocal op: [" << rOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = rOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = rOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+  if (datatype == DataType::INT8) {
+    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    bf16_min_range = rOp.min_range().convertToFloat();
+    bf16_max_range = rOp.max_range().convertToFloat();
+  }
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void ReciprocalOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " Reciprocal op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> ReciprocalOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void ReciprocalOpKernel::invoke() {
+
+  if (datatype == DataType::INT8) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+    }
+  } else {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = 1.0 / input_data->at(i);
+      ;
+    }
+  }
+}
+
+void ReciprocalOpKernel::dump() {
+  OpKernel::dump();
+
+  if (this->datatype == DataType::BF16) {
+    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
+                 << bf16_max_range << "\n";
+  }
+}
+
 ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping) {
   auto reshapeOp = cast<tpu::ReshapeOp>(op);
   assert(reshapeOp);
@@ -237,19 +310,19 @@ void ReshapeOpKernel::invoke() {
 void ReshapeOpKernel::dump() { OpKernel::dump(); }
 
 SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto sigmoidOp = cast<tpu::SigmoidOp>(op);
-  assert(sigmoidOp);
-  llvm::outs() << " Sigmoid op: [" << sigmoidOp.name() << "]\n";
+  auto sqrtOp = cast<tpu::SigmoidOp>(op);
+  assert(sqrtOp);
+  llvm::outs() << " Sigmoid op: [" << sqrtOp.name() << "]\n";
 
   auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = sigmoidOp.getResult();
+  auto result = sqrtOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
   llvm::outs() << "    =>required memory size: [" << size << "]\n";
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
-  this->name = sigmoidOp.name().str();
+  this->name = sqrtOp.name().str();
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
@@ -258,8 +331,8 @@ SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping) {
   } else if (datatype == DataType::BF16) {
     y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
     y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
-    bf16_min_range = sigmoidOp.min_range().convertToFloat();
-    bf16_max_range = sigmoidOp.max_range().convertToFloat();
+    bf16_min_range = sqrtOp.min_range().convertToFloat();
+    bf16_max_range = sqrtOp.max_range().convertToFloat();
   }
 
   // get tensors
@@ -305,6 +378,78 @@ void SigmoidOpKernel::invoke() {
 }
 
 void SigmoidOpKernel::dump() {
+  OpKernel::dump();
+
+  if (this->datatype == DataType::BF16) {
+    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
+                 << bf16_max_range << "\n";
+  }
+}
+
+SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto sqrtOp = cast<tpu::SqrtOp>(op);
+  assert(sqrtOp);
+  llvm::outs() << " Sqrt op: [" << sqrtOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = sqrtOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = sqrtOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+  if (datatype == DataType::INT8) {
+    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    bf16_min_range = sqrtOp.min_range().convertToFloat();
+    bf16_max_range = sqrtOp.max_range().convertToFloat();
+  }
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void SqrtOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " Sqrt op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> SqrtOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void SqrtOpKernel::invoke() {
+
+  if (datatype == DataType::INT8) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+    }
+  } else {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = pow(input_data->at(i), 0.5);
+      ;
+    }
+  }
+}
+
+void SqrtOpKernel::dump() {
   OpKernel::dump();
 
   if (this->datatype == DataType::BF16) {

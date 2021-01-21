@@ -116,4 +116,108 @@ void EltwiseAddOpKernel::dump() {
   OpKernel::dump();
   llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
 }
+
+EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
+                                       value_map_t &valueMapping) {
+
+  auto elt_mulOp = cast<tpu::EltwiseMulOp>(op);
+  llvm::outs() << " Eltwise Mul op: [" << elt_mulOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = elt_mulOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+  this->name = elt_mulOp.name().str();
+
+  this->do_relu = elt_mulOp.do_relu();
+  if (datatype == DataType::INT8) {
+    auto quant_rshift = opTensors[opTensors.size() - 2];
+    auto quant_multiplier = opTensors[opTensors.size() - 1];
+    assert(quant_rshift);
+    assert(quant_multiplier);
+    this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
+    this->multiplier.assign(quant_multiplier->begin(), quant_multiplier->end());
+  }
+
+  // erase the end 4 elements:
+  opTensors.erase(opTensors.end() - 4, opTensors.end());
+  // get tensors
+  inputs_data = opTensors;
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+
+void EltwiseMulOpKernel::set_tensor(const std::vector<float> &data) {
+  llvm_unreachable("TODO!");
+};
+
+std::vector<float> EltwiseMulOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+void EltwiseMulOpKernel::fp32_invoke() {
+  int in = this->shape.at(0);
+  int ic = this->shape.at(1);
+  int ih = this->shape.at(2);
+  int iw = this->shape.at(3);
+  std::fill(output_data->begin(), output_data->end(), 1);
+
+  for (size_t ni = 0; ni < inputs_data.size(); ++ni) {
+    for (size_t i = 0; i < (size_t)(in * ic * ih * iw); ++i) {
+      output_data->at(i) *= inputs_data[ni]->at(i);
+    }
+  }
+  if (do_relu) {
+    relu(output_data->data(), output_data->size());
+  }
+}
+
+void EltwiseMulOpKernel::i8_invoke() {
+  int in = this->shape.at(0);
+  int ic = this->shape.at(1);
+  int ih = this->shape.at(2);
+  int iw = this->shape.at(3);
+  size_t input_number = inputs_data.size();
+  size_t size = in * ic * ih * iw;
+
+  std::fill(output_data->begin(), output_data->end(), 1);
+  for (size_t ni = 0; ni < input_number; ++ni) {
+    for (size_t i = 0; i < size; ++i) {
+      output_data->at(i) *= inputs_data[ni]->at(i);
+    }
+  }
+  if (do_relu) {
+    relu(output_data->data(), output_data->size());
+  }
+
+  for (size_t i = 0; i < output_data->size(); ++i) {
+    output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+        output_data->at(i), (uint32_t)rshift.at(0), (uint32_t)multiplier.at(0),
+        true);
+  }
+}
+
+void EltwiseMulOpKernel::invoke() {
+  if (datatype == DataType::FP32) {
+    fp32_invoke();
+  } else if (datatype == DataType::INT8) {
+    i8_invoke();
+  } else {
+    fp32_invoke();
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
+  }
+};
+
+void EltwiseMulOpKernel::dump() {
+  OpKernel::dump();
+  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
+}
 } // namespace mlir

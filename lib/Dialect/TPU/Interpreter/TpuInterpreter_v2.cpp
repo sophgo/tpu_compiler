@@ -27,11 +27,15 @@
 #include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
+#include "tpuc/Interpreter/cpu/deconv.hpp"
+#include "tpuc/Interpreter/cpu/detection_output.hpp"
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
+#include "tpuc/Interpreter/cpu/normalize.hpp"
 #include "tpuc/Interpreter/cpu/permute.hpp"
 #include "tpuc/Interpreter/cpu/pooling.hpp"
 #include "tpuc/Interpreter/cpu/preprocess.hpp"
+#include "tpuc/Interpreter/cpu/priorbox.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
 #include "tpuc/Interpreter/cpu/scale.hpp"
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
@@ -132,10 +136,28 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(crop_kernel_op));
     return;
   }
+  if (isa<tpu::DeConv2DOp>(op)) {
+    auto deconv_kernel_op =
+        std::make_unique<DeConv2DOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(deconv_kernel_op));
+    return;
+  }
+  if (isa<tpu::DetectionOutputOp>(op)) {
+    auto do_kernel_op =
+        std::make_unique<DetectionOutputOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(do_kernel_op));
+    return;
+  }
   if (isa<tpu::EltwiseAddOp>(op)) {
     auto elt_add_kernel_op =
         std::make_unique<EltwiseAddOpKernel>(op, valueMapping);
     oplist.push_back(std::move(elt_add_kernel_op));
+    return;
+  }
+  if (isa<tpu::EltwiseMulOp>(op)) {
+    auto elt_mul_kernel_op =
+        std::make_unique<EltwiseMulOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(elt_mul_kernel_op));
     return;
   }
   if (isa<tpu::FullyConnectedOp>(op)) {
@@ -145,6 +167,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     return;
   }
   if (isa<tpu::NoneOp>(op)) {
+    return;
+  }
+  if (isa<tpu::NormalizeOp>(op)) {
+    auto norm_kernel_op = std::make_unique<NormalizeOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(norm_kernel_op));
     return;
   }
   if (isa<tpu::PermuteOp>(op)) {
@@ -169,6 +196,12 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(preprocess_kernel_op));
     return;
   }
+  if (isa<tpu::PriorBoxOp>(op)) {
+    auto priorbox_kernel_op =
+        std::make_unique<PriorBoxOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(priorbox_kernel_op));
+    return;
+  }
   if (isa<tpu::ReluOp>(op)) {
     auto relu_kernel_op = std::make_unique<ReluOpKernel>(op, valueMapping);
     oplist.push_back(std::move(relu_kernel_op));
@@ -180,6 +213,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(reshape_kernel_op));
     return;
   }
+  if (isa<tpu::ReciprocalOp>(op)) {
+    auto r_kernel_op = std::make_unique<ReciprocalOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(r_kernel_op));
+    return;
+  }
   if (isa<tpu::QuantOp>(op)) {
     auto quant_kernel_op = std::make_unique<QuantOpKernel>(op, valueMapping);
     oplist.push_back(std::move(quant_kernel_op));
@@ -188,6 +226,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::ScaleOp>(op)) {
     auto scale_kernel_op = std::make_unique<ScaleOpKernel>(op, valueMapping);
     oplist.push_back(std::move(scale_kernel_op));
+    return;
+  }
+  if (isa<tpu::SqrtOp>(op)) {
+    auto sqrt_kernel_op = std::make_unique<SqrtOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(sqrt_kernel_op));
     return;
   }
   if (isa<tpu::ShuffleChannelOp>(op)) {

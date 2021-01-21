@@ -90,6 +90,58 @@ private:
   int bf16_min_range;
   int bf16_max_range;
 };
+
+class ReciprocalOpKernel : public CPUOpKernel<ReciprocalOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUReciprocalOpOp";
+
+  ReciprocalOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  std::vector<float> y0_table_op;
+  std::vector<float> slope_table;
+
+  // bf16
+  std::vector<float> y0_bf16_table_op;
+  std::vector<float> y0_bf16_slope_table;
+  int bf16_min_range;
+  int bf16_max_range;
+};
+
+class SqrtOpKernel : public CPUOpKernel<SqrtOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUSqrtOpOp";
+
+  SqrtOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  std::vector<float> y0_table_op;
+  std::vector<float> slope_table;
+
+  // bf16
+  std::vector<float> y0_bf16_table_op;
+  std::vector<float> y0_bf16_slope_table;
+  int bf16_min_range;
+  int bf16_max_range;
+};
 } // namespace mlir
 
 #endif
