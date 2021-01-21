@@ -144,7 +144,7 @@ void FullyConnectedOpKernel::invoke() {
   mkl_stream.wait();
 
   if (do_relu) {
-    relu(output_data->data(), output_data->size());
+    relu(output_data->data(), output_data->data(), output_data->size());
   }
 
   if (datatype == DataType::INT8) {

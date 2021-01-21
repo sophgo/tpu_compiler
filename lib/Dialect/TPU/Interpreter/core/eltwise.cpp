@@ -61,7 +61,7 @@ void EltwiseAddOpKernel::fp32_invoke() {
     }
   }
   if (do_relu) {
-    relu(output_data->data(), output_data->size());
+    relu(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
@@ -91,7 +91,7 @@ void EltwiseAddOpKernel::i8_invoke() {
     }
   }
   if (do_relu) {
-    relu(output_data->data(), output_data->size());
+    relu(output_data->data(), output_data->data(), output_data->size());
   }
 
   for (size_t i = 0; i < size; ++i) {
@@ -175,7 +175,7 @@ void EltwiseMulOpKernel::fp32_invoke() {
     }
   }
   if (do_relu) {
-    relu(output_data->data(), output_data->size());
+    relu(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
@@ -194,7 +194,7 @@ void EltwiseMulOpKernel::i8_invoke() {
     }
   }
   if (do_relu) {
-    relu(output_data->data(), output_data->size());
+    relu(output_data->data(), output_data->data(), output_data->size());
   }
 
   for (size_t i = 0; i < output_data->size(); ++i) {

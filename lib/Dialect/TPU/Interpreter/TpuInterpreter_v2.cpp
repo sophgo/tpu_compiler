@@ -37,11 +37,13 @@
 #include "tpuc/Interpreter/cpu/preprocess.hpp"
 #include "tpuc/Interpreter/cpu/priorbox.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
+#include "tpuc/Interpreter/cpu/reorg.hpp"
 #include "tpuc/Interpreter/cpu/scale.hpp"
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
 #include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
+#include "tpuc/Interpreter/cpu/upsample.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
 
 #include "tpuc/ModuleInterpreter.h"
@@ -166,6 +168,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(fc_kernel_op));
     return;
   }
+  if (isa<tpu::LeakyReluOp>(op)) {
+    auto lr_kernel_op = std::make_unique<LeakyReluOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(lr_kernel_op));
+    return;
+  }
   if (isa<tpu::NoneOp>(op)) {
     return;
   }
@@ -202,6 +209,12 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(priorbox_kernel_op));
     return;
   }
+
+  if (isa<tpu::QuantOp>(op)) {
+    auto quant_kernel_op = std::make_unique<QuantOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(quant_kernel_op));
+    return;
+  }
   if (isa<tpu::ReluOp>(op)) {
     auto relu_kernel_op = std::make_unique<ReluOpKernel>(op, valueMapping);
     oplist.push_back(std::move(relu_kernel_op));
@@ -218,9 +231,9 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(r_kernel_op));
     return;
   }
-  if (isa<tpu::QuantOp>(op)) {
-    auto quant_kernel_op = std::make_unique<QuantOpKernel>(op, valueMapping);
-    oplist.push_back(std::move(quant_kernel_op));
+  if (isa<tpu::ReorgOp>(op)) {
+    auto r_kernel_op = std::make_unique<ReorgOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(r_kernel_op));
     return;
   }
   if (isa<tpu::ScaleOp>(op)) {
@@ -260,7 +273,17 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(sc_kernel_op));
     return;
   }
-
+  if (isa<tpu::UpsampleOp>(op)) {
+    auto up_kernel_op = std::make_unique<UpsampleOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(up_kernel_op));
+    return;
+  }
+  if (isa<tpu::YoloDetectionOp>(op)) {
+    auto yo_kernel_op =
+        std::make_unique<YoloDetectionOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(yo_kernel_op));
+    return;
+  }
   std::stringstream err_msg;
   llvm::errs() << "no support " << op.getName().getStringRef()
                << " op in interpreter_v2\n";

@@ -181,7 +181,7 @@ void Conv2DOpKernel::fp32_invoke() {
   }
   mkl_stream.wait();
   if (do_relu) {
-    relu(output_data->data(), output_data->size());
+    relu(output_data->data(), output_data->data(), output_data->size());
   }
 };
 
@@ -197,7 +197,7 @@ void Conv2DOpKernel::i8_invoke() {
           n, oc, oh * ow, rshift.data(), multiplier.data());
     } else {
       if (do_relu) {
-        relu(output_data->data(), output_data->size());
+        relu(output_data->data(), output_data->data(), output_data->size());
       }
       quantizeActivationInt8PerChannelRShift(output_data->data(),
                                              output_data->data(), n, oc,
@@ -205,7 +205,7 @@ void Conv2DOpKernel::i8_invoke() {
     }
   } else {
     if (do_relu) {
-      relu(output_data->data(), output_data->size());
+      relu(output_data->data(), output_data->data(), output_data->size());
     }
     quantizeActivationInt8PerLayerRshift(
         output_data->data(), output_data->data(), size, rshift.at(0));

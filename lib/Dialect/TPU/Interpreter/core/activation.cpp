@@ -47,11 +47,105 @@ static void hardwareLookUpTable(float *input, float *output, int size,
   }
 }
 
-void relu(float *data, size_t size) {
+void relu(float *src, float *dst, size_t size) {
   for (size_t i = 0; i < size; ++i) {
-    data[i] = data[i] > 0 ? data[i] : 0;
+    dst[i] = src[i] > 0 ? src[i] : 0;
   }
 }
+void leaky_relu(float *src, float *dst, size_t size, float negative_slope) {
+  for (size_t i = 0; i < size; ++i) {
+    dst[i] = src[i] > 0 ? src[i] : src[i] * negative_slope;
+  }
+};
+
+LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto leaky_reluOp = cast<tpu::LeakyReluOp>(op);
+  assert(leaky_reluOp);
+  llvm::outs() << " LeakyRelu op: [" << leaky_reluOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = leaky_reluOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->negative_slope = leaky_reluOp.negative_slope().convertToFloat();
+
+  this->name = leaky_reluOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+
+  if (datatype == DataType::INT8) {
+    assert(opTensors[5]);
+    assert(opTensors[6]);
+    assert(opTensors[7]);
+    assert(opTensors[8]);
+
+    this->rshift_postive.assign(opTensors[5]->begin(), opTensors[5]->end());
+    this->multiplier_postive.assign(opTensors[6]->begin(), opTensors[6]->end());
+    this->rshift_negative.assign(opTensors[7]->begin(), opTensors[7]->end());
+    this->multiplier_negative.assign(opTensors[8]->begin(),
+                                     opTensors[8]->end());
+  }
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void LeakyReluOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " LeakyRelu op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> LeakyReluOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void LeakyReluOpKernel::invoke() {
+  int n = shape[0];
+  int c = shape[1];
+  int h = shape[2];
+  int w = shape[3];
+  int size = n * c * h * w;
+  if (datatype == DataType::FP32) {
+    leaky_relu(input_data->data(), output_data->data(), size, negative_slope);
+  } else if (datatype == DataType::INT8) {
+    bool do_pos_scale = (multiplier_postive.at(0) != 0.0) ? true : false;
+    for (int i = 0; i < size; ++i) {
+      if (input_data->at(i) > 0) {
+        if (do_pos_scale) {
+          output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+              input_data->at(i), (uint32_t)rshift_postive.at(0),
+              multiplier_postive.at(0), false);
+        } else {
+          output_data->at(i) = input_data->at(i);
+        }
+      } else {
+        output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            input_data->at(i), (uint32_t)rshift_negative.at(0),
+            multiplier_negative.at(0), false);
+      }
+    }
+  } else if (datatype == DataType::BF16) {
+    leaky_relu(input_data->data(), output_data->data(), size, negative_slope);
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
+  }
+}
+
+void LeakyReluOpKernel::dump() { OpKernel::dump(); }
 
 ReluOpKernel::ReluOpKernel(Operation &op, value_map_t &valueMapping) {
   auto reluOp = cast<tpu::ReluOp>(op);

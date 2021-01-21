@@ -36,5 +36,39 @@ private:
   int background_label_id;
   Decode_CodeType code_type;
 };
+
+class YoloDetectionOpKernel : public CPUOpKernel<YoloDetectionOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUYoloDetectionOpKernel";
+
+  YoloDetectionOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  std::vector<SyncedData> inputs_data;
+
+  SyncedData output_data;
+  std::vector<SyncedDataShape> inputs_shape;
+
+  // param
+  int net_input_h;
+  int net_input_w;
+  float obj_threshold;
+  float nms_threshold;
+  int input_count;
+
+  int keep_topk;
+  int num_classes;
+  bool tiny;
+  bool share_location;
+  bool yolo_v4;
+  int class_num;
+
+  std::vector<float> vec_anchors;
+};
 } // namespace mlir
 #endif

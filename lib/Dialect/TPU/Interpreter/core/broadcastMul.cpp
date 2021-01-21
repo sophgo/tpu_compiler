@@ -57,7 +57,7 @@ void BroadcastMulOpKernel::invoke() {
     }
   }
   if (do_relu) {
-    relu(output_data->data(), output_data->size());
+    relu(output_data->data(), output_data->data(), output_data->size());
   }
   if (datatype == DataType::INT8) {
     for (size_t i = 0; i < output_data->size(); ++i) {

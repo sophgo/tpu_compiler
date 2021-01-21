@@ -6,8 +6,32 @@
 #include <memory>
 namespace mlir {
 
-void relu(float *data, size_t size);
+void relu(float *src, float *dst, size_t size);
+void leaky_relu(float *src, float *dst, size_t size, float negative_slope);
+class LeakyReluOpKernel : public CPUOpKernel<LeakyReluOpKernel> {
+public:
+  static constexpr const char *OpName = "CPULeakyReluOp";
 
+  LeakyReluOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  std::vector<float> slope_data;
+
+  std::vector<float> rshift_postive;
+  std::vector<float> rshift_negative;
+  std::vector<float> multiplier_postive;
+  std::vector<float> multiplier_negative;
+  float negative_slope;
+};
 class ReluOpKernel : public CPUOpKernel<ReluOpKernel> {
 public:
   static constexpr const char *OpName = "CPUReluOp";
