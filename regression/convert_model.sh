@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -xe
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
@@ -94,13 +94,6 @@ fi
 if [ ! -z $image_resize_dims ]; then
   fused_preprocess_opt+="--image_resize_dims ${image_resize_dims} "
 fi
-if [ $do_fused_preprocess = "1" ]; then
-  fused_preprocess_opt+="--convert_preprocess 1 "
-  if [ ! -z $crop_offset ]; then
-    echo "convert_model.sh NOT support crop_offset yet"
-    exit 1
-  fi
-fi
 
 name=$(basename "$model_def" | cut -d. -f1)
 if [[ "$model_type" == "caffe" ]]; then
@@ -165,6 +158,16 @@ tpuc-opt \
     --print-tpu-op-info \
     --tpu-op-info-filename ${opt_opt_info} \
     -o $opt_mlir
+
+if [ $do_fused_preprocess = "1" ]; then
+  tpuc-opt \
+    --add-tpu-preprocess \
+    --pixel_format BGR_PACKAGE \
+    --input_aligned=false \
+    $opt_mlir \
+    -o "${name}_fused_preprocess.mlir"
+    opt_mlir="${name}_fused_preprocess.mlir"
+fi
 
 ${DIR}/mlir_to_cvimodel.sh \
     -i $opt_mlir \
