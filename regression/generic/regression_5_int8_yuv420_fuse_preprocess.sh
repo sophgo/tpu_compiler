@@ -64,14 +64,14 @@ cvi_npz_tool.py compare \
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   if [ $BATCH_SIZE -eq 1 ]; then
     cp ${NET}_only_resize_in_fp32.npz \
-        $CVIMODEL_REL_PATH/${NET}_int8_yuv420_in_fp32.npz
+        $CVIMODEL_REL_PATH/${NET}_only_resize_yuv420_in_fp32.npz
     mv ${NET}_int8_yuv420.cvimodel $CVIMODEL_REL_PATH
     cp ${NET}_cmdbuf_out_all_int8_yuv420.npz \
         $CVIMODEL_REL_PATH/${NET}_int8_yuv420_out_all.npz
 
   else
     cp ${NET}_only_resize_in_fp32.npz \
-        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_int8_yuv420_in_fp32.npz
+        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_only_resize_yuv420_in_fp32.npz
     mv ${NET}_int8_yuv420.cvimodel \
         $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_int8_yuv420.cvimodel
     cp ${NET}_cmdbuf_out_all_int8_yuv420.npz \

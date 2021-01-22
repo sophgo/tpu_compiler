@@ -5,7 +5,7 @@ DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 # onnx inference only on python3, pls pip3 install onnxruntime
 run_onnx_inference.py \
-    --input_file $REGRESSION_PATH/data/002-bg-02-018-124.png \
+    --input_file $IMAGE_PATH \
     --net_input_dims ${NET_INPUT_DIMS} \
     --batch ${BATCH_SIZE} \
     --raw_scale ${RAW_SCALE} \

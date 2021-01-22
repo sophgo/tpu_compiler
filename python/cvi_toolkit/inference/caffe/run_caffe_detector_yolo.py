@@ -67,9 +67,9 @@ def parse_args():
 
 def main(argv):
     args = parse_args()
-    preprocessor = preprocess()
-    args.pixel_format = 'RGB_PLANAR'
+    args.channel_order = 'rgb'
     args.keep_aspect_ratio = True
+    preprocessor = preprocess()
     preprocessor.config(**vars(args))
     # Make Detector
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]

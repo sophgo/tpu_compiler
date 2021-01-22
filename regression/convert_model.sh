@@ -120,13 +120,6 @@ else
   exit 1
 fi
 
-layergroup_opt=""
-dce_opt=""
-if [ $do_layergroup = "1" ]; then
-  layergroup_opt="--group-ops "
-  dce_opt="--dce "
-fi
-
 tpu_softmax_opt=""
 if [ $do_tpu_softmax = "1" ]; then
   tpu_softmax_opt="--quant-bf16-softmax  "

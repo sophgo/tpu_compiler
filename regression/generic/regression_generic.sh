@@ -37,27 +37,23 @@ else
       $DIR/regression_2_int8_calibration.sh
     fi
     $DIR/regression_3_int8.sh
+    if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
+      $DIR/regression_4_int8_fuse_preprocess.sh
+      if [ $DO_YUV420_FUSED_PREPROCESS -eq 1 ]; then
+        $DIR/regression_5_int8_yuv420_fuse_preprocess.sh
+      fi
+    fi
   fi
   if [ $DO_QUANT_BF16 -eq 1 ]; then
-    $DIR/regression_4_bf16.sh
-  fi
-  if [ $DO_QUANT_MIX -eq 1 ]; then
-    $DIR/regression_5_mix.sh
-  fi
-  if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
-    $DIR/regression_6_fuse_preprocess.sh
-    if [ $DO_QUANT_BF16 -eq 1 ]; then
+    $DIR/regression_6_bf16.sh
+    if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
       $DIR/regression_7_bf16_fuse_preprocess.sh
     fi
-    if [ $DO_YUV420_FUSED_PREPROCESS -eq 1 ]; then
-      $DIR/regression_8_yuv420_fuse_preprocess.sh
-    fi
+  fi
+  if [ $DO_QUANT_MIX -eq 1 ]; then
+    $DIR/regression_8_mix.sh
   fi
 fi
-#if [ $DO_NN_TOOLKIT -eq 1 ]; then
-#  gen_cvi_nn_tool_template.py $NET
-#  cvi_nn_converter.py $NET.yml
-#fi
 popd
 
 unset DO_BATCHSIZE

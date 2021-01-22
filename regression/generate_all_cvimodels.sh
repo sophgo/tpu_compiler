@@ -45,7 +45,6 @@ do
       -t ${MODEL_TYPE} \
       -b 1 \
       -q ${CALI_TABLE} \
-      -l ${USE_LAYERGROUP} \
       -v ${SET_CHIP_NAME} \
       -z ${NET_INPUT_DIMS} \
       -y ${IMAGE_RESIZE_DIMS} \
@@ -64,7 +63,6 @@ do
         -t ${MODEL_TYPE} \
         -b 1 \
         -q ${CALI_TABLE} \
-        -l ${USE_LAYERGROUP} \
         -v ${SET_CHIP_NAME} \
         -z ${NET_INPUT_DIMS} \
         -y ${IMAGE_RESIZE_DIMS} \
@@ -84,7 +82,6 @@ do
         -t ${MODEL_TYPE} \
         -b 1 \
         -q ${CALI_TABLE} \
-        -l ${USE_LAYERGROUP} \
         -v ${SET_CHIP_NAME} \
         -p \
         -z ${NET_INPUT_DIMS} \
@@ -105,7 +102,6 @@ do
         -t ${MODEL_TYPE} \
         -b 1 \
         -q ${CALI_TABLE} \
-        -l ${USE_LAYERGROUP} \
         -v ${SET_CHIP_NAME} \
         -p \
         -z ${NET_INPUT_DIMS} \

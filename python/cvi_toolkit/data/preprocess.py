@@ -201,22 +201,20 @@ class preprocess(object):
         }
 
     def __get_center_crop_offset(self):
-        w, h = self.resize_dims
-        cropx,cropy = self.net_input_dims
-        startx = w//2-(cropx//2)
-        starty = h//2-(cropy//2)
-        return [0, 0, startx, starty]
+        h, w = self.resize_dims
+        crop_h, crop_w = self.net_input_dims
+        start_h = (h // 2) -(crop_h // 2)
+        start_w = (w // 2) - (crop_w // 2)
+        return [0, 0, start_h, start_w]
 
     def __center_crop(self, img, crop_dim):
         # Take center crop.
-        center = np.array(img.shape[1:]) / 2.0
-        crop_dim = np.array(crop_dim)
-        crop = np.tile(center, (1, 2))[0] + np.concatenate([
-            -(crop_dim / 2.0),
-            crop_dim / 2.0
-        ])
-        crop = crop.astype(int)
-        img = img[:, crop[0]:crop[2], crop[1]:crop[3]]
+        _, h, w = img.shape
+        crop_h, crop_w = crop_dim
+        start_h = (h // 2) -(crop_h // 2)
+        start_w = (w // 2) - (crop_w // 2)
+        img = img[:, start_h : (start_h + crop_h),
+                     start_w : (start_w + crop_w)]
         return img
 
     def align_up(self, x, n):

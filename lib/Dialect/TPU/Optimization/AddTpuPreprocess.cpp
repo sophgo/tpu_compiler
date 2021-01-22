@@ -153,6 +153,7 @@ public:
 
       // change the shape of inputOp
       auto input_type = this->getTensorType(builder, input_shape, "UINT8");
+      inputOp.setAttr("name", builder.getStringAttr(name + "_raw"));
       inputOp.setAttr("preprocess",
           tpu::PreprocessParam::get(
               builder.getStringAttr(pixel_format),

@@ -38,29 +38,5 @@ cvi_npz_tool.py compare \
     --excepts ${EXCEPTS_BF16} \
     --tolerance $TOLERANCE_BF16 -vv
 
-$DIR/../mlir_to_cvimodel.sh \
-   -i ${NET}_quant_bf16.mlir \
-   -o ${NET}_bf16.cvimodel
-
-# run cvimodel
-model_runner \
-    --dump-all-tensors \
-    --input ${NET}_in_fp32.npz \
-    --model ${NET}_bf16.cvimodel \
-    --batch-num $BATCH_SIZE \
-    --output ${NET}_cmdbuf_out_all_bf16.npz
-
-# compare all tensors
-cvi_npz_tool.py compare \
-    ${NET}_cmdbuf_out_all_bf16.npz \
-    ${NET}_tensor_all_bf16.npz \
-    --op_info ${NET}_op_info_bf16.csv \
-    --excepts ${EXCEPTS_BF16} \
-    --tolerance=$TOLERANCE_BF16_CMDBUF -vv
-
-if [ ${DO_POSTPROCESS} -eq 1 ]; then
-  /bin/bash $POSTPROCESS_SCRIPT ${NET}_cmdbuf_out_all_bf16.npz ${OUTPUTS}_dequant
-fi
-
 # VERDICT
 echo $0 PASSED
