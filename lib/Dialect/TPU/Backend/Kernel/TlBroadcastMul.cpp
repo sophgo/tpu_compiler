@@ -184,7 +184,7 @@ void cvi_backend_tl_broadcast_mul(
     tl_bias.stride = ctx.tl_default_stride(
         tl_bias.shape, CVK_FMT_I8, /*eu_aign=*/0);
 
-    cvk_tiu_depthwise_convolution_param_t param = {nullptr};
+    cvk_tiu_depthwise_convolution_param_t param = {0};
     param.ofmap = &tl_output;
     param.ifmap = &tl_input;
     param.weight = &tl_scale;

@@ -148,7 +148,7 @@ void cvi_backend_tl_scale(const CviBackendContext &ctx, uint32_t layer_id,
           tl_perchannel.shape, CVK_FMT_I8, /*eu_aign=*/0);
       //when applying this, this is for shape
 
-      cvk_tiu_depthwise_convolution_param_t param = {nullptr};
+      cvk_tiu_depthwise_convolution_param_t param = {0};
       param.ofmap = &ofmap;
       param.ifmap = &ifmap;
       param.weight = &tl_scale;

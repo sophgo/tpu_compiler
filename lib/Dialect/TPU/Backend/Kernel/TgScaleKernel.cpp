@@ -121,7 +121,7 @@ void cvi_backend_tg_scale_kernel(const CviBackendContext &ctx,
       param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
       ctx.tiu_pt_depthwise_convolution(&param);
     } else {
-      cvk_tiu_depthwise_convolution_param_t param = {nullptr};
+      cvk_tiu_depthwise_convolution_param_t param = {0};
       param.ofmap = &tl_bslice;
       param.ifmap = &tl_bslice;
       param.weight = tl_scale;

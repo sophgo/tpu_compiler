@@ -930,7 +930,7 @@ void cvi_backend_tl_conv(
   } else if (group == input_c && group == output_c) {
     // depthwise convolution
     // Per-channel quantization
-    cvk_tiu_depthwise_convolution_param_t param = {nullptr};
+    cvk_tiu_depthwise_convolution_param_t param = {0};
     param.ofmap = &tl_output;
     param.ifmap = &tl_input;
     param.weight = &tl_weight;
@@ -1149,7 +1149,7 @@ void cvi_backend_bf16_tl_conv(
     ctx.tiu_pt_convolution(&param);
   } else if (group == input_c && group == output_c) {
     // depthwise conv
-    cvk_tiu_depthwise_pt_convolution_param_t param = {nullptr};
+    cvk_tiu_depthwise_pt_convolution_param_t param = {0};
     param.ofmap = &tl_output;
     param.ifmap = &tl_input;
     param.weight = &tl_weight;
