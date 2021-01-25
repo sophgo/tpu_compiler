@@ -49,19 +49,9 @@ uint64_t GroupOptimizer::cal_group_cost() {
                               << "total cost: " << cost << "\n");
     }
 
-    // calculate cost for single layer group since tiu/tdma is parallel
-    if (group->size() == 1) {
-      int id = group->layers()[0];
-      ImLayer* layer = const_cast<ImLayer*>(net_graph_->get_layer_by_id(id));
-      // for convolution, tdma is parallel with tiu, only calculate the first tdma slice
-      if (layer->type() == IR_CONVOLUTION || layer->type() == IR_DECONVOLUTION) {
-        ratio = (float)lmem_cost / LOCAL_MEM_SIZE;
-        cost = (uint64_t)(cost / int(ratio+1));
-      }
-    }
     total_cost += cost;
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-              << "[Layer Strategy] group " << group_idx << "ratio: " << ratio
+              << "[Layer Strategy] group " << group_idx << " ratio: " << ratio
               << " cost: " << cost << " total: " << total_cost << "\n";);
     group_idx++;
   }
