@@ -4,7 +4,7 @@ set -xe
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
 echo "$0 net=$NET"
-if [ $BATCH_SIZE > 1 ]; then
+if [ $BATCH_SIZE != 1 ]; then
     echo "only batch 1 is supported for yuv420 testing"
     exit 0
 fi

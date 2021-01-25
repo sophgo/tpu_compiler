@@ -135,14 +135,17 @@ public:
           input_shape[2] = resize_w;
           input_shape[3] = c;
         }
-      } else if (pixel_format == "YUV420_PLANAR") {
-        input_shape[1] = 1;
-        input_shape[2] = 1;
-        input_shape[3] = yuv420_size(1, c, resize_h, resize_w);
-      } else if (aligned) {
-        input_shape[1] = c;
-        input_shape[2] = resize_h;
-        input_shape[3] = align_up(resize_w, 32);
+      } else { // "nchw"
+        if (pixel_format == "YUV420_PLANAR") {
+          input_shape[1] = 1;
+          input_shape[2] = 1;
+          input_shape[3] = yuv420_size(1, c, resize_h, resize_w);
+          aligned = true; // currently only support aligned yuv420 input.
+        } else if (aligned) {
+          input_shape[1] = c;
+          input_shape[2] = resize_h;
+          input_shape[3] = align_up(resize_w, 32);
+        }
       }
       auto arg_type = this->getTensorType(builder, arg_shape, "UINT8");
       inputOp.getOperand().setType(arg_type);
@@ -457,7 +460,7 @@ private:
   }
 
   Value insertDequantOp(OpBuilder &builder, std::string &name, Value opd) {
-    std::string name_ = name + "_dequant_bf16";
+    std::string name_ = name + "_preprocess_dequant_bf16";
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name",
         builder.getStringAttr(name_)));
@@ -478,7 +481,7 @@ private:
 
   Value insertQuantOp(OpBuilder &builder, std::string &name, Value opd,
                      float scale, int32_t zero_point) {
-    std::string name_ = name + "_quant_i8";
+    std::string name_ = name + "_preprocess_quant_i8";
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name",
         builder.getStringAttr(name_)));
