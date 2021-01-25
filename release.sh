@@ -55,6 +55,7 @@ tar zcvf $dest_dir/cvitek_mlir_ubuntu-${os_ver}.tar.gz cvitek_mlir
 sample_models_list=(
   mobilenet_v2.cvimodel
   mobilenet_v2_fused_preprocess.cvimodel
+  mobilenet_v2_int8_yuv420.cvimodel
   yolo_v3_416_with_detection.cvimodel
   yolo_v3_416_fused_preprocess_with_detection.cvimodel
   alphapose.cvimodel
