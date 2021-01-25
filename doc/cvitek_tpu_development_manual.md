@@ -8,9 +8,9 @@
 
 
 >
-> 文档版本: 1.4.0
+> 文档版本: 1.5.0
 >
-> 发布日期: 2020-12-04
+> 发布日期: 2020-01-25
 
 © 2020 北京晶视智能科技有限公司
 
@@ -41,7 +41,7 @@
 
 [TOC]
 
-
+<div STYLE="page-break-after: always;"></div>
 
 # 第1章 概述
 
@@ -56,7 +56,7 @@
 ## 1.3 软件框架
 
 > TPU软件开发框图如下图所示。
-<img src="D:\\doc\\assets\\framework.jpg" alt="imagexx" style="zoom: 50%;" />
+<img src="assets\\framework.jpg" alt="imagexx" style="zoom: 50%;" />
 > 软件框架由Offline工具链和Runtime模型推理库两部分组成。Offline工具链包括模型转换，编译器，量化工具等组件，完成从用户模型导入，变换，量化，优化，到代码生成等步骤，最终组装为cvimodel格式的推理模型文件。Runtime模型推理库加载cvimodel，读取运行时信息进行设置和资源分配，加载权重数据和指令序列，驱动硬件执行其中的指令序列，完成神经网络推理计算任务，输出推理结果数据。Runtime包含完整仿真平台的支持，客户可以先在仿真平台完成模型移植，验证和精度测试，再加载到真实硬件上验证和执行。
 
 
@@ -129,11 +129,11 @@
 
 # 第2章 模型编译指南
 
-## 工具链参考
+## 2.1 工具链参考
 
-### IR定义参考
+### 2.1.1 IR定义参考
 
-#### 概述
+#### 2.1.1.1 概述
 
 > IR（Intermediate
 > Representation）即中间表示语言，其作用是将基于各类框架的神经网络图转换为统一的中间表示形式。Cvitek编译器借助了MLIR的IR框架，定义了面向TPU开发和优化的TPU
@@ -153,85 +153,71 @@
 > IR的定义中会对每一个sub tensor生成一个SliceOp，它们的input
 > tensor指向同一个tensor，通过attribute指定offset等参数，但每个SliceOp只有一个输出tensor。
 
-#### Operation支持列表
+<br>
+
+#### 2.1.1.2 Operation支持列表
 
 > 支持的Operation如下表所示**：**
 
-  |**操作**              |**Engine**      |**Quantization**   |**Lowering**|
+|**操作**              |**Engine**^(1)^      |**Quantization**^(2)^   |**Lowering**^(3)^|
 |---------------------|---------------|------------------|--------------|
-  |BatchNorm             |Optimized       |No                 |No|
-  |BroadcastMul          |TPU             |Yes                |Yes|
-  |Clip                  |TPU             |Yes                |Yes|
-  |Concat                |TPU/Optimized   |Yes                |Yes|
-  |Conv2D                |TPU             |Yes                |Yes|
-  |Crop                  |TPU             |Yes                |Yes|
-  |Custom                |CPU             |Yes                |No|
-  |DeConv2D              |TPU             |Yes                |Yes|
-  |DetectionOutput       |CPU             |No                 |No|
-  |EltwiseAdd            |TPU             |Yes                |Yes|
-  |EltwiseMax            |TPU             |Yes                |Yes|
-  |EltwiseMul            |TPU             |Yes                |Yes|
-  |FrcnDetection         |CPU             |No                 |No|
-  |FullyConnected        |TPU             |Yes                |Yes|
-  |Gru                   |TPU             |Yes                |Yes|
-  |Interp                |TPU             |Yes                |Yes|
-  |LeakyRelu             |TPU             |Yes                |Yes|
-  |LrnOne                |CPU             |Yes                |No|
-  |LrnTwo                |CPU             |Yes                |No|
-  |LrnThree              |CPU             |Yes                |No|
-  |Lstm                  |TPU             |Yes                |Yes|
-  |MatMul                |TPU             |Yes                |Yes|
-  |Mish                  |TPU             |Yes                |Yes|
-  |Normalize             |Optimzied       |No                 |No|
-  |Pad                   |TPU             |Yes                |Yes|
-  |Permute               |TPU             |Yes                |Yes|
-  |PixelShuffle          |TPU             |Yes                |Yes|
-  |PoolAvg2D             |TPU             |Yes                |Yes|
-  |PoolMask              |Optimzied       |No                 |No|
-  |PoolMax2D             |TPU             |Yes                |Yes|
-  |Power                 |TPU             |Yes                |Yes|
-  |PRelu                 |TPU             |Yes                |Yes|
-  |Preprocess            |TPU             |Yes                |Yes|
-  |PriorBox              |CPU             |No                 |No|
-  |Proposal              |CPU             |No                 |No|
-  |QuadraticSum          |TPU             |Yes                |Yes|
-  |Reciprocal            |TPU             |Yes                |Yes|
-  |ReduceMax             |TPU             |Yes                |Yes|
-  |ReduceMean            |TPU             |Yes                |Yes|
-  |Relu                  |TPU             |Yes                |Yes|
-  |Reorg                 |TPU             |Yes                |Yes|
-  |RetinaFaceDetection   |CPU             |No                 |No|
-  |ROIPooling            |CPU             |Yes                |No|
-  |Scale                 |TPU             |No                 |No|
-  |ShuffleChannel        |TPU             |Yes                |Yes|
-  |Sigmoid               |TPU             |Yes                |Yes|
-  |Slice                 |Optimzied       |Yes                |Yes|
-  |Sqrt                  |TPU             |Yes                |Yes|
-  |Square                |TPU             |Yes                |Yes|
-  |Softmax               |TPU             |Yes                |Yes|
-  |SoftmaxCpu            |CPU             |No                 |No|
-  |SwapChannel           |TPU             |Yes                |Yes|
-  |TanH                  |TPU             |Yes                |Yes|
-  |Tile                  |TPU             |Yes                |Yes|
-  |TileInterp            |TPU             |Yes                |Yes|
-  |Transpose             |CPU             |No                 |No|
-  |Upsample              |TPU             |Yes                |Yes|
-  |YoloDetection         |CPU             |No                 |No|
-  |ZeroMask              |TPU             |Yes                |Yes|
+|BatchNorm             |TPU       |yes                 |yes|
+|BroadcastMul          |TPU             |Yes                |Yes|
+|Clip                  |TPU             |Yes                |Yes|
+|Concat                |TPU   |Yes                |Yes|
+|Conv2D                |TPU             |Yes                |Yes|
+|Crop                  |TPU             |Yes                |Yes|
+|Custom                |CPU             |Yes                |No|
+|DeConv2D              |TPU             |Yes                |Yes|
+|DetectionOutput       |CPU             |No                 |No|
+|EltwiseAdd            |TPU             |Yes                |Yes|
+|EltwiseMax            |TPU             |Yes                |Yes|
+|EltwiseMul            |TPU             |Yes                |Yes|
+|FrcnDetection         |CPU             |No                 |No|
+|FullyConnected        |TPU             |Yes                |Yes|
+|Gru                   |TPU             |Yes                |Yes|
+|LeakyRelu             |TPU             |Yes                |Yes|
+|Lstm                  |TPU             |Yes                |Yes|
+|Mish                  |TPU             |Yes                |Yes|
+|Normalize             |TPU       |No                 |No|
+|Pad                   |TPU             |Yes                |Yes|
+|Permute               |TPU             |Yes                |Yes|
+|PixelShuffle          |TPU             |Yes                |Yes|
+|PoolAvg2D             |TPU             |Yes                |Yes|
+|PoolMask              |TPU       |No                 |No|
+|PoolMax2D             |TPU             |Yes                |Yes|
+|Power                 |TPU             |Yes                |Yes|
+|PRelu                 |TPU             |Yes                |Yes|
+|PriorBox              |CPU             |No                 |No|
+|Proposal              |CPU             |No                 |No|
+|ReduceMax             |TPU             |Yes                |Yes|
+|ReduceMean            |TPU             |Yes                |Yes|
+|Relu                  |TPU             |Yes                |Yes|
+|Reorg                 |TPU             |Yes                |Yes|
+|RetinaFaceDetection   |CPU             |No                 |No|
+|ROIPooling            |CPU             |Yes                |No|
+|Scale                 |TPU             |No                 |No|
+|Sigmoid               |TPU             |Yes                |Yes|
+|Slice                 |TPU       |Yes                |Yes|
+|Sqrt                  |TPU             |Yes                |Yes|
+|Softmax               |TPU             |Yes                |Yes|
+|TanH                  |TPU             |Yes                |Yes|
+|Tile                  |TPU             |Yes                |Yes|
+|Upsample              |TPU             |Yes                |Yes|
+|YoloDetection         |CPU             |No                 |No|
+|ZeroMask              |TPU             |Yes                |Yes|
 
-用来指定当前指令的执行阶段，比如Optimized表示在优化过程中使用，TPU
+> (1) 来指定当前指令的执行阶段，TPU表示指令在TPU上执行，CPU表示在CPU上执行。
 
-表示指令在TPU上执行，CPU表示在CPU上执行。
+> (2) Quantization表示是否需要做量化, 在CPU中执行的指令是不需要做量化的。
 
-Quantization表示是否需要做量化。比如在优化过程中使用的指令，以及在
+> (3) Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 
-CPU中执行的指令是不需要做量化的。
+<br>
 
-Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
+#### 2.1.1.3 通用数据结构
 
-#### 通用数据结构
-
--   基础数据类型
+- 基础数据类型
 
   |类型   |描述|
   |------ |-----------------------------|
@@ -240,8 +226,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |F32    |DataType，32 bit浮点数据|
   |BF16   |DataType，16 bit BF浮点数据|
   |I64    |DataType，64 bit整型数据|
+  <br>
 
--   Tensor类型
+- Tensor类型
 
   |类型                          |描述|
   |----------------------------- |------------------------------------------------|
@@ -249,8 +236,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |TensorOfOrNone\\< DataType\\>   |以DataType为数据类型的Tensor，None表示空Tensor|
   |AnyTensor                     |以任意DataType为数据类型的Tensor|
   |Variadic Tensor               |一个或多个Tensor|
+  <br>
 
--   基础属性类型
+- 基础属性类型
 
   类型                 描述
   |类型|描述|
@@ -260,10 +248,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |I32Attr             | 属性，32 bit整数类型属性|
   |F32Attr             | 属性，32 bit浮点类型属性|
   |BoolAttr            | 属性，布尔属性|
+  <br>
 
 -   TPU_QuantParamAttr
 
-  参数名称        类型                     描述
   |参数名称|类型|描述|
   |---|---|---|
   |mode           | TPU_QuantModeAttr      | Quant的类型|
@@ -273,8 +261,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |threshold_max  | F32Attr                | 量化最大值|
   |threshold_min  | F32Attr                | 量化最小值（仅限非对称量化）|
   |zero_point     | I32Attr                | 零点值|
-
--   TPU_QuantModeAttr
+  
+  <br>
+  
+- TPU_QuantModeAttr
 
   枚举   描述
   |枚举|描述|
@@ -283,7 +273,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |INT8  | 量化为INT8|
   |BF16  | 量化为BF16|
 
--   TPU_QuantParamTypeAttr
+  <br>
+
+- TPU_QuantParamTypeAttr
 
   枚举                描述
   |枚举|描述|
@@ -297,7 +289,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |LUT_INT8           | 量化变量以INT8 LUT描述|
   |LUT_BF16           | 量化变量以BF16 LUT描述|
 
--   TPU_ConvParamAttr
+  <br>
+
+- TPU_ConvParamAttr
 
   参数名称     类型              描述
   |参数名称|类型|描述|
@@ -313,6 +307,8 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |do_relu     | BoolAttr        | 是否对结果进行relu操作|
   |ins         | I32ArrayAttr    | 对h， w插入0|
   |pad_value   | I32Attr         | 填充值|
+
+  <br>
 
 -   TPU_PoolParamAttr
 
@@ -330,11 +326,12 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |do_relu            | BoolAttr | 是否对结果进行relu操作|
   |count_include_pad  | BoolAttr | 计算时是否包含pad部分|
 
-#### Operation定义
+<br>
 
--   BatchNorm
+#### 2.1.1.4 Operation定义
 
-  参数名称           类型                      描述               类别
+- BatchNorm
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor         | 输出|
@@ -345,9 +342,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |variance_epsilon  | F32Attr                 | epsilon          | 属性|
   |name              | StrAttr                 | 名称               | 属性|
 
--   BroadcastMul
+  <br>
 
-  参数名称           类型                      描述                 类别
+- BroadcastMul
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -362,9 +360,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
--   Clip
+  <br>
 
-  参数名称           类型                      描述                 类别
+- Clip
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -377,9 +376,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |max               | F32Attr                 | 最大值                | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
--   Concat
+  <br>
 
-  参数名称           类型                      描述                 类别
+- Concat
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -392,9 +392,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
--   Conv2D
+  <br>
 
-  参数名称           类型                      描述                 类别
+- Conv2D
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -409,9 +410,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
+  <br>
+
 -   Crop
 
-  参数名称      类型                      描述          类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output       | AnyTensor               | 输出Tensor    | 输出|
@@ -420,10 +422,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |crop_offset  | TI32ArrayAttr           | Crop Offset | 属性|
   |quant        | TPU_QuantParamAttr      | Quant参数     | 属性|
   |name         | StrAttr                 | 名称          | 属性|
+  
+- Custom
 
--   Custom
-
-  参数名称              类型                      描述                类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output               | AnyTensor               | 输出Tensor          | 输出|
@@ -435,9 +436,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |threshold_overwrite  | StrAttr                 | 直接覆盖threshold     | 属性|
   |name                 | StrAttr                 | 名称                | 属性|
 
--   DeConv2D
+  <br>
 
-  参数名称           类型                      描述                 类别
+- DeConv2D
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -452,9 +454,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
--   DetectionOutput
+  <br>
 
-  参数名称               类型                      描述                   类别
+- DetectionOutput
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output                | AnyTensor               | 输出Tensor             | 输出|
@@ -469,9 +472,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |confidence_threshold  | F32Attr                 | Confidence Threshold | 属性|
   |name                  | StrAttr                 | 名称                   | 属性|
 
--   EltwiseAdd
+  <br>
 
-  参数名称           类型                      描述                 类别
+- EltwiseAdd
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -488,9 +492,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
--   EltwiseMax
+  <br>
 
-  参数名称           类型                      描述                 类别
+- EltwiseMax
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -507,9 +512,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
--   EltwiseMul
+  <br>
 
-  参数名称           类型                      描述                 类别
+- EltwiseMul
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -526,9 +532,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
--   FrcnDetection
+  <br>
 
-  参数名称        类型                      描述               类别
+- FrcnDetection
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output         | AnyTensor               | 输出Tensor         | 输出|
@@ -539,9 +546,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |keep_top_k     | I32Attr                 | Keep Top K       | 属性|
   |name           | StrAttr                 | 名称               | 属性|
 
--   FullyConnected
+  <br>
 
-  参数名称           类型                      描述                 类别
+- FullyConnected
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -556,9 +564,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
+  <br>
+
 -   Gru
 
-  参数名称              类型                      描述                          类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output               | AnyTensor               | 输出Tensor                    | 输出|
@@ -575,30 +584,12 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |linear_before_reset  | BoolAttr                | 在reset门之前有一个linear层         | 属性|
   |bidirectional        | BoolAttr                | 是否是bidirectional|
   |name                 | StrAttr                 | 名称                          | 属性|
+  
 
--   Interp
+<br>
 
-  参数名称           类型                      描述                 类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output            | AnyTensor               | 输出Tensor           | 输出|
-  |input             | AnyTensor               | 输入Tensor           | 输入|
-  |quant_scale       | TensorOfOrNone          | 量化scale向量          | 输入(可选)|
-  |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
-  |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
-  |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
-  |height            | NonNegativeI32Attr      | 高                  | 属性|
-  |width             | NonNegativeI32Attr      | 宽                  | 属性|
-  |shrink_facker     | NonNegativeI32Attr      | 缩小因子               | 属性|
-  |zoom_factor       | NonNegativeI32Attr      | 放大因子               | 属性|
-  |pad_beg           | NonNegativeI32Attr      | 起始填充               | 属性|
-  |pad_end           | NonNegativeI32Attr      | 结束填充               | 属性|
-  |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
-  |name              | StrAttr                 | 名称                 | 属性|
+- LeakyRelu
 
--   LeakyRelu
-
-  参数名称               类型                      描述                 类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output                | AnyTensor               | 输出Tensor           | 输出|
@@ -615,51 +606,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant                 | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name                  | StrAttr                 | 名称                 | 属性|
 
--   LrnOne
+  <br>
 
-  参数名称     类型                      描述         类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output      | AnyTensor               | 输出Tensor   | 输出|
-  |input       | Any Tensor              | 输入Tensor   | 输入|
-  |local_size  | NonNegativeI32Attr      | local size | 属性|
-  |alpha       | F32Attr                 | alpha      | 属性|
-  |beta        | F32Attr                 | beta       | 属性|
-  |k           | I32Attr                 | k          | 属性|
-  |quant       | TPU_QuantParamAttr      | Quant参数    | 属性|
-  |name        | StrAttr                 | 名称         | 属性|
+- Lstm
 
--   LrnTwo
-
-  参数名称     类型                      描述         类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output      | AnyTensor               | 输出Tensor   | 输出|
-  |input       | Any Tensor              | 输入Tensor   | 输入|
-  |local_size  | NonNegativeI32Attr      | local size | 属性|
-  |alpha       | F32Attr                 | alpha      | 属性|
-  |beta        | F32Attr                 | beta       | 属性|
-  |k           | I32Attr                 | k          | 属性|
-  |quant       | TPU_QuantParamAttr      | Quant参数    | 属性|
-  |name        | StrAttr                 | 名称         | 属性|
-
--   LrnThree
-
-  参数名称     类型                      描述         类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output      | AnyTensor               | 输出Tensor   | 输出|
-  |input       | Any Tensor              | 输入Tensor   | 输入|
-  |local_size  | NonNegativeI32Attr      | local size | 属性|
-  |alpha       | F32Attr                 | alpha      | 属性|
-  |beta        | F32Attr                 | beta       | 属性|
-  |k           | I32Attr                 | k          | 属性|
-  |quant       | TPU_QuantParamAttr      | Quant参数    | 属性|
-  |name        | StrAttr                 | 名称         | 属性|
-
--   Lstm
-
-  参数名称              类型                      描述                  类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output               | AnyTensor               | 输出Tensor            | 输出|
@@ -677,9 +627,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |bidirectional        | BoolAttr                | 是否是bidirectional    | 属性|
   |name                 | StrAttr                 | 名称                  | 属性|
 
--   MatMul
+  <br>
 
-  参数名称   类型                      描述         类别
+- MatMul
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor   | 输出|
@@ -688,9 +639,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
--   Mish
+  <br>
 
-  参数名称         类型                      描述          类别
+- Mish
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output          | AnyTensor               | 输出Tensor    | 输出|
@@ -702,9 +654,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |mish_threshold  | F32Attr                 | threshold   | 属性|
   |name            | StrAttr                 | 名称          | 属性|
 
+  <br>
+
 - Normalize
 
-  参数名称         类型                      描述             类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output          | AnyTensor               | 输出Tensor       | 输出|
@@ -714,9 +667,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |channel_shared  | BoolAttr                | Channel Shared | 属性|
   |name            | StrAttr                 | 名称             | 属性|
 
--   Pad
+  <br>
 
-  参数名称    类型                      描述             类别
+- Pad
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output     | AnyTensor               | 输出Tensor       | 输出|
@@ -726,9 +680,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant      | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name       | StrAttr                 | 名称             | 属性|
 
--   Permute
+  <br>
 
-  参数名称   类型                      描述             类别
+- Permute
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor       | 输出|
@@ -740,9 +695,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name      | StrAttr                 | 名称             | 属性|
 
--   PixelShuffle
+  <br>
 
-  参数名称         类型                      描述                     类别
+- PixelShuffle
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output          | AnyTensor               | 输出Tensor               | 输出|
@@ -752,9 +708,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |mode            | DefaultValuedAttr       | mode参数， 默认值是CRD        | 属性|
   |name            | StrAttr                 | 名称                     | 属性|
 
--   PoolAvg2D
+  <br>
 
-  参数名称           类型                      描述                 类别
+- PoolAvg2D
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor           | 输出|
@@ -767,9 +724,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
--   PoolMask
+  <br>
 
-  参数名称    类型                      描述             类别
+- PoolMask
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output     | AnyTensor               | 输出Tensor       | 输出|
@@ -779,9 +737,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant      | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name       | StrAttr                 | 名称             | 属性|
 
--   PoolMax2D
+  <br>
 
-  参数名称   类型                      描述         类别
+- PoolMax2D
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor   | 输出|
@@ -790,24 +749,20 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
+  <br>
 -   Power
 
-> y = (scale \\* x + shift) \\^ power
-
-  参数名称   类型                      描述         类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor   | 输出|
   |input     | AnyTensor               | 输入Tensor   | 输入|
   |power     | F32Attr                 | Power      | 属性|
   |scale     | F32Attr                 | Scale      | 属性|
-  |shift     | F32Attr                 | shift      | 属性|
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
+<br>
 -   PRelu
-
-  参数名称               类型                      描述                 类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output                | AnyTensor               | 输出Tensor           | 输出|
@@ -824,26 +779,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant                 | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name                  | StrAttr                 | 名称                 | 属性|
 
--   Preprocess
-
-  参数名称          类型                      描述         类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output           | AnyTensor               | 输出Tensor   | 输出|
-  |input            | AnyTensor               | 输入Tensor   | 输入|
-  |color_order      | I32ArrayAttr            | RGB或者BGR   | 属性|
-  |mean             | F32ArrayAttr            | Mean       | 属性|
-  |raw_scale        | F32Attr                 | Raw Scale  | 属性|
-  |scale            | F32Attr                 | Scale      | 属性|
-  |std              | F32ArrayAttr            | Std        | 属性|
-  |transpose_order  | I32ArrayAttr            | 转置顺序       | 属性|
-  |crop_offset      | I32ArrayAttr            | Crop偏移     | 属性|
-  |pads             | I32ArrayAttr            | 填充大小       | 属性|
-  |const_val        | F32Attr                 | 填充值        | 属性|
-  |quant            | TPU_QuantParamAttr      | Quant参数    | 属性|
-  |name             | StrAttr                 | 名称         | 属性|
-
--   PriorBox
+  <br>
+  
+- PriorBox
 
   参数名称                   类型                      描述                 类别
   |参数名称|类型|描述|类别|
@@ -864,9 +802,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |use_default_aspect_ratio  | DefaultValuedAttr       | 是否使用默认宽高比          | 属性|
   |name                      | StrAttr                 | 名称                 | 属性|
 
--   Proposal
+  <br>
 
-  参数名称             类型                      描述                  类别
+- Proposal
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output              | AnyTensor               | 输出Tensor            | 输出|
@@ -880,34 +819,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |rpn_nms_post_top_n  | I32Attr                 | 保存NMS框数目            | 属性|
   |name                | StrAttr                 | 名称                  | 属性|
 
--   QuadraticSum
+  <br>
 
-  参数名称         类型                      描述           类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output          | AnyTensor               | 输出Tensor     | 输出|
-  |input           | AnyTensor               | 输入Tensor     | 输入|
-  |quant           | TPU_QuantParamAttr      | Quant参数      | 属性|
-  |high_precision  | OptionalAttr            | 是否使用FP32     | 属性|
-  |axis            | DefaultValuedAttr       | 指定维度         | 属性|
-  |name            | StrAttr                 | 名称           | 属性|
+- ReduceMax
 
--   Reciprocal
-
-  参数名称         类型                      描述                 类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output          | AnyTensor               | 输出Tensor           | 输出|
-  |input           | AnyTensor               | 输入Tensor           | 输入|
-  |table           | TensorOfOrNone          | LUT table          | 输入(可选)|
-  |Table_mantissa  | TensorOfOrNone          | LUT table mantissa | 输入(可选)|
-  |has_table       | BoolAttr                | 是否使用LUT计算          | 属性|
-  |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
-  |name            | StrAttr                 | 名称                 | 属性|
-
--   ReduceMax
-
-  参数名称           类型                      描述            类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor      | 输出|
@@ -921,9 +836,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |keepdims          | DefaultValuedAttr       | 是否保持维度        | 属性|
   |name              | StrAttr                 | 名称            | 属性|
 
--   ReduceMean
+  <br>
 
-  参数名称           类型                 描述            类别
+- ReduceMean
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor          | 输出Tensor      | 输出|
@@ -935,9 +851,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant_multiplier  | TPU_TensorOfOrNone | Quant乘数       | 属性|
   |keepdims          | DefaultValuedAttr  | 是否保持维度        | 属性|
 
--   Relu
+  <br>
 
-  参数名称   类型                      描述                类别
+- Relu
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor          | 输出|
@@ -946,9 +863,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数           | 属性|
   |name      | StrAttr                 | 名称                | 属性|
 
--   Reorg
+  <br>
 
-  参数名称   类型                      描述             类别
+- Reorg
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor       | 输出|
@@ -957,9 +875,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name      | StrAttr                 | 名称             | 属性|
 
--   RetinaFaceDetection
+  <br>
 
-  参数名称               类型                      描述                   类别
+- RetinaFaceDetection
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output                | AnyTensor               | 输出Tensor             | 输出|
@@ -969,17 +888,19 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |keep_top_k            | I32Attr                 | Keep Top K           | 属性|
   |name                  | StrAttr                 | 名称                   | 属性|
 
--   ROIPooling
+  <br>
 
-  参数名称   类型        描述         类别
+- ROIPooling
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor | 输出Tensor   | 输出|
   |input     | AnyTensor | 输入Tensor   | 输入|
 
--   Scale
+  <br>
 
-  参数名称   类型                      描述                 类别
+- Scale
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor           | 输出|
@@ -990,9 +911,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name      | StrAttr                 | 名称                 | 属性|
 
--   ShuffleChannel
+  <br>
 
-  参数名称   类型                      描述            类别
+- ShuffleChannel
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor      | 输出|
@@ -1001,9 +923,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数       | 属性|
   |name      | StrAttr                 | 名称            | 属性|
 
--   Sigmoid
+  <br>
 
-  参数名称         类型                      描述                 类别
+- Sigmoid
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output          | AnyTensor               | 输出Tensor           | 输出|
@@ -1014,9 +937,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
--   Slice
+  <br>
 
-  参数名称   类型                      描述                   类别
+- Slice
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor             | 输出|
@@ -1026,9 +950,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数              | 属性|
   |name      | StrAttr                 | 名称                   | 属性|
 
--   Sqrt
+  <br>
 
-  参数名称         类型                      描述                 类别
+- Sqrt
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output          | AnyTensor               | 输出Tensor           | 输出|
@@ -1039,17 +964,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
--   Square
+  <br>
 
-  参数名称   类型                      描述         类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output    | AnyTensor               | 输出Tensor   | 输出|
-  |input     | AnyTensor               | 输入Tensor   | 输入|
-  |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
-  |name      | StrAttr                 | 名称         | 属性|
-
--   Softmax
+- Softmax
 
   参数名称                    类型                      描述                    类别
   |参数名称|类型|描述|类别|
@@ -1062,31 +979,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |axis                       | I32Attr                 | Softmax的维度            | 属性|
   |name                       | StrAttr                 | 名称                    | 属性|
 
--   SoftmaxCpu
+  <br>
 
-  参数名称   类型                      描述            类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output    | AnyTensor               | 输出Tensor      | 输出|
-  |input     | AnyTensor               | 输入Tensor      | 输入|
-  |axis      | I32Attr                 | Softmax的维度    | 属性|
-  |name      | StrAttr                 | 名称            | 属性|
-  |layer_id  | NonNegativeI32Attr      | Layer ID      | 属性|
+- TanH
 
--   SwapChannel
-
-  参数名称        类型                           描述                类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output         | AnyTensor                    | 输出Tensor          | 输出|
-  |input          | AnyTensor                    | 输入Tensor          | 输入|
-  |channel_order  | OptionalAttr\\<I32ArrayAttr\\> | 交换channel的顺序      | 属性|
-  |quant          | OptionalAttr\\<I32ArrayAttr\\> | Quant参数           | 属性|
-  |name           | StrAttr                      | 名称                | 属性|
-
--   TanH
-
-  参数名称         类型                      描述                 类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output          | AnyTensor               | 输出Tensor           | 输出|
@@ -1097,9 +993,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
--   Tile
+  <br>
 
-  参数名称           类型                      描述            类别
+- Tile
+
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output            | AnyTensor               | 输出Tensor      | 输出|
@@ -1112,31 +1009,9 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |resp              | OptionalAttr            | 重复次数          | 属性|
   |name              | StrAttr                 | 名称            | 属性|
 
--   TileInterp
+  <br>
 
-  参数名称           类型                      描述            类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output            | AnyTensor               | 输出Tensor      | 输出|
-  |input             | AnyTensor               | 输入Tensor      | 输入|
-  |quant             | TPU_QuantParamAttr      | Quant参数       | 属性|
-  |quant_scale       | TPU_TensorOfOrNone      | Quant收缩因子     | 属性|
-  |quant_zeropoint   | TPU_TensorOfOrNone      | Quant零点值      | 属性|
-  |quant_rshift      | TPU_TensorOfOrNone      | Quant右移位      | 属性|
-  |quant_multiplier  | TPU_TensorOfOrNone      | Quant乘数       | 属性|
-  |resp              | OptionalAttr            | 重复次数          | 属性|
-  |name              | StrAttr                 | 名称            | 属性|
-
--   Transpose
-
-  参数名称   类型                      描述         类别
-  |参数名称|类型|描述|类别|
-  |---|---|---|---|
-  |output    | AnyTensor               | 输出Tensor   | 输出|
-  |input     | AnyTensor               | 输入Tensor   | 输入|
-  |name      | StrAttr                 | 名称         | 属性|
-
--   Upsample
+- Upsample
 
   参数名称   类型                      描述            类别
   |参数名称|类型|描述|类别|
@@ -1148,9 +1023,10 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |quant     | TPU_QuantParamAttr      | Quant参数       | 属性|
   |name      | StrAttr                 | 名称            | 属性|
 
+  <br>
+
 -   YoloDetection
 
-  参数名称        类型                      描述               类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output         | AnyTensor               | 输出Tensor         | 输出|
@@ -1166,11 +1042,116 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
   |yolo_v4_net    | BoolAttr                | Yolo_v4网络        | 属性|
   |name           | StrAttr                 | 名称               | 属性|
 
-### cvimodel文件格式参考
+<br>
+
+#### 2.1.1.5 前端模型导入
+
+> 工具链提供了python接口用于导入前端框架的IR到mlir模型中，所有的high level operation都定义在mlirimporter.py中，可以方便的构建mlir graph
+
+【原型】
+```python
+# mlirimporter.py
+class MLIRImport:
+
+  def __init__(self, inputs_shape, outputs_shape,
+input_type="FP32"):
+    for input in inputs_shape:
+      assert(isinstance(input, list))
+      self.input_shape_list.append(input)
+    for output in outputs_shape:
+      assert(isinstance(output, list))
+       self.output_shape_list.append(output)
+    self.declare_func(input_type=input_type)
+```
+【主要属性】
+
+ 	MLIRImport.input_shape_list为模型的输入张量shape；
+ 	
+ 	MLIRImport.output_shape_list为模型的输出张量shape。
+
+【主要方法】
+```python
+def add_input_op(self, name, index):
+  pass
+```
+> 用于构造input指令，用来指定input的数据类型，threshold等属性。
+
+| 功能说明 | 注释              |
+| -------- | ----------------- |
+| 返回值   | Operation         |
+| name     | 指定input名字     |
+| index    | 指定input输入索引 |
+<br>
+
+```python
+def add_weight_fileOp(self, name):
+  pass
+```
+> 用于构造weight操作，指定对应的weight文件。
+
+| 功能说明 | 注释              |
+| -------- | ----------------- |
+| 返回值   | Operation *       |
+| name     | 指定weight 文件名 |
+<br>
+```python
+def add_load_fileOp(self, name, output_tensor_shape,
+                    tensor_type=TPU_TensorType.Fp32,
+                    storage="NONE")
+```
+> 用于构造load_file操作,用来load weight相关的Tensor.
+
+| 功能说明            | 注释             |
+| ------------------- | ---------------- |
+| 返回值              | Operation \\*    |
+| name                | Tensor名         |
+| output_tensor_shape | 输出Tensor shape |
+| tensor_type         | Tensor类型       |
+| storage             | 存储类型         |
+<br>
+
+```python
+def add_conv_Op(self, op_name, inputOperands,
+                output_tensor_shape,
+                mode=TPU_MODE.FP32,
+                **kargs)
+```
+> 用于构造convolution操作。
+| 功能说明            | 注释               |
+| ------------------- | ------------------ |
+| 返回值              | Operation \\*      |
+| op_name             | 指定conv层的名字   |
+| inputOperands       | 指定输入操作数     |
+| output_tensor_shape | 指定输出shape      |
+| mode                | 指定数据类型       |
+| kargs               | 指定Conv的属性列表 |
+
+> kargs字典序指定的参数如下
+
+| key          | value                  |
+| ------------ | ---------------------- |
+| dilation_h | dilation_h值           |
+| dilation_w | dilation_w值           |
+| stride_h   | stride_h值             |
+| stride_w   | stride_w值             |
+| padding    | VALID或SAME            |
+| padding_t  | 填充top值              |
+| padding_b  | 填充bottom值           |
+| padding_l  | 填充左侧值             |
+| padding_r  | 填充右侧值             |
+| group      | group                  |
+| is_dw      | 是否为Depthwise        |
+| with_bias  | 是否有bias             |
+| do_relu    | 是否对结果进行relu操作 |
+| ins        | 对h， w插入0           |
+
+<br>
+
+### 2.1.2 cvimodel文件格式参考
 
 > cvimodel采用flatbuffers进行对权重数据、指令序列以及张量的相关信息进行打包封装，用于部署到平台上。
 
-#### 重要概念
+#### 2.1.2.1 基本概念
 
 -   模型（Model）：
 
@@ -1188,41 +1169,140 @@ Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
 
 > 为输入输出张量和Activation等的统称，张量中包含其名称、Shape、基本数据类型等信息。
 
-#### Cvimodel结构
+<br>
+
+#### 2.1.2.1 Cvimodel结构
 
 > ![](./assets/cvimodel.png)
 >
 >Cvimodel的基本结构如上图所示，分为三段。首段为cvimodel文件的header部分，包含magic字串，版本号，中段的数据字节数、md5值等数据，是解析cvimodel文件的基本信息；中段为Model的结构信息，包含Program、Routines等信息，用于解析网络模型的结构和指令信息；尾段为二进制数据段，包含权重数据，各Program的TPU指令序列，以及存储用户自定义CPU段的so文件。
 
-### 工具链命令参考
+<br>
 
-#### mlir-translate
+### 2.1.2 工具链基本命令
+
+#### 2.1.2.1 前端源框架推理命令
+
+**(1) CAFFE**
 
 -   【命令】
-
-> mlir-translate \\[options\\] \\<input file\\> -o \\<output file\\>
-
+  ```sh
+  run_caffe_classifier.py [options] <input_image> <output_npy_file>
+  ```
 -   【作用】
 
-> 将优化后的mlir模型文件转换为能在仿真器或者Soc平台上运行的cvimodel模型文件
+> 基于pycaffe做caffe模型的推理，输出每层的outputs以便后续转模型时候进行逐层比对，保证转模型的正确性。
 
 -   【输入输出】
 
   参数名称          描述
   |参数名称|描述|
   |---|---|
-  |\<input file\>   | 输入文件mlir文件|
-  |\<output file\>  | 输出cvimodel文件|
+  |\<input_image\>   | 输入图片文件 |
+  |\<output_npy_file\>  | 输出caffe模型输出层的结果 |
 
 -   【选项】
 
-  参数名称                    描述
+  参数名称                                描述
   |参数名称|描述|
   |---|---|
-  |--mlir-to-cvimodel        | 指定将mlir转换为cvimodel文件|
-  |--weight-file=\<string\>  | 模型的weight文件，转cvimodel文件时必选|
+  |--model_def                        | caffe模型定义文件(***.prototxt**) |
+  |--pretrained_model                 | caffe模型权重文件(***.caffemodel**) |
+  |--image_resize_dims                          | 输入图片resize后的h和w:   如 **"256,256"**, 可选；如果设置的image_resize_dims和net_input_dims不相等，图片resize后还将center crop到net_input_dims指定的高宽;<br/>如不设置, 则此值默认和net_input_dims相同 |
+  |--resize_keep_aspect_ratio               | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br/>如设置为**1**，在resize后高宽不足的部分会填充0 |
+  |--net_input_dims                           | 模型的input shape的h与w:  如 **"224,224"** |
+  |--model_channel_order                 | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
+  |--raw_scale**^(1)^**                   | raw_scale 默认值为**255** |
+  |--mean**^(1)^**            | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
+  |--input_scale**^(1)^**        | input_scale，默认值为**1.0** |
+  |--std**^(1)^**                           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
+  |--batch_size               | 指定输入的batch num，如果batch size大于1，会将输入的单张图片预处理后做倍增到相应的batch num |
+  |--label_file                     | 如果为分类网络，可以指定标签文件 |
+  |--dump_blobs                           | 输出所有层的结果到npz文件 |
+  
+  > **^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
+  
+-   【示例】
 
-#### mlir-opt
+  ```sh
+  run_caffe_classifier.py \
+      --model_def yolov3.prototxt \
+      --pretrained_model yolov3.caffemodel \
+      --image_resize_dims '424,424' \
+      --resize_keep_aspect_ratio 1 \
+      --net_input_dims '424,424' \
+      --raw_scale 255 \
+      --mean '0,0,0' \
+      --input_scale 1.0 \
+      --std '1,1,1'
+      --model_channel_order 'rgb' \
+      --batch_size 1 \
+      --label_file label.txt \
+      --dump_blobs yolov3_blobs.npz \
+      cat.jpg \
+      yolov3_out.npy
+  ```
+
+<br>
+
+**(2) ONNX**
+
+-   【命令】
+  ```sh
+  run_caffe_classifier.py [options] --input_file <input_image> --output_file <output_npz_file>
+  ```
+-   【作用】
+
+> 基于pycaffe做caffe模型的推理，输出每层的outputs以便后续转模型时候进行逐层比对，保证转模型的正确性。
+
+-   【输入输出】
+
+  参数名称          描述
+  |参数名称|描述|
+  |---|---|
+  |\<input_image\>   | 输入图片文件 |
+  |\<output_npz_file\>  | 输出onnx模型输出层的结果 |
+
+-   【选项】
+
+  参数名称                                描述
+  |参数名称|描述|
+  |---|---|
+  |--model_path                        | onnx模型定义文件(***.onnx**) |
+  |--image_resize_dims                          | 输入图片resize后的h和w:   如 **"256,256"**, 可选；如果设置的image_resize_dims和net_input_dims不相等，图片resize后还将center crop到net_input_dims指定的高宽;<br/>如不设置, 则此值默认和net_input_dims相同 |
+  |--resize_keep_aspect_ratio               | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br/>如设置为**1**，在resize后高宽不足的部分会填充0 |
+  |--net_input_dims                           | 模型的input shape的h与w:  如 **"224,224"** |
+  |--model_channel_order                 | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
+  |--raw_scale**^(1)^**                   | raw_scale 默认值为**255** |
+  |--mean**^(1)^**            | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
+  |--input_scale**^(1)^**        | input_scale，默认值为**1.0** |
+  |--std**^(1)^**                           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
+  |--batch_size               | 指定输入的batch num，如果batch size大于1, <br>会将输入的单张图片预处理后做倍增到相应的batch num |
+  |--dump_tensor                           | 输出所有层的结果到npz文件 |
+  
+  > **^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
+  
+-   【示例】
+
+  ```sh
+  run_onnx_inference.py \
+      --model_path resnet50.onnx \
+      --image_resize_dims '256,256' \
+      --net_input_dims '224,224' \
+      --model_channel_order 'bgr' \
+      --raw_scale 255 \
+      --mean '104.01,116.67,122.68' \
+      --std '1,1,1' \
+      --input_scale 1 \
+      --batch_size 1 \
+      --dump_tensor resnet50_blobs.npz \
+      --input_file cat.jpb \
+      --output_file resnet50_out.npz
+  ```
+
+<br>
+
+#### 2.1.2.1 mlir-opt
 
 -   【命令】
 ```sh
@@ -1268,7 +1348,9 @@ mlir-opt [options] <input file> -o <output file>
   |--assign-weight-address               | 为Weight Tensor分配地址|
   |--tpu-weight-address-align=\<ulong\>  | 指定Weight Tensor分配地址符合alignment|
 
-#### mlir-tpu-interpreter
+<br>
+
+#### 2.1.2.2 mlir-tpu-interpreter
 
 -   【命令】
 ```sh
@@ -1295,7 +1377,9 @@ mlir-tpu-interpreter [options] <input file>
   |--tensor-in=\<string\>        | 输入tensor数据文件，npz格式|
   |--tensor-out=\<string\>       | 输出tensor数据文件，npz格式|
 
-#### run-calibration
+<br>
+
+#### 2.1.2.3 run-calibration
 
 -   【命令】
 ```sh
@@ -1321,24 +1405,51 @@ python run_calibration.py <model file> <image list file>
   |参数名称|描述|
   |---|---|
   |--output_file=\<string\>  | 输出calibration table文件|
-  |--model_name=\<string\>   | Model Name<sup>[1]</sup>，default=generic|
   |--image_resize_dims       | 图像首先进行resize的大小|
   |--net_input_dims          | 在Resize基础上进行crop的大小|
   |--raw_scale               | 预处理raw_scale|
   |--mean                    | 预处理mean|
   |--mean_file               | 预处理mean_file|
   |--input_scale             | 预处理input_scale|
+  |--gray | 输入图像是否为灰度图 |
   |--calibrator              | 校准算法类型,可选KLD或Asym，default=KLD|
   |--math_lib_path           | 指向底层计算库的路径|
   |--inpu_num                | 指定所用的校准图像数量|
   |--histogram_bin_num       | 直方图bin数量|
 
-> 【注意】
+<br>
 
--   [1] Model
-    Name这里用来传递一些需要特殊预处理过程的网络名称，如yolo_v3等，对于通用预处理过程建议传递"generic"。由于run_calibration工具为随release开放源码的python工具，用户在扩展新的网络并需要支持新的预处理过程时，可根据需要自行扩展。
+#### 2.1.2.4 mlir-translate
 
-#### mlir_to_cvimodel
+-   【命令】
+
+> mlir-translate [options\] <input file\> -o \<output file\>
+
+-   【作用】
+
+> 将优化后的mlir模型文件转换为能在仿真器或者Soc平台上运行的cvimodel模型文件
+
+- 【输入输出】
+
+  参数名称          描述
+
+  | 参数名称        | 描述             |
+  | --------------- | ---------------- |
+  | \<input file\>  | 输入文件mlir文件 |
+  | \<output file\> | 输出cvimodel文件 |
+
+- 【选项】
+
+  参数名称                    描述
+
+  | 参数名称                 | 描述                                   |
+  | ------------------------ | -------------------------------------- |
+  | --mlir-to-cvimodel       | 指定将mlir转换为cvimodel文件           |
+  | --weight-file=\<string\> | 模型的weight文件，转cvimodel文件时必选 |
+
+<br>
+
+#### 2.1.2.5 mlir_to_cvimodel
 
 -   【命令】
 ```sh
@@ -1367,554 +1478,960 @@ mlir_to_cvimodel.sh \
   |-o \<cvimodel_file\>                      |输出生成的cvimodel file|
   |--dequant-results-to-fp32=\<true,false\>  |是否需要将output tensors dequant成fp32.默认为true, 即所有的output tensors将输出为fp32格式. 如果int8模型需要输出int8格式的outputs，请将其设置为false|
 
+<div STYLE="page-break-after: always;"></div>
 
+## 2.2 模型编译流程
 
-### 前端转换Python API参考
+> 一个模型从原训练框架保存的模型文件，编译为一个可以在TPURuntime执行推理的cvimodel需要经历如下图所述的过程。
 
-客户可以通过引入mlirimporter.py, 构建mlir
-graph。具体操作指令参见3.1.2中的介绍。
+![flow](./assets/flow.jpg)
 
-#### mlirimporter.py
+具体流程定义如下：
 
-【原型】
-```python
-class MLIRImport:
+### 2.2.1 FP32模型导入
 
-  def __init__(self, inputs_shape, outputs_shape,
-input_type="FP32"):
-    for input in inputs_shape:
-      assert(isinstance(input, list))
-      self.input_shape_list.append(input)
-    for output in outputs_shape:
-      assert(isinstance(output, list))
-       self.output_shape_list.append(output)
-    self.declare_func(input_type=input_type)
-```
-【主要属性】
+> 模型导入阶段进行从训练框架模型文件到mlir描述模型的转换。工具链支持对Caffe，TensorFlow，TFLite，ONNX格式模型文件的导入。导入命令都由Python Interface实现。
+>
+> 模型导入过程主要分为三个部分：
+>
+> - 原模型推理，保存各层的输出到numpy npz文件
+> - 原模型导入，将模型转换成FP32 MLIR模型
+>   - FP32 MLIR模型推理，保存mlir模型各层的输出到numpy npz文件
+>   - 输出对比，将两次推理各自产生的npz文件进行比对，确保模型转换正确
+>   - FP32 MLIR模型图优化，优化后的mlir模型将作为后续流程的源文件
 
-MLIRImport.input_shape_list为模型的输入张量shape；
+#### 2.2.1.1 原模型推理
 
-MLIRImport.output_shape_list为模型的输出张量shape。
+- Caffe
 
-【主要方法】
-```python
-def add_input_op(self, name, index):
-  pass
-```
-> 用于构造input指令，用来指定input的数据类型，threshold等属性。
+  ```sh
+  run_caffe_classifier.py \
+      --model_def $MODEL_DEF \
+      --pretrained_model $MODEL_DAT \
+      --image_resize_dims $IMAGE_RESIZE_DIMS \
+      --net_input_dims $NET_INPUT_DIMS \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
+      --model_channel_order $MODEL_CHANNEL_ORDER \
+      --batch_size $BATCH_SIZE \
+      --label_file $LABEL_FILE \
+      --dump_blobs $CAFFE_BLOBS_NPZ \
+      $IMAGE_PATH \
+      caffe_out.npy
+  
+  cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz $INPU
+  ```
 
-  功能说明   注释
-  |功能说明|注释|
-  |---|---|
-  |返回值       | Operation \\*|
-  |name      | 指定input名字|
-  |index     | 指定input输入索引|
+- ONNX
 
-```python
-def add_weight_fileOp(self, name):
-  pass
-```
-用于构造weight操作，指定对应的weight文件。
+  ```sh
+  run_onnx_inference.py \
+      --model_path $MODEL_DEF \
+      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+      --net_input_dims ${NET_INPUT_DIMS} \
+      --raw_scale ${RAW_SCALE} \
+      --mean ${MEAN} \
+      --std ${STD} \
+      --batch_size $BATCH_SIZE \
+      --input_scale ${INPUT_SCALE} \
+      --dump_tensor $ONNX_BLOBS_NPZ \
+      --input_file $IMAGE_PATH \
+      --model_channel_order $MODEL_CHANNEL_ORDER \
+      --output_file onnx_out.npz
+  
+  cvi_npz_tool.py extract $ONNX_BLOBS_NPZ ${NET}_in_fp32.npz input
+  ```
 
-  功能说明   注释
-  |功能说明|注释|
-  |---|---|
-  |返回值       | Operation *|
-  |name      | 指定weight 文件名|
-```python
-def add_load_fileOp(self, name, output_tensor_shape,
-                    tensor_type=TPU_TensorType.Fp32,
-                    storage="NONE")
-```
-用于构造load_file操作,用来load weight相关的Tensor.
+- TFLite
 
-  功能说明              注释
-  |功能说明|注释|
-  |---|---|
-  |返回值                  | Operation \\*|
-  |name                 | Tensor名|
-  |output_tensor_shape  | 输出Tensor shape|
-  |tensor_type          | Tensor类型|
-  |storage              | 存储类型|
-```python
-def add_conv_Op(self, op_name, inputOperands,
-                output_tensor_shape,
-                mode=TPU_MODE.FP32,
-                **kargs)
-```
-用于构造convolution操作。
+  ```sh
+  cvi_model_inference.py \
+      --model_def $MODEL_DEF \
+      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+      --net_input_dims ${NET_INPUT_DIMS} \
+      --raw_scale ${RAW_SCALE} \
+      --mean ${MEAN} \
+      --std ${STD} \
+      --batch_size $BATCH_SIZE \
+      --input_scale ${INPUT_SCALE} \
+      --data_format nhwc \
+      --dump_tensor $TFLITE_BLOBS_NPZ \
+      --input_file $IMAGE_PATH \
+      --model_channel_order $MODEL_CHANNEL_ORDER \
+      --model_type tflite \
+      --output_file tflite_out.npz
+  
+  cvi_npz_tool.py tranpose $TFLITE_BLOBS_NPZ nhwc nchw
+  cvi_npz_tool.py extract $TFLITE_BLOBS_NPZ ${NET}_in_fp32.npz input
+  ```
 
-  功能说明              注释
-  |功能说明|注释|
-  |---|---|
-  |返回值                  | Operation \\*|
-  |op_name              | 指定conv层的名字|
-  |inputOperands        | 指定输入操作数|
-  |output_tensor_shape  | 指定输出shape|
-  |mode                 | 指定数据类型|
-  |kargs                | 指定Conv的属性列表|
+- TensorFlow
 
-kargs字典序指定的参数如下
+  ```sh
+  cvi_model_inference.py \
+      --model_def $MODEL_DEF \
+      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+      --net_input_dims ${NET_INPUT_DIMS} \
+      --raw_scale ${RAW_SCALE} \
+      --mean ${MEAN} \
+      --std ${STD} \
+      --batch_size $BATCH_SIZE \
+      --input_scale ${INPUT_SCALE} \
+      --dump_tensor $TF_BLOBS_NPZ \
+      --input_file $IMAGE_PATH \
+      --model_channel_order $MODEL_CHANNEL_ORDER \
+      --model_type tensorflow \
+      --output_file tf_out.npz \
+      --gray $BGRAY
+  
+  cvi_npz_tool.py tranpose $TF_BLOBS_NPZ nhwc nchw
+  cvi_npz_tool.py extract $TF_BLOBS_NPZ ${NET}_in_fp32.npz input
+  ```
 
-  key            value
-  |key|value|
-  |---|---|
-  |'dilation_h'  | dilation_h值|
-  |'dilation_w'  | dilation_w值|
-  |'stride_h'    | stride_h值|
-  |'stride_w'    | stride_w值|
-  |'padding'     | VALID或SAME|
-  |'padding_t'   | 填充top值|
-  |'padding_b'   | 填充bottom值|
-  |'padding_l'   | 填充左侧值|
-  |'padding_r'   | 填充右侧值|
-  |'group'       | group|
-  |'is_dw'       | 是否为Depthwise|
-  |'with_bias'   | 是否有bias|
-  |'do_relu'     | 是否对结果进行relu操作|
-  |'ins'         | 对h， w插入0|
+<br>
 
-## 模型编译过程
+#### 2.2.1.2 原模型导入
 
-> 一个模型从原训练框架保存的模型文件，编译为一个可以在TPU
-> Runtime执行推理的cvimodel需要经历如图3-1所述的过程。
+导入命令如下：
 
-### 模型导入(Float)
+  ```sh
+# 生成fp32 mlir模型
+cvi_model_convert.py \
+    --model_path $MODEL_DEF \
+    --model_dat $MODEL_DAT \
+    --model_name ${NET} \
+    --model_type $MODEL_TYPE \
+    --batch_size 1 \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --model_channel_order $MODEL_CHANNEL_ORDER \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --std ${STD} \
+    --input_scale ${INPUT_SCALE} \
+    --gray ${BGRAY} \
+    --mlir_file_path ${NET}.mlir
 
-> 模型导入阶段进行从训练框架模型文件到mlir描述模型的转换。工具链支持对Caffe，TensorFlow，TFLite，ONNX格式模型文件的导入。除Caffe外，ONNX，TensorFlow和TFLite等框架的导入由Python
-> Interface实现。
+# 对fp32 mlir模型进行推理
+tpuc-interpreter \
+    ${NET}_opt_fp32.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_fp32.npz \
+    --dump-all-tensor=${NET}_tensor_all_fp32.npz
 
-#### 模型导入
+# 可以根据需要设置需要在对比时跳过的层
+export EXCEPTS='-' 
+# 将结果和源框架的结果进行逐层对比
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_fp32.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info.csv \
+    --excepts $EXCEPTS \
+    --tolerance='0.99,0.99,0.99' -v
 
-> 模型的导入可以参考如下的指令。
+# 对mlir进行图优化
+tpuc-opt ${NET}.mlir \
+    --convert-bn-to-scale \
+    --convert-clip-to-relu6 \
+    --canonicalize \
+    --fuse-relu \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info.csv \
+    -o ${NET}_opt_fp32.mlir
+  ```
 
--   Caffe
+> **模型导入**：模型导入为mlir文件后，可以调用mlir-tpu-interpreter进行推理验证。输出数据保存为npz文件。还可以选择输出网络每一层tensor的数据，并打包为npz文件，用于逐层数据比对.
 
-> 导入Caffe模型的命令如下。
-
--   ONNX
-
-> 导入ONNX模型的命令如下。
-
--   TFLite
-
-> 导入TFLite模型的命令如下。
-
--   TensorFlow
-
-> 导入TensorFlow模型的命令如下。
-
-#### 测试导入模型
-
-> 模型导入为mlir文件后，可以调用mlir-tpu-interpreter进行推理验证。输出数据保存为npz文件。还可以选择输出网络每一层tensor的数据，并打包为npz文件，用于逐层数据比对。
-
-### 前端优化
-
-> 发生在进行calibration和量化之前，进行数学等价变换，除host平台浮点计算精度误差外，不引入任何系统误差。主要包括两种类型的变换。一种是前端优化变换，另一种是分解变换。这个阶段的所有优化会保证优化结果仍然能够被mlir-tpu-interpreter执行。
-
-#### 前端优化变换
-
+> **前端图优化：**发生在进行calibration和量化之前，进行数学等价变换，除host平台浮点计算精度误差外，不引入任何系统误差。主要包括两种类型的变换。一种是前端优化变换，另一种是分解变换。这个阶段的所有优化会保证优化结果仍然能够被mlir-tpu-interpreter执行。
+>
+> - 前端优化变换
+>
 > 前端等价优化可以简化原有模型、减少计算量、减小推理过程中数据搬运，以达到整体性能的提升。注意在lowering
-> 之后发生的fusion等scheduling优化不属于此范畴。前端优化主要是通过Canonicalization来组织，这是MLIR编译器提供的一种便利措施，它使得注册为canonicalizer的pass得到自动的贪婪匹配和优化。对于同一个Op的多个Pass，canonicalizer基于benefit值确定优化次序，目前支持下述几种变换。
-
--   convert-bn-to-scale：batchnorm在inference时可以等价转换为scale。
-
--   fold-scale：两个连续的scale可以等价合并为一个，从而节省一个scale运算。
-
--   merge-scale-into-conv：将连续的一个conv操作和一个scale操作，合并为一个conv，通过对conv权重数据的乘加预处理，节省一个scale运算并保持等价。
-
--   fuse-relu：将relu和之前的可fuse操作进行fuse，具体包括Conv，Pool，FullyConnected，Eltwise等。Fuse
-    Relu本身并不是运算等价变换，原本属于后端优化范畴，但是如果在quantization之前fuse
-    relu，可以在量化环节产生收益，因此将这个pass提前到前端优化。
-
-#### 分解变换
-
-> 分解变换是将一个操作分解为若干个操作的组合，并保持运算等价。这样做的目的通常是因为这些操作的量化通常需要各个中间运算步骤的量化信息。因此这类变换需要在calibration和量化前进行。
-
--   normalize-decompose：将Normalize操作分解6个操作：Power，Reduction,
-    Sqrt, Reciprocal, EltwiseMul，Scale。
-
-### 模型量化
-
-#### 概述
-
--   Per-Channel和Per-Tensor
-
-> Per-Tensor量化（有时也称为Per-Layer）是指对整个Tensor使用同一组量化参数（scale，zeropoint或threshold）。Per-Channel量化（有时也称为Per-Axis）是指对于Channel这个维度支持各个Channel有各自不同的量化参数。
+> 之后发生的fusion等scheduling优化不属于此范畴。前端优化主要是通过Canonicalization来组织，这是MLIR编译器提供的一种便利措施，它使得注册为canonicalizer的pass得到自动的贪婪匹配和优化。对于同一个Op的多个Pass，canonicalizer基于benefit值确定优化次序，目前支持下述几种变换:
 >
-> 理论上，Weight Tensor和Activation
-> Tensor都可以选择Per-Tensor或Per-Channel量化。但是实际实现过程中，CVITEK
-> TPU选择只对Weight Tensor支持Per-Channel量化，对Activation
-> Tensor保持Per-Tensor量化。
-
--   **对称和非对称**
-
-> 对INT8量化，存在两种常见量化方法。一种是将需要映射的动态范围映射为正负对称的区间，称为对称量化，这时INT8的0点对应的真实值总是为0。另一种是映射到非对称的区间，称为非对称量化，这时INT8的0点会被映射到一个非零的值。
-
---------------------------------------------------
-  real_value = (int8_value -- zero_point) \\* scale
-  --------------------------------------------------
-
-> 理论上，Weight Tensor和Activation
-> Tensor都可以选择对称或非对称量化。但是实际实现过程中，CVITEK
-> TPU选择只对Activation Tensor支持非对称量化，而Weight
-> Tensor则保持对称量化。
-
--   **混合量化**
-
-> CV183x
-> TPU支持INT8和BF16两种量化方式，并支持以任意的形式组合INT8和BF16的操作，编译器会自动在需要变换数据格式的地方插入quant或者dequant操作。
-
-#### Calibration
-
-> Calibration是获取推理时各个tensor的统计信息过程。对于对称量化，每个tensor的统计结果表现为一个threshold值，对于非对称量化，表现为threshold_max和threshold_min两个值。
+> 1. convert-bn-to-scale：batchnorm在inference时可以等价转换为scale;
+> 2. fold-scale：两个连续的scale可以等价合并为一个，从而节省一个scale运算;
+> 3. merge-scale-into-conv：将连续的一个conv操作和一个scale操作，合并为一个conv，通过对conv权重数据的乘加预处理，节省一个scale运算并保持等价;
+> 4. fuse-relu：将relu和之前的可fuse操作进行fuse，具体包括Conv，Pool，FullyConnected，Eltwise等。Fuse Relu本身并不是运算等价变换，原本属于后端优化范畴，但是如果在quantization之前fuse relu，可以在量化环节产生收益，因此将这个pass提前到前端优化。
 >
-> calibration工具采用python开发，需要输入量化数据集以及对应的模型前处理参数，结果会将每一层的统计threshold值导入到calibration
-> table文件中。不同模型的前处理方式不同，目前支持不同前处理方式的的扩展开发。
-
-#### 导入Calibration Table
-
-> 将calibration结果导入mlir模型
-
-#### 量化
-
-> 模型量化对每一个TPU
-> Op在IR上进行变换，对权重进行量化处理。量化基于calibration提供的统计信息进行。TPU支持INT8和BF16两种量化方式。对于INT8量化，可以选择per-tensor或者per-channel，对称或者非对称量化。默认的量化方式是INT8
-> per-channel对称量化。BF16的量化有两种方式进行，一种是全BF16量化，另一种是INT8/BF16混合量化。
+> - 分解变换
 >
-> 量化过程中，编译器默认会根据需要插入quant和dequant操作，包括对输入数据插入FP32到INT8的quant操作，和对输出数据插入INT8到FP32的dequant操作。用户可以通过命令控制禁止插入输入或输出的quant或者dequant操作。对于INT8/BF16混合量化，INT8与BF16间的quant和dequant操作则一定会被插入。
-
--   INT8 Per-Channel 对称量化
-
--   INT8 Per-Tensor对称量化
-
--   全BF16量化
-
--   INT8/BF16混合量化
-
-> 输入一个文件指定需要量化为BF16的layer
-
-### 验证模型量化
-
-#### 测试量化后模型
-
-> 模型完成量化后，可以使用interpreter进行测试，并使用tensor比较工具进行比较。由于编译器默认会对输入输出数据插入quant或dequant操作，这里的输入和输入数据tensor仍为FP32数据。
-
-#### 数据相似度比较
-
-> 工具链提供了数据分析工具，可以对模型变换的各阶段的各层数据的输出tensor
-> 进行以下三种相似度的比较：cosine similarity、correlation
-> similarity、eulidean similarity以保证各阶段的精度损失在规定的范围内。
-
-#### 精度测试
-
-> 工具链提供interpreter的python
-> binding，以及相应python工具支持对常见类型网络和常见数据集进行精度测试。用户可以基于python快速扩展，开发和对接自有数据集，预处理，后处理等流程。
-
--   imagenet测试工具
-
-> \\* pytorch是指这个工具借用了pytorch的dataloader来读取数据集
-
-### 优化并生成cvimodel文件
-
-#### Lowering
-
-> Lowering是编译器由前端处理向后端处理转换的分水岭。在Lowering前的mlir描述中，tensor是虚拟的，没有具体存储空间的概念。mlir-tpu-interpreter支持对Lowering前的mlir模型的执行推理计算。Lower后的文件数据以backend优化和代码生成为目标。mlir-tpu-interpreter不支持对Lower后文件进行推理计算。Lower后的优化和变换处理不会对数据结果产生变化，因而不会影响前端的量化结果和精度。
-
-#### 后端优化
-
-> Cvitek编译器基于MLIR框架开发，支持解耦的优化pass开发方式，多种优化策略并存，可以根据网络需求进行选择优化或者组合优化。
+> 分解变换是将一个操作分解为若干个操作的组合，并保持运算等价。这样做的目的通常是因为这些操作的量化通常需要各个中间运算步骤的量化信息。因此这类变换需要在calibration和量化前进行:
 >
-> 1)执行效率优化
->
-> 发掘Op间fusion机会并进行fusion的优化。
+> 1. normalize-decompose：将Normalize操作分解6个操作：Power，Reduction, Sqrt, Reciprocal, EltwiseMul，Scale;
+
+<br>
+
+### 2.2.2 Calibration
+
+Calibration的命令如下：
+
 ```sh
-$ mlir-opt \
-    --deep-fusion-group-slice \
-    --deep-fusion-opt \
-    input.mlir \
-    -o output.mlir
-```
-> 2)内存占用优化
->
-> 分析Activation内存使用并回收利用的的优化，在分配neuron
-```sh
-$ mlir-opt \
-    --assign-weight-address \
-    --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map.csv \
-    --tpu-weight-bin-filename=weight.bin \
-    --assign-neuron-address \
-    --tpu-neuron-address-align=64 \
-    --tpu-neuron-map-filename=neuron_map.csv \
-    test_int8_opt.mlir \
-    -o test_int8_addr.mlir
-```
-#### 生成TPU硬件指令
+# 设置校正集目录
+export DTATSET='xxxxxx/xxxx'
+# 设置校正集随机选取的图片个数
+export CALIBRATION_IMAGE_COUNT=1000
 
-> 生成TPU硬件指令分为两个步骤，首先利用mlir-opt
-> pass为各tensor分配地址，这个过程会同时提取weight数据并保存为weight
-> bin文件；接下来调用mlir-translate进行指令生成，产生cvimodel模型文件。
-```sh
-$ mlir-translate \
-    --mlir-to-cvimodel \
-    --weight-file weight.bin \
-    input.mlir \
-    -o out.cvimodel
+# 生成校正图片列表
+gen_data_list.py \
+    $DATASET \
+    $CALIBRATION_IMAGE_COUNT \
+    cali_list_imagenet.txt
+
+# 校正并生成calibration table
+run_calibration.py \
+    ${NET}_opt_fp32.mlir \
+    cali_list_imagenet.txt \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --std ${STD} \
+    --input_scale ${INPUT_SCALE} \
+    --gray ${BGRAY}
+    --input_num=${CALIBRATION_IMAGE_COUNT} \
+    --histogram_bin_num=2048 \
+    --output_file=${NET}_calibration_table
 ```
-### 仿真器测试
+
+> Calibration是获取推理时各个tensor的统计信息过程。每个tensor的统计结果表现为一个threshold值，以及表征每个tensor动态范围的max和min两个值。
+>
+> Calibration工具采用python开发，需要输入量化数据集以及对应的模型前处理参数，结果会将每一层的统计threshold值导入到calibration table文件中。
+
+<br>
+
+### 2.2.3 INT8模型量化
+
+模型INT8量化的命令如下：
+
+```sh
+# 加载calibration table,生成INT8 mlir模型
+tpuc-opt ${NET}_opt_fp32.mlir \
+    --import-calibration-table \
+    --calibration-table ${NET}_calibration_table \
+    --assign-chip-name \
+    --chipname cv183x \
+    --tpu-quant \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info_int8.csv \
+    -o ${NET}_quant_int8.mlir
+```
+
+> 模型的量化主要分为两种方式：
+>
+> - Per-Tensor量化（有时也称为Per-Layer）是指对整个Tensor使用同一组量化参数（scale或threshold);
+> - Per-Channel量化（有时也称为Per-Axis）是指对于Channel这个维度支持各个Channel有各自不同的量化参数。
+>
+> 理论上，Weight Tensor和Activation Tensor都可以选择Per-Tensor或Per-Channel量化。但是实际实现过程中，CVITEK
+> TPU选择只对Weight Tensor支持Per-Channel量化，对Activation Tensor保持Per-Tensor量化。
+>
+> 另外，按照INT8时0点映射的方法，量化方式也可以分为两种：
+>
+> - 对称量化，将需要映射的动态范围映射为正负对称的区间；
+> - 非对称量化，是映射到非对称的区间，这时INT8的0点会被映射到一个非零的值；
+>
+> 在CVITEK工具链的量化工具中主要选择对称量化的方式，目前大部分模型使用此种方式都可取得良好的效果
+
+<br>
+
+### 2.2.4 模型精度测试
+
+INT8模型精度测试的命令如下：
+
+```sh
+# 用INT8 mlir模型做推理
+tpuc-interpreter ${NET}_quant_int8.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_int8.npz \
+    --dump-all-tensor=${NET}_tensor_all_int8.npz
+
+# 可以根据需要设置需要在对比时跳过的层
+export EXCEPTS='-' 
+# 设置对比的可接受的最小相似度, 以下仅是参考值
+export TOLERANCE_INT8_MULTIPLER='0.9,0.9,0.5'
+# 将INT8 mlir的推理结果和fp mlir的结果进行比较
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_int8.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info_int8.csv \
+    --dequant \
+    --stats_int8_tensor \
+    --except ${EXCEPTS} \
+    --tolerance=${TOLERANCE_INT8_MULTIPLER} -vv
+```
+
+> 数据的相似度比较：工具链提供了数据分析工具，可以对模型变换的各阶段的各层数据的输出tensor进行以下三种相似度的比较：cosine similarity、correlation similarity、eulidean similarity以保证各阶段的精度损失在规定的范围内。
+
+如果在逐层对比相似度通过后，特别是如果模型的输出层的相似度比较高时，可以进一步在测试集上验证INT8模型的精度。
+
+> 工具链提供基于interpreter的python binding用于INT8模型的推理，以及相应python工具支持对常见类型网络和常见数据集进行精度测试。用户可以基于python快速扩展，开发和对接自有数据集，后处理等流程。
+
+如果在做相似度对比时的结果不理想，可以通过以下几种方式进行调整：
+
+- 增加run_calibration.py时输入的图片数量。加大图片数量可以得到更加真实的各层activation的数据分布；
+
+- 调整run_calibration.py的histogram_bin_num, 可以再扩大10倍或者更多。更大的histogram_bin_num可以使得统计各层activation直方图时的粒度更小，有利于得到更加真实的数据分布；
+
+- 对于INT模型的某些层的相似度掉很多，可以手动调整threshold table文件中对应层的threshold值，可以加大或者缩小，直到再次对比时取得比较好的相似度；
+
+  
+
+<br>除此以后，还可以透过以下方式取得更好的精度:
+
+#### 2.2.4.1 Full-BF16量化
+
+CVITEK TPU支持INT8和BF16两种数据格式运算的加速，在INT8精度不理想时，可以先尝试用将模型量化为BF16模型，再测试精度。其命令如下：
+
+```sh
+tpuc-opt \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
+    --tpu-quant --quant-full-bf16 \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info_bf16.csv \
+    ${NET}_opt_fp32.mlir \
+    -o ${NET}_quant_bf16.mlir
+
+tpuc-interpreter ${NET}_quant_bf16.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_bf16.npz \
+    --dump-all-tensor=${NET}_tensor_all_bf16.npz
+
+# 可以根据需要设置需要在对比时跳过的层
+export EXCEPTS='-' 
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_bf16.npz \
+    ${NET}_tensor_all_fp32.npz \
+    --op_info ${NET}_op_info_bf16.csv \
+    --excepts ${EXCEPTS} \
+    --tolerance '0.99,0.99,0.9' -vv
+```
+
+#### 2.2.4.2 Mix-Precision量化
+
+全BF16模型的在CVITEK TPU上的性能会比全INT8模型的差。如果全BF16模型的精度能够满足要求，可以尝试混精度的方式对模型量化，以兼顾性能和精度。混精度的原理是在INT8模型的基础上，透过工具自动搜寻需要转换成BF16的层，然后将这些BF层输出到mix-precision table中。再导入mix-precision table后就可以生成混精度模型。具体命令如下：
+
+```sh
+tpuc-opt ${NET}_opt_fp32.mlir \
+    --import-calibration-table \
+    --calibration-table ${NET}_calibration_table \
+    -o ${NET}_int8_cali.mlir
+
+# 设置需要变成BF16的层的个数, 可根据需要进行设置
+export MIX_PRECISION_BF16_LAYER_NUM=10
+cvi_mix_precision.py \
+    ${NET}_int8_cali.mlir \
+    cali_list_imagenet.txt \
+    ${NET}_mix_precision_bf16_table \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --std ${STD} \
+    --input_scale ${INPUT_SCALE} \
+    --gray ${BGRAY}
+    --input_num=1 \
+    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM
+
+tpuc-opt \
+    --assign-chip-name \
+    --chipname cv183x \
+    --tpu-quant \
+    --quant-int8-mix-bf16-layers-from-file ${NET}_mix_precision_bf16_table \
+    --tpu-op-info-filename ${NET}_op_info_mix.csv \
+    --print-tpu-op-info \
+    ${NET}_int8_cali.mlir \
+    -o ${NET}_quant_mix.mlir
+
+tpuc-interpreter ${NET}_quant_mix.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_mix.npz \
+    --dump-all-tensor=${NET}_tensor_all_mix.npz
+
+# 可以根据需要设置需要在对比时跳过的层
+export EXCEPTS='-' 
+# 设置对比的可接受的最小相似度, 以下仅是参考值
+export TOLERANCE_MIX_PRECISION='0.9,0.9,0.7'
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_mix.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info_mix.csv \
+    --dequant \
+    --excepts $EXCEPTS \
+    --tolerance=$TOLERANCE_MIX_PRECISION
+    -vv
+```
+
+#### 2.2.4.3 Auto-Tune
+
+如果对模型的性能的要求比较高，混精度的性能不能满足要求，可以尝试使用auto-tune的方式，用工具以优化各层的相似度为目标去调整各层的threshold，以期取得一个比较好的精度。不过此种方式会比较耗时。具体命令如下：
+
+```sh
+run_calibration.py \
+    ${NET}_opt_fp32.mlir \
+    cali_list_imagenet.txt \
+    --output_file=${NET}_calibration_table \
+    --output_tune_file=${NET}_tune_calibration_table \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --raw_scale ${INPUT_SCALE} \
+    --mean $MEAN \
+    --std $STD \
+    --input_scale $INPUT_SCALE \
+    --model_channel_order ${MODEL_CHANNEL_ORDER} \
+    --create_calibration_table=1 \
+    --input_num=${COUNT} \
+    --tune_iteration=10 \
+    --auto_tune
+
+tpuc-opt ${NET}_opt_fp32.mlir \
+    --import-calibration-table \
+    --calibration-table ${NET}_tune_calibration_table\
+    --assign-chip-name \
+    --tpu-quant \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info_int8.csv \
+    -o ${NET}_quant_int8.mlir
+
+tpuc-interpreter ${NET}_quant_int8.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_int8.npz \
+    --dump-all-tensor=${NET}_tensor_all_int8.npz
+
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_int8.npz \
+    ${NET}_out_fp32.npz \
+    --op_info ${NET}_op_info_int8.csv \
+    --dequant \
+    --tolerance=${INT8_TOLERANCE} -vv
+```
+
+<br>
+
+### 2.2.5 添加TPU Preprocessing
+
+CVITEK TPU支持crop，减mean，乘scale以及channel swap等前处理操作。此步骤为可选项，可根据需要去添加TPU preprocessing；(由于CVITEK平台的图像处理硬件不支持输出BF16格式，所以对于BF16模型或者混精度模型中第一层为BF16层的模型需要添加TPU preprocessing)。具体命令如下：
+
+```sh
+# 生成仅做resize的输入数据
+# --pixel_format 设置输入数据的格式，目前支持：
+#                RGB_PACKED, RGB_PLANAR,
+#                BGR_PACKED, BGR_PLANAR,
+#                GRAYSCALE, YUV420_PLANAR
+cvi_preprocess.py \
+    --image_file $IMAGE_PATH \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --pixel_format BGR_PACKED \
+    --aligned 0 \
+    --batch_size 1 \
+    --input_name input \
+    --output_npz ${NET}_only_resize_in_fp32.npz
+
+# 选择第3章的quant后的mlir, 可选值
+#  - ${NET}_quant_int8.mlir
+#  - ${NET}_quant_bf16.mlir
+#  - ${NET}_quant_mix.mlir
+epxort SRC_MLIR_FILE=${NET}_quant_int8.mlir
+
+tpuc-opt \
+    --add-tpu-preprocess \
+    --pixel_format BGR_PACKED \
+    --input_aligned=false \
+    $SRC_MLIR_FILE.mlir \
+    -o ${NET}_fused_preprocess.mlir
+
+tpuc-interpreter ${NET}_fused_preprocess.mlir \
+    --tensor-in ${NET}_only_resize_in_fp32.npz \
+    --tensor-out ${NET}_out_fused_preprocess.npz \
+    --dump-all-tensor=${NET}_tensor_all_fused_preprocess.npz \
+    --use-tpu-quant-op
+
+# 选择第3章的op info csv，可选值
+#  - ${NET}_op_info_int8.csv
+#  - ${NET}_op_info_bf16.csv
+#  - ${NET}_op_info_mix.csv
+export OP_INFO_CSV_FILE=${NET}_op_info_int8.csv
+# 设置TOLERANCE，和第3章相同
+export TOLERANCE=$TOLERANCE_INT8_MULTIPLER
+
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_fused_preprocess.npz \
+    ${NET}_blobs.npz \
+    --op_info $OP_INFO_CSV_FILE \
+    --dequant \
+    --excepts="$EXCEPTS,input,data" \
+    --tolerance=$TOLERANCE \
+    --stats_int8_tensor \
+    -vv
+```
+
+<br>
+
+### 2.2.6 模型优化并生成CVIMODEL
+
+在确定量化精度没有问题后，可以进一步做模型的后端优化以及生成cvimodel，具体命令如下：
+
+```sh
+# shell脚本, 包含优化和codegen的所有命令
+$DIR/../mlir_to_cvimodel.sh \
+   -i ${NET}_quant_bf16.mlir \
+   -o ${NET}_bf16.cvimodel
+
+# 仿真器测试
+model_runner \
+    --dump-all-tensors \
+    --input ${NET}_in_fp32.npz \
+    --model ${NET}_bf16.cvimodel \
+    --batch-num $BATCH_SIZE \
+    --output ${NET}_cmdbuf_out_all_bf16.npz
+
+# compare all tensors
+cvi_npz_tool.py compare \
+    ${NET}_cmdbuf_out_all_bf16.npz \
+    ${NET}_tensor_all_bf16.npz \
+    --op_info ${NET}_op_info_bf16.csv \
+    --excepts ${EXCEPTS} \
+    --tolerance='0.99,0.99,0.9' \
+    -vv
+```
+
+后端优化
+
+> Cvitek编译器基于MLIR框架开发，支持解耦的优化pass开发方式，多种优化策略并存，可以根据网络需求进行选择优化或者组合优化，主要是通过mlir-opt进行。
+>
+> - 执行效率优化，发掘Op间fusion机会并进行fusion的优化。
+>- 内存占用优化，分析Activation内存使用并回收利用的的优化。
+> 
+生成TPU硬件指令
+
+> 调用mlir-translate进行指令生成，打包量化后的权重文件，并产生cvimodel模型文件。
+仿真器测试
 
 > 生成cvimodel文件后，除可以在目标板runtime进行测试验证外，也可以调用仿真器进行离线测试验证。仿真器可以完全模拟硬件的推理精度。
-```sh
-$ model_runner \
-    --dump-all-tensors \
-    --input tensor_in_fp32.npz \
-    --model model.cvimodel \
-    --batch-num $BATCH_SIZE \
-    --output sim_out_all_int8.npz
-```
-> model_runner 是集成了runtime
-> 的binary工具，可以直接使用，也可以直接调用runtime
-> API对cvimodel进行离线测试。离线测试的输出结果可以利用cvi_npz_tool.py
-> compare进行数据比对。推荐的做法是和INT8量化后的mlir文件在interpreter上运行的结果进行比较，所有tensor的内容应为bit-accurate一致（不包含混合量化的场景）。
-
-## 模型编译示例
-
-> 本章以mobilenet_v2为例，介绍如何编译迁移一个caffe模型至CV183x
-> TPU平台运行，具体环境准备请参考《CV83X_TPU快速入门指南》。
-
--   **步骤0：获取caffe模型**
-
-> 从下列链接取得模型，
 >
-> <https://github.com/shicai/MobileNet-Caffe>
+> model_runner 是集成了runtime的binary工具，可以直接使用，也可以直接调用runtime API对cvimodel进行离线测试。离线测试的输出结果可以利用cvi_npz_tool.pycompare进行数据比对。推荐的做法是和INT8量化后的mlir文件在interpreter上运行的结果进行比较，所有tensor的内容应为bit-accurate一致（不包含混合量化的场景）。
+<br>
 
-下载模型并保存在models_mobilenet_v2目录
-```sh
-$ mkdir models_mobilenet_v2 && cd models_mobilenet_v2
-$ wget -nc
-https://
-github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2.caffemodel
+## 2.3 模型编译示例
 
-$ wget -nc
-https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt
-```
-> 创建workspace
-```sh
-$ mkdir workspace
-```
--   **步骤1：执行caffe推理，产生比对数据，供逐层数据比对使用（可选）**
+### 2.3.1 准备
 
-> 加载cvitek_mlir环境
-```sh
-$ source cvitek_mlir/cvitek_envs.sh |
-$ cd models_mobilenet_v2/workspace  |
-```
-> 取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg
-```sh
-$ cp $MLIR_PATH/regression/data/cat.jpg .
-```
-> 推理前，我们需要了解这个模型的预处理参数，mobilenet_v2的预处理如下
-```sh
-scale: 0.017
-mirror: true
-crop_size: 224
-mean_value: [103.94, 116.78, 123.68]
-```
-> 运行caffe推理
-```sh
-$ run_caffe_classifier.py \
-    --model_def ../mobilenet_v2_deploy.prototxt \
-    --pretrained_model ../mobilenet_v2.caffemodel \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.94,116.78,123.68 \
-    --input_scale 0.017 \
-    --batch_size 1 \
-    --dump_blos mobilenet_v2_blobs.npz \
-    ./cat.jpg \
-    caffe_out.npy
-```
-> 得到mobilenet_v2_blobs.npz文件，包含caffe推理过程中每一层的数据。
->
-> 下列命令可以用来查看一个npz文件的内容。
-```sh
-# dump blob names
-$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz
+在模型转换之前，请先设置以下变量：
 
-# dump data for one blob
-$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz input
-$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7
+| 变量名                   | 说明                                                         |
+| ------------------------ | ------------------------------------------------------------ |
+| NET                      | 模型的名字                                                   |
+| MODEL_DEF                | 模型文件 caffe: ***.proto**  onnx: ***.onnx**                |
+| MODEL_DAT                | 权重文件 caffe: ***.caffemodel**                             |
+| IMAGE_RESIZE_DIMS        | 输入图片resize后的h和w:   如 **"256,256"**, 可选；如果设置的IMAGE_RESIZE_DIMS和NET_INPUT_DIMS不相等，图片resize后还将center crop到NET_INPUT_DIMS指定的高宽;<br>如不设置, 则此值默认和NET_INPUT_DIMS相同 |
+| RESIZE_KEEP_ASPECT_RATIO | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br>如设置为**1**，在resize后高宽不满足IMAGE_RESIZE_DIMS的部分会填充0 |
+| NET_INPUT_DIMS           | 模型的input shape的h与w:  如 **"224,224"**                   |
+| MODEL_CHANNEL_ORDER      | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"**       |
+| RAW_SCALE **^(1)^**      | raw_scale 默认值为**255**                                    |
+| MEAN **^(1)^**`          | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和MODEL_CHANNEL_ORDER一致 |
+| INPUT_SCALE **^(1)^**    | input_scale，默认值为**1.0**                                 |
+| STD **^(1)^**            | std, 通道标准差，默认值为**"1,1,1"**                         |
+| BGRAY                    | 是否为单通道的输入(灰度图),  值为**1**或**0**                |
 
-# show Top-K
-$ cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7 5
- Show Top-K 5
- (285, 10.666397)
- (282, 10.424403)
- (281, 9.640038)
- (277, 8.616049)
- (331, 8.516392)
-```
--   **步骤2：转换为mlir，进行前端优化，并逐层比对数据**
+**^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
 
-> 加载cvitek_mlir环境
-```sh
-$ source cvitek_mlir/cvitek_envs.sh
-$ cd models_mobilenet_v2/workspace
-```
-> 由caffe模型转换为mlir
-```sh
-$ cvi_model_convert.py \
-  --model_path ../mobilenet_v2_deploy.prototxt \
-  --model_dat ../mobilenet_v2.caffemodel \
-  --model_name mobilenet_v2 \
-  --model_type caffe \
-  --mlir_file_path mobilenet_v2.mlir
-```
-> 得到mobilenet_v2.mlir文件。
->
-> 执行模型前端优化
-```sh
-$ mlir-opt mobilenet_v2.mlir \
-   --convert-bn-to-scale \
-   --canonicalize \
-   --eltwise-early-stride \
-   --print-tpu-op-info \
-   --tpu-op-info-filename op_info.csv \
-   -o mobilenet_v2_fp32.mlir
-```
-> 得到mobilenet_v2_fp32.mlir文件。
->
-> 运行mlir-tpu-interpreter对转换和优化后的mlir模型进行推理，得到的mlir推理的逐层数据。
-```sh
-# extract input data from mobilenet_v2_blobs.npz
-$ cvi_npz_tool.py extract \
-    mobilenet_v2_blobs.npz \
-    mobilenet_v2_in_fp32.npz \
-    input
+<br>
 
-# inference with mlir and input data, dump all tensor
-$ mlir-tpu-interpreter \
-    mobilenet_v2_fp32.mlir \
-    --tensor-in mobilenet_v2_in_fp32.npz \
-    --tensor-out mobilenet_v2_out_fp32.npz \
-    --dump-all-tensor=mobilenet_v2_tensor_all_fp32.npz
-```
-> 得到mobilenet_v2_tensor_all_fp32.npz。
->
-> 将caffe推理数据和mlir推理数据进行逐层比对
-```sh
-$ cvi_npz_tool.py compare \
-    mobilenet_v2_tensor_all_fp32.npz \
-    mobilenet_v2_blobs.npz \
-    --op_info op_info.csv \
-    --tolerance=0.999,0.999,0.998 -vv
-```
--   **步骤3：Calibration**
+<br>
 
-> Calibration前需要先准备图像文件列表，下述脚本可辅助在指定目录随机选择文件，并将选择结果保存为txt文件（以取1000张为例）。
-```sh
-$ python3 $MLIR_PATH/python/gen_data_list.py \
-    $DATASET_PATH/imagenet/img_val_extracted \
-    1000 \
-    cali_list_imagenet_1000.txt
-```
-> 得到cali_list_imagenet_1000.txt文件。
->
-> 执行calibration
-```sh
-$ python3 $MLIR_PATH/python/run_calibration.py \
-    mobilenet_v2_fp32.mlir \
-    cali_list_imagenet_1000.txt \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.94,116.78,123.68 \
-    --input_scale 0.017 \
-    --input_num=1000 \
-    --output_file mobilenet_v2_calibration_table
-```
-> 得到mobilenet_v2_calibration_table
+### 2.3.2 模型导入
 
--   **步骤4：执行量化，逐层数据比对，以及验证精度**
+#### a. 将模型用源框架进行推理，获取每层activation的数据
 
-> 执行量化，生成量化后mlir文件
 ```sh
-$ mlir-opt mobilenet_v2_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table mobilenet_v2_calibration_table \
+# caffe
+export IMAGE_PATH=xxxx.jpg
+run_caffe_classifier.py \
+      --model_def $MODEL_DEF \
+      --pretrained_model $MODEL_DAT \
+      --image_resize_dims $IMAGE_RESIZE_DIMS \
+      --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+      --model_channel_order $MODEL_CHANNEL_ORDER \
+      --net_input_dims $NET_INPUT_DIMS \
+      --raw_scale $RAW_SCALE \
+      --mean $MEAN \
+      --input_scale $INPUT_SCALE \
+      --gray ${BGRAY} \
+      --batch_size 1 \
+      --dump_blobs ${NET}_blobs.npz \
+      $IMAGE_PATH \
+      caffe_out.npy
+
+# 从${NET}_blobs.npz中提取fp32输入数据
+cvi_npz_tool.py extract ${NET}_blobs.npz ${NET}_in_fp32.npz input
+```
+
+```sh
+# onnx
+run_onnx_inference.py \
+      --model_path $MODEL_DEF \
+      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+      --net_input_dims ${NET_INPUT_DIMS} \
+      --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+      --model_channel_order $MODEL_CHANNEL_ORDER \
+      --raw_scale ${RAW_SCALE} \
+      --mean ${MEAN} \
+      --std ${STD} \
+      --input_scale ${INPUT_SCALE} \
+      --gray ${BGRAY} \
+      --batch_size 1 \
+      --dump_tensor ${NET}_blobs.npz \
+      --input_file $IMAGE_PATH \
+      --output_file onnx_out.npz
+
+# 从${NET}_blobs.npz中提取fp32输入数据
+cvi_npz_tool.py extract ${NET}_blobs.npz ${NET}_in_fp32.npz input
+```
+
+#### b. 模型导入生成mlir模型, 并和原框架的推理结果做对比，确保转换正确
+
+```sh
+# 生成fp32 mlir模型
+cvi_model_convert.py \
+    --model_path $MODEL_DEF \
+    --model_dat $MODEL_DAT \
+    --model_name ${NET} \
+    --model_type $MODEL_TYPE \
+    --batch_size 1 \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --model_channel_order $MODEL_CHANNEL_ORDER \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --std ${STD} \
+    --input_scale ${INPUT_SCALE} \
+    --gray ${BGRAY} \
+    --mlir_file_path ${NET}.mlir
+
+# 对mlir进行图优化
+tpuc-opt ${NET}.mlir \
+    --convert-bn-to-scale \
+    --convert-clip-to-relu6 \
+    --canonicalize \
+    --fuse-relu \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info.csv \
+    -o ${NET}_opt_fp32.mlir
+
+# 对fp32 mlir模型进行推理
+tpuc-interpreter ${NET}_opt_fp32.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_fp32.npz \
+    --dump-all-tensor=${NET}_tensor_all_fp32.npz
+
+# 可以根据需要设置需要在对比时跳过的层
+export EXCEPTS='-' 
+# 将结果和源框架的结果进行逐层对比
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_fp32.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info.csv \
+    --excepts $EXCEPTS \
+    --tolerance='0.99,0.99,0.99' -v
+```
+
+<br>
+
+<br>
+
+### 2.3.3 模型量化校正
+
+```sh
+# 设置校正集目录
+export DTATSET='xxxxxx/xxxx'
+# 设置校正集随机选取的图片个数
+export CALIBRATION_IMAGE_COUNT=1000
+
+# 生成校正图片列表
+gen_data_list.py \
+    $DATASET \
+    $CALIBRATION_IMAGE_COUNT \
+    cali_list_imagenet.txt
+
+# 校正并生成calibration table
+run_calibration.py \
+    ${NET}_opt_fp32.mlir \
+    cali_list_imagenet.txt \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --std ${STD} \
+    --input_scale ${INPUT_SCALE} \
+    --gray ${BGRAY}
+    --input_num=${CALIBRATION_IMAGE_COUNT} \
+    --output_file=${NET}_calibration_table
+```
+
+<br>
+
+<br>
+
+### 2.3.4. 模型量化
+
+#### a. INT8量化
+
+```sh
+# 加载calibration table,生成INT8 mlir模型
+tpuc-opt ${NET}_opt_fp32.mlir \
+    --import-calibration-table \
+    --calibration-table ${NET}_calibration_table \
     --assign-chip-name \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    -o mobilenet_v2_int8.mlir
-```
-> 得到mobilenet_v2_int8.mlir。
->
-> 【可选】此时，推荐对量化后的mlir模型进行推理，并与fp32的模型推理结果进行比对。mlir-tpu-interpreter对INT8模型的推理结果与硬件计算结果完全一致。
->
-> 运行mlir-tpu-interpreter对int8 mlir进行推理，得到的逐层数据。
-```sh
-$ mlir-tpu-interpreter \
-    mobilenet_v2_int8.mlir \
-    --tensor-in mobilenet_v2_in_fp32.npz \
-    --tensor-out mobilenet_v2_out_int8.npz \
-    --dump-all-tensor=mobilenet_v2_tensor_all_int8.npz
-```
-> 得到mobilenet_v2_tensor_all_int8.npz。
->
-> 将fp32推理数据和int8推理数据进行逐层比对
-```sh
-$ cvi_npz_tool.py compare \
-    mobilenet_v2_tensor_all_int8.npz \
-    mobilenet_v2_tensor_all_fp32.npz \
-    --op_info op_info_int8.csv \
-    --dequant \
-    --tolerance 0.94,0.93,0.67 -vv
-```
-> 这里tolerance是一个初步的衡量指标，具备一定相对比较意义，但是取值随网络结构不同有较大动态范围，需根据具体情形进行调节。
->
-> 【可选】对数据集进行精度测试(以测试50000张为例，可酌情减少）
-```sh
-$ eval_imagenet_pytorch.py \
-   --model=mobilenet_v2_int8.mlir \
-   --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-   --net_input_dims 224,224 \
-   --raw_scale 255.0 \
-   --mean 103.94,116.78,123.68 \
-   --input_scale 0.017 \
-   --count=50000
-```
-> 注：工具名称含pytorch指data加载和精度计算部分为调用pytorch实现
+    --chipname cv183x \
+    --tpu-quant \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info_int8.csv \
+    -o ${NET}_quant_int8.mlir
 
--   **步骤5：后端优化，代码生成及打包为cvimodel**
+# 用INT8 mlir模型做推理
+tpuc-interpreter ${NET}_quant_int8.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_int8.npz \
+    --dump-all-tensor=${NET}_tensor_all_int8.npz
 
-> 命令
-```sh
-$ mlir_to_cvimodel.sh \
-    -i mobilenet_v2_int8.mlir \
-    -o mobilenet_v2.cvimodel
+# 可以根据需要设置需要在对比时跳过的层
+export EXCEPTS='-' 
+# 设置对比的可接受的最小相似度, 以下仅是参考值
+export TOLERANCE_INT8_MULTIPLER='0.9,0.9,0.5'
+# 将INT8 mlir的推理结果和fp mlir的结果进行比较
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_int8.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info_int8.csv \
+    --dequant \
+    --stats_int8_tensor \
+    --except ${EXCEPTS} \
+    --tolerance=${TOLERANCE_INT8_MULTIPLER} -vv
+
+# 优化并生成cvimodel
+$DIR/../mlir_to_cvimodel.sh \
+   -i ${NET}_quant_int8.mlir \
+   -o ${NET}_int8.cvimodel
+# 用仿真器加载cvimodel做一次推理
+model_runner \
+    --dump-all-tensors \
+    --input ${NET}_in_fp32.npz \
+    --model ${NET}_int8.cvimodel \
+    --output ${NET}_cmdbuf_out_all_int8.npz
+# 对比仿真器的结果
+cvi_npz_tool.py compare \
+    ${NET}_cmdbuf_out_all_int8.npz \
+    ${NET}_tensor_all_int8.npz \
+    --op_info ${NET}_op_info_int8.csv
 ```
-> 得到mobilenet_v2.cvimodel。默认情况下模型的输出会dequant并输出fp32类型的数据。如果特殊网络需要输出tensor不做dequant并输出为int8类型，请在该命令行中加上"*--dequant-results-to-fp32=false*"。
 
--   **测试cvimodel**
+#### b. BF16量化
 
-> 使用model_runner进行测试，model_runner同时支持仿真器测试和EVB运行，命令相同。
 ```sh
- $ model_runner \
-     --input moblenet_v2_in_fp32.npz \
-     --model mobilenet_v2.cvimodel \
-     --output out.npz
+tpuc-opt \
+    --assign-chip-name \
+    --chipname ${SET_CHIP_NAME} \
+    --tpu-quant --quant-full-bf16 \
+    --print-tpu-op-info \
+    --tpu-op-info-filename ${NET}_op_info_bf16.csv \
+    ${NET}_opt_fp32.mlir \
+    -o ${NET}_quant_bf16.mlir
 
- # check output data
- $ cvi_npz_tool.py dump out.npz prob 5
-  Show Top-K 5
-  (282, 0.30102175)
-  (285, 0.30102175)
-  (281, 0.098654695)
-  (331, 0.07892632)
-  (287, 0.0631431)
+tpuc-interpreter ${NET}_quant_bf16.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_bf16.npz \
+    --dump-all-tensor=${NET}_tensor_all_bf16.npz
+
+# 可以根据需要设置需要在对比时跳过的层
+export EXCEPTS='-' 
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_bf16.npz \
+    ${NET}_tensor_all_fp32.npz \
+    --op_info ${NET}_op_info_bf16.csv \
+    --excepts ${EXCEPTS} \
+    --tolerance '0.99,0.99,0.9' -vv
+ 
+$DIR/../mlir_to_cvimodel.sh \
+   -i ${NET}_quant_bf16.mlir \
+   -o ${NET}_bf16.cvimodel
+
+# run cvimodel
+model_runner \
+    --dump-all-tensors \
+    --input ${NET}_in_fp32.npz \
+    --model ${NET}_bf16.cvimodel \
+    --batch-num $BATCH_SIZE \
+    --output ${NET}_cmdbuf_out_all_bf16.npz
+
+# compare all tensors
+cvi_npz_tool.py compare \
+    ${NET}_cmdbuf_out_all_bf16.npz \
+    ${NET}_tensor_all_bf16.npz \
+    --op_info ${NET}_op_info_bf16.csv \
+    --excepts ${EXCEPTS} \
+    --tolerance='0.99,0.99,0.9' \
+    -vv
 ```
-> 注：随calibraion所选图片不同，calibration结果也不同，因此最终推理结果存在一定差异。
+
+#### c. 混精度量化
+
+```sh
+tpuc-opt ${NET}_opt_fp32.mlir \
+    --import-calibration-table \
+    --calibration-table ${NET}_calibration_table \
+    -o ${NET}_int8_cali.mlir
+
+# 设置需要变成BF16的层的个数, 可根据需要进行设置
+export MIX_PRECISION_BF16_LAYER_NUM=10
+cvi_mix_precision.py \
+    ${NET}_int8_cali.mlir \
+    cali_list_imagenet.txt \
+    ${NET}_mix_precision_bf16_table \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --std ${STD} \
+    --input_scale ${INPUT_SCALE} \
+    --gray ${BGRAY}
+    --input_num=1 \
+    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM
+
+tpuc-opt \
+    --assign-chip-name \
+    --chipname cv183x \
+    --tpu-quant \
+    --quant-int8-mix-bf16-layers-from-file ${NET}_mix_precision_bf16_table \
+    --tpu-op-info-filename ${NET}_op_info_mix.csv \
+    --print-tpu-op-info \
+    ${NET}_int8_cali.mlir \
+    -o ${NET}_quant_mix.mlir
+
+tpuc-interpreter ${NET}_quant_mix.mlir \
+    --tensor-in ${NET}_in_fp32.npz \
+    --tensor-out ${NET}_out_mix.npz \
+    --dump-all-tensor=${NET}_tensor_all_mix.npz
+
+# 可以根据需要设置需要在对比时跳过的层
+export EXCEPTS='-' 
+# 设置对比的可接受的最小相似度, 以下仅是参考值
+export TOLERANCE_MIX_PRECISION='0.9,0.9,0.7'
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_mix.npz \
+    ${NET}_blobs.npz \
+    --op_info ${NET}_op_info_mix.csv \
+    --dequant \
+    --excepts $EXCEPTS \
+    --tolerance=$TOLERANCE_MIX_PRECISION
+    -vv
+
+### 2.3.5 优化并生成cvimodel 
+$DIR/../mlir_to_cvimodel.sh \
+   -i ${NET}_mix.mlir \
+   -o ${NET}_mix.cvimodel
+
+model_runner \
+    --dump-all-tensors \
+    --input ${NET}_in_fp32.npz \
+    --model ${NET}_mix.cvimodel \
+    --output ${NET}_cmdbuf_out_all_mix.npz
+
+# compare all tensors
+cvi_npz_tool.py compare \
+    ${NET}_cmdbuf_out_all_mix.npz \
+    ${NET}_tensor_all_mix.npz \
+    --op_info ${NET}_op_info_mix.csv \
+    --tolerance='0.99,0.99,0.9' \
+    -vv
+```
+
+<br>
+
+<br>
+
+### 2.3.6 添加TPU Preprocessing
+
+> INT8模型或MIX模型可以选择用TPU去做预处理，BF16模型或者第一层为BF16层的MIX模型需要添加TPU Preprocessing
+
+```sh
+# 生成仅做resize的输入数据
+# --pixel_format 设置输入数据的格式，目前支持：
+#                RGB_PACKED, RGB_PLANAR,
+#                BGR_PACKED, BGR_PLANAR,
+#                GRAYSCALE, YUV420_PLANAR
+cvi_preprocess.py \
+    --image_file $IMAGE_PATH \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --pixel_format BGR_PACKED \
+    --aligned 0 \
+    --batch_size 1 \
+    --input_name input \
+    --output_npz ${NET}_only_resize_in_fp32.npz
+
+# 选择第3章的quant后的mlir, 可选值
+#  - ${NET}_quant_int8.mlir
+#  - ${NET}_quant_bf16.mlir
+#  - ${NET}_quant_mix.mlir
+epxort SRC_MLIR_FILE=${NET}_quant_int8.mlir
+
+tpuc-opt \
+    --add-tpu-preprocess \
+    --pixel_format BGR_PACKED \
+    --input_aligned=false \
+    $SRC_MLIR_FILE.mlir \
+    -o ${NET}_fused_preprocess.mlir
+
+tpuc-interpreter ${NET}_fused_preprocess.mlir \
+    --tensor-in ${NET}_only_resize_in_fp32.npz \
+    --tensor-out ${NET}_out_fused_preprocess.npz \
+    --dump-all-tensor=${NET}_tensor_all_fused_preprocess.npz \
+    --use-tpu-quant-op
+
+# 选择2.3.4中的op info csv，可选值
+#  - ${NET}_op_info_int8.csv
+#  - ${NET}_op_info_bf16.csv
+#  - ${NET}_op_info_mix.csv
+export OP_INFO_CSV_FILE=${NET}_op_info_int8.csv
+# 设置TOLERANCE，和第2.3.4章相同
+export TOLERANCE=$TOLERANCE_INT8_MULTIPLER
+
+cvi_npz_tool.py compare \
+    ${NET}_tensor_all_fused_preprocess.npz \
+    ${NET}_blobs.npz \
+    --op_info $OP_INFO_CSV_FILE \
+    --dequant \
+    --excepts="$EXCEPTS,input,data" \
+    --tolerance=$TOLERANCE \
+    --stats_int8_tensor \
+    -vv
+
+ 
+$DIR/../mlir_to_cvimodel.sh \
+   -i ${NET}_fused_preprocess.mlir \
+   -o ${NET}_fused_preprocess.cvimodel
+
+model_runner \
+    --dump-all-tensors \
+    --input ${NET}_only_resize_in_fp32.npz \
+    --model ${NET}_fused_preprocess.cvimodel \
+    --output ${NET}_cmdbuf_out_all_fused_preprocess.npz
+
+cvi_npz_tool.py compare \
+    ${NET}_cmdbuf_out_all_fused_preprocess.npz \
+    ${NET}_tensor_all_fused_preprocess.npz \
+    --op_info $OP_INFO_CSV_FILE
+```
+
+
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -2114,10 +2631,10 @@ typedef struct {
 定义TENSOR数据维度，按照n/channel/height/width四个维度排列.
 
   名称       描述
-  |名称|描述|
-  |---|---|
-  |dim       | 各个维度大小|
-  |dim_size  | 维度数量，最多为6个维度|
+|名称|描述|
+|---|---|
+|dim       | 各个维度大小|
+|dim_size  | 维度数量，最多为6个维度|
 
 ##### CVI_TENSOR
 ```c++
@@ -2229,12 +2746,12 @@ typedef enum {
 
 定义CVI_NN_GetConfig/CVI_NN_SetConfig接口获取或者设置模型配置的枚举类型:
 
-  |名称                       | 类型   |默认值  | 描述|
-  |---|---|---|---|
-  |OPTION_BATCH_SIZE        |   int  |  1     |   配置推理模型的batch size，cvimodel可以存放模型多个batch size的指令，如果设置的batch size在cvimodel不存在，则SetConfig会返回失败|
-  |OPTION_OUTPUT_ALL_TENOSRS|   bool |  false |   配置runtime将模型所有可见的TENSOR作为模型的输出，则选项可以作为debug的手段之一|
-  |OPTION_SKIP_PREPROCESS   |   bool |  false |   配置runtime跳过模型的预处理阶段，即直接以int8类型的数据做为输入(version 1.2后不再使用)|
-  |OPTION_SKIP_POSTPROCESS  |   bool |  false |   配置runtime跳过模型的后处理阶段，即直接输出int8的数据作为输出(version 1.2后不再使用)|
+|名称                       | 类型   |默认值  | 描述|
+|---|---|---|---|
+|OPTION_BATCH_SIZE        |   int  |  1     |   配置推理模型的batch size，cvimodel可以存放模型多个batch size的指令，如果设置的batch size在cvimodel不存在，则SetConfig会返回失败|
+|OPTION_OUTPUT_ALL_TENOSRS|   bool |  false |   配置runtime将模型所有可见的TENSOR作为模型的输出，则选项可以作为debug的手段之一|
+|OPTION_SKIP_PREPROCESS   |   bool |  false |   配置runtime跳过模型的预处理阶段，即直接以int8类型的数据做为输入(version 1.2后不再使用)|
+|OPTION_SKIP_POSTPROCESS  |   bool |  false |   配置runtime跳过模型的后处理阶段，即直接输出int8的数据作为输出(version 1.2后不再使用)|
 
 ##### 返回码
 ```c++
@@ -2349,10 +2866,10 @@ CVI_RC CVI_NN_CloneModel(
 > size指令时，可以调用此接口复制模型，复制后的模型句柄将和之前句柄共享部分资源，可以有效的减少系统内存开销。该句柄在不使用后，也需通过CVI_NN_CleanupModel进行释放。
 
   参数名称   描述                 输入/输出
-  |参数名称|描述|输入/输出|
-  |---|---|---|
-  |model     | 已经存在模型句柄           | 输入|
-  |cloned    | 返回复制的模型句柄          | 输出|
+|参数名称|描述|输入/输出|
+|---|---|---|
+|model     | 已经存在模型句柄           | 输入|
+|cloned    | 返回复制的模型句柄          | 输出|
 
 ##### CVI_NN_SetConfig
 
@@ -2371,11 +2888,11 @@ CVI_RC CVI_NN_SetConfig(
 注意，此接口需要在CVI_NN_GetInputOutputTensors之前调用。
 
   参数名称   描述                         输入/输出
-  |参数名称|描述|输入/输出|
-  |---|---|---|
-  |model     | 模型句柄                       | 输入|
-  |option    | 配置选项                       | 输入|
-  |可变参数      | 根据option的类型传入配置值           | 输入|
+|参数名称|描述|输入/输出|
+|---|---|---|
+|model     | 模型句柄                       | 输入|
+|option    | 配置选项                       | 输入|
+|可变参数      | 根据option的类型传入配置值           | 输入|
 
 【示例】
 ```c++
@@ -2396,11 +2913,11 @@ CVI_RC CVI_NN_GetConfig(
 > 获取模型的配置，可供选项请参考[CVI_CONFIG_OPTION](#_CVI_CONFIG_OPTION)。
 
   参数名称       描述                       输入/输出
-  |参数名称|描述|输入/输出|
-  |---|---|---|
-  |model         | 模型句柄                     | 输入|
-  |option        | 配置选项                     | 输入|
-  |可变参数指针        | 根据option的类型传入指针          | 输出|
+|参数名称|描述|输入/输出|
+|---|---|---|
+|model         | 模型句柄                     | 输入|
+|option        | 配置选项                     | 输入|
+|可变参数指针        | 根据option的类型传入指针          | 输出|
 
 【示例】
 ```c++
