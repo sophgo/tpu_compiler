@@ -24,20 +24,26 @@
 #include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
 #include "tpuc/Interpreter/cpu/broadcastMul.hpp"
+#include "tpuc/Interpreter/cpu/clip.hpp"
 #include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/deconv.hpp"
 #include "tpuc/Interpreter/cpu/detection_output.hpp"
+#include "tpuc/Interpreter/cpu/dilate.hpp"
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
+#include "tpuc/Interpreter/cpu/interpolation.hpp"
 #include "tpuc/Interpreter/cpu/normalize.hpp"
+#include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/Interpreter/cpu/permute.hpp"
 #include "tpuc/Interpreter/cpu/pooling.hpp"
 #include "tpuc/Interpreter/cpu/preprocess.hpp"
 #include "tpuc/Interpreter/cpu/priorbox.hpp"
+#include "tpuc/Interpreter/cpu/proposal.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
 #include "tpuc/Interpreter/cpu/reorg.hpp"
+#include "tpuc/Interpreter/cpu/roi_pooling.hpp"
 #include "tpuc/Interpreter/cpu/scale.hpp"
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
 #include "tpuc/Interpreter/cpu/slice.hpp"
@@ -123,6 +129,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(broadcastmul_kernel_op));
     return;
   }
+  if (isa<tpu::ClipOp>(op)) {
+    auto clip_kernel_op = std::make_unique<ClipOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(clip_kernel_op));
+    return;
+  }
   if (isa<tpu::ConcatOp>(op)) {
     auto concat_kernel_op = std::make_unique<ConcatOpKernel>(op, valueMapping);
     oplist.push_back(std::move(concat_kernel_op));
@@ -150,6 +161,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(do_kernel_op));
     return;
   }
+  if (isa<tpu::DilateOp>(op)) {
+    auto d_kernel_op = std::make_unique<DilateOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(d_kernel_op));
+    return;
+  }
   if (isa<tpu::EltwiseAddOp>(op)) {
     auto elt_add_kernel_op =
         std::make_unique<EltwiseAddOpKernel>(op, valueMapping);
@@ -162,15 +178,32 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(elt_mul_kernel_op));
     return;
   }
+  if (isa<tpu::FrcnDetectionOp>(op)) {
+    auto f_kernel_op =
+        std::make_unique<FrcnDetectionOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(f_kernel_op));
+    return;
+  }
   if (isa<tpu::FullyConnectedOp>(op)) {
     auto fc_kernel_op =
         std::make_unique<FullyConnectedOpKernel>(op, valueMapping);
     oplist.push_back(std::move(fc_kernel_op));
     return;
   }
+  if (isa<tpu::InterpOp>(op)) {
+    auto i_kernel_op =
+        std::make_unique<InterpolationOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(i_kernel_op));
+    return;
+  }
   if (isa<tpu::LeakyReluOp>(op)) {
     auto lr_kernel_op = std::make_unique<LeakyReluOpKernel>(op, valueMapping);
     oplist.push_back(std::move(lr_kernel_op));
+    return;
+  }
+  if (isa<tpu::MishOp>(op)) {
+    auto mish_kernel_op = std::make_unique<MishOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(mish_kernel_op));
     return;
   }
   if (isa<tpu::NoneOp>(op)) {
@@ -179,6 +212,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::NormalizeOp>(op)) {
     auto norm_kernel_op = std::make_unique<NormalizeOpKernel>(op, valueMapping);
     oplist.push_back(std::move(norm_kernel_op));
+    return;
+  }
+  if (isa<tpu::PadOp>(op)) {
+    auto pad_kernel_op = std::make_unique<PadOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(pad_kernel_op));
     return;
   }
   if (isa<tpu::PermuteOp>(op)) {
@@ -209,6 +247,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(priorbox_kernel_op));
     return;
   }
+  if (isa<tpu::ProposalOp>(op)) {
+    auto p_kernel_op = std::make_unique<ProposalOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(p_kernel_op));
+    return;
+  }
 
   if (isa<tpu::QuantOp>(op)) {
     auto quant_kernel_op = std::make_unique<QuantOpKernel>(op, valueMapping);
@@ -233,6 +276,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   }
   if (isa<tpu::ReorgOp>(op)) {
     auto r_kernel_op = std::make_unique<ReorgOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(r_kernel_op));
+    return;
+  }
+  if (isa<tpu::ROIPoolingOp>(op)) {
+    auto r_kernel_op = std::make_unique<ROIPoolingOpKernel>(op, valueMapping);
     oplist.push_back(std::move(r_kernel_op));
     return;
   }
@@ -268,9 +316,19 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(softmax_kernel_op));
     return;
   }
+  if (isa<tpu::SoftPlusOp>(op)) {
+    auto s_kernel_op = std::make_unique<SoftPlusOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(s_kernel_op));
+    return;
+  }
   if (isa<tpu::SwapChannelOp>(op)) {
     auto sc_kernel_op = std::make_unique<SwapChannelOpKernel>(op, valueMapping);
     oplist.push_back(std::move(sc_kernel_op));
+    return;
+  }
+  if (isa<tpu::TanHOp>(op)) {
+    auto t_kernel_op = std::make_unique<TanHOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(t_kernel_op));
     return;
   }
   if (isa<tpu::UpsampleOp>(op)) {
@@ -293,7 +351,6 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
 void ModuleInterpreter::invoke() {
   std::lock_guard<std::mutex> lock(invoke_lock);
   for (auto &node : oplist) {
-    node->dump();
     node->invoke();
   }
 }

@@ -70,5 +70,32 @@ private:
 
   std::vector<float> vec_anchors;
 };
+
+class FrcnDetectionOpKernel : public CPUOpKernel<FrcnDetectionOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUFrcnDetectionOp";
+
+  FrcnDetectionOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  SyncedData bbox_deltas;
+  SyncedData scores;
+  SyncedData rois;
+  SyncedData output_data;
+  SyncedDataShape rois_shape;
+  SyncedDataShape scores_shape;
+  SyncedDataShape bbox_deltas_shape;
+
+  // param
+  int keep_topk;
+  int class_num;
+  float nms_threshold;
+  float obj_threshold;
+};
 } // namespace mlir
 #endif

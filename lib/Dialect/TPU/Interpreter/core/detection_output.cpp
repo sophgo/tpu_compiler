@@ -77,6 +77,16 @@ typedef struct detection_ {
   float score;
 } detection;
 
+typedef struct {
+  float x1, y1, x2, y2;
+} coord;
+
+typedef struct {
+  coord bbox;
+  int cls;
+  float score;
+} detections;
+
 // https : // github.com/ChenYingpeng/caffe-yolov3/blob/master/box.cpp
 static float overlap(float x1, float w1, float x2, float w2) {
   float l1 = x1 - w1 / 2;
@@ -218,6 +228,78 @@ static void process_feature(detection *det, int *det_idx, float *feature,
     }
   }
   *det_idx = idx;
+}
+
+static void bbox_transform_inv(const float *boxes, const float *deltas,
+                               float *pred, int num, int class_num) {
+  for (int i = 0; i < num; ++i) {
+    float height = boxes[i * 4 + 3] - boxes[i * 4 + 1] + 1;
+    float width = boxes[i * 4 + 2] - boxes[i * 4 + 0] + 1;
+    float ctr_x = boxes[i * 4 + 0] + width * 0.5;
+    float ctr_y = boxes[i * 4 + 1] + height * 0.5;
+
+    for (int j = 0; j < class_num; ++j) {
+      float dx = deltas[i * class_num * 4 + j * 4 + 0];
+      float dy = deltas[i * class_num * 4 + j * 4 + 1];
+      float dw = deltas[i * class_num * 4 + j * 4 + 2];
+      float dh = deltas[i * class_num * 4 + j * 4 + 3];
+
+      float pred_ctr_x = dx * width + ctr_x;
+      float pred_ctr_y = dy * height + ctr_y;
+      float pred_w = std::exp(dw) * width;
+      float pred_h = std::exp(dh) * height;
+
+      pred[i * class_num * 4 + j * 4 + 0] = pred_ctr_x - pred_w / 2;
+      pred[i * class_num * 4 + j * 4 + 1] = pred_ctr_y - pred_h / 2;
+      pred[i * class_num * 4 + j * 4 + 2] = pred_ctr_x + pred_w / 2;
+      pred[i * class_num * 4 + j * 4 + 3] = pred_ctr_y + pred_h / 2;
+    }
+  }
+}
+
+static void nms(detections *dets, int num, float nms_threshold) {
+  for (int i = 0; i < num; i++) {
+    if (dets[i].score == 0) {
+      // erased already
+      continue;
+    }
+
+    float s1 = (dets[i].bbox.x2 - dets[i].bbox.x1 + 1) *
+               (dets[i].bbox.y2 - dets[i].bbox.y1 + 1);
+    for (int j = i + 1; j < num; j++) {
+      if (dets[j].score == 0) {
+        // erased already
+        continue;
+      }
+      if (dets[i].cls != dets[j].cls) {
+        // not the same class
+        continue;
+      }
+
+      float s2 = (dets[j].bbox.x2 - dets[j].bbox.x1 + 1) *
+                 (dets[j].bbox.y2 - dets[j].bbox.y1 + 1);
+
+      float x1 = std::max(dets[i].bbox.x1, dets[j].bbox.x1);
+      float y1 = std::max(dets[i].bbox.y1, dets[j].bbox.y1);
+      float x2 = std::min(dets[i].bbox.x2, dets[j].bbox.x2);
+      float y2 = std::min(dets[i].bbox.y2, dets[j].bbox.y2);
+
+      float width = x2 - x1;
+      float height = y2 - y1;
+      if (width > 0 && height > 0) {
+        float iou = width * height / (s1 + s2 - width * height);
+        assert(iou <= 1.0f);
+        if (iou > nms_threshold) {
+          // overlapped, select one to erase
+          if (dets[i].score < dets[j].score) {
+            dets[i].score = 0;
+          } else {
+            dets[j].score = 0;
+          }
+        }
+      }
+    }
+  }
 }
 namespace mlir {
 
@@ -628,4 +710,119 @@ void YoloDetectionOpKernel::invoke() {
   }
 }
 void YoloDetectionOpKernel::dump() { OpKernel::dump(); }
+
+FrcnDetectionOpKernel::FrcnDetectionOpKernel(Operation &op,
+                                             value_map_t &valueMapping) {
+  auto frcndOp = cast<tpu::FrcnDetectionOp>(op);
+  assert(frcndOp);
+  llvm::outs() << " FrcnDetectionOp op: [" << frcndOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = frcndOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+  this->rois_shape = op.getOperand(2).getType().cast<TensorType>().getShape();
+
+  this->name = frcndOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+
+  this->class_num = frcndOp.class_num();
+  this->keep_topk = frcndOp.keep_topk();
+  this->nms_threshold = frcndOp.nms_threshold().convertToFloat();
+  this->obj_threshold = frcndOp.obj_threshold().convertToFloat();
+
+  // get tensors
+  bbox_deltas = opTensors[0];
+  scores = opTensors[1];
+  rois = opTensors[2];
+
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void FrcnDetectionOpKernel::set_tensor(const std::vector<float> &data) {
+  llvm_unreachable("TODO");
+};
+
+std::vector<float> FrcnDetectionOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void FrcnDetectionOpKernel::invoke() {
+  int batch = rois_shape[0];
+  int num = rois_shape[2];
+
+  for (int b = 0; b < batch; ++b) {
+    auto batched_bbox_deltas = bbox_deltas->data() + b * num * class_num * 4;
+    auto batched_scores = scores->data() + b * num * class_num;
+    auto batched_rois = rois->data() + b * num * 5;
+
+    std::vector<float> boxes(num * 4, 0);
+    for (int i = 0; i < num; ++i) {
+      for (int j = 0; j < 4; ++j) {
+        boxes[i * 4 + j] = batched_rois[i * 5 + j + 1];
+      }
+    }
+
+    std::vector<float> pred(num * class_num * 4, 0);
+    float *pred_data = pred.data();
+    std::vector<float> deltas(batched_bbox_deltas,
+                              batched_bbox_deltas + num * class_num * 4);
+    bbox_transform_inv(boxes.data(), deltas.data(), pred_data, num, class_num);
+
+    int det_num = 0;
+    auto dets = new detections[num];
+
+    for (int i = 0; i < num; ++i) {
+      for (int j = 1; j < (int)class_num; ++j) {
+        if (batched_scores[i * class_num + j] > obj_threshold) {
+          dets[det_num].bbox.x1 = pred[i * class_num * 4 + j * 4 + 0];
+          dets[det_num].bbox.y1 = pred[i * class_num * 4 + j * 4 + 1];
+          dets[det_num].bbox.x2 = pred[i * class_num * 4 + j * 4 + 2];
+          dets[det_num].bbox.y2 = pred[i * class_num * 4 + j * 4 + 3];
+          dets[det_num].cls = j;
+          dets[det_num].score = batched_scores[i * class_num + j];
+          det_num++;
+        }
+      }
+    }
+
+    nms(dets, det_num, nms_threshold);
+    auto dets_nms = new detections[det_num];
+    int det_idx = 0;
+    for (int i = 0; i < det_num; i++) {
+      if (dets[i].score > 0) {
+        dets_nms[det_idx] = dets[i];
+        det_idx++;
+      }
+    }
+
+    if (keep_topk > det_idx)
+      keep_topk = det_idx;
+
+    long long count = 0;
+    auto batched_output =
+        output_data->data() + b * shape[1] * shape[2] * shape[3];
+    for (int i = 0; i < keep_topk; ++i) {
+      batched_output[count++] = dets_nms[i].bbox.x1;
+      batched_output[count++] = dets_nms[i].bbox.y1;
+      batched_output[count++] = dets_nms[i].bbox.x2;
+      batched_output[count++] = dets_nms[i].bbox.y2;
+      batched_output[count++] = dets_nms[i].cls;
+      batched_output[count++] = dets_nms[i].score;
+      // printf("x1: %f, y1: %f, x2: %f, y2: %f, cls: %d, score: %f\n",
+      //     dets_nms[i].bbox.x1, dets_nms[i].bbox.y1, dets_nms[i].bbox.x2,
+      //     dets_nms[i].bbox.y2, dets_nms[i].cls, dets_nms[i].score);
+    }
+    delete[] dets_nms;
+    delete[] dets;
+  }
+}
+void FrcnDetectionOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

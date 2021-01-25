@@ -1,6 +1,7 @@
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/Interpreter/cpu/activation.hpp"
+#include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/ModuleInterpreter.h"
 namespace mlir {
 
@@ -21,6 +22,9 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   is_asymmetric = isOpQuantAsymmetric(&op);
   this->name = castOp.name().str();
   this->op_type = op.getName().getStringRef().str();
+
+  arrayAttrToVector(castOp.param().ins(), ins);
+
   set_datatype(getOpQuant(&op).str());
 
   // int8 init
@@ -236,6 +240,8 @@ void Conv2DOpKernel::dump() {
 
   llvm::outs() << "\tInput Shape: " << input_shape_str << "\n";
   llvm::outs() << "\tFilter Shape: " << filter_shape_str << "\n";
+  llvm::outs() << "\tPad top: " << pt << " bottom: " << pb << " left: " << pl
+               << " right: " << pr << "\n";
   llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
   if (this->datatype == DataType::INT8) {
     llvm::outs() << "\tPERCHANNEL: " << is_perchannel << "\n";

@@ -61,6 +61,7 @@ private:
   bool is_deconv = false;
   bool do_bias_later = false;
   bool do_relu_later = false;
+  std::vector<int32_t> ins;
   bool is_asymmetric;
 
   // mkldnn setting

@@ -58,6 +58,97 @@ void leaky_relu(float *src, float *dst, size_t size, float negative_slope) {
   }
 };
 
+inline float tanh_activate(float x) { return (2 / (1 + expf(-2 * x)) - 1); }
+
+float softplus_activate(float x, float threshold) {
+  if (x > threshold)
+    return x; // too large
+  else if (x < -threshold)
+    return expf(x); // too small
+  return logf(expf(x) + 1);
+}
+
+float mish_caffe_tanh_part(float x_val, float mish_threshold) {
+  return tanh_activate(softplus_activate(x_val, mish_threshold));
+}
+
+float mish_caffe(float x_val, float mish_threshold) {
+  return x_val * mish_caffe_tanh_part(x_val, mish_threshold);
+}
+
+MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto mishOp = cast<tpu::MishOp>(op);
+  assert(mishOp);
+  llvm::outs() << " Mish op: [" << mishOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = mishOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = mishOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  this->mish_threshold = mishOp.mish_threshold().convertToFloat();
+
+  set_datatype(getOpQuant(&op).str());
+
+  if (datatype == DataType::INT8) {
+    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    bf16_min_range = mishOp.min_range().convertToFloat();
+    bf16_max_range = mishOp.max_range().convertToFloat();
+  }
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void MishOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " Mish op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> MishOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void MishOpKernel::invoke() {
+  int size =
+      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+
+  if (datatype == DataType::INT8) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+    }
+  } else if (datatype == DataType::BF16) {
+    hardwareLookUpTable(input_data->data(), output_data->data(), size,
+                        y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                        bf16_max_range);
+  } else {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = mish_caffe(input_data->at(i), mish_threshold);
+    }
+  }
+}
+
+void MishOpKernel::dump() { OpKernel::dump(); }
+
 LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping) {
   auto leaky_reluOp = cast<tpu::LeakyReluOp>(op);
   assert(leaky_reluOp);
@@ -480,6 +571,81 @@ void SigmoidOpKernel::dump() {
   }
 }
 
+SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto spOp = cast<tpu::SoftPlusOp>(op);
+  assert(spOp);
+  llvm::outs() << " SoftPlus op: [" << spOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = spOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+  this->threshold = spOp.threshold().convertToFloat();
+  this->name = spOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+  if (datatype == DataType::INT8) {
+    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    bf16_min_range = spOp.min_range().convertToFloat();
+    bf16_max_range = spOp.max_range().convertToFloat();
+  }
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void SoftPlusOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " SoftPlus op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> SoftPlusOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void SoftPlusOpKernel::invoke() {
+
+  if (datatype == DataType::INT8) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+    }
+  } else if (datatype == DataType::BF16) {
+    hardwareLookUpTable(input_data->data(), output_data->data(),
+                        output_data->size(), y0_bf16_table_op,
+                        y0_bf16_slope_table, bf16_min_range, bf16_max_range);
+  } else {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = softplus_activate(input_data->at(i), threshold);
+    }
+  }
+}
+
+void SoftPlusOpKernel::dump() {
+  OpKernel::dump();
+
+  if (this->datatype == DataType::BF16) {
+    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
+                 << bf16_max_range << "\n";
+  }
+}
+
 SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping) {
   auto sqrtOp = cast<tpu::SqrtOp>(op);
   assert(sqrtOp);
@@ -544,6 +710,81 @@ void SqrtOpKernel::invoke() {
 }
 
 void SqrtOpKernel::dump() {
+  OpKernel::dump();
+
+  if (this->datatype == DataType::BF16) {
+    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
+                 << bf16_max_range << "\n";
+  }
+}
+
+TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto tanhOp = cast<tpu::TanHOp>(op);
+  assert(tanhOp);
+  llvm::outs() << " TanH op: [" << tanhOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = tanhOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = tanhOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+  if (datatype == DataType::INT8) {
+    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    bf16_min_range = tanhOp.min_range().convertToFloat();
+    bf16_max_range = tanhOp.max_range().convertToFloat();
+  }
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void TanHOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " TanH op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> TanHOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void TanHOpKernel::invoke() {
+
+  if (datatype == DataType::INT8) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+    }
+  } else if (datatype == DataType::BF16) {
+    hardwareLookUpTable(input_data->data(), output_data->data(),
+                        output_data->size(), y0_bf16_table_op,
+                        y0_bf16_slope_table, bf16_min_range, bf16_max_range);
+  } else {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = std::tanh(input_data->at(i));
+    }
+  }
+}
+
+void TanHOpKernel::dump() {
   OpKernel::dump();
 
   if (this->datatype == DataType::BF16) {
