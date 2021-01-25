@@ -795,7 +795,8 @@ python
 
 ``` python
 # python
-import torch  import  torchvision.models as models
+import torch
+import  torchvision.models as models
 # Use an existing model  from Torchvision, note it
 # will download this if  not already on your computer (might take time)
 model = models.resnet18(pretrained=True)
@@ -2115,7 +2116,7 @@ tpuc-opt \
     --add-tpu-preprocess \
     --pixel_format BGR_PACKED \
     --input_aligned=false \
-   mobilenet_v2_int8.mlir \
+    mobilenet_v2_int8.mlir \
     -o mobilenet_v2_fused_preprocess_int8.mlir
 ```
 
@@ -2146,40 +2147,23 @@ mlir_to_cvimodel.sh \
 
 #### 步骤 7：测试cvimodel
 
-首先生成resize后的图像数据，并保存为npy文件，用于作为测试的输入。可以使用如下python脚本：
+首先生成resize后的图像数据，并保存为npy文件，用于作为测试的输入。因为caffe的推理过程是先resize为256,256，再crop为224,224，因此下面先对input做resize，然后在TPU中做crop.
 
-``` python
-import numpy as np
-import cv2
-
-image = cv2.imread('./cat.jpg')
-image = cv2.resize(image, (224,224))
-image = image.astype(np.uint8)
-image = np.expand_dims(image, axis=0)
-np.savez('mobilenet_v2_resize_only_in_uint8.npz', **{'input': image})
-```
-
-得到`mobilenet_v2_resize_only_in_uint8.npz`。
-
-也可以使用如下命令生成`mobilenet_v2_resize_only_in_uint8.npz`，内容相同：
+可以使用如下命令生成`mobilenet_v2_resize_only_in_fp32.npz`：
 
 ``` shell
 cvi_preprocess.py  \
     --image_file ./cat.jpg \
-    --net_input_dims 224,224 \
-    --image_resize_dims 224,224 \
-    --raw_scale 255 \
-    --mean 0,0,0 \
-    --std 1,1,1 \
-    --input_scale 1 \
-    --data_format nhwc \
-    --astype uint8 \
+    --image_resize_dims 256,256 \
+    --pixel_format BGR_PACKED \
+    --keep_aspect_ratio 0 \
+    --aligned 0 \
     --batch_size 1 \
-    --npz_name mobilenet_v2_resize_only_in_uint8.npz \
-    --input_name input
+    --input_name input \
+    --output_npz mobilenet_v2_resize_only_in_fp32.npz
 
 # dump
-cvi_npz_tool.py dump mobilenet_v2_resize_only_in_uint8.npz input
+cvi_npz_tool.py dump mobilenet_v2_resize_only_in_fp32.npz input
 #   ...
 #   [192 207 216]
 #   [185 201 210]
@@ -2192,12 +2176,13 @@ cvi_npz_tool.py dump mobilenet_v2_resize_only_in_uint8.npz input
 
 ``` shell
 model_runner \
-    --input mobilenet_v2_resize_only_in_uint8.npz \
+    --dump-all-tensors \
+    --input mobilenet_v2_resize_only_in_fp32.npz \
     --model mobilenet_v2_fused_preprocess.cvimodel \
-    --output out_fused_preprocess.npz
+    --output mobilenet_v2_cmdbuf_out_all_fused_preprocess_int8.npz
 
 # check output data
-cvi_npz_tool.py dump out_fused_preprocess.npz prob_dequant 5
+cvi_npz_tool.py dump mobilenet_v2_cmdbuf_out_all_fused_preprocess_int8.npz prob_dequant 5
 # Show Top-K 5
 # (285, 0.26896998)
 # (282, 0.26896998)
@@ -2213,78 +2198,34 @@ cvi_npz_tool.py dump out_fused_preprocess.npz prob_dequant 5
 
 作为调试手段，当数据出现不正常情况时，我们仍然可以interpreter进行推理，并对每层的数据进行比对。
 
- 由于interpreter使用fp32格式数据作为输入，我们首先将uint8格式的输入数据转换为fp32格式。可以使用如下python脚本：
-
-``` python
-import numpy as np
-
-npzfile = np.load('mobilenet_v2_resize_only_in_uint8.npz')
-input = npzfile['input'].astype(np.float32)
-np.savez('mobilenet_v2_resize_only_in_fp32.npz', **{'input': input})
-```
-
-得到`mobilenet_v2_resize_only_in_fp32.npz`。
-
-
-
 运行tpuc-interpreter对转换和优化后的fp32 mlir模型进行推理，得到的mlir推理的逐层数据：
 
 ``` shell
-tpuc-interpreter mobilenet_v2_fused_preprocess_fp32.mlir \
+tpuc-interpreter mobilenet_v2_fused_preprocess_int8.mlir \
     --tensor-in mobilenet_v2_resize_only_in_fp32.npz \
-    --tensor-out mobilenet_v2_fused_preprocess_out_fp32.npz \
-    --dump-all-tensor=mobilenet_v2_fused_preprocess_tensor_all_fp32.npz
+    --tensor-out mobilenet_v2_out_fused_preprocess_int8.npz \
+    --dump-all-tensor=mobilenet_v2_tensor_all_fused_preprocess_int8.npz \
+    --use-tpu-quant-op
 ```
-
-对于caffe推理的逐层数据，此处不能直接使用第6章的mobilenet_v2_blobs.npz文件。这是因为第6章的caffe推理过程，是先resize为256,256，再crop为224,224，本章的范例则是直接resize至224,224。因此使用如下命令重新生成caffe推理的数据。
-
-**注：** TPU的预处理也支持crop操作，但是本章范例没有开启crop。如果需要开启在预处理阶段由TPU进行crop，可以在模型转换阶段，将image_resize_dims和net_input_dims设为不同值。
-
-``` shell
-run_caffe_classifier.py \
-    --model_def ../mobilenet_v2_deploy.prototxt \
-    --pretrained_model ../mobilenet_v2.caffemodel \
-    --image_resize_dims 224,224 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.94,116.78,123.68 \
-    --input_scale 0.017 \
-    --model_channel_order "bgr" \
-    --batch_size 1 \
-    --dump_blobs mobilenet_v2_blobs_no_crop.npz \
-    ./cat.jpg \
-    caffe_out.npy
-```
-
-得到`mobilenet_v2_blobs_no_crop.npz`文件。
 
 将caffe推理数据和mlir推理数据进行逐层比对：
 
 ``` shell
 cvi_npz_tool.py compare \
-    mobilenet_v2_fused_preprocess_tensor_all_fp32.npz \
-    mobilenet_v2_blobs_no_crop.npz \
-    --op_info op_info.csv \
-    --tolerance=0.999,0.999,0.998 -vv
+    mobilenet_v2_tensor_all_fused_preprocess_int8.npz \
+    mobilenet_v2_blobs.npz \
+    --op_info op_info_int8.csv \
+    --dequant \
+    --excepts="data" \
+    --tolerance 0.93,0.93,0.54 -vv
 ```
 
-运行tpuc-interpreter对int8 mlir进行推理，得到的逐层数据：
-
-``` shell
-tpuc-interpreter mobilenet_v2_fused_preprocess_int8.mlir \
-    --tensor-in mobilenet_v2_resize_only_in_fp32.npz \
-    --tensor-out mobilenet_v2_fused_preprocess_out_int8.npz \
-    --dump-all-tensor=mobilenet_v2_fused_preprocess_tensor_all_int8.npz
-```
-
-得到`mobilenet_v2_tensor_all_int8.npz`。
-
-将fp32推理数据和int8推理数据进行逐层比对：
+将caffe推理数据和model_runner执行执行结果进行逐层比对：
 
 ``` shell
 cvi_npz_tool.py compare \
-    mobilenet_v2_fused_preprocess_tensor_all_int8.npz \
-    mobilenet_v2_fused_preprocess_tensor_all_fp32.npz \
+    mobilenet_v2_cmdbuf_out_all_fused_preprocess_int8.npz \
+    mobilenet_v2_blobs.npz \
     --op_info op_info_int8.csv \
     --dequant \
     --excepts="data" \
