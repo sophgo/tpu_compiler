@@ -23,6 +23,126 @@ echo "BUILD_PATH: $BUILD_PATH"
 echo "INSTALL_PATH: $INSTALL_PATH"
 echo "TPU_PYTHON_PATH: $TPU_PYTHON_PATH"
 
+is_valid_cached_path()
+{
+  if [ -n "$BUILD_CACHED_PATH" ]; then
+    if [ -d $BUILD_CACHED_PATH ]; then
+      valid_cached_path=1
+      return
+    fi
+  fi
+
+  valid_cached_path=0
+}
+
+is_clean_llvm_source()
+{
+  if [ -d $PROJECT_ROOT/third_party/llvm-project/llvm ]; then
+    pushd $PROJECT_ROOT/third_party/llvm-project/llvm
+    if [[ $(git diff --stat) == '' ]]; then
+      popd
+      cleaned_llvm_source=1
+      return
+    fi
+  fi
+
+  cleaned_llvm_source=0
+}
+
+get_llvm_version()
+{
+  pushd $PROJECT_ROOT/third_party/llvm-project/llvm
+  LLVM_VER="$(git show -s --format=%H)"
+  popd
+}
+
+is_valid_cached_llvm()
+{
+  local CACHED_LLVM_BUILD_PATH=$1
+  if [ -e $CACHED_LLVM_BUILD_PATH/bin/llvm-readobj ]; then
+    valid_cached_llvm_exec=1
+    return
+  fi
+
+  valid_cached_llvm_exec=0
+}
+
+build_llvm_fn()
+{
+  local build_path=$1
+
+  if [ ! -d $build_path ]; then
+    mkdir $build_path
+  fi
+
+  pushd $build_path
+  cmake -G Ninja \
+    $BUILD_FLAG \
+    $PROJECT_ROOT/third_party/llvm-project/llvm \
+    -DLLVM_ENABLE_PROJECTS="mlir" \
+    -DLLVM_TARGETS_TO_BUILD="host" \
+    -DLLVM_ENABLE_RTTI=ON \
+    -DLLVM_ENABLE_EH=ON \
+    -DLLVM_ENABLE_ASSERTIONS=ON \
+    -DMLIR_BINDINGS_PYTHON_ENABLED=ON \
+    -DPYTHON_EXECUTABLE=$(which python3) \
+    -Dpybind11_DIR=$INSTALL_PATH/pybind11/share/cmake/pybind11
+  ninja
+  popd
+}
+
+install_llvm_fun()
+{
+  BUILD_LLVM_PATH=$1
+  mkdir -p $INSTALL_PATH/tpuc/python
+  mkdir -p $INSTALL_PATH/tpuc/lib
+  cp -rf $BUILD_LLVM_PATH/python/* $INSTALL_PATH/tpuc/python/
+  cp -rf $BUILD_LLVM_PATH/lib/libMLIRPublicAPI* $INSTALL_PATH/tpuc/lib
+}
+
+build_install_llvm()
+{
+  valid_cached_path=0
+  valid_cached_llvm_exec=0
+  cleaned_llvm_source=0
+
+  is_valid_cached_path
+
+  if [ $valid_cached_path = "1" ]; then
+    echo "  BUILD_CACHED_PATH $BUILD_CACHED_PATH"
+
+    get_llvm_version
+    echo "  LLVM_VER $LLVM_VER"
+    CACHED_LLVM_BUILD_PATH=$BUILD_CACHED_PATH/"build_llvm_"$LLVM_VER
+
+    is_clean_llvm_source
+
+    if [ $cleaned_llvm_source = "1" ]; then
+      is_valid_cached_llvm $CACHED_LLVM_BUILD_PATH
+      if [ $valid_cached_llvm_exec = "0" ]; then
+        echo "  start cached build from source"
+        build_llvm_fn $CACHED_LLVM_BUILD_PATH
+      fi
+    fi
+
+    is_valid_cached_llvm $CACHED_LLVM_BUILD_PATH
+  fi
+
+  if [ $valid_cached_llvm_exec = "1" ]; then
+    echo "  install llvm from cached"
+    mkdir -p $BUILD_PATH/llvm
+    mkdir -p $BUILD_PATH/llvm/lib
+    cp -a $CACHED_LLVM_BUILD_PATH/lib/cmake/mlir $BUILD_PATH/llvm/lib/
+    cp -a $CACHED_LLVM_BUILD_PATH/lib/cmake/llvm $BUILD_PATH/llvm/lib/
+
+    install_llvm_fun $CACHED_LLVM_BUILD_PATH
+  else
+    echo "  start local build from source"
+    build_llvm_fn $BUILD_PATH/llvm
+    install_llvm_fun $BUILD_PATH/llvm
+  fi
+}
+
 # prepare install/build dir
 mkdir -p $BUILD_PATH
 mkdir -p $INSTALL_PATH
@@ -54,25 +174,7 @@ cmake --build . --target install
 popd
 
 # build llvm
-mkdir -p $BUILD_PATH/llvm
-pushd $BUILD_PATH/llvm
-cmake -G Ninja \
-  $BUILD_FLAG \
-  $PROJECT_ROOT/third_party/llvm-project/llvm \
-  -DLLVM_ENABLE_PROJECTS="mlir" \
-  -DLLVM_TARGETS_TO_BUILD="host" \
-  -DLLVM_ENABLE_RTTI=ON \
-  -DLLVM_ENABLE_EH=ON \
-  -DLLVM_ENABLE_ASSERTIONS=ON \
-  -DMLIR_BINDINGS_PYTHON_ENABLED=ON \
-  -DPYTHON_EXECUTABLE=$(which python3) \
-  -Dpybind11_DIR=$INSTALL_PATH/pybind11/share/cmake/pybind11
-ninja
-popd
-mkdir -p $INSTALL_PATH/tpuc/python
-mkdir -p $INSTALL_PATH/tpuc/lib
-cp -rf $BUILD_PATH/llvm/python/* $INSTALL_PATH/tpuc/python/
-cp -rf $BUILD_PATH/llvm/lib/libMLIRPublicAPI* $INSTALL_PATH/tpuc/lib
+build_install_llvm
 
 # build caffe
 mkdir -p $BUILD_PATH/caffe
