@@ -1399,8 +1399,9 @@ Value tpu::QuantOp::convertToTG() {
   operands.push_back(input());
 
   auto parentOp = this->getOperand().getDefiningOp();
-  if (isa<tpu::InputOp>(parentOp) || false == is_fmt_support(from()) ||
-      false == is_fmt_support(to())) {
+  if ((isa<tpu::InputOp>(parentOp) && from() != "UINT8") ||
+       false == is_fmt_support(from()) ||
+       false == is_fmt_support(to())) {
     std::vector<NamedAttribute> param;
     param.push_back(builder.getNamedAttr("from", fromAttr()));
     param.push_back(builder.getNamedAttr("to", toAttr()));
