@@ -14,8 +14,8 @@ ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping) {
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
   llvm::outs() << "    =>required memory size: [" << size << "]\n";
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
+
+  this->shape = getTensorShape(result);
 
   this->name = concatOp.name().str();
   this->axis = concatOp.axis();
@@ -56,6 +56,7 @@ std::vector<float> ConcatOpKernel::get_tensor() {
 
 void ConcatOpKernel::invoke() {
   std::vector<int64_t> output_shape = this->shape;
+
   for (uint32_t i = output_shape.size(); i < 4; i++) {
     output_shape.push_back(1); // append to 4 dim
   }

@@ -30,6 +30,7 @@ private:
   std::vector<float> rshift;
   std::vector<float> multiplier;
   int output_offset = 0;
+  bool do_quant;
 
   // param
   bool do_relu;
@@ -58,7 +59,7 @@ private:
   std::vector<float> rshift;
   std::vector<float> multiplier;
   int output_offset = 0;
-
+  bool do_quant;
   // param
   bool do_relu;
 };
