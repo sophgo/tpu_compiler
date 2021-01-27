@@ -46,14 +46,18 @@ protected:
   int n_stride;
   int32_t y_w_aligned;
   int32_t uv_w_aligned;
-  static const int BLOB_NUM = 12; // yuvrgb * 2 for flip
+  cvk_tl_shape_t kernel_shape;
+  cvk_tl_t *tl_mem_kernel;
+  static const int BLOB_NUM = 14; // yuvrgb * 2 for flip, + uv2 * 2
   // current step yuv,rgb
-  cvk_tl_t tl_y, tl_u, tl_v, tl_r, tl_g, tl_b;
+  cvk_tl_t tl_y, tl_u, tl_v, tl_r, tl_g, tl_b, tl_4u, tl_4v;
+  cvk_tl_t tl_kernel;
   // lmem alloc
   cvk_tl_t *tl_mem[BLOB_NUM];
   cvk_tg_stride_t y_gstride, uv_gstride, rgb_gstride;
   std::vector<int> order;
   int32_t layer_id;
+  int32_t step_n, step_c, step_h, step_w; // for tiling step
   std::vector<CviBackendContext::tiling_info_t> tiles;
 };
 

@@ -220,7 +220,9 @@ class preprocess(object):
     def align_up(self, x, n):
         return x if n == 0 else ((x + n - 1)// n) * n
 
-
+    # Y = 0.2569 * R + 0.5044 * G + 0.0979 * B + 16
+    # U = -0.1483 * R - 0.2911 * G + 0.4394 * B + 128
+    # V = 0.4394 * R - 0.3679 * G - 0.0715 * B + 128
     def rgb2yuv420(self, input):
         # every 4 y has one u,v
         # vpss format, w align is 32, channel align is 4096
@@ -235,9 +237,12 @@ class preprocess(object):
         for h_idx in range(h):
             for w_idx in range(w):
                 r, g, b = input[h_idx][w_idx]
-                y = int(0.299*r + 0.587*g + 0.114*b)
-                u = int(-0.1687*r - 0.3313*g + 0.5*b + 128)
-                v = int(0.5*r - 0.4187*g - 0.0813*b + 128)
+                y = int(0.2569 * r + 0.5044 * g + 0.0979 * b + 16)
+                u = int(-0.1483 * r - 0.2911 * g + 0.4394 * b + 128)
+                v = int(0.4394 * r - 0.3679 * g - 0.0715 * b + 128)
+                y = max(min(y, 255), 0)
+                u = max(min(u, 255), 0)
+                v = max(min(v, 255), 0)
                 yuv420[y_offset + h_idx * y_w_aligned + w_idx] = y
                 if (h_idx % 2 == 0 and w_idx % 2 == 0):
                     u_idx = int(u_offset + h_idx/2 * uv_w_aligned + w_idx / 2)
