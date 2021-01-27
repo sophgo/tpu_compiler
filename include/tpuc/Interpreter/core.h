@@ -49,8 +49,10 @@ public:
       this->datatype = DataType::FP32;
     } else if (type == "BF16") {
       this->datatype = DataType::BF16;
-    } else if (type == "INT8") {
+    } else if (type == "INT8" || type == "UINT8") {
       this->datatype = DataType::INT8;
+    } else {
+      llvm_unreachable("Not support type");
     }
   }
   std::string get_op_type() { return this->op_type; }

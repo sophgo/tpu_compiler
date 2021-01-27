@@ -28,12 +28,14 @@
 #include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
+#include "tpuc/Interpreter/cpu/csc.hpp"
 #include "tpuc/Interpreter/cpu/deconv.hpp"
 #include "tpuc/Interpreter/cpu/detection_output.hpp"
 #include "tpuc/Interpreter/cpu/dilate.hpp"
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
 #include "tpuc/Interpreter/cpu/interpolation.hpp"
+#include "tpuc/Interpreter/cpu/lrn.hpp"
 #include "tpuc/Interpreter/cpu/normalize.hpp"
 #include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/Interpreter/cpu/permute.hpp"
@@ -151,6 +153,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(crop_kernel_op));
     return;
   }
+  if (isa<tpu::CscOp>(op)) {
+    auto csc_kernel_op = std::make_unique<CscOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(csc_kernel_op));
+    return;
+  }
   if (isa<tpu::DeConv2DOp>(op)) {
     auto deconv_kernel_op =
         std::make_unique<DeConv2DOpKernel>(op, valueMapping);
@@ -201,6 +208,26 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::LeakyReluOp>(op)) {
     auto lr_kernel_op = std::make_unique<LeakyReluOpKernel>(op, valueMapping);
     oplist.push_back(std::move(lr_kernel_op));
+    return;
+  }
+  if (isa<tpu::LrnOp>(op)) {
+    auto lrn_kernel_op = std::make_unique<LrnOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(lrn_kernel_op));
+    return;
+  }
+  if (isa<tpu::LrnOneOp>(op)) {
+    auto lrn_kernel_op = std::make_unique<LrnOneOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(lrn_kernel_op));
+    return;
+  }
+  if (isa<tpu::LrnTwoOp>(op)) {
+    auto lrn_kernel_op = std::make_unique<LrnTwoOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(lrn_kernel_op));
+    return;
+  }
+  if (isa<tpu::LrnThreeOp>(op)) {
+    auto lrn_kernel_op = std::make_unique<LrnThreeOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(lrn_kernel_op));
     return;
   }
   if (isa<tpu::MishOp>(op)) {
