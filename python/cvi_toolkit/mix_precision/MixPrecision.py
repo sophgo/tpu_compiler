@@ -5,6 +5,24 @@ import numpy as np
 import sys, os, copy, shutil, time
 from tqdm import tqdm
 
+tpu_skip_op = ['tpu.input', 'tpu.quant', 'tpu.cast',
+               'tpu.split', 'tpu.concat', 'tpu.reshape']
+
+
+def get_mlir_weight_file(mlir_file):
+    model = pymlir.module()
+    model.load(mlir_file)
+    weight_file = model.get_weight_file_path()
+    del model
+    return weight_file
+
+
+def remove_mlir_with_weight(mlir_file):
+    weight_file = get_mlir_weight_file(mlir_file)
+    os.remove(weight_file)
+    os.remove(mlir_file)
+
+
 class MixPrecisior(object):
     def __init__(self, mlir_file, loss_func, data_file=None, skip_op=['tpu.input', 'tpu.quant', 'tpu.cast'],
                 precrocess_func=None, input_num=10):
@@ -105,6 +123,7 @@ class MixPrecisior(object):
 
             del self.bf16_model
             loss_list.append((layer['name'], loss / len(self.image_txt_list)))
+            remove_mlir_with_weight(bf16_tmp_mlir)
 
         # remove tmp file
         shutil.rmtree(bf16_txt, ignore_errors=True)
