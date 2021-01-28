@@ -3,7 +3,6 @@ repo_list=(
 "externals/cmodel"
 "externals/cvibuilder"
 "externals/cvikernel"
-"externals/cvimath"
 "externals/cviruntime"
 "externals/profiling"
 "third_party/cnpy"
