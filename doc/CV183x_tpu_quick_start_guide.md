@@ -165,7 +165,7 @@ CVITEK Release包含如下组成部分：
 
  解压samples使用的model文件（以cvimodel格式交付），并解压TPU_SDK，并进入samples目录，执行测试，过程如下：
 
-``` shell
+``` evb_shell
 # envs
 tar zxf cvimodel_samples.tar.gz
 export MODEL_PATH=$PWD/cvimodel_samples
@@ -226,7 +226,7 @@ cd samples
 
 同时提供脚本作为参考，执行效果与直接运行相同，如下：
 
-``` shell
+``` evb_shell
 ./run_classifier.sh
 ./run_detector.sh
 ./run_alphapose.sh
@@ -235,7 +235,7 @@ cd samples
 
 也有使用preprocess（预处理）的脚本作为参考，如下：
 
-``` shell
+``` evb_shell
 ./run_classifier_fused_preprocess.sh
 ./run_detector_fused_preprocess.sh
 ./run_alphapose_fused_preprocess.sh
@@ -252,7 +252,7 @@ cd samples
 
   Regression模型文件分成bs=1和bs=4两部分，分别执行测试，对所有网络进行正确性和运行效率测试。
 
-  ``` shell
+  ``` evb_shell
   cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
   export TPU_ROOT=$PWD/cvitek_tpu_sdk
 
@@ -274,7 +274,7 @@ cd samples
 
   计入数据输入，后处理和数据导出时间在内的端到端网络推理时间。
 
-  ``` shell
+  ``` evb_shell
   cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
   export TPU_ROOT=$PWD/cvitek_tpu_sdk
   export PATH=$TPU_ROOT/samples/bin:$PATH
@@ -299,13 +299,13 @@ cd samples
 
 从docker hub获取（推荐）:
 
-``` shell
+```
 docker pull cvitek/cvitek_dev:1.4-ubuntu-18.04
 ```
 
 或者加载镜像文件：
 
-``` shell
+```
 docker load -i docker_cvitek_dev_1.4-ubuntu-18.04.tar
 ```
 
@@ -313,7 +313,7 @@ docker load -i docker_cvitek_dev_1.4-ubuntu-18.04.tar
 
 如果是首次使用docker，可执行下述命令进行安装和配置（Ubuntu系统）
 
-``` shell
+```
 sudo apt install docker.io
 systemctl start docker
 systemctl enable docker
@@ -327,7 +327,7 @@ newgrp docker (use before reboot)
 
 取得docker image后，执行下述命令运行docker：
 
-``` shell
+```
 # 这里假设models和dataset分别位于~/data/models和~/data/dataset目录，如有不同请相应调整。
 docker run -itd -v $PWD:/work \
    -v ~/data/models:/work/models \
@@ -388,14 +388,14 @@ cmake --build . --target install
 
 准备TPU仿真开发环境：
 
-``` shell
+```
 tar zxf cvitek_mlir.tar.gz
 source cvitek_mlir/cvitek_envs.sh
 ```
 
  使用下述脚本命令，快速生成所有测试用的cvimodel文件：
 
-``` shell
+```
 generate_all_cvimodels.sh
 ```
 
@@ -413,7 +413,7 @@ generate_all_cvimodels.sh
 
 准备TPU仿真开发环境：
 
-``` shell
+```
 tar zxf cvitek_mlir.tar.gz
 source cvitek_mlir/cvitek_envs.sh
 ```
@@ -422,7 +422,7 @@ source cvitek_mlir/cvitek_envs.sh
 
 使用下述命令启动回归测试。测试网络分级为basic和extra以调节测试时间，用户也可以编辑run_regression.sh自行调节列表。
 
-``` shell
+```
 run_regression.sh    # basic  models only  Or
 run_regression.sh -e  # with  extra models
 ```
@@ -433,7 +433,7 @@ run_regression.sh -e  # with  extra models
 
  用户也可以单独对其中一个网络进行回归测试，命令如下（以resnet50为例），所支持的网络列表参见2.2节。
 
-``` shell
+```
 regression_generic.sh resnet50
 ```
 
@@ -443,7 +443,7 @@ regression_generic.sh resnet50
 
 在执行run_regression.sh后，我们可以利用脚本对mlir模型进行精度测试，并与原始模型精度进行比较。命令为：
 
-``` shell
+```
 source cvitek_mlir/cvitek_envs.sh
 cd regression_out
 # accuracy_generic.sh ${NET} ${COUNT}
@@ -787,8 +787,6 @@ source cvitek_mlir/cvitek_envs.sh
 ``` shell
 mkdir model_resnet18
 cd model_resnet18
-python
-# 进入python后台
 ```
 
 执行python命令：
@@ -1009,8 +1007,6 @@ source cvitek_mlir/cvitek_envs.sh
 ``` shell
 mkdir model_mobilenet_v2_tf
 cd model_mobilenet_v2_tf
-python
-# 进入python后台
 ```
 
 执行python命令：
@@ -1552,7 +1548,6 @@ if __name__ == '__main__':
 ``` shell
 mkdir workspace && cd workspace
 cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
-python
 # 进入python后台
 ```
 
