@@ -1,9 +1,13 @@
 #include "tpuc/Interpreter/cpu/pooling.hpp"
 #include "mkldnn.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/conv.hpp"
+#include "tpuc/Interpreter/cpu/slice.hpp"
+#include "tpuc/MachineInfo.h"
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
+
 PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
   tpu::PoolParam pool_param;
   Value mlir_input_value;
@@ -30,6 +34,7 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
   llvm::outs() << " Pool op: [" << name << "]\n";
   this->name = name;
   this->op_type = op.getName().getStringRef().str();
+  this->input_shape = getTensorShape(op.getOperand(0));
   set_datatype(getOpQuant(&op).str());
 
   auto opTensors = getOperandTensors(&op, valueMapping);
@@ -231,24 +236,71 @@ void PoolingOpKernel::i8_avg_invoke() {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
   mkl_stream.wait();
-  int in = this->shape.at(0);
-  int ic = this->shape.at(1);
-  int ih = this->shape.at(2);
-  int iw = this->shape.at(3);
-  size_t size = in * ic * ih * iw;
 
-  for (size_t i = 0; i < size; ++i) {
+  for (size_t i = 0; i < output_data->size(); ++i) {
     output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
         output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
   }
 }
 
 void PoolingOpKernel::invoke() {
+
+  int ih = this->input_shape.at(2);
+  int iw = this->input_shape.at(3);
+  int size = output_data->size();
   if (datatype == DataType::FP32) {
     fp32_invoke();
   } else if (datatype == DataType::INT8) {
     if (pool_method == POOL_METHOD::AVG) {
-      i8_avg_invoke();
+      int lmem_size = MInfo::lmem_per_lane;
+      if ((ih * iw) > ((lmem_size - size) / 2)) {
+        // In hardware limitation, we can not put avg pool with large kernel
+        // if avg pool ih * iw > local memory, in our hardware
+        // need to split it then sum
+        std::vector<int> h_slices;
+        int h_slice_size = (int)(((lmem_size - size) / iw) / 2);
+        int total_h = ih;
+        while (total_h > 0) {
+          if (total_h > h_slice_size) {
+            total_h -= h_slice_size;
+            h_slices.push_back(h_slice_size);
+          } else {
+            h_slices.push_back(total_h);
+            break;
+          }
+        }
+        int offset = 0;
+        std::vector<float> output_data_(size, 0);
+        for (auto &s : h_slices) {
+          int filter_shape = c * s * kw;
+          int g = c;
+          int oc = c;
+          int dh = 1, dw = 1;
+          int input_slice_size = n * c * s * kw;
+          std::vector<float> conv_filter(filter_shape, 1);
+          std::vector<float> input_slice(input_slice_size);
+          std::vector<float> output_tmp_data(size);
+          std::vector<int64_t> tmp_shape = {n, c, s, iw};
+          slice(input_data->data(), input_slice.data(), 2, offset, input_shape,
+                tmp_shape);
+
+          once_mkldnn_conv(input_slice.data(), conv_filter.data(), NULL,
+                           output_tmp_data.data(), n, c, s, iw, oc, 1, 1, s, kw,
+                           sh, sw, dh, dw, pt, pb, pl, pr, g, 0);
+          offset += s;
+          for (int64_t i = 0; i < size; ++i) {
+            float sum = output_tmp_data[i];
+            output_tmp_data[i] = (float)applyMultiplierAndRShiftAndSaturateInt8(
+                sum, (uint32_t)rshift, (uint32_t)multiplier, false);
+            output_data_[i] += output_tmp_data[i];
+          }
+        }
+        for (int64_t i = 0; i < size; ++i) {
+          output_data->at(i) = output_data_[i];
+        }
+      } else {
+        i8_avg_invoke();
+      }
     } else {
       // int8 max pool same with fp32 max pool
       fp32_invoke();

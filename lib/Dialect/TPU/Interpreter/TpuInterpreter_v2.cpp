@@ -30,6 +30,7 @@
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/csc.hpp"
 #include "tpuc/Interpreter/cpu/deconv.hpp"
+#include "tpuc/Interpreter/cpu/depthtospace.hpp"
 #include "tpuc/Interpreter/cpu/detection_output.hpp"
 #include "tpuc/Interpreter/cpu/dilate.hpp"
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
@@ -44,6 +45,7 @@
 #include "tpuc/Interpreter/cpu/priorbox.hpp"
 #include "tpuc/Interpreter/cpu/proposal.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
+#include "tpuc/Interpreter/cpu/reduce.hpp"
 #include "tpuc/Interpreter/cpu/reorg.hpp"
 #include "tpuc/Interpreter/cpu/reverse.hpp"
 #include "tpuc/Interpreter/cpu/roi_pooling.hpp"
@@ -187,6 +189,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(elt_mul_kernel_op));
     return;
   }
+  if (isa<tpu::ExpOp>(op)) {
+    auto exp_kernel_op = std::make_unique<ExpOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(exp_kernel_op));
+    return;
+  }
   if (isa<tpu::FrcnDetectionOp>(op)) {
     auto f_kernel_op =
         std::make_unique<FrcnDetectionOpKernel>(op, valueMapping);
@@ -254,6 +261,12 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(permute_kernel_op));
     return;
   }
+  if (isa<tpu::PixelShuffleOp>(op)) {
+    auto ps_kernel_op =
+        std::make_unique<DepthToSpaceOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(ps_kernel_op));
+    return;
+  }
   if (isa<tpu::PoolAvg2DOp>(op) || isa<tpu::PoolMax2DOp>(op)) {
     auto pool_kernel_op = std::make_unique<PoolingOpKernel>(op, valueMapping);
     oplist.push_back(std::move(pool_kernel_op));
@@ -285,6 +298,16 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::QuantOp>(op)) {
     auto quant_kernel_op = std::make_unique<QuantOpKernel>(op, valueMapping);
     oplist.push_back(std::move(quant_kernel_op));
+    return;
+  }
+  if (isa<tpu::ReduceMaxOp>(op)) {
+    auto r_kernel_op = std::make_unique<ReduceMaxOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(r_kernel_op));
+    return;
+  }
+  if (isa<tpu::ReduceMeanOp>(op)) {
+    auto r_kernel_op = std::make_unique<ReduceMeanOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(r_kernel_op));
     return;
   }
   if (isa<tpu::ReluOp>(op)) {
@@ -455,7 +478,12 @@ void ModuleInterpreter::dump(std::string name) {
 }
 
 void ModuleInterpreter::allocate_tensors() {
+
   for (FuncOp func : mlirModule.getOps<FuncOp>()) {
+    MInfo Machineinfo;
+    if (func.getAttr("chipname")) {
+      Machineinfo.getChipInfo(func);
+    }
     for (Block &bb : func.getBlocks()) {
       for (auto &op : bb) {
         prepareOperation(op);

@@ -76,6 +76,81 @@ float mish_caffe(float x_val, float mish_threshold) {
   return x_val * mish_caffe_tanh_part(x_val, mish_threshold);
 }
 
+ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto expOp = cast<tpu::ExpOp>(op);
+  assert(expOp);
+  llvm::outs() << " Exp op: [" << expOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = expOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = expOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+  if (datatype == DataType::INT8) {
+    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
+    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    bf16_min_range = expOp.min_range().convertToFloat();
+    bf16_max_range = expOp.max_range().convertToFloat();
+  }
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void ExpOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " Exp op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> ExpOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void ExpOpKernel::invoke() {
+
+  if (datatype == DataType::INT8) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+    }
+  } else if (datatype == DataType::BF16) {
+    hardwareLookUpTable(input_data->data(), output_data->data(),
+                        output_data->size(), y0_bf16_table_op,
+                        y0_bf16_slope_table, bf16_min_range, bf16_max_range);
+  } else {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = std::exp(input_data->at(i));
+    }
+  }
+}
+
+void ExpOpKernel::dump() {
+  OpKernel::dump();
+
+  if (this->datatype == DataType::BF16) {
+    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
+                 << bf16_max_range << "\n";
+  }
+}
+
 MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping) {
   auto mishOp = cast<tpu::MishOp>(op);
   assert(mishOp);
