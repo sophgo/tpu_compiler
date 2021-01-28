@@ -107,7 +107,7 @@ if __name__ == '__main__':
   # onedir = os.path.join(args.dataset, 'one')
   batch_size = 1
 
-  image_resize_dims = [int(s) for s in args.resize_dims.split(',')]
+  image_resize_dims = [int(s) for s in args.image_resize_dims.split(',')]
   net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
   image_resize_dims = [ max(x,y) for (x,y) in zip(image_resize_dims, net_input_dims)]
 
