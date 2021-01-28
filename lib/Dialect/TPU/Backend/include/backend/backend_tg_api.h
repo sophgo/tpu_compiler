@@ -38,7 +38,7 @@ void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
     bool have_bias, bool do_relu, int rshift_width, int multiplier,
-    std::vector<int> compressed_pos);
+    bool do_cmpr_wgt);
 
 void cvi_backend_tg_fixed_max_pooling_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -221,7 +221,7 @@ void cvi_backend_tg_bf16_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_input, gaddr_t ga_weight, gaddr_t ga_bias,
     gaddr_t ga_output, int M, int K, int N, bool do_bias,
-    bool do_relu, std::vector<int> compr_weight_poss);
+    bool do_relu, bool do_cmpr_wgt);
 
 void cvi_backend_tg_bf16_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,

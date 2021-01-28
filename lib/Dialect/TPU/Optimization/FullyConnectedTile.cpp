@@ -58,9 +58,6 @@ public:
 
   TileInfo getTileSizes();
   int getLmSizePerLane(int tileM, int tileK, int tileN, bool do_parallel = false);
-  void getTilePoss(TileInfo tileInfo, std::vector<int> &n_poss,
-                   std::vector<int> &k_poss, std::vector<int> &n_sizes,
-                   std::vector<int> &k_sizes);
 
   const MInfo &mInfo;
   int M = {0};
@@ -152,45 +149,6 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
   return {0, 0, 0};
 }
 
-void FullyConnectedModel::getTilePoss(TileInfo tileInfo,
-                                      std::vector<int> &n_poss,
-                                      std::vector<int> &k_poss,
-                                      std::vector<int> &n_sizes,
-                                      std::vector<int> &k_sizes) {
-  int k_step = tileInfo.k_step;
-  int n_step = tileInfo.n_step;
-
-  // Each tiled_R(weight) is only loaded once.
-  // tiled_L(input) reload is reload once tiled_weight moves right.
-  //
-  // for each tiled N
-  for (int n_pos = 0; n_pos < N; n_pos += n_step) {
-    int n_size = std::min(n_step, N - n_pos);
-
-    // for each tiled K
-    for (int k_pos = 0; k_pos < K; k_pos += k_step) {
-      // Y(M, N) = L(M, K) * R(K, N) + B(1, N)
-      // tiled_Y(M, tiled_K) = tiled_L(M, tiled_K) * tiled_R(tiled_K, tiled_N) +
-      //                       tiled_B(1, tiled_N)
-      //
-      // L = [L0, L1, ... Lk-1]
-      // R = [R0,0,   R0,1,   ..., R0,n-1
-      //      R1,0,
-      //
-      //      Rk-1,0, Rk-1,1, ..., Rk-1,n-1]
-      // B = [B0, B1, ... Bn-1]
-      //
-      // tiled_y,i += L0 * R0,i + L1 * R1,i + ... + Ln-1 * Rk-1,i + Bi
-      int k_size = std::min(k_step, K - k_pos);
-
-      n_poss.push_back(n_pos);
-      k_poss.push_back(k_pos);
-      n_sizes.push_back(n_size);
-      k_sizes.push_back(k_size);
-    }
-  }
-}
-
 template <typename OpTy>
 class convertFullyConnectedTilePattern : public OpRewritePattern<OpTy> {
 public:
@@ -229,11 +187,10 @@ public:
     SmallVector<int32_t, 4> tileValues = {tileInfo.m_step, tileInfo.k_step,
                                           tileInfo.n_step};
 
-    std::vector<int> n_poss;
-    std::vector<int> k_poss;
-    std::vector<int> n_sizes;
-    std::vector<int> k_sizes;
-    fcModel->getTilePoss(tileInfo, n_poss, k_poss, n_sizes, k_sizes);
+    std::vector<int> n_poss = {0};
+    std::vector<int> k_poss = {0};
+    std::vector<int> n_sizes = {0};
+    std::vector<int> k_sizes = {0};
     tpuOp.setAttr("tile_param",
                   tpu::FcTileParam::get(rewriter.getI32ArrayAttr(tileValues),
                                         rewriter.getI32ArrayAttr(n_poss),
