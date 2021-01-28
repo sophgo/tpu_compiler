@@ -55,13 +55,17 @@ cvi_npz_tool.py compare \
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   if [ $BATCH_SIZE -eq 1 ]; then
-    cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH
-    mv ${NET}_int8.cvimodel $CVIMODEL_REL_PATH/${NET}.cvimodel
-    cp ${NET}_cmdbuf_out_all_int8.npz $CVIMODEL_REL_PATH/${NET}_out_all.npz
+    DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_bs1
+    mkdir -p $DST_DIR
+    cp ${NET}_in_fp32.npz $DST_DIR/
+    mv ${NET}_int8.cvimodel $DST_DIR/${NET}.cvimodel
+    cp ${NET}_cmdbuf_out_all_int8.npz $DST_DIR/${NET}_out_all.npz
   else
-    cp ${NET}_in_fp32.npz $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_in_fp32.npz
-    mv ${NET}_int8.cvimodel $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}.cvimodel
-    cp ${NET}_cmdbuf_out_all_int8.npz $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_out_all.npz
+    DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_bs4
+    mkdir -p $DST_DIR
+    cp ${NET}_in_fp32.npz $DST_DIR/${NET}_bs${BATCH_SIZE}_in_fp32.npz
+    mv ${NET}_int8.cvimodel $DST_DIR/${NET}_bs${BATCH_SIZE}.cvimodel
+    cp ${NET}_cmdbuf_out_all_int8.npz $DST_DIR/${NET}_bs${BATCH_SIZE}_out_all.npz
   fi
 fi
 

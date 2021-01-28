@@ -71,7 +71,7 @@ do
   cp cvimodel_release/${sample_model} cvimodel_samples/
 done
 # copy extra yuv420 cvimodel to cvimodel_samples
-cp regression_out/cvimodel_regression/mobilenet_v2_int8_yuv420.cvimodel \
+cp regression_out/cvimodel_regression/cvimodel_regression_fused_preprocess/mobilenet_v2_int8_yuv420.cvimodel \
    cvimodel_samples/
 
 tar zcvf $dest_dir/cvimodel_samples.tar.gz cvimodel_samples
@@ -81,19 +81,13 @@ rm -rf cvimodel_samples
 # pack regresion cvimodels
 ###########################################################
 # seperate bs1/bs4
-pushd regression_out
+pushd regression_out/cvimodel_regression
 
-mkdir -p cvimodel_regression_bs1
-mkdir -p cvimodel_regression_bs4
-mv cvimodel_regression/*bs4.cvimodel cvimodel_regression_bs4/
-mv cvimodel_regression/*bs4_in_fp32.npz cvimodel_regression_bs4/
-mv cvimodel_regression/*bs4_out_all.npz cvimodel_regression_bs4/
-mv cvimodel_regression/* cvimodel_regression_bs1/
 # tar
 tar zcvf $dest_dir/cvimodel_regression_bs1.tar.gz cvimodel_regression_bs1
 tar zcvf $dest_dir/cvimodel_regression_bs4.tar.gz cvimodel_regression_bs4
-rm -rf cvimodel_regression_bs1
-rm -rf cvimodel_regression_bs4
+tar zcvf $dest_dir/cvimodel_regression_bf16.tar.gz cvimodel_regression_bf16
+tar zcvf $dest_dir/cvimodel_regression_fused_preprocess.tar.gz cvimodel_regression_fused_preprocess
 
 popd
 popd

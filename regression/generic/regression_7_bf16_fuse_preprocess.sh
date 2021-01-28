@@ -66,20 +66,17 @@ cvi_npz_tool.py compare \
     --tolerance ${TOLERANCE_BF16_CMDBUF}
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
-  if [ $BATCH_SIZE -eq 1 ]; then
-    cp ${NET}_only_resize_in_fp32.npz \
-        $CVIMODEL_REL_PATH/${NET}_bf16_only_resize_in_fp32.npz
-    mv ${NET}_bf16_fused_preprocess.cvimodel $CVIMODEL_REL_PATH
-    cp ${NET}_cmdbuf_out_all_bf16_fused_preprocess.npz \
-        $CVIMODEL_REL_PATH/${NET}_bf16_fused_preprocess_out_all.npz
-  else
-    cp ${NET}_only_resize_in_fp32.npz \
-        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_bf16_only_resize_in_fp32.npz
-    mv ${NET}_bf16_fused_preprocess.cvimodel \
-        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_bf16_fused_preprocess.cvimodel
-    cp ${NET}_cmdbuf_out_all_bf16_fused_preprocess.npz \
-        $CVIMODEL_REL_PATH/${NET}_bs${BATCH_SIZE}_bf16_fused_preprocess_out_all.npz
+  DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_bf16
+  if [ $BATCH_SIZE -eq 4 ]; then
+    DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_bf16_bs4
   fi
+  mkdir -p $DST_DIR
+
+  mv ${NET}_only_resize_in_fp32.npz \
+      $DST_DIR/${NET}_only_resize_in_fp32.npz
+  mv ${NET}_bf16_fused_preprocess.cvimodel $DST_DIR/${NET}_bf16.cvimodel
+  mv ${NET}_cmdbuf_out_all_bf16_fused_preprocess.npz \
+      $DST_DIR/${NET}_bf16_out_all.npz
 fi
 
 # VERDICT
