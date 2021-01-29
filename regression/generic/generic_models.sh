@@ -667,6 +667,7 @@ export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.90,0.90,0.50
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
+export DO_QUANT_BF16=0
 fi
 
 if [ $NET = "yolo_v2_416" ]; then
@@ -1107,6 +1108,8 @@ export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
 export DO_QUANT_BF16=0
+export EXCEPTS=2367_Mul,2365_Conv,2366_Sigmoid
+export TOLERANCE_INT8_MULTIPLER=0.78,0.77,0.19
 fi
 
 if [ $NET = "lstm_toy" ]; then

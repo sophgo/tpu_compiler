@@ -10,7 +10,7 @@ mobilenet_v2              Y        Y        N        N        N        N
 googlenet                 N        N        N        Y        Y        Y
 inception_v3              N        N        N        Y        Y        N
 inception_v4              Y        N        N        N        Y        Y
-squeezenet_v1.0           Y        Y        N        N        N        N
+squeezenet_v1.0           N        N        N        Y        N        N
 squeezenet_v1.1           Y        Y        N        N        N        Y
 shufflenet_v2             Y        N        N        N        Y        Y
 densenet_121              N        N        N        Y        Y        N
@@ -31,10 +31,8 @@ yolo_v3_416               Y        N        N        N        Y        N
 yolo_v3_320               N        N        N        Y        Y        N
 yolo_v3_tiny              Y        N        N        N        N        N
 yolo_v3_spp               N        N        N        Y        N        N
-yolo_v4                   Y        N        N        Y        N        N
-yolo_v4_540x960           N        N        N        Y        N        N
-yolo_v4_tiny              Y        N        N        Y        N        N
-#yolo_v4_with_detection    Y        N        N        N        N        N
+yolo_v4                   N        N        N        Y        N        N
+yolo_v4_tiny              N        N        N        Y        N        N
 faster_rcnn               N        N        N        Y        N        N
 icnet                     N        N        N        Y        N        N
 erfnet                    N        N        N        Y        N        N
@@ -53,7 +51,7 @@ unet                      N        N        N        Y        Y        N
 nasnet_mobile             N        N        N        Y        Y        N
 ecanet50                  N        N        N        Y        Y        N
 res2net50                 N        N        N        Y        Y        N
-gaitset                  N        N        N        Y        N        N
+gaitset                   N        N        N        Y        N        N
 efficientdet_d0           N        N        N        Y        N        N
 
 # tensorflow
@@ -63,7 +61,6 @@ resnet50_tf               N        N        N        Y        Y        N
 vgg16_tf                  N        N        N        Y        Y        N
 inception_v3_tf           N        N        N        Y        Y        N
 yolo_v3_416_tf            N        N        N        Y        N        N
-# mobilenet_v3              N        N        N        Y        Y        N
 
 # TFLite int8
 resnet50_tflite_int8      Y        N        N        Y        N        Y

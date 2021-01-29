@@ -56,6 +56,11 @@ else
 fi
 popd
 
+if [ ! -z $CLEAN_WORKDIR ] && [ $CLEAN_WORKDIR -eq 1 ]; then
+  echo "#### rm workspace $WORKDIR"
+  rm -rf $WORKDIR
+fi
+
 unset DO_BATCHSIZE
 unset NET
 

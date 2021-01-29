@@ -18,6 +18,11 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/Passes.h"
+#include "tpuc/Support/TensorFile.h"
+#include "tpuc/TPUOperationSupport.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
@@ -25,11 +30,6 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/TPUTensorSupport.h"
-#include "tpuc/Passes.h"
-#include "tpuc/Support/TensorFile.h"
-#include "tpuc/TPUOperationSupport.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "add_tpu_preprocess"
@@ -46,6 +46,107 @@ static llvm::cl::opt<bool> clInputAligned(
     llvm::cl::init(false));
 
 namespace {
+
+template<typename T>
+std::string swapInputChannelOfFilter(
+      Operation *op, std::string &filter_name,
+      TensorType &filter_type) {
+
+  TensorFile *wTF = getWeightTensorFile(op);
+  auto convWeights = wTF->readTensor<T>(filter_name, filter_type);
+  // delete the tensor from the weight file
+  wTF->deleteTensor<T>(filter_name);
+
+  std::vector<int64_t> shape(filter_type.getShape());
+  int64_t size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                      std::multiplies<>());
+  assert(size == (int64_t)convWeights->size() &&
+      "filter size should be equal");
+
+  int64_t oc, ic, frame_size;
+  int64_t index = shape.size();
+  assert((index == 4 || index == 5) &&
+      "filter shape size should be 4 or 5");
+
+  frame_size = shape[index - 1] * shape[index - 2];
+  ic = shape[index - 3];
+  oc = shape[index - 4];
+  if (index == 5) {
+    oc *= shape[index - 5];
+  }
+  std::vector<int> order {2, 1, 0};
+  std::vector<T> new_filter(size);
+
+  T *filter = (T *)convWeights->data();
+  for (int i = 0; i < oc; ++i) {
+    for (int j = 0; j < ic; ++j) {
+      assert(order[j] < ic);
+      T *in = filter + i * ic * frame_size + order[j] * frame_size;
+      T *out =
+          (T *)new_filter.data() + i * ic * frame_size + j * frame_size;
+      memcpy(out, in, frame_size * sizeof(T));
+    }
+  }
+  std::string tensor_name = filter_name + "_swap_channel";
+  wTF->addTensor<T>(tensor_name, &new_filter, filter_type);
+  return tensor_name;
+}
+
+template<typename OpTy>
+struct FoldSwapAxisOpPattern : public RewritePattern {
+  FoldSwapAxisOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto swapOp = cast<OpTy>(op);
+    auto nextOp = getNextOp(swapOp);
+    if (!nextOp) {
+      return failure();
+    }
+
+    auto convOp = dyn_cast_or_null<tpu::Conv2DOp>(nextOp);
+    if (!convOp) {
+      return failure();
+    }
+    if (convOp.param().group().getInt() != 1) {
+      return failure();
+    }
+
+    // find filter and bias tensor for conv op
+    assert(convOp.getNumOperands() == 7 && "Conv2D op should have 7 operands");
+    auto filterOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        convOp.getOperand(1).getDefiningOp());
+    if (!filterOp) {
+      return failure();
+    }
+
+    auto filter_name = filterOp.name().str();
+    auto filter_type = filterOp.getResult().getType().template cast<TensorType>();
+
+    std::string new_name;
+    if (filter_type.getElementType().isBF16()) {
+      new_name = swapInputChannelOfFilter<uint16_t>(convOp, filter_name, filter_type);
+    } else {
+      new_name = swapInputChannelOfFilter<float>(convOp, filter_name, filter_type);
+    }
+
+    auto wfV = getWeightFileValue(op);
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(rewriter.getNamedAttr("name",
+        rewriter.getStringAttr(new_name)));
+    attrs.push_back(rewriter.getNamedAttr("storage",
+        rewriter.getStringAttr(filterOp.storage().str())));
+    auto newFilterOp = rewriter.create<tpu::LoadWeightOp>(
+        filterOp.getLoc(), filter_type, ArrayRef<Value>{wfV},
+        ArrayRef<NamedAttribute>{attrs});
+
+    rewriter.replaceOp(filterOp.getResult().getDefiningOp(),
+                       {newFilterOp.getResult()});
+    rewriter.replaceOp(op, {swapOp.getOperand()});
+    return success();
+  }
+};
 
 class AddTpuPreprocessPass
     : public mlir::PassWrapper<AddTpuPreprocessPass,
@@ -215,6 +316,12 @@ public:
           llvm::ArrayRef<mlir::Type>{argumentTypes},
           llvm::ArrayRef<mlir::Type>{returnTypes});
     fn.setType(fnType);
+
+    OwningRewritePatternList patterns;
+    patterns.insert<
+        FoldSwapAxisOpPattern<tpu::SwapChannelOp>
+        >(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
 private:
