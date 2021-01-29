@@ -100,11 +100,23 @@ install_llvm_fun()
   cp -rf $BUILD_LLVM_PATH/lib/libMLIRPublicAPI* $INSTALL_PATH/tpuc/lib
 }
 
+get_os_version_id()
+{
+  local ver_id="$(lsb_release -sr)"
+  major=$(echo $ver_id | cut -d. -f1)
+  minor=$(echo $ver_id | cut -d. -f2)
+
+  OS_VER_ID=$major$minor
+}
+
 build_install_llvm()
 {
   valid_cached_path=0
   valid_cached_llvm_exec=0
   cleaned_llvm_source=0
+
+  BUILD_MLIR_DIR=$BUILD_PATH/llvm/lib/cmake/mlir
+  BUILD_LLVM_DIR=$BUILD_PATH/llvm/lib/cmake/llvm
 
   is_valid_cached_path
 
@@ -112,8 +124,10 @@ build_install_llvm()
     echo "  BUILD_CACHED_PATH $BUILD_CACHED_PATH"
 
     get_llvm_version
+    get_os_version_id
     echo "  LLVM_VER $LLVM_VER"
-    CACHED_LLVM_BUILD_PATH=$BUILD_CACHED_PATH/"build_llvm_"$LLVM_VER
+    echo "  OS_VER_ID $OS_VER_ID"
+    CACHED_LLVM_BUILD_PATH=$BUILD_CACHED_PATH/"build_llvm_"$LLVM_VER"_"$OS_VER_ID
 
     is_clean_llvm_source
 
@@ -130,17 +144,22 @@ build_install_llvm()
 
   if [ $valid_cached_llvm_exec = "1" ]; then
     echo "  install llvm from cached"
-    mkdir -p $BUILD_PATH/llvm
-    mkdir -p $BUILD_PATH/llvm/lib
-    cp -a $CACHED_LLVM_BUILD_PATH/lib/cmake/mlir $BUILD_PATH/llvm/lib/
-    cp -a $CACHED_LLVM_BUILD_PATH/lib/cmake/llvm $BUILD_PATH/llvm/lib/
-
     install_llvm_fun $CACHED_LLVM_BUILD_PATH
+
+    mkdir -p $BUILD_PATH/llvm
+    mkdir -p $BUILD_PATH/llvm/bin
+    cp $CACHED_LLVM_BUILD_PATH/bin/llvm-symbolizer $BUILD_PATH/llvm/bin/
+
+    BUILD_MLIR_DIR=$CACHED_LLVM_BUILD_PATH/lib/cmake/mlir
+    BUILD_LLVM_DIR=$CACHED_LLVM_BUILD_PATH/lib/cmake/llvm
   else
     echo "  start local build from source"
     build_llvm_fn $BUILD_PATH/llvm
     install_llvm_fun $BUILD_PATH/llvm
   fi
+
+  echo "BUILD_MLIR_DIR $BUILD_MLIR_DIR"
+  echo "BUILD_LLVM_DIR $BUILD_LLVM_DIR"
 }
 
 # prepare install/build dir
@@ -236,8 +255,8 @@ cmake -G Ninja \
     -DCVIKERNEL_PATH=$INSTALL_PATH/cvikernel \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
     -Dpybind11_DIR=$INSTALL_PATH/pybind11/share/cmake/pybind11 \
-    -DMLIR_DIR=$BUILD_PATH/llvm/lib/cmake/mlir \
-    -DLLVM_DIR=$BUILD_PATH/llvm/lib/cmake/llvm \
+    -DMLIR_DIR=$BUILD_MLIR_DIR \
+    -DLLVM_DIR=$BUILD_LLVM_DIR \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     $PROJECT_ROOT
 cmake --build . --target install
