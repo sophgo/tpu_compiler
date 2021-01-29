@@ -130,15 +130,33 @@ int main(int argc, char **argv) {
   // set null vector
   std::vector<int64_t> input_shape =
       input_shapes.size() == 1 ? input_shapes[0] : std::vector<int64_t>();
-  if (failed(runTpuModule(module.get(), "", input_shape, input_data, &results,
-                          &shapeMap, &allTensorMap)))
-    return EXIT_FAILURE;
 
+  auto interpreter_ = std::make_unique<ModuleInterpreter>(module.get());
+  interpreter_->allocate_tensors();
+  auto input_details = interpreter_->get_input_details();
+  if (input_details.size() != input_tensors.size()) {
+    llvm::errs() << "Input number not same, needed is " << input_details.size()
+                 << ", get " << input_tensors.size() << "\n";
+    llvm_unreachable("please check input npz");
+  }
+  for (size_t i = 0; i < input_tensors.size(); i++) {
+    if (input_tensors[i]->size() != input_details[i].second) {
+      llvm::errs() << "input tensor size not same, needed is "
+                   << input_details[i].second << ", get "
+                   << input_tensors[i]->size() << "\n";
+      llvm_unreachable("please check input npz");
+    }
+    std::vector<float> data(input_tensors[i]->begin(), input_tensors[i]->end());
+    interpreter_->set_tensor(input_details[i].first, data);
+  }
+  interpreter_->invoke();
   if (outputTensorFilename != "-") {
     auto outputTensorFile = openOutputTensorFile(outputTensorFilename);
-    for (auto it = results.begin(); it != results.end(); it++) {
-      auto shape = shapeMap[it->first];
-      outputTensorFile->addTensor(it->first, &it->second, shape);
+    auto output_details = interpreter_->get_output_details();
+    for (auto &output_name : output_details) {
+      std::vector<float> output_data = interpreter_->get_tensor(output_name);
+      std::vector<int64_t> shape = interpreter_->get_tensor_shape(output_name);
+      outputTensorFile->addTensor(output_name, output_data.data(), shape);
     }
     outputTensorFile->keep();
   }
@@ -146,12 +164,14 @@ int main(int argc, char **argv) {
   if (dumpAllTensorFilename != "-") {
     // dump all values
     auto allTensorTensorFile = openOutputTensorFile(dumpAllTensorFilename);
-    for (auto it = allTensorMap.begin(); it != allTensorMap.end(); it++) {
-      auto shape = shapeMap[it->first];
-      allTensorTensorFile->addTensor(it->first, &it->second, shape);
+    auto all_tensor_names = interpreter_->get_all_tensor_name();
+    for (auto &tensor_name : all_tensor_names) {
+      std::vector<float> output_data = interpreter_->get_tensor(tensor_name);
+      std::vector<int64_t> shape = interpreter_->get_tensor_shape(tensor_name);
+      allTensorTensorFile->addTensor(tensor_name, output_data.data(), shape);
     }
     allTensorTensorFile->keep();
   }
-
-  return EXIT_SUCCESS;
+  interpreter_.reset();
+  return 0;
 }
