@@ -31,10 +31,18 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
     name = poolmaxOp.name().str();
     is_avg = false;
   }
+
   llvm::outs() << " Pool op: [" << name << "]\n";
   this->name = name;
   this->op_type = op.getName().getStringRef().str();
   this->input_shape = getTensorShape(op.getOperand(0));
+
+  this->is_asymmetric = isOpQuantAsymmetric(&op);
+  if (!is_asymmetric && pad_value != 0) {
+    llvm::errs() << "pad value:" << pad_value << "\n";
+    llvm_unreachable("symmetric pad is zero");
+  }
+
   set_datatype(getOpQuant(&op).str());
 
   auto opTensors = getOperandTensors(&op, valueMapping);
@@ -253,7 +261,7 @@ void PoolingOpKernel::invoke() {
   } else if (datatype == DataType::INT8) {
     if (pool_method == POOL_METHOD::AVG) {
       int lmem_size = MInfo::lmem_per_lane;
-      if ((ih * iw) > ((lmem_size - size) / 2)) {
+      if ((ih * iw) > ((lmem_size - size) / 2) && kh == ih && kw == iw) {
         // In hardware limitation, we can not put avg pool with large kernel
         // if avg pool ih * iw > local memory, in our hardware
         // need to split it then sum

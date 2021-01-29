@@ -23,6 +23,8 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
   this->name = elt_addOp.name().str();
   const unsigned nInputs = op.getNumOperands() - 4;
   this->do_quant = getOpQuantParamType(&op) != "NONE";
+  this->is_asymmetric = isOpQuantAsymmetric(&op);
+
   this->do_relu = elt_addOp.do_relu();
   if (datatype == DataType::INT8) {
     auto quant_rshift = opTensors[nInputs + 2];
@@ -33,6 +35,14 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
       this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
       this->multiplier.assign(quant_multiplier->begin(),
                               quant_multiplier->end());
+    }
+
+    if (is_asymmetric) {
+      this->inputs_offset.resize(nInputs);
+      for (size_t i = 0; i < nInputs; ++i) {
+        this->inputs_offset[i] = -getPreviousOpZeroPoint(&op, i);
+      }
+      this->output_offset = getOpZeroPoint(&op);
     }
   }
 
@@ -77,6 +87,12 @@ void EltwiseAddOpKernel::i8_invoke() {
   std::vector<std::vector<float>> i8_inputs(input_number);
   for (size_t i = 0; i < input_number; ++i) {
     i8_inputs[i].assign(inputs_data[i]->begin(), inputs_data[i]->end());
+
+    if (is_asymmetric) {
+      for (auto &data : i8_inputs[i]) {
+        data += inputs_offset[i];
+      }
+    }
   }
 
   for (size_t i = 0; i < input_number; ++i) {
@@ -91,7 +107,7 @@ void EltwiseAddOpKernel::i8_invoke() {
       output_data->at(i) += i8_inputs[ni].at(i);
     }
   }
-  if (do_relu) {
+  if (do_relu && !is_asymmetric) {
     relu(output_data->data(), output_data->data(), output_data->size());
   }
 
@@ -140,6 +156,10 @@ EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
   const unsigned nInputs = op.getNumOperands() - 4;
 
   this->do_quant = getOpQuantParamType(&op) != "NONE";
+  this->is_asymmetric = isOpQuantAsymmetric(&op);
+  if (is_asymmetric) {
+    llvm_unreachable("No Asymmetric mode");
+  }
   this->do_relu = elt_mulOp.do_relu();
   if (datatype == DataType::INT8) {
     auto quant_rshift = opTensors[nInputs + 2];

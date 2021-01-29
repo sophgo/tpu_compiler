@@ -84,6 +84,11 @@ private:
   std::vector<float> multiplier_postive;
   std::vector<float> multiplier_negative;
   float negative_slope;
+
+  // asymmetric
+  bool is_asymmetric = false;
+  int input_offset = 0;
+  int output_offset = 0;
 };
 class ReluOpKernel : public CPUOpKernel<ReluOpKernel> {
 public:

@@ -336,6 +336,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(r_kernel_op));
     return;
   }
+  if (isa<tpu::ReQuantOp>(op)) {
+    auto r_kernel_op = std::make_unique<ReQuantOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(r_kernel_op));
+    return;
+  }
   if (isa<tpu::ROIPoolingOp>(op)) {
     auto r_kernel_op = std::make_unique<ROIPoolingOpKernel>(op, valueMapping);
     oplist.push_back(std::move(r_kernel_op));
@@ -370,6 +375,12 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::SoftmaxOp>(op)) {
     auto softmax_kernel_op =
         std::make_unique<SoftmaxOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(softmax_kernel_op));
+    return;
+  }
+  if (isa<tpu::SoftmaxCpuOp>(op)) {
+    auto softmax_kernel_op =
+        std::make_unique<SoftmaxOpKernel>(op, valueMapping, true);
     oplist.push_back(std::move(softmax_kernel_op));
     return;
   }

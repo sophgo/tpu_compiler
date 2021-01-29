@@ -51,13 +51,13 @@ private:
   int pl;
   int pr;
   int pad_value = 0;
-  bool is_asymmetric = false;
 
   // int8 param
   float rshift;
   float multiplier;
   SyncedData filter_data;
   SyncedData zero_bias;
+  bool is_asymmetric = false;
 
   // mkldnn setting
   mkldnn::engine mkl_eng;

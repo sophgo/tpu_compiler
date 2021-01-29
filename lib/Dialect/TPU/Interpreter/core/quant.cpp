@@ -34,11 +34,9 @@ static inline signed char tpu_float2int8(float v, int mode = 0) {
 static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
                                    float scale, int zero_point, bool tpu_mode) {
   if (tpu_mode) {
-    bfloat16 bf_scale, bf_tmp, bf_zp;
+    bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
-    bf_zp = FloatToBFloat16(zero_point);
-    zero_point = FloatToBFloat16(bf_zp);
     for (int64_t i = 0; i < size; ++i) {
       float f_tmp = src[i];
       // remove [17:31] mantissa part
@@ -119,7 +117,7 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping) {
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = quantOp.getResult();
   auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  auto output_dataensor = std::make_shared<std::vector<float>>(size);
   llvm::outs() << "    =>required memory size: [" << size << "]\n";
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
@@ -134,9 +132,9 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping) {
   set_datatype(getOpQuant(&op).str());
   // get tensors
   input_data = opTensors[0];
-  output_data = resultTensor;
+  output_data = output_dataensor;
   // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  valueMapping[result] = std::move(output_dataensor);
 }
 
 void QuantOpKernel::set_tensor(const std::vector<float> &data) {
@@ -188,4 +186,95 @@ void QuantOpKernel::dump() {
   llvm::outs() << "\tFrom: " << this->from << "\n";
   llvm::outs() << "\tTo: " << this->to << "\n";
 }
+
+ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto requantOp = cast<tpu::ReQuantOp>(op);
+  assert(requantOp);
+  llvm::outs() << " ReQuant op: [" << requantOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = requantOp.getResult();
+  auto size = getTensorSize(result);
+  auto output_dataensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = requantOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  this->scale = requantOp.qscale().convertToFloat();
+  this->input_offset = (float)-getPreviousOpZeroPoint(&op);
+  this->output_offset = (float)getOpZeroPoint(&op);
+
+  set_datatype("NONE");
+  // get tensors
+  input_data = opTensors[0];
+  output_data = output_dataensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(output_dataensor);
+}
+
+void ReQuantOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " ReQuant op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> ReQuantOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void ReQuantOpKernel::invoke() {
+  std::vector<float> input_data_asym(input_data->begin(), input_data->end());
+  // convert fp32 to bf16
+  auto tensor_bf16 =
+      std::make_unique<std::vector<bfloat16>>(output_data->size());
+
+  clean16bitmantissa(&scale, &scale, 1);
+  clean16bitmantissa(input_data_asym.data(), output_data->data(),
+                     input_data_asym.size());
+
+  for (size_t i = 0; i < tensor_bf16->size(); i++) {
+    output_data->at(i) += (float)input_offset;
+  }
+  clean16bitmantissa(output_data->data(), output_data->data(),
+                     output_data->size());
+
+  for (size_t i = 0; i < tensor_bf16->size(); i++) {
+    output_data->at(i) *= scale;
+  }
+  clean16bitmantissa(output_data->data(), output_data->data(),
+                     output_data->size());
+  for (size_t i = 0; i < tensor_bf16->size(); i++) {
+    output_data->at(i) += (float)output_offset;
+  }
+  clean16bitmantissa(output_data->data(), output_data->data(),
+                     output_data->size());
+  // round
+  for (size_t i = 0; i < tensor_bf16->size(); i++) {
+    float sub_part;
+    float int_part;
+    sub_part = std::modf(output_data->at(i), &int_part);
+    // subpart 0.5
+    if (std::abs(std::abs(sub_part) - 0.5f) < 0.001) {
+      output_data->at(i) = std::round(output_data->at(i) / 2) * 2;
+    } else if (std::abs(sub_part) > 0.0f) {
+      output_data->at(i) = std::nearbyint(output_data->at(i));
+    }
+  }
+}
+void ReQuantOpKernel::dump() {
+  OpKernel::dump();
+  llvm::outs() << "\tScale: " << this->scale << "\n";
+  llvm::outs() << "\tInput Offset: " << this->input_offset << "\n";
+  llvm::outs() << "\tOutput Offset: " << this->output_offset << "\n";
+}
+
 } // namespace mlir

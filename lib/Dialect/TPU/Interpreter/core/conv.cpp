@@ -310,6 +310,31 @@ void Conv2DOpKernel::fp32_invoke() {
 };
 
 void Conv2DOpKernel::i8_invoke() {
+  // mkldnn not support non zero padding
+  // we handle it.
+  if (pad_value != 0 && is_asymmetric) {
+    once_mkldnn_conv(input_data->data(), filter_data->data(),
+                     use_multiplier ? nullptr : bias_data->data(),
+                     output_data->data(), n, ic, ih, iw, oc, oh, ow, kh, kw, sh,
+                     sw, dh, dw, pt, pb, pl, pr, g, pad_value);
+
+    if (is_perchannel) {
+      if (use_multiplier) {
+        quantizeActivationInt8PerChannelMultiplierAndRShift(
+            output_data->data(), output_data->data(), bias_data->data(), false,
+            n, oc, oh * ow, rshift.data(), multiplier.data());
+      } else {
+        quantizeActivationInt8PerChannelRShift(output_data->data(),
+                                               output_data->data(), n, oc,
+                                               oh * ow, rshift.data());
+      }
+    } else {
+      quantizeActivationInt8PerLayerRshift(
+          output_data->data(), output_data->data(), size, rshift.at(0));
+    }
+    return;
+  }
+
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
@@ -320,7 +345,7 @@ void Conv2DOpKernel::i8_invoke() {
           output_data->data(), output_data->data(), bias_data->data(), do_relu,
           n, oc, oh * ow, rshift.data(), multiplier.data());
     } else {
-      if (do_relu) {
+      if (do_relu && !is_asymmetric) {
         relu(output_data->data(), output_data->data(), output_data->size());
       }
       quantizeActivationInt8PerChannelRShift(output_data->data(),
@@ -328,7 +353,7 @@ void Conv2DOpKernel::i8_invoke() {
                                              oh * ow, rshift.data());
     }
   } else {
-    if (do_relu) {
+    if (do_relu && !is_asymmetric) {
       relu(output_data->data(), output_data->data(), output_data->size());
     }
     quantizeActivationInt8PerLayerRshift(

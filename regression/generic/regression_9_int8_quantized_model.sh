@@ -76,7 +76,8 @@ tpuc-interpreter ${NET}_quant.mlir \
 cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_int8.npz \
     ${NET}_tensor_all_int8.npz \
-    --op_info ${NET}_op_info.csv -vv
+    --op_info ${NET}_op_info.csv -vv \
+    --tolerance=0.99,0.99,0.9
 
 
 echo $0 PASSED

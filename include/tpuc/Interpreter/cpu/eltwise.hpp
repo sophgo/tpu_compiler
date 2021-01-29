@@ -29,8 +29,12 @@ private:
   // int8
   std::vector<float> rshift;
   std::vector<float> multiplier;
-  int output_offset = 0;
+
   bool do_quant;
+  // asymmetric
+  bool is_asymmetric;
+  std::vector<float> inputs_offset;
+  int output_offset = 0;
 
   // param
   bool do_relu;
@@ -58,8 +62,11 @@ private:
   // int8
   std::vector<float> rshift;
   std::vector<float> multiplier;
-  int output_offset = 0;
   bool do_quant;
+  // asymmetric
+  bool is_asymmetric = false;
+  std::vector<float> inputs_offset;
+  int output_offset = 0;
   // param
   bool do_relu;
 };

@@ -28,6 +28,37 @@ SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping) {
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
 }
+
+SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping,
+                                 bool cpu) {
+  if (!cpu) {
+    SoftmaxOpKernel(op, valueMapping);
+    return;
+  }
+
+  auto castOp = cast<tpu::SoftmaxCpuOp>(op);
+  llvm::outs() << " SoftmaxCpuOp op: [" << castOp.name() << "]\n";
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = castOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->axis = castOp.axis();
+  this->name = castOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+
 void SoftmaxOpKernel::set_tensor(const std::vector<float> &data) {
   this->input_data->assign(data.begin(), data.end());
 };
