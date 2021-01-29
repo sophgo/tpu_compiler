@@ -10,7 +10,7 @@
 >
 > 文档版本: 1.5.0
 >
-> 发布日期: 2020-01-25
+> 发布日期: 2021-01-29
 
 © 2020 北京晶视智能科技有限公司
 
@@ -28,6 +28,7 @@
 | V0.3.0 | 2020/10/26 | 秦明康 | 更新使用说明和API说明 |
 | V0.3.1 | 2020/11/24 | 肖泉   | 更新mlir op和更新格式 |
 | V1.4.0 | 2020/12/04 | 姜江   | 更新文档结构          |
+| V1.5.0 | 2021/01/29 | 姜江   | 根据工具链1.5修改     |
 <div STYLE="page-break-after: always;"></div>
 # 法律声明
 
@@ -261,9 +262,9 @@
   |threshold_max  | F32Attr                | 量化最大值|
   |threshold_min  | F32Attr                | 量化最小值（仅限非对称量化）|
   |zero_point     | I32Attr                | 零点值|
-  
+
   <br>
-  
+
 - TPU_QuantModeAttr
 
   枚举   描述
@@ -422,7 +423,7 @@
   |crop_offset  | TI32ArrayAttr           | Crop Offset | 属性|
   |quant        | TPU_QuantParamAttr      | Quant参数     | 属性|
   |name         | StrAttr                 | 名称          | 属性|
-  
+
 - Custom
 
   |参数名称|类型|描述|类别|
@@ -584,7 +585,7 @@
   |linear_before_reset  | BoolAttr                | 在reset门之前有一个linear层         | 属性|
   |bidirectional        | BoolAttr                | 是否是bidirectional|
   |name                 | StrAttr                 | 名称                          | 属性|
-  
+
 
 <br>
 
@@ -780,7 +781,7 @@
   |name                  | StrAttr                 | 名称                 | 属性|
 
   <br>
-  
+
 - PriorBox
 
   参数名称                   类型                      描述                 类别
@@ -1066,7 +1067,7 @@ input_type="FP32"):
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
- 	
+
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -1219,9 +1220,9 @@ def add_conv_Op(self, op_name, inputOperands,
   |--batch_size               | 指定输入的batch num，如果batch size大于1，会将输入的单张图片预处理后做倍增到相应的batch num |
   |--label_file                     | 如果为分类网络，可以指定标签文件 |
   |--dump_blobs                           | 输出所有层的结果到npz文件 |
-  
+
   > **^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
-  
+
 -   【示例】
 
   ```sh
@@ -1279,9 +1280,9 @@ def add_conv_Op(self, op_name, inputOperands,
   |--std**^(1)^**                           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
   |--batch_size               | 指定输入的batch num，如果batch size大于1, <br>会将输入的单张图片预处理后做倍增到相应的batch num |
   |--dump_tensor                           | 输出所有层的结果到npz文件 |
-  
+
   > **^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
-  
+
 -   【示例】
 
   ```sh
@@ -1519,7 +1520,7 @@ mlir_to_cvimodel.sh \
       --dump_blobs $CAFFE_BLOBS_NPZ \
       $IMAGE_PATH \
       caffe_out.npy
-  
+
   cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz $INPU
   ```
 
@@ -1539,7 +1540,7 @@ mlir_to_cvimodel.sh \
       --input_file $IMAGE_PATH \
       --model_channel_order $MODEL_CHANNEL_ORDER \
       --output_file onnx_out.npz
-  
+
   cvi_npz_tool.py extract $ONNX_BLOBS_NPZ ${NET}_in_fp32.npz input
   ```
 
@@ -1561,7 +1562,7 @@ mlir_to_cvimodel.sh \
       --model_channel_order $MODEL_CHANNEL_ORDER \
       --model_type tflite \
       --output_file tflite_out.npz
-  
+
   cvi_npz_tool.py tranpose $TFLITE_BLOBS_NPZ nhwc nchw
   cvi_npz_tool.py extract $TFLITE_BLOBS_NPZ ${NET}_in_fp32.npz input
   ```
@@ -1584,7 +1585,7 @@ mlir_to_cvimodel.sh \
       --model_type tensorflow \
       --output_file tf_out.npz \
       --gray $BGRAY
-  
+
   cvi_npz_tool.py tranpose $TF_BLOBS_NPZ nhwc nchw
   cvi_npz_tool.py extract $TF_BLOBS_NPZ ${NET}_in_fp32.npz input
   ```
@@ -1622,7 +1623,7 @@ tpuc-interpreter \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
 
 # 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-' 
+export EXCEPTS='-'
 # 将结果和源框架的结果进行逐层对比
 cvi_npz_tool.py compare \
     ${NET}_tensor_all_fp32.npz \
@@ -1749,7 +1750,7 @@ tpuc-interpreter ${NET}_quant_int8.mlir \
     --dump-all-tensor=${NET}_tensor_all_int8.npz
 
 # 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-' 
+export EXCEPTS='-'
 # 设置对比的可接受的最小相似度, 以下仅是参考值
 export TOLERANCE_INT8_MULTIPLER='0.9,0.9,0.5'
 # 将INT8 mlir的推理结果和fp mlir的结果进行比较
@@ -1777,7 +1778,7 @@ cvi_npz_tool.py compare \
 
 - 对于INT模型的某些层的相似度掉很多，可以手动调整threshold table文件中对应层的threshold值，可以加大或者缩小，直到再次对比时取得比较好的相似度；
 
-  
+
 
 <br>除此以后，还可以透过以下方式取得更好的精度:
 
@@ -1801,7 +1802,7 @@ tpuc-interpreter ${NET}_quant_bf16.mlir \
     --dump-all-tensor=${NET}_tensor_all_bf16.npz
 
 # 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-' 
+export EXCEPTS='-'
 cvi_npz_tool.py compare \
     ${NET}_tensor_all_bf16.npz \
     ${NET}_tensor_all_fp32.npz \
@@ -1853,7 +1854,7 @@ tpuc-interpreter ${NET}_quant_mix.mlir \
     --dump-all-tensor=${NET}_tensor_all_mix.npz
 
 # 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-' 
+export EXCEPTS='-'
 # 设置对比的可接受的最小相似度, 以下仅是参考值
 export TOLERANCE_MIX_PRECISION='0.9,0.9,0.7'
 cvi_npz_tool.py compare \
@@ -2006,7 +2007,7 @@ cvi_npz_tool.py compare \
 >
 > - 执行效率优化，发掘Op间fusion机会并进行fusion的优化。
 >- 内存占用优化，分析Activation内存使用并回收利用的的优化。
-> 
+>
 生成TPU硬件指令
 
 > 调用mlir-translate进行指令生成，打包量化后的权重文件，并产生cvimodel模型文件。
@@ -2131,7 +2132,7 @@ tpuc-interpreter ${NET}_opt_fp32.mlir \
     --dump-all-tensor=${NET}_tensor_all_fp32.npz
 
 # 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-' 
+export EXCEPTS='-'
 # 将结果和源框架的结果进行逐层对比
 cvi_npz_tool.py compare \
     ${NET}_tensor_all_fp32.npz \
@@ -2202,7 +2203,7 @@ tpuc-interpreter ${NET}_quant_int8.mlir \
     --dump-all-tensor=${NET}_tensor_all_int8.npz
 
 # 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-' 
+export EXCEPTS='-'
 # 设置对比的可接受的最小相似度, 以下仅是参考值
 export TOLERANCE_INT8_MULTIPLER='0.9,0.9,0.5'
 # 将INT8 mlir的推理结果和fp mlir的结果进行比较
@@ -2250,14 +2251,14 @@ tpuc-interpreter ${NET}_quant_bf16.mlir \
     --dump-all-tensor=${NET}_tensor_all_bf16.npz
 
 # 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-' 
+export EXCEPTS='-'
 cvi_npz_tool.py compare \
     ${NET}_tensor_all_bf16.npz \
     ${NET}_tensor_all_fp32.npz \
     --op_info ${NET}_op_info_bf16.csv \
     --excepts ${EXCEPTS} \
     --tolerance '0.99,0.99,0.9' -vv
- 
+
 $DIR/../mlir_to_cvimodel.sh \
    -i ${NET}_quant_bf16.mlir \
    -o ${NET}_bf16.cvimodel
@@ -2321,7 +2322,7 @@ tpuc-interpreter ${NET}_quant_mix.mlir \
     --dump-all-tensor=${NET}_tensor_all_mix.npz
 
 # 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-' 
+export EXCEPTS='-'
 # 设置对比的可接受的最小相似度, 以下仅是参考值
 export TOLERANCE_MIX_PRECISION='0.9,0.9,0.7'
 cvi_npz_tool.py compare \
@@ -2333,7 +2334,7 @@ cvi_npz_tool.py compare \
     --tolerance=$TOLERANCE_MIX_PRECISION
     -vv
 
-### 2.3.5 优化并生成cvimodel 
+### 2.3.5 优化并生成cvimodel
 $DIR/../mlir_to_cvimodel.sh \
    -i ${NET}_mix.mlir \
    -o ${NET}_mix.cvimodel
@@ -2414,7 +2415,7 @@ cvi_npz_tool.py compare \
     --stats_int8_tensor \
     -vv
 
- 
+
 $DIR/../mlir_to_cvimodel.sh \
    -i ${NET}_fused_preprocess.mlir \
    -o ${NET}_fused_preprocess.cvimodel
