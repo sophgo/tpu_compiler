@@ -1,11 +1,59 @@
 #!/bin/bash
-set -e
+# set -e
 # set -o pipefail
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 WORKING_PATH=${WORKING_PATH:-$DIR}
-mkdir -p $WORKING_PATH/cvimodel_release
+export MAX_PARALLEL_JOBS=${MAX_PARALLEL_JOBS:-8}
+
+run_gen_cvimodel()
+{
+  local net=$1
+  echo "generate cvimodel for $net"
+  generate_cvimodel.sh $net > $net.log 2>&1 | true
+  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
+    echo "$net cvimodel generated FAILED"
+    return 1
+  else
+    rm -f $net.log
+    return 0
+  fi
+}
+export -f run_gen_cvimodel
+
+run_gen_cvimodel_all()
+{
+  local err=0
+  for net in ${all_net_list[@]}
+  do
+    run_gen_cvimodel $net
+    if [ "$?" -ne 0 ]; then
+      return 1
+    fi
+  done
+  return 0
+}
+
+run_gen_cvimodel_all_parallel()
+{
+  echo "MAX_PARALLEL_JOBS: ${MAX_PARALLEL_JOBS}"
+
+  rm -f models.txt
+  for net in ${all_net_list[@]}
+  do
+    echo "run_gen_cvimodel $net" >> models.txt
+  done
+  cat models.txt
+  parallel -j${MAX_PARALLEL_JOBS} < models.txt
+  rm models.txt
+  return $?
+}
+
+# default run in parallel
+if [ -z "$RUN_IN_PARALLEL" ]; then
+  export RUN_IN_PARALLEL=1
+fi
 
 all_net_list=()
 
@@ -18,110 +66,22 @@ do
   all_net_list+=($net)
 done < ${model_list_file}
 
-
 err=0
+mkdir -p $WORKING_PATH/cvimodel_release
 pushd $WORKING_PATH/cvimodel_release
-rm -rf working
-mkdir -p working
 
-for net in ${all_net_list[@]}
-do
-  echo "generate cvimodel for $net"
-  pushd working
-  NET=$net
-  source $DIR/generic/generic_models.sh
-  echo "NET=$NET MODEL_TYPE=$MODEL_TYPE"
-  if [ -z $MODEL_DAT ]; then
-    MODEL_DAT="-"
+if [ "$RUN_IN_PARALLEL" -eq 0 ]; then
+  run_gen_cvimodel_all
+  if [ "$?" -ne 0 ]; then
+    err=1
   fi
-  if [[ "$MODEL_TYPE" == "tflite_int8" ]]; then
-    echo "Not Generate $MODEL_TYPE model to cvimodel, only regression test"
-    popd
-    continue
+else
+  run_gen_cvimodel_all_parallel
+  if [ "$?" -ne 0 ]; then
+    err=1
   fi
-  $DIR/convert_model.sh \
-      -i ${MODEL_DEF} \
-      -d ${MODEL_DAT} \
-      -t ${MODEL_TYPE} \
-      -b 1 \
-      -q ${CALI_TABLE} \
-      -v ${SET_CHIP_NAME} \
-      -z ${NET_INPUT_DIMS} \
-      -y ${IMAGE_RESIZE_DIMS} \
-      -r ${RAW_SCALE} \
-      -m ${MEAN} \
-      -s ${STD} \
-      -a ${INPUT_SCALE} \
-      -w ${MODEL_CHANNEL_ORDER} \
-      -o ${NET}.cvimodel
-  mv ${NET}.cvimodel ..
-  # generate with detection version if DO_FUSED_POSTPROCESS is set
-  if [[ $DO_FUSED_POSTPROCESS = "1" ]]; then
-    $DIR/convert_model.sh \
-        -i ${MODEL_DEF_FUSED_POSTPROCESS} \
-        -d ${MODEL_DAT} \
-        -t ${MODEL_TYPE} \
-        -b 1 \
-        -q ${CALI_TABLE} \
-        -v ${SET_CHIP_NAME} \
-        -z ${NET_INPUT_DIMS} \
-        -y ${IMAGE_RESIZE_DIMS} \
-        -r ${RAW_SCALE} \
-        -m ${MEAN} \
-        -s ${STD} \
-        -a ${INPUT_SCALE} \
-        -w ${MODEL_CHANNEL_ORDER} \
-        -o ${NET}_with_detection.cvimodel
-    mv ${NET}_with_detection.cvimodel ..
-  fi
-  # generate fuse_preprocess version if DO_FUSED_PREPROCESS is set
-  if [[ $DO_FUSED_PREPROCESS == "1" ]]; then
-    $DIR/convert_model.sh \
-        -i ${MODEL_DEF} \
-        -d ${MODEL_DAT} \
-        -t ${MODEL_TYPE} \
-        -b 1 \
-        -q ${CALI_TABLE} \
-        -v ${SET_CHIP_NAME} \
-        -p \
-        -z ${NET_INPUT_DIMS} \
-        -y ${IMAGE_RESIZE_DIMS} \
-        -r ${RAW_SCALE} \
-        -m ${MEAN} \
-        -s ${STD} \
-        -a ${INPUT_SCALE} \
-        -w ${MODEL_CHANNEL_ORDER} \
-        -o ${NET}_fused_preprocess.cvimodel
-    mv ${NET}_fused_preprocess.cvimodel ..
-  fi
-  # for both DO_FUSED_PREPROCESS and DO_FUSED_POSTPROCESS are set
-  if [[ $DO_FUSED_PREPROCESS == "1" && $DO_FUSED_POSTPROCESS = "1" ]]; then
-    $DIR/convert_model.sh \
-        -i ${MODEL_DEF_FUSED_POSTPROCESS} \
-        -d ${MODEL_DAT} \
-        -t ${MODEL_TYPE} \
-        -b 1 \
-        -q ${CALI_TABLE} \
-        -v ${SET_CHIP_NAME} \
-        -p \
-        -z ${NET_INPUT_DIMS} \
-        -y ${IMAGE_RESIZE_DIMS} \
-        -r ${RAW_SCALE} \
-        -m ${MEAN} \
-        -s ${STD} \
-        -a ${INPUT_SCALE} \
-        -w ${MODEL_CHANNEL_ORDER} \
-        -o ${NET}_fused_preprocess_with_detection.cvimodel
-    mv ${NET}_fused_preprocess_with_detection.cvimodel ..
-  fi
-  rm -f ./*
-  popd
-  if [ "$err" -ne 0 ]; then
-    rm -rf working
-    popd
-    exit 1
-  fi
-done
+fi
 
-rm -rf working
 popd
+
+exit $err
