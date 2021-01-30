@@ -440,7 +440,29 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
       int _oc = oc;
       int _ih = ih;
       int _iw = iw;
+      // NOTICE: 1x1 ALWAYS fill the same value
       int is1x1Input = ih == 1 && ih == iw;
+      if (is1x1Input && (!maxInsertHAtOnce.size() || !maxInsertWAtOnce.size())) {
+        // deeplabv3_mobilenetv2 case
+        // 1x1->46x80 case that 46 seperate 2x23 and the limitation of dilate
+        // is 15, replace with upsample case(tiu copy)
+        std::vector<NamedAttribute> attrs;
+        std::vector<Value> operands;
+        attrs.push_back(
+            rewriter.getNamedAttr("name", _interpOp.nameAttr()));
+        attrs.push_back(
+            rewriter.getNamedAttr("scale_h", rewriter.getI32IntegerAttr(oh)));
+        attrs.push_back(
+            rewriter.getNamedAttr("scale_w", rewriter.getI32IntegerAttr(ow)));
+        attrs.push_back(
+            rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+        operands.push_back(input);
+        operands.push_back(NoneOp.getResult());
+        auto upsample = rewriter.create<tpu::UpsampleOp>(
+            op->getLoc(), op->getResult(0).getType().cast<RankedTensorType>(), operands, attrs);
+        rewriter.replaceOp(op, {upsample});
+        return success();
+      }
       int loop = std::max(maxInsertHAtOnce.size(), maxInsertWAtOnce.size());
 
       auto calc_dilute_hw = [&](int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t) mutable -> int {

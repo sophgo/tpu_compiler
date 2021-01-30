@@ -943,8 +943,8 @@ void cvi_backend_tl_conv(
     param.pad_right = pad_w_right;
     param.stride_h = stride_h;
     param.stride_w = stride_w;
-    param.dilation_h = 1;
-    param.dilation_w = 1;
+    param.dilation_h = dilation_h;
+    param.dilation_w = dilation_w;
     param.has_bias = do_bias ? 1 : 0;
     param.relu_enable = do_conv_relu;
     param.layer_id = layer_id;
@@ -1162,8 +1162,8 @@ void cvi_backend_bf16_tl_conv(
     param.pad_right = pad_w_right;
     param.stride_h = stride_h;
     param.stride_w = stride_w;
-    param.dilation_h = 1;
-    param.dilation_w = 1;
+    param.dilation_h = dilation_h;
+    param.dilation_w = dilation_w;
     param.rshift_bits = 0;
     param.relu_enable = do_relu;
     param.layer_id = layer_id;
