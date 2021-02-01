@@ -97,7 +97,7 @@ class TensorCompare():
         if fabs(d1f[i] - d2f[i]) > (atol + rtol * fabs(d2f[i])):
           print(i, d1f[i], d2f[i])
 
-  def compare(self, d1, d2):
+  def compare(self, d1, d2, int8_tensor_close=True):
     details = {}
     if (len(d1) != len(d2)):
       return (False, self.NOT_MATCH, details)
@@ -106,7 +106,7 @@ class TensorCompare():
       return (True, self.EQUAL, details)
 
     # int8 only check equal, not close
-    if d1.dtype == np.int8:
+    if d1.dtype == np.int8 and int8_tensor_close:
       return (False, self.NOT_EQUAL, details)
 
     # check allclose

@@ -43,6 +43,8 @@ def parse_args(args_list):
                         help="Dump full array data when comparing failed")
     parser.add_argument("--stats_int8_tensor", action='store_true', default=False,
                         help="Do statistics on int8 tensor for saturate ratio and low ratio")
+    parser.add_argument("--int8_tensor_close", type=int, default=1,
+                        help="whether int8 tensor compare close")
     parser.add_argument("--save", type=str,
                         help="Save result as a csv file")
     args = parser.parse_args(args_list)
@@ -146,7 +148,8 @@ def tensor_stats(d):
   print("    sat_ratio_neg = {:.4f}   [{}/{}]".format(stats["sat_ratio_neg"], len(d_int8[b_sat_neg]), d_int8.size))
   print("    low_ratio     = {:.4f}   [{}/{}]".format(stats["low_ratio"], len(d_int8[b_low]), d_int8.size))
 
-def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lock, dic):
+
+def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lock, dic, int8_tensor_close):
   lock.acquire()
   d1 = npz1[name]
   d2 = npz2[name]
@@ -158,7 +161,7 @@ def compare_one_array(tc, npz1, npz2, name, force_dtype, thresholds, verbose, lo
     d1, d2 = align_type_and_shape(d1, d2, force_dtype=force_dtype)
   except:
     raise ValueError("{} in two npz file is not same shape. {} v.s. {}".format(name, d1.shape, d2.shape))
-  result = tc.compare(d1, d2)
+  result = tc.compare(d1, d2, int8_tensor_close)
   # tc.print_result(d1, d2, name, result, verbose)
   dic[name] = result
   return result
@@ -209,7 +212,7 @@ def npz_compare(args_list):
     if args.dequant:
       print("op_info is needed for dequantization")
       sys.exit(-1)
-
+  int8_tensor_close = args.int8_tensor_close
   npz1 = np.load(f1)
   npz2 = np.load(f2)
 
@@ -228,7 +231,7 @@ def npz_compare(args_list):
     print("Comparing %s ..."%(args.tensor))
     name = args.tensor
     result = compare_one_array(tc, npz1, npz2, name, force_dtype,
-                               thresholds, args.verbose, lock, dic)
+                               thresholds, args.verbose, lock, dic, int8_tensor_close)
     print_result_one_array(tc, npz1, npz2, name, force_dtype,
                            thresholds, args.verbose, lock, dic)
     sys.exit(0 if result[0] else -1)
@@ -260,7 +263,7 @@ def npz_compare(args_list):
       for name in compare_process_name_list:
           p = multiprocessing.Process(target=compare_one_array,
                                       args=(tc, npz1, npz2, name, force_dtype, thresholds,
-                                            args.verbose, lock, dic))
+                                            args.verbose, lock, dic, int8_tensor_close))
           processes.append(p)
           p.start()
 
