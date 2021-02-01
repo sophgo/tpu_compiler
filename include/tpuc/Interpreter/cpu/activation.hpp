@@ -9,6 +9,22 @@ namespace mlir {
 void relu(float *src, float *dst, size_t size);
 void leaky_relu(float *src, float *dst, size_t size, float negative_slope);
 
+class AbsOpKernel : public CPUOpKernel<AbsOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUAbsOpOp";
+
+  AbsOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+};
 class ExpOpKernel : public CPUOpKernel<ExpOpKernel> {
 public:
   static constexpr const char *OpName = "CPUExpOpOp";

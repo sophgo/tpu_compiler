@@ -20,6 +20,7 @@ private:
   SyncedData output_data;
   std::vector<SyncedDataShape> inputs_shape;
 
+  bool do_relu;
   // int8
   float rshift;
   std::vector<float> multiplier;

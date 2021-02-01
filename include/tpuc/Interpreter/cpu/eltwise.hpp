@@ -39,6 +39,67 @@ private:
   // param
   bool do_relu;
 };
+
+class EltwiseMaxOpKernel : public CPUOpKernel<EltwiseMaxOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUEltwiseMaxOp";
+
+  EltwiseMaxOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  void fp32_invoke();
+  void i8_invoke();
+
+private:
+  std::vector<SyncedData> inputs_data;
+  SyncedData output_data;
+  std::vector<SyncedDataShape> inputs_shape;
+
+  // int8
+  std::vector<float> rshift;
+  std::vector<float> multiplier;
+
+  bool do_quant;
+
+  // param
+  bool do_relu;
+};
+
+class EltwiseMinOpKernel : public CPUOpKernel<EltwiseMinOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUEltwiseMinOp";
+
+  EltwiseMinOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  void fp32_invoke();
+  void i8_invoke();
+
+private:
+  std::vector<SyncedData> inputs_data;
+  SyncedData output_data;
+  std::vector<SyncedDataShape> inputs_shape;
+
+  // int8
+  std::vector<float> rshift;
+  std::vector<float> multiplier;
+
+  bool do_quant;
+
+  // param
+  bool do_relu;
+};
+
 class EltwiseMulOpKernel : public CPUOpKernel<EltwiseMulOpKernel> {
 public:
   static constexpr const char *OpName = "CPUEltwiseMulOp";

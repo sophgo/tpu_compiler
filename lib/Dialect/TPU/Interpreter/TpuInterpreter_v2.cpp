@@ -123,7 +123,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     valueMapping[result] = std::move(tensor);
     return;
   }
-
+  if (isa<tpu::AbsOp>(op)) {
+    auto abs_kernel_op = std::make_unique<AbsOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(abs_kernel_op));
+    return;
+  }
   if (isa<tpu::BatchNormOp>(op)) {
     auto bn_kernel_op = std::make_unique<BatchNormOpKernel>(op, valueMapping);
     oplist.push_back(std::move(bn_kernel_op));
@@ -181,6 +185,18 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     auto elt_add_kernel_op =
         std::make_unique<EltwiseAddOpKernel>(op, valueMapping);
     oplist.push_back(std::move(elt_add_kernel_op));
+    return;
+  }
+  if (isa<tpu::EltwiseMaxOp>(op)) {
+    auto elt_max_kernel_op =
+        std::make_unique<EltwiseMaxOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(elt_max_kernel_op));
+    return;
+  }
+  if (isa<tpu::EltwiseMinOp>(op)) {
+    auto elt_min_kernel_op =
+        std::make_unique<EltwiseMinOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(elt_min_kernel_op));
     return;
   }
   if (isa<tpu::EltwiseMulOp>(op)) {

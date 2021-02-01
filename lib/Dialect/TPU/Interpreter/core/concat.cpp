@@ -1,5 +1,6 @@
 #include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
@@ -20,7 +21,7 @@ ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping) {
   this->name = concatOp.name().str();
   this->axis = concatOp.axis();
   this->input_number = concatOp.getNumInputs();
-
+  this->do_relu = concatOp.do_relu();
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
 
@@ -102,6 +103,9 @@ void ConcatOpKernel::invoke() {
                   concat_input_size * sizeof(float));
     }
     global_offset += concat_input_size;
+  }
+  if (do_relu) {
+    relu(output_data->data(), output_data->data(), output_data->size());
   }
 }
 

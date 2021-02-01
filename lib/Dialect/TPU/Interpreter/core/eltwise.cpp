@@ -139,6 +139,256 @@ void EltwiseAddOpKernel::dump() {
   llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
 }
 
+EltwiseMaxOpKernel::EltwiseMaxOpKernel(Operation &op,
+                                       value_map_t &valueMapping) {
+
+  auto elt_addOp = cast<tpu::EltwiseMaxOp>(op);
+  LLVM_DEBUG(llvm::outs() << " Eltwise Max op: [" << elt_addOp.name()
+                          << "]\n";);
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = elt_addOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
+  this->shape = getTensorShape(result);
+
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+  this->name = elt_addOp.name().str();
+  const unsigned nInputs = op.getNumOperands() - 4;
+  this->do_quant = getOpQuantParamType(&op) != "NONE";
+
+  this->do_relu = elt_addOp.do_relu();
+  if (datatype == DataType::INT8) {
+    auto quant_rshift = opTensors[nInputs + 2];
+    auto quant_multiplier = opTensors[nInputs + 3];
+    if (do_quant) {
+      assert(quant_rshift);
+      assert(quant_multiplier);
+      this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
+      this->multiplier.assign(quant_multiplier->begin(),
+                              quant_multiplier->end());
+    }
+  }
+
+  opTensors.erase(opTensors.begin() + nInputs, opTensors.end());
+  // get tensors
+  inputs_data = opTensors;
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+
+void EltwiseMaxOpKernel::set_tensor(const std::vector<float> &data) {
+  llvm_unreachable("TODO!");
+};
+
+std::vector<float> EltwiseMaxOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+void EltwiseMaxOpKernel::fp32_invoke() {
+
+  output_data->assign(inputs_data[0]->begin(), inputs_data[0]->end());
+  for (size_t ni = 1; ni < inputs_data.size(); ++ni) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = output_data->at(i) > inputs_data[ni]->at(i)
+                               ? output_data->at(i)
+                               : inputs_data[ni]->at(i);
+    }
+  }
+  if (do_relu) {
+    relu(output_data->data(), output_data->data(), output_data->size());
+  }
+}
+
+void EltwiseMaxOpKernel::i8_invoke() {
+  int in = this->shape.at(0);
+  int ic = this->shape.at(1);
+  int ih = shape.size() > 2 ? this->shape.at(2) : 1;
+  int iw = shape.size() > 3 ? this->shape.at(3) : 1;
+  size_t input_number = inputs_data.size();
+  size_t size = in * ic * ih * iw;
+
+  std::vector<std::vector<float>> i8_inputs(input_number);
+  for (size_t i = 0; i < input_number; ++i) {
+    i8_inputs[i].assign(inputs_data[i]->begin(), inputs_data[i]->end());
+  }
+
+  for (size_t i = 0; i < input_number; ++i) {
+    for (size_t j = 0; j < size; ++j) {
+      i8_inputs[i][j] *= (int8_t)multiplier.at(i);
+    }
+  }
+
+  output_data->assign(i8_inputs[0].begin(), i8_inputs[0].end());
+  for (size_t ni = 1; ni < input_number; ++ni) {
+    for (size_t i = 0; i < size; ++i) {
+      output_data->at(i) = output_data->at(i) > i8_inputs[ni].at(i)
+                               ? output_data->at(i)
+                               : i8_inputs[ni].at(i);
+    };
+  }
+
+  if (do_relu) {
+    relu(output_data->data(), output_data->data(), output_data->size());
+  }
+
+  for (size_t i = 0; i < size; ++i) {
+    output_data->at(i) = (float)applyRShiftAndSaturateInt8(
+        output_data->at(i), (uint32_t)rshift.at(0));
+  }
+}
+
+void EltwiseMaxOpKernel::invoke() {
+  if (datatype == DataType::FP32) {
+    fp32_invoke();
+  } else if (datatype == DataType::INT8) {
+    if (do_quant) {
+      i8_invoke();
+    } else {
+      fp32_invoke();
+    }
+  } else {
+    fp32_invoke();
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
+  }
+};
+
+void EltwiseMaxOpKernel::dump() {
+  OpKernel::dump();
+  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
+}
+
+EltwiseMinOpKernel::EltwiseMinOpKernel(Operation &op,
+                                       value_map_t &valueMapping) {
+
+  auto elt_addOp = cast<tpu::EltwiseMinOp>(op);
+  LLVM_DEBUG(llvm::outs() << " Eltwise Max op: [" << elt_addOp.name()
+                          << "]\n";);
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = elt_addOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
+  this->shape = getTensorShape(result);
+
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+  this->name = elt_addOp.name().str();
+  const unsigned nInputs = op.getNumOperands() - 4;
+  this->do_quant = getOpQuantParamType(&op) != "NONE";
+
+  this->do_relu = elt_addOp.do_relu();
+  if (datatype == DataType::INT8) {
+    auto quant_rshift = opTensors[nInputs + 2];
+    auto quant_multiplier = opTensors[nInputs + 3];
+    if (do_quant) {
+      assert(quant_rshift);
+      assert(quant_multiplier);
+      this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
+      this->multiplier.assign(quant_multiplier->begin(),
+                              quant_multiplier->end());
+    }
+  }
+
+  opTensors.erase(opTensors.begin() + nInputs, opTensors.end());
+  // get tensors
+  inputs_data = opTensors;
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+
+void EltwiseMinOpKernel::set_tensor(const std::vector<float> &data) {
+  llvm_unreachable("TODO!");
+};
+
+std::vector<float> EltwiseMinOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+void EltwiseMinOpKernel::fp32_invoke() {
+
+  output_data->assign(inputs_data[0]->begin(), inputs_data[0]->end());
+  for (size_t ni = 1; ni < inputs_data.size(); ++ni) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = output_data->at(i) < inputs_data[ni]->at(i)
+                               ? output_data->at(i)
+                               : inputs_data[ni]->at(i);
+    }
+  }
+  if (do_relu) {
+    relu(output_data->data(), output_data->data(), output_data->size());
+  }
+}
+
+void EltwiseMinOpKernel::i8_invoke() {
+  int in = this->shape.at(0);
+  int ic = this->shape.at(1);
+  int ih = shape.size() > 2 ? this->shape.at(2) : 1;
+  int iw = shape.size() > 3 ? this->shape.at(3) : 1;
+  size_t input_number = inputs_data.size();
+  size_t size = in * ic * ih * iw;
+
+  std::vector<std::vector<float>> i8_inputs(input_number);
+  for (size_t i = 0; i < input_number; ++i) {
+    i8_inputs[i].assign(inputs_data[i]->begin(), inputs_data[i]->end());
+  }
+
+  for (size_t i = 0; i < input_number; ++i) {
+    for (size_t j = 0; j < size; ++j) {
+      i8_inputs[i][j] *= (int8_t)multiplier.at(i);
+    }
+  }
+
+  output_data->assign(i8_inputs[0].begin(), i8_inputs[0].end());
+  for (size_t ni = 1; ni < input_number; ++ni) {
+    for (size_t i = 0; i < size; ++i) {
+      output_data->at(i) = output_data->at(i) < i8_inputs[ni].at(i)
+                               ? output_data->at(i)
+                               : i8_inputs[ni].at(i);
+    };
+  }
+
+  if (do_relu) {
+    relu(output_data->data(), output_data->data(), output_data->size());
+  }
+
+  for (size_t i = 0; i < size; ++i) {
+    output_data->at(i) = (float)applyRShiftAndSaturateInt8(
+        output_data->at(i), (uint32_t)rshift.at(0));
+  }
+}
+
+void EltwiseMinOpKernel::invoke() {
+  if (datatype == DataType::FP32) {
+    fp32_invoke();
+  } else if (datatype == DataType::INT8) {
+    if (do_quant) {
+      i8_invoke();
+    } else {
+      fp32_invoke();
+    }
+  } else {
+    fp32_invoke();
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
+  }
+};
+
+void EltwiseMinOpKernel::dump() {
+  OpKernel::dump();
+  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
+}
+
 EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
                                        value_map_t &valueMapping) {
 

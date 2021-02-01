@@ -76,6 +76,54 @@ float mish_caffe(float x_val, float mish_threshold) {
   return x_val * mish_caffe_tanh_part(x_val, mish_threshold);
 }
 
+AbsOpKernel::AbsOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto absOp = cast<tpu::AbsOp>(op);
+  assert(absOp);
+  LLVM_DEBUG(llvm::outs() << " Abs op: [" << absOp.name() << "]\n";);
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = absOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = absOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void AbsOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " Abs op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> AbsOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void AbsOpKernel::invoke() {
+  for (size_t i = 0; i < output_data->size(); ++i) {
+    output_data->at(i) = std::fabs(input_data->at(i));
+  }
+}
+
+void AbsOpKernel::dump() { OpKernel::dump(); }
+
 ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping) {
   auto expOp = cast<tpu::ExpOp>(op);
   assert(expOp);
