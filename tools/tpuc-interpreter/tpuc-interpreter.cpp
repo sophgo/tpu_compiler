@@ -44,6 +44,8 @@
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
 
+#include <unordered_map>
+
 using namespace mlir;
 
 static llvm::cl::opt<std::string> inputFilename(llvm::cl::Positional,
@@ -102,25 +104,23 @@ int main(int argc, char **argv) {
     llvm::errs() << "cound not read input tensor\n";
     return EXIT_FAILURE;
   }
-
-  int64_t shape_size = 0;
-  for (auto s : input_shapes) {
-    shape_size +=
-        std::accumulate(s.begin(), s.end(), 1, std::multiplies<int64_t>());
+  std::vector<size_t> input_sizes;
+  for (auto &input_shape : input_shapes) {
+    size_t shape_size = std::accumulate(input_shape.begin(), input_shape.end(),
+                                        1, std::multiplies<int64_t>());
+    input_sizes.push_back(shape_size);
+  }
+  std::unordered_map<size_t, std::vector<float>> table;
+  for (size_t i = 0; i < input_sizes.size(); ++i) {
+    if (table.count(input_sizes[i])) {
+      llvm::errs() << "There are same input size, please check!"
+                   << "\n";
+    }
+    table[input_sizes[i]] =
+        std::vector<float>(input_tensors[i]->begin(), input_tensors[i]->end());
   }
 
-  std::vector<float> input_data(shape_size);
-
-  // merge mutli input array to one array
-  shape_size = 0;
-  for (uint64_t i = 0; i < input_shapes.size(); i++) {
-    int64_t size =
-        std::accumulate(input_shapes[i].begin(), input_shapes[i].end(), 1,
-                        std::multiplies<int64_t>());
-    std::memcpy(input_data.data() + shape_size, input_tensors[i]->data(),
-                size * sizeof(float));
-    shape_size += size;
-  }
+  // std::vector<float> input_data(shape_size);
 
   std::map<std::string, std::vector<float>> results;
   std::map<std::string, std::vector<int64_t>> shapeMap;
@@ -139,15 +139,16 @@ int main(int argc, char **argv) {
                  << ", get " << input_tensors.size() << "\n";
     llvm_unreachable("please check input npz");
   }
-  for (size_t i = 0; i < input_tensors.size(); i++) {
-    if (input_tensors[i]->size() != input_details[i].second) {
+  for (size_t i = 0; i < input_details.size(); i++) {
+    if (table.count(input_details[i].second)) {
+      std::vector<float> input_data = table[input_details[i].second];
+      interpreter_->set_tensor(input_details[i].first, input_data);
+    } else {
+      llvm::errs() << "Input name: " << input_details[i].first << "\n";
       llvm::errs() << "input tensor size not same, needed is "
-                   << input_details[i].second << ", get "
-                   << input_tensors[i]->size() << "\n";
+                   << input_details[i].second << "\n";
       llvm_unreachable("please check input npz");
     }
-    std::vector<float> data(input_tensors[i]->begin(), input_tensors[i]->end());
-    interpreter_->set_tensor(input_details[i].first, data);
   }
   interpreter_->invoke();
   if (outputTensorFilename != "-") {

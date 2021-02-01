@@ -61,7 +61,7 @@ cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_int8_multiplier_fused_preprocess.npz \
     ${NET}_tensor_all_int8_multiplier_fused_preprocess.npz \
     --op_info ${NET}_op_info_int8.csv \
-    --tolerance=0.99,0.99,0.99 -vv
+    --tolerance=0.99,0.99,0.97 -vv
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_fused_preprocess

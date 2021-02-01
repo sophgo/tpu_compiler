@@ -140,8 +140,8 @@ void CscOpKernel::invoke() {
 
   if (pixel_format == "YUV420_PLANAR") {
     std::vector<int> orders{0, 1, 2};
-    yuv420_csc(input_data->data(), output_data->data(), on, oc, oh, ow,
-                  orders, datatype == DataType::FP32 ? 0 : 1);
+    yuv420_csc(input_data->data(), output_data->data(), on, oc, oh, ow, orders,
+               datatype == DataType::FP32 ? 0 : 1);
   } else if (aligned) {
     // do crop to make data unaligned
     std::vector<int64_t> crop_shape(input_shape.begin(), input_shape.end());

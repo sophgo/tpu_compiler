@@ -424,6 +424,7 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
 void ModuleInterpreter::invoke() {
   std::lock_guard<std::mutex> lock(invoke_lock);
   for (auto &node : oplist) {
+    LLVM_DEBUG(node->dump());
     node->invoke();
   }
 }
