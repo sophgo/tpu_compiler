@@ -1073,6 +1073,46 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
   }
 };
 
+struct TpuQuantInputPassPattern : public RewritePattern {
+  TpuQuantInputPassPattern(MLIRContext *context)
+      : RewritePattern("tpu.input", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto inputOp = llvm::dyn_cast<tpu::InputOp>(op);
+    if (!inputOp) {
+      return failure();
+    }
+    bool hasBf16 = false;
+    bool hasOther = false;
+    for (auto &use : op->getResult(0).getUses()) {
+      auto nextOp = use.getOwner();
+      auto quant = getOpQuant(nextOp);
+      if (quant == "BF16") {
+        hasBf16 = true;
+      } else {
+        hasOther = true;
+      }
+      if (hasBf16 && hasOther) {
+        break;
+      }
+    }
+    if (hasBf16 && hasOther) {
+      // all quant to BF16
+      for (auto &use : op->getResult(0).getUses()) {
+        auto nextOp = use.getOwner();
+        auto quant = getOpQuant(nextOp);
+        if (quant == "BF16") {
+          continue;
+        }
+        setOpQuant(nextOp, "BF16");
+      }
+      return success();
+    }
+
+    return failure();
+  }
+};
 
 struct TpuConvertDilationWeightPattern : public RewritePattern {
   TpuConvertDilationWeightPattern(MLIRContext *context)
@@ -1280,6 +1320,12 @@ public:
     patterns.insert<TpuTpuQuantClipPassPattern>(context);
     // patch for dialation > 15
     patterns.insert<TpuConvertDilationWeightPattern>(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    // if input has more than one use, and do different quant,
+    // then quant to bf16 all.
+    patterns.clear();
+    patterns.insert<TpuQuantInputPassPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     // unzip preprocess op

@@ -113,6 +113,7 @@ class OnnxConverter(BaseConverter):
         self.mlir_file_path = mlir_file_path
 
         self.remove_tensor_from_input_nodes()
+        self.remove_tensor_from_output_nodes()
 
         self.converted_nodes = list()
         self.converted_tensors = list()
@@ -222,6 +223,14 @@ class OnnxConverter(BaseConverter):
                     return True
             return False
         self.input_nodes = [x for x in self.input_nodes if not find_name_in_tensor_list(x.name)]
+
+    def remove_tensor_from_output_nodes(self):
+        def find_name_in_tensor_list(name):
+            for i in self.input_nodes:
+                if name == i.name:
+                    return True
+            return False
+        self.output_nodes = [x for x in self.output_nodes if not find_name_in_tensor_list(x.name)]
 
 
     def addTensor(self, op_name, tensor_data, tensor_shape):

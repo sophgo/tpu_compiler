@@ -416,7 +416,7 @@ private:
   Value insertCropOp(OpBuilder &builder, std::string &name, Value opd) {
     std::string name_ = name + "_preprocess_crop";
     int start_h = resize_h / 2 - h / 2;
-    int start_w = resize_w / 2 - h / 2;
+    int start_w = resize_w / 2 - w / 2;
     std::vector<int> crop_offset {0, 0, start_h, start_w};
     std::vector<int> crop_shape {(int)n, (int)c, (int)h, (int)w};
 
