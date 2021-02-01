@@ -71,7 +71,7 @@
 
 > 优化变换，量化变换，Lowering，性能优化，资源优化，分析统计。
 
--   mlir-interpreter：实现基于CPU/TPU的IR推理计算，将输出tensor数据，以及用户指定的全部或部分中间结果tensor数据保存为numpy格式（\\*.npz）文件。基于interpreter，开发者可以在模型转换的各个环节随时对转换的正确性和精度进行测试，包括量化前和量化后的各个阶段，验证各种优化路径的正确性，比较各量化选项的精度差异，以及详细比对所有中间计算结果的数据。Interpreter支持python
+-   mlir-interpreter：实现基于CPU/TPU的IR推理计算，将输出tensor数据，以及用户指定的全部或部分中间结果tensor数据保存为numpy格式（*.npz）文件。基于interpreter，开发者可以在模型转换的各个环节随时对转换的正确性和精度进行测试，包括量化前和量化后的各个阶段，验证各种优化路径的正确性，比较各量化选项的精度差异，以及详细比对所有中间计算结果的数据。Interpreter支持python
     binding，开发者可以使用python进行数据预处理，后处理，及数据分析。
 
 -   calibration：基于mlir-interpreter实现的量化校准工具，对开发者指定的校准数据集执行推理计算，对每个tensor的数据进行统计，形成模型量化所需的参数。使用python进行数据读取，预处理，后处理和统计分析。
@@ -94,8 +94,7 @@
 
 ## 1.6 Runtime
 
-> Runtime库和应用程序运行在CV183x SoC的ARM
-> aarch64处理器Linux系统中。Runtime提供一组API供应用程序运行时调用，实现模型在板端的在线推理。主要功能包括：
+> Runtime库和应用程序运行在CV183x SoC的ARM aarch64处理器Linux系统中。Runtime提供一组API供应用程序运行时调用，实现模型在板端的在线推理。主要功能包括：
 
 -   解析cvimodel文件；
 
@@ -111,8 +110,7 @@
 
 ### 1.6.1 Python Binding
 
-> Runtime支持Python
-> Binding，方便利用python的数据预处理和后处理代码快速进行模型开发和验证以及离线仿真。
+> Runtime支持Python Binding，方便利用python的数据预处理和后处理代码快速进行模型开发和验证以及离线仿真。
 
 ### 1.6.2 仿真器
 
@@ -136,11 +134,9 @@
 
 #### 2.1.1.1 概述
 
-> IR（Intermediate
-> Representation）即中间表示语言，其作用是将基于各类框架的神经网络图转换为统一的中间表示形式。Cvitek编译器借助了MLIR的IR框架，定义了面向TPU开发和优化的TPU
-> Dialect。
->
-> 每一个操作被定义一个Op，按照SSA规则定义，遵循如下原则
+> IR（Intermediate Representation）即中间表示语言，其作用是将基于各类框架的神经网络图转换为统一的中间表示形式。Cvitek编译器借助了MLIR的IR框架，定义了面向TPU开发和优化的TPU Dialect。
+> 
+> 每一个操作被定义一个Op，按照SSA规则定义，遵循如下原则：
 
 -   每个Op有一个或者多个输入Tensor；
 
@@ -150,8 +146,7 @@
 
 -   每个Op的操作除了会影响输出Tensor的值以外，不会产生任何其他副作用；
 
-> 例如，对于SliceOp，虽然原本含义会有多个Output。但在TPU
-> IR的定义中会对每一个sub tensor生成一个SliceOp，它们的input
+> 例如，对于SliceOp，虽然原本含义会有多个Output。但在TPU IR的定义中会对每一个sub tensor生成一个SliceOp，它们的input
 > tensor指向同一个tensor，通过attribute指定offset等参数，但每个SliceOp只有一个输出tensor。
 
 <br>
@@ -233,8 +228,8 @@
 
   |类型                          |描述|
   |----------------------------- |------------------------------------------------|
-  |Tensor\\<DataType\\>            |以DataType为数据类型的Tensor，不许为空|
-  |TensorOfOrNone\\< DataType\\>   |以DataType为数据类型的Tensor，None表示空Tensor|
+  |Tensor<DataType>            |以DataType为数据类型的Tensor，不许为空|
+  |TensorOfOrNone<DataType>   |以DataType为数据类型的Tensor，None表示空Tensor|
   |AnyTensor                     |以任意DataType为数据类型的Tensor|
   |Variadic Tensor               |一个或多个Tensor|
   <br>
@@ -285,8 +280,8 @@
   |THRESHOLD          | 量化变量以Threshold方式描述|
   |SCALE              | 量化变量以Scale描述，支持PerChannel或PerTensor|
   |RSHIFT_ONLY        | 量化变量以RSHIFT描述，支持PerChannel或PerTensor|
-  |RSHIFT_AND_M\\_I32  | 量化变量以RSHIFT+I32 MULTIPLER描述，支持PerChannel|
-  |RSHIFT_AND_M\\_I8   | 量化变量以RSHIFT+I8 MULTIPLER描述，支持PerTensor|
+  |RSHIFT_AND_M_I32  | 量化变量以RSHIFT+I32 MULTIPLER描述，支持PerChannel|
+  |RSHIFT_AND_M_I8   | 量化变量以RSHIFT+I8 MULTIPLER描述，支持PerTensor|
   |LUT_INT8           | 量化变量以INT8 LUT描述|
   |LUT_BF16           | 量化变量以BF16 LUT描述|
 
@@ -1067,7 +1062,7 @@ input_type="FP32"):
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
-
+ 	
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -1780,7 +1775,7 @@ cvi_npz_tool.py compare \
 
 
 
-<br>除此以后，还可以透过以下方式取得更好的精度:
+<br>除此以外，还可以透过以下方式取得更好的精度:
 
 #### 2.2.4.1 Full-BF16量化
 
@@ -2509,24 +2504,12 @@ d. program信息
 
 ### 获取输入输出Tensor
 
-> 接下来，程序通过API分别获取Input Tensor和Output
-> Tensor信息。对于支持多种batch_size的cvimodel，需要则会获取Tensor时指定batch_size。每个Tensor有自身的名称，类型，维度信息，以及存储空间。在获取Tensor时，用户可以通过prepare_buffer参数指定是否需要runtime分配buffer。
->
-> 当不需要runtime分配buffer时，用户需自己进行内存分配和释放。或者将以及维护或者得到的buffer地址赋予tensor直接使用以节省拷贝开销。
->
-> 如果用户指定runtime负责分配buffer，则释放也由runtime负责。用户通过API获取Tensor指针进行输入数据传入或者输出数据读出。
+> 接下来，程序通过API分别获取Input Tensor和Output Tensor信息。对于支持多种batch_size的cvimodel，需要则会获取Tensor时指定batch_size。每个Tensor有自身的名称，类型，维度信息，以及存储空间。
+> 
 
 ### 执行推理
 
-> 数据和buffer准备完毕后就可以开始推理计算。推理计算支持同步和异步两周接口。
-
-### TPU段
-
-> 对于模型的TPU段，Runtime加载Weight和Cmdbuf，并通过driver调用执行。
-
-### CPU段
-
-> CPU段的实现分为built-in和customized两种。Built-in类型的CPU函数实现由runtime预先提供和加载，运行时调用。Customized类型CPU段编译为可装载库随cvimodel交付，并于模型注册时加载。
+> 数据和buffer准备完毕后就可以开始推理计算。
 
 ### 预处理和后处理
 
@@ -2534,21 +2517,15 @@ d. program信息
 
 -   应用程序自理：用户根据模型对前处理的需要，自行添加代码实现。
 
--   添加预处理CPU段：在模型导入阶段，通过命令控制增加相应预处理或后处理操作。编译时，这些预处理或后处理操作会被编译为CPU
-    Section。运行时，运行时库针调用相应CPU函数，完成预处理或后处理。
-
--   优化为预处理TPU段：在模型导入阶段，通过命令控制增加相应预处理或后处理操作。编译时，通过优化命令，对符合条件的预处理或后处理操作转换为TPU操作并编译进TPU
-    Section中。运行时，随模型执行过程由TPU进行处理。
-
-[]{#_CVI_CONFIG_OPTION .anchor}
+-   优化为预处理TPU段：在模型导入阶段，通过命令控制增加相应预处理或后处理操作。编译时，通过优化命令，对符合条件的预处理或后处理操作转换为TPU操作并编译进TPU Section中。运行时，随模型执行过程由TPU进行处理。
+    
+<br>
 
 ## 3.3 Runtime API参考
 
 ### 3.3.1 Runtime C API参考
 
-头文件cviruntime.h中定义了runtime C
-API的数据结构和函数，用于模型的加载和推理，对应的动态库为
-libcviruntime.so，静态库为libcviruntime-static.a。
+头文件cviruntime.h中定义了runtime C API的数据结构和函数，用于模型的加载和推理，对应的动态库为libcviruntime.so，静态库为libcviruntime-static.a。
 
 #### 数据结构
 
@@ -2816,14 +2793,15 @@ typedef enum {
 
 -   CVI_NN_SetTensorWithVpssFrame：将视频帧数据拷贝到张量
 
--   CVI_NN_SetTensorWithVideoFrames: 将视频帧数据拷贝到张量(Deprecated)
+-   CVI_NN_SetTensorWithVideoFrames: 将视频帧数据拷贝到张量
 
 ##### CVI_NN_RegisterModel
 
 【原型】
 ```c++
- CVI_RC CVI_NN_RegisterModel(const char *model_file,
-  CVI_MODEL_HANDLE *model)
+ CVI_RC CVI_NN_RegisterModel(
+     const char *model_file,
+     CVI_MODEL_HANDLE *model)
 ```
 【描述】
 
@@ -2833,6 +2811,8 @@ typedef enum {
 |---|---|---|
 |Model_file |cvimodel模型文件名  |输入|
 |model      |网络模型句柄        |输出|
+
+<br>
 
 ##### CVI_NN_RegisterModelFromBuffer
 
@@ -2853,6 +2833,8 @@ CVI_RC CVI_NN_RegisterModelFromBuffer(
 |  size     |  模型的内存大小  | 输入|
 |  model    |  网络模型句柄    | 输出|
 
+<br>
+
 ##### CVI_NN_CloneModel
 
 【原型】
@@ -2863,14 +2845,15 @@ CVI_RC CVI_NN_CloneModel(
 ```
 【描述】
 
-> 当需要运行同一个cvimodel模型的不同或者不同batch
-> size指令时，可以调用此接口复制模型，复制后的模型句柄将和之前句柄共享部分资源，可以有效的减少系统内存开销。该句柄在不使用后，也需通过CVI_NN_CleanupModel进行释放。
+> 当需要运行同一个cvimodel模型的不同或者不同batch size指令时，可以调用此接口复制模型，复制后的模型句柄将和之前句柄共享部分资源，可以有效的减少系统内存开销。该句柄在不使用后，也需通过CVI_NN_CleanupModel进行释放。
 
   参数名称   描述                 输入/输出
 |参数名称|描述|输入/输出|
 |---|---|---|
 |model     | 已经存在模型句柄           | 输入|
 |cloned    | 返回复制的模型句柄          | 输出|
+
+<br>
 
 ##### CVI_NN_SetConfig
 
@@ -2900,6 +2883,8 @@ CVI_RC CVI_NN_SetConfig(
 CVI_NN_SetConfig(model, OPTION_BATCH_SIZE, 1);
 CVI_NN_SetConfig(model, OPTION_OUTPUT_ALL_TENSORS, false);
 ```
+<br>
+
 ##### CVI_NN_GetConfig
 
 【原型】
@@ -2929,6 +2914,8 @@ CVI_NN_GetConfig(model, OPTION_BATCH_SIZE, &batch_size);
 CVI_NN_GetConfig(model, OPTION_PREPARE_BUF_FOR_INPUTS,
                  prepare_buf_for_inputs);
 ```
+<br>
+
 ##### CVI_NN_GetModelBatchSizes
 
 【原型】
@@ -2947,6 +2934,8 @@ CVI_RC CVI_NN_GetModelBatchSizes(
 |  tensor     |  tensor指针   |   输入|
 |  batchSizes |  batch数组指针 |  输出|
 |  num        |  数组元素个数  |  输出|
+
+<br>
 
 ##### CVI_NN_GetInputOutputTensors
 
@@ -2969,6 +2958,8 @@ CVI_RC CVI_NN_GetInputOutputTensors(
 |  outputs    |  输出TENSOR数组 |  输出|
 |  output_num |  输出TENSOR个数 |  输出|
 
+<br>
+
 ##### CVI_NN_Forward
 
 【原型】
@@ -2990,6 +2981,8 @@ CVI_RC CVI_NN_Forward(
 |outputs      |输出tensors     |    输出|
 |output_num   |输出tensors的数量  | 输入|
 
+<br>
+
 ##### CVI_NN_CleanupModel
 
 【原型】
@@ -3003,6 +2996,8 @@ CVI_RC CVI_NN_CleanupModel(CVI_MODEL_HANDLE model)
 |参数名称|描述|输入/输出|
 |---|---|---|
 |model|网络模型句柄|输入|
+
+<br>
 
 ##### CVI_NN_GetTensorByName
 
@@ -3023,6 +3018,8 @@ CVI_TENSOR *CVI_NN_GetTensorByName(
 |tensors|tensors数组|输入|
 |num|tensor的个数|输入|
 
+<br>
+
 ##### CVI_NN_TensorPtr
 
 【原型】
@@ -3039,6 +3036,8 @@ void *CVI_NN_TensorPtr(CVI_TENSOR *tensor)
 |---|---|---|
 |  tensor |    tensor指针   |输入|
 
+<br>
+
 ##### CVI_NN_TensorSize
 
 【原型】
@@ -3052,6 +3051,8 @@ size_t CVI_NN_TensorSize(CVI_TENSOR *tensor);
 | 参数名称  | 描述       |  输入/输出|
 |--------|--------|-----------|
 | tensor  |tensor指针 |输入|
+
+<br>
 
 ##### CVI_NN_TensorCount
 
@@ -3068,6 +3069,8 @@ size_t CVI_NN_TensorCount(CVI_TENSOR *tensor);
 |--------|------------|----|
 |tensor    | tensor指针   |输入|
 
+<br>
+
 ##### CVI_NN_TensorQuantScale
 
 【原型】
@@ -3083,6 +3086,8 @@ float CVI_NN_TensorQuantScale(CVI_TENSOR *tensor)
 |--------|------------|-----------|
 |tensor   |  tensor指针  | 输入|
 
+<br>
+
 ##### CVI_NN_TensorShape
 
 【原型】
@@ -3096,6 +3101,8 @@ float CVI_NN_TensorQuantScale(CVI_TENSOR *tensor)
 |参数名称|描述|输入/输出|
 |---|---|---|
 |tensor|tensor指针|输入|
+
+<br>
 
 ##### CVI_NN_SetTensorPtr
 
@@ -3116,6 +3123,7 @@ CVI_RC CVI_NN_SetTensorPtr(
 | buf    |    系统内存指针  | 输入|
 | size   |    buf的大小  |    输入|
 
+<br>
 
 ##### CVI_NN_SetTensorWithVpssFrame
 
@@ -3134,6 +3142,8 @@ CVI_RC CVI_NN_SetTensorWithVpssFrame(
 |  tensor         | tensor指针    |  输入|
 |  paddr          | 视频帧物理地址  |  输入|
 |  pixel_format   | 视频帧格式类型  |  输入|
+<br>
+
 ##### CVI_NN_SetTensorWithVideoFrame
 
 【原型】
@@ -3153,6 +3163,7 @@ CVI_RC CVI_NN_SetTensorWithVideoFrame(
 | video_frame_info | 视频帧信息     |  输入|
 <br/>
 <br/>
+
 ### 3.3.2 Runtime Python API
 
 > Runtime通过pybind11将底层Runtime C++代码封装为Python API。Runtime
@@ -3177,6 +3188,8 @@ class Tensor:
 >
 > Tensor.data为numpy
 > arrary用于存放张量的数据。可以分别用data.shape和data.dtype获取张量的Shape以及基本数据类型。
+
+<br>
 
 #### pyruntime.Model
 
