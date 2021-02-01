@@ -191,7 +191,8 @@ class ONNX_IR_TESTER(object):
                 ret = run_cvimodel(
                     input_file, cvimodel, output_tensor_npz, all_tensors=True, batch_size=batch_size)
                 if ret < 0: raise RuntimeError("run_cvimodel failed")
-                npz_compare([output_tensor_npz,ref_npz])
+                npz_compare([output_tensor_npz, ref_npz,
+                             "--tolerance", "0.99,0.99,0.9"])
 
             elif self.quant_mode == "bf16":
                 for i in NOT_SUPPORT_BF16_TEST_IR:

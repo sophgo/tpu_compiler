@@ -46,21 +46,6 @@ static bool isValidOp(Operation &op) {
           !isa<tpu::NoneOp>(op));
 }
 
-static OwningModuleRef parseMLIRInput(StringRef inputFilename,
-                                      MLIRContext *context) {
-  // Set up the input file.
-  std::string errorMessage;
-  auto file = openInputFile(inputFilename, &errorMessage);
-  if (!file) {
-    llvm::errs() << errorMessage << "\n";
-    return nullptr;
-  }
-
-  llvm::SourceMgr sourceMgr;
-  sourceMgr.AddNewSourceBuffer(std::move(file), llvm::SMLoc());
-  return OwningModuleRef(parseSourceFile(sourceMgr, context));
-}
-
 // ----------------
 // Python interface
 // ----------------
@@ -108,27 +93,43 @@ static py::dict getTensorDict(tensor_map_t &tensorMap, shape_map_t &shapeMap) {
 
 class py_module {
 public:
-  py_module() {
-    auto &registry = context.getDialectRegistry();
-    registry.insert<tpu::TPUDialect, StandardOpsDialect>();
-  }
+  py_module() {}
   ~py_module() {
-    if (interpreter_)
-      interpreter_.reset();
+    interpreter_.reset();
+    context.reset();
   }
 
   void load(std::string filename) {
-    module_ = parseMLIRInput(filename, &context);
+    if (context) {
+      context.reset();
+    }
+    context = std::make_unique<MLIRContext>();
+    auto &registry = context->getDialectRegistry();
+    registry.insert<tpu::TPUDialect, StandardOpsDialect>();
+    module_ = parseMLIRInput(filename);
     if (!module_) {
       llvm_unreachable("could not parse the input IR\n");
     }
     if (interpreter_) {
       interpreter_.reset();
-      interpreter_ = std::make_unique<ModuleInterpreter>(module_.get());
-    } else {
-      interpreter_ = std::make_unique<ModuleInterpreter>(module_.get());
     }
+    interpreter_ = std::make_unique<ModuleInterpreter>(module_.get());
+    interpreter_->allocate_tensors();
     parseMLIRInfo();
+  }
+
+  OwningModuleRef parseMLIRInput(StringRef inputFilename) {
+    // Set up the input file.
+    std::string errorMessage;
+    auto file = openInputFile(inputFilename, &errorMessage);
+    if (!file) {
+      llvm::errs() << errorMessage << "\n";
+      llvm_unreachable("read find failed");
+    }
+
+    llvm::SourceMgr sourceMgr;
+    sourceMgr.AddNewSourceBuffer(std::move(file), llvm::SMLoc());
+    return OwningModuleRef(parseSourceFile(sourceMgr, context.get()));
   }
 
   void dump(std::string name) { interpreter_->dump(name); }
@@ -159,7 +160,17 @@ public:
     }
   }
 
-  py::dict getAllTensor() { return getTensorDict(tensorMap_, shapeMap_); }
+  py::dict getAllTensor() {
+    tensor_map_t tensorMap_;
+    shape_map_t shapeMap_;
+    auto all_tensor_names = interpreter_->get_all_tensor_name();
+    for (auto &tensor_name : all_tensor_names) {
+      tensorMap_[tensor_name] = interpreter_->get_tensor(tensor_name);
+      shapeMap_[tensor_name] = interpreter_->get_tensor_shape(tensor_name);
+    }
+
+    return getTensorDict(tensorMap_, shapeMap_);
+  }
   py::dict get_input_details() {
     py::dict ret;
     std::vector<std::pair<std::string, size_t>> inputs =
@@ -190,17 +201,17 @@ public:
   py::array getTensor(std::string op_name) {
     py::array py_ret;
 
-    for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++) {
-      auto op = it->first;
+    // for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++) {
+    //   auto op = it->first;
 
-      if (op == op_name) {
-        auto data = it->second;
+    //   if (op == op_name) {
+    //     auto data = it->second;
 
-        assert(shapeMap_.end() != shapeMap_.find(op));
-        py_ret = getPythonArray(data, shapeMap_[op]);
-        break;
-      }
-    }
+    //     assert(shapeMap_.end() != shapeMap_.find(op));
+    //     py_ret = getPythonArray(data, shapeMap_[op]);
+    //     break;
+    //   }
+    // }
     return py_ret;
   }
 
@@ -239,13 +250,42 @@ public:
     for (ssize_t i = 0; i < array.ndim(); ++i) {
       input_shape.push_back((int64_t)array.shape()[i]);
     }
-    tensor_map_t results;
 
-    if (failed(interpreter_->doRun(input_shape, input_vec, &results,
-                                   &tensorMap_))) {
-      assert(false);
+    size_t input_size = std::accumulate(input_shape.begin(), input_shape.end(),
+                                        1, std::multiplies<int64_t>());
+    auto input_details = interpreter_->get_input_details();
+    size_t all_need_data_size = 0;
+    for (auto &i : input_details) {
+      all_need_data_size += i.second;
     }
-    interpreter_->getShape(&shapeMap_);
+    if (input_size != all_need_data_size) {
+      llvm::errs() << "input data size: " << input_size << "\n";
+      for (auto &i : input_details) {
+        llvm::errs() << i.first << " needed data size: " << i.second << "\n";
+      }
+      llvm::errs() << "all input needed size: " << all_need_data_size << "\n";
+      llvm_unreachable("input data size not same with all input needed size");
+    }
+
+    // set tensor
+    size_t slice_idx = 0;
+    for (auto &i : input_details) {
+      std::vector<float> input_data(input_vec.begin() + slice_idx,
+                                    input_vec.begin() + slice_idx + i.second);
+      slice_idx += i.second;
+      interpreter_->set_tensor(i.first, input_data);
+    }
+    assert(slice_idx == input_vec.size());
+    interpreter_->invoke();
+
+    tensor_map_t results;
+    shape_map_t shapeMap_;
+
+    auto output_details = interpreter_->get_output_details();
+    for (auto &output_name : output_details) {
+      results[output_name] = interpreter_->get_tensor(output_name);
+      shapeMap_[output_name] = interpreter_->get_tensor_shape(output_name);
+    }
 
     return getTensorDict(results, shapeMap_);
   }
@@ -254,11 +294,12 @@ public:
   py::list opInfo_;
 
 private:
-  MLIRContext context;
+  std::unique_ptr<MLIRContext> context;
   OwningModuleRef module_;
   std::string weightFilePath_;
-  tensor_map_t tensorMap_;
-  shape_map_t shapeMap_;
+  // tensor_map_t tensorMap_;
+  // shape_map_t shapeMap_;
+
   std::unique_ptr<ModuleInterpreter> interpreter_;
   std::string pluginFilePath_ = "";
 };
@@ -273,7 +314,7 @@ PYBIND11_MODULE(pymlir, m) {
       .def("set_plugin", &py_module::setPluginFilePath,
            "set file path of custom op plugin")
       .def("get_all_tensor", &py_module::getAllTensor, "dump all tensor data")
-      .def("get_tensor", &py_module::getTensor, "get one tensor data")
+      .def("get_tensor", &py_module::get_tensor, "get one tensor data")
       .def_readwrite("op_info", &py_module::opInfo_)
       .def("get_weight_file_path", &py_module::getWeightFilePath,
            "get weight file path")

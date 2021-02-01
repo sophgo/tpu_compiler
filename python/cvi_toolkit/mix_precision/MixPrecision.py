@@ -2,7 +2,11 @@ import pymlir
 from ..utils.mlir_shell import gen_bf16_mlir
 import cv2
 import numpy as np
-import sys, os, copy, shutil, time
+import sys
+import os
+import copy
+import shutil
+import time
 from tqdm import tqdm
 
 tpu_skip_op = ['tpu.input', 'tpu.quant', 'tpu.cast',
@@ -24,14 +28,15 @@ def remove_mlir_with_weight(mlir_file):
 
 
 class MixPrecisior(object):
-    def __init__(self, mlir_file, loss_func, data_file=None, skip_op=['tpu.input', 'tpu.quant', 'tpu.cast'],
-                precrocess_func=None, input_num=10):
+    def __init__(self, mlir_file, loss_func, data_file=None, skip_op=['tpu.input', 'tpu.quant', 'tpu.cast', 'tpu.split', 'tpu.concat', 'tpu.reshape'],
+                 precrocess_func=None, input_num=10):
 
         self.input_num = input_num
 
         if data_file:
             self.image_txt_list = self.load_data_file(data_file)
-            self.image_list = [cv2.imread(i, cv2.IMREAD_COLOR) for i in self.image_txt_list]
+            self.image_list = [cv2.imread(i, cv2.IMREAD_COLOR)
+                               for i in self.image_txt_list]
         else:
             raise RuntimeError("Please Set input data txt !")
 
@@ -62,7 +67,7 @@ class MixPrecisior(object):
     def get_op_info_list(self, mlir_model):
         return [o['name'] for o in mlir_model.op_info]
 
-    def create_bf16_layer_files(self, bf16_file, layers, exclude_layers = []):
+    def create_bf16_layer_files(self, bf16_file, layers, exclude_layers=[]):
         with open(bf16_file, 'w') as f:
             for bf16_layer in layers:
                 if bf16_layer not in exclude_layers:
@@ -87,7 +92,8 @@ class MixPrecisior(object):
 
         bf16_mlir = "bf16.mlir"
         bf16_quant_tpu_op_info = "bf16_quant_op_info.csv"
-        gen_bf16_mlir(self.fp32_cali_mlir_file ,bf16_mlir, bf16_txt, bf16_quant_tpu_op_info)
+        gen_bf16_mlir(self.fp32_cali_mlir_file, bf16_mlir,
+                      bf16_txt, bf16_quant_tpu_op_info)
 
         # read bf16 mlir
         self.bf16_model = pymlir.module()
@@ -95,9 +101,15 @@ class MixPrecisior(object):
 
         for img in self.image_list:
             img = self.preprocess_func(img)
-            pred_tensor = self.bf16_model.run(img)
-            predictions_gt.append(pred_tensor)
-        del self.bf16_model
+            inputs = self.bf16_model.get_input_details()
+            input_op_name = list(inputs)[0]
+            self.bf16_model.invoke()
+            output_op_name = self.bf16_model.get_output_details()[0]
+            pred_tensor = self.bf16_model.get_tensor(output_op_name)
+            predict_tensor = {output_op_name: pred_tensor}
+
+            predictions_gt.append(predict_tensor)
+
         print("bf16 inference done")
 
         pbar = tqdm(self.op_info)
@@ -110,19 +122,26 @@ class MixPrecisior(object):
             self.create_bf16_layer_files(bf16_tmp_txt, bf16_layer_name_list)
 
             bf16_tmp_mlir = "bf16_tmp.mlir"
-            gen_bf16_mlir(self.fp32_cali_mlir_file ,bf16_tmp_mlir, bf16_tmp_txt, "tmp_quant_op_info.csv")
+            gen_bf16_mlir(self.fp32_cali_mlir_file, bf16_tmp_mlir,
+                          bf16_tmp_txt, "tmp_quant_op_info.csv")
 
-            self.bf16_model = pymlir.module()
             self.bf16_model.load(bf16_tmp_mlir)
 
             loss = 0
             for idx, img in enumerate(self.image_list):
                 img = self.preprocess_func(img)
-                pred_tensor = self.bf16_model.run(img)
-                loss += self.loss_func(predictions_gt[idx], pred_tensor)
+                inputs = self.bf16_model.get_input_details()
+                input_op_name = list(inputs)[0]
+                self.bf16_model.set_tensor(input_op_name, img)
+                self.bf16_model.invoke()
+                output_op_name = self.bf16_model.get_output_details()[0]
+                pred_tensor = self.bf16_model.get_tensor(output_op_name)
+                predict_tensor = {output_op_name: pred_tensor}
+                loss += self.loss_func(predictions_gt[idx],
+                                       predict_tensor)
 
-            del self.bf16_model
             loss_list.append((layer['name'], loss / len(self.image_txt_list)))
+
             remove_mlir_with_weight(bf16_tmp_mlir)
 
         # remove tmp file

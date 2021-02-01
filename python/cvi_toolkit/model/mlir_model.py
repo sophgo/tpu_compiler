@@ -13,9 +13,9 @@ class MLIRModel(model_base):
 
     def inference(self, input):
         self.net.run(input)
-        output_op = self.net.op_info[-1]
+        output_op_name = self.net.get_output_details()[0]
         data = self.net.get_all_tensor()
-        return data[output_op['name']]
+        return data[output_op_name]
 
     def get_all_tensor(self, input_data=None):
         tensors_dict = self.net.get_all_tensor()
