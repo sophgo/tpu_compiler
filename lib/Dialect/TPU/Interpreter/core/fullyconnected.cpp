@@ -8,12 +8,12 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
                                                value_map_t &valueMapping) {
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
   assert(fcOp);
-  llvm::outs() << " FullyConnected op: [" << fcOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " FullyConnected op: [" << fcOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = fcOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   auto type = result.getType().cast<TensorType>();

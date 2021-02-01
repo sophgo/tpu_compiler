@@ -7,13 +7,14 @@ namespace mlir {
 ZeroMaskOpKernel::ZeroMaskOpKernel(Operation &op, value_map_t &valueMapping) {
   auto zero_maskOp = cast<tpu::ZeroMaskOp>(op);
   assert(zero_maskOp);
-  llvm::outs() << " ZeroMaskOp op: [" << zero_maskOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " ZeroMaskOp op: [" << zero_maskOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = zero_maskOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

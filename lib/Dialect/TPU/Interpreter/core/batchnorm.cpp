@@ -6,12 +6,12 @@ namespace mlir {
 BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping) {
   auto bnOp = cast<tpu::BatchNormOp>(op);
   assert(bnOp);
-  llvm::outs() << " BatchNorm op: [" << bnOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " BatchNorm op: [" << bnOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = bnOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   auto type = result.getType().cast<TensorType>();

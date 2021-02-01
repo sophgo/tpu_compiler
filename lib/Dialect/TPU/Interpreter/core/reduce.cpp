@@ -135,13 +135,14 @@ void reduce_max(float *input, float *output, std::vector<int64_t> &input_shape,
 ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping) {
   auto reducemaxOp = cast<tpu::ReduceMaxOp>(op);
   assert(reducemaxOp);
-  llvm::outs() << " ReduceMaxOp op: [" << reducemaxOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " ReduceMaxOp op: [" << reducemaxOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = reducemaxOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
 
   this->shape = getTensorShape(result);
 
@@ -202,13 +203,14 @@ ReduceMeanOpKernel::ReduceMeanOpKernel(Operation &op,
                                        value_map_t &valueMapping) {
   auto reducemeanOp = cast<tpu::ReduceMeanOp>(op);
   assert(reducemeanOp);
-  llvm::outs() << " ReduceMeanOp op: [" << reducemeanOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " ReduceMeanOp op: [" << reducemeanOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = reducemeanOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
 
   this->shape = getTensorShape(result);
 

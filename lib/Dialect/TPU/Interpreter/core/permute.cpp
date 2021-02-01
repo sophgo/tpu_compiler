@@ -38,13 +38,13 @@ void permute(float *src, float *dst, const std::vector<int64_t> &input_shape,
 PermuteOpKernel::PermuteOpKernel(Operation &op, value_map_t &valueMapping) {
   auto permuteOp = cast<tpu::PermuteOp>(op);
   assert(permuteOp);
-  llvm::outs() << " PermuteOp op: [" << permuteOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " PermuteOp op: [" << permuteOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = permuteOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

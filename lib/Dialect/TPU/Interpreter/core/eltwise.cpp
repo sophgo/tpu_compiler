@@ -8,14 +8,15 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
                                        value_map_t &valueMapping) {
 
   auto elt_addOp = cast<tpu::EltwiseAddOp>(op);
-  llvm::outs() << " Eltwise Add op: [" << elt_addOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Eltwise Add op: [" << elt_addOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = elt_addOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   this->shape = getTensorShape(result);
 
   this->op_type = op.getName().getStringRef().str();
@@ -142,13 +143,14 @@ EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
                                        value_map_t &valueMapping) {
 
   auto elt_mulOp = cast<tpu::EltwiseMulOp>(op);
-  llvm::outs() << " Eltwise Mul op: [" << elt_mulOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Eltwise Mul op: [" << elt_mulOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = elt_mulOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   this->shape = getTensorShape(result);
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());

@@ -27,13 +27,13 @@ void slice(float *input, float *output, int axis, int offset,
 SliceOpKernel::SliceOpKernel(Operation &op, value_map_t &valueMapping) {
   auto sliceOp = cast<tpu::SliceOp>(op);
   assert(sliceOp);
-  llvm::outs() << " SliceOp op: [" << sliceOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " SliceOp op: [" << sliceOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = sliceOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

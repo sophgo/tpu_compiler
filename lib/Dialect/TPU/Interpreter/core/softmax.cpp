@@ -7,13 +7,13 @@ namespace mlir {
 SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping) {
   auto castOp = cast<tpu::SoftmaxOp>(op);
   assert(castOp);
-  llvm::outs() << " Softmax op: [" << castOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Softmax op: [" << castOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = castOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -37,13 +37,13 @@ SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping,
   }
 
   auto castOp = cast<tpu::SoftmaxCpuOp>(op);
-  llvm::outs() << " SoftmaxCpuOp op: [" << castOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " SoftmaxCpuOp op: [" << castOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = castOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

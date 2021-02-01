@@ -7,12 +7,12 @@ namespace mlir {
 DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   auto castOp = cast<tpu::DeConv2DOp>(op);
   assert(castOp);
-  llvm::outs() << " DeConv op: [" << castOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " DeConv op: [" << castOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = castOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
 
   auto resultTensor = std::make_shared<std::vector<float>>(size);
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
@@ -136,7 +136,8 @@ DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   }
   auto prim_filter_memory = mkl_filter_memory;
   if (deconv_prim_desc.weights_desc() != mkl_filter_memory.get_desc()) {
-    prim_filter_memory = mkldnn::memory(deconv_prim_desc.weights_desc(), mkl_eng);
+    prim_filter_memory =
+        mkldnn::memory(deconv_prim_desc.weights_desc(), mkl_eng);
     mkldnn::reorder(mkl_filter_memory, prim_filter_memory)
         .execute(mkl_stream, mkl_filter_memory, prim_filter_memory);
   }

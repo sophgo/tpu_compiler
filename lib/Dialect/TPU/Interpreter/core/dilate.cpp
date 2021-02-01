@@ -34,13 +34,13 @@ void dilateActivation(float *input, float *output, int pad_h_t, int pad_h_b,
 DilateOpKernel::DilateOpKernel(Operation &op, value_map_t &valueMapping) {
   auto dilateOp = cast<tpu::DilateOp>(op);
   assert(dilateOp);
-  llvm::outs() << " DilateOp op: [" << dilateOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " DilateOp op: [" << dilateOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = dilateOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

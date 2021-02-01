@@ -52,13 +52,14 @@ PreprocessOpKernel::PreprocessOpKernel(Operation &op,
                                        value_map_t &valueMapping) {
   auto preprocessOp = cast<tpu::PreprocessOp>(op);
   assert(preprocessOp);
-  llvm::outs() << " PreprocessOp op: [" << preprocessOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " PreprocessOp op: [" << preprocessOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = preprocessOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -142,8 +143,8 @@ void PreprocessOpKernel::invoke() {
     tmp_data.assign(crop_data.begin(), crop_data.end());
   }
 
-  preprocess(tmp_data.data(), output_data->data(), shape, color_orders,
-             means, stds, raw_scale, input_scale);
+  preprocess(tmp_data.data(), output_data->data(), shape, color_orders, means,
+             stds, raw_scale, input_scale);
 }
 
 void PreprocessOpKernel::dump() {

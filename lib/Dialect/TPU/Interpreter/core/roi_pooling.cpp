@@ -8,13 +8,14 @@ ROIPoolingOpKernel::ROIPoolingOpKernel(Operation &op,
                                        value_map_t &valueMapping) {
   auto roi_poolingOp = cast<tpu::ROIPoolingOp>(op);
   assert(roi_poolingOp);
-  llvm::outs() << " ROIPoolingOp op: [" << roi_poolingOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " ROIPoolingOp op: [" << roi_poolingOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = roi_poolingOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

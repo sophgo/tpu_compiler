@@ -112,13 +112,13 @@ namespace mlir {
 QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping) {
   auto quantOp = cast<tpu::QuantOp>(op);
   assert(quantOp);
-  llvm::outs() << " Quant op: [" << quantOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Quant op: [" << quantOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = quantOp.getResult();
   auto size = getTensorSize(result);
   auto output_dataensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -190,13 +190,13 @@ void QuantOpKernel::dump() {
 ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping) {
   auto requantOp = cast<tpu::ReQuantOp>(op);
   assert(requantOp);
-  llvm::outs() << " ReQuant op: [" << requantOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " ReQuant op: [" << requantOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = requantOp.getResult();
   auto size = getTensorSize(result);
   auto output_dataensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

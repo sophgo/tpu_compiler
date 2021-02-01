@@ -166,12 +166,12 @@ namespace mlir {
 LrnOpKernel::LrnOpKernel(Operation &op, value_map_t &valueMapping) {
   auto lrnOp = cast<tpu::LrnOp>(op);
   assert(lrnOp);
-  llvm::outs() << " Lrn op: [" << lrnOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Lrn op: [" << lrnOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = lrnOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   this->shape = getTensorShape(result);
@@ -265,12 +265,12 @@ void LrnOpKernel::dump() { OpKernel::dump(); }
 LrnOneOpKernel::LrnOneOpKernel(Operation &op, value_map_t &valueMapping) {
   auto lrnOp = cast<tpu::LrnOneOp>(op);
   assert(lrnOp);
-  llvm::outs() << " LrnOne op: [" << lrnOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " LrnOne op: [" << lrnOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = lrnOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   this->shape = getTensorShape(result);
@@ -322,12 +322,12 @@ void LrnOneOpKernel::dump() { OpKernel::dump(); }
 LrnTwoOpKernel::LrnTwoOpKernel(Operation &op, value_map_t &valueMapping) {
   auto lrnOp = cast<tpu::LrnTwoOp>(op);
   assert(lrnOp);
-  llvm::outs() << " LrnOne op: [" << lrnOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " LrnOne op: [" << lrnOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = lrnOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   this->shape = getTensorShape(result);
@@ -378,12 +378,12 @@ void LrnTwoOpKernel::dump() { OpKernel::dump(); }
 LrnThreeOpKernel::LrnThreeOpKernel(Operation &op, value_map_t &valueMapping) {
   auto lrnOp = cast<tpu::LrnThreeOp>(op);
   assert(lrnOp);
-  llvm::outs() << " LrnTwo op: [" << lrnOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " LrnTwo op: [" << lrnOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = lrnOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   this->shape = getTensorShape(result);

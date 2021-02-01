@@ -7,13 +7,13 @@ namespace mlir {
 ClipOpKernel::ClipOpKernel(Operation &op, value_map_t &valueMapping) {
   auto clipOp = cast<tpu::ClipOp>(op);
   assert(clipOp);
-  llvm::outs() << " ClipOp op: [" << clipOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " ClipOp op: [" << clipOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = clipOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

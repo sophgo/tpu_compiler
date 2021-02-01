@@ -7,13 +7,13 @@ namespace mlir {
 ReverseOpKernel::ReverseOpKernel(Operation &op, value_map_t &valueMapping) {
   auto reverseOp = cast<tpu::ReverseOp>(op);
   assert(reverseOp);
-  llvm::outs() << " ReverseOp op: [" << reverseOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " ReverseOp op: [" << reverseOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = reverseOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
 
   this->shape = getTensorShape(result);
 

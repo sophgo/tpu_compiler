@@ -32,7 +32,7 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
     is_avg = false;
   }
 
-  llvm::outs() << " Pool op: [" << name << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Pool op: [" << name << "]\n";);
   this->name = name;
   this->op_type = op.getName().getStringRef().str();
   this->input_shape = getTensorShape(op.getOperand(0));
@@ -48,7 +48,7 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
   auto opTensors = getOperandTensors(&op, valueMapping);
 
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
   parsePoolParam(pool_param, mlir_input_value, result, n, c, ih, iw, oh, ow, kh,
                  kw, sh, sw, pt, pb, pl, pr, pad_value, is_global, do_relu,

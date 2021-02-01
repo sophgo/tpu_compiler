@@ -6,12 +6,12 @@ namespace mlir {
 NormalizeOpKernel::NormalizeOpKernel(Operation &op, value_map_t &valueMapping) {
   auto normOp = cast<tpu::NormalizeOp>(op);
   assert(normOp);
-  llvm::outs() << " Normalize op: [" << normOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Normalize op: [" << normOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = normOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
 
   auto type = result.getType().cast<TensorType>();

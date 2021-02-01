@@ -128,12 +128,12 @@ void once_mkldnn_conv(float *input, float *weight, float *bias, float *output,
 Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   auto castOp = cast<tpu::Conv2DOp>(op);
   assert(castOp);
-  llvm::outs() << " Conv op: [" << castOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Conv op: [" << castOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = castOp.getResult();
   auto size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
 
   auto resultTensor = std::make_shared<std::vector<float>>(size);
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),

@@ -44,13 +44,13 @@ void crop(float *input, float *output, long int *input_shape,
 CropOpKernel::CropOpKernel(Operation &op, value_map_t &valueMapping) {
   auto cropOp = cast<tpu::CropOp>(op);
   assert(cropOp);
-  llvm::outs() << " CropOp op: [" << cropOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " CropOp op: [" << cropOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = cropOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

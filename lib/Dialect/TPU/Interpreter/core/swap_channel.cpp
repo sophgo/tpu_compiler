@@ -8,13 +8,14 @@ SwapChannelOpKernel::SwapChannelOpKernel(Operation &op,
                                          value_map_t &valueMapping) {
   auto swapchannelOp = cast<tpu::SwapChannelOp>(op);
   assert(swapchannelOp);
-  llvm::outs() << " SwapChannelOp op: [" << swapchannelOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " SwapChannelOp op: [" << swapchannelOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = swapchannelOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

@@ -7,13 +7,13 @@ namespace mlir {
 ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping) {
   auto concatOp = cast<tpu::ConcatOp>(op);
   assert(concatOp);
-  llvm::outs() << " ConcatOp op: [" << concatOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " ConcatOp op: [" << concatOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = concatOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
 
   this->shape = getTensorShape(result);
 

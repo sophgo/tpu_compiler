@@ -79,13 +79,13 @@ float mish_caffe(float x_val, float mish_threshold) {
 ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping) {
   auto expOp = cast<tpu::ExpOp>(op);
   assert(expOp);
-  llvm::outs() << " Exp op: [" << expOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Exp op: [" << expOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = expOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -154,13 +154,13 @@ void ExpOpKernel::dump() {
 MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping) {
   auto mishOp = cast<tpu::MishOp>(op);
   assert(mishOp);
-  llvm::outs() << " Mish op: [" << mishOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Mish op: [" << mishOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = mishOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -227,13 +227,14 @@ void MishOpKernel::dump() { OpKernel::dump(); }
 LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping) {
   auto leaky_reluOp = cast<tpu::LeakyReluOp>(op);
   assert(leaky_reluOp);
-  llvm::outs() << " LeakyRelu op: [" << leaky_reluOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " LeakyRelu op: [" << leaky_reluOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = leaky_reluOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -345,13 +346,13 @@ void LeakyReluOpKernel::dump() { OpKernel::dump(); }
 ReluOpKernel::ReluOpKernel(Operation &op, value_map_t &valueMapping) {
   auto reluOp = cast<tpu::ReluOp>(op);
   assert(reluOp);
-  llvm::outs() << " Relu op: [" << reluOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Relu op: [" << reluOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = reluOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -392,13 +393,13 @@ void ReluOpKernel::dump() { OpKernel::dump(); }
 PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping) {
   auto preluOp = cast<tpu::PReluOp>(op);
   assert(preluOp);
-  llvm::outs() << " PRelu op: [" << preluOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " PRelu op: [" << preluOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = preluOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -482,13 +483,13 @@ ReciprocalOpKernel::ReciprocalOpKernel(Operation &op,
                                        value_map_t &valueMapping) {
   auto rOp = cast<tpu::ReciprocalOp>(op);
   assert(rOp);
-  llvm::outs() << " Reciprocal op: [" << rOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Reciprocal op: [" << rOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = rOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -554,13 +555,13 @@ void ReciprocalOpKernel::dump() {
 ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping) {
   auto reshapeOp = cast<tpu::ReshapeOp>(op);
   assert(reshapeOp);
-  llvm::outs() << " PRelu op: [" << reshapeOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " PRelu op: [" << reshapeOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = reshapeOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -601,13 +602,13 @@ void ReshapeOpKernel::dump() { OpKernel::dump(); }
 SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping) {
   auto sqrtOp = cast<tpu::SigmoidOp>(op);
   assert(sqrtOp);
-  llvm::outs() << " Sigmoid op: [" << sqrtOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Sigmoid op: [" << sqrtOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = sqrtOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -678,13 +679,13 @@ void SigmoidOpKernel::dump() {
 SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping) {
   auto spOp = cast<tpu::SoftPlusOp>(op);
   assert(spOp);
-  llvm::outs() << " SoftPlus op: [" << spOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " SoftPlus op: [" << spOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = spOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
   this->threshold = spOp.threshold().convertToFloat();
@@ -753,13 +754,13 @@ void SoftPlusOpKernel::dump() {
 SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping) {
   auto sqrtOp = cast<tpu::SqrtOp>(op);
   assert(sqrtOp);
-  llvm::outs() << " Sqrt op: [" << sqrtOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Sqrt op: [" << sqrtOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = sqrtOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -825,13 +826,13 @@ void SqrtOpKernel::dump() {
 TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping) {
   auto tanhOp = cast<tpu::TanHOp>(op);
   assert(tanhOp);
-  llvm::outs() << " TanH op: [" << tanhOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " TanH op: [" << tanhOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = tanhOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

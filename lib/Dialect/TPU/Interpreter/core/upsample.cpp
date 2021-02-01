@@ -7,13 +7,14 @@ namespace mlir {
 UpsampleOpKernel::UpsampleOpKernel(Operation &op, value_map_t &valueMapping) {
   auto upsampleOp = cast<tpu::UpsampleOp>(op);
   assert(upsampleOp);
-  llvm::outs() << " UpsampleOp op: [" << upsampleOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " UpsampleOp op: [" << upsampleOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = upsampleOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 

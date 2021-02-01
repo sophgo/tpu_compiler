@@ -307,14 +307,14 @@ DetectionOutputOpKernel::DetectionOutputOpKernel(Operation &op,
                                                  value_map_t &valueMapping) {
   auto detection_outputOp = cast<tpu::DetectionOutputOp>(op);
   assert(detection_outputOp);
-  llvm::outs() << " DetectionOutputOp op: [" << detection_outputOp.name()
-               << "]\n";
+  LLVM_DEBUG(llvm::outs() << " DetectionOutputOp op: ["
+                          << detection_outputOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = detection_outputOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -569,13 +569,13 @@ YoloDetectionOpKernel::YoloDetectionOpKernel(Operation &op,
                                              value_map_t &valueMapping) {
   auto yoOp = cast<tpu::YoloDetectionOp>(op);
   assert(yoOp);
-  llvm::outs() << " YoloDetectionOp op: [" << yoOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " YoloDetectionOp op: [" << yoOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = yoOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
@@ -715,13 +715,14 @@ FrcnDetectionOpKernel::FrcnDetectionOpKernel(Operation &op,
                                              value_map_t &valueMapping) {
   auto frcndOp = cast<tpu::FrcnDetectionOp>(op);
   assert(frcndOp);
-  llvm::outs() << " FrcnDetectionOp op: [" << frcndOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " FrcnDetectionOp op: [" << frcndOp.name()
+                          << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
   auto result = frcndOp.getResult();
   auto size = getTensorSize(result);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
   this->rois_shape = op.getOperand(2).getType().cast<TensorType>().getShape();

@@ -7,12 +7,12 @@ InputOpKernel::InputOpKernel(
     Operation &op, value_map_t &valueMapping,
     std::vector<std::pair<std::string, size_t>> &input_details) {
   auto inputOp = dyn_cast<tpu::InputOp>(op);
-  llvm::outs() << " Input op: [" << inputOp.name() << "]\n";
+  LLVM_DEBUG(llvm::outs() << " Input op: [" << inputOp.name() << "]\n";);
 
   auto result = inputOp.getResult();
   auto type = result.getType().cast<TensorType>();
   int64_t size = getTensorSize(result);
-  llvm::outs() << "    =>required memory size: [" << size << "]\n";
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto resultTensor = std::make_shared<std::vector<float>>(size);
   this->shape = type.getShape();
 
