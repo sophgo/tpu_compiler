@@ -41,10 +41,13 @@ void yuv420_csc(float *input, float *output, int n, int c, int h, int w,
         float v = input[v_idx];
         float r, g, b;
         if (quant_type == 0) {
+          y = 1.164 * (y - 16.0f);
+          u -= 128;
+          v -= 128;
           // float:
-          r = y + 1.402 * (v - 128);
-          g = y - 0.34414 * (u - 128) - 0.71414 * (v - 128);
-          b = y + 1.772 * (u - 128);
+          r = y + 1.596 * v;
+          g = y - 0.813 * v - 0.391 * u;
+          b = y + 2.018 * u;
         } else {
           // u8 or bf16
 
@@ -52,10 +55,12 @@ void yuv420_csc(float *input, float *output, int n, int c, int h, int w,
           u = (float)(uint8_t)u;
           v = (float)(uint8_t)v;
 
-          r = BF16(y + BF16(1.402f) * (v - 128.0f));
-          g = BF16(BF16(y + BF16(-0.34414f) * (u - 128.0f)) +
-                   BF16(-0.71414f) * (v - 128.0f));
-          b = BF16(y + BF16(1.772f) * (u - 128.0f));
+          y = BF16(BF16(1.164) * (y - 16.0f));
+          u -= 128.0f;
+          v -= 128.0f;
+          r = BF16(y + BF16(1.596f) * v);
+          g = BF16(BF16(y + BF16(-0.813f) * v) + BF16(-0.391f) * u);
+          b = BF16(y + BF16(2.018f) * u);
         }
         r = UINT8(r);
         g = UINT8(g);
