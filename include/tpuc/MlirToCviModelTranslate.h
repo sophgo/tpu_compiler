@@ -157,15 +157,6 @@ private:
   int64_t sharedGmemSize_ = 0;
   int batchNum_ = 0;
 
-  struct {
-    std::string color;
-    float raw_scale;
-    std::vector<float> mean;
-    std::vector<float> std;
-    float input_scale;
-    std::string data_format;
-  } preprocess_;
-
   void addRoutine(std::string funcName);
   void parseModule();
   FBModel build();
@@ -173,7 +164,6 @@ private:
   FBTensorVector buildNeuronMap();
   FBProgram buildProgram();
   FBSectionVector buildSections();
-  FBPreProcessHints buildPreProcessHints();
   FBSection buildSection(std::string name, cvi::model::SectionType type,
                          std::string fileName);
   FBSection buildSection(std::string name, cvi::model::SectionType type,

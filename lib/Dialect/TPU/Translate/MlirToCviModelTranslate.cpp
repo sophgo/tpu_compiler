@@ -369,7 +369,8 @@ void CviModelBuilder::addRoutine(std::string funcName) {
   routines_.push_back(rt);
 }
 
-static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap, std::map<std::string, int> &zpMap) {
+static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap,
+                            std::map<std::string, int> &zpMap) {
   auto tableName = fn.getAttr("qscale_table").cast<StringAttr>().getValue().str();
   std::ifstream infile(tableName);
 
@@ -609,34 +610,16 @@ FBModel CviModelBuilder::build() {
       Version(MajorVersion_value, MinorVersion_value, SubMinorVersion_value);
   auto fbModelName = fbb_.CreateString(modelName_);
   auto fbBuildTime = fbb_.CreateString(getStrOfCurrentTime());
+  auto fbTarget = fbb_.CreateString(clRunChipType);
   auto fbMlirVersion = fbb_.CreateString(MLIR_VERSION);
-  auto fbPreProcessHints = buildPreProcessHints();
   auto fbWeightMap = buildWeightMap();
   auto fbSections = buildSections();
   auto fbProgram = buildProgram();
   std::vector<FBProgram> programVec;
   programVec.push_back(fbProgram);
   auto fbProgramVec = fbb_.CreateVector(programVec);
-  return CreateModel(fbb_, &modelVersion, fbModelName, fbBuildTime,  fbPreProcessHints, 0,
-                     fbWeightMap, fbProgramVec, fbSections, 0, fbMlirVersion);
-}
-
-FBPreProcessHints CviModelBuilder::buildPreProcessHints() {
-  std::stringstream mean;
-  std::copy(preprocess_.mean.begin(), preprocess_.mean.end(), std::ostream_iterator<float>(mean, ","));
-  std::string mean_str = mean.str();
-  mean_str = mean_str.substr(0, mean_str.length()-1);
-  std::stringstream std;
-  std::copy(preprocess_.std.begin(), preprocess_.std.end(), std::ostream_iterator<float>(std, ","));
-  std::string std_str = std.str();
-  std_str = std_str.substr(0, std_str.length()-1);
-  return CreatePreProcessHintsDirect(fbb_,
-              preprocess_.color.c_str(),
-              preprocess_.raw_scale,
-              mean_str.c_str(),
-              std_str.c_str(),
-              preprocess_.input_scale,
-              preprocess_.data_format.c_str());
+  return CreateModel(fbb_, &modelVersion, fbModelName, fbBuildTime, 0, 0,
+                     fbWeightMap, fbProgramVec, fbSections, fbTarget, fbMlirVersion);
 }
 
 FBWeightVector CviModelBuilder::buildWeightMap() {
