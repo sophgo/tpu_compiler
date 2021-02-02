@@ -32,6 +32,8 @@ usage()
   echo -e "\t-g Do TPU Softmax inference                    [default: 0]"
   echo -e "\t-x Don't dequant results to fp32"
   echo -e "\t-n Quant full Op to BF16"
+  echo -e "\t-e set input pixel format                      [default: BGR_PACKED]"
+  echo -e "\t\t(GRAYSCALE|BGR_PLANAR|BGR_PACKED|YUV420_PLANAR)"
   echo -e "\t-h help"
   exit 1
 }
@@ -44,8 +46,9 @@ do_tpu_softmax="0"
 chip_ver="cv183x"
 dequant_results_to_fp32="true"
 do_quant_full_bf16="0"
+pixel_format="BGR_PACKED"
 
-while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:g:f:n:xu" opt
+while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:g:f:n:e:xu" opt
 do
   case "$opt" in
     i ) model_def="$OPTARG" ;;
@@ -67,6 +70,7 @@ do
     f ) crop_offset="$OPTARG" ;;
     g ) do_tpu_softmax="$OPTARG" ;;
     n ) do_quant_full_bf16="$OPTARG" ;;
+    e ) pixel_format="$OPTARG" ;;
     x ) dequant_results_to_fp32="false" ;;
     u ) usage ;;
   esac
@@ -157,7 +161,7 @@ tpuc-opt \
 if [ $do_fused_preprocess = "1" ]; then
   tpuc-opt \
     --add-tpu-preprocess \
-    --pixel_format BGR_PACKED \
+    --pixel_format $pixel_format \
     --input_aligned=false \
     $opt_mlir \
     -o "${name}_fused_preprocess.mlir"
