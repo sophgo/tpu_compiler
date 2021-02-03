@@ -37,7 +37,7 @@ tpuc-interpreter ${OP_NAME}_tmp.mlir \
     --tensor-out ${OP_NAME}_out_fp32.npz \
     --dump-all-tensor=${OP_NAME}_tensor_all_fp32.npz
 
-python simple_cali.py ${OP_NAME}_tensor_all_fp32.npz > ${OP_NAME}_calibration_table
+python3 simple_cali.py ${OP_NAME}_tensor_all_fp32.npz > ${OP_NAME}_calibration_table
 
 # quantization.
 tpuc-opt \
@@ -77,6 +77,7 @@ tpuc-interpreter ${OP_NAME}_int8.mlir \
 cvi_npz_tool.py compare \
     ${OP_NAME}_cmdbuf_out_int8.npz \
     ${OP_NAME}_tensor_all_int8.npz \
-    --op_info ${OP_NAME}_op_info_int8.csv
+    --op_info ${OP_NAME}_op_info_int8.csv \
+    --tolerance=0.99,0.99,0.97 -vv
 
 popd
