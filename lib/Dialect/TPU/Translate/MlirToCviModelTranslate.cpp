@@ -329,6 +329,7 @@ void CviTpuRoutine::codeGen() {
 
   cvi_backend_submit(backend_ctx);
   cvi_backend_get_cmdbuf(backend_ctx, cmdbuf);
+  cvi_backend_delete_context(backend_ctx);
 }
 
 flatbuffers::Offset<Routine> CviTpuRoutine::build() {

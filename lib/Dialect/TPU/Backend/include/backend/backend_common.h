@@ -44,6 +44,7 @@ static inline uint64_t align_up(uint64_t x, uint64_t n)
 class CviBackendContext;
 
 CviBackendContext *cvi_backend_create_context(const char *runchip);
+void cvi_backend_delete_context(CviBackendContext *ctx);
 
 void cvi_backend_submit(
     CviBackendContext *ctx);

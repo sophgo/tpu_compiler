@@ -465,6 +465,7 @@ private:
 
   std::vector<uint8_t> cmdbuf_;
 
+  std::vector<uint8_t> cvk_cmd_buf_;
   cvk_context_t *cvk_ctx_;
 };
 

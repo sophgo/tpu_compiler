@@ -810,7 +810,7 @@ void gen_bf16_slope_table(int start, int end, int table_hw,
   int half = table_hw / 2;
   for (int i = 0; i < table_hw; ++i) {
     double x0 = table[i];
-    double x1 = table[i + 1];
+    double x1 = (i < (table_hw - 1)) ? table[i + 1] : 0;
     double delta = 1.0;
 
     bool isSameBf16Value = false;

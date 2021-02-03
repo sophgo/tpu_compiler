@@ -473,6 +473,13 @@ public:
     if (neuronMapFile) {
       neuronMapFile->keep();
     }
+
+    for (auto &it : subFunctions) {
+      delete(it);
+    }
+    subFunctions.clear();
+    subFunctions.shrink_to_fit();
+
   }
 
 private:

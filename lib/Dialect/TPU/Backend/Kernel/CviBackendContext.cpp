@@ -21,11 +21,12 @@
 #define LOCAL_MEM_BANKS cvi_chip_info_context(CVI_CHIP_LMEM_BANK)
 
 CviBackendContext::CviBackendContext(const char *runchip) {
-  // New kernel API
+  cvk_cmd_buf_.reserve(0x20000000);
+
   cvk_reg_info_t req_info;
   strncpy(req_info.chip_ver_str, runchip, sizeof(req_info.chip_ver_str) - 1);
-  req_info.cmdbuf_size = 0x20000000;
-  req_info.cmdbuf = static_cast<uint8_t *>(malloc(req_info.cmdbuf_size));
+  req_info.cmdbuf_size = cvk_cmd_buf_.capacity();
+  req_info.cmdbuf = cvk_cmd_buf_.data();
   cvk_ctx_ = cvikernel_register(&req_info);
 
   // Default mapping between tdma base selection
@@ -42,7 +43,12 @@ CviBackendContext::CviBackendContext(const char *runchip) {
   LLVM_DEBUG(llvm::errs() << "register " << runchip << " done\n";);
 }
 
-CviBackendContext::~CviBackendContext() { cvk_ctx_->ops->cleanup(cvk_ctx_); }
+CviBackendContext::~CviBackendContext() {
+  cvk_ctx_->ops->cleanup(cvk_ctx_);
+  cvk_cmd_buf_.clear();
+  cvk_cmd_buf_.shrink_to_fit();
+  free(cvk_ctx_);
+}
 
 void CviBackendContext::write_cmdbuf(const void *cmdbuf, uint32_t size) {
   cmdbuf_.resize(size);
@@ -95,6 +101,10 @@ CviBackendContext::getTdmaBaseSelectIndexFromGaddr(gaddr_t gaddr) const {
 CviBackendContext *cvi_backend_create_context(const char *runchip) {
   CviBackendContext *ctx = new CviBackendContext(runchip);
   return ctx;
+}
+
+void cvi_backend_delete_context(CviBackendContext *ctx) {
+  delete ctx;
 }
 
 void cvi_backend_submit(CviBackendContext *ctx) { ctx->submit(); }

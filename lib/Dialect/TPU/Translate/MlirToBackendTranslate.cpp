@@ -104,8 +104,8 @@ static LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output)
   if (!module)
     return failure();
 
+  LogicalResult result = success();
   backend_ctx = cvi_backend_create_context(clRunChipType.c_str());
-
   for (FuncOp function : module.getOps<FuncOp>()) {
     LLVM_DEBUG(llvm::errs() << "run " << function.getName() << "\n";);
 
@@ -113,8 +113,13 @@ static LogicalResult translateModule(ModuleOp module, llvm::raw_ostream &output)
       //continue;
       assert(0);
     }
-    if (failed(runOneFunction(function)))
-      return failure();
+    if (failed(runOneFunction(function))) {
+      result = failure();
+      break;
+    }
+
+    cvi_backend_delete_context(backend_ctx);
+    return result;
   }
 
   cvi_backend_submit(backend_ctx);

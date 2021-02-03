@@ -74,6 +74,7 @@ void MInfo::getChipInfo(std::string chipName) {
   LLVM_DEBUG(llvm::errs() << " lane = " << lane_num << "\n";);
   LLVM_DEBUG(llvm::errs() << " lane size= " << lmem_per_lane << "\n";);
 
+  cvi_backend_delete_context(backend_ctx);
 }
 
 void MInfo::getChipInfo(FuncOp fn) {
