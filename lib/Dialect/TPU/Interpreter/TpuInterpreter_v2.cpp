@@ -23,7 +23,7 @@
 
 #include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
-#include "tpuc/Interpreter/cpu/broadcastMul.hpp"
+#include "tpuc/Interpreter/cpu/broadcast.hpp"
 #include "tpuc/Interpreter/cpu/clip.hpp"
 #include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
@@ -44,6 +44,7 @@
 #include "tpuc/Interpreter/cpu/preprocess.hpp"
 #include "tpuc/Interpreter/cpu/priorbox.hpp"
 #include "tpuc/Interpreter/cpu/proposal.hpp"
+#include "tpuc/Interpreter/cpu/quadraticSum.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
 #include "tpuc/Interpreter/cpu/reduce.hpp"
 #include "tpuc/Interpreter/cpu/reorg.hpp"
@@ -133,10 +134,22 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(bn_kernel_op));
     return;
   }
+  if (isa<tpu::BroadcastAddOp>(op)) {
+    auto broadcastadd_kernel_op =
+        std::make_unique<BroadcastAddOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(broadcastadd_kernel_op));
+    return;
+  }
   if (isa<tpu::BroadcastMulOp>(op)) {
     auto broadcastmul_kernel_op =
         std::make_unique<BroadcastMulOpKernel>(op, valueMapping);
     oplist.push_back(std::move(broadcastmul_kernel_op));
+    return;
+  }
+  if (isa<tpu::BroadcastSubOp>(op)) {
+    auto broadcastsub_kernel_op =
+        std::make_unique<BroadcastSubOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(broadcastsub_kernel_op));
     return;
   }
   if (isa<tpu::ClipOp>(op)) {
@@ -310,7 +323,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(p_kernel_op));
     return;
   }
-
+  if (isa<tpu::QuadraticSumOp>(op)) {
+    auto q_kernel_op = std::make_unique<QuadraticSumOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(q_kernel_op));
+    return;
+  }
   if (isa<tpu::QuantOp>(op)) {
     auto quant_kernel_op = std::make_unique<QuantOpKernel>(op, valueMapping);
     oplist.push_back(std::move(quant_kernel_op));
