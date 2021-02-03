@@ -919,7 +919,9 @@ void quantizeActivationFromFp32ToInt8(float *output, float *input,
       // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
       float f_tmp = input[i];
       // remove [17:31] mantissa part
-      bf_tmp = FloatToBFloat16(f_tmp);
+      // align \TgQuantKernel.cpp that we directly use high part
+      // rather than convert it
+      FloatToBFloat16(&f_tmp, &bf_tmp, /*size=*/1, /*rounding=*/0);
       f_tmp = BFloat16ToFloat(bf_tmp);
       f_tmp = f_tmp * scale;
       // align backend
