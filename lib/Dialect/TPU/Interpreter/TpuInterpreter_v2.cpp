@@ -372,6 +372,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(sqrt_kernel_op));
     return;
   }
+  if (isa<tpu::SquareOp>(op)) {
+    auto sq_kernel_op = std::make_unique<SquareOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(sq_kernel_op));
+    return;
+  }
   if (isa<tpu::ShuffleChannelOp>(op)) {
     auto sc_kernel_op =
         std::make_unique<ShuffleChannelOpKernel>(op, valueMapping);

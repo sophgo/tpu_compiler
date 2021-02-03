@@ -871,6 +871,60 @@ void SqrtOpKernel::dump() {
   }
 }
 
+SquareOpKernel::SquareOpKernel(Operation &op, value_map_t &valueMapping) {
+  auto squareOp = cast<tpu::SquareOp>(op);
+  assert(squareOp);
+  LLVM_DEBUG(llvm::outs() << " Square op: [" << squareOp.name() << "]\n";);
+
+  auto opTensors = getOperandTensors(&op, valueMapping);
+  auto result = squareOp.getResult();
+  auto size = getTensorSize(result);
+  auto resultTensor = std::make_shared<std::vector<float>>(size);
+  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
+  auto type = result.getType().cast<TensorType>();
+  this->shape = type.getShape();
+
+  this->name = squareOp.name().str();
+  this->op_type = op.getName().getStringRef().str();
+  set_datatype(getOpQuant(&op).str());
+
+  // get tensors
+  input_data = opTensors[0];
+  output_data = resultTensor;
+  // record mapping table for next op connecting
+  valueMapping[result] = std::move(resultTensor);
+}
+void SquareOpKernel::set_tensor(const std::vector<float> &data) {
+  if (data.size() != this->input_data->capacity()) {
+    llvm::errs() << " Square op: [" << this->name
+                 << "] required memsize :" << this->input_data->capacity()
+                 << "\n";
+    llvm::errs() << " input data size: " << data.size() << "\n";
+    llvm_unreachable(" size not same!");
+  }
+  this->input_data->assign(data.begin(), data.end());
+};
+
+std::vector<float> SquareOpKernel::get_tensor() {
+  // deep copy
+  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
+  return ret;
+}
+
+void SquareOpKernel::invoke() {
+  for (size_t i = 0; i < output_data->size(); ++i) {
+    output_data->at(i) = input_data->at(i) * input_data->at(i);
+  }
+  if (datatype == DataType::INT8) {
+    llvm_unreachable("No int8 sqaure");
+  } else if (datatype == DataType::BF16) {
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
+  }
+}
+
+void SquareOpKernel::dump() { OpKernel::dump(); }
+
 TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping) {
   auto tanhOp = cast<tpu::TanHOp>(op);
   assert(tanhOp);
