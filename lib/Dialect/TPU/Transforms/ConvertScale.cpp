@@ -413,9 +413,15 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
 
     // parse param
     std::vector<int64_t> shape;
-    int64_t input_size, n, c, h, w;
+    int64_t input_size, n, c, d, h, w;
+    bool convertToConv3d = false;
     getTensorShapeAndSize(scaleOp.input(), shape, input_size);
-    getNCHW(shape, n, c, h, w);
+    if (shape.size() == 5) {
+      getNCDHW(shape, n, c, d, h, w);
+      convertToConv3d = true;
+    } else {
+      getNCHW(shape, n, c, h, w);
+    }
 
     // get tensor
     auto scale = readAndDeleteWeightTensor<float>(scaleOp.scale(), wTF);
@@ -451,30 +457,60 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name",
                     rewriter.getStringAttr(op_name)));
-    attrs.push_back(rewriter.getNamedAttr("param",
-        tpu::ConvParam::get(
-            rewriter.getI32IntegerAttr(1),
-            rewriter.getI32IntegerAttr(1),
-            rewriter.getStringAttr("VALID"),
-            rewriter.getI32IntegerAttr(1),
-            rewriter.getI32IntegerAttr(1),
-            rewriter.getI32IntegerAttr(0), // pd_t
-            rewriter.getI32IntegerAttr(0), // pd_b
-            rewriter.getI32IntegerAttr(0), // pd_l
-            rewriter.getI32IntegerAttr(0), // pd_r
-            rewriter.getI32IntegerAttr(c),
-            rewriter.getBoolAttr(true),
-            rewriter.getBoolAttr(bias?true:false),
-            rewriter.getBoolAttr(scaleOp.do_relu()),
-            rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
-            rewriter.getI32IntegerAttr(0), // pad_value
-            rewriter.getContext())));
-    attrs.push_back(rewriter.getNamedAttr("quant",
-                                          getDefaultQuantParam(rewriter)));
+    if (!convertToConv3d) {
+      attrs.push_back(rewriter.getNamedAttr("param",
+          tpu::ConvParam::get(
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getStringAttr("VALID"),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(0), // pd_t
+              rewriter.getI32IntegerAttr(0), // pd_b
+              rewriter.getI32IntegerAttr(0), // pd_l
+              rewriter.getI32IntegerAttr(0), // pd_r
+              rewriter.getI32IntegerAttr(c),
+              rewriter.getBoolAttr(true),
+              rewriter.getBoolAttr(bias?true:false),
+              rewriter.getBoolAttr(scaleOp.do_relu()),
+              rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+              rewriter.getI32IntegerAttr(0), // pad_value
+              rewriter.getContext())));
+      attrs.push_back(rewriter.getNamedAttr("quant",
+                                            getDefaultQuantParam(rewriter)));
 
-    rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
-        scaleOp, scaleOp.getResult().getType(),
-        ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
+      rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
+          scaleOp, scaleOp.getResult().getType(),
+          ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
+    } else {
+      attrs.push_back(rewriter.getNamedAttr("param",
+          tpu::Conv3dParam::get(
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getStringAttr("SAME"),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(0), // pd_d0
+              rewriter.getI32IntegerAttr(0), // pd_d1
+              rewriter.getI32IntegerAttr(0), // pd_t
+              rewriter.getI32IntegerAttr(0), // pd_b
+              rewriter.getI32IntegerAttr(0), // pd_l
+              rewriter.getI32IntegerAttr(0), // pd_r
+              rewriter.getI32IntegerAttr(c),
+              rewriter.getBoolAttr(true),
+              rewriter.getBoolAttr(bias?true:false),
+              rewriter.getBoolAttr(scaleOp.do_relu()),
+              rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+              rewriter.getContext())));
+      attrs.push_back(rewriter.getNamedAttr("quant",
+                                            getDefaultQuantParam(rewriter)));
+
+      rewriter.replaceOpWithNewOp<tpu::Conv3DOp>(
+          scaleOp, scaleOp.getResult().getType(),
+          ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
+    }
 
     return success();
   }

@@ -27,6 +27,7 @@
 #include "tpuc/Interpreter/cpu/clip.hpp"
 #include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
+#include "tpuc/Interpreter/cpu/conv3d.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/csc.hpp"
 #include "tpuc/Interpreter/cpu/deconv.hpp"
@@ -180,6 +181,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   }
   if (isa<tpu::Conv2DOp>(op)) {
     auto conv_kernel_op = std::make_unique<Conv2DOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(conv_kernel_op));
+    return;
+  }
+  if (isa<tpu::Conv3DOp>(op)) {
+    auto conv_kernel_op = std::make_unique<Conv3DOpKernel>(op, valueMapping);
     oplist.push_back(std::move(conv_kernel_op));
     return;
   }

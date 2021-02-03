@@ -56,7 +56,7 @@ def add_preprocess_parser(parser):
     parser.add_argument("--keep_aspect_ratio", type=str2bool, default=False,
                         help="Resize image by keeping same ratio, any areas which" +
                              "are not taken are filled with 0")
-    parser.add_argument("--crop_method", choices=['center', 'centor'], default='center')
+    parser.add_argument("--crop_method", choices=['center', 'centor', 'right'], default='center')
     parser.add_argument("--raw_scale", type=float, default=255.0,
                         help="Multiply raw input image data by this scale.")
     parser.add_argument("--mean", default='0,0,0', help="Per Channel image mean values")
@@ -259,6 +259,12 @@ class preprocess(object):
         start_w = (w // 2) - (crop_w // 2)
         return [0, 0, start_h, start_w]
 
+    def __right_crop(self, img, crop_dim):
+        ih, iw = img.shape[1:]
+        oh, ow = crop_dim
+        img = img[:, ih-oh:, iw-ow:]
+        return img
+
     def __center_crop(self, img, crop_dim):
         # Take center crop.
         _, h, w = img.shape
@@ -361,7 +367,10 @@ class preprocess(object):
 
         # take center crop if needed
         if self.resize_dims != self.net_input_dims:
-            x = self.__center_crop(x, self.net_input_dims)
+            if self.crop_method == "right":
+                x = self.__right_crop(x, self.net_input_dims)
+            else:
+                x = self.__center_crop(x, self.net_input_dims)
 
         # if color order for preprocessing is not "bgr",
         # swap it to correct order

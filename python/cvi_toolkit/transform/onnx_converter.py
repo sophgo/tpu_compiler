@@ -993,23 +993,57 @@ class OnnxConverter(BaseConverter):
         group = onnx_node.attrs.get("group", 1)
         pads = onnx_node.attrs.get("pads",[0,0,0,0,0,0])
         strides = onnx_node.attrs.get("strides",[1,1,1])
-        raise RuntimeError("TODO: Conv3d IR")
-        conv_param = {
-            'stride_h':  1,
-            'stride_w':  strides[0],
+        conv3d_param = {
+            'stride_d': strides[0],
+            'stride_h':  strides[1],
+            'stride_w':  strides[2],
             'padding': "SAME" if pads[0] > 0 else "VALID",
-            'dilation_h': 1,
-            'dilation_w': dilations[0],
-            'padding_t': 0,
-            'padding_b': 0,
-            'padding_l': pads[0],
-            'padding_r': pads[1],
+            'dilation_d': dilations[0],
+            'dilation_h': dilations[1],
+            'dilation_w': dilations[2],
+            'padding_d0': pads[0],
+            'padding_d1': pads[1],
+            'padding_t': pads[2],
+            'padding_b': pads[3],
+            'padding_l': pads[4],
+            'padding_r': pads[5],
             'group': group,
             'is_dw': False,
             'with_bias': len(onnx_node.inputs) > 2,
             'do_relu': False,
             'ins': [],
         }
+        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        filter_name = onnx_node.inputs[1]
+        filter_tensor = self.getTensor(filter_name)
+        filter_shape = filter_tensor.shape
+
+        filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
+        operands.append(filter_op)
+
+        with_bias = False
+        if len(onnx_node.inputs) == 3:
+            #with bias
+            with_bias = True
+            bias_name = onnx_node.inputs[2]
+            bias_tensor = self.getTensor(bias_name)
+
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
+
+        on, ic, id, ih, iw = shape
+        oc, ic, kd, kh, kw = filter_tensor.shape
+        print("filter shape:", filter_tensor.shape)
+        od = floor((id + 2 * pads[0] - dilations[0] * (kd - 1) - 1) / strides[0] + 1)
+        oh = floor((ih + 2 * pads[1] - dilations[1] * (kh - 1) - 1) / strides[1] + 1)
+        ow = floor((iw + 2 * pads[2] - dilations[2] * (kw - 1) - 1) / strides[2] + 1)
+        output_shape = [on, oc, int(od), int(oh), int(ow)]
+        print(output_shape)
+
+        conv3d_op = self.CVI.add_conv3d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv3d_param)
+        self.addOperand(onnx_node.name, conv3d_op, output_shape, TensorType.ACTIVATION)
 
     def convert_clip_op(self, onnx_node):
         assert(onnx_node.op_type == "Clip")

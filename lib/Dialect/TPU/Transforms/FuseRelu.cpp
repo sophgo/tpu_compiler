@@ -39,6 +39,7 @@ namespace {
 
 static bool supportRelu(Operation *op) {
   if (matchPattern(op, m_Op<tpu::Conv2DOp>()) ||
+      matchPattern(op, m_Op<tpu::Conv3DOp>()) ||
       matchPattern(op, m_Op<tpu::DeConv2DOp>()) ||
       matchPattern(op, m_Op<tpu::EltwiseAddOp>()) ||
       matchPattern(op, m_Op<tpu::EltwiseMaxOp>()) ||
@@ -95,6 +96,37 @@ struct TpuFuseReluPattern : public RewritePattern {
               rewriter.getBoolAttr(true),
               convOp.param().ins(),
               convOp.param().pad_value(),
+              rewriter.getContext()));
+      convOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    } else if (matchPattern(formerOp, m_Op<tpu::Conv3DOp>())) {
+      auto convOp = cast<tpu::Conv3DOp>(formerOp);
+      if(convOp.param().do_relu().getValue() == true){
+        LLVM_DEBUG(llvm::errs() << convOp.getOperationName() << ":"
+                                << getOpName(convOp) << " is already fused relu"
+                                << "\n";);
+        return failure();
+      }
+      // set do_relu
+      convOp->setAttr("param",
+          tpu::Conv3dParam::get(
+              convOp.param().stride_d(),
+              convOp.param().stride_h(),
+              convOp.param().stride_w(),
+              convOp.param().padding(),
+              convOp.param().dilation_d(),
+              convOp.param().dilation_h(),
+              convOp.param().dilation_w(),
+              convOp.param().padding_d0(),
+              convOp.param().padding_d1(),
+              convOp.param().padding_t(),
+              convOp.param().padding_b(),
+              convOp.param().padding_l(),
+              convOp.param().padding_r(),
+              convOp.param().group(),
+              convOp.param().is_dw(),
+              convOp.param().with_bias(),
+              rewriter.getBoolAttr(true),
+              convOp.param().ins(),
               rewriter.getContext()));
       convOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::DeConv2DOp>())) {

@@ -283,6 +283,7 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
 }
+
 void Conv2DOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Conv op: [" << this->name

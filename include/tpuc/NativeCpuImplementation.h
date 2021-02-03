@@ -212,4 +212,9 @@ void pool3d_float_ref(float *input, float *output,
     int pad_top, int pad_bot, int pad_left, int pad_right);
 
 float softplus_activate (float x, float threshold = 20);
+
+void mkldnn_conv3d(float *input, float *weight, float *bias, float *output,
+  int batch, int ic, int id, int ih, int iw, int oc, int od, int oh, int ow,
+  int g, int kd, int kh, int kw, int sd, int sh, int sw, int dd, int dh, int dw,
+  int pd0, int pt, int pb, int pd1, int pl, int pr);
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

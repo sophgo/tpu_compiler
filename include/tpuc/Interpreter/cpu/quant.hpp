@@ -25,6 +25,7 @@ private:
   std::string to;
   float scale;
   int zero_point = 0;
+  Operation* prevOp;
 };
 
 class ReQuantOpKernel : public CPUOpKernel<ReQuantOpKernel> {

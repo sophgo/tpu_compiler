@@ -5,6 +5,7 @@
 
 #include <cmath>
 
+extern llvm::cl::opt<bool> clUseTPUQuantOp;
 static inline signed char tpu_float2int8(float v, int mode = 0) {
 
   int int32 = 0;
@@ -40,7 +41,10 @@ static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
     for (int64_t i = 0; i < size; ++i) {
       float f_tmp = src[i];
       // remove [17:31] mantissa part
-      bf_tmp = FloatToBFloat16(f_tmp);
+      // align \TgQuantKernel.cpp that we directly use high part
+      // rather than convert it
+      FloatToBFloat16(&f_tmp, &bf_tmp, /*size=*/1, /*rounding=*/0);
+
       f_tmp = BFloat16ToFloat(bf_tmp);
       f_tmp = f_tmp * scale;
       // align backend
@@ -128,6 +132,7 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping) {
   this->zero_point = quantOp.zero_point();
   this->from = quantOp.from().str();
   this->to = quantOp.to().str();
+  this->prevOp = quantOp.getOperand().getDefiningOp(); // input
 
   set_datatype(getOpQuant(&op).str());
   // get tensors
@@ -156,8 +161,9 @@ std::vector<float> QuantOpKernel::get_tensor() {
 
 void QuantOpKernel::invoke() {
   if (this->from == "NONE" && this->to == "INT8") {
+    bool useTpuQuantOp = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
     quantizeFromFp32ToInt8(input_data->data(), output_data->data(),
-                           input_data->size(), scale, zero_point, false);
+                           input_data->size(), scale, zero_point, useTpuQuantOp);
   } else if ((this->from == "INT8" || this->from == "UINT8") &&
              this->to == "NONE") {
     dequantizeFromInt8ToFp32(input_data->data(), output_data->data(),

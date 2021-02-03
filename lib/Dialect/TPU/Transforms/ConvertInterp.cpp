@@ -463,6 +463,28 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         rewriter.replaceOp(op, {upsample});
         return success();
       }
+
+      // check for hw spec, ins/stride range is 0-15 in 1835
+      for (auto h_ins_stride : maxInsertHAtOnce) {
+        int stride, ins;
+        std::tie(ins, stride) = h_ins_stride;
+        if (ins > 15 || stride > 15) {
+          LLVM_DEBUG(llvm::errs() << "h-params over hardware limitation, leverage cpu,"
+              << "ins/stride is:" << ins << "/" << stride << "\n";);
+          return failure();
+        }
+      }
+
+      for (auto w_ins_stride : maxInsertWAtOnce) {
+        int stride, ins;
+        std::tie(ins, stride) = w_ins_stride;
+        if (ins > 15 || stride > 15) {
+          LLVM_DEBUG(llvm::errs() << "w-params over hardware limitation, leverage cpu,"
+              << "ins/stride is:" << ins << "/" << stride << "\n";);
+          return failure();
+        }
+      }
+
       int loop = std::max(maxInsertHAtOnce.size(), maxInsertWAtOnce.size());
 
       auto calc_dilute_hw = [&](int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t) mutable -> int {

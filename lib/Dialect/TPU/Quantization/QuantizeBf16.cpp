@@ -1025,14 +1025,6 @@ LogicalResult tpu::InterpOp::quantizeBf16() {
   Operation *op = this->getOperation();
 
   auto interpOp = cast<tpu::InterpOp>(op);
-
-  std::string _coordinate_transformation_mode =
-      interpOp.coordinate_transformation_mode().str();
-  if (_coordinate_transformation_mode != "half_pixel") {
-    std::string err_msg =
-        "No support " + _coordinate_transformation_mode + " mode \n";
-    llvm_unreachable(err_msg.c_str());
-  }
   llvm::StringRef type = "NONE";
   interpOp.setOpQuantMode(type);
   return success();

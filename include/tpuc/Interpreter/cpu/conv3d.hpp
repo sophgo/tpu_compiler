@@ -1,19 +1,16 @@
-#ifndef INTERPRETER_CPU_CONV_H
-#define INTERPRETER_CPU_CONV_H
+#ifndef INTERPRETER_CPU_CONV3D_H
+#define INTERPRETER_CPU_CONV3D_H
 
 #include "mkldnn.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
 #include <memory>
 namespace mlir {
-void once_mkldnn_conv(float *input, float *weight, float *bias, float *output,
-                      int n, int ic, int ih, int iw, int oc, int oh, int ow,
-                      int kh, int kw, int sh, int sw, int dh, int dw, int pt,
-                      int pb, int pl, int pr, int g, int pad_value);
-class Conv2DOpKernel : public CPUOpKernel<Conv2DOpKernel> {
-public:
-  static constexpr const char *OpName = "CPUConv2DOp";
 
-  Conv2DOpKernel(Operation &op, value_map_t &valueMapping);
+class Conv3DOpKernel : public CPUOpKernel<Conv3DOpKernel> {
+public:
+  static constexpr const char *OpName = "CPUConv3DOp";
+
+  Conv3DOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
   void set_tensor(const std::vector<float> &data) override;
@@ -44,20 +41,27 @@ private:
   bool do_relu;
   int n;
   int ic;
+  int id;
   int ih;
   int iw;
   int oc;
+  int od;
   int oh;
   int ow;
   int g;
+  int kd;
   int kh;
   int kw;
+  int sd;
   int sh;
   int sw;
+  int pd0;
+  int pd1;
   int pt;
   int pb;
   int pl;
   int pr;
+  int dd;
   int dh;
   int dw;
   int pad_value;
@@ -78,6 +82,6 @@ private:
   bool is_perchannel = false;
   bool use_multiplier = false;
 };
-} // namespace mlir
 
+}
 #endif

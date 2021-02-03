@@ -539,9 +539,18 @@ LogicalResult doConv3DOpInterpret(Operation *op,
         }
       }
     }
+    /*
     conv3d_float_ref(input->data(), filter->data(), bias_data, resultT->data(),
                      n, ic, id, ih, iw,
                      oc, od, oh, ow,
+                     kd, kh, kw,
+                     sd, sh, sw,
+                     dd, dh, dw,
+                     pd0, pd1, pt, pb, pl, pr);
+    */
+    mkldnn_conv3d(input->data(), filter->data(), bias_data, resultT->data(),
+                     n, ic, id, ih, iw,
+                     oc, od, oh, ow, g,
                      kd, kh, kw,
                      sd, sh, sw,
                      dd, dh, dw,
@@ -551,8 +560,8 @@ LogicalResult doConv3DOpInterpret(Operation *op,
   }
 
   if (do_relu) {
-    assert(0 && "Not support 3d conv relu");
-    int ret = my_relu(resultT->data(), resultT->data(), n, oc, oh, ow, 0.0f);
+    //assert(0 && "Not support 3d conv relu");
+    int ret = my_relu(resultT->data(), resultT->data(), n, oc, od*oh, ow, 0.0f);
     assert(ret == 0);
   }
 
@@ -2956,10 +2965,16 @@ LogicalResult tpu::ReluOp::interpret(
 
   // parse param
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t input_size, n, c, d, h, w;
   getTensorShapeAndSize(this->input(), shape, input_size);
   assert(input_size == size);
-  getNCHW(shape, n, c, h, w);
+  if (shape.size() == 5) {
+    getNCDHW(shape, n, c, d, h, w);
+    w = h * w;
+    h  = d;
+  } else {
+    getNCHW(shape, n, c, h, w);
+  }
 
   // get tensors
   assert(opdT.size() == 1);
@@ -3223,10 +3238,17 @@ LogicalResult tpu::ScaleOp::interpret(
 
   // parse param
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t input_size, n, c, d, h, w;
   getTensorShapeAndSize(this->input(), shape, input_size);
   assert(input_size == size);
-  getNCHW(shape, n, c, h, w);
+  if (shape.size() == 5) {
+    getNCDHW(shape, n, c, d, h, w);
+    llvm::errs() << "n: " << n << ", c: " << c << ", d: " << d << ", h: " << h << ", w: " << w << "\n";
+    w = h * w;
+    h = d;
+  } else {
+    getNCHW(shape, n, c, h, w);
+  }
   bool do_relu = this->do_relu();
 
   std::shared_ptr<std::vector<float> > input = opdT[0];

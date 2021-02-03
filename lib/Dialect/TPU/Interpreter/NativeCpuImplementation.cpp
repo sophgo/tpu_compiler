@@ -2908,3 +2908,105 @@ void pool3d_float_ref(float *input, float *output,
     }
   }
 }
+
+void mkldnn_conv3d(float *input, float *weight, float *bias, float *output,
+  int n, int ic, int id, int ih, int iw, int oc, int od, int oh, int ow,
+  int g, int kd, int kh, int kw, int sd, int sh, int sw, int dd, int dh, int dw,
+  int pd0, int pt, int pb, int pd1, int pl, int pr) {
+  std::shared_ptr<std::vector<float>> zero_bias = NULL;
+  if (!bias) {
+    zero_bias = std::make_shared<std::vector<float>>(oc, 0.0f);
+    bias = zero_bias->data();
+  }
+
+  llvm::errs() << "  k: (" << kd << "*" << kh << "*" << kw << "), "
+                << "s: (" << sd << "*" << sh << "*" << sw << "), "
+                << "d: (" << dd << "*" << dh << "*" << dw << "),"
+                << "pt: " << pt << " pb: " << pb << " pl: " << pl << " pr: " << pr
+                << " g: " << g << "\n";
+  llvm::errs() << "n:" << n << " c: " << ic << " d: " << id << " h:" << ih << " w:" << iw << "\n"
+              << " oc: " << oc << " od: " << od << " oh:" << oh << " ow:" << ow << "\n";
+
+  using tag = memory::format_tag;
+  using dt = memory::data_type;
+
+  engine eng(engine::kind::cpu, 0);
+  stream s(eng);
+
+  std::vector<primitive> net;
+  std::vector<std::unordered_map<int, memory>> net_args;
+
+
+  const memory::dim batch = n;
+  memory::dims src_tz = { batch, ic, id, ih, iw };
+  memory::dims weights_tz = (g != 1) ? memory::dims{oc, ic/g, kd, kh, kw}
+                                    : memory::dims{oc, ic, kd, kh, kw};
+  memory::dims bias_tz = { oc };
+  memory::dims dst_tz = { batch, oc, od, oh, ow };
+  memory::dims strides = { sd, sh, sw };
+
+  memory::dims padding_l = { pd0, pt, pl };
+  memory::dims padding_r = { pd1, pb, pr };
+  memory::dims dilation = { dd-1, dh-1, dw-1 };
+
+  // memory
+  auto user_src_memory = memory(
+      { { src_tz }, dt::f32, tag::ncdhw }, eng, input);
+  auto user_weights_memory = (g != 1)
+      ? memory({ { weights_tz }, dt::f32, tag::goidhw }, eng, weight)
+      : memory({ { weights_tz }, dt::f32, tag::oidhw }, eng, weight);
+  auto user_bias_memory = memory(
+      { { bias_tz }, dt::f32, tag::x }, eng, bias);
+  auto user_dst_memory = memory(
+      { { dst_tz }, dt::f32, tag::ncdhw }, eng, output);
+
+  // md
+  auto src_md     = memory::desc({ src_tz }, dt::f32, tag::any);
+  auto weights_md = memory::desc({ weights_tz }, dt::f32, tag::any);
+  auto bias_md    = memory::desc({ bias_tz }, dt::f32, tag::any);
+  auto dst_md     = memory::desc({ dst_tz }, dt::f32, tag::any);
+
+  // conv desc
+  auto conv_desc = convolution_forward::desc(prop_kind::forward_inference,
+      algorithm::convolution_direct, src_md, weights_md, bias_md, dst_md,
+      strides, dilation, padding_l, padding_r);
+  auto conv_prim_desc = convolution_forward::primitive_desc(conv_desc, eng);
+
+  // do reorder if needed
+  auto src_memory = user_src_memory;
+  if (conv_prim_desc.src_desc() != user_src_memory.get_desc()) {
+    src_memory = memory(conv_prim_desc.src_desc(), eng);
+    net.push_back(reorder(user_src_memory, src_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, user_src_memory },
+        { MKLDNN_ARG_TO, src_memory } });
+  }
+  auto weights_memory = user_weights_memory;
+  if (conv_prim_desc.weights_desc() != user_weights_memory.get_desc()) {
+    weights_memory = memory(conv_prim_desc.weights_desc(), eng);
+    reorder(user_weights_memory, weights_memory)
+        .execute(s, user_weights_memory, weights_memory);
+  }
+  auto bias_memory = user_bias_memory;
+
+  auto dst_memory = memory(conv_prim_desc.dst_desc(), eng);
+
+  net.push_back(convolution_forward(conv_prim_desc));
+  net_args.push_back({ { MKLDNN_ARG_SRC, src_memory },
+      { MKLDNN_ARG_WEIGHTS, weights_memory },
+      { MKLDNN_ARG_BIAS, bias_memory },
+      { MKLDNN_ARG_DST, dst_memory } });
+
+  // reorder or copy the output
+  if (dst_memory != user_dst_memory) {
+    net.push_back(reorder(dst_memory, user_dst_memory));
+    net_args.push_back({ { MKLDNN_ARG_FROM, dst_memory },
+        { MKLDNN_ARG_TO, user_dst_memory } });
+  }
+
+  // run
+  assert(net.size() == net_args.size() && "something is missing");
+  for (size_t i = 0; i < net.size(); ++i)
+      net.at(i).execute(s, net_args.at(i));
+
+  s.wait();
+}

@@ -1007,6 +1007,10 @@ public:
           if (isa<tpu::QuadraticSumOp>(op)) {
             setOpQuant(op, "BF16");
           }
+          if (isa<tpu::Conv3DOp>(op)) {
+            // TODO: support int8
+            setOpQuant(op, "BF16");
+          }
 
           if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
             std::string layer_name = mlir::getOpName(op).str();

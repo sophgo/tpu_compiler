@@ -997,13 +997,7 @@ Value tpu::InterpOp::convertToTG() {
   auto castOp = cast<InterpOp>(op);
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
-  std::string coordinate_transformation_mode =
-      castOp.coordinate_transformation_mode().str();
-  if (coordinate_transformation_mode != "half_pixel") {
-    std::string err_msg =
-        "No support " + coordinate_transformation_mode + "mode";
-    llvm_unreachable(err_msg.c_str());
-  }
+
   auto builder =
           Builder(op->getContext());
   std::vector<NamedAttribute> param;

@@ -1149,10 +1149,52 @@ LogicalResult tpu::TG_INT8_DilateOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_DilateOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
-  std::string errorMsg = "unsupported tg op " + getOpName().str();
-  llvm_unreachable(errorMsg.c_str());
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = getOpLayerId(op);
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+
+  auto fill_constant = this->fill_constant();
+  gaddr_t output_gaddr = getOpAddress(op);
+
+  std::vector<int64_t> input_shape;
+  int64_t input_size, in, ic, ih, iw;
+  getTensorShapeAndSize(op->getOperand(0), input_shape, input_size);
+  getNCHW(input_shape, in, ic, ih, iw);
+
+  std::vector<int64_t> output_shape;
+  int64_t output_size, on, oc, oh, ow;
+  getTensorShapeAndSize(this->getResult(), output_shape, output_size);
+  getNCHW(output_shape, on, oc, oh, ow);
+
+  assert(in == on && "only support dilate h/w");
+  assert(ic == oc && "only support dilate h/w");
+
+  // get is dilate activation
+  std::vector<int32_t> ins;
+  arrayAttrToVector(this->ins().getValue(), ins);
+
+  int ins_w = 0;
+  int ins_h = 0;
+  if (ins.size()) {
+    ins_w = ins[0];
+    ins_h = 0;
+    if (ins.size() > 1) {
+      ins_h = ins[1];
+    }
+
+    cvi_backend_tg_fixed_dilate_kernel(*backend_ctx, // ctx,
+        layer_id,
+        input_gaddr,  // bottom_gaddr,
+        output_gaddr, // top_gaddr
+        in, ic, ih, iw,
+        oh, ow,
+        fill_constant,
+        ins_h, ins_w,
+        CVK_FMT_BF16);
+  }
+
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
@@ -2630,10 +2672,15 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
 
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t input_size, n, c, d, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-
+  if (shape.size() == 5) {
+    getNCDHW(shape, n, c, d, h, w);
+    w = h * w;
+    h = d;
+  } else {
+    getNCHW(shape, n, c, h, w);
+  }
   cvk_fmt_t from = get_fmt(this->from().str());
   cvk_fmt_t to = get_fmt(this->to().str());
   float scale = this->scale().convertToFloat();

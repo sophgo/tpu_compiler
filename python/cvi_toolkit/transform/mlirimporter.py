@@ -36,6 +36,7 @@ class TPU_OpType(Enum):
     BroadcastAdd = 'tpu.broadcast_add'
     Concat = 'tpu.concat'
     Conv2d = 'tpu.conv_2d'
+    Conv3d = 'tpu.conv_3d'
     Crop = 'tpu.crop'
     Csc = 'tpu.csc'
     Clip = 'tpu.clip'
@@ -532,6 +533,40 @@ class MLIRImporter(object):
 
         # quant param
         return self.buildOp(TPU_OpType.Conv2d.value, inputOperands, [
+            tensor_output_type], name=conv_name, param=dict_attr, quant=quant_param)
+
+    def add_conv3d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        conv_name = StringAttr.get(op_name)
+        conv3d_param = {
+            'stride_d':  IntegerAttr.get(self.i32Type, kargs['stride_d']),
+            'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
+            'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
+            'padding': StringAttr.get(kargs['padding']),
+            'dilation_d':  IntegerAttr.get(self.i32Type,  kargs['dilation_d']),
+            'dilation_h':  IntegerAttr.get(self.i32Type,  kargs['dilation_h']),
+            'dilation_w':  IntegerAttr.get(self.i32Type, kargs['dilation_w']),
+            'padding_d0':  IntegerAttr.get(self.i32Type, kargs['padding_d0']),
+            'padding_d1':  IntegerAttr.get(self.i32Type, kargs['padding_d1']),
+            'padding_t':  IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'padding_b':  IntegerAttr.get(self.i32Type, kargs['padding_b']),
+            'padding_l':  IntegerAttr.get(self.i32Type, kargs['padding_l']),
+            'padding_r':  IntegerAttr.get(self.i32Type, kargs['padding_r']),
+            'group':  IntegerAttr.get(self.i32Type, kargs['group']),
+            'is_dw': BoolAttr.get(kargs['is_dw']),
+            'with_bias': BoolAttr.get(kargs['with_bias']),
+            'do_relu': BoolAttr.get(kargs['do_relu']),
+            'ins': ArrayAttr.get(
+                [IntegerAttr.get(self.i32Type, x) for x in kargs['ins']])
+        }
+
+        dict_attr = DictAttr.get(conv3d_param)
+        none = self.add_none_op()
+        for _ in range(7 - len(inputOperands)):
+            inputOperands.append(none)
+        quant_param = self.quant_param
+        return self.buildOp(TPU_OpType.Conv3d.value, inputOperands, [
             tensor_output_type], name=conv_name, param=dict_attr, quant=quant_param)
 
     def add_csc_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
