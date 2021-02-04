@@ -69,7 +69,8 @@ is_valid_cached_llvm()
 
 build_llvm_fn()
 {
-  local build_path=$1
+  local src_dir=$1
+  local build_path=$2
 
   if [ ! -d $build_path ]; then
     mkdir $build_path
@@ -78,7 +79,7 @@ build_llvm_fn()
   pushd $build_path
   cmake -G Ninja \
     $BUILD_FLAG \
-    $PROJECT_ROOT/third_party/llvm-project/llvm \
+    $src_dir/llvm \
     -DLLVM_ENABLE_PROJECTS="mlir" \
     -DLLVM_TARGETS_TO_BUILD="host" \
     -DLLVM_ENABLE_RTTI=ON \
@@ -115,6 +116,7 @@ build_install_llvm()
   valid_cached_llvm_exec=0
   cleaned_llvm_source=0
 
+  LLVM_SRC_DIR=$PROJECT_ROOT/third_party/llvm-project
   BUILD_MLIR_DIR=$BUILD_PATH/llvm/lib/cmake/mlir
   BUILD_LLVM_DIR=$BUILD_PATH/llvm/lib/cmake/llvm
 
@@ -134,8 +136,12 @@ build_install_llvm()
     if [ $cleaned_llvm_source = "1" ]; then
       is_valid_cached_llvm $CACHED_LLVM_BUILD_PATH
       if [ $valid_cached_llvm_exec = "0" ]; then
-        echo "  start cached build from source"
-        build_llvm_fn $CACHED_LLVM_BUILD_PATH
+        CACHED_LLVM_SRC_DIR=$BUILD_CACHED_PATH/"llvm_"$LLVM_VER"_"$OS_VER_ID
+        if [ ! -d $CACHED_LLVM_SRC_DIR ]; then
+          echo "  start cached build from source"
+          cp -a $LLVM_SRC_DIR $CACHED_LLVM_SRC_DIR
+          build_llvm_fn $CACHED_LLVM_SRC_DIR $CACHED_LLVM_BUILD_PATH
+        fi
       fi
     fi
 
@@ -154,7 +160,7 @@ build_install_llvm()
     BUILD_LLVM_DIR=$CACHED_LLVM_BUILD_PATH/lib/cmake/llvm
   else
     echo "  start local build from source"
-    build_llvm_fn $BUILD_PATH/llvm
+    build_llvm_fn $LLVM_SRC_DIR $BUILD_PATH/llvm
     install_llvm_fun $BUILD_PATH/llvm
   fi
 
