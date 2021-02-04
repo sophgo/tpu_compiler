@@ -1846,65 +1846,6 @@ def TPU_PReluOp : TPU_Op<"prelu",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_PreprocessOp : TPU_Op<"preprocess",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
-  let summary = "Preprocess operator";
-
-  let description = [{
-    Perform preprocessing to input feature maps
-
-    Inputs:
-      `input`           : required, input tensors
-
-    Attributes:
-      `mean`            : required, mean value of each channel
-      `std`             : required, standard value of each channel
-      `scale`           : required, scale value multipled to input feature maps
-      `raw_scale`       : required, Multiply raw input by this scale before preprocessing.
-      `pixel_format`    : required, default is RGB, can be set to YUV420
-      `color_order`     : required, color swap order
-      `crop_offset`     : required, crop offset.
-      `pads`            : tensor containing the number of start and end
-                          pad values for axis
-      `const_val`       : A scalar value to be used if the mode
-                          chosen is `constant` (by default it is 0).
-      `transpose_order` : required, the data is stored in the order of
-      `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<F32ArrayAttr>:$mean,
-    OptionalAttr<F32ArrayAttr>:$std,
-    F32Attr:$raw_scale,
-    F32Attr:$scale,
-    OptionalAttr<I32ArrayAttr>:$transpose_order,
-    StrAttr:$name,
-    DefaultValuedAttr<StrAttr, "RGB">:$pixel_format,
-    OptionalAttr<I32ArrayAttr>:$color_order,
-    OptionalAttr<I32ArrayAttr>:$crop_offset,
-    OptionalAttr<I32ArrayAttr>:$pads,
-    DefaultValuedAttr<F32Attr, "0">:$const_val,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_PriorBoxOp: TPU_Op<"priorbox",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

@@ -2321,49 +2321,6 @@ int my_power(float *input, float *output,
   return 0;
 }
 
-int my_preprocess(float *input, float *output,
-                  int n, int c, int h, int w,
-                  const std::vector<int>& channel_order,
-                  const std::vector<float>&mean,
-                  const std::vector<float>&std,
-                  float raw_scale, float input_scale) {
-  int csz = h * w;
-  int isz = c * h * w;
-  int count = n * c * h * w;
-  float *p = input;
-  float *q = output;
-
-  if (channel_order.size()) {
-    for (int i = 0; i < n; i++) {
-      for (int j = 0; j < c; j++) {
-        memcpy(q + channel_order[j] * csz,
-               p + j * csz, csz * sizeof(float));
-      }
-      p += isz;
-      q += isz;
-    }
-    p = q = output;
-  }
-
-  for (int i = 0; i < count; i++) {
-    float val = *p++;
-    if (raw_scale != 0) {
-      val *= (raw_scale / 255);
-    }
-    if (mean.size()) {
-      val -= mean[(i / csz) % c];
-    }
-    if (std.size()) {
-      val /= std[(i / csz) % c];
-    }
-    if (input_scale != 0) {
-      val *= input_scale;
-    }
-    *q++ = val;
-  }
-  return 0;
-}
-
 int my_transpose(float *input, float *output, int n, int c, int h, int w) {
   int csz = h * w;
   int isz = c * csz;

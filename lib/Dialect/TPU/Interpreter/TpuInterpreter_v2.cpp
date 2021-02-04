@@ -41,7 +41,6 @@
 #include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/Interpreter/cpu/permute.hpp"
 #include "tpuc/Interpreter/cpu/pooling.hpp"
-#include "tpuc/Interpreter/cpu/preprocess.hpp"
 #include "tpuc/Interpreter/cpu/priorbox.hpp"
 #include "tpuc/Interpreter/cpu/proposal.hpp"
 #include "tpuc/Interpreter/cpu/quadraticSum.hpp"
@@ -304,12 +303,6 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::PReluOp>(op)) {
     auto prelu_kernel_op = std::make_unique<PReluOpKernel>(op, valueMapping);
     oplist.push_back(std::move(prelu_kernel_op));
-    return;
-  }
-  if (isa<tpu::PreprocessOp>(op)) {
-    auto preprocess_kernel_op =
-        std::make_unique<PreprocessOpKernel>(op, valueMapping);
-    oplist.push_back(std::move(preprocess_kernel_op));
     return;
   }
   if (isa<tpu::PriorBoxOp>(op)) {

@@ -821,7 +821,7 @@ torch.onnx.export(model,
 
 
 
-#### 步骤2：执行onnx推理（Optional）
+#### 步骤 2：执行onnx推理（Optional）
 
 创建工作目录，取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg
 
@@ -1268,7 +1268,7 @@ onnx.save(model, 'mnet_25_new.onnx')
 
 
 
-#### 步骤2：执行onnx推理（Optional）
+#### 步骤 2：执行onnx推理（Optional）
 
 创建workspace，取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg
 
@@ -1681,9 +1681,9 @@ CV183X TPU支持INT8和BF16两种量化方法。在模型编译阶段，工具�
 
 #### 步骤 0：获取tensorflow模型，并转换为onnx模型
 
- 此处与第9章相同。
+此处与第9章相同。
 
- 使用tensorflow提供的`mobilenet_v1_0.25_224`模型，参见：<https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>
+使用tensorflow提供的`mobilenet_v1_0.25_224`模型，参见：<https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>
 
 下载链接：<http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_0.25_224.tgz>
 
@@ -1731,7 +1731,7 @@ onnx.save(model, 'mnet_25_new.onnx')
 
 
 
-#### 步骤1：执行onnx推理（Optional）
+#### 步骤1：执行onnx推理（Optional）
 
 取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg：
 

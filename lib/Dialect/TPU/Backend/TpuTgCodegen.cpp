@@ -2753,51 +2753,6 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_INT8_TensorCopyOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  std::vector<int64_t> input_shape = getTensorShape(input());
-  int64_t n,c,h,w;
-  getNCHW(input_shape, n, c, h, w);
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-  uint32_t align_bytes = this->align_bytes();
-
-  cvi_backend_tg_tensor_copy_kernel(*backend_ctx, layer_id,
-                      input_gaddr, output_gaddr,
-                      (uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t)w,
-                      align_bytes, CVK_FMT_I8);
-
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_TensorCopyOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  std::vector<int64_t> input_shape = getTensorShape(input());
-  int64_t n,c,h,w;
-  getNCHW(input_shape, n, c, h, w);
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-  uint32_t align_bytes = this->align_bytes();
-
-  cvi_backend_tg_tensor_copy_kernel(*backend_ctx, layer_id,
-                      input_gaddr, output_gaddr,
-                      (uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t)w,
-                      align_bytes, CVK_FMT_BF16);
-  return success();
-}
-
 LogicalResult tpu::TG_INT8_TileOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
