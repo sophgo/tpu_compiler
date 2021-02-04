@@ -135,7 +135,7 @@
 #### 2.1.1.1 概述
 
 > IR（Intermediate Representation）即中间表示语言，其作用是将基于各类框架的神经网络图转换为统一的中间表示形式。Cvitek编译器借助了MLIR的IR框架，定义了面向TPU开发和优化的TPU Dialect。
-> 
+>
 > 每一个操作被定义一个Op，按照SSA规则定义，遵循如下原则：
 
 -   每个Op有一个或者多个输入Tensor；
@@ -1062,7 +1062,7 @@ input_type="FP32"):
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
- 	
+
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -2505,7 +2505,7 @@ d. program信息
 ### 获取输入输出Tensor
 
 > 接下来，程序通过API分别获取Input Tensor和Output Tensor信息。对于支持多种batch_size的cvimodel，需要则会获取Tensor时指定batch_size。每个Tensor有自身的名称，类型，维度信息，以及存储空间。
-> 
+>
 
 ### 执行推理
 
@@ -2518,7 +2518,7 @@ d. program信息
 -   应用程序自理：用户根据模型对前处理的需要，自行添加代码实现。
 
 -   优化为预处理TPU段：在模型导入阶段，通过命令控制增加相应预处理或后处理操作。编译时，通过优化命令，对符合条件的预处理或后处理操作转换为TPU操作并编译进TPU Section中。运行时，随模型执行过程由TPU进行处理。
-    
+
 <br>
 
 ## 3.3 Runtime API参考
@@ -2699,7 +2699,7 @@ typedef struct {
 |  shape    |数据帧的维度数据|
 |  fmt      |基本数据类型|
 |  stride   |frame w维度的间隔，对齐到字节|
-|  pyaddr   |数据物理地址，当type为PLANAR时需要填入每个通道的地址；当type为PACKED时，只用填数据首地址|
+|  pyaddr   |通道的物理地址，当type为PLANAR时需要填入每个通道的地址；当type为PACKED时，只用填数据首地址|
 
 ##### CVI_MODEL_HANDLE
 ```c++
@@ -2791,7 +2791,7 @@ typedef enum {
 
 -   CVI_NN_SetTensorDeviceMem：设置张量的设备内存
 
--   CVI_NN_SetTensorWithVpssFrame：将视频帧数据拷贝到张量
+-   CVI_NN_SetTensorWithAlignedFrames：将视频帧数据拷贝到张量
 
 -   CVI_NN_SetTensorWithVideoFrames: 将视频帧数据拷贝到张量
 
@@ -3125,22 +3125,25 @@ CVI_RC CVI_NN_SetTensorPtr(
 
 <br>
 
-##### CVI_NN_SetTensorWithVpssFrame
+##### CVI_NN_SetTensorWithAlignedFrames
 
 【原型】
 ```c++
-CVI_RC CVI_NN_SetTensorWithVpssFrame(
-    CVI_TENSOR *tensor, uint64_t paddr,
+CVI_RC CVI_NN_SetTensorWithAlignedFrames(
+    CVI_TENSOR *tensor,
+    uint64_t frame_paddrs[],
+    int32_t frame_num,
     CVI_NN_PIXEL_FORMAT_E pixel_format);
 ```
 【描述】
 
-> 将视频帧数据拷贝到张量。
+> 将一帧或者多帧数据拷贝到张量。
 
 |参数名称|描述|输入/输出|
 |---|---|---|
 |  tensor         | tensor指针    |  输入|
-|  paddr          | 视频帧物理地址  |  输入|
+|  frame_paddrs   | 视频帧的物理地址数组  |  输入|
+|  frame_num      | 视频帧的个数    | 输入|
 |  pixel_format   | 视频帧格式类型  |  输入|
 <br>
 
