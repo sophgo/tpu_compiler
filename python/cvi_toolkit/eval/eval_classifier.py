@@ -173,8 +173,11 @@ if __name__ == '__main__':
     # Pytorch ToTensor will make tesnor range to [0, 1]
     # recover to [0, 255]
     x = images[0].numpy() * 255
-    x -= preprocessor.perchannel_mean
     x *= preprocessor.perchannel_scale
+    x -= preprocessor.perchannel_mean
+    if preprocessor.channel_order == 'bgr':
+      x = x[[2, 1, 0], :, :]
+
     x = np.expand_dims(x, axis=0)
     # run inference
 
