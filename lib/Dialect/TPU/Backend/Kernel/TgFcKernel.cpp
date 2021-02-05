@@ -12,7 +12,8 @@
 void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
                       gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
                       bool do_bias, bool do_relu, int rshift_width,
-                      int multiplier, bool do_cmpr_wgt, cvk_fmt_t fmt) {
+                      int multiplier, std::vector<int> compressed_pos,
+                      cvk_fmt_t fmt) {
 
   this->layer_id = layer_id;
   this->M = static_cast<uint32_t>(M);
@@ -26,7 +27,7 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
   this->do_relu = do_relu;
   this->rshift_width = rshift_width;
   this->multiplier = multiplier;
-  this->do_cmpr_wgt = do_cmpr_wgt;
+  this->compressed_pos = compressed_pos;
   this->fmt = fmt;
   this->total_steps = 1;
   this->fmt_size = ctx.bytesize_of_fmt(fmt);
@@ -134,22 +135,25 @@ tiling_exit:
     assert(0);
   }
 
+  if (compressed_pos.empty() == false) {
+    assert(slice_n() * slice_k() == compressed_pos.size());
+  }
+
   if (tile_M == M && tile_N == N && tile_K == K) {
     do_parallel = false;
   }
 
   if (do_parallel) {
-    info.m = M;
-    info.pos_m = 0;
     for (uint32_t k_idx = 0, pos_k = 0; pos_k < K; k_idx++, pos_k += tile_K) {
-      info.k = std::min(K - pos_k, tile_K);
-      info.pos_k = pos_k;
       for (uint32_t n_idx = 0, pos_n = 0; pos_n < N; n_idx++, pos_n += tile_N) {
         info.n = std::min(N - pos_n, tile_N);
+        info.k = std::min(K - pos_k, tile_K);
+        info.m = M;
         info.pos_n = pos_n;
+        info.pos_k = pos_k;
+        info.pos_m = 0;
         info.Y_idx = n_idx;
-        info.compress_pos = (n_idx * K * tile_N + k_idx * tile_K * info.n) *
-                            fmt_size;
+        info.compress_idx = n_idx * slice_k() + k_idx;
         tiles.emplace_back(info);
         info.RB_idx = 1 - info.RB_idx;
       }
@@ -157,16 +161,16 @@ tiling_exit:
     }
   } else {
     for (uint32_t n_idx = 0, pos_n = 0; pos_n < N; n_idx++, pos_n += tile_N) {
-      info.n = std::min(N - pos_n, tile_N);
-      info.pos_n = pos_n;
       for (uint32_t k_idx = 0, pos_k = 0; pos_k < K; k_idx++, pos_k += tile_K) {
-        info.k = std::min(K - pos_k, tile_K);
-        info.pos_k = pos_k;
-        info.compress_pos = (n_idx * K * tile_N + k_idx * tile_K * info.n) *
-                            fmt_size;
-        for (uint32_t pos_m = 0; pos_m < M; pos_m += tile_M) {
+        for (uint32_t m_idx = 0, pos_m = 0; pos_m < M;
+             m_idx++, pos_m += tile_M) {
+          info.n = std::min(N - pos_n, tile_N);
+          info.k = std::min(K - pos_k, tile_K);
           info.m = std::min(M - pos_m, tile_M);
+          info.pos_n = pos_n;
+          info.pos_k = pos_k;
           info.pos_m = pos_m;
+          info.compress_idx = n_idx * slice_k() + k_idx;
           tiles.emplace_back(info);
         }
       }
@@ -286,13 +290,13 @@ void TgFcKernel::load(int32_t step_idx) {
                          {K * fmt_size});
   }
   // load R
-  if (!do_cmpr_wgt) {
+  if (compressed_pos.empty()) {
     ctx.tdma_load_stride(&tl_R,
                          ga_weight + (tile.pos_k * N + tile.pos_n) * fmt_size,
                          {N * fmt_size});
   } else {
     cvi_backend_ml_load_stride(ctx, layer_id,
-                               ga_weight + tile.compress_pos,
+                               ga_weight + compressed_pos[tile.compress_idx],
                                tl_R.start_address, tile.k, tile.n, tile.n,
                                false, true, fmt, fmt, true);
   }
@@ -347,7 +351,7 @@ void cvi_backend_tg_fixed_fc_kernel(const CviBackendContext &ctx,
                                     gaddr_t ga_output, int M, int K, int N,
                                     bool do_bias, bool do_relu,
                                     int rshift_width, int multiplier,
-                                    bool do_cmpr_wgt) {
+                                    std::vector<int> compressed_pos) {
   LLVM_DEBUG(
       llvm::errs() << llvm::format("cvi_backend_tg_fixed_fc_kernel\n"
                                    "M:%d,K:%d,N:%d, do_bias %d, do_relu %d\n",
@@ -355,7 +359,7 @@ void cvi_backend_tg_fixed_fc_kernel(const CviBackendContext &ctx,
 
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
-              do_bias, do_relu, rshift_width, multiplier, do_cmpr_wgt,
+              do_bias, do_relu, rshift_width, multiplier, compressed_pos,
               CVK_FMT_I8);
 
   kernel.selectTilePolicy();
@@ -367,14 +371,14 @@ void cvi_backend_tg_bf16_fc_kernel(const CviBackendContext &ctx,
                                    gaddr_t ga_weight, gaddr_t ga_bias,
                                    gaddr_t ga_output, int M, int K, int N,
                                    bool do_bias, bool do_relu,
-                                   bool do_cmpr_wgt) {
+                                   std::vector<int> compressed_pos) {
   LLVM_DEBUG(
       llvm::errs() << llvm::format("cvi_backend_tg_bf16_fc_kernel\n"
                                    "M:%d,K:%d,N:%d, do_bias %d, do_relu %d\n",
                                    M, K, N, do_bias, do_relu));
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
-              do_bias, do_relu, 0, 0, do_cmpr_wgt, CVK_FMT_BF16);
+              do_bias, do_relu, 0, 0, compressed_pos, CVK_FMT_BF16);
 
   kernel.selectTilePolicy();
   kernel.schedule();

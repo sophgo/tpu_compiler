@@ -19,21 +19,21 @@
 //
 //===----------------------------------------------------------------------===//
 
+#include "mlir/IR/BlockAndValueMapping.h"
+#include "mlir/IR/Builders.h"
+#include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
+#include "mlir/IR/StandardTypes.h"
+#include "mlir/Pass/Pass.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/MachineInfo.h"
 #include "tpuc/Passes.h"
+#include "tpuc/Support/TensorFile.h"
 #include "tpuc/TPUCompressUtil.h"
 #include "tpuc/TPUOperationSupport.h"
 #include "tpuc/TPUTensorSupport.h"
-#include "tpuc/MachineInfo.h"
-#include "mlir/IR/BlockAndValueMapping.h"
-#include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
-#include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/Matchers.h"
-#include "mlir/Pass/Pass.h"
-#include "tpuc/Support/TensorFile.h"
-#include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/ToolOutputFile.h"
+#include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "compress-weight"
 
@@ -69,17 +69,14 @@ bool tryCompressConvWeight(TensorTyOp convOp, PatternRewriter &rewriter,
   assert(filterSize == (int64_t)filter->size() &&
          "filter size should be equal");
 
-  LLVM_DEBUG(llvm::dbgs()
-      << "CompressWeight: layer ID " << getOpLayerId(convOp)
-      << ", " << convOp.name() << "\n"
-      << "  filter(" << filterShape[0]
-      << ", " << filterShape[1]
-      << ", " << filterShape[2]
-      << ", " << filterShape[3]
-      << "), fltEltSize " << fltEltSize
-      << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "CompressWeight: layer ID " << getOpLayerId(convOp)
+                          << ", " << convOp.name() << "\n"
+                          << "  filter(" << filterShape[0] << ", "
+                          << filterShape[1] << ", " << filterShape[2] << ", "
+                          << filterShape[3] << "), fltEltSize " << fltEltSize
+                          << "\n");
 
-  auto newFilter = std::make_unique<std::vector<DataType> >(filterSize);
+  auto newFilter = std::make_unique<std::vector<DataType>>(filterSize);
   std::memset(newFilter->data(), 0, filterSize * fltEltSize);
 
   int oc = filterShape[0];
@@ -96,7 +93,7 @@ bool tryCompressConvWeight(TensorTyOp convOp, PatternRewriter &rewriter,
   auto plainData = std::make_unique<std::vector<uint8_t>>(maxPlainSize);
 
   int maxComprSize = getCompressedDataSize(maxPlainSize, isBf16Flt ? 1 : 0);
-  auto compressedData = std::make_unique<std::vector<uint8_t> >(maxComprSize);
+  auto compressedData = std::make_unique<std::vector<uint8_t>>(maxComprSize);
 
   for (int oc_pos = 0; oc_pos < oc; oc_pos += oc_step) {
     int cur_oc = std::min(oc - oc_pos, oc_step);
@@ -109,8 +106,7 @@ bool tryCompressConvWeight(TensorTyOp convOp, PatternRewriter &rewriter,
       break;
     }
 
-    std::memcpy(plainData->data(), filter->data() + pos / fltEltSize,
-                stepSize);
+    std::memcpy(plainData->data(), filter->data() + pos / fltEltSize, stepSize);
 
     // Calculate compress parameter first.
     CompressCommandInfo cmdInfo;
@@ -131,21 +127,17 @@ bool tryCompressConvWeight(TensorTyOp convOp, PatternRewriter &rewriter,
 
     // Compress size must be less than tiled size.
     LLVM_DEBUG(llvm::dbgs()
-        << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
-        << ", stepSize " << stepSize
-        << ", compressedSize " << compressedSize
-        << ", pos " << pos
-        << ", totalSize " << totalSize
-        << ", totalCompressedSize " << totalCompressedSize
-        << ", filterSize " << filterSize * fltEltSize
-        << "\n");
+               << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
+               << ", stepSize " << stepSize << ", compressedSize "
+               << compressedSize << ", pos " << pos << ", totalSize "
+               << totalSize << ", totalCompressedSize " << totalCompressedSize
+               << ", filterSize " << filterSize * fltEltSize << "\n");
 
     if (compressedSize > stepSize) {
       LLVM_DEBUG(llvm::dbgs()
-          << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
-          << ", stepSize " << stepSize
-          << ", compressedSize " << compressedSize
-          << ", SKIP\n");
+                 << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
+                 << ", stepSize " << stepSize << ", compressedSize "
+                 << compressedSize << ", SKIP\n");
       canCompress = false;
       break;
     } else {
@@ -154,28 +146,29 @@ bool tryCompressConvWeight(TensorTyOp convOp, PatternRewriter &rewriter,
     }
 
     // Fill compressed data.
-    std::memcpy(newFilter->data() + pos / fltEltSize,
-                compressedData->data(), compressedSize);
+    std::memcpy(newFilter->data() + pos / fltEltSize, compressedData->data(),
+                compressedSize);
   }
 
   if (canCompress) {
-    addWeightTensorAndUpdateWeightOp<DataType>(convOp.filter(),
-        "z", *newFilter, filterShape, isBf16Flt ? "BF16" : "INT8", wTF);
+    addWeightTensorAndUpdateWeightOp<DataType>(
+        convOp.filter(), "z", *newFilter, filterShape,
+        isBf16Flt ? "BF16" : "INT8", wTF);
 
-    assert(memcmp(filter->data(), newFilter->data(), filterSize)
-           && "Expect compressed content");
+    assert(memcmp(filter->data(), newFilter->data(), filterSize) &&
+           "Expect compressed content");
 
     convOp.setAttr("tiled_oc_step", rewriter.getI32IntegerAttr(oc_step));
     convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
 
     // set compressed flag on TL_LoadCoeffOp for layer group
-    if (auto load_op = dyn_cast<tpu::TL_LG_LoadCoeffOp>
-                                (convOp.filter().getDefiningOp())) {
+    if (auto load_op =
+            dyn_cast<tpu::TL_LG_LoadCoeffOp>(convOp.filter().getDefiningOp())) {
       load_op.setAttr("compressed_weight", rewriter.getBoolAttr(true));
     }
 
-    if (auto load_op = dyn_cast<tpu::LoadWeightOp>
-                                (convOp.filter().getDefiningOp())) {
+    if (auto load_op =
+            dyn_cast<tpu::LoadWeightOp>(convOp.filter().getDefiningOp())) {
       load_op.setAttr("compressed", rewriter.getBoolAttr(true));
     }
 
@@ -185,11 +178,12 @@ bool tryCompressConvWeight(TensorTyOp convOp, PatternRewriter &rewriter,
     info.compressedSize = totalCompressedSize;
     compressInfos.push_back(info);
 
-    LLVM_DEBUG(llvm::dbgs() << "  compressInfos size "
-                            << compressInfos.size() << "\n");
+    LLVM_DEBUG(llvm::dbgs()
+               << "  compressInfos size " << compressInfos.size() << "\n");
   } else {
-    addWeightTensorAndUpdateWeightOp<DataType>(convOp.filter(),
-        "", *filter, filterShape, isBf16Flt ? "BF16" : "INT8", wTF);
+    addWeightTensorAndUpdateWeightOp<DataType>(
+        convOp.filter(), "", *filter, filterShape, isBf16Flt ? "BF16" : "INT8",
+        wTF);
   }
 
   return canCompress;
@@ -205,7 +199,7 @@ public:
       : OpRewritePattern<TensorTyOp>(ctx), compressInfos_(compressInfos) {}
 
   LogicalResult matchAndRewrite(TensorTyOp convOp,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
 
     // Already compressed.
     if (convOp.compressed_weight().hasValue())
@@ -213,8 +207,8 @@ public:
 
     // for layer group, several conv may refer to one load coeff op
     // no need to compress every time.
-    if (auto load_op = dyn_cast<tpu::TL_LG_LoadCoeffOp>
-                                  (convOp.filter().getDefiningOp())) {
+    if (auto load_op =
+            dyn_cast<tpu::TL_LG_LoadCoeffOp>(convOp.filter().getDefiningOp())) {
       if (load_op.compressed_weight().hasValue() &&
           load_op.compressed_weight().getValue()) {
         convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
@@ -222,8 +216,8 @@ public:
       }
     }
 
-    if (auto load_op = dyn_cast<tpu::LoadWeightOp>
-                                  (convOp.filter().getDefiningOp())) {
+    if (auto load_op =
+            dyn_cast<tpu::LoadWeightOp>(convOp.filter().getDefiningOp())) {
       if (load_op.compressed()) {
         convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
         return failure();
@@ -239,9 +233,8 @@ public:
       oc_step = filterShape[0];
     }
 
-    bool canCompress =
-        tryCompressConvWeight<TensorTyOp, DataType>(convOp, rewriter, oc_step,
-                                                    compressInfos_);
+    bool canCompress = tryCompressConvWeight<TensorTyOp, DataType>(
+        convOp, rewriter, oc_step, compressInfos_);
     if (canCompress)
       return success();
 
@@ -261,7 +254,7 @@ public:
       : OpRewritePattern<TensorTyOp>(ctx), compressInfos_(compressInfos) {}
 
   LogicalResult matchAndRewrite(TensorTyOp convOp,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
 
     // Already compressed.
     if (convOp.compressed_weight().hasValue())
@@ -285,9 +278,8 @@ public:
     if (ic_step != ic)
       return failure();
 
-    bool canCompress =
-        tryCompressConvWeight<TensorTyOp, DataType>(convOp, rewriter, oc_step,
-                                                    compressInfos_);
+    bool canCompress = tryCompressConvWeight<TensorTyOp, DataType>(
+        convOp, rewriter, oc_step, compressInfos_);
     if (canCompress)
       return success();
 
@@ -297,19 +289,18 @@ public:
   std::vector<struct CompressInfo> &compressInfos_;
 };
 
-template<typename T>
-static void stridedMatrixMemcpy(T *dstPtr, T *srcPtr, int srcStride,
-                                int H, int W) {
+template <typename T>
+static void stridedMatrixMemcpy(T *dstPtr, T *srcPtr, int srcStride, int H,
+                                int W) {
   for (int i = 0; i < H; ++i) {
     for (int j = 0; j < W; ++j) {
-      dstPtr[i * W + j] = srcPtr[i * srcStride + j];;
+      dstPtr[i * W + j] = srcPtr[i * srcStride + j];
     }
   }
 }
 
 template <typename TensorTyOp, typename DataType>
-class CompressFcWeightPattern
-    : public OpRewritePattern<TensorTyOp> {
+class CompressFcWeightPattern : public OpRewritePattern<TensorTyOp> {
 public:
   using OpRewritePattern<TensorTyOp>::OpRewritePattern;
 
@@ -318,7 +309,7 @@ public:
       : OpRewritePattern<TensorTyOp>(ctx), compressInfos_(compressInfos) {}
 
   LogicalResult matchAndRewrite(TensorTyOp fcOp,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
 
     // Step size must generated first
     if (!fcOp.tile_param().hasValue())
@@ -360,15 +351,12 @@ public:
     int K = filterShape[1];
 
     LLVM_DEBUG(llvm::dbgs()
-        << "CompressFcWeightPattern: layer ID "
-        << mlir::getOpLayerId(fcOp.getOperation())
-        << ", " << fcOp.name() << "\n  "
-        << "weight shape (K=" << K
-        << ", N=" << N << ")\n  "
-        << "tileM " << tileValues[0]
-        << ", tileK " << tileValues[1]
-        << ", tileN " << tileValues[2]
-        << "\n");
+               << "CompressFcWeightPattern: layer ID "
+               << mlir::getOpLayerId(fcOp.getOperation()) << ", " << fcOp.name()
+               << "\n  "
+               << "weight shape (K=" << K << ", N=" << N << ")\n  "
+               << "tileM " << tileValues[0] << ", tileK " << tileValues[1]
+               << ", tileN " << tileValues[2] << "\n");
 
     auto newFilter = std::make_unique<std::vector<DataType>>(filterSize);
     std::memset(newFilter->data(), 0, filterSize * fltEltSize);
@@ -385,83 +373,88 @@ public:
 
     bool canCompress = true;
     int dstOffset = 0;
-    std::vector<int> compr_weight_poss = {0};
-    std::vector<int> compr_weight_sizes = {0};
-    int k_step = tileValues[1];
-    int n_step = tileValues[2];
+    std::vector<int> compr_weight_poss;
+    std::vector<int> compr_weight_sizes;
+    for (unsigned i = 0; i < n_poss.size(); ++i) {
+      int n_pos = n_poss[i];
+      int k_pos = k_poss[i];
+      int n_size = n_sizes[i];
+      int k_size = k_sizes[i];
+      int srcOffset = k_pos * N + n_pos;
 
-    // column major
-    for (int n_pos = 0; n_pos < N; n_pos += n_step) {
-      int n_size = std::min(n_step, N - n_pos);
+      assert((n_pos < N) && (n_size <= N) && "Expect valid n pos, size");
+      assert((k_pos < K) && (k_size <= K) && "Expect valid k pos, size");
 
-      for (int k_pos = 0; k_pos < K; k_pos += k_step) {
-        int k_size = std::min(k_step, K - k_pos);
-        int srcOffset = k_pos * N + n_pos;
-        int stepSize = n_size * k_size * fltEltSize;
+      int stepSize = n_size * k_size * fltEltSize;
+      auto plainData = std::make_unique<std::vector<uint8_t>>(stepSize);
+      stridedMatrixMemcpy<DataType>((DataType *)plainData->data(),
+                                    filter->data() + srcOffset, N, k_size,
+                                    n_size);
 
-        // H/W constraint: must align 16B
-        if (stepSize % 16) {
-          canCompress = false;
-          break;
-        }
+      // Calculate compress parameter first.
+      CompressCommandInfo cmdInfo;
+      std::memset(&cmdInfo, 0, sizeof(cmdInfo));
+      cmdInfo.signedness = isBf16Flt ? 0 : 1;
+      cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
+      cmdInfo.bias0 = isBf16Flt ? 127 : 0;
+      getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
+                           cmdInfo.is_bfloat16, &cmdInfo);
 
-        auto plainData = std::make_unique<std::vector<uint8_t> >(stepSize);
-        stridedMatrixMemcpy<DataType>((DataType *)plainData->data(),
-                                      filter->data() + srcOffset,
-                                      N, k_size, n_size);
+      // Create Compress data.
+      int requiredSize = getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
+      auto compressedData =
+          std::make_unique<std::vector<uint8_t>>(requiredSize);
+      int compressedSize = requiredSize;
 
-        // Calculate compress parameter first.
-        CompressCommandInfo cmdInfo;
-        std::memset(&cmdInfo, 0, sizeof(cmdInfo));
-        cmdInfo.signedness = isBf16Flt ? 0 : 1;
-        cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
-        cmdInfo.bias0 = isBf16Flt ? 127 : 0;
-        getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
-                            cmdInfo.is_bfloat16, &cmdInfo);
+      if (isBf16Flt)
+        compressBf16Data(plainData->data(), stepSize, compressedData->data(),
+                         &compressedSize, &cmdInfo);
+      else
+        compressInt8Data(plainData->data(), stepSize, compressedData->data(),
+                         &compressedSize, &cmdInfo);
 
-        // Create Compress data.
-        int requiredSize = getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
-        auto compressedData =
-            std::make_unique<std::vector<uint8_t> >(requiredSize);
-        int compressedSize = requiredSize;
-
-        if (isBf16Flt)
-          compressBf16Data(plainData->data(), stepSize, compressedData->data(),
-                          &compressedSize, &cmdInfo);
-        else
-          compressInt8Data(plainData->data(), stepSize, compressedData->data(),
-                          &compressedSize, &cmdInfo);
-
-        if (compressedSize > stepSize) {
-          LLVM_DEBUG(llvm::dbgs()
-                    << "      compressed size " << compressedSize
-                    << ", stepSize " << stepSize << "\n");
-          canCompress = false;
-          break;
-        }
-
-        // Fill compressed data.
-        std::memcpy(newFilter->data() + dstOffset / fltEltSize,
-                    compressedData->data(), compressedSize);
-
-        //dstOffset += compressedSize;
-        dstOffset += stepSize;
+      if ((dstOffset + compressedSize) > (K * N * fltEltSize)) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "      compressed size exceed, dstOffset " << dstOffset
+                   << " + " << compressedSize << " > " << (K * N) << "\n");
+        canCompress = false;
+        break;
       }
 
-      if (!canCompress)
-        break;
+      // Fill compressed data.
+      std::memcpy(newFilter->data() + dstOffset / fltEltSize,
+                  compressedData->data(), compressedSize);
+
+      compr_weight_poss.push_back(dstOffset);
+      // compr_weight_sizes.push_back(compressedSize);
+
+      dstOffset += compressedSize;
     }
 
+    // Remove tiled position and size to simplify mlir
+    n_poss.clear();
+    k_poss.clear();
+    n_sizes.clear();
+    k_sizes.clear();
+    fcOp.removeAttr("tile_param");
+    fcOp.setAttr("tile_param",
+                 tpu::FcTileParam::get(rewriter.getI32ArrayAttr(tileValues),
+                                       rewriter.getI32ArrayAttr(n_poss),
+                                       rewriter.getI32ArrayAttr(k_poss),
+                                       rewriter.getI32ArrayAttr(n_sizes),
+                                       rewriter.getI32ArrayAttr(k_sizes),
+                                       rewriter.getContext()));
 
     if (canCompress) {
-      addWeightTensorAndUpdateWeightOp<DataType>(fcOp.filter(),
-          "z", *newFilter, filterShape, isBf16Flt ? "BF16" : "INT8", wTF);
+      addWeightTensorAndUpdateWeightOp<DataType>(
+          fcOp.filter(), "z", *newFilter, filterShape,
+          isBf16Flt ? "BF16" : "INT8", wTF);
 
       fcOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
       fcOp.setAttr("compr_weight_poss",
-                  rewriter.getI32ArrayAttr(compr_weight_poss));
+                   rewriter.getI32ArrayAttr(compr_weight_poss));
       fcOp.setAttr("compr_weight_sizes",
-                  rewriter.getI32ArrayAttr(compr_weight_sizes));
+                   rewriter.getI32ArrayAttr(compr_weight_sizes));
 
       struct CompressInfo info;
       info.name = fcOp.name();
@@ -469,13 +462,14 @@ public:
       info.compressedSize = dstOffset;
       compressInfos_.push_back(info);
 
-      LLVM_DEBUG(llvm::dbgs()
-          << "  compressInfos entries " << compressInfos_.size() << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "  compressInfos entries "
+                              << compressInfos_.size() << "\n");
 
       return success();
     } else {
-      addWeightTensorAndUpdateWeightOp<DataType>(fcOp.filter(),
-          "", *filter, filterShape, isBf16Flt ? "BF16" : "INT8", wTF);
+      addWeightTensorAndUpdateWeightOp<DataType>(
+          fcOp.filter(), "", *filter, filterShape, isBf16Flt ? "BF16" : "INT8",
+          wTF);
 
       return failure();
     }
@@ -484,7 +478,8 @@ public:
   std::vector<struct CompressInfo> &compressInfos_;
 };
 
-struct CompressWeightPass : public mlir::PassWrapper<CompressWeightPass, FunctionPass> {
+struct CompressWeightPass
+    : public mlir::PassWrapper<CompressWeightPass, FunctionPass> {
   void runOnFunction() override;
 
   void generateReport(std::vector<struct CompressInfo> &compressInfos);
@@ -513,19 +508,15 @@ void CompressWeightPass::generateReport(
   for (auto info : compressInfos) {
     totalSize += info.size;
     totalCompressedSize += info.compressedSize;
-    outputOS << info.name << ", " << info.size
-             << ", " << info.compressedSize
-             << ", " << info.size - info.compressedSize
-             << ", "
-             << int(info.compressedSize * 1.0 / info.size * 100.0)
-             << "%\n";
+    outputOS << info.name << ", " << info.size << ", " << info.compressedSize
+             << ", " << info.size - info.compressedSize << ", "
+             << int(info.compressedSize * 1.0 / info.size * 100.0) << "%\n";
   }
 
-  outputOS << "totalSize " << totalSize
-           << ", totalCompressedSize " << totalCompressedSize
-           << ", reduced " << totalSize - totalCompressedSize
-           << ", ratio " << int(totalCompressedSize * 1.0 / totalSize * 100.0)
-           << "%\n";
+  outputOS << "totalSize " << totalSize << ", totalCompressedSize "
+           << totalCompressedSize << ", reduced "
+           << totalSize - totalCompressedSize << ", ratio "
+           << int(totalCompressedSize * 1.0 / totalSize * 100.0) << "%\n";
   outputFile->keep();
 }
 
@@ -541,15 +532,15 @@ void CompressWeightPass::runOnFunction() {
       TgConvCompressedWeightPattern<tpu::TG_BF16_Conv2DOp, uint16_t>,
       TlLgConvCompressedWightPattern<tpu::TL_LW_Conv2DOp, int8_t>,
       TlLgConvCompressedWightPattern<tpu::TL_LG_INT8_Conv2DOp, int8_t>,
-      TlLgConvCompressedWightPattern<tpu::TL_LG_BF16_Conv2DOp, uint16_t>
-      >(&getContext(), compressInfos);
+      TlLgConvCompressedWightPattern<tpu::TL_LG_BF16_Conv2DOp, uint16_t>>(
+      &getContext(), compressInfos);
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
   patterns.clear();
-  patterns.insert<
-      CompressFcWeightPattern<tpu::TG_INT8_FullyConnectedOp, int8_t>,
-      CompressFcWeightPattern<tpu::TG_BF16_FullyConnectedOp, uint16_t>
-      >(&getContext(), compressInfos);
+  patterns
+      .insert<CompressFcWeightPattern<tpu::TG_INT8_FullyConnectedOp, int8_t>,
+              CompressFcWeightPattern<tpu::TG_BF16_FullyConnectedOp, uint16_t>>(
+          &getContext(), compressInfos);
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
   // Remove offset in load weight first.

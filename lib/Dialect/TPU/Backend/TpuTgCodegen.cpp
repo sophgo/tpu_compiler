@@ -1511,12 +1511,15 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   int8_t rshift_int8 = rshift().getValue();
   int32_t multiplier = this->mutliplier().getValue();
   int rshift = static_cast<int>(rshift_int8);
-  bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
-                     this->compressed_weight().getValue() : false;
 
-  cvi_backend_tg_fixed_fc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
-                                 ga_bias, ga_output, m, k, n, with_bias,
-                                 do_relu, rshift, multiplier, do_cmpr_wgt);
+  auto fcOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op);
+  std::vector<int> compr_weight_poss;
+  if (fcOp.compr_weight_poss().hasValue())
+    arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
+
+  cvi_backend_tg_fixed_fc_kernel(
+      *backend_ctx, layer_id, ga_input, ga_filter, ga_bias, ga_output, m, k, n,
+      with_bias, do_relu, rshift, multiplier, compr_weight_poss);
 
   return success();
 }
@@ -1540,23 +1543,24 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
     with_bias = true;
   }
   int layer_id = getOpLayerId(op);
-  bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
-                     this->compressed_weight().getValue() : false;
 
-  cvi_backend_tg_bf16_fc_kernel(
-      *backend_ctx,
-      layer_id, // layer_id
-      ga_input, // input_data_gaddr
-      ga_filter, // weight_data_gaddr
-      ga_bias, // bias_data_gaddr
-      ga_output, // output_data_gaddr
-      m, // int in_row
-      k, // int in_col
-      n, // in out_col,
-      with_bias, // has_bias
-      do_relu, // do_activation
-      do_cmpr_wgt
-      );
+  auto fcOp = dyn_cast<tpu::TG_BF16_FullyConnectedOp>(op);
+  std::vector<int> compr_weight_poss;
+  if (fcOp.compr_weight_poss().hasValue())
+    arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
+
+  cvi_backend_tg_bf16_fc_kernel(*backend_ctx,
+                                layer_id,  // layer_id
+                                ga_input,  // input_data_gaddr
+                                ga_filter, // weight_data_gaddr
+                                ga_bias,   // bias_data_gaddr
+                                ga_output, // output_data_gaddr
+                                m,         // int in_row
+                                k,         // int in_col
+                                n,         // in out_col,
+                                with_bias, // has_bias
+                                do_relu,   // do_activation
+                                compr_weight_poss);
 
   return success();
 }
@@ -2088,20 +2092,20 @@ LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_bf16_fc_kernel(
-      *backend_ctx,
-      layer_id,
-      ga_left,
-      ga_right,
-      0,
-      ga_output,
-      m,
-      k,
-      n,
-      false,
-      false,
-      false // do_cmpr_act
-  );
+  std::vector<int> compr_weight_poss;
+
+  cvi_backend_tg_bf16_fc_kernel(*backend_ctx,
+                                layer_id,  // layer_id
+                                ga_left,   // input_data_gaddr
+                                ga_right,  // weight_data_gaddr
+                                0,         // bias_data_gaddr
+                                ga_output, // output_data_gaddr
+                                m,         // int in_row
+                                k,         // int in_col
+                                n,         // in out_col,
+                                false,     // has_bias
+                                false,     // do_activation
+                                compr_weight_poss);
 
   return success();
 }

@@ -22,7 +22,7 @@ public:
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
             gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
             bool do_bias, bool do_relu, int rshift_width, int multiplier,
-            bool do_cmpr_wgt, cvk_fmt_t fmt);
+            std::vector<int> compressed_pos, cvk_fmt_t fmt);
 
   void selectTilePolicy();
   void schedule();
@@ -62,7 +62,7 @@ protected:
   bool do_relu;
   int rshift_width;
   int multiplier;
-  bool do_cmpr_wgt;
+  std::vector<int> compressed_pos;
   cvk_fmt_t fmt;
   int fmt_size;
   uint32_t layer_id;
@@ -87,7 +87,7 @@ protected:
     int RB_idx;
     int L_idx;
     int Y_idx;
-    uint32_t compress_pos;
+    int compress_idx; // compress pos
   } tile_info_t;
   std::vector<tile_info_t> tiles;
   int total_steps;
