@@ -329,8 +329,9 @@ void Conv2DOpKernel::i8_invoke() {
                                                oh * ow, rshift.data());
       }
     } else {
-      quantizeActivationInt8PerLayerRshift(
-          output_data->data(), output_data->data(), size, rshift.at(0));
+      quantizeActivationInt8PerLayerRshift(output_data->data(),
+                                           output_data->data(),
+                                           output_data->size(), rshift.at(0));
     }
     return;
   }
@@ -356,8 +357,9 @@ void Conv2DOpKernel::i8_invoke() {
     if (do_relu && !is_asymmetric) {
       relu(output_data->data(), output_data->data(), output_data->size());
     }
-    quantizeActivationInt8PerLayerRshift(
-        output_data->data(), output_data->data(), size, rshift.at(0));
+    quantizeActivationInt8PerLayerRshift(output_data->data(),
+                                         output_data->data(),
+                                         output_data->size(), rshift.at(0));
   }
 };
 
