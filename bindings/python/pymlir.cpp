@@ -136,7 +136,6 @@ public:
 
   void parseMLIRInfo() {
     ModuleOp m = module_.get();
-
     for (FuncOp function : m.getOps<FuncOp>()) {
       for (Block &bb : function.getBlocks()) {
         for (auto &op : bb) {
@@ -149,11 +148,9 @@ public:
             }
             continue;
           }
-
           py::dict py_temp;
           py_temp[OP_NAME] = getOpName(&op).str();
           py_temp[OP_TYPE] = op.getName().getStringRef().str();
-          // py_temp[OP_QUANT] = getOpQuant(&op).str();
           opInfo_.append(py_temp);
         }
       }
@@ -198,23 +195,33 @@ public:
     return ret;
   }
 
-  py::array getTensor(std::string op_name) {
-    py::array py_ret;
-
-    // for (auto it = tensorMap_.begin(); it != tensorMap_.end(); it++) {
-    //   auto op = it->first;
-
-    //   if (op == op_name) {
-    //     auto data = it->second;
-
-    //     assert(shapeMap_.end() != shapeMap_.find(op));
-    //     py_ret = getPythonArray(data, shapeMap_[op]);
-    //     break;
-    //   }
-    // }
-    return py_ret;
+  py::dict getWeightData() {
+    auto weight_map = interpreter_->getWeightData();
+    tensor_map_t tensorMap_;
+    shape_map_t shapeMap_;
+    for (auto &weight_tensor : weight_map) {
+      std::string name = weight_tensor.first;
+      std::vector<float> tensor_data = weight_tensor.second.first;
+      std::vector<int64_t> tensor_shape = weight_tensor.second.second;
+      tensorMap_[name] = tensor_data;
+      shapeMap_[name] = tensor_shape;
+    }
+    return getTensorDict(tensorMap_, shapeMap_);
   }
+  void setWeightData(
+      std::map<std::string,
+               py::array_t<float, py::array::c_style | py::array::forcecast>>
+          weight_map) {
 
+    for (auto &weight_tensor : weight_map) {
+      std::string name = weight_tensor.first;
+      auto weight_data = weight_tensor.second;
+      std::vector<float> input_vec(weight_data.size());
+      std::memcpy(input_vec.data(), weight_data.data(),
+                  weight_data.size() * sizeof(float));
+      interpreter_->setWeightData(name, input_vec);
+    }
+  }
   py::str getWeightFilePath() {
     py::str py_s(weightFilePath_);
 
@@ -314,15 +321,16 @@ PYBIND11_MODULE(pymlir, m) {
       .def("set_plugin", &py_module::setPluginFilePath,
            "set file path of custom op plugin")
       .def("get_all_tensor", &py_module::getAllTensor, "dump all tensor data")
+      .def("set_tensor", &py_module::set_tensor)
       .def("get_tensor", &py_module::get_tensor, "get one tensor data")
       .def_readwrite("op_info", &py_module::opInfo_)
       .def("get_weight_file_path", &py_module::getWeightFilePath,
            "get weight file path")
+      .def("getWeightData", &py_module::getWeightData, "get weight data")
+      .def("setWeightData", &py_module::setWeightData, "set weight data")
       .def("run", &py_module::run,
            "run module inference with input array, and return output array")
       .def("allocate_tensors", &py_module::allocate_tensors)
-      .def("set_tensor", &py_module::set_tensor)
-      .def("get_tensors", &py_module::get_tensor)
       .def("get_tensors_info", &py_module::get_tensor_info)
       .def("dump", &py_module::dump)
       .def("invoke", py::overload_cast<>(&py_module::invoke))

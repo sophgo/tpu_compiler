@@ -103,23 +103,38 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     LLVM_DEBUG(llvm::errs() << "  result "; result.getType().dump();
                llvm::errs() << "\n";);
 
-    auto tensor_name = loadWeightOp.name();
+    auto tensor_name = loadWeightOp.name().str();
     LLVM_DEBUG(llvm::errs() << "  tensor_name " << tensor_name << "\n";);
 
     auto type = result.getType().cast<TensorType>();
     std::unique_ptr<std::vector<float>> tensor = nullptr;
-    if (type.getElementType().isF32()) {
-      tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
-    } else if (type.getElementType().isInteger(8)) {
-      llvm_unreachable("we save int8 weight as fp32 for now");
-    } else if (type.getElementType().isBF16()) {
-      auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
-      tensor =
-          std::move(std::make_unique<std::vector<float>>(tensor_bf16->size()));
-      BFloat16ToFloat(tensor_bf16->data(), tensor->data(), tensor_bf16->size());
+    if (change_weight_table.count(tensor_name)) {
+      tensor = std::make_unique<std::vector<float>>(
+          change_weight_table[tensor_name].begin(),
+          change_weight_table[tensor_name].end());
+      change_weight_table.erase(tensor_name);
     } else {
-      llvm_unreachable("no support type");
+      if (type.getElementType().isF32()) {
+        tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
+      } else if (type.getElementType().isInteger(8)) {
+        llvm_unreachable("we save int8 weight as fp32 for now");
+      } else if (type.getElementType().isBF16()) {
+        auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
+        tensor = std::move(
+            std::make_unique<std::vector<float>>(tensor_bf16->size()));
+        BFloat16ToFloat(tensor_bf16->data(), tensor->data(),
+                        tensor_bf16->size());
+      } else {
+        llvm_unreachable("no support type");
+      }
     }
+    std::string weight_name = loadWeightOp.name().str();
+    std::vector<float> weight_data(tensor->begin(), tensor->end());
+    std::vector<int64_t> weight_shape(type.getShape().begin(),
+                                      type.getShape().end());
+
+    weight_data_list[weight_name] = std::make_pair(weight_data, weight_shape);
+
     valueMapping[result] = std::move(tensor);
     return;
   }
@@ -518,6 +533,23 @@ void ModuleInterpreter::dump(std::string name) {
     }
   }
   llvm::errs() << " Not Find Op name: " << name << " tensor \n";
+}
+
+void ModuleInterpreter::setWeightData(std::string name,
+                                      std::vector<float> data) {
+  if (weight_data_list.count(name)) {
+    if (weight_data_list[name].first.size() != data.size()) {
+      llvm::errs() << "change weight size is wrong ("
+                   << weight_data_list[name].first.size() << "v.s. "
+                   << data.size() << ")\n";
+    } else {
+      change_weight_table[name].assign(data.begin(), data.end());
+    }
+  } else {
+    llvm::errs() << "No load_wight Op " << name << "in mlir\n";
+  }
+  reset();
+  allocate_tensors();
 }
 
 void ModuleInterpreter::allocate_tensors() {

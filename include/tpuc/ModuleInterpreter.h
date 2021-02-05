@@ -38,6 +38,7 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <unordered_map>
 
 #define DEBUG_TYPE "interpreter"
 
@@ -54,68 +55,30 @@ class ModuleInterpreter {
 public:
   // Interpret the given MLIR module expressed in MLIR TPU IR dialect
   explicit ModuleInterpreter(ModuleOp module)
-      : mlirModule(module), weightFile_(nullptr) {
-
-    for (FuncOp func : module.getOps<FuncOp>()) {
-      // collect resultsList
-      for (Block &bb : func.getBlocks()) {
-        for (auto &op : bb) {
-          if (isa<tpu::InputOp>(op)) {
-            auto inputOp = dyn_cast<tpu::InputOp>(op);
-            inputsList.push_back(inputOp.getResult());
-          } else if (isa<ReturnOp>(op)) {
-            for (auto opd : op.getOperands()) {
-              resultsList.push_back(opd);
-            }
-          } else if (isa<tpu::WeightFileOp>(op)) {
-            auto weightFileOp = dyn_cast<tpu::WeightFileOp>(op);
-            weightFile_ = weightFileOp.get();
-          } else if (isa<tpu::LoadWeightOp>(op)) {
-            auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op);
-            LLVM_DEBUG(llvm::errs() << "LoadWeightOp"
-                                    << "\n";);
-
-            auto result = loadWeightOp.getResult();
-            LLVM_DEBUG(llvm::errs() << "  result "; result.getType().dump();
-                       llvm::errs() << "\n";);
-            auto tensor_name = loadWeightOp.name();
-            LLVM_DEBUG(llvm::errs()
-                           << "  tensor_name " << tensor_name << "\n";);
-
-            auto type = result.getType().cast<TensorType>();
-            std::unique_ptr<std::vector<float>> tensor = nullptr;
-            if (type.getElementType().isF32()) {
-              tensor =
-                  std::move(weightFile_->readTensor<float>(tensor_name, type));
-            } else if (type.getElementType().isInteger(8)) {
-              // TODO: we still save int8 weight as fp32 for now
-              assert(0);
-            } else if (type.getElementType().isBF16()) {
-              auto tensor_bf16 =
-                  weightFile_->readTensor<bfloat16>(tensor_name, type);
-
-              // TODO: convert bf16 to fp32 here for now
-              // as valueMapping is hardcoded as std::vector<float>
-              // TODO: more generic valueMapping
-              tensor = std::move(
-                  std::make_unique<std::vector<float>>(tensor_bf16->size()));
-              BFloat16ToFloat(tensor_bf16->data(), tensor->data(),
-                              tensor_bf16->size());
-            } else {
-              assert(0);
-            }
-
-            valueMapping[result] = std::move(tensor);
-          }
-        }
-      }
-    }
-  }
+      : mlirModule(module), weightFile_(nullptr) {}
   virtual ~ModuleInterpreter() {
     if (weightFile_) {
       delete weightFile_;
     }
   }
+
+  Value findWeightValue(std::string name) {
+    for (FuncOp func : mlirModule.getOps<FuncOp>()) {
+      for (Block &bb : func.getBlocks()) {
+        for (auto &op : bb) {
+          if (isa<tpu::LoadWeightOp>(op)) {
+            auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op);
+            std::string weight_name = loadWeightOp.name().str();
+            if (weight_name == name) {
+              return loadWeightOp.getResult();
+            }
+          }
+        }
+      }
+    }
+    return Value(nullptr);
+  }
+
   LogicalResult
   doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
         std::map<std::string, std::vector<float>> *results,
@@ -158,6 +121,21 @@ public:
     }
     return ret;
   };
+  std::unordered_map<std::string,
+                     std::pair<std::vector<float>, std::vector<int64_t>>>
+  getWeightData() {
+    return this->weight_data_list;
+  }
+
+  void setWeightData(std::string name, std::vector<float> data);
+
+  void reset(void) {
+    valueMapping.clear();
+    oplist.clear();
+    input_details.clear();
+    output_details.clear();
+    weight_data_list.clear();
+  }
 
 protected:
   virtual LogicalResult runOperation(Operation &op);
@@ -184,7 +162,6 @@ private:
   }
 
   value_map_t getValueMap() { return valueMapping; }
-  void reset(void) { valueMapping.clear(); }
 
   // Original and translated module.
   ModuleOp mlirModule;
@@ -195,10 +172,17 @@ private:
   static std::string customOpPluginFile_;
 
 protected:
-  value_map_t valueMapping;
+  // not use anymore
   std::vector<Value> resultsList;
   std::vector<Value> inputsList;
+
+
+  value_map_t valueMapping;
   op_kernel_list oplist;
+  std::unordered_map<std::string,
+                     std::pair<std::vector<float>, std::vector<int64_t>>>
+      weight_data_list;
+  std::unordered_map<std::string, std::vector<float>> change_weight_table;
   std::mutex invoke_lock;
 };
 
