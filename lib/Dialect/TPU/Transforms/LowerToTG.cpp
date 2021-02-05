@@ -4287,7 +4287,6 @@ public:
         LowerCpuOpDefaultPattern<tpu::DetectionOutputOp>,
         LowerCpuOpDefaultPattern<tpu::FrcnDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::ProposalOp>,
-        LowerCpuOpDefaultPattern<tpu::PreprocessOp>,
         LowerCpuOpDefaultPattern<tpu::RetinaFaceDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::ROIPoolingOp>,
         LowerCpuOpDefaultPattern<tpu::TransposeOp>,

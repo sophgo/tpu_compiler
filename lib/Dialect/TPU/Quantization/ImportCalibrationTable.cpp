@@ -359,63 +359,6 @@ struct ForceThresholdClipOpPattern : public RewritePattern {
   }
 };
 
-/// force threshold for preprocess operations
-/// input will be quanted after preprocess op
-/// set input threshold be 127, just cast it to int8
-template <typename TyOp>
-struct ForceThresholdPreprocessOpPattern : public RewritePattern {
-  ForceThresholdPreprocessOpPattern(MLIRContext *context)
-      : RewritePattern(TyOp::getOperationName(), 1, context) {}
-
-  LogicalResult matchAndRewrite(Operation *opInst,
-                                PatternRewriter &rewriter) const override {
-
-    float threshold_x = getPreviousOpThreshold(opInst, 0);
-    if (threshold_x == 0) {
-      return failure();
-    }
-
-    float threshold_y = getOpThreshold(opInst);
-    if (getOpQuantParamType(opInst) == "THRESHOLD") {
-      if (threshold_y != 0) {
-        // assigned already
-        return failure();
-      }
-    }
-
-    auto formerOp = opInst->getOperand(0).getDefiningOp();
-    if (auto castOp = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
-      setOpThreshold(opInst, threshold_x);
-      auto elementType = castOp.getResult().getType().template
-                      cast<TensorType>().getElementType();
-      int max_val = elementType.isUnsignedInteger(8) ? 255 : 128;
-      setOpThreshold(formerOp, max_val);
-    } else if (auto castOp = llvm::dyn_cast_or_null<tpu::CscOp>(formerOp)) {
-      setOpThreshold(opInst, threshold_x);
-      auto elementType = castOp.getResult().getType().template
-                      cast<TensorType>().getElementType();
-      int max_val = elementType.isUnsignedInteger(8) ? 255 : 128;
-      setOpThreshold(formerOp, max_val);
-      // overwrite input's threshold
-      auto inputOp = formerOp->getOperand(0).getDefiningOp();
-      assert(isa<tpu::InputOp>(inputOp));
-      setOpThreshold(inputOp, max_val);
-    } else {
-      return failure();
-    }
-
-    setOpQuantParamType(opInst, "THRESHOLD");
-    LLVM_DEBUG(llvm::errs() << opInst->getName() << " [" << getOpName(opInst)
-                            << "] set prev " << formerOp->getName() << " ["
-                            << getOpName(formerOp)
-                            << "], "
-                               "threshold from "
-                            << std::to_string(threshold_x) << " to "
-                            << std::to_string(threshold_y) << "\n";);
-    return success();
-  }
-};
-
 template<typename TyOp>
 struct ForceThresholdCustomOpPattern : public RewritePattern {
   ForceThresholdCustomOpPattern(MLIRContext *context)
@@ -511,7 +454,6 @@ public:
           isa<tpu::WeightFileOp>(op) ||
           isa<tpu::LoadWeightOp>(op) ||
           isa<tpu::NoneOp>(op)||
-          isa<tpu::PreprocessOp>(op) ||
           isa<tpu::ReorgOp>(op) ||
           isa<tpu::ReshapeOp>(op) ||
           isa<tpu::ReverseOp>(op) ||
@@ -527,7 +469,6 @@ public:
       } else if (isa<tpu::DetectionOutputOp>(op)
                  || isa<tpu::FrcnDetectionOp>(op)
                  || isa<tpu::InputOp>(op)
-                 || isa<tpu::PreprocessOp>(op)
                  || isa<tpu::ProposalOp>(op)
                  || isa<tpu::RetinaFaceDetectionOp>(op)
                  || isa<tpu::SoftmaxOp>(op)
@@ -627,14 +568,6 @@ public:
         >(context);
     //move to ConvertClip.cpp for mix precision
     //applyPatternsAndFoldGreedily(fn, std::move(patterns));
-
-    // apply input overwrite preprocess threshold
-    LLVM_DEBUG(llvm::errs() << "Default csc & preprocess threshold overwrite\n";);
-    patterns.clear();
-    patterns.insert<
-        ForceThresholdPreprocessOpPattern<tpu::PreprocessOp>
-        >(context);
-    applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     LLVM_DEBUG(llvm::errs() << "set CustomOp's threshold\n";);
     patterns.clear();

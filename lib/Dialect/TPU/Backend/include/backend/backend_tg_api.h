@@ -464,10 +464,4 @@ void cvi_backend_tg_yuv420_csc_kernel(const CviBackendContext &ctx,
                                       int w, const std::vector<int> &order,
                                       cvk_fmt_t fmt);
 
-void cvi_backend_tg_tensor_copy_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_ifmap, gaddr_t ga_ofmap,
-    uint32_t n, uint32_t c, uint32_t h, uint32_t w,
-    uint32_t align_bytes, cvk_fmt_t fmt);
-
 #endif /* CVI_BACKEND_TG_API */

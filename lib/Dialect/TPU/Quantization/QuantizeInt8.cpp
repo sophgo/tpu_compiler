@@ -1140,7 +1140,6 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
 
   bool skip_checking = false;
   if (isa<tpu::InputOp>(op)
-      || isa<tpu::PreprocessOp>(op)
       || isa<tpu::LrnOneOp>(op)
       || isa<tpu::LrnTwoOp>(op)
       || isa<tpu::LrnThreeOp>(op)
@@ -1365,7 +1364,6 @@ LogicalResult tpu::MishOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PadOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PreprocessOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileInterpOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PermuteOp)

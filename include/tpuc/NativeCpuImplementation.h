@@ -145,13 +145,6 @@ int my_slice(float *input, float *output, int axis, int offset,
 int my_power(float *input, float *output,
     int n, int c, int h, int w, float scale, float shift, float power);
 
-int my_preprocess(float *input, float *output,
-                  int n, int c, int h, int w,
-                  const std::vector<int>& channel_order,
-                  const std::vector<float>& mean,
-                  const std::vector<float>& std,
-                  float raw_scale, float input_scale);
-
 int my_transpose(float *input, float *output, int n, int c, int h, int w);
 
 int my_reorg(float *input, float *output, uint32_t stride, int n, int c, int h, int w);
