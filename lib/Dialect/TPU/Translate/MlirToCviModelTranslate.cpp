@@ -99,9 +99,60 @@ static void getOpGroupInputsOutputs(std::vector<Operation *> &group,
                       producers.end(), std::inserter(inputSet, inputSet.begin()));
   std::set_difference(producers.begin(), producers.end(), consumers.begin(),
                       consumers.end(), std::inserter(outputSet, outputSet.begin()));
+
+  std::set<std::string> inputsNameSet;
   for (auto op : inputSet) {
     inputs.push_back(op->getAttr("name").cast<StringAttr>().getValue().str());
+    inputsNameSet.insert(op->getAttr("name").cast<StringAttr>().getValue().str());
   }
+
+  // set diff not keep originial input order
+  // re-order it for cpu op
+  for (auto op : output_candicates) {
+    if (outputSet.find(op) != outputSet.end()) {
+      // check its inputs order by mlir
+      if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
+        // get org order
+
+        std::set<std::string> orgInputsSet;
+        std::vector<std::string> orgInputs;
+        for (int i = 0; i < (int)castOp.getNumOperands(); i++) {
+          auto opd = castOp.getOperand(i).getDefiningOp();
+          auto opdName = opd->getAttr("name").cast<StringAttr>().getValue();
+          orgInputs.push_back(opdName.str());
+          orgInputsSet.insert(opdName.str());
+        }
+
+        // check input is equal and non-order
+        std::vector<std::string> diff;
+        std::set_difference(
+            orgInputsSet.begin(), orgInputsSet.end(),
+            inputsNameSet.begin(), inputsNameSet.end(),
+            std::inserter(diff, diff.begin()));
+
+        // order not eq, reset to mlir order
+        if (diff.size() == 0) {
+          LLVM_DEBUG({
+              std::stringstream msg;
+              msg << "output name:" <<
+                castOp.getAttr("name").cast<StringAttr>().getValue().str() << "\n";
+              msg << " set diff inputs:\n";
+              for (auto n : inputs) {
+                msg << n << ",";
+              }
+              msg << "\norg order:\n";
+              for (auto n : orgInputs) {
+                msg << n << ",";
+              }
+              llvm::dbgs() << msg.str();
+          });
+
+          std::copy(orgInputs.begin(), orgInputs.end(), inputs.begin());
+        }
+      }
+    }
+  }
+      
   // should keep output tensors in an inherent order.
   for (auto op : output_candicates) {
     if (outputSet.find(op) != outputSet.end()) {
