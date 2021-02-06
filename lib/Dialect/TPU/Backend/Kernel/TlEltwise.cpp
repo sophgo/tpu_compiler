@@ -392,8 +392,8 @@ void cvi_backend_tl_eltwise(
 
   for (int32_t ic_pos = 0; ic_pos < input_c; ic_pos += ic_step) {
     auto cur_ic = std::min(ic_step, input_c - ic_pos);
-    cvk_tl_t input[2];
-    cvk_tl_t output;
+    cvk_tl_t input[2] = {};
+    cvk_tl_t output = {};
 
     shape.c = cur_ic;
     input[0].start_address = la_input[0] + (ic_pos / NPU_NUM) * bottom_stride.c;

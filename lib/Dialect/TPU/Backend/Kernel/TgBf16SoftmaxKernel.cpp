@@ -140,7 +140,7 @@ void bf16_softmax_kernel_2d_parallel_inner_size(const CviBackendContext &ctx, ui
         gaddr_t globalSrcAddress = ga_input + outer_pos * inner_size * sizeof(uint16_t);
         ctx.tdma_load(tl_input, globalSrcAddress);
 
-        cvk_tl_t tl_enlargeInput;
+        cvk_tl_t tl_enlargeInput = {};
         tl_enlargeInput.start_address = tl_input->start_address;  // start of lmem
         tl_enlargeInput.fmt = CVK_FMT_BF16;
         tl_enlargeInput.shape = ctx.tl_shape_t4(workingOutputSize, 1, 1, parallelC * bf16_euWorkingOneLane);
@@ -268,7 +268,7 @@ void bf16_softmax_kernel_2d_parallel_inner_size(const CviBackendContext &ctx, ui
         //                 h_str = 0
         {
             // reshape
-            cvk_tl_t tl_src;
+            cvk_tl_t tl_src = {};
             tl_src.start_address = tl_maxValue.start_address;  // start of lmem
             tl_src.fmt = CVK_FMT_BF16;
             tl_src.shape = tl_maxValueBroadcasted->shape;
@@ -276,7 +276,7 @@ void bf16_softmax_kernel_2d_parallel_inner_size(const CviBackendContext &ctx, ui
             tl_src.stride.h = 0;
             tl_src.stride.n = EU_NUM; //every element = sizeof(BF16), and eu_align  1
 
-            cvk_tl_t tl_dst;
+            cvk_tl_t tl_dst = {};
             tl_dst.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
             tl_dst.fmt = CVK_FMT_BF16;
             tl_dst.shape = ctx.tl_shape_t4(workingOutputSize,NPU_NUM,1,1);

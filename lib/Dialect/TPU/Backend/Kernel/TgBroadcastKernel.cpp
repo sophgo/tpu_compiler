@@ -21,14 +21,14 @@ enum class BroadcastType {
 void broadcast_one_to_all_lane(const CviBackendContext &ctx, cvk_tl_t inputBuffer, cvk_fmt_t fmt) {
   assert(inputBuffer.shape.h * inputBuffer.shape.w < ((1 << 16 )- 1));//Reg bit field = 16 bit
   // reshape
-  cvk_tl_t tl_src;
+  cvk_tl_t tl_src = {};
   tl_src.start_address = inputBuffer.start_address;
   tl_src.fmt = fmt;
   tl_src.shape = ctx.tl_shape_t4(inputBuffer.shape.n, 1, NPU_NUM, inputBuffer.shape.h * inputBuffer.shape.w);
   tl_src.stride = ctx.tl_default_stride(tl_src.shape, fmt, /*eu_align=*/1);
   tl_src.stride.h = 0;
 
-  cvk_tl_t tl_dst;
+  cvk_tl_t tl_dst = {};
   tl_dst.start_address = inputBuffer.start_address;
   tl_dst.fmt = fmt;
   tl_dst.shape = ctx.tl_shape_t4(inputBuffer.shape.n, NPU_NUM, 1, inputBuffer.shape.h * inputBuffer.shape.w);

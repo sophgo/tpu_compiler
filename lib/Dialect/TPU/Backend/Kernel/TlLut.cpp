@@ -242,9 +242,9 @@ void cvi_backend_bf16_tl_lut_slope_method(
     isSync = true;
   }
 
-  cvk_tl_t _tl_ifmap, _tl_ofmap_slope, _tl_ofmap_y0, _tl_table_answer, _tl_table_answer_slope;
+  cvk_tl_t _tl_ifmap = {}, _tl_ofmap_slope = {}, _tl_ofmap_y0 = {}, _tl_table_answer = {}, _tl_table_answer_slope = {};
   cvk_tl_t *tl_ifmap, *tl_ofmap_slope, *tl_ofmap_y0, *tl_table_answer, *tl_table_answer_slope;
-  cvk_tl_t _tl_tmp;
+  cvk_tl_t _tl_tmp = {};
   cvk_tl_t *tl_tmp;
   tl_ifmap = &_tl_ifmap;
   tl_ofmap_slope = &_tl_ofmap_slope;
@@ -429,7 +429,7 @@ void cvi_backend_tl_lut_exponential_mul_mantissa(
                  << "\n";
   );
 
-  cvk_tl_t _tl_ifmap, _tl_ofmap_slope, _tl_ofmap_y0, _tl_table_answer, _tl_table_answer_mantissa;
+  cvk_tl_t _tl_ifmap = {}, _tl_ofmap_slope = {}, _tl_ofmap_y0 = {}, _tl_table_answer = {}, _tl_table_answer_mantissa = {};
   cvk_tl_t *tl_ifmap, *tl_ofmap_slope, *tl_ofmap_y0, *tl_table_answer, *tl_table_answer_mantissa;
   tl_ifmap = &_tl_ifmap;
   tl_ofmap_slope = &_tl_ofmap_slope;

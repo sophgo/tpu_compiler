@@ -86,7 +86,7 @@ static void one_step(const CviBackendContext &ctx, uint32_t layer_id,
 
   // <! get idx from bf16->int8
   memset(&p3, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
-  cvk_tl_t dst;
+  cvk_tl_t dst = {};
   memcpy(&dst, tl_ofmap_y0, sizeof(cvk_tl_t));
 
   // we keep contiguous layout that we convert

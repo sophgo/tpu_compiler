@@ -390,8 +390,8 @@ void cvi_backend_tl_copy(
 
   ctx.set_layer_id(layer_id);
 
-  cvk_tl_t tl_dst;
-  cvk_tl_t tl_src;
+  cvk_tl_t tl_dst = {};
+  cvk_tl_t tl_src = {};
 
   tl_src.start_address = la_src;
   tl_src.fmt = fmt;
@@ -424,13 +424,13 @@ void cvi_backend_tl_bf16_ps32_to_fp32(const CviBackendContext &ctx,
   uint32_t la_high = la_addr;
   uint32_t la_low = la_addr + stride.n * n;
 
-  cvk_tl_t tl_src;
+  cvk_tl_t tl_src = {};
   ctx.lmem_init_tensor(&tl_src, shape, fmt, eu_align);
   tl_src.start_address = la_high;
   tl_src.shape = shape;
   tl_src.stride = {stride.n, (uint32_t)EU_NUM, stride.h, stride.w};
 
-  cvk_tl_t tl_dst;
+  cvk_tl_t tl_dst = {};
   ctx.lmem_init_tensor(&tl_dst, shape, fmt, eu_align);
   tl_dst.start_address = la_low + sizeof(uint16_t); // concat higher part
   tl_dst.shape = shape;

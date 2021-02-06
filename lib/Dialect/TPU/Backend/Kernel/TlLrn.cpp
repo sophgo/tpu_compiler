@@ -268,32 +268,32 @@ void cvi_backend_bf16_tl_lrn(
   // cvk_tl_shape_t table_shape = {1, 32, 32, 8};
   cvk_tl_shape_t table_shape = ctx.tl_shape_t4(1, NPU_NUM, 32, 8);
 
-  cvk_tl_t bottom;
+  cvk_tl_t bottom = {};
   bottom.start_address = ifmap_laddr;
   bottom.fmt = CVK_FMT_BF16;
   bottom.shape = lshape;
   bottom.stride = ctx.tl_default_stride(lshape, CVK_FMT_BF16, 1);
 
-  cvk_tl_t top;
+  cvk_tl_t top = {};
   cvk_tl_t *tmp = &top;
   top.start_address = ofmap_laddr;
   top.fmt = CVK_FMT_BF16;
   top.shape = lshape;
   top.stride = ctx.tl_default_stride(lshape, CVK_FMT_BF16, 1);
 
-  cvk_tl_t power_exp_lut;
+  cvk_tl_t power_exp_lut = {};
   power_exp_lut.start_address = power_exp_table;
   power_exp_lut.fmt = CVK_FMT_BF16;
   power_exp_lut.shape = table_shape;
   power_exp_lut.stride = ctx.tl_default_stride(table_shape, CVK_FMT_BF16, 1);
 
-  cvk_tl_t power_mantissa_lut;
+  cvk_tl_t power_mantissa_lut = {};
   power_mantissa_lut.start_address = power_mantissa_table;
   power_mantissa_lut.fmt = CVK_FMT_BF16;
   power_mantissa_lut.shape = table_shape;
   power_mantissa_lut.stride = ctx.tl_default_stride(table_shape, CVK_FMT_BF16, 1);
 
-  cvk_tl_t sum;
+  cvk_tl_t sum = {};
   sum.start_address = working_laddr;
   sum.fmt = CVK_FMT_BF16;
   sum.shape = lshape;
@@ -303,7 +303,7 @@ void cvi_backend_bf16_tl_lrn(
   int csize_local = c_per_npu * bottom.stride.c;
   int working_size = input_n * csize_local;
 
-  cvk_tl_t shift_sum;
+  cvk_tl_t shift_sum = {};
   shift_sum.start_address = sum.start_address + working_size;
   shift_sum.fmt = CVK_FMT_BF16;
   shift_sum.shape = lshape;

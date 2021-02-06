@@ -32,13 +32,13 @@ void cvi_backend_tl_slice(
 
     cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(1,
                                   output_dim[1], output_dim[2], output_dim[3]);
-    cvk_tl_t tl_input;
+    cvk_tl_t tl_input = {};
     tl_input.start_address = cur_laddr;
     tl_input.fmt = CVK_FMT_I8;
     tl_input.shape = tl_shape;
     tl_input.stride = ctx.tl_default_stride(tl_shape, CVK_FMT_I8, 1);
 
-    cvk_tl_t tl_output;
+    cvk_tl_t tl_output = {};
     tl_output.start_address = la_output + i * ctx.lmem_tensor_to_size(tl_shape,
                                                  CVK_FMT_I8, true);
     tl_output.fmt = CVK_FMT_I8;
@@ -70,13 +70,13 @@ void cvi_backend_tl_bf16_slice(
                     
     cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(1,
                                   output_dim[1], output_dim[2], output_dim[3]);
-    cvk_tl_t tl_input;
+    cvk_tl_t tl_input = {};
     tl_input.start_address = cur_laddr;
     tl_input.fmt = CVK_FMT_BF16;
     tl_input.shape = tl_shape;
     tl_input.stride = ctx.tl_default_stride(tl_shape, CVK_FMT_BF16, 1);
 
-    cvk_tl_t tl_output;
+    cvk_tl_t tl_output = {};
     tl_output.start_address = la_output + i * ctx.lmem_tensor_to_size(tl_shape,
                                                  CVK_FMT_BF16, true);
     tl_output.fmt = CVK_FMT_BF16;

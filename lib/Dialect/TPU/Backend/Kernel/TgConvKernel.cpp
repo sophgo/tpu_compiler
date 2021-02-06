@@ -2820,6 +2820,8 @@ void Conv::dwConv() {
   uint32_t coeff_flip = 0;
   std::vector<uint32_t> gmOutputPoss[2];
 
+  tilePolicy = ReuseActivationPolicyType;
+
   enqueueDisParallelCmd();
 
   // split oc

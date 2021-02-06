@@ -104,6 +104,7 @@ class CviRoutine {
 public:
   CviRoutine(flatbuffers::FlatBufferBuilder &fbb, bool isTpuRoutine)
     : isTpuRoutine(isTpuRoutine), fbb_(fbb) {}
+  virtual ~CviRoutine() {}
 
   std::vector<Operation *> ops;
   std::vector<std::string> inputs;
@@ -142,6 +143,12 @@ class CviModelBuilder {
 public:
   CviModelBuilder(ModuleOp &module);
   void storeModel(llvm::raw_ostream &output);
+
+  ~CviModelBuilder() {
+    for (auto &it : routines_) {
+      delete it;
+    }
+  }
 
 private:
   std::string modelName_;

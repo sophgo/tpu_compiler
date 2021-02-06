@@ -50,7 +50,7 @@ void cvi_backend_tl_pad(const CviBackendContext &ctx, uint32_t layer_id,
   auto output_offset = output_shape.w * pads[2] + pads[3];
 
   uint32_t out_addr = la_output + output_offset;
-  cvk_tl_t tl_input;
+  cvk_tl_t tl_input = {};
   tl_input.start_address = la_input;
   tl_input.fmt = CVK_FMT_I8;
   tl_input.shape = input_shape;
@@ -111,13 +111,13 @@ void cvi_backend_tl_bf16_pad(const CviBackendContext &ctx, uint32_t layer_id,
   auto output_offset = (output_shape.w * pads[2] + pads[3]) * sizeof(uint16_t);
 
   uint32_t out_addr = la_output + output_offset;
-  cvk_tl_t tl_input;
+  cvk_tl_t tl_input = {};
   tl_input.start_address = la_input;
   tl_input.fmt = CVK_FMT_BF16;
   tl_input.shape = input_shape;
   tl_input.stride = ctx.tl_default_stride(input_shape, CVK_FMT_BF16, 1);
 
-  cvk_tl_t tl_output;
+  cvk_tl_t tl_output = {};
   tl_output.start_address = la_output;
   tl_output.fmt = CVK_FMT_BF16;
   tl_output.shape = output_shape;

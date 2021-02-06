@@ -44,6 +44,8 @@ void cvi_backend_tl_quant(
 
   cvk_tl_t *tl_input = new cvk_tl_t;
   cvk_tl_t *tl_output = new cvk_tl_t;
+  memset(tl_input, 0, sizeof(*tl_input));
+  memset(tl_output, 0, sizeof(*tl_output));
 
   tl_input->start_address = la_input;
   tl_input->fmt = from;

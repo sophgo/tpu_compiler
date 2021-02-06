@@ -76,13 +76,13 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
     cvk_tl_shape_t shape = ctx.tl_shape_t4(n, input_dim_c[i], h, w);
     cvk_tl_shape_t out_shape = ctx.tl_shape_t4(n, oc, h, w);
 
-    cvk_tl_t tl_input;
+    cvk_tl_t tl_input = {};
     tl_input.start_address = la_input[i];
     tl_input.fmt = fmt;
     tl_input.shape = shape;
     tl_input.stride = ctx.tl_default_stride(shape, fmt, 1);
 
-    cvk_tl_t tl_output;
+    cvk_tl_t tl_output = {};
     tl_output.start_address = out_addr;
     tl_output.fmt = fmt;
     tl_output.shape = shape;

@@ -46,13 +46,13 @@ void cvi_backend_tl_crop(const CviBackendContext &ctx, uint32_t layer_id,
   cvk_tl_shape_t input_shape = {in, ic, ih, iw};
 
   cvk_tl_shape_t output_shape = {on, oc, oh, ow};
-  cvk_tl_t tl_input;
+  cvk_tl_t tl_input = {};
   tl_input.start_address = la_input;
   tl_input.fmt = CVK_FMT_I8;
   tl_input.shape = input_shape;
   tl_input.stride = ctx.tl_default_stride(input_shape, CVK_FMT_I8, 1);
 
-  cvk_tl_t tl_output;
+  cvk_tl_t tl_output = {};
   tl_output.start_address = la_output;
   tl_output.fmt = CVK_FMT_I8;
   tl_output.shape = output_shape;
@@ -102,13 +102,13 @@ void cvi_backend_tl_bf16_crop(const CviBackendContext &ctx, uint32_t layer_id,
 
   cvk_tl_shape_t input_shape = {in, ic, ih, iw};
   cvk_tl_shape_t output_shape = {on, oc, oh, ow};
-  cvk_tl_t tl_input;
+  cvk_tl_t tl_input = {};
   tl_input.start_address = la_input;
   tl_input.fmt = CVK_FMT_BF16;
   tl_input.shape = input_shape;
   tl_input.stride = ctx.tl_default_stride(input_shape, CVK_FMT_BF16, 1);
 
-  cvk_tl_t tl_output;
+  cvk_tl_t tl_output = {};
   tl_output.start_address = la_output;
   tl_output.fmt = CVK_FMT_BF16;
   tl_output.shape = output_shape;
