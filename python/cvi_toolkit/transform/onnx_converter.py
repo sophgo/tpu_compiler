@@ -852,6 +852,17 @@ class OnnxConverter(BaseConverter):
                 padding_b = padding_along_h - padding_t
                 padding_r = padding_along_w - padding_l
                 pads = [padding_t, padding_l, padding_b, padding_r]
+            elif pad_method == "SAME_LOWER":
+                 # the extra padding is added at the beginning for SAME_LOWER.
+                 padding_along_h = get_TF_SAME_Padding(
+                     shape[2], filter_shape[2], strides[0])
+                 padding_along_w = get_TF_SAME_Padding(
+                     shape[3], filter_shape[3], strides[1])
+                 padding_b = padding_along_h // 2
+                 padding_r = padding_along_w // 2
+                 padding_t = padding_along_h - padding_b
+                 padding_l = padding_along_w - padding_r
+                 pads = [padding_t, padding_l, padding_b, padding_r]
             elif pad_method == "VALID":
                 pass
             elif pad_method == "NOTSET":
