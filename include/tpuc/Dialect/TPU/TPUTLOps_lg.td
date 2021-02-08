@@ -514,11 +514,11 @@ def TPU_TL_LG_JoinOp : TPU_Op<"tl_lg_join",
   let results = (outs AnyTensor:$output);
 }
 
-class TPU_TL_LG_BroadcastMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+class TPU_TL_LG_ScaleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
-  let summary = "TL broadcast operator";
+  let summary = "TL Scale operator";
 
   let description = [{
   }];
@@ -542,8 +542,8 @@ class TPU_TL_LG_BroadcastMulOp<string mnemonic, string opQuant> : TPU_Op<mnemoni
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_LG_INT8_BroadcastMulOp : TPU_TL_LG_BroadcastMulOp<"tl_lg_int8_broadcast_mul", "Int8">;
-def TPU_TL_LG_BF16_BroadcastMulOp : TPU_TL_LG_BroadcastMulOp<"tl_lg_bf16_broadcast_mul", "Bf16">;
+def TPU_TL_LG_INT8_ScaleOp : TPU_TL_LG_ScaleOp<"tl_lg_int8_scale", "Int8">;
+def TPU_TL_LG_BF16_ScaleOp : TPU_TL_LG_ScaleOp<"tl_lg_bf16_scale", "Bf16">;
 
 class TPU_TL_LG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

@@ -154,7 +154,7 @@ class TiuCycle {
   void set_tl_deconv_param();
   void set_tl_eltwise_param();
   void set_tl_pooling_param();
-  void set_tl_broadcast_mul_param();
+  void set_tl_scale_param();
   void set_tl_activation_param();
   void set_tl_upsample_param();
   void set_tl_concat_param();

@@ -127,7 +127,7 @@ LogicalResult tpu::TG_BF16_AbsOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
+LogicalResult tpu::TG_INT8_ScaleOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -138,7 +138,6 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
   bool do_relu = this->param().do_relu().getValue();
-  ;
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -164,7 +163,8 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
+
+LogicalResult tpu::TG_BF16_ScaleOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -200,6 +200,85 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
                               0,       // const_scale
                               do_relu, // do_activation
                               false, CVK_FMT_BF16);
+
+  return success();
+}
+
+LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n");
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int64_t n, c, h, w;
+  std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
+  getNCHW(shape, n, c, h, w);
+
+  int64_t bn, bc, bh, bw;
+  std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
+  getNCHW(bshape, bn, bc, bh, bw);
+
+  bool do_relu = this->do_relu();
+
+  int32_t rshift = 0;
+  int32_t multiplier[2] = {1, 1}; // only one multiplier
+
+  if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
+    auto rshift_int8 = this->rshift().getValue();
+    rshift = static_cast<int32_t>(rshift_int8);
+
+    llvm::errs() << "broadcast mul rshift: " << rshift;
+
+    std::vector<int32_t> multiplier_int32(2);
+    arrayAttrToVector(this->m_i8_inputs().getValue(), multiplier_int32);
+
+    for (int32_t i = 0; i < 2; i++ ){
+      multiplier[i] = static_cast<int32_t>(multiplier_int32[i]);
+      llvm::errs() << "broadcast mul multiplier: " << multiplier[i];
+    }
+  }
+
+  gaddr_t ga_inputs[2];
+  ga_inputs[0] = getPreviousOpAddress(op, 0);
+  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_int8_broadcast_mul_kernel(
+    *backend_ctx, layer_id,
+    ga_inputs, ga_output, n, c,
+    h, w, bn, bc, bh, bw, do_relu, rshift, multiplier);
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n");
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int64_t n, c, h, w;
+  std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
+  getNCHW(shape, n, c, h, w);
+
+  int64_t bn, bc, bh, bw;
+  std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
+  getNCHW(bshape, bn, bc, bh, bw);
+
+  bool do_relu = this->do_relu();
+
+  gaddr_t ga_inputs[2];
+  ga_inputs[0] = getPreviousOpAddress(op, 0);
+  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_broadcast_mul_kernel(*backend_ctx, layer_id, ga_inputs,
+                                           ga_output, n, c, h, w, bn, bc, bh,
+                                           bw, do_relu);
 
   return success();
 }

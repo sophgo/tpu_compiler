@@ -128,7 +128,7 @@ private:
                  std::vector<Operation *> &orderedGroupOutOps);
   void genTLLutOp(Operation *srcOp, std::vector<Value> opds,
                   Operation *&dstOp, int loopIdx, int curN);
-  void genTLBroadcastMulOp(Operation *srcOp, std::vector<Value> opds,
+  void genTLScaleOp(Operation *srcOp, std::vector<Value> opds,
                            Operation *&dstOp, int loopIdx, int curN);
   void genTLPixelShuffleOp(Operation *srcOp, std::vector<Value> opds,
                            Operation *&dstOp, int loopIdx, int curN);
@@ -662,9 +662,9 @@ bool DeepFusionGroupSlice::isFusionOp(Operation *opInst, int batchSize) {
     auto op = cast<tpu::TG_INT8_PoolAvg2DOp>(opInst);
     totalPerLane = SimpleIOMemoryUsageAnalysis(op, nullptr,batchSize);
 
-  } else if (isa<tpu::TG_INT8_BroadcastMulOp>(opInst)) {
-    auto op = cast<tpu::TG_INT8_BroadcastMulOp>(opInst);
-    totalPerLane = SimpleBroadcastMulMemoryUsageAnalysis(op,
+  } else if (isa<tpu::TG_INT8_ScaleOp>(opInst)) {
+    auto op = cast<tpu::TG_INT8_ScaleOp>(opInst);
+    totalPerLane = SimpleScaleMemoryUsageAnalysis(op,
                                                          nullptr, batchSize);
   } else if (isa<tpu::TG_INT8_PixelShuffleOp>(opInst)) {
     auto op = cast<tpu::TG_INT8_PixelShuffleOp>(opInst);
@@ -762,8 +762,8 @@ void DeepFusionGroupSlice::genTLOp(Operation *srcOp,
     genTLLutOp(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_PoolAvg2DOp>(srcOp)) {
     genTLPoolAvgOp(srcOp, opds, dstOp, loopIdx, curN);
-  } else if (isa<tpu::TG_INT8_BroadcastMulOp>(srcOp)) {
-    genTLBroadcastMulOp(srcOp, opds, dstOp, loopIdx, curN);
+  } else if (isa<tpu::TG_INT8_ScaleOp>(srcOp)) {
+    genTLScaleOp(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_PixelShuffleOp>(srcOp)) {
     genTLPixelShuffleOp(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_PReluOp>(srcOp)) {
@@ -997,13 +997,13 @@ void DeepFusionGroupSlice::genTLConvOp(Operation *srcOp,
   }
 }
 
-void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
+void DeepFusionGroupSlice::genTLScaleOp(Operation *srcOp,
                                               std::vector<Value> opds,
                                               Operation *&dstOp,
                                               int loopIdx, int curN) {
   Builder builder(context_);
   bool bSlice = (curN == batchSize_) ? false : true;
-  auto op = cast<tpu::TG_INT8_BroadcastMulOp>(srcOp);
+  auto op = cast<tpu::TG_INT8_ScaleOp>(srcOp);
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
   shape = getTensorShape(srcOp->getResult(0));
@@ -1058,7 +1058,7 @@ void DeepFusionGroupSlice::genTLBroadcastMulOp(Operation *srcOp,
         builder.getI32IntegerAttr(0), // pad_value
         builder.getContext())));
 
-  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_BroadcastMulOp>(
+  dstOp = OpBuilder(getInsertionPoint()).create<tpu::TL_ScaleOp>(
                     srcOp->getLoc(), resultType,
                     ArrayRef<Value>{operands},
                     ArrayRef<NamedAttribute>{attrs});

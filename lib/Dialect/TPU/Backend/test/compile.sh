@@ -73,7 +73,16 @@ tpuc-interpreter ${OP_NAME}_int8.mlir \
     --tensor-out ${OP_NAME}_out_int8.npz \
     --dump-all-tensor=${OP_NAME}_tensor_all_int8.npz
 
-# compare results
+# compare fp32 results
+cvi_npz_tool.py compare \
+    ${OP_NAME}_tensor_all_int8.npz \
+    ${OP_NAME}_tensor_all_fp32.npz \
+    --op_info ${OP_NAME}_op_info_int8.csv \
+    --dequant \
+    --stats_int8_tensor \
+    --tolerance=0.7,0.7,0.7 -vv
+
+# compare int8 results
 cvi_npz_tool.py compare \
     ${OP_NAME}_cmdbuf_out_int8.npz \
     ${OP_NAME}_tensor_all_int8.npz \

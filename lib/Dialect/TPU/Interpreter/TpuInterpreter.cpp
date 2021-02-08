@@ -163,10 +163,12 @@ LogicalResult tpu::BroadcastMulOp::interpret(
 
   // parse param
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t input_size, n, c, h, w, bn, bc, bh, bw;
   getTensorShapeAndSize(this->input(), shape, input_size);
   assert(input_size == size);
   getNCHW(shape, n, c, h, w);
+  auto bshape = getTensorShape(op->getOperand(1));
+  getNCHW(bshape, bn,bc,bh,bw);
   bool do_relu = this->do_relu();
   int axis = this->axis();
   assert(axis == 1);
@@ -175,20 +177,30 @@ LogicalResult tpu::BroadcastMulOp::interpret(
   assert(opdT.size() == 6);
   std::shared_ptr<std::vector<float> > input = opdT[0];
   std::shared_ptr<std::vector<float> > scale = opdT[1];
-  assert(scale->size() == (size_t)c * n);
   std::shared_ptr<std::vector<float> > quant_rshift = opdT[4];
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[5];
 
   // MUL apply qscale on output put, no scaling on input
 
   // compute in fp32
-  int ret = my_scale(input->data(), scale->data(), nullptr,
-                     resultT->data(), n, c, h, w);
-  assert(ret == 0);
+  if (scale->size() == (size_t)c * n) {
+    int ret = my_scale(input->data(), scale->data(), nullptr,
+                      resultT->data(), n, c, h, w);
+    assert(ret == 0);
+  } else if (bh == h && bw == w && bn == 1 && bc == 1) {
+    int nc = n * c;
+    int hw = h * w;
+    for (int j = 0; j < nc; j++) {
+      for (int i = 0; i < hw; i++) {
+        resultT->at(j * hw + i) = input->at(j * hw + i) * scale->at(i);
+      }
+    }
+  } else {
+    assert(0 && "not support now");
+  }
   if (do_relu) {
     my_relu(resultT->data(), resultT->data(), n, c, h, w, 0.0f);
   }
-
   // rshift and saturate on output
   if (mlir::getOpQuant(op) == "NONE") {
     // do nothing

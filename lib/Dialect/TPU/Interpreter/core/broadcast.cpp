@@ -157,6 +157,7 @@ BroadcastMulOpKernel::BroadcastMulOpKernel(Operation &op,
   LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
+  this->scale_shape = getTensorShape(op.getOperand(1));
 
   do_relu = broadcastmulOp.do_relu();
   int axis = broadcastmulOp.axis();
@@ -183,18 +184,29 @@ BroadcastMulOpKernel::BroadcastMulOpKernel(Operation &op,
   valueMapping[result] = std::move(resultTensor);
 }
 void BroadcastMulOpKernel::invoke() {
-  int n = this->shape.at(0);
-  int c = this->shape.at(1);
-  int h = this->shape.at(2);
-  int w = this->shape.at(3);
-  for (int ni = 0; ni < n; ++ni) {
-    for (int ci = 0; ci < c; ++ci) {
-      for (int i = 0; i < h * w; ++i) {
-        auto x = input_data->at(ni * c * h * w + ci * h * w + i);
-        auto y = x * scale->at(ci);
-        output_data->at(ni * c * h * w + ci * h * w + i) = y;
+  int64_t n, c, h, w, bn, bc, bh, bw;
+  getNCHW(shape, n, c, h, w);
+  getNCHW(scale_shape, bn, bc, bh, bw);
+  if (bh == 1 && bw == 1) {
+    for (int ni = 0; ni < n; ++ni) {
+      for (int ci = 0; ci < c; ++ci) {
+        for (int i = 0; i < h * w; ++i) {
+          auto x = input_data->at(ni * c * h * w + ci * h * w + i);
+          auto y = x * scale->at(ci);
+          output_data->at(ni * c * h * w + ci * h * w + i) = y;
+        }
       }
     }
+  } else if (bh == h && bw == w && bn == 1 && bc == 1) {
+    int nc = n * c;
+    int hw = h * w;
+    for (int j = 0; j < nc; j++) {
+      for (int i = 0; i < hw; i++) {
+        output_data->at(j * hw + i) = input_data->at(j * hw + i) * scale->at(i);
+      }
+    }
+  } else {
+    llvm_unreachable("not support now");
   }
   if (do_relu) {
     relu(output_data->data(), output_data->data(), output_data->size());

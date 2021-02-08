@@ -1348,7 +1348,7 @@ LogicalResult tpu::TL_LG_BF16_PoolMax2DOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_INT8_BroadcastMulOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_INT8_ScaleOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -1366,7 +1366,7 @@ LogicalResult tpu::TL_LG_INT8_BroadcastMulOp::codegen(void *ctx) {
   laddr_t la_bias = this->la_bias();
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tl_broadcast_mul(
+  cvi_backend_tl_scale(
       *backend_ctx, // ctx
       layer_id,     // layer_id
       la_input,     // input_addr
@@ -1388,7 +1388,7 @@ LogicalResult tpu::TL_LG_INT8_BroadcastMulOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_BF16_BroadcastMulOp::codegen(void *ctx) {
+LogicalResult tpu::TL_LG_BF16_ScaleOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
 
@@ -1407,7 +1407,7 @@ LogicalResult tpu::TL_LG_BF16_BroadcastMulOp::codegen(void *ctx) {
   laddr_t la_bias = this->la_bias();
   int layer_id = mlir::getOpLayerId(op);
 
-  cvi_backend_bf16_tl_broadcast_mul(
+  cvi_backend_bf16_tl_scale(
       *backend_ctx, // ctx
       layer_id,     // layer_id
       la_input,     // input_addr

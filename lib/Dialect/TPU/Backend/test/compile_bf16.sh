@@ -21,7 +21,7 @@ tpuc-opt \
     --convert-bn-to-scale \
     --canonicalize \
     --print-tpu-op-info \
-    --tpu-op-info-filename op_info.csv \
+    --tpu-op-info-filename ${OP_NAME}_op_info_fp32.csv \
     ${MLIR_MODEL} \
     -o ${OP_NAME}_fp32_opt.mlir
 
@@ -32,6 +32,12 @@ tpuc-opt \
      -o ${OP_NAME}_tmp.mlir
 mv input.npz ${OP_NAME}_in_fp32.npz
 
+# fp32 result
+tpuc-interpreter ${OP_NAME}_tmp.mlir \
+    --tensor-in ${OP_NAME}_in_fp32.npz \
+    --tensor-out ${OP_NAME}_out_fp32.npz \
+    --dump-all-tensor=${OP_NAME}_tensor_all_fp32.npz
+
 # quantization.
 tpuc-opt \
      --assign-chip-name \
@@ -39,7 +45,7 @@ tpuc-opt \
      --tpu-quant --quant-full-bf16 \
      --quant-bf16-softmax \
      --print-tpu-op-info \
-     --tpu-op-info-filename ${OP_NAME}_op_info.csv \
+     --tpu-op-info-filename ${OP_NAME}_op_info_bf16.csv \
      ${OP_NAME}_tmp.mlir \
      -o ${OP_NAME}.mlir
 
@@ -53,19 +59,26 @@ model_runner \
      --input ${OP_NAME}_in_fp32.npz \
      --model ${OP_NAME}.cvimodel \
      --batch-num $BATCH_SIZE \
-     --output ${OP_NAME}_cmdbuf_out.npz
+     --output ${OP_NAME}_cmdbuf_out_bf16.npz
 
 # inference with bf16 model and get outputs.
 tpuc-interpreter ${OP_NAME}.mlir \
     --tensor-in ${OP_NAME}_in_fp32.npz \
     --tensor-out ${OP_NAME}_out.npz \
-    --dump-all-tensor=${OP_NAME}_tensor_all.npz
+    --dump-all-tensor=${OP_NAME}_tensor_all_bf16.npz
 
-# compare results
+# compare bf16 and fp32 interpreter
 cvi_npz_tool.py compare \
-    ${OP_NAME}_cmdbuf_out.npz \
-    ${OP_NAME}_tensor_all.npz \
-    --op_info ${OP_NAME}_op_info.csv \
+    ${OP_NAME}_tensor_all_bf16.npz \
+    ${OP_NAME}_tensor_all_fp32.npz \
+    --op_info ${OP_NAME}_op_info_bf16.csv \
+    --tolerance 0.8,0.8,0.8 -vv
+
+# compare cmdbuf and interpreter by bf16
+cvi_npz_tool.py compare \
+    ${OP_NAME}_cmdbuf_out_bf16.npz \
+    ${OP_NAME}_tensor_all_bf16.npz \
+    --op_info ${OP_NAME}_op_info_bf16.csv \
     --tolerance 0.99,0.99,0.99 -vv
 
 popd

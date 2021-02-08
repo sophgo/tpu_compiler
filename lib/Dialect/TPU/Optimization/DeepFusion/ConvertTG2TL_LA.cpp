@@ -284,16 +284,16 @@ struct TpuTG2TLLutOpPattern : public RewritePattern {
   }
 };
 
-struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
-  TpuTG2TLBroadcastMulOpPattern(MLIRContext *context)
-      : RewritePattern("tpu.tg_int8_broadcast_mul", 1, context) {}
+struct TpuTG2TLScaleOpPattern : public RewritePattern {
+  TpuTG2TLScaleOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.tg_int8_scale", 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
-    auto op = cast<tpu::TG_INT8_BroadcastMulOp>(opInst);
+    auto op = cast<tpu::TG_INT8_ScaleOp>(opInst);
     assert(op);
 
-    uint64_t totalPerLane = SimpleBroadcastMulMemoryUsageAnalysis(op, nullptr);
+    uint64_t totalPerLane = SimpleScaleMemoryUsageAnalysis(op, nullptr);
     if (totalPerLane > MInfo::lmem_per_lane) {
       LLVM_DEBUG(llvm::errs() << "TG2TL_LA: " << op.name()
                    << ", layer ID " << getOpLayerId(opInst)
@@ -359,7 +359,7 @@ struct TpuTG2TLBroadcastMulOpPattern : public RewritePattern {
             rewriter.getContext())));
       attrs.push_back(rewriter.getNamedAttr("name", op.nameAttr()));
 
-      rewriter.replaceOpWithNewOp<tpu::TL_BroadcastMulOp>(
+      rewriter.replaceOpWithNewOp<tpu::TL_ScaleOp>(
           op, op.getResult().getType(),
           ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{attrs});
       return success();
@@ -456,7 +456,7 @@ public:
       TpuTG2TLElewiseOpPattern<tpu::TG_INT8_EltwiseMulOp, tpu::TL_EltwiseMulOp>,
       TpuTG2TLLutOpPattern,
       TpuTG2TLPoolOpPattern<tpu::TG_INT8_PoolAvg2DOp, tpu::TL_PoolAvg2DOp>,
-      TpuTG2TLBroadcastMulOpPattern
+      TpuTG2TLScaleOpPattern
     >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }

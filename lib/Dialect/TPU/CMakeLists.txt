@@ -141,7 +141,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgBf16SquareKernel.cpp
   Backend/Kernel/TgBf16ReduceKernel.cpp
   Backend/Kernel/TgBf16LrnKernel.cpp
-  Backend/Kernel/TlBroadcastMul.cpp
   Backend/Kernel/TlConcat.cpp
   Backend/Kernel/TlConv.cpp
   Backend/Kernel/TlCrop.cpp

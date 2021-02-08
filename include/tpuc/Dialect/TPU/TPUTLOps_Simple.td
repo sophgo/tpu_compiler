@@ -152,12 +152,12 @@ def TPU_TL_LW_Conv2DOp : TPU_Op<"tl_lw_conv_2d",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_TL_BroadcastMulOp : TPU_Op<"tl_broadcast_mul",
+def TPU_TL_ScaleOp : TPU_Op<"tl_scale",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>,
        DeclareOpInterfaceMethods<TpuTLSimpleOpCodegenInterface>]> {
-  let summary = "TL BroadcastMul operator";
+  let summary = "TL Scale operator";
 
   let description = [{
   }];

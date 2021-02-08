@@ -234,7 +234,8 @@ def TPU_TG_BF16_Conv2DOp : TPU_TG_ConvOp<"tg_bf16_conv_2d", "Bf16">;
 def TPU_TG_INT8_PT_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pt_deconv_2d", "Int8 Per-Tensor">;
 def TPU_TG_INT8_PC_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pc_deconv_2d", "Int8 Per-Channel">;
 def TPU_TG_BF16_DeConv2DOp : TPU_TG_ConvOp<"tg_bf16_deconv_2d", "Bf16">;
-
+def TPU_TG_INT8_ScaleOp : TPU_TG_ConvOp<"tg_int8_scale", "Int8">;
+def TPU_TG_BF16_ScaleOp : TPU_TG_ConvOp<"tg_bf16_scale", "Bf16">;
 
 
 class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
@@ -298,11 +299,6 @@ class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let results = (outs AnyTensor:$output);
 }
 def TPU_TG_BF16_Conv3DOp : TPU_TG_Conv3dOp<"tg_bf16_conv_3d", "Bf16">;
-
-// underlying we are using conv to do broadcast mul
-def TPU_TG_INT8_BroadcastMulOp : TPU_TG_ConvOp<"tg_int8_broadcast_mul", "Int8">;
-def TPU_TG_BF16_BroadcastMulOp : TPU_TG_ConvOp<"tg_bf16_broadcast_mul", "Bf16">;
-
 
 class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -527,8 +523,10 @@ class TPU_TG_BroadcastOp<string mnemonic, string opQuant, string opType> : TPU_O
 }
 def TPU_TG_INT8_BroadcastAddOp : TPU_TG_BroadcastOp<"tg_int8_broadcast_add", "Int8", "Add">;
 def TPU_TG_INT8_BroadcastSubOp : TPU_TG_BroadcastOp<"tg_int8_broadcast_sub", "Int8", "Sub">;
+def TPU_TG_INT8_BroadcastMulOp : TPU_TG_BroadcastOp<"tg_int8_broadcast_mul", "Int8", "Mul">;
 def TPU_TG_BF16_BroadcastAddOp : TPU_TG_BroadcastOp<"tg_bf16_broadcast_add", "Bf16", "Add">;
 def TPU_TG_BF16_BroadcastSubOp : TPU_TG_BroadcastOp<"tg_bf16_broadcast_sub", "Bf16", "Sub">;
+def TPU_TG_BF16_BroadcastMulOp : TPU_TG_BroadcastOp<"tg_bf16_broadcast_mul", "Bf16", "Mul">;
 
 class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

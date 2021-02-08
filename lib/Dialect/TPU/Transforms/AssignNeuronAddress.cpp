@@ -260,7 +260,7 @@ updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
 
   fn.walk([&](Operation *op) {
     uint32_t endPosition = getOpLine(op) + 1;
-    if (isa<tpu::TL_LW_Conv2DOp>(op) || isa<tpu::TL_BroadcastMulOp>(op) ||
+    if (isa<tpu::TL_LW_Conv2DOp>(op) || isa<tpu::TL_ScaleOp>(op) ||
         isa<tpu::TL_EltwiseAddOp>(op) || isa<tpu::TL_EltwiseMulOp>(op) ||
         isa<tpu::TL_PoolAvg2DOp>(op) || isa<tpu::TL_LutOp>(op) ||
         isa<tpu::TL_PixelShuffleOp>(op)) {

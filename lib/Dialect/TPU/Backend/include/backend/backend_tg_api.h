@@ -175,6 +175,14 @@ void cvi_backend_tg_int8_broadcast_sub_kernel(
     bool do_relu, const int32_t rshift,
     const int32_t *multipliers);
 
+void cvi_backend_tg_int8_broadcast_mul_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output,
+    int32_t n, int32_t c, int32_t h, int32_t w,
+    int32_t bn, int32_t bc, int32_t bh, int32_t bw,
+    bool do_relu, const int32_t rshift,
+    const int32_t *multipliers);
+
 //////////////// bf16 kernel API /////////////////
 void cvi_backend_tg_bf16_conv_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
@@ -352,6 +360,11 @@ void cvi_backend_tg_bf16_broadcast_add_kernel(
     int h, int w, int bn, int bc, int bh, int bw, bool do_relu);
 
 void cvi_backend_tg_bf16_broadcast_sub_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_inputs[], gaddr_t ga_output, int n, int c,
+    int h, int w, int bn, int bc, int bh, int bw, bool do_relu);
+
+void cvi_backend_tg_bf16_broadcast_mul_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output, int n, int c,
     int h, int w, int bn, int bc, int bh, int bw, bool do_relu);

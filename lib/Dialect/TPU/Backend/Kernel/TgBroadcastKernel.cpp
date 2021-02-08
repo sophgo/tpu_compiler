@@ -14,7 +14,8 @@
 
 enum class BroadcastType {
   BroadcastAdd,
-  BroadcastSub
+  BroadcastSub,
+  BroadcastMul,
 };
 
 #define DEBUG_TYPE "TgBroadcastKernel"
@@ -58,7 +59,6 @@ void tg_broadcast_kernel(const CviBackendContext &ctx,
                           BroadcastType type, cvk_fmt_t fmt) {
   LLVM_DEBUG(llvm::errs() << llvm::format("a shape:[%d,%d,%d,%d] b shape:[%d,%d,%d,%d], relu:%d, fmt:%d\n",
                                n, c, h, w, bn, bc, bh, bw, do_relu, fmt););
-  assert(!do_relu);
   // Only support to broadcast in n & c dimension.
   assert(bn == 1);
   assert(bc == 1);
@@ -76,7 +76,10 @@ void tg_broadcast_kernel(const CviBackendContext &ctx,
   uint32_t elt_size = (fmt == CVK_FMT_BF16) ? 2 : 1;
   // bf16  input0 + input1
   // int8  input0 + input1 + output_high
-  int block_num = (fmt == CVK_FMT_BF16) ? 1 : 2;
+  int block_num = 1;
+  if (fmt == CVK_FMT_I8 && type != BroadcastType::BroadcastMul) {
+    block_num = 2;
+  }
 
   // determin the shape of tile.
   for (step_w = w; step_w > 0; step_w--) {
@@ -104,7 +107,7 @@ after_loop:
   cvk_tl_t *tl_a = ctx.lmem_alloc_tensor(shape_a, fmt, 1);
   cvk_tl_t *tl_b = ctx.lmem_alloc_tensor(shape_b, fmt, 1);
   cvk_tl_t *tl_a_h = nullptr;
-  if (fmt == CVK_FMT_I8) {
+  if (fmt == CVK_FMT_I8 && type != BroadcastType::BroadcastMul) {
     tl_a_h = ctx.lmem_alloc_tensor(shape_a, fmt, 1);
     assert(tl_a_h);
   }
@@ -133,21 +136,22 @@ after_loop:
 
       // broadcast b to all lanes
       broadcast_one_to_all_lane(ctx, operand, fmt);
-      shape_b = ctx.tl_shape_t4(1, NPU_NUM, cur_h, cur_w);
-      cvk_tl_t operand_b;
-      operand_b.start_address = tl_b->start_address;
-      operand_b.shape = shape_b;
-      operand_b.stride = ctx.tl_default_stride(shape_b, fmt, /*eu_align=*/1);
-      operand_b.fmt = fmt;
 
       for (int pos_c = 0; pos_c < c; pos_c += step_c) {
         int cur_c = std::min(c - pos_c, step_c);
+        shape_b = ctx.tl_shape_t4(1, cur_c, cur_h, cur_w);
+        cvk_tl_t operand_b;
+        operand_b.start_address = tl_b->start_address;
+        operand_b.shape = shape_b;
+        operand_b.stride = ctx.tl_default_stride(shape_b, fmt, /*eu_align=*/1);
+        operand_b.fmt = fmt;
+
         for (int pos_n = 0; pos_n < n; pos_n += step_n) {
           int cur_n = std::min(n - pos_n, step_n);
 
           LLVM_DEBUG(llvm::errs() << llvm::format("cur_n:%d, cur_c:%d, cur_h:%d, cur_w:%d\n", cur_n,
                                        cur_c, cur_h, cur_w););
-          cvk_tl_t operand_a, operand_res, operand_res_h;
+          cvk_tl_t operand_a, operand_res;
           shape_a = ctx.tl_shape_t4(cur_n, cur_c, cur_h, cur_w);
           operand_a.start_address = tl_a->start_address; // start of lmem
           operand_a.shape = shape_a;
@@ -168,7 +172,8 @@ after_loop:
               ctx.tl_default_stride(shape_a, fmt, /*eu_align=*/1);
           operand_res.fmt = fmt;
           if (fmt == CVK_FMT_BF16) {
-            if (type == BroadcastType::BroadcastAdd) {
+            switch (type) {
+            case BroadcastType::BroadcastAdd: {
               cvk_tiu_add_param_t p = {0};
               p.res_high = 0;
               p.res_low = &operand_res;
@@ -181,7 +186,8 @@ after_loop:
               p.layer_id = layer_id;
               p.relu_enable = 0;
               ctx.tiu_add(&p);
-            } else if (type == BroadcastType::BroadcastSub) {
+            } break;
+            case BroadcastType::BroadcastSub: {
               cvk_tiu_sub_param_t p = {0};
               p.res_high = 0;
               p.res_low = &operand_res;
@@ -192,45 +198,81 @@ after_loop:
               p.rshift_bits = 0;
               p.layer_id = layer_id;
               ctx.tiu_sub(&p);
+            } break;
+            case BroadcastType::BroadcastMul: {
+              cvk_tiu_mul_param_t p = {0};
+              p.res_high = nullptr;
+              p.res_low = &operand_res;
+              p.a = &operand_a;
+              p.b = &operand_b;
+              p.b_is_const = 0;
+              p.rshift_bits = 0;
+              p.layer_id = layer_id;
+              p.relu_enable = do_relu;
+              ctx.tiu_mul(&p);
+            } break;
+            default:
+              assert(0);
             }
           } else if (fmt == CVK_FMT_I8) {
-            operand_res_h.start_address = tl_a_h->start_address; // start of lmem
-            operand_res_h.shape = shape_a;
-            operand_res_h.stride =
-                ctx.tl_default_stride(shape_a, fmt, /*eu_align=*/1);
-            operand_res_h.fmt = fmt;
+            switch (type) {
+            case BroadcastType::BroadcastAdd:
+            case BroadcastType::BroadcastSub: {
+              cvk_tl_t operand_res_h;
+              operand_res_h.start_address =
+                  tl_a_h->start_address; // start of lmem
+              operand_res_h.shape = shape_a;
+              operand_res_h.stride =
+                  ctx.tl_default_stride(shape_a, fmt, /*eu_align=*/1);
+              operand_res_h.fmt = fmt;
+              cvk_tiu_mul_param_t p1 = {0};
+              p1.res_high = &operand_res_h;
+              p1.res_low = &operand_res;
+              p1.a = &operand_a;
+              p1.b_const.val = multipliers[0];
+              p1.b_const.is_signed = true;
+              p1.b_is_const = true;
+              p1.rshift_bits = 0;
+              p1.layer_id = layer_id;
+              p1.relu_enable = 0;
+              ctx.tiu_mul(&p1);
 
-            cvk_tiu_mul_param_t p1 = {0};
-            p1.res_high = &operand_res_h;
-            p1.res_low = &operand_res;
-            p1.a = &operand_a;
-            p1.b_const.val = multipliers[0];
-            p1.b_const.is_signed = true;
-            p1.b_is_const = true;
-            p1.rshift_bits = 0;
-            p1.layer_id = layer_id;
-            p1.relu_enable = 0;
-            ctx.tiu_mul(&p1);
+              cvk_tiu_mac_param_t p2 = {0};
+              p2.res_high = &operand_res_h;
+              p2.res_low = &operand_res;
+              p2.a = &operand_b;
+              p2.res_is_int8 = true;
 
-            cvk_tiu_mac_param_t p2 = {0};
-            p2.res_high = &operand_res_h;
-            p2.res_low = &operand_res;
-            p2.a = &operand_b;
-            p2.res_is_int8 = true;
+              if (type == BroadcastType::BroadcastAdd) {
+                p2.b_const.val = multipliers[1];
+              } else if (type == BroadcastType::BroadcastSub) {
+                p2.b_const.val = -multipliers[1];
+              }
 
-            if (type == BroadcastType::BroadcastAdd) {
-              p2.b_const.val = multipliers[1];
-            } else if (type == BroadcastType::BroadcastSub) {
-              p2.b_const.val = -multipliers[1];
+              p2.b_is_const = true;
+              p2.b_const.is_signed = true;
+              p2.lshift_bits = 0;
+              p2.rshift_bits = rshift;
+              p2.layer_id = layer_id;
+              p2.relu_enable = do_relu;
+              ctx.tiu_mac(&p2);
+            } break;
+            case BroadcastType::BroadcastMul: {
+              cvk_tiu_mul_qm_param_t p1 = {0};
+              p1.res_high = nullptr;
+              p1.res_low = &operand_res;
+              p1.a = &operand_a;
+              p1.b_is_const = 0;
+              p1.b = &operand_b;
+              p1.rshift_bits = rshift;
+              p1.relu_enable = do_relu;
+              p1.layer_id = layer_id;
+              p1.multiplier = multipliers[0];
+              ctx.tiu_mul_qm(&p1);
+            } break;
+            default:
+              assert(0);
             }
-
-            p2.b_is_const = true;
-            p2.b_const.is_signed = true;
-            p2.lshift_bits = 0;
-            p2.rshift_bits = rshift;
-            p2.layer_id = layer_id;
-            p2.relu_enable = do_relu;
-            ctx.tiu_mac(&p2);
           }
           // store result
           ctx.tdma_store_stride(&operand_res, ga_output + a_offset, g_stride);
@@ -271,6 +313,16 @@ void cvi_backend_tg_int8_broadcast_sub_kernel(const CviBackendContext &ctx, uint
                        n, c, h, w, bn, bc, bh, bw, do_relu, rshift, multipliers, BroadcastType::BroadcastSub, CVK_FMT_I8);
 }
 
+void cvi_backend_tg_int8_broadcast_mul_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+                         gaddr_t ga_inputs[], gaddr_t ga_output,
+                         int32_t n, int32_t c, int32_t h, int32_t w,
+                         int32_t bn, int32_t bc, int32_t bh, int32_t bw,
+                         bool do_relu, const int32_t rshift,
+                         const int32_t * multipliers) {
+  tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
+                       n, c, h, w, bn, bc, bh, bw, do_relu, rshift, multipliers, BroadcastType::BroadcastMul, CVK_FMT_I8);
+}
+
 void cvi_backend_tg_bf16_broadcast_add_kernel(const CviBackendContext &ctx,
                                               uint32_t layer_id, gaddr_t ga_inputs[],
                                               gaddr_t ga_output, int n, int c, int h,
@@ -287,4 +339,13 @@ void cvi_backend_tg_bf16_broadcast_sub_kernel(const CviBackendContext &ctx,
                                               bool do_relu) {
   tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
                         n, c, h, w, bn, bc, bh, bw, do_relu, 0, nullptr, BroadcastType::BroadcastSub, CVK_FMT_BF16);
+}
+
+void cvi_backend_tg_bf16_broadcast_mul_kernel(const CviBackendContext &ctx,
+                                              uint32_t layer_id, gaddr_t ga_inputs[],
+                                              gaddr_t ga_output, int n, int c, int h,
+                                              int w, int bn, int bc, int bh, int bw,
+                                              bool do_relu) {
+  tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
+                        n, c, h, w, bn, bc, bh, bw, do_relu, 0, nullptr, BroadcastType::BroadcastMul, CVK_FMT_BF16);
 }

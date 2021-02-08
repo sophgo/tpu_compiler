@@ -433,14 +433,14 @@ struct TpuTL_LW_Conv2DOp_AssignLayoutPattern : public RewritePattern {
         op.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
         next_op.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
       }
-    }  else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_BroadcastMulOp>(next_opInst)) {
-      // conv fuse broadcastMul
+    }  else if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_ScaleOp>(next_opInst)) {
+      // conv fuse Scale
       //                               ===========
       //                               ||     conv        ||
       //                               ===========
       //                                            |
       //                               =============
-      //                              ||BroadcastMul||
+      //                              ||Scale||
       //                               =============
       if (next_op.lm_layout() == "NONE") {
         // next_op not set layout yet, return for now, wait for next round
@@ -811,13 +811,13 @@ struct TpuTL_EltwiseMulOp_AssignLayoutPattern : public RewritePattern {
   }
 };
 
-struct TpuTL_BroadcastMulOp_AssignLayoutPattern : public RewritePattern {
-  TpuTL_BroadcastMulOp_AssignLayoutPattern(MLIRContext *context)
-      : RewritePattern("tpu.tl_broadcast_mul", 1, context) {}
+struct TpuTL_ScaleOp_AssignLayoutPattern : public RewritePattern {
+  TpuTL_ScaleOp_AssignLayoutPattern(MLIRContext *context)
+      : RewritePattern("tpu.tl_scale", 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *opInst,
                                      PatternRewriter &rewriter) const override {
-    auto op = cast<tpu::TL_BroadcastMulOp>(opInst);
+    auto op = cast<tpu::TL_ScaleOp>(opInst);
 
     if (op.lm_layout() != "NONE") {
       // assigned already
@@ -830,7 +830,7 @@ struct TpuTL_BroadcastMulOp_AssignLayoutPattern : public RewritePattern {
       if (auto next_op = llvm::dyn_cast_or_null<tpu::TL_LW_Conv2DOp>(next_opInst)) {
         // next is TL_LW_Conv2DOp, fuse it
         //                               =============
-       //                               ||broadcastMul||
+       //                               ||Scale||
        //                               =============
        //                                               |
        //                                  ===========
@@ -1128,7 +1128,7 @@ public:
         TpuTL_EltwiseMulOp_AssignLayoutPattern,
         TpuTL_LutOp_AssignLayoutPattern,
         TpuTL_PoolAvg2DOp_AssignLayoutPattern,
-        TpuTL_BroadcastMulOp_AssignLayoutPattern
+        TpuTL_ScaleOp_AssignLayoutPattern
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
@@ -1139,7 +1139,7 @@ public:
         TpuTL_EltwiseOp_AssignLAddrPattern<tpu::TL_EltwiseMulOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_LutOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_PoolAvg2DOp>,
-        TpuTL_Default_AssignLAddrPattern<tpu::TL_BroadcastMulOp>
+        TpuTL_Default_AssignLAddrPattern<tpu::TL_ScaleOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }

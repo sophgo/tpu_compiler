@@ -481,7 +481,7 @@ LogicalResult tpu::TL_PoolAvg2DOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
+LogicalResult tpu::TL_ScaleOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -509,7 +509,7 @@ LogicalResult tpu::TL_BroadcastMulOp::codegen(void *ctx) {
   }
 
   LLVM_DEBUG(
-    llvm::errs() << "    TL_BroadcastMulOp, layer_id = " << layer_id;
+    llvm::errs() << "    TL_ScaleOp, layer_id = " << layer_id;
     llvm::errs() << ", " << this->lm_layout();
     if (tl_load_flag())
       llvm::errs() << ", LD";

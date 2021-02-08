@@ -164,9 +164,9 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::TG_INT8_LrnOp>(op) ||
              isa<tpu::TG_BF16_LrnOp>(op)) {
     layer = std::make_shared<ImLrn>(op);
-  } else if (isa<tpu::TG_INT8_BroadcastMulOp>(op) ||
-             isa<tpu::TG_BF16_BroadcastMulOp>(op)) {
-    layer = std::make_shared<ImBroadcastMul>(op);
+  } else if (isa<tpu::TG_INT8_ScaleOp>(op) ||
+             isa<tpu::TG_BF16_ScaleOp>(op)) {
+    layer = std::make_shared<ImScale>(op);
   } else if (isa<tpu::TG_INT8_UpsampleOp>(op) ||
              isa<tpu::TG_BF16_UpsampleOp>(op)) {
     layer = std::make_shared<ImUpsample>(op);
@@ -627,9 +627,9 @@ ImAbs::ImAbs(Operation *op): ImLayer(IR_ABS, op, true) {
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
-ImBroadcastMul::ImBroadcastMul(Operation *op): ImLayer(IR_BROADCAST_MUL, op, true) {
+ImScale::ImScale(Operation *op): ImLayer(IR_SCALE, op, true) {
   auto input_type = op->getOperand(0).getType().dyn_cast<TensorType>();
-  bool isInt8Op = isa<tpu::TG_INT8_BroadcastMulOp>(op);
+  bool isInt8Op = isa<tpu::TG_INT8_ScaleOp>(op);
   auto input_shape = input_type.getShape();
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_in_tensor(op->getOperand(1), TENSOR_NEURON);

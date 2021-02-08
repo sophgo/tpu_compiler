@@ -346,7 +346,7 @@ void cvi_backend_tl_bf16_deconv(
     int stride_h, int stride_w, bool do_bias,
     bool do_relu);
 
-void cvi_backend_tl_broadcast_mul(
+void cvi_backend_tl_scale(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t input_laddr, laddr_t scale_laddr,
     laddr_t bias_laddr, laddr_t output_laddr, int input_n,
@@ -359,7 +359,7 @@ void cvi_backend_tl_broadcast_mul(
     const int *i8_multiplier, // INT8_PER_LAYER
     bool do_bias);
 
-void cvi_backend_bf16_tl_broadcast_mul(
+void cvi_backend_bf16_tl_scale(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t input_laddr, laddr_t scale_laddr,
     laddr_t bias_laddr, laddr_t output_laddr, int input_n,

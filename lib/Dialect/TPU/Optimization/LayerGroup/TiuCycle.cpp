@@ -119,8 +119,8 @@ int TiuCycle::get_cycle(int cur_layer) {
     case IR_PRELU:
     case IR_LEAKY_RELU:
       break;
-    case IR_BROADCAST_MUL:
-      set_tl_broadcast_mul_param();
+    case IR_SCALE:
+      set_tl_scale_param();
       break;
     case IR_ACTIVATION:
       set_tl_activation_param();
@@ -284,8 +284,8 @@ void TiuCycle::set_tl_eltwise_param() {
   }
 }
 
-void TiuCycle::set_tl_broadcast_mul_param() {
-  // broadcast use depthwise conv
+void TiuCycle::set_tl_scale_param() {
+  // scale use depthwise conv
   inst.tsk_typ = Pooling;
   inst.tsk_eu_typ = 2;
   inst.opt_chl_quan = true;

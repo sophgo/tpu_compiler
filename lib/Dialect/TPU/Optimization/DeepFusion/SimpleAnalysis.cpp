@@ -237,7 +237,7 @@ uint64_t SimpleLutMemoryUsageAnalysis(tpu::TG_INT8_LutOp &op,
     int batch_size = -1);
 
 template <typename OpTy>
-uint64_t SimpleBroadcastMulMemoryUsageAnalysis(OpTy &op,
+uint64_t SimpleScaleMemoryUsageAnalysis(OpTy &op,
     struct SimpleMemoryUsageAnalysis_details *details,
     int batch_size) {
   std::vector<int64_t> shape;
@@ -275,7 +275,7 @@ uint64_t SimpleBroadcastMulMemoryUsageAnalysis(OpTy &op,
 }
 
 template
-uint64_t SimpleBroadcastMulMemoryUsageAnalysis(tpu::TG_INT8_BroadcastMulOp &op,
+uint64_t SimpleScaleMemoryUsageAnalysis(tpu::TG_INT8_ScaleOp &op,
     struct SimpleMemoryUsageAnalysis_details *details = nullptr,
     int batch_size = -1);
 

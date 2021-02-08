@@ -59,7 +59,7 @@ uint64_t SimpleLutMemoryUsageAnalysis(OpTy &op,
     int batch_size = -1);
 
 template <typename OpTy>
-uint64_t SimpleBroadcastMulMemoryUsageAnalysis(OpTy &op,
+uint64_t SimpleScaleMemoryUsageAnalysis(OpTy &op,
     struct SimpleMemoryUsageAnalysis_details *details = nullptr,
     int batch_size = -1);
 

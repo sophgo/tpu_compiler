@@ -226,9 +226,9 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
       _add_tl_lrn_op(mix_op, in_tensors, out_tensors,
                       time_step, timestep_idx, is_h_split);
       break;
-    case IR_BROADCAST_MUL:
-      mix_op->set_type("tl_broadcast_mul");
-      _add_tl_broadcast_mul_op(mix_op, in_tensors, out_tensors,
+    case IR_SCALE:
+      mix_op->set_type("tl_scale");
+      _add_tl_scale_op(mix_op, in_tensors, out_tensors,
                                time_step, timestep_idx, is_h_split);
       break;
     case IR_ACTIVATION:
@@ -1127,7 +1127,7 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
   }
 }
 
-void MixNet::_add_tl_broadcast_mul_op(
+void MixNet::_add_tl_scale_op(
                               MixOp * mix_op,
                               const std::vector<int>& in_tensors,
                               const std::vector<int>& out_tensors,
@@ -1139,7 +1139,7 @@ void MixNet::_add_tl_broadcast_mul_op(
   Operation* op = im_layer->op();
   auto op_input_type =
     op->getOperand(0).getType().cast<RankedTensorType>();
-  bool bInt8Op = isa<tpu::TG_INT8_BroadcastMulOp>(op);
+  bool bInt8Op = isa<tpu::TG_INT8_ScaleOp>(op);
 
   Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
   net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
@@ -1178,9 +1178,9 @@ void MixNet::_add_tl_broadcast_mul_op(
   }
 
   bool do_relu = false;
-  if(auto tmp_op = dyn_cast<tpu::TG_INT8_BroadcastMulOp>(op)) {
+  if(auto tmp_op = dyn_cast<tpu::TG_INT8_ScaleOp>(op)) {
     do_relu = tmp_op.param().do_relu().getValue();
-  } else if (auto tmp_op = dyn_cast<tpu::TG_BF16_BroadcastMulOp>(op)) {
+  } else if (auto tmp_op = dyn_cast<tpu::TG_BF16_ScaleOp>(op)) {
     do_relu = tmp_op.param().do_relu().getValue();
   }
   attrs.push_back(builder_.getNamedAttr("do_relu",
@@ -1207,15 +1207,15 @@ void MixNet::_add_tl_broadcast_mul_op(
     operands.push_back(none_op.getResult());
   }
 
-  // build tl_broadcast operation
-  if (isa<tpu::TG_INT8_BroadcastMulOp>(op)) {
-    auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_BroadcastMulOp>(
+  // build tl_scale operation
+  if (isa<tpu::TG_INT8_ScaleOp>(op)) {
+    auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_ScaleOp>(
                         get_start_op()->getLoc(), input_type,
                         ArrayRef<Value>{operands},
                         ArrayRef<NamedAttribute>{attrs});
     add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
-  } else if (isa<tpu::TG_BF16_BroadcastMulOp>(op)) {
-    auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_BF16_BroadcastMulOp>(
+  } else if (isa<tpu::TG_BF16_ScaleOp>(op)) {
+    auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_BF16_ScaleOp>(
                         get_start_op()->getLoc(), input_type,
                         ArrayRef<Value>{operands},
                         ArrayRef<NamedAttribute>{attrs});

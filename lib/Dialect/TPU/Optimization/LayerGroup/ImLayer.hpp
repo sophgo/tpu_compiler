@@ -36,7 +36,7 @@ typedef enum {
   IR_CONVOLUTION,
   IR_DECONVOLUTION,
   IR_POOLING,
-  IR_BROADCAST_MUL,
+  IR_Scale,
   IR_LRN,
   IR_INNERPRODUCT,
   IR_RELU,
@@ -169,11 +169,6 @@ class ImAbs : public ImLayer {
 class ImLrn : public ImLayer {
  public:
   explicit ImLrn(Operation *op);
-};
-
-class ImBroadcastMul : public ImLayer {
- public:
-  explicit ImBroadcastMul(Operation *op);
 };
 
 class ImConcat : public ImLayer {

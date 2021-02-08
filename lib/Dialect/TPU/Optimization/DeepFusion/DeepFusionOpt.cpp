@@ -631,7 +631,7 @@ public:
                     TpuInsertFakeLdStPattern<tpu::TL_EltwiseAddOp>,
                     TpuInsertFakeLdStPattern<tpu::TL_EltwiseMulOp>,
                     TpuInsertFakeLdStPattern<tpu::TL_LutOp>,
-                    TpuInsertFakeLdStPattern<tpu::TL_BroadcastMulOp>,
+                    TpuInsertFakeLdStPattern<tpu::TL_ScaleOp>,
                     TpuInsertFakeLdStPattern<tpu::TL_PixelShuffleOp>,
                     TpuInsertFakeLdStPattern<tpu::TL_PReluOp>
                    >(context);
@@ -661,7 +661,7 @@ public:
         TpuTL_EltwiseOp_AssignLAddrPattern<tpu::TL_EltwiseMulOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_LutOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_PoolAvg2DOp>,
-        TpuTL_Default_AssignLAddrPattern<tpu::TL_BroadcastMulOp>,
+        TpuTL_Default_AssignLAddrPattern<tpu::TL_ScaleOp>,
         TpuTL_Default_AssignLAddrPattern<tpu::TL_PReluOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
