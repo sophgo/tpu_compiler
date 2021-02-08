@@ -38,7 +38,12 @@ void getTensorShapeAndSize(Value value, std::vector<int64_t> &shape,
 
 void getNCHW(std::vector<int64_t> &shape,
     int64_t &n, int64_t &c, int64_t &h, int64_t &w) {
-  if(shape.size() == 4) {
+  if(shape.size() == 5 && shape[0] == 1) {
+    n = shape[1];
+    c = shape[2];
+    h = shape[3];
+    w = shape[4];
+  } else if(shape.size() == 4) {
     n = shape[0];
     c = shape[1];
     h = shape[2];
