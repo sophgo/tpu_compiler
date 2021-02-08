@@ -187,7 +187,12 @@ void BroadcastMulOpKernel::invoke() {
   int64_t n, c, h, w, bn, bc, bh, bw;
   getNCHW(shape, n, c, h, w);
   getNCHW(scale_shape, bn, bc, bh, bw);
+  assert(bn == n || bn == 1);
   if (bh == 1 && bw == 1) {
+    if (bn == n) {
+      c = n * c;
+      n = 1;
+    }
     for (int ni = 0; ni < n; ++ni) {
       for (int ci = 0; ci < c; ++ci) {
         for (int i = 0; i < h * w; ++i) {
@@ -197,12 +202,20 @@ void BroadcastMulOpKernel::invoke() {
         }
       }
     }
-  } else if (bh == h && bw == w && bn == 1 && bc == 1) {
-    int nc = n * c;
+  } else if (bh == h && bw == w && bc == 1) {
+    // bcast mul
+    if (bn == 1) {
+      c = n * c;
+      n = 1;
+    }
     int hw = h * w;
-    for (int j = 0; j < nc; j++) {
-      for (int i = 0; i < hw; i++) {
-        output_data->at(j * hw + i) = input_data->at(j * hw + i) * scale->at(i);
+    for (int k = 0; k < n; k++) {
+      for (int j = 0; j < c; j++) {
+        for (int i = 0; i < hw; i++) {
+          int offset = (k * c + j) * hw + i;
+          output_data->at(offset) =
+              input_data->at(offset) * scale->at(k * hw + i);
+        }
       }
     }
   } else {

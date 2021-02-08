@@ -1608,11 +1608,19 @@ class OnnxConverter(BaseConverter):
 
                 elif len(input_shape1) == 4:
                     if np.prod(input_shape2) == input_shape1[0] * input_shape1[1]:
+                        # convert to scale op, e.g.
+                        #   [4,3,28,28] x [1,3] => [4,3,28,28]
+                        #   [4,3,28,28] x [4,3] => [4,3,28,28]
                         pass
-                    elif len(input_shape2) == 4 and input_shape1[2] == input_shape2[2] and input_shape1[3] == input_shape2[3]:
+                    elif (len(input_shape2) == 4 and input_shape1[2:] == input_shape2[2:] and
+                            input_shape2[1] == 1 and (input_shape1[0] == input_shape2[0] or input_shape2[0] == 1)):
+                        # bcast mul, e.g.
+                        #   [4,3,28,28] x [4,1,28,28] => [4,3,28,28]
+                        #   [4,3,28,28] x [1,1,28,28] => [4,3,28,28]
                         pass
                     else:
-                        raise RuntimeError("{} vs {}  broadcast mul not support".format(input_shape1, input_shape2))
+                        raise RuntimeError("{} vs {}  broadcast mul not support".format(
+                            input_shape1, input_shape2))
                 axis = 1
                 output_shape = input_shape1
                 mul_op = self.CVI.add_broadcast_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, op2], output_shape, axis=axis)

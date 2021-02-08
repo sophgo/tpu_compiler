@@ -137,6 +137,16 @@ LogicalResult tpu::TG_INT8_ScaleOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
+  int64_t bn, bc, bh, bw;
+  std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
+  getNCHW(bshape, bn, bc, bh, bw);
+  assert(bn == 1 || bn == n);
+  if (bn == n) {
+    // [4,3,28,28] x [4,3,1,1] => [1,12,28,28] x [1,12,1,1]
+    c = n * c;
+    n = 1;
+  }
+
   bool do_relu = this->param().do_relu().getValue();
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -163,10 +173,9 @@ LogicalResult tpu::TG_INT8_ScaleOp::codegen(void *ctx) {
   return success();
 }
 
-
 LogicalResult tpu::TG_BF16_ScaleOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -174,7 +183,17 @@ LogicalResult tpu::TG_BF16_ScaleOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
-  bool do_relu = this->param().do_relu().getValue();;
+  int64_t bn, bc, bh, bw;
+  std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
+  getNCHW(bshape, bn, bc, bh, bw);
+  assert(bn == 1 || bn == n);
+  if (bn == n) {
+    // [4,3,28,28] x [4,3,1,1] => [1,12,28,28] x [1,12,1,1]
+    c = n * c;
+    n = 1;
+  }
+  bool do_relu = this->param().do_relu().getValue();
+  ;
 
   int64_t input_size_1;
   std::vector<int64_t> shape_1;
@@ -184,7 +203,7 @@ LogicalResult tpu::TG_BF16_ScaleOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   gaddr_t ga_scale = getOpAddress(filter().getDefiningOp());
   // FIXME: support bias
-  //gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
+  // gaddr_t ga_pc_info = getWeightOpAddress(pc_info().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tg_scale_kernel(*backend_ctx, // ctx
@@ -244,6 +263,12 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   ga_inputs[1] = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
+  assert(bc == 1);
+  if (bn == 1) {
+    // e.g. [4,3,28,28] x [1,1,28,28] = [1,12,28,28] x [1,1,28,28]
+    c = n * c;
+    n = 1;
+  }
 
   cvi_backend_tg_int8_broadcast_mul_kernel(
     *backend_ctx, layer_id,
@@ -275,6 +300,12 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   ga_inputs[1] = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
+  assert(bc == 1);
+  if (bn == 1) {
+    // e.g. [4,3,28,28] x [1,1,28,28] = [1,12,28,28] x [1,1,28,28]
+    c = n * c;
+    n = 1;
+  }
 
   cvi_backend_tg_bf16_broadcast_mul_kernel(*backend_ctx, layer_id, ga_inputs,
                                            ga_output, n, c, h, w, bn, bc, bh,

@@ -102,6 +102,7 @@ Value tpu::BroadcastMulOp::convertToTG() {
   getNCHW(shape, n, c, h, w);
   auto bshape = getTensorShape(op->getOperand(1));
   getNCHW(bshape, bn, bc, bh, bw);
+  assert(bn == n || bn == 1);
 
   if (bh == 1 && bw == 1) {
     // convert to scale op
@@ -154,7 +155,7 @@ Value tpu::BroadcastMulOp::convertToTG() {
           ArrayRef<NamedAttribute>{attrs});
       return newOp.getResult();
     }
-  } else if (bn == 1 && bc == 1 && bh == h && bw == w) {
+  } else if (bc == 1 && bh == h && bw == w) {
     std::vector<Value> operands;
     operands.push_back(op->getOperand(0));
     operands.push_back(op->getOperand(1));

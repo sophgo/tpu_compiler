@@ -12,6 +12,8 @@
 #include <iostream>
 #include <cmath>
 
+// e.g. [4, 3, 28, 28] x [4, 1, 28, 28] => [4, 3, 28, 28]
+
 enum class BroadcastType {
   BroadcastAdd,
   BroadcastSub,
@@ -19,7 +21,7 @@ enum class BroadcastType {
 };
 
 #define DEBUG_TYPE "TgBroadcastKernel"
-void broadcast_one_to_all_lane(const CviBackendContext &ctx, cvk_tl_t inputBuffer, cvk_fmt_t fmt) {
+void broadcast_one_to_all_lane(const CviBackendContext &ctx, cvk_tl_t inputBuffer, cvk_fmt_t fmt, uint16_t layer_id) {
   assert(inputBuffer.shape.h * inputBuffer.shape.w < ((1 << 16 )- 1));//Reg bit field = 16 bit
   // reshape
   cvk_tl_t tl_src = {};
@@ -38,6 +40,7 @@ void broadcast_one_to_all_lane(const CviBackendContext &ctx, cvk_tl_t inputBuffe
   cvk_tdma_l2l_tensor_copy_param_t p = {0};
   p.src = &tl_src;
   p.dst = &tl_dst;
+  p.layer_id = layer_id;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                   "         L2L Reshape:\n"
@@ -60,13 +63,13 @@ void tg_broadcast_kernel(const CviBackendContext &ctx,
   LLVM_DEBUG(llvm::errs() << llvm::format("a shape:[%d,%d,%d,%d] b shape:[%d,%d,%d,%d], relu:%d, fmt:%d\n",
                                n, c, h, w, bn, bc, bh, bw, do_relu, fmt););
   // Only support to broadcast in n & c dimension.
-  assert(bn == 1);
+  assert(bn == n);
   assert(bc == 1);
   assert(bh == h);
   assert(bw == w);
 
   uint32_t lmem_required = (uint32_t)LOCAL_MEM_SIZE + 1;
-  int32_t step_n = n;
+  int32_t step_n = 1;
   int32_t step_c = NPU_NUM;
   int32_t step_h = h;
   int32_t step_w = w;
@@ -76,22 +79,20 @@ void tg_broadcast_kernel(const CviBackendContext &ctx,
   uint32_t elt_size = (fmt == CVK_FMT_BF16) ? 2 : 1;
   // bf16  input0 + input1
   // int8  input0 + input1 + output_high
-  int block_num = 1;
+  int blob_num = 1;
   if (fmt == CVK_FMT_I8 && type != BroadcastType::BroadcastMul) {
-    block_num = 2;
+    blob_num = 2;
   }
 
   // determin the shape of tile.
   for (step_w = w; step_w > 0; step_w--) {
     for (step_h = h; step_h > 0; step_h--) {
-      for (step_n = n; step_n > 0; step_n--) {
-        shape_a = ctx.tl_shape_t4(step_n, step_c, step_h, step_w);
-        shape_b = ctx.tl_shape_t4(1, 1, step_h, step_w);
-        lmem_required = ctx.lmem_tensor_to_size(shape_a, fmt, 1) * block_num +
-                  ctx.lmem_tensor_to_size(shape_b, fmt, 1);
-        if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
-          goto after_loop;
-        }
+      shape_a = ctx.tl_shape_t4(step_n, step_c, step_h, step_w);
+      shape_b = ctx.tl_shape_t4(step_n, 1, step_h, step_w);
+      lmem_required = ctx.lmem_tensor_to_size(shape_a, fmt, 1) * blob_num +
+                      ctx.lmem_tensor_to_size(shape_b, fmt, 1);
+      if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
+        goto after_loop;
       }
     }
   }
@@ -117,54 +118,59 @@ after_loop:
     int cur_h = std::min(h - pos_h, step_h);
     for (int pos_w = 0; pos_w < w; pos_w += step_w) {
       int cur_w = std::min(w - pos_w, step_w);
-      shape_b = ctx.tl_shape_t4(1, 1, cur_h, cur_w);
+      for (int pos_n = 0; pos_n < n; pos_n += step_n) {
+        int cur_n = std::min(n - pos_n, step_n);
+        shape_b = ctx.tl_shape_t4(cur_n, 1, cur_h, cur_w);
+        // load b to lmem
+        cvk_tl_t operand = {0};
+        uint64_t b_offset = (pos_w + pos_h * bw + pos_n * bh * bw) * elt_size;
+        operand.start_address = tl_b->start_address;
+        operand.shape = shape_b;
+        operand.stride = ctx.tl_default_stride(shape_b, fmt, 1);
+        operand.fmt = fmt;
+        cvk_tg_stride_t stride = ctx.tg_default_stride(bc, bh, bw, fmt);
+        ctx.tdma_load_stride(&operand, ga_inputs[1] + b_offset, stride);
 
-      // load b to lmem
-      cvk_tl_t operand;
-      uint64_t b_offset = (pos_w + pos_h * bw) * elt_size;
-      operand.start_address = tl_b->start_address;
-      operand.shape = shape_b;
-      operand.stride = ctx.tl_default_stride(shape_b, fmt, 1);
-      operand.fmt = fmt;
-      cvk_tg_stride_t stride = ctx.tg_default_stride(bc, bh, bw, fmt);
-      ctx.tdma_load_stride(&operand, ga_inputs[1] + b_offset, stride);
+        LLVM_DEBUG(
+            llvm::errs() << llvm::format(
+                "load b, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
+                operand.start_address, shape_b.n, shape_b.c, shape_b.h,
+                shape_b.w, stride.n, stride.c, stride.h, stride.w, b_offset););
 
-      LLVM_DEBUG(llvm::errs() << llvm::format(
-          "load b, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
-          operand.start_address, shape_b.n, shape_b.c, shape_b.h, shape_b.w, stride.n,
-          stride.c, stride.h, stride.w, b_offset););
+        // broadcast b to all lanes
+        broadcast_one_to_all_lane(ctx, operand, fmt, layer_id);
 
-      // broadcast b to all lanes
-      broadcast_one_to_all_lane(ctx, operand, fmt);
+        for (int pos_c = 0; pos_c < c; pos_c += step_c) {
+          int cur_c = std::min(c - pos_c, step_c);
+          shape_b = ctx.tl_shape_t4(cur_n, cur_c, cur_h, cur_w);
+          cvk_tl_t operand_b = {0};
+          operand_b.start_address = tl_b->start_address;
+          operand_b.shape = shape_b;
+          operand_b.stride =
+              ctx.tl_default_stride(shape_b, fmt, /*eu_align=*/1);
+          operand_b.fmt = fmt;
 
-      for (int pos_c = 0; pos_c < c; pos_c += step_c) {
-        int cur_c = std::min(c - pos_c, step_c);
-        shape_b = ctx.tl_shape_t4(1, cur_c, cur_h, cur_w);
-        cvk_tl_t operand_b;
-        operand_b.start_address = tl_b->start_address;
-        operand_b.shape = shape_b;
-        operand_b.stride = ctx.tl_default_stride(shape_b, fmt, /*eu_align=*/1);
-        operand_b.fmt = fmt;
-
-        for (int pos_n = 0; pos_n < n; pos_n += step_n) {
-          int cur_n = std::min(n - pos_n, step_n);
-
-          LLVM_DEBUG(llvm::errs() << llvm::format("cur_n:%d, cur_c:%d, cur_h:%d, cur_w:%d\n", cur_n,
-                                       cur_c, cur_h, cur_w););
+          LLVM_DEBUG(llvm::errs() << llvm::format(
+                         "cur_n:%d, cur_c:%d, cur_h:%d, cur_w:%d\n", cur_n,
+                         cur_c, cur_h, cur_w););
           cvk_tl_t operand_a, operand_res;
           shape_a = ctx.tl_shape_t4(cur_n, cur_c, cur_h, cur_w);
           operand_a.start_address = tl_a->start_address; // start of lmem
           operand_a.shape = shape_a;
-          operand_a.stride = ctx.tl_default_stride(shape_a, fmt, /*eu_align=*/1);
+          operand_a.stride =
+              ctx.tl_default_stride(shape_a, fmt, /*eu_align=*/1);
           operand_a.fmt = fmt;
           cvk_tg_stride_t g_stride = ctx.tg_default_stride(c, h, w, fmt);
           uint64_t a_offset =
-              (pos_n * c * h * w + pos_c * h * w + pos_h * w + pos_w) * elt_size;
+              (pos_n * c * h * w + pos_c * h * w + pos_h * w + pos_w) *
+              elt_size;
           ctx.tdma_load_stride(&operand_a, ga_inputs[0] + a_offset, g_stride);
           LLVM_DEBUG(llvm::errs() << llvm::format(
-              "load a, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
-              operand_a.start_address, shape_a.n, shape_a.c, shape_a.h, shape_a.w,
-              g_stride.n, g_stride.c, g_stride.h, g_stride.w, a_offset););
+                         "load a, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, "
+                         "offset:%d\n",
+                         operand_a.start_address, shape_a.n, shape_a.c,
+                         shape_a.h, shape_a.w, g_stride.n, g_stride.c,
+                         g_stride.h, g_stride.w, a_offset););
 
           operand_res.start_address = tl_a->start_address; // start of lmem
           operand_res.shape = shape_a;
@@ -276,10 +282,12 @@ after_loop:
           }
           // store result
           ctx.tdma_store_stride(&operand_res, ga_output + a_offset, g_stride);
-          LLVM_DEBUG(llvm::errs() << llvm::format(
-              "store, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
-              operand_res.start_address, shape_a.n, shape_a.c, shape_a.h, shape_a.w,
-              g_stride.n, g_stride.c, g_stride.h, g_stride.w, a_offset););
+          LLVM_DEBUG(
+              llvm::errs() << llvm::format(
+                  "store, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
+                  operand_res.start_address, shape_a.n, shape_a.c, shape_a.h,
+                  shape_a.w, g_stride.n, g_stride.c, g_stride.h, g_stride.w,
+                  a_offset););
         }
       }
     }

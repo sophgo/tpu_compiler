@@ -168,7 +168,7 @@ LogicalResult tpu::BroadcastMulOp::interpret(
   assert(input_size == size);
   getNCHW(shape, n, c, h, w);
   auto bshape = getTensorShape(op->getOperand(1));
-  getNCHW(bshape, bn,bc,bh,bw);
+  getNCHW(bshape, bn, bc, bh, bw);
   bool do_relu = this->do_relu();
   int axis = this->axis();
   assert(axis == 1);
@@ -181,18 +181,30 @@ LogicalResult tpu::BroadcastMulOp::interpret(
   std::shared_ptr<std::vector<float> > quant_multiplier = opdT[5];
 
   // MUL apply qscale on output put, no scaling on input
-
+  assert(bn == n || bn == 1);
   // compute in fp32
-  if (scale->size() == (size_t)c * n) {
+  if (bc == c && bh == 1 && bw == 1) {
+    // do scale
+    if (bn == n) {
+      c = n * c;
+      n = 1;
+    }
     int ret = my_scale(input->data(), scale->data(), nullptr,
                       resultT->data(), n, c, h, w);
     assert(ret == 0);
-  } else if (bh == h && bw == w && bn == 1 && bc == 1) {
-    int nc = n * c;
+  } else if (bh == h && bw == w && bc == 1) {
+    // bcast mul
+    if (bn == 1) {
+      c = n * c;
+      n = 1;
+    }
     int hw = h * w;
-    for (int j = 0; j < nc; j++) {
-      for (int i = 0; i < hw; i++) {
-        resultT->at(j * hw + i) = input->at(j * hw + i) * scale->at(i);
+    for (int k = 0; k < n; k++){
+      for (int j = 0; j < c; j++) {
+        for (int i = 0; i < hw; i++) {
+          int offset = (k * c + j) * hw + i;
+          resultT->at(offset) = input->at(offset) * scale->at(k * hw + i);
+        }
       }
     }
   } else {

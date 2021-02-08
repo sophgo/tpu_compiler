@@ -19,6 +19,7 @@ mlir_list=(
   avg_pool.mlir
   max_pool.mlir
   broadcast.mlir
+  broadcast_mul.mlir
   quadratic_sum.mlir
 #  yuv420.mlir
 #  conv3d.mlir

@@ -678,7 +678,7 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Mul(self):
-        # mul(1x64x28x28, 1x1x28x28) => 1x64x28x28
+        # mul(1x16x28x28, 1x1x28x28) => 1x16x28x28
         test_case = 'BroadcastMul'
         input_shape = [1, 16, 28, 28]
         output_shape = [1, 16, 28, 28]
