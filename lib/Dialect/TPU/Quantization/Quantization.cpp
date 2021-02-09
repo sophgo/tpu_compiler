@@ -941,10 +941,17 @@ public:
     auto builder = Builder(context);
 
     // read mix precision from file, seperated by \n
-    std::ifstream infile(clQuantLayerByFile);
-    std::string line;
-    while (std::getline(infile, line)) {
-        clQuantLayer.push_back(line);
+    if (false == clQuantLayerByFile.empty()) {
+      std::ifstream infile(clQuantLayerByFile);
+      if (!infile) {
+        llvm::errs() << "Error, can't open file:" << clQuantLayerByFile << "\n";
+        assert(false);
+      } else {
+        std::string line;
+        while (std::getline(infile, line)) {
+            clQuantLayer.push_back(line);
+        }
+      }
     }
 
     // mark quant mode
