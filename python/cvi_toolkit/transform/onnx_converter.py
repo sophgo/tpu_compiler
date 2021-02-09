@@ -148,6 +148,7 @@ class OnnxConverter(BaseConverter):
             "GlobalMaxPool": lambda node: self.convert_global_pool_op(node),
             "GRU": lambda node: self.convert_gru_op(node),
             "Identity": lambda node: self.convert_skip_op(node),
+            "InstanceNormalization": lambda node: self.convert_instancenorm_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "LRN": lambda node: self.convert_lrn_op(node),
             "LSTM": lambda node: self.convert_lstm_op(node),
@@ -1889,7 +1890,6 @@ class OnnxConverter(BaseConverter):
 
             output_shape = [int(i) for i in [on, oc, oh, ow]]
 
-            print(output_shape)
             interp_op = self.CVI.add_interp_op(
                 "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
             self.addOperand(onnx_node.name, interp_op,
@@ -2084,6 +2084,26 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+
+    def convert_instancenorm_op(self, onnx_node):
+        assert(onnx_node.op_type == "InstanceNormalization")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        operands = [op]
+        epsilon = onnx_node.attrs.get('epsilon', 1e-5)
+
+        # scale_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+        # bias_value = self.getTensor(onnx_node.inputs[2]).tensor_data
+
+        scale_op = self.CVI.add_load_file_op(onnx_node.inputs[1], self.getTensor(onnx_node.inputs[1]).shape)
+        bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], self.getTensor(onnx_node.inputs[2]).shape)
+
+        operands.append(scale_op)
+        operands.append(bias_op)
+
+        output_shape = input_shape
+        instancenorm_op = self.CVI.add_instancenorm_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, variance_epsilon=epsilon)
+        self.addOperand(onnx_node.name, instancenorm_op, output_shape, TensorType.ACTIVATION)
+
 
     def convert_split_op(self, onnx_node):
         assert(onnx_node.op_type == "Split")

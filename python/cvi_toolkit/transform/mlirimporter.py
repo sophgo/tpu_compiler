@@ -51,6 +51,7 @@ class TPU_OpType(Enum):
     FullyConnected = 'tpu.fully_connected'
     FrcnDetection = 'tpu.frcn_detection'
     GRU = 'tpu.gru'
+    InstanceNorm = 'tpu.instance_norm'
     LeakyRelu = 'tpu.leaky_relu'
     LrnOne = 'tpu.lrn_one'
     LrnTwo = 'tpu.lrn_two'
@@ -365,6 +366,24 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Interp.value, inputOperands, [
             tensor_output_type], name=name, **mlir_attrs,
             quant=self.quant_param)
+
+    def _add_op(self, op_name, inputOperands, output_tensor_shape, mlir_opname, ops=0, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        none = self.add_none_op()
+        # ops for tpu used
+        for _ in range(ops):
+            inputOperands.append(none)
+
+        name = StringAttr.get(op_name)
+        return self.buildOp(mlir_opname, inputOperands, [
+            tensor_output_type], name=name, quant=self.quant_param, **kargs)
+
+    def add_acos_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tg_extra_ops = 2
+        return self._add_op(op_name, inputOperands, output_tensor_shape,
+                TPU_OpType.Acos.value, tg_extra_ops, **kargs)
 
     def add_abs_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
@@ -884,6 +903,16 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.GRU.value, inputOperands, [
             tensor_output_type], name=gru_name, quant=self.quant_param, **gru_param)
+
+    def add_instancenorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tg_extra_ops = 0
+        checkKey(kargs, 'variance_epsilon')
+        attr_dict = {
+            'variance_epsilon': FloatAttr.get_f32(kargs['variance_epsilon']),
+        }
+        return self._add_op(op_name, inputOperands, output_tensor_shape,
+                            TPU_OpType.InstanceNorm.value, tg_extra_ops, **attr_dict)
+
 
     def add_leaky_relu_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         tensor_output_type = RankedTensorType.get(

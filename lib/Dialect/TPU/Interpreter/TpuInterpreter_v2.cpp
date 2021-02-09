@@ -35,6 +35,7 @@
 #include "tpuc/Interpreter/cpu/dilate.hpp"
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
+#include "tpuc/Interpreter/cpu/instancenorm.hpp"
 #include "tpuc/Interpreter/cpu/interpolation.hpp"
 #include "tpuc/Interpreter/cpu/lrn.hpp"
 #include "tpuc/Interpreter/cpu/normalize.hpp"
@@ -247,6 +248,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     auto fc_kernel_op =
         std::make_unique<FullyConnectedOpKernel>(op, valueMapping);
     oplist.push_back(std::move(fc_kernel_op));
+    return;
+  }
+  if (isa<tpu::InstanceNormOp>(op)) {
+    auto instanceOp = std::make_unique<InstanceNormOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(instanceOp));
     return;
   }
   if (isa<tpu::InterpOp>(op)) {

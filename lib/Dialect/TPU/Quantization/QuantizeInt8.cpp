@@ -1139,7 +1139,10 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
   setOpQuantParamType(op, "NONE");
 
   bool skip_checking = false;
-  if (isa<tpu::InputOp>(op)
+
+  if (isa<tpu::InterpOp>(op)
+      || isa<tpu::InputOp>(op)
+      || isa<tpu::InstanceNormOp>(op)
       || isa<tpu::LrnOneOp>(op)
       || isa<tpu::LrnTwoOp>(op)
       || isa<tpu::LrnThreeOp>(op)
@@ -1334,6 +1337,8 @@ LogicalResult tpu::InterpOp::quantizeInt8() {
   interpOp.setOpQuantMode(type);
   return success();
 }
+
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InstanceNormOp)
 
 LogicalResult tpu::LeakyReluOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()

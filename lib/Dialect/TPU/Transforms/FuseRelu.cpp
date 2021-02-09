@@ -164,7 +164,7 @@ struct TpuFuseReluPattern : public RewritePattern {
       // TODO: convert to conv
       return failure();
     } else {
-      llvm::errs() << "  WARNING: unhandled relu fuse with " << getOpName(formerOp);
+      llvm::errs() << "  WARNING: unhandled relu fuse with " << getOpName(formerOp) << "\n";
       return failure();
     }
     // remove the relu Op

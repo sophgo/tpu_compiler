@@ -1038,6 +1038,8 @@ LogicalResult tpu::InterpOp::quantizeBf16() {
   return success();
 }
 
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InstanceNormOp)
+
 LogicalResult tpu::LeakyReluOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
                << " [" << getOpName() << "]\n";);

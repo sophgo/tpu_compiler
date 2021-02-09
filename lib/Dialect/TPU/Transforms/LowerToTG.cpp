@@ -1031,6 +1031,39 @@ Value tpu::InterpOp::convertToTG() {
 
 }
 
+Value tpu::InstanceNormOp::convertToTG() {
+  Operation *op = this->getOperation();
+  auto castOp = cast<InstanceNormOp>(op);
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  auto builder =
+          Builder(op->getContext());
+  std::vector<NamedAttribute> param;
+  std::vector<NamedAttribute> attrs;
+  for (auto &attr : castOp.getAttrs()) {
+    if (attr.first == "name" || attr.first == "gaddr" ||
+        attr.first == "quant") {
+      continue;
+    }
+    param.push_back(attr);
+  }
+  auto operationAttr = builder.getStringAttr(castOp.getOperationName());
+  auto paramAttr = builder.getDictionaryAttr(param);
+
+  attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
+  attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+  attrs.push_back(builder.getNamedAttr("param", paramAttr));
+
+  std::vector<Value> operands(op->getOperands().begin(),
+      op->getOperands().end());
+
+  auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+      op->getLoc(), castOp.getResult().getType(), ArrayRef<Value>{operands},
+      ArrayRef<NamedAttribute>{attrs});
+  return newOp.getResult();
+
+}
+
 Value tpu::LrnOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -3843,6 +3876,35 @@ struct LowerWeightDetectionOutputOpPattern : public RewritePattern {
   }
 };
 
+struct LowerWeightInstanceNormOpPattern : public RewritePattern {
+  LowerWeightInstanceNormOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.instance_norm", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto prOp = cast<tpu::InstanceNormOp>(op);
+    auto scale = prOp.getOperand(1).getDefiningOp();
+    auto bias = prOp.getOperand(2).getDefiningOp();
+    auto weightOp = cast<tpu::LoadWeightOp>(scale);
+    if (weightOp.lowered()) {
+      // lowered already
+      return failure();
+    }
+
+    // lower scale
+    weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    weightOp.setAttr("storage", rewriter.getStringAttr("FP32"));
+
+    if (auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(bias)) {
+      weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      weightOp.setAttr("storage", rewriter.getStringAttr("FP32"));
+    }
+
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for InstanceNormOp: " << getOpName(op) << "\n";);
+    return success();
+  }
+};
+
 struct LowerWeightLrnOpPattern : public RewritePattern {
   LowerWeightLrnOpPattern(MLIRContext *context)
       : RewritePattern("tpu.lrn", 1, context) {}
@@ -4323,6 +4385,7 @@ public:
         LowerConstEltwiseOpPattern<tpu::EltwiseAddOp>,
         LowerWeightFullyConnectedOpPattern,
         LowerWeightDetectionOutputOpPattern,
+        LowerWeightInstanceNormOpPattern,
         LowerWeightGruOpPattern,
         LowerWeightLstmOpPattern,
         LowerWeightSoftmaxOpPattern
@@ -4365,6 +4428,7 @@ public:
         DefaultToTGPattern<tpu::EltwiseMulOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
         DefaultToTGPattern<tpu::InterpOp>,
+        DefaultToTGPattern<tpu::InstanceNormOp>,
         DefaultToTGPattern<tpu::LrnOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::MishOp>,

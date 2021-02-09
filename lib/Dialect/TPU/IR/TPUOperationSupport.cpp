@@ -190,6 +190,7 @@ llvm::StringRef getOpQuant(Operation *op) {
     return tpuOp.getOpQuant();
   } else if (isa<tpu::DetectionOutputOp>(op)
              || isa<tpu::FrcnDetectionOp>(op)
+             || isa<tpu::InstanceNormOp>(op)
              || isa<tpu::RetinaFaceDetectionOp>(op)
              || isa<tpu::PriorBoxOp>(op)
              || isa<tpu::ProposalOp>(op)

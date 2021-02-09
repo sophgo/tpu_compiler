@@ -1067,6 +1067,12 @@ LogicalResult tpu::MishOp::interpret(
   return doLUTOpInterpret(op, type, valueMapping);
 }
 
+LogicalResult tpu::InstanceNormOp::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  llvm_unreachable("InstanceNormOp not support on v1, please use v2\n");
+  return failure();
+}
+
 LogicalResult tpu::ExpOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();

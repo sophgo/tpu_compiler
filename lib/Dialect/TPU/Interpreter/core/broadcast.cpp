@@ -100,8 +100,8 @@ void BroadcastAddOpKernel::fp32_invoke() {
   int w0 = inputs_shape[0].size() > 3 ? inputs_shape[0][3] : 1;
   int n1 = inputs_shape[1][0];
   int c1 = inputs_shape[1][1];
-  int h1 = inputs_shape[1].size() > 2 ? inputs_shape[0][2] : 1;
-  int w1 = inputs_shape[1].size() > 3 ? inputs_shape[0][3] : 1;
+  int h1 = inputs_shape[1].size() > 2 ? inputs_shape[1][2] : 1;
+  int w1 = inputs_shape[1].size() > 3 ? inputs_shape[1][3] : 1;
 
   size_t idx = 0;
   for (int n = 0; n < (int)n0; ++n) {
@@ -110,9 +110,10 @@ void BroadcastAddOpKernel::fp32_invoke() {
         for (int w = 0; w < (int)w0; ++w) {
           float a =
               inputs_data[0]->at(w + h * w0 + c * h0 * w0 + n * c0 * h0 * w0);
-          float b = inputs_data[1]->at(
-              (w1 == 1 ? 0 : w) + (h1 == 1 ? 0 : h) * w1 +
-              (c1 == 1 ? 0 : c) * h1 * w1 + (n1 == 1 ? 0 : n) * c1 * h1 * w1);
+          int index = (w1 == 1 ? 0 : w) + (h1 == 1 ? 0 : h) * w1 +
+                      (c1 == 1 ? 0 : c) * h1 * w1 +
+                      (n1 == 1 ? 0 : n) * c1 * h1 * w1;
+          float b = inputs_data[1]->at(index);
           output_data->at(idx++) = a + b;
         }
       }

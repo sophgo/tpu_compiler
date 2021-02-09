@@ -976,7 +976,51 @@ def TPU_InterpOp: TPU_Op<"interp",
   let hasCanonicalizer = 1;
 }
 
+def TPU_InstanceNormOp: TPU_Op<"instance_norm",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "InstanceNorm operator";
 
+  let description = [{
+    Normalizes an array across channel dimensions.
+    y = scale * (x - mean) / sqrt(variance + epsilon) + B, where mean and variance are computed per instance per channel.
+
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `scale`           : required, The input 1-dimensional scale tensor of size C.
+      `bias`            : required, The input 1-dimensional bias tensor of size C. 
+
+    Attributes:
+      `variance_epsilon`: required, eps for variance.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$scale,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
+    StrAttr:$name,
+    DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       [NoSideEffect,

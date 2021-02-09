@@ -952,6 +952,7 @@ public:
       if (op->getName().getDialect().str() != "tpu"
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::InputOp>(op)
+          || isa<tpu::InstanceNormOp>(op)
           || isa<tpu::ROIPoolingOp>(op)
           || isa<tpu::SoftmaxCpuOp>(op)) {
         // continue
@@ -1037,6 +1038,7 @@ public:
       if (op->getName().getDialect().str() != "tpu"
           || isa<tpu::InputOp>(op)
           || isa<tpu::QuantOp>(op)
+          || isa<tpu::InstanceNormOp>(op)
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::ROIPoolingOp>(op)
           || isa<tpu::SoftmaxCpuOp>(op)) {
