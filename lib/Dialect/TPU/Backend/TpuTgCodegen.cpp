@@ -141,7 +141,7 @@ LogicalResult tpu::TG_INT8_ScaleOp::codegen(void *ctx) {
   std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
   getNCHW(bshape, bn, bc, bh, bw);
   assert(bn == 1 || bn == n);
-  if (bn == n) {
+  if (bn == n && ((n * c) <= (4095 - 32))) {
     // [4,3,28,28] x [4,3,1,1] => [1,12,28,28] x [1,12,1,1]
     c = n * c;
     n = 1;
@@ -187,13 +187,12 @@ LogicalResult tpu::TG_BF16_ScaleOp::codegen(void *ctx) {
   std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
   getNCHW(bshape, bn, bc, bh, bw);
   assert(bn == 1 || bn == n);
-  if (bn == n) {
+  if (bn == n && ((n * c) <= (4095 - 32))) {
     // [4,3,28,28] x [4,3,1,1] => [1,12,28,28] x [1,12,1,1]
     c = n * c;
     n = 1;
   }
   bool do_relu = this->param().do_relu().getValue();
-  ;
 
   int64_t input_size_1;
   std::vector<int64_t> shape_1;

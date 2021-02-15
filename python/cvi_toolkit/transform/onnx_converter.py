@@ -2027,12 +2027,17 @@ class OnnxConverter(BaseConverter):
             else:
                 steps = self.getTensor(onnx_node.inputs[4]).tensor_data
                 assert(len(steps) == 1)  # steps only has one value
-                if steps[0] < 0:
-                    raise RuntimeError("not support step < 0 case")
                 if steps[0] > 1 and (len(axes) == 1 and axes[0] < 2):
                     raise RuntimeError("not support step > 1 and slice step with n/c")
 
-                if steps[0] > 1:
+                if steps[0] == -1:
+                    tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+                    output_data = tensor_data[starts[0]:ends[0]:steps[0]]
+                    output_shape = list(output_data.shape)
+                    self.addTensor(onnx_node.name, output_data, output_shape)
+                    self.addOperand(onnx_node.name, None,
+                                    output_shape, TensorType.TENSOR)
+                elif steps[0] > 1:
                     # step eq as stride, leverage scale with stride
                     # only apply h/w, yolov5 case that step = [2] with axis = [2]
                     if len(ends) == 1 and ends[0] != np.iinfo(np.int64).max:
