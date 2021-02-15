@@ -252,7 +252,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
       auto type = weight_op.getResult().getType().cast<TensorType>();
       convWeights[i] = wTF->readTensor<float>(tensor_name, type);
       // delete the tensor from the weight file
-      wTF->deleteTensor<float>(tensor_name);
+      // wTF->deleteTensor<float>(tensor_name);
     }
 
     // convert tensors

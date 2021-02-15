@@ -416,7 +416,9 @@ class OnnxConverter(BaseConverter):
         # [n,c,h,w] broadcast mul [1,c,1,1]
         if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             operands.append(op1)
-            if len(input_shape2) == 1 or len(input_shape2) == 3: # [1] or [c, 1, 1] or [w]
+            # [1], [c, 1, 1], [1,c,1,1], [w]
+            if len(input_shape2) == 1 or len(input_shape2) == 3 or \
+                (len(input_shape2) == 4 and input_shape2[2:]==[1,1]): 
                 channel = input_shape1[1]
                 width = -1 if len(input_shape1) != 4 else input_shape1[3]
 
@@ -473,18 +475,6 @@ class OnnxConverter(BaseConverter):
                 add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
                 self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
 
-            elif input_shape1[:2] == input_shape2[:2] and input_shape2[2:] == [1, 1]:
-                # broadcast add
-                bias_name = "{}_add_bias".format(onnx_node.name)
-                add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
-                self.addTensor(bias_name, add_value, add_value.shape)
-                op3 = self.CVI.add_load_file_op(bias_name, add_value.shape)
-                operands.append(op3)
-
-                output_shape = input_shape1
-                add_op = self.CVI.add_broadcast_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis = 1)
-                self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
-                return
             else:
                 raise RuntimeError("{} vs {} shape broadcast error".format(input_shape1, input_shape2))
 

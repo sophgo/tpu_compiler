@@ -1165,6 +1165,28 @@ export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
 
+
+if [ $NET = "fcos" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/object_detection/fcos/onnx/fcos.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/fcos_calibration_table
+export IMAGE_RESIZE_DIMS=800,1216
+export NET_INPUT_DIMS=800,1216
+export RAW_SCALE=255.0
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=127,127,127
+export STD=128,128,128
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS_FP32=output
+export OUTPUTS=output
+export TOLERANCE_INT8_MULTIPLER=0.56,0.39,-0.22
+export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+fi
+
 if [ $NET = "alphapose" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
