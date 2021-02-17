@@ -1058,6 +1058,34 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 
 fi
 
+if [ $NET = "resnetv2" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnetv2_tf_50_10.onnx
+export MODEL_DAT=""
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_tune_calibration_table
+export IMAGE_RESIZE_DIMS=256,256
+export NET_INPUT_DIMS=224,224
+export RAW_SCALE=1.0
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=0.485,0.456,0.406  # in RGB
+export STD=0.229,0.224,0.225   # in RGB
+export INPUT_SCALE=1.0
+export INPUT=input
+export OUTPUTS_FP32=output
+export OUTPUTS=output
+export DO_CALIBRATION=0
+export EXCEPTS=resnet_v2_50/predictions/Softmax:0_Softmax
+export DO_FUSED_PREPROCESS=0
+# export DO_QUANT_INT8_PER_TENSOR=1
+# export DO_QUANT_INT8_RFHIFT_ONLY=1
+export TOLERANCE_INT8_PER_TENSOR=0.97,0.97,0.78
+export TOLERANCE_INT8_RSHIFT_ONLY=0.98,0.98,0.84
+export TOLERANCE_INT8_MULTIPLER=0.83,0.83,0.40
+export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+fi
+
 if [ $NET = "efficientnet_b0" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-b0/onnx/efficientnet_b0.onnx
