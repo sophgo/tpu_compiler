@@ -369,6 +369,11 @@ void cvi_backend_bf16_tl_scale(
     float activation_arg[],
     bool do_bias);
 
+void cvi_backend_tl_scale_lut(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t ifmap_laddr, laddr_t ofmap_laddr, laddr_t table_laddr,
+    int input_n, int input_c, int input_h, int input_w);
+
 void cvi_backend_tl_upsample(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t input_laddr,

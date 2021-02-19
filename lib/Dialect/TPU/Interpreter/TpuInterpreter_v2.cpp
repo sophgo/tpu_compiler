@@ -51,6 +51,7 @@
 #include "tpuc/Interpreter/cpu/reverse.hpp"
 #include "tpuc/Interpreter/cpu/roi_pooling.hpp"
 #include "tpuc/Interpreter/cpu/scale.hpp"
+#include "tpuc/Interpreter/cpu/scale_lut.hpp"
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
 #include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
@@ -396,6 +397,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::ScaleOp>(op)) {
     auto scale_kernel_op = std::make_unique<ScaleOpKernel>(op, valueMapping);
     oplist.push_back(std::move(scale_kernel_op));
+    return;
+  }
+  if (isa<tpu::ScaleLutOp>(op)) {
+    auto scale_lut_kernel_op = std::make_unique<ScaleLutOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(scale_lut_kernel_op));
     return;
   }
   if (isa<tpu::SqrtOp>(op)) {

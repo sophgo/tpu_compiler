@@ -231,6 +231,11 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
       _add_tl_scale_op(mix_op, in_tensors, out_tensors,
                                time_step, timestep_idx, is_h_split);
       break;
+    case IR_SCALE_LUT:
+      mix_op->set_type("tl_scale_lut");
+      _add_tl_scale_lut_op(mix_op, in_tensors, out_tensors, time_step,
+                           timestep_idx, is_h_split);
+      break;
     case IR_ACTIVATION:
       mix_op->set_type("tl_activation");
       _add_tl_activation_op(mix_op, in_tensors, out_tensors,
@@ -1541,6 +1546,69 @@ void MixNet::_add_tl_lrn_op(MixOp * mix_op,
     add_opd_to_list(mix_op->name(), op.getResult(), true);
   }
 
+}
+
+void MixNet::_add_tl_scale_lut_op(MixOp * mix_op,
+                              const std::vector<int>& in_tensors,
+                              const std::vector<int>& out_tensors,
+                              net_timestep* time_step,
+                              int timestep_idx, bool is_h_split) {
+  int bottom_dim[4];
+  const ImLayer* im_layer =
+      net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  Operation* op = im_layer->op();
+  auto op_input_type =
+    op->getOperand(0).getType().cast<RankedTensorType>();
+
+  Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[0]);
+  net_graph_->get_tensor_dim(in_tensors[0], bottom_dim);
+  bottom_dim[0] = in_tensor->n_slice;
+  bottom_dim[2] = in_tensor->h_slice;
+
+  std::string name = mix_op->name();
+  uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+  uint32_t la_table = net_graph_->get_tensor_local_offset(in_tensors[1]);
+
+  // attrs
+  Builder builder_(context_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name",
+                           builder_.getStringAttr(name)));
+  attrs.push_back(builder_.getNamedAttr("la_input",
+                           builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                           builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("la_table",
+                           builder_.getI32IntegerAttr(la_table)));
+
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+                          {bottom_dim[0], bottom_dim[1],
+                           bottom_dim[2], bottom_dim[3]},
+                           op_input_type.getElementType());
+
+  RankedTensorType output_type = RankedTensorType::get(
+                          {bottom_dim[0], bottom_dim[1],
+                           bottom_dim[2], bottom_dim[3]},
+                           op_input_type.getElementType());
+
+  // setup operands
+  std::vector<Value> operands;
+  Operation *input_op =
+      get_op_from_name(mix_op->bottom_name(0)).getDefiningOp();
+  input_op->getResult(0).setType(input_type);
+  operands.push_back(input_op->getResult(0));
+  Operation *table_op =
+      get_op_from_name(mix_op->bottom_name(1)).getDefiningOp();
+  operands.push_back(table_op->getResult(0));
+
+  auto new_op = OpBuilder(get_start_op())
+                .create<tpu::TL_LG_INT8_ScaleLutOp>(
+                    get_start_op()->getLoc(), output_type,
+                    ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
+
+  add_opd_to_list(mix_op->name(), new_op.getResult(), true);
 }
 
 

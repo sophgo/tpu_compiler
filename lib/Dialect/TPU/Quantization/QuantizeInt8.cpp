@@ -585,6 +585,40 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
   return success();
 }
 
+// input 0~255 => output -128~127
+LogicalResult quantizeInt8ScaleLutOps(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value wfV = getWeightFileValue(op);
+  auto castOp = cast<tpu::ScaleLutOp>(op);
+  std::vector<float> scale;
+  std::vector<float> bias;
+  arrayAttrToVector(castOp.scale(), scale);
+  arrayAttrToVector(castOp.bias(), bias);
+
+  int table_h = 16;
+  int table_w = 16;
+  int table_hw = table_h * table_w;
+  int npu_num = MInfo::lane_num;
+  int table_size = npu_num * table_hw;
+  std::vector<float> table(table_size, 0.0f);
+  for (int i = 0; i < 3; i++) {
+    for (int idx = 0; idx < table_hw; ++idx) {
+      float data = std::floor(idx * scale[i] + bias[i] + 0.5);
+      data = std::min(std::max(data, -128.0f), 127.0f);
+      table[i * table_hw + idx] = data;
+    }
+  }
+  auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
+  StringRef storageType = "INT8";
+  auto table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "table", table, shape, storageType, wTF, wfV);
+  castOp.setOperand(1, table_op);
+  setOpResultType(op->getResult(0),
+                  IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  return success();
+}
+
 ///
 /// default no weight Ops quantization method
 /// for operations that has no weight, but still need to do rescaling
@@ -1240,8 +1274,9 @@ LogicalResult tpu::Conv3DOp::quantizeInt8() {
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::AbsOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::DilateOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CscOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CustomOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::DilateOp)
 
 LogicalResult tpu::DeConv2DOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1415,6 +1450,12 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ROIPoolingOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReverseOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ShuffleChannelOp)
 
+LogicalResult tpu::ScaleLutOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8ScaleLutOps(op);
+}
 
 LogicalResult tpu::SigmoidOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1475,7 +1516,6 @@ LogicalResult tpu::ReduceMaxOp::quantizeInt8() {
 }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CscOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ZeroMaskOp)
 
 #define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \

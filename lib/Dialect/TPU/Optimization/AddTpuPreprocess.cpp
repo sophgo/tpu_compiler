@@ -31,6 +31,7 @@
 #include "mlir/IR/StandardTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/raw_ostream.h"
+#include "tpuc/MachineInfo.h"
 
 #define DEBUG_TYPE "add_tpu_preprocess"
 
@@ -153,6 +154,9 @@ class AddTpuPreprocessPass
                                FunctionPass> {
 public:
   void runOnFunction() override {
+    MInfo::getChipInfo(getFunction());
+    assert(MInfo::version && "refer to set-chip");
+
     auto *context = &getContext();
     auto builder = OpBuilder(context);
     auto fn = getFunction();
@@ -286,18 +290,20 @@ public:
       if (resize_h != h || resize_w != w) {
         currentOp = this->insertCropOp(builder, name, currentOp);
       }
-      currentOp = this->insertDequantOp(builder, name, currentOp);
-      currentOp = this->insertScaleOp(builder, name, currentOp, preprocess,
-                                      threshold, swap_channel);
-
+      // create scale op
       if (quantType == "INT8") {
-        currentOp = this->insertQuantOp(builder, name, currentOp,
-                                        128.0 / threshold, 0);
+        // scale by lut
+        currentOp = this->insertScaleLutOp(
+            builder, name, currentOp, preprocess, threshold, swap_channel);
+      } else {
+        currentOp = this->insertDequantOp(builder, name, currentOp);
+        currentOp = this->insertScaleOp(builder, name, currentOp, preprocess,
+                                        threshold, swap_channel);
       }
 
       if (swap_channel) {
-        currentOp = this->insertSwapAxisOp(builder, name, currentOp,
-                                           threshold, quantType.str());
+        currentOp = this->insertSwapAxisOp(builder, name, currentOp, threshold,
+                                           quantType.str());
       }
       // update operand of all inputOp's uses
       for (auto use_op : uses) {
@@ -539,6 +545,59 @@ private:
     return newOp;
   }
 
+  Value insertScaleLutOp(OpBuilder &builder, std::string &name, Value opd,
+                      const tpu::PreprocessParam &param, float threshold,
+                      bool swap_channel) {
+    std::string name_ = name + "_preprocess_scale_lut";
+    float qscale = 128.0f / threshold;
+
+    std::vector<float> scale;
+    std::vector<float> bias;
+    for (auto s : param.scale().getAsValueRange<FloatAttr>()) {
+      scale.push_back(s.convertToFloat());
+    }
+    for (auto m : param.mean().getAsValueRange<FloatAttr>()) {
+      bias.push_back(-1 * m.convertToFloat());
+    }
+    if (scale.empty()) {
+      scale.assign(3, 1.0);
+    }
+    if (bias.empty()) {
+      bias.assign(3, 0.0);
+    }
+    if (swap_channel) {
+      // keep order bgr
+      std::swap(scale[0], scale[2]);
+      std::swap(bias[0], bias[2]);
+    }
+    for (int i = 0; i < 3; i++) {
+      scale[i] *= qscale;
+      bias[i] *= qscale;
+    }
+
+    std::vector<Value> operands;
+    operands.push_back(opd);
+    auto NoneOp = builder.create<tpu::NoneOp>(opd.getLoc(), builder.getNoneType());
+    operands.push_back(NoneOp.getResult()); // table
+
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(name_)));
+    attrs.push_back(builder.getNamedAttr("scale",builder.getF32ArrayAttr(ArrayRef<float>(scale))));
+    attrs.push_back(builder.getNamedAttr("bias",builder.getF32ArrayAttr(ArrayRef<float>(bias))));
+    attrs.push_back(builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+
+    auto type = this->getTensorType(builder, {n, c, h, w}, "INT8");
+    auto newOp = builder.create<tpu::ScaleLutOp>(
+        opd.getLoc(), type, ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    setOpThreshold(newOp, threshold);
+    setOpQuantParamType(newOp, "THRESHOLD");
+    setOpQuant(newOp, "INT8");
+    newOp.quantizeInt8();
+    return newOp;
+  }
+
   // swapaxis, rgb to bgr or bgr to rgb
   Value insertSwapAxisOp(OpBuilder &builder, std::string &name, Value opd,
                         float threshold, std::string quant_type) {
@@ -581,27 +640,6 @@ private:
         builder.getI32IntegerAttr(0)));
 
     auto type = this->getTensorType(builder, {n, c, h, w}, "BF16");
-    auto quantOp = builder.create<tpu::QuantOp>(opd.getLoc(), type,
-        ArrayRef<Value>{opd}, ArrayRef<NamedAttribute>{attrs});
-    return quantOp;
-  }
-
-  Value insertQuantOp(OpBuilder &builder, std::string &name, Value opd,
-                     float scale, int32_t zero_point) {
-    std::string name_ = name + "_preprocess_quant_i8";
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(builder.getNamedAttr("name",
-        builder.getStringAttr(name_)));
-    attrs.push_back(builder.getNamedAttr("from",
-        builder.getStringAttr("BF16")));
-    attrs.push_back(builder.getNamedAttr("to",
-        builder.getStringAttr("INT8")));
-    attrs.push_back(builder.getNamedAttr("scale",
-        builder.getF32FloatAttr(scale)));
-    attrs.push_back(builder.getNamedAttr("zero_point",
-        builder.getI32IntegerAttr(zero_point)));
-
-    auto type = this->getTensorType(builder, {n, c, h, w}, "INT8");
     auto quantOp = builder.create<tpu::QuantOp>(opd.getLoc(), type,
         ArrayRef<Value>{opd}, ArrayRef<NamedAttribute>{attrs});
     return quantOp;

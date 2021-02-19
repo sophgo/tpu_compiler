@@ -545,6 +545,33 @@ class TPU_TL_LG_ScaleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TL_LG_INT8_ScaleOp : TPU_TL_LG_ScaleOp<"tl_lg_int8_scale", "Int8">;
 def TPU_TL_LG_BF16_ScaleOp : TPU_TL_LG_ScaleOp<"tl_lg_bf16_scale", "Bf16">;
 
+class TPU_TL_LG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL Scale Lut operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    I32Attr:$la_table,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LG_INT8_ScaleLutOp : TPU_TL_LG_ScaleLutOp<"tl_lg_int8_scale_lut", "Int8">;
+
 class TPU_TL_LG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

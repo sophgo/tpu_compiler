@@ -992,7 +992,7 @@ def TPU_InstanceNormOp: TPU_Op<"instance_norm",
     Inputs:
       `input`           : required, the input activation tensor.
       `scale`           : required, The input 1-dimensional scale tensor of size C.
-      `bias`            : required, The input 1-dimensional bias tensor of size C. 
+      `bias`            : required, The input 1-dimensional bias tensor of size C.
 
     Attributes:
       `variance_epsilon`: required, eps for variance.
@@ -2273,6 +2273,50 @@ def TPU_ScaleOp: TPU_Op<"scale",
   let results = (outs AnyTensor:$output);
 
   let hasCanonicalizer = 1;
+}
+
+def TPU_ScaleLutOp: TPU_Op<"scale_lut",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Scale by lut operator";
+
+  let description = [{
+    Performs scale on input, y = input * scale + bias.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `table`           : required, the quantize lookup table, which is reused by INT8.
+
+    Attributes:
+      `channel_order`   : optional, channel swap order, bgr as default
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    F32ArrayAttr:$scale,
+    F32ArrayAttr:$bias,
+    StrAttr:$name,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
 }
 
 def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {

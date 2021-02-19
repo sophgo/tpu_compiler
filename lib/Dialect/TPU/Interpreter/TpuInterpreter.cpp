@@ -3245,6 +3245,40 @@ LogicalResult tpu::ScaleOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ScaleLutOp::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  auto result = this->getResult();
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(this->input(), shape, input_size);
+  assert(input_size == size);
+  getNCHW(shape, n, c, h, w);
+
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  std::shared_ptr<std::vector<float> > table = opdT[1];
+  for (int ni = 0; ni < n; ++ni) {
+    for (int ci = 0; ci < c; ++ci) {
+      for (int i = 0; i < h * w; ++i) {
+        int index = ni * c * h * w + ci * h * w + i;
+        auto x = input->at(index);
+        auto y = table->at((int)(ci * 256 + x));
+        resultT->at(index) = y;
+      }
+    }
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::ReverseOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();

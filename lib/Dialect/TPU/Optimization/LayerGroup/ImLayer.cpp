@@ -167,6 +167,8 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::TG_INT8_ScaleOp>(op) ||
              isa<tpu::TG_BF16_ScaleOp>(op)) {
     layer = std::make_shared<ImScale>(op);
+  } else if (isa<tpu::TG_INT8_ScaleLutOp>(op)) {
+    layer = std::make_shared<ImScaleLut>(op);
   } else if (isa<tpu::TG_INT8_UpsampleOp>(op) ||
              isa<tpu::TG_BF16_UpsampleOp>(op)) {
     layer = std::make_shared<ImUpsample>(op);
@@ -620,6 +622,21 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, pow_name, TENSOR_COEFF_LUT);
 
   add_imm_tensor(in_tensors[0], working_size, name_ + "_imm");
+}
+
+ImScaleLut::ImScaleLut(Operation *op): ImLayer(IR_SCALE_LUT, op, false) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+
+  int table_h = 16;
+  int table_w = 16;
+
+  // load table
+  auto load_table = cast<tpu::LoadWeightOp>(op->getOperand(1).getDefiningOp());
+  int usize = getOpResultUnitSize(load_table);
+  std::string storage = getWeightStorage(load_table);
+  std::string table_name = load_table.name().str();
+  add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, table_name, TENSOR_COEFF_LUT);
 }
 
 ImAbs::ImAbs(Operation *op): ImLayer(IR_ABS, op, true) {

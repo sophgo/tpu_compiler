@@ -36,7 +36,6 @@ typedef enum {
   IR_CONVOLUTION,
   IR_DECONVOLUTION,
   IR_POOLING,
-  IR_Scale,
   IR_LRN,
   IR_INNERPRODUCT,
   IR_RELU,
@@ -44,6 +43,7 @@ typedef enum {
   IR_QUANT,
   IR_BATCHNORM,
   IR_SCALE,
+  IR_SCALE_LUT,
   IR_MAC,
   IR_ELTWISE,
   IR_PRELU,
@@ -147,6 +147,11 @@ class ImBatchnorm : public ImLayer {
 class ImScale : public ImLayer {
  public:
   explicit ImScale(Operation *op);
+};
+
+class ImScaleLut : public ImLayer {
+ public:
+  explicit ImScaleLut(Operation *op);
 };
 
 class ImMac : public ImLayer {

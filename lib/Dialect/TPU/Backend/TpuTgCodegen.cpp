@@ -1902,6 +1902,30 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ScaleLutOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t table_gaddr = getWeightOpAddress(table().getDefiningOp());
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_scale_lut_kernel(*backend_ctx,
+                                  layer_id, // layer_id,
+                                  input_gaddr, output_gaddr, table_gaddr, n, c,
+                                  h, w, CVK_FMT_I8);
+
+  return success();
+}
+
 LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

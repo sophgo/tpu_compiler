@@ -1107,6 +1107,8 @@ LogicalResult tpu::SqrtOp::quantizeBf16() {
   return quantizeBF16SqrtOps(op);
 }
 
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ScaleLutOp)
+
 LogicalResult tpu::ReciprocalOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);

@@ -1904,6 +1904,28 @@ Value tpu::ClipOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::ScaleLutOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+
+  std::vector<Value> operands;
+  operands.push_back(op->getOperand(0)); // input
+  operands.push_back(op->getOperand(1)); // table
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ScaleLutOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::SigmoidOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4061,6 +4083,41 @@ struct LowerWeightLutOpPattern : public RewritePattern {
   }
 };
 
+struct LowerWeightScaleLutOpPattern : public RewritePattern {
+  LowerWeightScaleLutOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.scale_lut", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::ScaleLutOp>(op);
+    auto tableOp =
+        cast<tpu::LoadWeightOp>(castOp.getOperand(1).getDefiningOp());
+    if (tableOp.lowered()) {
+      // lowered already
+      return failure();
+    }
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for ScaleLutOp: "
+                            << getOpName(op) << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    if (getOpQuant(op) == "INT8") {
+      // lower filter
+      assert(tableOp.storage() == "INT8");
+      std::vector<int64_t> shape;
+      int64_t size;
+      getTensorShapeAndSize(tableOp, shape, size);
+      auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+      std::vector<int8_t> table_int8(table->begin(), table->end());
+      // save it
+      addWeightTensorAndUpdateWeightOp<int8_t>(
+          tableOp, "lowered", table_int8, shape, "INT8", wTF);
+      tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    } else {
+      llvm_unreachable("unsupport bf16 scale table op");
+    }
+    return success();
+  }
+};
 
 template <typename OpTy>
 struct LowerConstEltwiseOpPattern : public RewritePattern {
@@ -4383,6 +4440,7 @@ public:
         LowerConstEltwiseOpPattern<tpu::EltwiseAddOp>,
         LowerConstEltwiseOpPattern<tpu::EltwiseMulOp>,
         LowerConstEltwiseOpPattern<tpu::EltwiseAddOp>,
+        LowerWeightScaleLutOpPattern,
         LowerWeightFullyConnectedOpPattern,
         LowerWeightDetectionOutputOpPattern,
         LowerWeightInstanceNormOpPattern,
@@ -4444,6 +4502,7 @@ public:
         DefaultToTGPattern<tpu::ReluOp>,
         DefaultToTGPattern<tpu::ReorgOp>,
         DefaultToTGPattern<tpu::ReverseOp>,
+        DefaultToTGPattern<tpu::ScaleLutOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SliceOp>,
