@@ -6,4 +6,4 @@ npz_file = sys.argv[1]
 
 tensors = np.load(npz_file)
 for t in tensors:
-    print("{} {}".format(t,np.max(tensors[t])+0.0001))
+    print("{} {}".format(t,np.abs(np.max(tensors[t])+0.0001)))
