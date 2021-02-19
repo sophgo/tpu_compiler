@@ -63,11 +63,6 @@ void reduce_mean_int8(float *input, float *output,
   std::vector<int> tmp2 (size, 0);
   int* _input = tmp2.data();
 
-  llvm::errs() << "#########################\n"
-               << "sizeof(int): " << sizeof(int)
-               << "sizeof(int32_t)" << sizeof(int32_t)
-               << "\n";
-
   // Convert integer format
   for (int i = 0; i < size; i++)
     _input[i] = (int)(input[i] * avg_const);

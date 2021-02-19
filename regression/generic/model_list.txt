@@ -53,6 +53,7 @@ ecanet50                  N        N        N        Y        Y        N
 res2net50                 N        N        N        Y        Y        N
 gaitset                   N        N        N        Y        N        N
 efficientdet_d0           N        N        N        Y        N        N
+resnetv2                  Y        N        N        Y        N        N
 
 # tensorflow
 mobilenet_v1_tf           N        N        N        Y        Y        N
