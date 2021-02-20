@@ -265,20 +265,37 @@ void cvi_backend_tg_bf16_reduce_mean_kernel(
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w,
     int axes[], int num_axes) {
-
-  if (axes[0] == 2 || axes[0] == 3) {
-    // along H or W axis
-    int kh = (axes[0] == 2) ? h : 1;
-    int kw = (axes[0] == 3) ? w : 1;
-    cvi_backend_tg_bf16_reduce_mean_hw_kernel(ctx,
-                                              layer_id,
-                                              ga_input,
-                                              ga_output,
-                                              n,
-                                              c,
-                                              h,
-                                              w,
-                                              kh,
-                                              kw);
+  int kh = h;
+  int kw = w;
+  if (num_axes == 2) {
+    if (axes[0] == 2 && axes[1] == 3) {
+      // along H and W axis
+      kh = h;
+      kw = w;
+    } else {
+      assert(0 && "Not support axis for reducemean yet");
+    }
+  } else if (num_axes == 1) {
+    if (axes[0] == 2 || axes[0] == 3) {
+      // along H or W axis
+      kh = (axes[0] == 2) ? h : 1;
+      kw = (axes[0] == 3) ? w : 1;
+    } else {
+      assert(0 && "Not support axis for reducemean yet");
+    }
+  } else {
+    assert(0 && "Not support axis for reducemean yet");
   }
+
+  cvi_backend_tg_bf16_reduce_mean_hw_kernel(ctx,
+                                            layer_id,
+                                            ga_input,
+                                            ga_output,
+                                            n,
+                                            c,
+                                            h,
+                                            w,
+                                            kh,
+                                            kw);
+
 }

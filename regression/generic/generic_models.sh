@@ -1076,7 +1076,6 @@ export OUTPUTS_FP32=output
 export OUTPUTS=output
 export DO_CALIBRATION=0
 export EXCEPTS=resnet_v2_50/predictions/Softmax:0_Softmax
-export DO_FUSED_PREPROCESS=0
 # export DO_QUANT_INT8_PER_TENSOR=1
 # export DO_QUANT_INT8_RFHIFT_ONLY=1
 export TOLERANCE_INT8_PER_TENSOR=0.97,0.97,0.78
