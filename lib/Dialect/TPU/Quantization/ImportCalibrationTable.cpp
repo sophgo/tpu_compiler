@@ -34,6 +34,7 @@
 #include <sstream>
 #include <fstream>
 #include <regex>
+#include <unordered_map>
 
 #define DEBUG_TYPE "import_calibration_table"
 
@@ -161,31 +162,40 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::DeConv2DOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::DeConv2DOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseAddOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::EltwiseAddOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMaxOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::EltwiseMaxOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMinOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::EltwiseMinOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::EltwiseMulOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::InputOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::LeakyReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::CustomOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PadOp>(formerOp)) {
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PadOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    }  else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PoolMax2DOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::PoolMax2DOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::PermuteOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::PReluOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
@@ -200,11 +210,9 @@ struct BackendOverwriteThresholdDefaultPattern : public RewritePattern {
     } else if (auto cast_op =
                    llvm::dyn_cast_or_null<tpu::PoolAvg2DOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op =
-                   llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::CropOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
-    } else if (auto cast_op =
-                   llvm::dyn_cast_or_null<tpu::ExpOp>(formerOp)) {
+    } else if (auto cast_op = llvm::dyn_cast_or_null<tpu::ExpOp>(formerOp)) {
       setOpThreshold(formerOp, threshold_y);
     } else {
       llvm::errs() << formerOp->getName() << ": behavior not defined\n";
@@ -406,12 +414,14 @@ public:
     // load the table
     // Support symmetric quantization only
     std::map<std::string, float> threshold_map;
+    std::unordered_map<std::string, std::vector<float>> weight_threshold_map;
     llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n";
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
     std::regex old_pattern("[a-zA-Z0-9.:;_\\/-]+ [-0-9.e]+");
     std::regex new_pattern(
         "[a-zA-Z0-9.:;_\\/-]+ [-0-9.e]+ [-0-9.e]+ [-0-9.e]+");
+    std::regex weight_pattern("weight [a-zA-Z0-9.:;_\\/-]+ .*");
     std::regex info_pattern("#.*");
     while (std::getline(infile, line)) {
       std::istringstream iss(line);
@@ -436,11 +446,20 @@ public:
 
       } else if (std::regex_match(line, info_pattern)) {
         llvm::errs() << "\n  infomation  " << line << "\n";
+      }else if(std::regex_match(line, weight_pattern)){
+        std::vector<float> weight_threshold;
+        iss.ignore(256, ' '); // skip "weight"
+        iss >> name;
+        float threshold;
+        while (iss >> threshold) {
+          weight_threshold.push_back(threshold);
+          LLVM_DEBUG(llvm::errs() << "  name " << name << " weight threshold: " << threshold << "\n";);
+        }
+        weight_threshold_map[name] = weight_threshold;
       } else {
         // Format of threshold table error
         llvm::errs() << line;
-        llvm::errs() << "\n  => not match required format\n";
-        assert(false);
+        llvm_unreachable("\n  => not match required format\n");
       }
     }
 
@@ -452,7 +471,6 @@ public:
 
       if (op->getName().getDialect().str() != "tpu" ||
           isa<tpu::WeightFileOp>(op) ||
-          isa<tpu::LoadWeightOp>(op) ||
           isa<tpu::NoneOp>(op)||
           isa<tpu::ReorgOp>(op) ||
           isa<tpu::ReshapeOp>(op) ||
@@ -463,6 +481,8 @@ public:
           isa<tpu::UpsampleOp>(op) ||
           isa<tpu::CscOp>(op) ||
           isa<tpu::ZeroMaskOp>(op)) {
+      } else if(isa<tpu::LoadWeightOp>(op)) {
+        setWeightThresholdFromMap(op, weight_threshold_map);
         // do not assign
       } else if (!failed(setThresholdFromMap(op, threshold_map))) {
         // success
@@ -604,6 +624,20 @@ private:
                    << std::to_string(threshold) << "\n";);
     }
     return ret;
+  }
+  LogicalResult setWeightThresholdFromMap(
+      Operation *op,
+      std::unordered_map<std::string, std::vector<float>> &threshold_map) {
+
+    auto weightOp = llvm::dyn_cast<tpu::LoadWeightOp>(op);
+    auto builder = Builder(op->getContext());
+    std::string op_name = weightOp.name().str();
+    if (!threshold_map.count(op_name)) {
+      return failure();
+    }
+    std::vector<float> weight_thresholds = threshold_map[op_name];
+    weightOp.setAttr("threshold", builder.getF32ArrayAttr(weight_thresholds));
+    return success();
   }
 };
 

@@ -800,12 +800,15 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
 void quantizeWeightInt8Multiplier(float *filter, float *bias,
     int64_t oc, int64_t isz, float threshold_y, float threshold_x,
     float *new_filter, float *new_bias,
-    float *rshift_per_channel, float *multiplier_per_channel) {
-  auto max_filter = std::vector<float>(oc);
+    float *rshift_per_channel, float *multiplier_per_channel, std::vector<float> &filter_threshold) {
+  std::vector<float> max_filter(oc);
+  bool use_filter_threshold = filter_threshold.size() > 0;
+
   auto max_bias = std::vector<float>(oc);
   for (int64_t i = 0; i < oc; ++i) {
     // find qscale
-    max_filter[i] = findMaxWeight(&filter[isz * i], isz);
+
+    max_filter[i] = use_filter_threshold? filter_threshold[i]:findMaxWeight(&filter[isz * i], isz) ;
     double qscale = findQScaleForFilter(max_filter[i], threshold_y, threshold_x);
     if(qscale >= 1){
       // Now 1880v2 not support lshift, if qscale > 1, rshift <= 0 not working now

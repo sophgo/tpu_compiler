@@ -109,7 +109,7 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
 void quantizeWeightInt8Multiplier(float *filter, float *bias,
     int64_t oc, int64_t isz, float threshold_y, float threshold_x,
     float *new_filter, float *new_bias,
-    float *rshift_per_channel, float *multiplier_per_channel);
+    float *rshift_per_channel, float *multiplier_per_channel, std::vector<float> &filter_threshold);
 
 void quantizeActivationFromFp32ToInt8(float *output, float *input,
     int64_t size, float scale, bool tpu_mode=false, int zero_point=0);

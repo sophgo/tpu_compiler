@@ -55,7 +55,8 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
   auto convOp = cast<OpTy>(op);
-
+  auto filterOp =
+      llvm::dyn_cast<tpu::LoadWeightOp>(convOp.filter().getDefiningOp());
   // get filter tensor
   auto filter = readWeightTensor<float>(convOp.filter(), wTF);
   std::vector<int64_t> filterShape;
@@ -88,6 +89,21 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
     getTensorShapeAndSize(convOp.bias(), biasShape, biasSize);
     assert(biasSize == oc);
     assert(biasSize == (int64_t)bias->size());
+  }
+
+  std::vector<float> filter_threshold;
+  // get filter threshold if existed
+  if (filterOp.threshold().hasValue()) {
+    arrayAttrToVector(filterOp.threshold().getValue(), filter_threshold);
+    if (filter_threshold.size() != (uint32_t)oc) {
+      llvm::errs() << getOpName(op)
+                   << " Filter threshold size is not same with oc ("
+                   << filter_threshold.size() << "v.s." << oc << ")\n";
+      llvm::errs() << "no use filter threshold\n";
+      filter_threshold.clear();
+    }else{
+      llvm::outs() << getOpName(op) << " Use filter threshold\n";
+    }
   }
 
   // create new tensors
@@ -124,11 +140,11 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
                                rshift_per_channel->data());
 
   } else if (getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
-    quantizeWeightInt8Multiplier(filter->data(), bias ? bias->data() : nullptr,
-                               oc, isz, threshold_y, threshold_x,
-                               new_filter->data(), bias ? new_bias->data() : nullptr,
-                               rshift_per_channel->data(),
-                               multiplier_per_channel->data());
+    quantizeWeightInt8Multiplier(
+        filter->data(), bias ? bias->data() : nullptr, oc, isz, threshold_y,
+        threshold_x, new_filter->data(), bias ? new_bias->data() : nullptr,
+        rshift_per_channel->data(), multiplier_per_channel->data(),
+        filter_threshold);
 
   } else {
     assert(0);

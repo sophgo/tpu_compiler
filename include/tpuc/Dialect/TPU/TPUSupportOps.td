@@ -183,6 +183,7 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$lowered,
     DefaultValuedAttr<BoolAttr, "false">:$compressed,
+    OptionalAttr<F32ArrayAttr>: $threshold,
     OptionalAttr<I64Attr>:$offset
   );
 
