@@ -1652,6 +1652,34 @@ export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
 
+if [ $NET = "yolo_v5" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v5/onnx/yolov5s.onnx
+export MODEL_DAT=""
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+export NET_INPUT_DIMS=640,640 # h,w
+export IMAGE_RESIZE_DIMS=640,640
+export DO_CALIBRATION=0
+export CALIBRATION_IMAGE_COUNT=1000
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export STD=1,1,1
+export RAW_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8_PER_TENSOR=0.91,0.91,0.58
+export TOLERANCE_INT8_RSHIFT_ONLY=0.91,0.91,0.58
+export TOLERANCE_INT8_MULTIPLER=0.70,0.70,-0.10
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export TOLERANCE_FP32=0.999,0.999,0.96 #
+export DO_PREPROCESS=0
+export BGRAY=0
+# just compare last one
+fi
+
 # TFLite
 
 
