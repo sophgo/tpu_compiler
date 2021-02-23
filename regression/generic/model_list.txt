@@ -66,4 +66,4 @@ yolo_v3_416_tf            N        N        N        Y        N        N
 
 # TFLite int8
 resnet50_tflite_int8      Y        N        N        Y        N        Y
-yolo_v3_416_without_detection_tflite_int8      N        N        N        Y        N        N
+yolo_v3_416_without_detection_tflite_int8      N        N        N        N        N        N
