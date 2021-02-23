@@ -161,9 +161,8 @@ tiling_exit:
     }
   } else {
     for (uint32_t n_idx = 0, pos_n = 0; pos_n < N; n_idx++, pos_n += tile_N) {
-      for (uint32_t k_idx = 0, pos_k = 0; pos_k < K; k_idx++, pos_k += tile_K) {
-        for (uint32_t m_idx = 0, pos_m = 0; pos_m < M;
-             m_idx++, pos_m += tile_M) {
+      for (uint32_t pos_m = 0; pos_m < M; pos_m += tile_M) {
+        for (uint32_t k_idx = 0, pos_k = 0; pos_k < K; k_idx++, pos_k += tile_K) {
           info.n = std::min(N - pos_n, tile_N);
           info.k = std::min(K - pos_k, tile_K);
           info.m = std::min(M - pos_m, tile_M);
@@ -320,8 +319,8 @@ void TgFcKernel::store(int32_t step_idx) {
 
 void TgFcKernel::schedule() {
   LLVM_DEBUG(llvm::errs() << llvm::format(
-                 "Tilling FC, M:%d,K:%d,N:%d,tile_K:%d,tile_N:%d,fmt:%d\n", M,
-                 K, N, tile_K, tile_N, fmt););
+                 "Tilling FC, M:%d,K:%d,N:%d,tile_M:%d,tile_K:%d,tile_N:%d,fmt:%d\n", M,
+                 K, N, tile_M, tile_K, tile_N, fmt););
   if (do_parallel) {
     for (int step = 0; step < total_steps + 2; step++) {
       ctx.parallel_enable();
