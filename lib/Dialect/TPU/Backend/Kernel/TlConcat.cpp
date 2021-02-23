@@ -40,32 +40,6 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
   uint32_t oc = output_dim[1];
   uint32_t h = output_dim[2];
   uint32_t w = output_dim[3];
-  if (do_relu == true || m_i8 != nullptr || rshift != 0) {
-    for (int i = 0; i < input_size; i++) {
-      cvk_tl_shape_t input_shape = ctx.tl_shape_t4(n, input_dim_c[i], h, w);
-      cvk_tl_t tl_input;
-      tl_input.start_address = la_input[i];
-      tl_input.fmt = fmt;
-      tl_input.shape = input_shape;
-      tl_input.stride = ctx.tl_default_stride(input_shape, fmt, 1);
-      cvk_tiu_mul_param_t p = {0};
-      p.res_high = nullptr;
-      p.res_low = &tl_input;
-      p.a = &tl_input;
-      if (fmt == CVK_FMT_BF16) {
-        p.b_const.val = ctx.convert_fp32_to_bf16(1.0);
-        p.rshift_bits = 0;
-      } else {
-        p.b_const.val = (m_i8 != nullptr ? static_cast<int16_t>(m_i8[i]) : 1);
-        p.rshift_bits = static_cast<uint8_t>(rshift);
-      }
-      p.b_const.is_signed = false;
-      p.b_is_const = 1;
-      p.layer_id = layer_id;
-      p.relu_enable = do_relu ? 1 : 0;
-      ctx.tiu_mul(&p);
-    }
-  }
 
   uint32_t concat_c = 0;
   for (int i = 0; i < input_size; i++) {
@@ -92,6 +66,26 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
     p10.dst = &tl_output;
     p10.src = &tl_input;
     ctx.tdma_l2l_tensor_copy(&p10);
+
+    if (do_relu == true || m_i8 != nullptr || rshift != 0) {
+      tl_input.start_address = out_addr;
+      cvk_tiu_mul_param_t p = {0};
+      p.res_high = nullptr;
+      p.res_low = &tl_input;
+      p.a = &tl_input;
+      if (fmt == CVK_FMT_BF16) {
+        p.b_const.val = ctx.convert_fp32_to_bf16(1.0);
+        p.rshift_bits = 0;
+      } else {
+        p.b_const.val = (m_i8 != nullptr ? static_cast<int16_t>(m_i8[i]) : 1);
+        p.rshift_bits = static_cast<uint8_t>(rshift);
+      }
+      p.b_const.is_signed = false;
+      p.b_is_const = 1;
+      p.layer_id = layer_id;
+      p.relu_enable = do_relu ? 1 : 0;
+      ctx.tiu_mul(&p);
+    }
 
     concat_c += input_dim_c[i];
   }
