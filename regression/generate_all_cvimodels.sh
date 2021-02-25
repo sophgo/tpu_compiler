@@ -50,6 +50,14 @@ run_gen_cvimodel_all_parallel()
   return $?
 }
 
+while getopts "f:" opt
+do
+  case "$opt" in
+    f ) model_list_file="$OPTARG" ;;
+    h ) usage ;;
+  esac
+done
+
 # default run in parallel
 if [ -z "$RUN_IN_PARALLEL" ]; then
   export RUN_IN_PARALLEL=1

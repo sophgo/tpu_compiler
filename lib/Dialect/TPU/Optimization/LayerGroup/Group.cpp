@@ -338,7 +338,6 @@ bool Group::valid_pattern() {
       // is out tensor point to inside layer, return failure
       for (auto& tensor : im_layer->out_tensors) {
         if (is_group_inside_tensor(tensor->id())) {
-          llvm::errs() << "layer: " << id << " has inside tensor.\n";
           return BM_ERR_FAILURE;
         }
       }
