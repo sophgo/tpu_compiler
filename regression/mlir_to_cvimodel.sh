@@ -7,7 +7,7 @@ function usage() {
   echo "  $0"
   echo -e "\t-i input_mlir_file (required)"
   echo -e "\t-o output_cvimodel (required)"
-  echo -e "\t--dequant-results-to-file=true|fale (option, default: true)"
+  echo -e "\t--dequant-results-to-fp32=true|fale (option, default: true)"
 }
 
 SHORT=hi:o:

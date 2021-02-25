@@ -48,7 +48,7 @@
 
 ## 1.1 TPU介绍
 
-> CVITEK TPU是晶视智能开发的边缘计算SoC平台(CV183x)的异构计算引擎。实现了对主流神经网络运算的高效硬件加速，兼顾执行效率和可编程灵活性。计算精度方面同时支持高效的INT8和高动态范围的BF16两种模式，并通过软件平台支持灵活的混合精度配置。
+> CVITEK TPU是晶视智能开发的边缘计算SoC平台(CV183x/CV182x)的异构计算引擎。实现了对主流神经网络运算的高效硬件加速，兼顾执行效率和可编程灵活性。计算精度方面同时支持高效的INT8和高动态范围的BF16两种模式，并通过软件平台支持灵活的混合精度配置。
 
 ## 1.2 工具链介绍
 
@@ -91,10 +91,11 @@
 -   模型分段：对于包含TPU不支持算子的模型，支持采用TPU和CPU协同方式进行推理计算。将一个模型分成若干段，每段由特定引擎（TPU或CPU）分别执行。
 
 -   自定义算子：自定义算子目前仅支持采用CPU实现。在cvimodel中，用户自定义算子编译为特定平台的动态链接库并保存在cvimodel模型文件中。
+> 为cv183x平台生成的cvimodel可以运行在1832/1835/1838等cv183x系统芯片上; 为cv182x平台生成的cvimodel可以运行在1821/1822/1826等cv182x系列芯片上.
 
 ## 1.6 Runtime
 
-> Runtime库和应用程序运行在CV183x SoC的ARM aarch64处理器Linux系统中。Runtime提供一组API供应用程序运行时调用，实现模型在板端的在线推理。主要功能包括：
+> Runtime库和应用程序运行在CV183x/CV182x SoC的ARM aarch64处理器Linux系统中。Runtime提供一组API供应用程序运行时调用，实现模型在板端的在线推理。主要功能包括：
 
 -   解析cvimodel文件；
 
@@ -1709,7 +1710,7 @@ tpuc-opt ${NET}_opt_fp32.mlir \
     --import-calibration-table \
     --calibration-table ${NET}_calibration_table \
     --assign-chip-name \
-    --chipname cv183x \
+    --chipname [cv183x|cv182x] \
     --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_int8.csv \
@@ -1782,6 +1783,7 @@ cvi_npz_tool.py compare \
 CVITEK TPU支持INT8和BF16两种数据格式运算的加速，在INT8精度不理想时，可以先尝试用将模型量化为BF16模型，再测试精度。其命令如下：
 
 ```sh
+# SET_CHIP_NAME可依据部署的平台类型设置为cv183x或cv182x
 tpuc-opt \
     --assign-chip-name \
     --chipname ${SET_CHIP_NAME} \
@@ -1835,7 +1837,7 @@ cvi_mix_precision.py \
 
 tpuc-opt \
     --assign-chip-name \
-    --chipname cv183x \
+    --chipname [cv183x|cv182x] \
     --tpu-quant \
     --quant-int8-mix-bf16-layers-from-file ${NET}_mix_precision_bf16_table \
     --tpu-op-info-filename ${NET}_op_info_mix.csv \
@@ -2185,7 +2187,7 @@ tpuc-opt ${NET}_opt_fp32.mlir \
     --import-calibration-table \
     --calibration-table ${NET}_calibration_table \
     --assign-chip-name \
-    --chipname cv183x \
+    --chipname [cv183x|cv182x] \
     --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename ${NET}_op_info_int8.csv \
@@ -2303,7 +2305,7 @@ cvi_mix_precision.py \
 
 tpuc-opt \
     --assign-chip-name \
-    --chipname cv183x \
+    --chipname [cv183x|cv182x] \
     --tpu-quant \
     --quant-int8-mix-bf16-layers-from-file ${NET}_mix_precision_bf16_table \
     --tpu-op-info-filename ${NET}_op_info_mix.csv \
