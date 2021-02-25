@@ -13,6 +13,25 @@ Group::~Group() {
   }
 }
 
+// check if a tensor point to inside layer of current group
+bool Group::is_group_inside_tensor(int tid) {
+  const std::vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
+  if (to_layers.empty()) {
+    return false;
+  }
+
+  for (int i = 0; i < (int)to_layers.size(); i++) {
+    int id = to_layers[i];
+
+    // if find to layers is in the group
+    if (find(layers_.begin(), layers_.end(), id) != layers_.end()) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 // to check if a tensor points to out of group.
 bool Group::is_group_out_tensor(int tid) {
   const std::vector<int>& to_layers = net_graph_->get_tensor_to_layer(tid);
@@ -285,6 +304,14 @@ bmerr_t Group::assign_steps_without_tsm() {
   return status;
 }
 
+static bool is_output_op(Operation * op) {
+  for (auto &use : op->getResult(0).getUses()) {
+    auto useOp = use.getOwner();
+    if (isa<ReturnOp>(useOp))
+      return true;
+  }
+  return false;
+}
 
 // pattern that not support for group
 bool Group::valid_pattern() {
@@ -301,6 +328,23 @@ bool Group::valid_pattern() {
       }
     }
   }
+
+  // output should not be the input of other layer
+  // in the same group
+  for (auto id : layers_) {
+    const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
+    Operation * op = im_layer->op();
+    if (is_output_op(op)) {
+      // is out tensor point to inside layer, return failure
+      for (auto& tensor : im_layer->out_tensors) {
+        if (is_group_inside_tensor(tensor->id())) {
+          llvm::errs() << "layer: " << id << " has inside tensor.\n";
+          return BM_ERR_FAILURE;
+        }
+      }
+    }
+  }
+
   return BM_SUCCESS;
 }
 

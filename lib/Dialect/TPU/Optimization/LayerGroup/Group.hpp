@@ -66,6 +66,8 @@ class Group {
   // bmerr_t assign_steps_with_tsm();
   bmerr_t assign_steps_without_tsm();
 
+  bool is_group_inside_tensor(int tid);
+
   bool is_group_out_tensor(int tensor_id);
 
   void show_group();
