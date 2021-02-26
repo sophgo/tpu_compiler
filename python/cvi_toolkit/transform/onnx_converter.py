@@ -132,6 +132,7 @@ class OnnxConverter(BaseConverter):
             "Cast": lambda node: self.convert_cast_op(node),
             "Concat": lambda node: self.convert_concat_op(node),
             "Conv": lambda node: self.convert_conv_op(node),
+            "ConvTranspose": lambda node: self.convert_conv_transpose_op(node),
             "Clip": lambda node: self.convert_clip_op(node),
             "Constant": lambda node: self.convert_constant_op(node),
             "ConstantOfShape": lambda node: self.convert_constant_of_shape_op(node),
@@ -418,7 +419,7 @@ class OnnxConverter(BaseConverter):
             operands.append(op1)
             # [1], [c, 1, 1], [1,c,1,1], [w]
             if len(input_shape2) == 1 or len(input_shape2) == 3 or \
-                (len(input_shape2) == 4 and input_shape2[2:]==[1,1]): 
+                (len(input_shape2) == 4 and input_shape2[2:]==[1,1]):
                 channel = input_shape1[1]
                 width = -1 if len(input_shape1) != 4 else input_shape1[3]
 
@@ -917,6 +918,70 @@ class OnnxConverter(BaseConverter):
         output_shape = [on, oc, oh, ow]
         conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
         self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_conv_transpose_op(self, onnx_node):
+        assert(onnx_node.op_type == "ConvTranspose")
+
+        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        filter_name = onnx_node.inputs[1]
+        filter_tensor = self.getTensor(filter_name)
+        filter_shape = filter_tensor.shape
+        with_bias = False
+        if len(onnx_node.inputs) == 3:
+            #with bias
+            with_bias = True
+            bias_name = onnx_node.inputs[2]
+            bias_tensor = self.getTensor(bias_name)
+
+        dilations = onnx_node.attrs.get("dilations", [1, 1])
+        group = onnx_node.attrs.get("group", 1)
+        pads = onnx_node.attrs.get("pads",[0,0,0,0])
+        strides = onnx_node.attrs.get("strides",[1,1])
+        auto_pad = onnx_node.attrs.get("auto_pad", None)
+        is_deconv = True
+
+        conv_param = {
+            'stride_h':  strides[0],
+            'stride_w':  strides[1],
+            'padding': "VALID",
+            'dilation_h': dilations[0],
+            'dilation_w': dilations[1],
+            'padding_t': pads[0],
+            'padding_b': pads[2],
+            'padding_l': pads[1],
+            'padding_r': pads[3],
+            'group': group,
+            'is_dw': False,
+            'with_bias': len(onnx_node.inputs) > 2,
+            'do_relu': False,
+            'ins': [],
+        }
+        n, ic, ih, iw = shape
+        on = shape[0]
+        oc = filter_tensor.shape[0] # feature map size
+        oh = (ih - 1) * strides[0] - pads[0] - pads[2] + dilations[0] * (filter_shape[2] - 1) + 1
+        ow = (iw - 1) * strides[1] - pads[1] - pads[3] + dilations[1] * (filter_shape[3] - 1) + 1
+
+        if conv_param['group'] != 1:
+            # filter shape s is in (g, oc/g, ic/g, kh, kw)
+            g = conv_param['group']
+            kh = onnx_node.attrs['kernel_shape'][0]
+            kw = onnx_node.attrs['kernel_shape'][1]
+            new_shape = [g, int(oc/g), int(ic/g), kh, kw]
+            filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
+        else:
+            filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
+        operands.append(filter_op)
+
+        if with_bias:
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
+
+        output_shape = [on, oc, oh, ow]
+        deconv_op = self.CVI.add_deconv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
+        self.addOperand(onnx_node.name, deconv_op, output_shape, TensorType.ACTIVATION)
 
     def convert_conv3d_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
