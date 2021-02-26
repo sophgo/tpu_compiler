@@ -31,6 +31,7 @@ run_calibration.py \
     --output_file=${CALI_TABLE} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --net_input_dims ${NET_INPUT_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
     --raw_scale ${RAW_SCALE} \
     --mean ${MEAN} \
     --std ${STD} \

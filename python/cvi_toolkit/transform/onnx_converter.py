@@ -419,7 +419,7 @@ class OnnxConverter(BaseConverter):
             operands.append(op1)
             # [1], [c, 1, 1], [1,c,1,1], [w]
             if len(input_shape2) == 1 or len(input_shape2) == 3 or \
-                (len(input_shape2) == 4 and input_shape2[2:]==[1,1]):
+                (len(input_shape2) == 4 and input_shape2[2:] == [1,1]):
                 channel = input_shape1[1]
                 width = -1 if len(input_shape1) != 4 else input_shape1[3]
 

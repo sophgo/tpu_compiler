@@ -1403,6 +1403,7 @@ python run_calibration.py <model file> <image list file>
   |---|---|
   |--output_file=\<string\>  | 输出calibration table文件|
   |--image_resize_dims       | 图像首先进行resize的大小|
+  |--keep_aspect_ratio       | 在Resize时是否保持长宽比 |
   |--net_input_dims          | 在Resize基础上进行crop的大小|
   |--raw_scale               | 预处理raw_scale|
   |--mean                    | 预处理mean|
@@ -1876,6 +1877,7 @@ run_calibration.py \
     --output_tune_file=${NET}_tune_calibration_table \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --net_input_dims ${NET_INPUT_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
     --raw_scale ${INPUT_SCALE} \
     --mean $MEAN \
     --std $STD \

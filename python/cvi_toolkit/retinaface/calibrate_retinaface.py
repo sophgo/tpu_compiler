@@ -28,7 +28,6 @@ if __name__ == '__main__':
   parser.add_argument('--histogram_bin_num', metavar='histogram_bin_num', help='Specify histogram bin numer for kld calculate',
                       default=2048)
   parser.add_argument('--auto_tune', action='store_true', help='Enable auto tune or not')
-  parser.add_argument('--binary_path', metavar='binary_path', help='MLIR binary path')
   parser.add_argument('--tune_iteration', metavar='iteration', help='The number of data using in tuning process', default=10)
   parser.add_argument("--net_input_dims", default='600,600',
                       help="'height,width' dimensions of net input tensors.")
