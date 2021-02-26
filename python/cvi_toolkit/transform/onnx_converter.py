@@ -195,7 +195,7 @@ class OnnxConverter(BaseConverter):
             for i, dim in enumerate(input.type.tensor_type.shape.dim):
                 # batch size
                 # dim is zero, mean mutli batch
-                if i == 0 and dim.dim_value == 0:
+                if i == 0 and dim.dim_value <= 0:
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
@@ -208,7 +208,7 @@ class OnnxConverter(BaseConverter):
             for i, dim in enumerate(output.type.tensor_type.shape.dim):
                 # i == 0 mean batch size
                 # if dim is zero, mean mutli batch
-                if i == 0 and dim.dim_value == 0:
+                if i == 0 and dim.dim_value <= 0:
                     output_shape.append(self.batch_size)
                 else:
                     output_shape.append(dim.dim_value)
@@ -310,7 +310,7 @@ class OnnxConverter(BaseConverter):
             for i, dim in enumerate(input.type.tensor_type.shape.dim):
                 # batch size
                 # dim is zero, mean mutli batch
-                if i == 0 and dim.dim_value == 0:
+                if i == 0 and dim.dim_value <= 0:
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
@@ -940,7 +940,6 @@ class OnnxConverter(BaseConverter):
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
         strides = onnx_node.attrs.get("strides",[1,1])
         auto_pad = onnx_node.attrs.get("auto_pad", None)
-        is_deconv = True
 
         conv_param = {
             'stride_h':  strides[0],
@@ -958,21 +957,26 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
             'ins': [],
         }
+
         n, ic, ih, iw = shape
+
         on = shape[0]
-        oc = filter_tensor.shape[0] # feature map size
+        assert(ic == filter_shape[0])
+        oc = filter_tensor.shape[1] * group # feature map size
         oh = (ih - 1) * strides[0] - pads[0] - pads[2] + dilations[0] * (filter_shape[2] - 1) + 1
         ow = (iw - 1) * strides[1] - pads[1] - pads[3] + dilations[1] * (filter_shape[3] - 1) + 1
 
         if conv_param['group'] != 1:
-            # filter shape s is in (g, oc/g, ic/g, kh, kw)
             g = conv_param['group']
             kh = onnx_node.attrs['kernel_shape'][0]
             kw = onnx_node.attrs['kernel_shape'][1]
-            new_shape = [g, int(oc/g), int(ic/g), kh, kw]
+            new_shape = [g, int(filter_shape[0]/g), filter_shape[1], kh, kw]
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
         else:
-            filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
+            filter_tensor = np.ascontiguousarray(np.transpose(filter_tensor.tensor_data, [1, 0, 2, 3]))
+            filter_shape = list(filter_tensor.shape)
+            self.addTensor(filter_name, filter_tensor, filter_shape)
+            filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
         operands.append(filter_op)
 
         if with_bias:
