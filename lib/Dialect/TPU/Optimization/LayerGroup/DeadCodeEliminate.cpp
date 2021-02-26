@@ -40,7 +40,7 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/Debug.h"
 #include "tpuc/MachineInfo.h"
-
+#include "utils.hpp"
 #define DEBUG_TYPE "group_ops"
 
 // this pass will do two kinds of optimization between two
@@ -156,13 +156,17 @@ struct EliminateDeadcodePattern : public RewritePattern {
       // c align up lanes
       //  #define NPU_NUM (MInfo::lane_num)
       auto get_output_len = [&](Value v) mutable -> int {
-        std::vector<int64_t> store_shape = getTensorShape(v);
+        std::vector<int64_t> tensor_shape = getTensorShape(v);
         //auto type = RankedTensorType::get(store_shape, v.getType().cast<RankedTensorType>());
         auto eltType = v.getType().cast<TensorType>().getElementType();
         int bitWidth = eltType.getIntOrFloatBitWidth();
         // unit: byte
-        return std::ceil(store_shape[1] / MInfo::lane_num)
-          * store_shape[2] * store_shape[3] * (bitWidth / 8);
+        int n_size = tensor_shape[0];
+        int c_size = ceiling_func(tensor_shape[1], NPU_NUM);
+        int hw_size = tensor_shape[2] * tensor_shape[3] * (bitWidth / 8);
+        hw_size = ceiling_func(hw_size, EU_NUM);
+        int total_size = n_size * c_size * hw_size;
+        return total_size;
       };
 
       int store_sz = get_output_len(store_op->getResult(0));
@@ -179,12 +183,13 @@ struct EliminateDeadcodePattern : public RewritePattern {
         int output_addr = -1;
         if (auto attr = node->getAttr("la_output")) {
           output_addr = attr.cast<IntegerAttr>().getInt();
-        }
-        else if (auto attr = node->getAttr("la_dst")) {
+        } else if (auto attr = node->getAttr("la_dst")) {
           output_addr = attr.cast<IntegerAttr>().getInt();
-        }
-        else {
-          LLVM_DEBUG(llvm::dbgs() << llvm::format(" cnt get op output, continue it\n", curr_name.c_str()));
+        } else if (auto attr = node->getAttr("laddr")) {
+          output_addr = attr.cast<IntegerAttr>().getInt();
+        } else {
+          LLVM_DEBUG(llvm::dbgs() <<
+            llvm::format(" cnt get op output, continue it\n", curr_name.c_str()));
           continue;
         }
 
@@ -194,7 +199,8 @@ struct EliminateDeadcodePattern : public RewritePattern {
         LLVM_DEBUG(llvm::dbgs() << llvm::format("start %d end %d\n",
               y1, y2));
         if (std::max(x1,y1) <= std::min(x2,y2)) {
-          LLVM_DEBUG(llvm::dbgs() << llvm::format("op: %s output range is overlap store's, cant copy it\n", curr_name.c_str()));
+          LLVM_DEBUG(llvm::dbgs() <<
+            llvm::format("op: %s output range is overlap store's, cant copy it\n", curr_name.c_str()));
           // overlap, skip copy
           return failure();
         }
