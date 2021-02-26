@@ -73,7 +73,6 @@
 #include <mutex>
 #include <numeric>
 
-extern llvm::cl::opt<bool> clUseTPUQuantOp;
 extern float BF16_TABLE_START;
 extern float BF16_TABLE_END;
 namespace mlir {
@@ -406,7 +405,8 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     return;
   }
   if (isa<tpu::ScaleLutOp>(op)) {
-    auto scale_lut_kernel_op = std::make_unique<ScaleLutOpKernel>(op, valueMapping);
+    auto scale_lut_kernel_op =
+        std::make_unique<ScaleLutOpKernel>(op, valueMapping);
     oplist.push_back(std::move(scale_lut_kernel_op));
     return;
   }

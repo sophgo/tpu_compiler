@@ -177,7 +177,7 @@ int main(int argc, char **argv) {
   for (auto &it : input_tensors) {
     it->clear();
     it->shrink_to_fit();
-    delete(it);
+    delete (it);
   }
   input_tensors.clear();
   input_tensors.shrink_to_fit();

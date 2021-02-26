@@ -37,6 +37,7 @@
 #include <fstream>
 #include <iostream>
 #include <mutex>
+#include <omp.h>
 #include <unordered_map>
 
 #define DEBUG_TYPE "interpreter"

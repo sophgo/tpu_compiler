@@ -9,6 +9,7 @@ export CVIMODEL_REL_PATH=$WORKING_PATH/cvimodel_regression
 if [ $SET_CHIP_NAME == "cv182x" ]; then
   export CVIMODEL_REL_PATH=${WORKING_PATH}/cvimodel_regression_cv182x
 fi
+export OMP_NUM_THREADS=4
 export MAX_PARALLEL_JOBS=${MAX_PARALLEL_JOBS:-8}
 
 echo "WORKING_PATH: ${WORKING_PATH}"
