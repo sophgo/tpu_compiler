@@ -71,15 +71,14 @@ class cvinn(object):
         # mlir_calibration(mlirfile_fp32, dataset, threshold_table, auto_tune)
         cvi_model = ModelFactory()
         cvi_model.load_model('mlir', None, mlirfile=mlirfile_fp32)
-        calitor = KLD_Calibrator(image_list_file=dataset, 
-            mlir_model=cvi_model.model, 
+        calitor = KLD_Calibrator(image_list=dataset,
+            mlir_model=cvi_model.model,
             preprocess_func=pre_func,
-            input_num=input_num, 
             histogram_bin_num=histogram_bin_num)
         thresholds = calitor.do_calibration()
         calitor.dump_threshold_table(threshold_table, thresholds)
         if auto_tune == True:
-            tuner = Tuner_v2(mlirfile_fp32, threshold_table, dataset, tune_iteration=tune_image_num,preprocess_func=pre_func)
+            tuner = Tuner_v2(mlirfile_fp32, threshold_table, dataset, 10, tune_iteration=tune_image_num,preprocess_func=pre_func)
             tuner.run_tune()
         return 0
 

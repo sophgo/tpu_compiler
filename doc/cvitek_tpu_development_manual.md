@@ -1380,7 +1380,7 @@ mlir-tpu-interpreter [options] <input file>
 
 -   【命令】
 ```sh
-python run_calibration.py <model file> <image list file>
+run_calibration.py <model file> [option]
 ```
 -   【作用】
 
@@ -1394,14 +1394,16 @@ python run_calibration.py <model file> <image list file>
   |参数名称|描述|
   |---|---|
   |\<model file\>       | 输入mlir文件|
-  |\<image list file\>  | 校准图像文件列表文件|
 
 -   【选项】
 
   参数名称                    描述
   |参数名称|描述|
   |---|---|
-  |--output_file=\<string\>  | 输出calibration table文件|
+  |--dataset                 | 指定所用的校准图片集的路径|
+  |--input_num               | 指定所用的校准图片数量|
+  |--histogram_bin_num       | 直方图bin数量|
+  |--calibration_table=\<string\>  | 输出calibration table文件|
   |--image_resize_dims       | 图像首先进行resize的大小|
   |--keep_aspect_ratio       | 在Resize时是否保持长宽比 |
   |--net_input_dims          | 在Resize基础上进行crop的大小|
@@ -1410,10 +1412,8 @@ python run_calibration.py <model file> <image list file>
   |--mean_file               | 预处理mean_file|
   |--input_scale             | 预处理input_scale|
   |--gray | 输入图像是否为灰度图 |
-  |--calibrator              | 校准算法类型,可选KLD或Asym，default=KLD|
-  |--math_lib_path           | 指向底层计算库的路径|
-  |--inpu_num                | 指定所用的校准图像数量|
-  |--histogram_bin_num       | 直方图bin数量|
+  |--auto-tune                | 开启autotune|
+  |--tuned_table=\<string\>  | 输出经过auto-tunning后的calibration table文件|
 
 <br>
 
@@ -1672,16 +1672,11 @@ export DTATSET='xxxxxx/xxxx'
 # 设置校正集随机选取的图片个数
 export CALIBRATION_IMAGE_COUNT=1000
 
-# 生成校正图片列表
-gen_data_list.py \
-    $DATASET \
-    $CALIBRATION_IMAGE_COUNT \
-    cali_list_imagenet.txt
-
 # 校正并生成calibration table
 run_calibration.py \
     ${NET}_opt_fp32.mlir \
-    cali_list_imagenet.txt \
+    --dataset=$DATASET \
+    --input_num=${CALIBRATION_IMAGE_COUNT} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --net_input_dims ${NET_INPUT_DIMS} \
     --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
@@ -1690,9 +1685,8 @@ run_calibration.py \
     --std ${STD} \
     --input_scale ${INPUT_SCALE} \
     --gray ${BGRAY}
-    --input_num=${CALIBRATION_IMAGE_COUNT} \
     --histogram_bin_num=2048 \
-    --output_file=${NET}_calibration_table
+    --calibration_table=${NET}_calibration_table
 ```
 
 > Calibration是获取推理时各个tensor的统计信息过程。每个tensor的统计结果表现为一个threshold值，以及表征每个tensor动态范围的max和min两个值。
@@ -1872,9 +1866,9 @@ cvi_npz_tool.py compare \
 ```sh
 run_calibration.py \
     ${NET}_opt_fp32.mlir \
-    cali_list_imagenet.txt \
-    --output_file=${NET}_calibration_table \
-    --output_tune_file=${NET}_tune_calibration_table \
+    --dataset=$DATASET \
+    --calibration_table=${NET}_calibration_table \
+    --tuned_table=${NET}_tune_calibration_table \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --net_input_dims ${NET_INPUT_DIMS} \
     --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
@@ -1883,7 +1877,6 @@ run_calibration.py \
     --std $STD \
     --input_scale $INPUT_SCALE \
     --model_channel_order ${MODEL_CHANNEL_ORDER} \
-    --create_calibration_table=1 \
     --input_num=${COUNT} \
     --tune_iteration=10 \
     --auto_tune
@@ -2153,16 +2146,11 @@ export DTATSET='xxxxxx/xxxx'
 # 设置校正集随机选取的图片个数
 export CALIBRATION_IMAGE_COUNT=1000
 
-# 生成校正图片列表
-gen_data_list.py \
-    $DATASET \
-    $CALIBRATION_IMAGE_COUNT \
-    cali_list_imagenet.txt
-
 # 校正并生成calibration table
 run_calibration.py \
     ${NET}_opt_fp32.mlir \
-    cali_list_imagenet.txt \
+    --dataset=$DATASET \
+    --input_num=${CALIBRATION_IMAGE_COUNT} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --net_input_dims ${NET_INPUT_DIMS} \
     --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
@@ -2171,8 +2159,7 @@ run_calibration.py \
     --std ${STD} \
     --input_scale ${INPUT_SCALE} \
     --gray ${BGRAY}
-    --input_num=${CALIBRATION_IMAGE_COUNT} \
-    --output_file=${NET}_calibration_table
+    --calibration_table=${NET}_calibration_table
 ```
 
 <br>

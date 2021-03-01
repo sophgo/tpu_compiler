@@ -25,15 +25,14 @@ logger = setup_logger('root')
 
 class KLD_Calibrator(Base_Calibrator):
     def __init__(self,
-                 image_list_file,
+                 image_list,
                  mlir_file,
                  preprocess_func,
-                 input_num=200,
                  histogram_bin_num=2048,
                  math_lib_path='calibration_math.so',
                  custom_op_plugin=''):
-        super().__init__(image_list_file, mlir_file, preprocess_func,
-                         input_num, custom_op_plugin=custom_op_plugin)
+        super().__init__(image_list, mlir_file, preprocess_func,
+                         custom_op_plugin=custom_op_plugin)
         if not self.is_symmetric_quantization:
             raise RuntimeError(
                 "KLD_Calibrator only support symmetric quantization")

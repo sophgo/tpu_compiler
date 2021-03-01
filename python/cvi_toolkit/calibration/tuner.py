@@ -20,7 +20,7 @@ from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 
 general_skip_op = [
-    'tpu.concat',
+#    'tpu.concat',
     'tpu.crop',
     'tpu.clip',
     'tpu.detectionoutput',
@@ -106,7 +106,8 @@ def parse_threshold_table(threshold_table):
     return op_threshold_dict
 
 
-def update_calibration_table(old_calibration_table, new_calibration_table, target_op_name=None, new_threshold=None):
+def update_calibration_table(old_calibration_table, new_calibration_table,
+                             target_op_name=None, new_threshold=None):
     new_calibration_txt = ""
     with open(old_calibration_table, "r") as f:
         op_infos = f.readlines()
@@ -164,17 +165,19 @@ def import_calibration_get_int8_mlir(calibration_table, fp32_mlir_file):
 
 
 class Tuner_v2(object):
-    def __init__(self, model_file, input_calibration_table,
-                 image_list_file, output_path="./", tune_iteration=10,
-                 preprocess_func=None, tune_table=""):
+    def __init__(self, model_file, input_calibration_table, image_list, tune_image_num,
+                 output_path="./", tune_iteration=10, preprocess_func=None, tune_table=""):
         self.fp32_mlir_file = model_file
         self.fp32_mlir_opt_file = "{}_tune_opt.mlir".format(
             model_file.split(".")[0])
         self.fp32_model = pymlir.module()
         self.fp32_model.load(model_file)
 
-        with open(image_list_file, 'r') as f:
-            self.images = f.readlines()
+        if type(image_list) == str:
+            with open(image_list, 'r') as f:
+                self.images = f.readlines()
+        else:
+            self.images = image_list
 
         self.output_path = output_path
         os.makedirs(self.output_path, exist_ok=True)
@@ -195,7 +198,8 @@ class Tuner_v2(object):
 
         self.best_threshold = 0
         self.best_diff = 0
-        self.limit = min(len(self.images), tune_iteration)
+        self.limit = min(len(self.images), tune_image_num)
+        self.tune_iteration = tune_iteration
 
         self.preprocess_func = preprocess_func
 
@@ -231,9 +235,14 @@ class Tuner_v2(object):
             if idx >= self.limit:
                 break
 
-        while fail_count < 3:
+        while fail_count < self.tune_iteration:
             distance = 0
-            new_threshold += factor
+            if factor > 0:
+                new_factor = factor if (new_threshold * 0.05) > factor else new_threshold * 0.05
+            else:
+                new_factor = factor if (new_threshold * -0.05) < factor else new_threshold * -0.05
+            new_threshold += new_factor
+
             if new_threshold < 0:
                 break
             # make tmp table
@@ -265,7 +274,8 @@ class Tuner_v2(object):
             # if distance is small than old one, update it
             if original_distance > distance:
                 logger.info(
-                    "tuning op: {}, tmp distance: {} < original_distance: {}, update".format(target_layer, distance, original_distance))
+                    "tuning op: {}, tmp distance: {} < original_distance: {}, update".format(
+                    target_layer, distance, original_distance))
                 logger.info("tuning op: {}, old_threshold: {}, new_threshold: {}, update table: {}".format(
                     target_layer, original_threshold, new_threshold, self.tune_table))
                 update_calibration_table(

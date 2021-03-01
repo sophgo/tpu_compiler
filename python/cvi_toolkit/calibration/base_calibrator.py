@@ -26,26 +26,22 @@ def is_all_zero(data):
 
 class Base_Calibrator(object):
     def __init__(self,
-                 image_list_file,
+                 image_list,
                  mlir_file,
                  preprocess_func,
-                 input_num=200,
                  is_symmetric_quantization=True,
                  custom_op_plugin=''):
-        logger.info("Reading {} file".format(image_list_file))
-        with open(image_list_file, 'r') as fp:
-            self.images = fp.readlines()
+        if type(image_list) == str:
+            with open(image_list, 'r') as fp:
+                self.images = fp.readlines()
+        else:
+            self.images = image_list
 
         logger.info("Images list number: {}".format(len(self.images)))
         if len(self.images) == 0:
-            raise IOError("ERROR: No calibration data detect."
-                          " Please check the input file: {}".format(image_list_file))
-        self.input_num = int(input_num)
-        if len(self.images) < self.input_num:
-            logger.warning(
-                "There are {} number in {}, less than input_num ({}), set input_num to {}"
-                .format(len(self.images), image_list_file, self.input_num, len(self.images)))
-            self.input_num = len(self.images)
+            raise IOError("ERROR: No calibration image detect.")
+
+        self.input_num = len(self.images)
 
         self.preprocess_func = preprocess_func
         self.model = pymlir.module()

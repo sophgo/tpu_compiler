@@ -565,6 +565,7 @@ cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7 5
 | **参数名**          | **说明**                             |
 | ------------------- | ------------------------------------ |
 | image_resize_dims   | 表明图片resize大小，比如256,256      |
+| keep_aspect_ratio   | 在Resize时是否保持长宽比 |
 | net_input_dims      | 表明模型输入的大小，比如224,224      |
 | model_channel_order | channel顺序，默认bgr；可以指定为rgb  |
 | raw_scale           | 操作：* raw_scale/255.0，默认为255.0 |
@@ -641,31 +642,20 @@ cvi_npz_tool.py compare \
 
 #### 步骤 4：Calibration
 
-Calibration前需要先准备图像文件列表，下述脚本可辅助在指定目录随机选择文件，并将选择结果保存为txt文件（以取1000张为例）。
-
-``` shell
-python3 $MLIR_PATH/tpuc/python/gen_data_list.py \
-    $DATASET_PATH/imagenet/img_val_extracted \
-    1000 \
-    cali_list_imagenet_1000.txt
-```
-
-得到`cali_list_imagenet_1000.txt`文件。
-
-
-
+Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
 执行calibration：
 
 ``` shell
-python3 $MLIR_PATH/tpuc/python/run_calibration.py \
+run_calibration.py \
     mobilenet_v2_fp32.mlir \
-    cali_list_imagenet_1000.txt \
+    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+    --input_num=1000 \
     --net_input_dims 224,224 \
     --raw_scale 255.0 \
     --mean 103.94,116.78,123.68 \
     --input_scale 0.017 \
-    --input_num=1000 \
-    --output_file mobilenet_v2_calibration_table
+    --model_channel_order bgr \
+    --calibration_table mobilenet_v2_calibration_table
 ```
 
   得到`mobilenet_v2_calibration_table`。
@@ -713,6 +703,21 @@ cvi_npz_tool.py compare \
 
 这里tolerance是一个初步的衡量指标，具备一定相对比较意义，但是取值随网络结构不同有较大动态范围，需根据具体情形进行调节。
 
+如果对模型的精度不满意，可以进一步对calibration table做auto-tune, 具体步骤如下：
+``` sh
+run_calibration.py \
+    mobilenet_v2_fp32.mlir \
+    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+    --input_num=10 \
+    --tune-iteration=10 \
+    --net_input_dims 224,224 \
+    --raw_scale 255.0 \
+    --mean 103.94,116.78,123.68 \
+    --input_scale 0.017 \
+    --calibration_table mobilenet_v2_calibration_table \
+    --tuned_table mobilenet_v2_tuned_calibration_table
+```
+然后使用新生成的mobilenet_v2_tuned_calibration_table重复步骤5
 
 
 【可选】对数据集进行精度测试(以测试50000张为例，可酌情减少）：
@@ -939,21 +944,16 @@ cvi_npz_tool.py compare \
 与第6章编译caffe模型的相应部分相同，此处略，仅列命令供参考。
 
 ``` shell
-python3 $MLIR_PATH/tpuc/python/gen_data_list.py \
-    $DATASET_PATH/imagenet/img_val_extracted \
-    1000 \
-    cali_list_imagenet_1000.txt
-
-python3 $MLIR_PATH/tpuc/python/run_calibration.py \
+run_calibration.py \
     resnet18_fp32.mlir \
-    cali_list_imagenet_1000.txt \
+    --dataset=c$DATASET_PATH/imagenet/img_val_extracted \
+    --input_num=1000 \
     --image_resize_dims 256,256 \
     --net_input_dims 224,224 \
     --raw_scale 1.0 \
     --mean 0.406,0.456,0.485 \
     --std 0.225,0.224,0.229 \
-    --input_num=1000 \
-    --output_file resnet18_calibration_table
+    --calibration_table resnet18_calibration_table
 
 tpuc-opt resnet18_fp32.mlir \
     --import-calibration-table \
@@ -1150,22 +1150,17 @@ cvi_npz_tool.py compare \
 与第6章编译caffe模型的相应部分相同，此处略，仅列命令供参考。（注意预处理部分和Caffe的模型有区别）
 
 ``` shell
-python3 $MLIR_PATH/tpuc/python/gen_data_list.py \
-    $DATASET_PATH/imagenet/img_val_extracted \
-    1000 \
-    cali_list_imagenet_1000.txt
-
-python3 $MLIR_PATH/tpuc/python/run_calibration.py \
+run_calibration.py \
     mobilenet_v2_tf_fp32.mlir \
-    cali_list_imagenet_1000.txt  \
+    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+    --input_num=1000 \
     --image_resize_dims 256,256  \
     --net_input_dims 224,224 \
     --raw_scale 255 \
     --mean 127.5,127.5,127.5 \
     --std 127.5,127.5,127.5 \
     --input_scale 1.0 \
-    --input_num=1000 \
-    --output_file  mobilenet_v2_tf_calibration_table
+    --calibration_table  mobilenet_v2_tf_calibration_table
 
 tpuc-opt mobilenet_v2_tf_fp32.mlir \
     --import-calibration-table \
@@ -1370,14 +1365,10 @@ cvi_npz_tool.py compare \
 与第6章编译caffe模型的相应部分相同，此处略，仅列命令供参考。
 
 ``` shell
-python3 $MLIR_PATH/tpuc/python/gen_data_list.py \
-    $DATASET_PATH/imagenet/img_val_extracted \
-    1000 \
-    cali_list_imagenet_1000.txt
-
-python3 $MLIR_PATH/tpuc/python/run_calibration.py \
+run_calibration.py \
     mnet_25_fp32.mlir \
-    cali_list_imagenet_1000.txt \
+    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+    --input_num=1000 \
     --image_resize_dims 256,256 \
     --net_input_dims 224,224 \
     --raw_scale 255.0 \
@@ -1385,8 +1376,7 @@ python3 $MLIR_PATH/tpuc/python/run_calibration.py \
     --std 127.5,127.5,127.5 \
     --data_format "nchw" \
     --model_channel_order "rgb" \
-    --input_num=1000 \
-    --output_file mnet_25_calibration_table
+    --calibration_table mnet_25_calibration_table
 
 tpuc-opt mnet_25_fp32.mlir \
     --import-calibration-table \
@@ -1863,14 +1853,10 @@ eval_classifier.py \
 进行calibration：
 
 ``` shell
-python3 $MLIR_PATH/tpuc/python/gen_data_list.py \
-    $DATASET_PATH/imagenet/img_val_extracted \
-    1000 \
-    cali_list_imagenet_1000.txt
-
-python3 $MLIR_PATH/tpuc/python/run_calibration.py \
+run_calibration.py \
     mnet_25_fp32.mlir \
-    cali_list_imagenet_1000.txt \
+    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+    --input_num=1000 \
     --image_resize_dims 256,256 \
     --net_input_dims 224,224 \
     --raw_scale 255.0 \
@@ -1878,8 +1864,7 @@ python3 $MLIR_PATH/tpuc/python/run_calibration.py \
     --std 127.5,127.5,127.5 \
     --data_format "nchw" \
     --model_channel_order "rgb" \
-    --input_num=1000 \
-    --output_file mnet_25_calibration_table
+    --calibration_table mnet_25_calibration_table
 ```
 
 得到`mnet_25_calibration_table`。

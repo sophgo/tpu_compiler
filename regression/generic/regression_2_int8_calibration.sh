@@ -27,8 +27,8 @@ gen_data_list.py \
 
 run_calibration.py \
     ${NET}_opt_fp32.mlir \
-    cali_list_imagenet.txt \
-    --output_file=${CALI_TABLE} \
+    --dataset=$DATASET \
+    --input_num=${CALIBRATION_IMAGE_COUNT} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
     --net_input_dims ${NET_INPUT_DIMS} \
     --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
@@ -36,8 +36,7 @@ run_calibration.py \
     --mean ${MEAN} \
     --std ${STD} \
     --input_scale ${INPUT_SCALE} \
-    --input_num=${CALIBRATION_IMAGE_COUNT} \
-    --output_density_table=${DENSITY_TABLE}
+    --output_file=${CALI_TABLE}
 
 if [ ! -f $CALI_TABLE ]; then
   echo "CALI_TABLE=$CALI_TABLE not exist"
