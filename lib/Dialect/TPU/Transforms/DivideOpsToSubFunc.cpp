@@ -28,17 +28,30 @@ SubFunction::SubFunction(bool tpu, std::vector<Operation *>& ops, int &idx)
 
   std::set<Operation *> producers;
   std::set<Operation *> consumers;
+  std::set<Operation *> returnOpds;
   for (auto op : ops) {
     producers.insert(op);
     for (int i = 0; i < (int)op->getNumOperands(); i++) {
       auto opd = op->getOperand(i).getDefiningOp();
       consumers.insert(opd);
     }
+    for (auto &use : op->getResult(0).getUses()) {
+      auto nextOp = use.getOwner();
+      if (std::find(ops.begin(), ops.end(), nextOp) == ops.end()) {
+        returnOpds.insert(op); // already get outputs
+      }
+    }
   }
   std::set_difference(consumers.begin(), consumers.end(), producers.begin(),
                       producers.end(), std::inserter(inputs, inputs.begin()));
   std::set_difference(producers.begin(), producers.end(), consumers.begin(),
                       consumers.end(), std::inserter(outputs, outputs.begin()));
+
+  for (auto op : returnOpds) {
+    if (std::find(outputs.begin(), outputs.end(), op) == outputs.end()) {
+      outputs.push_back(op);
+    }
+  }
 }
 
 void SubFunction::generateFuncName(int idx) {
