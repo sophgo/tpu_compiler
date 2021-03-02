@@ -7,8 +7,7 @@ import argparse
 import glob
 import time
 import cv2
-import caffe
-from cvi_toolkit.model import CaffeModel
+import pymlir
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.utils.yolov3_util import draw
 from cvi_toolkit.utils.yolov3_util import postprocess_v2
@@ -16,12 +15,8 @@ from cvi_toolkit.utils.yolov3_util import postprocess_v3, postprocess_v3_tiny
 from cvi_toolkit.utils.yolov3_util import postprocess_v4, postprocess_v4_tiny
 
 def check_files(args):
-    if not os.path.isfile(args.model_def):
-        print("cannot find the file %s", args.model_def)
-        sys.exit(1)
-
-    if not os.path.isfile(args.pretrained_model):
-        print("cannot find the file %s", args.pretrained_model)
+    if not os.path.isfile(args.model):
+        print("cannot find the file %s", args.model)
         sys.exit(1)
 
     if not os.path.isfile(args.input_file):
@@ -31,10 +26,8 @@ def check_files(args):
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')
     parser = get_preprocess_parser(parser)
-    parser.add_argument('--model_def', type=str, default='',
-                        help="Model definition file")
-    parser.add_argument('--pretrained_model', type=str, default='',
-                        help='Load weights from previously saved parameters.')
+    parser.add_argument('--model', type=str, default='',
+                        help="MLIR Model file")
     parser.add_argument("--input_file", type=str, default='',
                         help="Input image for testing")
     parser.add_argument("--label_file", type=str, default='',
@@ -67,10 +60,10 @@ def parse_args():
 
 def main(argv):
     args = parse_args()
-    args.channel_order = 'rgb'
+    preprocessor = preprocess()
+    args.pixel_format = 'RGB_PLANAR'
     args.keep_aspect_ratio = True
     args.raw_scale = 1.0
-    preprocessor = preprocess()
     preprocessor.config(**vars(args))
     # Make Detector
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
@@ -89,51 +82,52 @@ def main(argv):
     image = cv2.imread(args.input_file)
     inputs = preprocessor.run(image, batch=args.batch_size)
 
-    caffemodel = CaffeModel()
-    caffemodel.load_model(args.model_def, args.pretrained_model)
-    caffemodel.inference(inputs)
-    outputs = caffemodel.net.blobs
+    module = pymlir.module()
+    module.load(args.model)
+    _ = module.run(inputs)
+    all_tensor_dict = module.get_all_tensor()
+    outputs = all_tensor_dict
 
-    all_tensor_dict = caffemodel.get_all_tensor(inputs, args.dump_blobs_with_inplace)
-    np.savez(args.dump_blobs, **all_tensor_dict)
+    if args.dump_blobs:
+        np.savez(args.dump_blobs, **all_tensor_dict)
 
     out_feat = {}
     if yolov3 == True:
         if tiny:
-            out_feat['layer16-conv'] = outputs['layer16-conv'].data
-            out_feat['layer23-conv'] = outputs['layer23-conv'].data
+            out_feat['layer16-conv'] = outputs['layer16-conv']
+            out_feat['layer23-conv'] = outputs['layer23-conv']
             batched_predictions = postprocess_v3_tiny(out_feat, image.shape, net_input_dims,
                                     obj_threshold, nms_threshold, args.batch_size)
         else:
             if not spp_net:
-                out_feat['layer82-conv'] = outputs['layer82-conv'].data
-                out_feat['layer94-conv'] = outputs['layer94-conv'].data
-                out_feat['layer106-conv'] = outputs['layer106-conv'].data
+                out_feat['layer82-conv'] = outputs['layer82-conv']
+                out_feat['layer94-conv'] = outputs['layer94-conv']
+                out_feat['layer106-conv'] = outputs['layer106-conv']
                 batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
                                         obj_threshold, nms_threshold, spp_net, args.batch_size)
             else:
-                out_feat['layer89-conv'] = outputs['layer89-conv'].data
-                out_feat['layer101-conv'] = outputs['layer101-conv'].data
-                out_feat['layer113-conv'] = outputs['layer113-conv'].data
+                out_feat['layer89-conv'] = outputs['layer89-conv']
+                out_feat['layer101-conv'] = outputs['layer101-conv']
+                out_feat['layer113-conv'] = outputs['layer113-conv']
                 batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
                                         obj_threshold, nms_threshold, spp_net, args.batch_size)
     elif args.yolov4 == 'true':
         if tiny:
-            #out_feat['layer30-conv'] = outputs['layer30-conv'].data
-            #out_feat['layer37-conv'] = outputs['layer37-conv'].data
-            out_feat[0] = outputs['layer30-conv'].data
-            out_feat[1] = outputs['layer37-conv'].data
+            #out_feat['layer30-conv'] = outputs['layer30-conv']
+            #out_feat['layer37-conv'] = outputs['layer37-conv']
+            out_feat[0] = outputs['layer30-conv']
+            out_feat[1] = outputs['layer37-conv']
             batched_predictions = postprocess_v4_tiny(out_feat, image.shape, net_input_dims,
                                     obj_threshold, nms_threshold, args.batch_size)
         else:
-            out_feat['layer139-conv'] = outputs['layer139-conv'].data
-            out_feat['layer150-conv'] = outputs['layer150-conv'].data
-            out_feat['layer161-conv'] = outputs['layer161-conv'].data
+            out_feat['layer139-conv'] = outputs['layer139-conv']
+            out_feat['layer150-conv'] = outputs['layer150-conv']
+            out_feat['layer161-conv'] = outputs['layer161-conv']
             batched_predictions = postprocess_v4(out_feat, image.shape, net_input_dims,
                     obj_threshold, nms_threshold, spp_net, args.batch_size)
 
     else:
-        out_feat['conv22'] = outputs['conv22'].data
+        out_feat['conv22'] = outputs['conv22']
         batched_predictions = postprocess_v2(out_feat, image.shape, net_input_dims,
                                 obj_threshold, nms_threshold, args.batch_size)
     print(batched_predictions[0])
