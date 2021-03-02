@@ -22,10 +22,9 @@
 //===----------------------------------------------------------------------===//
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Parser.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -38,7 +37,7 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/InitLLVM.h"
 #include "llvm/Support/SourceMgr.h"
@@ -84,9 +83,9 @@ int main(int argc, char **argv) {
   llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
   llvm::InitLLVM y(argc, argv);
 
-  MLIRContext context;
-  auto &registry = context.getDialectRegistry();
+  DialectRegistry registry;
   registry.insert<tpu::TPUDialect, mlir::StandardOpsDialect>();
+  MLIRContext context(registry);
 
   llvm::cl::ParseCommandLineOptions(argc, argv,
                                     "MLIR TPU interpreter driver\n");
@@ -158,7 +157,7 @@ int main(int argc, char **argv) {
     for (auto &output_name : output_details) {
       std::vector<float> output_data = interpreter_->get_tensor(output_name);
       std::vector<int64_t> shape = interpreter_->get_tensor_shape(output_name);
-      outputTensorFile->addTensor(output_name, output_data.data(), shape);
+      (void)outputTensorFile->addTensor(output_name, output_data.data(), shape);
     }
     outputTensorFile->keep();
   }
@@ -170,7 +169,7 @@ int main(int argc, char **argv) {
     for (auto &tensor_name : all_tensor_names) {
       std::vector<float> output_data = interpreter_->get_tensor(tensor_name);
       std::vector<int64_t> shape = interpreter_->get_tensor_shape(tensor_name);
-      allTensorTensorFile->addTensor(tensor_name, output_data.data(), shape);
+      (void)allTensorTensorFile->addTensor(tensor_name, output_data.data(), shape);
     }
     allTensorTensorFile->keep();
   }

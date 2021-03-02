@@ -26,7 +26,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -65,7 +65,7 @@ struct TpuFoldScalePattern : public RewritePattern {
     auto formerScaleOp = cast<tpu::ScaleOp>(formerOp);
 
     // op_name from the later scale
-    auto nameAttr = laterScaleOp.getAttrOfType<StringAttr>("name");
+    auto nameAttr = laterScaleOp->getAttrOfType<StringAttr>("name");
     std::string op_name = nameAttr.getValue().str();
     LLVM_DEBUG(llvm::errs() << "Scale Op: " << op_name << "\n";);
 
@@ -199,7 +199,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     auto convOp = cast<tpu::Conv2DOp>(formerOp);
 
     // op_name from the scale
-    auto nameAttr = scaleOp.getAttrOfType<StringAttr>("name");
+    auto nameAttr = scaleOp->getAttrOfType<StringAttr>("name");
     std::string op_name = nameAttr.getValue().str();
     LLVM_DEBUG(llvm::errs() << "Scale Op: " << op_name << "\n";);
 
@@ -339,8 +339,8 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
 
     // replace the scale with the new conv op
     // the former conv op one will be removed automatically
-    //convOp.param().setAttr("with_bias", rewriter.getBoolAttr(true));
-    convOp.setAttr("param",
+    //convOp.param()->setAttr("with_bias", rewriter.getBoolAttr(true));
+    convOp->setAttr("param",
         tpu::ConvParam::get(
             convOp.param().stride_h(),
             convOp.param().stride_w(),
@@ -358,7 +358,7 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
             convOp.param().ins(),
             convOp.param().pad_value(),
             rewriter.getContext()));
-    auto origAttrs = convOp.getAttrs();
+    auto origAttrs = convOp->getAttrs();
     // update name with the later op name, because this name is for
     // calibration table
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());

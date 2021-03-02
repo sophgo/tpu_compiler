@@ -25,7 +25,7 @@
 
 #include "mlir/Support/LLVM.h"
 #include "mlir/Support/LogicalResult.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "llvm/ADT/Twine.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Format.h"
@@ -277,10 +277,10 @@ public:
         llvm::errs()
             << name
             << "save dummy for prevent open npz file under append mode fail\n";
-        deleteTensor<float>(name);
+        (void)deleteTensor<float>(name);
         std::vector<float> fake_data(1);
         std::vector<int64_t> shape(1, 1);
-        addTensor(name, fake_data.data(), shape);
+        (void)addTensor(name, fake_data.data(), shape);
       }
 
       cnpy::npz_save_all(fileInc, map);

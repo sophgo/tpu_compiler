@@ -568,7 +568,7 @@ void ModuleInterpreter::allocate_tensors() {
 
   for (FuncOp func : mlirModule.getOps<FuncOp>()) {
     MInfo Machineinfo;
-    if (func.getAttr("chipname")) {
+    if (func->getAttr("chipname")) {
       Machineinfo.getChipInfo(func);
     }
     for (Block &bb : func.getBlocks()) {

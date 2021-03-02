@@ -25,7 +25,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -160,7 +160,7 @@ struct TpuUpsampleOpPattern : public RewritePattern {
 
     // op_name
     std::string op_name =
-        upsampleOp.getAttrOfType<StringAttr>("name").getValue().str();
+        upsampleOp->getAttrOfType<StringAttr>("name").getValue().str();
     LLVM_DEBUG(llvm::errs() << "upsample Op: " << op_name << "\n";);
 
     auto input = op->getOperand(0);

@@ -4,7 +4,7 @@
 #include "NetGraph.hpp"
 #include "Group.hpp"
 #include "MixNet.hpp" // get_op_from_name
-#include "mlir/IR/StandardTypes.h" // StandardTypes.h
+#include "mlir/IR/BuiltinTypes.h" // BuiltinTypes.h
 
 #define DEBUG_TYPE "tiu_cycle"
 
@@ -16,8 +16,8 @@ namespace mlir {
 void TiuCycle::setup_hw_config() {
     FuncOp * fn = net_graph_->getFn();
     std::string chipname = "cx1835";
-    if (fn->getAttr("chipname")) {
-      chipname = fn->getAttr("chipname").cast<StringAttr>().getValue().str();
+    if ((*fn)->getAttr("chipname")) {
+      chipname = (*fn)->getAttr("chipname").cast<StringAttr>().getValue().str();
     }
     if (chipname == "cv183x") {
       // 1835 config

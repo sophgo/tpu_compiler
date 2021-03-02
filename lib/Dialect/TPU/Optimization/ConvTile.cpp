@@ -26,7 +26,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -366,7 +366,7 @@ public:
     if (!tileInfo.n_step)
       return failure();
 
-    tpuOp.setAttr("tile_param",
+    tpuOp->setAttr("tile_param",
         tpu::ConvTileParam::get(
             rewriter.getI32IntegerAttr(tileInfo.n_step),
             rewriter.getI32IntegerAttr(tileInfo.oc_step),
@@ -394,7 +394,7 @@ void ConvTilePass::runOnFunction() {
 
   getFunction().walk([&](Operation *op) {
     if (auto tpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
-      tpuOp.removeAttr("tile_param");
+      tpuOp->removeAttr("tile_param");
     }
   });
 

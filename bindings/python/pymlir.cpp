@@ -9,10 +9,9 @@
 // -------------
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/Function.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Parser.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Pass/PassManager.h"
@@ -26,7 +25,6 @@
 #include "llvm/ADT/STLExtras.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
-#include "llvm/IR/Module.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/SourceMgr.h"
 #include "llvm/Support/ToolOutputFile.h"
@@ -41,7 +39,7 @@ typedef std::map<std::string, std::vector<float>> tensor_map_t;
 typedef std::map<std::string, std::vector<int64_t>> shape_map_t;
 
 static bool isValidOp(Operation &op) {
-  return (op.getName().getDialect().str() == "tpu" &&
+  return (op.getName().getDialect()->getNamespace() == "tpu" &&
           !isa<tpu::WeightFileOp>(op) && !isa<tpu::LoadWeightOp>(op) &&
           !isa<tpu::NoneOp>(op));
 }
@@ -103,9 +101,11 @@ public:
     if (context) {
       context.reset();
     }
-    context = std::make_unique<MLIRContext>();
-    auto &registry = context->getDialectRegistry();
+
+    DialectRegistry registry;
     registry.insert<tpu::TPUDialect, StandardOpsDialect>();
+    context = std::make_unique<MLIRContext>(registry);
+
     module_ = parseMLIRInput(filename);
     if (!module_) {
       llvm_unreachable("could not parse the input IR\n");
@@ -142,7 +142,7 @@ public:
           if (!isValidOp(op)) {
             if (auto weightFileOp = dyn_cast<tpu::WeightFileOp>(op)) {
               weightFilePath_ =
-                  weightFileOp.getAttrOfType<StringAttr>("filename")
+                  weightFileOp->getAttrOfType<StringAttr>("filename")
                       .getValue()
                       .str();
             }

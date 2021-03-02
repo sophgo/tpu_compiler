@@ -25,7 +25,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/SymbolTable.h"
 #include "mlir/Pass/Pass.h"
@@ -84,7 +84,7 @@ public:
 
     for (auto fn : module.getOps<FuncOp>()) {
       fn.walk([&](Operation *op) {
-        if (op->getName().getDialect().str() != "tpu"
+        if (op->getName().getDialect()->getNamespace() != "tpu"
            || isa<tpu::LoadWeightOp>(op)
            || isa<tpu::WeightFileOp>(op)
            || isa<tpu::NoneOp>(op)
@@ -206,23 +206,23 @@ private:
     sf->fnOp = FuncOp::create(builder.getUnknownLoc(), sf->fnName, fnType);
     auto block = sf->fnOp.addEntryBlock();
     builder.setInsertionPointToStart(block);
-    
+
     BlockAndValueMapping mapper;
     for (int i = 0; i < (int)fnInputs.size(); i++) {
       auto arg = block->getArgument(i);
       mapper.map(fnInputs[i], arg);
     }
-    
+
     for (auto op : sf->ops) {
       builder.clone(*op, mapper);
     }
-    
+
     SmallVector<Value, 4> terminatorOperands;
     for (auto &val : fnOutputs) {
       terminatorOperands.push_back(mapper.lookup(val));
     }
     builder.create<ReturnOp>(builder.getUnknownLoc(), terminatorOperands);
-    
+
     // add fn attribute
     for (unsigned i = 0; i < sf->ops.size(); i++) {
       sf->ops[i]->setAttr("fn", builder.getStringAttr(sf->fnName));

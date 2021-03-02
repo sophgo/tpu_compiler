@@ -27,7 +27,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -1008,7 +1008,7 @@ Value tpu::InterpOp::convertToTG() {
           Builder(op->getContext());
   std::vector<NamedAttribute> param;
   std::vector<NamedAttribute> attrs;
-  for (auto &attr : castOp.getAttrs()) {
+  for (auto &attr : castOp->getAttrs()) {
     if (attr.first == "name" || attr.first == "gaddr" ||
         attr.first == "quant") {
       continue;
@@ -1040,7 +1040,7 @@ Value tpu::InstanceNormOp::convertToTG() {
           Builder(op->getContext());
   std::vector<NamedAttribute> param;
   std::vector<NamedAttribute> attrs;
-  for (auto &attr : castOp.getAttrs()) {
+  for (auto &attr : castOp->getAttrs()) {
     if (attr.first == "name" || attr.first == "gaddr" ||
         attr.first == "quant") {
       continue;
@@ -2592,7 +2592,7 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
       convOp.setOperand(2, packed_op);
     }
     auto biasOp = cast<tpu::LoadWeightOp>(convOp.bias().getDefiningOp());
-    biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
 
     // erase quant_rshift and quant_multiplier tensor
     auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(
@@ -2668,7 +2668,7 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
     // store to the packed per_channel operand in "UINT8"
     addWeightTensorAndUpdateWeightOp<uint8_t>(castOp.quant_rshift(),
         "pack", *packed, packedShape, "UINT8", wTF);
-    rshiftOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    rshiftOp->setAttr("lowered", rewriter.getBoolAttr(true));
 
     // erase quant_multiplier tensor
     auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(
@@ -2898,7 +2898,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
             "lowered", filter_int8, shape, "INT8", wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        filterOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower bias
@@ -2920,7 +2920,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
           //StringRef storageType = "INT32";
           //addWeightTensorAndUpdateWeightOp<int32_t>(convOp.bias(),
           //    "lowered", bias_int16, shape, storageType, wTF);
-          biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+          biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
         } else {
           // per-tensor mode, bias is INT16
           assert(biasOp.storage() == "INT16");
@@ -2939,7 +2939,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
           // to change the shape.
           addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.bias(),
               "lowered", bias_uint16, shape, "UINT16", wTF);
-          biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+          biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
         }
       }
     } else if (getOpQuant(op) == "BF16") {
@@ -2963,7 +2963,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.filter(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        filterOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower bias
@@ -3006,7 +3006,7 @@ struct LowerWeightConv2DOpPattern : public RewritePattern {
         StringRef storageType = "UINT32";
         addWeightTensorAndUpdateWeightOp<uint32_t>(convOp.bias(),
             "lowered", bias_uint32, shape, storageType, wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
     }
 
@@ -3050,7 +3050,7 @@ struct LowerWeightConv3DOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(convOp.filter(),
             "lowered", filter_int8, shape, "INT8", wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        filterOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower bias
@@ -3072,7 +3072,7 @@ struct LowerWeightConv3DOpPattern : public RewritePattern {
           //StringRef storageType = "INT32";
           //addWeightTensorAndUpdateWeightOp<int32_t>(convOp.bias(),
           //    "lowered", bias_int16, shape, storageType, wTF);
-          biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+          biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
         } else {
           // per-tensor mode, bias is INT16
           assert(biasOp.storage() == "INT16");
@@ -3091,7 +3091,7 @@ struct LowerWeightConv3DOpPattern : public RewritePattern {
           // to change the shape.
           addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.bias(),
               "lowered", bias_uint16, shape, "UINT16", wTF);
-          biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+          biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
         }
       }
     } else if (getOpQuant(op) == "BF16") {
@@ -3111,7 +3111,7 @@ struct LowerWeightConv3DOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(convOp.filter(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        filterOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower bias
@@ -3154,7 +3154,7 @@ struct LowerWeightConv3DOpPattern : public RewritePattern {
         StringRef storageType = "UINT32";
         addWeightTensorAndUpdateWeightOp<uint32_t>(convOp.bias(),
             "lowered", bias_uint32, shape, storageType, wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
     }
 
@@ -3194,7 +3194,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(fcOp.filter(),
             "lowered", filter_int8, shape, "INT8", wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        filterOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower bias
@@ -3217,7 +3217,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         // to change the shape.
         addWeightTensorAndUpdateWeightOp<uint32_t>(fcOp.bias(),
             "lowered", bias_uint32, shape, "UINT32", wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
@@ -3236,7 +3236,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(fcOp.filter(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        filterOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower bias
@@ -3280,7 +3280,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
         StringRef storageType = "UINT32";
         addWeightTensorAndUpdateWeightOp<uint32_t>(fcOp.bias(),
             "lowered", bias_uint32, shape, storageType, wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
     }
 
@@ -3323,7 +3323,7 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.weight(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower recurrence
@@ -3341,7 +3341,7 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.recurrence(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        recurrenceOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        recurrenceOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower bias
@@ -3385,7 +3385,7 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         StringRef storageType = "UINT32";
         addWeightTensorAndUpdateWeightOp<uint32_t>(gruOp.bias(),
             "lowered", bias_uint32, shape, storageType, wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower initial_h
@@ -3403,7 +3403,7 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.initial_h(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        initial_hOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        initial_hOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
        // lower sigmoid table
@@ -3438,11 +3438,11 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             tableOp, "lowered", table_uint16, shape, "BF16", wTF);
-        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             table_mantissaOp, "lowered", table_mantissa_uint16,
             shape, "BF16", wTF);
-        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        table_mantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower tanh  table-
@@ -3477,11 +3477,11 @@ struct LowerWeightGruOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             tableOp, "lowered", table_uint16, shape, "BF16", wTF);
-        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             table_mantissaOp, "lowered", table_mantissa_uint16,
             shape, "BF16", wTF);
-        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        table_mantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
     } else {
       return failure();
@@ -3527,7 +3527,7 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(lstmOp.weight(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower recurrence
@@ -3545,7 +3545,7 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(lstmOp.recurrence(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        recurrenceOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        recurrenceOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower bias
@@ -3589,7 +3589,7 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         StringRef storageType = "UINT32";
         addWeightTensorAndUpdateWeightOp<uint32_t>(lstmOp.bias(),
             "lowered", bias_uint32, shape, storageType, wTF);
-        biasOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       bool isDoLoweredInitialC = true;
@@ -3619,7 +3619,7 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         StringRef storageType = "BF16";
         addWeightTensorAndUpdateWeightOp<uint16_t>(lstmOp.initial_h(),
             "lowered", filter_bf16, shape, storageType, wTF);
-        initial_hOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        initial_hOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower initial_c
@@ -3638,7 +3638,7 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
           StringRef storageType = "BF16";
           addWeightTensorAndUpdateWeightOp<uint16_t>(lstmOp.initial_c(),
               "lowered", filter_bf16, shape, storageType, wTF);
-          initial_cOp.setAttr("lowered", rewriter.getBoolAttr(true));
+          initial_cOp->setAttr("lowered", rewriter.getBoolAttr(true));
         }
       }
 
@@ -3674,11 +3674,11 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             tableOp, "lowered", table_uint16, shape, "BF16", wTF);
-        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             table_mantissaOp, "lowered", table_mantissa_uint16,
             shape, "BF16", wTF);
-        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        table_mantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
 
       // lower tanh  table-
@@ -3713,11 +3713,11 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             tableOp, "lowered", table_uint16, shape, "BF16", wTF);
-        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             table_mantissaOp, "lowered", table_mantissa_uint16,
             shape, "BF16", wTF);
-        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        table_mantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
     } else {
       return failure();
@@ -3780,11 +3780,11 @@ struct LowerWeightSoftmaxOpPattern : public RewritePattern {
       // save it
       addWeightTensorAndUpdateWeightOp<uint16_t>(
           exponentialTableOp, "lowered", table_uint16, shape, "BF16", wTF);
-      exponentialTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      exponentialTableOp->setAttr("lowered", rewriter.getBoolAttr(true));
       addWeightTensorAndUpdateWeightOp<uint16_t>(
           exponentialSlopeTableOp, "lowered", tableSlope_uint16,
           shape, "BF16", wTF);
-      exponentialSlopeTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      exponentialSlopeTableOp->setAttr("lowered", rewriter.getBoolAttr(true));
 
       // lower tanh  table-
         auto reciprocalOp = cast<tpu::LoadWeightOp>(softmaxOp.getOperand(3).getDefiningOp());
@@ -3814,11 +3814,11 @@ struct LowerWeightSoftmaxOpPattern : public RewritePattern {
       // save it
       addWeightTensorAndUpdateWeightOp<uint16_t>(
           reciprocalOp, "lowered", reciprocal_table_uint16, shape, "BF16", wTF);
-      reciprocalOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      reciprocalOp->setAttr("lowered", rewriter.getBoolAttr(true));
       addWeightTensorAndUpdateWeightOp<uint16_t>(
           reciprocal_mantissaOp, "lowered", reciprocal_table_mantissa_uint16,
           shape, "BF16", wTF);
-      reciprocal_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      reciprocal_mantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
     } else {
       return failure();
       assert(0 && "Not supported type isn't bf16");
@@ -3856,7 +3856,7 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(prOp.filter(),
             "lowered", filter_int8, shape, "INT8", wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        filterOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
@@ -3871,7 +3871,7 @@ struct LowerWeightPReluOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(prOp.filter(),
             "lowered", filter_bf16, shape, "BF16", wTF);
-        filterOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        filterOp->setAttr("lowered", rewriter.getBoolAttr(true));
       }
     }
     return success();
@@ -3893,7 +3893,7 @@ struct LowerWeightDetectionOutputOpPattern : public RewritePattern {
     }
     LLVM_DEBUG(llvm::errs() << "Lower Weight for DetectionOutputOp: "
                             << getOpName(op) << "\n";);
-    weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
+    weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
     return success();
   }
 };
@@ -3914,12 +3914,12 @@ struct LowerWeightInstanceNormOpPattern : public RewritePattern {
     }
 
     // lower scale
-    weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
-    weightOp.setAttr("storage", rewriter.getStringAttr("FP32"));
+    weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
+    weightOp->setAttr("storage", rewriter.getStringAttr("FP32"));
 
     if (auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(bias)) {
-      weightOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      weightOp.setAttr("storage", rewriter.getStringAttr("FP32"));
+      weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
+      weightOp->setAttr("storage", rewriter.getStringAttr("FP32"));
     }
 
     LLVM_DEBUG(llvm::errs() << "Lower Weight for InstanceNormOp: " << getOpName(op) << "\n";);
@@ -3958,14 +3958,14 @@ struct LowerWeightLrnOpPattern : public RewritePattern {
       std::vector<uint8_t> sqTable_uint8(sqTable->begin(), sqTable->end());
       addWeightTensorAndUpdateWeightOp<uint8_t>(sqTableOp, "lowered", sqTable_uint8,
                                               shape, "UINT8", wTF);
-      sqTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      sqTableOp->setAttr("lowered", rewriter.getBoolAttr(true));
       // update powerTableOp
       getTensorShapeAndSize(powerTableOp, shape, size);
       auto powerTable = readAndDeleteWeightTensor<float>(powerTableOp, wTF);
       std::vector<uint8_t> powerTable_uint8(powerTable->begin(), powerTable->end());
       addWeightTensorAndUpdateWeightOp<uint8_t>(
           powerTableOp, "lowered", powerTable_uint8, shape, "UINT8", wTF);
-      powerTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      powerTableOp->setAttr("lowered", rewriter.getBoolAttr(true));
     } else if (getOpQuant(op) == "BF16") {
       assert(getOpQuant(op) == "BF16");
       auto powerExpTableOp =
@@ -3993,7 +3993,7 @@ struct LowerWeightLrnOpPattern : public RewritePattern {
       addWeightTensorAndUpdateWeightOp<uint16_t>(
           powerExpTableOp, "lowered",
           powerExpTable_bf16, shape, "BF16", wTF);
-      powerExpTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      powerExpTableOp->setAttr("lowered", rewriter.getBoolAttr(true));
       // update power mantissa table
       getTensorShapeAndSize(powerMantissaTableOp, shape, size);
       auto powerMantissaTable =
@@ -4003,7 +4003,7 @@ struct LowerWeightLrnOpPattern : public RewritePattern {
       addWeightTensorAndUpdateWeightOp<uint16_t>(
           powerMantissaTableOp, "lowered",
           powerMantissaTable_bf16, shape, "BF16", wTF);
-      powerMantissaTableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      powerMantissaTableOp->setAttr("lowered", rewriter.getBoolAttr(true));
     }
     return success();
   }
@@ -4046,10 +4046,10 @@ struct LowerWeightLutOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<int8_t>(
             tableOp, "lowered", table_int8, shape, "INT8", wTF);
-        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
         addWeightTensorAndUpdateWeightOp<int8_t>(
             table_mantissaOp, "lowered", table_mantissa_int8, shape, "INT8", wTF);
-        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        table_mantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
 
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
@@ -4072,11 +4072,11 @@ struct LowerWeightLutOpPattern : public RewritePattern {
         // save it
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             tableOp, "lowered", table_uint16, shape, "BF16", wTF);
-        tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
         addWeightTensorAndUpdateWeightOp<uint16_t>(
             table_mantissaOp, "lowered", table_mantissa_uint16,
             shape, "BF16", wTF);
-        table_mantissaOp.setAttr("lowered", rewriter.getBoolAttr(true));
+        table_mantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
     }
 
     return success();
@@ -4111,7 +4111,7 @@ struct LowerWeightScaleLutOpPattern : public RewritePattern {
       // save it
       addWeightTensorAndUpdateWeightOp<int8_t>(
           tableOp, "lowered", table_int8, shape, "INT8", wTF);
-      tableOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
     } else {
       llvm_unreachable("unsupport bf16 scale table op");
     }
@@ -4163,7 +4163,7 @@ struct LowerConstEltwiseOpPattern : public RewritePattern {
       // save it
       addWeightTensorAndUpdateWeightOp<int8_t>(eltwiseOp.getOperand(opdIdx),
           "lowered", constValueInt8, shape, "INT8", wTF);
-      constDefOp.setAttr("lowered", rewriter.getBoolAttr(true));
+      constDefOp->setAttr("lowered", rewriter.getBoolAttr(true));
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
       std::vector<int64_t> shape;
@@ -4176,8 +4176,8 @@ struct LowerConstEltwiseOpPattern : public RewritePattern {
       // save it
       addWeightTensorAndUpdateWeightOp<bfloat16>(eltwiseOp.getOperand(opdIdx),
           "lowered", constBf16, shape, "BF16", wTF);
-      constDefOp.setAttr("lowered", rewriter.getBoolAttr(true));
-      constDefOp.setAttr("storage", rewriter.getStringAttr("BF16"));
+      constDefOp->setAttr("lowered", rewriter.getBoolAttr(true));
+      constDefOp->setAttr("storage", rewriter.getStringAttr("BF16"));
     }
     return success();
   }
@@ -4302,8 +4302,8 @@ struct LowerFunctionTypePattern: public RewritePattern {
         // and inputOp's type to int8
         auto argument = prevOp->getOperand(0);
         auto bSigned = (quantOp.to() == "INT8") ? IntegerType::Signed : IntegerType::Unsigned;
-        setOpResultType(argument, IntegerType::get(8, bSigned, op->getContext()));
-        setOpResultType(prevOp->getResult(0), IntegerType::get(8, bSigned, op->getContext()));
+        setOpResultType(argument, IntegerType::get(op->getContext(), 8, bSigned));
+        setOpResultType(prevOp->getResult(0), IntegerType::get(op->getContext(), 8, bSigned));
         prevOp->setAttr("name", quantOp.nameAttr());
         setOpThreshold(prevOp, (quantOp.to() == "INT8" ? 128 : 256) /
                                 quantOp.scale().convertToFloat());
@@ -4394,7 +4394,7 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
     }
   });
 
-  fn.setAttr("qscale_table", Builder(ctx).getStringAttr(tableName));
+  fn->setAttr("qscale_table", Builder(ctx).getStringAttr(tableName));
   table->keep();
 }
 
@@ -4529,7 +4529,7 @@ public:
 
     // check if every one is not lowered
     fn.walk([&](Operation *op) {
-      if (op->getName().getDialect().str() != "tpu"
+      if (op->getName().getDialect()->getNamespace() != "tpu"
           || isa<tpu::WeightFileOp>(op)
           || isa<tpu::LoadWeightOp>(op)
           || isa<tpu::NoneOp>(op)

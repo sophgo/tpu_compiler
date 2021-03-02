@@ -3150,7 +3150,7 @@ def TPU_WeightFileOp: TPU_Op<"weight_file",
       std::string newName;
       int updated = weightFile->keep(true, &newName);
       if (updated) {
-        setAttr("filename", Builder(context).getStringAttr(newName));
+        (*this)->setAttr("filename", Builder(context).getStringAttr(newName));
       }
     }
     OpState::print(getOperation(), p);

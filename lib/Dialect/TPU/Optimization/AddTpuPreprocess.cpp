@@ -28,7 +28,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "llvm/Support/raw_ostream.h"
 #include "tpuc/MachineInfo.h"
@@ -261,8 +261,8 @@ public:
 
       // change the shape of inputOp
       auto input_type = this->getTensorType(builder, input_shape, "UINT8");
-      inputOp.setAttr("name", builder.getStringAttr(name + "_raw"));
-      inputOp.setAttr("preprocess",
+      inputOp->setAttr("name", builder.getStringAttr(name + "_raw"));
+      inputOp->setAttr("preprocess",
           tpu::PreprocessParam::get(
               builder.getStringAttr(pixel_format),
               builder.getBoolAttr(aligned),
@@ -354,9 +354,9 @@ private:
                                  const std::string &quantType) {
     Type eltType;
     if (quantType == "INT8") {
-      eltType = IntegerType::get(8, IntegerType::Signed, builder.getContext());
+      eltType = IntegerType::get(builder.getContext(), 8, IntegerType::Signed);
     } else if (quantType == "UINT8") {
-      eltType = IntegerType::get(8, IntegerType::Unsigned, builder.getContext());
+      eltType = IntegerType::get(builder.getContext(), 8, IntegerType::Unsigned);
     } else if (quantType == "BF16") {
       eltType = FloatType::getBF16(builder.getContext());
     } else {

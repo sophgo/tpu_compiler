@@ -23,7 +23,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -47,19 +47,19 @@ struct TpuTgFusePattern : public RewritePattern {
     auto prevOpInst = op->getOperand(0).getDefiningOp();
     if (matchPattern(prevOpInst, m_Op<PrevOpTy>())) {
       auto convOp = cast<PrevOpTy>(prevOpInst);
-      convOp.setAttr("do_leaky_relu", rewriter.getBoolAttr(true));
-      convOp.setAttr("negative_slope", leakyReluOp.negative_slopeAttr());
+      convOp->setAttr("do_leaky_relu", rewriter.getBoolAttr(true));
+      convOp->setAttr("negative_slope", leakyReluOp.negative_slopeAttr());
       if (leakyReluOp.rshift_pos().hasValue())
-        convOp.setAttr("rshift_pos", leakyReluOp.rshift_posAttr());
+        convOp->setAttr("rshift_pos", leakyReluOp.rshift_posAttr());
       if (leakyReluOp.m_i8_pos().hasValue())
-        convOp.setAttr("m_i8_pos", leakyReluOp.m_i8_posAttr());
+        convOp->setAttr("m_i8_pos", leakyReluOp.m_i8_posAttr());
       if (leakyReluOp.rshift_neg().hasValue())
-        convOp.setAttr("rshift_neg", leakyReluOp.rshift_negAttr());
+        convOp->setAttr("rshift_neg", leakyReluOp.rshift_negAttr());
       if (leakyReluOp.m_i8_neg().hasValue())
-        convOp.setAttr("m_i8_neg", leakyReluOp.m_i8_negAttr());
+        convOp->setAttr("m_i8_neg", leakyReluOp.m_i8_negAttr());
 
       // remove the relu Op
-      convOp.setAttr("name", leakyReluOp.nameAttr());
+      convOp->setAttr("name", leakyReluOp.nameAttr());
       rewriter.replaceOp(op, {op->getOperand(0)});
       return success();
     }

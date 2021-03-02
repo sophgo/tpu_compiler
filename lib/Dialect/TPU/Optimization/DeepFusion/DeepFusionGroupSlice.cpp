@@ -26,7 +26,7 @@
 #include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -186,7 +186,7 @@ bool DeepFusionGroupSlice::canEltwiseFused(Operation *opInst) {
       m_i8_inputs[0] = m_i8_inputs_array[1];
       m_i8_inputs[1] = m_i8_inputs_array[0];
       Builder builder(context_);
-      eltwiseOp.setAttr("m_i8_inputs",
+      eltwiseOp->setAttr("m_i8_inputs",
                   builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs})));
     }
     opInst->setOperand(0, opd1Inst->getResult(0));

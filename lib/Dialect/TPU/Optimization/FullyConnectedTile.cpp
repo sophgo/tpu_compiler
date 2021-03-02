@@ -28,7 +28,7 @@
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
@@ -234,7 +234,7 @@ public:
     std::vector<int> n_sizes;
     std::vector<int> k_sizes;
     fcModel->getTilePoss(tileInfo, n_poss, k_poss, n_sizes, k_sizes);
-    tpuOp.setAttr("tile_param",
+    tpuOp->setAttr("tile_param",
                   tpu::FcTileParam::get(rewriter.getI32ArrayAttr(tileValues),
                                         rewriter.getI32ArrayAttr(n_poss),
                                         rewriter.getI32ArrayAttr(k_poss),
@@ -259,9 +259,9 @@ void FullyConnectedTilePass::runOnFunction() {
 
   getFunction().walk([&](Operation *op) {
     if (auto tpuOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op)) {
-      tpuOp.removeAttr("tile_step");
+      tpuOp->removeAttr("tile_step");
     } else if (auto tpuOp = dyn_cast<tpu::TG_BF16_FullyConnectedOp>(op)) {
-      tpuOp.removeAttr("tile_step");
+      tpuOp->removeAttr("tile_step");
     }
   });
 

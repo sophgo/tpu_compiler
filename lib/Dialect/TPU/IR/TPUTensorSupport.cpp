@@ -6,8 +6,7 @@
 #include "tpuc/TPUOperationSupport.h"
 #include "tpuc/TPUTensorSupport.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
-#include "mlir/IR/Function.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/raw_ostream.h"
 
 namespace mlir {
@@ -176,21 +175,21 @@ void addWeightTensorAndUpdateWeightOp(Value opd,
   if ( typeid(T) == typeid(float) ) {
     eltType = FloatType::getF32(builder.getContext());
   } else if ( typeid(T) == typeid(uint32_t) ) {
-    eltType = IntegerType::get(32, builder.getContext());
+    eltType = IntegerType::get(builder.getContext(), 32);
   } else if ( typeid(T) == typeid(uint16_t) ) {
     if (storageType == "BF16") {
       eltType = FloatType::getBF16(builder.getContext());
     } else if (storageType == "UINT16") {
-      eltType = IntegerType::get(16, builder.getContext());
+      eltType = IntegerType::get(builder.getContext(), 16);
     } else {
       llvm_unreachable("unsupported storage type");
     }
   } else if ( typeid(T) == typeid(int16_t) ) {
-    eltType = IntegerType::get(16, builder.getContext());
+    eltType = IntegerType::get(builder.getContext(), 16);
   } else if ( typeid(T) == typeid(uint8_t) ) {
-    eltType = IntegerType::get(8, builder.getContext());
+    eltType = IntegerType::get(builder.getContext(), 8);
   } else if ( typeid(T) == typeid(int8_t) ) {
-    eltType = IntegerType::get(8, builder.getContext());
+    eltType = IntegerType::get(builder.getContext(), 8);
   } else {
     llvm_unreachable("unsupported type");
   }
@@ -203,8 +202,8 @@ void addWeightTensorAndUpdateWeightOp(Value opd,
       name = name + "_" + suffix.str();
     }
     wTF->addTensor<T>(name, &weight, type);
-    weightOp.setAttr("name", builder.getStringAttr(name));
-    weightOp.setAttr("storage", builder.getStringAttr(storageType));
+    weightOp->setAttr("name", builder.getStringAttr(name));
+    weightOp->setAttr("storage", builder.getStringAttr(storageType));
     weightOp.getResult().setType(type);
   } else if (auto weightOp = llvm::dyn_cast_or_null<tpu::TL_LG_LoadCoeffOp>(
       opd.getDefiningOp())) {
@@ -214,8 +213,8 @@ void addWeightTensorAndUpdateWeightOp(Value opd,
       name = name + "_" + suffix.str();
     }
     wTF->addTensor<T>(name, &weight, type);
-    weightOp.setAttr("name", builder.getStringAttr(name));
-    weightOp.setAttr("storage", builder.getStringAttr(storageType));
+    weightOp->setAttr("name", builder.getStringAttr(name));
+    weightOp->setAttr("storage", builder.getStringAttr(storageType));
     weightOp.getResult().setType(type);
   }
 }
@@ -250,7 +249,7 @@ Value addWeightTensorAndCreateWeightOp(Operation *op,
   if ( typeid(T) == typeid(float) ) {
     eltType = FloatType::getF32(builder.getContext());
   } else if ( typeid(T) == typeid(uint8_t) ) {
-    eltType = IntegerType::get(8, builder.getContext());
+    eltType = IntegerType::get(builder.getContext(), 8);
   } else {
     std::string errorMsg = "add weight tensor failed, name = " + name +
                            ", type =" + typeid(T).name();

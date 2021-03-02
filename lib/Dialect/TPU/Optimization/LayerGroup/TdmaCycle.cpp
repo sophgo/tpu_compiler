@@ -9,10 +9,10 @@
 namespace mlir {
 
 void TdmaCycle::setup_hw_config() {
-    FuncOp * fn = net_graph_->getFn();
+    FuncOp *fn = net_graph_->getFn();
     std::string chipname = "cx1835";
-    if (fn->getAttr("chipname")) {
-      chipname = fn->getAttr("chipname").cast<StringAttr>().getValue().str();
+    if ((*fn)->getAttr("chipname")) {
+      chipname = (*fn)->getAttr("chipname").cast<StringAttr>().getValue().str();
     }
     if (chipname == "cv183x") {
       // 1835 ddr config

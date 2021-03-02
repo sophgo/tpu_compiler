@@ -26,7 +26,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -63,7 +63,7 @@ struct TpuPowerToScalePattern : public RewritePattern {
     Value wfV = getWeightFileValue(op);
     // op_name
     std::string op_name =
-        powerOp.getAttrOfType<StringAttr>("name").getValue().str();
+        powerOp->getAttrOfType<StringAttr>("name").getValue().str();
     std::vector<int64_t> shape;
     int64_t input_size;
     getTensorShapeAndSize(powerOp.input(), shape, input_size);

@@ -29,7 +29,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -190,7 +190,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   } else {
     assert(0);
   }
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -276,7 +276,7 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
       op, "multiplier", *multiplier_per_layer, shape, "NONE", wTF, wfV);
   fcOp.setOperand(6, multiplier_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -364,7 +364,7 @@ LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
       wTF, wfV);
   lreluOp.setOperand(8, multiplier_neg_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -466,7 +466,7 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
       op, "rshift_neg", rshift_neg, shape, storageType, wTF, wfV);
   preluOp.setOperand(8, rshift_neg_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -596,7 +596,7 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
   lutOp.setOperand(1, y0_table_op);
   lutOp.setOperand(2, mantissa_table_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -631,7 +631,7 @@ LogicalResult quantizeInt8ScaleLutOps(Operation *op) {
       op, "table", table, shape, storageType, wTF, wfV);
   castOp.setOperand(1, table_op);
   setOpResultType(op->getResult(0),
-                  IntegerType::get(8, IntegerType::Signed, op->getContext()));
+                  IntegerType::get(op->getContext(), 8, IntegerType::Signed));
   return success();
 }
 
@@ -673,8 +673,8 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     auto rewriter = Builder(castOp.getContext());
     int min = castOp.min().convertToFloat() * 127.0 / threshold_y;
     int max = castOp.max().convertToFloat() * 127.0 / threshold_y;
-    castOp.setAttr("min", rewriter.getF32FloatAttr(min));
-    castOp.setAttr("max", rewriter.getF32FloatAttr(max));
+    castOp->setAttr("min", rewriter.getF32FloatAttr(min));
+    castOp->setAttr("max", rewriter.getF32FloatAttr(max));
   }
 
   std::vector<float> threshold_x(nInputs);
@@ -697,7 +697,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
                             << ",  quantization bypassed\n";);
     setOpQuantParamType(op, "NONE");
-    setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+    setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
     return success();
   }
@@ -738,7 +738,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     // tpu  handle pool_avg_2d only use count_include_padding.
     // set true
     auto rewriter = Builder(castOp.getContext());
-    castOp.setAttr("param",
+    castOp->setAttr("param",
         tpu::PoolParam::get(
             castOp.param().kernel_h(),
             castOp.param().kernel_w(),
@@ -830,7 +830,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
       wTF, wfV);
   op->setOperand(nInputs + 3, multiplier_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -945,7 +945,7 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -980,7 +980,7 @@ LogicalResult quantizeInt8OpsWithSkip(Operation *op) {
       "quant", quant_const, const_shape, "INT8", wTF);
   }
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
   return success();
 }
 
@@ -1093,7 +1093,7 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -1170,7 +1170,7 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
       wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -1229,7 +1229,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
   }
 
   auto bSigned = (getOpQuant(op) == "INT8") ? IntegerType::Signed : IntegerType::Unsigned;
-  setOpResultType(op->getResult(0), IntegerType::get(8, bSigned, op->getContext()));
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, bSigned));
 
   return success();
 }

@@ -28,7 +28,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -158,7 +158,7 @@ struct TgSliceAddressPattern : public RewritePattern {
     setOpAddress(op, curPos + offset_bytes);
 
     if (opd->getAttr("buffer_reused")) {
-      castOp.setAttr("buffer_reused", rewriter.getBoolAttr(true));
+      castOp->setAttr("buffer_reused", rewriter.getBoolAttr(true));
     }
     return success();
   }
@@ -422,8 +422,8 @@ public:
       gaddrMap[opsInIOMemoryRegion[i]] = (((uint64_t)3 + i) << 40);
     }
 
-    fn.setAttr("private_gmem", Builder(context).getI64IntegerAttr(privateGmemSize));
-    fn.setAttr("shared_gmem", Builder(context).getI64IntegerAttr(sharedGmemSize));
+    fn->setAttr("private_gmem", Builder(context).getI64IntegerAttr(privateGmemSize));
+    fn->setAttr("shared_gmem", Builder(context).getI64IntegerAttr(sharedGmemSize));
 
     std::set<Operation *> gmemReusedSet;
     GmemAllocator::markGmemReusedOp(chosenOps, gaddrMap, gmemReusedSet, clNeuronAlignment);
@@ -435,7 +435,7 @@ public:
         }
         if (gmemReusedSet.find(op) != gmemReusedSet.end()) {
           auto castOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
-          castOp.setAttr("buffer_reused", Builder(context).getBoolAttr(true));
+          castOp->setAttr("buffer_reused", Builder(context).getBoolAttr(true));
         }
         if (neuronMapFile) {
           auto dsize = getOpDtypeSize(op);

@@ -24,7 +24,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -111,12 +111,12 @@ struct TpuRefactorOddIcConvPattern : public RewritePattern {
 
       //Reshpae mlir file
       // input ic will remain the same, pad ic on weight and change shape for weight
-      // auto type = RankedTensorType::get({in, new_ic, ih, iw}, IntegerType::get(8, rewriter.getContext()));
+      // auto type = RankedTensorType::get({in, new_ic, ih, iw}, IntegerType::get(rewriter.getContext(), 8));
       // convOp.input().setType(type);//rewrite inputShape
       auto filterType = RankedTensorType::get({kn, new_ic, kh, kw},
-                                 IntegerType::get(8, (rewriter.getContext())));
+                                 IntegerType::get(rewriter.getContext(), 8));
       convOp.filter().setType(filterType);//rewrite inputShape
-      convOp.setAttr("do_ic_alignment", rewriter.getBoolAttr(true));
+      convOp->setAttr("do_ic_alignment", rewriter.getBoolAttr(true));
       return success();
     }
 

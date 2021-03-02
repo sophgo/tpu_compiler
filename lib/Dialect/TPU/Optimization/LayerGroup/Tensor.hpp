@@ -3,7 +3,7 @@
 #define CLUSTER_TENSOR_H
 
 #include "utils.hpp"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 namespace mlir {
 typedef enum tensor_type {

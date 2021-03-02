@@ -4,7 +4,7 @@
 #include "tpuc/TPUCompressUtil.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeUtilities.h"
 #include "llvm/Support/raw_ostream.h"
 #include "tpuc/CustomOpParam.h"
@@ -381,10 +381,10 @@ LogicalResult setOpAddress(Operation *op, uint64_t gaddr) {
   } else if (auto tpuTLOp = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op)) {
     return tpuTLOp.setGAddr(gaddr);
   }  else if (auto castOp = llvm::dyn_cast<tpu::GenericCpuOp>(op)) {
-    castOp.setAttr("gaddr", Builder(castOp.getOperation()->getContext()).getI64IntegerAttr(gaddr));
+    castOp->setAttr("gaddr", Builder(castOp.getOperation()->getContext()).getI64IntegerAttr(gaddr));
     return success();
   } else if (auto inputOp = llvm::dyn_cast<tpu::InputOp>(op)) {
-    inputOp.setAttr("gaddr", Builder(inputOp.getOperation()->getContext()).getI64IntegerAttr(gaddr));
+    inputOp->setAttr("gaddr", Builder(inputOp.getOperation()->getContext()).getI64IntegerAttr(gaddr));
   } else {
     std::string errorMsg = std::string(__func__) + " failed, Op " +
                            op->getName().getStringRef().str() + "\n";

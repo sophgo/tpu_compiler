@@ -22,7 +22,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -89,7 +89,7 @@ static inline void printFunction(FuncOp *fn) {
 
 static inline bool isValidTpuOp(Operation *op) {
   return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::WeightFileOp>(op) &&
-          !isa<tpu::NoneOp>(op) && op->getName().getDialect().str() == "tpu");
+          !isa<tpu::NoneOp>(op) && op->getName().getDialect()->getNamespace() == "tpu");
 }
 
 static inline bool isValidLayerGroupOp(Operation *op) {

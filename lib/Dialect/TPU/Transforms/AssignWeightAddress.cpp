@@ -25,7 +25,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -209,7 +209,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     assert(((newPos % alignment_) == 0) && "Expect aligned newPos");
 
     // assign the address to weightOp
-    weightOp.setAttr("offset", rewriter.getI64IntegerAttr(curPos + (((uint64_t)1) << 40)));
+    weightOp->setAttr("offset", rewriter.getI64IntegerAttr(curPos + (((uint64_t)1) << 40)));
 
     // Check whether the weight is used by the convolution which indicate it
     // uses the compressed weight.
@@ -222,7 +222,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
               convOp.compressed_weight().hasValue() &&
               convOp.compressed_weight().getValue()){
             // Mark the weight compressed
-            weightOp.setAttr("compressed", rewriter.getBoolAttr(true));
+            weightOp->setAttr("compressed", rewriter.getBoolAttr(true));
             break;
           }
         }

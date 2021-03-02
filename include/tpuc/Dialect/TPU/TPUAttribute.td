@@ -161,7 +161,7 @@ def TPU_QuantParamAttr : StructAttr<"QuantParam", TPU_Dialect, [
     StructFieldAttr<"threshold_max", F32Attr>,
     StructFieldAttr<"threshold_min", F32Attr>,
     StructFieldAttr<"zero_point", I32Attr>]> {
-  let description = "Structure of quantization parameters";
+  let summary = "Structure of quantization parameters";
 }
 
 //===----------------------------------------------------------------------===//
@@ -183,7 +183,7 @@ def TPU_ConvParamAttr : StructAttr<"ConvParam", TPU_Dialect, [
     StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"ins", I32ArrayAttr>,
     StructFieldAttr<"pad_value", I32Attr>]> {
-  let description = "Structure of dimension parameters for conv op";
+  let summary = "Structure of dimension parameters for conv op";
 }
 
 //===----------------------------------------------------------------------===//
@@ -208,7 +208,7 @@ def TPU_Conv3dParamAttr : StructAttr<"Conv3dParam", TPU_Dialect, [
     StructFieldAttr<"with_bias", BoolAttr>,
     StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"ins", I32ArrayAttr>]> {
-  let description = "Structure of dimension parameters for conv3d op";
+  let summary = "Structure of dimension parameters for conv3d op";
 }
 
 //===----------------------------------------------------------------------===//
@@ -226,7 +226,7 @@ def TPU_PoolParamAttr : StructAttr<"PoolParam", TPU_Dialect, [
     StructFieldAttr<"stride_w", I32Attr>,
     StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"count_include_pad", BoolAttr>]> {
-  let description = "Structure of dimension parameters for pool op";
+  let summary = "Structure of dimension parameters for pool op";
 }
 
 //===----------------------------------------------------------------------===//
@@ -247,7 +247,7 @@ def TPU_Pool3dParamAttr : StructAttr<"Pool3dParam", TPU_Dialect, [
     StructFieldAttr<"stride_w", I32Attr>,
     StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"count_include_pad", BoolAttr>]> {
-  let description = "Structure of dimension parameters for pool op";
+  let summary = "Structure of dimension parameters for pool op";
 }
 
 //===----------------------------------------------------------------------===//
@@ -259,7 +259,7 @@ def TPU_FcTileParamAttr : StructAttr<"FcTileParam", TPU_Dialect, [
     StructFieldAttr<"k_poss", I32ArrayAttr>,
     StructFieldAttr<"n_sizes", I32ArrayAttr>,
     StructFieldAttr<"k_sizes", I32ArrayAttr>]> {
-  let description = "Structure of tile parameters for fc op";
+  let summary = "Structure of tile parameters for fc op";
 }
 
 //===----------------------------------------------------------------------===//
@@ -274,7 +274,7 @@ def TPU_ConvTileParamAttr : StructAttr<"ConvTileParam", TPU_Dialect, [
     StructFieldAttr<"iw_step", I32Attr>,
     StructFieldAttr<"ic_step", I32Attr>,
     StructFieldAttr<"use_double_buffer", BoolAttr>]> {
-  let description = "Structure of tile parameters for conv op";
+  let summary = "Structure of tile parameters for conv op";
 }
 
 //===----------------------------------------------------------------------===//
@@ -286,7 +286,7 @@ def TPU_ActCmprParamAttr : StructAttr<"ActCmprParam", TPU_Dialect, [
     StructFieldAttr<"h_step", I32Attr>,
     StructFieldAttr<"step_size", I64Attr>,
     StructFieldAttr<"total_size", I64Attr>]> {
-  let description = "Structure of parameters for activation compression";
+  let summary = "Structure of parameters for activation compression";
 }
 
 //===----------------------------------------------------------------------===//
@@ -300,7 +300,7 @@ def TPU_PreprocessParamAttr : StructAttr<"PreprocessParam", TPU_Dialect, [
     StructFieldAttr<"channel_order", StrAttr>,
     StructFieldAttr<"scale", F32ArrayAttr>,
     StructFieldAttr<"mean", F32ArrayAttr>]> {
-  let description = "Structure of parameters for preprocess";
+  let summary = "Structure of parameters for preprocess";
 }
 
 #endif // TPU_ATTRIBUTE

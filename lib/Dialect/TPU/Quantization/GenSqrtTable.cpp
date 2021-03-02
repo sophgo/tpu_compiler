@@ -23,7 +23,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -145,7 +145,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
     auto sqrtOp = cast<tpu::SqrtOp>(op);
     std::vector<std::unique_ptr<std::vector<float> > > weights(1);
 
-    std::string op_name = sqrtOp.getAttrOfType<StringAttr>("name").getValue().str();
+    std::string op_name = sqrtOp->getAttrOfType<StringAttr>("name").getValue().str();
 
     if(sqrtOp.has_table() == true){
       LLVM_DEBUG(llvm::errs() << sqrtOp.name() << " gen already\n";);
@@ -222,7 +222,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
         ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
 
-    sqrtOp.setAttr("has_table", rewriter.getBoolAttr("true"));
+    sqrtOp->setAttr("has_table", rewriter.getBoolAttr("true"));
 
   }else if(sqrtOp.getOpQuant() == "BF16"){
 
@@ -238,7 +238,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
       wTF->addTensor<float>(tensor_name, newWeights.at(i).data(), type);
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      sqrtOp.setAttr("has_table", rewriter.getBoolAttr("true"));
+      sqrtOp->setAttr("has_table", rewriter.getBoolAttr("true"));
       attrs.push_back(rewriter.getNamedAttr("storage",rewriter.getStringAttr("BF16")));
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
           op->getLoc(), type, ArrayRef<Value>{wfV},
@@ -256,7 +256,7 @@ struct TpuGenSqrtTablePattern : public RewritePattern {
 
     rewriter.replaceOpWithNewOp<tpu::SqrtOp>(
         sqrtOp, sqrtOp.getResult().getType(),
-        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{sqrtOp.getAttrs()});
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{sqrtOp->getAttrs()});
 
 
     return success();

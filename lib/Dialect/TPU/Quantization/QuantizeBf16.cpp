@@ -28,7 +28,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -698,7 +698,7 @@ LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
   float quant_negative_slope;
   FloatToBFloat16(&negative_slope, &bf16_quant_negative_slope, 1);
   BFloat16ToFloat(&bf16_quant_negative_slope, &quant_negative_slope, 1);
-  lreluOp.setAttr("negative_slope", builder.getF32FloatAttr(quant_negative_slope));
+  lreluOp->setAttr("negative_slope", builder.getF32FloatAttr(quant_negative_slope));
 
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 

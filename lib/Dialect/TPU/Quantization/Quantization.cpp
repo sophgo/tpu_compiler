@@ -30,7 +30,7 @@
 #include "tpuc/CustomOpPlugin.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -244,7 +244,7 @@ static void insertQuantOp(Operation *op) {
     auto shape = op->getOperand(i).getType().cast<TensorType>().getShape();
     Type eltType;
     if (curr_quant == "INT8") {
-      eltType = IntegerType::get(8, builder.getContext());
+      eltType = IntegerType::get(builder.getContext(), 8);
     } else if (curr_quant == "BF16") {
       eltType = FloatType::getBF16(builder.getContext());
     } else {
@@ -359,10 +359,10 @@ struct TpuGenLrnTablePattern : public RewritePattern {
       quantize_fraction(sq_thy, sumsq_thy, sum_rshift, quant_x0);
       quantize_fraction(threshold_x * scale_thy, threshold_y * 256.0,
                         lrn_rshift, quant_x1);
-      lrnOp.setAttr("sum_rshift", rewriter.getI32IntegerAttr(sum_rshift));
-      lrnOp.setAttr("quant_data0", rewriter.getI32IntegerAttr(quant_x0));
-      lrnOp.setAttr("lrn_rshift", rewriter.getI32IntegerAttr(lrn_rshift));
-      lrnOp.setAttr("quant_data1", rewriter.getI32IntegerAttr(quant_x1));
+      lrnOp->setAttr("sum_rshift", rewriter.getI32IntegerAttr(sum_rshift));
+      lrnOp->setAttr("quant_data0", rewriter.getI32IntegerAttr(quant_x0));
+      lrnOp->setAttr("lrn_rshift", rewriter.getI32IntegerAttr(lrn_rshift));
+      lrnOp->setAttr("quant_data1", rewriter.getI32IntegerAttr(quant_x1));
       // sq table
       std::vector<float> sq_table(TBL_SHAPE_INT8);
 
@@ -400,7 +400,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
       auto type = RankedTensorType::get(
           weightShape, FloatType::getF32(rewriter.getContext()));
       std::string op_name =
-          lrnOp.getAttrOfType<StringAttr>("name").getValue().str();
+          lrnOp->getAttrOfType<StringAttr>("name").getValue().str();
 
       // sq weight
       auto tensor_name = op_name + "_sq_gen_weight";
@@ -459,7 +459,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
       auto type = RankedTensorType::get(
           weightShape, FloatType::getF32(rewriter.getContext()));
       std::string op_name =
-          lrnOp.getAttrOfType<StringAttr>("name").getValue().str();
+          lrnOp->getAttrOfType<StringAttr>("name").getValue().str();
 
       // power exp weight
       auto tensor_name = op_name + "_power_exp_weight";
@@ -904,7 +904,7 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
           "dilation", newFilter, filterShape, "BF16", wTF);
 
     // rewrite pad
-    convOp.setAttr("param",
+    convOp->setAttr("param",
            tpu::ConvParam::get(
                 convOp.param().stride_h(),
                 convOp.param().stride_w(),
@@ -956,7 +956,7 @@ public:
 
     // mark quant mode
     fn.walk([&](Operation *op) {
-      if (op->getName().getDialect().str() != "tpu"
+      if (op->getName().getDialect()->getNamespace() != "tpu"
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::InputOp>(op)
           || isa<tpu::InstanceNormOp>(op)
@@ -1042,7 +1042,7 @@ public:
 
     // do quant
     fn.walk([&](Operation *op) {
-      if (op->getName().getDialect().str() != "tpu"
+      if (op->getName().getDialect()->getNamespace() != "tpu"
           || isa<tpu::InputOp>(op)
           || isa<tpu::QuantOp>(op)
           || isa<tpu::InstanceNormOp>(op)
@@ -1060,7 +1060,7 @@ public:
           assert(plugin);
           if (getOpQuant(op) == "INT8") {
             plugin->int8Quant(operation_name.c_str(), param, &quant, prevThreshold);
-            setOpResultType(op->getResult(0), IntegerType::get(8, IntegerType::Signed, op->getContext()));
+            setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
           } else if (getOpQuant(op) == "BF16") {
             plugin->bf16Quant(operation_name.c_str(), param, &quant, prevThreshold);
             setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
@@ -1068,8 +1068,8 @@ public:
           std::vector<NamedAttribute> newParam, newQuant;
           convertOpParamToAttributes(builder, param, newParam);
           convertOpParamToAttributes(builder, quant, newQuant);
-          castOp.setAttr("param", DictionaryAttr::get(newParam, context));
-          castOp.setAttr("quant", DictionaryAttr::get(newQuant, context));
+          castOp->setAttr("param", DictionaryAttr::get(context, newParam));
+          castOp->setAttr("quant", DictionaryAttr::get(context, newQuant));
         }
       } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (getOpQuant(op) == "INT8" || getOpQuant(op) == "UINT8") {
@@ -1089,7 +1089,7 @@ public:
 
     // insert QuantOp if quant types don't equal.
     fn.walk([&](Operation *op) {
-      if ((op->getName().getDialect().str() != "tpu"
+      if ((op->getName().getDialect()->getNamespace() != "tpu"
            && !isa<ReturnOp>(op))
           || isa<tpu::InputOp>(op)
           || isa<tpu::WeightFileOp>(op)

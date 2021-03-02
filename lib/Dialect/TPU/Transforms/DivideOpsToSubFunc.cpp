@@ -93,7 +93,7 @@ std::vector<SubFunction *> SubFunction::divideOpsToSubFunc(FuncOp *fn) {
   ops.clear();
 
   fn->walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu" ||
+    if (op->getName().getDialect()->getNamespace() != "tpu" ||
         isa<tpu::LoadWeightOp>(op) ||
         isa<tpu::WeightFileOp>(op) ||
         isa<tpu::NoneOp>(op) ||

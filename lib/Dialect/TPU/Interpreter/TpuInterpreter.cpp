@@ -34,9 +34,8 @@
 #include "tpuc/CustomOpPlugin.h"
 #include "tpuc/MachineInfo.h"
 #include "mlir/IR/MLIRContext.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Block.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/Value.h"
@@ -4361,7 +4360,7 @@ LogicalResult ModuleInterpreter::doRun(
 static bool isValidTpuOp(Operation &op) {
   return (!isa<tpu::LoadWeightOp>(op) && !isa<tpu::WeightFileOp>(op) &&
           !isa<tpu::NoneOp>(op) &&
-          op.getName().getDialect().str() == "tpu");
+          op.getName().getDialect()->getNamespace() == "tpu");
 }
 
 std::string ModuleInterpreter::customOpPluginFile_ = "";

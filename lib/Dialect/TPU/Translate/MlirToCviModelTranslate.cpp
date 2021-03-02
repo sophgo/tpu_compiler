@@ -30,9 +30,8 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/TPUOperationSupport.h"
 #include "tpuc/QuantizationArithmetic.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinOps.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Value.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Support/LogicalResult.h"
@@ -135,7 +134,7 @@ static void getOpGroupInputsOutputs(std::vector<Operation *> &group,
           LLVM_DEBUG({
               std::stringstream msg;
               msg << "output name:" <<
-                castOp.getAttr("name").cast<StringAttr>().getValue().str() << "\n";
+                castOp->getAttr("name").cast<StringAttr>().getValue().str() << "\n";
               msg << " set diff inputs:\n";
               for (auto n : inputs) {
                 msg << n << ",";
@@ -152,7 +151,7 @@ static void getOpGroupInputsOutputs(std::vector<Operation *> &group,
       }
     }
   }
-      
+
   // should keep output tensors in an inherent order.
   for (auto op : output_candicates) {
     if (outputSet.find(op) != outputSet.end()) {
@@ -236,7 +235,7 @@ CviCpuRoutine::CviCpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
                              std::string &fnName)
     : CviRoutine(fbb, false) {
   fn.walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu" ||
+    if (op->getName().getDialect()->getNamespace() != "tpu" ||
         llvm::isa<tpu::InputOp>(op) ||
         llvm::isa<tpu::WeightFileOp>(op) ||
         llvm::isa<ReturnOp>(op)) {
@@ -335,7 +334,7 @@ CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
   name = fnName;
 
   fn.walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu" || llvm::isa<tpu::InputOp>(op) ||
+    if (op->getName().getDialect()->getNamespace() != "tpu" || llvm::isa<tpu::InputOp>(op) ||
         llvm::isa<tpu::WeightFileOp>(op) || llvm::isa<ReturnOp>(op)) {
     } else if (op->getAttr("fn")) {
       auto belong = op->getAttr("fn").cast<StringAttr>().getValue();
@@ -396,11 +395,11 @@ CviModelBuilder::CviModelBuilder(ModuleOp &module) : fbb_(1024) {
   for (auto fn : module.getOps<FuncOp>()) {
     if (fn.getName() == "tpu_func") {
       mainFunc_ = fn;
-      if (fn.getAttr("chipname")) {
-        clRunChipType = fn.getAttr("chipname").cast<StringAttr>().getValue().str();
+      if (fn->getAttr("chipname")) {
+        clRunChipType = fn->getAttr("chipname").cast<StringAttr>().getValue().str();
       }
-      privateGmemSize_ = fn.getAttr("private_gmem").cast<IntegerAttr>().getInt();
-      sharedGmemSize_ = fn.getAttr("shared_gmem").cast<IntegerAttr>().getInt();
+      privateGmemSize_ = fn->getAttr("private_gmem").cast<IntegerAttr>().getInt();
+      sharedGmemSize_ = fn->getAttr("shared_gmem").cast<IntegerAttr>().getInt();
       continue;
     }
 
@@ -423,7 +422,7 @@ void CviModelBuilder::addRoutine(std::string funcName) {
 
 static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap,
                             std::map<std::string, int> &zpMap) {
-  auto tableName = fn.getAttr("qscale_table").cast<StringAttr>().getValue().str();
+  auto tableName = fn->getAttr("qscale_table").cast<StringAttr>().getValue().str();
   std::ifstream infile(tableName);
 
   std::string line;
@@ -449,7 +448,7 @@ static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap,
 
 void CviModelBuilder::parseModule() {
   mainFunc_.walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu" || isa<tpu::InputOp>(op) ||
+    if (op->getName().getDialect()->getNamespace() != "tpu" || isa<tpu::InputOp>(op) ||
         isa<tpu::WeightFileOp>(op) || isa<ReturnOp>(op)) {
     } else {
       ops_.push_back(op);
@@ -463,7 +462,7 @@ void CviModelBuilder::parseModule() {
   getOpGroupInputsOutputs(ops_, inputs_, outputs_);
 
   mainFunc_.walk([&](Operation *op) {
-    if (op->getName().getDialect().str() != "tpu" || isa<tpu::NoneOp>(op) ||
+    if (op->getName().getDialect()->getNamespace() != "tpu" || isa<tpu::NoneOp>(op) ||
         isa<ReturnOp>(op)) {
       // continue
     } else if (llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(op) &&

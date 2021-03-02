@@ -24,7 +24,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/raw_ostream.h"
@@ -73,7 +73,7 @@ public:
             file_os << "," << 0;
           }
           file_os << "\n";
-        } else if (op->getName().getDialect().str() != "tpu"
+        } else if (op->getName().getDialect()->getNamespace() != "tpu"
               || isa<tpu::WeightFileOp>(op)
               || isa<tpu::LoadWeightOp>(op)
               || isa<tpu::NoneOp>(op)) {

@@ -1,7 +1,7 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/QuantizationArithmetic.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
 

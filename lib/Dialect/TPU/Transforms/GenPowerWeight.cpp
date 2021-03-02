@@ -25,7 +25,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -56,7 +56,7 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
         << ", power is " << pwOp.power().convertToFloat() << "\n"
         << ", shift is " << pwOp.shift().convertToFloat() << "\n";);
 
-    auto nameAttr = pwOp.getAttrOfType<StringAttr>("name");
+    auto nameAttr = pwOp->getAttrOfType<StringAttr>("name");
     std::string op_name = nameAttr.getValue().str();
 
     // TODO: not use name as uniq id
@@ -137,7 +137,7 @@ struct TpuGenPowerWeightPattern : public RewritePattern {
     }
 
     // replace with the new tanh op
-    auto origAttrs = pwOp.getAttrs();
+    auto origAttrs = pwOp->getAttrs();
     std::vector<NamedAttribute> newAttrs(origAttrs.begin(), origAttrs.end());
 
     rewriter.replaceOpWithNewOp<tpu::PowerOp>(

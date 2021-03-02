@@ -30,7 +30,7 @@
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Operation.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"

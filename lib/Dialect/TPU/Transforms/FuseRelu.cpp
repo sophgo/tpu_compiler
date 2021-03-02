@@ -24,7 +24,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -78,7 +78,7 @@ struct TpuFuseReluPattern : public RewritePattern {
         return failure();
       }
       // set do_relu
-      convOp.setAttr("param",
+      convOp->setAttr("param",
           tpu::ConvParam::get(
               convOp.param().stride_h(),
               convOp.param().stride_w(),
@@ -96,7 +96,7 @@ struct TpuFuseReluPattern : public RewritePattern {
               convOp.param().ins(),
               convOp.param().pad_value(),
               rewriter.getContext()));
-      convOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      convOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::DeConv2DOp>())) {
       auto deconvOp = cast<tpu::DeConv2DOp>(formerOp);
       if(deconvOp.param().do_relu().getValue() == true){
@@ -106,7 +106,7 @@ struct TpuFuseReluPattern : public RewritePattern {
         return failure();
       }
       // set do_relu
-      deconvOp.setAttr("param",
+      deconvOp->setAttr("param",
           tpu::ConvParam::get(
               deconvOp.param().stride_h(),
               deconvOp.param().stride_w(),
@@ -124,41 +124,41 @@ struct TpuFuseReluPattern : public RewritePattern {
               deconvOp.param().ins(),
               deconvOp.param().pad_value(),
               rewriter.getContext()));
-      deconvOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      deconvOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseAddOp>())) {
       auto eltOp = cast<tpu::EltwiseAddOp>(formerOp);
       assert(!eltOp.do_relu() && "done relu");
-      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
-      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      eltOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMaxOp>())) {
       auto eltOp = cast<tpu::EltwiseMaxOp>(formerOp);
       assert(!eltOp.do_relu() && "done relu");
-      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
-      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      eltOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::EltwiseMinOp>())) {
       auto eltOp = cast<tpu::EltwiseMinOp>(formerOp);
       assert(!eltOp.do_relu() && "done relu");
-      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
-      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      eltOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     }  else if (matchPattern(formerOp, m_Op<tpu::EltwiseMulOp>())) {
       auto eltOp = cast<tpu::EltwiseMulOp>(formerOp);
       assert(!eltOp.do_relu() && "done relu");
-      eltOp.setAttr("do_relu", rewriter.getBoolAttr(true));
-      eltOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      eltOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+      eltOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::FullyConnectedOp>())) {
       auto fcOp = cast<tpu::FullyConnectedOp>(formerOp);
-      fcOp.setAttr("do_relu", rewriter.getBoolAttr(true));
-      fcOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      fcOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+      fcOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::BroadcastMulOp>())) {
       auto bcastOp = cast<tpu::BroadcastMulOp>(formerOp);
       assert(!bcastOp.do_relu() && "done relu");
-      bcastOp.setAttr("do_relu", rewriter.getBoolAttr(true));
-      bcastOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      bcastOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+      bcastOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::ConcatOp>())) {
       auto concatOp = cast<tpu::ConcatOp>(formerOp);
       assert(!concatOp.do_relu() && "done relu");
-      concatOp.setAttr("do_relu", rewriter.getBoolAttr(true));
-      concatOp.setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+      concatOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+      concatOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     } else if (matchPattern(formerOp, m_Op<tpu::ScaleOp>())) {
       //assert(false);
       // TODO: convert to conv
@@ -217,7 +217,7 @@ struct TpuMoveReluAheadConcatPattern : public RewritePattern {
 
     // change the concat Op's name to avoid data comparing with
     // caffe for this op
-    concatOp.setAttr("name", rewriter.getStringAttr(concatOp.name().str() +
+    concatOp->setAttr("name", rewriter.getStringAttr(concatOp.name().str() +
                                                     "_relu"));
     // remove the relu op after concat
     rewriter.replaceOp(op, {concatOp});

@@ -25,7 +25,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/FileUtilities.h"
 #include "llvm/Support/CommandLine.h"
@@ -80,8 +80,8 @@ void MInfo::getChipInfo(std::string chipName) {
 void MInfo::getChipInfo(FuncOp fn) {
   // get chipname form function attributes.
   std::string chipname = "cx183x";
-  if (fn.getAttr("chipname")) {
-    chipname = fn.getAttr("chipname").cast<StringAttr>().getValue().str();
+  if (fn->getAttr("chipname")) {
+    chipname = fn->getAttr("chipname").cast<StringAttr>().getValue().str();
   }
   getChipInfo(chipname);
 

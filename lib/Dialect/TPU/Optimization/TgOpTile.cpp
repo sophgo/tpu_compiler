@@ -26,7 +26,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -53,11 +53,11 @@ struct TgOpTilePass : public mlir::PassWrapper<TgOpTilePass, FunctionPass> {
 
     getFunction().walk([&](Operation *op) {
       if (auto tpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
-        tpuOp.removeAttr("tile_param");
+        tpuOp->removeAttr("tile_param");
       } else if (auto tpuOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op)) {
-        tpuOp.removeAttr("tile_step");
+        tpuOp->removeAttr("tile_step");
       } else if (auto tpuOp = dyn_cast<tpu::TG_BF16_FullyConnectedOp>(op)) {
-        tpuOp.removeAttr("tile_step");
+        tpuOp->removeAttr("tile_step");
       }
     });
 

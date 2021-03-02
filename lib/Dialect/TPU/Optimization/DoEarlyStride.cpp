@@ -22,7 +22,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/TPUTensorSupport.h"
@@ -90,7 +90,7 @@ struct MoveConvStrideToEltwiseOpPattern : public RewritePattern {
     for (auto &use : op->getResult(0).getUses()) { // Refactor convOp
       nextOp = use.getOwner();
       auto convOp = dyn_cast<NextConvTy>(nextOp);
-      convOp.setAttr("param",
+      convOp->setAttr("param",
                      tpu::ConvParam::get(
                          rewriter.getI32IntegerAttr(1), // stride_h,
                          rewriter.getI32IntegerAttr(1), // stride_w,
@@ -108,9 +108,9 @@ struct MoveConvStrideToEltwiseOpPattern : public RewritePattern {
     int oc = shape[1];
     int oh = shape[2] / strideH;
     int ow = shape[3] / strideW;
-    eltOp.setAttr("do_early_stride", rewriter.getBoolAttr(true));
-    eltOp.setAttr("early_stride_h", rewriter.getI32IntegerAttr(strideH));
-    eltOp.setAttr("early_stride_w", rewriter.getI32IntegerAttr(strideW));
+    eltOp->setAttr("do_early_stride", rewriter.getBoolAttr(true));
+    eltOp->setAttr("early_stride_h", rewriter.getI32IntegerAttr(strideH));
+    eltOp->setAttr("early_stride_w", rewriter.getI32IntegerAttr(strideW));
 
     auto tensorType = eltOp.getResult().getType().template cast<RankedTensorType>();
     auto type = RankedTensorType::get({on, oc, oh, ow},

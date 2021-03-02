@@ -3,7 +3,7 @@
 #define INTERPRETER_CPU_CORE_H
 #include "tpuc/Interpreter/core.h"
 
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/Support/LLVM.h"
 #include "llvm/Support/raw_ostream.h"
 

@@ -25,7 +25,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -108,7 +108,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
     }
 
     auto tensor_name =
-        concatOp.getAttrOfType<StringAttr>("name").getValue().str() +
+        concatOp->getAttrOfType<StringAttr>("name").getValue().str() +
         "_loadweight";
     auto type =
         RankedTensorType::get(shape, FloatType::getF32(rewriter.getContext()));
@@ -275,7 +275,7 @@ struct TpuConvertPriorBoxPattern : public RewritePattern {
       }
     }
 
-    auto nameAttr = priorboxOp.getAttrOfType<StringAttr>("name");
+    auto nameAttr = priorboxOp->getAttrOfType<StringAttr>("name");
     auto tensor_name = nameAttr.getValue().str() + "_loadweight";
     auto type =
         RankedTensorType::get(shape, FloatType::getF32(rewriter.getContext()));

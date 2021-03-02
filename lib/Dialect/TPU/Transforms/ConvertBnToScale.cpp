@@ -24,7 +24,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -61,7 +61,7 @@ struct TpuBatchNormOpPattern : public RewritePattern {
 
     // op_name
     std::string op_name =
-        bnOp.getAttrOfType<StringAttr>("name").getValue().str();
+        bnOp->getAttrOfType<StringAttr>("name").getValue().str();
     LLVM_DEBUG(llvm::errs() << "BatchNorm Op: " << op_name << "\n";);
 
     // find mean, variance, scale tensor, and delete them
@@ -151,7 +151,7 @@ void TpuBNOpPattern(Operation *op, PatternRewriter &rewriter) {
 
   // op_name
   std::string op_name =
-    bnOp.getAttrOfType<StringAttr>("name").getValue().str();
+    bnOp->getAttrOfType<StringAttr>("name").getValue().str();
   LLVM_DEBUG(llvm::errs() << "BN Op: " << op_name << "\n";);
 
   // find mean, variance, scale tensor, and delete them

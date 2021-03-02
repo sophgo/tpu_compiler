@@ -24,7 +24,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Operation.h"
@@ -111,7 +111,7 @@ struct TpuFusePadPattern : public RewritePattern {
     pr += pad_w_end;
 
     // rewrite pad
-    poolOp.setAttr("param",
+    poolOp->setAttr("param",
            tpu::PoolParam::get(
                 poolOp.param().kernel_h(),
                 poolOp.param().kernel_w(),
@@ -146,7 +146,7 @@ struct TpuFusePadPattern : public RewritePattern {
     pr += pad_w_end;
 
     // rewrite pad
-    convOp.setAttr("param",
+    convOp->setAttr("param",
            tpu::ConvParam::get(
                 convOp.param().stride_h(),
                 convOp.param().stride_w(),

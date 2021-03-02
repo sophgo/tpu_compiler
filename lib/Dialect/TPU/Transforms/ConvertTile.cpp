@@ -26,7 +26,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -105,7 +105,7 @@ struct TpuTileToUpsamplePattern : public RewritePattern {
     }
     // remove this op
     std::string op_name =
-        tileOp.getAttrOfType<StringAttr>("name").getValue().str();
+        tileOp->getAttrOfType<StringAttr>("name").getValue().str();
 
     std::vector<Value> newOperands;
     newOperands.push_back(tileOp2.getOperand(0));

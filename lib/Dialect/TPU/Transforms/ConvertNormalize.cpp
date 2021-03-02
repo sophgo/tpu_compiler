@@ -25,7 +25,7 @@
 #include "tpuc/TPUOperationSupport.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
@@ -53,7 +53,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     mlir::Value input_var = normalizeOp.getOperand(0);
 
     // op_name
-    auto nameAttr = normalizeOp.getAttrOfType<StringAttr>("name");
+    auto nameAttr = normalizeOp->getAttrOfType<StringAttr>("name");
     std::string op_name = nameAttr.getValue().str();
     LLVM_DEBUG(llvm::errs() << "Normalize Op: " << op_name << "\n";);
 

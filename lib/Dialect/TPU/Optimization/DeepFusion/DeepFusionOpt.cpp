@@ -25,7 +25,7 @@
 #include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -132,12 +132,12 @@ struct TpuFuseLeakyReluOpPattern : public RewritePattern {
         neg_rshift = 0;
       }
 
-      convOp.setAttr("do_leaky_relu", rewriter.getBoolAttr(true));
-      convOp.setAttr("rshift_pos", rewriter.getI8IntegerAttr(pos_rshift));
-      convOp.setAttr("m_i8_pos", rewriter.getI8IntegerAttr(pos_m_i8));
-      convOp.setAttr("rshift_neg", rewriter.getI8IntegerAttr(neg_rshift));
-      convOp.setAttr("m_i8_neg", rewriter.getI8IntegerAttr(neg_m_i8));
-      convOp.setAttr("name", lreluOp.nameAttr());
+      convOp->setAttr("do_leaky_relu", rewriter.getBoolAttr(true));
+      convOp->setAttr("rshift_pos", rewriter.getI8IntegerAttr(pos_rshift));
+      convOp->setAttr("m_i8_pos", rewriter.getI8IntegerAttr(pos_m_i8));
+      convOp->setAttr("rshift_neg", rewriter.getI8IntegerAttr(neg_rshift));
+      convOp->setAttr("m_i8_neg", rewriter.getI8IntegerAttr(neg_m_i8));
+      convOp->setAttr("name", lreluOp.nameAttr());
       rewriter.replaceOp(opInst, {convOp.getResult()});
       return success();
     }
@@ -189,15 +189,15 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
         inputNeuronSizePerLane + outputNeuronSizePerLane + workingSizePerLane);
     if (1) {
       if (op.lm_layout() == "IWO") {
-        op.setAttr("la_input", rewriter.getI32IntegerAttr(0));
-        op.setAttr("la_output", rewriter.getI32IntegerAttr(
+        op->setAttr("la_input", rewriter.getI32IntegerAttr(0));
+        op->setAttr("la_output", rewriter.getI32IntegerAttr(
              MInfo::lmem_per_lane - outputNeuronSizePerLane));
-        op.setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
+        op->setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
       } else if (op.lm_layout() == "OWI") {
-        op.setAttr("la_output", rewriter.getI32IntegerAttr(0));
-        op.setAttr("la_input", rewriter.getI32IntegerAttr(
+        op->setAttr("la_output", rewriter.getI32IntegerAttr(0));
+        op->setAttr("la_input", rewriter.getI32IntegerAttr(
              MInfo::lmem_per_lane - inputNeuronSizePerLane));
-        op.setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
+        op->setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
       } else {
         llvm_unreachable("unsupported layout");
       }
@@ -244,15 +244,15 @@ struct TpuTL_EltwiseOp_AssignLAddrPattern : public RewritePattern {
     uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, oh, ow, true);
     if (1) {
       if (op.lm_layout() == "IWO") {
-        op.setAttr("la_input", rewriter.getI32IntegerAttr(0));
-        op.setAttr("la_output", rewriter.getI32IntegerAttr(
+        op->setAttr("la_input", rewriter.getI32IntegerAttr(0));
+        op->setAttr("la_output", rewriter.getI32IntegerAttr(
              MInfo::lmem_per_lane - outputNeuronSizePerLane));
-        op.setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
+        op->setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
       } else if (op.lm_layout() == "OWI") {
-        op.setAttr("la_output", rewriter.getI32IntegerAttr(0));
-        op.setAttr("la_input", rewriter.getI32IntegerAttr(
+        op->setAttr("la_output", rewriter.getI32IntegerAttr(0));
+        op->setAttr("la_input", rewriter.getI32IntegerAttr(
              MInfo::lmem_per_lane - inputNeuronSizePerLane));
-        op.setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
+        op->setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
       } else {
         llvm_unreachable("unsupported layout");
       }
@@ -298,15 +298,15 @@ struct TpuTL_PixelShuffle_AssignLAddrPattern : public RewritePattern {
     uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, oc, oh, ow, true);
     if (1) {
       if (op.lm_layout() == "IWO") {
-        op.setAttr("la_input", rewriter.getI32IntegerAttr(0));
-        op.setAttr("la_output", rewriter.getI32IntegerAttr(
+        op->setAttr("la_input", rewriter.getI32IntegerAttr(0));
+        op->setAttr("la_output", rewriter.getI32IntegerAttr(
              MInfo::lmem_per_lane - outputNeuronSizePerLane));
-        op.setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
+        op->setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
       } else if (op.lm_layout() == "OWI") {
-        op.setAttr("la_output", rewriter.getI32IntegerAttr(0));
-        op.setAttr("la_input", rewriter.getI32IntegerAttr(
+        op->setAttr("la_output", rewriter.getI32IntegerAttr(0));
+        op->setAttr("la_input", rewriter.getI32IntegerAttr(
              MInfo::lmem_per_lane - inputNeuronSizePerLane));
-        op.setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
+        op->setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
       } else {
         assert(0);
       }
@@ -351,15 +351,15 @@ struct TpuTL_Default_AssignLAddrPattern : public RewritePattern {
     uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(n, c, oh, ow, true);
     if (1) {
       if (op.lm_layout() == "IWO") {
-        op.setAttr("la_input", rewriter.getI32IntegerAttr(0));
-        op.setAttr("la_output", rewriter.getI32IntegerAttr(
+        op->setAttr("la_input", rewriter.getI32IntegerAttr(0));
+        op->setAttr("la_output", rewriter.getI32IntegerAttr(
              MInfo::lmem_per_lane - outputNeuronSizePerLane));
-        op.setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
+        op->setAttr("la_working", rewriter.getI32IntegerAttr(inputNeuronSizePerLane));
       } else if (op.lm_layout() == "OWI") {
-        op.setAttr("la_output", rewriter.getI32IntegerAttr(0));
-        op.setAttr("la_input", rewriter.getI32IntegerAttr(
+        op->setAttr("la_output", rewriter.getI32IntegerAttr(0));
+        op->setAttr("la_input", rewriter.getI32IntegerAttr(
              MInfo::lmem_per_lane - inputNeuronSizePerLane));
-        op.setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
+        op->setAttr("la_working", rewriter.getI32IntegerAttr(outputNeuronSizePerLane));
       } else {
         assert(0);
       }
@@ -471,7 +471,7 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
     for (auto &use : nextStoreOp->getResult(0).getUses()) {
       auto useOp = use.getOwner();
       if (!isa<tpu::TL_Fake_LoadOp>(useOp)) {
-          nextFakeStoreOp.setAttr("lm_order", rewriter.getStringAttr("O"));
+          nextFakeStoreOp->setAttr("lm_order", rewriter.getStringAttr("O"));
       }
     }
 
@@ -489,36 +489,36 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
            dyn_cast_or_null<tpu::TpuTLSimpleOpCodegenInterface>(prevNormalOp);
       if (tlPrevNormalOp ) {
         if (isFirstLoad) {
-          tlPrevNormalOp.setAttr("tl_store_flag", rewriter.getBoolAttr(false));
+          tlPrevNormalOp->setAttr("tl_store_flag", rewriter.getBoolAttr(false));
           if (!prevNormalOp->getResult(0).hasOneUse())
-            tlPrevNormalOp.setAttr("tl_store_flag", rewriter.getBoolAttr(true));
+            tlPrevNormalOp->setAttr("tl_store_flag", rewriter.getBoolAttr(true));
         } else {
-          tlPrevNormalOp.setAttr("tl_store_flag", rewriter.getBoolAttr(true));
+          tlPrevNormalOp->setAttr("tl_store_flag", rewriter.getBoolAttr(true));
         }
       }
       auto tlNextNormalOp =
            dyn_cast_or_null<tpu::TpuTLSimpleOpCodegenInterface>(nextNormalOp);
       if (tlNextNormalOp) {
         if (isFirstLoad) {
-          tlNextNormalOp.setAttr("tl_load_flag", rewriter.getBoolAttr(false));
+          tlNextNormalOp->setAttr("tl_load_flag", rewriter.getBoolAttr(false));
         } else {
-          tlNextNormalOp.setAttr("tl_load_flag", rewriter.getBoolAttr(true));
+          tlNextNormalOp->setAttr("tl_load_flag", rewriter.getBoolAttr(true));
         }
       }
 
       // For load input data in backend inst, the prev normal inst need
       // store the result.
       if (isInnerLoadInst(tlNextNormalOp)) {
-        tlNextNormalOp.setAttr("tl_load_flag", rewriter.getBoolAttr(true));
+        tlNextNormalOp->setAttr("tl_load_flag", rewriter.getBoolAttr(true));
         if (tlPrevNormalOp)
-          tlPrevNormalOp.setAttr("tl_store_flag", rewriter.getBoolAttr(true));
+          tlPrevNormalOp->setAttr("tl_store_flag", rewriter.getBoolAttr(true));
       }
 
       if (prevFakeStoreOp.lm_order() == "NONE") {
         if (nextFakeStoreOp.lm_order() == "I") {
-          prevFakeStoreOp.setAttr("lm_order", rewriter.getStringAttr("O"));
+          prevFakeStoreOp->setAttr("lm_order", rewriter.getStringAttr("O"));
         } else if (nextFakeStoreOp.lm_order() == "O") {
-          prevFakeStoreOp.setAttr("lm_order", rewriter.getStringAttr("I"));
+          prevFakeStoreOp->setAttr("lm_order", rewriter.getStringAttr("I"));
         } else {
           assert("unset lm_order");
         }
@@ -526,9 +526,9 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
 
       if (curFakeLoadOp.lm_order() == "NONE") {
         if (nextFakeStoreOp.lm_order() == "I") {
-          curFakeLoadOp.setAttr("lm_order", rewriter.getStringAttr("O"));
+          curFakeLoadOp->setAttr("lm_order", rewriter.getStringAttr("O"));
         } else if (nextFakeStoreOp.lm_order() == "O") {
-          curFakeLoadOp.setAttr("lm_order", rewriter.getStringAttr("I"));
+          curFakeLoadOp->setAttr("lm_order", rewriter.getStringAttr("I"));
         } else {
           assert("unset lm_order");
         }
@@ -539,12 +539,12 @@ struct TpuMarkLdStFlagPattern : public RewritePattern {
         auto tlUseOp =
            dyn_cast_or_null<tpu::TpuTLSimpleOpCodegenInterface>(useOp);
         if (tlUseOp)
-          tlUseOp.setAttr("tl_load_flag", rewriter.getBoolAttr(true));
+          tlUseOp->setAttr("tl_load_flag", rewriter.getBoolAttr(true));
         }
       if (nextFakeStoreOp.lm_order() == "I") {
-        curFakeLoadOp.setAttr("lm_order", rewriter.getStringAttr("O"));
+        curFakeLoadOp->setAttr("lm_order", rewriter.getStringAttr("O"));
       } else if (nextFakeStoreOp.lm_order() == "O") {
-        curFakeLoadOp.setAttr("lm_order", rewriter.getStringAttr("I"));
+        curFakeLoadOp->setAttr("lm_order", rewriter.getStringAttr("I"));
       } else {
         assert("unset lm_order");
       }
@@ -576,10 +576,10 @@ struct TpuMarkLayoutPattern: public RewritePattern {
 
     if (tlNormalOp) {
       if (fakeLoadOp.lm_order() == "I") {
-        tlNormalOp.setAttr("lm_layout", rewriter.getStringAttr("IWO"));
+        tlNormalOp->setAttr("lm_layout", rewriter.getStringAttr("IWO"));
         assert(fakeStoreOp.lm_order() == "O");
       } else if (fakeLoadOp.lm_order() == "O") {
-        tlNormalOp.setAttr("lm_layout", rewriter.getStringAttr("OWI"));
+        tlNormalOp->setAttr("lm_layout", rewriter.getStringAttr("OWI"));
         assert(fakeStoreOp.lm_order() == "I");
       } else {
         assert("unset lm_order");

@@ -24,7 +24,7 @@
 #include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -65,7 +65,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
     auto reciprocalOp = cast<tpu::ReciprocalOp>(op);
     std::vector<std::unique_ptr<std::vector<float> > > weights(1);
 
-    std::string op_name = reciprocalOp.getAttrOfType<StringAttr>("name").getValue().str();
+    std::string op_name = reciprocalOp->getAttrOfType<StringAttr>("name").getValue().str();
     if(reciprocalOp.has_table() == true){
       LLVM_DEBUG(llvm::errs() << reciprocalOp.name() << " gen already\n";);
       return failure();
@@ -146,7 +146,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
         ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
     newOperands.push_back(new_weight_op);
 
-    reciprocalOp.setAttr("has_table", rewriter.getBoolAttr("true"));
+    reciprocalOp->setAttr("has_table", rewriter.getBoolAttr("true"));
   }else if(reciprocalOp.getOpQuant() == "BF16"){
 
     std::vector<std::vector<float>> newWeights = {table_data_lut, table_data_mantissa_lut};
@@ -163,7 +163,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
       std::vector<NamedAttribute> attrs;
       attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
       attrs.push_back(rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
-      reciprocalOp.setAttr("has_table", rewriter.getBoolAttr("true"));
+      reciprocalOp->setAttr("has_table", rewriter.getBoolAttr("true"));
 
       auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(
           op->getLoc(), type, ArrayRef<Value>{wfV},
@@ -177,7 +177,7 @@ struct TpuGenReciprocalTablePattern : public RewritePattern {
 
   rewriter.replaceOpWithNewOp<tpu::ReciprocalOp>(
         reciprocalOp, reciprocalOp.getResult().getType(),
-        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{reciprocalOp.getAttrs()});
+        ArrayRef<Value>{newOperands}, ArrayRef<NamedAttribute>{reciprocalOp->getAttrs()});
 
     return success();
   }

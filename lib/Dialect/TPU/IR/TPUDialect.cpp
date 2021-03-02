@@ -22,11 +22,10 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/TPUOperationSupport.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/Function.h"
-#include "mlir/IR/Module.h"
+#include "mlir/IR/BuiltinOps.h"
 #include "mlir/IR/OpImplementation.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 
 using namespace mlir;
 using namespace mlir::tpu;
@@ -70,10 +69,10 @@ static void print(OpAsmPrinter &p, TG_CallOp op) {
   SmallVector<Type, 8> argTypes(op.getOperandTypes());
   auto callType = FunctionType::get(argTypes, resultTypes, op.getContext());
 
-  p << "tpu.tg_call " << op.getAttr("callee") << '(';
+  p << "tpu.tg_call " << op->getAttr("callee") << '(';
   p.printOperands(op.getOperands());
   p << ')';
-  p.printOptionalAttrDict(op.getAttrs(), /*elidedAttrs=*/{"callee"});
+  p.printOptionalAttrDict(op->getAttrs(), /*elidedAttrs=*/{"callee"});
   p << " : ";
   p.printType(callType);
   #endif
@@ -121,7 +120,7 @@ namespace mlir {
 
 #define DECLARE_SET_CHIP_NAME_METHOD(OP) \
     LogicalResult OP::setChipName(StringRef &chipname) { \
-      setAttr("chipname", \
+      (*this)->setAttr("chipname", \
           Builder(getOperation()->getContext()).getStringAttr(chipname)); \
       return success(); \
     }
@@ -382,7 +381,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
     StringRef OP::getOpQuant() {return quant().mode().getValue();}
 #define DECLARE_SET_OP_QUANT_MODE_METHOD(OP) \
     LogicalResult OP::setOpQuantMode(StringRef &mode) { \
-      setAttr("quant", \
+      (*this)->setAttr("quant", \
           tpu::QuantParam::get( \
               Builder(getOperation()->getContext()).getStringAttr(mode), \
               quant().param_type(), \
@@ -400,7 +399,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
     StringRef OP::getOpQuantParamType() {return quant().param_type().getValue();}
 #define DECLARE_SET_OP_QUANT_PARAM_TYPE_METHOD(OP) \
     LogicalResult OP::setOpQuantParamType(StringRef &type) { \
-      setAttr("quant", \
+      (*this)->setAttr("quant", \
           tpu::QuantParam::get( \
               quant().mode(), \
               Builder(getOperation()->getContext()).getStringAttr(type), \
@@ -418,7 +417,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
     bool OP::isOpQuantPerchannel() {return quant().is_perchannel().getValue();}
 #define DECLARE_SET_OP_QUANT_IS_PERCHANNEL_METHOD(OP) \
     LogicalResult OP::setOpQuantPerchannel(bool flag) { \
-      setAttr("quant", \
+      (*this)->setAttr("quant", \
           tpu::QuantParam::get( \
               quant().mode(), \
               quant().param_type(), \
@@ -436,7 +435,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
     bool OP::isOpQuantAsymmetric() {return quant().is_asymmetric().getValue();}
 #define DECLARE_SET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
     LogicalResult OP::setOpQuantAsymmetric(bool flag) { \
-      setAttr("quant", \
+      (*this)->setAttr("quant", \
           tpu::QuantParam::get( \
               quant().mode(), \
               quant().param_type(), \
@@ -457,7 +456,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
 #define DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP) \
     LogicalResult OP::setOpQuantThreshold(float threshold) { \
       assert( !quant().is_asymmetric().getValue() ); \
-      setAttr("quant", \
+      (*this)->setAttr("quant", \
           tpu::QuantParam::get( \
               quant().mode(), \
               quant().param_type(), \
@@ -475,7 +474,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SliceOp)
     int OP::getOpQuantZeroPoint() {return quant().zero_point().getInt();}
 #define DECLARE_SET_OP_QUANT_ZERO_POINT_METHOD(OP) \
     LogicalResult OP::setOpQuantZeroPoint(int zero_point) { \
-      setAttr("quant", \
+      (*this)->setAttr("quant", \
           tpu::QuantParam::get( \
               quant().mode(), \
               quant().param_type(), \
@@ -577,15 +576,15 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(ZeroMaskOp)
     }
 #define DECLARE_SET_TG_OP_GADDR_METHOD(OP) \
     LogicalResult OP::setGAddr(uint64_t gaddr) { \
-      setAttr("gaddr", Builder(getOperation()->getContext()).getI64IntegerAttr(gaddr)); \
+      (*this)->setAttr("gaddr", Builder(getOperation()->getContext()).getI64IntegerAttr(gaddr)); \
       return success(); \
     }
 #define DECLARE_SET_TG_OP_BUFFER_REUSED_METHOD(OP) \
     LogicalResult OP::setBufferReused(bool flag) { \
       if (flag) \
-        setAttr("buffer_reused", Builder(getOperation()->getContext()).getBoolAttr(flag)); \
+        (*this)->setAttr("buffer_reused", Builder(getOperation()->getContext()).getBoolAttr(flag)); \
       else \
-        removeAttr("buffer_reused"); \
+        (*this)->removeAttr("buffer_reused"); \
       return success(); \
     }
 
@@ -595,7 +594,7 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(ZeroMaskOp)
     }
 #define DECLARE_SET_TL_SIMPLE_OP_SET_LOAD_FLAG_METHOD(OP) \
     LogicalResult OP::setLoadFlag(bool loadFlag) { \
-      setAttr("tl_load_flag", Builder(getOperation()->getContext()).getBoolAttr(loadFlag)); \
+      (*this)->setAttr("tl_load_flag", Builder(getOperation()->getContext()).getBoolAttr(loadFlag)); \
       return success(); \
     }
 
@@ -605,7 +604,7 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(ZeroMaskOp)
     }
 #define DECLARE_SET_TL_SIMPLE_OP_SET_STORE_FLAG_METHOD(OP) \
     LogicalResult OP::setStoreFlag(bool storeFlag) { \
-      setAttr("tl_store_flag", Builder(getOperation()->getContext()).getBoolAttr(storeFlag)); \
+      (*this)->setAttr("tl_store_flag", Builder(getOperation()->getContext()).getBoolAttr(storeFlag)); \
       return success(); \
     }
 
@@ -616,7 +615,7 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(ZeroMaskOp)
 
 #define DECLARE_SET_TL_SIMPLE_OP_SET_LM_LAYOUT_METHOD(OP) \
     LogicalResult OP::setLmLayout(std::string lmLayout) { \
-      setAttr("lm_layout", Builder(getOperation()->getContext()).getStringAttr(lmLayout)); \
+      (*this)->setAttr("lm_layout", Builder(getOperation()->getContext()).getStringAttr(lmLayout)); \
       return success(); \
     }
 
@@ -629,7 +628,7 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(ZeroMaskOp)
     }
 #define DECLARE_SET_TG_OP_ENABLE_PARALLEL_METHOD(OP) \
     LogicalResult OP::setEnableParallel(bool b_flag) { \
-      setAttr("enable_parallel", \
+      (*this)->setAttr("enable_parallel", \
               Builder(getOperation()->getContext()).getBoolAttr(b_flag)); \
       return success(); \
     }
@@ -643,7 +642,7 @@ DECLARE_ALL_QUANT_INTERFACE_METHODS(ZeroMaskOp)
     }
 #define DECLARE_SET_TG_OP_DISABLE_PARALLEL_METHOD(OP) \
     LogicalResult OP::setDisableParallel(bool b_flag) { \
-      setAttr("disable_parallel", \
+      (*this)->setAttr("disable_parallel", \
               Builder(getOperation()->getContext()).getBoolAttr(b_flag)); \
       return success(); \
     }

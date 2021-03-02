@@ -24,7 +24,7 @@
 #include "tpuc/TPUOperationSupport.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -469,7 +469,7 @@ public:
     fn.walk([&](Operation *op) {
       LLVM_DEBUG(llvm::errs() << op->getName() << "\n";);
 
-      if (op->getName().getDialect().str() != "tpu" ||
+      if (op->getName().getDialect()->getNamespace() != "tpu" ||
           isa<tpu::WeightFileOp>(op) ||
           isa<tpu::NoneOp>(op)||
           isa<tpu::ReorgOp>(op) ||
@@ -636,7 +636,7 @@ private:
       return failure();
     }
     std::vector<float> weight_thresholds = threshold_map[op_name];
-    weightOp.setAttr("threshold", builder.getF32ArrayAttr(weight_thresholds));
+    weightOp->setAttr("threshold", builder.getF32ArrayAttr(weight_thresholds));
     return success();
   }
 };

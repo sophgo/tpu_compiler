@@ -27,7 +27,7 @@
 #include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/Pass/Pass.h"
@@ -99,9 +99,9 @@ static void setTgOpCompressed(OpTy convOp, PatternRewriter &rewriter,
                               int cmprNStep, int cmprOcStep, int cmprOhStep,
                               int64_t stepSize, int64_t totalSize) {
   auto op = convOp.getOperation();
-  convOp.setAttr("store_compr_act",
+  convOp->setAttr("store_compr_act",
                  Builder(op->getContext()).getBoolAttr(true));
-  convOp.setAttr("store_compr_act_param",
+  convOp->setAttr("store_compr_act_param",
       tpu::ActCmprParam::get(
           Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
           Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
@@ -116,9 +116,9 @@ static void setTgOpDeCompressed(OpTy &convOp, PatternRewriter &rewriter,
                                 int cmprNStep, int cmprOcStep, int cmprOhStep,
                                 int64_t stepSize, int64_t totalSize) {
   auto op = convOp.getOperation();
-  convOp.setAttr("load_compr_act",
+  convOp->setAttr("load_compr_act",
                  Builder(op->getContext()).getBoolAttr(true));
-  convOp.setAttr("load_compr_act_param",
+  convOp->setAttr("load_compr_act_param",
       tpu::ActCmprParam::get(
           Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
           Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
@@ -146,9 +146,9 @@ static void setNextOpAsDecompressed(OpTy convOp, PatternRewriter &rewriter,
         << ", " << nextTpuOp.getOperation()->getName()
         << ", load compressed\n");
 
-    nextTpuOp.setAttr("load_compr_act",
+    nextTpuOp->setAttr("load_compr_act",
                       Builder(op->getContext()).getBoolAttr(true));
-    nextTpuOp.setAttr("load_compr_act_param",
+    nextTpuOp->setAttr("load_compr_act_param",
         tpu::ActCmprParam::get(
             Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
             Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
@@ -455,9 +455,9 @@ public:
                            cmprNStep, cmprOcStep, cmprOhStep,
                            isBf16, stepSize, totalSize);
 
-    tpuOp.setAttr("store_compr_act",
+    tpuOp->setAttr("store_compr_act",
                 Builder(op->getContext()).getBoolAttr(true));
-    tpuOp.setAttr("store_compr_act_param",
+    tpuOp->setAttr("store_compr_act_param",
         tpu::ActCmprParam::get(
             Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
             Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
@@ -596,9 +596,9 @@ public:
     int64_t cmpr_step = 0, cmpr_total = 0;
     getStoreCompressActParam(prevOp, cmpr_n, cmpr_c, cmpr_h, cmpr_step,
                              cmpr_total);
-    tpuOp.setAttr("load_compr_act",
+    tpuOp->setAttr("load_compr_act",
                   Builder(tpuOp.getContext()).getBoolAttr(true));
-    tpuOp.setAttr("load_compr_act_param",
+    tpuOp->setAttr("load_compr_act_param",
         tpu::ActCmprParam::get(
             Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
             Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
@@ -668,13 +668,13 @@ public:
         << " * " << hOffset
         << ")\n");
 
-    tpuOp.removeAttr("offset");
-    tpuOp.setAttr("offset",
+    tpuOp->removeAttr("offset");
+    tpuOp->setAttr("offset",
                   Builder(op->getContext()).getI64IntegerAttr(offset));
 
-    tpuOp.setAttr("load_compr_act",
+    tpuOp->setAttr("load_compr_act",
                   Builder(tpuOp.getContext()).getBoolAttr(true));
-    tpuOp.setAttr("compr_act_param",
+    tpuOp->setAttr("compr_act_param",
         tpu::ActCmprParam::get(
             Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
             Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
@@ -728,9 +728,9 @@ public:
     getStoreCompressActParam(prevOp, cmpr_n, cmpr_c, cmpr_h, cmpr_step,
                              cmpr_total);
 
-    tpuOp.setAttr("load_compr_act",
+    tpuOp->setAttr("load_compr_act",
                   Builder(tpuOp.getContext()).getBoolAttr(true));
-    tpuOp.setAttr("load_compr_act_param",
+    tpuOp->setAttr("load_compr_act_param",
         tpu::ActCmprParam::get(
             Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
             Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
@@ -965,14 +965,14 @@ public:
             << ", offset " << tpuOp.offset().getValue()
             << " -> " << offset << "\n");
 
-        tpuOp.removeAttr("offset");
-        tpuOp.setAttr("offset",
+        tpuOp->removeAttr("offset");
+        tpuOp->setAttr("offset",
                       Builder(op->getContext()).getI64IntegerAttr(offset));
 
         auto shapes = getTensorShape(op->getOperand(0));
         offset += step_size * shapes[2] / oh_step;
 
-        tpuOp.setAttr("store_compr_act",
+        tpuOp->setAttr("store_compr_act",
                       Builder(tpuOp.getContext()).getBoolAttr(true));
         auto value =
             tpu::ActCmprParam::get(
@@ -982,7 +982,7 @@ public:
                 Builder(op->getContext()).getI64IntegerAttr(step_size),
                 Builder(op->getContext()).getI64IntegerAttr(total_size),
                 rewriter.getContext());
-        tpuOp.setAttr("compr_act_param", value);
+        tpuOp->setAttr("compr_act_param", value);
       }
     };
 
@@ -1007,13 +1007,13 @@ public:
             << " * " << hOffset
             << ")\n");
 
-        tpuOp.removeAttr("offset");
-        tpuOp.setAttr("offset",
+        tpuOp->removeAttr("offset");
+        tpuOp->setAttr("offset",
                       Builder(op->getContext()).getI64IntegerAttr(offset));
 
-        tpuOp.setAttr("load_compr_act",
+        tpuOp->setAttr("load_compr_act",
                       Builder(tpuOp.getContext()).getBoolAttr(true));
-        tpuOp.setAttr("compr_act_param",
+        tpuOp->setAttr("compr_act_param",
             tpu::ActCmprParam::get(
                 Builder(op->getContext()).getI32IntegerAttr(n_step),
                 Builder(op->getContext()).getI32IntegerAttr(oc_step),
@@ -1022,9 +1022,9 @@ public:
                 Builder(op->getContext()).getI64IntegerAttr(total_size),
                 rewriter.getContext()));
       } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(op)) {
-        tpuOp.setAttr("load_compr_act",
+        tpuOp->setAttr("load_compr_act",
                       Builder(tpuOp.getContext()).getBoolAttr(true));
-        tpuOp.setAttr("load_compr_act_param",
+        tpuOp->setAttr("load_compr_act_param",
             tpu::ActCmprParam::get(
                 Builder(op->getContext()).getI32IntegerAttr(n_step),
                 Builder(op->getContext()).getI32IntegerAttr(oc_step),
@@ -1038,7 +1038,7 @@ public:
         assert(inputShapes[2] == oh_step &&
               "tl_lg_join->tg_conv2d not support load tiled act");
 
-        tpuOp.setAttr("load_compr_act",
+        tpuOp->setAttr("load_compr_act",
                       Builder(tpuOp.getContext()).getBoolAttr(true));
       } else {
         LLVM_DEBUG(llvm::dbgs() << "      load_compr_act not set\n");

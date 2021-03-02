@@ -23,7 +23,7 @@
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/StandardTypes.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/MachineInfo.h"
@@ -158,18 +158,18 @@ bool tryCompressConvWeight(TensorTyOp convOp, PatternRewriter &rewriter,
     assert(memcmp(filter->data(), newFilter->data(), filterSize) &&
            "Expect compressed content");
 
-    convOp.setAttr("tiled_oc_step", rewriter.getI32IntegerAttr(oc_step));
-    convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+    convOp->setAttr("tiled_oc_step", rewriter.getI32IntegerAttr(oc_step));
+    convOp->setAttr("compressed_weight", rewriter.getBoolAttr(true));
 
     // set compressed flag on TL_LoadCoeffOp for layer group
     if (auto load_op =
             dyn_cast<tpu::TL_LG_LoadCoeffOp>(convOp.filter().getDefiningOp())) {
-      load_op.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+      load_op->setAttr("compressed_weight", rewriter.getBoolAttr(true));
     }
 
     if (auto load_op =
             dyn_cast<tpu::LoadWeightOp>(convOp.filter().getDefiningOp())) {
-      load_op.setAttr("compressed", rewriter.getBoolAttr(true));
+      load_op->setAttr("compressed", rewriter.getBoolAttr(true));
     }
 
     struct CompressInfo info;
@@ -211,7 +211,7 @@ public:
             dyn_cast<tpu::TL_LG_LoadCoeffOp>(convOp.filter().getDefiningOp())) {
       if (load_op.compressed_weight().hasValue() &&
           load_op.compressed_weight().getValue()) {
-        convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+        convOp->setAttr("compressed_weight", rewriter.getBoolAttr(true));
         return failure();
       }
     }
@@ -219,7 +219,7 @@ public:
     if (auto load_op =
             dyn_cast<tpu::LoadWeightOp>(convOp.filter().getDefiningOp())) {
       if (load_op.compressed()) {
-        convOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
+        convOp->setAttr("compressed_weight", rewriter.getBoolAttr(true));
         return failure();
       }
     }
@@ -436,8 +436,8 @@ public:
     k_poss.clear();
     n_sizes.clear();
     k_sizes.clear();
-    fcOp.removeAttr("tile_param");
-    fcOp.setAttr("tile_param",
+    fcOp->removeAttr("tile_param");
+    fcOp->setAttr("tile_param",
                  tpu::FcTileParam::get(rewriter.getI32ArrayAttr(tileValues),
                                        rewriter.getI32ArrayAttr(n_poss),
                                        rewriter.getI32ArrayAttr(k_poss),
@@ -450,10 +450,10 @@ public:
           fcOp.filter(), "z", *newFilter, filterShape,
           isBf16Flt ? "BF16" : "INT8", wTF);
 
-      fcOp.setAttr("compressed_weight", rewriter.getBoolAttr(true));
-      fcOp.setAttr("compr_weight_poss",
+      fcOp->setAttr("compressed_weight", rewriter.getBoolAttr(true));
+      fcOp->setAttr("compr_weight_poss",
                    rewriter.getI32ArrayAttr(compr_weight_poss));
-      fcOp.setAttr("compr_weight_sizes",
+      fcOp->setAttr("compr_weight_sizes",
                    rewriter.getI32ArrayAttr(compr_weight_sizes));
 
       struct CompressInfo info;
@@ -547,7 +547,7 @@ void CompressWeightPass::runOnFunction() {
   // Then run assign-weight-address pass to generate the compressed weight.
   getFunction().walk([&](Operation *op) {
     if (auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op)) {
-      loadWeightOp.removeAttr("offset");
+      loadWeightOp->removeAttr("offset");
     }
   });
 
