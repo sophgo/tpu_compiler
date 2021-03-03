@@ -1530,7 +1530,7 @@ void Conv::computeLeakyRelu(cvk_tl_t *tl_output) {
                         tl_output->eu_align);
   tl_relu.start_address = lmFusedActDescs[1]->getAddress();
 
-  bool isIgnorePosPart = (args.activation_gt_scale == 0);
+  bool isIgnorePosPart = (args.activation_gt_scale == 1);
   bool isSlopeSmallerThanOne =
       ((args.activation_le_scale >> args.activation_le_rshift) == 0);
 
