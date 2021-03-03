@@ -36,9 +36,11 @@ void ScaleOpKernel::invoke() {
   int c = this->shape.at(1);
   int h = this->shape.size() > 2 ? this->shape.at(2) : 1;
   int w = this->shape.size() > 3 ? this->shape.at(3) : 1;
+  int planner = h * w;
+#pragma omp parallel for collapse(3)
   for (int ni = 0; ni < n; ++ni) {
     for (int ci = 0; ci < c; ++ci) {
-      for (int i = 0; i < h * w; ++i) {
+      for (int i = 0; i < planner; ++i) {
         auto x = input_data->at(ni * c * h * w + ci * h * w + i);
         auto y = x * scale->at(ci);
         if (bias) {

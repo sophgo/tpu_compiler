@@ -60,9 +60,11 @@ void BatchNormOpKernel::invoke() {
     mean->at(i) = mean->at(i) * scale_factor;
     variance->at(i) = variance->at(i) * scale_factor;
   }
+  int planner = h * w;
+#pragma omp parallel for collapse(3)
   for (int ni = 0; ni < n; ++ni) {
     for (int ci = 0; ci < c; ++ci) {
-      for (int i = 0; i < h * w; ++i) {
+      for (int i = 0; i < planner; ++i) {
         auto x = input_data->at(ni * c * h * w + ci * h * w + i) - mean->at(ci);
         auto d = sqrt(variance->at(ci) + variance_epsilon);
         output_data->at(ni * c * h * w + ci * h * w + i) = x / d;

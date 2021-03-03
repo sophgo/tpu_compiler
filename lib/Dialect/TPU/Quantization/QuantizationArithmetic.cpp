@@ -1,10 +1,9 @@
-#include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/QuantizationArithmetic.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Support/Debug.h"
-
+#include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "quant_arithmetic"
 
@@ -28,35 +27,35 @@ float findMaxWeight(float *weight, int64_t size) {
 /// During runtime, HW will do
 ///   apply rshift (i.e. divide by (1 << rshift))
 ///   then saturate to INT8
-uint32_t findRShiftForFilter(float max_filter,
-    float threshold_y, float threshold_x) {
+uint32_t findRShiftForFilter(float max_filter, float threshold_y,
+                             float threshold_x) {
   assert(threshold_y > 0 && threshold_x > 0);
   float a = max_filter * threshold_x / threshold_y;
   if (a > 127) {
-    LLVM_DEBUG(llvm::errs() << "WARNING: findRShiftForFilter, max_filter too large "
-                 << std::to_string(max_filter)
-                 << ", lshift might needed\n";);
+    LLVM_DEBUG(llvm::errs()
+                   << "WARNING: findRShiftForFilter, max_filter too large "
+                   << std::to_string(max_filter) << ", lshift might needed\n";);
     return 0;
   }
   assert(a <= 127);
   for (uint32_t rshift = 0; rshift < 32; ++rshift) {
-    if ( (a * (1 << rshift)) >= 64 ) {
-      LLVM_DEBUG(
-        if (rshift >= 25) {
-          llvm::errs() << "WARNING: findRShiftForFilter, large rshift = " << rshift
-                       << ", max_filter = " << max_filter
-                       << ", threshold_y = " << std::to_string(threshold_y)
-                       << ", threshold_x = " << std::to_string(threshold_x)
-                       << "\n";
-        }
-      );
+    if ((a * (1 << rshift)) >= 64) {
+      LLVM_DEBUG(if (rshift >= 25) {
+        llvm::errs() << "WARNING: findRShiftForFilter, large rshift = "
+                     << rshift << ", max_filter = " << max_filter
+                     << ", threshold_y = " << std::to_string(threshold_y)
+                     << ", threshold_x = " << std::to_string(threshold_x)
+                     << "\n";
+      });
       return rshift;
     }
   }
   // we are here because a < 64 / (1 << 32), which mean max_filter is near zero
-  //assert(false);
-  LLVM_DEBUG(llvm::errs() << "WARNING: findRShiftForFilter, max_filter too small\n";);
-  // return 0, to make sure activation will go zero by multiply such small weight
+  // assert(false);
+  LLVM_DEBUG(
+      llvm::errs() << "WARNING: findRShiftForFilter, max_filter too small\n";);
+  // return 0, to make sure activation will go zero by multiply such small
+  // weight
   return 0;
 }
 
@@ -71,14 +70,14 @@ uint32_t findRShiftForBiasI16(float max_bias, float threshold_y) {
   assert(threshold_y > 0);
   float a = max_bias * 128.0 / threshold_y;
   if (a > 32767) {
-    LLVM_DEBUG(llvm::errs() << "WARNING: findRShiftForBiasI16, max_bias too large "
-                 << std::to_string(max_bias)
-                 << ", lshift might needed\n";);
+    LLVM_DEBUG(llvm::errs()
+                   << "WARNING: findRShiftForBiasI16, max_bias too large "
+                   << std::to_string(max_bias) << ", lshift might needed\n";);
     return 0;
   }
   assert(a <= 32767);
   for (uint32_t rshift = 0; rshift < 32; ++rshift) {
-    if ( (a * (1 << rshift)) >= 16384 ) {
+    if ((a * (1 << rshift)) >= 16384) {
       return rshift;
     }
   }
@@ -99,28 +98,27 @@ uint32_t findRShiftForBiasI32(float max_bias, float threshold_y) {
   assert(threshold_y > 0);
   float a = max_bias * 128.0 / threshold_y;
   if (a > 0x7fffffff) {
-    LLVM_DEBUG(llvm::errs() << "WARNING: findRShiftForBiasI32, max_bias too large "
-                 << std::to_string(max_bias)
-                 << ", lshift might needed\n";);
+    LLVM_DEBUG(llvm::errs()
+                   << "WARNING: findRShiftForBiasI32, max_bias too large "
+                   << std::to_string(max_bias) << ", lshift might needed\n";);
     return 0;
   }
   assert(a <= 0x7fffffff);
   for (uint32_t rshift = 0; rshift < 32; ++rshift) {
-    if ( (a * (1 << rshift)) >= 0x40000000 ) {
-      LLVM_DEBUG(
-        if (rshift < 25) {
-          llvm::errs() << "WARNING: findRShiftForBiasI32, find rshift = " << rshift
-                       << ", max_bias = " << std::to_string(max_bias)
-                       << ", threshold_y = " << std::to_string(threshold_y)
-                       << "\n";
-        }
-      );
+    if ((a * (1 << rshift)) >= 0x40000000) {
+      LLVM_DEBUG(if (rshift < 25) {
+        llvm::errs() << "WARNING: findRShiftForBiasI32, find rshift = "
+                     << rshift << ", max_bias = " << std::to_string(max_bias)
+                     << ", threshold_y = " << std::to_string(threshold_y)
+                     << "\n";
+      });
       return rshift;
     }
   }
-  // we are here because a < 0x40000000 / (1 << 32), which mean max_bias is small enough
-  // llvm::errs() << "WARNING: findRShiftForBiasI32, max_bias small enough\n";
-  // return 31, to not limiting final rshift (min(rshift_filter, rshift_bias))
+  // we are here because a < 0x40000000 / (1 << 32), which mean max_bias is
+  // small enough llvm::errs() << "WARNING: findRShiftForBiasI32, max_bias small
+  // enough\n"; return 31, to not limiting final rshift (min(rshift_filter,
+  // rshift_bias))
   return 31;
 }
 
@@ -133,7 +131,8 @@ uint32_t findRShiftForBiasI32(float max_bias, float threshold_y) {
 ///   QScale is then decomposed into a multipler and a rshift
 ///   => QScale = Multiplier / (1 << RShift)
 ///   where Multiplier is an interger
-double findQScaleForFilter(float max_filter, float threshold_y, float threshold_x) {
+double findQScaleForFilter(float max_filter, float threshold_y,
+                           float threshold_x) {
   assert(threshold_y > 0 && threshold_x > 0);
   double qscale = (max_filter * threshold_x) / (127.0f * threshold_y);
   return qscale;
@@ -159,8 +158,8 @@ double findQScaleForBiasI32(float max_bias, float threshold_y) {
 // This implementation comes from tensorflow
 // https://github.com/tensorflow/tensorflow/blob/98ff991500a0247f8f57c60db9a206204268bc42/tensorflow/lite/kernels/internal/quantization_util.cc#L52-L90
 #define Tensorflow_QuantizeMultiplier QuantizeMultiplier
-void QuantizeMultiplier(double double_multiplier, int32_t* quantized_multiplier,
-                        int* shift) {
+void QuantizeMultiplier(double double_multiplier, int32_t *quantized_multiplier,
+                        int *shift) {
   if (double_multiplier == 0.) {
     *quantized_multiplier = 0;
     *shift = 0;
@@ -209,20 +208,9 @@ void QuantizeMultiplier(double double_multiplier, int32_t* quantized_multiplier,
 ///     this value is always at least 2^30 and have at least 30 bits accuracy
 ///   the max_multiplier argument is ignored, fixed to (1 << 31)
 /// if 'uint32_t *multiplier' is present, return multipler alongside
-int8_t findRShiftAndMultiplierFromQScale(double qscale,
-    uint32_t *multiplier, bool qdm, uint32_t max_multiplier) {
+int8_t findRShiftAndMultiplierFromQScale(double qscale, uint32_t *multiplier,
+                                         bool qdm, uint32_t max_multiplier) {
   if (qdm) {
-    #if 0
-    max_multiplier = (1 << 31);
-    for (uint32_t rshift = 0; rshift < 63; ++rshift) {
-      if ( ((double)qscale * (1ULL << (rshift + 1))) >= (double)max_multiplier ) {
-        if (multiplier) {
-          *multiplier = (uint32_t)((double)qscale * (1ULL << rshift));
-        }
-        return rshift - 31;
-      }
-    }
-    #endif
     // this ensures if qscale is 0, both multiplier and shift will be 0
     int32_t quantized_multiplier = 0;
     int lshift = 0;
@@ -230,32 +218,30 @@ int8_t findRShiftAndMultiplierFromQScale(double qscale,
     *multiplier = quantized_multiplier;
     int rshift = -lshift;
     assert(rshift >= 0);
-    LLVM_DEBUG(
-      if (rshift > 25) {
-        llvm::errs() << "WARNING: large rshift = " << rshift
-                     << ", qscale = " << qscale
-                     << "\n";
-      }
-    );
+    LLVM_DEBUG(if (rshift > 25) {
+      llvm::errs() << "WARNING: large rshift = " << rshift
+                   << ", qscale = " << qscale << "\n";
+    });
     return (int8_t)rshift;
   } else {
-    if(qscale > max_multiplier){
+    if (qscale > max_multiplier) {
       llvm::errs() << "Error: qscale > max_multipiler ( " << qscale << " v.s. "
                    << max_multiplier << " )\n";
       assert(false);
     }
     for (int8_t rshift = 0; rshift < 63; ++rshift) {
-      if ( ((double)qscale * (1ULL << (rshift + 1))) >= (double)max_multiplier ) {
+      if (((double)qscale * (1ULL << (rshift + 1))) >= (double)max_multiplier) {
         if (multiplier) {
           *multiplier = (uint32_t)((double)qscale * (1ULL << rshift));
         }
         return rshift;
       }
     }
-    //assert(false);
+    // assert(false);
     LLVM_DEBUG(llvm::errs() << "WARNING: failed to find rshift, qscale = "
-                 << std::to_string(qscale) << "\n";);
-    // we are here because qscale is too small, return 0 for both shift and multiplier
+                            << std::to_string(qscale) << "\n";);
+    // we are here because qscale is too small, return 0 for both shift and
+    // multiplier
     if (multiplier) {
       *multiplier = 0;
     }
@@ -276,36 +262,35 @@ int8_t findMultiplierI8FromQScaleAndRShift(double qscale, int8_t rshift) {
 
 /// saturate a float to range [-128, 127]
 static inline int8_t saturateInt8(float f) {
-  #if 0
+#if 0
   // cast
   int q = (int)f;
-  #elif 0
+#elif 0
   // away_from_zero
   int q = (f >= 0) ? (int)ceil(f) : (int)floor(f);
-  #elif 0
+#elif 0
   // round
   int q = (int)roundf(f);
-  #elif 0
+#elif 0
   // trancate, (towards zero)
   int q = (f >= 0) ? (int)floor(f) : (int)ceil(f);
-  #elif 1
+#elif 1
   // from caffe_int8
   int q = floor(f + 0.5);
-  #else
+#else
   // looks HW is different than std::round()
   // we shall apply round only for input quant()
   int q = std::round(f);
-  #endif
-  //assert( (q <= 127) && (q >= -128) );
-  DEBUG_WITH_TYPE(DEBUG_TYPE"_WARNING",
-    if ( (q > 127) || (q < -128) ) {
-      llvm::errs() << "exceeds limits [-128, 127] : "
-                   << std::to_string(f) << "\n";
-    }
-  );
-  if ( q > 127 )
+#endif
+  // assert( (q <= 127) && (q >= -128) );
+  DEBUG_WITH_TYPE(
+      DEBUG_TYPE "_WARNING", if ((q > 127) || (q < -128)) {
+        llvm::errs() << "exceeds limits [-128, 127] : " << std::to_string(f)
+                     << "\n";
+      });
+  if (q > 127)
     q = 127;
-  if ( q < -128 )
+  if (q < -128)
     q = -128;
 
   return (int8_t)q;
@@ -313,61 +298,57 @@ static inline int8_t saturateInt8(float f) {
 
 /// saturate a float to int16_t
 static inline int16_t saturateInt16(float f) {
-  #if 0
+#if 0
   // cast
   int q = (int)f;
-  #elif 0
+#elif 0
   // away_from_zero
   int q = (f >= 0) ? (int)ceil(f) : (int)floor(f);
-  #elif 0
+#elif 0
   // round
   int q = (int)roundf(f);
-  #elif 0
+#elif 0
   // trancate, (towards zero)
   int q = (f >= 0) ? (int)floor(f) : (int)ceil(f);
-  #else
+#else
   // from caffe_int8
   int q = floor(f + 0.5);
-  #endif
-  LLVM_DEBUG(
-    if ( (q > 32767) || (q < -32768) ) {
-      llvm::errs() << "WARNING: exceeds limits [-32768, 32767] : "
-                   << std::to_string(f) << "\n";
-    }
-  );
-  //assert( (q <= 32767) && (q >= -32768) );
-  if ( q > 32767 )
+#endif
+  LLVM_DEBUG(if ((q > 32767) || (q < -32768)) {
+    llvm::errs() << "WARNING: exceeds limits [-32768, 32767] : "
+                 << std::to_string(f) << "\n";
+  });
+  // assert( (q <= 32767) && (q >= -32768) );
+  if (q > 32767)
     q = 32767;
-  if ( q < -32768 )
+  if (q < -32768)
     q = -32768;
   return (int16_t)q;
 }
 
 /// saturate a float to int
 static inline int32_t saturateInt32(float f) {
-  LLVM_DEBUG(
-    if ( (f > INT_MAX) || (f < INT_MIN) ) {
-      llvm::errs() << "WARNING: exceeds INT limits : "
-                   << std::to_string(f) << "\n";
-    }
-  );
-  assert( (f <= INT_MAX) && (f >= INT_MIN) );
-  #if 0
+  LLVM_DEBUG(if ((f > INT_MAX) || (f < INT_MIN)) {
+    llvm::errs() << "WARNING: exceeds INT limits : " << std::to_string(f)
+                 << "\n";
+  });
+  assert((f <= INT_MAX) && (f >= INT_MIN));
+#if 0
   // cast
   int q = (int)f;
-  #elif 0
+#elif 0
   // away_from_zero
   int q = (f >= 0) ? (int)ceil(f) : (int)floor(f);
-  #elif 0
+#elif 0
   // round
   int q = (int)roundf(f);
-  #elif 0
+#elif 0
   // trancate, (towards zero)
   int q = (f >= 0) ? (int)floor(f) : (int)ceil(f);
-  #else
+#else
   // from caffe_int8
   int q = floor(f + 0.5);
-  #endif
+#endif
   return (int32_t)q;
 }
 
@@ -375,7 +356,7 @@ static inline int32_t saturateInt32(float f) {
 ///   Q(W) = W * (threshold_x / threshold_y) * (1 << rshift)
 /// used in BM1880 or BM1880v2 legacy per-layer mode
 int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
-    uint32_t rshift) {
+                            uint32_t rshift) {
   double factor = (threshold_x / threshold_y) * (1 << rshift);
   float q_f = (float)(w * factor);
   return saturateInt8(q_f);
@@ -387,16 +368,13 @@ int8_t quantizeFilterRShift(float w, float threshold_y, float threshold_x,
 int16_t quantizeBiasRShiftI16(float w, float threshold_y, uint32_t rshift) {
   double factor = (128.0f / threshold_y) * (1 << rshift);
   float q_f = (float)(w * factor);
-  LLVM_DEBUG(
-    if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
-      llvm::errs() << "WARNING: quantizeBiasRShiftI16, exceeds INT limits : "
-                   << std::to_string(q_f) << "\n";
-      llvm::errs() << "  w: " << std::to_string(w)
-                   << ", threshold_y: " << std::to_string(threshold_y)
-                   << ", rshift: " << std::to_string(rshift)
-                   << "\n";
-    }
-  );
+  LLVM_DEBUG(if ((q_f > INT_MAX) || (q_f < INT_MIN)) {
+    llvm::errs() << "WARNING: quantizeBiasRShiftI16, exceeds INT limits : "
+                 << std::to_string(q_f) << "\n";
+    llvm::errs() << "  w: " << std::to_string(w)
+                 << ", threshold_y: " << std::to_string(threshold_y)
+                 << ", rshift: " << std::to_string(rshift) << "\n";
+  });
   return saturateInt16(q_f);
 }
 
@@ -406,16 +384,13 @@ int16_t quantizeBiasRShiftI16(float w, float threshold_y, uint32_t rshift) {
 int32_t quantizeBiasRShiftI32(float w, float threshold_y, uint32_t rshift) {
   double factor = (128.0f / threshold_y) * (1 << rshift);
   float q_f = (float)(w * factor);
-  LLVM_DEBUG(
-    if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
-      llvm::errs() << "WARNING: quantizeBiasRShiftI32, exceeds INT limits : "
-                   << std::to_string(q_f) << "\n";
-      llvm::errs() << "  w: " << std::to_string(w)
-                   << ", threshold_y: " << std::to_string(threshold_y)
-                   << ", rshift: " << std::to_string(rshift)
-                   << "\n";
-    }
-  );
+  LLVM_DEBUG(if ((q_f > INT_MAX) || (q_f < INT_MIN)) {
+    llvm::errs() << "WARNING: quantizeBiasRShiftI32, exceeds INT limits : "
+                 << std::to_string(q_f) << "\n";
+    llvm::errs() << "  w: " << std::to_string(w)
+                 << ", threshold_y: " << std::to_string(threshold_y)
+                 << ", rshift: " << std::to_string(rshift) << "\n";
+  });
   return saturateInt32(q_f);
 }
 
@@ -424,12 +399,14 @@ int32_t quantizeBiasRShiftI32(float w, float threshold_y, uint32_t rshift) {
 ///   QScale = Multiplier / (1 << RShift)
 /// used in BM1880 or BM1880v2 legacy per-layer mode
 int8_t quantizeFilterRShiftAndMultiplier(float w, float threshold_y,
-    float threshold_x, uint32_t rshift, uint32_t multiplier, bool qdm) {
+                                         float threshold_x, uint32_t rshift,
+                                         uint32_t multiplier, bool qdm) {
   if (qdm) {
     rshift += 31;
   }
-  double factor = (multiplier == 0) ? 0 :
-      (double)(threshold_x / threshold_y) * (1ULL << rshift) / multiplier;
+  double factor = (multiplier == 0) ? 0
+                                    : (double)(threshold_x / threshold_y) *
+                                          (1ULL << rshift) / multiplier;
   float q_f = (float)(w * factor);
   return saturateInt8(q_f);
 }
@@ -439,24 +416,23 @@ int8_t quantizeFilterRShiftAndMultiplier(float w, float threshold_y,
 ///   QScale = Multiplier * (1 << RShift)
 /// used in BM1880v2 per-channel mode (32bit bias)
 int32_t quantizeBiasRShiftAndMultiplier(float w, float threshold_y,
-    uint32_t rshift, uint32_t multiplier, bool qdm) {
+                                        uint32_t rshift, uint32_t multiplier,
+                                        bool qdm) {
   if (qdm) {
     rshift += 31;
   }
-  double factor = (multiplier == 0) ? 0 :
-      (double)(128.0f / threshold_y) * (1ULL << rshift) / multiplier;
+  double factor = (multiplier == 0) ? 0
+                                    : (double)(128.0f / threshold_y) *
+                                          (1ULL << rshift) / multiplier;
   float q_f = (float)(w * factor);
-  LLVM_DEBUG(
-    if ( (q_f > INT_MAX) || (q_f < INT_MIN) ) {
-      llvm::errs() << "WARNING: quantizeBiasRShiftI32, exceeds INT limits : "
-                   << std::to_string(q_f) << "\n";
-      llvm::errs() << "  w: " << std::to_string(w)
-                   << ", threshold_y: " << std::to_string(threshold_y)
-                   << ", multiplier: " << multiplier
-                   << ", rshift: " << std::to_string(rshift)
-                   << "\n";
-    }
-  );
+  LLVM_DEBUG(if ((q_f > INT_MAX) || (q_f < INT_MIN)) {
+    llvm::errs() << "WARNING: quantizeBiasRShiftI32, exceeds INT limits : "
+                 << std::to_string(q_f) << "\n";
+    llvm::errs() << "  w: " << std::to_string(w)
+                 << ", threshold_y: " << std::to_string(threshold_y)
+                 << ", multiplier: " << multiplier
+                 << ", rshift: " << std::to_string(rshift) << "\n";
+  });
   return saturateInt32(q_f);
 }
 
@@ -472,8 +448,7 @@ float applyZeroPointSaturateInt8(float v, int offset) {
 
 // USE_GOOGLE_GEMMLOWP_QDM
 typedef int32_t s32;
-static inline s32 RoundingDivideByPOT(s32 x, int exponent)
-{
+static inline s32 RoundingDivideByPOT(s32 x, int exponent) {
   if (x == 0) {
     return 0;
   }
@@ -487,8 +462,7 @@ static inline s32 RoundingDivideByPOT(s32 x, int exponent)
   return ((x >> exponent) + ((remainder > threshold) ? 1 : 0));
 }
 
-static inline s32 SaturatingRoundingDoublingHighMul(s32 a, s32 b)
-{
+static inline s32 SaturatingRoundingDoublingHighMul(s32 a, s32 b) {
   std::int64_t a_64(a);
   std::int64_t b_64(b);
   std::int64_t ab_64 = a_64 * b_64;
@@ -505,8 +479,9 @@ static inline s32 SaturatingRoundingDoublingHighMul(s32 a, s32 b)
 /// qdm mode
 ///   use GOOGLE GEMMLOWP QDM multiply and shift
 ///   during multiply, a factor of (1 << 31) has been devided
-int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
-    uint32_t rshift, uint32_t multiplier, bool qdm, int offset) {
+int8_t applyMultiplierAndRShiftAndSaturateInt8(float v, uint32_t rshift,
+                                               uint32_t multiplier, bool qdm,
+                                               int offset) {
   if (qdm) {
     int32_t q = RoundingDivideByPOT(
         SaturatingRoundingDoublingHighMul((int32_t)v, (int32_t)multiplier),
@@ -517,12 +492,12 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(float v,
   }
 }
 
-int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
-    uint32_t rshift, uint32_t multiplier, bool qdm, int offset) {
+int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v, uint32_t rshift,
+                                               uint32_t multiplier, bool qdm,
+                                               int offset) {
   if (qdm) {
     int32_t q = RoundingDivideByPOT(
-        SaturatingRoundingDoublingHighMul(v, (int32_t)multiplier),
-        rshift);
+        SaturatingRoundingDoublingHighMul(v, (int32_t)multiplier), rshift);
     return saturateInt8((float)(q + offset));
   } else {
     return saturateInt8((float)(((v * multiplier)) / (1 << rshift) + offset));
@@ -563,10 +538,10 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
 //
 // The type is defined in framework/numeric_types.h.
 
-void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
-    bool rounding) {
+void FloatToBFloat16(const float *src, bfloat16 *dst, size_t size,
+                     bool rounding) {
   // const uint16_t* p = reinterpret_cast<const uint16_t*>(src);
-  const uint16_t* p = nullptr;
+  const uint16_t *p = nullptr;
   /// if rounding is prefered than trancating
   /// float_val *= 1.001957f;
   float *src_round = nullptr;
@@ -574,18 +549,18 @@ void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
     src_round = (float *)malloc(size * sizeof(float));
     for (size_t i = 0; i < size; i++) {
       float value = src[i];
-      uint32_t* u32_val = reinterpret_cast<uint32_t*>(&value);
+      uint32_t *u32_val = reinterpret_cast<uint32_t *>(&value);
       uint32_t lsb = (*u32_val >> 16) & 1;
       *u32_val += (0x7fff + lsb); // rounding_bias
-      float *ret = reinterpret_cast<float*>(u32_val);
+      float *ret = reinterpret_cast<float *>(u32_val);
       src_round[i] = *ret;
     }
-    p = reinterpret_cast<const uint16_t*>(src_round);
+    p = reinterpret_cast<const uint16_t *>(src_round);
   } else {
-    p = reinterpret_cast<const uint16_t*>(src);
+    p = reinterpret_cast<const uint16_t *>(src);
   }
 
-  uint16_t* q = reinterpret_cast<uint16_t*>(dst);
+  uint16_t *q = reinterpret_cast<uint16_t *>(dst);
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   for (; size != 0; p += 2, q++, size--) {
     *q = p[0];
@@ -610,9 +585,9 @@ void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
   }
 }
 
-void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size) {
-  const uint16_t* p = reinterpret_cast<const uint16_t*>(src);
-  uint16_t* q = reinterpret_cast<uint16_t*>(dst);
+void BFloat16ToFloat(const bfloat16 *src, float *dst, size_t size) {
+  const uint16_t *p = reinterpret_cast<const uint16_t *>(src);
+  uint16_t *q = reinterpret_cast<uint16_t *>(dst);
 #if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
   for (; size != 0; p++, q += 2, size--) {
     q[0] = *p;
@@ -626,17 +601,14 @@ void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size) {
 #endif
 }
 
-uint16_t FloatToTpuBfloat16(float fp32)
-{
+uint16_t FloatToTpuBfloat16(float fp32) {
   union convert_type_float {
     float fval;
     uint16_t bf16[2];
     uint32_t ival;
   };
 
-  auto float_isnan = [](float x) -> uint8_t {
-    return x != x;
-  };
+  auto float_isnan = [](float x) -> uint8_t { return x != x; };
 
   const uint16_t NAN_VALUE = 0x7FC0;
 
@@ -648,7 +620,7 @@ uint16_t FloatToTpuBfloat16(float fp32)
   uint32_t lsb = (input >> 16) & 1;
   uint32_t rounding_bias = 0x7fff + lsb;
   input += rounding_bias;
-  convert_val.bf16[1] = (uint16_t) (input >> 16);
+  convert_val.bf16[1] = (uint16_t)(input >> 16);
 
   /* HW behavior */
   if ((convert_val.bf16[1] & 0x7f80) == 0x7f80) {
@@ -660,9 +632,10 @@ uint16_t FloatToTpuBfloat16(float fp32)
 //
 // Tensors wise API
 //
-void quantizeWeightInt8PerLayer(float *filter, float *bias,
-    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
-    float *new_filter, float *new_bias, float *rshift_per_layer)  {
+void quantizeWeightInt8PerLayer(float *filter, float *bias, int64_t oc,
+                                int64_t isz, float threshold_y,
+                                float threshold_x, float *new_filter,
+                                float *new_bias, float *rshift_per_layer) {
   // find rshift
   float max_filter = findMaxWeight(filter, oc * isz);
   float rshift_filter =
@@ -671,13 +644,13 @@ void quantizeWeightInt8PerLayer(float *filter, float *bias,
   float max_bias = 0.0f;
   if (bias) {
     float max_bias = findMaxWeight(bias, oc);
-    float rshift_bias =
-        (float)findRShiftForBiasI16(max_bias, threshold_y);
+    float rshift_bias = (float)findRShiftForBiasI16(max_bias, threshold_y);
     if (rshift_bias < rshift_filter) {
-      LLVM_DEBUG(llvm::errs() << "WARNING: adjust rshift for bias"
-                   << ", rshift_filter = " << std::to_string(rshift_filter)
-                   << ", rshift_bias = " << std::to_string(rshift_bias)
-                   << "\n";);
+      LLVM_DEBUG(llvm::errs()
+                     << "WARNING: adjust rshift for bias"
+                     << ", rshift_filter = " << std::to_string(rshift_filter)
+                     << ", rshift_bias = " << std::to_string(rshift_bias)
+                     << "\n";);
       rshift_per_layer[0] = rshift_bias;
     }
   }
@@ -698,9 +671,10 @@ void quantizeWeightInt8PerLayer(float *filter, float *bias,
   }
 }
 
-void quantizeWeightInt8PerChannel(float *filter, float *bias,
-    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
-    float *new_filter, float *new_bias, float *rshift_per_channel) {
+void quantizeWeightInt8PerChannel(float *filter, float *bias, int64_t oc,
+                                  int64_t isz, float threshold_y,
+                                  float threshold_x, float *new_filter,
+                                  float *new_bias, float *rshift_per_channel) {
   // find rshift
   auto max_filter = std::vector<float>(oc);
   auto max_bias = std::vector<float>(oc);
@@ -712,23 +686,22 @@ void quantizeWeightInt8PerChannel(float *filter, float *bias,
     max_bias[i] = 0.0f;
     if (bias) {
       max_bias[i] = fabs(bias[i]);
-      float rshift_bias =
-          (float)findRShiftForBiasI32(max_bias[i], threshold_y);
+      float rshift_bias = (float)findRShiftForBiasI32(max_bias[i], threshold_y);
       if (rshift_bias < rshift_filter) {
-        LLVM_DEBUG(llvm::errs() << "WARNING: adjust rshift for bias"
-                     << ", rshift_filter = " << std::to_string(rshift_filter)
-                     << ", rshift_bias = " << std::to_string(rshift_bias)
-                     << "\n";);
+        LLVM_DEBUG(llvm::errs()
+                       << "WARNING: adjust rshift for bias"
+                       << ", rshift_filter = " << std::to_string(rshift_filter)
+                       << ", rshift_bias = " << std::to_string(rshift_bias)
+                       << "\n";);
         rshift_per_channel[i] = rshift_bias;
       }
     }
-    LLVM_DEBUG(llvm::errs() << "  max_filter[" << i << "] : "
-                            << std::to_string(max_filter[i])
-                            << ", bias[" << i << "] : "
-                            << std::to_string(max_bias[i])
-                            << ", rshift_per_channel[" << i
-                            << "] : " << std::to_string(rshift_per_channel[i])
-                            << "\n";);
+    LLVM_DEBUG(llvm::errs()
+                   << "  max_filter[" << i
+                   << "] : " << std::to_string(max_filter[i]) << ", bias[" << i
+                   << "] : " << std::to_string(max_bias[i])
+                   << ", rshift_per_channel[" << i
+                   << "] : " << std::to_string(rshift_per_channel[i]) << "\n";);
   }
 
   // quantize weight
@@ -745,23 +718,24 @@ void quantizeWeightInt8PerChannel(float *filter, float *bias,
 }
 
 void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
-    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
-    float *new_filter, float *new_bias,
-    float *rshift_per_layer, float *multiplier_per_layer) {
+                                          int64_t oc, int64_t isz,
+                                          float threshold_y, float threshold_x,
+                                          float *new_filter, float *new_bias,
+                                          float *rshift_per_layer,
+                                          float *multiplier_per_layer) {
   auto max_bias = std::vector<float>(oc);
 
   // find qscale
   float max_filter = findMaxWeight(filter, oc * isz);
-  double qscale =
-      findQScaleForFilter(max_filter, threshold_y, threshold_x);
+  double qscale = findQScaleForFilter(max_filter, threshold_y, threshold_x);
   if (bias) {
-    for (auto i = 0; i < oc; ++i){
+    for (auto i = 0; i < oc; ++i) {
       max_bias[i] = fabs(bias[i]);
       double qscale_bias = findQScaleForBiasI32(max_bias[i], threshold_y);
       if (qscale_bias > qscale) {
         LLVM_DEBUG(llvm::errs() << "WARNING: adjust qscale for bias"
-                     << ", qscale_filter = " << qscale
-                     << ", qscale_bias = " << qscale_bias << "\n";);
+                                << ", qscale_filter = " << qscale
+                                << ", qscale_bias = " << qscale_bias << "\n";);
         qscale = qscale_bias;
       }
     }
@@ -782,7 +756,8 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
   }
 
   // quantize weight
-  for (int64_t i = 0; i < oc * isz; ++i) {
+  int64_t weight_planner = oc * isz;
+  for (int64_t i = 0; i < weight_planner; ++i) {
     new_filter[i] = (float)quantizeFilterRShiftAndMultiplier(
         filter[i], threshold_y, threshold_x, rshift_per_layer[0],
         multiplier_per_layer[0], true);
@@ -796,6 +771,7 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
     }
   }
 }
+
 
 // ONLY deal with bias w/o weight and plz refer quantizeWeightInt8PerLayerMultiplier
 // for more details
@@ -851,6 +827,7 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
     int64_t oc, int64_t isz, float threshold_y, float threshold_x,
     float *new_filter, float *new_bias,
     float *rshift_per_channel, float *multiplier_per_channel, std::vector<float> &filter_threshold) {
+
   std::vector<float> max_filter(oc);
   bool use_filter_threshold = filter_threshold.size() > 0;
 
@@ -858,19 +835,20 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
   for (int64_t i = 0; i < oc; ++i) {
     // find qscale
 
-    max_filter[i] = use_filter_threshold? filter_threshold[i]:findMaxWeight(&filter[isz * i], isz) ;
-    double qscale = findQScaleForFilter(max_filter[i], threshold_y, threshold_x);
-    if(qscale >= 1){
-      // Now 1880v2 not support lshift, if qscale > 1, rshift <= 0 not working now
-      // we fix threshold_w to limit value
-      // qscale = (thr_w * thr_x) / (127.0 * thr_y)
-      // thr_w = qscale * 127.0 * thr_y / thr_x
-      // qscale = 0.99999999
+    max_filter[i] = use_filter_threshold ? filter_threshold[i]
+                                         : findMaxWeight(&filter[isz * i], isz);
+    double qscale =
+        findQScaleForFilter(max_filter[i], threshold_y, threshold_x);
+    if (qscale >= 1) {
+      // Now 1880v2 not support lshift, if qscale > 1, rshift <= 0 not working
+      // now we fix threshold_w to limit value qscale = (thr_w * thr_x) / (127.0
+      // * thr_y) thr_w = qscale * 127.0 * thr_y / thr_x qscale = 0.99999999
       qscale = 0.999999;
       max_filter[i] = qscale * 127.0 * threshold_y / threshold_x;
-      LLVM_DEBUG(llvm::errs() << "WARNING: adjust threshold_w for qscale"
-                   << ", qscale_filter = " << qscale << ", max_filter[" << i
-                   << "] = " << max_filter[i] << "\n";);
+      LLVM_DEBUG(llvm::errs()
+                     << "WARNING: adjust threshold_w for qscale"
+                     << ", qscale_filter = " << qscale << ", max_filter[" << i
+                     << "] = " << max_filter[i] << "\n";);
     }
     max_bias[i] = 0.0f;
     if (bias) {
@@ -878,17 +856,15 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
       double qscale_bias = findQScaleForBiasI32(max_bias[i], threshold_y);
       if (qscale_bias > qscale) {
         LLVM_DEBUG(llvm::errs() << "WARNING: adjust qscale for bias"
-                     << ", qscale_filter = " << qscale
-                     << ", qscale_bias = " << qscale_bias
-                     << "\n";);
+                                << ", qscale_filter = " << qscale
+                                << ", qscale_bias = " << qscale_bias << "\n";);
         if (qscale_bias >= 1) {
           // prevent for auto tuning
-          LLVM_DEBUG(llvm::errs() << "WARNING:  qscale_bias are valid, keep org qscale"
-            << ", qscale_filter = " << qscale
-            << ", qscale_bias = " << qscale_bias
-            << "\n";);
-        }
-        else {
+          LLVM_DEBUG(llvm::errs()
+                         << "WARNING:  qscale_bias are valid, keep org qscale"
+                         << ", qscale_filter = " << qscale
+                         << ", qscale_bias = " << qscale_bias << "\n";);
+        } else {
           qscale = qscale_bias;
         }
       }
@@ -900,15 +876,13 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
         (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true);
     multiplier_per_channel[i] = (float)multiplier;
 
-    LLVM_DEBUG(llvm::errs() << "  max_filter[" << i << "] : "
-                            << std::to_string(max_filter[i])
-                            << ", max_bias[" << i << "] : "
-                            << std::to_string(max_bias[i])
-                            << ", qscale : "
-                            << qscale
-                            << "  [multiplier : rshift][" << i << "] = ["
-                            << std::to_string(multiplier_per_channel[i]) << " : "
-                            << std::to_string(rshift_per_channel[i]) << "]\n";);
+    LLVM_DEBUG(llvm::errs()
+                   << "  max_filter[" << i
+                   << "] : " << std::to_string(max_filter[i]) << ", max_bias["
+                   << i << "] : " << std::to_string(max_bias[i])
+                   << ", qscale : " << qscale << "  [multiplier : rshift][" << i
+                   << "] = [" << std::to_string(multiplier_per_channel[i])
+                   << " : " << std::to_string(rshift_per_channel[i]) << "]\n";);
   }
 
   // quantize weight
@@ -926,12 +900,13 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias,
   }
 }
 
-static inline signed char float2int8(float v, int mode = 0)
-{
+static inline signed char float2int8(float v, int mode = 0) {
   if (mode == 0) {
     int int32 = std::round(v);
-    if (int32 > 127) return 127;
-    if (int32 < -128) return -128;
+    if (int32 > 127)
+      return 127;
+    if (int32 < -128)
+      return -128;
     return (signed char)int32;
   } else {
     int int32 = 0;
@@ -947,18 +922,21 @@ static inline signed char float2int8(float v, int mode = 0)
       }
     }
 
-    if (v < 0) int32 = -int32;
+    if (v < 0)
+      int32 = -int32;
 
-    if (int32 > 127) return 127;
-    if (int32 < -128) return -128;
+    if (int32 > 127)
+      return 127;
+    if (int32 < -128)
+      return -128;
     return (signed char)int32;
   }
 }
 
 /// Quantize an Activation tensor into INT8, given threshold
-void quantizeActivationFromFp32ToInt8(float *output, float *input,
-                                      int64_t size, float scale,
-                                      bool tpu_mode, int zero_point) {
+void quantizeActivationFromFp32ToInt8(float *output, float *input, int64_t size,
+                                      float scale, bool tpu_mode,
+                                      int zero_point) {
   // float scale = 128.0 / threshold;
   if (tpu_mode) {
     bfloat16 bf_scale, bf_tmp, bf_zp;
@@ -1001,13 +979,14 @@ void quantizeActivationFromFp32ToInt8(float *output, float *input,
 
 /// DeQuantize an Activation tensor from INT8, given threshold
 void dequantizeActivationFromInt8ToFp32(float *output, float *input,
-    int64_t size, float scale, bool tpu_mode, int zero_point) {
+                                        int64_t size, float scale,
+                                        bool tpu_mode, int zero_point) {
   // float scale = threshold / 128.0;
   if (tpu_mode) {
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
-
+#pragma omp parallel for schedule(static, size / omp_get_num_threads())
     for (int64_t i = 0; i < size; ++i) {
       // i8->bf16
       float fp_tmp = input[i];
@@ -1029,18 +1008,17 @@ void dequantizeActivationFromInt8ToFp32(float *output, float *input,
 }
 
 static uint8_t float_isnan(const float x) {
-  //return isnan(x);
+  // return isnan(x);
   return x != x;
 }
 
 /// HW float to bfloat16
-bfloat16 FloatToBFloat16(float value)
-{
+bfloat16 FloatToBFloat16(float value) {
   if (float_isnan(value))
     return 0x7FC0 /*NAN_VALUE*/;
 
   float f32_val = value;
-  uint32_t* u32_val = reinterpret_cast<uint32_t*>(&f32_val);
+  uint32_t *u32_val = reinterpret_cast<uint32_t *>(&f32_val);
   uint32_t input = *u32_val;
   uint32_t lsb = (input >> 16) & 1;
   uint32_t rounding_bias = 0x7fff + lsb;
@@ -1054,11 +1032,10 @@ bfloat16 FloatToBFloat16(float value)
   return bf_val;
 }
 
-float BFloat16ToFloat(bfloat16 value)
-{
+float BFloat16ToFloat(bfloat16 value) {
   float dst = 0;
-  uint16_t* p = reinterpret_cast<uint16_t*>(&value);
-  uint16_t* q = reinterpret_cast<uint16_t*>(&dst);
+  uint16_t *p = reinterpret_cast<uint16_t *>(&value);
+  uint16_t *q = reinterpret_cast<uint16_t *>(&dst);
 
   q[0] = 0;
   q[1] = *p;
@@ -1069,37 +1046,41 @@ float BFloat16ToFloat(bfloat16 value)
 /// Quantize an Bf16 Activation tensor into INT8, given threshold
 /// Keep interpreter bf16 quant align with TPU
 /// TPU HW round mode support 0: round to nearest even, 1: round to zero
-void quantizeActivationFromBf16ToInt8(float *output, float *input,
-    int64_t size, float scale) {
-    bfloat16 bf_scale, bf_tmp;
-    bf_scale = FloatToBFloat16(scale);
-    scale = BFloat16ToFloat(bf_scale);
-    for (int64_t i = 0; i < size; ++i) {
-      auto bf_input = FloatToBFloat16(input[i]);
-      auto f_input = BFloat16ToFloat(bf_input);
-      float f_tmp = f_input * scale;
-      bf_tmp = FloatToBFloat16(f_tmp);
-      f_tmp = BFloat16ToFloat(bf_tmp);
-      output[i] = (float)float2int8(f_tmp, 1);
-    }
+void quantizeActivationFromBf16ToInt8(float *output, float *input, int64_t size,
+                                      float scale) {
+  bfloat16 bf_scale, bf_tmp;
+  bf_scale = FloatToBFloat16(scale);
+  scale = BFloat16ToFloat(bf_scale);
+#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+  for (int64_t i = 0; i < size; ++i) {
+    auto bf_input = FloatToBFloat16(input[i]);
+    auto f_input = BFloat16ToFloat(bf_input);
+    float f_tmp = f_input * scale;
+    bf_tmp = FloatToBFloat16(f_tmp);
+    f_tmp = BFloat16ToFloat(bf_tmp);
+    output[i] = (float)float2int8(f_tmp, 1);
+  }
 }
 
 /// Dequant an Int8 Activation tensor to Bf16, given threshold
 /// Keep interpreter int8 quant align with TPU
 void dequantizeActivationFromInt8ToBf16(float *output, float *input,
-    int64_t size, float scale) {
-    bfloat16 bf_scale;
-    bf_scale = FloatToBFloat16(scale);
-    scale = BFloat16ToFloat(bf_scale);
-    for (int64_t i = 0; i < size; ++i) {
-      bfloat16 out = FloatToBFloat16(input[i] * scale);
-      output[i] = (float)BFloat16ToFloat(out);
-    }
+                                        int64_t size, float scale) {
+  bfloat16 bf_scale;
+  bf_scale = FloatToBFloat16(scale);
+  scale = BFloat16ToFloat(bf_scale);
+#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+  for (int64_t i = 0; i < size; ++i) {
+    bfloat16 out = FloatToBFloat16(input[i] * scale);
+    output[i] = (float)BFloat16ToFloat(out);
+  }
 }
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,
-    int64_t size, uint32_t rshift, int offset) {
+                                          int64_t size, uint32_t rshift,
+                                          int offset) {
+#pragma omp parallel for schedule(static, size / omp_get_num_threads())
   for (int64_t i = 0; i < size; ++i) {
     output[i] = (float)applyRShiftAndSaturateInt8(input[i], rshift, offset);
   }
@@ -1107,7 +1088,9 @@ void quantizeActivationInt8PerLayerRshift(float *output, float *input,
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerChannelRShift(float *output, float *input,
-    int64_t on, int64_t oc, int64_t isz, float *rshift_per_channel, int offset) {
+                                            int64_t on, int64_t oc, int64_t isz,
+                                            float *rshift_per_channel,
+                                            int offset) {
   for (int64_t n = 0; n < on; ++n) {
     for (int64_t i = 0; i < oc; ++i) {
       for (int64_t j = 0; j < isz; ++j) {
@@ -1120,8 +1103,10 @@ void quantizeActivationInt8PerChannelRShift(float *output, float *input,
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerChannelMultiplierAndRShift(
-    float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
-    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel, int output_offset) {
+    float *output, float *input, float *bias, bool do_relu, int64_t on,
+    int64_t oc, int64_t isz, float *rshift_per_channel,
+    float *multiplier_per_channel, int output_offset) {
+#pragma omp parallel for collapse(3)
   for (int64_t n = 0; n < on; ++n) {
     for (int64_t i = 0; i < oc; ++i) {
       for (int64_t j = 0; j < isz; ++j) {
@@ -1129,8 +1114,9 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
         if (bias != NULL) {
           v += (int32_t)bias[i];
         }
-        v = applyMultiplierAndRShiftAndSaturateInt8(
-                v, rshift_per_channel[i], multiplier_per_channel[i], true, output_offset);
+        v = applyMultiplierAndRShiftAndSaturateInt8(v, rshift_per_channel[i],
+                                                    multiplier_per_channel[i],
+                                                    true, output_offset);
         if (do_relu && (v < 0)) {
           v = 0;
         }
@@ -1146,4 +1132,4 @@ void clean16bitmantissa(float *src, float *dst, int size) {
   BFloat16ToFloat(tensor_bf16->data(), dst, size);
 }
 
-} // namespace
+} // namespace mlir

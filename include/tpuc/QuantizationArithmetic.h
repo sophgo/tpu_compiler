@@ -23,6 +23,7 @@
 #define MLIR_DIALECT_TPU_QUANTIZATION_ARITHMETIC_H_
 
 #include "mlir/IR/Operation.h"
+#include <omp.h>
 
 namespace mlir {
 

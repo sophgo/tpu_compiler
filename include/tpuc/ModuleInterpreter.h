@@ -43,7 +43,6 @@
 #define DEBUG_TYPE "interpreter"
 
 namespace mlir {
-
 class ModuleOp;
 using value_map_t = DenseMap<Value, std::shared_ptr<std::vector<float>>>;
 using op_kernel_list = std::vector<std::shared_ptr<OpKernel>>;
