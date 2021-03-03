@@ -624,7 +624,7 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   add_imm_tensor(in_tensors[0], working_size, name_ + "_imm");
 }
 
-ImScaleLut::ImScaleLut(Operation *op): ImLayer(IR_SCALE_LUT, op, false) {
+ImScaleLut::ImScaleLut(Operation *op): ImLayer(IR_SCALE_LUT, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 

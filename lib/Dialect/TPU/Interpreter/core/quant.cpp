@@ -161,7 +161,7 @@ void QuantOpKernel::invoke() {
   } else if ((this->from == "INT8" || this->from == "UINT8") &&
              this->to == "NONE") {
     dequantizeFromInt8ToFp32(input_data->data(), output_data->data(),
-                             input_data->size(), scale, zero_point, false);
+                             input_data->size(), scale, zero_point, true);
   } else if ((this->from == "INT8" || this->from == "UINT8") &&
              this->to == "BF16") {
     dequantizeFromInt8ToBf16(input_data->data(), output_data->data(),

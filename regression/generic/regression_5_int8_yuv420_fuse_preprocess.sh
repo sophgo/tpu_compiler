@@ -59,7 +59,7 @@ model_runner \
 cvi_npz_tool.py compare \
     ${NET}_cmdbuf_out_all_int8_yuv420.npz \
     ${NET}_tensor_all_int8_yuv420.npz \
-    --op_info ${NET}_op_info_int8.csv \
+    --op_info ${NET}_op_info_int8.csv
 
 if [ ! -z $CVIMODEL_REL_PATH -a -d $CVIMODEL_REL_PATH ]; then
   DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_fused_preprocess

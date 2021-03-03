@@ -736,6 +736,7 @@ export TOLERANCE_INT8_MULTIPLER=0.92,0.90,0.59
 export SPP_NET="false"
 export TINY="false"
 export DO_FUSED_POSTPROCESS=1
+export DO_YUV420_FUSED_PREPROCESS=1
 export MODEL_DEF_FUSED_POSTPROCESS=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416_with_detection.prototxt
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
