@@ -30,6 +30,7 @@ protected:
   void refresh(int32_t step_idx);
   void allocLmem();
   void deallocLmem();
+  void reshape();
 
 protected:
   const CviBackendContext &ctx;
@@ -38,7 +39,7 @@ protected:
   gaddr_t ga_output;
   gaddr_t ga_lut;
   cvk_fmt_t fmt;
-  int n, c, h, w;
+  int n, c, h, w, c_times;
 
   cvk_tl_t tl_ifmap;
   cvk_tl_t tl_ofmap;

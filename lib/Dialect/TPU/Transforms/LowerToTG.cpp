@@ -4097,9 +4097,7 @@ struct LowerWeightScaleLutOpPattern : public RewritePattern {
     if (getOpQuant(op) == "INT8") {
       // lower filter
       assert(tableOp.storage() == "INT8");
-      std::vector<int64_t> shape;
-      int64_t size;
-      getTensorShapeAndSize(tableOp, shape, size);
+      std::vector<int64_t> shape = getTensorShape(tableOp);
       auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
       std::vector<int8_t> table_int8(table->begin(), table->end());
       // save it

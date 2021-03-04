@@ -14,6 +14,8 @@
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
 
+#define DEBUG_TYPE "cvi_backend_scalelut_kernel"
+
 void TgScaleLutKernel::init(uint32_t layer_id, gaddr_t ga_input,
                             gaddr_t ga_output, gaddr_t ga_lut, int n, int c,
                             int h, int w, cvk_fmt_t fmt) {
@@ -22,13 +24,60 @@ void TgScaleLutKernel::init(uint32_t layer_id, gaddr_t ga_input,
   this->c = c;
   this->h = h;
   this->w = w;
+  this->c_times = 1;
   this->ga_input = ga_input;
   this->ga_output = ga_output;
   this->ga_lut = ga_lut;
   this->fmt = fmt;
+  reshape();
   lut_shape = ctx.lut_table_shape(fmt);
-  gstride = ctx.tg_default_stride(c, h, w, fmt);
+  gstride = ctx.tg_default_stride(this->c, this->h, this->w, fmt);
   ctx.set_layer_id(layer_id);
+}
+
+// for example
+// 1 3 540 960 => 1 30 1 54*960 = 1 30 180 288
+#define MAX_H_STRIDE 0x10000
+void TgScaleLutKernel::reshape() {
+  int c_ = c;
+  int h_ = 1;
+  int w_ = h * w;
+  int max_times = NPU_NUM / c;
+  for (int time = max_times; time >= 2; time--) {
+    if (w_ % time == 0) {
+      w_ /= time;
+      c_ *= time;
+      break;
+    }
+  }
+  if (c == c_) {
+    return;
+  }
+  if (w_ > MAX_WIDTH) {
+    int div = std::sqrt(w_);
+    for (int time = div; time >= 2; time--) {
+      if (w_ % time == 0) {
+        w_ /= time;
+        h_ = time;
+        break;
+      }
+    }
+    if (w_ >= MAX_H_STRIDE && h_ >= MAX_H_STRIDE) {
+      return;
+    }
+    if (w_ >= MAX_H_STRIDE) {
+      std::swap(w_, h_);
+    } else if (h_ > w_ && h_ < MAX_H_STRIDE) {
+      std::swap(w_, h_);
+    }
+  }
+  LLVM_DEBUG(
+      llvm::dbgs() << llvm::format("reshape [%d,%d,%d,%d] => [%d,%d,%d,%d]\n",
+                                   n, c, h, w, n, c_, h_, w_));
+  c_times = c_ / c;
+  c = c_;
+  h = h_;
+  w = w_;
 }
 
 void TgScaleLutKernel::selectTilePolicy() {
@@ -44,8 +93,23 @@ void TgScaleLutKernel::allocLmem() {
   for (int i = 0; i < BLOB_NUM; i++) {
     tl_mem[i] = ctx.lmem_alloc_tensor(gshape, fmt, 1);
   }
-
-  ctx.tdma_load(tl_lut, ga_lut);
+  // load table
+  int hw = lut_shape.h * lut_shape.w;
+  cvk_tg_t ts_data = {0};
+  ts_data.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_lut);
+  ts_data.fmt = fmt;
+  ts_data.start_address = ga_lut;
+  ts_data.shape = ctx.tg_shape_t4(1, c / c_times, c_times, hw);
+  ts_data.stride = {(uint32_t)(c / c_times * hw), (uint32_t)hw, 0, 1};
+  tl_lut->shape = ctx.tl_shape_t4(1, c, 1, hw);
+  tl_lut->stride = ctx.tl_default_stride(tl_lut->shape, fmt, 1);
+  cvk_tdma_g2l_tensor_copy_param_t p = {0};
+  p.src = &ts_data;
+  p.dst = tl_lut;
+  p.layer_id = layer_id;
+  ctx.tdma_g2l_tensor_copy(&p);
+  tl_lut->shape = lut_shape;
+  tl_lut->stride = ctx.tl_default_stride(lut_shape, fmt, 1);
 }
 
 void TgScaleLutKernel::deallocLmem() {

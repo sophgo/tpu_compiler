@@ -579,15 +579,13 @@ after_loop:
           tile.offset = tile.pos_w * src_stride.w + tile.pos_h * src_stride.h +
                         tile.pos_c * src_stride.c + tile.pos_n * src_stride.n;
           tiling_result.emplace_back(tile);
-          LLVM_DEBUG(llvm::errs() << llvm::format(
-                         "Tiles[%d], tile:(%d,%d,%d,%d), pos:(%d,%d,%d,%d), "
-                         "offset:%lu\n",
-                         mode, tile.n, tile.c, tile.h, tile.w, tile.pos_n,
-                         tile.pos_c, tile.pos_h, tile.pos_w, tile.offset););
         }
       }
     }
   }
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+                 "Tiles, mode:%d, shape:(%d,%d,%d,%d), step:(%d,%d,%d,%d)\n",
+                 mode, n, c, h, w, step_n, step_c, step_h, step_w););
 }
 
 void CviBackendContext::tiling_packing(

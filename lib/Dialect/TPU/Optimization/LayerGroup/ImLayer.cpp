@@ -624,19 +624,19 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   add_imm_tensor(in_tensors[0], working_size, name_ + "_imm");
 }
 
-ImScaleLut::ImScaleLut(Operation *op): ImLayer(IR_SCALE_LUT, op, true) {
+ImScaleLut::ImScaleLut(Operation *op) : ImLayer(IR_SCALE_LUT, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
-  int table_h = 16;
-  int table_w = 16;
-
   // load table
   auto load_table = cast<tpu::LoadWeightOp>(op->getOperand(1).getDefiningOp());
+  auto table_shape = getTensorShape(op->getOperand(1));
+  int64_t n, c, h, w;
+  getNCHW(table_shape, n, c, h, w);
   int usize = getOpResultUnitSize(load_table);
   std::string storage = getWeightStorage(load_table);
   std::string table_name = load_table.name().str();
-  add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, table_name, TENSOR_COEFF_LUT);
+  add_in_tensor(n, c, h, w, usize, storage, table_name, TENSOR_COEFF_LUT);
 }
 
 ImAbs::ImAbs(Operation *op): ImLayer(IR_ABS, op, true) {

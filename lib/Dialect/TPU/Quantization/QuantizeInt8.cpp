@@ -607,25 +607,29 @@ LogicalResult quantizeInt8ScaleLutOps(Operation *op) {
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
   auto castOp = cast<tpu::ScaleLutOp>(op);
+  auto input_shape = getTensorShape(castOp.getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
   std::vector<float> scale;
   std::vector<float> bias;
   arrayAttrToVector(castOp.scale(), scale);
   arrayAttrToVector(castOp.bias(), bias);
+  assert(scale.size() == (uint64_t)c);
+  assert(bias.size() == (uint64_t)c);
 
   int table_h = 16;
   int table_w = 16;
   int table_hw = table_h * table_w;
-  int npu_num = MInfo::lane_num;
-  int table_size = npu_num * table_hw;
+  int table_size = c * table_hw;
   std::vector<float> table(table_size, 0.0f);
-  for (int i = 0; i < 3; i++) {
+  for (int i = 0; i < c; i++) {
     for (int idx = 0; idx < table_hw; ++idx) {
       float data = std::floor(idx * scale[i] + bias[i] + 0.5);
       data = std::min(std::max(data, -128.0f), 127.0f);
       table[i * table_hw + idx] = data;
     }
   }
-  auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
+  auto shape = std::vector<int64_t>{1, c, table_h, table_w};
   StringRef storageType = "INT8";
   auto table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "table", table, shape, storageType, wTF, wfV);
