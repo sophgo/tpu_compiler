@@ -12,12 +12,10 @@ import numpy as np
 from pathlib import Path
 import random
 
-from cvi_toolkit.calibration.base_calibrator import Base_Calibrator
 from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
 from cvi_toolkit.calibration.tuner import Tuner_v2
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
-
 
 def random_select_images(dataset_path, num):
     full_list = []
@@ -70,7 +68,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     preprocessor = preprocess()
-    preprocessor.config(**vars(args))
+    preprocessor.load_config(args.model_file, 0)
     def p_func(input_file): return preprocessor.run(input_file)
 
     image_list = generate_image_list(args.image_list_file, args.dataset, args.input_num)

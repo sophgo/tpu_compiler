@@ -28,17 +28,17 @@ def remove_mlir_with_weight(mlir_file):
 
 
 class MixPrecisior(object):
-    def __init__(self, mlir_file, loss_func, data_file=None, skip_op=['tpu.input', 'tpu.quant', 'tpu.cast', 'tpu.split', 'tpu.concat', 'tpu.reshape'],
-                 precrocess_func=None, input_num=10):
+    def __init__(self, mlir_file, loss_func, image_file_list=[],
+                 skip_op=tpu_skip_op, precrocess_func=None, input_num=10):
 
         self.input_num = input_num
 
-        if data_file:
-            self.image_txt_list = self.load_data_file(data_file)
-            self.image_list = [cv2.imread(i, cv2.IMREAD_COLOR)
-                               for i in self.image_txt_list]
-        else:
-            raise RuntimeError("Please Set input data txt !")
+        if len(image_file_list) == 0:
+            raise RuntimeError("Please Set image file list!")
+
+        self.image_txt_list = image_file_list
+        self.image_list = [cv2.imread(i, cv2.IMREAD_COLOR)
+                            for i in self.image_txt_list]
 
         self.fp32_cali_mlir_file = mlir_file
         self.fp32_cali_model = pymlir.module()
@@ -52,14 +52,6 @@ class MixPrecisior(object):
 
         self.preprocess_func = precrocess_func
         self.loss_func = loss_func
-
-    def load_data_file(self, file_txt):
-        image_list = list()
-        with open(file_txt, 'r') as f:
-            image_list = f.readlines()
-            if len(image_list) > self.input_num:
-                image_list = image_list[:self.input_num]
-        return [img_path.strip() for img_path in image_list]
 
     def set_preprocess_func(self, precrocess_func):
         self.precrocess_func = precrocess_func

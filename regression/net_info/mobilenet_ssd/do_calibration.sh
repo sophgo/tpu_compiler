@@ -15,11 +15,5 @@ run_calibration.py \
       ${NET}_opt.mlir \
       cali_list_voc2012.txt \
       --output_file=${CALI_TABLE} \
-      --image_resize_dims ${NET_INPUT_DIMS} \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --raw_scale ${RAW_SCALE} \
-      --mean ${MEAN} \
-      --std 1,1,1 \
-      --input_scale ${INPUT_SCALE} \
       --input_num=${CALIBRATION_IMAGE_COUNT}
 popd

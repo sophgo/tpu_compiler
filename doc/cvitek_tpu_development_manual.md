@@ -1,11 +1,6 @@
 ![image](./assets/logo_0.png)
 
-
-
-
-
-
-
+# CV183x/CV182x TPU开发指南
 
 >
 > 文档版本: 1.5.0
@@ -1404,14 +1399,6 @@ run_calibration.py <model file> [option]
   |--input_num               | 指定所用的校准图片数量|
   |--histogram_bin_num       | 直方图bin数量|
   |--calibration_table=\<string\>  | 输出calibration table文件|
-  |--image_resize_dims       | 图像首先进行resize的大小|
-  |--keep_aspect_ratio       | 在Resize时是否保持长宽比 |
-  |--net_input_dims          | 在Resize基础上进行crop的大小|
-  |--raw_scale               | 预处理raw_scale|
-  |--mean                    | 预处理mean|
-  |--mean_file               | 预处理mean_file|
-  |--input_scale             | 预处理input_scale|
-  |--gray | 输入图像是否为灰度图 |
   |--auto-tune                | 开启autotune|
   |--tuned_table=\<string\>  | 输出经过auto-tunning后的calibration table文件|
 
@@ -1677,14 +1664,6 @@ run_calibration.py \
     ${NET}_opt_fp32.mlir \
     --dataset=$DATASET \
     --input_num=${CALIBRATION_IMAGE_COUNT} \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --raw_scale ${RAW_SCALE} \
-    --mean ${MEAN} \
-    --std ${STD} \
-    --input_scale ${INPUT_SCALE} \
-    --gray ${BGRAY}
     --histogram_bin_num=2048 \
     --calibration_table=${NET}_calibration_table
 ```
@@ -1817,18 +1796,9 @@ tpuc-opt ${NET}_opt_fp32.mlir \
 export MIX_PRECISION_BF16_LAYER_NUM=10
 cvi_mix_precision.py \
     ${NET}_int8_cali.mlir \
-    cali_list_imagenet.txt \
-    ${NET}_mix_precision_bf16_table \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --raw_scale ${RAW_SCALE} \
-    --mean ${MEAN} \
-    --std ${STD} \
-    --input_scale ${INPUT_SCALE} \
-    --gray ${BGRAY}
-    --input_num=1 \
-    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM
+    --dataset ${DATASET} \
+    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM \
+    --mix_table ${NET}_mix_precision_bf16_table
 
 tpuc-opt \
     --assign-chip-name \
@@ -1869,14 +1839,6 @@ run_calibration.py \
     --dataset=$DATASET \
     --calibration_table=${NET}_calibration_table \
     --tuned_table=${NET}_tune_calibration_table \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --raw_scale ${INPUT_SCALE} \
-    --mean $MEAN \
-    --std $STD \
-    --input_scale $INPUT_SCALE \
-    --model_channel_order ${MODEL_CHANNEL_ORDER} \
     --input_num=${COUNT} \
     --tune_iteration=10 \
     --auto_tune
@@ -2151,14 +2113,6 @@ run_calibration.py \
     ${NET}_opt_fp32.mlir \
     --dataset=$DATASET \
     --input_num=${CALIBRATION_IMAGE_COUNT} \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --raw_scale ${RAW_SCALE} \
-    --mean ${MEAN} \
-    --std ${STD} \
-    --input_scale ${INPUT_SCALE} \
-    --gray ${BGRAY}
     --calibration_table=${NET}_calibration_table
 ```
 
@@ -2279,18 +2233,10 @@ tpuc-opt ${NET}_opt_fp32.mlir \
 export MIX_PRECISION_BF16_LAYER_NUM=10
 cvi_mix_precision.py \
     ${NET}_int8_cali.mlir \
-    cali_list_imagenet.txt \
-    ${NET}_mix_precision_bf16_table \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --raw_scale ${RAW_SCALE} \
-    --mean ${MEAN} \
-    --std ${STD} \
-    --input_scale ${INPUT_SCALE} \
-    --gray ${BGRAY}
+    --dataset ${DATASET} \
     --input_num=1 \
-    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM
+    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM \
+    --mix_table ${NET}_mix_precision_bf16_table
 
 tpuc-opt \
     --assign-chip-name \

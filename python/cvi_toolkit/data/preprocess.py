@@ -2,6 +2,7 @@
 import numpy as np
 import cv2
 import argparse
+import mlir
 
 supported_pixel_formats = [
     'RGB_PLANAR',
@@ -114,12 +115,12 @@ class preprocess(object):
         self.crop_method = crop_method
         self.keep_aspect_ratio = keep_aspect_ratio
 
-        self.raw_scale = raw_scale
-        self.mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
-        self.mean = self.mean[:, np.newaxis, np.newaxis]
-        self.std = np.array([float(s) for s in std.split(',')], dtype=np.float32)
-        self.std = self.std[:,np.newaxis, np.newaxis]
-        self.input_scale = float(input_scale)
+        _raw_scale = raw_scale
+        _mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
+        _mean = _mean[:, np.newaxis, np.newaxis]
+        _std = np.array([float(s) for s in std.split(',')], dtype=np.float32)
+        _std = _std[:, np.newaxis, np.newaxis]
+        _input_scale = float(input_scale)
 
         # preprocess:
         #   (x * (raw_scale / 255) - mean) * input_scale / std
@@ -127,13 +128,12 @@ class preprocess(object):
         # => x * perchannel_scale - perchannel_mean
         # so: perchannel_scale = raw_scale / 255 * input_scale / std
         #     perchannel_mean  = mean * input_scale / std
-        sa = self.raw_scale / 255
-        sb = self.input_scale / self.std
+        sa = _raw_scale / 255
+        sb = _input_scale / _std
         self.perchannel_scale = sa * sb
-        self.perchannel_mean = self.mean * sb
+        self.perchannel_mean = _mean * sb
 
         self.channel_order = channel_order
-
         self.pixel_format = pixel_format
         self.aligned = aligned
 
@@ -183,9 +183,61 @@ class preprocess(object):
                "\tpixel_format          : {}\n" + \
                "\taligned               : {}\n"
         print(format_str.format(
-                self.net_input_dims, self.resize_dims, self.crop_method, self.keep_aspect_ratio, self.channel_order,
+                self.net_input_dims, self.resize_dims, self.crop_method,
+                self.keep_aspect_ratio, self.channel_order,
                 list(self.perchannel_scale.flatten()), list(self.perchannel_mean.flatten()),
-                self.raw_scale, list(self.mean.flatten()), list(self.std.flatten()), self.input_scale,
+                _raw_scale, list(_mean.flatten()), list(_std.flatten()), _input_scale,
+                self.pixel_format, self.aligned))
+
+    def load_config(self, model_file, idx):
+        with open(model_file, 'r') as f:
+            context = f.read()
+        ctx = mlir.ir.Context()
+        ctx.allow_unregistered_dialects = True
+        m = mlir.ir.Module.parse(context, ctx)
+        body = m.body.operations[0].regions[0].blocks[0]
+        input_ops = []
+        for op in body.operations:
+            if op.operation.name == 'tpu.input':
+                input_ops.append(op)
+        assert(len(input_ops) >= idx + 1)
+        target = input_ops[idx]
+        shape_type = mlir.ir.ShapedType(target.operands[0].type)
+        shape = [shape_type.get_dim_size(i) for i in range(shape_type.rank)]
+        attrs = mlir.ir.DictAttr(target.attributes['preprocess'])
+        self.net_input_dims = shape[2:]
+        self.gray = True if shape[1] == 1 else False
+        self.pixel_format = mlir.ir.StringAttr(attrs['pixel_format']).value
+        self.channel_order = mlir.ir.StringAttr(attrs['channel_order']).value
+        self.keep_aspect_ratio = mlir.ir.BoolAttr(attrs['keep_aspect_ratio']).value
+        self.resize_dims = [mlir.ir.IntegerAttr(x).value for x in mlir.ir.ArrayAttr(attrs['resize_dims'])]
+        self.perchannel_mean = np.array([mlir.ir.FloatAttr(x).value for x in mlir.ir.ArrayAttr(attrs['mean'])])
+        self.perchannel_mean = self.perchannel_mean[:,np.newaxis, np.newaxis]
+        self.perchannel_scale = np.array([mlir.ir.FloatAttr(x).value for x in mlir.ir.ArrayAttr(attrs['scale'])])
+        self.perchannel_scale = self.perchannel_scale[:,np.newaxis, np.newaxis]
+        self.crop_method = 'center'
+        self.aligned = False
+        if self.pixel_format == "YUV420_PLANAR":
+            self.aligned = True
+        self.data_format = pixel_format_attributes[self.pixel_format][1]
+
+        format_str = "  Preprocess args : \n" + \
+               "\tnet_input_dims        : {}\n" + \
+               "\tresize_dims           : {}\n" + \
+               "\tcrop_method           : {}\n" + \
+               "\tkeep_aspect_ratio     : {}\n" + \
+               "\t--------------------------\n" + \
+               "\tchannel_order         : {}\n" + \
+               "\tperchannel_scale      : {}\n" + \
+               "\tperchannel_mean       : {}\n" + \
+               "\t--------------------------\n" + \
+               "\tpixel_format          : {}\n" + \
+               "\taligned               : {}\n"
+        print(format_str.format(
+                self.net_input_dims, self.resize_dims, self.crop_method,
+                self.keep_aspect_ratio, self.channel_order,
+                list(self.perchannel_scale.flatten()),
+                list(self.perchannel_mean.flatten()),
                 self.pixel_format, self.aligned))
 
     def to_dict(self):
@@ -318,17 +370,13 @@ class preprocess(object):
 
         # convert from uint8 to fp32
         x = x.astype(np.float32)
-        x = x * (self.raw_scale / 255.0)
+
         # preprocess
         if self.gray:
-            self.mean = self.mean[:1]
-            self.std = self.std[:1]
-        if self.mean.size != 0:
-            x -= self.mean
-        if self.input_scale != 1.0:
-            x *= self.input_scale
-        if self.std is not None:
-            x /= self.std
+            self.perchannel_mean = self.perchannel_mean[:1]
+            self.perchannel_scale = self.perchannel_scale[:1]
+        # rescale
+        x = x * self.perchannel_scale - self.perchannel_mean
 
         # if not 'bgr', swap back
         if self.channel_order != 'bgr':

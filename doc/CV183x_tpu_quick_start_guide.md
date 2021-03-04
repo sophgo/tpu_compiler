@@ -1,6 +1,6 @@
 ![image](./assets/logo_0.png)
 
-# CV183x TPU 快速入门指南
+# CV183x/CV182x TPU 快速入门指南
 
 
 
@@ -650,11 +650,6 @@ run_calibration.py \
     mobilenet_v2_fp32.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --input_num=1000 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.94,116.78,123.68 \
-    --input_scale 0.017 \
-    --model_channel_order bgr \
     --calibration_table mobilenet_v2_calibration_table
 ```
 
@@ -709,11 +704,7 @@ run_calibration.py \
     mobilenet_v2_fp32.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --input_num=10 \
-    --tune-iteration=10 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.94,116.78,123.68 \
-    --input_scale 0.017 \
+    --tune-iteration=3 \
     --calibration_table mobilenet_v2_calibration_table \
     --tuned_table mobilenet_v2_tuned_calibration_table
 ```
@@ -948,11 +939,6 @@ run_calibration.py \
     resnet18_fp32.mlir \
     --dataset=c$DATASET_PATH/imagenet/img_val_extracted \
     --input_num=1000 \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 1.0 \
-    --mean 0.406,0.456,0.485 \
-    --std 0.225,0.224,0.229 \
     --calibration_table resnet18_calibration_table
 
 tpuc-opt resnet18_fp32.mlir \
@@ -1155,11 +1141,6 @@ run_calibration.py \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --input_num=1000 \
     --image_resize_dims 256,256  \
-    --net_input_dims 224,224 \
-    --raw_scale 255 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --input_scale 1.0 \
     --calibration_table  mobilenet_v2_tf_calibration_table
 
 tpuc-opt mobilenet_v2_tf_fp32.mlir \
@@ -1369,13 +1350,6 @@ run_calibration.py \
     mnet_25_fp32.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --input_num=1000 \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
     --calibration_table mnet_25_calibration_table
 
 tpuc-opt mnet_25_fp32.mlir \
@@ -1857,13 +1831,6 @@ run_calibration.py \
     mnet_25_fp32.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --input_num=1000 \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
     --calibration_table mnet_25_calibration_table
 ```
 
@@ -1939,24 +1906,12 @@ tpuc-opt mnet_25_fp32.mlir \
     --calibration-table mnet_25_calibration_table \
     -o mnet_25_cali.mlir
 
-gen_data_list.py \
-    $DATASET_PATH/imagenet/img_val_extracted \
-    100 \
-    cali_list_imagenet_100.txt
-
 cvi_mix_precision.py \
     mnet_25_cali.mlir \
-    cali_list_imagenet_100.txt \
-    mnet_25_mix_precision_bf16_table \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --input_num=100 \
-    --number_bf16=6
+    --dataset ${DATESET_PATH} \
+    --input_num=20 \
+    --number_bf16=6 \
+    --mix_table mnet_25_mix_precision_bf16_table
 ```
 
 得到`mnet_25_mix_precision_bf16_table`，内容如下：

@@ -235,13 +235,17 @@ class Tuner_v2(object):
             if idx >= self.limit:
                 break
 
+        delta_sum = 0
+        cnt = 0
         while fail_count < self.tune_iteration:
             distance = 0
+            cnt += 1
+            delta_sum += new_threshold * 0.05
+            delta = delta_sum / cnt
             if factor > 0:
-                new_factor = factor if (new_threshold * 0.05) > factor else new_threshold * 0.05
+                new_threshold += delta
             else:
-                new_factor = factor if (new_threshold * -0.05) < factor else new_threshold * -0.05
-            new_threshold += new_factor
+                new_threshold -= delta
 
             if new_threshold < 0:
                 break

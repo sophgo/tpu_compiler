@@ -13,33 +13,21 @@ fi
 # Mix-Precison 1: mix-bf16-broadcastmul + mix-bf16-sigmoid mix-bf16-eltwisemul
 ###############################################################################
 
-# imagenet : --dataset $DATASET_PATH/imagenet/img_val_extracted
-# wider    : --dataset $DATASET_PATH/widerface/WIDER_val
-# gen_data_list.py \
-#     $DATASET_PATH/imagenet/img_val_extracted \
-#     10 \
-#     cali_list_imagenet.txt
-
-echo $REGRESSION_PATH/data/cat.jpg > cali_list_imagenet.txt
-
 tpuc-opt ${NET}_opt_fp32.mlir \
     ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     -o ${NET}_cali.mlir
 
+# imagenet : --dataset $DATASET_PATH/imagenet/img_val_extracted
+# wider    : --dataset $DATASET_PATH/widerface/WIDER_val
+echo $REGRESSION_PATH/data/cat.jpg > cali_list_imagenet.txt
 cvi_mix_precision.py \
     ${NET}_cali.mlir \
     cali_list_imagenet.txt \
-    ${NET}_mix_precision_bf16_table \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --raw_scale ${RAW_SCALE} \
-    --mean ${MEAN} \
-    --std ${STD} \
-    --input_scale ${INPUT_SCALE} \
     --input_num=1 \
-    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM
+    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM \
+    --mix_table ${NET}_mix_precision_bf16_table
 
 tpuc-opt \
     --assign-chip-name \

@@ -120,6 +120,9 @@ public:
             rand = rand > 1 ? 1 : rand;
             data[i] = rand;
           }
+          if (count == 1) {
+            data[0] = 1;
+          }
           cnpy::npz_add_array<float>(npz, op_name, (float *)data.data(), shape);
         } else if (elementType.isBF16()) {
           std::vector<uint16_t> data(count);

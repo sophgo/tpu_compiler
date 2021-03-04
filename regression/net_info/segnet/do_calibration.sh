@@ -11,11 +11,5 @@ run_calibration.py \
       ${NET}_opt.mlir \
       ${CALI_PATH}/cali_list.txt \
       --output_file=${CALI_TABLE} \
-      --image_resize_dims ${NET_INPUT_DIMS} \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --raw_scale 255.0 \
-      --mean 0.0,0.0,0.0 \
-      --std 1,1,1 \
-      --input_scale 1.0 \
       --input_num=101
 popd
