@@ -299,7 +299,7 @@ struct TpuGenLrnTablePattern : public RewritePattern {
     rshift_width = 0;
     x_quantized = 0;
     float y_quantized = 1.0;
-    while ((y_quantized * 2) < y_ceiling) {
+    while ((y_quantized * 2) < y_ceiling && rshift_width < 15) {
       rshift_width += 1;
       y_quantized = (float)(1 << rshift_width);
     }
