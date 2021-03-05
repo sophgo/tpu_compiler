@@ -1,5 +1,5 @@
 #!/bin/bash
-set -e
+set -xe
 
 #
 # Run after running run_regression.sh -e
@@ -77,17 +77,37 @@ cp regression_out/cvimodel_regression/cvimodel_regression_fused_preprocess/mobil
 tar zcvf $dest_dir/cvimodel_samples.tar.gz cvimodel_samples
 rm -rf cvimodel_samples
 
-###########################################################
 # pack regresion cvimodels
-###########################################################
-# seperate bs1/bs4
 pushd regression_out/cvimodel_regression
-
-# tar
 tar zcvf $dest_dir/cvimodel_regression_bs1.tar.gz cvimodel_regression_bs1
 tar zcvf $dest_dir/cvimodel_regression_bs4.tar.gz cvimodel_regression_bs4
 tar zcvf $dest_dir/cvimodel_regression_bf16.tar.gz cvimodel_regression_bf16
 tar zcvf $dest_dir/cvimodel_regression_fused_preprocess.tar.gz cvimodel_regression_fused_preprocess
-
 popd
+
+# pack cv182x models
+if [ ! -e cvimodel_release_cv182x ]; then
+  exit 0
+fi
+
+mkdir -p cvimodel_samples_cv182x
+for sample_model in ${sample_models_list[@]}
+do
+  cp cvimodel_release_cv182x/${sample_model} cvimodel_samples_cv182x/
+done
+# copy extra yuv420 cvimodel to cvimodel_samples
+cp regression_out/cvimodel_regression_cv182x/cvimodel_regression_fused_preprocess/mobilenet_v2_int8_yuv420.cvimodel \
+   cvimodel_samples_cv182x/
+
+tar zcvf $dest_dir/cvimodel_samples_cv182x.tar.gz cvimodel_samples_cv182x
+rm -rf cvimodel_samples_cv182x
+
+# pack regresion cvimodels
+pushd regression_out/cvimodel_regression_cv182x
+tar zcvf $dest_dir/cvimodel_regression_bs1_cv182x.tar.gz cvimodel_regression_bs1
+tar zcvf $dest_dir/cvimodel_regression_bs4_cv182x.tar.gz cvimodel_regression_bs4
+tar zcvf $dest_dir/cvimodel_regression_bf16_cv182x.tar.gz cvimodel_regression_bf16
+tar zcvf $dest_dir/cvimodel_regression_fused_preprocess_cv812x.tar.gz cvimodel_regression_fused_preprocess
+popd
+
 popd

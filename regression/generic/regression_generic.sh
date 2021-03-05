@@ -6,6 +6,9 @@ DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 export WORKING_PATH=${WORKING_PATH:-$DIR/regression_out}
 export CVIMODEL_REL_PATH=${WORKING_PATH}/cvimodel_regression
+if [ $SET_CHIP_NAME == "cv182x" ]; then
+  export CVIMODEL_REL_PATH=${WORKING_PATH}/cvimodel_regression_cv182x
+fi
 
 echo "WORKING_PATH: ${WORKING_PATH}"
 echo "CVIMODEL_REL_PATH: ${CVIMODEL_REL_PATH}"

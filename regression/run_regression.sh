@@ -6,6 +6,9 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
 export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
 export CVIMODEL_REL_PATH=$WORKING_PATH/cvimodel_regression
+if [ $SET_CHIP_NAME == "cv182x" ]; then
+  export CVIMODEL_REL_PATH=${WORKING_PATH}/cvimodel_regression_cv182x
+fi
 export MAX_PARALLEL_JOBS=${MAX_PARALLEL_JOBS:-8}
 
 echo "WORKING_PATH: ${WORKING_PATH}"
