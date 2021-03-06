@@ -7,12 +7,11 @@
 #define TG_CONV_KERNEL_HPP
 
 #include "CviBackendContext.h"
+#include <cmath>
+#include <iostream>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
-#include <iostream>
-#include <cmath>
-
 
 //
 // Dimension indices for 2D tensor.
@@ -25,7 +24,7 @@ struct NCHW {
 // dimension indices for 3D tensor.
 //
 struct NGCHW {
-  enum dim { N = 0, G = 1, C = 2, H = 3, W = 4};
+  enum dim { N = 0, G = 1, C = 2, H = 3, W = 4 };
 };
 
 struct NCDHW {
@@ -34,67 +33,45 @@ struct NCDHW {
 
 class MemoryDescriptor {
 public:
-  MemoryDescriptor() {};
+  MemoryDescriptor(){};
 
-  void setShapes(std::vector<uint32_t> shapes) {
-    shapes_ = shapes;
-  }
+  void setShapes(std::vector<uint32_t> shapes) { shapes_ = shapes; }
 
-  std::vector<uint32_t> getShapes() {
-    return shapes_;
-  }
+  std::vector<uint32_t> getShapes() { return shapes_; }
 
-  void setDataFormat(cvk_fmt_t fmt) {
-    fmt_ = fmt;
-  }
+  void setDataFormat(cvk_fmt_t fmt) { fmt_ = fmt; }
 
-  cvk_fmt_t getDataFormat() {
-    return fmt_;
-  }
+  cvk_fmt_t getDataFormat() { return fmt_; }
 
-  void setStrides(std::vector<uint32_t> strides) {
-    strides_ = strides;
-  }
+  void setStrides(std::vector<uint32_t> strides) { strides_ = strides; }
 
   std::vector<uint32_t> getStrides() {
     if (strides_.size())
       return strides_;
   }
 
-  void setAddress(uint64_t address) {
-    address_ = address;
-  }
+  void setAddress(uint64_t address) { address_ = address; }
 
-  uint64_t getAddress() {
-    return address_;
-  }
+  uint64_t getAddress() { return address_; }
 
   uint32_t getDataFormatSize() {
     switch (fmt_) {
-      case CVK_FMT_F32:
-        return 4;
-      case CVK_FMT_BF16:
-        return 2;
-      default:
-        return 1;
+    case CVK_FMT_F32:
+      return 4;
+    case CVK_FMT_BF16:
+      return 2;
+    default:
+      return 1;
     }
   }
 
-  void setLayerId(uint32_t layer_id) {
-    layerId_ = layer_id;
-  }
+  void setLayerId(uint32_t layer_id) { layerId_ = layer_id; }
 
-  uint32_t getLayerId() {
-    return layerId_;
-  }
+  uint32_t getLayerId() { return layerId_; }
 
-  void setMemRegion(uint32_t mem_region) {
-    memRegion_ = mem_region;
-  }
+  void setMemRegion(uint32_t mem_region) { memRegion_ = mem_region; }
 
-  uint32_t getMemRegion() {
-    return memRegion_;
-  }
+  uint32_t getMemRegion() { return memRegion_; }
 
   // Calculate offset using current positions
   uint64_t getCurrentOffset(std::vector<uint32_t> cur_poss) {
@@ -111,13 +88,9 @@ public:
     return offset;
   }
 
-  void setCompressed(bool compressed) {
-    compressed_ = compressed;
-  }
+  void setCompressed(bool compressed) { compressed_ = compressed; }
 
-  bool getCompressed() {
-    return compressed_;
-  }
+  bool getCompressed() { return compressed_; }
 
   // Expect physical shape, but it is very difficult in our system.
   std::vector<uint32_t> shapes_;
@@ -138,11 +111,12 @@ public:
   bool compressed_ = {false};
 };
 
-class LocalMemoryDescriptor: public MemoryDescriptor {
+class LocalMemoryDescriptor : public MemoryDescriptor {
 public:
   LocalMemoryDescriptor(const CviBackendContext &ctx,
-      std::vector<uint32_t> shapes, cvk_fmt_t fmt, uint8_t eu_align)
-        : ctx(ctx) {
+                        std::vector<uint32_t> shapes, cvk_fmt_t fmt,
+                        uint8_t eu_align)
+      : ctx(ctx) {
     shapes_ = shapes;
     fmt_ = fmt;
     eu_align_ = eu_align;
@@ -161,9 +135,8 @@ public:
 
     assert(shapes_.size() == 5 && "Expect 5D tensor now");
     assert(shapes_[NGCHW::G] == 1 && "Expect 1 group");
-    cvk_tl_shape_t tl_shapes = {
-        shapes_[NGCHW::N], shapes_[NGCHW::C], shapes_[NGCHW::H],
-        shapes_[NGCHW::W]};
+    cvk_tl_shape_t tl_shapes = {shapes_[NGCHW::N], shapes_[NGCHW::C],
+                                shapes_[NGCHW::H], shapes_[NGCHW::W]};
     cvk_tl_stride_t tl_strides =
         ctx.tl_default_stride(tl_shapes, fmt_, eu_align_);
 
@@ -172,8 +145,8 @@ public:
     return strides_;
   }
 
-  void initialize(std::vector<uint32_t> shapes, cvk_fmt_t fmt, uint8_t eu_align)
-  {
+  void initialize(std::vector<uint32_t> shapes, cvk_fmt_t fmt,
+                  uint8_t eu_align) {
     // Group should not appear in local memory descriptor since H/W does not
     // support grouped convolution.
     // And we do not support conv3d yet.
@@ -184,21 +157,17 @@ public:
     fmt_ = fmt;
     eu_align_ = eu_align;
 
-    cvk_tl_shape_t tl_shapes = {
-        shapes_[NCHW::N], shapes_[NCHW::C], shapes_[NCHW::H], shapes_[NCHW::W]};
+    cvk_tl_shape_t tl_shapes = {shapes_[NCHW::N], shapes_[NCHW::C],
+                                shapes_[NCHW::H], shapes_[NCHW::W]};
     cvk_tl_stride_t tl_strides =
         ctx.tl_default_stride(tl_shapes, fmt_, eu_align_);
 
     strides_ = {tl_strides.n, tl_strides.c, tl_strides.h, tl_strides.w};
   }
 
-  void setEuAlign(uint8_t eu_align) {
-    eu_align_ = eu_align;
-  }
+  void setEuAlign(uint8_t eu_align) { eu_align_ = eu_align; }
 
-  uint8_t getEuAlign() {
-    return eu_align_;
-  }
+  uint8_t getEuAlign() { return eu_align_; }
 
   void allocate(std::vector<uint32_t> shapes, cvk_fmt_t fmt, uint8_t eu_align) {
     shapes_ = shapes;
@@ -212,9 +181,9 @@ public:
     assert(!cvk_tl_ && "Expect no allocated before");
     assert(shapes_.size() == 5 && "Expect 5D tensor");
 
-    cvk_tl_shape_t tl_shape = {
-        shapes_[NGCHW::N], shapes_[NGCHW::G] * shapes_[NGCHW::C],
-        shapes_[NGCHW::H], shapes_[NGCHW::W]};
+    cvk_tl_shape_t tl_shape = {shapes_[NGCHW::N],
+                               shapes_[NGCHW::G] * shapes_[NGCHW::C],
+                               shapes_[NGCHW::H], shapes_[NGCHW::W]};
     cvk_tl_ = ctx.lmem_alloc_tensor(tl_shape, fmt_, eu_align_);
     assert(cvk_tl_ && "Expect allocated");
 
@@ -266,7 +235,8 @@ private:
 class GlobalMemoryDescriptor : public MemoryDescriptor {
 public:
   GlobalMemoryDescriptor(const CviBackendContext &ctx,
-      std::vector<uint32_t> shapes, cvk_fmt_t fmt) : ctx(ctx) {
+                         std::vector<uint32_t> shapes, cvk_fmt_t fmt)
+      : ctx(ctx) {
     shapes_ = shapes;
     fmt_ = fmt;
 
@@ -280,7 +250,7 @@ public:
       return;
 
     strides_.resize(shapes_.size());
-    strides_[strides_.size() - 1]  = getDataFormatSize();
+    strides_[strides_.size() - 1] = getDataFormatSize();
     for (int i = (int)strides_.size() - 2; i >= 0; --i)
       strides_[i] = shapes_[i + 1] * strides_[i + 1];
   }
@@ -299,20 +269,16 @@ private:
 
 class Tdma {
 public:
-  Tdma(MemoryDescriptor *dst, MemoryDescriptor *src) : dst_(dst), src_(src) {
-
-  }
+  Tdma(MemoryDescriptor *dst, MemoryDescriptor *src) : dst_(dst), src_(src) {}
 
   void transfer() {
-    if (static_cast<GlobalMemoryDescriptor*>(dst_) &&
-        static_cast<LocalMemoryDescriptor*>(src_))
+    if (static_cast<GlobalMemoryDescriptor *>(dst_) &&
+        static_cast<LocalMemoryDescriptor *>(src_))
       load();
   }
 
 private:
-  void load() {
-
-  }
+  void load() {}
 
   MemoryDescriptor *dst_;
   MemoryDescriptor *src_;
@@ -324,7 +290,9 @@ public:
     LoadBiasCmdType,
     LoadInputCmdType,
     LoadWeightCmdType,
+    LoadScaleLutTblCmdType,
     ComputCmdType,
+    ComputeScaleLutCmdType,
     StoreOutputCmdType,
     ParallelCmdType
   };
@@ -332,55 +300,46 @@ public:
   CmdDescriptor(CmdTypeEnum cmdType, bool parallelEnabled)
       : cmdType_(cmdType), parallelEnabled_(parallelEnabled) {}
 
+  CmdDescriptor(CmdTypeEnum cmdType, uint32_t lmIndex) : cmdType_(cmdType) {
+    lmIndexes_.push_back(lmIndex);
+  }
   CmdDescriptor(CmdTypeEnum cmdType, std::vector<uint32_t> gmOutputPoss,
-      uint32_t lmIndex) : cmdType_(cmdType), gmOutputPoss_(gmOutputPoss) {
+                uint32_t lmIndex)
+      : cmdType_(cmdType), gmOutputPoss_(gmOutputPoss) {
     lmIndexes_.push_back(lmIndex);
   }
 
   CmdDescriptor(CmdTypeEnum cmdType, std::vector<uint32_t> gmOutputPoss,
-      uint32_t lmIndex, uint32_t icPos) : cmdType_(cmdType),
-      gmOutputPoss_(gmOutputPoss) {
+                uint32_t lmIndex, uint32_t icPos)
+      : cmdType_(cmdType), gmOutputPoss_(gmOutputPoss) {
     lmIndexes_.push_back(lmIndex);
     icPos_ = icPos;
   }
 
   CmdDescriptor(CmdTypeEnum cmdType, std::vector<uint32_t> gmOutputPoss,
-      std::vector<uint32_t> lmIndexes) : cmdType_(cmdType),
-      gmOutputPoss_(gmOutputPoss), lmIndexes_(lmIndexes) {}
+                std::vector<uint32_t> lmIndexes)
+      : cmdType_(cmdType), gmOutputPoss_(gmOutputPoss), lmIndexes_(lmIndexes) {}
 
   CmdDescriptor(CmdTypeEnum cmdType, std::vector<uint32_t> gmOutputPoss,
-      std::vector<uint32_t> lmIndexes, uint32_t icPos) : cmdType_(cmdType),
-      gmOutputPoss_(gmOutputPoss), lmIndexes_(lmIndexes), icPos_(icPos) {}
+                std::vector<uint32_t> lmIndexes, uint32_t icPos)
+      : cmdType_(cmdType), gmOutputPoss_(gmOutputPoss), lmIndexes_(lmIndexes),
+        icPos_(icPos) {}
 
   static std::string getCmdTypeStr(CmdTypeEnum cmdType);
 
-  CmdTypeEnum getCmdType() {
-    return cmdType_;
-  }
+  CmdTypeEnum getCmdType() { return cmdType_; }
 
-  std::vector<uint32_t> getGmOutputPoss() {
-    return gmOutputPoss_;
-  }
+  std::vector<uint32_t> getGmOutputPoss() { return gmOutputPoss_; }
 
-  std::vector<uint32_t> getLmIndexes() {
-    return lmIndexes_;
-  }
+  std::vector<uint32_t> getLmIndexes() { return lmIndexes_; }
 
-  bool isParallelEnabled() {
-    return parallelEnabled_;
-  }
+  bool isParallelEnabled() { return parallelEnabled_; }
 
-  void setIntraCmdParalEnabled(bool enabled) {
-    intraCmdParalEnabled_ = true;
-  }
+  void setIntraCmdParalEnabled(bool enabled) { intraCmdParalEnabled_ = true; }
 
-  bool isIntraCmdParalEnabled() {
-    return intraCmdParalEnabled_;
-  }
+  bool isIntraCmdParalEnabled() { return intraCmdParalEnabled_; }
 
-  uint32_t getIcPos() {
-    return icPos_;
-  }
+  uint32_t getIcPos() { return icPos_; }
 
 private:
   CmdTypeEnum cmdType_;
@@ -393,26 +352,26 @@ private:
 
 std::string CmdDescriptor::getCmdTypeStr(CmdTypeEnum cmdType) {
   switch (cmdType) {
-    case LoadBiasCmdType:
-      return "LoadBias";
+  case LoadBiasCmdType:
+    return "LoadBias";
 
-    case LoadInputCmdType:
-      return "LoadInput";
+  case LoadInputCmdType:
+    return "LoadInput";
 
-    case LoadWeightCmdType:
-      return "LoadWeight";
+  case LoadWeightCmdType:
+    return "LoadWeight";
 
-    case ComputCmdType:
-      return "Compute";
+  case ComputCmdType:
+    return "Compute";
 
-    case StoreOutputCmdType:
-      return "StoreOutput";
+  case StoreOutputCmdType:
+    return "StoreOutput";
 
-    case ParallelCmdType:
-      return "Parallel";
+  case ParallelCmdType:
+    return "Parallel";
 
-    default:
-      assert(0 && "Unexpected cmd type");
+  default:
+    assert(0 && "Unexpected cmd type");
   }
 
   return " ";
@@ -472,10 +431,7 @@ public:
 
   // Simplified data dependency process based on hand-crafted double-buffer
   // assignment.
-  enum AccessEvent {
-    WriteEvent,
-    ReadEvent
-  };
+  enum AccessEvent { WriteEvent, ReadEvent };
   enum AccessState {
     UnknownState,
     WriteState,
@@ -486,10 +442,11 @@ public:
 
   struct CmdLmState {
     CmdLmState(CmdDescriptor::CmdTypeEnum cmdType,
-        std::vector<AccessState> biass, std::vector<AccessState> weights,
-        std::vector<AccessState> inputs, std::vector<AccessState> outputs) :
-        cmdType_(cmdType), biass_(biass), weights_(weights), inputs_(inputs),
-        outputs_(outputs) {}
+               std::vector<AccessState> biass, std::vector<AccessState> weights,
+               std::vector<AccessState> inputs,
+               std::vector<AccessState> outputs)
+        : cmdType_(cmdType), biass_(biass), weights_(weights), inputs_(inputs),
+          outputs_(outputs) {}
 
     CmdDescriptor::CmdTypeEnum cmdType_;
     std::vector<AccessState> biass_;
@@ -505,9 +462,9 @@ public:
   void receiveAccessEvent(AccessState *state, AccessEvent event);
 
   uint32_t reverseSearchBiasOrWeight(AccessState state, uint32_t lmIndex,
-      uint32_t endQueueIndex);
+                                     uint32_t endQueueIndex);
   uint32_t searchStoreOutput(AccessState state, uint32_t lmIndex,
-      uint32_t startQueueIndex);
+                             uint32_t startQueueIndex);
 
   bool isIntrCmdParalTiu(uint32_t index);
   bool isIntrCmdParalLoadWeight(uint32_t index, uint32_t lmWeightIndex);
@@ -529,7 +486,6 @@ private:
   // Record local memory status of each command
   std::vector<std::unique_ptr<CmdLmState>> cmdLmStates_;
 };
-
 
 // Manual CMODEL Debug:
 //   Backend:
@@ -612,7 +568,7 @@ struct CModelDebug {
   }
 
   bool isOutputMatched(uint32_t layerId, std::vector<uint32_t> gmOutputPoss,
-      bool isWeightOrBias = false) {
+                       bool isWeightOrBias = false) {
     if (!enabled_ || (layerId_ != layerId))
       return false;
 
@@ -633,8 +589,7 @@ struct CModelDebug {
     return false;
   }
 
-  void updateLayerId(uint32_t &layerId,
-      std::vector<uint32_t> gmOutputPoss) {
+  void updateLayerId(uint32_t &layerId, std::vector<uint32_t> gmOutputPoss) {
 
     if (isOutputMatched(layerId, gmOutputPoss)) {
       layerId = (1 << 15) | layerId;
@@ -642,7 +597,7 @@ struct CModelDebug {
   }
 
   void recordGmInfo(GmInfo &entity, uint64_t addr, uint64_t addrOffset,
-      std::vector<uint32_t> poss, std::vector<uint32_t> shapes) {
+                    std::vector<uint32_t> poss, std::vector<uint32_t> shapes) {
     entity.addr = addr;
     entity.addrOffset = addrOffset;
     entity.poss = poss;
@@ -650,8 +605,8 @@ struct CModelDebug {
   }
 
   void recordOutput(uint32_t layerId, std::vector<uint32_t> gmOutputPoss,
-      uint64_t addr, uint64_t addrOffset, std::vector<uint32_t> gmOutputShapes)
-  {
+                    uint64_t addr, uint64_t addrOffset,
+                    std::vector<uint32_t> gmOutputShapes) {
     if (isOutputMatched(layerId, gmOutputPoss)) {
       recordGmInfo(output_, addr, addrOffset, gmOutputPoss, gmOutputShapes);
       found_ = true;
@@ -659,8 +614,10 @@ struct CModelDebug {
   }
 
   void recordInput(uint32_t layerId, std::vector<uint32_t> gmOutputPoss,
-      uint64_t addr, uint64_t addrOffset, std::vector<uint32_t> gmInputPoss,
-      std::vector<uint32_t> gmInputShapes, bool ignoreOutputChannel) {
+                   uint64_t addr, uint64_t addrOffset,
+                   std::vector<uint32_t> gmInputPoss,
+                   std::vector<uint32_t> gmInputShapes,
+                   bool ignoreOutputChannel) {
 
     if (!enabled_)
       return;
@@ -675,15 +632,17 @@ struct CModelDebug {
   }
 
   void recordWeight(uint32_t layerId, std::vector<uint32_t> gmOutputPoss,
-      uint64_t addr, uint64_t addrOffset, std::vector<uint32_t> gmWeightPoss,
-      std::vector<uint32_t> gmWeightShapes) {
+                    uint64_t addr, uint64_t addrOffset,
+                    std::vector<uint32_t> gmWeightPoss,
+                    std::vector<uint32_t> gmWeightShapes) {
     if (isOutputMatched(layerId, gmOutputPoss, true))
       recordGmInfo(weight_, addr, addrOffset, gmWeightPoss, gmWeightShapes);
   }
 
   void recordBias(uint32_t layerId, std::vector<uint32_t> gmOutputPoss,
-      uint64_t addr, uint64_t addrOffset, std::vector<uint32_t> gmBiasPoss,
-      std::vector<uint32_t> gmBiasShapes) {
+                  uint64_t addr, uint64_t addrOffset,
+                  std::vector<uint32_t> gmBiasPoss,
+                  std::vector<uint32_t> gmBiasShapes) {
     if (isOutputMatched(layerId, gmOutputPoss, true))
       recordGmInfo(bias_, addr, addrOffset, gmBiasPoss, gmBiasShapes);
   }
@@ -726,7 +685,7 @@ struct Conv_ARGS {
   float *activation_arg;
   int activation_gt_scale;
   int activation_gt_rshift;
-  int activation_le_scale;  // slope; TODO
+  int activation_le_scale; // slope; TODO
   int activation_le_rshift;
   int right_shift_width;
   bool do_chl_quan;
@@ -748,6 +707,8 @@ struct Conv_ARGS {
   uint8_t gm_weight_region;
   bool ps32_output;
   int pad_value;
+  bool do_scale_lut;
+  gaddr_t ga_scale_lut;
 };
 
 typedef struct {
@@ -830,6 +791,7 @@ public:
   void initializeGlobalMemOutput();
   void initializeGlobalMemWeight();
   void initializeGlobalBias();
+  void initializeGlobalScaleLut();
   void initializeGlobalMem();
 
   void initializeFusedActivation();
@@ -852,6 +814,8 @@ public:
   void deallocateLocalMemOfBias();
   void allocateLocalMemOfFusedActivation();
   void deallocateLocalMemOfFusedActivation();
+  void allocateLocalMemOfPreProcess();
+  void deallocateLocalMemOfPreProcess();
   void allocateAllLocalMem();
   void deallocateAllLocalMem();
 
@@ -864,67 +828,73 @@ public:
   uint32_t getTiledEuAlignForLmAllocationOfWeight();
   uint32_t getTiledEuAlignForLmAllocationOfBias();
 
-  std::vector<uint32_t> getTiledGmShapesOfWeightForTdmaLoad(
-      std::vector<uint32_t> gmOutputPoss, uint32_t icPos);
-  std::vector<uint32_t> getTiledLmShapesOfWeightForTiu(
-      std::vector<uint32_t> gmOutputPoss, uint32_t icPos);
+  std::vector<uint32_t>
+  getTiledGmShapesOfWeightForTdmaLoad(std::vector<uint32_t> gmOutputPoss,
+                                      uint32_t icPos);
+  std::vector<uint32_t>
+  getTiledLmShapesOfWeightForTiu(std::vector<uint32_t> gmOutputPoss,
+                                 uint32_t icPos);
 
   void getTiledGmPossAndShapesOfInputForTiu(
       std::vector<uint32_t> gmOutputPoss,
       std::vector<uint32_t> gmOutputPossShapes,
       std::vector<uint32_t> &cur_gm_input_poss,
       std::vector<uint32_t> &cur_gm_input_shapes,
-      std::vector<uint32_t> &cur_gm_input_paddings,
-      uint32_t ic_pos);
+      std::vector<uint32_t> &cur_gm_input_paddings, uint32_t ic_pos);
 
-  std::vector<uint32_t> getTiledGmShapesOfBiasForTdmaLoad(
-      std::vector<uint32_t> gmOutputPoss);
-  std::vector<uint32_t> getTiledLmShapesOfBiasForTiu(
-      std::vector<uint32_t> gmOutputPoss);
+  std::vector<uint32_t>
+  getTiledGmShapesOfBiasForTdmaLoad(std::vector<uint32_t> gmOutputPoss);
+  std::vector<uint32_t>
+  getTiledLmShapesOfBiasForTiu(std::vector<uint32_t> gmOutputPoss);
 
-  std::vector<uint32_t> getTiledGmShapesOfOutputForTiu(
-      std::vector<uint32_t> gmOutputPoss);
+  std::vector<uint32_t>
+  getTiledGmShapesOfOutputForTiu(std::vector<uint32_t> gmOutputPoss);
 
   void fillConstantLmInput(cvk_tl_t *lmLoad,
-      std::vector<uint32_t> &cur_gm_input_paddings);
-  void adjustComputeForPadOnlyInput(cvk_tl_t *lmInput,
-      std::vector<uint32_t> &cur_gm_input_paddings);
+                           std::vector<uint32_t> &cur_gm_input_paddings);
+  void
+  adjustComputeForPadOnlyInput(cvk_tl_t *lmInput,
+                               std::vector<uint32_t> &cur_gm_input_paddings);
   void adjustComputeForPs32Output(cvk_tl_t *lmOutput);
   void adjustStoreForPs32Output(cvk_tl_t *lmOutput, cvk_tg_t *gmOutput,
                                 uint64_t ga_offset);
 
   void loadBias(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
-      uint32_t cmdQueueIndex);
+                uint32_t cmdQueueIndex);
   void loadWeight(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
-      uint32_t cmdQueueIndex, uint32_t icPos = 0);
+                  uint32_t cmdQueueIndex, uint32_t icPos = 0);
   void loadInput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
-      uint32_t cmdQueueIndex, uint32_t ic_pos = 0);
+                 uint32_t cmdQueueIndex, uint32_t ic_pos = 0);
   void loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
-      std::vector<uint32_t> gmInputPoss, cvk_tl_t *tl_dst, cvk_tg_t *tg_src);
-  void computeConv(
-      cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
-      cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
-      uint8_t cmdPreExeMode, uint32_t icPos = 0);
-  void computePerTensorConv(
-      cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
-      cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
-      uint8_t cmdPreExeMode, uint32_t icPos = 0);
-  void computeDwConv(
-      cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
-      cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
-      uint8_t cmdPreExeMode, uint32_t icPos = 0);
-  void computePerTensorDwConv(
-      cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
-      cvk_tl_t *tl_bias, std::vector<uint32_t> &cur_gm_input_paddings,
-      uint8_t cmdPreExeMode, uint32_t icPos = 0);
+                                  std::vector<uint32_t> gmInputPoss,
+                                  cvk_tl_t *tl_dst, cvk_tg_t *tg_src);
+  void loadScaleLutTable(uint32_t lmIndex, uint32_t cmdQueueIndex);
+  void computeConv(cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
+                   cvk_tl_t *tl_bias,
+                   std::vector<uint32_t> &cur_gm_input_paddings,
+                   uint8_t cmdPreExeMode, uint32_t icPos = 0);
+  void computePerTensorConv(cvk_tl_t *tl_output, cvk_tl_t *tl_input,
+                            cvk_tl_t *tl_weight, cvk_tl_t *tl_bias,
+                            std::vector<uint32_t> &cur_gm_input_paddings,
+                            uint8_t cmdPreExeMode, uint32_t icPos = 0);
+  void computeDwConv(cvk_tl_t *tl_output, cvk_tl_t *tl_input,
+                     cvk_tl_t *tl_weight, cvk_tl_t *tl_bias,
+                     std::vector<uint32_t> &cur_gm_input_paddings,
+                     uint8_t cmdPreExeMode, uint32_t icPos = 0);
+  void computePerTensorDwConv(cvk_tl_t *tl_output, cvk_tl_t *tl_input,
+                              cvk_tl_t *tl_weight, cvk_tl_t *tl_bias,
+                              std::vector<uint32_t> &cur_gm_input_paddings,
+                              uint8_t cmdPreExeMode, uint32_t icPos = 0);
   void computeLeakyRelu(cvk_tl_t *tl_output);
   void compute(std::vector<uint32_t> gmOutputPoss,
-      std::vector<uint32_t> lmIndexes, uint32_t cmdQueueIndex,
-      uint32_t icPos = 0);
+               std::vector<uint32_t> lmIndexes, uint32_t cmdQueueIndex,
+               uint32_t icPos = 0);
+  void computeScaleLut(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
+                       uint32_t cmdQueueIndex, uint32_t icPos = 0);
   void storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
-      cvk_tg_t *dst, cvk_tl_t *src);
+                                    cvk_tg_t *dst, cvk_tl_t *src);
   void storeOutput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
-      uint32_t cmdQueueIndex);
+                   uint32_t cmdQueueIndex);
 
   uint32_t getPs32Mode(uint32_t icPos);
   bool getReluAllowed(uint32_t icPos);
@@ -946,10 +916,14 @@ public:
   void enqueueLoadWeightCmd(std::vector<uint32_t> poss, uint32_t index);
   void enqueueLoadWeightCmd(std::vector<uint32_t> poss, uint32_t index,
                             uint32_t icPos);
+  void enqueueLoadScaleLutTblCmd();
   void enqueueComputeCmd(std::vector<uint32_t> poss,
                          std::vector<uint32_t> indexes);
   void enqueueComputeCmd(std::vector<uint32_t> poss,
                          std::vector<uint32_t> indexes, uint32_t icPos);
+  void enqueueComputeScaleLutCmd(std::vector<uint32_t> poss, uint32_t index);
+  void enqueueComputeScaleLutCmd(std::vector<uint32_t> poss, uint32_t index,
+                                 uint32_t icPos);
   void enqueueDisParallelCmd();
   void enqueueEnParallelCmd();
 
@@ -958,25 +932,15 @@ public:
   // CMODEL Debug
   void configCModelDebug();
 
-  uint32_t batch_size() {
-    return args.input_n;
-  }
+  uint32_t batch_size() { return args.input_n; }
 
-  uint32_t input_height() {
-    return args.input_h;
-  }
+  uint32_t input_height() { return args.input_h; }
 
-  uint32_t input_width() {
-    return args.input_w;
-  }
+  uint32_t input_width() { return args.input_w; }
 
-  uint32_t insert_height() {
-    return args.insert_h;
-  }
+  uint32_t insert_height() { return args.insert_h; }
 
-  uint32_t insert_width() {
-    return args.insert_w;
-  }
+  uint32_t insert_width() { return args.insert_w; }
 
   uint32_t inserted_input_height() {
     return args.input_h + (args.input_h - 1) * args.insert_h;
@@ -986,53 +950,29 @@ public:
     return args.input_w + (args.input_w - 1) * args.insert_w;
   }
 
-  uint32_t groups() {
-    return args.groups;
-  }
+  uint32_t groups() { return args.groups; }
 
-  uint32_t group_input_channels() {
-    return args.input_c / args.groups;
-  }
+  uint32_t group_input_channels() { return args.input_c / args.groups; }
 
-  uint32_t group_output_channels() {
-    return args.output_c / args.groups;
-  }
+  uint32_t group_output_channels() { return args.output_c / args.groups; }
 
-  uint32_t kernel_height() {
-    return args.kh;
-  }
+  uint32_t kernel_height() { return args.kh; }
 
-  uint32_t kernel_width() {
-    return args.kw;
-  }
+  uint32_t kernel_width() { return args.kw; }
 
-  uint32_t dilation_height() {
-    return args.dilation_h;
-  }
+  uint32_t dilation_height() { return args.dilation_h; }
 
-  uint32_t dilation_width() {
-    return args.dilation_w;
-  }
+  uint32_t dilation_width() { return args.dilation_w; }
 
-  uint32_t padding_top() {
-    return args.pad_top;
-  }
+  uint32_t padding_top() { return args.pad_top; }
 
-  uint32_t padding_bottom() {
-    return args.pad_bottom;
-  }
+  uint32_t padding_bottom() { return args.pad_bottom; }
 
-  uint32_t padding_left() {
-    return args.pad_left;
-  }
+  uint32_t padding_left() { return args.pad_left; }
 
-  uint32_t padding_right() {
-    return args.pad_right;
-  }
+  uint32_t padding_right() { return args.pad_right; }
 
-  int pad_value(){
-    return args.pad_value;
-  }
+  int pad_value() { return args.pad_value; }
 
   uint32_t subsampling_height() {
     assert(args.stride_h >= 1);
@@ -1053,22 +993,22 @@ public:
   }
 
   uint32_t output_height() {
-    uint32_t padded_input_height = padding_top() + inserted_input_height() +
-                                   padding_bottom();
+    uint32_t padded_input_height =
+        padding_top() + inserted_input_height() + padding_bottom();
     return (padded_input_height - dilated_kernel_height()) /
-              subsampling_height() + 1;
+               subsampling_height() +
+           1;
   }
 
   uint32_t output_width() {
-    uint32_t padded_input_width = padding_left() + inserted_input_width() +
-                                  padding_right();
-    return (padded_input_width - dilated_kernel_width()) / subsampling_width()
-              + 1;
+    uint32_t padded_input_width =
+        padding_left() + inserted_input_width() + padding_right();
+    return (padded_input_width - dilated_kernel_width()) / subsampling_width() +
+           1;
   }
 
   uint32_t getLmSizePerLane() {
-    return static_cast<uint32_t>(
-        ctx.cvi_chip_info_context(CVI_CHIP_LMEM_SIZE));
+    return static_cast<uint32_t>(ctx.cvi_chip_info_context(CVI_CHIP_LMEM_SIZE));
   }
 
   enum TilePolicy {
@@ -1107,6 +1047,7 @@ private:
   std::unique_ptr<GlobalMemoryDescriptor> gmOutputDesc;
   std::unique_ptr<GlobalMemoryDescriptor> gmWeightDesc;
   std::unique_ptr<GlobalMemoryDescriptor> gmBiasDesc;
+  std::unique_ptr<GlobalMemoryDescriptor> gmScaleLutDesc;
 
   // Local memory descriptor
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmInputDescs;
@@ -1114,6 +1055,7 @@ private:
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmWeightDescs;
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmBiasDescs;
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmFusedActDescs;
+  std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmPreProcessDescs;
 
   // Collection of tiled commands
   std::vector<std::unique_ptr<CmdDescriptor>> cmdQueue;

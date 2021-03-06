@@ -794,38 +794,46 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
                      this->compressed_weight().getValue() : false;
 
+  // Backend fuse previous scale lut op
+  gaddr_t ga_scale_lut = GA_INVALID;
+  auto prevOp = op->getOperand(0).getDefiningOp();
+  if (auto prevTpuOp = llvm::dyn_cast<tpu::TG_INT8_ScaleLutOp>(prevOp)) {
+    ga_scale_lut = getWeightOpAddress(prevTpuOp.table().getDefiningOp());
+    ga_input = getPreviousOpAddress(prevOp);
+  }
+
   cvi_backend_tg_fixed_conv_kernel(
       *backend_ctx,
-      layer_id, // layer_id,
+      layer_id,   // layer_id,
       ga_input,   // input_data_gaddr,
       ga_output,  // output_data_gaddr,
       ga_filter,  // weight_data_gaddr,
       ga_pc_info, // bias_data_gaddr,
       n, ic, ih, iw,
-      g, // group,
+      g,                                  // group,
       oc,
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
-      0, 0, //ins_h, ins_w
+      0, 0,                               // ins_h, ins_w
       sh, sw,
-      with_bias, // bias_term,
-      do_relu ? 1 : 0, // do_activation,
-      do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
-      fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
-      fused_leakyrelu_pos_rshift,         // activation_gt_rshift,
-      fused_leakyrelu_neg_m_i8,           // activation_le_scale,
-      fused_leakyrelu_neg_rshift,         // activation_le_rshift,
-      0,         // (int)rshift[0], //right_shift_width,
-      true,      // do_chl_quan
+      with_bias,                                 // bias_term,
+      do_relu ? 1 : 0,                           // do_activation,
+      do_relu ? &fused_negative_slope : nullptr, // activation_arg,
+      fused_leakyrelu_pos_m_i8,                  // activation_gt_scale,
+      fused_leakyrelu_pos_rshift,                // activation_gt_rshift,
+      fused_leakyrelu_neg_m_i8,                  // activation_le_scale,
+      fused_leakyrelu_neg_rshift,                // activation_le_rshift,
+      0,    // (int)rshift[0], //right_shift_width,
+      true, // do_chl_quan
       do_ic_alignment,
       store_cmpr_act,
       load_cmpr_act,
       do_cmpr_wgt,
       store_cmpr_act_c_step,
       load_cmpr_act_c_step,
-      pad_value // pad_value
-      );
+      pad_value, // pad_value
+      ga_scale_lut);
 
   return success();
 }
@@ -1958,6 +1966,17 @@ LogicalResult tpu::TG_INT8_ScaleLutOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   gaddr_t table_gaddr = getWeightOpAddress(table().getDefiningOp());
   int layer_id = getOpLayerId(op);
+
+  // backend tg conv fusion only
+  if (op->getResult(0).hasOneUse()) {
+    for (auto &use : op->getResult(0).getUses()) {
+      auto useOp = use.getOwner();
+      if (llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
+        LLVM_DEBUG(llvm::dbgs() << "  fused to conv\n";);
+        return success();
+      }
+    }
+  }
 
   cvi_backend_tg_scale_lut_kernel(*backend_ctx,
                                   layer_id, // layer_id,
