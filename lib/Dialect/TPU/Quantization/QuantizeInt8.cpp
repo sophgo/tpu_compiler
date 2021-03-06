@@ -614,8 +614,8 @@ LogicalResult quantizeInt8ScaleLutOps(Operation *op) {
   std::vector<float> bias;
   arrayAttrToVector(castOp.scale(), scale);
   arrayAttrToVector(castOp.bias(), bias);
-  assert(scale.size() == (uint64_t)c);
-  assert(bias.size() == (uint64_t)c);
+  assert(scale.size() >= (uint64_t)c);
+  assert(bias.size() >= (uint64_t)c);
 
   int table_h = 16;
   int table_w = 16;
