@@ -420,10 +420,10 @@ public:
     llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n";
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
-    std::regex old_pattern("[a-zA-Z0-9.:;_\\/-]+ [-0-9.e]+");
+    std::regex old_pattern("[a-zA-Z0-9.:;@_\\/-]+ [-0-9.e]+");
     std::regex new_pattern(
-        "[a-zA-Z0-9.:;_\\/-]+ [-0-9.e]+ [-0-9.e]+ [-0-9.e]+");
-    std::regex weight_pattern("weight [a-zA-Z0-9.:;_\\/-]+ .*");
+        "[a-zA-Z0-9.:;@_\\/-]+ [-0-9.e]+ [-0-9.e]+ [-0-9.e]+");
+    std::regex weight_pattern("weight [a-zA-Z0-9.:;@_\\/-]+ .*");
     std::regex info_pattern("#.*");
     while (std::getline(infile, line)) {
       std::istringstream iss(line);
