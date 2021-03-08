@@ -7,6 +7,30 @@
 
 namespace mlir {
 
+class ReduceL2OpKernel : public CPUOpKernel<ReduceL2OpKernel> {
+public:
+  static constexpr const char *OpName = "CPUReduceL2Op";
+
+  ReduceL2OpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+  void set_tensor(const std::vector<float> &data) override;
+  std::vector<float> get_tensor() override;
+  void dump() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  // param
+  std::vector<int> axes;
+
+  // int8
+  int rshift;
+  int multiplier;
+};
+
 class ReduceMaxOpKernel : public CPUOpKernel<ReduceMaxOpKernel> {
 public:
   static constexpr const char *OpName = "CPUReduceMaxOp";

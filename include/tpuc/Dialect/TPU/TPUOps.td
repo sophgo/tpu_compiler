@@ -2984,6 +2984,58 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
   let hasCanonicalizer = 1;
 }
 
+def TPU_ReduceL2Op: TPU_Op<"reduce_l2",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>
+      ]> {
+  let summary = "ReduceL2 operator";
+
+  let description = [{
+    Perform ReduceL2 on input. Computes the L2 norm of the input tensor's element along the provided axes. The resulted tensor has the same rank as the input if keepdims equal 1. If keepdims equal 0, then the resulted tensor have the reduced dimension pruned.
+   their will derive as below:
+   reduced = np.sqrt(np.sum(
+               a=np.square(data), axis=axes, keepdims=keepdims == 1))
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `axes`            : along which axis to do reduce
+      `keepdims`        : whether to keep the reduce dim
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    OptionalAttr<I32ArrayAttr>:$axes,
+    DefaultValuedAttr<BoolAttr, "false">:$keepdims,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

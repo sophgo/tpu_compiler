@@ -1744,7 +1744,15 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   bool do_relu = this->do_relu();
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  auto rhs = filter().getDefiningOp();
+  gaddr_t ga_filter;
+  if (isa<tpu::LoadWeightOp>(rhs)) {
+    ga_filter = getWeightOpAddress(rhs);
+  }
+  else {
+    ga_filter = getOpAddress(rhs);
+  }
+
   gaddr_t ga_bias = GA_INVALID;
   bool with_bias = false;
   if ( !isTensorNone(bias()) ) {
@@ -1780,7 +1788,14 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   bool do_relu = this->do_relu();
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  gaddr_t ga_filter;
+  auto rhs = filter().getDefiningOp();
+  if (isa<tpu::LoadWeightOp>(rhs)) {
+    ga_filter = getWeightOpAddress(rhs);
+  }
+  else {
+    ga_filter = getOpAddress(rhs);
+  }
   gaddr_t ga_bias = GA_INVALID;
   bool with_bias = false;
   if ( !isTensorNone(bias()) ) {

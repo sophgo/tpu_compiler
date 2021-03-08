@@ -48,7 +48,11 @@ static void hardwareLookUpTable(float *input, float *output, int size,
 }
 
 void relu(float *src, float *dst, size_t size) {
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+  int schedule = size / omp_get_num_threads();
+  if (schedule == 0) {
+    schedule = 1; // size = 1 case
+  }
+#pragma omp parallel for schedule(static, schedule)
   for (size_t i = 0; i < size; ++i) {
     dst[i] = src[i] > 0 ? src[i] : 0;
   }

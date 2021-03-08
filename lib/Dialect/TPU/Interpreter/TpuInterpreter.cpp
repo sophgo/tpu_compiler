@@ -3883,6 +3883,36 @@ LogicalResult tpu::PadOp::interpret(
   return success();
 }
 
+LogicalResult tpu::ReduceL2Op::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  Operation *op = this->getOperation();
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+
+  auto opdT = getOperandTensors(op, valueMapping);
+  std::shared_ptr<std::vector<float> > input = opdT[0];
+  auto result = this->getResult();
+  std::vector<int64_t> shape = getTensorShape(result);
+  auto size = getTensorSize(result);
+  auto resultT = std::make_unique<std::vector<float> >(size);
+
+  // parse param
+  std::vector<int32_t> axes;
+  arrayAttrToVector(this->axes().getValue(), axes);
+
+  std::vector<int64_t> input_shape = getTensorShape(this->input());
+
+  if (getOpQuant() == "INT8") {
+    llvm_unreachable("unsupported int8 for reducel2");
+  } else {
+    // float32, bf16
+    int ret = my_reduce_l2(input->data(), resultT->data(), input_shape, axes);
+    assert(ret == 0);
+  }
+
+  valueMapping[result] = std::move(resultT);
+  return success();
+}
+
 LogicalResult tpu::ReduceMeanOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();

@@ -106,6 +106,13 @@ void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
     float *new_filter, float *new_bias,
     float *rshift_per_layer, float *multiplier_per_layer);
 
+void quantizeBiasInt8PerLayerMultiplier(float *bias,
+    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
+    float *new_filter, float *new_bias,
+    float *rshift_per_layer, float *multiplier_per_layer, double qscale,
+    bool qdm);
+
+
 void quantizeWeightInt8Multiplier(float *filter, float *bias,
     int64_t oc, int64_t isz, float threshold_y, float threshold_x,
     float *new_filter, float *new_bias,

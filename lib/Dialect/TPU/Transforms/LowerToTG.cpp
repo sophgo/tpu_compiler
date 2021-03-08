@@ -2180,6 +2180,46 @@ Value tpu::UpsampleOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::ReduceL2Op::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto castOp = cast<ReduceL2Op>(op);
+
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+  //std::vector<Value> operands(op->getOperands().begin(),
+  //    op->getOperands().end());
+
+  std::vector<NamedAttribute> attrs;
+  std::vector<NamedAttribute> param;
+  for (auto &attr : castOp->getAttrs()) {
+    if (attr.first == "name" || attr.first == "gaddr" ||
+        attr.first == "quant") {
+      continue;
+    }
+    param.push_back(attr);
+  }
+
+  auto operationAttr = builder.getStringAttr(castOp.getOperationName());
+  auto paramAttr = builder.getDictionaryAttr(param);
+
+  attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
+  attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+  attrs.push_back(builder.getNamedAttr("param", paramAttr));
+
+  // TODO: tpu support
+  auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(op->getLoc(),
+          castOp.getResult().getType(), ArrayRef<Value>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+  return newOp.getResult();
+}
+
 Value tpu::ReduceMeanOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -3204,10 +3244,25 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
   LogicalResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
     auto fcOp = cast<tpu::FullyConnectedOp>(op);
-    auto filterOp = cast<tpu::LoadWeightOp>(fcOp.filter().getDefiningOp());
-    if (filterOp.lowered()) {
+    auto filterOp =
+      llvm::dyn_cast_or_null<tpu::LoadWeightOp>(fcOp.filter().getDefiningOp());
+
+    // filterOp is null means rhs is activation
+    if (filterOp && filterOp.lowered()) {
       // lowered already
       return failure();
+    }
+
+    if (!filterOp) {
+      // rhs activation case
+      if (isTensorNone(fcOp.bias())) {
+          return failure();
+      }
+
+      auto biasOp = cast<tpu::LoadWeightOp>(fcOp.bias().getDefiningOp());
+      if (biasOp.lowered()) {
+          return failure();
+      }
     }
     LLVM_DEBUG(llvm::errs() << "Lower Weight for FullyConnectedOp: "
                             << getOpName(op) << "\n";);
@@ -3215,6 +3270,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
 
     if (getOpQuant(op) == "INT8") {
       // lower filter
+      if (filterOp)
       {
         assert(filterOp.storage() == "INT8");
         std::vector<int64_t> shape;
@@ -3256,6 +3312,7 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
       }
     } else if (getOpQuant(op) == "BF16") {
       // lower filter
+      if (filterOp)
       {
         assert(filterOp.storage() == "BF16");
         std::vector<int64_t> shape;
@@ -4545,6 +4602,7 @@ public:
         DefaultToTGPattern<tpu::ExpOp>,
         DefaultToTGPattern<tpu::TileOp>,
         DefaultToTGPattern<tpu::UpsampleOp>,
+        DefaultToTGPattern<tpu::ReduceL2Op>,
         DefaultToTGPattern<tpu::ReduceMeanOp>,
         DefaultToTGPattern<tpu::ReduceMaxOp>,
         DefaultToTGPattern<tpu::GruOp>,

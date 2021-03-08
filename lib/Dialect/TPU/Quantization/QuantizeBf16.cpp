@@ -351,11 +351,16 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
   TensorFile *wTF = getWeightTensorFile(op);
 
-  // get filter tensor
-  auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
+  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(fcOp.filter().getDefiningOp());
+  std::unique_ptr<std::vector<float> > filter;
   std::vector<int64_t> filterShape;
   int64_t filterSize;
-  getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
+
+  // get filter tensor
+  if (weightOp) {
+    filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
+    getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
+  }
 
   // get bias tensor
   std::unique_ptr<std::vector<float> > bias = nullptr;
@@ -366,15 +371,18 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
     getTensorShapeAndSize(fcOp.bias(), biasShape, biasSize);
   }
 
-  // create new tensors
-  auto new_filter = std::make_unique<std::vector<bfloat16> >(filterSize);
+  if (weightOp) {
+    // create new tensors
+    auto new_filter = std::make_unique<std::vector<bfloat16> >(filterSize);
 
-  // quantization
-  FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
+    // quantization
+    FloatToBFloat16(filter->data(), new_filter->data(), filterSize);
 
-  // update op
-  addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(1),
-      "quant", *new_filter, filterShape, "BF16", wTF);
+    // update op
+    addWeightTensorAndUpdateWeightOp<bfloat16>(fcOp.getOperand(1),
+        "quant", *new_filter, filterShape, "BF16", wTF);
+  }
+
   if (bias) {
     addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(2),
         "quant", *bias, biasShape, "FP32", wTF);
@@ -1076,6 +1084,7 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PowerOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReluOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReorgOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ROIPoolingOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceL2Op)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMeanOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMaxOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReverseOp)

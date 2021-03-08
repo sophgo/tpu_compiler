@@ -958,6 +958,7 @@ public:
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect()->getNamespace() != "tpu"
           || isa<tpu::ReshapeOp>(op)
+          || isa<tpu::ReduceL2Op>(op)
           || isa<tpu::InputOp>(op)
           || isa<tpu::InstanceNormOp>(op)
           || isa<tpu::ROIPoolingOp>(op)
@@ -1050,6 +1051,7 @@ public:
           || isa<tpu::InputOp>(op)
           || isa<tpu::QuantOp>(op)
           || isa<tpu::InstanceNormOp>(op)
+          || isa<tpu::ReduceL2Op>(op)
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::ROIPoolingOp>(op)
           || isa<tpu::SoftmaxCpuOp>(op)) {

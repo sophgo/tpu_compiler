@@ -311,6 +311,12 @@ public:
   LogicalResult matchAndRewrite(TensorTyOp fcOp,
                                 PatternRewriter &rewriter) const override {
 
+    auto filterOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(fcOp.filter().getDefiningOp());
+    if (!filterOp) {
+      // filterOp is null means rhs is activation
+      return failure();
+    }
+
     // Step size must generated first
     if (!fcOp.tile_param().hasValue())
       return failure();

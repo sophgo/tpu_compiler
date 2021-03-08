@@ -48,6 +48,7 @@ class TPU_OpType(Enum):
     Eltwise_Max = 'tpu.eltwise_max'
     Eltwise_Min = 'tpu.eltwise_min'
     Eltwise_Mul = 'tpu.eltwise_mul'
+    Equal = 'tpu.equal'
     Exp = 'tpu.exp'
     FullyConnected = 'tpu.fully_connected'
     FrcnDetection = 'tpu.frcn_detection'
@@ -87,11 +88,13 @@ class TPU_OpType(Enum):
     Sigmoid = 'tpu.sigmoid'
     Slice = 'tpu.slice'
     Softmax = 'tpu.softmax'
+    Sqrt = 'tpu.sqrt'
     SwapChannel = 'tpu.swap_channel'
     Tanh = 'tpu.tanh'
     Tile = 'tpu.tile'
     Upsample = 'tpu.upsample'
     YoloDetection = 'tpu.yolo_detection'
+    ReduceL2 = 'tpu.reduce_l2'
     ReduceMean = 'tpu.reduce_mean'
     ReduceMax = 'tpu.reduce_max'
     MatMul = 'tpu.matmul'
@@ -854,6 +857,12 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Eltwise_Mul.value, inputOperands, [
             tensor_output_type], name=eltwise_mul, quant=self.quant_param)
 
+    def add_equal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tg_extra_ops = 4 # reserver for quant op
+        return self._add_op(op_name, inputOperands, output_tensor_shape,
+                TPU_OpType.Equal.value, tg_extra_ops, **kargs)
+
+
     def add_exp_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
@@ -1549,6 +1558,18 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Slice.value, inputOperands, [
             tensor_output_type], name=slice_name, quant=self.quant_param, **attr_dict)
 
+    def add_sqrt_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        sqrt_name = StringAttr.get(op_name)
+        none = self.add_none_op()
+        # We assigne 4 reg for sqrt quant table
+        for _ in range(2):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.Sqrt.value, inputOperands, [
+            tensor_output_type], name=sqrt_name, quant=self.quant_param)
+
     def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, cpu_mode=False, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
@@ -1631,6 +1652,23 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Upsample.value, inputOperands, [
             tensor_output_type], name=upsample_name, quant=self.quant_param, **upsample_param)
+
+    def add_reduce_l2_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        checkKey(kargs, 'axes')
+
+        reduce_name = StringAttr.get(op_name)
+        axes = ArrayAttr.get([IntegerAttr.get(self.i32Type, x)
+                              for x in kargs['axes']])
+        reduce_param = {
+            'axes': axes
+        }
+        none = self.add_none_op()
+        for _ in range(5 - len(inputOperands)):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.ReduceL2.value, inputOperands, [
+            tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
 
     def add_reduce_mean_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

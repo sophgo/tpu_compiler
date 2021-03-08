@@ -353,6 +353,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(quant_kernel_op));
     return;
   }
+  if (isa<tpu::ReduceL2Op>(op)) {
+    auto r_kernel_op = std::make_unique<ReduceL2OpKernel>(op, valueMapping);
+    oplist.push_back(std::move(r_kernel_op));
+    return;
+  }
   if (isa<tpu::ReduceMaxOp>(op)) {
     auto r_kernel_op = std::make_unique<ReduceMaxOpKernel>(op, valueMapping);
     oplist.push_back(std::move(r_kernel_op));

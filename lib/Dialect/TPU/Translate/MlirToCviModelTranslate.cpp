@@ -302,6 +302,21 @@ void CviCpuRoutine::serializeFuncArgs(std::vector<uint8_t> &args) {
       auto flatValue = fbb.CreateVector(intArray);
       auto intArrayAttr = cvi::cpu_op::CreateIntArrayAttr(fbb, flatKey, flatValue);
       attr = cvi::cpu_op::CreateAttribute(fbb, 0, 0, 0, 0, 0, intArrayAttr);
+    } else if (iter.second.isa<ArrayAttr>()) {
+      auto value = iter.second.cast<ArrayAttr>();
+      if ((*value.begin()).dyn_cast_or_null<IntegerAttr>()) {
+        std::vector<int> intArray;
+
+        for (auto& intVal : value) {
+          intArray.push_back(intVal.cast<IntegerAttr>().getInt());
+        }
+        auto flatValue = fbb.CreateVector(intArray);
+        auto intArrayAttr = cvi::cpu_op::CreateIntArrayAttr(fbb, flatKey, flatValue);
+        attr = cvi::cpu_op::CreateAttribute(fbb, 0, 0, 0, 0, 0, intArrayAttr);
+      }
+      else {
+        llvm_unreachable("unsupported type, only support i32 array parsing");
+      }
     } else {
       llvm_unreachable("unsupported type");
     }
