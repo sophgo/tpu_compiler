@@ -7,7 +7,6 @@ echo "$0 net=$NET"
 
 # add option --quant-bf16-softmax=false to disable tpu softmax
 tpuc-opt ${NET}_opt_fp32.mlir \
-    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     --assign-chip-name \

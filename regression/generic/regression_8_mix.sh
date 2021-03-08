@@ -14,7 +14,6 @@ fi
 ###############################################################################
 
 tpuc-opt ${NET}_opt_fp32.mlir \
-    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     -o ${NET}_cali.mlir

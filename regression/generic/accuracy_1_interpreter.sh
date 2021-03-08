@@ -50,7 +50,6 @@ fi
 if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   echo "Eval int8_per_tensor with interpreter"
   tpuc-opt ${NET}_opt_fp32.mlir \
-    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     --assign-chip-name \
@@ -79,7 +78,6 @@ fi
 if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
   echo "Eval int8_rshift_only with interpreter"
   tpuc-opt ${NET}_opt_fp32.mlir \
-    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     --assign-chip-name \
@@ -108,7 +106,6 @@ fi
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   echo "Eval int8_multiplier with interpreter"
   tpuc-opt ${NET}_opt_fp32.mlir \
-    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     --assign-chip-name \

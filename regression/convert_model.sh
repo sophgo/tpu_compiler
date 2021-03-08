@@ -147,7 +147,6 @@ tpuc-opt ${name}.mlir \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info.csv | \
 tpuc-opt \
-    ${ENABLE_CALI_OVERWRITE_THRESHOLD_FORWARD} \
     ${opt_cali} \
     --assign-chip-name \
     --chipname $chip_ver \
