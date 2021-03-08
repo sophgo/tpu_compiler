@@ -2708,9 +2708,20 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
     offset = this->zero_point().getValue();
   }
 
+  int load_cmpr_act = this->load_compr_act().hasValue() ?
+                      this->load_compr_act().getValue() : 0;
+  int load_cmpr_act_c_step = 0;
+  if (load_cmpr_act) {
+    load_cmpr_act =
+        this->load_compr_act_param().getValue().step_size().getInt();
+    load_cmpr_act_c_step =
+        this->load_compr_act_param().getValue().c_step().getInt();
+  }
+
   //  quant to int8
   cvi_backend_tg_quant_kernel(*backend_ctx, layer_id, from, to, ga_input,
-                              ga_output, n, c, h, w, scale, offset);
+                              ga_output, n, c, h, w, scale, offset,
+                              load_cmpr_act, load_cmpr_act_c_step);
 
   return success();
 }

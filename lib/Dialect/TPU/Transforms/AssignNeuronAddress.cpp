@@ -154,6 +154,14 @@ struct TgSliceAddressPattern : public RewritePattern {
       isz *= shape[i];
     }
     size_t offset_bytes = offset * isz * dsize;
+
+    if (castOp.load_compr_act().hasValue() && castOp.load_compr_act().getValue()) {
+      auto c_step = castOp.load_compr_act_param().getValue().c_step().getInt();
+      auto step_size = castOp.load_compr_act_param().getValue().step_size().getInt();
+      auto h = shape[2];
+      offset_bytes = (offset / c_step) * h * step_size;
+    }
+
     auto curPos = getPreviousOpAddress(castOp);
     setOpAddress(op, curPos + offset_bytes);
 

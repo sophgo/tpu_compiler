@@ -6,6 +6,7 @@
  */
 
 #include "TgQuantKernel.hpp"
+#include "backend/backend_tl_api.h"
 
 #define DEBUG_TYPE "quant_kernel"
 
@@ -14,7 +15,8 @@
 
 void TgQuantKernel::init(uint32_t layer_id, cvk_fmt_t from, cvk_fmt_t to,
                          gaddr_t ga_input, gaddr_t ga_output, int32_t n,
-                         int32_t c, int32_t h, int32_t w, float const_scale, int offset) {
+                         int32_t c, int32_t h, int32_t w, float const_scale, int offset,
+                         int load_cmpr_act, int load_cmpr_act_c_step) {
   from_byte = ctx.bytesize_of_fmt(from);
   to_byte = ctx.bytesize_of_fmt(to);
   assert(from_byte != to_byte);
@@ -30,15 +32,75 @@ void TgQuantKernel::init(uint32_t layer_id, cvk_fmt_t from, cvk_fmt_t to,
   this->to = to;
   this->const_scale = const_scale;
   this->offset = offset;
+  this->load_cmpr_act = load_cmpr_act;
+  this->load_cmpr_act_c_step = load_cmpr_act_c_step;
   load_unit = (from_byte + 1) / 2;
   store_unit = (to_byte + 1) / 2;
   ctx.set_layer_id(layer_id);
 }
 
-void TgQuantKernel::selectTilePolicy() {
+void TgQuantKernel::doTileForNormalCase() {
   int blob_num = 2 * (load_unit + store_unit); // 2 to do flip
   ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_BF16, blob_num, 0,
                      CviBackendContext::TilingAll, true);
+}
+
+void TgQuantKernel::doTileForCompressCase() {
+  int elementSize = sizeof(uint16_t);          // bf16
+  int blob_num = 2 * (load_unit + store_unit); // 2 to do flip
+  uint32_t remain = n * c * h * w * elementSize;
+  uint32_t offset = 0;
+  int32_t c_step = load_cmpr_act_c_step;
+
+  int32_t max_h =
+      LOCAL_MEM_SIZE / (blob_num * llvm::divideCeil(c_step, NPU_NUM) *
+                        llvm::alignTo(w * elementSize, EU_NUM));
+  max_h = std::min(max_h, h);
+  assert(max_h);
+
+  LLVM_DEBUG(llvm::dbgs() << "doTileForCompressCase "
+                          << "shape (" << n << ", " << c << ", " << h << ", "
+                          << w << ")\n");
+
+  CviBackendContext::tiling_info_t tile;
+  for (int32_t i = 0; i < c; i += c_step) {
+    int32_t cur_c = std::min(c - i, c_step);
+
+    for (int32_t j = 0; j < h; j += max_h) {
+      int cur_h = std::min(h - j, max_h);
+      tile.n = 1;
+      tile.c = cur_c;
+      tile.h = cur_h;
+      tile.w = w;
+      tile.pos_n = 0;
+      tile.pos_c = i;
+      tile.pos_h = j;
+      tile.pos_w = 0;
+      tile.offset = offset;
+      tiles.push_back(tile);
+
+      LLVM_DEBUG(llvm::dbgs()
+                 << "  [" << i << "][" << j << "] shape (" << tile.n << ", "
+                 << tile.c << ", " << tile.h << ", " << tile.w << "), offset "
+                 << offset << ", remain " << remain << "\n");
+
+      offset += 1 * cur_c * cur_h * w * elementSize;
+
+      if (offset > remain) {
+        LLVM_DEBUG(llvm::dbgs()
+                   << "  [" << i << "][" << j << "] "
+                   << "offset " << offset << ", remain " << remain << "\n");
+        assert(offset == remain);
+      }
+    }
+  }
+}
+
+void TgQuantKernel::selectTilePolicy() {
+  if (!load_cmpr_act)
+    doTileForNormalCase();
+  else
+    doTileForCompressCase();
 }
 
 cvk_tl_t *TgQuantKernel::alloc_lmem(const cvk_tl_shape_t &shape,
@@ -171,6 +233,47 @@ void TgQuantKernel::load(int32_t step_idx, int32_t flip) {
   ctx.tdma_g2l_tensor_copy(&p1);
 }
 
+void TgQuantKernel::loadTensorStrided(int32_t step_idx, int32_t flip) {
+  auto &tile = tiles[step_idx];
+
+  cvk_tg_shape_t tg_shape = ctx.tg_shape_t4(n, c, h, w);
+  cvk_tg_stride_t tg_stride = ctx.tg_default_stride(tg_shape, from);
+  uint32_t ga_offset = tile.pos_n * tg_stride.n + tile.pos_c * tg_stride.c +
+                       tile.pos_h * tg_stride.h;
+
+  cvk_tg_t src = {};
+  src.start_address = ga_input + ga_offset;
+  src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
+  src.int8_rnd_mode = 0;
+  src.fmt = (load_unit == 2 ? CVK_FMT_BF16 : from);
+  src.shape = ctx.tg_shape_t4(tile.n, tile.c, tile.h, tile.w * load_unit);
+  src.stride = tg_stride;
+  cvk_tl_t tl_ifmap = *tl_input[flip];
+  tl_ifmap.shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w * load_unit);
+  tl_ifmap.stride = ctx.tl_default_stride(tl_ifmap.shape, CVK_FMT_BF16, 1);
+
+  cvk_tdma_g2l_tensor_copy_param_t p1 = {0};
+  p1.src = &src;
+  p1.dst = &tl_ifmap;
+  ctx.tdma_g2l_tensor_copy(&p1);
+}
+
+void TgQuantKernel::loadDecompressed(int32_t step_idx, int32_t flip) {
+  auto &tile = tiles[step_idx];
+  uint32_t ga_cmpr_offset =
+      ctx.ga_cmpr_offset(n, c, h, w, tile.pos_n, tile.pos_c, tile.pos_h,
+                         load_cmpr_act_c_step, load_cmpr_act);
+  cvi_backend_tl_load_compressed(
+      ctx, layer_id, ga_input + ga_cmpr_offset, tl_input[flip]->start_address,
+      tile.n, tile.c, tile.h, tile.w, c, h, w,
+      false, // DoTranspose
+      true,  // DoAligned
+      true,  // isNeuron
+      (load_unit == 2 ? CVK_FMT_BF16 : from), CVK_FMT_BF16,
+      1, // h_step
+      load_cmpr_act, load_cmpr_act_c_step);
+}
+
 // bf16 => i8/bf16/f32
 void TgQuantKernel::store(int32_t step_idx, int32_t flip) {
   auto &tile = tiles[step_idx];
@@ -191,6 +294,31 @@ void TgQuantKernel::store(int32_t step_idx, int32_t flip) {
   ctx.tdma_l2g_tensor_copy(&p1);
 }
 
+void TgQuantKernel::storeTensorStrided(int32_t step_idx, int32_t flip) {
+  auto &tile = tiles[step_idx];
+  cvk_tl_t tl_ofmap = *tl_output[flip];
+  tl_ofmap.shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w * store_unit);
+  tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, tl_ofmap.fmt, 1);
+
+  cvk_fmt_t dst_fmt = store_unit == 2 ? CVK_FMT_BF16 : to;
+  cvk_tg_shape_t tg_shape = ctx.tg_shape_t4(n, c, h, w * store_unit);
+  cvk_tg_stride_t tg_stride = ctx.tg_default_stride(tg_shape, dst_fmt);
+  uint32_t ga_offset = tile.pos_n * tg_stride.n + tile.pos_c * tg_stride.c +
+                       tile.pos_h * tg_stride.h;
+
+  cvk_tg_t dst = {};
+  dst.start_address = ga_output + ga_offset;
+  dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
+  dst.fmt = dst_fmt;
+  dst.shape = ctx.tg_shape_t4(tile.n, tile.c, tile.h, tile.w * store_unit);
+  dst.stride = tg_stride;
+
+  cvk_tdma_l2g_tensor_copy_param_t p1 = {0};
+  p1.src = &tl_ofmap;
+  p1.dst = &dst;
+  ctx.tdma_l2g_tensor_copy(&p1);
+}
+
 void TgQuantKernel::schedule() {
   allocLmem();
   int32_t total_steps = tiles.size();
@@ -201,10 +329,10 @@ void TgQuantKernel::schedule() {
       compute(i - 1, 1 - flip);
     }
     if (i < total_steps) {
-      load(i, flip);
+      load_cmpr_act ? loadDecompressed(i, flip) : load(i, flip);
     }
     if (i - 2 >= 0) {
-      store(i - 2, flip);
+      load_cmpr_act ? storeTensorStrided(i - 2, flip) : store(i - 2, flip);
     }
     flip = 1 - flip;
     ctx.parallel_disable();
@@ -216,10 +344,12 @@ void cvi_backend_tg_quant_kernel(const CviBackendContext &ctx,
                                  uint32_t layer_id, cvk_fmt_t from,
                                  cvk_fmt_t to, gaddr_t bottom_gaddr,
                                  gaddr_t top_gaddr, int input_n, int input_c,
-                                 int input_h, int input_w, float const_scale, int offset) {
+                                 int input_h, int input_w, float const_scale, int offset,
+                                 int load_cmpr_act, int load_cmpr_act_c_step) {
   TgQuantKernel kernel(ctx);
   kernel.init(layer_id, from, to, bottom_gaddr, top_gaddr, input_n, input_c,
-              input_h, input_w, const_scale, offset);
+              input_h, input_w, const_scale, offset, load_cmpr_act,
+              load_cmpr_act_c_step);
 
   kernel.selectTilePolicy();
   kernel.schedule();

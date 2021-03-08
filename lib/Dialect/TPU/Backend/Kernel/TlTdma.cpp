@@ -66,7 +66,6 @@ void cvi_backend_tl_load_compressed(
     int h_step, int step_size, int c_step) {
 
   // Global shape is used for stride - global memory layout
-  assert(from == to && "Expect same data type");
 
   int eu_align = DoAligned ? 1 : 0;
 
@@ -78,7 +77,7 @@ void cvi_backend_tl_load_compressed(
                                                          c_step,
                                                          Local_H,
                                                          Local_W,
-                                                         from);
+                                                         to);
 
   for (int i = 0; i < Local_C; i += c_step) {
     int cur_c = std::min(c_step, Local_C - i);

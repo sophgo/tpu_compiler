@@ -1189,6 +1189,8 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -1652,6 +1654,8 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<BoolAttr>:$gaddr_updated,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

@@ -417,7 +417,8 @@ void cvi_backend_tg_quant_kernel(
     cvk_fmt_t from, cvk_fmt_t to,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr,
     int input_n, int input_c, int input_h, int input_w,
-    float const_scale = 1.0, int offset=0);
+    float const_scale = 1.0, int offset=0,
+    int load_cmpr_act = 0, int load_cmpr_act_c_step = 0);
 
 void cvi_backend_tg_requant_kernel(const CviBackendContext &ctx,
                                    uint32_t layer_id, gaddr_t bottom_gaddr,

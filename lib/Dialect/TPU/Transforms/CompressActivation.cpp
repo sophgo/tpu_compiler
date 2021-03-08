@@ -19,19 +19,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/Passes.h"
-#include "tpuc/TPUCompressUtil.h"
-#include "tpuc/TPUOperationSupport.h"
-#include "tpuc/TPUTensorSupport.h"
-#include "tpuc/MachineInfo.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/MachineInfo.h"
+#include "tpuc/Passes.h"
 #include "tpuc/Support/TensorFile.h"
+#include "tpuc/TPUCompressUtil.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "tpuc/TPUTensorSupport.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "compress-activation"
@@ -40,19 +40,20 @@ using namespace mlir;
 
 namespace {
 
+static constexpr int64_t kMinTdmaSize = 256;
+
 static llvm::cl::opt<unsigned> clCmprActOverheadRatio(
     "tpu-cmpr-act-overhead-ratio",
     llvm::cl::desc("No activation compression if overhead ratio exceeds. "
                    "0 - no act cmpr."),
     llvm::cl::init(1000));
 
-struct CmprStat{
+struct CmprStat {
   int store;
   int load;
   int st_c_step;
   Operation *prevOp;
 };
-
 
 static bool isTgConvOp(Operation *op) {
   if (llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(op) ||
@@ -85,7 +86,6 @@ static bool isStoreCompressedOp(Operation *op) {
   if (isTgConvOp(op) || isTgEltAddOp(op))
     return true;
   return false;
-
 }
 static bool isLoadDecompressedOp(Operation *op) {
   if (isTgConvOp(op) || isTgEltAddOp(op) || isLgLoadNeuronOp(op) ||
@@ -94,78 +94,13 @@ static bool isLoadDecompressedOp(Operation *op) {
   return false;
 }
 
-template <typename OpTy>
-static void setTgOpCompressed(OpTy convOp, PatternRewriter &rewriter,
-                              int cmprNStep, int cmprOcStep, int cmprOhStep,
-                              int64_t stepSize, int64_t totalSize) {
-  auto op = convOp.getOperation();
-  convOp->setAttr("store_compr_act",
-                 Builder(op->getContext()).getBoolAttr(true));
-  convOp->setAttr("store_compr_act_param",
-      tpu::ActCmprParam::get(
-          Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
-          Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
-          Builder(op->getContext()).getI32IntegerAttr(cmprOhStep),
-          Builder(op->getContext()).getI64IntegerAttr(stepSize),
-          Builder(op->getContext()).getI64IntegerAttr(totalSize),
-          rewriter.getContext()));
-}
-
-template <typename OpTy>
-static void setTgOpDeCompressed(OpTy &convOp, PatternRewriter &rewriter,
-                                int cmprNStep, int cmprOcStep, int cmprOhStep,
-                                int64_t stepSize, int64_t totalSize) {
-  auto op = convOp.getOperation();
-  convOp->setAttr("load_compr_act",
-                 Builder(op->getContext()).getBoolAttr(true));
-  convOp->setAttr("load_compr_act_param",
-      tpu::ActCmprParam::get(
-          Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
-          Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
-          Builder(op->getContext()).getI32IntegerAttr(cmprOhStep),
-          Builder(op->getContext()).getI64IntegerAttr(stepSize),
-          Builder(op->getContext()).getI64IntegerAttr(totalSize),
-          rewriter.getContext()));
-}
-
-template <typename OpTy, typename NextOpTy>
-static void setNextOpAsDecompressed(OpTy convOp, PatternRewriter &rewriter,
-                                    int cmprNStep, int cmprOcStep,
-                                    int cmprOhStep, int64_t stepSize,
-                                    int64_t totalSize) {
-  auto op = convOp.getOperation();
-  for (auto &use : op->getResult(0).getUses()) {
-    auto useOp = use.getOwner();
-    auto nextTpuOp = llvm::dyn_cast<NextOpTy>(useOp);
-
-    LLVM_DEBUG(llvm::dbgs()
-        << "StoreTgConvCmprAct: layer ID " << getOpLayerId(op)
-        << "" << getOpName(op)
-        << ", " << op->getName() << ", store compressed, next op "
-        << getOpName(nextTpuOp.getOperation())
-        << ", " << nextTpuOp.getOperation()->getName()
-        << ", load compressed\n");
-
-    nextTpuOp->setAttr("load_compr_act",
-                      Builder(op->getContext()).getBoolAttr(true));
-    nextTpuOp->setAttr("load_compr_act_param",
-        tpu::ActCmprParam::get(
-            Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
-            Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
-            Builder(op->getContext()).getI32IntegerAttr(cmprOhStep),
-            Builder(op->getContext()).getI64IntegerAttr(stepSize),
-            Builder(op->getContext()).getI64IntegerAttr(totalSize),
-            rewriter.getContext()));
-  }
-}
-
 static bool isLargeDmaTransfer(Operation *op) {
   auto dataTypeSize = getDataTypeSize(op->getResult(0));
   std::vector<int64_t> shapes = getTensorShape(op->getResult(0));
   auto count = std::accumulate(std::begin(shapes), std::end(shapes), 1,
                                std::multiplies<>());
   auto storeSize = count * dataTypeSize;
-  if (storeSize >= 512)
+  if (storeSize >= kMinTdmaSize)
     return true;
 
   return false;
@@ -218,7 +153,11 @@ bool isSmallDmaOverHead(Operation *op) {
 
   // Generated tdma command ratio.
   // Compressed height is 1 for tg op.
-  int64_t ratio =  (oc / oc_step) * oh;
+  auto dataTypeSize = getDataTypeSize(op->getResult(0));
+  int64_t ratio = (oc / oc_step) * oh;
+  int64_t size = oc_step * ow * dataTypeSize; // h = 1
+  if (size < kMinTdmaSize)
+    return false;
 
   if (ratio > clCmprActOverheadRatio)
     return false;
@@ -303,7 +242,7 @@ static bool isValidDecompressTgConvOp(Operation *op) {
   auto count = std::accumulate(std::begin(shapes), std::end(shapes), 1,
                                std::multiplies<>());
   auto storeSize = count * dataTypeSize;
-  if (storeSize >= 512)
+  if (storeSize >= kMinTdmaSize)
     return true;
 
   return false;
@@ -314,7 +253,7 @@ static bool isValidCompressTgEltAddOp(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(op)) {
     if (tpuOp.do_early_stride())
       return false;
-  }else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(op)) {
+  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(op)) {
     if (tpuOp.do_early_stride())
       return false;
   }
@@ -341,50 +280,48 @@ static bool isValidDecompressTgEltAddOp(Operation *op) {
 static void showOpCmprStatus(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
     if (tpuOp.store_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", store_compr_act "
-          << tpuOp.store_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", store_compr_act " << tpuOp.store_compr_act().getValue());
     if (tpuOp.load_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", load_compr_act "
-          << tpuOp.load_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", load_compr_act " << tpuOp.load_compr_act().getValue());
   } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(op)) {
     if (tpuOp.store_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", store_compr_act "
-          << tpuOp.store_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", store_compr_act " << tpuOp.store_compr_act().getValue());
     if (tpuOp.load_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", load_compr_act "
-          << tpuOp.load_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", load_compr_act " << tpuOp.load_compr_act().getValue());
   } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(op)) {
     if (tpuOp.store_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", store_compr_act "
-          << tpuOp.store_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", store_compr_act " << tpuOp.store_compr_act().getValue());
     if (tpuOp.load_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", load_compr_act "
-          << tpuOp.load_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", load_compr_act " << tpuOp.load_compr_act().getValue());
   } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(op)) {
     if (tpuOp.store_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", store_compr_act "
-          << tpuOp.store_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", store_compr_act " << tpuOp.store_compr_act().getValue());
     if (tpuOp.load_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", load_compr_act "
-          << tpuOp.load_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", load_compr_act " << tpuOp.load_compr_act().getValue());
   } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(op)) {
     if (tpuOp.load_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", load_compr_act "
-          << tpuOp.load_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", load_compr_act " << tpuOp.load_compr_act().getValue());
   } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(op)) {
     if (tpuOp.load_compr_act().hasValue())
-      LLVM_DEBUG(llvm::dbgs() << ", load_compr_act "
-          << tpuOp.load_compr_act().getValue());
+      LLVM_DEBUG(llvm::dbgs()
+                 << ", load_compr_act " << tpuOp.load_compr_act().getValue());
   }
   LLVM_DEBUG(llvm::dbgs() << "\n");
 }
 
 static void showOpStatus(Operation *op) {
 
-  LLVM_DEBUG(llvm::dbgs()
-      << "  op " << getOpName(op)
-      << ", " << op->getName()
-      << ", layer ID " << getOpLayerId(op));
+  LLVM_DEBUG(llvm::dbgs() << "  op " << getOpName(op) << ", " << op->getName()
+                          << ", layer ID " << getOpLayerId(op));
   showOpCmprStatus(op);
 
   for (auto operand : op->getOperands()) {
@@ -396,9 +333,8 @@ static void showOpStatus(Operation *op) {
       continue;
 
     LLVM_DEBUG(llvm::dbgs()
-        << "    opd " << getOpName(opdOp)
-        << ", " << opdOp->getName()
-        << ", layer ID " << getOpLayerId(opdOp));
+               << "    opd " << getOpName(opdOp) << ", " << opdOp->getName()
+               << ", layer ID " << getOpLayerId(opdOp));
     showOpCmprStatus(opdOp);
   }
 
@@ -409,16 +345,14 @@ static void showOpStatus(Operation *op) {
       continue;
 
     LLVM_DEBUG(llvm::dbgs()
-        << "    use " << getOpName(useOp)
-        << ", " << useOp->getName()
-        << ", layer ID " << getOpLayerId(useOp));
+               << "    use " << getOpName(useOp) << ", " << useOp->getName()
+               << ", layer ID " << getOpLayerId(useOp));
     showOpCmprStatus(useOp);
   }
 }
 
 template <typename OpTy>
-class TgCompressActPattern
-    : public OpRewritePattern<OpTy> {
+class TgCompressActPattern : public OpRewritePattern<OpTy> {
 public:
   using OpRewritePattern<OpTy>::OpRewritePattern;
 
@@ -436,12 +370,10 @@ public:
       return failure();
 
     LLVM_DEBUG(llvm::dbgs()
-        << "TgCompressActPattern " << getOpName(op)
-        << ", " << op->getName()
-        << ", layer ID " << getOpLayerId(op)
-        << ", store " << cmprMaps[op].store
-        << ", load " << cmprMaps[op].load
-        << "\n");
+               << "TgCompressActPattern " << getOpName(op) << ", "
+               << op->getName() << ", layer ID " << getOpLayerId(op)
+               << ", store " << cmprMaps[op].store << ", load "
+               << cmprMaps[op].load << "\n");
 
     std::vector<int64_t> shapes = getTensorShape(op->getResult(0));
     int64_t n, oc, oh, ow;
@@ -451,20 +383,19 @@ public:
     int cmprOhStep = 1;
     int isBf16 = isBf16Tensor(op->getResult(0)) ? 1 : 0;
     int64_t stepSize = 0, totalSize = 0;
-    getTiledCompressedSize(n, oc, oh, ow,
-                           cmprNStep, cmprOcStep, cmprOhStep,
+    getTiledCompressedSize(n, oc, oh, ow, cmprNStep, cmprOcStep, cmprOhStep,
                            isBf16, stepSize, totalSize);
 
     tpuOp->setAttr("store_compr_act",
-                Builder(op->getContext()).getBoolAttr(true));
+                   Builder(op->getContext()).getBoolAttr(true));
     tpuOp->setAttr("store_compr_act_param",
-        tpu::ActCmprParam::get(
-            Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
-            Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
-            Builder(op->getContext()).getI32IntegerAttr(cmprOhStep),
-            Builder(op->getContext()).getI64IntegerAttr(stepSize),
-            Builder(op->getContext()).getI64IntegerAttr(totalSize),
-            rewriter.getContext()));
+                   tpu::ActCmprParam::get(
+                       Builder(op->getContext()).getI32IntegerAttr(cmprNStep),
+                       Builder(op->getContext()).getI32IntegerAttr(cmprOcStep),
+                       Builder(op->getContext()).getI32IntegerAttr(cmprOhStep),
+                       Builder(op->getContext()).getI64IntegerAttr(stepSize),
+                       Builder(op->getContext()).getI64IntegerAttr(totalSize),
+                       rewriter.getContext()));
 
     showOpStatus(op);
 
@@ -545,8 +476,8 @@ static bool getLoadCompressActParam(Operation *op, int &n, int &c, int &h,
     }
   } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(op)) {
     if (tpuOp.compr_act_param().hasValue()) {
-      parseActCompressParam(tpuOp.compr_act_param().getValue(), n, c, h,
-                            step, total);
+      parseActCompressParam(tpuOp.compr_act_param().getValue(), n, c, h, step,
+                            total);
       return true;
     }
   } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(op)) {
@@ -561,8 +492,7 @@ static bool getLoadCompressActParam(Operation *op, int &n, int &c, int &h,
 }
 
 template <typename OpTy>
-class TgDecompressActPattern
-    : public OpRewritePattern<OpTy> {
+class TgDecompressActPattern : public OpRewritePattern<OpTy> {
 public:
   using OpRewritePattern<OpTy>::OpRewritePattern;
 
@@ -583,29 +513,26 @@ public:
     auto prevOp = cmprMaps[op].prevOp;
 
     LLVM_DEBUG(llvm::dbgs()
-        << "TgDecompressActPattern " << getOpName(op)
-        << ", " << op->getName()
-        << ", layer ID " << getOpLayerId(op)
-        << ", store " << cmprMaps[op].store
-        << ", load " << cmprMaps[op].load
-        << ", prevOp " << getOpName(prevOp)
-        << ", " << prevOp->getName()
-        << "\n");
+               << "TgDecompressActPattern " << getOpName(op) << ", "
+               << op->getName() << ", layer ID " << getOpLayerId(op)
+               << ", store " << cmprMaps[op].store << ", load "
+               << cmprMaps[op].load << ", prevOp " << getOpName(prevOp) << ", "
+               << prevOp->getName() << "\n");
 
     int cmpr_n = 0, cmpr_c = 0, cmpr_h = 0;
     int64_t cmpr_step = 0, cmpr_total = 0;
     getStoreCompressActParam(prevOp, cmpr_n, cmpr_c, cmpr_h, cmpr_step,
                              cmpr_total);
     tpuOp->setAttr("load_compr_act",
-                  Builder(tpuOp.getContext()).getBoolAttr(true));
+                   Builder(tpuOp.getContext()).getBoolAttr(true));
     tpuOp->setAttr("load_compr_act_param",
-        tpu::ActCmprParam::get(
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_h),
-            Builder(op->getContext()).getI64IntegerAttr(cmpr_step),
-            Builder(op->getContext()).getI64IntegerAttr(cmpr_total),
-            rewriter.getContext()));
+                   tpu::ActCmprParam::get(
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_h),
+                       Builder(op->getContext()).getI64IntegerAttr(cmpr_step),
+                       Builder(op->getContext()).getI64IntegerAttr(cmpr_total),
+                       rewriter.getContext()));
     showOpStatus(tpuOp);
 
     return failure();
@@ -619,8 +546,8 @@ class TlLgLoadNeuronDecompressActPattern
 public:
   using OpRewritePattern<tpu::TL_LG_LoadNeuronOp>::OpRewritePattern;
 
-  TlLgLoadNeuronDecompressActPattern(MLIRContext *ctx,
-                                     llvm::DenseMap<Operation *, CmprStat> &cmprMaps)
+  TlLgLoadNeuronDecompressActPattern(
+      MLIRContext *ctx, llvm::DenseMap<Operation *, CmprStat> &cmprMaps)
       : OpRewritePattern<tpu::TL_LG_LoadNeuronOp>(ctx), cmprMaps(cmprMaps) {}
 
   LogicalResult matchAndRewrite(tpu::TL_LG_LoadNeuronOp tpuOp,
@@ -639,14 +566,11 @@ public:
     auto prevOp = cmprMaps[op].prevOp;
 
     LLVM_DEBUG(llvm::dbgs()
-        << "TlLgLoadNeuronDecompressActPattern " << getOpName(op)
-        << ", " << op->getName()
-        << ", layer ID " << getOpLayerId(op)
-        << ", store " << cmprMaps[op].store
-        << ", load " << cmprMaps[op].load
-        << ", prevOp " << getOpName(prevOp)
-        << ", " << prevOp->getName()
-        << "\n");
+               << "TlLgLoadNeuronDecompressActPattern " << getOpName(op) << ", "
+               << op->getName() << ", layer ID " << getOpLayerId(op)
+               << ", store " << cmprMaps[op].store << ", load "
+               << cmprMaps[op].load << ", prevOp " << getOpName(prevOp) << ", "
+               << prevOp->getName() << "\n");
 
     int cmpr_n = 0, cmpr_c = 0, cmpr_h = 0;
     int64_t cmpr_step = 0, cmpr_total = 0;
@@ -660,28 +584,24 @@ public:
     int64_t hOffset = tpuOp.offset().getValue() / resShapes[3] / eltSize;
 
     int64_t offset = cmpr_step * hOffset; // in byte
-    LLVM_DEBUG(llvm::dbgs()
-        << "      " << getOpName(op)
-        << ", offset " << tpuOp.offset().getValue()
-        << " -> " << offset
-        << "(" << cmpr_step
-        << " * " << hOffset
-        << ")\n");
+    LLVM_DEBUG(llvm::dbgs() << "      " << getOpName(op) << ", offset "
+                            << tpuOp.offset().getValue() << " -> " << offset
+                            << "(" << cmpr_step << " * " << hOffset << ")\n");
 
     tpuOp->removeAttr("offset");
     tpuOp->setAttr("offset",
-                  Builder(op->getContext()).getI64IntegerAttr(offset));
+                   Builder(op->getContext()).getI64IntegerAttr(offset));
 
     tpuOp->setAttr("load_compr_act",
-                  Builder(tpuOp.getContext()).getBoolAttr(true));
+                   Builder(tpuOp.getContext()).getBoolAttr(true));
     tpuOp->setAttr("compr_act_param",
-        tpu::ActCmprParam::get(
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_h),
-            Builder(op->getContext()).getI64IntegerAttr(cmpr_step),
-            Builder(op->getContext()).getI64IntegerAttr(cmpr_total),
-            rewriter.getContext()));
+                   tpu::ActCmprParam::get(
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_h),
+                       Builder(op->getContext()).getI64IntegerAttr(cmpr_step),
+                       Builder(op->getContext()).getI64IntegerAttr(cmpr_total),
+                       rewriter.getContext()));
 
     return success();
   }
@@ -689,9 +609,8 @@ public:
   llvm::DenseMap<Operation *, CmprStat> &cmprMaps;
 };
 
-template<typename OpTy>
-class TlConvDecompressActPattern
-    : public OpRewritePattern<OpTy> {
+template <typename OpTy>
+class TlConvDecompressActPattern : public OpRewritePattern<OpTy> {
 public:
   using OpRewritePattern<OpTy>::OpRewritePattern;
 
@@ -714,14 +633,11 @@ public:
     auto prevOp = cmprMaps[op].prevOp;
 
     LLVM_DEBUG(llvm::dbgs()
-        << "TlConvDecompressActPattern " << getOpName(op)
-        << ", " << op->getName()
-        << ", layer ID " << getOpLayerId(op)
-        << ", store " << cmprMaps[op].store
-        << ", load " << cmprMaps[op].load
-        << ", prevOp " << getOpName(prevOp)
-        << ", " << prevOp->getName()
-        << "\n");
+               << "TlConvDecompressActPattern " << getOpName(op) << ", "
+               << op->getName() << ", layer ID " << getOpLayerId(op)
+               << ", store " << cmprMaps[op].store << ", load "
+               << cmprMaps[op].load << ", prevOp " << getOpName(prevOp) << ", "
+               << prevOp->getName() << "\n");
 
     int cmpr_n = 0, cmpr_c = 0, cmpr_h = 0;
     int64_t cmpr_step = 0, cmpr_total = 0;
@@ -729,15 +645,15 @@ public:
                              cmpr_total);
 
     tpuOp->setAttr("load_compr_act",
-                  Builder(tpuOp.getContext()).getBoolAttr(true));
+                   Builder(tpuOp.getContext()).getBoolAttr(true));
     tpuOp->setAttr("load_compr_act_param",
-        tpu::ActCmprParam::get(
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
-            Builder(op->getContext()).getI32IntegerAttr(cmpr_h),
-            Builder(op->getContext()).getI64IntegerAttr(cmpr_step),
-            Builder(op->getContext()).getI64IntegerAttr(cmpr_total),
-            rewriter.getContext()));
+                   tpu::ActCmprParam::get(
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_n),
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_c),
+                       Builder(op->getContext()).getI32IntegerAttr(cmpr_h),
+                       Builder(op->getContext()).getI64IntegerAttr(cmpr_step),
+                       Builder(op->getContext()).getI64IntegerAttr(cmpr_total),
+                       rewriter.getContext()));
 
     return success();
   }
@@ -745,11 +661,11 @@ public:
   llvm::DenseMap<Operation *, CmprStat> &cmprMaps;
 };
 
-static bool getTiledCompressedActShapeAndSize(Operation *op,
-    std::vector<std::vector<int64_t>> &storeShapes,
-    std::vector<std::vector<int64_t>> &loadShapes, int isBf16,
-    int &n_step, int &c_step, int &h_step, int64_t &stepSize,
-    int64_t &totalSize) {
+static bool getTiledCompressedActShapeAndSize(
+    Operation *op, std::vector<std::vector<int64_t>> &storeShapes,
+    std::vector<std::vector<int64_t>> &loadShapes, int isBf16, int &n_step,
+    int &c_step, int &h_step, int64_t &stepSize, int64_t &totalSize,
+    bool canOcTiled) {
 
   // At least one element
   if (!storeShapes.size() || !loadShapes.size())
@@ -768,10 +684,15 @@ static bool getTiledCompressedActShapeAndSize(Operation *op,
     }
   }
 
-  int n = 0, c = 0, h = 0, w = 0;
+  n_step = storeShapes[0][0];
+  c_step = storeShapes[0][1];
+  h_step = storeShapes[0][2];
+
+  int n = 0, oc = 0, oh = 0, ow = 0;
   n = storeShapes[0][0];
-  c = storeShapes[0][1];
-  w = storeShapes[0][3];
+  oc = storeShapes[0][1];
+  ow = storeShapes[0][3];
+  oh = storeShapes[0][2];
 
   if (storeShapes[0][1] != loadShapes[0][1]) {
     // Not support different channel size
@@ -779,46 +700,46 @@ static bool getTiledCompressedActShapeAndSize(Operation *op,
   } else if ((storeShapes.size() == loadShapes.size()) &&
              (storeShapes.size() == 1)) {
     // one store, one load
-    n_step = storeShapes[0][0];
-    c_step = storeShapes[0][1];
-    h_step = storeShapes[0][2];
-    h = storeShapes[0][2];
   } else if ((storeShapes.size() != loadShapes.size()) &&
              (loadShapes.size() == 1)) {
     // multiple stores, one load
-    n_step = storeShapes[0][0];
-    c_step = storeShapes[0][1];
-    h_step = storeShapes[0][2];
-    h = loadShapes[0][2];
-  } else {
-    // multiple stores, multiple loads
-    n_step = storeShapes[0][0];
-    c_step = storeShapes[0][1];
+    oh = loadShapes[0][2];
+  } else if (canOcTiled) {
+    // multiple output channels, multiple stores, multiple loads
+    auto min_oc = storeShapes[0][1];
+    for (auto shape : storeShapes)
+      min_oc = std::min(min_oc, shape[1]);
+
+    auto min_ic = loadShapes[0][1];
+    for (auto shape : loadShapes)
+      min_ic = std::min(min_ic, shape[1]);
+
+    c_step = std::min(min_oc, min_ic);
     h_step = 1;
 
+    oh = 0;
     for (auto v : storeShapes) {
-      h += v[2];
+      oh += v[2];
+    }
+  } else {
+    // multiple stores, multiple loads
+    h_step = 1;
+    oh = 0;
+    for (auto v : storeShapes) {
+      oh += v[2];
     }
   }
 
-  getTiledCompressedSize(n, c, h, w, n_step, c_step, h_step, isBf16,
+  getTiledCompressedSize(n, oc, oh, ow, n_step, c_step, h_step, isBf16,
                          stepSize, totalSize);
 
-  LLVM_DEBUG(llvm::dbgs()
-      << "\n  getTiledCompressedActShapeAndSize\n    "
-      << "storeShapes " << storeShapes.size()
-      << ", loadShapes " << loadShapes.size()
-      << " shape (" << n
-      << ", " << c
-      << ", " << h
-      << ", " << w
-      << "), tile (" << n_step
-      << ", " << c_step
-      << ", " << h_step
-      << ", " << w
-      << "), stepSize " << stepSize
-      << ", totalSize " << totalSize
-      << "\n");
+  LLVM_DEBUG(llvm::dbgs() << "\n  getTiledCompressedActShapeAndSize\n    "
+                          << "storeShapes " << storeShapes.size()
+                          << ", loadShapes " << loadShapes.size() << " shape ("
+                          << n << ", " << oc << ", " << oh << ", " << ow
+                          << "), tile (" << n_step << ", " << c_step << ", "
+                          << h_step << ", " << ow << "), stepSize " << stepSize
+                          << ", totalSize " << totalSize << "\n");
 
   return true;
 }
@@ -840,9 +761,22 @@ static bool isValidLoadCompressActForTlLgJoin(Operation *op, int h_step) {
       if (inputShapes[2] != h_step) {
         return false;
       }
+    } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(useOp)) {
+      // Support slice channel
+      if (tpuOp.axis() != 1)
+        return false;
+
+      // Lg_joint -> Tg_slice -> TgQuant/TgConv
+      for (auto &nextUse : useOp->getResult(0).getUses()) {
+        auto nextUseOp = nextUse.getOwner();
+        if (!llvm::dyn_cast<tpu::TG_QuantOp>(nextUseOp) &&
+            !llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(nextUseOp))
+          return false;
+      }
     } else {
-      LLVM_DEBUG(llvm::dbgs() << "  user op " << getOpName(op)
-          << ", " << op->getName() << " not support load_compr_act yet\n");
+      LLVM_DEBUG(llvm::dbgs()
+                 << "  user op " << getOpName(op) << ", " << op->getName()
+                 << " not support load_compr_act yet\n");
       return false;
     }
   }
@@ -873,18 +807,15 @@ public:
       : OpRewritePattern<tpu::TL_LG_JoinOp>(ctx), mInfo(mInfo) {}
 
   LogicalResult matchAndRewrite(tpu::TL_LG_JoinOp tpuOp,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
     Operation *op = tpuOp.getOperation();
 
     std::vector<int64_t> outputShapes = getTensorShape(op->getResult(0));
     LLVM_DEBUG(llvm::dbgs()
-        << "\nTlLgJoinCmprAct: " << getOpName(op)
-        << ", " << op->getName()
-        << ", -> (" << outputShapes[0]
-        << ", " << outputShapes[1]
-        << ", " << outputShapes[2]
-        << ", " << outputShapes[3]
-        << ")\n");
+               << "\nTlLgJoinCmprAct: " << getOpName(op) << ", "
+               << op->getName() << ", -> (" << outputShapes[0] << ", "
+               << outputShapes[1] << ", " << outputShapes[2] << ", "
+               << outputShapes[3] << ")\n");
 
     // Not support multi-batch yet
     if (outputShapes[0] > 1)
@@ -898,17 +829,11 @@ public:
       std::vector<int64_t> outputShapes = getTensorShape(opdOp->getResult(0));
 
       LLVM_DEBUG(llvm::dbgs()
-          << "  operand " << getOpName(opdOp)
-          << ", " << opdOp->getName()
-          << ", (" << inputShapes[0]
-          << ", " << inputShapes[1]
-          << ", " << inputShapes[2]
-          << ", " << inputShapes[3]
-          << ") -> (" << outputShapes[0]
-          << ", " << outputShapes[1]
-          << ", " << outputShapes[2]
-          << ", " << outputShapes[3]
-          << ")\n");
+                 << "  operand " << getOpName(opdOp) << ", " << opdOp->getName()
+                 << ", (" << inputShapes[0] << ", " << inputShapes[1] << ", "
+                 << inputShapes[2] << ", " << inputShapes[3] << ") -> ("
+                 << outputShapes[0] << ", " << outputShapes[1] << ", "
+                 << outputShapes[2] << ", " << outputShapes[3] << ")\n");
 
       if (!llvm::dyn_cast<tpu::TL_LG_StoreOp>(opdOp))
         break;
@@ -919,6 +844,7 @@ public:
 
     // tl_lg_join -> tl_lg_load_neuron
     // tl_lg_join -> tl_lw_conv_2d
+    bool canOcTiled = false;
     for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
 
@@ -927,21 +853,19 @@ public:
         shapes = getTensorShape(useOp->getResult(0));
       else if (llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp))
         shapes = getTensorShape(useOp->getOperand(0));
-      else
+      else if (llvm::dyn_cast<tpu::TG_INT8_SliceOp>(useOp)) {
+        shapes = getTensorShape(useOp->getResult(0));
+        canOcTiled = true;
+      } else if (llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
+        shapes = getTensorShape(useOp->getOperand(0));
+        canOcTiled = true;
+      } else
         break;
 
       LLVM_DEBUG(llvm::dbgs()
-          << "  userOp " << getOpName(useOp)
-          << ", " << useOp->getName()
-          << ", shape (" << shapes[0]
-          << ", " << shapes[1]
-          << ", " << shapes[2]
-          << ", " << shapes[3]
-          << ")\n");
-
-      if (!llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp) &&
-          !llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp))
-        break;
+                 << "  userOp " << getOpName(useOp) << ", " << useOp->getName()
+                 << ", shape (" << shapes[0] << ", " << shapes[1] << ", "
+                 << shapes[2] << ", " << shapes[3] << ")\n");
 
       if (shapes.size() == 4)
         loadShapes.push_back(shapes);
@@ -952,36 +876,34 @@ public:
     int isBf16 = isBf16Tensor(op->getResult(0)) ? 1 : 0;
     if (!getTiledCompressedActShapeAndSize(op, storeShapes, loadShapes, isBf16,
                                            n_step, oc_step, oh_step, step_size,
-                                           total_size))
+                                           total_size, canOcTiled))
       return failure();
 
     if (!isValidLoadCompressActForTlLgJoin(op, oh_step))
       return failure();
 
     auto enableStoreCmprAct = [&](Operation *op, int64_t &offset) {
-    if (auto tpuOp = llvm::dyn_cast<tpu::TL_LG_StoreOp>(op)) {
+      if (auto tpuOp = llvm::dyn_cast<tpu::TL_LG_StoreOp>(op)) {
         LLVM_DEBUG(llvm::dbgs()
-            << "      " << getOpName(op)
-            << ", offset " << tpuOp.offset().getValue()
-            << " -> " << offset << "\n");
+                   << "      " << getOpName(op) << ", offset "
+                   << tpuOp.offset().getValue() << " -> " << offset << "\n");
 
         tpuOp->removeAttr("offset");
         tpuOp->setAttr("offset",
-                      Builder(op->getContext()).getI64IntegerAttr(offset));
+                       Builder(op->getContext()).getI64IntegerAttr(offset));
 
         auto shapes = getTensorShape(op->getOperand(0));
         offset += step_size * shapes[2] / oh_step;
 
         tpuOp->setAttr("store_compr_act",
-                      Builder(tpuOp.getContext()).getBoolAttr(true));
-        auto value =
-            tpu::ActCmprParam::get(
-                Builder(op->getContext()).getI32IntegerAttr(n_step),
-                Builder(op->getContext()).getI32IntegerAttr(oc_step),
-                Builder(op->getContext()).getI32IntegerAttr(oh_step),
-                Builder(op->getContext()).getI64IntegerAttr(step_size),
-                Builder(op->getContext()).getI64IntegerAttr(total_size),
-                rewriter.getContext());
+                       Builder(tpuOp.getContext()).getBoolAttr(true));
+        auto value = tpu::ActCmprParam::get(
+            Builder(op->getContext()).getI32IntegerAttr(n_step),
+            Builder(op->getContext()).getI32IntegerAttr(oc_step),
+            Builder(op->getContext()).getI32IntegerAttr(oh_step),
+            Builder(op->getContext()).getI64IntegerAttr(step_size),
+            Builder(op->getContext()).getI64IntegerAttr(total_size),
+            rewriter.getContext());
         tpuOp->setAttr("compr_act_param", value);
       }
     };
@@ -995,25 +917,22 @@ public:
 
         // Physical offset(in byte) -> logical offset
         std::vector<int64_t> resShapes = getTensorShape(op->getResult(0));
-        int64_t hOffset = tpuOp.offset().getValue() /
-                          resShapes[3] / eltSize;
+        int64_t hOffset = tpuOp.offset().getValue() / resShapes[3] / eltSize;
 
         int64_t offset = step_size * hOffset; // in byte
         LLVM_DEBUG(llvm::dbgs()
-            << "      " << getOpName(op)
-            << ", offset " << tpuOp.offset().getValue()
-            << " -> " << offset
-            << "(" << step_size
-            << " * " << hOffset
-            << ")\n");
+                   << "      " << getOpName(op) << ", offset "
+                   << tpuOp.offset().getValue() << " -> " << offset << "("
+                   << step_size << " * " << hOffset << ")\n");
 
         tpuOp->removeAttr("offset");
         tpuOp->setAttr("offset",
-                      Builder(op->getContext()).getI64IntegerAttr(offset));
+                       Builder(op->getContext()).getI64IntegerAttr(offset));
 
         tpuOp->setAttr("load_compr_act",
-                      Builder(tpuOp.getContext()).getBoolAttr(true));
-        tpuOp->setAttr("compr_act_param",
+                       Builder(tpuOp.getContext()).getBoolAttr(true));
+        tpuOp->setAttr(
+            "compr_act_param",
             tpu::ActCmprParam::get(
                 Builder(op->getContext()).getI32IntegerAttr(n_step),
                 Builder(op->getContext()).getI32IntegerAttr(oc_step),
@@ -1023,8 +942,9 @@ public:
                 rewriter.getContext()));
       } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(op)) {
         tpuOp->setAttr("load_compr_act",
-                      Builder(tpuOp.getContext()).getBoolAttr(true));
-        tpuOp->setAttr("load_compr_act_param",
+                       Builder(tpuOp.getContext()).getBoolAttr(true));
+        tpuOp->setAttr(
+            "load_compr_act_param",
             tpu::ActCmprParam::get(
                 Builder(op->getContext()).getI32IntegerAttr(n_step),
                 Builder(op->getContext()).getI32IntegerAttr(oc_step),
@@ -1035,11 +955,55 @@ public:
       } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
         std::vector<int64_t> inputShapes = getTensorShape(op->getOperand(0));
 
-        assert(inputShapes[2] == oh_step &&
-              "tl_lg_join->tg_conv2d not support load tiled act");
+        assert(((inputShapes[2] == oh_step) || (oh_step == 1)) &&
+               "tl_lg_join->tg_conv2d unsupported load tiled act");
 
         tpuOp->setAttr("load_compr_act",
-                      Builder(tpuOp.getContext()).getBoolAttr(true));
+                       Builder(tpuOp.getContext()).getBoolAttr(true));
+      } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
+        // gaddr needed to adjust, but not assigned yet
+        sliceOp->setAttr("load_compr_act",
+                        Builder(sliceOp.getContext()).getBoolAttr(true));
+        auto value = tpu::ActCmprParam::get(
+            Builder(op->getContext()).getI32IntegerAttr(n_step),
+            Builder(op->getContext()).getI32IntegerAttr(oc_step),
+            Builder(op->getContext()).getI32IntegerAttr(oh_step),
+            Builder(op->getContext()).getI64IntegerAttr(step_size),
+            Builder(op->getContext()).getI64IntegerAttr(total_size),
+            rewriter.getContext());
+        sliceOp->setAttr("load_compr_act_param", value);
+
+        for (auto &use : op->getResult(0).getUses()) {
+          auto useOp = use.getOwner();
+          if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
+            tpuOp->setAttr("load_compr_act",
+                          Builder(tpuOp.getContext()).getBoolAttr(true));
+            tpuOp->setAttr(
+                "load_compr_act_param",
+                tpu::ActCmprParam::get(
+                    Builder(op->getContext()).getI32IntegerAttr(n_step),
+                    Builder(op->getContext()).getI32IntegerAttr(oc_step),
+                    Builder(op->getContext()).getI32IntegerAttr(oh_step),
+                    Builder(op->getContext()).getI64IntegerAttr(step_size),
+                    Builder(op->getContext()).getI64IntegerAttr(total_size),
+                    rewriter.getContext()));
+
+          } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_QuantOp>(useOp)) {
+            tpuOp->setAttr("load_compr_act",
+                          Builder(tpuOp.getContext()).getBoolAttr(true));
+            tpuOp->setAttr(
+                "load_compr_act_param",
+                tpu::ActCmprParam::get(
+                    Builder(op->getContext()).getI32IntegerAttr(n_step),
+                    Builder(op->getContext()).getI32IntegerAttr(oc_step),
+                    Builder(op->getContext()).getI32IntegerAttr(oh_step),
+                    Builder(op->getContext()).getI64IntegerAttr(step_size),
+                    Builder(op->getContext()).getI64IntegerAttr(total_size),
+                    rewriter.getContext()));
+          } else {
+            llvm_unreachable("Not support from Slice yet");
+          }
+        }
       } else {
         LLVM_DEBUG(llvm::dbgs() << "      load_compr_act not set\n");
       }
@@ -1053,10 +1017,8 @@ public:
     for (auto operand : op->getOperands()) {
       auto tiuOp = operand.getDefiningOp()->getOperand(0).getDefiningOp();
 
-      LLVM_DEBUG(llvm::dbgs()
-        << "  Mark cmpr_store, tiuOp " << getOpName(tiuOp)
-        << ", " << tiuOp->getName()
-        << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "  Mark cmpr_store, tiuOp " << getOpName(tiuOp)
+                              << ", " << tiuOp->getName() << "\n");
 
       // Mark lg_store
       enableStoreCmprAct(operand.getDefiningOp(), store_offset);
@@ -1065,9 +1027,8 @@ public:
       for (auto &use : tiuOp->getResult(0).getUses()) {
         auto useOp = use.getOwner();
         LLVM_DEBUG(llvm::dbgs()
-            << "    mark cmpr_load, useOp " << getOpName(useOp)
-            << ", " << useOp->getName()
-            << "\n");
+                   << "    mark cmpr_load, useOp " << getOpName(useOp) << ", "
+                   << useOp->getName() << "\n");
 
         enableLoadCmprAct(useOp);
       }
@@ -1083,10 +1044,8 @@ public:
     for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
 
-      LLVM_DEBUG(llvm::dbgs()
-        << "  Mark cmpr_load, useOp " << getOpName(useOp)
-        << ", " << useOp->getName()
-        << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "  Mark cmpr_load, useOp " << getOpName(useOp)
+                              << ", " << useOp->getName() << "\n");
 
       enableLoadCmprAct(useOp);
       index++;
@@ -1098,7 +1057,8 @@ public:
   MInfo &mInfo;
 };
 
-struct CompressActivationPass : public mlir::PassWrapper<CompressActivationPass, FunctionPass> {
+struct CompressActivationPass
+    : public mlir::PassWrapper<CompressActivationPass, FunctionPass> {
   void runOnFunction() override;
 
   template <typename OpTy>
@@ -1209,8 +1169,7 @@ void CompressActivationPass::addTlLdLoadNeuronOpToCmprMap(Operation *op) {
   cmprMaps[op] = {0, 0, 0, nullptr};
 }
 
-void CompressActivationPass::addTlConvOpToCmprMap(Operation *op)
-{
+void CompressActivationPass::addTlConvOpToCmprMap(Operation *op) {
   cmprMaps[op] = {0, 0, 0, nullptr};
 }
 
@@ -1219,7 +1178,7 @@ void CompressActivationPass::assertTgOpLoadCompressedAct(OpTy tpuOp) {
   if (!tpuOp.load_compr_act().hasValue() ||
       !tpuOp.load_compr_act_param().hasValue()) {
     LLVM_DEBUG(llvm::dbgs() << "      " << tpuOp.getOpName()
-              << ", error ! expect decompressed\n");
+                            << ", error ! expect decompressed\n");
     showOpStatus(tpuOp.getOperation());
   }
 
@@ -1232,7 +1191,7 @@ void CompressActivationPass::assertTgOpLoadPlainAct(OpTy tpuOp) {
   if (tpuOp.load_compr_act().hasValue() ||
       tpuOp.load_compr_act_param().hasValue()) {
     LLVM_DEBUG(llvm::dbgs() << "      " << tpuOp.getOpName()
-                << ", error ! expect load plain\n");
+                            << ", error ! expect load plain\n");
     showOpStatus(tpuOp.getOperation());
   }
 
@@ -1245,7 +1204,7 @@ void CompressActivationPass::assertTgOpStoreCompressedAct(OpTy tpuOp) {
   if (!tpuOp.store_compr_act().hasValue() ||
       !tpuOp.store_compr_act_param().hasValue()) {
     LLVM_DEBUG(llvm::dbgs() << "      " << tpuOp.getOpName()
-                << ", error ! expect store compressed\n");
+                            << ", error ! expect store compressed\n");
     showOpStatus(tpuOp.getOperation());
   }
 
@@ -1258,7 +1217,7 @@ void CompressActivationPass::assertTgOpStorePlainAct(OpTy tpuOp) {
   if (tpuOp.store_compr_act().hasValue() ||
       tpuOp.store_compr_act_param().hasValue()) {
     LLVM_DEBUG(llvm::dbgs() << "      " << tpuOp.getOpName()
-                << ", error ! expect store plain\n");
+                            << ", error ! expect store plain\n");
     showOpStatus(tpuOp.getOperation());
   }
 
@@ -1271,7 +1230,7 @@ void CompressActivationPass::assertTlConvOpLoadCompressedAct(OpTy tpuOp) {
   if (!tpuOp.load_compr_act().hasValue() ||
       !tpuOp.load_compr_act_param().hasValue()) {
     LLVM_DEBUG(llvm::dbgs() << "      " << tpuOp.getOpName()
-              << ", error ! expect decompressed\n");
+                            << ", error ! expect decompressed\n");
     showOpStatus(tpuOp.getOperation());
   }
 
@@ -1284,7 +1243,7 @@ void CompressActivationPass::assertTlConvOpLoadPlainAct(OpTy tpuOp) {
   if (tpuOp.load_compr_act().hasValue() ||
       tpuOp.load_compr_act_param().hasValue()) {
     LLVM_DEBUG(llvm::dbgs() << "      " << tpuOp.getOpName()
-                << ", error ! expect load plain\n");
+                            << ", error ! expect load plain\n");
     showOpStatus(tpuOp.getOperation());
   }
 
@@ -1293,11 +1252,11 @@ void CompressActivationPass::assertTlConvOpLoadPlainAct(OpTy tpuOp) {
 }
 
 void CompressActivationPass::assertTlLgLoadNeuronOpLoadCompressedAct(
-                                  tpu::TL_LG_LoadNeuronOp tpuOp) {
+    tpu::TL_LG_LoadNeuronOp tpuOp) {
   if (!tpuOp.load_compr_act().hasValue() ||
       !tpuOp.compr_act_param().hasValue()) {
     LLVM_DEBUG(llvm::dbgs() << "      " << tpuOp.getOpName()
-              << ", error ! expect decompressed\n");
+                            << ", error ! expect decompressed\n");
     showOpStatus(tpuOp.getOperation());
   }
 
@@ -1306,11 +1265,10 @@ void CompressActivationPass::assertTlLgLoadNeuronOpLoadCompressedAct(
 }
 
 void CompressActivationPass::assertTlLgLoadNeuronOpLoadPlainAct(
-                                tpu::TL_LG_LoadNeuronOp tpuOp) {
-  if (tpuOp.load_compr_act().hasValue() ||
-      tpuOp.compr_act_param().hasValue()) {
+    tpu::TL_LG_LoadNeuronOp tpuOp) {
+  if (tpuOp.load_compr_act().hasValue() || tpuOp.compr_act_param().hasValue()) {
     LLVM_DEBUG(llvm::dbgs() << "      " << tpuOp.getOpName()
-                << ", error ! expect load plain\n");
+                            << ", error ! expect load plain\n");
     showOpStatus(tpuOp.getOperation());
   }
 
@@ -1331,15 +1289,15 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
       if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(opdOp)) {
         assertTgOpStoreCompressedAct<tpu::TG_INT8_PC_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp =
-                 llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(opdOp)) {
+                     llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(opdOp)) {
         assertTgOpStoreCompressedAct<tpu::TG_INT8_PT_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(opdOp)) {
         assertTgOpStoreCompressedAct<tpu::TG_BF16_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp =
-                 llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(opdOp)) {
+                     llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(opdOp)) {
         assertTgOpStoreCompressedAct<tpu::TG_INT8_EltwiseAddOp>(opdTpuOp);
       } else if (auto opdTpuOp =
-                 llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(opdOp)) {
+                     llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(opdOp)) {
         assertTgOpStoreCompressedAct<tpu::TG_BF16_EltwiseAddOp>(opdTpuOp);
       } else if (llvm::dyn_cast<tpu::TpuOpCommonInterface>(opdOp)) {
         llvm_unreachable("Expect supported cmpr op");
@@ -1354,15 +1312,15 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
       if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(opdOp)) {
         assertTgOpStorePlainAct<tpu::TG_INT8_PC_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp =
-                 llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(opdOp)) {
+                     llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(opdOp)) {
         assertTgOpStorePlainAct<tpu::TG_INT8_PT_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(opdOp)) {
         assertTgOpStorePlainAct<tpu::TG_BF16_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp =
-                 llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(opdOp)) {
+                     llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(opdOp)) {
         assertTgOpStorePlainAct<tpu::TG_INT8_EltwiseAddOp>(opdTpuOp);
       } else if (auto opdTpuOp =
-                 llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(opdOp)) {
+                     llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(opdOp)) {
         assertTgOpStorePlainAct<tpu::TG_BF16_EltwiseAddOp>(opdTpuOp);
       }
     }
@@ -1376,26 +1334,25 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
       if (auto useTpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
         assertTgOpLoadCompressedAct<tpu::TG_INT8_PC_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(useOp)) {
+                     llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(useOp)) {
         assertTgOpLoadCompressedAct<tpu::TG_INT8_PT_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(useOp)) {
         assertTgOpLoadCompressedAct<tpu::TG_BF16_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(useOp)) {
+                     llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(useOp)) {
         assertTgOpLoadCompressedAct<tpu::TG_INT8_EltwiseAddOp>(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(useOp)) {
+                     llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(useOp)) {
         assertTgOpLoadCompressedAct<tpu::TG_BF16_EltwiseAddOp>(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp)) {
+                     llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp)) {
         assertTlLgLoadNeuronOpLoadCompressedAct(useTpuOp);
+      } else if (auto useTpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
+        assertTlConvOpLoadCompressedAct(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
-         assertTlConvOpLoadCompressedAct(useTpuOp);
-      } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TpuOpCommonInterface>(useOp)) {
+                     llvm::dyn_cast<tpu::TpuOpCommonInterface>(useOp)) {
         LLVM_DEBUG(llvm::dbgs() << "  error ! useOp " << useTpuOp.getOpName()
-                   << ", " << useOp->getName() << "\n");
+                                << ", " << useOp->getName() << "\n");
         llvm_unreachable("Expect supported cmpr op");
       }
     }
@@ -1407,21 +1364,20 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
       if (auto useTpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
         assertTgOpLoadPlainAct<tpu::TG_INT8_PC_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(useOp)) {
+                     llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(useOp)) {
         assertTgOpLoadPlainAct<tpu::TG_INT8_PT_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(useOp)) {
         assertTgOpLoadPlainAct<tpu::TG_BF16_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(useOp)) {
+                     llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(useOp)) {
         assertTgOpLoadPlainAct<tpu::TG_INT8_EltwiseAddOp>(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(useOp)) {
+                     llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(useOp)) {
         assertTgOpLoadPlainAct<tpu::TG_BF16_EltwiseAddOp>(useTpuOp);
       } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp)) {
+                     llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp)) {
         assertTlLgLoadNeuronOpLoadPlainAct(useTpuOp);
-      } else if (auto useTpuOp =
-                 llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
+      } else if (auto useTpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
         assertTlConvOpLoadPlainAct<tpu::TL_LW_Conv2DOp>(useTpuOp);
       }
     }
@@ -1444,11 +1400,11 @@ void CompressActivationPass::checkTgEltAddOpStatus(OpTy tpuOp) {
                                cmpr_total);
       if (ld_c_step != cmpr_c) {
         auto opdTpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(opdOp);
-        LLVM_DEBUG(llvm::dbgs() << "  op " << tpuOp.getOpName()
-                  << ", layer ID " << getOpLayerId(op)
-                  << ", ld_c_step " << ld_c_step
-                  << ", prevOp " << opdTpuOp.getOpName()
-                  << ", st_c_step " << cmpr_c << "\n");
+        LLVM_DEBUG(llvm::dbgs()
+                   << "  op " << tpuOp.getOpName() << ", layer ID "
+                   << getOpLayerId(op) << ", ld_c_step " << ld_c_step
+                   << ", prevOp " << opdTpuOp.getOpName() << ", st_c_step "
+                   << cmpr_c << "\n");
       }
       assert(ld_c_step == cmpr_c);
     }
@@ -1465,12 +1421,12 @@ void CompressActivationPass::checkTgEltAddOpStatus(OpTy tpuOp) {
                               cmpr_total);
 
       if (cmpr_c != st_c_step) {
-       auto useTpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(useOp);
-        LLVM_DEBUG(llvm::dbgs() << "  op " << tpuOp.getOpName()
-                  << ", layer ID " << getOpLayerId(op)
-                  << ", st_c_step " << st_c_step
-                  << ", nextOp " << useTpuOp.getOpName()
-                  << ", ld_c_step " << cmpr_c << "\n");
+        auto useTpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(useOp);
+        LLVM_DEBUG(llvm::dbgs()
+                   << "  op " << tpuOp.getOpName() << ", layer ID "
+                   << getOpLayerId(op) << ", st_c_step " << st_c_step
+                   << ", nextOp " << useTpuOp.getOpName() << ", ld_c_step "
+                   << cmpr_c << "\n");
       }
       assert(cmpr_c == st_c_step);
     }
@@ -1481,10 +1437,9 @@ void CompressActivationPass::checkTgEltAddOpStatus(OpTy tpuOp) {
     int ld_c_step = tpuOp.load_compr_act_param().getValue().c_step().getInt();
     int st_c_step = tpuOp.store_compr_act_param().getValue().c_step().getInt();
     if (ld_c_step != st_c_step) {
-      LLVM_DEBUG(llvm::dbgs() << "  op " << tpuOp.getOpName()
-                 << ", layer ID " << getOpLayerId(op)
-                 << ", ld_c_step " << ld_c_step
-                 << ", st_c_step " << st_c_step << "\n");
+      LLVM_DEBUG(llvm::dbgs() << "  op " << tpuOp.getOpName() << ", layer ID "
+                              << getOpLayerId(op) << ", ld_c_step " << ld_c_step
+                              << ", st_c_step " << st_c_step << "\n");
     }
     assert(ld_c_step == st_c_step && "Expect tg elt-add same ld/st c step");
   }
@@ -1512,14 +1467,14 @@ void CompressActivationPass::addOpToCmprMaps() {
 
 void CompressActivationPass::showMarkCompressed() {
   LLVM_DEBUG(llvm::dbgs() << "\n===============\n"
-             << "showMarkCompressed\n");
+                          << "showMarkCompressed\n");
   for (auto m : cmprMaps) {
     auto op = m.first;
     auto status = m.second;
     auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
     LLVM_DEBUG(llvm::dbgs()
-        << tpuOp.getOpName() <<  ", " << op->getName()
-        << ", store " << status.store << ", load " << status.load << "\n");
+               << tpuOp.getOpName() << ", " << op->getName() << ", store "
+               << status.store << ", load " << status.load << "\n");
     showOpStatus(m.first);
   }
 
@@ -1528,7 +1483,7 @@ void CompressActivationPass::showMarkCompressed() {
 
 void CompressActivationPass::markLoadDeCompressed() {
   LLVM_DEBUG(llvm::dbgs() << "\n===============\n"
-             << "markLoadDeCompressed\n");
+                          << "markLoadDeCompressed\n");
 
   // tg conv/tg elt-add
   // Remove store compressed first
@@ -1566,9 +1521,8 @@ void CompressActivationPass::markLoadDeCompressed() {
       m.second.store = 0;
 
       auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
-      LLVM_DEBUG(llvm::dbgs()
-                 << "  " << tpuOp.getOpName() << ", " << op->getName()
-                 << ", store plain\n");
+      LLVM_DEBUG(llvm::dbgs() << "  " << tpuOp.getOpName() << ", "
+                              << op->getName() << ", store plain\n");
     }
   }
 
@@ -1592,8 +1546,7 @@ void CompressActivationPass::markLoadDeCompressed() {
         continue;
 
       opdOps.push_back(opdOp);
-      load_cmpr_cnt = cmprMaps[opdOp].store ?
-                      load_cmpr_cnt + 1 : load_cmpr_cnt;
+      load_cmpr_cnt = cmprMaps[opdOp].store ? load_cmpr_cnt + 1 : load_cmpr_cnt;
     }
 
     if (load_cmpr_cnt != 2) {
@@ -1601,36 +1554,31 @@ void CompressActivationPass::markLoadDeCompressed() {
 
       {
         auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
-        LLVM_DEBUG(llvm::dbgs()
-                  << "  " << tpuOp.getOpName() << ", " << op->getName()
-                  << ", load plain\n");
+        LLVM_DEBUG(llvm::dbgs() << "  " << tpuOp.getOpName() << ", "
+                                << op->getName() << ", load plain\n");
       }
 
       for (auto v : opdOps) {
         cmprMaps[v].store = 0;
 
         auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(v);
-        LLVM_DEBUG(llvm::dbgs()
-                   << "    " << tpuOp.getOpName() << ", " << v->getName()
-                   << ", opd store plain\n");
+        LLVM_DEBUG(llvm::dbgs() << "    " << tpuOp.getOpName() << ", "
+                                << v->getName() << ", opd store plain\n");
       }
     } else {
       m.second.load = 1;
 
       {
         auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
-        LLVM_DEBUG(llvm::dbgs()
-                  << "  " << tpuOp.getOpName() << ", " << op->getName()
-                  << ", load cmpressed\n");
+        LLVM_DEBUG(llvm::dbgs() << "  " << tpuOp.getOpName() << ", "
+                                << op->getName() << ", load cmpressed\n");
       }
 
       for (auto v : opdOps) {
         auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(v);
-        LLVM_DEBUG(llvm::dbgs()
-                   << "    " << tpuOp.getOpName() << ", " << v->getName()
-                   << ", opd store compressed\n");
+        LLVM_DEBUG(llvm::dbgs() << "    " << tpuOp.getOpName() << ", "
+                                << v->getName() << ", opd store compressed\n");
       }
-
     }
   }
 
@@ -1645,9 +1593,8 @@ void CompressActivationPass::markLoadDeCompressed() {
 
     {
       auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
-      LLVM_DEBUG(llvm::dbgs()
-                << "  " << tpuOp.getOpName() << ", " << op->getName()
-                << ", store compressed\n");
+      LLVM_DEBUG(llvm::dbgs() << "  " << tpuOp.getOpName() << ", "
+                              << op->getName() << ", store compressed\n");
     }
 
     for (auto &use : op->getResult(0).getUses()) {
@@ -1691,31 +1638,28 @@ void CompressActivationPass::markLoadDeCompressed() {
       }
 
       auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
-      LLVM_DEBUG(llvm::dbgs()
-                << "  [" << i << "] "
-                << tpuOp.getOpName() << ", " << op->getName()
-                << ", load compressed\n");
+      LLVM_DEBUG(llvm::dbgs() << "  [" << i << "] " << tpuOp.getOpName() << ", "
+                              << op->getName() << ", load compressed\n");
 
       for (auto operand : op->getOperands()) {
         auto opdOp = operand.getDefiningOp();
         if (min_c_step != cmprMaps[opdOp].st_c_step) {
           auto opdTpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(opdOp);
           LLVM_DEBUG(llvm::dbgs()
-                    << "    opdOp " << opdTpuOp.getOpName()
-                    << ", " << opdOp->getName()
-                    << ", cmpr_c_step " << cmprMaps[opdOp].st_c_step
-                    << " -> " << min_c_step << "\n");
+                     << "    opdOp " << opdTpuOp.getOpName() << ", "
+                     << opdOp->getName() << ", cmpr_c_step "
+                     << cmprMaps[opdOp].st_c_step << " -> " << min_c_step
+                     << "\n");
           cmprMaps[opdOp].st_c_step = min_c_step;
           changed = true;
         }
       }
 
       if (cmprMaps[op].store && cmprMaps[op].st_c_step != min_c_step) {
-        LLVM_DEBUG(llvm::dbgs()
-                  << "    cmpr_c_step " << cmprMaps[op].st_c_step
-                  << " -> " << min_c_step << "\n");
-          cmprMaps[op].st_c_step = min_c_step;
-          changed = true;
+        LLVM_DEBUG(llvm::dbgs() << "    cmpr_c_step " << cmprMaps[op].st_c_step
+                                << " -> " << min_c_step << "\n");
+        cmprMaps[op].st_c_step = min_c_step;
+        changed = true;
       }
     }
 
@@ -1759,26 +1703,24 @@ void CompressActivationPass::runOnFunction() {
   analyze();
 
   // Determine whether the operation can store compressed activation.
-  patterns.insert<
-        TgCompressActPattern<tpu::TG_INT8_PT_Conv2DOp>,
-        TgCompressActPattern<tpu::TG_INT8_PC_Conv2DOp>,
-        TgCompressActPattern<tpu::TG_INT8_EltwiseAddOp>,
-        TgCompressActPattern<tpu::TG_BF16_Conv2DOp>,
-        TgCompressActPattern<tpu::TG_BF16_EltwiseAddOp>
-      >(&getContext(), cmprMaps);
+  patterns.insert<TgCompressActPattern<tpu::TG_INT8_PT_Conv2DOp>,
+                  TgCompressActPattern<tpu::TG_INT8_PC_Conv2DOp>,
+                  TgCompressActPattern<tpu::TG_INT8_EltwiseAddOp>,
+                  TgCompressActPattern<tpu::TG_BF16_Conv2DOp>,
+                  TgCompressActPattern<tpu::TG_BF16_EltwiseAddOp>>(
+      &getContext(), cmprMaps);
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
   // Determine whether the operation can load compressed activation.
   patterns.clear();
-  patterns.insert<
-        TgDecompressActPattern<tpu::TG_INT8_PT_Conv2DOp>,
-        TgDecompressActPattern<tpu::TG_INT8_PC_Conv2DOp>,
-        TgDecompressActPattern<tpu::TG_INT8_EltwiseAddOp>,
-        TgDecompressActPattern<tpu::TG_BF16_Conv2DOp>,
-        TgDecompressActPattern<tpu::TG_BF16_EltwiseAddOp>,
-        TlLgLoadNeuronDecompressActPattern,
-        TlConvDecompressActPattern<tpu::TL_LW_Conv2DOp>
-      >(&getContext(), cmprMaps);
+  patterns.insert<TgDecompressActPattern<tpu::TG_INT8_PT_Conv2DOp>,
+                  TgDecompressActPattern<tpu::TG_INT8_PC_Conv2DOp>,
+                  TgDecompressActPattern<tpu::TG_INT8_EltwiseAddOp>,
+                  TgDecompressActPattern<tpu::TG_BF16_Conv2DOp>,
+                  TgDecompressActPattern<tpu::TG_BF16_EltwiseAddOp>,
+                  TlLgLoadNeuronDecompressActPattern,
+                  TlConvDecompressActPattern<tpu::TL_LW_Conv2DOp>>(
+      &getContext(), cmprMaps);
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
   checkTgOpCompressStats();
@@ -1786,9 +1728,7 @@ void CompressActivationPass::runOnFunction() {
   // Determine whether the tl store operations can store tiled compressed
   // activation
   patterns.clear();
-  patterns.insert<
-      TlLgJointCompressedActPattern
-      >(&getContext(), mInfo);
+  patterns.insert<TlLgJointCompressedActPattern>(&getContext(), mInfo);
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 }
 
