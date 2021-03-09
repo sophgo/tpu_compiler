@@ -23,7 +23,7 @@ def random_select_images(dataset_path, num):
         if file.is_file():
             full_list.append(str(file))
     random.shuffle(full_list)
-    num = num if len(full_list) < num else len(full_list)
+    num = num if len(full_list) > num else len(full_list)
     if num == 0:
         num = len(full_list)
     return full_list[:num]

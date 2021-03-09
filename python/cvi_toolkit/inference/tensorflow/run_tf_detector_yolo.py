@@ -72,9 +72,9 @@ def main(argv):
     features = net(image_x)
 
     out_feat = dict()
-    out_feat['layer82-conv'] = np.transpose(features[0], (0, 3, 1, 2))
+    out_feat['layer82-conv'] = np.transpose(features[2], (0, 3, 1, 2))
     out_feat['layer94-conv'] = np.transpose(features[1], (0, 3, 1, 2))
-    out_feat['layer106-conv'] = np.transpose(features[2], (0, 3, 1, 2))
+    out_feat['layer106-conv'] = np.transpose(features[0], (0, 3, 1, 2))
     batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
                                 obj_threshold, nms_threshold, False, args.batch_size)
 

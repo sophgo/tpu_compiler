@@ -10,7 +10,8 @@ import caffe
 import pymlir
 from caffe.proto import caffe_pb2
 from google.protobuf import text_format
-ssd_mean = np.array([104, 117, 123], dtype=np.float32)
+ssd_mean = np.array([127.5, 127.5, 127.5], dtype=np.float32)
+input_scale = 0.007843
 
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')
@@ -121,6 +122,7 @@ def ssd_detect(model,image_path, net_input_dims,
     transformer.set_transpose('data', (2, 0, 1))  # row to col, (HWC -> CHW)
     transformer.set_mean('data', ssd_mean)
     transformer.set_raw_scale('data', 255)  # [0,1] to [0,255]
+    transformer.set_input_scale('data', input_scale)
     transformer.set_channel_swap('data', (2, 1, 0))  # RGB to BGR
 
     x = transformer.preprocess('data', image)
