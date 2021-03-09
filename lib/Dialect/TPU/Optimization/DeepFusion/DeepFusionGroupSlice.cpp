@@ -1174,8 +1174,6 @@ void DeepFusionGroupSlice::concatOps(
       operands.push_back(op->getResult(0));
 
     std::vector<NamedAttribute> attrs;
-
-    attrs.push_back(builder.getNamedAttr("axis", builder.getI32IntegerAttr(0)));
     std::string concatOpName = mlir::getOpName(orderedGroupOutOps[i]).str();
     attrs.push_back(builder.getNamedAttr("name",
                                          builder.getStringAttr(concatOpName)));

@@ -19,7 +19,7 @@ public:
 
   void init(uint32_t layer_id, int input_num, int dim_size, int concat_axis,
             gaddr_t input_gaddrs[], gaddr_t output_gaddr, int axis_dims[],
-            int output_dim[], bool do_relu, const int8_t right_shift_width[],
+            int output_dim[], bool do_relu, const int right_shift_width[],
             const int threshold_x_quantized[], cvk_fmt_t fmt);
   void selectTilePolicy();
   void schedule();
@@ -56,7 +56,7 @@ protected:
     gaddr_t ga_output;
     cvk_tg_shape_t shape;
     cvk_tg_stride_t stride;
-    int8_t rshift_width;
+    int rshift_width;
     int data_quantized;
     int tile_idx;
     std::vector<CviBackendContext::tiling_info_t> tiles;

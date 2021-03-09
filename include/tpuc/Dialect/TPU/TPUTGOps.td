@@ -87,10 +87,9 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `axis`            : required, the axis the concat is applying
-      `rshift`          : optional, rshift, an int8 value.
+      `rshift`          : optional, rshift for inputs.
       `m_i8_inputs`     : optional, multipliers for inputs. one int8 value for
                           each input (saved as I32ArrayAttr)
-      `m_i8_output`     : optional, multiplier for output.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -111,9 +110,8 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins Variadic<AnyTensor>:$inputs,
-    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I32ArrayAttr>:$rshift,
     OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
-    OptionalAttr<I8Attr>:$m_i8_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     I32Attr:$axis,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
@@ -139,7 +137,6 @@ def TPU_TG_ConcatNOp: TPU_Op<"tg_concat_n",
       `inputs`          : required, the variadic activation memref.
 
     Attributes:
-      `axis`            : required, the axis the concat is applying
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `name`            : required, name for comparing, or debug.
@@ -156,7 +153,6 @@ def TPU_TG_ConcatNOp: TPU_Op<"tg_concat_n",
 
   let arguments = (
     ins Variadic<AnyTensor>:$inputs,
-    I32Attr:$axis,
     OptionalAttr<I64Attr>:$gaddr,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname

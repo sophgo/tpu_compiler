@@ -858,48 +858,47 @@ StringRef ReshapeOp::getOpQuant() {
 }
 
 LogicalResult ReshapeOp::setOpQuantMode(StringRef &mode) {
-  assert(false);
   auto prev_op = this->getOperand().getDefiningOp();
   return mlir::setOpQuant(prev_op, mode);
 }
 
 StringRef ReshapeOp::getOpQuantParamType() {
-  assert(false);
-  return StringRef();
+  auto prev_op = this->getOperand().getDefiningOp();
+  return mlir::getOpQuantParamType(prev_op);
 }
 
 LogicalResult ReshapeOp::setOpQuantParamType(StringRef &type) {
-  assert(false);
-  return failure();
+  auto prev_op = this->getOperand().getDefiningOp();
+  return mlir::setOpQuantParamType(prev_op, type);
 }
 
 bool ReshapeOp::isOpQuantPerchannel() {
-  assert(false);
-  return false;
+  auto prev_op = this->getOperand().getDefiningOp();
+  return mlir::isOpQuantPerchannel(prev_op);
 }
 LogicalResult ReshapeOp::setOpQuantPerchannel(bool flag) {
-  assert(false);
-  return failure();
+  auto prev_op = this->getOperand().getDefiningOp();
+  return mlir::setOpQuantPerchannel(prev_op, flag);
 }
 
 bool ReshapeOp::isOpQuantAsymmetric() {
-  assert(false);
-  return false;
+  auto prev_op = this->getOperand().getDefiningOp();
+  return mlir::isOpQuantAsymmetric(prev_op);
 }
 
 LogicalResult ReshapeOp::setOpQuantAsymmetric(bool flag) {
-  assert(false);
-  return failure();
+  auto prev_op = this->getOperand().getDefiningOp();
+  return mlir::setOpQuantAsymmetric(prev_op, flag);
 }
 
-float ReshapeOp::getOpQuantThreshold() { \
+float ReshapeOp::getOpQuantThreshold() {
   auto prev_op = this->getOperand().getDefiningOp();
   return mlir::getOpThreshold(prev_op);
 }
 
 LogicalResult ReshapeOp::setOpQuantThreshold(float threshold) {
-  assert(false);
-  return failure();
+  auto prev_op = this->getOperand().getDefiningOp();
+  return mlir::setOpThreshold(prev_op, threshold);
 }
 
 int ReshapeOp::getOpQuantZeroPoint() {

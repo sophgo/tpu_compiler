@@ -258,10 +258,6 @@ int64_t GmemAllocator::assignSpecifiedGmemToOp(
                                        uint32_t alignment) {
   int64_t size = 0;
   if (auto concatOp = dyn_cast_or_null<tpu::TG_ConcatNOp>(op)) {
-    int axis = concatOp.axis();
-    if (axis != 0) {
-      return 0;
-    }
     size = getTensorGmemSize(op, alignment);
     gaddrMap[op] = baseGaddr;
   }

@@ -300,7 +300,7 @@ void cvi_backend_tl_concat(
     const CviBackendContext &ctx, uint32_t layer_id,
     int *input_dim_c, int input_size, int *output_dim,
     laddr_t *la_input, laddr_t la_output, bool do_relu,
-    int8_t rshift, int32_t * m_i8);
+    int32_t * r_i8, int32_t * m_i8);
 
 void cvi_backend_tl_bf16_concat(
     const CviBackendContext &ctx, uint32_t layer_id,

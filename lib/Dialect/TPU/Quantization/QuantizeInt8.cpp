@@ -691,7 +691,6 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     }
   }
   if (bypass && OpTy::getOperationName() != "tpu.pool_avg_2d"
-             && OpTy::getOperationName() != "tpu.concat"
              && OpTy::getOperationName() != "tpu.eltwise_max"
              && OpTy::getOperationName() != "tpu.eltwise_min"
              && OpTy::getOperationName() != "tpu.eltwise_add"
@@ -835,6 +834,51 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   op->setOperand(nInputs + 3, multiplier_op);
 
   setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+
+  return success();
+}
+
+LogicalResult quantizeInt8ConcatOps(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  // support per-tensor only for now
+  setOpQuantPerchannel(op, false);
+  // use rshift and INT8 multiplier
+  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value wfV = getWeightFileValue(op);
+
+  float threshold_y = getOpThreshold(op);
+  auto concatOp = cast<tpu::ConcatOp>(op);
+  unsigned nInputs = concatOp.getNumInputs();
+  auto rshift = std::make_unique<std::vector<float>>(nInputs, 0.0f);
+  auto multiplier = std::make_unique<std::vector<float>>(nInputs, 1.0f);
+  for (unsigned i = 0; i < nInputs; ++i) {
+    float threshold_x = getPreviousOpThreshold(op, i);
+    float qscale = threshold_x / threshold_y;
+    if (fabs(threshold_y - threshold_x) <= 1e-5) {
+      qscale = 1.0f;
+    }
+    if (qscale != 1.0f) {
+      uint32_t multiplier_u32;
+      int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale, &multiplier_u32);
+      rshift->at(i) = (float)rshift_i8;
+      multiplier->at(i) = (float)multiplier_u32;
+    }
+  }
+  // add rshift and multiplier to weight
+  StringRef storageType = "NONE";
+
+  auto shape_quant = std::vector<int64_t>{nInputs};
+  auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "rshift", *rshift, shape_quant, storageType, wTF, wfV);
+  op->setOperand(nInputs + 2, rshift_op);
+  auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "multiplier", *multiplier, shape_quant, storageType, wTF, wfV);
+  op->setOperand(nInputs + 3, multiplier_op);
+
+  setOpResultType(op->getResult(0),
+                  IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -1275,7 +1319,7 @@ LogicalResult tpu::ConcatOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeInt8RescaleNoWeightOps<tpu::ConcatOp>(op);
+  return quantizeInt8ConcatOps(op);
 }
 
 LogicalResult tpu::Conv2DOp::quantizeInt8() {

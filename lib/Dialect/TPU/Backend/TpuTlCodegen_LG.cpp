@@ -885,13 +885,15 @@ LogicalResult tpu::TL_LG_INT8_ConcatOp::codegen(void *ctx) {
   }
 
   // prepare quant info
-  int8_t r_i8 = 0;
+  int32_t *r_i8 = nullptr;
   int32_t *m_i8 = nullptr;
   std::vector<int32_t> m_i8_array;
+  std::vector<int32_t> r_i8_array;
   if (this->r_i8().hasValue() && this->m_i8().hasValue()) {
-    r_i8 = this->r_i8().getValue();
     arrayAttrToVector(this->m_i8().getValue(), m_i8_array);
     m_i8 = m_i8_array.data();
+    arrayAttrToVector(this->r_i8().getValue(), r_i8_array);
+    r_i8 = r_i8_array.data();
   }
 
   cvi_backend_tl_concat(*backend_ctx, layer_id, input_dims.data(), nInputs,

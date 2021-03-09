@@ -504,18 +504,15 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   }
 
   // prepare quant info
-  std::vector<int8_t> rshift;
+  std::vector<int32_t> rshift;
   std::vector<int32_t> m_i8_input;
-  const int8_t *p_rshift = nullptr;
+  const int32_t *p_rshift = nullptr;
   const int32_t *p_m_i8 = nullptr;
   if (this->rshift().hasValue() && this->m_i8_inputs().hasValue()) {
-    int8_t rshift_value = this->rshift().getValue();
-
     arrayAttrToVector(this->m_i8_inputs().getValue(), m_i8_input);
     assert(m_i8_input.size() == nInputs);
-    for (unsigned i = 0; i < nInputs; ++i) {
-      rshift.push_back(rshift_value);
-    }
+    arrayAttrToVector(this->rshift().getValue(), rshift);
+    assert(rshift.size() == nInputs);
     p_rshift = rshift.data();
     p_m_i8 = m_i8_input.data();
   }

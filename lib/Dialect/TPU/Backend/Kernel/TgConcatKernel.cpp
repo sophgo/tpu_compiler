@@ -98,7 +98,7 @@ void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
                           int concat_axis, gaddr_t input_gaddrs[],
                           gaddr_t output_gaddr, int axis_dims[],
                           int output_dim[], bool do_relu,
-                          const int8_t right_shift_width[],
+                          const int right_shift_width[],
                           const int threshold_x_quantized[], cvk_fmt_t fmt) {
   ctx.assert_support_fmt(fmt);
   assert(dim_size >= 2 && dim_size <= 4);
@@ -117,7 +117,7 @@ void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
     if (right_shift_width != nullptr) {
       info.rshift_width = right_shift_width[i];
     }
-    if (threshold_x_quantized != nullptr) {
+    if (threshold_x_quantized != nullptr && threshold_x_quantized[i] != 0) {
       info.data_quantized = threshold_x_quantized[i];
     } else {
       info.data_quantized = 1;
@@ -276,7 +276,7 @@ void cvi_backend_tg_concat_kernel(const CviBackendContext &ctx,
                                   gaddr_t input_gaddrs[], gaddr_t output_gaddr,
                                   int axis_dims[], int concat_axis,
                                   int output_dim_size, int output_dim[],
-                                  bool do_relu, const int8_t *right_shift_width,
+                                  bool do_relu, const int *right_shift_width,
                                   const int *threshold_x_quantized,
                                   cvk_fmt_t fmt) {
   TgConcatKernel kernel(ctx);

@@ -18,7 +18,7 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
                                         uint32_t layer_id, int *input_dim_c,
                                         int input_size, int *output_dim,
                                         laddr_t *la_input, laddr_t la_output,
-                                        bool do_relu, int8_t rshift,
+                                        bool do_relu, int32_t *r_i8,
                                         int32_t *m_i8, cvk_fmt_t fmt) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format("cvi_backend_tl_concat:\n"
@@ -46,6 +46,18 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
     uint32_t out_offset = (concat_c / NPU_NUM) * out_csize_local;
     uint32_t out_addr =
         (concat_c % NPU_NUM) * LOCAL_MEM_SIZE + la_output + out_offset;
+    int16_t multiplier = 1;
+    if (m_i8 != nullptr && m_i8[i] != 0) {
+      multiplier = static_cast<int16_t>(m_i8[i]);
+    }
+    uint8_t rshift = 0;
+    if (r_i8 != nullptr) {
+      rshift = static_cast<uint8_t>(r_i8[i]);
+    }
+    bool do_quant = true;
+    if (do_relu == false && multiplier == 1 && rshift == 0) {
+      do_quant = false;
+    }
 
     cvk_tl_shape_t shape = ctx.tl_shape_t4(n, input_dim_c[i], h, w);
     cvk_tl_shape_t out_shape = ctx.tl_shape_t4(n, oc, h, w);
@@ -67,7 +79,7 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
     p10.src = &tl_input;
     ctx.tdma_l2l_tensor_copy(&p10);
 
-    if (do_relu == true || m_i8 != nullptr || rshift != 0) {
+    if (do_quant) {
       tl_input.start_address = out_addr;
       cvk_tiu_mul_param_t p = {0};
       p.res_high = nullptr;
@@ -77,8 +89,8 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
         p.b_const.val = ctx.convert_fp32_to_bf16(1.0);
         p.rshift_bits = 0;
       } else {
-        p.b_const.val = (m_i8 != nullptr ? static_cast<int16_t>(m_i8[i]) : 1);
-        p.rshift_bits = static_cast<uint8_t>(rshift);
+        p.b_const.val = multiplier;
+        p.rshift_bits = rshift;
       }
       p.b_const.is_signed = false;
       p.b_is_const = 1;
@@ -95,10 +107,10 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
 void cvi_backend_tl_concat(const CviBackendContext &ctx, uint32_t layer_id,
                            int *input_dim_c, int input_size, int *output_dim,
                            laddr_t *la_input, laddr_t la_output, bool do_relu,
-                           int8_t rshift, int32_t *m_i8) {
+                           int32_t * r_i8, int32_t *m_i8) {
 
   cvi_backend_tl_concat_local(ctx, layer_id, input_dim_c, input_size,
-                              output_dim, la_input, la_output, do_relu, rshift,
+                              output_dim, la_input, la_output, do_relu, r_i8,
                               m_i8, CVK_FMT_I8);
 }
 

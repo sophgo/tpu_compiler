@@ -342,8 +342,8 @@ static void tl_leaky_relu(const CviBackendContext &ctx, uint32_t layer_id,
     // 3. relu (in-place) apply neg rshift and m_i8
     cvk_tiu_mul_param_t p8 = {0};
     p8.res_high = nullptr;
-    p8.res_low = &working;
-    p8.a = &working;
+    p8.res_low = &relu;
+    p8.a = &relu;
     p8.b_const.val = m_i8_neg;
     p8.b_const.is_signed = true;
     p8.b_is_const = 1;

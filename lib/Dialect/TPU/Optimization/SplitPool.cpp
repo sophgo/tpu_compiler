@@ -136,13 +136,14 @@ struct SplitPoolPattern : public RewritePattern {
         rewriter.getNamedAttr("axis", rewriter.getI32IntegerAttr(2)));
     final_attrs.push_back(
         rewriter.getNamedAttr("name", rewriter.getStringAttr("concat")));
-    final_attrs.push_back(rewriter.getNamedAttr(
-        "rshift", rewriter.getI8IntegerAttr(static_cast<int8_t>(0))));
     int h_slices_num = h_slices.size();
     std::vector<int32_t> m_i8_inputs_array(h_slices_num, 1);
     final_attrs.push_back(rewriter.getNamedAttr(
         "m_i8_inputs",
         rewriter.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
+    std::vector<int32_t> rshift_array(h_slices_num, 0);
+    final_attrs.push_back(rewriter.getNamedAttr(
+        "rshift", rewriter.getI32ArrayAttr(ArrayRef<int32_t>({rshift_array}))));
 
     result_type = RankedTensorType::get({n, c, h_slices_num, 1}, elementType_);
     auto concat_op = rewriter.create<tpu::TG_INT8_ConcatOp>(

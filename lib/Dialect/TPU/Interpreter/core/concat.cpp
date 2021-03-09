@@ -30,7 +30,7 @@ ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping) {
     auto quant_multiplier = opTensors[input_number + 3];
     if (quant_rshift != nullptr && quant_multiplier != nullptr) {
       need_quant = true;
-      rshift = quant_rshift->at(0);
+      rshift.assign(quant_rshift->begin(), quant_rshift->end());
       multiplier.assign(quant_multiplier->begin(), quant_multiplier->end());
     }
   }
@@ -93,8 +93,11 @@ void ConcatOpKernel::invoke() {
 
       if (need_quant) {
         for (int idx = 0; idx < concat_input_size; ++idx) {
+          if (multiplier.at(i) == 1 && rshift.at(i) == 0) {
+            continue;
+          }
           inputT->at(idx) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              inputT->at(idx), rshift, (uint32_t)multiplier.at(i), false);
+              inputT->at(idx), (uint32_t)rshift.at(i), (uint32_t)multiplier.at(i));
         }
       }
 

@@ -22,7 +22,7 @@ private:
 
   bool do_relu;
   // int8
-  float rshift;
+  std::vector<float> rshift;
   std::vector<float> multiplier;
 
   int axis;

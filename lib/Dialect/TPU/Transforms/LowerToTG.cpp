@@ -300,6 +300,27 @@ Value tpu::BroadcastSubOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+static bool is_fused_op(Operation *op) {
+  if (isa<tpu::ConcatOp>(op)) {
+    return true;
+  }
+  if (isa<tpu::ReshapeOp>(op)) {
+    return true;
+  }
+  if (isa<tpu::SliceOp>(op)) {
+    auto castOp = cast<tpu::SliceOp>(op);
+    auto ax = castOp.axis();
+    auto shape = getTensorShape(op->getOperand(0));
+    for (uint32_t i = 0; i< ax; i++) {
+      if (shape[i] != 1) {
+        return false;
+      }
+    }
+    return true;
+  }
+  return false;
+}
+
 Value tpu::ConcatOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -307,47 +328,67 @@ Value tpu::ConcatOp::convertToTG() {
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
   assert(wTF);
-
+  bool relu = do_relu();
+  bool only_merge = !relu; // just merge input data
   const unsigned nInputs = this->getNumInputs();
   std::vector<Value> operands;
   for (unsigned i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
+    if (only_merge == true) {
+      if (is_fused_op(op->getOperand(i).getDefiningOp())) {
+        only_merge = false;
+      }
+    }
   }
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
-  attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
-
   if (getOpQuant() == "INT8") {
-    if (getOpQuantParamType() == "NONE") {
-      // the quant is bypassed (threshold for input and output are the same)
-      // do nothing
-    } else {
       assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-      // ADD
-      // rshift
+      if (only_merge == true) {
+        uint32_t ax = axis();
+        auto shape = getTensorShape(op->getResult(0));
+        for (uint32_t i = 0; i < ax; i++) {
+          if (shape[i] != 1) {
+            only_merge = false;
+            break;
+          }
+        }
+      }
       auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
-      assert(rshift->size() == 1);
-      attrs.push_back(builder.getNamedAttr("rshift",
-          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-
-      // m_i8_inputs
-      auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),
-                                                       wTF);
+      auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(),wTF);
       std::vector<int32_t> m_i8_inputs_array(nInputs);
+      std::vector<int32_t> m_rshift_array(nInputs);
       for (unsigned i = 0; i < nInputs; ++i) {
         m_i8_inputs_array[i] = static_cast<int32_t>(multiplier->at(i));
+        m_rshift_array[i] = static_cast<int32_t>(rshift->at(i));
+        if (only_merge == true) {
+          if (m_i8_inputs_array[i] !=1 || m_rshift_array[i] != 0) {
+            only_merge = false;
+          }
+        }
       }
-      attrs.push_back(builder.getNamedAttr("m_i8_inputs",
-          builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
-    }
-    // create op
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ConcatOp>(op->getLoc(),
-        getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
+      if (only_merge == false) {
+        attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
+        attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(relu)));
+        attrs.push_back(builder.getNamedAttr("m_i8_inputs",
+            builder.getI32ArrayAttr(ArrayRef<int32_t>({m_i8_inputs_array}))));
+        attrs.push_back(builder.getNamedAttr("rshift",
+            builder.getI32ArrayAttr(ArrayRef<int32_t>({m_rshift_array}))));
+        // create op
+        auto newOp = OpBuilder(op).create<tpu::TG_INT8_ConcatOp>(op->getLoc(),
+            getResult().getType(), ArrayRef<Value>{operands},
+            ArrayRef<NamedAttribute>{attrs});
+        return newOp.getResult();
+      } else {
+        auto newOp = OpBuilder(op).create<tpu::TG_ConcatNOp>(op->getLoc(),
+            getResult().getType(), ArrayRef<Value>{operands},
+            ArrayRef<NamedAttribute>{attrs});
+        return newOp.getResult();
+      }
   } else if (getOpQuant() == "BF16") {
+    attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
+    attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(relu)));
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_ConcatOp>(op->getLoc(),
         getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
