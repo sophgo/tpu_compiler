@@ -41,6 +41,7 @@ using namespace mlir;
 namespace {
 
 static constexpr int64_t kMinTdmaSize = 256;
+static constexpr int64_t kMinOcNum = 8;
 
 static llvm::cl::opt<unsigned> clCmprActOverheadRatio(
     "tpu-cmpr-act-overhead-ratio",
@@ -190,7 +191,7 @@ static bool isValidCompressTgConvOp(Operation *op) {
   getNCHW(shapes, n, oc, oh, ow);
 
   // Too trivial
-  if (oh == 1 || oc < (int64_t)MInfo::lane_num)
+  if (oh == 1 || oc < kMinOcNum)
     return false;
 
   // Cannot compress if tiling in width
@@ -263,7 +264,7 @@ static bool isValidCompressTgEltAddOp(Operation *op) {
   getNCHW(shapes, n, c, h, w);
 
   // Too trivial
-  if (c < (int)MInfo::lane_num)
+  if (c < kMinOcNum)
     return false;
 
   // Not support multi-batch

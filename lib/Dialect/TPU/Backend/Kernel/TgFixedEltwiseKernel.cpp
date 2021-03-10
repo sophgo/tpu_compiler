@@ -244,7 +244,6 @@ void TgEltwiseKernel::doTileForStrideCase() {
 }
 
 void TgEltwiseKernel::doTileForCompressCase() {
-  assert(c >= NPU_NUM && "Expect large c");
   assert (n == 1 && "Expect batch 1");
 
   int32_t block_num = 5;
@@ -264,7 +263,6 @@ void TgEltwiseKernel::doTileForCompressCase() {
   uint32_t offset = 0;
 
   int32_t c_step = std::max(store_cmpr_act_c_step, load_cmpr_act_c_step);
-  assert(c_step >= NPU_NUM && "Expect valid c step");
 
   int32_t max_h = LOCAL_MEM_SIZE / (block_num *
                                     llvm::divideCeil(c_step, NPU_NUM) *

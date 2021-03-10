@@ -1824,12 +1824,6 @@ void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
                                         cvk_tg_t *tg_dst, cvk_tl_t *tl_src) {
   uint32_t cmpr_h_step = 1;
 
-  // Last tiled output channel may be less than NPU_NUM.
-  //   E.g. oc 48 in erfnet DownsamplerBlock2_conv
-  //        oc 60 in fcn-8s score59
-  if (!gmOutputPoss[NGCHW::C])
-    assert(tl_src->shape.c >= (uint32_t)NPU_NUM && "Expect at least NPU_NUM");
-
   LLVM_DEBUG(
       llvm::dbgs() << "\n  TDMA L2G compressed\n"
                    << "    src " << llvm::format_hex(tl_src->start_address, 10)
