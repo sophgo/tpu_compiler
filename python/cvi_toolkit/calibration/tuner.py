@@ -270,12 +270,14 @@ class Tuner_v2(object):
 
                 # dequant int8 to fp32
                 dequant_target_activation = target_int8_activation * new_threshold / 127.0
+                # sqrt(sum(x^2))
                 distance += np.linalg.norm(
                     target_layer_fp32_activation[idx] - dequant_target_activation) / self.limit
                 if idx >= self.limit:
                     break
 
             # if distance is small than old one, update it
+            logger.info("current [{}] distance {}".format(cnt, distance))
             if original_distance > distance:
                 logger.info(
                     "tuning op: {}, tmp distance: {} < original_distance: {}, update".format(
