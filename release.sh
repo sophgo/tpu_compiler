@@ -23,35 +23,7 @@ if [ ! -e $WORKING_PATH ]; then
   exit 1
 fi
 
-pushd $WORKING_PATH
-###########################################################
-# pack cvitek_mlir
-###########################################################
-if [ ! -e cvitek_mlir ]; then
-  echo "./cvitek_mlir not exist"
-  exit 1
-fi
-if [ ! -e cvimodel_release ]; then
-  echo "./cvitek_release not exist"
-  exit 1
-fi
-if [ ! -e regression_out/cvimodel_regression ]; then
-  echo "./regression_out/cvimodel_regression not exist"
-  exit 1
-fi
-
-
-# tpu_samples
-cp -a cvitek_mlir/tpuc/samples -a cvitek_tpu_samples
-tar zcvf $dest_dir/cvitek_tpu_samples.tar.gz cvitek_tpu_samples
-rm -rf cvitek_tpu_samples
-
-# cvitek toolchain
-tar zcvf $dest_dir/cvitek_mlir_ubuntu-${os_ver}.tar.gz cvitek_mlir
-
-###########################################################
-# pack cvimodel_samples and samples
-###########################################################
+# cvimodels used by sample codes
 sample_models_list=(
   mobilenet_v2.cvimodel
   mobilenet_v2_fused_preprocess.cvimodel
@@ -65,49 +37,60 @@ sample_models_list=(
   arcface_res50_fused_preprocess.cvimodel
 )
 
-mkdir -p cvimodel_samples
-for sample_model in ${sample_models_list[@]}
-do
-  cp cvimodel_release/${sample_model} cvimodel_samples/
-done
-# copy extra yuv420 cvimodel to cvimodel_samples
-cp regression_out/cvimodel_regression/cvimodel_regression_fused_preprocess/mobilenet_v2_int8_yuv420.cvimodel \
-   cvimodel_samples/
+function pack_compiler() {
+  if [ ! -e cvitek_mlir ]; then
+    echo "./cvitek_mlir not exist"
+    exit 1
+  fi
+  # tpu_samples
+  cp -a cvitek_mlir/tpuc/samples -a cvitek_tpu_samples
+  tar zcvf $dest_dir/cvitek_tpu_samples.tar.gz cvitek_tpu_samples
+  rm -rf cvitek_tpu_samples
 
-tar zcvf $dest_dir/cvimodel_samples.tar.gz cvimodel_samples
-rm -rf cvimodel_samples
+  # cvitek toolchain
+  tar zcvf $dest_dir/cvitek_mlir_ubuntu-${os_ver}.tar.gz cvitek_mlir
+}
 
-# pack regresion cvimodels
-pushd regression_out/cvimodel_regression
-tar zcvf $dest_dir/cvimodel_regression_bs1.tar.gz cvimodel_regression_bs1
-tar zcvf $dest_dir/cvimodel_regression_bs4.tar.gz cvimodel_regression_bs4
-tar zcvf $dest_dir/cvimodel_regression_bf16.tar.gz cvimodel_regression_bf16
-tar zcvf $dest_dir/cvimodel_regression_fused_preprocess.tar.gz cvimodel_regression_fused_preprocess
-popd
+function pack_cvimodels() {
+  chip_name=$1
+
+  if [ ! -e cvimodel_release/$chip_name ]; then
+    echo "./cvitek_release/$chip_name not exist"
+    exit 1
+  fi
+  if [ ! -e regression_out/$chip_name/cvimodel_regression ]; then
+    echo "./regression_out/$chip_name/cvimodel_regression not exist"
+    exit 1
+  fi
+
+  mkdir -p cvimodel_samples_$chip_name
+  for sample_model in ${sample_models_list[@]}
+  do
+   cp cvimodel_release/$chip_name/${sample_model} cvimodel_samples_$chip_name/
+  done
+  # copy extra yuv420 cvimodel to cvimodel_samples
+  cp regression_out/$chip_name/cvimodel_regression/cvimodel_regression_fused_preprocess/mobilenet_v2_int8_yuv420.cvimodel \
+    cvimodel_samples_$chip_name/
+  tar zcvf $dest_dir/cvimodel_samples_${chip_name}.tar.gz cvimodel_samples_$chip_name
+  rm -rf cvimodel_samples_$chip_name
+
+  # pack regresion cvimodels
+  pushd regression_out/$chip_name/cvimodel_regression
+  tar zcvf $dest_dir/cvimodel_regression_bs1_${chip_name}.tar.gz cvimodel_regression_bs1
+  tar zcvf $dest_dir/cvimodel_regression_bs4_${chip_name}.tar.gz cvimodel_regression_bs4
+  tar zcvf $dest_dir/cvimodel_regression_bf16_${chip_name}.tar.gz cvimodel_regression_bf16
+  tar zcvf $dest_dir/cvimodel_regression_fused_preprocess_${chip_name}.tar.gz cvimodel_regression_fused_preprocess
+  popd
+}
+
+pushd $WORKING_PATH
+pack_compiler
+pack_cvimodels cv183x
 
 # pack cv182x models
-if [ ! -e cvimodel_release_cv182x ]; then
+if [ ! -e cvimodel_release/cv182x ]; then
   exit 0
 fi
-
-mkdir -p cvimodel_samples_cv182x
-for sample_model in ${sample_models_list[@]}
-do
-  cp cvimodel_release_cv182x/${sample_model} cvimodel_samples_cv182x/
-done
-# copy extra yuv420 cvimodel to cvimodel_samples
-cp regression_out/cvimodel_regression_cv182x/cvimodel_regression_fused_preprocess/mobilenet_v2_int8_yuv420.cvimodel \
-   cvimodel_samples_cv182x/
-
-tar zcvf $dest_dir/cvimodel_samples_cv182x.tar.gz cvimodel_samples_cv182x
-rm -rf cvimodel_samples_cv182x
-
-# pack regresion cvimodels
-pushd regression_out/cvimodel_regression_cv182x
-tar zcvf $dest_dir/cvimodel_regression_bs1_cv182x.tar.gz cvimodel_regression_bs1
-tar zcvf $dest_dir/cvimodel_regression_bs4_cv182x.tar.gz cvimodel_regression_bs4
-tar zcvf $dest_dir/cvimodel_regression_bf16_cv182x.tar.gz cvimodel_regression_bf16
-tar zcvf $dest_dir/cvimodel_regression_fused_preprocess_cv812x.tar.gz cvimodel_regression_fused_preprocess
-popd
+pack_cvimodels cv182x
 
 popd

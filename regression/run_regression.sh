@@ -3,16 +3,17 @@
 # set -o pipefail
 
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
-
-export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
-export CVIMODEL_REL_PATH=$WORKING_PATH/cvimodel_regression
-if [ $SET_CHIP_NAME == "cv182x" ]; then
-  export CVIMODEL_REL_PATH=${WORKING_PATH}/cvimodel_regression_cv182x
+if [ -z $SET_CHIP_NAME ]; then
+  echo "please set SET_CHIP_NAME"
+  exit 1
 fi
-export OMP_NUM_THREADS=4
+export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
+export WORKSPACE_PATH=${WORKING_PATH}/${SET_CHIP_NAME}
+export CVIMODEL_REL_PATH=$WORKSPACE_PATH/cvimodel_regression
 export MAX_PARALLEL_JOBS=${MAX_PARALLEL_JOBS:-8}
 
 echo "WORKING_PATH: ${WORKING_PATH}"
+echo "WORKSPACE_PATH: ${WORKSPACE_PATH}"
 echo "CVIMODEL_REL_PATH: ${CVIMODEL_REL_PATH}"
 echo "MAX_PARALLEL_JOBS: ${MAX_PARALLEL_JOBS}"
 
@@ -217,7 +218,7 @@ if [ -z "$RUN_IN_PARALLEL" ]; then
 fi
 
 # run regression for all
-mkdir -p $WORKING_PATH
+mkdir -p $WORKSPACE_PATH
 mkdir -p $CVIMODEL_REL_PATH
 
 net_list_generic=()
@@ -268,7 +269,7 @@ done < ${model_list_file}
 # printf '%s\n' "${net_list_batch_extra[@]}"
 # printf '%s\n' "${net_list_accuracy_extra[@]}"
 
-pushd $WORKING_PATH
+pushd $WORKSPACE_PATH
 echo "" > verdict.log
 # run specified network and exit
 if [ ! -z "$network" ]; then

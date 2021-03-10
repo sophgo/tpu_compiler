@@ -4,13 +4,16 @@ set -e
 NET=$1
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 
-export WORKING_PATH=${WORKING_PATH:-$DIR/regression_out}
-export CVIMODEL_REL_PATH=${WORKING_PATH}/cvimodel_regression
-if [ $SET_CHIP_NAME == "cv182x" ]; then
-  export CVIMODEL_REL_PATH=${WORKING_PATH}/cvimodel_regression_cv182x
+if [ -z $SET_CHIP_NAME ]; then
+  echo "please set SET_CHIP_NAME"
+  exit 1
 fi
+export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
+export WORKSPACE_PATH=${WORKING_PATH}/${SET_CHIP_NAME}
+export CVIMODEL_REL_PATH=$WORKSPACE_PATH/cvimodel_regression
 
 echo "WORKING_PATH: ${WORKING_PATH}"
+echo "WORKSPACE_PATH: ${WORKSPACE_PATH}"
 echo "CVIMODEL_REL_PATH: ${CVIMODEL_REL_PATH}"
 
 if [ -z "$2" ]; then
@@ -24,7 +27,7 @@ export DO_BATCHSIZE=$DO_BATCHSIZE
 export NET=$NET
 source $DIR/generic_models.sh
 
-WORKDIR=${WORKING_PATH}/${NET}_bs${DO_BATCHSIZE}
+WORKDIR=${WORKSPACE_PATH}/${NET}_bs${DO_BATCHSIZE}
 mkdir -p $WORKDIR
 pushd $WORKDIR
 

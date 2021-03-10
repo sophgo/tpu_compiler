@@ -76,13 +76,8 @@ done < ${model_list_file}
 
 err=0
 echo $SET_CHIP_NAME
-if [ $SET_CHIP_NAME == "cv182x" ]; then
-  mkdir -p $WORKING_PATH/cvimodel_release_cv182x
-  pushd $WORKING_PATH/cvimodel_release_cv182x
-else
-  mkdir -p $WORKING_PATH/cvimodel_release
-  pushd $WORKING_PATH/cvimodel_release
-fi
+mkdir -p $WORKING_PATH/cvimodel_release/$SET_CHIP_NAME
+pushd $WORKING_PATH/cvimodel_release/$SET_CHIP_NAME
 
 if [ "$RUN_IN_PARALLEL" -eq 0 ]; then
   run_gen_cvimodel_all
