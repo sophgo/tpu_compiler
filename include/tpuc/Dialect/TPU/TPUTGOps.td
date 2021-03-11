@@ -1033,6 +1033,11 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<TPU_PoolTileParamAttr>:$tile_param,
+    OptionalAttr<BoolAttr>:$load_compr_act,
+    OptionalAttr<BoolAttr>:$store_compr_act,
+    OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,
+    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

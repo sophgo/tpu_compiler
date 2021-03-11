@@ -943,7 +943,7 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL Load Neuron codegen.\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = 0;
+  int layer_id = getOpLayerId(op);
 
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
@@ -1115,7 +1115,7 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL Store codegen.\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = 0;
+  int layer_id = getOpLayerId(op);
 
   std::vector<int64_t> shape;
   int64_t n, c, h, w;

@@ -65,6 +65,7 @@ struct TgOpTilePass : public mlir::PassWrapper<TgOpTilePass, FunctionPass> {
     tpu::PopulateConvTilePatterns(&getContext(), &patterns, mInfo);
     tpu::PopulateFullyConnectedTilePatterns(&getContext(), &patterns, mInfo);
     tpu::PopulateSplitPoolPatterns(&getContext(), &patterns, mInfo);
+    tpu::PopulatePoolingTilePatterns(&getContext(), &patterns, mInfo);
     applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };

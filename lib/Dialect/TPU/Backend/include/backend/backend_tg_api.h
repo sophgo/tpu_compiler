@@ -46,7 +46,9 @@ void cvi_backend_tg_fixed_max_pooling_kernel(
     gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w, int kh, int kw, int pad_top, int pad_bot,
     int pad_left, int pad_right, int stride_h, int stride_w,
-    bool do_relu, bool ceil_mode);
+    bool do_relu, bool ceil_mode,
+    int store_cmpr_act = 0, int load_cmpr_act = 0,
+    int store_cmpr_act_c_step = 0, int load_cmpr_act_c_step = 0);
 
 void cvi_backend_tg_fixed_avg_pooling_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

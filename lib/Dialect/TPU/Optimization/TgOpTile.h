@@ -12,6 +12,10 @@ void PopulateConvTilePatterns(MLIRContext *context,
 void PopulateSplitPoolPatterns(MLIRContext *context,
                                OwningRewritePatternList *patterns,
                                MInfo &mInfo);
+void PopulatePoolingTilePatterns(MLIRContext *context,
+                                 OwningRewritePatternList *patterns,
+                                 MInfo &mInfo);
+
 } // namespace tpu
 } // namespace mlir
 

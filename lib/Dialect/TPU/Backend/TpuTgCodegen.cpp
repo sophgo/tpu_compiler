@@ -2540,6 +2540,24 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
   assert(!this->rshift().hasValue());
   assert(!this->m_i8().hasValue());
 
+  int store_cmpr_act = this->store_compr_act().hasValue() ?
+                       this->store_compr_act().getValue() : 0;
+  int store_cmpr_act_c_step = 0;
+  if (store_cmpr_act) {
+    store_cmpr_act =
+        this->store_compr_act_param().getValue().step_size().getInt();
+    store_cmpr_act_c_step =
+        this->store_compr_act_param().getValue().c_step().getInt();
+  }
+  int load_cmpr_act = this->load_compr_act().hasValue() ?
+                      this->load_compr_act().getValue() : 0;
+  int load_cmpr_act_c_step = 0;
+  if (load_cmpr_act) {
+    load_cmpr_act =
+        this->load_compr_act_param().getValue().step_size().getInt();
+    load_cmpr_act_c_step =
+        this->load_compr_act_param().getValue().c_step().getInt();
+  }
 
   cvi_backend_tg_fixed_max_pooling_kernel(
       *backend_ctx,
@@ -2551,7 +2569,11 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
       pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
       do_relu,        // int do_relu,
-      true);
+      true,
+      store_cmpr_act,
+      load_cmpr_act,
+      store_cmpr_act_c_step,
+      load_cmpr_act_c_step);
 
   return success();
 }

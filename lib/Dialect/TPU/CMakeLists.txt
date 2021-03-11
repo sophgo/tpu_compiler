@@ -73,6 +73,7 @@ add_llvm_library(MLIRTPU
   Quantization/GenSqrtTable.cpp
   Quantization/GenReciprocalTable.cpp
   Optimization/ConvTile.cpp
+  Optimization/PoolingTile.cpp
   Optimization/SplitPool.cpp
   Optimization/FuseLeakyRelu.cpp
   Optimization/FullyConnectedTile.cpp

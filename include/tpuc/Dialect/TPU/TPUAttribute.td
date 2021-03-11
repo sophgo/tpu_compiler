@@ -278,6 +278,18 @@ def TPU_ConvTileParamAttr : StructAttr<"ConvTileParam", TPU_Dialect, [
 }
 
 //===----------------------------------------------------------------------===//
+// Pool parameters structure.
+//===----------------------------------------------------------------------===//
+def TPU_PoolTileParamAttr : StructAttr<"PoolTileParam", TPU_Dialect, [
+    StructFieldAttr<"oc_step", I32Attr>,
+    StructFieldAttr<"oh_step", I32Attr>,
+    StructFieldAttr<"ow_step", I32Attr>,
+    StructFieldAttr<"ih_step", I32Attr>,
+    StructFieldAttr<"iw_step", I32Attr>]> {
+  let summary = "Structure of tile parameters for pool op";
+}
+
+//===----------------------------------------------------------------------===//
 // Activation compression parameters structure.
 //===----------------------------------------------------------------------===//
 def TPU_ActCmprParamAttr : StructAttr<"ActCmprParam", TPU_Dialect, [
