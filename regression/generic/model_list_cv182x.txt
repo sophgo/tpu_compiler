@@ -10,7 +10,7 @@ mobilenet_v2              Y        Y        N        N        N        N
 googlenet                 N        N        N        Y        Y        Y
 inception_v3              N        N        N        Y        N        N
 #inception_v4              N        N        N        Y        Y        Y
-squeezenet_v1.0           N        N        N        Y        Y        Y
+#squeezenet_v1.0           N        N        N        Y        Y        Y
 squeezenet_v1.1           N        N        N        Y        Y        Y
 shufflenet_v2             Y        N        N        N        Y        Y
 densenet_121              N        N        N        Y        Y        Y
@@ -48,7 +48,7 @@ alphapose                 N        N        N        Y        Y        N
 #unet                      N        N        N        Y        N        N
 nasnet_mobile             N        N        N        Y        N        N
 #ecanet50                  N        N        N        Y        N        N
-res2net50                 N        N        N        Y        N        N
+#res2net50                 N        N        N        Y        N        N
 
 # tensorflow
 mobilenet_v1_tf           N        N        N        Y        N        N
