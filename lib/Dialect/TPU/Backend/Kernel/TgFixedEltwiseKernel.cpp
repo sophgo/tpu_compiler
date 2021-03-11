@@ -1109,24 +1109,24 @@ void TgBf16EltwiseMaxKernel::compute(int32_t step_idx) {
   cvk_tl_t input, output, output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
-  input.fmt = CVK_FMT_I8;
+  input.fmt = fmt;
   if (do_early_stride) {
     cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
-    input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
+    input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
     input.stride.w = stride_w * elementSize;
   } else {
-    input.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
+    input.stride = ctx.tl_default_stride(shape, fmt, 1);
   }
 
   output.start_address = tl_output[output_flip]->start_address;
   output.shape = shape;
-  output.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
-  output.fmt = CVK_FMT_I8;
+  output.stride = ctx.tl_default_stride(shape, fmt, 1);
+  output.fmt = fmt;
 
   output_high.start_address = tl_output_h[0]->start_address;
   output_high.shape = shape;
-  output_high.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
-  output_high.fmt = CVK_FMT_I8;
+  output_high.stride = ctx.tl_default_stride(shape, fmt, 1);
+  output_high.fmt = fmt;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
@@ -1201,24 +1201,24 @@ void TgBf16EltwiseMinKernel::compute(int32_t step_idx) {
   cvk_tl_t input, output, output_high;
   input.start_address = tl_input[1 - input_flip]->start_address;
   input.shape = shape;
-  input.fmt = CVK_FMT_I8;
+  input.fmt = fmt;
   if (do_early_stride) {
     cvk_tl_shape_t tdma_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
-    input.stride = ctx.tl_default_stride(tdma_shape, CVK_FMT_I8, 1);
+    input.stride = ctx.tl_default_stride(tdma_shape, fmt, 1);
     input.stride.w = stride_w * elementSize;
   } else {
-    input.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
+    input.stride = ctx.tl_default_stride(shape, fmt, 1);
   }
 
   output.start_address = tl_output[output_flip]->start_address;
   output.shape = shape;
-  output.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
-  output.fmt = CVK_FMT_I8;
+  output.stride = ctx.tl_default_stride(shape, fmt, 1);
+  output.fmt = fmt;
 
   output_high.start_address = tl_output_h[0]->start_address;
   output_high.shape = shape;
-  output_high.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
-  output_high.fmt = CVK_FMT_I8;
+  output_high.stride = ctx.tl_default_stride(shape, fmt, 1);
+  output_high.fmt = fmt;
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"

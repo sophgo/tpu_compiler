@@ -1591,21 +1591,93 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
 LogicalResult tpu::TG_BF16_EltwiseMaxOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
+  bool do_relu = this->do_relu();
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
+
+  int32_t input_number = op->getNumOperands();
+  auto ga_inputs = new gaddr_t[input_number];
+  for(int32_t i = 0; i < input_number; i++){
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  const float coeffs[2] = {1, 1};
+  cvi_backend_tg_bf16_eltwise_max_kernel(
+      *backend_ctx, layer_id,
+      ga_inputs, ga_output,
+      2, n, c, h, w,
+      do_relu, do_early_stride,
+      early_stride_h, early_stride_w,
+      coeffs);
+
+  delete[] ga_inputs;
+  return success();
 }
 
 LogicalResult tpu::TG_BF16_EltwiseMinOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
 
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  std::vector<int64_t> output_shape;
+  int64_t output_size, oh, ow;
+  getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+  oh = output_shape[2];
+  ow = output_shape[3];
+  bool do_relu = this->do_relu();
+  bool do_early_stride = this->do_early_stride();
+  int32_t early_stride_h = this->early_stride_h();
+  int32_t early_stride_w = this->early_stride_w();
+  if (do_early_stride) {
+    assert(oh == h / early_stride_h);
+    assert(ow == w / early_stride_w);
+  }
+
+  int32_t input_number = op->getNumOperands();
+  auto ga_inputs = new gaddr_t[input_number];
+  for(int32_t i = 0; i < input_number; i++){
+    ga_inputs[i] = getPreviousOpAddress(op, i);
+  }
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  const float coeffs[2] = {1, 1};
+  cvi_backend_tg_bf16_eltwise_min_kernel(
+      *backend_ctx, layer_id,
+      ga_inputs, ga_output,
+      2, n, c, h, w,
+      do_relu, do_early_stride,
+      early_stride_h, early_stride_w,
+      coeffs);
+
+  delete[] ga_inputs;
+  return success();
 }
 
 LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
