@@ -1160,8 +1160,6 @@ void Conv::adjustStoreForPs32Output(cvk_tl_t *lmOutput, cvk_tg_t *gmOutput,
 void Conv::loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
                                       std::vector<uint32_t> gmInputPoss,
                                       cvk_tl_t *tl_dst, cvk_tg_t *tg_src) {
-  uint32_t cmpr_h_step = 1;
-
   LLVM_DEBUG(
       llvm::dbgs() << "\n  TDMA G2L decompressed\n"
                    << "    src " << llvm::format_hex(tg_src->start_address, 10)
@@ -1187,7 +1185,7 @@ void Conv::loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
       false, // DoTranspose
       tl_dst->eu_align,
       true, // isNeuron,
-      tg_src->fmt, tl_dst->fmt, cmpr_h_step, args.load_cmpr_act,
+      tg_src->fmt, tl_dst->fmt, args.load_cmpr_act_h_step, args.load_cmpr_act,
       args.load_cmpr_act_c_step);
 }
 
@@ -1822,8 +1820,6 @@ void Conv::computeScaleLut(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
 //
 void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
                                         cvk_tg_t *tg_dst, cvk_tl_t *tl_src) {
-  uint32_t cmpr_h_step = 1;
-
   LLVM_DEBUG(
       llvm::dbgs() << "\n  TDMA L2G compressed\n"
                    << "    src " << llvm::format_hex(tl_src->start_address, 10)
@@ -1847,7 +1843,7 @@ void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
       false, // DoTranspose
       tl_src->eu_align,
       true, // isNeuron
-      tl_src->fmt, tg_dst->fmt, cmpr_h_step, args.store_cmpr_act,
+      tl_src->fmt, tg_dst->fmt, args.store_cmpr_act_h_step, args.store_cmpr_act,
       args.store_cmpr_act_c_step,
       false // DoIntraCmdParal
   );
@@ -3481,6 +3477,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
     bool do_ic_alignment, int store_cmpr_act, int load_cmpr_act,
     bool do_load_cmpr_wgt, int store_cmpr_act_c_step, int load_cmpr_act_c_step,
+    int store_cmpr_act_h_step, int load_cmpr_act_h_step,
     int pad_value, gaddr_t ga_scale_lut) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3551,6 +3548,8 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args.do_load_cmpr_wgt = do_load_cmpr_wgt;
   conv->args.store_cmpr_act_c_step = store_cmpr_act_c_step;
   conv->args.load_cmpr_act_c_step = load_cmpr_act_c_step;
+  conv->args.store_cmpr_act_h_step = store_cmpr_act_h_step;
+  conv->args.load_cmpr_act_h_step = load_cmpr_act_h_step;
   conv->args.pad_value = pad_value;
   conv->args.ga_scale_lut = ga_scale_lut;
   conv->args.do_scale_lut = ga_scale_lut != GA_INVALID ? true : false;
@@ -3611,7 +3610,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint8_t ins_h, uint8_t ins_w, uint8_t stride_h, uint8_t stride_w,
     int do_bias, int do_activation, bool fp32_output, int store_cmpr_act,
     int load_cmpr_act, bool do_load_cmpr_wgt, int store_cmpr_act_c_step,
-    int load_cmpr_act_c_step) {
+    int load_cmpr_act_c_step, int store_cmpr_act_h_step,
+    int load_cmpr_act_h_step) {
 
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3665,6 +3665,8 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args.do_load_cmpr_wgt = do_load_cmpr_wgt;
   conv->args.store_cmpr_act_c_step = store_cmpr_act_c_step;
   conv->args.load_cmpr_act_c_step = load_cmpr_act_c_step;
+  conv->args.store_cmpr_act_h_step = store_cmpr_act_h_step;
+  conv->args.load_cmpr_act_h_step = load_cmpr_act_h_step;
 
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32

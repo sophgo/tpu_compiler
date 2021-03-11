@@ -31,6 +31,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
     bool do_ic_alignment, int store_cmpr_act, int load_cmpr_act,
     bool do_cmpr_wgt, int store_cmpr_act_c_step, int load_cmpr_act_c_step,
+    int store_cmpr_act_h_step, int load_cmpr_act_h_step,
     int pad_value = 0, gaddr_t ga_scale_lut = GA_INVALID);
 
 void cvi_backend_tg_fixed_fc_kernel(const CviBackendContext &ctx,
@@ -190,7 +191,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint8_t stride_h, uint8_t stride_w, int do_bias,
     int do_activation, bool fp32_output,
     int store_cmpr_act, int load_cmpr_act, bool do_cmpr_wgt,
-    int store_cmpr_act_c_step, int load_cmpr_act_c_step);
+    int store_cmpr_act_c_step, int load_cmpr_act_c_step,
+    int store_cmpr_act_h_step, int load_cmpr_act_h_step);
 
 void cvi_backend_tg_bf16_conv3d_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

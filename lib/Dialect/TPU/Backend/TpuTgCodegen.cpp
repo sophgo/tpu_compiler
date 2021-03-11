@@ -723,6 +723,8 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       false,     // do_cmpr_wgt
       0,         // store_cmpr_act_c_step
       0,         // load_cmpr_act_c_step
+      0,         // store_cmpr_act_h_step
+      0,         // load_cmpr_act_h_step
       pad_value  // pad_value
       );
 
@@ -774,21 +776,25 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
                        this->store_compr_act().getValue() : 0;
-  int store_cmpr_act_c_step = 0;
+  int store_cmpr_act_c_step = 0, store_cmpr_act_h_step = 0;
   if (store_cmpr_act) {
     store_cmpr_act =
         this->store_compr_act_param().getValue().step_size().getInt();
     store_cmpr_act_c_step =
         this->store_compr_act_param().getValue().c_step().getInt();
+    store_cmpr_act_h_step =
+        this->store_compr_act_param().getValue().h_step().getInt();
   }
   int load_cmpr_act = this->load_compr_act().hasValue() ?
                       this->load_compr_act().getValue() : 0;
-  int load_cmpr_act_c_step = 0;
+  int load_cmpr_act_c_step = 0, load_cmpr_act_h_step = 0;
   if (load_cmpr_act) {
     load_cmpr_act =
         this->load_compr_act_param().getValue().step_size().getInt();
     load_cmpr_act_c_step =
         this->load_compr_act_param().getValue().c_step().getInt();
+    load_cmpr_act_h_step =
+        this->load_compr_act_param().getValue().h_step().getInt();
   }
 
   bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
@@ -832,6 +838,8 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       do_cmpr_wgt,
       store_cmpr_act_c_step,
       load_cmpr_act_c_step,
+      store_cmpr_act_h_step,
+      load_cmpr_act_h_step,
       pad_value, // pad_value
       ga_scale_lut);
 
@@ -862,22 +870,26 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
                        this->store_compr_act().getValue() : 0;
-  int store_cmpr_act_c_step = 0;
+  int store_cmpr_act_c_step = 0, store_cmpr_act_h_step;
   if (store_cmpr_act) {
     store_cmpr_act =
         this->store_compr_act_param().getValue().step_size().getInt();
     store_cmpr_act_c_step =
         this->store_compr_act_param().getValue().c_step().getInt();
+    store_cmpr_act_h_step =
+        this->store_compr_act_param().getValue().h_step().getInt();
   }
 
   int load_cmpr_act = this->load_compr_act().hasValue() ?
                       this->load_compr_act().getValue() : 0;
-  int load_cmpr_act_c_step = 0;
+  int load_cmpr_act_c_step = 0, load_cmpr_act_h_step;
   if (load_cmpr_act) {
     load_cmpr_act =
         this->load_compr_act_param().getValue().step_size().getInt();
     load_cmpr_act_c_step =
         this->load_compr_act_param().getValue().c_step().getInt();
+    load_cmpr_act_h_step =
+        this->load_compr_act_param().getValue().h_step().getInt();
   }
   bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
                      this->compressed_weight().getValue() : false;
@@ -904,7 +916,9 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       load_cmpr_act,
       do_cmpr_wgt,
       store_cmpr_act_c_step,
-      load_cmpr_act_c_step
+      load_cmpr_act_c_step,
+      store_cmpr_act_h_step,
+      load_cmpr_act_h_step
       );
 
   return success();
@@ -983,7 +997,9 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
       0,         // load_compr_act
       false,     // compressed_weight
       0,         // store_cmpr_act_c_step
-      0          // load_cmpr_act_c_step
+      0,         // load_cmpr_act_c_step
+      0,         // store_cmpr_act_h_step
+      0          // load_cmpr_act_h_step
       );
 
   return success();
@@ -1049,7 +1065,9 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
       0,     // load_compr_act
       false, // compr_wgt
       0,     // store_cmpr_act_c_step
-      0      // load_cmpr_act_c_step
+      0,     // load_cmpr_act_c_step
+      0,     // store_cmpr_act_h_step
+      0      // load_cmpr_act_h_step
       );
 
   return success();
@@ -2324,7 +2342,9 @@ LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
       0,     // load_compr_act
       false, // compr_wgt
       0,     // store_cmpr_act_c_step
-      0      // load_cmpr_act_c_step
+      0,     // load_cmpr_act_c_step
+      0,     // store_cmpr_act_h_step
+      0      // load_cmpr_act_h_step
       );
 
   return success();

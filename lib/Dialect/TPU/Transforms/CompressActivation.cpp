@@ -1060,6 +1060,15 @@ public:
 
         tpuOp->setAttr("load_compr_act",
                        Builder(tpuOp.getContext()).getBoolAttr(true));
+        tpuOp->setAttr(
+            "load_compr_act_param",
+            tpu::ActCmprParam::get(
+                Builder(op->getContext()).getI32IntegerAttr(n_step),
+                Builder(op->getContext()).getI32IntegerAttr(oc_step),
+                Builder(op->getContext()).getI32IntegerAttr(oh_step),
+                Builder(op->getContext()).getI64IntegerAttr(step_size),
+                Builder(op->getContext()).getI64IntegerAttr(total_size),
+                rewriter.getContext()));
       } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
         // gaddr needed to adjust, but not assigned yet
         sliceOp->setAttr("load_compr_act",
