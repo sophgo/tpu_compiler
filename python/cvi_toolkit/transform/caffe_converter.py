@@ -206,6 +206,9 @@ class CaffeConverter(BaseConverter):
         if layer.HasField('batch_norm_param') and layer.batch_norm_param.HasField('eps'):
             param['variance_epsilon'] = layer.batch_norm_param.eps
 
+        if layer.HasField('batch_norm_param') and layer.batch_norm_param.HasField('use_global_stats'):
+            assert(layer.batch_norm_param.use_global_stats == True)
+
         blobs = self.layer_dict[layer.name].blobs
         for idx, blob in enumerate(blobs):
             blob_op = self.blob_to_weight_op(layer, idx)
