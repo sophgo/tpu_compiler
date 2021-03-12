@@ -1,13 +1,14 @@
-#include <numeric>
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/TPUTensorSupport.h"
-#include "tpuc/TPUCompressUtil.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/TypeUtilities.h"
-#include "llvm/Support/raw_ostream.h"
 #include "tpuc/CustomOpParam.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/TPUCompressUtil.h"
+#include "tpuc/TPUTensorSupport.h"
+#include "llvm/ADT/TypeSwitch.h"
+#include "llvm/Support/raw_ostream.h"
+#include <numeric>
 
 namespace mlir {
 
@@ -813,37 +814,33 @@ bool isBf16Tensor(Value val) {
 }
 
 int64_t getTotalCompressedActivationSize(Operation *op) {
-  if (llvm::dyn_cast<tpu::TL_LG_JoinOp>(op)) {
-    auto tpuOp =
-        llvm::dyn_cast<tpu::TL_LG_StoreOp>(op->getOperand(0).getDefiningOp());
+  int64_t cmrSize =
+      llvm::TypeSwitch<Operation *, int64_t>(op)
+          .Case<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp,
+                tpu::TG_BF16_Conv2DOp, tpu::TG_INT8_EltwiseAddOp,
+                tpu::TG_BF16_EltwiseAddOp, tpu::TG_INT8_PoolMax2DOp>(
+              [&](auto tpuOp) {
+                if (tpuOp.store_compr_act_param().hasValue())
+                  return tpuOp.store_compr_act_param()
+                      .getValue()
+                      .total_size()
+                      .getInt();
+                else
+                  return (int64_t)0;
+              })
+          .Case([&](tpu::TL_LG_JoinOp) {
+            auto tpuOp = llvm::dyn_cast<tpu::TL_LG_StoreOp>(
+                op->getOperand(0).getDefiningOp());
 
-    // tl_lg_store -> tl_lg_join
-    if (tpuOp.compr_act_param().hasValue()) {
-      return tpuOp.compr_act_param().getValue().total_size().getInt();
-    }
-  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(op)) {
-    if (tpuOp.store_compr_act_param().hasValue()) {
-      return tpuOp.store_compr_act_param().getValue().total_size().getInt();
-    }
-  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
-    if (tpuOp.store_compr_act_param().hasValue()) {
-      return tpuOp.store_compr_act_param().getValue().total_size().getInt();
-    }
-  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(op)) {
-    if (tpuOp.store_compr_act_param().hasValue()) {
-      return tpuOp.store_compr_act_param().getValue().total_size().getInt();
-    }
-  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(op)) {
-    if (tpuOp.store_compr_act_param().hasValue()) {
-      return tpuOp.store_compr_act_param().getValue().total_size().getInt();
-    }
-  } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_EltwiseAddOp>(op)) {
-    if (tpuOp.store_compr_act_param().hasValue()) {
-      return tpuOp.store_compr_act_param().getValue().total_size().getInt();
-    }
-  }
+            // tl_lg_store -> tl_lg_join
+            if (tpuOp.compr_act_param().hasValue())
+              return tpuOp.compr_act_param().getValue().total_size().getInt();
+            else
+              return (int64_t)0;
+          })
+          .Default([](Operation *) { return (int64_t)0; });
 
-  return 0;
+  return cmrSize;
 }
 
 // Tiled compressed activation split as (tiled_n, tiled_c, tiled_h, W)
