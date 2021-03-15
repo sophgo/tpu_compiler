@@ -15,7 +15,7 @@ import pymlir
 import shutil
 from tqdm import tqdm
 
-from ..utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant, mlir_opt
+from ..utils.mlir_shell import mlir_int8_quant
 from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 
@@ -60,26 +60,9 @@ general_skip_op = [
     'tpu.yolo_detection',
 ]
 
-
-def get_mlir_weight_file(mlir_file):
-    model = pymlir.module()
-    model.load(mlir_file)
-    weight_file = model.get_weight_file_path()
-    del model
-    return weight_file
-
-
-def remove_mlir_with_weight(mlir_file):
-    weight_file = get_mlir_weight_file(mlir_file)
-    os.remove(weight_file)
+def remove_mlir_with_weight(mlir_file, mlir_weight_file):
     os.remove(mlir_file)
-
-
-def get_op_threshold_from_calibration_tabel(calibration_table, target_op):
-    op_threshold_dict = parse_threshold_table(calibration_table)
-    if target_op not in op_threshold_dict:
-        raise KeyError("{} op not in {}".format(target_op, calibration_table))
-    return op_threshold_dict[target_op][0]
+    os.remove(mlir_weight_file)
 
 
 def parse_threshold_table(threshold_table):
@@ -138,38 +121,22 @@ def update_calibration_table(old_calibration_table, new_calibration_table,
         f.write(new_calibration_txt)
 
 
-def import_calibration_get_int8_mlir(calibration_table, fp32_mlir_file):
-    fp32_mlir_opt_file = "{}_tune_opt.mlir".format(
-        fp32_mlir_file.split(".")[0])
+def generate_quanted_mlir_model(fp32_mlir, calibration_table):
+    file_name = fp32_mlir.split(".")[0]
+    quanted_mlir = '{}_quanted_tune.mlir'.format(file_name)
 
-    mlir_opt(fp32_mlir_file, fp32_mlir_opt_file)
-    calibration_mlir = "{}_tune_cali.mlir".format(
-        fp32_mlir_file.split(".")[0])
-
-    ret = mlir_import_calibration(
-        fp32_mlir_opt_file, calibration_mlir, calibration_table)
-
+    ret = mlir_int8_quant(fp32_mlir, quanted_mlir, calibration_table)
     if ret != 0:
-        raise RuntimeError("import table failed")
-
-    int8_tune_mlir_file = "{}_tune_int8.mlir".format(
-        fp32_mlir_file.split(".")[0])
-    ret = mlir_tpu_quant(calibration_mlir, int8_tune_mlir_file, "no_use")
-
-    # weight_file can not remove, tpu_quant will use
-    os.remove(calibration_mlir)
-    if ret != 0:
-        raise RuntimeError("quant failed")
-
-    return int8_tune_mlir_file
+        raise RuntimeError("generate quanted mlir model failed")
+    return quanted_mlir
 
 
-class Tuner_v2(object):
-    def __init__(self, model_file, input_calibration_table, image_list, tune_image_num,
-                 output_path="./", tune_iteration=10, preprocess_func=None, tune_table=""):
-        self.fp32_mlir_file = model_file
-        self.fp32_mlir_opt_file = "{}_tune_opt.mlir".format(
-            model_file.split(".")[0])
+class AutoTuner(object):
+    def __init__(self, model_file, input_calibration_table,
+                 image_list, tune_image_num, tune_iteration=10,
+                 preprocess_func=None, tune_table="",
+                 threshold_update_factor=0.03):
+        self.fp32_mlir = model_file
         self.fp32_model = pymlir.module()
         self.fp32_model.load(model_file)
 
@@ -178,119 +145,122 @@ class Tuner_v2(object):
                 self.images = f.readlines()
         else:
             self.images = image_list
+        self.images_num = min(len(self.images), tune_image_num)
+        self.images = self.images[:self.images_num]
+        logger.info("Selected images:")
+        for i, image in enumerate(self.images):
+            logger.info("[{}] {}".format(i, image))
 
-        self.output_path = output_path
-        os.makedirs(self.output_path, exist_ok=True)
         if tune_table:
             self.tune_table = tune_table
         else:
             self.tune_table = "{}_tune_table".format(
                 model_file.split(".")[0])
-        self.int8_model = os.path.join(self.output_path, 'tune-int8.mlir')
 
-        self.cali_model = "{}_tune_cali.mlir".format(model_file.split(".")[0])
         self.skip_op = general_skip_op
         self.orignal_calibration_table = input_calibration_table
-        self.thresholds = parse_threshold_table(input_calibration_table)
+        self.thresholds_map = parse_threshold_table(input_calibration_table)
 
-        self.enlarge_factor = 0.5
-        self.reduce_factor = -0.5
-
-        self.best_threshold = 0
-        self.best_diff = 0
-        self.limit = min(len(self.images), tune_image_num)
+        self.threshold_update_factor = threshold_update_factor
         self.tune_iteration = tune_iteration
 
         self.preprocess_func = preprocess_func
+        self.input_data_buffer = dict()
+
+    def __input_data_generator(self):
+        for image in self.images:
+            if image not in self.input_data_buffer:
+                x = self.preprocess_func(image)
+                self.input_data_buffer[image] = x
+            else:
+                x = self.input_data_buffer[image]
+            yield x
 
     def tune_layer(self, target_layer, threshold):
         original_distance = sys.float_info.max
 
         # search up
         tune_distance = self.get_layer_best_threshold(
-            threshold, original_distance, target_layer, self.enlarge_factor)
+            threshold, -1, target_layer, True)
         logger.info(
             "tuning op: {}, enlarge tuning  down".format(target_layer))
         # search down
         # original threshold is calculated above, adjust threshold directly
         tune_distance = self.get_layer_best_threshold(
-            threshold, tune_distance, target_layer, self.reduce_factor)
+            threshold, tune_distance, target_layer, False)
         logger.info(
             "tuning op: {}, reduce tuning reduce down".format(target_layer))
 
         return tune_distance
 
-    def get_layer_best_threshold(self, original_threshold, original_distance, target_layer, factor):
+    def get_layer_best_threshold(self, original_threshold, original_distance, target_layer, search_up):
         fail_count = 0
 
         inference_count = 0
         new_threshold = original_threshold
-        # get fp32 target layer activation
-        target_layer_fp32_activation = {}
-        for idx, image in enumerate(self.images):
-            x = self.preprocess_func(image)
-            self.fp32_model.run(x)
-            target_layer_fp32_activation[idx] = self.fp32_model.get_tensor(
-                target_layer)
-            if idx >= self.limit:
-                break
 
         delta_sum = 0
         cnt = 0
         while fail_count < self.tune_iteration:
-            distance = 0
             cnt += 1
-            delta_sum += new_threshold * 0.05
-            delta = delta_sum / cnt
-            if factor > 0:
-                new_threshold += delta
+
+            if original_distance != -1:
+                delta_sum += new_threshold * self.threshold_update_factor
+                delta = delta_sum / cnt
+                if search_up:
+                    new_threshold += delta
+                else:
+                    new_threshold -= delta
             else:
-                new_threshold -= delta
+                new_threshold = original_threshold
 
             if new_threshold < 0:
                 break
             # make tmp table
             tmp_table = "{}_tmp".format(self.tune_table)
             update_calibration_table(
-                self.tune_table, tmp_table, target_op_name=target_layer, new_threshold=new_threshold)
+                self.tune_table, tmp_table,
+                target_op_name=target_layer,
+                new_threshold=new_threshold)
 
             # import and inference
-            tmp_int8_mlir_file = import_calibration_get_int8_mlir(
-                tmp_table, self.fp32_mlir_file)
+            quanted_model_mlir = generate_quanted_mlir_model(self.fp32_mlir, tmp_table)
+            quanted_model = pymlir.module()
+            quanted_model.load(quanted_model_mlir)
 
-            self.int8_model = pymlir.module()
-            self.int8_model.load(tmp_int8_mlir_file)
-
-            for idx, image in enumerate(self.images):
-                x = self.preprocess_func(image)
-                self.int8_model.run(x)
+            distance = 0
+            for idx, data in enumerate(self.__input_data_generator()):
+                quanted_model.run(data)
                 inference_count += 1
-                target_int8_activation = self.int8_model.get_tensor(
-                    target_layer)
+                target_int8_activation = quanted_model.get_tensor(target_layer)
 
                 # dequant int8 to fp32
                 dequant_target_activation = target_int8_activation * new_threshold / 127.0
                 # sqrt(sum(x^2))
-                distance += np.linalg.norm(
-                    target_layer_fp32_activation[idx] - dequant_target_activation) / self.limit
-                if idx >= self.limit:
-                    break
+                target_layer_fp32_activation = self.all_fp32_activations_map[idx][target_layer]
+                distance += np.linalg.norm(target_layer_fp32_activation -
+                                           dequant_target_activation) / self.images_num
 
             # if distance is small than old one, update it
             logger.info("current [{}] distance {}".format(cnt, distance))
-            if original_distance > distance:
+            if original_distance == -1:
+                original_distance = distance
+            elif original_distance > distance:
                 logger.info(
                     "tuning op: {}, tmp distance: {} < original_distance: {}, update".format(
                     target_layer, distance, original_distance))
                 logger.info("tuning op: {}, old_threshold: {}, new_threshold: {}, update table: {}".format(
                     target_layer, original_threshold, new_threshold, self.tune_table))
                 update_calibration_table(
-                    self.tune_table, self.tune_table, target_op_name=target_layer, new_threshold=new_threshold)
+                    self.tune_table, self.tune_table,
+                    target_op_name=target_layer,
+                    new_threshold=new_threshold)
                 original_distance = distance
             else:
                 fail_count += 1
 
-            remove_mlir_with_weight(tmp_int8_mlir_file)
+            mlir_weight_file = quanted_model.get_weight_file_path()
+            remove_mlir_with_weight(quanted_model_mlir, mlir_weight_file)
 
         logger.info("all inference count in {} op: {}".format(
             target_layer, inference_count))
@@ -299,21 +269,27 @@ class Tuner_v2(object):
     def run_tune(self):
         update_calibration_table(
             self.orignal_calibration_table, self.tune_table)
-        int8_tune_mlir = import_calibration_get_int8_mlir(
-            self.orignal_calibration_table, self.fp32_mlir_file)
-        tmp_int8_module = pymlir.module()
-        tmp_int8_module.load(int8_tune_mlir)
-        pbar = tqdm(tmp_int8_module.op_info)
+
+        # get fp32 target layer activation
+        self.all_fp32_activations_map = {}
+        for idx, data in enumerate(self.__input_data_generator()):
+            self.fp32_model.run(data)
+            self.all_fp32_activations_map[idx] = self.fp32_model.get_all_tensor()
+
+        pbar = tqdm(self.fp32_model.op_info)
         for info in pbar:
             op_name = info["name"]
             pbar.set_description("tune: {}".format(op_name))
             pbar.update(1)
             if info['type'] in self.skip_op:
                 continue
+
+            if op_name not in self.thresholds_map:
+                continue
+
             # tune layer
-            tune_distance = self.tune_layer(
-                op_name, get_op_threshold_from_calibration_tabel(self.tune_table, op_name))
-            logger.info(
-                "tuning op: {} finish, tune_distance: {}".format(op_name, tune_distance))
+            threshold = self.thresholds_map[op_name][0]
+            tune_distance = self.tune_layer(op_name, threshold)
+            logger.info("tuning op: {} finish, tune_distance: {}".format(op_name, tune_distance))
 
         logger.info("all tuning down, table path : {}".format(self.tune_table))

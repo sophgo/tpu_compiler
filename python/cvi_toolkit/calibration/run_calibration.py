@@ -13,7 +13,7 @@ from pathlib import Path
 import random
 
 from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
-from cvi_toolkit.calibration.tuner import Tuner_v2
+from cvi_toolkit.calibration.tuner import AutoTuner
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
 
@@ -86,7 +86,7 @@ if __name__ == '__main__':
     elif args.auto_tune: # auto-tune
         if not args.tuned_table:
             raise RuntimeError("Please specific output tuned treshold table by --tuned_table")
-        tuner = Tuner_v2(args.model_file, args.calibration_table, image_list, 10,
+        tuner = AutoTuner(args.model_file, args.calibration_table, image_list, 10,
                          tune_iteration=args.tune_iteration, preprocess_func=p_func,
                          tune_table=args.tuned_table)
         tuner.run_tune()

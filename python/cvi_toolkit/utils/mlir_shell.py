@@ -88,11 +88,12 @@ def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv, quant_mode="int8"):
     checkReturnValue(ret, "tpuc-opt, mlir_tpu_quant")
     return ret.returncode
 
-def mlir_int8_quant(mlirfile, int8_mlirfile):
+def mlir_int8_quant(mlirfile, int8_mlirfile, calibration_table):
     command = [
         "tpuc-opt",
         "--import-calibration-table",
-        "--calibration-table", threshold_table,
+        "--calibration-table", calibration_table,
+        "--assign-chip-name",
         "--tpu-quant",
         mlirfile,
         "-o", int8_mlirfile

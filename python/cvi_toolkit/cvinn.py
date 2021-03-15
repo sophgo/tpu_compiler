@@ -3,7 +3,7 @@ import onnx
 from .model.ModelFactory import ModelFactory
 from .transform import OnnxConverter, TFConverter, CaffeConverter
 from .calibration.kld_calibrator import KLD_Calibrator
-from .calibration.tuner import Tuner_v2
+from .calibration.tuner import AutoTuner
 from .utils.mlir_shell import checkReturnValue, mlir_opt, \
                                 mlir_import_calibration, mlir_tpu_quant, mlir_lower_opt, mlir_gen_cvimodel, \
     mlir_calibration, run_cvimodel, gen_bf16_mlir, get_chip_name
@@ -78,7 +78,8 @@ class cvinn(object):
         thresholds = calitor.do_calibration()
         calitor.dump_threshold_table(threshold_table, thresholds)
         if auto_tune == True:
-            tuner = Tuner_v2(mlirfile_fp32, threshold_table, dataset, 10, tune_iteration=tune_image_num,preprocess_func=pre_func)
+            tuner = AutoTuner(mlirfile_fp32, threshold_table, dataset, 10,
+                              tune_iteration=tune_image_num,preprocess_func=pre_func)
             tuner.run_tune()
         return 0
 
