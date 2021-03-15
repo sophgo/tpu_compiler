@@ -252,7 +252,8 @@ public:
 
   // wrap C++ function with NumPy array IO
   py::dict
-  run(py::array_t<float, py::array::c_style | py::array::forcecast> array) {
+  run(py::array_t<float, py::array::c_style | py::array::forcecast> array,
+      std::string target_op) {
     if (!interpreter_) {
       throw std::runtime_error("Not load mlir Model");
     }
@@ -288,17 +289,21 @@ public:
       interpreter_->set_tensor(i.first, input_data);
     }
     assert(slice_idx == input_vec.size());
-    interpreter_->invoke();
 
     tensor_map_t results;
     shape_map_t shapeMap_;
-
-    auto output_details = interpreter_->get_output_details();
-    for (auto &output_name : output_details) {
-      results[output_name] = interpreter_->get_tensor(output_name);
-      shapeMap_[output_name] = interpreter_->get_tensor_shape(output_name);
+    if (!target_op.empty()) {
+      interpreter_->invoke_until(target_op);
+      results[target_op] = interpreter_->get_tensor(target_op);
+      shapeMap_[target_op] = interpreter_->get_tensor_shape(target_op);
+    } else {
+      interpreter_->invoke();
+      auto output_details = interpreter_->get_output_details();
+      for (auto &output_name : output_details) {
+        results[output_name] = interpreter_->get_tensor(output_name);
+        shapeMap_[output_name] = interpreter_->get_tensor_shape(output_name);
+      }
     }
-
     return getTensorDict(results, shapeMap_);
   }
 
@@ -333,7 +338,7 @@ PYBIND11_MODULE(pymlir, m) {
            "get weight file path")
       .def("getWeightData", &py_module::getWeightData, "get weight data")
       .def("setWeightData", &py_module::setWeightData, "set weight data")
-      .def("run", &py_module::run,
+      .def("run", &py_module::run, py::arg("array"), py::arg("target_op") = "",
            "run module inference with input array, and return output array")
       .def("allocate_tensors", &py_module::allocate_tensors)
       .def("get_tensors_info", &py_module::get_tensor_info)

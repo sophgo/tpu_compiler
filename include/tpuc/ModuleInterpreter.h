@@ -102,6 +102,7 @@ public:
   void prepareOperation(Operation &op);
   void invoke();
   void invoke(std::string name);
+  void invoke_until(const std::string& name);
   std::vector<std::pair<std::string, std::string>> get_tensor_info();
   bool set_tensor(std::string name, const std::vector<float> &data);
 

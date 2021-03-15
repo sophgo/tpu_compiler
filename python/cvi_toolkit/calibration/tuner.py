@@ -177,8 +177,6 @@ class AutoTuner(object):
             yield x
 
     def tune_layer(self, target_layer, threshold):
-        original_distance = sys.float_info.max
-
         # search up
         tune_distance = self.get_layer_best_threshold(
             threshold, -1, target_layer, True)
@@ -193,7 +191,8 @@ class AutoTuner(object):
 
         return tune_distance
 
-    def get_layer_best_threshold(self, original_threshold, original_distance, target_layer, search_up):
+    def get_layer_best_threshold(self, original_threshold, original_distance,
+                                 target_layer, search_up):
         fail_count = 0
 
         inference_count = 0
@@ -230,7 +229,7 @@ class AutoTuner(object):
 
             distance = 0
             for idx, data in enumerate(self.__input_data_generator()):
-                quanted_model.run(data)
+                quanted_model.run(data, target_layer)
                 inference_count += 1
                 target_int8_activation = quanted_model.get_tensor(target_layer)
 

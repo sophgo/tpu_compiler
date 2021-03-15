@@ -507,6 +507,19 @@ void ModuleInterpreter::invoke(std::string name) {
   }
   llvm::errs() << " Not Find Op name: " << name << " \n";
 }
+
+void ModuleInterpreter::invoke_until(const std::string& name) {
+  std::lock_guard<std::mutex> lock(invoke_lock);
+  for (auto &node : oplist) {
+    node->invoke();
+    if (node->get_name() == name) {
+      return;
+    }
+  }
+  std::string errorMsg = "Not Find target Op:" + name;
+  llvm_unreachable(errorMsg.c_str());
+}
+
 bool ModuleInterpreter::set_tensor(std::string name,
                                    const std::vector<float> &data) {
   for (auto &node : oplist) {
