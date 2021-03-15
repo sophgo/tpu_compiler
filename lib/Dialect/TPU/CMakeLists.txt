@@ -51,7 +51,6 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertInterp.cpp
   Transforms/ConvertConv2D.cpp
   Transforms/ConvertConv3D.cpp
-  Transforms/ConvertCsc.cpp
   Transforms/ConvertLrn.cpp
   Transforms/ConvertUpsample.cpp
   Transforms/ConvertPoolMask.cpp
@@ -70,8 +69,6 @@ add_llvm_library(MLIRTPU
   Quantization/Quantization.cpp
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizeBf16.cpp
-  Quantization/GenSqrtTable.cpp
-  Quantization/GenReciprocalTable.cpp
   Optimization/ConvTile.cpp
   Optimization/PoolingTile.cpp
   Optimization/SplitPool.cpp

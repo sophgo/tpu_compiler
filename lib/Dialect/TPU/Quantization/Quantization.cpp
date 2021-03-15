@@ -289,207 +289,36 @@ struct TpuConvertSoftmaxToSoftmaxCpu : public RewritePattern {
   }
 };
 
-struct TpuGenLrnTablePattern : public RewritePattern {
-  TpuGenLrnTablePattern(MLIRContext *context)
+// remove lrn_one/lrn_two/lrn_three
+struct TpuMergeLrnPattern : public RewritePattern {
+  TpuMergeLrnPattern(MLIRContext *context)
       : RewritePattern("tpu.lrn", 1, context) {}
 
-  static void quantize_fraction(float x, float y, int &rshift_width,
-                                int &x_quantized) {
-    float y_ceiling = 256.0 / x * y;
-    rshift_width = 0;
-    x_quantized = 0;
-    float y_quantized = 1.0;
-    while ((y_quantized * 2) < y_ceiling && rshift_width < 15) {
-      rshift_width += 1;
-      y_quantized = (float)(1 << rshift_width);
-    }
-    x_quantized = (int)std::floor((x / y) * y_quantized + 0.5);
-  }
-
   LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    TensorFile *wTF = getWeightTensorFile(op);
-    Value wfV = getWeightFileValue(op);
+                                PatternRewriter &rewriter) const override {
+    auto builder = Builder(op->getContext());
     auto lrnOp = cast<tpu::LrnOp>(op);
-    auto quant = lrnOp.getOpQuant();
-
-    if (quant == "NONE") {
-      return failure();
-    }
-
-    auto sq_table_op = lrnOp.getOperand(1).getDefiningOp();
-    if (isa<tpu::NoneOp>(sq_table_op) == false) {
-      return failure();
-    }
 
     auto lrnThreeOp = lrnOp.getOperand(3).getDefiningOp();
-    if (isa<tpu::NoneOp>(lrnThreeOp) == true) {
+    if (false == isa<tpu::LrnThreeOp>(lrnThreeOp)) {
       return failure();
     }
     auto lrnTwoOp = lrnThreeOp->getOperand(0).getDefiningOp();
+    assert(isa<tpu::LrnTwoOp>(lrnTwoOp));
     auto lrnOneOp = lrnTwoOp->getOperand(0).getDefiningOp();
+    assert(isa<tpu::LrnOneOp>(lrnOneOp));
 
     // remote operand 3, not use any more
-    lrnOp.setOperand(3, lrnOp.getOperand(1));
-
-    const int EXP_START = -62;
-    const int NPU_NUM = MInfo::lane_num;
-    const int TABLE_H_INT8 = 16;
-    const int TABLE_W_INT8 = 16;
-    const int TABLE_HW_INT8 = (TABLE_H_INT8 * TABLE_W_INT8);
-    const int TBL_SHAPE_INT8 = (TABLE_HW_INT8 * NPU_NUM);
-    const int TABLE_H_BF16 = 32;
-    const int TABLE_W_BF16 = 8;
-    const int TABLE_HW_BF16 = ( TABLE_H_BF16 * TABLE_W_BF16);
-    const int TBL_SHAPE_BF16 = ( TABLE_HW_BF16 * NPU_NUM );
-    if (quant == "INT8") {
-      auto lrnPartOp = cast<tpu::LrnThreeOp>(lrnThreeOp);
-      uint32_t local_size = lrnPartOp.local_size();
-      float alpha = lrnPartOp.alpha().convertToFloat();
-      float beta = lrnPartOp.beta().convertToFloat();
-      float k = lrnPartOp.k().convertToFloat();
-
+    auto none_op = lrnOp.getOperand(1);
+    assert(isa<tpu::NoneOp>(none_op.getDefiningOp()));
+    lrnOp.setOperand(3, none_op);
+    if (lrnOp.getOpQuant() == "INT8") {
       float sq_thy = getOpThreshold(lrnOneOp);
       float sumsq_thy = getOpThreshold(lrnTwoOp);
       float scale_thy = getOpThreshold(lrnThreeOp);
-      float threshold_x = getPreviousOpThreshold(op);
-      float threshold_y = getOpThreshold(op);
-      // quant x and rshift
-      int quant_x0, sum_rshift, quant_x1, lrn_rshift;
-      quantize_fraction(sq_thy, sumsq_thy, sum_rshift, quant_x0);
-      quantize_fraction(threshold_x * scale_thy, threshold_y * 256.0,
-                        lrn_rshift, quant_x1);
-      lrnOp->setAttr("sum_rshift", rewriter.getI32IntegerAttr(sum_rshift));
-      lrnOp->setAttr("quant_data0", rewriter.getI32IntegerAttr(quant_x0));
-      lrnOp->setAttr("lrn_rshift", rewriter.getI32IntegerAttr(lrn_rshift));
-      lrnOp->setAttr("quant_data1", rewriter.getI32IntegerAttr(quant_x1));
-      // sq table
-      std::vector<float> sq_table(TBL_SHAPE_INT8);
-
-      for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
-        float lut_input = threshold_x / 128.0 * idx;
-        float lut_output = std::pow(lut_input, 2) * 256.0 / sq_thy;
-        lut_output = lut_output * alpha / local_size;
-        lut_output = std::floor(lut_output + 0.5);
-        if (lut_output > 255.0) {
-          lut_output = 255.0;
-        }
-        for (int n = 0; n < NPU_NUM; n++) {
-          sq_table[n * TABLE_HW_INT8 + idx] = lut_output;
-        }
-      }
-
-      // power table
-      std::vector<float> power_table(TBL_SHAPE_INT8);
-
-      for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
-        float lut_input = (float)idx / (256.0 / sumsq_thy);
-        float lut_output = std::pow(lut_input + k, -beta);
-        lut_output = lut_output * (256.0 / scale_thy);
-        lut_output = std::floor(lut_output + 0.5);
-        if (lut_output > 255.0) {
-          lut_output = 255.0;
-        }
-        for (int n = 0; n < NPU_NUM; n++) {
-          power_table[n * TABLE_HW_INT8 + idx] = lut_output;
-        }
-      }
-
-      // update op params
-      std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_INT8, TABLE_W_INT8};
-      auto type = RankedTensorType::get(
-          weightShape, FloatType::getF32(rewriter.getContext()));
-      std::string op_name =
-          lrnOp->getAttrOfType<StringAttr>("name").getValue().str();
-
-      // sq weight
-      auto tensor_name = op_name + "_sq_gen_weight";
-
-      wTF->addTensor<float>(tensor_name, sq_table.data(), type);
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(
-          rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      attrs.push_back(
-          rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
-      auto sq_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value>{wfV},
-          ArrayRef<NamedAttribute>{attrs});
-      lrnOp.setOperand(1, sq_weight_op);
-
-      // power weight
-      auto tensor_name2 = op_name + "_power_gen_weight";
-      wTF->addTensor<float>(tensor_name2, power_table.data(), type);
-      std::vector<NamedAttribute> attrs2;
-      attrs2.push_back(
-          rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name2)));
-      attrs2.push_back(
-          rewriter.getNamedAttr("storage", rewriter.getStringAttr("UINT8")));
-      auto power_weight_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value>{wfV},
-          ArrayRef<NamedAttribute>{attrs2});
-      lrnOp.setOperand(2, power_weight_op);
-    } else if (quant == "BF16"){
-      auto lrnPartOp = cast<tpu::LrnThreeOp>(lrnThreeOp);
-      float beta = lrnPartOp.beta().convertToFloat();
-
-      // power table
-      std::vector<uint16_t> power_exp_table_bf16(TBL_SHAPE_BF16);
-      std::vector<uint16_t> power_mantissa_table_bf16(TBL_SHAPE_BF16);
-      std::vector<float> power_exp_table(TBL_SHAPE_BF16);
-      std::vector<float> power_mantissa_table(TBL_SHAPE_BF16);
-
-      // gen exp table
-      bf16_gen_power_exp_table(power_exp_table_bf16.data(), beta,
-                               EXP_START, TABLE_HW_BF16);
-      // gen matissa table
-      bf16_gen_power_mantissa_table(power_mantissa_table_bf16.data(), beta,
-                                    TABLE_HW_BF16);
-
-      // copy bf16 data to float table
-      for (int i = 0; i < NPU_NUM; ++i){
-        std::copy(power_exp_table_bf16.data(), power_exp_table_bf16.data() + TABLE_HW_BF16,
-                  power_exp_table.data() + i * TABLE_HW_BF16);
-        std::copy(power_mantissa_table_bf16.data(),
-                  power_mantissa_table_bf16.data() + TABLE_HW_BF16,
-                  power_mantissa_table.data() + i * TABLE_HW_BF16);
-      }
-
-      // update op params
-      std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};
-      auto type = RankedTensorType::get(
-          weightShape, FloatType::getF32(rewriter.getContext()));
-      std::string op_name =
-          lrnOp->getAttrOfType<StringAttr>("name").getValue().str();
-
-      // power exp weight
-      auto tensor_name = op_name + "_power_exp_weight";
-
-      wTF->addTensor<float>(tensor_name, power_exp_table.data(), type);
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(
-          rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name)));
-      attrs.push_back(
-          rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
-      auto power_exp_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value>{wfV},
-          ArrayRef<NamedAttribute>{attrs});
-      lrnOp.setOperand(1, power_exp_op);
-
-      // power mantissa weight
-      auto tensor_name2 = op_name + "_power_mantissa_weight";
-      wTF->addTensor<float>(tensor_name2, power_mantissa_table.data(), type);
-      std::vector<NamedAttribute> attrs2;
-      attrs2.push_back(
-          rewriter.getNamedAttr("name", rewriter.getStringAttr(tensor_name2)));
-      attrs2.push_back(
-          rewriter.getNamedAttr("storage", rewriter.getStringAttr("BF16")));
-      auto power_mantissa_op = rewriter.create<tpu::LoadWeightOp>(
-          op->getLoc(), type, ArrayRef<Value>{wfV},
-          ArrayRef<NamedAttribute>{attrs2});
-      lrnOp.setOperand(2, power_mantissa_op);
+      lrnOp->setAttr("threshold_parts", builder.getF32ArrayAttr(ArrayRef<float>(
+                                            {sq_thy, sumsq_thy, scale_thy})));
     }
-
-    // remove lrn one/two/three op
     rewriter.replaceOp(lrnThreeOp, {lrnOp});
     rewriter.replaceOp(lrnTwoOp, {lrnOp});
     rewriter.replaceOp(lrnOneOp, {lrnOp});
@@ -1034,6 +863,7 @@ public:
     patterns.insert<TpuTpuQuantClipPassPattern>(context);
     // patch for dialation > 15
     patterns.insert<TpuConvertDilationWeightPattern>(context);
+    patterns.insert<TpuMergeLrnPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     // if input has more than one use, and do different quant,
@@ -1140,12 +970,6 @@ public:
     });
 
     // gen special operations
-    patterns.clear();
-    patterns.insert<
-      TpuGenLrnTablePattern
-    >(context);
-    applyPatternsAndFoldGreedily(fn, std::move(patterns));
-
     patterns.clear();
     patterns.insert<
       TpuConvertSoftmaxToSoftmaxCpu

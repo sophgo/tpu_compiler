@@ -4548,7 +4548,6 @@ public:
         LowerCpuOpDefaultPattern<tpu::ProposalOp>,
         LowerCpuOpDefaultPattern<tpu::RetinaFaceDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::ROIPoolingOp>,
-        LowerCpuOpDefaultPattern<tpu::TransposeOp>,
         LowerCpuOpDefaultPattern<tpu::YoloDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::SoftmaxCpuOp>,
         LowerCustomOpPattern<tpu::CustomOp>

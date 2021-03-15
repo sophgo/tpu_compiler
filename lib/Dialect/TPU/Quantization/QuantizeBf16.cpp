@@ -691,6 +691,62 @@ LogicalResult quantizeBf16SoftmaxOps(Operation *op) {
 }
 
 ///
+/// Lrn Ops quantization method
+///
+LogicalResult quantizeBf16LrnOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value wfV = getWeightFileValue(op);
+  auto lrnOp = cast<tpu::LrnOp>(op);
+
+  const int EXP_START = -62;
+  const int NPU_NUM = MInfo::lane_num;
+  const int TABLE_H_BF16 = 32;
+  const int TABLE_W_BF16 = 8;
+  const int TABLE_HW_BF16 = (TABLE_H_BF16 * TABLE_W_BF16);
+  const int TBL_SHAPE_BF16 = (TABLE_HW_BF16 * NPU_NUM);
+
+  float beta = lrnOp.beta().convertToFloat();
+
+  // power table
+  std::vector<uint16_t> power_exp_table_bf16(TBL_SHAPE_BF16);
+  std::vector<uint16_t> power_mantissa_table_bf16(TBL_SHAPE_BF16);
+  std::vector<float> power_exp_table(TBL_SHAPE_BF16);
+  std::vector<float> power_mantissa_table(TBL_SHAPE_BF16);
+
+  // gen exp table
+  bf16_gen_power_exp_table(power_exp_table_bf16.data(), beta, EXP_START,
+                           TABLE_HW_BF16);
+  // gen matissa table
+  bf16_gen_power_mantissa_table(power_mantissa_table_bf16.data(), beta,
+                                TABLE_HW_BF16);
+
+  // copy bf16 data to float table
+  for (int i = 0; i < NPU_NUM; ++i) {
+    std::copy(power_exp_table_bf16.data(),
+              power_exp_table_bf16.data() + TABLE_HW_BF16,
+              power_exp_table.data() + i * TABLE_HW_BF16);
+    std::copy(power_mantissa_table_bf16.data(),
+              power_mantissa_table_bf16.data() + TABLE_HW_BF16,
+              power_mantissa_table.data() + i * TABLE_HW_BF16);
+  }
+
+  // update op params
+  std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_BF16, TABLE_W_BF16};
+  auto power_exp_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "power_exp_weight", power_exp_table, weightShape, "BF16", wTF, wfV);
+  lrnOp.setOperand(1, power_exp_op);
+  auto power_mantissa_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "power_mantissa_weight", power_mantissa_table, weightShape, "BF16",
+      wTF, wfV);
+  lrnOp.setOperand(2, power_mantissa_op);
+
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+
+  return success();
+}
+
+///
 /// LeakyRelu Ops quantization method
 ///
 LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
@@ -1054,10 +1110,12 @@ LogicalResult tpu::PReluOp::quantizeBf16() {
   return quantizeBf16PReluOps(op);
 }
 
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnOneOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnTwoOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnThreeOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::LrnOp)
+LogicalResult tpu::LrnOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n");
+  Operation *op = this->getOperation();
+  return quantizeBf16LrnOps(op);
+}
 
 LogicalResult tpu::LstmOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
@@ -1173,5 +1231,7 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ZeroMaskOp)
 /// This Ops does not support quantizie
 /// their quant interface are kept for holding threshold only
 DECLARE_QUANTIZE_BF16_DISABLED_METHOD(tpu::ReshapeOp)
-
+DECLARE_QUANTIZE_BF16_DISABLED_METHOD(tpu::LrnOneOp)
+DECLARE_QUANTIZE_BF16_DISABLED_METHOD(tpu::LrnTwoOp)
+DECLARE_QUANTIZE_BF16_DISABLED_METHOD(tpu::LrnThreeOp)
 } // namespace mlir

@@ -616,7 +616,6 @@ def TPU_CscOp: TPU_Op<"csc",
     OptionalAttr<StrAttr>:$chipname
   );
   let results = (outs AnyTensor:$output);
-  let hasCanonicalizer = 1;
 }
 
 def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
@@ -1192,6 +1191,7 @@ def TPU_LrnOp: TPU_Op<"lrn",
     DefaultValuedAttr<F32Attr, "1.0">:$alpha,
     DefaultValuedAttr<F32Attr, "0.75">:$beta,
     DefaultValuedAttr<F32Attr, "1.0">:$k,
+    OptionalAttr<F32ArrayAttr>:$threshold_parts,
     I32Attr:$sum_rshift,
     I32Attr:$lrn_rshift,
     I32Attr:$quant_data0,
@@ -2764,42 +2764,6 @@ class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 }
 def TPU_TileOp : TPU_TileComOp<"tile", "Tile">;
 def TPU_TileInterpOp : TPU_TileComOp<"tile_interp", "interp">;
-
-def TPU_TransposeOp : TPU_Op<"transpose",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
-  let summary = "Transpose operator";
-
-  let description = [{
-    Perform transpose operation for packed image to planar format
-
-    Inputs:
-      `input`                   : required, input tensors
-
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-      `TpuOpQuantInterface`  : support quantization
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    StrAttr:$name,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
 
 def TPU_UpsampleOp: TPU_Op<"upsample",
       [NoSideEffect,

@@ -3789,26 +3789,6 @@ LogicalResult tpu::TileInterpOp::interpret(
   return success();
 }
 
-LogicalResult tpu::TransposeOp::interpret(
-    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name()
-                          << "]\n";);
-  auto opdT = getOperandTensors(op, valueMapping);
-  auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float>>(size);
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  assert(input_size == size);
-  getNCHW(shape, n, h, w, c);
-  my_transpose(opdT[0]->data(), resultT->data(), n, c, h, w);
-
-  valueMapping[result] = std::move(resultT);
-  return success();
-}
-
 LogicalResult tpu::UpsampleOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();

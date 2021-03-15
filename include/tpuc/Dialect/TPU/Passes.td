@@ -8,11 +8,6 @@ def DoPrintTpuOp : FunctionPass<"print-tpu-op-info"> {
   let constructor = "mlir::createPrintTpuOpPass()";
 }
 
-def DoGenSqrtTable : FunctionPass<"gen-sqrt-table"> {
-  let summary = "generate sqrt look up table, y0";
-  let constructor = "mlir::createGenSqrtTablePass()";
-}
-
 def DoTpuQuant : FunctionPass<"tpu-quant"> {
   let summary = "Do quantization on TPU Ops";
   let constructor = "mlir::createTpuQuantPass()";
@@ -21,11 +16,6 @@ def DoTpuQuant : FunctionPass<"tpu-quant"> {
 def DoTpuQuantClip : FunctionPass<"tpu-quant-clip"> {
   let summary = "merge clip's threshold to former";
   let constructor = "mlir::createTpuQuantClipPass()";
-}
-
-def DoGenReciprocalTable : FunctionPass<"gen-reciprocal-table"> {
-  let summary = "generate reciprocal look up table, y0";
-  let constructor = "mlir::createGenReciprocalTablePass()";
 }
 
 def DoImportCalibrationTable : FunctionPass<"import-calibration-table"> {

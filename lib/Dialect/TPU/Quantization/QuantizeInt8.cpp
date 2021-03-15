@@ -325,6 +325,101 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
   return success();
 }
 
+static void quantize_fraction(float x, float y, int &rshift_width,
+                              int &x_quantized) {
+  float y_ceiling = 256.0 / x * y;
+  rshift_width = 0;
+  x_quantized = 0;
+  float y_quantized = 1.0;
+  while ((y_quantized * 2) < y_ceiling && rshift_width < 15) {
+    rshift_width += 1;
+    y_quantized = (float)(1 << rshift_width);
+  }
+  x_quantized = (int)std::floor((x / y) * y_quantized + 0.5);
+}
+
+LogicalResult quantizeInt8LrnOps(Operation *op) {
+  assert(getOpQuant(op) == "INT8");
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value wfV = getWeightFileValue(op);
+
+  auto lrnOp = cast<tpu::LrnOp>(op);
+  auto rewriter = Builder(lrnOp.getContext());
+
+  const int NPU_NUM = MInfo::lane_num;
+  const int TABLE_H_INT8 = 16;
+  const int TABLE_W_INT8 = 16;
+  const int TABLE_HW_INT8 = (TABLE_H_INT8 * TABLE_W_INT8);
+  const int TBL_SHAPE_INT8 = (TABLE_HW_INT8 * NPU_NUM);
+
+  uint32_t local_size = lrnOp.local_size();
+  float alpha = lrnOp.alpha().convertToFloat();
+  float beta = lrnOp.beta().convertToFloat();
+  float k = lrnOp.k().convertToFloat();
+  std::vector<float> threhsold_parts;
+  arrayAttrToVector(lrnOp.threshold_parts().getValue(), threhsold_parts);
+
+  float sq_thy = threhsold_parts[0];
+  float sumsq_thy = threhsold_parts[1];
+  float scale_thy = threhsold_parts[2];
+  float threshold_x = getPreviousOpThreshold(op);
+  float threshold_y = getOpThreshold(op);
+  // quant x and rshift
+  int quant_x0, sum_rshift, quant_x1, lrn_rshift;
+  quantize_fraction(sq_thy, sumsq_thy, sum_rshift, quant_x0);
+  quantize_fraction(threshold_x * scale_thy, threshold_y * 256.0, lrn_rshift,
+                    quant_x1);
+  lrnOp->setAttr("sum_rshift", rewriter.getI32IntegerAttr(sum_rshift));
+  lrnOp->setAttr("quant_data0", rewriter.getI32IntegerAttr(quant_x0));
+  lrnOp->setAttr("lrn_rshift", rewriter.getI32IntegerAttr(lrn_rshift));
+  lrnOp->setAttr("quant_data1", rewriter.getI32IntegerAttr(quant_x1));
+  // sq table
+  std::vector<float> sq_table(TBL_SHAPE_INT8);
+
+  for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
+    float lut_input = threshold_x / 128.0 * idx;
+    float lut_output = std::pow(lut_input, 2) * 256.0 / sq_thy;
+    lut_output = lut_output * alpha / local_size;
+    lut_output = std::floor(lut_output + 0.5);
+    if (lut_output > 255.0) {
+      lut_output = 255.0;
+    }
+    for (int n = 0; n < NPU_NUM; n++) {
+      sq_table[n * TABLE_HW_INT8 + idx] = lut_output;
+    }
+  }
+
+  // power table
+  std::vector<float> power_table(TBL_SHAPE_INT8);
+
+  for (int idx = 0; idx < TABLE_HW_INT8; ++idx) {
+    float lut_input = (float)idx / (256.0 / sumsq_thy);
+    float lut_output = std::pow(lut_input + k, -beta);
+    lut_output = lut_output * (256.0 / scale_thy);
+    lut_output = std::floor(lut_output + 0.5);
+    if (lut_output > 255.0) {
+      lut_output = 255.0;
+    }
+    for (int n = 0; n < NPU_NUM; n++) {
+      power_table[n * TABLE_HW_INT8 + idx] = lut_output;
+    }
+  }
+
+  std::vector<int64_t> weightShape{1, NPU_NUM, TABLE_H_INT8, TABLE_W_INT8};
+  // sq weight
+  auto sq_weight_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "sq_gen_weight", sq_table, weightShape, "UINT8", wTF, wfV);
+  lrnOp.setOperand(1, sq_weight_op);
+
+  // power weight
+  auto power_weight_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "power_gen_weight", power_table, weightShape, "UINT8", wTF, wfV);
+  lrnOp.setOperand(2, power_weight_op);
+
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+  return success();
+}
+
 ///
 /// LeakyRelu Ops quantization method
 ///
@@ -1285,29 +1380,14 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
   if (isa<tpu::InterpOp>(op)
       || isa<tpu::InputOp>(op)
       || isa<tpu::InstanceNormOp>(op)
-      || isa<tpu::LrnOneOp>(op)
-      || isa<tpu::LrnTwoOp>(op)
-      || isa<tpu::LrnThreeOp>(op)
-      || isa<tpu::LrnOp>(op)
-      || isa<tpu::TransposeOp>(op)
-      || isa<tpu::PermuteOp>(op)
       || isa<tpu::ReduceL2Op>(op)
       || isa<tpu::ROIPoolingOp>(op)
-      || isa<tpu::SwapChannelOp>(op)
-      || isa<tpu::CropOp>(op)
       || isa<tpu::SoftmaxOp>(op)
-      || isa<tpu::PadOp>(op)
-      || isa<tpu::PoolMax2DOp>(op)
       || isa<tpu::SoftmaxCpuOp>(op)
       || isa<tpu::CscOp>(op)
       || isa<tpu::ZeroMaskOp>(op)) {
     skip_checking = true;
   }
-
-  //if (isa<tpu::CustomOp>(op) &&
-  //    !cast<tpu::CustomOp>(op).quantifiable()) {
-  //  skip_checking = true;
-  //}
 
   if (!skip_checking) {
     float threshold_x = getPreviousOpThreshold(op);
@@ -1330,14 +1410,6 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
 //===----------------------------------------------------------------------===//
 // quantizeInt8 API
 //===----------------------------------------------------------------------===//
-
-#define DECLARE_QUANTIZE_INT8_BYPASS_METHOD(OP) \
-  LogicalResult OP::quantizeInt8() { \
-    LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
-                 << " [" << getOpName() << "]\n";); \
-    Operation *op = this->getOperation(); \
-    return quantizeInt8BypassOps(op); \
-  }
 
 LogicalResult tpu::BroadcastMulOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1380,12 +1452,6 @@ LogicalResult tpu::Conv3DOp::quantizeInt8() {
   Operation *op = this->getOperation();
   return quantizeInt8ConvOps<tpu::Conv3DOp>(op, 3);
 }
-
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::AbsOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CscOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CustomOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::DilateOp)
 
 LogicalResult tpu::DeConv2DOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1461,8 +1527,6 @@ LogicalResult tpu::FullyConnectedOp::quantizeInt8() {
   return quantizeInt8FullyConnectedOps(op);
 }
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)
-
 LogicalResult tpu::InterpOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -1482,7 +1546,12 @@ LogicalResult tpu::InterpOp::quantizeInt8() {
   return success();
 }
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InstanceNormOp)
+LogicalResult tpu::LrnOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8LrnOps(op);
+}
 
 LogicalResult tpu::LeakyReluOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1498,13 +1567,6 @@ LogicalResult tpu::PReluOp::quantizeInt8() {
   return quantizeInt8PReluOps(op);
 }
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::GruOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnOneOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnTwoOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnThreeOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LrnOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LstmOp)
-
 LogicalResult tpu::MishOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1512,12 +1574,7 @@ LogicalResult tpu::MishOp::quantizeInt8() {
   return quantizeInt8LutOps<tpu::MishOp>(op);
 }
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PadOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileInterpOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PermuteOp)
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PixelShuffleOp)
 
 LogicalResult tpu::ClipOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1532,9 +1589,6 @@ LogicalResult tpu::PoolAvg2DOp::quantizeInt8() {
   Operation *op = this->getOperation();
   return quantizeInt8RescaleNoWeightOps<tpu::PoolAvg2DOp>(op);
 }
-
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PoolMax2DOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PoolMax3DOp)
 
 LogicalResult tpu::PowerOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1553,12 +1607,6 @@ LogicalResult tpu::ReciprocalOp::quantizeInt8() {
   return quantizeInt8LutOps<tpu::ReciprocalOp>(op);
 }
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReluOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReorgOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ROIPoolingOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReverseOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ShuffleChannelOp)
-
 LogicalResult tpu::ScaleLutOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1572,8 +1620,6 @@ LogicalResult tpu::SigmoidOp::quantizeInt8() {
   Operation *op = this->getOperation();
   return quantizeInt8LutOps<tpu::SigmoidOp>(op);
 }
-
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SliceOp)
 
 LogicalResult tpu::SoftPlusOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1589,13 +1635,6 @@ LogicalResult tpu::SqrtOp::quantizeInt8() {
   return quantizeInt8LutOps<tpu::SqrtOp>(op);
 }
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SwapChannelOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxCpuOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SquareOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::QuadraticSumOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::MatMulOp)
-
 LogicalResult tpu::TanHOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1609,14 +1648,6 @@ LogicalResult tpu::ExpOp::quantizeInt8() {
   Operation *op = this->getOperation();
   return quantizeInt8LutOps<tpu::ExpOp>(op);
 }
-
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReduceL2Op)
-//LogicalResult tpu::ReduceL2Op::quantizeInt8() {
-//  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
-//               << " [" << getOpName() << "]\n";);
-//  Operation *op = this->getOperation();
-//  return quantizeInt8RescaleNoWeightOps<tpu::ReduceL2Op>(op);
-//}
 
 LogicalResult tpu::ReduceMeanOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1632,9 +1663,10 @@ LogicalResult tpu::ReduceMaxOp::quantizeInt8() {
   return quantizeInt8RescaleNoWeightOps<tpu::ReduceMaxOp>(op);
 }
 
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ZeroMaskOp)
-
+/*
+This Ops does not support quantizie
+their quant interface are kept for holding threshold only
+*/
 #define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \
   LogicalResult OP::quantizeInt8() { \
     LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
@@ -1642,8 +1674,53 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ZeroMaskOp)
     assert(false); \
     return failure(); \
   }
-/// This Ops does not support quantizie
-/// their quant interface are kept for holding threshold only
+
 DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::ReshapeOp)
+DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnOneOp)
+DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnTwoOp)
+DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnThreeOp)
+
+/*
+These Ops does not do quantization, need threshold_x == thrshold_y
+*/
+#define DECLARE_QUANTIZE_INT8_BYPASS_METHOD(OP) \
+  LogicalResult OP::quantizeInt8() { \
+    LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
+                 << " [" << getOpName() << "]\n";); \
+    Operation *op = this->getOperation(); \
+    return quantizeInt8BypassOps(op); \
+  }
+
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::AbsOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CscOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CustomOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::DilateOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::GruOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InstanceNormOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LstmOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::MatMulOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PadOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PermuteOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PixelShuffleOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PoolMax2DOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PoolMax3DOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::QuadraticSumOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReduceL2Op)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReluOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReorgOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ROIPoolingOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ReverseOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ShuffleChannelOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SwapChannelOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SliceOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SoftmaxCpuOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SquareOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileInterpOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ZeroMaskOp)
 
 } // namespace mlir

@@ -50,9 +50,6 @@ std::unique_ptr<mlir::Pass> createFuseEltwisePass();
 std::unique_ptr<mlir::Pass> createMoveConvStrideToEltwiseOpPass();
 std::unique_ptr<mlir::Pass> createRefactorOddIcConvPass();
 
-std::unique_ptr<mlir::Pass> createGenReciprocalTablePass();
-std::unique_ptr<mlir::Pass> createGenSqrtTablePass();
-
 std::unique_ptr<mlir::Pass> createImportCalibrationTablePass();
 std::unique_ptr<mlir::Pass> createTpuQuantPass();
 
