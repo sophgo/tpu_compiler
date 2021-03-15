@@ -26,8 +26,6 @@ void cvi_backend_tl_crop(const CviBackendContext &ctx, uint32_t layer_id,
 
   LLVM_DEBUG(llvm::errs() << llvm::format("la_output:%d\n", la_output));
 
-  ctx.parallel_disable();
-
   uint32_t in = input_dim[0];
   uint32_t ic = input_dim[1];
   uint32_t ih = input_dim[2];
@@ -65,10 +63,20 @@ void cvi_backend_tl_crop(const CviBackendContext &ctx, uint32_t layer_id,
   uint32_t input_addr = la_input + input_offset;
   tl_input.start_address = input_addr;
   tl_input.shape = output_shape;
-  cvk_tdma_l2l_tensor_copy_param_t p1 = {0};
-  p1.dst = &tl_output;
-  p1.src = &tl_input;
-  ctx.tdma_l2l_tensor_copy(&p1);
+  if (ic == oc) {
+    cvk_tiu_copy_param_t p = {0};
+    p.src = &tl_input;
+    p.dst = &tl_output;
+    p.layer_id = layer_id;
+    ctx.tiu_copy(&p);
+  } else {
+    ctx.parallel_disable();
+    cvk_tdma_l2l_tensor_copy_param_t p1 = {0};
+    p1.dst = &tl_output;
+    p1.src = &tl_input;
+    p1.layer_id = layer_id;
+    ctx.tdma_l2l_tensor_copy(&p1);
+  }
 }
 
 void cvi_backend_tl_bf16_crop(const CviBackendContext &ctx, uint32_t layer_id,
@@ -82,8 +90,6 @@ void cvi_backend_tl_bf16_crop(const CviBackendContext &ctx, uint32_t layer_id,
   LLVM_DEBUG(llvm::errs() << llvm::format("la_input:%d\n", la_input));
 
   LLVM_DEBUG(llvm::errs() << llvm::format("la_output:%d\n", la_output));
-
-  ctx.parallel_disable();
 
   uint32_t in = input_dim[0];
   uint32_t ic = input_dim[1];
@@ -121,8 +127,18 @@ void cvi_backend_tl_bf16_crop(const CviBackendContext &ctx, uint32_t layer_id,
   uint32_t input_addr = la_input + input_offset;
   tl_input.start_address = input_addr;
   tl_input.shape = output_shape;
-  cvk_tdma_l2l_tensor_copy_param_t p1 = {0};
-  p1.dst = &tl_output;
-  p1.src = &tl_input;
-  ctx.tdma_l2l_tensor_copy(&p1);
+  if (ic == oc) {
+    cvk_tiu_copy_param_t p = {0};
+    p.src = &tl_input;
+    p.dst = &tl_output;
+    p.layer_id = layer_id;
+    ctx.tiu_copy(&p);
+  } else {
+    ctx.parallel_disable();
+    cvk_tdma_l2l_tensor_copy_param_t p1 = {0};
+    p1.dst = &tl_output;
+    p1.src = &tl_input;
+    p1.layer_id = layer_id;
+    ctx.tdma_l2l_tensor_copy(&p1);
+  }
 }
