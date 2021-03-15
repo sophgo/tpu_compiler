@@ -38,10 +38,6 @@ if __name__ == '__main__':
   if not os.path.isdir(args.out_path):
     os.mkdir(args.out_path)
 
-  if args.calibrator == 'KLD':
-    calibrator = KLD_Calibrator(args, preprocess_func)
-  elif args.calibrator == 'Asym':
-    calibrator = Asym_Calibrator(args, preprocess_func)
-  thresholds = calibrator.do_calibration()
-  calibrator.dump_threshold_table(args.output_file, thresholds)
+  calibrator = KLD_Calibrator(args, preprocess_func)
+  calibrator.run(args.output_file)
 

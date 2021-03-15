@@ -151,6 +151,11 @@ public:
           py::dict py_temp;
           py_temp[OP_NAME] = getOpName(&op).str();
           py_temp[OP_TYPE] = op.getName().getStringRef().str();
+          if (auto quantableOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
+            py_temp[OP_QUANT] = quantableOp.getOpQuant().str();
+          } else {
+            py_temp[OP_QUANT] = "NONE";
+          }
           opInfo_.append(py_temp);
         }
       }

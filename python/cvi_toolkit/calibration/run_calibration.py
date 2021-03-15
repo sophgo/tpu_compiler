@@ -82,8 +82,8 @@ if __name__ == '__main__':
                                     preprocess_func=p_func,
                                     histogram_bin_num=args.histogram_bin_num,
                                     custom_op_plugin=args.custom_op_plugin)
-        calibrator.create_calibration_table(args.calibration_table)
-    else: # auto-tune
+        calibrator.run(args.calibration_table)
+    elif args.auto_tune: # auto-tune
         if not args.tuned_table:
             raise RuntimeError("Please specific output tuned treshold table by --tuned_table")
         tuner = Tuner_v2(args.model_file, args.calibration_table, image_list, 10,

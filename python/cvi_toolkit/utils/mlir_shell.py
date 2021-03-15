@@ -88,6 +88,34 @@ def mlir_tpu_quant(mlirfile, quant_mlirfile, op_info_csv, quant_mode="int8"):
     checkReturnValue(ret, "tpuc-opt, mlir_tpu_quant")
     return ret.returncode
 
+def mlir_int8_quant(mlirfile, int8_mlirfile):
+    command = [
+        "tpuc-opt",
+        "--import-calibration-table",
+        "--calibration-table", threshold_table,
+        "--tpu-quant",
+        mlirfile,
+        "-o", int8_mlirfile
+    ]
+    ret = subprocess.run(command, **std_output_flag)
+    checkReturnValue(ret, "tpuc-opt, mlir_int8_quant")
+    return ret.returncode
+
+def mlir_mix_quant(mlirfile, mix_mlirfile,
+                   calibration_table, mix_precision_table):
+    command = [
+        "tpuc-opt",
+        "--import-calibration-table",
+        "--calibration-table", calibration_table,
+        "--assign-chip-name",
+        "--tpu-quant",
+        "--quant-int8-mix-bf16-layers-from-file", mix_precision_table,
+        mlirfile,
+        "-o", mix_mlirfile
+    ]
+    ret = subprocess.run(command, **std_output_flag)
+    checkReturnValue(ret, "tpuc-opt, mix-precision")
+    return ret.returncode
 
 def mlir_lower_opt(mlirfile, opt_mlirfile):
     lower_mlir = "lw.mlir"
