@@ -254,33 +254,14 @@ public:
 
     OwningRewritePatternList patterns;
 
-    // apply default bypass for the ops if has no calibration threshold
-    LLVM_DEBUG(llvm::errs() << "Forword set bypass Ops threshold\n";);
-    patterns.clear();
-    patterns.insert<
-        ForwardOverwriteThresholdDefaultPattern<tpu::AbsOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::ReorgOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::PadOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::PermuteOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::PixelShuffleOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::ReverseOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::SliceOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::ShuffleChannelOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::SwapChannelOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::ReduceMaxOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::TileOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::UpsampleOp>
-        >(context);
-    applyPatternsAndFoldGreedily(fn, std::move(patterns));
-
     // backward concat op
     LLVM_DEBUG(llvm::errs() << "Backward overwrite threshold for concat\n";);
     patterns.clear();
     patterns.insert<BackwardThresholdConcatPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
-    // backward first, this ops don't do quantization, and theshold_x != threshold_y
-    // be careful, if you don't make sure whether do backward, don't do this
+    // backward first, these ops don't do quantization, and theshold_x != threshold_y
+    // be careful, if you need threhsold_x == threshold_y and don't make sure whether do backward, just do forward
     LLVM_DEBUG(llvm::errs() << "Backward overwrite threshold for all\n";);
     patterns.clear();
     patterns.insert<
