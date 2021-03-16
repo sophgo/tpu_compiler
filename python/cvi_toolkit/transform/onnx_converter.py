@@ -1394,9 +1394,6 @@ class OnnxConverter(BaseConverter):
 
                 tensor_data = list(np.full(expand_dims, 1)) + list(tensor_data)
 
-                if tensor_data[0] != 1 or tensor_data[1] != 1:
-                    raise RuntimeError("not support expand n/c, expands is", tensor_data)
-
                 output_shape = list(tensor_data)
 
                 if np.prod(input_shape0) == 1:
@@ -1460,7 +1457,6 @@ class OnnxConverter(BaseConverter):
                 }
             upsample_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
 
-            # test only clsnet
             is_expand_output = expand_dims and org_shape != output_shape
 
             if is_expand_output:
@@ -1477,7 +1473,7 @@ class OnnxConverter(BaseConverter):
                 self.addOperand(onnx_node.name, src_reshape_op, expand_shape, TensorType.ACTIVATION)
                 operands = [src_reshape_op]
 
-            upsample_op = self.CVI.add_upsample_op("{}_{}".format(upsample_name, onnx_node.op_type), operands, output_shape, **attr)
+            upsample_op = self.CVI.add_upsample_op(upsample_name, operands, output_shape, **attr)
             self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
 
             if is_expand_output:
