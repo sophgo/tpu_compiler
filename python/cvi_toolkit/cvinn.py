@@ -80,7 +80,7 @@ class cvinn(object):
         if auto_tune == True:
             tuner = AutoTuner(mlirfile_fp32, threshold_table, dataset, 10,
                               tune_iteration=tune_image_num,preprocess_func=pre_func)
-            tuner.run_tune()
+            tuner.run()
         return 0
 
     def import_cali_table(self, mlirfile_fp32: str, threshold_table: str, mlirfile_cali: str = None):

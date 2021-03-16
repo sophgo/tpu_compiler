@@ -35,4 +35,4 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     tune = Tuner(args, preprocess_func)
-    tune.run_tune(args)
+    tune.run(args)
