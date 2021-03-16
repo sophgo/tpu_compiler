@@ -1536,7 +1536,8 @@ LogicalResult tpu::InterpOp::quantizeInt8() {
 
   std::string _coordinate_transformation_mode =
       interpOp.coordinate_transformation_mode().str();
-  if (_coordinate_transformation_mode != "half_pixel") {
+  SmallVector<std::string, 3> supported = {"half_pixel", "align_corners", "pytorch_half_pixel"};
+  if (std::find(supported.begin(), supported.end(), _coordinate_transformation_mode) == supported.end()) {
     std::string err_msg = "No support " + _coordinate_transformation_mode
                                         + " mode \n";
     llvm_unreachable(err_msg.c_str());
