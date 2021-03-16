@@ -8,7 +8,7 @@ if [ -z $SET_CHIP_NAME ]; then
   echo "please set SET_CHIP_NAME"
   exit 1
 fi
-export WORKING_PATH=${WORKING_PATH:-$SCRIPT_DIR/regression_out}
+export WORKING_PATH=${WORKING_PATH:-$DIR/regression_out}
 export WORKSPACE_PATH=${WORKING_PATH}/${SET_CHIP_NAME}
 export CVIMODEL_REL_PATH=$WORKSPACE_PATH/cvimodel_regression
 export OMP_NUM_THREADS=4
@@ -29,6 +29,7 @@ export NET=$NET
 source $DIR/generic_models.sh
 
 WORKDIR=${WORKSPACE_PATH}/${NET}_bs${DO_BATCHSIZE}
+mkdir -p $CVIMODEL_REL_PATH
 mkdir -p $WORKDIR
 pushd $WORKDIR
 
