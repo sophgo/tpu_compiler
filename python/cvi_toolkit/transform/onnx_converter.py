@@ -401,7 +401,6 @@ class OnnxConverter(BaseConverter):
                                                 beta=beta
                                                )
                 hs_node = OnnxNode(hs_node)
-                print(i, len(self.converted_nodes), hs_node.name)
                 self.converted_nodes[i] = hs_node
 
                 # remove consumed nodes
