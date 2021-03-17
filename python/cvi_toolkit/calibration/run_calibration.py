@@ -13,7 +13,7 @@ from pathlib import Path
 import random
 
 from cvi_toolkit.calibration.kld_calibrator import KLD_Calibrator
-from cvi_toolkit.calibration.tuner import AutoTuner
+from cvi_toolkit.calibration.tuner import AutoTuner, AutoTunerPlus
 from cvi_toolkit import preprocess
 from cvi_toolkit.data.preprocess import get_preprocess_parser
 
@@ -47,8 +47,10 @@ if __name__ == '__main__':
     parser.add_argument('image_list_file', metavar='image_list_file', nargs='?', default="",
                         help='Input image list file')
     parser.add_argument('--dataset', type=str, help='dataset for calibration or auto-tune')
-    parser.add_argument('--calibration_table', type=str, default="calibration_table",
-                        help='generated threshold table after calibration, or input table for auto-tunning')
+    parser.add_argument('--calibration_table', type=str,
+                        help='generated threshold table after calibration, or input table for auto-tune')
+    parser.add_argument('--mix_precision_table', type=str,
+                        help='input mix precision table for auto-tune')
     parser.add_argument('--tuned_table', type=str, default="", help='Output tune file')
     parser.add_argument('--calibrator', type=str, default='KLD', help='Calibration method')
     parser.add_argument('--input_num', type=int, default=10, help='Calibration data number')
@@ -56,10 +58,12 @@ if __name__ == '__main__':
                         help='Specify histogram bin numer for kld calculate')
     parser.add_argument('--auto_tune', action='store_true',
                         help='Enable auto-tunning to get better thresholds')
-    parser.add_argument('--tune_iteration', metavar='iteration', type=int,
+    parser.add_argument('--tune_iteration', type=int,
                         help='''iteration for tool to find better threhold,
                                 The larger the value, the longer it will take''', default=10)
-    parser.add_argument('--custom_op_plugin', metavar='custom_op_plugin',
+    parser.add_argument('--threshold_update_factor', default=0.01,
+                        help='threshold update factor')
+    parser.add_argument('--custom_op_plugin',
                         help='set file path of custom op plugin', default='')
     parser.add_argument('--output_file', dest='calibration_table', help='alias to --calibration_table')
     parser.add_argument('--output_tune_file', dest='tuned_table', help='alias to --tuned_table')
@@ -86,7 +90,14 @@ if __name__ == '__main__':
     elif args.auto_tune: # auto-tune
         if not args.tuned_table:
             raise RuntimeError("Please specific output tuned treshold table by --tuned_table")
-        tuner = AutoTuner(args.model_file, args.calibration_table, image_list, 10,
-                         tune_iteration=args.tune_iteration, preprocess_func=p_func,
-                         output_tune_table=args.tuned_table)
+        tuner = AutoTuner(model_file=args.model_file,
+                          input_calib_table=args.calibration_table,
+                          mix_precision_table=args.mix_precision_table,
+                          output_tune_table=args.tuned_table,
+                          tune_image_list=image_list,
+                          tune_image_num=10,
+                          tune_iteration=args.tune_iteration,
+                          preprocess_func=p_func,
+                          threshold_update_factor=args.threshold_update_factor,
+                          evaluation_method='eculid')
         tuner.run()
