@@ -30,6 +30,7 @@
 #include "tpuc/Interpreter/cpu/conv3d.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/csc.hpp"
+#include "tpuc/Interpreter/cpu/customop.hpp"
 #include "tpuc/Interpreter/cpu/deconv.hpp"
 #include "tpuc/Interpreter/cpu/depthtospace.hpp"
 #include "tpuc/Interpreter/cpu/detection_output.hpp"
@@ -196,6 +197,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::CscOp>(op)) {
     auto csc_kernel_op = std::make_unique<CscOpKernel>(op, valueMapping);
     oplist.push_back(std::move(csc_kernel_op));
+    return;
+  }
+  if (isa<tpu::CustomOp>(op)) {
+    auto custom_kernel_op = std::make_unique<CustomOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(custom_kernel_op));
     return;
   }
   if (isa<tpu::DeConv2DOp>(op)) {

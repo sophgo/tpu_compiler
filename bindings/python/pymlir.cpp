@@ -113,7 +113,11 @@ public:
     if (interpreter_) {
       interpreter_.reset();
     }
+
+    ModuleInterpreter::setCustomOpPluginFile(pluginFilePath_);
+
     interpreter_ = std::make_unique<ModuleInterpreter>(module_.get());
+
     interpreter_->allocate_tensors();
     parseMLIRInfo();
   }

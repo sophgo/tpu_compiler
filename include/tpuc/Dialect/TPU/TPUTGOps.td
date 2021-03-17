@@ -1830,7 +1830,7 @@ class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   }];
 
   let arguments = (
-    ins Variadic<TPU_TensorOfOrNone<[F32, BF16, I8]>>:$inputs,
+    ins Variadic<TPU_TensorOfOrNone<[F32, BF16, AnyInteger]>>:$inputs,
     StrAttr:$name,
     StrAttr:$operation_name,
     DictionaryAttr:$param,

@@ -1755,7 +1755,7 @@ def TPU_CustomOp : TPU_Op<"custom_op",
   }];
 
   let arguments = (
-    ins Variadic<TPU_TensorOfOrNone<[F32, BF16, I8]>>:$inputs,
+    ins Variadic<AnyTensor>:$inputs,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     StrAttr:$operation_name,

@@ -41,8 +41,9 @@ class Base_Calibrator(object):
 
         self.preprocess_func = preprocess_func
         self.model = pymlir.module()
-        self.model.load(mlir_file)
         self.model.set_plugin(custom_op_plugin)
+        self.model.load(mlir_file)
+
         self.tensor_max = {}
         self.tensor_min = {}
         self.is_symmetric_quantization = is_symmetric_quantization

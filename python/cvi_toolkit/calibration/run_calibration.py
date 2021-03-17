@@ -47,7 +47,7 @@ if __name__ == '__main__':
     parser.add_argument('image_list_file', metavar='image_list_file', nargs='?', default="",
                         help='Input image list file')
     parser.add_argument('--dataset', type=str, help='dataset for calibration or auto-tune')
-    parser.add_argument('--calibration_table', type=str,
+    parser.add_argument('--calibration_table', type=str, default="calibration_table",
                         help='generated threshold table after calibration, or input table for auto-tunning')
     parser.add_argument('--tuned_table', type=str, default="", help='Output tune file')
     parser.add_argument('--calibrator', type=str, default='KLD', help='Calibration method')
