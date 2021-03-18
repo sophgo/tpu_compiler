@@ -38,6 +38,7 @@ private:
 
   // param
   bool do_relu;
+  std::vector<float> coeff;
 };
 
 class EltwiseMaxOpKernel : public CPUOpKernel<EltwiseMaxOpKernel> {

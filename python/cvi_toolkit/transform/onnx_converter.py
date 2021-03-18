@@ -2723,7 +2723,7 @@ class OnnxConverter(BaseConverter):
 
     def convert_sub_op(self, onnx_node):
         assert(onnx_node.op_type == "Sub")
-        # Y = X0 + X1*(-1)
+        # Y = X0 - X1
         input_num = len(onnx_node.inputs)
         op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
@@ -2736,27 +2736,16 @@ class OnnxConverter(BaseConverter):
                 raise RuntimeError("Broadcast sub not support now")
             else:
                 # eltwise sub
-                # scale_op = X1 * (-1)
-                operands1 = list()
-                operands1.append(op1)
-                tensor_data = np.full(input_shape1[1], -1) # broadcast via channel
-                weight_name = "{}_add_weight".format(onnx_node.name)
-                self.addTensor(weight_name, tensor_data, tensor_data.shape)
-                op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
-                operands1.append(op2)
-                bias_data = np.full(input_shape1[1], 0)
-                bias_name = "{}_add_bias".format(onnx_node.name)
-                self.addTensor(bias_name, bias_data, bias_data.shape)
-                op3 = self.CVI.add_load_file_op(bias_name, tensor_data.shape)
-                operands1.append(op3)
-                scale_op = self.CVI.add_scale_op("{}_scale_{}".format(onnx_node.name, onnx_node.op_type), operands1, output_shape)
-
-                # add_op = X0 + scale_op
+                param = {
+                    'coeff': [1, -1]
+                }
                 operands0 = list()
                 operands0.append(op0)
-                operands0.append(scale_op)
-                add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands0, output_shape)
-                self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
+                operands0.append(op1)
+                add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
+                                                     operands0, output_shape, **param)
+                self.addOperand(onnx_node.name, add_op,
+                                output_shape, TensorType.ACTIVATION)
         elif tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
             if np.prod(input_shape1) == 1:
                 # constant

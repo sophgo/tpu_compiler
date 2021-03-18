@@ -27,6 +27,11 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
   this->is_asymmetric = isOpQuantAsymmetric(&op);
 
   this->do_relu = elt_addOp.do_relu();
+  if (elt_addOp.coeff().hasValue()) {
+    arrayAttrToVector(elt_addOp.coeff().getValue(), coeff);
+  } else {
+    coeff.assign(nInputs, 1.0f);
+  }
   if (datatype == DataType::INT8) {
     auto quant_rshift = opTensors[nInputs + 2];
     auto quant_multiplier = opTensors[nInputs + 3];
@@ -69,7 +74,7 @@ void EltwiseAddOpKernel::fp32_invoke() {
   std::fill(output_data->begin(), output_data->end(), 0);
   for (size_t ni = 0; ni < inputs_data.size(); ++ni) {
     for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) += inputs_data[ni]->at(i);
+      output_data->at(i) += coeff[ni] * inputs_data[ni]->at(i);
     }
   }
   if (do_relu) {
