@@ -203,6 +203,14 @@ public:
     }
     return ret;
   }
+  py::list get_weight_name(std::string name) {
+    py::list ret;
+    std::vector<std::string> weight_list = interpreter_->get_weight_name(name);
+    for (auto &i : weight_list) {
+      ret.append(i);
+    }
+    return ret;
+  }
 
   py::dict getWeightData() {
     auto weight_map = interpreter_->getWeightData();
@@ -231,11 +239,7 @@ public:
       interpreter_->setWeightData(name, input_vec);
     }
   }
-  py::str getWeightFilePath() {
-    py::str py_s(weightFilePath_);
-
-    return py_s;
-  }
+  py::str getWeightFilePath() { return py::str(weightFilePath_); }
 
   void setPluginFilePath(std::string path) { pluginFilePath_ = path; }
   void allocate_tensors() { interpreter_->allocate_tensors(); }
@@ -313,6 +317,7 @@ public:
 
 public:
   py::list opInfo_;
+  py::list weightInfo;
 
 private:
   std::unique_ptr<MLIRContext> context;
@@ -338,8 +343,10 @@ PYBIND11_MODULE(pymlir, m) {
       .def("set_tensor", &py_module::set_tensor)
       .def("get_tensor", &py_module::get_tensor, "get one tensor data")
       .def_readwrite("op_info", &py_module::opInfo_)
+      .def_readwrite("weight_info", &py_module::weightInfo)
       .def("get_weight_file_path", &py_module::getWeightFilePath,
            "get weight file path")
+      .def("get_weight_list", &py_module::get_weight_name)
       .def("getWeightData", &py_module::getWeightData, "get weight data")
       .def("setWeightData", &py_module::setWeightData, "set weight data")
       .def("run", &py_module::run, py::arg("array"), py::arg("target_op") = "",

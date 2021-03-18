@@ -144,6 +144,19 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   this->name = castOp.name().str();
   this->op_type = op.getName().getStringRef().str();
 
+  // get weight name
+  auto filterOp =
+      llvm::dyn_cast<tpu::LoadWeightOp>(castOp.filter().getDefiningOp());
+  std::string filter_name = filterOp.name().str();
+  weight_list.push_back(filter_name);
+  if(with_bias){
+    // get bias name
+    auto biasOp =
+        llvm::dyn_cast<tpu::LoadWeightOp>(castOp.bias().getDefiningOp());
+    std::string bias_name = biasOp.name().str();
+    weight_list.push_back(bias_name);
+  }
+
   arrayAttrToVector(castOp.param().ins(), ins);
 
   set_datatype(getOpQuant(&op).str());

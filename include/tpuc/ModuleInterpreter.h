@@ -121,6 +121,8 @@ public:
     }
     return ret;
   };
+  std::vector<std::string> get_weight_name(const std::string &name);
+
   std::unordered_map<std::string,
                      std::pair<std::vector<float>, std::vector<int64_t>>>
   getWeightData() {

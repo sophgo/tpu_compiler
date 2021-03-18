@@ -548,6 +548,17 @@ std::vector<float> ModuleInterpreter::get_tensor(std::string name) {
   llvm::errs() << " Not Find Op name: " << name << " tensor \n";
   return std::vector<float>();
 }
+std::vector<std::string>
+ModuleInterpreter::get_weight_name(const std::string &name) {
+  std::lock_guard<std::mutex> lock(invoke_lock);
+  for (auto &node : oplist) {
+    if (node->get_name() == name) {
+      return node->get_weight_name();
+    }
+  }
+  llvm::errs() << " Not Find Op name: " << name << " tensor \n";
+  return std::vector<std::string>();
+}
 
 std::vector<std::pair<std::string, std::string>>
 ModuleInterpreter::get_tensor_info() {

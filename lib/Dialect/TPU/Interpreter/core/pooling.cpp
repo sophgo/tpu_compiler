@@ -244,8 +244,9 @@ void PoolingOpKernel::i8_avg_invoke() {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
   mkl_stream.wait();
-
-  for (size_t i = 0; i < output_data->size(); ++i) {
+  size_t output_size = output_data->size();
+#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+  for (size_t i = 0; i < output_size; ++i) {
     output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
         output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
   }

@@ -56,11 +56,14 @@ public:
     }
   }
   std::string get_op_type() { return this->op_type; }
+  std::vector<std::string> get_weight_name() { return this->weight_list; }
 
 protected:
   SyncedDataShape shape;
   std::string name;
   std::string op_type;
+  std::vector<std::string> weight_list;
+
   size_t size;
   DataType datatype = DataType::FP32;
 };

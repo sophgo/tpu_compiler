@@ -147,7 +147,9 @@ void FullyConnectedOpKernel::invoke() {
     relu(output_data->data(), output_data->data(), output_data->size());
   }
 
+  int output_size = output_data->size();
   if (datatype == DataType::INT8) {
+#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
           output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, true);
