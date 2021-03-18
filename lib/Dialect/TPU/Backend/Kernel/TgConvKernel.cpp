@@ -3445,12 +3445,18 @@ void Conv::doConvByTilePolicy() {
     return;
   }
 
+  // Channel should larger than NPU_NUM
   // Disable intra-cmd with reuse-weight
   //   need to reorder load input and weight
   // Disable intra-cmd with ps32
   //   need to separate load+compute, compute+store (e.g. ssd300 bf16)
-  if (tilePolicy == ReuseActivationPolicyType &&
-      tile_info.ic_step == group_input_channels()) {
+  // Disable intra-cmd with compression
+  //   h/w does not guarantee to work, failed in alphapose
+  if (tile_info.ic_step > (uint32_t)NPU_NUM &&
+      tile_info.oc_step > (uint32_t)NPU_NUM &&
+      tilePolicy == ReuseActivationPolicyType &&
+      tile_info.ic_step == group_input_channels() &&
+      (!args.do_load_cmpr_wgt && !args.store_cmpr_act && !args.load_cmpr_act)) {
     auto intraCmdAnalysis =
         std::make_unique<IntraCmdParallelAnalysis>(cmdQueue);
     intraCmdAnalysis->analyze();
@@ -3477,8 +3483,8 @@ void cvi_backend_tg_fixed_conv_kernel(
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
     bool do_ic_alignment, int store_cmpr_act, int load_cmpr_act,
     bool do_load_cmpr_wgt, int store_cmpr_act_c_step, int load_cmpr_act_c_step,
-    int store_cmpr_act_h_step, int load_cmpr_act_h_step,
-    int pad_value, gaddr_t ga_scale_lut) {
+    int store_cmpr_act_h_step, int load_cmpr_act_h_step, int pad_value,
+    gaddr_t ga_scale_lut) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "cvi_backend_tg_fixed_conv_kernel:\n"
