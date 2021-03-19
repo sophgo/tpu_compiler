@@ -37,4 +37,5 @@ export PYTHONPATH=$INSTALL_PATH/flatbuffers/python:$PYTHONPATH
 
 export GLOG_minloglevel=2
 export SET_CHIP_NAME="cv183x"
-export OMP_NUM_THREADS=$(nproc --all)
+# export OMP_NUM_THREADS=$(nproc --all)
+export OMP_NUM_THREADS=4
