@@ -128,10 +128,11 @@ CVITEK Release包含如下组成部分：
 | 文件                                                    | 描述                                             |
 | ------------------------------------------------------- | ------------------------------------------------ |
 | cvitek_mlir_ubuntu-18.04.tar.gz                         | cvitek NN工具链软件                              |
-| cvitek_tpu_sdk_\[cv182x/cv183x\].tar.gz                 | cvitek Runtime SDK，包括交叉编译头文件和库文件   |
+| cvitek_tpu_sdk_[cv182x/cv183x].tar.gz                 | cvitek Runtime SDK，包括交叉编译头文件和库文件   |
 | cvitek_tpu_samples.tar.gz                               | sample程序源代码                                 |
-| cvimodel_samples_\[cv182x/cv183x\].tar.gz               | sample程序使用的cvimodel模型文件                 |
-| cvimodel_regression_\[bs1/4\]\_\[cv182x/cv183x\].tar.gz | 模型测试cvimodel文件和相应输入输出数据文件       |
+| cvimodel_samples_[cv182x/cv183x].tar.gz               | sample程序使用的cvimodel模型文件                 |
+| cvimodel_regression_bs1_[cv182x/cv183x].tar.gz | 模型测试cvimodel文件和相应输入输出数据文件       |
+| cvimodel_regression_bs4_[cv182x/cv183x].tar.gz | 模型测试cvimodel文件和相应输入输出数据文件       |
 | docker_cvitek_dev.tar                                   | CVITEK开发Docker镜像文件                         |
 | models.tar.gz                                           | 测试用caffe/onnx原始模型文件包（支持github下载） |
 | dataset.tar.gz                                          | 测试用dataset包（可github下载，参考REAMDE准备）  |
@@ -154,16 +155,16 @@ CVITEK Release包含如下组成部分：
 
 本章需要如下文件：
 
-* cvitek_tpu_sdk_cv183x.tar.gz
-* cvimodel_samples_cv183x.tar.gz
-* cvimodel_regression_bs1_cv183x.tar.gz
-* cvimodel_regression_bs4_cv183x.tar.gz
+* cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
+* cvimodel_samples_[cv182x/cv183x].tar.gz
+* cvimodel_regression_bs1_[cv182x/cv183x].tar.gz
+* cvimodel_regression_bs4_[cv182x/cv183x].tar.gz
 
 
 
 #### 2.1 运行sample程序
 
-将所需文件加载至EVB的文件系统，于EVB的linux console执行，以cv183x为例：
+将根据chip类型选择所需文件加载至EVB的文件系统，于evb上的linux console执行，以cv183x为例：
 
  解压samples使用的model文件（以cvimodel格式交付），并解压TPU_SDK，并进入samples目录，执行测试，过程如下：
 
@@ -352,16 +353,15 @@ docker exec -it cvitek bash
 
 ## 4 编译samples程序
 
-使用TPU SDK交叉编译arm平台samples，加载至EVB运行测试。
+请根据chip类型选择使用对应的TPU sdk对samples code做交叉编译，加载至evb上并运行测试。
 
 本节需要如下文件：
 
-* cvitek_tpu_sdk_cv183x.tar.gz
+* cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
 * cvitek_tpu_samples.tar.gz
 
 
-
-TPU_SDK准备：
+下面以cv183x平台为例. TPU sdk准备：
 
 ``` shell
 tar zxf cvitek_tpu_sdk_cv183x.tar.gz
@@ -668,7 +668,7 @@ run_calibration.py \
 
 #### 步骤 5：执行量化
 
-执行量化，生成量化后mlir文件；可以通过chipname来指定平台是cv182x还是cv183x；默认值为cv183x，此时可以不指定chipname：
+执行量化，生成量化后mlir文件；可以通过chipname来指定平台是cv182x还是cv183x；默认值为cv183x：
 
 ``` shell
 tpuc-opt mobilenet_v2_fp32.mlir \
@@ -2046,11 +2046,11 @@ model_runner \
 
 CV183X提供两种硬件资源进行神经网络模型的前处理加速。
 
-* 使用VPSS：VPSS是CV183X提供的视频后处理模块，并针对神经网络的前处理功能进行了扩展，使得视频处理流水线输出预处理后的图像数据，可以直接用做神经网络输入数据。
+* 使用VPSS：VPSS是CV18xx提供的视频后处理模块，并针对神经网络的前处理功能进行了扩展，使得视频处理流水线输出预处理后的图像数据，可以直接用做神经网络输入数据。
 
 * 使用TPU：TPU也可以用于支持常见的前处理计算，包括raw_scale，mean，input_scale，channel swap，split，以及quantization。开发者可以在模型编译阶段，通过编译选项传递相应预处理参数，由编译器直接在模型运输前插入相应前处理算子，生成的cvimodel即可以直接以预处理前的图像作为输入，随模型推理过程使用TPU处理前处理运算。
 
-客户可以基于系统优化需要，灵活选择使用哪个引擎进行预处理。使用VPSS进行预处理的详细使用方法请参阅《CV1835 媒体软件开发参考》，本文档不做介绍。本章介绍使用TPU做前处理的具体步骤。本章以Caffe模型编译为例，按照第6章的步骤稍做修改，生成支持前处理的cvimodel。以`mobilenet_v2`为例。
+客户可以基于系统优化需要，灵活选择使用哪个引擎进行预处理。使用VPSS进行预处理的详细使用方法请参阅《CV18xx 媒体软件开发参考》，本文档不做介绍。本章介绍使用TPU做前处理的具体步骤。本章以Caffe模型编译为例，按照第6章的步骤稍做修改，生成支持前处理的cvimodel。以`mobilenet_v2`为例。
 
 #### 步骤 0-5：与Caffe章节相应步骤相同
 

@@ -1,9 +1,7 @@
 #!/bin/bash
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" >/dev/null 2>&1 && pwd )"
 set -xe
 
-#
-# Run after running run_regression.sh -e
-#
 
 # "/home/ftp/mlir/daily_build"
 RELEASE_PATH=$1
@@ -93,4 +91,8 @@ if [ ! -e cvimodel_release/cv182x ]; then
 fi
 pack_cvimodels cv182x
 
+pushd $SCRIPT_DIR
+echo `git describe --tags --dirt` > $dest_dir/version.txt
+cp -rf doc $dest_dir/
+popd
 popd
