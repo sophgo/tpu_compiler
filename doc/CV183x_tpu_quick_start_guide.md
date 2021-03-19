@@ -125,16 +125,16 @@
 
 CVITEK Release包含如下组成部分：
 
-| 文件                            | 描述                                             |
-| ------------------------------- | ------------------------------------------------ |
-| cvitek_mlir_ubuntu-18.04.tar.gz | cvitek NN工具链软件                              |
-| cvitek_tpu_sdk.tar.gz           | cvitek Runtime SDK，包括交叉编译头文件和库文件   |
-| cvitek_tpu_samples.tar.gz       | sample程序源代码                                 |
-| cvimodel_samples.tar.gz         | sample程序使用的cvimodel模型文件                 |
-| cvimodel_regression.tar.gz      | 模型测试cvimodel文件和相应输入输出数据文件       |
-| docker_cvitek_dev.tar           | CVITEK开发Docker镜像文件                         |
-| models.tar.gz                   | 测试用caffe/onnx原始模型文件包（支持github下载） |
-| dataset.tar.gz                  | 测试用dataset包（可github下载，参考REAMDE准备）  |
+| 文件                                                    | 描述                                             |
+| ------------------------------------------------------- | ------------------------------------------------ |
+| cvitek_mlir_ubuntu-18.04.tar.gz                         | cvitek NN工具链软件                              |
+| cvitek_tpu_sdk_\[cv182x/cv183x\].tar.gz                 | cvitek Runtime SDK，包括交叉编译头文件和库文件   |
+| cvitek_tpu_samples.tar.gz                               | sample程序源代码                                 |
+| cvimodel_samples_\[cv182x/cv183x\].tar.gz               | sample程序使用的cvimodel模型文件                 |
+| cvimodel_regression_\[bs1/4\]\_\[cv182x/cv183x\].tar.gz | 模型测试cvimodel文件和相应输入输出数据文件       |
+| docker_cvitek_dev.tar                                   | CVITEK开发Docker镜像文件                         |
+| models.tar.gz                                           | 测试用caffe/onnx原始模型文件包（支持github下载） |
+| dataset.tar.gz                                          | 测试用dataset包（可github下载，参考REAMDE准备）  |
 
 
 
@@ -154,23 +154,24 @@ CVITEK Release包含如下组成部分：
 
 本章需要如下文件：
 
-* cvitek_tpu_sdk.tar.gz
-* cvimodel_samples.tar.gz
-* cvimodel_regression.tar.gz
+* cvitek_tpu_sdk_cv183x.tar.gz
+* cvimodel_samples_cv183x.tar.gz
+* cvimodel_regression_bs1_cv183x.tar.gz
+* cvimodel_regression_bs4_cv183x.tar.gz
 
 
 
 #### 2.1 运行sample程序
 
-将所需文件加载至EVB的文件系统，于EVB的linux console执行。
+将所需文件加载至EVB的文件系统，于EVB的linux console执行，以cv183x为例：
 
  解压samples使用的model文件（以cvimodel格式交付），并解压TPU_SDK，并进入samples目录，执行测试，过程如下：
 
 ``` evb_shell
 # envs
-tar zxf cvimodel_samples.tar.gz
+tar zxf cvimodel_samples_cv183x.tar.gz
 export MODEL_PATH=$PWD/cvimodel_samples
-tar zxf cvitek_tpu_sdk.tar.gz
+tar zxf cvitek_tpu_sdk_cv183x.tar.gz
 export TPU_ROOT=$PWD/cvitek_tpu_sdk
 cd cvitek_tpu_sdk
 source ./envs_tpu_sdk.sh
@@ -251,18 +252,18 @@ cd samples
 
 * 基于PMU数据的Inference性能测试
 
-  Regression模型文件分成bs=1和bs=4两部分，分别执行测试，对所有网络进行正确性和运行效率测试。
+  Regression模型文件分成bs=1和bs=4两部分，分别执行测试，对所有网络进行正确性和运行效率测试。以cv183x平台为例：
 
   ``` evb_shell
   cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
   export TPU_ROOT=$PWD/cvitek_tpu_sdk
 
   # For batch_size = 1
-  tar zxf cvimodel_regression_bs1.tar.gz
+  tar zxf cvimodel_regression_bs1_cv183x.tar.gz
   MODEL_PATH=$PWD/cvimodel_regression_bs1 $TPU_ROOT/regression_models.sh
 
   # For batch_size = 4
-  tar zxf cvimodel_regression_bs4.tar.gz
+  tar zxf cvimodel_regression_bs4_cv183x.tar.gz
   MODEL_PATH=$PWD/cvimodel_regression_bs4 $TPU_ROOT/regression_models.sh batch
 
   # Run one model (eg. Resnet50 run once)
@@ -273,14 +274,14 @@ cd samples
 
 * 基于系统时钟的端到端性能测试
 
-  计入数据输入，后处理和数据导出时间在内的端到端网络推理时间。
+  计入数据输入，后处理和数据导出时间在内的端到端网络推理时间，以cv183x平台为例：
 
   ``` evb_shell
   cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
   export TPU_ROOT=$PWD/cvitek_tpu_sdk
   export PATH=$TPU_ROOT/samples/bin:$PATH
 
-  tar zxf cvimodel_regression_bs1.tar.gz
+  tar zxf cvimodel_regression_bs1_cv183x.tar.gz
   MODEL_PATH=$PWD/cvimodel_regression_bs1 $TPU_ROOT/regression_models_e2e.sh
   ```
 
@@ -288,9 +289,19 @@ cd samples
 
 #### 2.3 当前支持测试的网络列表
 
+cv183x支持的网络如下：
+
 | Classification                                               | Detection                                                    | Misc                                                         |
 | ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
 | resnet50       [BS=1,4] <br />resnet18       [BS=1,4]<br />mobilenet_v1     [BS=1,4]<br />mobilenet_v2     [BS=1,4]<br />squeezenet_v1.1    [BS=1,4]<br />shufflenet_v2     [BS=1,4]<br />googlenet       [BS=1,4]<br />inception_v3     [BS=1,4]<br />inception_v4     [BS=1,4]<br />vgg16         [BS=1,4]<br />densenet_121     [BS=1,4]<br />densenet_201     [BS=1,4]<br />senet_res50      [BS=1,4]<br />resnext50       [BS=1,4]<br />res2net50       [BS=1,4]<br />ecanet50       [BS=1,4]<br />efficientnet_b0    [BS=1,4]<br />efficientnet_lite_b0 [BS=1,4]<br />nasnet_mobile     [BS=1,4] | retinaface_mnet25 [BS=1,4]<br />retinaface_res50   [BS=1]<br />ssd300        [BS=1,4]<br />mobilenet_ssd [BS=1,4]<br />yolo_v1_448      [BS=1]<br />yolo_v2_416      [BS=1]<br />yolo_v2_1080     [BS=1]<br />yolo_v3_416      [BS=1,4]<br />yolo_v3_608      [BS=1]<br />yolo_v3_tiny     [BS=1]<br />yolo_v3_spp      [BS=1]<br />yolo_v4        [BS=1] | arcface_res50 [BS=1,4]<br />alphapose       [BS=1,4]<br />espcn_3x       [BS=1,4]<br />unet          [BS=1,4]<br />erfnet         [BS=1] |
+
+cv182x支持的网络如下：
+
+| Classification                                               | Detection                                                    | Misc                                                       |
+| ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------------- |
+| resnet50       [BS=1,4] <br />resnet18       [BS=1,4]<br />mobilenet_v1     [BS=1,4]<br />mobilenet_v2     [BS=1,4]<br />squeezenet_v1.1    [BS=1,4]<br />shufflenet_v2     [BS=1,4]<br />googlenet       [BS=1,4]<br />inception_v3     [BS=1]<br />densenet_121     [BS=1,4]<br />densenet_201     [BS=1]<br />senet_res50      [BS=1]<br />resnext50       [BS=1,4]<br />efficientnet_lite_b0 [BS=1,4]<br />nasnet_mobile     [BS=1] | retinaface_mnet25 [BS=1,4]<br />retinaface_res50   [BS=1]<br />mobilenet_ssd [BS=1,4]<br />yolo_v1_448      [BS=1]<br />yolo_v2_416      [BS=1]<br />yolo_v3_416      [BS=1,4]<br />yolo_v3_608      [BS=1]<br />yolo_v3_tiny     [BS=1]<br /> | arcface_res50 [BS=1,4]<br />alphapose       [BS=1,4]<br /> |
+
+
 
 **注：** BS表示batch，[BS=1]表示板子目前至少batch 1，[BS=1,4]表示板子至少支持batch 1和batch 4。
 
@@ -345,7 +356,7 @@ docker exec -it cvitek bash
 
 本节需要如下文件：
 
-* cvitek_tpu_sdk.tar.gz
+* cvitek_tpu_sdk_cv183x.tar.gz
 * cvitek_tpu_samples.tar.gz
 
 
@@ -353,7 +364,7 @@ docker exec -it cvitek bash
 TPU_SDK准备：
 
 ``` shell
-tar zxf cvitek_tpu_sdk.tar.gz
+tar zxf cvitek_tpu_sdk_cv183x.tar.gz
 export TPU_SDK_PATH=$PWD/cvitek_tpu_sdk
 ```
 
@@ -381,7 +392,7 @@ cmake --build . --target install
 
 本节需要如下文件：
 
-* cvitek_mlir.tar.gz
+* cvitek_mlir_ubuntu-18.04.tar.gz
 * models.tar.gz
 * dataset.tar.gz
 
@@ -390,7 +401,7 @@ cmake --build . --target install
 准备TPU仿真开发环境：
 
 ```
-tar zxf cvitek_mlir.tar.gz
+tar zxf cvitek_mlir_ubuntu-18.04.tar.gz
 source cvitek_mlir/cvitek_envs.sh
 ```
 
@@ -415,7 +426,7 @@ generate_all_cvimodels.sh
 准备TPU仿真开发环境：
 
 ```
-tar zxf cvitek_mlir.tar.gz
+tar zxf cvitek_mlir_ubuntu-18.04.tar.gz
 source cvitek_mlir/cvitek_envs.sh
 ```
 
@@ -462,11 +473,11 @@ accuracy_generic.sh yolo_v3_320 5000 2>&1 | tee yolo_v3_320_5000.txt
 
 ## 6 编译移植caffe模型
 
-本章以mobilenet_v2为例，介绍如何编译迁移一个caffe模型至CV183x TPU平台运行。
+本章以mobilenet_v2为例，介绍如何编译迁移一个caffe模型至CV183x TPU平台运行; 如果需要切换到cv182x平台，可以通过命令行参数--chipname cv182x来指定。
 
  本章需要如下文件：
 
-* cvitek_mlir.tar.gz
+* cvitek_mlir_ubuntu-18.04.tar.gz
 * dataset.tar.gz
 
 
@@ -657,13 +668,14 @@ run_calibration.py \
 
 #### 步骤 5：执行量化
 
-执行量化，生成量化后mlir文件：
+执行量化，生成量化后mlir文件；可以通过chipname来指定平台是cv182x还是cv183x；默认值为cv183x，此时可以不指定chipname：
 
 ``` shell
 tpuc-opt mobilenet_v2_fp32.mlir \
     --import-calibration-table \
     --calibration-table mobilenet_v2_calibration_table  \
     --assign-chip-name \
+    --chipname cv183x \
     --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
@@ -764,7 +776,7 @@ cvi_npz_tool.py dump out.npz prob_dequant 5
 
  本章需要如下文件：
 
-* cvitek_mlir.tar.gz
+* cvitek_mlir_ubuntu-18.04.tar.gz
 * dataset.tar.gz
 
 
@@ -945,6 +957,7 @@ tpuc-opt resnet18_fp32.mlir \
     --import-calibration-table \
     --calibration-table resnet18_calibration_table \
     --assign-chip-name \
+    --chipname cv183x \
     --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
@@ -1147,6 +1160,7 @@ tpuc-opt mobilenet_v2_tf_fp32.mlir \
     --import-calibration-table \
     --calibration-table  mobilenet_v2_tf_calibration_table \
     --assign-chip-name \
+    --chipname cv183x \
     --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename  op_info_int8.csv \
@@ -1356,6 +1370,7 @@ tpuc-opt mnet_25_fp32.mlir \
     --import-calibration-table \
     --calibration-table mnet_25_calibration_table \
     --assign-chip-name \
+    --chipname cv183x \
     --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
@@ -1433,7 +1448,7 @@ eval_classifier.py \
 
 本章需要如下文件：
 
-* cvitek_mlir.tar.gz
+* cvitek_mlir_ubuntu-18.04.tar.gz
 * dataset.tar.gz
 
 
@@ -1571,6 +1586,7 @@ cvi_model_convert.py  \
 
 tpuc-opt resnet50_int8.mlir \
     --assign-chip-name \
+    --chipname cv183x \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
     -o resnet50_int8_opt.mlir
@@ -1640,7 +1656,7 @@ CV183X TPU支持INT8和BF16两种量化方法。在模型编译阶段，工具�
 
 本章需要如下文件：
 
-* cvitek_mlir.tar.gz
+* cvitek_mlir_ubuntu-18.04.tar.gz
 * dataset.tar.gz
 
 #### 步骤 0：获取tensorflow模型，并转换为onnx模型
@@ -1843,6 +1859,7 @@ tpuc-opt mnet_25_fp32.mlir \
     --import-calibration-table \
     --calibration-table mnet_25_calibration_table \
     --assign-chip-name \
+    --chipname cv183x \
     --tpu-quant \
     --print-tpu-op-info \
     --tpu-op-info-filename op_info_int8.csv \
@@ -1930,7 +1947,9 @@ cat mnet_25_mix_precision_bf16_table
 
 ``` shell
 tpuc-opt \
-    --assign-chip-name --tpu-quant \
+    --assign-chip-name
+    --chipname cv183x \
+    --tpu-quant \
     --quant-int8-mix-bf16-layers-from-file mnet_25_mix_precision_bf16_table \
     --tpu-op-info-filename mnet_25_op_info_mix.csv \
     --print-tpu-op-info \
@@ -1988,6 +2007,7 @@ eval_classifier.py \
 ``` shell
 tpuc-opt mnet_25_fp32.mlir \
     --assign-chip-name \
+    --chipname cv183x \
     --tpu-quant --quant-full-bf16 \
     --tpu-op-info-filename mnet_25_op_info_bf16.csv \
     -o mnet_25_bf16.mlir
