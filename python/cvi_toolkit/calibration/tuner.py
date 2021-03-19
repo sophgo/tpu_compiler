@@ -226,13 +226,13 @@ class AutoTuner(object):
 
             cur_distance = self.calc_distance(target_op, tune_op, cur_threshold)
 
-            logger.info("cur[{}] threshold: {:5f}, distance: {:5f}".format(
+            tqdm.write("cur[{}] threshold: {:5f}, distance: {:5f}".format(
                         try_cnt, cur_threshold, cur_distance))
 
             if prev_distance == -1:
                 prev_distance = cur_distance
             elif cur_distance < prev_distance:
-                logger.info("### tuning {}, find a better threshold:"
+                tqdm.write("### tuning {}, find a better threshold:"
                             "{:5f} -> {:5f}, distance: {:5f} -> {:5f}".format(
                             tune_op, prev_threshold, cur_threshold,
                             prev_distance, cur_distance))
@@ -263,7 +263,7 @@ class AutoTuner(object):
                     target_activation = target_activation * scale
                 # sqrt(sum(x^2))
                 target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
-                if self.evaluation_method == 'eculid':
+                if self.evaluation_method == 'euclid':
                     distance += np.linalg.norm(target_op_fp32_activation.flatten() -
                                             target_activation.flatten())
                 else: # cosine
@@ -328,7 +328,7 @@ class AutoTunerPlus(AutoTuner):
 
                     target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
 
-                    if self.evaluation_method == 'eculid':
+                    if self.evaluation_method == 'euclid':
                         distance += np.linalg.norm(target_op_fp32_activation.flatten() -
                                                 target_activation.flatten())
                     else: # cosine
