@@ -184,7 +184,7 @@ class OnnxConverter(BaseConverter):
             "Where": lambda node: self.convert_where_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
             "Upsample": lambda node: self.convert_upsample_op(node),
-
+            "YoloDetection": lambda node: self.convert_yolo_detection_op(node)
         }
 
     def __del__(self):
@@ -3026,6 +3026,53 @@ class OnnxConverter(BaseConverter):
             output_shape = [on, oc, oh, ow]
             upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
             self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_yolo_detection_op(self, onnx_node):
+        assert(onnx_node.op_type == 'YoloDetection')
+        _, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+
+        operands = list()
+        for input in onnx_node.inputs:
+            op, _, _ = self.getOperand(input)
+            operands.append(op)
+
+        nms_threshold = onnx_node.attrs['nms_threshold']
+        obj_threshold = onnx_node.attrs['obj_threshold']
+
+        net_input_h = onnx_node.attrs.get("net_input_h", 608)
+        net_input_w = onnx_node.attrs.get("net_input_w", 608)
+        keep_topk = onnx_node.attrs.get('keep_topk', 200)
+        spp_net = onnx_node.attrs.get('spp_net', False)
+        tiny = onnx_node.attrs.get('tiny', False)
+        yolo_v4 = onnx_node.attrs.get('yolo_v4', False)
+        class_num = onnx_node.attrs.get('num_classes', 80)
+
+        anchors = ','.join([str(x) for x in onnx_node.attrs['anchors']])
+        if not anchors:
+            if tiny:
+                anchors = "10,14,23,27,37,58,81,82,135,169,344,319"
+            elif yolo_v4:
+                anchors = "142,110,192,243,459,401,36,75,76,55,72,146,12,16,19,36,40,28"
+            else:
+                anchors = "10,13,16,30,33,23,30,61,62,45,59,119,116,90,156,198,373,326"
+
+        param = {
+            'net_input_h': net_input_h,
+            "net_input_w": net_input_w,
+            "nms_threshold": nms_threshold,
+            "obj_threshold": obj_threshold,
+            "keep_topk": keep_topk,
+            "spp_net": spp_net,
+            "tiny": tiny,
+            "yolo_v4": yolo_v4,
+            "class_num": class_num,
+            "anchors": anchors
+        }
+        output_shape = [input_shape[0], 1, keep_topk, 6]
+        new_op = self.CVI.add_yolo_detection_op(
+            "{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **param)
+        self.addOperand(onnx_node.name, new_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def convert_reduce_l2_op(self, onnx_node):
         assert(onnx_node.op_type == "ReduceL2")
