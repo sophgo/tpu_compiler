@@ -301,6 +301,18 @@ public:
         ForceThresholdCustomOpPattern<tpu::CustomOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    // make sure all ops have threshold
+    int count = 0;
+    fn.walk([&](Operation *op) {
+      if (llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
+        if (getOpQuantParamType(op) != "THRESHOLD") {
+           llvm::errs() << "Error:" << mlir::getOpName(op).str() << " has no calibartion threshold\n";
+           count++;
+        }
+      }
+    });
+    assert(count == 0);
   }
 
 private:
