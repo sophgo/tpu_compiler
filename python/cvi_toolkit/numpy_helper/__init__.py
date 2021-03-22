@@ -1,5 +1,6 @@
 from .npz_compare import npz_compare
 from .npz_dump import npz_dump
+from .npz_predict import npz_predict
 import numpy as np
 import sys
 import struct

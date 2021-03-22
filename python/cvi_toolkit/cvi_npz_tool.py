@@ -11,6 +11,7 @@ npz_tool_func = {
     "bf16_to_fp32": npz_bf16_to_fp32,
     "tranpose": npz_transpose,
     "get_shape": get_npz_shape,
+    "predict": npz_predict,
 }
 
 def main():
