@@ -196,7 +196,7 @@ void cvi_backend_tl_deconv(
 
     // output
     auto ofmap_offset = ((oc * ig) / NPU_NUM) *
-                        align_up(input_h * input_w, EU_NUM) +
+                        align_up(output_h * output_w, EU_NUM) +
                         ((oc * ig) % NPU_NUM) * LOCAL_MEM_SIZE;
     cvk_tl_shape_t tl_output_shape = ctx.tl_shape_t4(input_n,oc,output_h,output_w);
     tl_output.start_address = la_ofmap + ofmap_offset;
@@ -205,7 +205,7 @@ void cvi_backend_tl_deconv(
     tl_output.stride = ctx.tl_default_stride(tl_output_shape, CVK_FMT_I8, 1);
 
     // weight
-    auto weight_offset = ((oc * ig) / NPU_NUM) * ic * input_h * input_w +
+    auto weight_offset = ((oc * ig) / NPU_NUM) * ic * kh * kw +
                         ((oc * ig) % NPU_NUM) * LOCAL_MEM_SIZE;
     cvk_tl_shape_t tl_weight_shape = ctx.tl_shape_t4(ic,oc,kh,kw);
     tl_weight.start_address = la_weight + weight_offset;
@@ -213,8 +213,11 @@ void cvi_backend_tl_deconv(
     tl_weight.shape = tl_weight_shape;
     tl_weight.stride = ctx.tl_default_stride(tl_weight_shape, CVK_FMT_I8, 1);
 
+    int perchannel_size = ctx.chan_quan_param_size(do_bias);
     cvk_tl_t tl_chl_quant = {0};
-    tl_chl_quant.start_address = la_perchannel;
+    tl_chl_quant.start_address = la_perchannel + ((oc * ig) / NPU_NUM) *
+                                 align_up(perchannel_size, EU_NUM) +
+                                 ((oc * ig) % NPU_NUM) * LOCAL_MEM_SIZE;
     tl_chl_quant.fmt = CVK_FMT_I8;
     tl_chl_quant.shape = {1, (unsigned int)oc, 1, 1};
     tl_chl_quant.stride =
