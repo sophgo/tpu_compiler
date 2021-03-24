@@ -8,7 +8,7 @@ MLIR_SOURCE_DIR=$PWD
 BUILD_DIR=$MLIR_SOURCE_DIR/externals/cmodel/tests/regression/build
 RELEASE_DIR=$PWD/tvgen_package
 
-testcase+="resnet50  "
+testcase+="alphapose  "
 
 batch="1 "
 PROJECT="bm1822"
@@ -47,7 +47,7 @@ for d in ${testcase}
 do
   for b in ${batch}
   do
-  CVIMODEL_REL_PATH=$MLIR_SOURCE_DIR/regression_out/${d}_bs${b}
+  CVIMODEL_REL_PATH=$MLIR_SOURCE_DIR/regression/regression_out/cv182x/cvimodel_regression/cvimodel_regression_bs${b}
   echo "CVIMODEL_REL_PATH=" $CVIMODEL_REL_PATH
   if [ ! -d ${d}_bs${b} ]; then
     mkdir ${d}_bs${b}
@@ -59,7 +59,7 @@ do
 
   model_runner \
       --input $CVIMODEL_REL_PATH\/${d}_in_fp32.npz \
-      --model $CVIMODEL_REL_PATH\/${d}_$OPT_TYPE.cvimodel \
+      --model $CVIMODEL_REL_PATH\/${d}.cvimodel \
       --batch-num $b \
       --output ${d}_cmdbuf_out.npz
 
