@@ -232,18 +232,29 @@ void cvi_backend_tl_eltwise_op(
 
         switch (op_code) {
           case 0: {  // production
-            cvk_tiu_mul_qm_param_t p1 = {0};
-            p1.res_high = nullptr;
-            p1.res_low = &tl_working_l_tmp;
-            p1.a = &tl_input_pos_with_stride;
-            p1.b_is_const = 0;
-            p1.b = &tl_addend_tmp_with_stride;
-            p1.rshift_bits = rshift;
-            p1.relu_enable = do_relu;
-            p1.layer_id = layer_id;
-            p1.multiplier = i32Multiplier;
-            ctx.tiu_mul_qm(&p1);
-            break;
+            if (i32Multiplier == 0 && rshift == 0) {
+              cvk_tiu_mul_param_t p1 = {0};
+              p1.res_high = nullptr;
+              p1.res_low = &tl_working_l_tmp;
+              p1.a = &tl_input_pos_with_stride;
+              p1.b = &tl_addend_tmp_with_stride;
+              p1.relu_enable = do_relu;
+              p1.layer_id = layer_id;
+              ctx.tiu_mul(&p1);
+            } else {
+              cvk_tiu_mul_qm_param_t p1 = {0};
+              p1.res_high = nullptr;
+              p1.res_low = &tl_working_l_tmp;
+              p1.a = &tl_input_pos_with_stride;
+              p1.b_is_const = 0;
+              p1.b = &tl_addend_tmp_with_stride;
+              p1.rshift_bits = rshift;
+              p1.relu_enable = do_relu;
+              p1.layer_id = layer_id;
+              p1.multiplier = i32Multiplier;
+              ctx.tiu_mul_qm(&p1);
+            }
+          break;
           }
           case 1: {  //Add
             // do mul on input, read with stride if stride is present
@@ -409,23 +420,31 @@ void cvi_backend_tl_eltwise(
     switch (op) {
       case 0: {  // production
         assert(input_size == 2 && "Support only input_size = 2");
-        assert(i32Multiplier != 0);
         input[1].start_address = la_input[1] + (ic_pos / NPU_NUM) * bottom_stride.c;
         input[1].fmt = CVK_FMT_I8;
         input[1].shape = shape;
         input[1].stride = bottom_stride;
-
-        cvk_tiu_mul_qm_param_t p1 = {0};
-        p1.res_high = nullptr;
-        p1.res_low = &output;
-        p1.a = &input[0];
-        p1.b_is_const = 0;
-        p1.b = &input[1];
-        p1.rshift_bits = rshift;
-        p1.relu_enable = 0;
-        p1.layer_id = layer_id;
-        p1.multiplier = i32Multiplier;
-        ctx.tiu_mul_qm(&p1);
+        if (rshift == 0 && i32Multiplier == 0) {
+          cvk_tiu_mul_param_t p1 = {0};
+          p1.res_high = nullptr;
+          p1.res_low = &output;
+          p1.a = &input[0];
+          p1.b = &input[1];
+          p1.layer_id = layer_id;
+          ctx.tiu_mul(&p1);
+        } else {
+          cvk_tiu_mul_qm_param_t p1 = {0};
+          p1.res_high = nullptr;
+          p1.res_low = &output;
+          p1.a = &input[0];
+          p1.b_is_const = 0;
+          p1.b = &input[1];
+          p1.rshift_bits = rshift;
+          p1.relu_enable = 0;
+          p1.layer_id = layer_id;
+          p1.multiplier = i32Multiplier;
+          ctx.tiu_mul_qm(&p1);
+        }
         break;
       }
       case 1: {  // sum

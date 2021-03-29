@@ -196,9 +196,6 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImQuant>(op);
   } else if (isa<tpu::InputOp>(op) ) {
     layer = std::make_shared<ImCommon>(op, true, IR_OTHER);
-  } else if (isa<tpu::TG_INT8_ZeroMaskOp>(op) ||
-             isa<tpu::TG_BF16_ZeroMaskOp>(op)) {
-    layer = std::make_shared<ImZeroMask>(op);
   } else {
     LLVM_DEBUG(llvm::errs()
                    << "Not support ImLayer: " << getOpName(op) << "\n";);
@@ -697,11 +694,4 @@ ImRelu::ImRelu(Operation *op): ImLayer(IR_RELU, op, true) {
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
-ImZeroMask::ImZeroMask(Operation *op): ImLayer(IR_ZERO_MASK, op, true) {
-  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
-  add_out_tensor(op->getResult(0), TENSOR_NEURON);
-  if(isa<tpu::TG_INT8_ZeroMaskOp>(op)) {
-    add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
-  }
-}
 }

@@ -842,36 +842,32 @@ Value tpu::EltwiseAddOp::convertToTG() {
   }
 
   if (getOpQuant() == "INT8") {
-    int8_t rshift_i8 = 0;
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+    // ADD
+    // rshift
+    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
+    assert(rshift->size() == 1);
+    int rshift_i8 = static_cast<int8_t>(rshift->at(0));
     std::vector<int32_t> m_i8_inputs(nInputs, 1);
-    if (getOpQuantParamType() == "RSHIFT_AND_M_I8") {
-      // ADD
-      // rshift
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
-      assert(rshift->size() == 1);
-      rshift_i8 = static_cast<int8_t>(rshift->at(0));
 
-      // m_i8_inputs
-      auto multiplier =
-          readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
-      for (unsigned i = 0; i < nInputs; ++i) {
-        m_i8_inputs[i] = static_cast<int32_t>(multiplier->at(i));
-      }
+    // m_i8_inputs
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+    for (unsigned i = 0; i < nInputs; ++i) {
+      m_i8_inputs[i] = static_cast<int32_t>(multiplier->at(i));
+    }
 
-      bool is_asymmetric = isOpQuantAsymmetric();
-      if (is_asymmetric){
-        const unsigned nInputs = op->getNumOperands() - 4;
-        std::vector<int> input_offset(nInputs, 0);
-        for(size_t i = 0; i < nInputs; ++i){
-          input_offset.at(i) = -getPreviousOpZeroPoint(op, i);
-        }
-        attrs.push_back(builder.getNamedAttr(
-              "input_offset",
-              builder.getI32ArrayAttr(ArrayRef<int32_t>({input_offset}))));
-        attrs.push_back(
-            builder.getNamedAttr("output_offset",
-              builder.getI32IntegerAttr(getOpZeroPoint(op))));
+    bool is_asymmetric = isOpQuantAsymmetric();
+    if (is_asymmetric) {
+      const unsigned nInputs = op->getNumOperands() - 4;
+      std::vector<int> input_offset(nInputs, 0);
+      for (size_t i = 0; i < nInputs; ++i) {
+        input_offset.at(i) = -getPreviousOpZeroPoint(op, i);
       }
+      attrs.push_back(builder.getNamedAttr(
+          "input_offset",
+          builder.getI32ArrayAttr(ArrayRef<int32_t>({input_offset}))));
+      attrs.push_back(builder.getNamedAttr(
+          "output_offset", builder.getI32IntegerAttr(getOpZeroPoint(op))));
     }
     attrs.push_back(
         builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
@@ -1045,21 +1041,17 @@ Value tpu::EltwiseMulOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    int8_t rshift_i8 = 0;
-    int32_t m_i32_output = 0x7FFFFFFF;
-    if (getOpQuantParamType() == "RSHIFT_AND_M_I32") {
-      // MUL
-      // rshift
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
-      assert(rshift->size() == 1);
-      rshift_i8 = static_cast<int8_t>(rshift->at(0));
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
+    // MUL
+    // rshift
+    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
+    assert(rshift->size() == 1);
+    int8_t rshift_i8 = static_cast<int8_t>(rshift->at(0));
 
-      // m_i8_output
-      auto multiplier =
-          readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
-      assert(multiplier->size() == 1);
-      m_i32_output = static_cast<int32_t>(multiplier->at(0));
-    }
+    // m_i8_output
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    int32_t m_i32_output = static_cast<int32_t>(multiplier->at(0));
 
     attrs.push_back(
         builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
@@ -1557,32 +1549,6 @@ Value tpu::PReluOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-Value tpu::ZeroMaskOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-
-  std::vector<Value> operands;
-  operands.push_back(input());
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-
-  if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ZeroMaskOp>(op->getLoc(),
-        getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ZeroMaskOp>(op->getLoc(),
-        getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  }
-  llvm_unreachable("unsupported type");
-}
-
 static bool is_fmt_support(llvm::StringRef fmt_str) {
   return (fmt_str == "INT8" || fmt_str == "NONE" || fmt_str == "UINT8" ||
           fmt_str == "BF16" || fmt_str == "FP32");
@@ -2022,6 +1988,31 @@ Value tpu::ClipOp::convertToTG() {
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_ClipOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
+Value tpu::PoolMaskOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  std::vector<Value> operands;
+  operands.push_back(op->getOperand(0)); // input
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("scale", scaleAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_PoolMaskOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_PoolMaskOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -4726,6 +4717,7 @@ public:
         DefaultToTGPattern<tpu::PoolAvg2DOp>,
         DefaultToTGPattern<tpu::PoolMax2DOp>,
         DefaultToTGPattern<tpu::PoolMax3DOp>,
+        DefaultToTGPattern<tpu::PoolMaskOp>,
         DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::QuantOp>,
         DefaultToTGPattern<tpu::ReQuantOp>,
@@ -4752,7 +4744,6 @@ public:
         DefaultToTGPattern<tpu::SquareOp>,
         DefaultToTGPattern<tpu::QuadraticSumOp>,
         DefaultToTGPattern<tpu::CscOp>,
-        DefaultToTGPattern<tpu::ZeroMaskOp>,
         DefaultToTGPattern<tpu::MatMulOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));

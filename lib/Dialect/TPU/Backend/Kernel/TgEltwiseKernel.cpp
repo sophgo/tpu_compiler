@@ -1014,17 +1014,28 @@ void TgInt8EltwiseMulKernel::compute(int32_t step_idx) {
     p.relu_enable = 0;
     ctx.tiu_mul(&p);
   } else {
-    cvk_tiu_mul_qm_param_t p1 = {0};
-    p1.res_high = nullptr;
-    p1.res_low = &output;
-    p1.a = &input;
-    p1.b_is_const = 0;
-    p1.b = &output;
-    p1.rshift_bits = rshift;
-    p1.relu_enable = do_relu;
-    p1.layer_id = layer_id;
-    p1.multiplier = multipliers[0];
-    ctx.tiu_mul_qm(&p1);
+    if (rshift == 0 && multipliers[0] == 0) {
+      cvk_tiu_mul_param_t p = {0};
+      p.res_high = nullptr;
+      p.res_low = &output;
+      p.a = &input;
+      p.b = &output;
+      p.relu_enable = do_relu;
+      p.layer_id = layer_id;
+      ctx.tiu_mul(&p);
+    } else {
+      cvk_tiu_mul_qm_param_t p1 = {0};
+      p1.res_high = nullptr;
+      p1.res_low = &output;
+      p1.a = &input;
+      p1.b_is_const = 0;
+      p1.b = &output;
+      p1.rshift_bits = rshift;
+      p1.relu_enable = do_relu;
+      p1.layer_id = layer_id;
+      p1.multiplier = multipliers[0];
+      ctx.tiu_mul_qm(&p1);
+    }
     output_flip = 1 - output_flip;
   }
 }

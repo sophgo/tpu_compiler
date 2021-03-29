@@ -455,6 +455,7 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_INT8_EltwiseMinOp>,
       LGLoweringPattern<tpu::TG_INT8_PoolAvg2DOp>,
       LGLoweringPattern<tpu::TG_INT8_PoolMax2DOp>,
+      LGLoweringPattern<tpu::TG_INT8_PoolMaskOp>,
       LGLoweringPattern<tpu::TG_INT8_LutOp>,
       LGLoweringPattern<tpu::TG_INT8_LrnOp>,
       LGLoweringPattern<tpu::TG_INT8_ScaleOp>,
@@ -465,7 +466,6 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_INT8_PadOp>,
       LGLoweringPattern<tpu::TG_INT8_CropOp>,
       LGLoweringPattern<tpu::TG_INT8_ReluOp>,
-      LGLoweringPattern<tpu::TG_INT8_ZeroMaskOp>,
       LGLoweringPattern<tpu::TG_INT8_SliceOp>,
       // BF16
       LGLoweringPattern<tpu::TG_BF16_Conv2DOp>,
@@ -476,6 +476,7 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_BF16_EltwiseMinOp>,
       LGLoweringPattern<tpu::TG_BF16_PoolAvg2DOp>,
       LGLoweringPattern<tpu::TG_BF16_PoolMax2DOp>,
+      LGLoweringPattern<tpu::TG_BF16_PoolMaskOp>,
       LGLoweringPattern<tpu::TG_BF16_LutOp>,
       LGLoweringPattern<tpu::TG_BF16_LrnOp>,
       LGLoweringPattern<tpu::TG_BF16_ScaleOp>,
@@ -485,7 +486,6 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_BF16_PadOp>,
       LGLoweringPattern<tpu::TG_BF16_CropOp>,
       LGLoweringPattern<tpu::TG_BF16_ReluOp>,
-      LGLoweringPattern<tpu::TG_BF16_ZeroMaskOp>,
       LGLoweringPattern<tpu::TG_BF16_SliceOp>,
       // Other
       LGLoweringPattern<tpu::TG_QuantOp>

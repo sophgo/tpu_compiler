@@ -35,7 +35,6 @@ std::unique_ptr<mlir::Pass> createPrintTpuOpStatsPass();
 std::unique_ptr<mlir::Pass> createGenPseudoWeightNpzPass();
 std::unique_ptr<mlir::Pass> createDecomposeNormalizePass();
 std::unique_ptr<mlir::Pass> createConvertBnToScalePass();
-std::unique_ptr<mlir::Pass> createConvertPoolMaskPass();
 std::unique_ptr<mlir::Pass> createConvertUpsampleToDeconvPass();
 std::unique_ptr<mlir::Pass> createFoldScalePass();
 std::unique_ptr<mlir::Pass> createMergeScaleIntoConvPass();

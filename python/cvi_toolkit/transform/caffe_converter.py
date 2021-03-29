@@ -956,12 +956,14 @@ class CaffeConverter(BaseConverter):
                 'scale': kernel[0]
             }
             operands = list()
-            operands.append(new_op)
             operands.append(op)
             pool_mask_name = "{}_mask".format(layer.name)
+            mask_shape = list(input_shape)
+            mask_shape[2] = self.align_up(mask_shape[2], kernel[0])
+            mask_shape[3] = self.align_up(mask_shape[3], kernel[0])
             pool_mask_op = self.CVI.add_pool_mask_op(
-                pool_mask_name, operands, input_shape, **param)
-            self.addOperand(layer.top[1], pool_mask_op, input_shape,
+                pool_mask_name, operands, mask_shape, **param)
+            self.addOperand(layer.top[1], pool_mask_op, mask_shape,
                             TensorType.ACTIVATION)
 
     def convert_power_op(self, layer):

@@ -817,47 +817,6 @@ class TPU_TL_LG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TL_LG_INT8_ReluOp : TPU_TL_LG_ReluOp<"tl_lg_int8_relu", "Int8">;
 def TPU_TL_LG_BF16_ReluOp : TPU_TL_LG_ReluOp<"tl_lg_bf16_relu", "Bf16">;
 
-class TPU_TL_LG_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
-  let summary = "TL zero mask operator";
-
-  let description = [{
-    Inputs:
-      `input`           : required, the input activation memref.
-
-    Attributes:
-      `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTLOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    I32Attr:$la_input,
-    I32Attr:$la_output,
-    I32Attr:$la_working,
-    OptionalAttr<I64Attr>:$gaddr,
-    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_TL_LG_INT8_ZeroMaskOp : TPU_TL_LG_ZeroMaskOp<"tl_lg_int8_zero_mask", "Int8">;
-def TPU_TL_LG_BF16_ZeroMaskOp : TPU_TL_LG_ZeroMaskOp<"tl_lg_bf16_zero_mask", "Bf16">;
-
 class TPU_TL_LG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

@@ -48,10 +48,7 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
       return failure();
     }
     auto mask_op = upsampleOp.getOperand(1);
-    if (isa<tpu::NoneOp>(mask_op.getDefiningOp()) == true) {
-      return failure();
-    }
-    if (isa<tpu::PoolMaskOp>(mask_op.getDefiningOp()) == true) {
+    if (isa<tpu::PoolMaskOp>(mask_op.getDefiningOp()) == false) {
       return failure();
     }
     auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
@@ -98,10 +95,8 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
         rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
     attrs.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant_skip", rewriter.getBoolAttr(true)));
-    operands.push_back(mask_op); // mask
     operands.push_back(new_op);
+    operands.push_back(mask_op); // mask
     operands.push_back(NoneOp.getResult()); // quant_scale
     operands.push_back(NoneOp.getResult()); // quant_zeropoint
     operands.push_back(NoneOp.getResult()); // quant_rshift

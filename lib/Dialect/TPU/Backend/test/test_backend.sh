@@ -23,6 +23,7 @@ mlir_list=(
   quadratic_sum.mlir
   layernorm.mlir
   gru.mlir
+  pool_mask.mlir
 #  yuv420.mlir
 #  conv3d.mlir
 #  matmul_transpose.mlir

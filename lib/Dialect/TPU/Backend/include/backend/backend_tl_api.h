@@ -457,18 +457,6 @@ void cvi_backend_tl_pixel_shuffle_LA(
     uint32_t input_n, uint32_t input_c, uint32_t input_h, uint32_t input_w,
     uint32_t factor);
 
-// output = input * multiplier + const_val
-void cvi_backend_tl_mac_const(const CviBackendContext &ctx, uint32_t layer_id,
-                              gaddr_t input_addr, gaddr_t output_addr,
-                              gaddr_t working_addr, int n, int c, int h, int w,
-                              int multiplier, int const_val, bool do_relu);
-
-void cvi_backend_bf16_tl_mac_const(const CviBackendContext &ctx,
-                                   uint32_t layer_id, laddr_t input_addr,
-                                   laddr_t output_addr, int n, int c, int h,
-                                   int w, float multiplier, float const_val,
-                                   bool do_relu);
-
 void cvi_backend_tl_bf16_ps32_to_fp32(const CviBackendContext &ctx,
                                       uint32_t layer_id, laddr_t la_addr,
                                       int n, int c, int h, int w);

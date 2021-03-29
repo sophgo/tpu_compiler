@@ -53,7 +53,6 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertConv3D.cpp
   Transforms/ConvertLrn.cpp
   Transforms/ConvertUpsample.cpp
-  Transforms/ConvertPoolMask.cpp
   Transforms/ConvertTile.cpp
   Transforms/ConvertPower.cpp
   Transforms/ConvertMatMul.cpp
@@ -105,7 +104,7 @@ add_llvm_library(MLIRTPU
   Backend/MachineInfo.cpp
   Backend/Kernel/CviBackendContext.cpp
   Backend/Kernel/TgBroadcastKernel.cpp
-  Backend/Kernel/TgFixedEltwiseKernel.cpp
+  Backend/Kernel/TgEltwiseKernel.cpp
   Backend/Kernel/TgFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/TgQuantKernel.cpp
@@ -114,13 +113,13 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgConcatKernel.cpp
   Backend/Kernel/TgConvKernel.cpp
   Backend/Kernel/TgCropKernel.cpp
-  Backend/Kernel/TgFixedMacConstKernel.cpp
   Backend/Kernel/TgFixedDilateKernel.cpp
   Backend/Kernel/TgFixedLrnKernel.cpp
   Backend/Kernel/TgLutKernel.cpp
   Backend/Kernel/TgPadKernel.cpp
   Backend/Kernel/TgPermuteKernel.cpp
   Backend/Kernel/TgPixelShuffleKernel.cpp
+  Backend/Kernel/TgPoolMaskKernel.cpp
   Backend/Kernel/TgReluKernel.cpp
   Backend/Kernel/TgReorgKernel.cpp
   Backend/Kernel/TgReverseKernel.cpp
@@ -160,7 +159,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TlScaleLut.cpp
   Backend/Kernel/TlTdma.cpp
   Backend/Kernel/TlUpsample.cpp
-  Backend/Kernel/TlMacConst.cpp
   Backend/Kernel/TlSlice.cpp
   Backend/Kernel/TlPixelShuffle.cpp
 )

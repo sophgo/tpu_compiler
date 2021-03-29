@@ -84,6 +84,40 @@ struct BackwardOverwriteThresholdDefaultPattern : public RewritePattern {
   }
 };
 
+struct PoolMaskThresholdPattern : public RewritePattern {
+  PoolMaskThresholdPattern(MLIRContext *context)
+      : RewritePattern("tpu.eltwise_mul", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::EltwiseMulOp>(op);
+    float threshold_y = getOpThreshold(op);
+    unsigned nInputs = castOp.getNumInputs();
+    if (nInputs != 2) {
+      return failure();
+    }
+
+    bool match = false;
+    float threshold_x;
+    for (unsigned i = 0; i < nInputs; ++i) {
+      auto formerOp = castOp.getOperand(i).getDefiningOp();
+      if (llvm::dyn_cast<tpu::PoolMaskOp>(formerOp)) {
+        match = true;
+      } else {
+        threshold_x = getOpThreshold(formerOp);
+      }
+    }
+    if (match == false) {
+      return failure();
+    }
+    if (threshold_x != threshold_y) {
+      setOpThreshold(op, threshold_x);
+      return success();
+    }
+    return failure();
+  }
+};
+
 struct BackwardThresholdConcatPattern : public RewritePattern {
   BackwardThresholdConcatPattern(MLIRContext *context)
       : RewritePattern("tpu.concat", 1, context) {}
@@ -245,6 +279,9 @@ public:
       LLVM_DEBUG(llvm::errs() << op->getName() << "\n";);
       if (isa<tpu::LoadWeightOp>(op)) {
         setWeightThresholdFromMap(op, weight_threshold_map);
+      } else if (llvm::dyn_cast<tpu::PoolMaskOp>(op)) {
+        setOpThreshold(op, 127);
+        setOpQuantParamType(op, "THRESHOLD");
       } else if (llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         setThresholdFromMap(op, threshold_map);
       } else {
@@ -300,6 +337,11 @@ public:
     patterns.insert<
         ForceThresholdCustomOpPattern<tpu::CustomOp>
         >(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    LLVM_DEBUG(llvm::errs() << "set PoolMask threshold\n";);
+    patterns.clear();
+    patterns.insert<PoolMaskThresholdPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     // make sure all ops have threshold

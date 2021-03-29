@@ -1167,7 +1167,7 @@ class MLIRImporter(object):
             'scale':  IntegerAttr.get(self.i32Type, kargs['scale'])
         }
         return self.buildOp(TPU_OpType.PoolMask.value, inputOperands, [
-            tensor_output_type], name=pool_mask_name, **pool_mask_param)
+            tensor_output_type], name=pool_mask_name, quant=self.quant_param, **pool_mask_param)
 
     def add_pool_avg_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
         tensor_output_type = RankedTensorType.get(

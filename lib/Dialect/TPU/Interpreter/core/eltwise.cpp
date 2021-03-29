@@ -481,11 +481,12 @@ void EltwiseMulOpKernel::i8_invoke() {
   if (do_relu) {
     relu(output_data->data(), output_data->data(), output_data->size());
   }
-
-  for (size_t i = 0; i < output_data->size(); ++i) {
-    output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-        output_data->at(i), (uint32_t)rshift.at(0), (uint32_t)multiplier.at(0),
-        true);
+  if (rshift.at(0) != 0 || multiplier.at(0) != 0) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          output_data->at(i), (uint32_t)rshift.at(0),
+          (uint32_t)multiplier.at(0), true);
+    }
   }
 }
 

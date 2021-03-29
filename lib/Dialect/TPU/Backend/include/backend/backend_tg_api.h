@@ -71,12 +71,6 @@ void cvi_backend_tg_fixed_prelu_kernel(
     int input_n, int input_c, int input_h, int input_w,
     int GT_right_shift_width, int GT_scale, int LE_right_shift_width);
 
-// y = x * multiplier + const_val
-void cvi_backend_tg_fixed_mac_const_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
-    int input_h, int input_w, int multiplier, int const_val, bool do_relu);
-
 void cvi_backend_tg_crop_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input_dim,
@@ -350,11 +344,6 @@ void cvi_backend_tg_eltwise_abs_kernel(const CviBackendContext &ctx,
     const int32_t *multipliers,
     const int32_t *coeffs, cvk_fmt_t fmt);
 
-void cvi_backend_tg_bf16_mac_const_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n, int input_c,
-    int input_h, int input_w, float multiplier, float const_val, bool do_relu);
-
 void cvi_backend_tg_bf16_broadcast_add_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output, int n, int c,
@@ -421,6 +410,11 @@ void cvi_backend_tg_permute_kernel(
     gaddr_t input_gaddr, gaddr_t output_gaddr, int input_n,
     int input_c, int input_h, int input_w, int order_n, int order_c, int order_h,
     int order_w, cvk_fmt_t fmt);
+
+void cvi_backend_tg_pool_mask_kernel(const CviBackendContext &ctx,
+                                     uint32_t layer_id, gaddr_t input_gaddr,
+                                     gaddr_t output_gaddr, int n, int c, int h,
+                                     int w, int scale, cvk_fmt_t fmt);
 
 void cvi_backend_tg_quant_kernel(
     const CviBackendContext &ctx,

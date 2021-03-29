@@ -1364,7 +1364,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
 
 if [ $NET = "segnet" ]; then
-# not ready now, precision loss too large
 export MODEL_DEF=$MODEL_PATH/segmentation/segnet/caffe/segnet_model_driving_webdemo_fix.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/segnet/caffe/segnet_weights_driving_webdemo.caffemodel
 export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_segmentation_0_caffe.sh
@@ -1380,10 +1379,10 @@ export STD=1.0,1.0,1.0
 export RAW_SCALE=255.0
 export INPUT_SCALE=1.0
 export TOLERANCE_FP32=0.999,0.999,0.978
-export TOLERANCE_INT8_MULTIPLER=0.90,0.89,0.55
+export TOLERANCE_INT8_MULTIPLER=0.91,0.90,0.57
 export EXCEPTS=upsample2,upsample1
 export DO_QUANT_BF16=0
-export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16=0.99,0.98,0.87
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
 
@@ -1435,9 +1434,9 @@ export CALIBRATION_IMAGE_COUNT=60
 export INPUT=data
 export OUTPUTS_FP32=deconv6_0_0
 export OUTPUTS=deconv6_0_0
-export TOLERANCE_INT8_MULTIPLER=0.58,0.58,-1.0
-export TOLERANCE_BF16=0.93,0.91,0.64
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.98
+export TOLERANCE_INT8_MULTIPLER=0.69,0.66,0.11
+export TOLERANCE_BF16=0.99,0.99,0.91
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export EXCEPTS=conv2_7_1_a,prelu2_7_0,prelu2_7_1,prelu3_3_0,conv3_3_1_a,prelu3_3_1,prelu4_0_4,upsample4_0_4,upsample5_0_4
 # export BATCH_SIZE=4
 fi

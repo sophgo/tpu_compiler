@@ -250,6 +250,16 @@ Value addWeightTensorAndCreateWeightOp(Operation *op,
     eltType = FloatType::getF32(builder.getContext());
   } else if ( typeid(T) == typeid(uint8_t) ) {
     eltType = IntegerType::get(builder.getContext(), 8);
+  } else if ( typeid(T) == typeid(uint16_t) ) {
+    if (storageType == "BF16") {
+      eltType = FloatType::getBF16(builder.getContext());
+    } else if (storageType == "UINT16") {
+      eltType = IntegerType::get(builder.getContext(), 16);
+    } else {
+      llvm_unreachable("unsupported storage type");
+    }
+  } else if ( typeid(T) == typeid(int8_t) ) {
+    eltType = IntegerType::get(builder.getContext(), 8);
   } else {
     std::string errorMsg = "add weight tensor failed, name = " + name +
                            ", type =" + typeid(T).name();
@@ -272,5 +282,12 @@ template Value addWeightTensorAndCreateWeightOp(Operation *op,
     StringRef suffix, std::vector<uint8_t> &weight,
     std::vector<int64_t> &shape, StringRef storageType,
     TensorFile *wTF, Value wFV);
-
+template Value addWeightTensorAndCreateWeightOp(Operation *op,
+    StringRef suffix, std::vector<int8_t> &weight,
+    std::vector<int64_t> &shape, StringRef storageType,
+    TensorFile *wTF, Value wFV);
+template Value addWeightTensorAndCreateWeightOp(Operation *op,
+    StringRef suffix, std::vector<uint16_t> &weight,
+    std::vector<int64_t> &shape, StringRef storageType,
+    TensorFile *wTF, Value wFV);
 } // namespace

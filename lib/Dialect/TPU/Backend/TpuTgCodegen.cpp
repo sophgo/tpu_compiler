@@ -2119,6 +2119,52 @@ LogicalResult tpu::TG_INT8_LutOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_PoolMaskOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_pool_mask_kernel(*backend_ctx,
+                                  layer_id, // layer_id,
+                                  input_gaddr, output_gaddr, n, c, h, w,
+                                  scale(), CVK_FMT_I8);
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_PoolMaskOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_pool_mask_kernel(*backend_ctx,
+                                  layer_id, // layer_id,
+                                  input_gaddr, output_gaddr, n, c, h, w,
+                                  scale(), CVK_FMT_BF16);
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_ScaleLutOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -3831,44 +3877,6 @@ LogicalResult tpu::TG_INT8_Yuv420CscOp::codegen(void *ctx) {
   cvi_backend_tg_yuv420_csc_kernel(*backend_ctx, layer_id, input_gaddr,
                                    output_gaddr, n, c, h, w, order,
                                    CVK_FMT_U8);
-  return success();
-}
-
-LogicalResult tpu::TG_INT8_ZeroMaskOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  std::vector<int64_t> input_shape = getTensorShape(input());
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-  // y = relu(x * 1 + 1)
-  cvi_backend_tg_fixed_mac_const_kernel(
-      *backend_ctx, layer_id, input_gaddr, output_gaddr,
-      (int)input_shape[0], (int)input_shape[1], (int)input_shape[2],
-      (int)input_shape[3], 1, 1, true);
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_ZeroMaskOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  std::vector<int64_t> input_shape = getTensorShape(input());
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-  // y = relu(x * 1000000.0 + 1)
-  cvi_backend_tg_bf16_mac_const_kernel(
-      *backend_ctx, layer_id, input_gaddr, output_gaddr,
-      (int)input_shape[0], (int)input_shape[1], (int)input_shape[2],
-      (int)input_shape[3], 1000000.0f, 1.0f, true);
   return success();
 }
 

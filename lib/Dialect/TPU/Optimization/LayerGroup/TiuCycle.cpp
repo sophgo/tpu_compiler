@@ -140,7 +140,6 @@ int TiuCycle::get_cycle(int cur_layer) {
       break;
     case IR_LRN:
     case IR_QUANT:
-    case IR_ZERO_MASK:
       is_support = false;
       break;
     default:

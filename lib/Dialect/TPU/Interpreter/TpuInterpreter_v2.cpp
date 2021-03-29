@@ -47,6 +47,7 @@
 #include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/Interpreter/cpu/permute.hpp"
 #include "tpuc/Interpreter/cpu/pooling.hpp"
+#include "tpuc/Interpreter/cpu/pool_mask.hpp"
 #include "tpuc/Interpreter/cpu/priorbox.hpp"
 #include "tpuc/Interpreter/cpu/proposal.hpp"
 #include "tpuc/Interpreter/cpu/quadraticSum.hpp"
@@ -62,7 +63,6 @@
 #include "tpuc/Interpreter/cpu/softmax.hpp"
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
 #include "tpuc/Interpreter/cpu/upsample.hpp"
-#include "tpuc/Interpreter/cpu/zero_mask.hpp"
 #include "tpuc/Interpreter/cpu/embedding.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
 
@@ -352,6 +352,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(pool_kernel_op));
     return;
   }
+  if (isa<tpu::PoolMaskOp>(op)) {
+    auto kernel_op = std::make_unique<PoolMaskOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(kernel_op));
+    return;
+  }
   if (isa<tpu::PReluOp>(op)) {
     auto prelu_kernel_op = std::make_unique<PReluOpKernel>(op, valueMapping);
     oplist.push_back(std::move(prelu_kernel_op));
@@ -501,11 +506,6 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::YoloDetectionOp>(op)) {
     auto yo_kernel_op =
         std::make_unique<YoloDetectionOpKernel>(op, valueMapping);
-    oplist.push_back(std::move(yo_kernel_op));
-    return;
-  }
-  if (isa<tpu::ZeroMaskOp>(op)) {
-    auto yo_kernel_op = std::make_unique<ZeroMaskOpKernel>(op, valueMapping);
     oplist.push_back(std::move(yo_kernel_op));
     return;
   }

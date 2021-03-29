@@ -174,6 +174,7 @@
 |PoolAvg2D             |TPU             |Yes                |Yes|
 |PoolMask              |TPU       |No                 |No|
 |PoolMax2D             |TPU             |Yes                |Yes|
+|PoolMask              |TPU             |Yes                |Yes|
 |Power                 |TPU             |Yes                |Yes|
 |PRelu                 |TPU             |Yes                |Yes|
 |PriorBox              |CPU             |No                 |No|
@@ -193,7 +194,6 @@
 |Tile                  |TPU             |Yes                |Yes|
 |Upsample              |TPU             |Yes                |Yes|
 |YoloDetection         |CPU             |No                 |No|
-|ZeroMask              |TPU             |Yes                |Yes|
 
 > (1) 来指定当前指令的执行阶段，TPU表示指令在TPU上执行，CPU表示在CPU上执行。
 
@@ -476,7 +476,6 @@
   |do_early_stride   | BoolAttr                | 是否提前执行stride       | 属性|
   |early_stride_h    | I32Attr                 | 设置stride h         | 属性|
   |early_stride_w    | I32Attr                 | 设置stride w         | 属性|
-  |quant_skip        | BoolAttr                | 是否需要量化             | 属性|
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
@@ -496,7 +495,6 @@
   |do_early_stride   | BoolAttr                | 是否提前执行stride       | 属性|
   |early_stride_h    | I32Attr                 | 设置stride h         | 属性|
   |early_stride_w    | I32Attr                 | 设置stride w         | 属性|
-  |quant_skip        | BoolAttr                | 是否需要量化             | 属性|
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
@@ -516,7 +514,6 @@
   |do_early_stride   | BoolAttr                | 是否提前执行stride       | 属性|
   |early_stride_h    | I32Attr                 | 设置stride h         | 属性|
   |early_stride_w    | I32Attr                 | 设置stride w         | 属性|
-  |quant_skip        | BoolAttr                | 是否需要量化             | 属性|
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 

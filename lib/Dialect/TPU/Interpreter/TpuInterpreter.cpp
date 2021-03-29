@@ -3240,6 +3240,12 @@ LogicalResult tpu::ScaleOp::interpret(
   return success();
 }
 
+LogicalResult tpu::PoolMaskOp::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  assert(0);
+  return success();
+}
+
 LogicalResult tpu::ScaleLutOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();
@@ -4073,25 +4079,6 @@ LogicalResult tpu::YoloDetectionOp::interpret(
 
   valueMapping[result] = std::move(resultT);
 
-  return success();
-}
-
-LogicalResult tpu::ZeroMaskOp::interpret(
-    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
-  Operation *op = this->getOperation();
-  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
-
-  auto opdT = getOperandTensors(op, valueMapping);
-  std::shared_ptr<std::vector<float> > input = opdT[0];
-  auto result = this->getResult();
-  auto size = getTensorSize(result);
-  auto resultT = std::make_unique<std::vector<float> >(size);
-
-  for (uint32_t i = 0; i < size; i++) {
-    resultT->at(i) = (input->at(i) == 0.0 ? 1.0 : 0.0);
-  }
-
-  valueMapping[result] = std::move(resultT);
   return success();
 }
 

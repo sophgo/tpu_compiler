@@ -222,7 +222,6 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$do_early_stride,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
-    DefaultValuedAttr<BoolAttr, "false">:$quant_skip,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<F32ArrayAttr>:$coeff,
     StrAttr:$name,
@@ -2995,7 +2994,10 @@ def TPU_PadOp: TPU_Op<"pad",
 
 def TPU_PoolMaskOp: TPU_Op<"pool_mask",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "pooling mask operator";
 
   let description = [{
@@ -3016,18 +3018,19 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$pool_res,
     I32Attr:$scale,
+    TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
-  let hasCanonicalizer = 1;
 }
 
 def TPU_ReduceL2Op: TPU_Op<"reduce_l2",
@@ -3172,43 +3175,6 @@ def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_ZeroMaskOp: TPU_Op<"zero_mask",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "zero mask operator";
-
-  let description = [{
-    if input[x] < 0, output[x] = 0; if input[x] = 0, output[x] = 1
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
 
