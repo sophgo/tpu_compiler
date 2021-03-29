@@ -191,7 +191,7 @@ class ONNX_IR_TESTER(object):
                 np.savez(input_file, **inputs)
 
                 ret = run_cvimodel(
-                    input_file, cvimodel, output_tensor_npz, all_tensors=True, batch_size=batch_size)
+                    input_file, cvimodel, output_tensor_npz, all_tensors=True)
                 if ret < 0: raise RuntimeError("run_cvimodel failed")
                 npz_compare([output_tensor_npz, ref_npz,
                              "--tolerance", "0.99,0.99,0.9"])
@@ -244,7 +244,7 @@ class ONNX_IR_TESTER(object):
                 np.savez(input_file, **inputs)
 
                 ret = run_cvimodel(
-                    input_file, cvimodel, output_tensor_npz, all_tensors=True, batch_size=batch_size)
+                    input_file, cvimodel, output_tensor_npz, all_tensors=True)
                 if ret < 0: raise RuntimeError("run_cvimodel failed")
                 npz_compare([output_tensor_npz, ref_npz, "--op_info", bf16_csv, "--tolerance", "0.9,0.9,0.9", "-vv"])
 

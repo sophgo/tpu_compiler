@@ -290,7 +290,7 @@ bmerr_t GroupOptimizer::optimize() {
     group_id++;
   }
 
-  std::string DumpLayerGroupInfo = "layer_optimizer.out";
+  std::string DumpLayerGroupInfo = "_layer_optimizer.txt";
   if (DumpLayerGroupInfo != "") {
     std::fstream f;
     f.open(DumpLayerGroupInfo, std::ios::out);

@@ -308,6 +308,7 @@ cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/tensorflow/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/tflite_int8/*.py $TPU_PYTHON_PATH/
 cp $CVI_PY_TOOLKIT/inference/postprocess/*.py $TPU_PYTHON_PATH/
+cp $CVI_PY_TOOLKIT/tool/*.py $TPU_PYTHON_PATH/
 cp -ar $CVI_PY_TOOLKIT/test/onnx_ir_test/*.py $TPU_PYTHON_PATH/
 cp -ar $PROJECT_ROOT/python/python_codegen/*.py $TPU_PYTHON_PATH/
 

@@ -88,7 +88,7 @@ public:
     if (!newCreate) {
       std::ifstream f(filename.str());
       if (!f.good()) {
-        llvm::errs() << "WARNING, " << filename << "doesn't exist, please check\n";
+        llvm::errs() << "WARNING, " << filename << " doesn't exist, please check\n";
       }
       auto ret = load();
       if (!succeeded(ret)) {

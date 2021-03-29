@@ -43,7 +43,9 @@ def mlir_opt(mlirfile, opt_mlirfile, op_info_csv=None, chip=None):
                               "--assign-chip-name",
                               "--chipname={}".format(chip),
                               "--convert-bn-to-scale",
+                              "--convert-clip-to-relu6",
                               "--canonicalize",
+                              "--fuse-relu",
                               mlirfile,
                               "-o", opt_mlirfile
                               ], **std_output_flag)
@@ -52,7 +54,9 @@ def mlir_opt(mlirfile, opt_mlirfile, op_info_csv=None, chip=None):
                               "--assign-chip-name",
                               "--chipname={}".format(chip),
                               "--convert-bn-to-scale",
+                              "--convert-clip-to-relu6",
                               "--canonicalize",
+                              "--fuse-relu",
                               "--print-tpu-op-info",
                               "--tpu-op-info-filename", op_info_csv,
                               mlirfile,
@@ -278,13 +282,11 @@ def gen_bf16_mlir(mlir_src, mlir_target, bf16_layer_table, op_info_csv):
     return 0
 
 
-def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True,
-                 batch_size=1):
+def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
 
     cmd = ["model_runner",
            "--input", input_file,
            "--model", cvi_model,
-           "--batch-num", str(batch_size),
            "--output", output_tensor]
     if all_tensors:
         cmd.append("--dump-all-tensors")
@@ -293,3 +295,78 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True,
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "model_runner")
     return ret.returncode
+
+def fp32_blobs_compare(a_npz, b_npz, op_order, tolerance,
+                       dequant=False, excepts=None,
+                       show_detail=True):
+    cmd = [
+        "cvi_npz_tool.py", "compare", a_npz, b_npz,
+        "--op_info", op_order,
+        "--tolerance", tolerance]
+    if dequant:
+        cmd.extend(["--dequant", "--stats_int8_tensor"])
+    if excepts:
+        cmd.extend(["--except", excepts])
+    if show_detail:
+        cmd.append('-vv')
+    logger.info(cmd)
+    ret = subprocess.run(cmd)
+    checkReturnValue(ret, "compare")
+    return ret.returncode
+
+def mlir_inference(mlir_model, input_npz, out_npz, all_tensor_npz):
+    cmd = [
+        "tpuc-interpreter", mlir_model,
+        "--tensor-in", input_npz,
+        "--dump-all-tensor", all_tensor_npz]
+    if out_npz:
+        cmd.extend(["--tensor-out", out_npz])
+    logger.info(cmd)
+    ret = subprocess.run(cmd)
+    checkReturnValue(ret, "tpuc interpreter")
+    return ret.returncode
+
+def mlir_quant(fp32_model, calib_table, mix_table,
+               all_bf16, chip_name, quanted_model, op_order_csv):
+    cmd = ["tpuc-opt",
+           "--assign-chip-name",
+           "--chipname", chip_name]
+    if all_bf16:
+        cmd.extend(["--tpu-quant", "--quant-full-bf16"])
+    else:
+        assert(calib_table)
+        cmd.extend(["--import-calibration-table",
+                    "--calibration-table", calib_table,
+                    "--tpu-quant"])
+        if mix_table and mix_table != '-':
+            cmd.extend(['--quant-int8-mix-bf16-layers-from-file', mix_table])
+
+    cmd.extend(["--print-tpu-op-info",
+                "--tpu-op-info-filename", op_order_csv,
+                fp32_model, "-o", quanted_model])
+    logger.info(" ".join(cmd))
+    ret = subprocess.run(cmd)
+    checkReturnValue(ret, "model_runner")
+    return ret.returncode
+
+def mlir_to_cvimodel(quanted_model, cvimodel, dequant_results_to_fp32=True):
+    cmd = ["mlir_to_cvimodel.sh",
+           "-i", quanted_model, "-o", cvimodel,
+           "--dequant-results-to-fp32",
+           str(dequant_results_to_fp32).lower()]
+    logger.info(" ".join(cmd))
+    ret = subprocess.run(cmd)
+    checkReturnValue(ret, "mlir_to_cvimodel")
+    return ret.returncode
+
+def mlir_add_preprocess(quanted_mlir, new_mlir, pixel_format, aligned_frame=False):
+    cmd = ["tpuc-opt", "--add-tpu-preprocess",
+           "--pixel_format", pixel_format]
+    if aligned_frame:
+        cmd.append("--input_aligned=true")
+    cmd.extend([quanted_mlir, "-o", new_mlir])
+    logger.info(" ".join(cmd))
+    ret = subprocess.run(cmd)
+    checkReturnValue(ret, "mlir_add_preprocess")
+    return ret.returncode
+

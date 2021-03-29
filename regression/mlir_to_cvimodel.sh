@@ -61,8 +61,8 @@ if [ x"$dequant_to_fp32" == x ]; then
   dequant_to_fp32=true
 fi
 
-optimized_mlir="_lower_opt_$mlir_file"
-final_mlir="_final_$mlir_file"
+optimized_mlir="__lower_opt.mlir"
+final_mlir="__final.mlir"
 
 set -x
 tpuc-opt $mlir_file \
@@ -84,13 +84,13 @@ tpuc-opt $optimized_mlir \
     --compress-weight \
     --assign-weight-address \
     --tpu-weight-address-align=16 \
-    --tpu-weight-map-filename=weight_map.csv \
+    --tpu-weight-map-filename=_weight_map.csv \
     --tpu-weight-bin-filename=weight.bin \
     --tpu-generate-compressed-weight \
     --assign-neuron-address \
     --tpu-neuron-memory-reuse \
     --tpu-neuron-address-align=64 \
-    --tpu-neuron-map-filename=neuron_map.csv \
+    --tpu-neuron-map-filename=_neuron_map.csv \
     --divide-ops-to-func \
     -o $final_mlir
 
@@ -98,3 +98,4 @@ tpuc-translate $final_mlir \
     --mlir-to-cvimodel \
     --weight-file weight.bin \
     -o $out_cvimodel
+rm -f weight.bin

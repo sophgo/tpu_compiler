@@ -211,9 +211,11 @@ class preprocess(object):
         self.channel_order = mlir.ir.StringAttr(attrs['channel_order']).value
         self.keep_aspect_ratio = mlir.ir.BoolAttr(attrs['keep_aspect_ratio']).value
         self.resize_dims = [mlir.ir.IntegerAttr(x).value for x in mlir.ir.ArrayAttr(attrs['resize_dims'])]
-        self.perchannel_mean = np.array([mlir.ir.FloatAttr(x).value for x in mlir.ir.ArrayAttr(attrs['mean'])])
+        self.perchannel_mean = np.array([mlir.ir.FloatAttr(x).value for x \
+                                         in mlir.ir.ArrayAttr(attrs['mean'])]).astype(np.float32)
         self.perchannel_mean = self.perchannel_mean[:,np.newaxis, np.newaxis]
-        self.perchannel_scale = np.array([mlir.ir.FloatAttr(x).value for x in mlir.ir.ArrayAttr(attrs['scale'])])
+        self.perchannel_scale = np.array([mlir.ir.FloatAttr(x).value for x \
+                                          in mlir.ir.ArrayAttr(attrs['scale'])]).astype(np.float32)
         self.perchannel_scale = self.perchannel_scale[:,np.newaxis, np.newaxis]
         self.crop_method = 'center'
         self.aligned = False

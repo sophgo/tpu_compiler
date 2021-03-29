@@ -4433,16 +4433,7 @@ struct LowerFunctionTypePattern: public RewritePattern {
 };
 
 static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
-  srand(time(0));
-  uint32_t unique = (uint32_t)random();
-  uint32_t pid = getpid();
-  auto int2Hex = [&](uint32_t i) {
-    std::stringstream stream;
-    stream << std::hex << i;
-    return stream.str();
-  };
-  std::string tableName = "__" + int2Hex(pid) + "_" + int2Hex(unique)
-        + "_qscale_table.txt";
+  std::string tableName = "_qscale_table.txt";
   std::string errorMessage;
   std::unique_ptr<llvm::ToolOutputFile> table;
   table = openOutputFile(tableName, &errorMessage);
