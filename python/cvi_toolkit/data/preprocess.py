@@ -3,6 +3,8 @@ import numpy as np
 import cv2
 import argparse
 import mlir
+from cvi_toolkit.utils.log_setting import setup_logger
+logger = setup_logger('root', log_level="INFO")
 
 supported_pixel_formats = [
     'RGB_PLANAR',
@@ -156,7 +158,7 @@ class preprocess(object):
             self.aligned = True
 
         info_str = \
-            "\t _______________________________________________________________________ \n" + \
+            "\n\t _______________________________________________________________________ \n" + \
             "\t| preprocess:                                                           |\n" + \
             "\t|   (x * (raw_scale / 255) - mean) * input_scale / std                  |\n" + \
             "\t| => x * raw_scale / 255 * input_scale / std - mean * input_scale / std |\n" + \
@@ -164,7 +166,6 @@ class preprocess(object):
             "\t| so: perchannel_scale = raw_scale / 255 * input_scale / std            |\n" + \
             "\t|     perchannel_mean  = mean * input_scale / std                       |\n" + \
             "\t'-----------------------------------------------------------------------'\n"
-        print(info_str)
 
         format_str = "  Preprocess args : \n" + \
                "\tnet_input_dims        : {}\n" + \
@@ -182,12 +183,13 @@ class preprocess(object):
                "\t--------------------------\n" + \
                "\tpixel_format          : {}\n" + \
                "\taligned               : {}\n"
-        print(format_str.format(
+        info_str += format_str.format(
                 self.net_input_dims, self.resize_dims, self.crop_method,
                 self.keep_aspect_ratio, self.channel_order,
                 list(self.perchannel_scale.flatten()), list(self.perchannel_mean.flatten()),
                 _raw_scale, list(_mean.flatten()), list(_std.flatten()), _input_scale,
-                self.pixel_format, self.aligned))
+                self.pixel_format, self.aligned)
+        logger.info(info_str)
 
     def load_config(self, model_file, idx):
         with open(model_file, 'r') as f:
@@ -223,7 +225,7 @@ class preprocess(object):
             self.aligned = True
         self.data_format = pixel_format_attributes[self.pixel_format][1]
 
-        format_str = "  Preprocess args : \n" + \
+        format_str = "\n  Preprocess args : \n" + \
                "\tnet_input_dims        : {}\n" + \
                "\tresize_dims           : {}\n" + \
                "\tcrop_method           : {}\n" + \
@@ -235,7 +237,7 @@ class preprocess(object):
                "\t--------------------------\n" + \
                "\tpixel_format          : {}\n" + \
                "\taligned               : {}\n"
-        print(format_str.format(
+        logger.info(format_str.format(
                 self.net_input_dims, self.resize_dims, self.crop_method,
                 self.keep_aspect_ratio, self.channel_order,
                 list(self.perchannel_scale.flatten()),
@@ -433,7 +435,7 @@ if __name__ == '__main__':
     y=np.transpose(y, (2, 0, 1))
     if np.any(x != y):
         raise Exception("1. BGR PLANAR test failed")
-    print("1. BGR PLANAR test passed!!")
+    logger.info("1. BGR PLANAR test passed!!")
 
     preprocesser.config(net_input_dims='244,224', pixel_format='RGB_PLANAR')
     x = preprocesser.run(args.image)
@@ -443,7 +445,7 @@ if __name__ == '__main__':
     y=np.transpose(y, (2, 0, 1))
     if np.any(x != y):
         raise Exception("2. RGB PLANAR test failed")
-    print("2. RGB PLANAR test passed!!")
+    logger.info("2. RGB PLANAR test passed!!")
 
     preprocesser.config(net_input_dims='244,224', pixel_format='BGR_PACKED')
     x = preprocesser.run(args.image)
@@ -451,7 +453,7 @@ if __name__ == '__main__':
     y=cv2.resize(y, (224, 244)) # w,h
     if np.any(x != y):
         raise Exception("3. BGR PACKED test failed")
-    print("3. BGR PACKED test passed!!")
+    logger.info("3. BGR PACKED test passed!!")
 
     preprocesser.config(net_input_dims='244,224', pixel_format='RGB_PACKED')
     x = preprocesser.run(args.image)
@@ -460,7 +462,7 @@ if __name__ == '__main__':
     y=cv2.resize(y, (224, 244)) # w,h
     if np.any(x != y):
         raise Exception("RGB PACKED test failed")
-    print("4. RGB PACKED test passed!!")
+    logger.info("4. RGB PACKED test passed!!")
 
     preprocesser.config(net_input_dims='244,224', pixel_format='GRAYSCALE')
     x=preprocesser.run(args.image)
@@ -468,21 +470,19 @@ if __name__ == '__main__':
     y=cv2.resize(y, (224, 244)) # w,h
     if np.any(x != y):
         raise Exception("5. GRAYSCALE test failed")
-    print("5. GRAYSCALE test passed!!")
+    logger.info("5. GRAYSCALE test passed!!")
 
     preprocesser.config(net_input_dims='244,224', resize_dims='443,424',
                         crop_method='center', pixel_format='BGR_PACKED')
     x=preprocesser.run(args.image)
-    print("x", x, x.shape)
     y=cv2.imread(args.image)
     y=cv2.resize(y, (424, 443))
     h_offset = (443 - 244) // 2
     w_offset = (424 - 224) // 2
     y = y[h_offset:h_offset + 244, w_offset : w_offset + 224]
-    print("y", y, y.shape)
     if np.any(x != y):
         raise Exception("6. Center crop test failed")
-    print("6. Center Crop test passed!!")
+    logger.info("6. Center Crop test passed!!")
 
     preprocesser.config(net_input_dims='244,224', keep_aspect_ratio=True,
                         pixel_format='BGR_PACKED')
@@ -499,4 +499,4 @@ if __name__ == '__main__':
             (w - nw) // 2:(w - nw) // 2 + nw, :] = y0
     if np.any(x != y):
         raise Exception("6. keep ratio resize test failed")
-    print("6. keep ratio resize test passed!!")
+    logger.info("6. keep ratio resize test passed!!")

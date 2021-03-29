@@ -1,3 +1,4 @@
+import sys
 import logging
 
 
@@ -9,7 +10,7 @@ def setup_logger(name, log_level="INFO"):
     formatter = logging.Formatter(
         datefmt='%Y/%m/%d %H:%M:%S', fmt='%(asctime)s - %(levelname)s : %(message)s')
 
-    handler = logging.StreamHandler()
+    handler = logging.StreamHandler(stream=sys.stderr)
     handler.setFormatter(formatter)
 
     logger = logging.getLogger(name)

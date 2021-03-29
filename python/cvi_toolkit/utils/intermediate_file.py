@@ -1,6 +1,9 @@
 import os
 import sys
 from .mlir_parser import MlirParser
+from cvi_toolkit.utils.log_setting import setup_logger
+
+logger = setup_logger('root', log_level="INFO")
 
 class IntermediateFile:
     __files__ = []
@@ -37,7 +40,7 @@ class IntermediateFile:
             parser = MlirParser(self.name)
             weight_npz = parser.get_weight_file_name()
             if os.path.exists(weight_npz):
-                print("remove:", weight_npz)
+                logger.debug("remove:", weight_npz)
                 os.remove(weight_npz)
-        print("remove:", self.name)
+        logger.debug("remove:", self.name)
         os.remove(self.name)

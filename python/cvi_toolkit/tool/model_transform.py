@@ -6,6 +6,7 @@ import numpy as np
 import argparse
 import onnxruntime
 import onnx
+from cvi_toolkit.utils.log_setting import setup_logger
 from cvi_toolkit.model import CaffeModel
 from cvi_toolkit.model.ModelFactory import ModelFactory
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
@@ -13,10 +14,10 @@ from cvi_toolkit.transform.tflite_converter_int8 import TFLiteConverter as TFLit
 from cvi_toolkit.transform.tensorflow_converter import TFConverter
 from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
-from cvi_toolkit.utils.log_setting import setup_logger
 from cvi_toolkit.utils.mlir_shell import *
 from cvi_toolkit.utils.intermediate_file import IntermediateFile
 
+logger = setup_logger('root', log_level="INFO")
 
 class ModelTransformTool(object):
     def __init__(self, model_name, batch_size, preprocessor):

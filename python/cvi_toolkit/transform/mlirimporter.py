@@ -1818,7 +1818,9 @@ class MLIRImporter(object):
             func @tpu_func({input_args_type}) -> {output_tensor_type} {{
                 %0 = \"tpu.weight_file\"() {{filename = \"{weight_file}\"}} : () -> memref<10xf32>
             }}
-        """.format(input_args_type=input_args_type, output_tensor_type=output_tensor_type, weight_file=self.output_weight_file)
+        """.format(input_args_type=input_args_type,
+                   output_tensor_type=output_tensor_type,
+                   weight_file=self.output_weight_file)
 
         self.mlir_module = Module.parse(tpu_func, self.ctx)
         self.func = self.mlir_module.body.operations[0]

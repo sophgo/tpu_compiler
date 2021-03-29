@@ -1,11 +1,9 @@
 import logging
 import os
 import subprocess
-from .log_setting import setup_logger
-
 import subprocess
-import logging
 from pathlib import Path
+from .log_setting import setup_logger
 
 logger = setup_logger('root')
 
@@ -291,7 +289,7 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
     if all_tensors:
         cmd.append("--dump-all-tensors")
 
-    logger.info(cmd)
+    logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "model_runner")
     return ret.returncode
@@ -309,7 +307,7 @@ def fp32_blobs_compare(a_npz, b_npz, op_order, tolerance,
         cmd.extend(["--except", excepts])
     if show_detail:
         cmd.append('-vv')
-    logger.info(cmd)
+    logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "compare")
     return ret.returncode
@@ -321,7 +319,7 @@ def mlir_inference(mlir_model, input_npz, out_npz, all_tensor_npz):
         "--dump-all-tensor", all_tensor_npz]
     if out_npz:
         cmd.extend(["--tensor-out", out_npz])
-    logger.info(cmd)
+    logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "tpuc interpreter")
     return ret.returncode

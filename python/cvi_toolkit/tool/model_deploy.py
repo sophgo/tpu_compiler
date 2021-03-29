@@ -7,12 +7,13 @@ import time
 import skimage
 import caffe
 import numpy as np
-from cvi_toolkit.data.preprocess import preprocess
 from cvi_toolkit.utils.log_setting import setup_logger
+from cvi_toolkit.data.preprocess import preprocess
 from cvi_toolkit.utils.mlir_shell import *
 from cvi_toolkit.utils.intermediate_file import IntermediateFile
 from cvi_toolkit.utils.mlir_parser import MlirParser
 
+logger = setup_logger('root', log_level="INFO")
 
 class DeployTool:
     def __init__(self, mlir_file, prefix):
@@ -71,7 +72,7 @@ class DeployTool:
         x = self.ppa.run(image, batch=batch_size)
         in_fp32_npz = IntermediateFile(self.prefix, 'in_fp32.npz')
         np.savez(str(in_fp32_npz), **{'input': x})
-        blobs_interp_npz = IntermediateFile(self.prefix, 'blobs_interp.npz', False)
+        blobs_interp_npz = IntermediateFile(self.prefix, 'full_precision_interp.npz', False)
         ret = mlir_inference(self.mlir_file, str(in_fp32_npz),
                              None, str(blobs_interp_npz))
         if ret != 0:
@@ -83,7 +84,7 @@ class DeployTool:
             in_fp32_resize_only_npz = IntermediateFile(self.prefix, 'in_fp32_resize_only.npz')
             np.savez(str(in_fp32_resize_only_npz), **{'resize_only_data': x})
             in_fp32_npz = in_fp32_resize_only_npz
-        all_tensors_interp_npz = IntermediateFile(self.prefix, 'all_tensors_interp.npz', False)
+        all_tensors_interp_npz = IntermediateFile(self.prefix, 'quantized_tensors_interp.npz', False)
         ret = mlir_inference(str(self.quantized_mlir), str(in_fp32_npz), None,
                              str(all_tensors_interp_npz))
         if ret != 0:
@@ -100,7 +101,7 @@ class DeployTool:
 
         # compare quantized tensors, which generated from simulator and
         # tpuc-interpreter
-        all_tensors_sim_npz = IntermediateFile(self.prefix, 'all_tensors_sim.npz', True)
+        all_tensors_sim_npz = IntermediateFile(self.prefix, 'quantized_tensors_sim.npz', True)
         ret = run_cvimodel(str(in_fp32_npz), cvimodel,
                            str(all_tensors_sim_npz),
                            all_tensors=True)
@@ -140,10 +141,11 @@ if __name__ == '__main__':
     parser.add_argument("--pixel_format", help="pixel format of input frame to the model")
     parser.add_argument("--aligned_frame", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
-    parser.add_argument("--cvimodel", help='output cvimodel')
+    parser.add_argument("--cvimodel", required=True, help='output cvimodel')
     args = parser.parse_args()
 
-    prefix = args.model_name
+    prefix = args.cvimodel.split("/")[-1]
+    prefix = prefix.replace('.cvimodel', '')
     tool = DeployTool(args.mlir, prefix)
     tool.quantize(args.calibration_table,
                   args.mix_precision_table,
