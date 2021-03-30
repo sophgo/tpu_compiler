@@ -230,7 +230,11 @@ net_list_batch_extra=()
 net_list_accuracy_extra=()
 
 if [ -z $model_list_file ]; then
-  model_list_file=$SCRIPT_DIR/generic/model_list.txt
+  if [ ${SET_CHIP_NAME} = "cv183x" ]; then
+    model_list_file=$SCRIPT_DIR/generic/model_list.txt
+  else
+    model_list_file=$SCRIPT_DIR/generic/model_list_cv182x.txt
+  fi
 fi
 
 while read net bs1 bs4 acc bs1_ext bs4_ext acc_ext
