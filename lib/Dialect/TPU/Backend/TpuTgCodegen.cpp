@@ -2159,6 +2159,35 @@ LogicalResult tpu::TG_INT8_GruOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_LayerNormOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  float eps = this->eps().convertToFloat();
+
+  std::vector<int32_t> ln_shape;
+  int64_t tensorSize = getTensorSize(op->getOperand(0));
+  arrayAttrToVector(normalized_shape(), ln_shape);
+  int normalized_size =
+      std::accumulate(ln_shape.begin(), ln_shape.end(), 1, std::multiplies<>());
+  assert(tensorSize % normalized_size == 0);
+  int batch_size = tensorSize / normalized_size;
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t ga_table = getWeightOpAddress(table().getDefiningOp());
+  gaddr_t ga_mantissa_table =
+      getWeightOpAddress(mantissa_table().getDefiningOp());
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_layernorm_kernel(
+      *backend_ctx, layer_id, input_gaddr, ga_table, ga_mantissa_table,
+      output_gaddr, batch_size, normalized_size, eps);
+  return success();
+}
+
 LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

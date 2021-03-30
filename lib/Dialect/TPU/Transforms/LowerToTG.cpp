@@ -2373,6 +2373,31 @@ Value tpu::LstmOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::LayerNormOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  std::vector<Value> operands;
+  const int nInputs =  3;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("eps", epsAttr()));
+  attrs.push_back(builder.getNamedAttr("normalized_shape", normalized_shapeAttr()));
+
+  if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LayerNormOp>(op->getLoc(),
+        getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::SoftmaxOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -3819,6 +3844,51 @@ struct LowerWeightLstmOpPattern : public RewritePattern {
   }
 };
 
+struct LowerWeightLayerNormOpPattern : public RewritePattern {
+  LowerWeightLayerNormOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.layer_norm", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::LayerNormOp>(op);
+    if (getOpQuant(op) != "BF16") {
+      return failure();
+    }
+
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for LayerNormOp: " << getOpName(op)
+                            << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    auto lutOp = cast<tpu::LoadWeightOp>(castOp.getOperand(1).getDefiningOp());
+    auto lutMantissaOp =
+        cast<tpu::LoadWeightOp>(castOp.getOperand(2).getDefiningOp());
+
+    if (lutOp.lowered()) {
+      // lowered already
+      return failure();
+    }
+    // lower filter
+    assert(lutOp.storage() == "BF16");
+    assert(lutMantissaOp.storage() == "BF16");
+    std::vector<int64_t> shape;
+    int64_t size;
+    // sqrt table
+    getTensorShapeAndSize(castOp.table(), shape, size);
+    auto table = readAndDeleteWeightTensor<float>(lutOp, wTF);
+    auto tableMantissa = readAndDeleteWeightTensor<float>(lutMantissaOp, wTF);
+    std::vector<uint16_t> table_uint16(table->begin(), table->end());
+    std::vector<uint16_t> tableMantissa_uint16(tableMantissa->begin(),
+                                               tableMantissa->end());
+    addWeightTensorAndUpdateWeightOp<uint16_t>(lutOp, "lowered", table_uint16,
+                                               shape, "BF16", wTF);
+    lutOp->setAttr("lowered", rewriter.getBoolAttr(true));
+    addWeightTensorAndUpdateWeightOp<uint16_t>(
+        lutMantissaOp, "lowered", tableMantissa_uint16, shape, "BF16", wTF);
+    lutMantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
+    return success();
+  }
+};
+
 struct LowerWeightSoftmaxOpPattern : public RewritePattern {
   LowerWeightSoftmaxOpPattern(MLIRContext *context)
       : RewritePattern("tpu.softmax", 1, context) {}
@@ -4509,6 +4579,7 @@ public:
         LowerWeightConv2DOpPattern<tpu::Conv2DOp>,
         LowerWeightConv2DOpPattern<tpu::DeConv2DOp>,
         LowerWeightConv3DOpPattern<tpu::Conv3DOp>,
+        LowerWeightLayerNormOpPattern,
         LowerWeightLrnOpPattern,
         LowerWeightLutOpPattern<tpu::ReciprocalOp>,
         LowerWeightPReluOpPattern,
@@ -4567,6 +4638,7 @@ public:
         DefaultToTGPattern<tpu::FullyConnectedOp>,
         DefaultToTGPattern<tpu::InterpOp>,
         DefaultToTGPattern<tpu::InstanceNormOp>,
+        DefaultToTGPattern<tpu::LayerNormOp>,
         DefaultToTGPattern<tpu::LrnOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::MishOp>,

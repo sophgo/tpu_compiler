@@ -2118,6 +2118,12 @@ static LogicalResult doPool3DOpInterpret(Operation *op, bool is_average,
   return success();
 }
 
+LogicalResult tpu::LayerNormOp::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
+  assert(0);
+  return success();
+}
+
 LogicalResult tpu::LrnOneOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float>>> &valueMapping) {
   Operation *op = this->getOperation();

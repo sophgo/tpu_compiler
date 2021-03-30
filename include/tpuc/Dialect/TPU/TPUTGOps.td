@@ -702,6 +702,51 @@ class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_GruOp : TPU_TG_GruOp<"tg_int8_gru", "Int8">;
 def TPU_TG_BF16_GruOp : TPU_TG_GruOp<"tg_bf16_gru", "Bf16">;
 
+class TPU_TG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " layer norm operator.";
+
+  let description = [{
+    Perform layernorm on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `table`           : required, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : required, the quantize lookup table,only used by BF16 .
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$table,
+    AnyTensor:$mantissa_table,
+    I32ArrayAttr:$normalized_shape,
+    F32Attr:$eps,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<BoolAttr>:$gaddr_updated,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_BF16_LayerNormOp : TPU_TG_LayerNormOp<"tg_bf16_layernorm", "Bf16">;
+
 class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

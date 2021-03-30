@@ -45,8 +45,8 @@ private:
   std::vector<float> slope_table;
 
   // bf16
-  std::vector<float> y0_bf16_table_op;
-  std::vector<float> y0_bf16_slope_table;
+  std::vector<uint16_t> y0_bf16_table_op;
+  std::vector<uint16_t> y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -72,8 +72,8 @@ private:
   std::vector<float> slope_table;
 
   // bf16
-  std::vector<float> y0_bf16_table_op;
-  std::vector<float> y0_bf16_slope_table;
+  std::vector<uint16_t> y0_bf16_table_op;
+  std::vector<uint16_t> y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -183,8 +183,8 @@ private:
   std::vector<float> slope_table;
 
   // bf16
-  std::vector<float> y0_bf16_table_op;
-  std::vector<float> y0_bf16_slope_table;
+  std::vector<uint16_t> y0_bf16_table_op;
+  std::vector<uint16_t> y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -209,8 +209,8 @@ private:
   std::vector<float> slope_table;
 
   // bf16
-  std::vector<float> y0_bf16_table_op;
-  std::vector<float> y0_bf16_slope_table;
+  std::vector<uint16_t> y0_bf16_table_op;
+  std::vector<uint16_t> y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -236,8 +236,8 @@ private:
 
   float threshold;
   // bf16
-  std::vector<float> y0_bf16_table_op;
-  std::vector<float> y0_bf16_slope_table;
+  std::vector<uint16_t> y0_bf16_table_op;
+  std::vector<uint16_t> y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -262,8 +262,8 @@ private:
   std::vector<float> slope_table;
 
   // bf16
-  std::vector<float> y0_bf16_table_op;
-  std::vector<float> y0_bf16_slope_table;
+  std::vector<uint16_t> y0_bf16_table_op;
+  std::vector<uint16_t> y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -305,8 +305,8 @@ private:
   std::vector<float> slope_table;
 
   // bf16
-  std::vector<float> y0_bf16_table_op;
-  std::vector<float> y0_bf16_slope_table;
+  std::vector<uint16_t> y0_bf16_table_op;
+  std::vector<uint16_t> y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };

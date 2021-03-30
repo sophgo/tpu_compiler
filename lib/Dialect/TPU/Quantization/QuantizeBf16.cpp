@@ -230,6 +230,54 @@ LogicalResult quantizeBF16SqrtOps(Operation *op) {
 }
 
 ///
+/// LayerNorm quantization method
+///
+LogicalResult quantizeBf16LayerNormOps(Operation *op) {
+  LLVM_DEBUG(llvm::dbgs() << "Gen layernorm ops: "
+                          << "]\n";);
+
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value wfV = getWeightFileValue(op);
+  int npu_num = MInfo::lane_num;
+
+  //<! 1880v2 hw bf16 config
+  int table_h = 32;
+  int table_w = 8;
+  int table_hw = table_h * table_w;
+  int tbl_shape = npu_num * table_hw;
+
+  // sqrt table
+  std::vector<float> table(tbl_shape);
+  std::vector<float> mantissa_table(tbl_shape); // use in bf16
+  std::vector<uint16_t> table_data_lut_bf16(table_hw);
+  std::vector<uint16_t> table_data_mantissa_lut_bf16(table_hw);
+
+  const int expStart = -62;
+  bf16_gen_reciprocal_sqrt(expStart, table_hw, table_data_lut_bf16.data());
+  bf16_gen_reciprocal_sqrt_mantissa(table_hw,
+                                    table_data_mantissa_lut_bf16.data());
+
+  // copy bf16 data to float table
+  for (int i = 0; i < npu_num; ++i) {
+    std::copy(table_data_lut_bf16.data(), table_data_lut_bf16.data() + table_hw,
+              table.data() + i * table_hw);
+    std::copy(table_data_mantissa_lut_bf16.data(),
+              table_data_mantissa_lut_bf16.data() + table_hw,
+              mantissa_table.data() + i * table_hw);
+  }
+
+  auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
+  auto table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "table", table, shape, "BF16", wTF, wfV);
+  auto mantissa_table_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "mantissa_table", mantissa_table, shape, "BF16", wTF, wfV);
+  op->setOperand(1, table_op);
+  op->setOperand(2, mantissa_table_op);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
+}
+
+///
 /// Lut Ops quantization method
 ///
 template <typename OpTy>
@@ -1095,6 +1143,13 @@ LogicalResult tpu::InterpOp::quantizeBf16() {
 }
 
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InstanceNormOp)
+
+LogicalResult tpu::LayerNormOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16LayerNormOps(op);
+}
 
 LogicalResult tpu::LeakyReluOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()

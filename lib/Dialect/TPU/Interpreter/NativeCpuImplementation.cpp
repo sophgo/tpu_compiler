@@ -958,6 +958,51 @@ void bf16_gen_sqrt_mantissa(int table_hw, uint16_t* table_mantissa) {
   }
 }
 
+void bf16_gen_reciprocal_sqrt(int start, int table_hw, uint16_t *table_data) {
+  //<! 32*8 table, duplicate `channel` times;
+
+  int half = table_hw / 2;
+  uint64_t idx = 0;
+  assert(half == 128);
+
+  // prepare channel 0
+  float s = 0.0;
+  table_data[idx] = convert_fp32_bf16(s);
+  idx++;
+
+  // > 0, exp from 0 -62 -61 ..  62  63
+  for (int i = 0; i < half; i++) {
+    int shift = (start + i);
+    bool is_odd = (shift % 2);
+    float exp = shift;
+    if (is_odd) {
+      exp = exp - 1;
+    }
+    double s = _gen_sqrt(2, exp);
+    table_data[idx] = convert_fp32_bf16(1.0 / s);
+    idx++;
+  }
+}
+
+void bf16_gen_reciprocal_sqrt_mantissa(int table_hw, uint16_t* table_mantissa) {
+
+  uint32_t half = table_hw  / 2;
+  assert(half == 128);
+
+  int idx = 0;
+  double d;
+  for (uint32_t i = 0; i < half; i++) {
+    d = 1 + i * 1 / 128.0;
+    d = (double) pow(d, 0.5);
+    table_mantissa[128+idx] = convert_fp32_bf16(1.0 / d);
+    d = 2 * (1 + i * 1 / 128.0);
+
+    d = (double) pow(d, 0.5);
+    table_mantissa[idx] = convert_fp32_bf16(1.0 / d);
+    idx++;
+  }
+}
+
 // gen power exp table
 void bf16_gen_power_exp_table(uint16_t *table_data, float beta,
                               int start, int table_hw) {
@@ -1022,6 +1067,66 @@ void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
     LLVM_DEBUG(llvm::errs() <<","<< "table_mantissa["<<idx
                             <<"] = " <<table_mantissa[idx];);
     idx++;
+  }
+}
+
+void bf16_lut_mantissa(float *input, float *output, int size,
+                       const std::vector<uint16_t> &bf16_lut,
+                       const std::vector<uint16_t> &bf16_mantissa_lut) {
+  for (int i = 0; i < size; i++) {
+    uint16_t bf16InputValue = convert_fp32_bf16(input[i]);
+    float input_bf16 = convert_bf16_fp32(bf16InputValue);
+    int exponentIndex;
+    if (input_bf16 == 0) {
+      exponentIndex = 0;
+    } else if (input_bf16 >= 0) {
+      exponentIndex = floor(log2(input_bf16));
+      exponentIndex += 62 + 1; // 62 means start with 2^-62, index from 1
+    } else {
+      exponentIndex = floor(log2(-1 * input_bf16));
+      exponentIndex += 62 + 129; // 62 means start with 2^-62, index from 129
+    }
+    float exponentFloatValue = convert_bf16_fp32(bf16_lut[exponentIndex]);
+    float mantissaFloatValue =
+        convert_bf16_fp32(bf16_mantissa_lut[bf16InputValue & 0xff]);
+    output[i] = convert_bf16_fp32(
+        convert_fp32_bf16(exponentFloatValue * mantissaFloatValue));
+  }
+}
+
+void bf16_lut_slope(float *input, float *output, int size,
+                    const std::vector<uint16_t> &bf16_lut,
+                    const std::vector<uint16_t> &bf16_slope_lut,
+                    int bf16_table_start, int bf16_table_end) {
+
+  // interger index range
+  // from 16(-8~8)->256(lut index size)
+  float scale = 256 / (bf16_table_end - bf16_table_start);
+
+  // rounding
+  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
+
+  for (int i = 0; i < size; ++i) {
+    float reOffset_input = convert_bf16_fp32(convert_fp32_bf16(input[i]));
+    float rescale_input =
+        convert_bf16_fp32(convert_fp32_bf16(reOffset_input)) * scale;
+    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
+    // get interger part
+    int rescale_input_i8 =
+        _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
+
+    // get delta x (x - x0)
+    float delta_x = rescale_input - rescale_input_i8;
+
+    // get slope
+    uint16_t slope = bf16_slope_lut[rescale_input_i8 & 0xff];
+
+    // base y0 = f(x0)
+    uint16_t base = bf16_lut[rescale_input_i8 & 0xff];
+
+    // result = y0 + delta * slope
+    float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
+    output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
   }
 }
 

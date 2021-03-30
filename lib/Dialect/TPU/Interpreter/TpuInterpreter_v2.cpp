@@ -41,6 +41,7 @@
 #include "tpuc/Interpreter/cpu/interpolation.hpp"
 #include "tpuc/Interpreter/cpu/lrn.hpp"
 #include "tpuc/Interpreter/cpu/normalize.hpp"
+#include "tpuc/Interpreter/cpu/layernorm.hpp"
 #include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/Interpreter/cpu/permute.hpp"
 #include "tpuc/Interpreter/cpu/pooling.hpp"
@@ -271,6 +272,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     auto i_kernel_op =
         std::make_unique<InterpolationOpKernel>(op, valueMapping);
     oplist.push_back(std::move(i_kernel_op));
+    return;
+  }
+  if (isa<tpu::LayerNormOp>(op)) {
+    auto kernel_op = std::make_unique<LayerNormOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(kernel_op));
     return;
   }
   if (isa<tpu::LeakyReluOp>(op)) {

@@ -1021,6 +1021,56 @@ def TPU_InstanceNormOp: TPU_Op<"instance_norm",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_LayerNormOp: TPU_Op<"layer_norm",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Layer Normalize operator";
+
+  let description = [{
+    Layer Normalize operator
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `table`           : required, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : required, the quantize lookup table,only used by BF16 .
+
+    Attributes:
+      `normalized_shape`: required, normalize over the last dims.
+      `eps`             : optional, default: 1e-5
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$mantissa_table,
+    I32ArrayAttr:$normalized_shape,
+    DefaultValuedAttr<F32Attr, "1.0e-5">:$eps,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

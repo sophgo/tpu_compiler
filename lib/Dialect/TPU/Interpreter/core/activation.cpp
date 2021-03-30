@@ -1,6 +1,7 @@
 #include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
+#include "tpuc/NativeCpuImplementation.h"
 
 // FIXME: this head should not be here,
 //  using interpreter own float convert is better
@@ -9,43 +10,6 @@
 #include <cmath>
 
 namespace mlir {
-
-static void hardwareLookUpTable(float *input, float *output, int size,
-                                const std::vector<float> &y0_bf16_table,
-                                const std::vector<float> &y0_bf16_slope_table,
-                                const int bf16_table_start,
-                                const int bf16_table_end) {
-
-  // interger index range
-  // from 16(-8~8)->256(lut index size)
-  float scale = 256 / (bf16_table_end - bf16_table_start);
-
-  // rounding
-  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
-
-  for (int i = 0; i < size; ++i) {
-    float reOffset_input = convert_bf16_fp32(convert_fp32_bf16(input[i]));
-    float rescale_input =
-        convert_bf16_fp32(convert_fp32_bf16(reOffset_input)) * scale;
-    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
-    // get interger part
-    int rescale_input_i8 =
-        _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
-
-    // get delta x (x - x0)
-    float delta_x = rescale_input - rescale_input_i8;
-
-    // get slope
-    uint16_t slope = y0_bf16_slope_table[rescale_input_i8 & 0xff];
-
-    // base y0 = f(x0)
-    uint16_t base = y0_bf16_table[rescale_input_i8 & 0xff];
-
-    // result = y0 + delta * slope
-    float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
-    output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
-  }
-}
 
 void relu(float *src, float *dst, size_t size) {
   int schedule = size / omp_get_num_threads();
@@ -190,9 +154,9 @@ void ExpOpKernel::invoke() {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    hardwareLookUpTable(input_data->data(), output_data->data(),
-                        output_data->size(), y0_bf16_table_op,
-                        y0_bf16_slope_table, bf16_min_range, bf16_max_range);
+    bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
+                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   bf16_max_range);
   } else {
 #pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
     for (size_t i = 0; i < output_size; ++i) {
@@ -272,9 +236,9 @@ void MishOpKernel::invoke() {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    hardwareLookUpTable(input_data->data(), output_data->data(), size,
-                        y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
-                        bf16_max_range);
+    bf16_lut_slope(input_data->data(), output_data->data(), size,
+                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   bf16_max_range);
   } else {
 #pragma omp parallel for schedule(static, size / omp_get_num_threads())
     for (size_t i = 0; i < output_data->size(); ++i) {
@@ -724,9 +688,9 @@ void SigmoidOpKernel::invoke() {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    hardwareLookUpTable(input_data->data(), output_data->data(), output_size,
-                        y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
-                        bf16_max_range);
+    bf16_lut_slope(input_data->data(), output_data->data(), output_size,
+                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   bf16_max_range);
   } else {
 #pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
     for (size_t i = 0; i < output_size; ++i) {
@@ -801,9 +765,9 @@ void SoftPlusOpKernel::invoke() {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    hardwareLookUpTable(input_data->data(), output_data->data(),
-                        output_data->size(), y0_bf16_table_op,
-                        y0_bf16_slope_table, bf16_min_range, bf16_max_range);
+    bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
+                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   bf16_max_range);
   } else {
 #pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
     for (size_t i = 0; i < output_data->size(); ++i) {
@@ -1007,9 +971,9 @@ void TanHOpKernel::invoke() {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    hardwareLookUpTable(input_data->data(), output_data->data(),
-                        output_data->size(), y0_bf16_table_op,
-                        y0_bf16_slope_table, bf16_min_range, bf16_max_range);
+    bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
+                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   bf16_max_range);
   } else {
 
 #pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
