@@ -490,6 +490,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(yo_kernel_op));
     return;
   }
+  if (isa<tpu::RetinaFaceDetectionOp>(op)) {
+    llvm::errs() << "no support " << op.getName().getStringRef()
+                << " op in interpreter_v2\n";
+    return;
+  }
   std::stringstream err_msg;
   llvm::errs() << "no support " << op.getName().getStringRef()
                << " op in interpreter_v2\n";

@@ -44,10 +44,14 @@ function gencvimodel_for_sample() {
   mkdir -p tmp
   pushd tmp
   source $SCRIPT_DIR/regression/generic/generic_models.sh
+  mdef=${MODEL_DEF}
+  if [[ $DO_FUSED_POSTPROCESS = "1" ]]; then
+    mdef=${MODEL_DEF_FUSED_POSTPROCESS}
+  fi
   model_transform.py \
     --model_type ${MODEL_TYPE} \
     --model_name ${NET} \
-    --model_def ${MODEL_DEF} \
+    --model_def ${mdef} \
     --model_data ${MODEL_DAT} \
     --image ${IMAGE_PATH} \
     --image_resize_dims ${IMAGE_RESIZE_DIMS} \
@@ -101,7 +105,7 @@ function gencvimodel_for_sample() {
 function pack_sampel_cvimodels() {
   local chip=$1
 
-  local dst=$PWD/cvimodel_samples_$chip
+  local dst=$PWD/cvimodel_samples
   mkdir -p $dst
   gencvimodel_for_sample $chip mobilenet_v2 \
       $dst/mobilenet_v2.cvimodel 0
@@ -132,7 +136,7 @@ function pack_sampel_cvimodels() {
       $dst/arcface_res50_fused_preprocess.cvimodel \
       1 BGR_PACKED 0
 
-  tar zcvf $dest_dir/cvimodel_samples_${chip}.tar.gz $dst
+  tar zcvf $dest_dir/cvimodel_samples_${chip}.tar.gz cvimodel_samples
   rm -rf $dst
 }
 
