@@ -330,12 +330,11 @@ void CviBackendContext::tdma_load_stride(cvk_ml_t *tlp, uint64_t ga_src,
 void CviBackendContext::tdma_load(cvk_ml_t *tlp, uint64_t ga_src,
                                   uint8_t do_transpose) const {
   assert(tlp != nullptr);
-
-  cvk_mg_t ts_data = {0};
-  ts_data.shape = {tlp->shape.n, tlp->shape.col};
-  ts_data.stride = {tlp->shape.col};
-
-  tdma_load_stride(tlp, ga_src, ts_data.stride);
+  cvk_mg_stride_t stride = {tlp->shape.col};
+  if (tlp->fmt == CVK_FMT_BF16) {
+    stride.row *= 2;
+  }
+  tdma_load_stride(tlp, ga_src, stride);
 }
 
 //

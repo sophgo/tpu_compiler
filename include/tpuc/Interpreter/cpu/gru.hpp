@@ -17,6 +17,9 @@ public:
   void dump() override;
 
 private:
+  double sigmoid_(double data);
+  double tanh_(double data);
+private:
   SyncedData input_data;
   SyncedData output_data;
   SyncedData weight;
@@ -34,6 +37,11 @@ private:
   int num_dir;
   bool bidirectional;
   bool linear_before_reset;
+  // bf16 only
+  std::vector<uint16_t> sigmoid_lut;
+  std::vector<uint16_t> sigmoid_slope_lut;
+  std::vector<uint16_t> tanh_lut;
+  std::vector<uint16_t> tanh_slope_lut;
 };
 } // namespace mlir
 #endif

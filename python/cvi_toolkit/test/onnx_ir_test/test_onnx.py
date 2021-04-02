@@ -27,6 +27,7 @@ TEST_ONNX_IR = [
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
     "GlobalMaxPool",
+    #"GRU", #182x fail
     "LeakyRelu",
     "LRN",
     "Max",
@@ -88,6 +89,7 @@ class ONNX_IR_TESTER(object):
             "LeakyRelu": self.test_LeakyRelu,
             "LRN": self.test_LRN,
             "GlobalMaxPool": self.test_GlobalMaxPool,
+            "GRU": self.test_GRU,
             "Max": self.test_Max,
             "Min": self.test_Min,
             "Mul": self.test_Mul,
@@ -532,6 +534,78 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         onnx.checker.check_model(model_def)
 
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_GRU(self):
+        test_case = 'GRU'
+        seq_length = 175
+        num_dir = 2
+        input_size = 256
+        hidden_size = 128
+        direction = 'forward' if num_dir == 1 else 'bidirectional'
+        input_data = np.random.rand(
+            seq_length, 1, input_size).astype(np.float32)
+        w_data = np.random.rand(
+            num_dir, 3*hidden_size, input_size).astype(np.float32)
+        r_data = np.random.rand(
+            num_dir, 3*hidden_size, hidden_size).astype(np.float32)
+        b_data = np.random.rand(num_dir, 6*hidden_size).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, list(input_data.shape))
+
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [seq_length, num_dir, 1, hidden_size])
+
+        w_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['w'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=w_data.shape,
+                vals=w_data.flatten(),
+            ),
+        )
+        r_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['r'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=r_data.shape,
+                vals=r_data.flatten(),
+            ),
+        )
+        b_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['b'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=b_data.shape,
+                vals=b_data.flatten(),
+            ),
+        )
+        node_def = onnx.helper.make_node(
+            "GRU",
+            inputs=['input', 'w', 'r', 'b'],
+            outputs=['output'],
+            direction=direction,
+            hidden_size=hidden_size,
+            linear_before_reset=1,
+        )
+        graph_def = helper.make_graph(
+            [w_node_def, r_node_def, b_node_def, node_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_LeakyRelu(self):

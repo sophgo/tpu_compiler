@@ -2109,6 +2109,11 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   if ( with_bias ) {
     ga_bias =  getWeightOpAddress(bias().getDefiningOp());
   }
+  bool with_h0 = (!isTensorNone(initial_h()));
+  gaddr_t initial_h_gaddr = GA_INVALID;
+  if (with_h0) {
+    initial_h_gaddr = getWeightOpAddress(initial_h().getDefiningOp());
+  }
 
   bool is_linear_before_reset = this->linear_before_reset();
   bool is_bidirectional = this->bidirectional();
@@ -2117,7 +2122,6 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   gaddr_t weight_gaddr = getWeightOpAddress(weight().getDefiningOp());
   gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence().getDefiningOp());
-  gaddr_t initial_h_gaddr = getWeightOpAddress(initial_h().getDefiningOp());
   gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table().getDefiningOp());
   gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table().getDefiningOp());
   gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table().getDefiningOp());
@@ -2150,7 +2154,7 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
                   tanh_table_data_lut_gaddr, tanh_slope_table_data_lut_gaddr,
                   output_gaddr,
                   seq_len, batchSize, inputSize, hiddenSize,
-                  with_bias, is_linear_before_reset, is_bidirectional);
+                  with_bias, with_h0, is_linear_before_reset, is_bidirectional);
   return success();
 }
 

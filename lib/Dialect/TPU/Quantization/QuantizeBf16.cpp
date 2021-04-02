@@ -451,70 +451,8 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
 
-  // get weight tensor
-  auto weight = readAndDeleteWeightTensor<float>(gruOp.weight(), wTF);
-  std::vector<int64_t> weightShape;
-  int64_t weightSize;
-  getTensorShapeAndSize(gruOp.weight(), weightShape, weightSize);
-
-  // get recurrence tensor
-  auto recurrence = readAndDeleteWeightTensor<float>(gruOp.recurrence(), wTF);
-  std::vector<int64_t> recurrenceShape;
-  int64_t recurrenceSize;
-  getTensorShapeAndSize(gruOp.recurrence(), recurrenceShape, recurrenceSize);
-
-  // get bias tensor
-  std::unique_ptr<std::vector<float> > bias = nullptr;
-  std::vector<int64_t> biasShape;
-  int64_t biasSize = 0;
-  if ( !isTensorNone(gruOp.bias()) ) {
-    bias = readAndDeleteWeightTensor<float>(gruOp.bias(), wTF);
-    getTensorShapeAndSize(gruOp.bias(), biasShape, biasSize);
-  }
-
-  // get initial_h tensor
-  std::unique_ptr<std::vector<float> > initial_h = nullptr;
-  std::vector<int64_t> initial_hShape;
-  int64_t initial_hSize = 0;
-  if ( !isTensorNone(gruOp.initial_h()) ) {
-    initial_h = readAndDeleteWeightTensor<float>(gruOp.initial_h(), wTF);
-    getTensorShapeAndSize(gruOp.initial_h(), initial_hShape, initial_hSize);
-  }
-
-  // create new tensors
-  auto new_weight = std::make_unique<std::vector<bfloat16> >(weightSize);
-  auto new_recurrence = std::make_unique<std::vector<bfloat16> >(recurrenceSize);
-  std::unique_ptr<std::vector<bfloat16> > new_initial_h = nullptr;
-
-  if (initial_h) {
-    new_initial_h = std::make_unique<std::vector<bfloat16> >(initial_hSize);
-  }
-
-  // quantization
-  FloatToBFloat16(weight->data(), new_weight->data(), weightSize);
-  FloatToBFloat16(recurrence->data(), new_recurrence->data(), recurrenceSize);
-
-  if (initial_h) {
-    FloatToBFloat16(initial_h->data(), new_initial_h->data(), initial_hSize);
-  }
-
-  // update op
-  addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(1),
-      "quant", *new_weight, weightShape, "BF16", wTF);
-  addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(2),
-      "quant", *new_recurrence, recurrenceShape, "BF16", wTF);
-
-  if (bias) {
-    addWeightTensorAndUpdateWeightOp<float>(gruOp.getOperand(3),
-        "quant", *bias, biasShape, "FP32", wTF);
-  }
-
-  if (initial_h) {
-    addWeightTensorAndUpdateWeightOp<bfloat16>(gruOp.getOperand(4),
-        "quant", *new_initial_h, initial_hShape, "BF16", wTF);
-  }
-
-  LLVM_DEBUG(llvm::dbgs() << "GenSigmoidLut: " << "]\n";);
+  LLVM_DEBUG(llvm::dbgs() << "GenSigmoidLut: "
+                          << "]\n";);
   // Add lut table information
 
   int npu_num = MInfo::lane_num;
@@ -522,6 +460,7 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   //<! 1880v2 hw bf16 config
   int table_h = 32;
   int table_w = 8;
+  int start = -8, end = 8;
   std::vector<float> y0_sigmoid_table;
   std::vector<float> y0_sigmoid_slope_table; // use in bf16
   int table_hw = table_h * table_w;
@@ -535,79 +474,66 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   StringRef storageType = "BF16";
 
   // use function pointer
-  LLVM_DEBUG(llvm::dbgs() << "use function pointer: " << "]\n";);
+  LLVM_DEBUG(llvm::dbgs() << "use function pointer: "
+                          << "]\n";);
   double (*activate_func)(double);
   activate_func = sigmoid;
-
-  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-                 y0_fp32_table.data(), activate_func);
-
-  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-                       y0_fp32_table.data(), y0_fp32_slope_table.data(),
-                       activate_func);
-  // for(int i = 0; i < table_hw; i++) {
-  //   LLVM_DEBUG(llvm::dbgs() << "sigmoid data[" << i<< "]: " <<  y0_fp32_table[i]<< "]\n";);
-  //   LLVM_DEBUG(llvm::dbgs() << "sigmoid data[" << i<< "]: " <<  y0_fp32_slope_table[i]<< "]\n";);
-  // }
-
-  LLVM_DEBUG(llvm::dbgs() << "convert fp32 to bf16: " << "]\n";);
+  gen_bf16_table(start, end, table_hw, y0_fp32_table.data(), activate_func);
+  gen_bf16_slope_table(start, end, table_hw, y0_fp32_table.data(),
+                       y0_fp32_slope_table.data(), activate_func);
+  LLVM_DEBUG(llvm::dbgs() << "convert fp32 to bf16: "
+                          << "]\n";);
   // convert fp32 to bf16
-  FloatToBFloat16(y0_fp32_table.data(),
-                  y0_bf16_table.data(), table_hw);
-  FloatToBFloat16(y0_fp32_slope_table.data(),
-                  y0_bf16_slope_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_table.data(), y0_bf16_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_slope_table.data(), y0_bf16_slope_table.data(),
+                  table_hw);
 
   // copy bf16 data to float table
-  LLVM_DEBUG(llvm::dbgs() << "copy bf16 data to float table: " << "]\n";);
-  for (int i = 0; i < npu_num; ++i){
+  LLVM_DEBUG(llvm::dbgs() << "copy bf16 data to float table: "
+                          << "]\n";);
+  for (int i = 0; i < npu_num; ++i) {
     std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
               y0_sigmoid_table.data() + i * table_hw);
-    std::copy(y0_bf16_slope_table.data(),
-              y0_bf16_slope_table.data() + table_hw,
+    std::copy(y0_bf16_slope_table.data(), y0_bf16_slope_table.data() + table_hw,
               y0_sigmoid_slope_table.data() + i * table_hw);
   }
 
   // update op
-  LLVM_DEBUG(llvm::dbgs() << "update op: " << "]\n";);
+  LLVM_DEBUG(llvm::dbgs() << "update op: "
+                          << "]\n";);
   auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
   auto y0_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "sigmoid_table", y0_sigmoid_table, shape, storageType, wTF, wfV);
   auto mantissa_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "sigmoid_slope_table", y0_sigmoid_slope_table, shape, storageType, wTF, wfV);
+      op, "sigmoid_slope_table", y0_sigmoid_slope_table, shape, storageType,
+      wTF, wfV);
   gruOp.setOperand(5, y0_sigmoid_table_op);
   gruOp.setOperand(6, mantissa_sigmoid_table_op);
 
-  //Add lut table information - tanh
-  LLVM_DEBUG(llvm::dbgs() << "GenTanhLut: " << "]\n";);
+  // Add lut table information - tanh
+  LLVM_DEBUG(llvm::dbgs() << "GenTanhLut: "
+                          << "]\n";);
   activate_func = tanh;
   std::vector<float> y0_tanh_table;
   std::vector<float> y0_tanh_slope_table; // use in bf16
   y0_tanh_table.resize(tbl_shape);
   y0_tanh_slope_table.resize(tbl_shape);
 
-  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-                 y0_fp32_table.data(), activate_func);
+  gen_bf16_table(start, end, table_hw, y0_fp32_table.data(), activate_func);
 
-  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-                       y0_fp32_table.data(), y0_fp32_slope_table.data(),
-                       activate_func);
-  //  for(int i = 0; i < table_hw; i++) {
-  //   LLVM_DEBUG(llvm::dbgs() << "tanh data[" << i<< "]: " <<  y0_fp32_table[i]<< "]\n";);
-  //   LLVM_DEBUG(llvm::dbgs() << "tanh data[" << i<< "]: " <<  y0_fp32_slope_table[i]<< "]\n";);
-  // }
+  gen_bf16_slope_table(start, end, table_hw, y0_fp32_table.data(),
+                       y0_fp32_slope_table.data(), activate_func);
 
   // convert fp32 to bf16
-  FloatToBFloat16(y0_fp32_table.data(),
-                  y0_bf16_table.data(), table_hw);
-  FloatToBFloat16(y0_fp32_slope_table.data(),
-                  y0_bf16_slope_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_table.data(), y0_bf16_table.data(), table_hw);
+  FloatToBFloat16(y0_fp32_slope_table.data(), y0_bf16_slope_table.data(),
+                  table_hw);
 
   // copy bf16 data to float table
-  for (int i = 0; i < npu_num; ++i){
+  for (int i = 0; i < npu_num; ++i) {
     std::copy(y0_bf16_table.data(), y0_bf16_table.data() + table_hw,
               y0_tanh_table.data() + i * table_hw);
-    std::copy(y0_bf16_slope_table.data(),
-              y0_bf16_slope_table.data() + table_hw,
+    std::copy(y0_bf16_slope_table.data(), y0_bf16_slope_table.data() + table_hw,
               y0_tanh_slope_table.data() + i * table_hw);
   }
 
@@ -615,7 +541,8 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   auto y0_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "tanh_table", y0_tanh_table, shape, storageType, wTF, wfV);
   auto mantissa_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "tanh_slope_table", y0_tanh_slope_table, shape, storageType, wTF, wfV);
+      op, "tanh_slope_table", y0_tanh_slope_table, shape, storageType, wTF,
+      wfV);
   gruOp.setOperand(7, y0_tanh_table_op);
   gruOp.setOperand(8, mantissa_tanh_table_op);
 

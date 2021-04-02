@@ -1386,6 +1386,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::LayerNormOp>(op)
       || isa<tpu::SoftmaxCpuOp>(op)
       || isa<tpu::CscOp>(op)
+      || isa<tpu::GruOp>(op)
       || isa<tpu::ZeroMaskOp>(op)) {
     skip_checking = true;
   }
