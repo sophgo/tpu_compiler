@@ -1184,6 +1184,12 @@ export TOLERANCE_BF16=0.99,0.99,0.92
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.99
 export DO_LAYERGROUP=0
 export DO_QUANT_MIX=0
+
+export IMAGE_RESIZE_DIMS=32,1400
+export NET_INPUT_DIMS=32,1400
+export RAW_SCALE=1.0
+export MEAN=0.0,0.0,0.0  # in RGB,
+export INPUT_SCALE=1.0
 fi
 
 if [ $NET = "gru_toy" ]; then

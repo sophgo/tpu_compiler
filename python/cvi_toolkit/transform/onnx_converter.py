@@ -480,7 +480,7 @@ class OnnxConverter(BaseConverter):
         mlir_txt = self.CVI.print_module()
         with open(self.mlir_file_path, "w") as f:
             f.write(mlir_txt)
-        print("Save mlir file: {}".format(self.mlir_file_path))
+        logger.info("Save mlir file: {}".format(self.mlir_file_path))
 
     def convert_activation_op(self, onnx_node):
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
@@ -1530,9 +1530,6 @@ class OnnxConverter(BaseConverter):
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
 
         axis = onnx_node.attrs.get('axis', 0)
-        print("axis:", axis)
-        print("op1:", op1, input_shape1, tensor_type1)
-        print("op2:", op2, input_shape2, tensor_type2)
 
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
             input_data =  self.getTensor(onnx_node.inputs[0]).tensor_data
@@ -1542,7 +1539,6 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, list(new_data.shape), TensorType.TENSOR)
         elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             indices = self.getTensor(onnx_node.inputs[1]).tensor_data
-            print("indices:", indices)
             if indices.size == 1:
                 offset = indices.flatten()[0]
                 attr = {"axis": axis, "offset": offset}
@@ -1552,6 +1548,7 @@ class OnnxConverter(BaseConverter):
                 slice_op_ = self.CVI.add_slice_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [op1], output_shape, **attr)
                 self.addOperand(onnx_node.outputs[0], slice_op_, output_shape, TensorType.ACTIVATION)
             else:
+                logger.warning("indices:", indices)
                 raise("TODO: Our Ir not support gather function")
         else:
             raise("TODO: Our Ir not support gather function")
@@ -1712,11 +1709,7 @@ class OnnxConverter(BaseConverter):
             name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
             output_shape = [seq_length, 2, batch_size, hidden_size]
             concat_op = self.CVI.add_concat_op(name, [forward_gru_op, backward_gru_reverse_op], output_shape, axis=1)
-
-            reshape_name = "{}_reshape".format(name)
-            reshape_shape = [1, seq_length, 2, hidden_size]
-            reshape_op = self.CVI.add_reshape_op(reshape_name, [concat_op], reshape_shape)
-            self.addOperand(onnx_node.name, reshape_op, reshape_shape, TensorType.ACTIVATION)
+            self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
         else:
             operands = list()
             operands.append(op)
@@ -2341,7 +2334,7 @@ class OnnxConverter(BaseConverter):
                 tmp_size = 1
                 for i in range(len(output_shape)):
                     if output_shape[i] == 0:
-                        output_shape[i] = self.batch_size
+                        output_shape[i] = input_shape1[i]
                     if i != remain_dim:
                         tmp_size*=output_shape[i]
                 remain_size  = total_tensor_size / tmp_size
@@ -2357,8 +2350,6 @@ class OnnxConverter(BaseConverter):
                 return
             if np.prod(input_shape1) != np.prod(output_shape):
                 raise RuntimeError("can not reshape {} v.s. {}".format(input_shape1, output_shape))
-
-
             if output_shape == input_shape1:
                 # same shape, fuse this op
                 self.addOperand(onnx_node.name, op1, output_shape, TensorType.ACTIVATION)
@@ -2769,8 +2760,13 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Squeeze")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         operands = [op]
-        checkKey(onnx_node.attrs, 'axes')
-        axis_value_list = onnx_node.attrs['axes']
+        input_num = len(onnx_node.inputs)
+        # opset 13 take axes as input
+        if input_num == 2 :
+            axis_value_list = self.getTensor(onnx_node.inputs[1]).tensor_data
+        else:
+            checkKey(onnx_node.attrs, 'axes')
+            axis_value_list = onnx_node.attrs['axes']
         if tensor_type == TensorType.ACTIVATION:
             new_shape = self.squeeze_shape(input_shape, axis_value_list)
             reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, new_shape)
@@ -3060,8 +3056,13 @@ class OnnxConverter(BaseConverter):
         """Unsqueeze """
         assert(onnx_node.op_type == "Unsqueeze")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
-        checkKey(onnx_node.attrs, 'axes')
-        axis_value_list = onnx_node.attrs['axes']
+        input_num = len(onnx_node.inputs)
+        # opset 13 take axes as input
+        if input_num == 2 :
+            axis_value_list = self.getTensor(onnx_node.inputs[1]).tensor_data
+        else:
+            checkKey(onnx_node.attrs, 'axes')
+            axis_value_list = onnx_node.attrs['axes']
         if tensor_type == TensorType.TENSOR:
             t = self.getTensor(onnx_node.inputs[0])
             new_t = t.tensor_data

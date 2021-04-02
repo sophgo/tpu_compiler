@@ -37,10 +37,13 @@ class IntermediateFile:
         if not force and self._keep:
             return
         if self.extension == 'mlir':
-            parser = MlirParser(self.name)
-            weight_npz = parser.get_weight_file_name()
-            if os.path.exists(weight_npz):
-                logger.debug("remove:", weight_npz)
-                os.remove(weight_npz)
+            try:
+                parser = MlirParser(self.name)
+                weight_npz = parser.get_weight_file_name()
+                if os.path.exists(weight_npz):
+                    logger.debug("remove:", weight_npz)
+                    os.remove(weight_npz)
+            except:
+                pass
         logger.debug("remove:", self.name)
         os.remove(self.name)
