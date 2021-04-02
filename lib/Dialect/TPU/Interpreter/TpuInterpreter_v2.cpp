@@ -63,6 +63,7 @@
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
 #include "tpuc/Interpreter/cpu/upsample.hpp"
 #include "tpuc/Interpreter/cpu/zero_mask.hpp"
+#include "tpuc/Interpreter/cpu/embedding.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
 
 #include "tpuc/ModuleInterpreter.h"
@@ -506,6 +507,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::ZeroMaskOp>(op)) {
     auto yo_kernel_op = std::make_unique<ZeroMaskOpKernel>(op, valueMapping);
     oplist.push_back(std::move(yo_kernel_op));
+    return;
+  }
+  if (isa<tpu::EmbeddingOp>(op)) {
+    auto embedding_kernel_op = std::make_unique<EmbeddingOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(embedding_kernel_op));
     return;
   }
   if (isa<tpu::RetinaFaceDetectionOp>(op)) {

@@ -3215,6 +3215,24 @@ def TPU_ZeroMaskOp: TPU_Op<"zero_mask",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_EmbeddingOp: TPU_Op<"embedding",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
+  let summary = "Embedding operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$table,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_WeightFileOp: TPU_Op<"weight_file",
       [NoSideEffect]> {
   let summary = "Operator to save weight data";

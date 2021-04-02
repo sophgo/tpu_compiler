@@ -4396,6 +4396,28 @@ struct LowerConstEltwiseOpPattern : public RewritePattern {
   }
 };
 
+struct LowerWeightEmbeddingOpPattern : public RewritePattern {
+  LowerWeightEmbeddingOpPattern(MLIRContext *context)
+      : RewritePattern("tpu.embedding", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+      PatternRewriter &rewriter) const override {
+    auto embeddingOp = cast<tpu::EmbeddingOp>(op);
+    auto weightOp = cast<tpu::LoadWeightOp>(embeddingOp.getOperand(1).getDefiningOp());
+    assert(weightOp);
+    if (weightOp.lowered()) {
+      // lowered already
+      return failure();
+    }
+    LLVM_DEBUG(llvm::errs() << "Lower Weight for Embedding: "
+                            << getOpName(op) << "\n";);
+    weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
+    weightOp->setAttr("storage", rewriter.getStringAttr("FP32"));
+    return success();
+  }
+};
+
+
 template <typename OpTy>
 struct LowerCpuOpDefaultPattern : public RewritePattern {
   LowerCpuOpDefaultPattern(MLIRContext *context)
@@ -4651,7 +4673,8 @@ public:
         LowerWeightInstanceNormOpPattern,
         LowerWeightGruOpPattern,
         LowerWeightLstmOpPattern,
-        LowerWeightSoftmaxOpPattern
+        LowerWeightSoftmaxOpPattern,
+        LowerWeightEmbeddingOpPattern
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
@@ -4665,6 +4688,7 @@ public:
         LowerCpuOpDefaultPattern<tpu::ROIPoolingOp>,
         LowerCpuOpDefaultPattern<tpu::YoloDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::SoftmaxCpuOp>,
+        LowerCpuOpDefaultPattern<tpu::EmbeddingOp>,
         LowerCustomOpPattern<tpu::CustomOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
