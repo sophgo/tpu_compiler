@@ -22,6 +22,7 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 
 #include "tpuc/Interpreter/cpu/activation.hpp"
+#include "tpuc/Interpreter/cpu/argmax.hpp"
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
 #include "tpuc/Interpreter/cpu/broadcast.hpp"
 #include "tpuc/Interpreter/cpu/clip.hpp"
@@ -39,6 +40,7 @@
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
 #include "tpuc/Interpreter/cpu/instancenorm.hpp"
 #include "tpuc/Interpreter/cpu/interpolation.hpp"
+#include "tpuc/Interpreter/cpu/gru.hpp"
 #include "tpuc/Interpreter/cpu/lrn.hpp"
 #include "tpuc/Interpreter/cpu/normalize.hpp"
 #include "tpuc/Interpreter/cpu/layernorm.hpp"
@@ -145,6 +147,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::AbsOp>(op)) {
     auto abs_kernel_op = std::make_unique<AbsOpKernel>(op, valueMapping);
     oplist.push_back(std::move(abs_kernel_op));
+    return;
+  }
+  if (isa<tpu::ArgMaxOp>(op)) {
+    auto argmax_kernel_op = std::make_unique<ArgMaxOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(argmax_kernel_op));
     return;
   }
   if (isa<tpu::BatchNormOp>(op)) {
@@ -261,6 +268,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     auto fc_kernel_op =
         std::make_unique<FullyConnectedOpKernel>(op, valueMapping);
     oplist.push_back(std::move(fc_kernel_op));
+    return;
+  }
+  if (isa<tpu::GruOp>(op)) {
+    auto kernel_op = std::make_unique<GruOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(kernel_op));
     return;
   }
   if (isa<tpu::InstanceNormOp>(op)) {

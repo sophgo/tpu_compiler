@@ -89,6 +89,12 @@ Value tpu::AbsOp::convertToTG() {
 
 }
 
+Value tpu::ArgMaxOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::BroadcastMulOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
                           << getOpName() << "]\n";);

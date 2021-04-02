@@ -77,6 +77,7 @@ add_llvm_library(MLIRTPU
   Optimization/TgOpTile.cpp
   Optimization/DoEarlyStride.cpp
   Optimization/AddTpuPreprocess.cpp
+  Optimization/MergeConvConvPool.cpp
   Optimization/DeepFusion/SimpleDeepFusion.cpp
   Optimization/DeepFusion/ConvertTG2TL_LA.cpp
   Optimization/DeepFusion/ConvertTL_LA2LW.cpp

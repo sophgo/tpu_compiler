@@ -31,6 +31,7 @@ class TPU_OpType(Enum):
     Load_Weight = 'tpu.load_weight'
 
     Abs = 'tpu.abs'
+    ArgMax = 'tpu.argmax'
     BatchNorm = 'tpu.batch_norm'
     BroadcastMul = 'tpu.broadcast_mul'
     BroadcastAdd = 'tpu.broadcast_add'
@@ -321,6 +322,18 @@ class MLIRImporter(object):
                               tensor_output_type], operands=[self.weight_op], attributes=attributes)
         self.insert_point.insert(op)
         return op.results[0]
+
+    def add_argmax_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        assert(len(inputOperands) == 1)
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        argmax_name = StringAttr.get(op_name)
+
+        axis_attr = IntegerAttr.get(self.i32Type, kargs['axis'])
+        # inputOperands = self.add_quant_reg(inputOperands)
+        return self.buildOp(TPU_OpType.ArgMax.value, inputOperands, [
+            tensor_output_type], name=argmax_name, axis=axis_attr)
 
     def add_broadcast_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
@@ -930,11 +943,6 @@ class MLIRImporter(object):
     def add_gru_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-
-        if len(inputOperands) < 5:
-            raise ArithmeticError(
-                "input operand must great than 5. x, w, r, b, initial_h")
-
         gru_param = {
             'linear_before_reset': BoolAttr.get(kargs['linear_before_reset']),
             'bidirectional': BoolAttr.get(kargs['bidirectional'])
@@ -942,6 +950,8 @@ class MLIRImporter(object):
 
         gru_name = StringAttr.get(op_name)
         none = self.add_none_op()
+        if len(inputOperands) < 5:
+            inputOperands.append(none)
         for _ in range(4):  # add 4 redundant input
             inputOperands.append(none)
 

@@ -144,6 +144,53 @@ void getTiledCompressedActSize(Operation *op, int n_step, int oc_step,
 
 int getDataTypeSize(Value val);
 
+class Conv2DParamParser {
+public:
+    Conv2DParamParser(Operation *op) {
+        auto input = op->getOperand(0);
+        auto filter = op->getOperand(1);
+        auto output = op->getResult(0);
+        auto param = op->getAttr("param").cast<tpu::ConvParam>();
+        bool is_deconv = false;
+        if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op) ||
+            isa<tpu::TG_BF16_DeConv2DOp>(op) ||
+            isa<tpu::DeConv2DOp>(op)) {
+            is_deconv = true;
+        }
+        parseConvParam(param, is_deconv, input, output, filter,
+                       n, ic, ih, iw, oc, oh, ow, group,
+                       kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+                       is_dw, with_bias, do_relu, pad_val);
+    }
+    int n, ic, ih, iw;
+    int oc, oh, ow, group;
+    int kh, kw, sh, sw;
+    int pt, pb, pl, pr;
+    int dh, dw;
+    bool is_dw;
+    bool with_bias;
+    bool do_relu;
+    int pad_val;
+};
+
+class Pool2DParamParser {
+public:
+    Pool2DParamParser(Operation *op) {
+        auto input = op->getOperand(0);
+        auto output = op->getResult(0);
+        auto param = op->getAttr("param").cast<tpu::PoolParam>();
+        parsePoolParam(param, input, output,
+                       n, c, ih, iw, oh, ow,
+                       kh, kw, sh, sw, pt, pb, pl, pr, pad_val,
+                       is_global, do_relu, count_include_pad);
+    }
+
+    int n, c, ih, iw, oh, ow;
+    int kh, kw, sh, sw;
+    int pt, pb, pl, pr, pad_val;
+    bool is_global, do_relu, count_include_pad;
+};
+
 } // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_OPERATION_SUPPORT_H_

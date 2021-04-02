@@ -3813,5 +3813,9 @@ LogicalResult tpu::TG_ConcatNOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_MergeConvConvPoolOp::codegen(void *ctx) {
+  return success();
+}
+
 }
 

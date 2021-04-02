@@ -98,6 +98,11 @@ def DoMoveConvStrideToEltwiseOp : FunctionPass<"eltwise-early-stride"> {
   let constructor = "mlir::createMoveConvStrideToEltwiseOpPass()";
 }
 
+def DoMergeConvConvPoolOp : FunctionPass<"merge-conv-conv-pool"> {
+  let summary = "Merge conv-conv-pool pattern";
+  let constructor = "mlir::createMergeConvConvPoolPass()";
+}
+
 def DoAssignChipName : FunctionPass<"assign-chip-name"> {
   let summary = "Assign Chip Name to each tpu op";
   let constructor = "mlir::createAssignChipNamePass()";

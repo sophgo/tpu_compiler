@@ -15,8 +15,9 @@ void NetGraph::parse_graph(FuncOp * fn){
   fn->walk([&](Operation * op) {
     if (isa<tpu::LoadWeightOp>(op) || isa<tpu::WeightFileOp>(op) ||
         isa<tpu::NoneOp>(op) ||
-        isa<ReturnOp>(op)|| isa<FuncOp>(op)) {;}
-    else{
+        isa<ReturnOp>(op)|| isa<FuncOp>(op)) {
+      // skip
+    } else {
       std::shared_ptr<ImLayer> layer = ImLayer::create(op);
       ImLayer::register_it(layer);
 

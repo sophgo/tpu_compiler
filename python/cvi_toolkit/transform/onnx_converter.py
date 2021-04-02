@@ -128,6 +128,7 @@ class OnnxConverter(BaseConverter):
         self.onnxop_factory = {
             "Abs": lambda node: self.convert_abs_op(node),
             "Add": lambda node: self.convert_add_op(node),
+            "ArgMax": lambda node: self.convert_argmax_op(node),
             "AveragePool": lambda node: self.convert_avg_pool_op(node),
             "BatchNormalization": lambda node: self.convert_batchnorm_op(node),
             "Cast": lambda node: self.convert_cast_op(node),
@@ -419,7 +420,7 @@ class OnnxConverter(BaseConverter):
             shape = list(tensor.dims)
             data = numpy_helper.to_array(tensor).astype(np.float32)
             tensor = OnnxTensor(name, data, shape)
-            #tensor.print_info()
+            # tensor.print_info()
             self.converted_tensors.append(tensor)
             self.addOperand(name, None, shape, TensorType.TENSOR)
 
@@ -690,6 +691,19 @@ class OnnxConverter(BaseConverter):
 
             add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_argmax_op(self, onnx_node):
+        assert(onnx_node.op_type == "ArgMax")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        operands = list()
+        operands.append(op)
+        output_shape = input_shape
+        axis = onnx_node.attrs['axis']
+        output_shape[axis] = 1
+        attrs = {'axis': axis}
+        argmax_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+        abs_op = self.CVI.add_argmax_op(argmax_name, operands, output_shape, **attrs)
+        self.addOperand(onnx_node.name, abs_op, output_shape, TensorType.ACTIVATION)
 
     def convert_avg_pool_op(self, onnx_node):
         assert(onnx_node.op_type == "AveragePool")
@@ -1516,6 +1530,9 @@ class OnnxConverter(BaseConverter):
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
 
         axis = onnx_node.attrs.get('axis', 0)
+        print("axis:", axis)
+        print("op1:", op1, input_shape1, tensor_type1)
+        print("op2:", op2, input_shape2, tensor_type2)
 
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
             input_data =  self.getTensor(onnx_node.inputs[0]).tensor_data
@@ -1523,9 +1540,21 @@ class OnnxConverter(BaseConverter):
             new_data = np.take(input_data, gather_indices.astype(np.int64), axis=axis)
             self.addTensor(onnx_node.name, new_data, list(new_data.shape))
             self.addOperand(onnx_node.name, None, list(new_data.shape), TensorType.TENSOR)
+        elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
+            indices = self.getTensor(onnx_node.inputs[1]).tensor_data
+            print("indices:", indices)
+            if indices.size == 1:
+                offset = indices.flatten()[0]
+                attr = {"axis": axis, "offset": offset}
+                tmp = np.take(np.ones(input_shape1), np.array([offset]), axis=axis)
+                output_shape = list(tmp.shape)
+                print("out:", output_shape)
+                slice_op_ = self.CVI.add_slice_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [op1], output_shape, **attr)
+                self.addOperand(onnx_node.outputs[0], slice_op_, output_shape, TensorType.ACTIVATION)
+            else:
+                raise("TODO: Our Ir not support gather function")
         else:
             raise("TODO: Our Ir not support gather function")
-
 
     def convert_gemm_op(self, onnx_node):
         assert(onnx_node.op_type == "Gemm")
@@ -1595,52 +1624,139 @@ class OnnxConverter(BaseConverter):
         if batch_size > 1:
             raise RuntimeError("GRU does not support batch inference so far.")
 
-        operands = list()
-        operands.append(op)
-
         linear_before_reset = True if onnx_node.attrs.get("linear_before_reset", 1) == 1 else False
-        bidirectional = True if onnx_node.attrs.get("direction", 'forward') == 'bidirectional' else False
+        bidirectional = True if onnx_node.attrs.get("direction", 'forward') == b'bidirectional' else False
         gru_param = {
             'linear_before_reset': bool(linear_before_reset),
-            'bidirectional': bool(bidirectional),
+            'bidirectional': False,
         }
 
-        weight_name = onnx_node.inputs[1]
-        weight_tensor = self.getTensor(weight_name)
-        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
-        operands.append(weight_op)
+        if bidirectional:
+            forward_opds = list()
+            forward_opds.append(op)
+            backward_opds = list()
+            backward_opds.append(op)
 
-        recurrence_name = onnx_node.inputs[2]
-        recurrence_tensor = self.getTensor(recurrence_name)
-        recurrence_op = self.CVI.add_load_file_op(recurrence_name, recurrence_tensor.shape)
-        operands.append(recurrence_op)
+            weight_name = onnx_node.inputs[1]
+            weight_tensor = self.getTensor(weight_name)
+            weight_shape = weight_tensor.shape[:]
+            weight_shape[0] = 1
+            self.addTensor(weight_name, weight_tensor.tensor_data[0,:], weight_shape)
+            self.addTensor(weight_name + "_b", weight_tensor.tensor_data[1,:], weight_shape)
+            weight_op_f = self.CVI.add_load_file_op(weight_name, weight_shape)
+            weight_op_b = self.CVI.add_load_file_op(weight_name + "_b", weight_shape)
+            _, hidden_size_3, _ = weight_tensor.shape
+            hidden_size = hidden_size_3//3
+            forward_opds.append(weight_op_f)
+            backward_opds.append(weight_op_b)
 
-        bias_name = onnx_node.inputs[3]
-        if len(bias_name) != 0:
+
+            recurrence_name = onnx_node.inputs[2]
+            recurrence_tensor = self.getTensor(recurrence_name)
+            recurrence_shape = recurrence_tensor.shape[:]
+            recurrence_shape[0] = 1
+            self.addTensor(recurrence_name, recurrence_tensor.tensor_data[0,:], recurrence_shape)
+            self.addTensor(recurrence_name + "_b", recurrence_tensor.tensor_data[1,:], recurrence_shape)
+            recurrence_op_f = self.CVI.add_load_file_op(recurrence_name, recurrence_shape)
+            recurrence_op_b = self.CVI.add_load_file_op(recurrence_name + "_b", recurrence_shape)
+            forward_opds.append(recurrence_op_f)
+            backward_opds.append(recurrence_op_b)
+
+            bias_name = onnx_node.inputs[3]
+            bias_tensor = self.getTensor(bias_name)
+            bias_shape = bias_tensor.shape[:]
+            bias_shape[0] = 1
+            self.addTensor(bias_name, bias_tensor.tensor_data[0,:], bias_shape)
+            self.addTensor(bias_name + "_b", bias_tensor.tensor_data[1,:], bias_shape)
+            bias_op_f = self.CVI.add_load_file_op(bias_name, bias_shape)
+            bias_op_b = self.CVI.add_load_file_op(bias_name + "_b", bias_shape)
+            forward_opds.append(bias_op_f)
+            backward_opds.append(bias_op_b)
+            num_input = len(onnx_node.inputs)
+
+            if num_input > 4 and len(onnx_node.inputs[4]) != 0:
+                raise RuntimeError("GRU does not test the case of specify the sequence_lens.")
+
+            if num_input > 5 and len(onnx_node.inputs[5]) != 0:
+                initial_h_name = onnx_node.inputs[5]
+                _, _, tensor_type = self.getOperand(initial_h_name)
+
+                if tensor_type == TensorType.TENSOR:
+                    initial_h_tensor = self.getTensor(initial_h_name)
+                    initial_h_shape = initial_h_tensor.shape[:]
+                    initial_h_shape[0] = 1
+                    self.addTensor(initial_h_name, initial_h_tensor.tensor_data[0,:], initial_h_shape)
+                    self.addTensor(initial_h_name + "_b", initial_h_tensor.tensor_data[1,:], initial_h_shape)
+                    initial_h_op_f = self.CVI.add_load_file_op(initial_h_name, initial_h_shape)
+                    initial_h_op_b = self.CVI.add_load_file_op(initial_h_name + "_b", initial_h_shape)
+                    forward_opds.append(initial_h_op_f)
+                    backward_opds.append(initial_h_op_b)
+                else:
+                    raise RuntimeError("GRU only support initial_h from activation currently.")
+
+            # forward
+            output_shape = [seq_length, 1, batch_size, hidden_size]
+            name = "{}_{}_forward".format(onnx_node.name, onnx_node.op_type)
+            forward_gru_op = self.CVI.add_gru_op(name, forward_opds, output_shape, **gru_param)
+            # backward
+            # 1. reverse input op
+            axis = 0
+            name = "{}_reverse".format(onnx_node.inputs[0])
+            reverse_op = self.CVI.add_reverse_op(name, [op], input_shape, **{'axis': axis})
+            backward_opds[0] = reverse_op
+            name = "{}_{}_backward".format(onnx_node.name, onnx_node.op_type)
+            backward_gru_op = self.CVI.add_gru_op(name, backward_opds, output_shape, **gru_param)
+            name = "{}_{}_backward_reverse".format(onnx_node.name, onnx_node.op_type)
+            backward_gru_reverse_op = self.CVI.add_reverse_op(name, [backward_gru_op], output_shape, **{'axis': axis})
+            # concat
+            name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+            output_shape = [seq_length, 2, batch_size, hidden_size]
+            concat_op = self.CVI.add_concat_op(name, [forward_gru_op, backward_gru_reverse_op], output_shape, axis=1)
+
+            reshape_name = "{}_reshape".format(name)
+            reshape_shape = [1, seq_length, 2, hidden_size]
+            reshape_op = self.CVI.add_reshape_op(reshape_name, [concat_op], reshape_shape)
+            self.addOperand(onnx_node.name, reshape_op, reshape_shape, TensorType.ACTIVATION)
+        else:
+            operands = list()
+            operands.append(op)
+
+            weight_name = onnx_node.inputs[1]
+            weight_tensor = self.getTensor(weight_name)
+            weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
+            _, hidden_size_3, _ = weight_tensor.shape
+            hidden_size = hidden_size_3//3
+            operands.append(weight_op)
+
+            recurrence_name = onnx_node.inputs[2]
+            recurrence_tensor = self.getTensor(recurrence_name)
+            recurrence_op = self.CVI.add_load_file_op(recurrence_name, recurrence_tensor.shape)
+            operands.append(recurrence_op)
+
+            bias_name = onnx_node.inputs[3]
             bias_tensor = self.getTensor(bias_name)
             bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
             operands.append(bias_op)
+            num_input = len(onnx_node.inputs)
 
-        if len(onnx_node.inputs[4]) != 0:
-            raise RuntimeError("GRU does not test the case of specify the sequence_lens.")
+            if num_input > 4 and len(onnx_node.inputs[4]) != 0:
+                raise RuntimeError("GRU does not test the case of specify the sequence_lens.")
 
-        initial_h_name = onnx_node.inputs[5]
-        if len(initial_h_name) != 0:
-            _, _, tensor_type = self.getOperand(initial_h_name)
+            if num_input > 5 and len(onnx_node.inputs[5]) != 0:
+                initial_h_name = onnx_node.inputs[5]
+                _, _, tensor_type = self.getOperand(initial_h_name)
 
-            if tensor_type == TensorType.TENSOR:
-                initial_h_tensor = self.getTensor(initial_h_name)
-                initial_h_op = self.CVI.add_load_file_op(initial_h_name, initial_h_tensor.shape)
-                operands.append(initial_h_op)
-                # initial_h shape = [num_directions, batch_size, hidden_size]
-                # output shape = [seq_length, num_directions, batch_size, hidden_size]
-                output_shape = [seq_length]
-                output_shape.extend(initial_h_tensor.shape)
-            else:
-                raise RuntimeError("GRU only support initial_h from activation currently.")
+                if tensor_type == TensorType.TENSOR:
+                    initial_h_tensor = self.getTensor(initial_h_name)
+                    initial_h_op = self.CVI.add_load_file_op(initial_h_name, initial_h_tensor.shape)
+                    operands.append(initial_h_op)
+                else:
+                    raise RuntimeError("GRU only support initial_h from activation currently.")
+            output_shape = [seq_length, 1, batch_size, hidden_size]
+            name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+            gru_op = self.CVI.add_gru_op(name, operands, output_shape, **gru_param)
+            self.addOperand(onnx_node.name, gru_op, output_shape, TensorType.ACTIVATION)
 
-        gru_op = self.CVI.add_gru_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **gru_param)
-        self.addOperand(onnx_node.name, gru_op, output_shape, TensorType.ACTIVATION)
 
     def convert_hard_sigmoid_op(self, onnx_node):
         operands = list()
@@ -1811,92 +1927,52 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "MatMul")
         # Use fully connectly op, set bias is zero
         #(M, K) * (K, N) => (M, N)
-        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        opd0, opd0_shape, _ = self.getOperand(onnx_node.inputs[0])
+        rhs_op, rhs_shape, rhs_type = self.getOperand(onnx_node.inputs[1])
 
-        operands = list()
-        operands.append(op)
-
-        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
-
-        # right hand side shape
-        rhs_shape = []
-        rhs_is_weight = True
-        if tensor_type1 == TensorType.TENSOR:
-            # lhs is weight
+        # rhs is weight
+        if rhs_type == TensorType.TENSOR:
             weight_name = "{}_add_weight".format(onnx_node.name)
             weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
             rhs_shape = weight_tensor.shape
-        else:
-            # mlir case is (tensor<16x1x2048xf32>, tensor<400x2048xf32>, tensor<400xf32>, none, none, none, none) -> tensor<16x1x400xf32>
-            rhs_is_weight = False
-            rhs_shape = input_shape1
-
-        # batched matmul like (bs, K, M ) * (bs, M, N) = (bs, K, N)
-        if len(rhs_shape) == 3 and len(input_shape) == 3:
-            # in onnx matmul data is put in (K,N), but mlir put in (N, K)
-            if rhs_is_weight:
+            if len(rhs_shape) == 3:
                 weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (0, 2, 1)))
-                weight_shape = list(rhs_shape)
-                self.addTensor(weight_name, weight_tensor, weight_shape)
-                weight_op = self.CVI.add_load_file_op(weight_name, rhs_shape)
             else:
-                try:
-                    index_value = rhs_shape.index(1)
-                    # get real output shape after transpose, levergae by dummy data
-                    dummy = np.arange(np.prod(rhs_shape)).reshape(rhs_shape)
-                    rhs_shape = np.transpose(dummy, (0, 2, 1)).shape
-                    # add reshape op, skip batch
-                    reshape_name = "{}_reshape_for_mlir".format(onnx_node.inputs[1])
-                    reshape_op = self.CVI.add_reshape_op(reshape_name, [op1], rhs_shape[1:])
-                    self.addOperand(reshape_name, reshape_op, rhs_shape, TensorType.ACTIVATION)
-                    weight_op = reshape_op
-                except ValueError:
-                    #index_value = -1
-                    raise RuntimeError("add transpose op {} vs {} can not matmul".format(input_shape, rhs_shape))
-
-            operands.append(weight_op)
-
-            bias_tensor = np.full(rhs_shape[1], 0) # n
-            bias_name = "{}_add_bias".format(onnx_node.name)
-            self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
-            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
-            operands.append(bias_op)
-
-            B = input_shape[0]
-            M = input_shape[1]
-            K = input_shape[2]
-            if input_shape[2] != rhs_shape[2]:
-                raise RuntimeError("{} vs {} can not matmul".format(input_shape, rhs_shape))
-            N = rhs_shape[1]
-            output_shape = [B, M, N]
-            fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-            self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
-        else:
-            # in onnx matmul data is put in (K,N), but mlir put in (N, K)
-            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (1, 0)))
-            rhs_shape = weight_tensor.shape
-            weight_shape = list(rhs_shape)
-
+                weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (1, 0)))
+            weight_shape = list(weight_tensor.shape)
             self.addTensor(weight_name, weight_tensor, weight_shape)
-            weight_op = self.CVI.add_load_file_op(weight_name, rhs_shape)
+            rhs_op = self.CVI.add_load_file_op(weight_name, weight_shape)
 
-            operands.append(weight_op)
+        k = rhs_shape[-2]
+        # if lhs'shape doesn't match with rhs's, lhs should be reshaped
+        if len(opd0_shape) != len(rhs_shape) or opd0_shape[-1] != k:
+            if len(rhs_shape) == 3:
+                tmp_shape = [rhs_shape[0], -1 , k]
+            else:
+                tmp_shape = [-1, k]
+            try:
+                dummy = np.ones(opd0_shape).reshape(tmp_shape)
+            except:
+                raise RuntimeError("add transpose op {} vs {} can not matmul".format(input_shape, rhs_shape))
 
-            bias_tensor = np.full(rhs_shape[0], 0)
-            bias_name = "{}_add_bias".format(onnx_node.name)
-            self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
-            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
-            operands.append(bias_op)
+            reshape_shape = dummy.shape
+            reshape_name = "{}_reshape".format(onnx_node.inputs[0])
+            reshape_op = self.CVI.add_reshape_op(reshape_name, [opd0], reshape_shape)
+            self.addOperand(reshape_name, reshape_op, rhs_shape, TensorType.ACTIVATION)
+            lhs_op = reshape_op
+            lhs_shape = reshape_shape
+        else:
+            lhs_op = opd0
+            lhs_shape = opd0_shape
 
-            M = input_shape[0]
-            K = input_shape[1]
-            if input_shape[1] != rhs_shape[1]:
-                raise RuntimeError("{} vs {} can not matmul".format(input_shape, rhs_shape))
-            N = rhs_shape[0]
-            output_shape = [M, N]
+        if len(rhs_shape) == 3:
+            output_shape = [lhs_shape[0], lhs_shape[1], rhs_shape[2]]
+        else:
+            output_shape = [lhs_shape[0], rhs_shape[1]]
 
-            fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-            self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
+        fc_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+        fc_op = self.CVI.add_fully_connected_op(fc_name, [lhs_op, rhs_op], output_shape)
+        self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")

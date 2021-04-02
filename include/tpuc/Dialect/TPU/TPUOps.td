@@ -342,6 +342,38 @@ def TPU_AbsOp: TPU_Op<"abs",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_ArgMaxOp: TPU_Op<"argmax",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "ArgMax operator";
+
+  let description = [{
+     Performs argmax operation on inputs.
+
+    Inputs:
+      `input`          : required, input tensors.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `axis`            : required, axis in which to compute the arg indices
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<I32Attr, "1">:$axis,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_BatchNormOp: TPU_Op<"batch_norm",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -838,8 +870,8 @@ def TPU_GruOp: TPU_Op<"gru",
       `input`           : required, the input activation tensor.
       `weight`          : required, parameter weight tesnor for update, reset, and hidden gates.
       `recurrence`       : required, recurrence weight tesnor for update, reset, and hidden gates.
-      `bias`            : required, bias vectors for update, reset, and hidden gates.
-      `initial_h`       : required, initial value of the hidden.
+      `bias`            : optional, bias vectors for update, reset, and hidden gates.
+      `initial_h`       : optional, initial value of the hidden.
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
@@ -861,7 +893,7 @@ def TPU_GruOp: TPU_Op<"gru",
     AnyTensor:$weight,
     AnyTensor:$recurrence,
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
-    AnyTensor:$initial_h,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$initial_h,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_slope_table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_table,
