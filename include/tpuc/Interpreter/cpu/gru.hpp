@@ -19,11 +19,14 @@ public:
 private:
   double sigmoid_(double data);
   double tanh_(double data);
+  void update_addr(bool forward = true);
+  void compute(bool forward = true);
+
 private:
   SyncedData input_data;
   SyncedData output_data;
   SyncedData weight;
-  SyncedData recurrence ;
+  SyncedData recurrence;
   SyncedData bias;
   SyncedData initial_h;
   SyncedDataShape input_shape;
@@ -37,6 +40,22 @@ private:
   int num_dir;
   bool bidirectional;
   bool linear_before_reset;
+  // addr
+  float *w_z;
+  float *w_r;
+  float *w_h;
+  float *r_z;
+  float *r_r;
+  float *r_h;
+  float *w_bz;
+  float *w_br;
+  float *w_bh;
+  float *r_bz;
+  float *r_br;
+  float *r_bh;
+  float *output;
+  float *prev_hidden_state;
+
   // bf16 only
   std::vector<uint16_t> sigmoid_lut;
   std::vector<uint16_t> sigmoid_slope_lut;

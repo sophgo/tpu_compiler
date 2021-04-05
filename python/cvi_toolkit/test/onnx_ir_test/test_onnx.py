@@ -27,7 +27,7 @@ TEST_ONNX_IR = [
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
     "GlobalMaxPool",
-    #"GRU", #182x fail
+    "GRU",
     "LeakyRelu",
     "LRN",
     "Max",
@@ -539,12 +539,13 @@ class ONNX_IR_TESTER(object):
     def test_GRU(self):
         test_case = 'GRU'
         seq_length = 175
+        batch_size = 2
         num_dir = 2
         input_size = 256
         hidden_size = 128
         direction = 'forward' if num_dir == 1 else 'bidirectional'
         input_data = np.random.rand(
-            seq_length, 1, input_size).astype(np.float32)
+            seq_length, batch_size, input_size).astype(np.float32)
         w_data = np.random.rand(
             num_dir, 3*hidden_size, input_size).astype(np.float32)
         r_data = np.random.rand(
@@ -555,7 +556,7 @@ class ONNX_IR_TESTER(object):
             'input', TensorProto.FLOAT, list(input_data.shape))
 
         output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, [seq_length, num_dir, 1, hidden_size])
+            'output', TensorProto.FLOAT, [seq_length, num_dir, batch_size, hidden_size])
 
         w_node_def = onnx.helper.make_node(
             'Constant',

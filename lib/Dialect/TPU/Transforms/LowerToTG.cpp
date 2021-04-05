@@ -3473,13 +3473,14 @@ struct LowerWeightGruOpPattern : public RewritePattern {
     // lower weight
     getTensorShapeAndSize(gruOp.weight(), shape, size);
     assert(shape.size() == 3);
+    int64_t num_dir = shape[0];
     int64_t hidden_size = shape[1] / 3;
     int64_t input_size = shape[2];
     auto filter = readAndDeleteWeightTensor<float>(gruOp.weight(), wTF);
     std::vector<uint16_t> filter_bf16(size);
     FloatToBFloat16(filter->data(), filter_bf16.data(), size);
     uint16_t *p_data = filter_bf16.data();
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3 * num_dir; i++) {
       transpose_row_col(p_data, hidden_size, input_size);
       p_data += hidden_size * input_size;
     }
@@ -3492,13 +3493,14 @@ struct LowerWeightGruOpPattern : public RewritePattern {
     // lower recurrence
     getTensorShapeAndSize(gruOp.recurrence(), shape, size);
     assert(shape.size() == 3);
+    assert(shape[0] == num_dir);
     assert(shape[1] == 3 * hidden_size);
     assert(shape[2] == hidden_size);
     auto r_data = readAndDeleteWeightTensor<float>(gruOp.recurrence(), wTF);
     std::vector<uint16_t> r_bf16(size);
     FloatToBFloat16(r_data->data(), r_bf16.data(), size);
     p_data = r_bf16.data();
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < 3 * num_dir; i++) {
       transpose_row_col(p_data, hidden_size, hidden_size);
       p_data += hidden_size * hidden_size;
     }
@@ -3514,6 +3516,9 @@ struct LowerWeightGruOpPattern : public RewritePattern {
       // bf16 before lowering to hardware, we need to expand the bf16 to fp32
       // first then transpose into 2 stripes of uint16_t
       getTensorShapeAndSize(gruOp.bias(), shape, size);
+      assert(shape.size() == 2);
+      assert(shape[0] == num_dir);
+      assert(shape[1] == 6 * hidden_size);
       auto bias = readAndDeleteWeightTensor<float>(gruOp.bias(), wTF);
       // Split into high/low part
       std::vector<uint16_t> bias_fp32_high;
@@ -3555,6 +3560,9 @@ struct LowerWeightGruOpPattern : public RewritePattern {
       auto initial_hOp =
           cast<tpu::LoadWeightOp>(gruOp.initial_h().getDefiningOp());
       getTensorShapeAndSize(gruOp.initial_h(), shape, size);
+      assert(shape.size() == 3);
+      assert(shape[0] == num_dir);
+      assert(shape[2] == hidden_size);
       auto h_data = readAndDeleteWeightTensor<float>(gruOp.initial_h(), wTF);
       std::vector<uint16_t> h_bf16(size);
       FloatToBFloat16(h_data->data(), h_bf16.data(), size);

@@ -22,7 +22,7 @@ mlir_list=(
   broadcast_mul.mlir
   quadratic_sum.mlir
   layernorm.mlir
-  gru_bidirect.mlir
+  gru.mlir
 #  yuv420.mlir
 #  conv3d.mlir
 #  matmul_transpose.mlir

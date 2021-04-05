@@ -52,7 +52,6 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
   linear_before_reset = gruOp.linear_before_reset();
   assert(linear_before_reset == true);
   bidirectional = gruOp.bidirectional();
-  assert(bidirectional == false);
   // get tensors
   input_data = opTensors[0];
   weight = opTensors[1];
@@ -90,79 +89,104 @@ std::vector<float> GruOpKernel::get_tensor() {
   return ret;
 }
 
-void GruOpKernel::invoke() {
-  // TODO: optimize gru implementation, ex: use mkldnn
-  float *prev_hidden_state = initial_h->data();      // ht
+void GruOpKernel::update_addr(bool forward) {
+  if (forward) {
+    w_z = weight->data();
+    r_z = recurrence->data();
+    w_bz = bias->data();
+    output = output_data->data();
+    prev_hidden_state = initial_h->data();
+  } else {
+    w_z = weight->data() + 3 * hidden_size * input_size;
+    r_z = recurrence->data() + 3 * hidden_size * hidden_size;
+    w_bz = bias->data() + 6 * hidden_size;
+    output = output_data->data() + batch_size * hidden_size;
+    prev_hidden_state = initial_h->data() + batch_size * hidden_size;
+  }
+  w_r = w_z + hidden_size * input_size;
+  w_h = w_r + hidden_size * input_size;
+  r_r = r_z + hidden_size * hidden_size;
+  r_h = r_r + hidden_size * hidden_size;
+  w_br = w_bz + hidden_size;
+  w_bh = w_br + hidden_size;
+  r_bz = w_bh + hidden_size;
+  r_br = r_bz + hidden_size;
+  r_bh = r_br + hidden_size;
+}
+
+void GruOpKernel::compute(bool forward) {
+  update_addr(forward);
   std::vector<double> update_gate(hidden_size, 0.0); // zt
   std::vector<double> reset_gate(hidden_size, 0.0);  // rt
   std::vector<double> hidden_gate(hidden_size, 0.0); // ht
 
-  float *w_z = weight->data();
-  float *w_r = w_z + hidden_size * input_size;
-  float *w_h = w_r + hidden_size * input_size;
-
-  float *r_z = recurrence->data();
-  float *r_r = r_z + hidden_size * hidden_size;
-  float *r_h = r_r + hidden_size * hidden_size;
-
-  float *w_bz = bias->data();
-  float *w_br = w_bz + hidden_size;
-  float *w_bh = w_br + hidden_size;
-  float *r_bz = w_bh + hidden_size;
-  float *r_br = r_bz + hidden_size;
-  float *r_bh = r_br + hidden_size;
-
   for (int t = 0; t < seq_length; ++t) {
+    int seq_idx = t;
+    if (forward == false) {
+      seq_idx = seq_length - t - 1;
+    }
     // zt = sigmoid(Xt*(Wz^T) + Ht-1*(Rz^T) + Wbz + Rbz)
     // rt = sigmoid(Xt*(Wr^T) + Ht-1*(Rr^T) + Wbr + Rbr)
     // ht = tanh(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh) # when
     // linear_before_reset != 0 Wzrh: hidden_size * input_size Rzrh: hidden_size
     // * hidden_size Xt: seq_len * batch_size * input_size
-    float *xt = input_data->data() + (t * input_size);
-    update_gate.assign(hidden_size, 0.0);
-    reset_gate.assign(hidden_size, 0.0);
-    hidden_gate.assign(hidden_size, 0.0);
+    for (int batch = 0; batch < batch_size; batch++) {
+      float *xt =
+          input_data->data() + (seq_idx * batch_size + batch) * input_size;
+      update_gate.assign(hidden_size, 0.0);
+      reset_gate.assign(hidden_size, 0.0);
+      hidden_gate.assign(hidden_size, 0.0);
+      for (int i = 0; i < hidden_size; ++i) {
+        float *wz = w_z + i * input_size;
+        float *wr = w_r + i * input_size;
+        float *wh = w_h + i * input_size;
+        float *rz = r_z + i * hidden_size;
+        float *rr = r_r + i * hidden_size;
 
-    for (int i = 0; i < hidden_size; ++i) {
-      float *wz = w_z + i * input_size;
-      float *wr = w_r + i * input_size;
-      float *wh = w_h + i * input_size;
-      float *rz = r_z + i * hidden_size;
-      float *rr = r_r + i * hidden_size;
+        for (int j = 0; j < input_size; ++j) {
+          update_gate[i] += wz[j] * xt[j];
+          reset_gate[i] += wr[j] * xt[j];
+          hidden_gate[i] += wh[j] * xt[j];
+        }
 
-      for (int j = 0; j < input_size; ++j) {
-        update_gate[i] += wz[j] * xt[j];
-        reset_gate[i] += wr[j] * xt[j];
-        hidden_gate[i] += wh[j] * xt[j];
+        for (int j = 0; j < hidden_size; ++j) {
+          update_gate[i] += rz[j] * prev_hidden_state[batch * hidden_size + j];
+          reset_gate[i] += rr[j] * prev_hidden_state[batch * hidden_size + j];
+        }
+        update_gate[i] = sigmoid_(update_gate[i] + w_bz[i] + r_bz[i]);
+        reset_gate[i] = sigmoid_(reset_gate[i] + w_br[i] + r_br[i]);
+        hidden_gate[i] += w_bh[i];
       }
 
-      for (int j = 0; j < hidden_size; ++j) {
-        update_gate[i] += rz[j] * prev_hidden_state[j];
-        reset_gate[i] += rr[j] * prev_hidden_state[j];
+      // second part of hidden gate
+      // (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh) # when linear_before_reset != 0
+      for (int i = 0; i < hidden_size; ++i) {
+        float *rh = r_h + i * hidden_size;
+        double hidden_gate_acc = r_bh[i];
+        for (int j = 0; j < hidden_size; ++j) {
+          hidden_gate_acc += rh[j] * prev_hidden_state[batch * hidden_size + j];
+        }
+        hidden_gate[i] =
+            tanh_(hidden_gate[i] + reset_gate[i] * hidden_gate_acc);
       }
-      update_gate[i] = sigmoid_(update_gate[i] + w_bz[i] + r_bz[i]);
-      reset_gate[i] = sigmoid_(reset_gate[i] + w_br[i] + r_br[i]);
-      hidden_gate[i] += w_bh[i];
-    }
 
-    // second part of hidden gate
-    // (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh) # when linear_before_reset != 0
-    for (int i = 0; i < hidden_size; ++i) {
-      float *rh = r_h + i * hidden_size;
-      double hidden_gate_acc = r_bh[i];
-      for (int j = 0; j < hidden_size; ++j) {
-        hidden_gate_acc += rh[j] * prev_hidden_state[j];
+      // Ht = (1 - zt) (.) ht + zt (.) Ht-1
+      float *hidden_state =
+          output + (seq_idx * num_dir * batch_size + batch) * hidden_size;
+      for (int i = 0; i < hidden_size; ++i) {
+        hidden_state[i] =
+            (1 - update_gate[i]) * hidden_gate[i] +
+            update_gate[i] * prev_hidden_state[batch * hidden_size + i];
       }
-      hidden_gate[i] = tanh_(hidden_gate[i] + reset_gate[i] * hidden_gate_acc);
     }
+    prev_hidden_state = output + seq_idx * num_dir * batch_size * hidden_size;
+  }
+}
 
-    // Ht = (1 - zt) (.) ht + zt (.) Ht-1
-    float *hidden_state = output_data->data() + t * hidden_size;
-    for (int i = 0; i < hidden_size; ++i) {
-      hidden_state[i] = (1 - update_gate[i]) * hidden_gate[i] +
-                        update_gate[i] * prev_hidden_state[i];
-    }
-    prev_hidden_state = hidden_state;
+void GruOpKernel::invoke() {
+  compute();
+  if (bidirectional) {
+    compute(false);
   }
 }
 
