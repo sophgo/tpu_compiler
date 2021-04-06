@@ -357,10 +357,10 @@ def mlir_to_cvimodel(quanted_model, cvimodel, dequant_results_to_fp32=True):
     checkReturnValue(ret, "mlir_to_cvimodel")
     return ret.returncode
 
-def mlir_add_preprocess(quanted_mlir, new_mlir, pixel_format, aligned_frame=False):
+def mlir_add_preprocess(quanted_mlir, new_mlir, pixel_format, aligned_input=False):
     cmd = ["tpuc-opt", "--add-tpu-preprocess",
            "--pixel_format", pixel_format]
-    if aligned_frame:
+    if aligned_input:
         cmd.append("--input_aligned=true")
     cmd.extend([quanted_mlir, "-o", new_mlir])
     logger.info(" ".join(cmd))

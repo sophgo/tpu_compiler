@@ -32,13 +32,13 @@ class DeployTool:
         if ret != 0:
             raise RuntimeError("quantize fail")
 
-    def fuse_preprocess(self, pixel_format, aligned_frame):
+    def fuse_preprocess(self, pixel_format, aligned_input):
         # prepare resize only input data
         config = {
           'resize_dims': ",".join([str(x) for x in self.ppa.resize_dims]),
           'keep_aspect_ratio': self.ppa.keep_aspect_ratio,
           'pixel_format': pixel_format,
-          'aligned': aligned_frame
+          'aligned': aligned_input
         }
         self.ppb = preprocess()
         self.ppb.config(**config)
@@ -46,7 +46,7 @@ class DeployTool:
         fuse_preprocess_mlir = IntermediateFile(self.prefix, 'quantized_fuse_preprocess.mlir')
         ret = mlir_add_preprocess(str(self.quantized_mlir),
                                   str(fuse_preprocess_mlir),
-                                  pixel_format, aligned_frame)
+                                  pixel_format, aligned_input)
         if ret != 0:
             raise RuntimeError("fuse preprocess fail")
 
@@ -54,13 +54,12 @@ class DeployTool:
         self.with_preprocess = True
 
     def build_cvimodel(self, cvimodel, dequant_results_to_fp32=True):
+        IntermediateFile('_', 'lower_opt.mlir', False)
+        IntermediateFile('_', 'final.mlir', False)
         ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel, dequant_results_to_fp32)
         if ret != 0:
             raise RuntimeError("mlir to cvimodel failed")
 
-        # remember all tmp files in cvimodel generate processes
-        IntermediateFile('_', 'lower_opt.mlir', False)
-        IntermediateFile('_', 'final.mlir', False)
 
     def get_batch_size(self, mlir_file):
         parser = MlirParser(mlir_file)
@@ -99,6 +98,9 @@ class DeployTool:
         if ret != 0:
             raise RuntimeError("validate fail")
 
+        if not cvimodel:
+            return
+
         # compare quantized tensors, which generated from simulator and
         # tpuc-interpreter
         all_tensors_sim_npz = IntermediateFile(self.prefix, 'quantized_tensors_sim.npz', True)
@@ -126,26 +128,29 @@ if __name__ == '__main__':
       return v.lower() in ("yes", "true", "1")
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image", required=True, help="input image for inference")
     parser.add_argument("--model_name", required=True, help="model_name")
     parser.add_argument("--mlir", required=True, help="optimized mlir fp32 model")
     parser.add_argument("--calibration_table", help="calibration table for int8 quantization")
     parser.add_argument("--mix_precision_table", help="table of OPs that quantized to bf16")
     parser.add_argument("--all_bf16", action='store_true', help="quantize all OPs to bf16")
-    parser.add_argument("--tolerance", help="tolerance")
+    parser.add_argument("--tolerance", required=True, help="tolerance")
     parser.add_argument("--excepts", default='-', help="excepts")
-    parser.add_argument("--correctness", help="correctness")
+    parser.add_argument("--correctness", default='0.99,0.99,0.98', help="correctness")
     parser.add_argument("--chip", required=True, help="chip platform name")
     parser.add_argument("--fuse_preprocess", action='store_true', default=False,
                         help="add tpu preprocesses (mean/scale/channel_swap) in the front of model")
     parser.add_argument("--pixel_format", help="pixel format of input frame to the model")
-    parser.add_argument("--aligned_frame", type=str2bool, default=False,
+    parser.add_argument("--aligned_input", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
-    parser.add_argument("--cvimodel", required=True, help='output cvimodel')
+    parser.add_argument("--image", required=True, help="input image for inference")
+    parser.add_argument("--cvimodel", help='output cvimodel')
     args = parser.parse_args()
 
-    prefix = args.cvimodel.split("/")[-1]
-    prefix = prefix.replace('.cvimodel', '')
+    if args.cvimodel:
+        prefix = args.cvimodel.split("/")[-1]
+        prefix = prefix.replace('.cvimodel', '')
+    else:
+        prefix = args.model_name
     tool = DeployTool(args.mlir, prefix)
     tool.quantize(args.calibration_table,
                   args.mix_precision_table,
@@ -153,8 +158,9 @@ if __name__ == '__main__':
                   args.chip)
     if args.fuse_preprocess:
         tool.fuse_preprocess(args.pixel_format,
-                             args.aligned_frame)
-    tool.build_cvimodel(args.cvimodel, True)
+                             args.aligned_input)
+    if args.cvimodel:
+        tool.build_cvimodel(args.cvimodel, True)
     tool.validate(args.cvimodel, args.tolerance, args.excepts,
                   args.correctness, args.image)
     tool.cleanup()

@@ -92,6 +92,38 @@ Value tpu::AbsOp::convertToTG() {
 Value tpu::ArgMaxOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto castOp = cast<tpu::ArgMaxOp>(op);
+
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  if (getOpQuant() == "INT8") {
+    llvm_unreachable("int8 is not supported for argmax\n");
+  } else if (getOpQuant() == "BF16") {
+    std::vector<NamedAttribute> param;
+    for (auto &attr : castOp->getAttrs()) {
+      if (attr.first == "name" || attr.first == "gaddr" ||
+          attr.first == "quant") {
+        continue;
+      }
+      param.push_back(attr);
+    }
+    auto paramAttr = builder.getDictionaryAttr(param);
+    auto operationAttr = builder.getStringAttr(getOperationName());
+
+    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+    attrs.push_back(builder.getNamedAttr("param", paramAttr));
+
+    auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+        op->getLoc(), castOp.getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
   llvm_unreachable("unsupported type");
 }
 
@@ -4602,6 +4634,7 @@ public:
     patterns.clear();
     patterns.insert<
         DefaultToTGPattern<tpu::AbsOp>,
+        DefaultToTGPattern<tpu::ArgMaxOp>,
         DefaultToTGPattern<tpu::BroadcastMulOp>,
         DefaultToTGPattern<tpu::BroadcastAddOp>,
         DefaultToTGPattern<tpu::BroadcastSubOp>,

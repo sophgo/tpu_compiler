@@ -329,11 +329,12 @@ class MLIRImporter(object):
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         argmax_name = StringAttr.get(op_name)
-
+        checkKey(kargs, 'axis')
         axis_attr = IntegerAttr.get(self.i32Type, kargs['axis'])
         # inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.ArgMax.value, inputOperands, [
-            tensor_output_type], name=argmax_name, axis=axis_attr)
+            tensor_output_type], name=argmax_name, axis=axis_attr,
+            quant=self.quant_param)
 
     def add_broadcast_mul_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
@@ -830,6 +831,11 @@ class MLIRImporter(object):
         }
         return self.buildOp(TPU_OpType.Eltwise_Add.value, inputOperands, [
             tensor_output_type], name=eltwise_add, quant=quant_param, do_relu=do_relu, **param)
+
+    def add_eltwise_sub_op(self, op_name, inputOperands, output_tensor_shape,
+                           mode=TPU_MODE.FP32, do_relu=False, **kargs):
+        return self.add_eltwise_add_op(op_name, inputOperands, output_tensor_shape,
+                                       mode, do_relu, coeff=[1, -1], **kargs)
 
     def add_eltwise_max_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         if "coeff" in kargs:

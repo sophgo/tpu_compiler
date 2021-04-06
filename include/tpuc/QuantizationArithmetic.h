@@ -142,6 +142,7 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
     int64_t isz, float *rshift_per_channel, float *multiplier_per_channel, int output_offset=0);
 
 void clean16bitmantissa(float *src, float *dst, int size);
+float cut16bitmatissa(float src);
 
 } // namespace mlir
 

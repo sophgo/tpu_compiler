@@ -346,6 +346,7 @@ def TPU_ArgMaxOp: TPU_Op<"argmax",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "ArgMax operator";
 
@@ -367,6 +368,7 @@ def TPU_ArgMaxOp: TPU_Op<"argmax",
   let arguments = (
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
+    TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

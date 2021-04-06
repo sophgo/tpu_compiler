@@ -74,6 +74,47 @@ class TPU_TG_AbsOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_AbsOp : TPU_TG_AbsOp<"tg_int8_abs", "Int8">;
 def TPU_TG_BF16_AbsOp : TPU_TG_AbsOp<"tg_bf16_abs", "Bf16">;
 
+class TPU_TG_ArgMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " ArgMax operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the variadic activation memref.
+
+    Attributes:
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_BF16_ArgMaxOp : TPU_TG_ArgMaxOp<"tg_bf16_argmax", "Bf16">;
 
 class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

@@ -126,6 +126,14 @@ LogicalResult tpu::TG_BF16_AbsOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_ArgMaxOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  (void)ctx;
+  std::string errorMsg = "unsupported tg op " + getOpName().str();
+  llvm_unreachable(errorMsg.c_str());
+}
+
 LogicalResult tpu::TG_INT8_ScaleOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);

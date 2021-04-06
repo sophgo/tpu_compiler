@@ -1013,6 +1013,12 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastSubOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ConcatOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ClipOp)
 
+LogicalResult tpu::ArgMaxOp::quantizeBf16() {
+  Operation *op = this->getOperation();
+  setOpResultType(op->getResult(0), FloatType::getF32(getContext()));
+  return success();
+}
+
 LogicalResult tpu::Conv2DOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
                << " [" << getOpName() << "]\n";);

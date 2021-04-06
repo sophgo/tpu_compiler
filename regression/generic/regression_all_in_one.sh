@@ -46,7 +46,7 @@ if [ $DO_QUANT_INT8 -eq 1 ]; then
     --excepts ${EXCEPTS} \
     --fuse_preprocess \
     --pixel_format $PIXEL_FORMAT \
-    --aligned_frame false \
+    --aligned_input false \
     --correctness 0.99,0.99,0.99 \
     --cvimodel ${NET}_int8.cvimodel
 
@@ -69,7 +69,7 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
     --excepts ${EXCEPTS} \
     --fuse_preprocess \
     --pixel_format $PIXEL_FORMAT \
-    --aligned_frame false \
+    --aligned_input false \
     --correctness ${TOLERANCE_BF16_CMDBUF} \
     --cvimodel ${NET}_bf16.cvimodel
 

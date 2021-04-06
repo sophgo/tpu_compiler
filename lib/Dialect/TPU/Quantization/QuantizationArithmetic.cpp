@@ -1133,4 +1133,10 @@ void clean16bitmantissa(float *src, float *dst, int size) {
   BFloat16ToFloat(tensor_bf16->data(), dst, size);
 }
 
+float cut16bitmatissa(float src) {
+  float dst = 0;
+  clean16bitmantissa(&src, &dst, 1);
+  return dst;
+}
+
 } // namespace mlir

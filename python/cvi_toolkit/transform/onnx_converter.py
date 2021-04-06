@@ -699,6 +699,8 @@ class OnnxConverter(BaseConverter):
         operands.append(op)
         output_shape = input_shape
         axis = onnx_node.attrs['axis']
+        if axis < 0:
+            axis = len(input_shape) + axis
         output_shape[axis] = 1
         attrs = {'axis': axis}
         argmax_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
@@ -1617,139 +1619,102 @@ class OnnxConverter(BaseConverter):
     def convert_gru_op(self, onnx_node):
         assert(onnx_node.op_type == "GRU")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-        seq_length, batch_size, _ = input_shape
-        if batch_size > 1:
+
+        X, X_shape, _ = self.getOperand(onnx_node.inputs[0])
+        seq_sz = input_shape[0]
+        batch = input_shape[1]
+        if batch > 1:
             raise RuntimeError("GRU does not support batch inference so far.")
 
+        W = self.getTensor(onnx_node.inputs[1])
+        R = self.getTensor(onnx_node.inputs[2])
+        B = self.getTensor(onnx_node.inputs[3])
+        hidden_sz = R.shape[-1]
+        H = None
+        num_input = len(onnx_node.inputs)
+        if num_input > 4 and len(onnx_node.inputs[4]) != 0:
+            raise RuntimeError("GRU does not test the case of specify the sequence_lens.")
+        if num_input > 5 and len(onnx_node.inputs[5]) != 0:
+            H_name = onnx_node.inputs[5]
+            _, _, tensor_type = self.getOperand(H_name)
+            if tensor_type == TensorType.TENSOR:
+                H = self.getTensor(H_name)
+            else:
+                raise RuntimeError("GRU only support initial_h from weight.")
         linear_before_reset = True if onnx_node.attrs.get("linear_before_reset", 1) == 1 else False
+        assert(linear_before_reset == True)
         bidirectional = True if onnx_node.attrs.get("direction", 'forward') == b'bidirectional' else False
         gru_param = {
             'linear_before_reset': bool(linear_before_reset),
             'bidirectional': False,
         }
-
+        prefix = "{}_{}_".format(onnx_node.name, onnx_node.op_type)
         if bidirectional:
-            forward_opds = list()
-            forward_opds.append(op)
-            backward_opds = list()
-            backward_opds.append(op)
-
-            weight_name = onnx_node.inputs[1]
-            weight_tensor = self.getTensor(weight_name)
-            weight_shape = weight_tensor.shape[:]
-            weight_shape[0] = 1
-            self.addTensor(weight_name, weight_tensor.tensor_data[0,:], weight_shape)
-            self.addTensor(weight_name + "_b", weight_tensor.tensor_data[1,:], weight_shape)
-            weight_op_f = self.CVI.add_load_file_op(weight_name, weight_shape)
-            weight_op_b = self.CVI.add_load_file_op(weight_name + "_b", weight_shape)
-            _, hidden_size_3, _ = weight_tensor.shape
-            hidden_size = hidden_size_3//3
-            forward_opds.append(weight_op_f)
-            backward_opds.append(weight_op_b)
-
-
-            recurrence_name = onnx_node.inputs[2]
-            recurrence_tensor = self.getTensor(recurrence_name)
-            recurrence_shape = recurrence_tensor.shape[:]
-            recurrence_shape[0] = 1
-            self.addTensor(recurrence_name, recurrence_tensor.tensor_data[0,:], recurrence_shape)
-            self.addTensor(recurrence_name + "_b", recurrence_tensor.tensor_data[1,:], recurrence_shape)
-            recurrence_op_f = self.CVI.add_load_file_op(recurrence_name, recurrence_shape)
-            recurrence_op_b = self.CVI.add_load_file_op(recurrence_name + "_b", recurrence_shape)
-            forward_opds.append(recurrence_op_f)
-            backward_opds.append(recurrence_op_b)
-
-            bias_name = onnx_node.inputs[3]
-            bias_tensor = self.getTensor(bias_name)
-            bias_shape = bias_tensor.shape[:]
-            bias_shape[0] = 1
-            self.addTensor(bias_name, bias_tensor.tensor_data[0,:], bias_shape)
-            self.addTensor(bias_name + "_b", bias_tensor.tensor_data[1,:], bias_shape)
-            bias_op_f = self.CVI.add_load_file_op(bias_name, bias_shape)
-            bias_op_b = self.CVI.add_load_file_op(bias_name + "_b", bias_shape)
-            forward_opds.append(bias_op_f)
-            backward_opds.append(bias_op_b)
-            num_input = len(onnx_node.inputs)
-
-            if num_input > 4 and len(onnx_node.inputs[4]) != 0:
-                raise RuntimeError("GRU does not test the case of specify the sequence_lens.")
-
-            if num_input > 5 and len(onnx_node.inputs[5]) != 0:
-                initial_h_name = onnx_node.inputs[5]
-                _, _, tensor_type = self.getOperand(initial_h_name)
-
-                if tensor_type == TensorType.TENSOR:
-                    initial_h_tensor = self.getTensor(initial_h_name)
-                    initial_h_shape = initial_h_tensor.shape[:]
-                    initial_h_shape[0] = 1
-                    self.addTensor(initial_h_name, initial_h_tensor.tensor_data[0,:], initial_h_shape)
-                    self.addTensor(initial_h_name + "_b", initial_h_tensor.tensor_data[1,:], initial_h_shape)
-                    initial_h_op_f = self.CVI.add_load_file_op(initial_h_name, initial_h_shape)
-                    initial_h_op_b = self.CVI.add_load_file_op(initial_h_name + "_b", initial_h_shape)
-                    forward_opds.append(initial_h_op_f)
-                    backward_opds.append(initial_h_op_b)
-                else:
-                    raise RuntimeError("GRU only support initial_h from activation currently.")
+            [W_0, W_1] = np.split(W.tensor_data, 2, axis=0)
+            [R_0, R_1] = np.split(R.tensor_data, 2, axis=0)
+            [B_0, B_1] = np.split(B.tensor_data, 2, axis=0)
+            [H_0, H_1] = np.split(H.tensor_data, 2, axis=0)
 
             # forward
-            output_shape = [seq_length, 1, batch_size, hidden_size]
-            name = "{}_{}_forward".format(onnx_node.name, onnx_node.op_type)
-            forward_gru_op = self.CVI.add_gru_op(name, forward_opds, output_shape, **gru_param)
+            name_ = prefix + "forward"
+            self.addTensor(name_ + '_W_0', W_0, W_0.shape)
+            self.addTensor(name_ + '_R_0', R_0, R_0.shape)
+            self.addTensor(name_ + '_B_0', B_0, B_0.shape)
+            self.addTensor(name_ + '_H_0', H_0, H_0.shape)
+
+            W0 = self.CVI.add_load_file_op(name_ + '_W_0', W_0.shape)
+            R0 = self.CVI.add_load_file_op(name_ + '_R_0', R_0.shape)
+            B0 = self.CVI.add_load_file_op(name_ + '_B_0', B_0.shape)
+            H0 = self.CVI.add_load_file_op(name_ + '_H_0', H_0.shape)
+            output_shape = [seq_sz, 1, 1, hidden_sz]
+            forward_gru_op = self.CVI.add_gru_op(name_, [X, W0, R0, B0, H0],
+                                                output_shape, **gru_param)
+
             # backward
             # 1. reverse input op
-            axis = 0
-            name = "{}_reverse".format(onnx_node.inputs[0])
-            reverse_op = self.CVI.add_reverse_op(name, [op], input_shape, **{'axis': axis})
-            backward_opds[0] = reverse_op
-            name = "{}_{}_backward".format(onnx_node.name, onnx_node.op_type)
-            backward_gru_op = self.CVI.add_gru_op(name, backward_opds, output_shape, **gru_param)
-            name = "{}_{}_backward_reverse".format(onnx_node.name, onnx_node.op_type)
-            backward_gru_reverse_op = self.CVI.add_reverse_op(name, [backward_gru_op], output_shape, **{'axis': axis})
+            name_ = prefix + "backward"
+            reverse_X = self.CVI.add_reverse_op(name_ + "_reverse_X", [X], X_shape, **{'axis': 0})
+            self.addTensor(name_ + '_W_1', W_1, W_1.shape)
+            self.addTensor(name_ + '_R_1', R_1, R_1.shape)
+            self.addTensor(name_ + '_B_1', B_1, B_1.shape)
+            self.addTensor(name_ + '_H_1', H_1, H_1.shape)
+
+            W1 = self.CVI.add_load_file_op(name_ + '_W_1', W_1.shape)
+            R1 = self.CVI.add_load_file_op(name_ + '_R_1', R_1.shape)
+            B1 = self.CVI.add_load_file_op(name_ + '_B_1', B_1.shape)
+            H1 = self.CVI.add_load_file_op(name_ + '_H_1', H_1.shape)
+            output_shape = [seq_sz, 1, 1, hidden_sz]
+            gru_op = self.CVI.add_gru_op(name_, [reverse_X, W1, R1, B1, H1],
+                                                output_shape, **gru_param)
+            backward_gru_op = self.CVI.add_reverse_op(name_ + "_reverse_out", [gru_op],
+                                                    output_shape, **{'axis': 0})
             # concat
             name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-            output_shape = [seq_length, 2, batch_size, hidden_size]
-            concat_op = self.CVI.add_concat_op(name, [forward_gru_op, backward_gru_reverse_op], output_shape, axis=1)
+            output_shape = [seq_sz, 2, 1, hidden_sz]
+            concat_op = self.CVI.add_concat_op(name, [forward_gru_op, backward_gru_op],
+                                               output_shape, axis=1)
             self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
         else:
-            operands = list()
-            operands.append(op)
+            W_0 = W.tensor_data
+            R_0 = R.tensor_data
+            B_0 = B.tensor_data
+            H_0 = H.tensor_data
 
-            weight_name = onnx_node.inputs[1]
-            weight_tensor = self.getTensor(weight_name)
-            weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
-            _, hidden_size_3, _ = weight_tensor.shape
-            hidden_size = hidden_size_3//3
-            operands.append(weight_op)
+            # forward
+            name_ = prefix + "forward"
+            self.addTensor(name_ + '_W_0', W_0, W_0.shape)
+            self.addTensor(name_ + '_R_0', R_0, R_0.shape)
+            self.addTensor(name_ + '_B_0', B_0, B_0.shape)
+            self.addTensor(name_ + '_H_0', H_0, H_0.shape)
 
-            recurrence_name = onnx_node.inputs[2]
-            recurrence_tensor = self.getTensor(recurrence_name)
-            recurrence_op = self.CVI.add_load_file_op(recurrence_name, recurrence_tensor.shape)
-            operands.append(recurrence_op)
-
-            bias_name = onnx_node.inputs[3]
-            bias_tensor = self.getTensor(bias_name)
-            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
-            operands.append(bias_op)
-            num_input = len(onnx_node.inputs)
-
-            if num_input > 4 and len(onnx_node.inputs[4]) != 0:
-                raise RuntimeError("GRU does not test the case of specify the sequence_lens.")
-
-            if num_input > 5 and len(onnx_node.inputs[5]) != 0:
-                initial_h_name = onnx_node.inputs[5]
-                _, _, tensor_type = self.getOperand(initial_h_name)
-
-                if tensor_type == TensorType.TENSOR:
-                    initial_h_tensor = self.getTensor(initial_h_name)
-                    initial_h_op = self.CVI.add_load_file_op(initial_h_name, initial_h_tensor.shape)
-                    operands.append(initial_h_op)
-                else:
-                    raise RuntimeError("GRU only support initial_h from activation currently.")
-            output_shape = [seq_length, 1, batch_size, hidden_size]
-            name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-            gru_op = self.CVI.add_gru_op(name, operands, output_shape, **gru_param)
-            self.addOperand(onnx_node.name, gru_op, output_shape, TensorType.ACTIVATION)
-
+            W0 = self.CVI.add_load_file_op(name_ + '_W_0', W_0.shape)
+            R0 = self.CVI.add_load_file_op(name_ + '_R_0', R_0.shape)
+            B0 = self.CVI.add_load_file_op(name_ + '_B_0', B_0.shape)
+            H0 = self.CVI.add_load_file_op(name_ + '_H_0', H_0.shape)
+            output_shape = [seq_sz, 1, 1, hidden_sz]
+            forward_gru_op = self.CVI.add_gru_op(name_, [X, W0, R0, B0, H0],
+                                                 output_shape, **gru_param)
+            self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
 
     def convert_hard_sigmoid_op(self, onnx_node):
         operands = list()

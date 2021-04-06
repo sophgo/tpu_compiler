@@ -41,9 +41,9 @@ class IntermediateFile:
                 parser = MlirParser(self.name)
                 weight_npz = parser.get_weight_file_name()
                 if os.path.exists(weight_npz):
-                    logger.debug("remove:", weight_npz)
+                    logger.debug("remove: {}".format(weight_npz))
                     os.remove(weight_npz)
             except:
                 pass
-        logger.debug("remove:", self.name)
+        logger.debug("remove: {}".format(self.name))
         os.remove(self.name)

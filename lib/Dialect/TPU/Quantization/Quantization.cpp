@@ -168,6 +168,9 @@ static void insertQuantOp(Operation *op) {
         prev_quant = "NONE";
       }
     }
+    if (auto castOp = dyn_cast<tpu::ArgMaxOp>(prev_op)) {
+      prev_quant = "NONE";
+    }
 
     if (prev_quant == "INT8" && isa<tpu::CscOp>(prev_op)) {
       prev_quant = "UINT8";
@@ -212,9 +215,10 @@ static void insertQuantOp(Operation *op) {
       name = prev_name.str() + "_dequant";
     }
     // check if prev op has inserted quant/dequant op
-    if (prev_op) {
+    auto opd = op->getOperand(i).getDefiningOp();
+    if (opd) {
       bool found = false;
-      for (auto &use : prev_op->getResult(0).getUses()) {
+      for (auto &use : opd->getResult(0).getUses()) {
         auto nextOp = use.getOwner();
         if (getOpName(nextOp) == name) {
           op->setOperand(i, nextOp->getResult(0));
@@ -831,6 +835,9 @@ public:
           if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
             setOpQuant(op, "BF16");
           }
+          if (isa<tpu::ArgMaxOp>(op)) {
+            setOpQuant(op, "BF16");
+          }
           if (isa<tpu::LayerNormOp>(op)) {
             setOpQuant(op, "BF16");
           }
@@ -891,6 +898,10 @@ public:
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::ROIPoolingOp>(op)
           || isa<tpu::SoftmaxCpuOp>(op)) {
+        // pass
+      } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
+        assert(getOpQuant(op) == "BF16");
+        setOpResultType(op->getResult(0), FloatType::getF32(op->getContext()));
       } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
         if (getOpQuant(op) != "NONE") {
           cvi::OpParam param, quant;
@@ -905,7 +916,7 @@ public:
             setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
           } else if (getOpQuant(op) == "BF16") {
             plugin->bf16Quant(operation_name.c_str(), param, &quant, prevThreshold);
-            setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+            setOpResultType(op->getResult(0), FloatType::getF32(op->getContext()));
           }
           std::vector<NamedAttribute> newParam, newQuant;
           convertOpParamToAttributes(builder, param, newParam);

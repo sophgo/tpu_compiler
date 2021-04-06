@@ -70,7 +70,7 @@ function gencvimodel_for_sample() {
 
   if [ $fuse_preprocess -eq 1 ]; then
     local pixel_format=$5
-    local aligned_frame=$6
+    local aligned_input=$6
     model_deploy.py \
       --model_name ${NET} \
       --mlir ${NET}_fp32.mlir \
@@ -82,7 +82,7 @@ function gencvimodel_for_sample() {
       --excepts ${EXCEPTS} \
       --fuse_preprocess \
       --pixel_format $pixel_format \
-      --aligned_frame $aligned_frame \
+      --aligned_input $aligned_input \
       --correctness 0.99,0.99,0.99 \
       --cvimodel $cvimodel
   else

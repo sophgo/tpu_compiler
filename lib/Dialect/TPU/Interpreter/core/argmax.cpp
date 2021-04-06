@@ -17,6 +17,7 @@ ArgMaxOpKernel::ArgMaxOpKernel(Operation &op, value_map_t &valueMapping) {
   LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
+  set_datatype(getOpQuant(&op).str());
 
   auto input_type = argmaxOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

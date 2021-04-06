@@ -328,6 +328,7 @@ class AutoTunerPlus(AutoTuner):
 
                     target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
 
+                    # distance += np.sum(target_op_fp32_activation.flatten() != target_activation.flatten())
                     if self.evaluation_method == 'euclid':
                         distance += np.linalg.norm(target_op_fp32_activation.flatten() -
                                                 target_activation.flatten())
