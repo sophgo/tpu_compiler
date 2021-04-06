@@ -354,6 +354,9 @@ void CviBackendContext::tdma_store(cvk_ml_t *tlp, uint64_t ga_dst,
   ts_data.fmt = tlp->fmt;
   ts_data.shape = {tlp->shape.n, tlp->shape.col};
   ts_data.stride = {tlp->shape.col};
+  if (tlp->fmt == CVK_FMT_BF16) {
+    ts_data.stride.row *= 2;
+  }
 
   cvk_tdma_l2g_matrix_copy_param_t p1 = {0};
   p1.src = tlp;

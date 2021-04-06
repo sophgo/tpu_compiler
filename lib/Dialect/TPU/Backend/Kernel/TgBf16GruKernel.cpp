@@ -131,8 +131,8 @@ void TgGruKernel::assign_matrix(cvk_ml_t *ml_mem, const cvk_ml_shape_t &shape) {
   assert(lmem_used <= (uint32_t)LOCAL_MEM_SIZE);
 }
 
-void TgGruKernel::assign_matrix(cvk_ml_t *ml_mem, uint32_t row, uint32_t col,
-                                uint32_t addr) {
+void TgGruKernel::fill_matrix(cvk_ml_t *ml_mem, uint32_t row, uint32_t col,
+                              uint32_t addr) {
   auto shape = ctx.ml_default_shape(row, col, fmt);
   ctx.lmem_init_matrix(ml_mem, shape, fmt, 1);
   ml_mem->start_address = addr;
@@ -290,56 +290,56 @@ void TgGruKernel::compute(int seq_idx) {
     cvk_ml_t ml_rr, ml_rz, ml_rh;
     int goffset = tile.pos_h * fmt_size;
     // gate z
-    assign_matrix(&ml_weight, input_size, tile.h, addr_weight);
+    fill_matrix(&ml_weight, input_size, tile.h, addr_weight);
     ctx.tdma_load_stride(&ml_weight, ga_wz + goffset, gstride);
-    assign_matrix(&ml_bias, 4 / fmt_size, tile.h, addr_bias);
+    fill_matrix(&ml_bias, 4 / fmt_size, tile.h, addr_bias);
     ctx.tdma_load_stride(&ml_bias, ga_wbz + goffset, gstride);
-    assign_matrix(&ml_work0, batch_size, tile.h, addr_work0);
+    fill_matrix(&ml_work0, batch_size, tile.h, addr_work0);
     matrix_mul(ml_work0, ml_input, ml_weight, ml_bias);
 
-    assign_matrix(&ml_work1, batch_size, tile.h, addr_work1);
+    fill_matrix(&ml_work1, batch_size, tile.h, addr_work1);
     ctx.tdma_load_stride(&ml_bias, ga_rbz + goffset, gstride);
     for (int i = 0; i < step_num; i++) {
-      assign_matrix(&ml_rz, tiles[i].h, tile.h, addr_weight);
+      fill_matrix(&ml_rz, tiles[i].h, tile.h, addr_weight);
       ctx.tdma_load_stride(
           &ml_rz, ga_rz + tiles[i].pos_h * hidden_bytes + goffset, gstride);
       matrix_mul(ml_work1, ml_hiddens[i], ml_rz, ml_bias, ps32_mode(i));
     }
     eltwise_add(ml_work1, ml_work0);
-    assign_matrix(&ml_gate_z, batch_size, tile.h, addr_gate_z);
+    fill_matrix(&ml_gate_z, batch_size, tile.h, addr_gate_z);
     sigmoid(ml_gate_z, ml_work1, ml_work0);
     // gate r
-    assign_matrix(&ml_weight, input_size, tile.h, addr_weight);
+    fill_matrix(&ml_weight, input_size, tile.h, addr_weight);
     ctx.tdma_load_stride(&ml_weight, ga_wr + goffset, gstride);
     ctx.tdma_load_stride(&ml_bias, ga_wbr + goffset, gstride);
     matrix_mul(ml_work0, ml_input, ml_weight, ml_bias);
 
     ctx.tdma_load_stride(&ml_bias, ga_rbr + goffset, gstride);
     for (int i = 0; i < step_num; i++) {
-      assign_matrix(&ml_rr, tiles[i].h, tile.h, addr_weight);
+      fill_matrix(&ml_rr, tiles[i].h, tile.h, addr_weight);
       ctx.tdma_load_stride(
           &ml_rr, ga_rr + tiles[i].pos_h * hidden_bytes + goffset, gstride);
       matrix_mul(ml_work1, ml_hiddens[i], ml_rr, ml_bias, ps32_mode(i));
     }
     eltwise_add(ml_work1, ml_work0);
-    assign_matrix(&ml_gate_r, batch_size, tile.h, addr_gate_h);
+    fill_matrix(&ml_gate_r, batch_size, tile.h, addr_gate_h);
     sigmoid(ml_gate_r, ml_work1, ml_work0);
     // gate h
-    assign_matrix(&ml_weight, input_size, tile.h, addr_weight);
+    fill_matrix(&ml_weight, input_size, tile.h, addr_weight);
     ctx.tdma_load_stride(&ml_weight, ga_wh + goffset, gstride);
     ctx.tdma_load_stride(&ml_bias, ga_wbh + goffset, gstride);
     matrix_mul(ml_work0, ml_input, ml_weight, ml_bias);
 
     ctx.tdma_load_stride(&ml_bias, ga_rbh + goffset, gstride);
     for (int i = 0; i < step_num; i++) {
-      assign_matrix(&ml_rh, tiles[i].h, tile.h, addr_weight);
+      fill_matrix(&ml_rh, tiles[i].h, tile.h, addr_weight);
       ctx.tdma_load_stride(
           &ml_rh, ga_rh + tiles[i].pos_h * hidden_bytes + goffset, gstride);
       matrix_mul(ml_work1, ml_hiddens[i], ml_rh, ml_bias, ps32_mode(i));
     }
     eltwise_mul(ml_work1, ml_gate_r);
     eltwise_add(ml_work1, ml_work0);
-    assign_matrix(&ml_gate_h, batch_size, tile.h, addr_gate_h);
+    fill_matrix(&ml_gate_h, batch_size, tile.h, addr_gate_h);
     tanh(ml_gate_h, ml_work1, ml_work0);
     eltwise_mul(ml_hidden, ml_gate_z);
     eltwise_add(ml_hidden, ml_gate_h);
@@ -408,7 +408,7 @@ void TgGruKernel::compute_without_tiling(bool forward) {
   auto working_shape = ctx.ml_default_shape(batch_size * 2, hidden_size, fmt);
   cvk_ml_t ml_working, ml_work0, ml_work1, ml_gate_z, ml_gate_h;
   assign_matrix(&ml_working, working_shape);
-  assign_matrix(&ml_work0, batch_size, hidden_size, ml_working.start_address);
+  fill_matrix(&ml_work0, batch_size, hidden_size, ml_working.start_address);
   assign_matrix(&ml_work1, gate_shape);
   assign_matrix(&ml_gate_z, gate_shape);
   assign_matrix(&ml_gate_h, gate_shape);

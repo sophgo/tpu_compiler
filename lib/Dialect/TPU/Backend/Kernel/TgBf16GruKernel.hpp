@@ -39,8 +39,7 @@ protected:
   void compute(int seq_idx);
   uint8_t ps32_mode(int step_idx);
   void assign_matrix(cvk_ml_t *ml_mem, const cvk_ml_shape_t &shape);
-  void assign_matrix(cvk_ml_t *ml_mem, uint32_t row, uint32_t col,
-                     uint32_t addr);
+  void fill_matrix(cvk_ml_t *ml_mem, uint32_t row, uint32_t col, uint32_t addr);
   void assign_addr(cvk_tl_t *tl_mem, uint32_t size);
   void matrix_to_tensor(cvk_tl_t *tensor, const cvk_ml_t &matrix);
   void matrix_for_tiu(cvk_ml_t *matrix);
