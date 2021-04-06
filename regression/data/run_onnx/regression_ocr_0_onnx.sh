@@ -3,20 +3,22 @@ set -e
 
 DIR="$( cd "$(dirname "$0")" ; pwd -P )"
 
+# onnx inference only on python3, pls pip3 install onnxruntime
+run_onnx_inference.py \
+    --input_file ${IMAGE_PATH} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --image_resize_dims ${NET_INPUT_DIMS} \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --input_scale ${INPUT_SCALE} \
+    --std ${STD} \
+    --batch ${BATCH_SIZE} \
+    --output_file ${NET}_out_fp32_ref.npz \
+    --model_path $MODEL_DEF \
+    --dump_tensor ${NET}_blobs.npz \
+    --gray 1
 
-ONNX_BLOBS_NPZ="${NET}_blobs.npz"
-
-if [ ! -f "$ONNX_BLOBS_NPZ" ]; then
-  run_onnx_rnn_toy.py \
-      --model_path $MODEL_DEF \
-      --batch_size $BATCH_SIZE \
-      --dump_tensor $ONNX_BLOBS_NPZ \
-      --input_file $REGRESSION_PATH/data/ocr_in_fp32.npz \
-      --output_file onnx_out.npz
-fi
-
-cvi_npz_tool.py extract $ONNX_BLOBS_NPZ ${NET}_in_fp32.npz input
-# cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_out_fp32_prob.npz output
+cvi_npz_tool.py extract ${NET}_blobs.npz ${NET}_in_fp32.npz input
 
 # VERDICT
 echo $0 PASSED

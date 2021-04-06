@@ -78,7 +78,7 @@ def main(argv):
         output_keys = []
         model = onnx.load(args.model_path)
         no_list = ["Cast", "Shape", "Unsqueeze",
-                   "Gather", "Split", "Constant"]
+                   "Gather", "Split", "Constant", "GRU"]
         # tested commited #c3cea486d https://github.com/microsoft/onnxruntime.git
         for x in model.graph.node:
             if x.op_type in no_list:
