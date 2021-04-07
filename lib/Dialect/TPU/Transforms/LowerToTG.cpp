@@ -97,14 +97,24 @@ Value tpu::ArgMaxOp::convertToTG() {
 
   auto builder = Builder(op->getContext());
 
-  std::vector<Value> operands;
-  operands.push_back(input());
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-
   if (getOpQuant() == "INT8") {
-    llvm_unreachable("int8 is not supported for argmax\n");
-  } else if (getOpQuant() == "BF16") {
+    std::vector<NamedAttribute> attrs;
+    int64_t input_size;
+    std::vector<int64_t> shape;
+    getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+    int last_dim = shape.size() - 1;
+    int w = shape[last_dim];
+    w = (w + 256 - 1) / 256;
+    shape[last_dim] = w;
+    auto eltType = input().getType().cast<TensorType>().getElementType();
+    auto result_type = RankedTensorType::get(shape, eltType);
+
+    attrs.push_back(builder.getNamedAttr("name",
+        builder.getStringAttr(name().str() + "_tpu")));
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ArgMaxOp>(
+        op->getLoc(), result_type, ArrayRef<Value>{{input()}},
+        ArrayRef<NamedAttribute>{attrs});
+
     std::vector<NamedAttribute> param;
     for (auto &attr : castOp->getAttrs()) {
       if (attr.first == "name" || attr.first == "gaddr" ||
@@ -116,13 +126,55 @@ Value tpu::ArgMaxOp::convertToTG() {
     auto paramAttr = builder.getDictionaryAttr(param);
     auto operationAttr = builder.getStringAttr(getOperationName());
 
+    attrs.clear();
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
     attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
     attrs.push_back(builder.getNamedAttr("param", paramAttr));
 
-    auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(
-        op->getLoc(), castOp.getResult().getType(), ArrayRef<Value>{operands},
+    auto cpuOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+        op->getLoc(), castOp.getResult().getType(),
+        ArrayRef<Value>{{input(), newOp.getResult()}},
         ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
+    return cpuOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    std::vector<NamedAttribute> attrs;
+    int64_t input_size;
+    std::vector<int64_t> shape;
+    getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+    int last_dim = shape.size() - 1;
+    int w = shape[last_dim];
+    w = (w + 256 - 1) / 256;
+    shape[last_dim] = w;
+    auto eltType = input().getType().cast<TensorType>().getElementType();
+    auto result_type = RankedTensorType::get(shape, eltType);
+
+    attrs.push_back(builder.getNamedAttr("name",
+        builder.getStringAttr(name().str() + "_tpu")));
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ArgMaxOp>(
+        op->getLoc(), result_type, ArrayRef<Value>{{input()}},
+        ArrayRef<NamedAttribute>{attrs});
+
+    std::vector<NamedAttribute> param;
+    for (auto &attr : castOp->getAttrs()) {
+      if (attr.first == "name" || attr.first == "gaddr" ||
+          attr.first == "quant") {
+        continue;
+      }
+      param.push_back(attr);
+    }
+    auto paramAttr = builder.getDictionaryAttr(param);
+    auto operationAttr = builder.getStringAttr(getOperationName());
+
+    attrs.clear();
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+    attrs.push_back(builder.getNamedAttr("param", paramAttr));
+
+    auto cpuOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+        op->getLoc(), castOp.getResult().getType(),
+        ArrayRef<Value>{{input(), newOp.getResult()}},
+        ArrayRef<NamedAttribute>{attrs});
+    return cpuOp.getResult();
   }
   llvm_unreachable("unsupported type");
 }

@@ -110,6 +110,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/TgQuantKernel.cpp
   Backend/Kernel/TgReQuantKernel.cpp
+  Backend/Kernel/TgArgMaxKernel.cpp
   Backend/Kernel/TgConcatKernel.cpp
   Backend/Kernel/TgConvKernel.cpp
   Backend/Kernel/TgCropKernel.cpp

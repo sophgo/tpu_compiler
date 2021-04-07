@@ -394,6 +394,10 @@ void cvi_backend_tg_bf16_lrn_kernel(
     float alpha, float k);
 
 ////////////// fixed & bf16 kernel api ////////////////
+void cvi_backend_tg_argmax_kernel(
+    const CviBackendContext &ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w, int w_tile_size, cvk_fmt_t fmt);
 
 void cvi_backend_tg_concat_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

@@ -114,6 +114,7 @@ class TPU_TG_ArgMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
+def TPU_TG_INT8_ArgMaxOp : TPU_TG_ArgMaxOp<"tg_int8_argmax", "Int8">;
 def TPU_TG_BF16_ArgMaxOp : TPU_TG_ArgMaxOp<"tg_bf16_argmax", "Bf16">;
 
 class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,

@@ -835,9 +835,6 @@ public:
           if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
             setOpQuant(op, "BF16");
           }
-          if (isa<tpu::ArgMaxOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
           if (isa<tpu::LayerNormOp>(op)) {
             setOpQuant(op, "BF16");
           }

@@ -126,12 +126,70 @@ LogicalResult tpu::TG_BF16_AbsOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ArgMaxOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(input(), shape, input_size);
+  if (shape.size() == 2) {
+    n = shape[0];
+    w = shape[1];
+    h = 1;
+    c = 1;
+  } else {
+    getNCHW(shape, n, c, h, w);
+  }
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  llvm::errs() << "argmax:" << n << "," << c << ","<< h << "," << w << "\n";
+
+  cvi_backend_tg_argmax_kernel(
+      *backend_ctx,
+      layer_id,     // layer_id
+      ga_input,    // gaddr_t ga_input[]
+      ga_output,    // gaddr_t ga_output
+      n, c, h, w,
+      256, CVK_FMT_I8);
+  return success();
+}
+
 LogicalResult tpu::TG_BF16_ArgMaxOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
-  (void)ctx;
-  std::string errorMsg = "unsupported tg op " + getOpName().str();
-  llvm_unreachable(errorMsg.c_str());
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(input(), shape, input_size);
+  if (shape.size() == 2) {
+    n = shape[0];
+    w = shape[1];
+    h = 1;
+    c = 1;
+  } else {
+    getNCHW(shape, n, c, h, w);
+  }
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  llvm::errs() << "argmax:" << n << "," << c << ","<< h << "," << w << "\n";
+
+  cvi_backend_tg_argmax_kernel(
+      *backend_ctx,
+      layer_id,     // layer_id
+      ga_input,    // gaddr_t ga_input[]
+      ga_output,    // gaddr_t ga_output
+      n, c, h, w,
+      256, CVK_FMT_BF16);
+  return success();
 }
 
 LogicalResult tpu::TG_INT8_ScaleOp::codegen(void *ctx) {

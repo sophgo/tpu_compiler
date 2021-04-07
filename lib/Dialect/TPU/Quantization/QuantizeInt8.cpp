@@ -1695,8 +1695,16 @@ These Ops does not do quantization, need threshold_x == thrshold_y
     return quantizeInt8BypassOps(op); \
   }
 
+LogicalResult tpu::ArgMaxOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+                << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  quantizeInt8BypassOps(op);
+  setOpResultType(op->getResult(0), FloatType::getF32(getContext()));
+  return success();
+}
+
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::AbsOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ArgMaxOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CscOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CustomOp)
