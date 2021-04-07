@@ -1619,7 +1619,7 @@ class OnnxConverter(BaseConverter):
     def convert_gru_op(self, onnx_node):
         assert(onnx_node.op_type == "GRU")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-        seq_length, batch_size, _ = input_shape
+        seq_length, batch_size, input_size = input_shape
 
         linear_before_reset = True if onnx_node.attrs.get(
             "linear_before_reset", 1) == 1 else False
@@ -1630,16 +1630,39 @@ class OnnxConverter(BaseConverter):
             'bidirectional': bool(bidirectional),
         }
         num_dir = 2 if bidirectional else 1
-
+        # fc x*weight+bias first
         operands = list()
         operands.append(op)
 
         weight_name = onnx_node.inputs[1]
         weight_tensor = self.getTensor(weight_name)
-        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
-        _, hidden_size_3, _ = weight_tensor.shape
-        hidden_size = hidden_size_3//3
+        weight_shape = weight_tensor.shape
+        assert(weight_shape[0] == num_dir)
+        assert(weight_shape[2] == input_size)
+        hidden_size = weight_shape[1]//3
+        N = weight_shape[0] * weight_shape[1]
+        K = weight_shape[2]
+        weight_shape = [N, K]
+        fc_weight = weight_name + "_FC"
+        self.addTensor(fc_weight, weight_tensor.tensor_data, weight_shape)
+        weight_op = self.CVI.add_load_file_op(fc_weight, weight_shape)
         operands.append(weight_op)
+
+        bias_name = onnx_node.inputs[3]
+        bias_tensor = self.getTensor(bias_name)
+        [w_bias, r_bias] = np.split(bias_tensor.tensor_data, 2, axis=1)
+        fc_bias = bias_name + "_FC"
+        bias_shape = [N]
+        self.addTensor(fc_bias, w_bias, bias_shape)
+        bias_op = self.CVI.add_load_file_op(fc_bias, bias_shape)
+        operands.append(bias_op)
+
+        output_shape = [seq_length, batch_size, N]
+        fc_op = self.CVI.add_fully_connected_op(
+            "{}_FC".format(onnx_node.name), operands, output_shape)
+
+        operands.clear()
+        operands.append(fc_op)
 
         recurrence_name = onnx_node.inputs[2]
         recurrence_tensor = self.getTensor(recurrence_name)
@@ -1647,10 +1670,12 @@ class OnnxConverter(BaseConverter):
             recurrence_name, recurrence_tensor.shape)
         operands.append(recurrence_op)
 
-        bias_name = onnx_node.inputs[3]
-        bias_tensor = self.getTensor(bias_name)
-        bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
-        operands.append(bias_op)
+        new_bias = bias_name + "_recurrence"
+        bias_shape = [num_dir, 3* hidden_size]
+        self.addTensor(new_bias, r_bias, bias_shape)
+        r_bias_op = self.CVI.add_load_file_op(new_bias, bias_shape)
+        operands.append(r_bias_op)
+
         num_input = len(onnx_node.inputs)
 
         if num_input > 4 and len(onnx_node.inputs[4]) != 0:

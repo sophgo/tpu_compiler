@@ -870,7 +870,6 @@ def TPU_GruOp: TPU_Op<"gru",
 
     Inputs:
       `input`           : required, the input activation tensor.
-      `weight`          : required, parameter weight tesnor for update, reset, and hidden gates.
       `recurrence`       : required, recurrence weight tesnor for update, reset, and hidden gates.
       `bias`            : optional, bias vectors for update, reset, and hidden gates.
       `initial_h`       : optional, initial value of the hidden.
@@ -892,7 +891,6 @@ def TPU_GruOp: TPU_Op<"gru",
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$weight,
     AnyTensor:$recurrence,
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$initial_h,

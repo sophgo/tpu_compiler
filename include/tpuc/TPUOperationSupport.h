@@ -125,10 +125,6 @@ void parseLstmParam(
     Value input, Value recurrence,
     int &seq_len, int &batch_size, int &input_size, int& hidden_size);
 
-void parseGruParam(
-    Value input, Value recurrence,
-    int &seq_len, int &batch_size, int &input_size, int& hidden_size);
-
 void parseActCompressParam(const tpu::ActCmprParam &param, int &cmpr_n,
     int &cmpr_c, int &cmpr_h, int64_t &step_size, int64_t &total_size);
 

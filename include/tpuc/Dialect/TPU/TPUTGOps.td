@@ -720,7 +720,6 @@ class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$weight,
     AnyTensor:$recurrence,
     TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$bias,
     TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$initial_h,

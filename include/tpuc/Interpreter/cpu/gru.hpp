@@ -25,12 +25,10 @@ private:
 private:
   SyncedData input_data;
   SyncedData output_data;
-  SyncedData weight;
   SyncedData recurrence;
   SyncedData bias;
   SyncedData initial_h;
   SyncedDataShape input_shape;
-  SyncedDataShape weight_shape;
 
   // param
   int seq_length;
@@ -41,18 +39,13 @@ private:
   bool bidirectional;
   bool linear_before_reset;
   // addr
-  float *w_z;
-  float *w_r;
-  float *w_h;
   float *r_z;
   float *r_r;
   float *r_h;
-  float *w_bz;
-  float *w_br;
-  float *w_bh;
   float *r_bz;
   float *r_br;
   float *r_bh;
+  float *input;
   float *output;
   float *prev_hidden_state;
 

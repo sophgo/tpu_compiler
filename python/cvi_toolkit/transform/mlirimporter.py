@@ -956,7 +956,7 @@ class MLIRImporter(object):
 
         gru_name = StringAttr.get(op_name)
         none = self.add_none_op()
-        if len(inputOperands) < 5:
+        if len(inputOperands) < 4:
             inputOperands.append(none)
         for _ in range(4):  # add 4 redundant input
             inputOperands.append(none)

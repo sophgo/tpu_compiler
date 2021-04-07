@@ -2349,7 +2349,7 @@ Value tpu::GruOp::convertToTG() {
   auto builder = Builder(op->getContext());
 
   std::vector<Value> operands;
-  const int nInputs =  9;
+  const int nInputs =  8;
   //input + weight + recurrence + bias + initial_h
   for (auto i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
@@ -3453,11 +3453,10 @@ struct LowerWeightGruOpPattern : public RewritePattern {
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
     auto gruOp = cast<tpu::GruOp>(op);
-    auto weightOp = cast<tpu::LoadWeightOp>(gruOp.weight().getDefiningOp());
     auto recurrenceOp =
         cast<tpu::LoadWeightOp>(gruOp.recurrence().getDefiningOp());
 
-    if (weightOp.lowered()) {
+    if (recurrenceOp.lowered()) {
       // lowered already
       return failure();
     }
@@ -3470,36 +3469,16 @@ struct LowerWeightGruOpPattern : public RewritePattern {
                    << "Lower Weight for GruOp: " << getOpName(op) << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
-    // lower weight
-    getTensorShapeAndSize(gruOp.weight(), shape, size);
-    assert(shape.size() == 3);
-    int64_t num_dir = shape[0];
-    int64_t hidden_size = shape[1] / 3;
-    int64_t input_size = shape[2];
-    auto filter = readAndDeleteWeightTensor<float>(gruOp.weight(), wTF);
-    std::vector<uint16_t> filter_bf16(size);
-    FloatToBFloat16(filter->data(), filter_bf16.data(), size);
-    uint16_t *p_data = filter_bf16.data();
-    for (int i = 0; i < 3 * num_dir; i++) {
-      transpose_row_col(p_data, hidden_size, input_size);
-      p_data += hidden_size * input_size;
-    }
-    shape[1] = 3 * input_size;
-    shape[2] = hidden_size;
-    addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.weight(), "lowered",
-                                               filter_bf16, shape, "BF16", wTF);
-    weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
-
     // lower recurrence
     getTensorShapeAndSize(gruOp.recurrence(), shape, size);
     assert(shape.size() == 3);
-    assert(shape[0] == num_dir);
-    assert(shape[1] == 3 * hidden_size);
+    int64_t num_dir = shape[0];
+    int64_t hidden_size = shape[1] / 3;
     assert(shape[2] == hidden_size);
     auto r_data = readAndDeleteWeightTensor<float>(gruOp.recurrence(), wTF);
     std::vector<uint16_t> r_bf16(size);
     FloatToBFloat16(r_data->data(), r_bf16.data(), size);
-    p_data = r_bf16.data();
+    uint16_t *p_data = r_bf16.data();
     for (int i = 0; i < 3 * num_dir; i++) {
       transpose_row_col(p_data, hidden_size, hidden_size);
       p_data += hidden_size * hidden_size;
@@ -3518,7 +3497,7 @@ struct LowerWeightGruOpPattern : public RewritePattern {
       getTensorShapeAndSize(gruOp.bias(), shape, size);
       assert(shape.size() == 2);
       assert(shape[0] == num_dir);
-      assert(shape[1] == 6 * hidden_size);
+      assert(shape[1] == 3 * hidden_size);
       auto bias = readAndDeleteWeightTensor<float>(gruOp.bias(), wTF);
       // Split into high/low part
       std::vector<uint16_t> bias_fp32_high;
@@ -3572,9 +3551,9 @@ struct LowerWeightGruOpPattern : public RewritePattern {
     }
 
     // lower sigmoid table
-    auto tableOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(5).getDefiningOp());
+    auto tableOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(4).getDefiningOp());
     auto tableSlopeOp =
-        cast<tpu::LoadWeightOp>(gruOp.getOperand(6).getDefiningOp());
+        cast<tpu::LoadWeightOp>(gruOp.getOperand(5).getDefiningOp());
     // lower filter
     assert(tableOp.storage() == "BF16");
     assert(tableSlopeOp.storage() == "BF16");
@@ -3593,8 +3572,8 @@ struct LowerWeightGruOpPattern : public RewritePattern {
     tableSlopeOp->setAttr("lowered", rewriter.getBoolAttr(true));
 
     // lower tanh  table
-    tableOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(7).getDefiningOp());
-    tableSlopeOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(8).getDefiningOp());
+    tableOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(6).getDefiningOp());
+    tableSlopeOp = cast<tpu::LoadWeightOp>(gruOp.getOperand(7).getDefiningOp());
 
     // lower filter
     assert(tableOp.storage() == "BF16");

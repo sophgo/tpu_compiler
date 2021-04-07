@@ -507,8 +507,8 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   auto mantissa_sigmoid_table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "sigmoid_slope_table", y0_sigmoid_slope_table, shape, storageType,
       wTF, wfV);
-  gruOp.setOperand(5, y0_sigmoid_table_op);
-  gruOp.setOperand(6, mantissa_sigmoid_table_op);
+  gruOp.setOperand(4, y0_sigmoid_table_op);
+  gruOp.setOperand(5, mantissa_sigmoid_table_op);
 
   // Add lut table information - tanh
   LLVM_DEBUG(llvm::dbgs() << "GenTanhLut: "
@@ -543,8 +543,8 @@ LogicalResult quantizeBf16GruOps(Operation *op) {
   auto mantissa_tanh_table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "tanh_slope_table", y0_tanh_slope_table, shape, storageType, wTF,
       wfV);
-  gruOp.setOperand(7, y0_tanh_table_op);
-  gruOp.setOperand(8, mantissa_tanh_table_op);
+  gruOp.setOperand(6, y0_tanh_table_op);
+  gruOp.setOperand(7, mantissa_tanh_table_op);
 
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 

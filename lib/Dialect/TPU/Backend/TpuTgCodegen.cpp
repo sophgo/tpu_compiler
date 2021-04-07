@@ -2103,14 +2103,16 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
-  int64_t tensorSize, seq_len, batchSize, inputSize, garbage;
-  getTensorShapeAndSize(op->getOperand(0), shape, tensorSize);
-  getNCHW(shape, seq_len, batchSize, inputSize, garbage);
+  int64_t size, seq_len, batch_size, input_size, garbage;
+  getTensorShapeAndSize(op->getOperand(0), shape, size);
+  getNCHW(shape, seq_len, batch_size, input_size, garbage);
 
-  int64_t seq_len2, outputC, outputH, hiddenSize;
-  getTensorShapeAndSize(this->getResult(), shape, tensorSize);
-  getNCHW(shape, seq_len2, outputC, outputH, hiddenSize);
+  int64_t seq_len2, num_dir, batch_size2, hidden_size;
+  getTensorShapeAndSize(this->getResult(), shape, size);
+  getNCHW(shape, seq_len2, num_dir, batch_size2, hidden_size);
   assert(seq_len == seq_len2);
+  assert(batch_size == batch_size2);
+  assert(input_size == num_dir * 3 * hidden_size);
 
   bool with_bias = (!isTensorNone(bias()));
   gaddr_t ga_bias = GA_INVALID;
@@ -2128,7 +2130,6 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t weight_gaddr = getWeightOpAddress(weight().getDefiningOp());
   gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence().getDefiningOp());
   gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table().getDefiningOp());
   gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table().getDefiningOp());
@@ -2137,7 +2138,6 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
-                          << "weight_gaddr: " << weight_gaddr << "\n"
                           << "recurrence_gaddr: " << recurrence_gaddr << "\n"
                           << "ga_bias: " << ga_bias << "\n"
                           << "initial_h_gaddr: " << initial_h_gaddr << "\n"
@@ -2147,21 +2147,18 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
                           << "tanh_slope_table_data_lut_gaddr: " << tanh_slope_table_data_lut_gaddr << "\n"
                           << "output_gaddr: " << output_gaddr << "\n"
                           << "seq_len: " << seq_len << "\n"
-                          << "batchSize: " << batchSize << "\n"
-                          << "inputSize: " << inputSize << "\n"
-                          << "hiddenSize: " << hiddenSize << "\n"
                           << "with_bias: " << with_bias << "\n"
                           << "is_linear_before_reset: " << is_linear_before_reset << "\n"
                           << "is_bidirectional: " << is_bidirectional << "\n"
                           << "\n";);
 
   cvi_backend_tg_bf16_gru_kernel(*backend_ctx, layer_id,
-                  input_gaddr, weight_gaddr, recurrence_gaddr,
+                  input_gaddr, recurrence_gaddr,
                   ga_bias, initial_h_gaddr,
                   sigmoid_table_data_lut_gaddr, sigmoid_slope_table_data_lut_gaddr,
                   tanh_table_data_lut_gaddr, tanh_slope_table_data_lut_gaddr,
                   output_gaddr,
-                  seq_len, batchSize, inputSize, hiddenSize,
+                  seq_len, num_dir, batch_size, hidden_size,
                   with_bias, with_h0, is_linear_before_reset, is_bidirectional);
   return success();
 }

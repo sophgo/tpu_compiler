@@ -38,35 +38,35 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
   this->shape = type.getShape();
 
   auto input_type = gruOp.input().getType().template cast<TensorType>();
-  auto weight_type = gruOp.weight().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-  this->weight_shape = weight_type.getShape();
   this->name = gruOp.name().str();
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
-  seq_length = input_shape[0];
-  batch_size = input_shape[1];
+  seq_length = shape[0];
+  num_dir = shape[1];
+  batch_size = shape[2];
+  hidden_size = shape[3];
+  assert(input_shape.size() == 3);
+  assert(input_shape[0] == seq_length);
+  assert(input_shape[1] == batch_size);
   input_size = input_shape[2];
-  num_dir = weight_shape[0];
-  hidden_size = weight_shape[1] / 3; // 3 gates
   linear_before_reset = gruOp.linear_before_reset();
   assert(linear_before_reset == true);
   bidirectional = gruOp.bidirectional();
   // get tensors
   input_data = opTensors[0];
-  weight = opTensors[1];
-  recurrence = opTensors[2];
-  bias = opTensors[3];
-  initial_h = opTensors[4];
+  recurrence = opTensors[1];
+  bias = opTensors[2];
+  initial_h = opTensors[3];
   if (initial_h == nullptr) {
     initial_h = std::make_shared<std::vector<float>>(
         num_dir * batch_size * hidden_size, 0.0f);
   }
   if (datatype == DataType::BF16) {
-    sigmoid_lut.assign(opTensors[5]->begin(), opTensors[5]->end());
-    sigmoid_slope_lut.assign(opTensors[6]->begin(), opTensors[6]->end());
-    tanh_lut.assign(opTensors[7]->begin(), opTensors[7]->end());
-    tanh_slope_lut.assign(opTensors[8]->begin(), opTensors[8]->end());
+    sigmoid_lut.assign(opTensors[4]->begin(), opTensors[4]->end());
+    sigmoid_slope_lut.assign(opTensors[5]->begin(), opTensors[5]->end());
+    tanh_lut.assign(opTensors[6]->begin(), opTensors[6]->end());
+    tanh_slope_lut.assign(opTensors[7]->begin(), opTensors[7]->end());
   }
   output_data = resultTensor;
   // record mapping table for next op connecting
@@ -91,25 +91,20 @@ std::vector<float> GruOpKernel::get_tensor() {
 
 void GruOpKernel::update_addr(bool forward) {
   if (forward) {
-    w_z = weight->data();
     r_z = recurrence->data();
-    w_bz = bias->data();
+    r_bz = bias->data();
     output = output_data->data();
     prev_hidden_state = initial_h->data();
+    input = input_data->data();
   } else {
-    w_z = weight->data() + 3 * hidden_size * input_size;
     r_z = recurrence->data() + 3 * hidden_size * hidden_size;
-    w_bz = bias->data() + 6 * hidden_size;
+    r_bz = bias->data() + 3 * hidden_size;
     output = output_data->data() + batch_size * hidden_size;
     prev_hidden_state = initial_h->data() + batch_size * hidden_size;
+    input = input_data->data() + 3 * hidden_size;
   }
-  w_r = w_z + hidden_size * input_size;
-  w_h = w_r + hidden_size * input_size;
   r_r = r_z + hidden_size * hidden_size;
   r_h = r_r + hidden_size * hidden_size;
-  w_br = w_bz + hidden_size;
-  w_bh = w_br + hidden_size;
-  r_bz = w_bh + hidden_size;
   r_br = r_bz + hidden_size;
   r_bh = r_br + hidden_size;
 }
@@ -131,31 +126,23 @@ void GruOpKernel::compute(bool forward) {
     // linear_before_reset != 0 Wzrh: hidden_size * input_size Rzrh: hidden_size
     // * hidden_size Xt: seq_len * batch_size * input_size
     for (int batch = 0; batch < batch_size; batch++) {
-      float *xt =
-          input_data->data() + (seq_idx * batch_size + batch) * input_size;
+      float *xt = input + (seq_idx * batch_size + batch) * input_size;
       update_gate.assign(hidden_size, 0.0);
       reset_gate.assign(hidden_size, 0.0);
       hidden_gate.assign(hidden_size, 0.0);
+      float *xz = xt;
+      float *xr = xz + hidden_size;
+      float *xh = xr + hidden_size;
       for (int i = 0; i < hidden_size; ++i) {
-        float *wz = w_z + i * input_size;
-        float *wr = w_r + i * input_size;
-        float *wh = w_h + i * input_size;
         float *rz = r_z + i * hidden_size;
         float *rr = r_r + i * hidden_size;
-
-        for (int j = 0; j < input_size; ++j) {
-          update_gate[i] += wz[j] * xt[j];
-          reset_gate[i] += wr[j] * xt[j];
-          hidden_gate[i] += wh[j] * xt[j];
-        }
 
         for (int j = 0; j < hidden_size; ++j) {
           update_gate[i] += rz[j] * prev_hidden_state[batch * hidden_size + j];
           reset_gate[i] += rr[j] * prev_hidden_state[batch * hidden_size + j];
         }
-        update_gate[i] = sigmoid_(update_gate[i] + w_bz[i] + r_bz[i]);
-        reset_gate[i] = sigmoid_(reset_gate[i] + w_br[i] + r_br[i]);
-        hidden_gate[i] += w_bh[i];
+        update_gate[i] = sigmoid_(update_gate[i] + xz[i] + r_bz[i]);
+        reset_gate[i] = sigmoid_(reset_gate[i] + xr[i] + r_br[i]);
       }
 
       // second part of hidden gate
@@ -166,8 +153,7 @@ void GruOpKernel::compute(bool forward) {
         for (int j = 0; j < hidden_size; ++j) {
           hidden_gate_acc += rh[j] * prev_hidden_state[batch * hidden_size + j];
         }
-        hidden_gate[i] =
-            tanh_(hidden_gate[i] + reset_gate[i] * hidden_gate_acc);
+        hidden_gate[i] = tanh_(xh[i] + reset_gate[i] * hidden_gate_acc);
       }
 
       // Ht = (1 - zt) (.) ht + zt (.) Ht-1
