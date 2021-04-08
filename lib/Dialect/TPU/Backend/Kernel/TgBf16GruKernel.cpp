@@ -31,6 +31,21 @@ void TgGruKernel::matrix_for_tiu(cvk_ml_t *matrix) {
   }
 }
 
+void TgGruKernel::zeros(const cvk_ml_t &matrix) {
+  cvk_tl_t tl_mem;
+  matrix_to_tensor(&tl_mem, matrix);
+  cvk_tiu_mul_param_t p = {0};
+  p.res_high = nullptr;
+  p.res_low = &tl_mem;
+  p.a = &tl_mem; // rt
+  p.b_is_const = 1;
+  p.b_const.val = ctx.convert_fp32_to_bf16(0.0f);
+  p.rshift_bits = 0;
+  p.layer_id = layer_id;
+  p.relu_enable = 0;
+  ctx.tiu_mul(&p);
+}
+
 void TgGruKernel::matrix_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
                              const cvk_ml_t &ml_right, const cvk_ml_t &ml_bias,
                              uint8_t ps32_mode) {
@@ -58,13 +73,19 @@ void TgGruKernel::matrix_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
 
 void TgGruKernel::eltwise_mul(const cvk_ml_t &ml_res,
                               const cvk_ml_t &ml_right) {
-  cvk_tl_t tl_res, tl_right;
+  eltwise_mul(ml_res, ml_res, ml_right);
+}
+
+void TgGruKernel::eltwise_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
+                              const cvk_ml_t &ml_right) {
+  cvk_tl_t tl_res, tl_left, tl_right;
   matrix_to_tensor(&tl_res, ml_res);
+  matrix_to_tensor(&tl_left, ml_left);
   matrix_to_tensor(&tl_right, ml_right);
   cvk_tiu_mul_param_t p = {0};
   p.res_high = nullptr;
   p.res_low = &tl_res;
-  p.a = &tl_res;
+  p.a = &tl_left;
   p.b_is_const = 0;
   p.b = &tl_right;
   p.rshift_bits = 0;
@@ -94,14 +115,20 @@ void TgGruKernel::eltwise_add(const cvk_ml_t &ml_res,
 
 void TgGruKernel::eltwise_sub(const cvk_ml_t &ml_res,
                               const cvk_ml_t &ml_right) {
-  cvk_tl_t tl_res, tl_right;
+  eltwise_sub(ml_res, ml_res, ml_right);
+}
+
+void TgGruKernel::eltwise_sub(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
+                              const cvk_ml_t &ml_right) {
+  cvk_tl_t tl_res, tl_left, tl_right;
   matrix_to_tensor(&tl_res, ml_res);
+  matrix_to_tensor(&tl_left, ml_left);
   matrix_to_tensor(&tl_right, ml_right);
   cvk_tiu_sub_param_t p = {0};
   p.res_high = 0;
   p.res_low = &tl_res;
   p.a_high = 0;
-  p.a_low = &tl_res;
+  p.a_low = &tl_left;
   p.b_high = 0;
   p.b_low = &tl_right;
   p.rshift_bits = 0;
@@ -210,6 +237,9 @@ void TgGruKernel::tiling() {
       auto h_shape = ctx.ml_default_shape(batch_size, h, fmt);
       state_size += ctx.lmem_matrix_to_size(h_shape, fmt, 1);
     }
+    if (step_size != hidden_size) { // need backup hiddens
+      state_size *= 2;
+    }
     if (lmem_used + state_size <= (uint32_t)LOCAL_MEM_SIZE) {
       break;
     }
@@ -229,7 +259,11 @@ void TgGruKernel::tiling() {
     cvk_ml_t ml_hidden;
     auto h_shape = ctx.ml_default_shape(batch_size, tile.h, fmt);
     assign_matrix(&ml_hidden, h_shape);
-    ml_hiddens.emplace_back(ml_hidden);
+    ml_hiddens[0].emplace_back(ml_hidden);
+    if (step_num > 1) {
+      assign_matrix(&ml_hidden, h_shape);
+      ml_hiddens[1].emplace_back(ml_hidden);
+    }
   }
 }
 
@@ -249,87 +283,73 @@ uint8_t TgGruKernel::ps32_mode(int step_idx) {
 
 void TgGruKernel::init_h0() {
   for (int step = 0; step < step_num; step++) {
-    auto &ml_hidden = ml_hiddens[step];
+    auto &ml_hidden = ml_hiddens[0][step];
     auto &tile = tiles[step];
     if (with_initial_h) {
       ctx.tdma_load_stride(&ml_hidden, ga_h0 + tile.pos_h * fmt_size,
-                           {hidden_bytes});
+                           h_gstride);
     } else {
-      cvk_tl_t tl_hidden;
-      matrix_to_tensor(&tl_hidden, ml_hidden);
-      cvk_tiu_mul_param_t p = {0};
-      p.res_high = nullptr;
-      p.res_low = &tl_hidden;
-      p.a = &tl_hidden; // rt
-      p.b_is_const = 1;
-      p.b_const.val = ctx.convert_fp32_to_bf16(0.0);
-      p.rshift_bits = 0;
-      p.layer_id = layer_id;
-      p.relu_enable = 0;
-      ctx.tiu_mul(&p);
+      zeros(ml_hidden);
     }
   }
 }
 
-void TgGruKernel::compute(int seq_idx) {
-  cvk_ml_t ml_bias, ml_work0, ml_work1, ml_xz, ml_xr, ml_xh, ml_rr, ml_rz,
-      ml_rh;
-  int x_offset = seq_idx * batch_size * input_bytes;
+void TgGruKernel::matrix_recurrence(const cvk_ml_t &ml_res, int flip,
+                                    const tiling_t &tile, gaddr_t ga_weight,
+                                    gaddr_t ga_bias) {
+  cvk_ml_t ml_weight, ml_bias;
+  fill_matrix(&ml_bias, 4 / fmt_size, tile.h, addr_bias);
+  ctx.tdma_load_stride(&ml_bias, ga_bias + tile.pos_h * fmt_size, h_gstride);
+  for (int i = 0; i < step_num; i++) {
+    int offset = tiles[i].pos_h * hidden_bytes + tile.pos_h * fmt_size;
+    fill_matrix(&ml_weight, tiles[i].h, tile.h, addr_recurrence);
+    ctx.tdma_load_stride(&ml_weight, ga_weight + offset, h_gstride);
+    matrix_mul(ml_res, ml_hiddens[flip][i], ml_weight, ml_bias, ps32_mode(i));
+  }
+}
+
+void TgGruKernel::compute(int idx, bool forward) {
+  cvk_ml_t ml_work0, ml_work1, ml_xz, ml_xr, ml_xh;
+  int seq_idx = forward ? idx : (seq_length - 1 - idx);
+  int x_offset = seq_idx * batch_size * input_bytes; // load input
+  int s_offset = seq_idx * num_dir * x_bytes;        // store output
+  int flip = 0, next = 0;
+  if (step_num > 1) {
+    flip = idx % 2;
+    next = 1 - flip;
+  }
   for (int step = 0; step < step_num; step++) {
     auto &tile = tiles[step];
-    auto &ml_hidden = ml_hiddens[step];
+    auto &ml_hidden = ml_hiddens[flip][step];
+    auto &ml_result = ml_hiddens[next][step];
     int goffset = tile.pos_h * fmt_size;
     fill_matrix(&ml_xz, batch_size, tile.h, addr_xz);
     fill_matrix(&ml_xr, batch_size, tile.h, addr_xh); // use addr_xh
     fill_matrix(&ml_xh, batch_size, tile.h, addr_xh);
     fill_matrix(&ml_work0, batch_size, tile.h, addr_work0);
     fill_matrix(&ml_work1, batch_size, tile.h, addr_work1);
-    fill_matrix(&ml_bias, 4 / fmt_size, tile.h, addr_bias);
     // gate z
-    ctx.tdma_load_stride(&ml_bias, ga_rbz + goffset, {hidden_bytes});
-    for (int i = 0; i < step_num; i++) {
-      fill_matrix(&ml_rz, tiles[i].h, tile.h, addr_recurrence);
-      ctx.tdma_load_stride(&ml_rz,
-                           ga_rz + tiles[i].pos_h * hidden_bytes + goffset,
-                           {hidden_bytes});
-      matrix_mul(ml_work0, ml_hiddens[i], ml_rz, ml_bias, ps32_mode(i));
-    }
-    ctx.tdma_load_stride(&ml_work1, ga_xz + x_offset + goffset, {input_bytes});
+    matrix_recurrence(ml_work0, flip, tile, ga_rz, ga_rbz);
+    ctx.tdma_load_stride(&ml_work1, ga_xz + x_offset + goffset, x_gstride);
     eltwise_add(ml_work1, ml_work0);
     sigmoid(ml_xz, ml_work1, ml_work0);
     // gate r
-    ctx.tdma_load_stride(&ml_bias, ga_rbr + goffset, {hidden_bytes});
-    for (int i = 0; i < step_num; i++) {
-      fill_matrix(&ml_rr, tiles[i].h, tile.h, addr_recurrence);
-      ctx.tdma_load_stride(&ml_rr,
-                           ga_rr + tiles[i].pos_h * hidden_bytes + goffset,
-                           {hidden_bytes});
-      matrix_mul(ml_work0, ml_hiddens[i], ml_rr, ml_bias, ps32_mode(i));
-    }
-    ctx.tdma_load_stride(&ml_work1, ga_xr + x_offset + goffset, {input_bytes});
+    matrix_recurrence(ml_work0, flip, tile, ga_rr, ga_rbr);
+    ctx.tdma_load_stride(&ml_work1, ga_xr + x_offset + goffset, x_gstride);
     eltwise_add(ml_work1, ml_work0);
     sigmoid(ml_xr, ml_work1, ml_work0);
     // gate h
-    ctx.tdma_load_stride(&ml_bias, ga_rbh + goffset, {hidden_bytes});
-    for (int i = 0; i < step_num; i++) {
-      fill_matrix(&ml_rh, tiles[i].h, tile.h, addr_recurrence);
-      ctx.tdma_load_stride(&ml_rh,
-                           ga_rh + tiles[i].pos_h * hidden_bytes + goffset,
-                           {hidden_bytes});
-      matrix_mul(ml_work0, ml_hiddens[i], ml_rh, ml_bias, ps32_mode(i));
-    }
+    matrix_recurrence(ml_work0, flip, tile, ga_rh, ga_rbh);
     eltwise_mul(ml_work0, ml_xr);
-    ctx.tdma_load_stride(&ml_work1, ga_xh + x_offset + goffset, {input_bytes});
+    ctx.tdma_load_stride(&ml_work1, ga_xh + x_offset + goffset, x_gstride);
     eltwise_add(ml_work1, ml_work0);
     tanh(ml_xh, ml_work1, ml_work0);
     // H = (1-z)*h + z * H_t
-    eltwise_mul(ml_hidden, ml_xz);
-    eltwise_add(ml_hidden, ml_xh);
+    eltwise_mul(ml_work1, ml_hidden, ml_xz);
+    eltwise_add(ml_work1, ml_xh);
     eltwise_mul(ml_xz, ml_xh);
-    eltwise_sub(ml_hidden, ml_xz);
-    ctx.tdma_store_stride(&ml_hidden,
-                          ga_store + seq_idx * num_dir * x_bytes + goffset,
-                          {hidden_bytes});
+    eltwise_sub(ml_result, ml_work1, ml_xz);
+    ctx.tdma_store_stride(&ml_result, ga_store + s_offset + goffset, h_gstride);
   }
 }
 
@@ -341,8 +361,8 @@ void TgGruKernel::compute_without_tiling(bool forward) {
   auto b_shape = ctx.ml_default_shape(4 / fmt_size, hidden_size, fmt);
   auto x2_shape = ctx.ml_default_shape(batch_size * 2, hidden_size, fmt);
   // assign lmem
-  cvk_ml_t ml_rz, ml_rr, ml_rh, ml_rbz, ml_rbr, ml_rbh, ml_xz, ml_xh, ml_hidden,
-      ml_work0, ml_work1;
+  cvk_ml_t ml_rz, ml_rr, ml_rh, ml_rbz, ml_rbr, ml_rbh;
+  cvk_ml_t ml_xz, ml_xh, ml_hidden, ml_work0, ml_work1;
   assign_matrix(&ml_rz, r_shape);
   assign_matrix(&ml_rr, r_shape);
   assign_matrix(&ml_rh, r_shape);
@@ -364,43 +384,30 @@ void TgGruKernel::compute_without_tiling(bool forward) {
   ctx.tdma_load(&ml_rbh, ga_rbh);
 
   // load initial_h if exist or clear to zeros
-  cvk_tl_t tl_hidden;
-  matrix_to_tensor(&tl_hidden, ml_hidden);
   if (with_initial_h) {
     ctx.tdma_load(&ml_hidden, ga_h0);
   } else {
-    cvk_tiu_mul_param_t p = {0};
-    p.res_high = nullptr;
-    p.res_low = &tl_hidden;
-    p.a = &tl_hidden; // rt
-    p.b_is_const = 1;
-    p.b_const.val = ctx.convert_fp32_to_bf16(0.0);
-    p.rshift_bits = 0;
-    p.layer_id = layer_id;
-    p.relu_enable = 0;
-    ctx.tiu_mul(&p);
+    zeros(ml_hidden);
   }
 
   for (int i = 0; i < seq_length; i++) {
-    int seq_idx = i;
-    if (forward == false) {
-      seq_idx = seq_length - i - 1;
-    }
+    int seq_idx = forward ? i : (seq_length - i - 1);
     int x_offset = seq_idx * batch_size * input_bytes;
+    int s_offset = seq_idx * num_dir * x_bytes;
     // gate_z => ml_xz
-    ctx.tdma_load_stride(&ml_xz, ga_xz + x_offset, {input_bytes});
+    ctx.tdma_load_stride(&ml_xz, ga_xz + x_offset, x_gstride);
     matrix_mul(ml_work1, ml_hidden, ml_rz, ml_rbz);
     eltwise_add(ml_work1, ml_xz);
     sigmoid(ml_xz, ml_work1, ml_work0);
     // gate_r => ml_xh (tmp)
-    ctx.tdma_load_stride(&ml_xh, ga_xr + x_offset, {input_bytes});
+    ctx.tdma_load_stride(&ml_xh, ga_xr + x_offset, x_gstride);
     matrix_mul(ml_work1, ml_hidden, ml_rr, ml_rbr);
     eltwise_add(ml_work1, ml_xh);
     sigmoid(ml_xh, ml_work1, ml_work0);
     // gate_h => ml_xh
     matrix_mul(ml_work1, ml_hidden, ml_rh, ml_rbh);
     eltwise_mul(ml_work1, ml_xh);
-    ctx.tdma_load_stride(&ml_xh, ga_xh + x_offset, {input_bytes});
+    ctx.tdma_load_stride(&ml_xh, ga_xh + x_offset, x_gstride);
     eltwise_add(ml_work1, ml_xh);
     tanh(ml_xh, ml_work1, ml_work0);
     // H = (1-gate_z)*gate_h + gate_z * hidden
@@ -408,8 +415,7 @@ void TgGruKernel::compute_without_tiling(bool forward) {
     eltwise_add(ml_hidden, ml_xh);
     eltwise_mul(ml_xz, ml_xh);
     eltwise_sub(ml_hidden, ml_xz);
-    ctx.tdma_store_stride(&ml_hidden, ga_store + seq_idx * num_dir * x_bytes,
-                          {hidden_bytes});
+    ctx.tdma_store_stride(&ml_hidden, ga_store + s_offset, h_gstride);
   }
   lmem_used = lmem_used_backup;
 }
@@ -469,7 +475,10 @@ void TgGruKernel::init(uint32_t layer_id, gaddr_t ga_input,
   this->input_bytes = num_dir * 3 * hidden_bytes;
   this->recurrence_bytes = hidden_size * hidden_bytes;
   this->x_bytes = batch_size * hidden_bytes;
+  this->x_gstride.row = input_bytes;
+  this->h_gstride.row = hidden_bytes;
   assert(linear_before_reset == true); // support later
+  assert(do_bias == true);             // support later
   init_table();
 }
 
@@ -477,11 +486,7 @@ void TgGruKernel::compute_with_tiling(bool forward) {
   init_gaddr(forward);
   init_h0();
   for (int i = 0; i < seq_length; i++) {
-    int seq_idx = i;
-    if (forward == false) {
-      seq_idx = seq_length - i - 1;
-    }
-    compute(seq_idx);
+    compute(i, forward);
   }
 }
 

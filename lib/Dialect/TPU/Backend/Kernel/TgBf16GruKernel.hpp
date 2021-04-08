@@ -28,6 +28,10 @@ public:
   void schedule();
 
 protected:
+  typedef struct {
+    int pos_h;
+    int h;
+  } tiling_t;
   void init_table();
   bool need_tiling();
   void compute_without_tiling(bool forward = true);
@@ -35,7 +39,7 @@ protected:
   void tiling();
   void init_gaddr(bool forward = true);
   void init_h0();
-  void compute(int seq_idx);
+  void compute(int seq_idx, bool forward = true);
   uint8_t ps32_mode(int step_idx);
   void assign_matrix(cvk_ml_t *ml_mem, const cvk_ml_shape_t &shape);
   void fill_matrix(cvk_ml_t *ml_mem, uint32_t row, uint32_t col, uint32_t addr);
@@ -45,9 +49,16 @@ protected:
   void matrix_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
                   const cvk_ml_t &ml_right, const cvk_ml_t &ml_bias,
                   uint8_t ps32_mode = 0);
+  void matrix_recurrence(const cvk_ml_t &ml_res, int flip, const tiling_t &tile,
+                         gaddr_t ga_weight, gaddr_t ga_bias);
+  void zeros(const cvk_ml_t &matrix);
   void eltwise_add(const cvk_ml_t &ml_res, const cvk_ml_t &ml_right);
   void eltwise_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_right);
+  void eltwise_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
+                   const cvk_ml_t &ml_right);
   void eltwise_sub(const cvk_ml_t &ml_res, const cvk_ml_t &ml_right);
+  void eltwise_sub(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
+                   const cvk_ml_t &ml_right);
   void sigmoid(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
                const cvk_ml_t &ml_buff);
   void tanh(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
@@ -67,8 +78,7 @@ protected:
   gaddr_t ga_output;
   // for bidirectional
   gaddr_t ga_store, ga_h0;
-  gaddr_t ga_xz, ga_xr, ga_xh, ga_rz, ga_rr, ga_rh;
-  gaddr_t ga_rbz, ga_rbr, ga_rbh;
+  gaddr_t ga_xz, ga_xr, ga_xh, ga_rz, ga_rr, ga_rh, ga_rbz, ga_rbr, ga_rbh;
   int seq_length;
   int batch_size;
   int hidden_size;
@@ -94,20 +104,18 @@ protected:
   uint32_t lmem_used;
 
   // for tiling
-  typedef struct {
-    int pos_h;
-    int h;
-  } tiling_t;
   int step_size;
   int step_num;
-  std::vector<tiling_t> tiles; // tilng hidden_size
-  std::vector<cvk_ml_t> ml_hiddens;
-  uint32_t addr_recurrence; // for recurrence
+  std::vector<tiling_t> tiles;         // tilng hidden_size
+  std::vector<cvk_ml_t> ml_hiddens[2]; // one for backup
+  uint32_t addr_recurrence;            // for recurrence
   uint32_t addr_bias;
   uint32_t addr_work0; // for lut buffer and ps32 bias buffer
   uint32_t addr_work1; // for dot(h_t,r) result
   uint32_t addr_xz;    // for z
   uint32_t addr_xh;    // for r/h
+  cvk_mg_stride_t x_gstride;
+  cvk_mg_stride_t h_gstride;
 };
 
 #endif

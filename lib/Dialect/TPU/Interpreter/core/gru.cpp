@@ -174,6 +174,10 @@ void GruOpKernel::invoke() {
   if (bidirectional) {
     compute(false);
   }
+  if (datatype == DataType::BF16) {
+    clean16bitmantissa(output_data->data(), output_data->data(),
+                       output_data->size());
+  }
 }
 
 void GruOpKernel::dump() { OpKernel::dump(); }
