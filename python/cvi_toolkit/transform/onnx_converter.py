@@ -2004,53 +2004,30 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "MatMul")
         # Use fully connectly op, set bias is zero
         #(M, K) * (K, N) => (M, N)
-        opd0, opd0_shape, _ = self.getOperand(onnx_node.inputs[0])
+        lhs_op, lhs_shape, _ = self.getOperand(onnx_node.inputs[0])
         rhs_op, rhs_shape, rhs_type = self.getOperand(onnx_node.inputs[1])
-
+        K = rhs_shape[-2]
+        N = rhs_shape[-1]
+        output_shape = list(lhs_shape)
+        output_shape[-1] = N
+        fc_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
         # rhs is weight
         if rhs_type == TensorType.TENSOR:
             weight_name = "{}_add_weight".format(onnx_node.name)
             weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
             rhs_shape = weight_tensor.shape
-            if len(rhs_shape) == 3:
-                weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (0, 2, 1)))
-            else:
-                weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (1, 0)))
+            num_dim = len(rhs_shape)
+            sort = list(range(num_dim))
+            sort[-2:] = sort[-1],sort[-2]
+            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, sort))
             weight_shape = list(weight_tensor.shape)
             self.addTensor(weight_name, weight_tensor, weight_shape)
             rhs_op = self.CVI.add_load_file_op(weight_name, weight_shape)
-
-        k = rhs_shape[-2]
-        # if lhs'shape doesn't match with rhs's, lhs should be reshaped
-        if len(opd0_shape) != len(rhs_shape) or opd0_shape[-1] != k:
-            if len(rhs_shape) == 3:
-                tmp_shape = [rhs_shape[0], -1 , k]
-            else:
-                tmp_shape = [-1, k]
-            try:
-                dummy = np.ones(opd0_shape).reshape(tmp_shape)
-            except:
-                raise RuntimeError("add transpose op {} vs {} can not matmul".format(input_shape, rhs_shape))
-
-            reshape_shape = dummy.shape
-            reshape_name = "{}_reshape".format(onnx_node.inputs[0])
-            reshape_op = self.CVI.add_reshape_op(reshape_name, [opd0], reshape_shape)
-            self.addOperand(reshape_name, reshape_op, rhs_shape, TensorType.ACTIVATION)
-            lhs_op = reshape_op
-            lhs_shape = reshape_shape
+            fc_op = self.CVI.add_fully_connected_op(fc_name, [lhs_op, rhs_op], output_shape)
+            self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
         else:
-            lhs_op = opd0
-            lhs_shape = opd0_shape
-
-        if len(rhs_shape) == 3:
-            output_shape = [lhs_shape[0], lhs_shape[1], rhs_shape[2]]
-        elif len(rhs_shape) == 4:
-            output_shape = [lhs_shape[0], lhs_shape[1], lhs_shape[2], rhs_shape[3]]
-        else:
-            output_shape = [lhs_shape[0], rhs_shape[1]]
-        fc_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-        fc_op = self.CVI.add_fully_connected_op(fc_name, [lhs_op, rhs_op], output_shape)
-        self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
+            matmul_op = self.CVI.add_matmul_op(fc_name, [lhs_op, rhs_op], output_shape)
+            self.addOperand(onnx_node.name, matmul_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
@@ -3026,37 +3003,8 @@ class OnnxConverter(BaseConverter):
                     'order2': transpose_perm[2],
                     'order3': transpose_perm[3],
                 }
-
-                is_0231 = transpose_perm == [0, 1, 3, 2]
-                permute_0231_shape = list(output_shape)
-                if is_0231:
-                    # try to reshape it, current support
-                    # 0231 : (N, C, H, W) -> (N, H, W, C)
-                    # that could be reshaps as
-                    # <n,c,h,w> -> <n*c, h, 1, w> -permute-> <n*c, 1, w, h>
-                    # reshape
-                    reshape = [np.prod(input_shape[:2]), input_shape[2], 1, input_shape[3]]
-                    reshape_op = self.CVI.add_reshape_op("{}_{}_for_0231".format(
-                        onnx_node.name, onnx_node.op_type), operands, reshape)
-
-                    # permute 0231
-                    attr = {
-                        'order0': 0,
-                        'order1': 2,
-                        'order2': 3,
-                        'order3': 1,
-                    }
-                    operands = [reshape_op]
-                    output_shape = [reshape[0], 1, input_shape[3], input_shape[2]]
-                    # reshape back
-
                 permute_op = self.CVI.add_permute_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
                 self.addOperand(onnx_node.name, permute_op, output_shape, TensorType.ACTIVATION)
-
-                if is_0231:
-                    reshape_op = self.CVI.add_reshape_op("{}_{}_back_for_0231".format(
-                        onnx_node.name, onnx_node.op_type), [permute_op], permute_0231_shape)
-                    self.addOperand(onnx_node.name, reshape_op, output_shape, TensorType.ACTIVATION)
 
             elif len(transpose_perm) == 3:
                 """

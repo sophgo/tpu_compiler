@@ -709,6 +709,37 @@ void parseFullyConnectedParam(
   n = o_s[axis];
 }
 
+// [M,K] [K,N] => []
+void parseMatMulParam(
+    Value left, Value right, int &batch,
+    int &M, int &K, int &N) {
+  auto left_type = left.getType().template cast<TensorType>();
+  std::vector<int64_t> l_s(left_type.getShape());
+  auto right_type = right.getType().template cast<TensorType>();
+  std::vector<int64_t> r_s(right_type.getShape());
+  auto l_dim = l_s.size();
+  auto r_dim = r_s.size();
+  N = r_s[r_dim - 1];
+  K = r_s[r_dim - 2];
+  assert((K == l_s[l_dim - 1]) && "input K not equal to filter K");
+  assert(r_dim >= 2);
+  if (r_dim == 2) {
+    batch = 1;
+    M = 1;
+    for (size_t i = 0; i < l_dim - 1; i++) {
+      M *= l_s[i];
+    }
+    return;
+  }
+  assert(l_dim == r_dim);
+  batch = 1;
+  for (size_t i = 0; i < r_dim - 2; i++) {
+    batch *= r_s[i];
+    assert(r_s[i] == l_s[i]);
+  }
+  M = l_s[r_dim - 2];
+}
+
 template<typename OpTy>
 void parseLeakyReluParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,

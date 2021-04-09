@@ -10,12 +10,13 @@
 #define DEBUG_TYPE "fc_kernel"
 
 void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
-                      gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
+                      gaddr_t ga_bias, gaddr_t ga_output, int batch, int M, int K, int N,
                       bool do_bias, bool do_relu, int rshift_width,
                       int multiplier, std::vector<int> compressed_pos,
                       cvk_fmt_t fmt) {
 
   this->layer_id = layer_id;
+  this->batch = static_cast<uint32_t>(batch);
   this->M = static_cast<uint32_t>(M);
   this->K = static_cast<uint32_t>(K);
   this->N = static_cast<uint32_t>(N);
@@ -318,37 +319,43 @@ void TgFcKernel::store(int32_t step_idx) {
 }
 
 void TgFcKernel::schedule() {
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-                 "Tilling FC, M:%d,K:%d,N:%d,tile_M:%d,tile_K:%d,tile_N:%d,fmt:%d\n", M,
-                 K, N, tile_M, tile_K, tile_N, fmt););
-  if (do_parallel) {
-    for (int step = 0; step < total_steps + 2; step++) {
-      ctx.parallel_enable();
-      if (step > 0 && step - 1 < total_steps) {
-        compute(step - 1);
+  LLVM_DEBUG(
+      llvm::errs() << llvm::format(
+          "Tilling FC, M:%d,K:%d,N:%d,tile_M:%d,tile_K:%d,tile_N:%d,fmt:%d\n",
+          M, K, N, tile_M, tile_K, tile_N, fmt););
+  for (uint32_t b = 0; b < batch; b++) {
+    if (do_parallel) {
+      for (int step = 0; step < total_steps + 2; step++) {
+        ctx.parallel_enable();
+        if (step > 0 && step - 1 < total_steps) {
+          compute(step - 1);
+        }
+        if (step < total_steps) {
+          load(step);
+        }
+        if (step > 1) {
+          store(step - 2);
+        }
+        ctx.parallel_disable();
       }
-      if (step < total_steps) {
+    } else {
+      for (int step = 0; step < total_steps; step++) {
         load(step);
+        compute(step);
+        store(step);
       }
-      if (step > 1) {
-        store(step - 2);
-      }
-      ctx.parallel_disable();
     }
-  } else {
-    for (int step = 0; step < total_steps; step++) {
-      load(step);
-      compute(step);
-      store(step);
-    }
+    ga_input += M * K * fmt_size;
+    ga_weight += N * K * fmt_size;
+    ga_output += M * N * fmt_size;
   }
 }
 
 void cvi_backend_tg_fixed_fc_kernel(const CviBackendContext &ctx,
                                     uint32_t layer_id, gaddr_t ga_input,
                                     gaddr_t ga_weight, gaddr_t ga_bias,
-                                    gaddr_t ga_output, int M, int K, int N,
-                                    bool do_bias, bool do_relu,
+                                    gaddr_t ga_output, int batch, int M, int K,
+                                    int N, bool do_bias, bool do_relu,
                                     int rshift_width, int multiplier,
                                     std::vector<int> compressed_pos) {
   LLVM_DEBUG(
@@ -357,7 +364,7 @@ void cvi_backend_tg_fixed_fc_kernel(const CviBackendContext &ctx,
                                    M, K, N, do_bias, do_relu));
 
   TgFcKernel kernel(ctx);
-  kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
+  kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, batch, M, K, N,
               do_bias, do_relu, rshift_width, multiplier, compressed_pos,
               CVK_FMT_I8);
 
@@ -368,7 +375,7 @@ void cvi_backend_tg_fixed_fc_kernel(const CviBackendContext &ctx,
 void cvi_backend_tg_bf16_fc_kernel(const CviBackendContext &ctx,
                                    uint32_t layer_id, gaddr_t ga_input,
                                    gaddr_t ga_weight, gaddr_t ga_bias,
-                                   gaddr_t ga_output, int M, int K, int N,
+                                   gaddr_t ga_output, int batch, int M, int K, int N,
                                    bool do_bias, bool do_relu,
                                    std::vector<int> compressed_pos) {
   LLVM_DEBUG(
@@ -376,7 +383,7 @@ void cvi_backend_tg_bf16_fc_kernel(const CviBackendContext &ctx,
                                    "M:%d,K:%d,N:%d, do_bias %d, do_relu %d\n",
                                    M, K, N, do_bias, do_relu));
   TgFcKernel kernel(ctx);
-  kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
+  kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, batch, M, K, N,
               do_bias, do_relu, 0, 0, compressed_pos, CVK_FMT_BF16);
 
   kernel.selectTilePolicy();

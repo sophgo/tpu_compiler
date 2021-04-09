@@ -20,7 +20,7 @@ public:
   TgFcKernel(const CviBackendContext &ctx) : ctx(ctx) {}
 
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
-            gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
+            gaddr_t ga_bias, gaddr_t ga_output, int batch, int M, int K, int N,
             bool do_bias, bool do_relu, int rshift_width, int multiplier,
             std::vector<int> compressed_pos, cvk_fmt_t fmt);
 
@@ -54,6 +54,7 @@ protected:
   gaddr_t ga_weight;
   gaddr_t ga_bias;
   gaddr_t ga_output;
+  uint32_t batch;
   uint32_t M;
   uint32_t K;
   uint32_t N;

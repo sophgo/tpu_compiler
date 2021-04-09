@@ -33,6 +33,7 @@ TEST_ONNX_IR = [
     "Max",
     "Min",
     "Mul",
+    "MatMul",
     "Neg",
     "Relu",
     "PRelu",
@@ -93,6 +94,7 @@ class ONNX_IR_TESTER(object):
             "Max": self.test_Max,
             "Min": self.test_Min,
             "Mul": self.test_Mul,
+            "MatMul": self.test_MatMul,
             "Neg": self.test_Neg,
             "PRelu": self.test_PRelu,
             "Reciprocal": self.test_Reciprocal,
@@ -791,6 +793,41 @@ class ONNX_IR_TESTER(object):
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         input_data = np.random.randn(input_shape[0], input_shape[1],
+                        input_shape[2], input_shape[3]).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_MatMul(self):
+        # matmul(1x16x40x64, 1x16x64x40) => 1x16x40x40
+        test_case = 'MatMul'
+        input_shape = [1, 16, 40, 64]
+        output_shape = [1, 16, 40, 40]
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_node = helper.make_node(
+            'Transpose',
+            ['input'],
+            ['X1'],
+            perm = (0,1,3,2),
+        )
+
+        matmul_node = helper.make_node(
+            'MatMul',  # node name
+            ['input','X1'],  # inputs
+            ['output'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [x1_node, matmul_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)

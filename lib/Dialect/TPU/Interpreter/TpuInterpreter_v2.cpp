@@ -42,6 +42,7 @@
 #include "tpuc/Interpreter/cpu/interpolation.hpp"
 #include "tpuc/Interpreter/cpu/gru.hpp"
 #include "tpuc/Interpreter/cpu/lrn.hpp"
+#include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "tpuc/Interpreter/cpu/normalize.hpp"
 #include "tpuc/Interpreter/cpu/layernorm.hpp"
 #include "tpuc/Interpreter/cpu/pad.hpp"
@@ -320,6 +321,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::MishOp>(op)) {
     auto mish_kernel_op = std::make_unique<MishOpKernel>(op, valueMapping);
     oplist.push_back(std::move(mish_kernel_op));
+    return;
+  }
+  if (isa<tpu::MatMulOp>(op)) {
+    auto kernel_op = std::make_unique<MatMulOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(kernel_op));
     return;
   }
   if (isa<tpu::NoneOp>(op)) {

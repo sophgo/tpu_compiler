@@ -1781,6 +1781,7 @@ class MLIRImporter(object):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         name_attr = StringAttr.get(op_name)
+        self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.MatMul.value, inputOperands, [tensor_output_type],
                             name=name_attr, quant=self.quant_param)
 

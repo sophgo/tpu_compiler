@@ -52,6 +52,9 @@ struct TransposeRightMatrixPattern : public RewritePattern {
     std::vector<int64_t> leftShape(leftType.getShape());
     auto rightType = rightOp->getResult(0).getType().cast<TensorType>();
     std::vector<int64_t> rightShape(rightType.getShape());
+    if (rightShape.size() != 2 || leftShape.size() != 2) {
+      return failure();
+    }
     int k = leftShape[1];
     bool need_transpose = false;
     int n = rightShape[1];

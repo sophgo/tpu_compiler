@@ -1412,6 +1412,10 @@ def TPU_MatMulOp : TPU_Op<"matmul",
 
   let arguments = (
     ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,

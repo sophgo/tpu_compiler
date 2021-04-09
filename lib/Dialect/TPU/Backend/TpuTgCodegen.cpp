@@ -1837,7 +1837,7 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
     arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
 
   cvi_backend_tg_fixed_fc_kernel(
-      *backend_ctx, layer_id, ga_input, ga_filter, ga_bias, ga_output, m, k, n,
+      *backend_ctx, layer_id, ga_input, ga_filter, ga_bias, ga_output, 1, m, k, n,
       with_bias, do_relu, rshift, multiplier, compr_weight_poss);
 
   return success();
@@ -1881,6 +1881,7 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
                                 ga_filter, // weight_data_gaddr
                                 ga_bias,   // bias_data_gaddr
                                 ga_output, // output_data_gaddr
+                                1,
                                 m,         // int in_row
                                 k,         // int in_col
                                 n,         // in out_col,
@@ -2505,46 +2506,50 @@ LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_MatMulOp::codegen(void *ctx) {
-  llvm_unreachable("unsupport codegen of TG_INT8_MatMulOp");
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int batch, M, K, N;
+  parseMatMulParam(op->getOperand(0), op->getOperand(1), batch, M, K, N);
+  bool do_relu = this->do_relu();
+  gaddr_t ga_left = getOpAddress(op->getOperand(0).getDefiningOp());
+  gaddr_t ga_right = getOpAddress(op->getOperand(1).getDefiningOp());
+  gaddr_t ga_output = getOpAddress(op);
+
+  int layer_id = getOpLayerId(op);
+
+  int8_t rshift_int8 = rshift().getValue();
+  int32_t multiplier = this->mutliplier().getValue();
+  int rshift = static_cast<int>(rshift_int8);
+  std::vector<int> compr_weight_poss;
+
+  cvi_backend_tg_fixed_fc_kernel(
+      *backend_ctx, layer_id, ga_left, ga_right, GA_INVALID, ga_output, batch,
+      M, K, N, false, do_relu, rshift, multiplier, compr_weight_poss);
+
   return success();
 }
 
 LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  auto opd_left = op->getOperand(0);
-  auto opd_right = op->getOperand(1);
-
-  auto left_type = opd_left.getType().template cast<TensorType>();
-  std::vector<int64_t> left_shape(left_type.getShape());
-  auto right_type = opd_right.getType().cast<TensorType>();
-  std::vector<int64_t> right_shape(right_type.getShape());
-  int m = left_shape[0];
-  int k = left_shape[1];
-  int n = right_shape[1];
-
-  gaddr_t ga_left = getPreviousOpAddress(op, 0);
-  gaddr_t ga_right = getPreviousOpAddress(op, 1);
+  int batch, M, K, N;
+  parseMatMulParam(op->getOperand(0), op->getOperand(1), batch, M, K, N);
+  bool do_relu = this->do_relu();
+  gaddr_t ga_left = getOpAddress(op->getOperand(0).getDefiningOp());
+  gaddr_t ga_right = getOpAddress(op->getOperand(1).getDefiningOp());
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-
   std::vector<int> compr_weight_poss;
 
-  cvi_backend_tg_bf16_fc_kernel(*backend_ctx,
-                                layer_id,  // layer_id
-                                ga_left,   // input_data_gaddr
-                                ga_right,  // weight_data_gaddr
-                                0,         // bias_data_gaddr
-                                ga_output, // output_data_gaddr
-                                m,         // int in_row
-                                k,         // int in_col
-                                n,         // in out_col,
-                                false,     // has_bias
-                                false,     // do_activation
-                                compr_weight_poss);
+  cvi_backend_tg_bf16_fc_kernel(*backend_ctx, layer_id, ga_left, ga_right,
+                                GA_INVALID, ga_output, batch, M, K, N, false,
+                                do_relu, compr_weight_poss);
 
   return success();
 }

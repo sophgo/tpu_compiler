@@ -2583,9 +2583,10 @@ Value tpu::QuadraticSumOp::convertToTG() {
 }
 
 Value tpu::MatMulOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   Operation *op = this->getOperation();
+  TensorFile *wTF = getWeightTensorFile(op);
   auto builder = Builder(op->getContext());
   std::vector<Value> operands;
   operands.push_back(op->getOperand(0));
@@ -2593,11 +2594,33 @@ Value tpu::MatMulOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  assert(getOpQuant() == "BF16");
-  auto newOp = OpBuilder(op).create<tpu::TG_BF16_MatMulOp>(op->getLoc(),
-      getResult().getType(), ArrayRef<Value>{operands},
-      ArrayRef<NamedAttribute>{attrs});
-  return newOp.getResult();
+  attrs.push_back(
+      builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
+    // rshift
+    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
+    assert(rshift->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "rshift",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "mutliplier",
+        builder.getI32IntegerAttr(static_cast<int32_t>(multiplier->at(0)))));
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_MatMulOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_MatMulOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
 }
 
 template<typename OpTy>

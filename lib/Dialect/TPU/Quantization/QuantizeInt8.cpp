@@ -1275,16 +1275,13 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
   float qscale = threshold_prod / threshold_y / 127.0;
 
   // create tensors for rshift and multiplier
-  auto rshift = std::make_unique<std::vector<float> >(1);
-  auto multiplier = std::make_unique<std::vector<float> >(1);
+  auto rshift = std::make_unique<std::vector<float> >(1, 0.0f);
+  auto multiplier = std::make_unique<std::vector<float> >(1, 0.0f);
 
   //
   // decompose into int8 mulitplier and rshift
   //
-  if (std::abs(qscale - 1.0f) <= 1e-5) {
-    rshift->at(0) = 0.0f;
-    multiplier->at(0) = 0.0f;
-  } else {
+  if (std::abs(qscale - 1.0f) > 1e-5) {
     uint32_t multiplier_u32;
     int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
                           &multiplier_u32, true);
@@ -1525,7 +1522,12 @@ LogicalResult tpu::MishOp::quantizeInt8() {
   return quantizeInt8LutOps<tpu::MishOp>(op);
 }
 
-
+LogicalResult tpu::MatMulOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8MultiplyOps<tpu::MatMulOp>(op);
+}
 
 LogicalResult tpu::ClipOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1661,7 +1663,6 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InstanceNormOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LayerNormOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::LstmOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::MatMulOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PadOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PermuteOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::PixelShuffleOp)

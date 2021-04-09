@@ -2293,6 +2293,8 @@ class TPU_TG_MatMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins Variadic<AnyTensor>:$inputs,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I32Attr>:$mutliplier,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
