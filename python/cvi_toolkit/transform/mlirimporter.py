@@ -51,6 +51,7 @@ class TPU_OpType(Enum):
     Eltwise_Mul = 'tpu.eltwise_mul'
     Equal = 'tpu.equal'
     Exp = 'tpu.exp'
+    Embedding = 'tpu.embedding'
     FullyConnected = 'tpu.fully_connected'
     FrcnDetection = 'tpu.frcn_detection'
     GRU = 'tpu.gru'
@@ -62,6 +63,7 @@ class TPU_OpType(Enum):
     Lrn = 'tpu.lrn'
     LSTM = 'tpu.lstm'
     LSTM_CAFFE = 'tpu.lstm_caffe'
+    LayerNorm = "tpu.layer_norm"
     Normalize = 'tpu.normalize'
     Mish = 'tpu.mish'
     Pad = 'tpu.pad'
@@ -896,6 +898,16 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Exp.value, inputOperands, [
             tensor_output_type], name=op_name, quant=self.quant_param)
 
+    def add_embedding_op(self, op_name, inputOperands, output_shape):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_shape), self.f32Type)
+
+        op_name = StringAttr.get(op_name)
+
+        return self.buildOp(TPU_OpType.Embedding.value, inputOperands, [tensor_output_type],
+                            name=op_name)
+
+
     def add_fully_connected_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
@@ -1075,6 +1087,19 @@ class MLIRImporter(object):
         nameAttr = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.LSTM_CAFFE.value, inputOperands, [
             tensor_output_type], name=nameAttr)
+
+    def add_layernorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        op_name = StringAttr.get(op_name)
+        param = {
+            "eps":FloatAttr.get_f32(kargs['eps']),
+            "normalized_shape": ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['normal_shape']])
+        }
+        none = self.add_none_op()
+        inputOperands.extend([none, none])
+        return self.buildOp(TPU_OpType.LayerNorm.value, inputOperands, [tensor_output_type],
+                name=op_name, quant=self.quant_param, **param)
 
     def add_normalize_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

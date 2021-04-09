@@ -68,14 +68,13 @@ def convert_onnx_attribute_proto(attr_proto):
     else:
         raise ValueError("Unsupported ONNX attribute: {}".format(attr_proto))
 
-class OnnxNode():
-    def __init__(self, node):
-        self.name = str(node.output[0])
-        self.op_type = str(node.op_type)
-        self.attrs = dict([(attr.name, translate_onnx(attr.name, convert_onnx_attribute_proto(attr))) for attr in node.attribute])
-        self.inputs = list(node.input)
-        self.outputs = list(node.output)
-        self.node_proto = node
+class BaseNode():
+    def __init__(self, info):
+        self.name = str(info["name"])
+        self.op_type = str(info["op_type"])
+        self.attrs = dict(info["attrs"])
+        self.inputs = list(info["inputs"])
+        self.outputs = list(info["outputs"])
 
     def print_info(self):
         cprint("node: {}".format(self.name), 'cyan')
@@ -85,6 +84,19 @@ class OnnxNode():
         cprint("    attrs: {}".format(self.attrs), 'white')
         for arg in self.attrs:
             cprint("        {}: {}".format(arg, self.attrs[arg]), 'green')
+
+
+class OnnxNode(BaseNode):
+    def __init__(self, node):
+        info = dict()
+        info["name"] = node.output[0]
+        info["op_type"] = node.op_type
+        info["attrs"] = [(attr.name, translate_onnx(attr.name, convert_onnx_attribute_proto(attr))) for attr in node.attribute]
+        info["inputs"] = node.input
+        info["outputs"] = node.output
+        super().__init__(info)
+        self.node_proto = node
+
 
 class OnnxTensor():
     def __init__(self, name, value, shape):
@@ -144,6 +156,7 @@ class OnnxConverter(BaseConverter):
             "Equal": lambda node: self.convert_equal_op(node),
             "Exp" :lambda node: self.convert_activation_op(node),
             "Expand": lambda node: self.convert_expand_op(node),
+            "Embedding": lambda node: self.convert_embedding_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
             "Gemm": lambda node: self.convert_gemm_op(node),
@@ -156,6 +169,7 @@ class OnnxConverter(BaseConverter):
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "LRN": lambda node: self.convert_lrn_op(node),
             "LSTM": lambda node: self.convert_lstm_op(node),
+            "LayerNorm": lambda node: self.convert_layernorm_op(node),
             "MatMul": lambda node: self.convert_matmul_op(node),
             "MaxPool": lambda node: self.convert_maxpool_op(node),
             "Max" : lambda node: self.convert_max_op(node),
@@ -222,6 +236,12 @@ class OnnxConverter(BaseConverter):
 
         # init importer
         self.CVI = MLIRImporter(inputs, outputs, "FP32", output_weight_file=self.output_weight_file)
+
+    def getNonde(self, op_name):
+        for t in self.converted_nodes:
+            if t and  t.name == op_name:
+                return t
+        return None
 
     def remove_tensor_from_input_nodes(self):
         def find_name_in_tensor_list(name):
@@ -413,6 +433,83 @@ class OnnxConverter(BaseConverter):
                 consumed.clear()
         self.converted_nodes = [node for node in self.converted_nodes if node]
 
+        # form layerNorm op form onnx
+        # sudpport default param.elementwise_affine
+        consumed = list()      # idx
+        ln_in, ln_out = [], []
+        base_pattern =  ["ReduceMean", "Sub", "Pow", "ReduceMean",
+                         "Add", "Sqrt", "Div", "Mul", "Add"]
+        for i, node in enumerate(self.converted_nodes):
+
+            if node.op_type == "Constant":
+                continue
+            if len(base_pattern) > 0 and node.op_type == base_pattern[0]:
+                base_pattern.pop(0)
+                consumed.append(i)
+                if node.op_type == "ReduceMean" and len(ln_in) == 0:
+                    ln_in.append(node.inputs[0])
+
+                elif node.op_type == "Mul":
+                    if "layer_norm" in node.inputs[1]:
+                        ln_in.append(node.inputs[1])
+                    else:
+                        base_pattern = ["ReduceMean", "Sub", "Pow", "ReduceMean",
+                                        "Add", "Sqrt", "Div", "Mul", "Add"]
+                        consumed.clear()
+                        ln_in.clear()
+                        ln_out.clear()
+
+                elif node.op_type == "Add":
+                    n = self.getNonde(node.inputs[1])
+                    if not n and "layer_norm" in node.inputs[1]:
+                        ln_in.append(node.inputs[1])
+                        ln_out.append(node.outputs[0])
+                    elif n.op_type == "Constant":
+                        eps = numpy_helper.to_array(n.attrs['value'])
+            else:
+                base_pattern = ["ReduceMean", "Sub", "Pow", "ReduceMean",
+                                "Add", "Sqrt", "Div", "Mul", "Add"]
+                consumed.clear()
+                ln_in.clear()
+                ln_out.clear()
+
+            # reconstruct layerNorm node
+            if len(base_pattern) == 0:
+                # remove consumed nodes
+                for j in consumed:
+                    self.converted_nodes[j] = None
+                info = {}
+                info["name"] = ln_out[0]
+                info["op_type"] = "LayerNorm"
+                info["attrs"] = {"eps": eps}
+                info["inputs"] = ln_in
+                info["outputs"] = ln_out
+                ln_node = BaseNode(info)
+                self.converted_nodes[i] = ln_node
+                # reset and wait for next pattern
+                base_pattern = ["ReduceMean", "Sub", "Pow", "ReduceMean",
+                                "Add", "Sqrt", "Div", "Mul", "Add"]
+                consumed.clear()
+                ln_in.clear()
+                ln_out.clear()
+        self.converted_nodes = [node for node in self.converted_nodes if node]
+
+        # reconstruct embedding op
+        # current just support padding_idx = 0
+        # num_embeddings, embedding_dim param derive form weight's shape
+        for i, node in enumerate(self.converted_nodes):
+            if node.op_type == "Gather" and node.inputs[0].endswith(".weight"):
+                info = {}
+                info["name"] = node.name
+                info["op_type"] = "Embedding"
+                info["attrs"] = node.attrs
+                info["inputs"] = node.inputs
+                info["outputs"] = node.outputs
+                embedding_node = BaseNode(info)
+                self.converted_nodes[i] = embedding_node
+                # break  # allways in encoder early phase
+
+
     def convert_tensor(self):
         """convert onnx tensor to OnnxTensor"""
         for tensor in self.tensors:
@@ -526,7 +623,6 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, abs_op, output_shape, TensorType.ACTIVATION)
 
     def convert_add_op(self, onnx_node):
-
         assert(len(onnx_node.inputs) == 2)
         op1, _input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
@@ -545,8 +641,18 @@ class OnnxConverter(BaseConverter):
         # [n,c,h,w] broadcast mul [1,c,1,1]
         if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             operands.append(op1)
+            if input_shape1 == input_shape2:
+                # add const value with same shape, use eltwise add
+                bias_name = "{}_add_bias".format(onnx_node.name)
+                add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+                self.addTensor(bias_name, add_value, add_value.shape)
+                op3 = self.CVI.add_load_file_op(bias_name, add_value.shape)
+                operands.append(op3)
+                output_shape = input_shape1
+                add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
             # [1], [c, 1, 1], [1,c,1,1], [w]
-            if len(input_shape2) == 1 or len(input_shape2) == 3 or \
+            elif len(input_shape2) == 1 or len(input_shape2) == 3 or \
                 (len(input_shape2) == 4 and input_shape2[2:]==[1,1]) or \
                 (len(input_shape2) == 0):
                 channel = input_shape1[1]
@@ -612,17 +718,6 @@ class OnnxConverter(BaseConverter):
                         self.add_reshape(_input_shape1, onnx_node.name,
                                 onnx_node.op_type, [scale_op])
                     return
-            elif input_shape1 == input_shape2:
-                # add const value with same shape, use eltwise add
-                bias_name = "{}_add_bias".format(onnx_node.name)
-                add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
-                self.addTensor(bias_name, add_value, add_value.shape)
-                op3 = self.CVI.add_load_file_op(bias_name, add_value.shape)
-                operands.append(op3)
-                output_shape = input_shape1
-                add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-                self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
-
             else:
                 raise RuntimeError("{} vs {} shape broadcast error".format(input_shape1, input_shape2))
 
@@ -636,6 +731,7 @@ class OnnxConverter(BaseConverter):
 
         elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.ACTIVATION:
             if input_shape1 != input_shape2:
+                # (n, c, h, w) + (n, c, 1, 1)
                 if len(input_shape1) == 4 and input_shape2[-2:] == [1, 1] and input_shape1[1] == input_shape2[1]:
                     # broadcast add from activation
                     # [n,c,h,w] broadcast add [n,c,1,1]
@@ -680,8 +776,33 @@ class OnnxConverter(BaseConverter):
                                     output_shape, TensorType.ACTIVATION)
                     op2 = deconv_op
                 elif len(input_shape2) == 4 and input_shape1[-2:] == [1, 1] and input_shape1[1] == input_shape2[1]:
+                    # (n c 1 1) + (n c h w)
                     onnx_node.inputs[0] ,onnx_node.inputs[1] = onnx_node.inputs[1], onnx_node.inputs[0]
                     return self.convert_add_op(onnx_node)
+                elif len(input_shape1) == 4 and input_shape2[1:3] == [1, 1] and input_shape1[3] == input_shape2[3]:
+                    n, c, h, w = input_shape1
+                    name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+                    output_shape = [n, c * h, 1, w]
+                    op1_reshape = self.CVI.add_reshape_op(name + "_op1_reshape", [op1], output_shape)
+                    add_op = self.CVI.add_broadcast_add_op(name, [op1_reshape, op2],
+                                                            output_shape, axis=1)
+                    res_reshape = self.CVI.add_reshape_op(name + "_res_reshape", [add_op], [n, c, h, w])
+                    self.addOperand(onnx_node.name, add_op,
+                                    output_shape, TensorType.ACTIVATION)
+                    return
+                elif len(input_shape1) == 4 and input_shape2[1] == 1 and input_shape1[2:] == input_shape2[2:]:
+                    name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+                    add_op = self.CVI.add_broadcast_add_op(name, [op1, op2],
+                                                            input_shape1, axis=1)
+                    self.addOperand(onnx_node.name, add_op,
+                                    input_shape1, TensorType.ACTIVATION)
+                    return
+                elif len(input_shape1) == 2 and len(input_shape2) == 3:
+                    n, c, h = input_shape2
+                    assert(input_shape1 == [c, h] and n == 1)
+                    name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+                    output_shape = [n, c, h]
+                    op1 = self.CVI.add_reshape_op(name + "_op1_reshape", [op1], output_shape)
                 else:
                     raise AttributeError("{} v.s. {} shape not same".format(
                         input_shape1, input_shape2))
@@ -1197,12 +1318,10 @@ class OnnxConverter(BaseConverter):
 
         on, ic, id, ih, iw = shape
         oc, ic, kd, kh, kw = filter_tensor.shape
-        print("filter shape:", filter_tensor.shape)
         od = floor((id + 2 * pads[0] - dilations[0] * (kd - 1) - 1) / strides[0] + 1)
         oh = floor((ih + 2 * pads[1] - dilations[1] * (kh - 1) - 1) / strides[1] + 1)
         ow = floor((iw + 2 * pads[2] - dilations[2] * (kw - 1) - 1) / strides[2] + 1)
         output_shape = [on, oc, int(od), int(oh), int(ow)]
-        print(output_shape)
 
         conv3d_op = self.CVI.add_conv3d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv3d_param)
         self.addOperand(onnx_node.name, conv3d_op, output_shape, TensorType.ACTIVATION)
@@ -1500,6 +1619,22 @@ class OnnxConverter(BaseConverter):
 
         else:
             raise RuntimeError("not implement yet")
+
+    def convert_embedding_op(self, onnx_node):
+        assert(onnx_node.op_type == "Embedding")
+
+        op, shape, _ = self.getOperand(onnx_node.inputs[1])
+        operands = list()
+        operands.append(op)
+        word_emb_name = onnx_node.inputs[0]
+        word_emb_tensor = self.getTensor(word_emb_name)
+        word_emb_op = self.CVI.add_load_file_op(word_emb_tensor.name, word_emb_tensor.shape)
+        operands.append(word_emb_op)
+        num_embeddings, embedding_dim = word_emb_tensor.shape
+        output_shape = shape
+        output_shape.append(embedding_dim)
+        embedding_op = self.CVI.add_embedding_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+        self.addOperand(onnx_node.name, embedding_op, output_shape, TensorType.ACTIVATION)
 
     def convert_flatten_op(self, onnx_node):
         assert(onnx_node.op_type == "Flatten")
@@ -1909,9 +2044,10 @@ class OnnxConverter(BaseConverter):
 
         if len(rhs_shape) == 3:
             output_shape = [lhs_shape[0], lhs_shape[1], rhs_shape[2]]
+        elif len(rhs_shape) == 4:
+            output_shape = [lhs_shape[0], lhs_shape[1], lhs_shape[2], rhs_shape[3]]
         else:
             output_shape = [lhs_shape[0], rhs_shape[1]]
-
         fc_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
         fc_op = self.CVI.add_fully_connected_op(fc_name, [lhs_op, rhs_op], output_shape)
         self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
@@ -2298,6 +2434,7 @@ class OnnxConverter(BaseConverter):
                 self.addOperand(onnx_node.name, op1, output_shape, TensorType.ACTIVATION)
                 return
             if np.prod(input_shape1) != np.prod(output_shape):
+                logger.info(self.CVI.print_module())
                 raise RuntimeError("can not reshape {} v.s. {}".format(input_shape1, output_shape))
             if output_shape == input_shape1:
                 # same shape, fuse this op
@@ -2668,6 +2805,19 @@ class OnnxConverter(BaseConverter):
         instancenorm_op = self.CVI.add_instancenorm_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, variance_epsilon=epsilon)
         self.addOperand(onnx_node.name, instancenorm_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_layernorm_op(self, onnx_node):
+        assert(onnx_node.op_type == "LayerNorm")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        # take input last dimension as default normal_shape
+        normal_shape = [input_shape[-1]]
+        operands = [op]
+        eps = onnx_node.attrs.get('epsilon', 1e-5)
+        attrs = {
+            "eps":eps,
+            "normal_shape":list(normal_shape)
+        }
+        layernorm_op = self.CVI.add_layernorm_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, input_shape, **attrs)
+        self.addOperand(onnx_node.name, layernorm_op, input_shape, TensorType.ACTIVATION)
 
     def convert_split_op(self, onnx_node):
         assert(onnx_node.op_type == "Split")
@@ -3167,7 +3317,6 @@ class OnnxConverter(BaseConverter):
         attr = {
             'axes': axes
         }
-        print("output shape: ", output_shape)
         operands = list()
         operands.append(op0)
         reduce_mean_op = self.CVI.add_reduce_mean_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
