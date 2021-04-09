@@ -1070,7 +1070,10 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   getTensorShapeAndSize(op->getOperand(const_idx), const_shape, const_size);
   assert(const_size == (int64_t)const_opd->size());
 
-  auto max_elem = *std::max_element(const_opd->begin(), const_opd->end());
+  auto max_elem = *std::max_element(const_opd->begin(), const_opd->end(),
+                                    [](float a, float b) {
+                                      return (std::abs(a) < std::abs(b));
+                                    });
   //
   // determine the qscale
   //
@@ -1179,7 +1182,7 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
   // support per-tensor only for now
   setOpQuantPerchannel(op, false);
   // use rshift and INT8 multiplier
-  setOpQuantParamType(op, "RSHIFT_AND_M_I32");
+  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
@@ -1187,99 +1190,79 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
   // get operands
   const unsigned nInputs = op->getNumOperands() - 4;
   assert(nInputs == 2 && "support only 2 inputs multiply");
-  // get thresholds
+
+  // get threshold of opd 0
   float threshold_y = getOpThreshold(op);
   LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
       << std::to_string(threshold_y) << "\n";);
-  float threshold_x = 0;
-  int const_idx;
+  auto opd0 = op->getOperand(0).getDefiningOp();
+  assert(!isa<tpu::LoadWeightOp>(opd0));
+  float threshold_x = getOpThreshold(opd0);
 
-  for (unsigned i = 0; i < nInputs; ++i) {
-    auto formerOp = op->getOperand(i).getDefiningOp();
-    if (isa<tpu::LoadWeightOp>(formerOp)) {
-      const_idx = i;
-      continue;
-    }
-    threshold_x = getOpThreshold(formerOp);
-    LLVM_DEBUG(llvm::errs() << "  threshold_x = "
-        << std::to_string(threshold_x) << "\n";);
-  }
-
-  auto const_opd = readAndDeleteWeightTensor<float>(op->getOperand(const_idx), wTF);
-  std::vector<int64_t> const_shape;
+  // get max element of opd 1
+  int const_idx = 1;
   int64_t const_size;
+  std::vector<int64_t> const_shape;
+  auto const_opd = readAndDeleteWeightTensor<float>(op->getOperand(const_idx), wTF);
   getTensorShapeAndSize(op->getOperand(const_idx), const_shape, const_size);
   assert(const_size == (int64_t)const_opd->size());
 
-  auto max_elem = *std::max_element(const_opd->begin(), const_opd->end());
-  //
-  // determine the qscale
-  //
-  float qscale = threshold_x / threshold_y;
-
-  // create tensors for rshift and multiplier
-  auto rshift = std::make_unique<std::vector<float> >(1);
-  auto multiplier = std::make_unique<std::vector<float> >(1);
-  auto max_multiplier = max_elem * qscale;
-  //
-  // decompose into int8 mulitplier and rshift
-  //
-  uint32_t multiplier_u32;
-  uint32_t multiplier_i8;
-  auto shape_multiplier = std::vector<int64_t>{1};
-
-  int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
-      &multiplier_u32, true, max_multiplier);
+  auto max_elem = *std::max_element(const_opd->begin(), const_opd->end(),
+                                    [](float a, float b) {
+                                      return (std::abs(a) < std::abs(b));
+                                    });
   std::vector<float> quant_const(const_size, 0);
-
-  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
-  std::vector<float> qscales(nInputs);
-  qscales[0] = qscale;
-  qscales[1] = 127.0 / (float)max_elem;
-  float max_qscale = *std::max_element(std::begin(qscales), std::end(qscales));
-  if(max_qscale > 127){
-    llvm::errs() << "[Warning!] qscale( "<< max_qscale <<") > max_multiplier (127)\n";
-    llvm::errs() << "[Warning! set qscale 126.99]\n";
-    max_qscale = 126.99;
+  for (int i = 0; i < const_size; i++) {
+    float float_quant = floor((*const_opd)[i] * 127.0 / max_elem + 0.5);
+    quant_const[i] = std::round(float_quant);
+    if (quant_const[i] > 127)
+      quant_const[i] = 127.0;
+    if (quant_const[i] < -128)
+      quant_const[i] = -128.0;
   }
-  rshift_i8 = findRShiftAndMultiplierFromQScale(max_qscale);
-  multiplier_i8 = findMultiplierI8FromQScaleAndRShift(qscales[0], rshift_i8);
-
-  rshift = std::make_unique<std::vector<float> >(nInputs);
-  multiplier = std::make_unique<std::vector<float> >(nInputs);
-  shape_multiplier = std::vector<int64_t>{nInputs};
-  assert(const_idx == 1 && "weight must as second input");
-  multiplier->at(0) = static_cast<float>(multiplier_i8);
-
-  // later apply multipiler
-  quant_const.assign(const_opd->begin(), const_opd->end());
-  multiplier_i8 = findMultiplierI8FromQScaleAndRShift(qscales[1], rshift_i8);
-  multiplier->at(1) = static_cast<float>(multiplier_i8);
-
-  rshift->at(0) = static_cast<float>(rshift_i8);
-  LLVM_DEBUG(llvm::errs()
-      << "  rshift = "
-      << std::to_string(rshift->at(0))
-      << ", multiplier = "
-      << std::to_string(multiplier->at(0)) << "\n");
-
   // update op
   addWeightTensorAndUpdateWeightOp<float>(op->getOperand(const_idx),
       "quant", quant_const, const_shape, "INT8", wTF);
+  //
+  // determine the qscale
+  //
+  float qscale[2];
+  qscale[0] = threshold_x / threshold_y;
+  qscale[1] = max_elem / threshold_y;
+  float max_qscale = std::max(qscale[0], qscale[1]);
+
+  // create tensors for rshift and multiplier
+  auto rshift = std::make_unique<std::vector<float> >(1);
+  auto multiplier = std::make_unique<std::vector<float> >(2);
+
+  int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(max_qscale);
+  rshift->at(0) = (float)rshift_i8;
+  LLVM_DEBUG(llvm::errs() << "  rshift = "
+                          << std::to_string(rshift->at(0)) << "\n");
+  for (unsigned i = 0; i < nInputs; ++i) {
+    int8_t multiplier_i8 = findMultiplierI8FromQScaleAndRShift(qscale[i],
+                                 rshift_i8);
+    multiplier->at(i) = (float)multiplier_i8;
+    LLVM_DEBUG(llvm::errs() << "  multiplier[" << i << "] = "
+                            << std::to_string(multiplier->at(i)) << "\n");
+    LLVM_DEBUG(llvm::errs() << "  qscale[" << i << "] = "
+                            << std::to_string(qscale[i]) << "\n");
+  }
 
   // add rshift and multiplier to weight
   StringRef storageType = "NONE";
-  auto shape = std::vector<int64_t>{1};
 
+  auto shape_rshift = std::vector<int64_t>{1};
   auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "rshift", *rshift, shape, storageType,
+      op, "rshift", *rshift, shape_rshift, storageType,
       wTF, wfV);
-  op->setOperand(4, rshift_op);
+  op->setOperand(nInputs + 2, rshift_op);
 
+  auto shape_multiplier = std::vector<int64_t>{nInputs};
   auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
       op, "multiplier", *multiplier, shape_multiplier, storageType,
       wTF, wfV);
-  op->setOperand(5, multiplier_op);
+  op->setOperand(nInputs + 3, multiplier_op);
 
   setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
