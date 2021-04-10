@@ -787,8 +787,8 @@ class OnnxConverter(BaseConverter):
                     add_op = self.CVI.add_broadcast_add_op(name, [op1_reshape, op2],
                                                             output_shape, axis=1)
                     res_reshape = self.CVI.add_reshape_op(name + "_res_reshape", [add_op], [n, c, h, w])
-                    self.addOperand(onnx_node.name, add_op,
-                                    output_shape, TensorType.ACTIVATION)
+                    self.addOperand(onnx_node.name, res_reshape,
+                                    [n, c, h, w], TensorType.ACTIVATION)
                     return
                 elif len(input_shape1) == 4 and input_shape2[1] == 1 and input_shape1[2:] == input_shape2[2:]:
                     name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
@@ -2772,6 +2772,7 @@ class OnnxConverter(BaseConverter):
             softmax_param = {
                 'axis': axis,
             }
+            print("softmax: ", onnx_node.name, "input_shape: ", input_shape,  " output_shape: ", output_shape)
             softmax_op = self.CVI.add_softmax_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **softmax_param)
             self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
 
