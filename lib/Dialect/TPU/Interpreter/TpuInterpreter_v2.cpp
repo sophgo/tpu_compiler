@@ -65,6 +65,7 @@
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
 #include "tpuc/Interpreter/cpu/upsample.hpp"
 #include "tpuc/Interpreter/cpu/embedding.hpp"
+#include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
 
 #include "tpuc/ModuleInterpreter.h"
@@ -318,6 +319,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(lrn_kernel_op));
     return;
   }
+  if (isa<tpu::MatMulOp>(op)) {
+    auto matmul_kernel_op = std::make_unique<MatMulOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(matmul_kernel_op));
+    return;
+  }
   if (isa<tpu::MishOp>(op)) {
     auto mish_kernel_op = std::make_unique<MishOpKernel>(op, valueMapping);
     oplist.push_back(std::move(mish_kernel_op));
@@ -549,7 +555,7 @@ void ModuleInterpreter::invoke(std::string name) {
   llvm::errs() << " Not Find Op name: " << name << " \n";
 }
 
-void ModuleInterpreter::invoke_until(const std::string& name) {
+void ModuleInterpreter::invoke_to(const std::string& name) {
   std::lock_guard<std::mutex> lock(invoke_lock);
   for (auto &node : oplist) {
     node->invoke();

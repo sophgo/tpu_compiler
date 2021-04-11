@@ -1044,6 +1044,29 @@ LogicalResult tpu::Conv3DOp::quantizeBf16() {
   return quantizeBf16ConvOps<tpu::Conv3DOp>(op, 3);
 }
 
+LogicalResult tpu::EmbeddingOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  assert(getOpQuant() == "BF16");
+
+  auto castOp = cast<tpu::EmbeddingOp>(op);
+  TensorFile *wTF = getWeightTensorFile(op);
+
+  int64_t tableSize;
+  std::vector<int64_t> tableShape;
+  std::unique_ptr<std::vector<float> > table;
+  table = readAndDeleteWeightTensor<float>(op->getOperand(1), wTF);
+  getTensorShapeAndSize(op->getOperand(1), tableShape, tableSize);
+  // create new tensors
+  auto new_table = std::make_unique<std::vector<bfloat16> >(tableSize);
+  FloatToBFloat16(table->data(), new_table->data(), tableSize);
+  addWeightTensorAndUpdateWeightOp<bfloat16>(castOp.table(),
+      "quant", *new_table, tableShape, "BF16", wTF);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
+}
+
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseAddOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMaxOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMinOp)

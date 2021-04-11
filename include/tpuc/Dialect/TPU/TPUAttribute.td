@@ -32,11 +32,12 @@ include "tpuc/Dialect/TPU/TPUBase.td"
 def TPU_Quant_None    : StrEnumAttrCase<"NONE">;
 def TPU_Quant_Int8    : StrEnumAttrCase<"INT8">;
 def TPU_Quant_UInt8   : StrEnumAttrCase<"UINT8">;
+def TPU_Quant_UInt16   : StrEnumAttrCase<"UINT16">;
 def TPU_Quant_BF16    : StrEnumAttrCase<"BF16">;
 
 def TPU_QuantModeAttr : StrEnumAttr<
     "QuantizeFlag", "quantization flag enum", [
-      TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_UInt8, TPU_Quant_BF16,
+      TPU_Quant_None,  TPU_Quant_Int8, TPU_Quant_UInt8, TPU_Quant_UInt16, TPU_Quant_BF16,
     ]>;
 
 // Allowed quantization parameter type cases

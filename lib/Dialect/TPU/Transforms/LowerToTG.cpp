@@ -814,6 +814,37 @@ Value tpu::DilateOp::convertToTG() {
   return nullptr;
 }
 
+Value tpu::EmbeddingOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto castOp = cast<tpu::EmbeddingOp>(op);
+  auto builder = Builder(op->getContext());
+
+  if (getOpQuant() == "BF16") {
+    std::vector<NamedAttribute> param;
+    for (auto &attr : castOp->getAttrs()) {
+      if (attr.first == "name" || attr.first == "gaddr" ||
+          attr.first == "quant") {
+        continue;
+      }
+      param.push_back(attr);
+    }
+    auto paramAttr = builder.getDictionaryAttr(param);
+    auto operationAttr = builder.getStringAttr(getOperationName());
+    std::vector<NamedAttribute> attrs;
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+    attrs.push_back(builder.getNamedAttr("param", paramAttr));
+    auto cpuOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+        op->getLoc(), castOp.getResult().getType(),
+        ArrayRef<Value>{{input(), table()}},
+        ArrayRef<NamedAttribute>{attrs});
+    return cpuOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::EltwiseAddOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -4447,8 +4478,9 @@ struct LowerWeightEmbeddingOpPattern : public RewritePattern {
     }
     LLVM_DEBUG(llvm::errs() << "Lower Weight for Embedding: "
                             << getOpName(op) << "\n";);
+    assert(getOpQuant(op) == "BF16");
     weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
-    weightOp->setAttr("storage", rewriter.getStringAttr("FP32"));
+    weightOp->setAttr("storage", rewriter.getStringAttr("BF16"));
     return success();
   }
 };

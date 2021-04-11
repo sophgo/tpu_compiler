@@ -1286,6 +1286,13 @@ LogicalResult tpu::TG_BF16_DilateOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_EmbeddingOp::codegen(void *ctx) {
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+  return success();
+}
+
+
 LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -2519,7 +2526,8 @@ LogicalResult tpu::TG_INT8_MatMulOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   int batch, M, K, N;
-  parseMatMulParam(op->getOperand(0), op->getOperand(1), batch, M, K, N);
+  parseMatMulParam(op->getOperand(0), op->getOperand(1),
+                   op->getResult(0), batch, M, K, N);
   bool do_relu = this->do_relu();
   gaddr_t ga_left = getOpAddress(op->getOperand(0).getDefiningOp());
   gaddr_t ga_right = getOpAddress(op->getOperand(1).getDefiningOp());
@@ -2546,7 +2554,8 @@ LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   int batch, M, K, N;
-  parseMatMulParam(op->getOperand(0), op->getOperand(1), batch, M, K, N);
+  parseMatMulParam(op->getOperand(0), op->getOperand(1),
+                   op->getResult(0), batch, M, K, N);
   bool do_relu = this->do_relu();
   gaddr_t ga_left = getOpAddress(op->getOperand(0).getDefiningOp());
   gaddr_t ga_right = getOpAddress(op->getOperand(1).getDefiningOp());

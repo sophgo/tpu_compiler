@@ -257,6 +257,7 @@ public:
   }
   void invoke(const std::string name) { interpreter_->invoke(name); }
   void invoke() { interpreter_->invoke(); }
+  void invoke_to(const std::string name) { interpreter_->invoke_to(name); }
 
   // wrap C++ function with NumPy array IO
   py::dict
@@ -301,7 +302,7 @@ public:
     tensor_map_t results;
     shape_map_t shapeMap_;
     if (!target_op.empty()) {
-      interpreter_->invoke_until(target_op);
+      interpreter_->invoke_to(target_op);
       results[target_op] = interpreter_->get_tensor(target_op);
       shapeMap_[target_op] = interpreter_->get_tensor_shape(target_op);
     } else {
@@ -354,6 +355,7 @@ PYBIND11_MODULE(pymlir, m) {
       .def("allocate_tensors", &py_module::allocate_tensors)
       .def("get_tensors_info", &py_module::get_tensor_info)
       .def("dump", &py_module::dump)
+      .def("invoke_to", &py_module::invoke_to)
       .def("invoke", py::overload_cast<>(&py_module::invoke))
       .def("invoke", py::overload_cast<const std::string>(&py_module::invoke))
       .def("get_input_details", &py_module::get_input_details)

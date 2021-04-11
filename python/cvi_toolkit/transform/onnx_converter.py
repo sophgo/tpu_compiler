@@ -217,7 +217,10 @@ class OnnxConverter(BaseConverter):
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
+            # if len(input_shape) != 4:
+            #     input_shape.extend([1] * (4 - len(input_shape)))
             self.input_shapes.append(input_shape)
+
             inputs.append(input_shape)
         # get output shape
         outputs = list()
@@ -509,6 +512,38 @@ class OnnxConverter(BaseConverter):
                 self.converted_nodes[i] = embedding_node
                 # break  # allways in encoder early phase
 
+        i = 1
+        while i < len(self.converted_nodes):
+            node = self.converted_nodes[i]
+            if node.op_type != "MatMul":
+                i += 1
+                continue
+            # rhs should be activation
+            if self.getNonde(node.inputs[1]):
+                i += 1
+                continue
+            if i + 1 >= len(self.converted_nodes):
+                i += 1
+                continue
+            next_node = self.converted_nodes[i+1]
+            if next_node.op_type != "Add":
+                i += 1
+                continue
+            if self.getNonde(next_node.inputs[1]):
+                i += 1
+                continue
+
+            info = {}
+            info["name"] = next_node.name
+            info["op_type"] = "MatMul"
+            info["attrs"] = node.attrs
+            info["inputs"] = [node.inputs[0], node.inputs[1], next_node.inputs[1]]
+            info["outputs"] = [next_node.outputs[0]]
+            matmul_node = BaseNode(info)
+            self.converted_nodes[i] = None
+            self.converted_nodes[i+1] = matmul_node
+            i += 1
+        self.converted_nodes = [node for node in self.converted_nodes if node]
 
     def convert_tensor(self):
         """convert onnx tensor to OnnxTensor"""
@@ -549,6 +584,9 @@ class OnnxConverter(BaseConverter):
                 }
                 # add input op
                 input_op = self.CVI.add_input_op(input.name, idx, **preprocess_hint)
+            input_shape = list(input_shape)
+            # if len(input_shape) != 4:
+            #     input_shape.extend([1] * (4 - len(input_shape)))
             self.addOperand(input.name, input_op, input_shape, TensorType.ACTIVATION)
 
         def NoneAndRaise(node):
@@ -818,7 +856,7 @@ class OnnxConverter(BaseConverter):
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
-        output_shape = input_shape
+        output_shape = list(input_shape)
         axis = onnx_node.attrs['axis']
         if axis < 0:
             axis = len(input_shape) + axis
@@ -1628,7 +1666,9 @@ class OnnxConverter(BaseConverter):
         operands.append(op)
         word_emb_name = onnx_node.inputs[0]
         word_emb_tensor = self.getTensor(word_emb_name)
-        word_emb_op = self.CVI.add_load_file_op(word_emb_tensor.name, word_emb_tensor.shape)
+        table_name = word_emb_name + onnx_node.name
+        self.addTensor(table_name, word_emb_tensor.tensor_data, word_emb_tensor.shape)
+        word_emb_op = self.CVI.add_load_file_op(table_name, word_emb_tensor.shape)
         operands.append(word_emb_op)
         num_embeddings, embedding_dim = word_emb_tensor.shape
         output_shape = shape
@@ -2013,17 +2053,27 @@ class OnnxConverter(BaseConverter):
         fc_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
         # rhs is weight
         if rhs_type == TensorType.TENSOR:
+            operands = list()
             weight_name = "{}_add_weight".format(onnx_node.name)
             weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
+            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor.reshape(K, N), (1, 0)))
+            lhs_reshaped_shape = np.ones(lhs_shape).reshape(-1, K).shape
+            if lhs_reshaped_shape != lhs_shape:
+                lhs_op = self.CVI.add_reshape_op(fc_name + "_filter_reshape",
+                                                 [lhs_op], lhs_reshaped_shape)
+            operands.append(lhs_op)
             rhs_shape = weight_tensor.shape
-            num_dim = len(rhs_shape)
-            sort = list(range(num_dim))
-            sort[-2:] = sort[-1],sort[-2]
-            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, sort))
-            weight_shape = list(weight_tensor.shape)
-            self.addTensor(weight_name, weight_tensor, weight_shape)
-            rhs_op = self.CVI.add_load_file_op(weight_name, weight_shape)
-            fc_op = self.CVI.add_fully_connected_op(fc_name, [lhs_op, rhs_op], output_shape)
+            self.addTensor(weight_name, weight_tensor, rhs_shape)
+            rhs_op = self.CVI.add_load_file_op(weight_name, rhs_shape)
+            operands.append(rhs_op)
+
+            if len(onnx_node.inputs) == 3:
+                bias_tensor = self.getTensor(onnx_node.inputs[2]).tensor_data
+                bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], bias_tensor.shape)
+                operands.append(bias_op)
+
+            output_shape = np.ones(output_shape).reshape((-1, N)).shape
+            fc_op = self.CVI.add_fully_connected_op(fc_name, operands, output_shape)
             self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
         else:
             matmul_op = self.CVI.add_matmul_op(fc_name, [lhs_op, rhs_op], output_shape)
@@ -2723,7 +2773,9 @@ class OnnxConverter(BaseConverter):
                 "crop_shape": list(crop_shape),
             }
 
-            output_shape = crop_shape
+            output_shape = list(crop_shape)
+            if len(output_shape) < 4:
+                output_shape.extend([1] * (4 - len(output_shape)))
             crop_op = self.CVI.add_crop_op("{}_{}".format(
                 onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
             self.addOperand(onnx_node.name, crop_op,
@@ -2749,9 +2801,17 @@ class OnnxConverter(BaseConverter):
             softmax_param = {
                 'axis': axis,
             }
-            print("softmax: ", onnx_node.name, "input_shape: ", input_shape,  " output_shape: ", output_shape)
-            softmax_op = self.CVI.add_softmax_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **softmax_param)
-            self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
+            name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+            if axis == 3:
+                n, c, h, w = input_shape
+                shape_ = (n * c * h, w)
+                reshape_op_0 = self.CVI.add_reshape_op(name + "_reshape_0", [op], shape_)
+                softmax_op = self.CVI.add_softmax_op(name + "_2d", [reshape_op_0], shape_, axis=1)
+                reshape_op_1 = self.CVI.add_reshape_op(name, [softmax_op], output_shape)
+                self.addOperand(onnx_node.name, reshape_op_1, output_shape, TensorType.ACTIVATION)
+            else:
+                softmax_op = self.CVI.add_softmax_op(name, operands, output_shape, **softmax_param)
+                self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
 
     def convert_skip_op(self, onnx_node):
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
@@ -2804,7 +2864,7 @@ class OnnxConverter(BaseConverter):
             operands.append(bias_op)
         elif num_input != 1:
             raise RuntimeError("num_input must be 1 or 3 (with scale and bias")
-        layernorm_op = self.CVI.add_layernorm_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, input_shape, **attrs)
+        layernorm_op = self.CVI.add_layernorm_op("{}_{}".format(onnx_node.name, "Add"), operands, input_shape, **attrs)
         self.addOperand(onnx_node.name, layernorm_op, input_shape, TensorType.ACTIVATION)
 
     def convert_split_op(self, onnx_node):

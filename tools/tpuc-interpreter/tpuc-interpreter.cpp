@@ -97,40 +97,17 @@ int main(int argc, char **argv) {
   }
 
   auto inputTensorFile = openTensorFile(inputTensorFilename);
+  std::vector<std::string> names;
   std::vector<std::vector<float> *> input_tensors;
   std::vector<std::vector<int64_t>> input_shapes;
-  if (failed(inputTensorFile->readAllTensors(input_tensors, input_shapes))) {
+  if (failed(inputTensorFile->readAllTensors(names, input_tensors, input_shapes))) {
     llvm::errs() << "cound not read input tensor\n";
     return EXIT_FAILURE;
-  }
-
-  int64_t shape_size = 0;
-  for (auto s : input_shapes) {
-    shape_size +=
-        std::accumulate(s.begin(), s.end(), 1, std::multiplies<int64_t>());
-  }
-
-  std::vector<float> input_data(shape_size);
-
-  // merge mutli input array to one array
-  shape_size = 0;
-  for (uint64_t i = 0; i < input_shapes.size(); i++) {
-    int64_t size =
-        std::accumulate(input_shapes[i].begin(), input_shapes[i].end(), 1,
-                        std::multiplies<int64_t>());
-    std::memcpy(input_data.data() + shape_size, input_tensors[i]->data(),
-                size * sizeof(float));
-    shape_size += size;
   }
 
   std::map<std::string, std::vector<float>> results;
   std::map<std::string, std::vector<int64_t>> shapeMap;
   std::map<std::string, std::vector<float>> allTensorMap;
-
-  // if mlir with mutli inputs, we will use mlir to check mutli input,
-  // set null vector
-  std::vector<int64_t> input_shape =
-      input_shapes.size() == 1 ? input_shapes[0] : std::vector<int64_t>();
 
   auto interpreter_ = std::make_unique<ModuleInterpreter>(module.get());
   interpreter_->allocate_tensors();
@@ -140,15 +117,27 @@ int main(int argc, char **argv) {
                  << ", get " << input_tensors.size() << "\n";
     llvm_unreachable("please check input npz");
   }
-  for (size_t i = 0; i < input_tensors.size(); i++) {
-    if (input_tensors[i]->size() != input_details[i].second) {
-      llvm::errs() << "input tensor size not same, needed is "
-                   << input_details[i].second << ", get "
-                   << input_tensors[i]->size() << "\n";
-      llvm_unreachable("please check input npz");
+  if (input_tensors.size() == 1) {
+    std::vector<float> data(input_tensors[0]->begin(), input_tensors[0]->end());
+    interpreter_->set_tensor(input_details[0].first, data);
+  } else {
+    for (size_t i = 0; i < input_tensors.size(); i++) {
+      size_t j = 0;
+      for (; j < input_details.size(); j++) {
+        if (names[i] == input_details[j].first) {
+          break;
+        }
+      }
+      assert(names[i] == input_details[j].first);
+      if (input_tensors[i]->size() != input_details[j].second) {
+        llvm::errs() << "input tensor size not same, needed is "
+                    << input_details[i].second << ", get "
+                    << input_tensors[i]->size() << "\n";
+        llvm_unreachable("please check input npz");
+      }
+      std::vector<float> data(input_tensors[i]->begin(), input_tensors[i]->end());
+      interpreter_->set_tensor(input_details[j].first, data);
     }
-    std::vector<float> data(input_tensors[i]->begin(), input_tensors[i]->end());
-    interpreter_->set_tensor(input_details[i].first, data);
   }
   interpreter_->invoke();
   if (outputTensorFilename != "-") {

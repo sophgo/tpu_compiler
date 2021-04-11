@@ -93,5 +93,5 @@ efficientnet-lite0/model/head/Relu6:0_Clip 6.00002908706665
 efficientnet-lite0/model/head/AvgPool:0_AveragePool 3.3960258960723877
 efficientnet-lite0/model/head/Squeeze:0_Squeeze 3.3960258960723877
 efficientnet-lite0/model/head/dense/MatMul:0_MatMul 14.15828800201416
-efficientnet-lite0/model/head/dense/BiasAdd:0_Add 16.629589080810547
+efficientnet-lite0/model/head/dense/BiasAdd:0_MatMul 16.629589080810547
 Softmax:0_Softmax 0.00499872537329793

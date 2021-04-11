@@ -3189,7 +3189,10 @@ def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
 
 def TPU_EmbeddingOp: TPU_Op<"embedding",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Embedding operator";
 
   let description = [{
@@ -3198,6 +3201,7 @@ def TPU_EmbeddingOp: TPU_Op<"embedding",
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$table,
+    TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );

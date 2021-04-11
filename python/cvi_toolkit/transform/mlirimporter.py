@@ -905,7 +905,7 @@ class MLIRImporter(object):
         op_name = StringAttr.get(op_name)
 
         return self.buildOp(TPU_OpType.Embedding.value, inputOperands, [tensor_output_type],
-                            name=op_name)
+                            name=op_name, quant=self.quant_param)
 
 
     def add_fully_connected_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
@@ -1829,7 +1829,6 @@ class MLIRImporter(object):
     def declare_func(self, input_type: str = "FP32"):
         self.tensor_inputs_type = list()
         self.tensor_outputs_type = list()
-
         if input_type == "FP32":
             for input_shape in self.input_shape_list:
                 self.tensor_inputs_type.append(
@@ -1847,9 +1846,9 @@ class MLIRImporter(object):
         output_tensor_type = str()
         for idx, input_tensor in enumerate(self.tensor_inputs_type):
             arg = "%args{}: ".format(idx)
-            input_args_type = arg + input_tensor.__str__()
+            input_args_type += arg + input_tensor.__str__()
             if input_tensor is not self.tensor_inputs_type[-1]:
-                input_args_type += ","
+                input_args_type += ", "
 
         for output_shape in self.tensor_outputs_type:
             output_tensor_type += output_shape.__str__()
@@ -1865,7 +1864,6 @@ class MLIRImporter(object):
         """.format(input_args_type=input_args_type,
                    output_tensor_type=output_tensor_type,
                    weight_file=self.output_weight_file)
-
         self.mlir_module = Module.parse(tpu_func, self.ctx)
         self.func = self.mlir_module.body.operations[0]
         self.entry_block = self.func.regions[0].blocks[0]

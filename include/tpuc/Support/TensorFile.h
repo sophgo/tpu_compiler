@@ -240,7 +240,9 @@ public:
 
   /// read all tensor from file
   template<typename T>
-  LogicalResult readAllTensors(std::vector<std::vector<T> *> &tensors,
+  LogicalResult readAllTensors(
+      std::vector<std::string> &names,
+      std::vector<std::vector<T> *> &tensors,
       std::vector<std::vector<int64_t> > &shapes) {
     for (auto it = map.begin(); it != map.end(); it++) {
       auto arr = it->second;
@@ -255,6 +257,7 @@ public:
       assert(count == (size_t)std::accumulate(std::begin(shape),
         std::end(shape), 1, std::multiplies<>()));
       shapes.push_back(shape);
+      names.push_back(it->first);
     }
     return success();
   }

@@ -1040,6 +1040,13 @@ static LogicalResult doLUTOpInterpret(Operation *op, StringRef &type,
 
 }
 
+LogicalResult tpu::EmbeddingOp::interpret(
+    DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
+  LLVM_DEBUG(llvm::errs() << getOperationName() << " [" << this->name() << "]\n";);
+  (void)valueMapping;
+  return success();
+}
+
 LogicalResult tpu::ReciprocalOp::interpret(
     DenseMap<Value, std::shared_ptr<std::vector<float> > > &valueMapping) {
   Operation *op = this->getOperation();

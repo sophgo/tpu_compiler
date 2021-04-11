@@ -148,6 +148,9 @@ static void insertQuantOp(Operation *op) {
   }
 
   StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
+  if (isa<tpu::EmbeddingOp>(op)) {
+    curr_quant = "UINT16";
+  }
   for (unsigned i = 0; i < op->getNumOperands(); i++) {
     auto prev_op = op->getOperand(i).getDefiningOp();
     assert(prev_op);

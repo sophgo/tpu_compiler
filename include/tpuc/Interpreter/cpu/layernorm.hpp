@@ -16,8 +16,8 @@ public:
   void dump() override;
 
 private:
-  void normalize_fp32(float *src, float *dst, int size);
-  void normalize_bf16(float *src, float *dst, int size);
+  void normalize_fp32(float *src, float *dst, int size, float *scale, float *bias);
+  void normalize_bf16(float *src, float *dst, int size, float *scale, float *bias);
 
 private:
   SyncedData input_data;

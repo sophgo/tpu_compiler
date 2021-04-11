@@ -23,7 +23,8 @@ MatMulOpKernel::MatMulOpKernel(Operation &op, value_map_t &valueMapping) {
   this->op_type = op.getName().getStringRef().str();
   this->do_relu = castOp.do_relu();
   set_datatype(getOpQuant(&op).str());
-  parseMatMulParam(op.getOperand(0), op.getOperand(1), batch, M, K, N);
+  parseMatMulParam(op.getOperand(0), op.getOperand(1),
+                   op.getResult(0),batch, M, K, N);
 
   if (datatype == DataType::INT8) {
     auto quant_rshift = opTensors[4];

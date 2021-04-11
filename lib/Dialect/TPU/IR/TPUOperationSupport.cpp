@@ -709,35 +709,28 @@ void parseFullyConnectedParam(
   n = o_s[axis];
 }
 
-// [M,K] [K,N] => []
 void parseMatMulParam(
-    Value left, Value right, int &batch,
-    int &M, int &K, int &N) {
-  auto left_type = left.getType().template cast<TensorType>();
-  std::vector<int64_t> l_s(left_type.getShape());
-  auto right_type = right.getType().template cast<TensorType>();
-  std::vector<int64_t> r_s(right_type.getShape());
-  auto l_dim = l_s.size();
-  auto r_dim = r_s.size();
-  N = r_s[r_dim - 1];
-  K = r_s[r_dim - 2];
-  assert((K == l_s[l_dim - 1]) && "input K not equal to filter K");
-  assert(r_dim >= 2);
-  if (r_dim == 2) {
-    batch = 1;
-    M = 1;
-    for (size_t i = 0; i < l_dim - 1; i++) {
-      M *= l_s[i];
-    }
-    return;
+    Value lhs, Value rhs, Value output,
+    int &b, int &m, int &k, int &n) {
+  auto lhs_type = lhs.getType().template cast<TensorType>();
+  std::vector<int64_t> a_s(lhs_type.getShape());
+  auto rhs_type = rhs.getType().cast<TensorType>();
+  std::vector<int64_t> b_s(rhs_type.getShape());
+  auto output_type = output.getType().template cast<TensorType>();
+  std::vector<int64_t> o_s(output_type.getShape());
+  int64_t axis = o_s.size() - 1;
+  b = 1;
+  for (int i = 0; i < axis - 1; i++) {
+    assert((a_s[i] == o_s[i]) && "lhs B not equal to output B");
+    assert((a_s[i] == b_s[i]) && "lhs B not equal to rhs B");
+    b *= a_s[i];
   }
-  assert(l_dim == r_dim);
-  batch = 1;
-  for (size_t i = 0; i < r_dim - 2; i++) {
-    batch *= r_s[i];
-    assert(r_s[i] == l_s[i]);
-  }
-  M = l_s[r_dim - 2];
+  m = a_s[axis-1];
+  k = a_s[axis];
+  assert((k == b_s[axis-1]) && "lhs K not equal to rhs K");
+  assert((m == o_s[axis-1]) && "lhs M not equal to output M");
+  n = b_s[axis];
+  assert((n == o_s[axis]) && "rhs N not equal to output N");
 }
 
 template<typename OpTy>

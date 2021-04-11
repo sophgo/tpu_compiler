@@ -15,6 +15,7 @@ EmbeddingOpKernel::EmbeddingOpKernel(Operation &op, value_map_t &valueMapping) {
   LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
+  set_datatype(getOpQuant(&op).str());
 
   auto input_type = embeddingOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
@@ -27,7 +28,7 @@ EmbeddingOpKernel::EmbeddingOpKernel(Operation &op, value_map_t &valueMapping) {
 
   this->name = embeddingOp.name().str();
   this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
+
   // get tensors
   input_data = opTensors[0];
   table_data = opTensors[1];
