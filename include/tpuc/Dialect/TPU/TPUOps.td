@@ -1090,6 +1090,8 @@ def TPU_LayerNormOp: TPU_Op<"layer_norm",
 
   let arguments = (
     ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$bias,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$mantissa_table,
     I32ArrayAttr:$normalized_shape,

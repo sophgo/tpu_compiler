@@ -2295,10 +2295,17 @@ LogicalResult tpu::TG_BF16_LayerNormOp::codegen(void *ctx) {
   gaddr_t ga_mantissa_table =
       getWeightOpAddress(mantissa_table().getDefiningOp());
   int layer_id = getOpLayerId(op);
+  gaddr_t ga_scale = GA_INVALID, ga_bias = GA_INVALID;
+  bool affine = false;
+  if (false == isTensorNone(scale()) && false == isTensorNone(bias())) {
+    ga_scale = getWeightOpAddress(scale().getDefiningOp());
+    ga_bias = getWeightOpAddress(bias().getDefiningOp());
+    affine = true;
+  }
 
   cvi_backend_tg_bf16_layernorm_kernel(
       *backend_ctx, layer_id, input_gaddr, ga_table, ga_mantissa_table,
-      output_gaddr, batch_size, normalized_size, eps);
+      ga_scale, ga_bias, output_gaddr, batch_size, normalized_size, eps, affine);
   return success();
 }
 

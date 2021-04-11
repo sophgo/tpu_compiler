@@ -237,8 +237,8 @@ void cvi_backend_tg_bf16_prelu_kernel(
 
 void cvi_backend_tg_bf16_layernorm_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
-    gaddr_t ga_table, gaddr_t ga_mantissa_table,
-    gaddr_t ga_output, int batch_size, int normalized_size, float eps);
+    gaddr_t ga_table, gaddr_t ga_mantissa_table, gaddr_t ga_scale, gaddr_t ga_bias,
+    gaddr_t ga_output, int batch_size, int normalized_size, float eps, bool affine = false);
 
 void cvi_backend_tg_bf16_lut_scientific_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,

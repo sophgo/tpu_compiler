@@ -28,6 +28,8 @@ LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping) {
   set_datatype(getOpQuant(&op).str());
   // get tensors
   input_data = opTensors[0];
+  scale_data = opTensors[1];
+  bias_data = opTensors[2];
   eps = lnOp.eps().convertToFloat();
   arrayAttrToVector(lnOp.normalized_shape(), this->normalized_shape);
   output_data = resultTensor;
@@ -44,9 +46,12 @@ LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping) {
     assert(normalized_shape[i] == shape[index]);
     normalized_size *= normalized_shape[i];
   }
+  if (scale_data != nullptr && bias_data != nullptr) {
+    affine = true;
+  }
   if (datatype == DataType::BF16) {
-    lut.assign(opTensors[1]->begin(), opTensors[1]->end());
-    mantissa_lut.assign(opTensors[2]->begin(), opTensors[2]->end());
+    lut.assign(opTensors[3]->begin(), opTensors[3]->end());
+    mantissa_lut.assign(opTensors[4]->begin(), opTensors[4]->end());
   }
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
@@ -72,13 +77,19 @@ std::vector<float> LayerNormOpKernel::get_tensor() {
 void LayerNormOpKernel::normalize_fp32(float *src, float *dst, int size) {
   double sum = std::accumulate(src, src + size, 0.0f);
   double mean = sum / size;
-  double var = eps;
+  double var = 0;
   for (int i = 0; i < size; i++) {
     var += std::pow(src[i] - mean, 2);
   }
+  var = var / size + eps;
   double div = std::sqrt(var);
   for (int i = 0; i < size; i++) {
     dst[i] = (src[i] - mean) / div;
+  }
+  if (affine) {
+    for (int i = 0; i < size; i++) {
+      dst[i] = dst[i] * scale_data->at(i) + bias_data->at(i);
+    }
   }
 }
 
@@ -91,11 +102,17 @@ void LayerNormOpKernel::normalize_bf16(float *src, float *dst, int size) {
     data = BF16(src[i] - mean);
     var += std::pow(data, 2);
   }
-  var = BF16(var) + BF16(eps);
+  var = BF16(var / size) + BF16(eps);
   bf16_lut_mantissa(&var, &var, 1, lut, mantissa_lut);
   for (int i = 0; i < size; i++) {
     data = BF16(src[i] - mean);
     dst[i] = BF16(data * var);
+  }
+  if (affine) {
+    for (int i = 0; i < size; i++) {
+      dst[i] =
+          BF16(BF16(dst[i] * BF16(scale_data->at(i))) + BF16(bias_data->at(i)));
+    }
   }
 }
 

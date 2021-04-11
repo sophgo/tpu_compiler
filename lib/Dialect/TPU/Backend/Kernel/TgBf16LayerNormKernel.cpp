@@ -38,12 +38,11 @@ static void size_to_hw(int size, int &h, int &w) {
   assert(0);
 }
 
-void cvi_backend_tg_bf16_layernorm_kernel(const CviBackendContext &ctx,
-                                          uint32_t layer_id, gaddr_t ga_input,
-                                          gaddr_t ga_table,
-                                          gaddr_t ga_mantissa_table,
-                                          gaddr_t ga_output, int batch_size,
-                                          int normalized_size, float eps) {
+void cvi_backend_tg_bf16_layernorm_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_table, gaddr_t ga_mantissa_table, gaddr_t ga_scale,
+    gaddr_t ga_bias, gaddr_t ga_output, int batch_size, int normalized_size,
+    float eps, bool affine) {
   int h, w;
   size_to_hw(normalized_size, h, w);
   uint32_t lmem_used = 0;
@@ -55,10 +54,11 @@ void cvi_backend_tg_bf16_layernorm_kernel(const CviBackendContext &ctx,
   ctx.tdma_load(tl_lut_mantissa, ga_mantissa_table);
   lmem_used += 2 * ctx.lmem_tensor_to_size(table_shape, CVK_FMT_BF16, 1);
   int batch_step = std::min(batch_size, MAX_CHANNEL);
+  int blob_num = (affine == true ? 4 : 2);
   while (batch_step > 0) {
     // for input and square
-    uint32_t mem_need =
-        2 * ctx.lmem_tensor_to_size(1, batch_step, h, w, CVK_FMT_BF16, 1);
+    uint32_t mem_need = blob_num * ctx.lmem_tensor_to_size(1, batch_step, h, w,
+                                                           CVK_FMT_BF16, 1);
     // for mean and var
     mem_need +=
         3 * ctx.lmem_tensor_to_size(1, batch_step, 1, 1, CVK_FMT_BF16, 1);
@@ -75,6 +75,18 @@ void cvi_backend_tg_bf16_layernorm_kernel(const CviBackendContext &ctx,
     llvm::errs() << llvm::format(
         "Tilling LayerNorm failed, src shape:[1,%d,%d,%d]\n", batch_size, h, w);
     assert(0);
+  }
+  cvk_tl_t *tl_scale = nullptr;
+  cvk_tl_t *tl_bias = nullptr;
+  auto affine_shape = ctx.tl_shape_t4(1, batch_step, h, w);
+  if (affine) {
+    // load scale and bias
+    tl_scale = ctx.lmem_alloc_tensor(affine_shape, CVK_FMT_BF16, 1);
+    tl_bias = ctx.lmem_alloc_tensor(affine_shape, CVK_FMT_BF16, 1);
+    auto gstride = ctx.tg_default_stride(batch_step, h, w, CVK_FMT_BF16);
+    gstride.c = 0;
+    ctx.tdma_load_stride(tl_scale, ga_scale, gstride);
+    ctx.tdma_load_stride(tl_bias, ga_bias, gstride);
   }
   for (int batch_pos = 0; batch_pos < batch_size; batch_pos += batch_step) {
     int batch = std::min(batch_step, batch_size - batch_pos);
@@ -138,7 +150,7 @@ void cvi_backend_tg_bf16_layernorm_kernel(const CviBackendContext &ctx,
     p5.ins_last_w = 0;
     p5.stride_h = 1;
     p5.stride_w = 1;
-    p5.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * normalized_size);
+    p5.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0);
     p5.ins_val = 0;
     p5.ins_fp = ctx.convert_fp32_to_bf16(0.0);
     p5.layer_id = layer_id;
@@ -179,6 +191,35 @@ void cvi_backend_tg_bf16_layernorm_kernel(const CviBackendContext &ctx,
     p9.layer_id = layer_id;
     p9.relu_enable = 0;
     ctx.tiu_mul(&p9);
+    if (affine) {
+      if (batch < batch_step) {
+        tl_scale->shape.c = batch;
+        tl_bias->shape.c = batch;
+        tl_scale->stride =
+            ctx.tl_default_stride(tl_scale->shape, CVK_FMT_BF16, 1);
+        tl_bias->stride =
+            ctx.tl_default_stride(tl_bias->shape, CVK_FMT_BF16, 1);
+      }
+      cvk_tiu_mul_param_t p10 = {0};
+      p10.res_high = nullptr;
+      p10.res_low = tl_input;
+      p10.a = tl_input;
+      p10.b = tl_scale;
+      p10.layer_id = layer_id;
+      p10.relu_enable = 0;
+      ctx.tiu_mul(&p10);
+      cvk_tiu_add_param_t p11 = {0};
+      p11.res_high = nullptr;
+      p11.res_low = tl_input;
+      p11.a_high = nullptr;
+      p11.a_low = tl_input;
+      p11.b.high = nullptr;
+      p11.b.low = tl_bias;
+      p11.rshift_bits = 0;
+      p11.layer_id = layer_id;
+      p11.relu_enable = 0;
+      ctx.tiu_add(&p11);
+    }
     ctx.tdma_store(tl_input, ga_output + offset);
     ctx.lmem_free_tensor(tl_buf);
     ctx.lmem_free_tensor(tl_var);
@@ -186,6 +227,8 @@ void cvi_backend_tg_bf16_layernorm_kernel(const CviBackendContext &ctx,
     ctx.lmem_free_tensor(tl_mean);
     ctx.lmem_free_tensor(tl_input);
   }
+  ctx.lmem_free_tensor(tl_bias);
+  ctx.lmem_free_tensor(tl_scale);
   ctx.lmem_free_tensor(tl_lut_mantissa);
   ctx.lmem_free_tensor(tl_lut);
 }

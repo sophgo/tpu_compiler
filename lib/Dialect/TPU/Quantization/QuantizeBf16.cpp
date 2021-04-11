@@ -271,8 +271,8 @@ LogicalResult quantizeBf16LayerNormOps(Operation *op) {
       op, "table", table, shape, "BF16", wTF, wfV);
   auto mantissa_table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "mantissa_table", mantissa_table, shape, "BF16", wTF, wfV);
-  op->setOperand(1, table_op);
-  op->setOperand(2, mantissa_table_op);
+  op->setOperand(3, table_op);
+  op->setOperand(4, mantissa_table_op);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }

@@ -2452,7 +2452,7 @@ Value tpu::LayerNormOp::convertToTG() {
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   std::vector<Value> operands;
-  const int nInputs =  3;
+  const int nInputs =  op->getNumOperands();
   for (auto i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
   }
@@ -3926,9 +3926,9 @@ struct LowerWeightLayerNormOpPattern : public RewritePattern {
                             << "\n";);
     TensorFile *wTF = getWeightTensorFile(op);
 
-    auto lutOp = cast<tpu::LoadWeightOp>(castOp.getOperand(1).getDefiningOp());
+    auto lutOp = cast<tpu::LoadWeightOp>(castOp.getOperand(3).getDefiningOp());
     auto lutMantissaOp =
-        cast<tpu::LoadWeightOp>(castOp.getOperand(2).getDefiningOp());
+        cast<tpu::LoadWeightOp>(castOp.getOperand(4).getDefiningOp());
 
     if (lutOp.lowered()) {
       // lowered already
@@ -3952,6 +3952,28 @@ struct LowerWeightLayerNormOpPattern : public RewritePattern {
     addWeightTensorAndUpdateWeightOp<uint16_t>(
         lutMantissaOp, "lowered", tableMantissa_uint16, shape, "BF16", wTF);
     lutMantissaOp->setAttr("lowered", rewriter.getBoolAttr(true));
+
+    // scale and bias
+    if (isTensorNone(castOp.getOperand(1)) ||
+        isTensorNone(castOp.getOperand(2))) {
+      return success();
+    }
+    auto scaleOp =
+        cast<tpu::LoadWeightOp>(castOp.getOperand(1).getDefiningOp());
+    auto biasOp = cast<tpu::LoadWeightOp>(castOp.getOperand(2).getDefiningOp());
+    getTensorShapeAndSize(castOp.scale(), shape, size);
+    auto scale = readAndDeleteWeightTensor<float>(scaleOp, wTF);
+    auto bias = readAndDeleteWeightTensor<float>(biasOp, wTF);
+    std::vector<bfloat16> scale_bf16(size);
+    std::vector<bfloat16> bias_bf16(size);
+    FloatToBFloat16(scale->data(), scale_bf16.data(), size);
+    FloatToBFloat16(bias->data(), bias_bf16.data(), size);
+    addWeightTensorAndUpdateWeightOp<bfloat16>(scaleOp, "lowered", scale_bf16,
+                                               shape, "BF16", wTF);
+    addWeightTensorAndUpdateWeightOp<bfloat16>(biasOp, "lowered", bias_bf16,
+                                               shape, "BF16", wTF);
+    scaleOp->setAttr("lowered", rewriter.getBoolAttr(true));
+    biasOp->setAttr("lowered", rewriter.getBoolAttr(true));
     return success();
   }
 };

@@ -1097,7 +1097,9 @@ class MLIRImporter(object):
             "normalized_shape": ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['normal_shape']])
         }
         none = self.add_none_op()
-        inputOperands.extend([none, none])
+        num_input = len(inputOperands)
+        for _ in rand(5 - inputOperands):
+            inputOperands.append(none)
         return self.buildOp(TPU_OpType.LayerNorm.value, inputOperands, [tensor_output_type],
                 name=op_name, quant=self.quant_param, **param)
 

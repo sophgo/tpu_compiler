@@ -2794,6 +2794,16 @@ class OnnxConverter(BaseConverter):
             "eps":eps,
             "normal_shape":list(normal_shape)
         }
+        num_input = len(onnx_node.inputs)
+        if num_input == 3:
+            weight = self.getTensor(onnx_node.inputs[1])
+            weight_op = self.CVI.add_load_file_op(onnx_node.inputs[1], weight.shape)
+            operands.append(weight_op)
+            bias = self.getTensor(onnx_node.inputs[2])
+            bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], bias.shape)
+            operands.append(bias_op)
+        elif num_input != 1:
+            raise RuntimeError("num_input must be 1 or 3 (with scale and bias")
         layernorm_op = self.CVI.add_layernorm_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, input_shape, **attrs)
         self.addOperand(onnx_node.name, layernorm_op, input_shape, TensorType.ACTIVATION)
 
