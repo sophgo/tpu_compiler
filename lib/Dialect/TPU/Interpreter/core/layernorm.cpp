@@ -74,7 +74,7 @@ std::vector<float> LayerNormOpKernel::get_tensor() {
   return ret;
 }
 
-void LayerNormOpKernel::normalize_fp32(float *src, float *dst, int size, float *scale, float *bias) {
+void LayerNormOpKernel::normalize_fp32(float *src, float *dst, int size) {
   double sum = std::accumulate(src, src + size, 0.0f);
   double mean = sum / size;
   double var = 0;
@@ -84,7 +84,7 @@ void LayerNormOpKernel::normalize_fp32(float *src, float *dst, int size, float *
   var = var / size + eps;
   double div = std::sqrt(var);
   for (int i = 0; i < size; i++) {
-    dst[i] = ((src[i] - mean) / div) * scale[i] + bias[i];
+    dst[i] = ((src[i] - mean) / div);
   }
   if (affine) {
     for (int i = 0; i < size; i++) {
@@ -93,7 +93,7 @@ void LayerNormOpKernel::normalize_fp32(float *src, float *dst, int size, float *
   }
 }
 
-void LayerNormOpKernel::normalize_bf16(float *src, float *dst, int size, float *scale, float *bias) {
+void LayerNormOpKernel::normalize_bf16(float *src, float *dst, int size) {
   float sum = BF16(std::accumulate(src, src + size, 0.0f));
   float mean = BF16(sum / size);
   float var = 0;
@@ -106,7 +106,7 @@ void LayerNormOpKernel::normalize_bf16(float *src, float *dst, int size, float *
   bf16_lut_mantissa(&var, &var, 1, lut, mantissa_lut);
   for (int i = 0; i < size; i++) {
     data = BF16(src[i] - mean);
-    dst[i] = BF16(data * var) * BF16(scale[i]) + BF16(bias[i]);
+    dst[i] = BF16(data * var);
   }
   if (affine) {
     for (int i = 0; i < size; i++) {
@@ -123,8 +123,7 @@ void LayerNormOpKernel::invoke() {
     for (int i = 0; i < batch_size; i++) {
       normalize_fp32(input_data->data() + i * normalized_size,
                      output_data->data() + i * normalized_size,
-                     normalized_size, scale_data->data(),
-                     bias_data->data());
+                     normalized_size);
     }
     return;
   case DataType::BF16:
@@ -132,8 +131,7 @@ void LayerNormOpKernel::invoke() {
     for (int i = 0; i < batch_size; i++) {
       normalize_bf16(input_data->data() + i * normalized_size,
                      output_data->data() + i * normalized_size,
-                     normalized_size, scale_data->data(),
-                     bias_data->data());
+                     normalized_size);
     }
     return;
   default:
