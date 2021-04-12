@@ -376,6 +376,8 @@ public:
   inline uint32_t tiu_eu_num(cvk_fmt_t fmt) const {
     return cvi_chip_info_context(CVI_CHIP_EU_NUM) / (fmt == CVK_FMT_BF16 ? 2 : 1);
   }
+  // tiu simple api
+  void tiu_zeros(uint16_t layer_id, cvk_tl_t * tl_mem) const;
 
   //
   // tiling functions
@@ -396,19 +398,17 @@ public:
     int32_t pos_c;
     int32_t pos_h;
     int32_t pos_w;
-    uint64_t offset;
+    uint64_t offset; // gmem offset
   } tiling_info_t;
 
   void tiling_packing(std::vector<tiling_info_t> &tiling_result, int n, int c,
                       int h, int w, cvk_fmt_t fmt, int blob_num = 1,
                       uint32_t reserved_lmem = 0,
-                      tiling_mode_t mode = TilingNCHW,
-                      bool do_parallel = false) const;
+                      tiling_mode_t mode = TilingNCHW) const;
   void tiling_packing(std::vector<tiling_info_t> &tiling_result,
                       cvk_tg_shape_t shape, cvk_fmt_t fmt, int blob_num = 1,
                       uint32_t reserved_lmem = 0,
-                      tiling_mode_t mode = TilingNCHW,
-                      bool do_parallel = false) const;
+                      tiling_mode_t mode = TilingNCHW) const;
 
   //
   // Hardware feature
@@ -443,20 +443,18 @@ public:
   enum QuantizeMode {
     INT8_PER_LAYER = 1, // 1880 mode, scale + rightshift
     INT8_PER_CHANNEL = 2,
-    INT8_32_MULTIPLER =
-        3,          // 1880v2, 32bit multipliers(channel align) product tensor
+    INT8_32_MULTIPLER = 3, // 1880v2,32bit multipliers(channel align) product tensor
     INT8_NOTSUPPORT // not support, should be assert it
   };
 
   void *get_cvk_ctx() const { return cvk_ctx_; }
 
 private:
-  const int TILING_SLICE_NUM = 4;
   void tiling_all(std::vector<tiling_info_t> &tiling_result, int64_t total,
-                  cvk_fmt_t fmt, int blob_num, uint32_t lmem_size, bool do_parallel) const;
+                  cvk_fmt_t fmt, int blob_num, uint32_t lmem_size) const;
   void tiling_nchw(std::vector<tiling_info_t> &tiling_result, int n, int c,
                    int h, int w, cvk_fmt_t fmt, int blob_num,
-                   uint32_t lmem_size, tiling_mode_t mode, bool do_parallel) const;
+                   uint32_t lmem_size, tiling_mode_t mode) const;
 
 private:
   // Mapping between tdma base selection and global memory region.

@@ -151,8 +151,7 @@ void TgConcatKernel::selectTilePolicy() {
   if (do_parallel) {
     for (auto &input : inputs) {
       input.tile_idx = total_tiles;
-      ctx.tiling_packing(input.tiles, input.shape, fmt, 4, 0, tiling_mode,
-                         true);
+      ctx.tiling_packing(input.tiles, input.shape, fmt, 4, 0, tiling_mode);
       total_tiles += input.tiles.size();
     }
     // half the lmem

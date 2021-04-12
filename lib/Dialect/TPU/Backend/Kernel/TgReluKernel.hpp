@@ -43,7 +43,6 @@ protected:
   cvk_tl_t get_input(int32_t step_idx, int32_t flip);
   cvk_tl_t get_output(int32_t step_idx, int32_t flip);
   void change_workspace_size(int32_t step_idx);
-  void reset(cvk_tl_t *tl);
 
 protected:
   const CviBackendContext &ctx;

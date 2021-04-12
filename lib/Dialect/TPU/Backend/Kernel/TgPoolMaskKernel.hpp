@@ -31,7 +31,6 @@ protected:
   void deallocLmem();
   void compute_bf16();
   void compute_int8();
-  void zeros(cvk_tl_t * tl_mem); // only used by int8
 
 protected:
   typedef struct {

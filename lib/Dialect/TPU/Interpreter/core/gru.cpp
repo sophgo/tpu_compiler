@@ -3,6 +3,7 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 
 namespace mlir {
 double GruOpKernel::sigmoid_(double data) {
@@ -152,7 +153,7 @@ void GruOpKernel::compute(bool forward) {
       } else {
         hidden_state = output + (seq_idx * num_dir * batch_size + batch) * hidden_size;
       }
-#pragma omp parallel for schedule(static, hidden_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(hidden_size))
       for (int i = 0; i < hidden_size; ++i) {
         ug[i] = sigmoid_(ug[i] + xz[i]);
         rg[i] = sigmoid_(rg[i] + xr[i]);

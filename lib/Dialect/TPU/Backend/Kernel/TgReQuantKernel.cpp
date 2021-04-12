@@ -31,24 +31,14 @@ void TgReQuantKernel::selectTilePolicy() {
   // 2 to do flip, one is input, one is output,
   int blob_num = 2 * (2);
   ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_BF16, blob_num, 0,
-                     CviBackendContext::TilingAll, true);
+                     CviBackendContext::TilingAll);
 }
 
 cvk_tl_t *TgReQuantKernel::alloc_lmem(const cvk_tl_shape_t &shape,
                                       bool clean) const {
   cvk_tl_t *tl_mem = ctx.lmem_alloc_tensor(shape, CVK_FMT_BF16, 1);
   if (clean) {
-    cvk_tl_t tl_clean = *tl_mem;
-    tl_clean.fmt = CVK_FMT_I8;
-    tl_clean.cmprs_fmt = tl_clean.fmt;
-    tl_clean.shape.w *= 2;
-    tl_clean.stride = ctx.tl_default_stride(tl_clean.shape, tl_clean.fmt, 1);
-    cvk_tiu_xor_int8_param_t param = {0};
-    param.res = &tl_clean;
-    param.a = &tl_clean;
-    param.b = &tl_clean;
-    param.layer_id = layer_id;
-    ctx.tiu_xor_int8(&param);
+    ctx.tiu_zeros(layer_id, tl_mem);
   }
   return tl_mem;
 }

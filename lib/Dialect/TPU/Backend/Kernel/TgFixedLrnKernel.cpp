@@ -64,17 +64,8 @@ void cvi_backend_tg_fixed_lrn_kernel(const CviBackendContext &ctx,
     ctx.tiu_copy(&p2);
 
     // clean sum_high and top_high_high
-    cvk_tiu_mul_param_t p3 = {0};
-    p3.res_high = top_high_high;
-    p3.res_low = sum_high;
-    p3.a = top;
-    p3.b_const.val = 0;
-    p3.b_const.is_signed = 0;
-    p3.b_is_const = 1;
-    p3.rshift_bits = 0;
-    p3.layer_id = layer_id;
-    p3.relu_enable = 0;
-    ctx.tiu_mul(&p3); // sum_high initialize 0
+    ctx.tiu_zeros(layer_id, sum_high);
+    ctx.tiu_zeros(layer_id, top_high_high);
 
     // use lrn shift to add different feature map data
     // sum(x^2*alpha/local_size),16bits

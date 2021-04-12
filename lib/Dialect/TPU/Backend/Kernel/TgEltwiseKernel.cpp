@@ -3,7 +3,7 @@
  * refined 2020-10-12
  */
 
-#include "TgFixedEltwiseKernel.hpp"
+#include "TgEltwiseKernel.hpp"
 #include "backend/backend_tl_api.h"
 
 #define DEBUG_TYPE "TgEltwiseKernel"
@@ -595,8 +595,8 @@ void TgInt8EltwiseAddKernel::asymmetric_compute(const int opd_idx,
                                                 cvk_tl_t &output_high,
                                                 bool last_step) {
 
-  reset(tl_working[0]);
-  reset(tl_working[1]);
+  ctx.tiu_zeros(layer_id, tl_working[0]);
+  ctx.tiu_zeros(layer_id, tl_working[1]);
   // make input from int8 to int16, use mac
   // put tmp result to tl_working space
   cvk_tiu_mac_param_t p = {0};
@@ -647,7 +647,7 @@ void TgInt8EltwiseAddKernel::asymmetric_compute(const int opd_idx,
   ctx.tiu_mul(&p2);
 
   // refresh input
-  reset(&input);
+  ctx.tiu_zeros(layer_id, &input);
 
   // then we do mac with low 8bit
   // and add Qx'_high with put in res_high( high 8bit)
@@ -690,8 +690,8 @@ void TgInt8EltwiseAddKernel::asymmetric_compute(const int opd_idx,
     // sub offset, fill 1 in tensor
     // dirty input
     {
-      // reset to 0
-      reset(&input);
+      // cleanup to 0
+      ctx.tiu_zeros(layer_id, &input);
       // clear to 1 for a*1 + c
       cvk_tiu_add_param_t p9 = {0};
       p9.res_high = tl_working[0];
@@ -719,21 +719,6 @@ void TgInt8EltwiseAddKernel::asymmetric_compute(const int opd_idx,
     ctx.tiu_mac(&p);
     output_flip = 1 - output_flip;
   }
-}
-
-void TgInt8EltwiseAddKernel::reset(cvk_tl_t *tl){
-  // reset tl to 0
-  cvk_tiu_mul_param_t p = {0};
-  p.res_high = nullptr;
-  p.res_low = tl;
-  p.a = tl;
-  p.b_const.val = 0;
-  p.b_const.is_signed = 0;
-  p.b_is_const = 1;
-  p.rshift_bits = 0;
-  p.layer_id = layer_id;
-  p.relu_enable = 0;
-  ctx.tiu_mul(&p);
 }
 
 void TgInt8EltwiseAddKernel::compute(int32_t step_idx) {
@@ -786,8 +771,8 @@ void TgInt8EltwiseAddKernel::compute(int32_t step_idx) {
   if (is_asymmetric) {
     bool is_last = !(opd_idx == 0 || opd_idx != operand_num - 1);
     if (opd_idx == 0) {
-      reset(&output_high);
-      reset(&output);
+      ctx.tiu_zeros(layer_id, &output_high);
+      ctx.tiu_zeros(layer_id, &output);
     }
     asymmetric_compute(opd_idx, input, output, output_high, is_last);
   } else {

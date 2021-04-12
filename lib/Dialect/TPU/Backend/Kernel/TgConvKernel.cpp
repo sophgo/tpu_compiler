@@ -1098,17 +1098,7 @@ void Conv::fillConstantLmInput(cvk_tl_t *lmLoad,
   lmLoad->shape.h = cur_gm_input_paddings[1]; // bottom
   lmLoad->stride =
       ctx.tl_default_stride(lmLoad->shape, lmLoad->fmt, lmLoad->eu_align);
-
-  cvk_tdma_g2l_tensor_fill_constant_param_t param = {0};
-  param.dst = lmLoad;
-  param.layer_id = args.layer_id;
-
-  if (args.tiu_fmt == CVK_FMT_I8) {
-    param.constant = 0;
-  } else {
-    param.constant = ctx.convert_fp32_to_bf16(0.0);
-  }
-  ctx.tdma_g2l_tensor_fill_constant(&param);
+  ctx.tiu_zeros(args.layer_id, lmLoad);
 }
 
 // Adjust input and padding for pad-only input.

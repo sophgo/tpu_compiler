@@ -34,16 +34,7 @@ void TgGruKernel::matrix_for_tiu(cvk_ml_t *matrix) {
 void TgGruKernel::zeros(const cvk_ml_t &matrix) {
   cvk_tl_t tl_mem;
   matrix_to_tensor(&tl_mem, matrix);
-  cvk_tiu_mul_param_t p = {0};
-  p.res_high = nullptr;
-  p.res_low = &tl_mem;
-  p.a = &tl_mem; // rt
-  p.b_is_const = 1;
-  p.b_const.val = ctx.convert_fp32_to_bf16(0.0f);
-  p.rshift_bits = 0;
-  p.layer_id = layer_id;
-  p.relu_enable = 0;
-  ctx.tiu_mul(&p);
+  ctx.tiu_zeros(layer_id, &tl_mem);
 }
 
 void TgGruKernel::matrix_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,

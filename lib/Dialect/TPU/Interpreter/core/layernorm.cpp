@@ -3,6 +3,7 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 
 namespace mlir {
 static inline float BF16(float data) {
@@ -119,7 +120,7 @@ void LayerNormOpKernel::normalize_bf16(float *src, float *dst, int size) {
 void LayerNormOpKernel::invoke() {
   switch (datatype) {
   case DataType::FP32:
-#pragma omp parallel for schedule(static, batch_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(batch_size))
     for (int i = 0; i < batch_size; i++) {
       normalize_fp32(input_data->data() + i * normalized_size,
                      output_data->data() + i * normalized_size,
@@ -127,7 +128,7 @@ void LayerNormOpKernel::invoke() {
     }
     return;
   case DataType::BF16:
-#pragma omp parallel for schedule(static, batch_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(batch_size))
     for (int i = 0; i < batch_size; i++) {
       normalize_bf16(input_data->data() + i * normalized_size,
                      output_data->data() + i * normalized_size,

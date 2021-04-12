@@ -10,20 +10,19 @@
 #include <cmath>
 
 namespace mlir {
+int omp_schedule(int count) {
+  return (count + omp_get_num_threads() -1) / omp_get_num_threads();
+}
 
 void relu(float *src, float *dst, size_t size) {
-  int schedule = size / omp_get_num_threads();
-  if (schedule == 0) {
-    schedule = 1; // size = 1 case
-  }
-#pragma omp parallel for schedule(static, schedule)
+#pragma omp parallel for schedule(static, omp_schedule(size))
   for (size_t i = 0; i < size; ++i) {
     dst[i] = src[i] > 0 ? src[i] : 0;
   }
 }
 
 void leaky_relu(float *src, float *dst, size_t size, float negative_slope) {
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size))
   for (size_t i = 0; i < size; ++i) {
     dst[i] = src[i] > 0 ? src[i] : src[i] * negative_slope;
   }
@@ -89,7 +88,7 @@ std::vector<float> AbsOpKernel::get_tensor() {
 
 void AbsOpKernel::invoke() {
   size_t output_size = output_data->size();
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
   for (size_t i = 0; i < output_size; ++i) {
     output_data->at(i) = std::fabs(input_data->at(i));
   }
@@ -149,7 +148,7 @@ std::vector<float> ExpOpKernel::get_tensor() {
 void ExpOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
@@ -158,7 +157,7 @@ void ExpOpKernel::invoke() {
                    y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = std::exp(input_data->at(i));
     }
@@ -231,7 +230,7 @@ void MishOpKernel::invoke() {
       std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
 
   if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size))
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
@@ -240,7 +239,7 @@ void MishOpKernel::invoke() {
                    y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size ))
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = mish_caffe(input_data->at(i), mish_threshold);
     }
@@ -322,14 +321,13 @@ void LeakyReluOpKernel::invoke() {
       // use copy to change input point,
       // in case that modify original pointer
       std::vector<float> input_copy(input_data->begin(), input_data->end());
-      size_t input_copy_size = input_copy.size();
-#pragma omp parallel for schedule(static,                                      \
-                                  input_copy_size / omp_get_num_threads())
-      for (size_t i = 0; i < input_copy_size; i++) {
+      size_t copy_size = input_copy.size();
+#pragma omp parallel for schedule(static,  omp_schedule(copy_size))
+      for (size_t i = 0; i < copy_size; i++) {
         input_copy.at(i) += input_offset;
       }
       bool do_pos_scale = (multiplier_postive.at(0) != 0.0) ? true : false;
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size))
       for (int i = 0; i < size; ++i) {
         if (input_copy.at(i) > 0) {
           if (do_pos_scale) {
@@ -479,7 +477,7 @@ void PReluOpKernel::invoke() {
     for (int channel = 0; channel < c; ++channel) {
       int index = batch * c * w * h + channel * w * h;
       int planner = w * h;
-#pragma omp parallel for schedule(static, planner / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(planner))
       for (int i = 0; i < planner; ++i) {
         if (input_data->at(index + i) > 0) {
           output_data->at(index + i) = input_data->at(index + i);
@@ -491,7 +489,7 @@ void PReluOpKernel::invoke() {
     }
   }
   if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size))
     for (int i = 0; i < size; ++i) {
       if (input_data->at(i) > 0) {
         output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
@@ -563,12 +561,12 @@ std::vector<float> ReciprocalOpKernel::get_tensor() {
 void ReciprocalOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
   } else {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = 1.0 / input_data->at(i);
     }
@@ -683,7 +681,7 @@ std::vector<float> SigmoidOpKernel::get_tensor() {
 void SigmoidOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
@@ -692,7 +690,7 @@ void SigmoidOpKernel::invoke() {
                    y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = 0.5 * tanh(0.5 * input_data->at(i)) + 0.5;
     }
@@ -760,7 +758,7 @@ std::vector<float> SoftPlusOpKernel::get_tensor() {
 void SoftPlusOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
@@ -769,7 +767,7 @@ void SoftPlusOpKernel::invoke() {
                    y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = softplus_activate(input_data->at(i), threshold);
     }
@@ -837,12 +835,12 @@ std::vector<float> SqrtOpKernel::get_tensor() {
 void SqrtOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
   } else {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = pow(input_data->at(i), 0.5);
     }
@@ -900,7 +898,7 @@ std::vector<float> SquareOpKernel::get_tensor() {
 
 void SquareOpKernel::invoke() {
   size_t output_size = output_data->size();
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
   for (size_t i = 0; i < output_size; ++i) {
     output_data->at(i) = input_data->at(i) * input_data->at(i);
   }
@@ -966,7 +964,7 @@ std::vector<float> TanHOpKernel::get_tensor() {
 void TanHOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
     }
@@ -976,7 +974,7 @@ void TanHOpKernel::invoke() {
                    bf16_max_range);
   } else {
 
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = std::tanh(input_data->at(i));
     }

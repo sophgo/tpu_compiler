@@ -65,6 +65,7 @@ void cvi_backend_tl_pad(const CviBackendContext &ctx, uint32_t layer_id,
   cvk_tdma_g2l_tensor_fill_constant_param_t p1 = {0};
   p1.constant = const_val;
   p1.dst = &tl_output;
+  p1.layer_id = layer_id;
   ctx.tdma_g2l_tensor_fill_constant(&p1);
 
   tl_output.start_address = out_addr;
@@ -72,6 +73,7 @@ void cvi_backend_tl_pad(const CviBackendContext &ctx, uint32_t layer_id,
   cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
   p2.dst = &tl_output;
   p2.src = &tl_input;
+  p2.layer_id = layer_id;
   ctx.tdma_l2l_tensor_copy(&p2);
 }
 
@@ -126,6 +128,7 @@ void cvi_backend_tl_bf16_pad(const CviBackendContext &ctx, uint32_t layer_id,
   cvk_tdma_g2l_tensor_fill_constant_param_t p1 = {0};
   p1.constant = ctx.convert_fp32_to_bf16(const_val);
   p1.dst = &tl_output;
+  p1.layer_id = layer_id;
   ctx.tdma_g2l_tensor_fill_constant(&p1);
 
   tl_output.start_address = out_addr;
@@ -133,5 +136,6 @@ void cvi_backend_tl_bf16_pad(const CviBackendContext &ctx, uint32_t layer_id,
   cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
   p2.dst = &tl_output;
   p2.src = &tl_input;
+  p2.layer_id = layer_id;
   ctx.tdma_l2l_tensor_copy(&p2);
 }

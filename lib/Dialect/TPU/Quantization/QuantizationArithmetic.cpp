@@ -3,6 +3,7 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 
 #define DEBUG_TYPE "quant_arithmetic"
 
@@ -987,7 +988,7 @@ void dequantizeActivationFromInt8ToFp32(float *output, float *input,
     bfloat16 bf_scale, bf_tmp;
     bf_scale = FloatToBFloat16(scale);
     scale = BFloat16ToFloat(bf_scale);
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size))
     for (int64_t i = 0; i < size; ++i) {
       // i8->bf16
       float fp_tmp = input[i];
@@ -1052,7 +1053,7 @@ void quantizeActivationFromBf16ToInt8(float *output, float *input, int64_t size,
   bfloat16 bf_scale, bf_tmp;
   bf_scale = FloatToBFloat16(scale);
   scale = BFloat16ToFloat(bf_scale);
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size))
   for (int64_t i = 0; i < size; ++i) {
     auto bf_input = FloatToBFloat16(input[i]);
     auto f_input = BFloat16ToFloat(bf_input);
@@ -1070,7 +1071,7 @@ void dequantizeActivationFromInt8ToBf16(float *output, float *input,
   bfloat16 bf_scale;
   bf_scale = FloatToBFloat16(scale);
   scale = BFloat16ToFloat(bf_scale);
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size))
   for (int64_t i = 0; i < size; ++i) {
     bfloat16 out = FloatToBFloat16(input[i] * scale);
     output[i] = (float)BFloat16ToFloat(out);
@@ -1081,7 +1082,7 @@ void dequantizeActivationFromInt8ToBf16(float *output, float *input,
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,
                                           int64_t size, uint32_t rshift,
                                           int offset) {
-#pragma omp parallel for schedule(static, size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(size))
   for (int64_t i = 0; i < size; ++i) {
     output[i] = (float)applyRShiftAndSaturateInt8(input[i], rshift, offset);
   }

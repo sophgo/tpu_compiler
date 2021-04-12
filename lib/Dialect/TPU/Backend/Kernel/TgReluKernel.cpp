@@ -45,11 +45,11 @@ void TgReluKernel::selectTilePolicy() {
   if (mode == PRELU) {
     auto slope_size = ctx.lmem_tensor_to_size(1, c, 1, 1, fmt, 1);
     ctx.tiling_packing(tiles, n, c, h, w, fmt, blob_num, slope_size,
-                       CviBackendContext::TilingNHW, true);
+                       CviBackendContext::TilingNHW);
 
   } else {
     ctx.tiling_packing(tiles, n, c, h, w, fmt, blob_num, 0,
-                       CviBackendContext::TilingAll, true);
+                       CviBackendContext::TilingAll);
   }
 }
 
@@ -149,19 +149,6 @@ void TgReluKernel::compute_relu(int32_t step_idx, int32_t flip) {
   }
   ctx.tiu_max(&p);
 }
-void TgReluKernel::reset(cvk_tl_t *tl) {
-  cvk_tiu_mul_param_t p = {0};
-  p.res_high = nullptr;
-  p.res_low = tl;
-  p.a = tl;
-  p.b_const.val = 0;
-  p.b_const.is_signed = 0;
-  p.b_is_const = 1;
-  p.rshift_bits = 0;
-  p.layer_id = layer_id;
-  p.relu_enable = 0;
-  ctx.tiu_mul(&p);
-}
 
 /*
   LeakyRelu in asymmetric quantization
@@ -203,9 +190,9 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
             1 1 0 0 ]
       0 is negivate, 1 is postive
   */
-  reset(tl_pos_neg_map);
-  reset(tl_working[0]);
-  reset(tl_working[1]);
+  ctx.tiu_zeros(layer_id, tl_pos_neg_map);
+  ctx.tiu_zeros(layer_id, tl_working[0]);
+  ctx.tiu_zeros(layer_id, tl_working[1]);
 
   cvk_tiu_mac_param_t p_toi16 = {0};
   p_toi16.res_high = tl_working[1];
@@ -267,8 +254,8 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
   ctx.tiu_max(&p_maketo0);
 
   // Do Leaky Relu function
-  reset(tl_working[0]);
-  reset(tl_working[1]);
+  ctx.tiu_zeros(layer_id, tl_working[0]);
+  ctx.tiu_zeros(layer_id, tl_working[1]);
 
   // Do (Qx - Zx)(16bit)
   // make input from int8 to int16, use mac
@@ -286,7 +273,7 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
   p_toi16.relu_enable = 0;
   ctx.tiu_mac(&p_toi16);
 
-  reset(&tl_ofmap);
+  ctx.tiu_zeros(layer_id, &tl_ofmap);
   // add input offset, and replace tl_working
   // (Qx-Zx) 16bit
 
@@ -340,7 +327,7 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
   tl_working[0]->fmt = tl_ifmap.fmt;
 
   // reset to 0
-  reset(tl_working[0]);
+  ctx.tiu_zeros(layer_id, tl_working[0]);
 
   // In next step, we use mac (1) * output_offset + ((Qx-Zx) * multiplier) >> rshift
   // Here we make 1 input
@@ -355,7 +342,7 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
   p9.relu_enable = 0;
   ctx.tiu_add(&p9);
 
-  reset(tl_working[1]);
+  ctx.tiu_zeros(layer_id, tl_working[1]);
   // final add output offset,
   // Postive done
   // mac (1) * output_offset + ((Qx-Zx) * multiplier) >> rshift
@@ -373,8 +360,8 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
   p_output_offset.relu_enable = 0;
   ctx.tiu_mac(&p_output_offset);
 
-  reset(tl_working[0]);
-  reset(tl_working[1]);
+  ctx.tiu_zeros(layer_id, tl_working[0]);
+  ctx.tiu_zeros(layer_id, tl_working[1]);
 
   // Negative, just scale different, all step as same as Postive
   cvk_tiu_min_param_t p5 = {0};
@@ -422,7 +409,7 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
   p_high_scale.relu_enable = 0;
   ctx.tiu_mul(&p_high_scale);
 
-  reset(&tl_ifmap);
+  ctx.tiu_zeros(layer_id, &tl_ifmap);
   tl_working[0]->fmt = CVK_FMT_U8;
   p_low_scale.res_high = tl_working[1];
   p_low_scale.res_low = &tl_ifmap;
@@ -439,7 +426,7 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
   tl_working[0]->fmt = tl_ifmap.fmt;
 
   // reset to 0
-  reset(tl_working[0]);
+  ctx.tiu_zeros(layer_id, tl_working[0]);
   p9.res_high = tl_working[1];
   p9.res_low = tl_working[0];
   p9.a_high = tl_working[1];
@@ -482,7 +469,7 @@ void TgReluKernel::compute_leaky_relu_fixed_asym(int32_t step_idx,
   p_postive_section.relu_enable = 0;
   ctx.tiu_mul(&p_postive_section);
 
-  reset(tl_working[1]);
+  ctx.tiu_zeros(layer_id, tl_working[1]);
 
   // flip table 0->1, 1->0
   // use (table -1) * -1

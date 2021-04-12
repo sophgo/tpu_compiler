@@ -1,6 +1,7 @@
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 
 namespace mlir {
 BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping) {
@@ -56,7 +57,7 @@ void BatchNormOpKernel::invoke() {
   int w = this->shape.size() > 3 ? this->shape.at(3) : 1;
 
   float scale_factor = 1 / scale->at(0);
-#pragma omp parallel for schedule(static, c / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(c))
   for (int i = 0; i < c; ++i) {
     mean->at(i) = mean->at(i) * scale_factor;
     variance->at(i) = variance->at(i) * scale_factor;
@@ -89,7 +90,7 @@ void BatchNormOpKernel::invoke() {
       }
     }
   }
-#pragma omp parallel for schedule(static, c / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(c))
   for (int i = 0; i < c; ++i) {
     mean->at(i) = mean->at(i) * scale->at(0);
     variance->at(i) = variance->at(i) * scale->at(0);

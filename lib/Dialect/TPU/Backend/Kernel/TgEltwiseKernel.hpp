@@ -133,7 +133,6 @@ private:
                             cvk_tl_t &output,
                             cvk_tl_t &output_high,
                             bool last_step);
-  void reset(cvk_tl_t *tl);
 };
 
 class TgInt8EltwiseMaxKernel : public TgEltwiseKernel {

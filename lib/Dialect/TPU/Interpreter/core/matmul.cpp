@@ -77,7 +77,7 @@ void MatMulOpKernel::invoke() {
     o_data = o_buff.data();
   }
   int batch = batch_low * batch_high;
-#pragma omp parallel for schedule(static, batch / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(batch))
   for (int i = 0; i < batch; i++) {
     int ret = mkldnn_ip(l_data + M * K * i, r_data + K * N * i, nullptr,
                         o_data + M * N * i, M, K, N, false);
@@ -94,7 +94,7 @@ void MatMulOpKernel::invoke() {
   case DataType::INT8:
     if (rshift != 0 || multiplier != 0) {
       int out_size = output_data->size();
-#pragma omp parallel for schedule(static, out_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(out_size))
       for (int i = 0; i < out_size; ++i) {
         output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
             output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, true);

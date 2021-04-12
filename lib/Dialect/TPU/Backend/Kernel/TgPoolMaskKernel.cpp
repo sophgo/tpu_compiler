@@ -275,21 +275,6 @@ void TgPoolMaskKernel::compute_bf16() {
   ctx.tiu_add(&p4);
 }
 
-void TgPoolMaskKernel::zeros(cvk_tl_t *tl_mem) {
-  // reset tl to 0
-  cvk_tiu_mul_param_t p = {0};
-  p.res_high = nullptr;
-  p.res_low = tl_mem;
-  p.a = tl_mem;
-  p.b_const.val = 0;
-  p.b_const.is_signed = 0;
-  p.b_is_const = 1;
-  p.rshift_bits = 0;
-  p.layer_id = layer_id;
-  p.relu_enable = 0;
-  ctx.tiu_mul(&p);
-}
-
 void TgPoolMaskKernel::compute_int8() {
   // pooling max first
   cvk_tiu_max_pooling_param_t p1 = {0};
@@ -327,8 +312,8 @@ void TgPoolMaskKernel::compute_int8() {
   p2.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
   ctx.tiu_pt_depthwise_convolution(&p2);
 
-  zeros(&tl_low);
-  zeros(&tl_high);
+  ctx.tiu_zeros(layer_id, &tl_low);
+  ctx.tiu_zeros(layer_id, &tl_high);
   cvk_tiu_mac_param_t p3 = {0};
   p3.res_high = &tl_high;
   p3.res_low = &tl_low;
@@ -399,8 +384,8 @@ void TgPoolMaskKernel::compute_int8() {
   // again
   ctx.tiu_max_pooling(&p1);
   ctx.tiu_pt_depthwise_convolution(&p2);
-  zeros(&tl_low);
-  zeros(&tl_high);
+  ctx.tiu_zeros(layer_id, &tl_low);
+  ctx.tiu_zeros(layer_id, &tl_high);
   ctx.tiu_mac(&p3);
   ctx.tiu_mac(&p4);
   ctx.tiu_add(&p5);

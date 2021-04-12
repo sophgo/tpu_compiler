@@ -106,27 +106,12 @@ void cvi_backend_tl_lrn(
   p12.layer_id = layer_id;
   ctx.tiu_lookup_table(&p12);
 
-  cvk_tiu_mul_param_t p = {0};
-  p.res_high = nullptr;
-  p.res_low = &sum;
-  p.a = &top;
-  p.b_const.val = 1;
-  p.b_const.is_signed = 0;
-  p.b_is_const = 1;
-  p.rshift_bits = 0;
-  p.layer_id = layer_id;
-  p.relu_enable = 0;
-  ctx.tiu_mul(&p);  // sum_high initialize 0
-
-  p.res_high = nullptr;
-  p.res_low = &sum_high;
-  p.a = &top;
-  p.b_const.val = 0;
-  p.b_const.is_signed = 0;
-  p.b_is_const = 1;
-  p.rshift_bits = 0;
-  p.relu_enable = 0;
-  ctx.tiu_mul(&p);  // sum_high initialize 0
+  cvk_tiu_copy_param_t p11 = {0};
+  p11.src = &top;
+  p11.dst = &sum;
+  p11.layer_id = layer_id;
+  ctx.tiu_copy(&p11);
+  ctx.tiu_zeros(layer_id, &sum_high); // sum_high initialize 0
 
   for (int step = 1; step <= move_counts && step < input_c; step++) {
     cvk_tdma_l2l_tensor_lrn_shift_param_t lrn_shift_p = {0};
@@ -169,6 +154,7 @@ void cvi_backend_tl_lrn(
     ctx.tiu_mac(&p3);
   }
   // 16bits higher  8bits,
+  cvk_tiu_mul_param_t p = {0};
   p.res_high = &top_high;
   p.res_low = &sum_high;
   p.a = &sum_high;

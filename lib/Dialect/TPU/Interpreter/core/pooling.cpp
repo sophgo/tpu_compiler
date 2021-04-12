@@ -5,6 +5,7 @@
 #include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/MachineInfo.h"
 #include "tpuc/ModuleInterpreter.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 
 namespace mlir {
 
@@ -245,7 +246,7 @@ void PoolingOpKernel::i8_avg_invoke() {
   }
   mkl_stream.wait();
   size_t output_size = output_data->size();
-#pragma omp parallel for schedule(static, output_size / omp_get_num_threads())
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
   for (size_t i = 0; i < output_size; ++i) {
     output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
         output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);

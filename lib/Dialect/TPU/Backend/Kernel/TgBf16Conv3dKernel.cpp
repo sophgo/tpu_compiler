@@ -62,18 +62,13 @@ static void loadInput(const CviBackendContext &ctx, uint32_t layer_id,
     param.dst = &tl_input;
     ctx.tdma_g2l_tensor_copy(&param);
   } else {
-    // Memset with tiu int8 xor
+    // clean up
     cvk_tl_shape_t tl_pad_shape =
         ctx.tl_shape_t4(n, ic, ih, iw * tl_input_al->stride.w);
     cvk_tl_t tl_pad;
     ctx.lmem_init_tensor(&tl_pad, tl_pad_shape, CVK_FMT_I8, /*eu_align=*/1);
     tl_pad.start_address = tl_input_al->start_address;
-
-    cvk_tiu_xor_int8_param_t param = {};
-    param.res = &tl_pad;
-    param.a = &tl_pad;
-    param.b = &tl_pad;
-    ctx.tiu_xor_int8(&param);
+    ctx.tiu_zeros(layer_id, &tl_pad);
   }
 }
 
