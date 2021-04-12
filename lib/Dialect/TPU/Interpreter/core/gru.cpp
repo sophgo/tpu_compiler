@@ -111,58 +111,39 @@ void GruOpKernel::update_addr(bool forward) {
 
 void GruOpKernel::compute(bool forward) {
   update_addr(forward);
-  std::vector<double> update_gate(hidden_size, 0.0); // zt
-  std::vector<double> reset_gate(hidden_size, 0.0);  // rt
-  std::vector<double> hidden_gate(hidden_size, 0.0); // ht
+  std::vector<float> update_gate(batch_size * hidden_size); // zt
+  std::vector<float> reset_gate(batch_size * hidden_size);  // rt
+  std::vector<float> hidden_gate(batch_size * hidden_size); // ht
 
   for (int t = 0; t < seq_length; ++t) {
-    int seq_idx = t;
-    if (forward == false) {
-      seq_idx = seq_length - t - 1;
-    }
+    int seq_idx = forward ? t : (seq_length - t - 1);
     // zt = sigmoid(Xt*(Wz^T) + Ht-1*(Rz^T) + Wbz + Rbz)
     // rt = sigmoid(Xt*(Wr^T) + Ht-1*(Rr^T) + Wbr + Rbr)
-    // ht = tanh(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh) # when
-    // linear_before_reset != 0 Wzrh: hidden_size * input_size Rzrh: hidden_size
-    // * hidden_size Xt: seq_len * batch_size * input_size
+    // ht = tanh(Xt*(Wh^T) + (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh)
+    // H = (1-zt) * ht + zt * Ht
+    float *xt = input + seq_idx * batch_size * input_size;
+    mkldnn_ip(prev_hidden_state, r_z, r_bz, update_gate.data(), batch_size,
+              hidden_size, hidden_size, false);
+    mkldnn_ip(prev_hidden_state, r_r, r_br, reset_gate.data(), batch_size,
+              hidden_size, hidden_size, false);
+    mkldnn_ip(prev_hidden_state, r_h, r_bh, hidden_gate.data(), batch_size,
+              hidden_size, hidden_size, false);
     for (int batch = 0; batch < batch_size; batch++) {
-      float *xt = input + (seq_idx * batch_size + batch) * input_size;
-      update_gate.assign(hidden_size, 0.0);
-      reset_gate.assign(hidden_size, 0.0);
-      hidden_gate.assign(hidden_size, 0.0);
-      float *xz = xt;
+      float *xz = xt + batch * input_size;
       float *xr = xz + hidden_size;
       float *xh = xr + hidden_size;
-      for (int i = 0; i < hidden_size; ++i) {
-        float *rz = r_z + i * hidden_size;
-        float *rr = r_r + i * hidden_size;
-
-        for (int j = 0; j < hidden_size; ++j) {
-          update_gate[i] += rz[j] * prev_hidden_state[batch * hidden_size + j];
-          reset_gate[i] += rr[j] * prev_hidden_state[batch * hidden_size + j];
-        }
-        update_gate[i] = sigmoid_(update_gate[i] + xz[i] + r_bz[i]);
-        reset_gate[i] = sigmoid_(reset_gate[i] + xr[i] + r_br[i]);
-      }
-
-      // second part of hidden gate
-      // (rt (.) (Ht-1*(Rh^T) + Rbh)) + Wbh) # when linear_before_reset != 0
-      for (int i = 0; i < hidden_size; ++i) {
-        float *rh = r_h + i * hidden_size;
-        double hidden_gate_acc = r_bh[i];
-        for (int j = 0; j < hidden_size; ++j) {
-          hidden_gate_acc += rh[j] * prev_hidden_state[batch * hidden_size + j];
-        }
-        hidden_gate[i] = tanh_(xh[i] + reset_gate[i] * hidden_gate_acc);
-      }
-
-      // Ht = (1 - zt) (.) ht + zt (.) Ht-1
+      float *ug = update_gate.data() + batch * hidden_size;
+      float *rg = reset_gate.data() + batch * hidden_size;
+      float *hg = hidden_gate.data() + batch * hidden_size;
       float *hidden_state =
           output + (seq_idx * num_dir * batch_size + batch) * hidden_size;
+      float *pre_state = prev_hidden_state + batch * hidden_size;
+#pragma omp parallel for schedule(static, hidden_size / omp_get_num_threads())
       for (int i = 0; i < hidden_size; ++i) {
-        hidden_state[i] =
-            (1 - update_gate[i]) * hidden_gate[i] +
-            update_gate[i] * prev_hidden_state[batch * hidden_size + i];
+        ug[i] = sigmoid_(ug[i] + xz[i]);
+        rg[i] = sigmoid_(rg[i] + xr[i]);
+        hg[i] = tanh_(rg[i] * hg[i] + xh[i]);
+        hidden_state[i] = (1 - ug[i]) * hg[i] + ug[i] * pre_state[i];
       }
     }
     prev_hidden_state = output + seq_idx * num_dir * batch_size * hidden_size;

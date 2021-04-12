@@ -1098,7 +1098,7 @@ class MLIRImporter(object):
         }
         none = self.add_none_op()
         num_input = len(inputOperands)
-        for _ in rand(5 - inputOperands):
+        for _ in range(5 - num_input):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.LayerNorm.value, inputOperands, [tensor_output_type],
                 name=op_name, quant=self.quant_param, **param)
