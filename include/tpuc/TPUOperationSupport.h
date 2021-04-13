@@ -115,9 +115,10 @@ void parseFullyConnectedParam(
     Value input, Value output, Value filter,
     int &m, int &k, int &n);
 
-void parseMatMulParam(
-    Value lhs, Value rhs, Value output,
-    int &b, int &m, int &k, int &n);
+void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
+                      int &n, int &batch_high, int &batch_low,
+                      bool left_trans = false, bool right_trans = false,
+                      bool output_trans = false);
 
 template<typename OpTy>
 void parseLeakyReluParam(Operation *op,

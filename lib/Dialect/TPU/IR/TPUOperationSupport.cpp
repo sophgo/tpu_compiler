@@ -709,9 +709,9 @@ void parseFullyConnectedParam(
   n = o_s[axis];
 }
 
-void parseMatMulParam(
-    Value lhs, Value rhs, Value output,
-    int &b, int &m, int &k, int &n) {
+void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
+                      int &n, int &batch_high, int &batch_low,
+                      bool left_trans, bool right_trans,bool output_trans) {
   auto lhs_type = lhs.getType().template cast<TensorType>();
   std::vector<int64_t> a_s(lhs_type.getShape());
   auto rhs_type = rhs.getType().cast<TensorType>();
@@ -719,16 +719,31 @@ void parseMatMulParam(
   auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
   int64_t axis = o_s.size() - 1;
-  b = 1;
+  if (left_trans || right_trans || output_trans) {
+    // if has tranpose, num_dims == 4
+    batch_high = a_s[0];
+    k = a_s[3];
+    n = b_s[3];
+    if (left_trans) {
+      batch_low = a_s[2];
+      m = a_s[1];
+    } else {
+      batch_low = a_s[1];
+      m = a_s[2];
+    }
+    return;
+  }
+  batch_low = 1;
+  batch_high = 1;
   for (int i = 0; i < axis - 1; i++) {
     assert((a_s[i] == o_s[i]) && "lhs B not equal to output B");
     assert((a_s[i] == b_s[i]) && "lhs B not equal to rhs B");
-    b *= a_s[i];
+    batch_high *= a_s[i];
   }
-  m = a_s[axis-1];
+  m = a_s[axis - 1];
   k = a_s[axis];
-  assert((k == b_s[axis-1]) && "lhs K not equal to rhs K");
-  assert((m == o_s[axis-1]) && "lhs M not equal to output M");
+  assert((k == b_s[axis - 1]) && "lhs K not equal to rhs K");
+  assert((m == o_s[axis - 1]) && "lhs M not equal to output M");
   n = b_s[axis];
   assert((n == o_s[axis]) && "rhs N not equal to output N");
 }

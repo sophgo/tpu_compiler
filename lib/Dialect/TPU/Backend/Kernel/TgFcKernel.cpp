@@ -10,13 +10,13 @@
 #define DEBUG_TYPE "fc_kernel"
 
 void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
-                      gaddr_t ga_bias, gaddr_t ga_output, int batch, int M, int K, int N,
+                      gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
                       bool do_bias, bool do_relu, int rshift_width,
-                      int multiplier, std::vector<int> compressed_pos,
-                      cvk_fmt_t fmt) {
+                      int multiplier, int batch_high, int batch_low,
+                      bool lstride, bool rstride, bool ostride,
+                      std::vector<int> compressed_pos, cvk_fmt_t fmt) {
 
   this->layer_id = layer_id;
-  this->batch = static_cast<uint32_t>(batch);
   this->M = static_cast<uint32_t>(M);
   this->K = static_cast<uint32_t>(K);
   this->N = static_cast<uint32_t>(N);
@@ -36,6 +36,14 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
   tile_N = this->N;
   tile_K = this->K;
   tile_M = this->M;
+  this->lstride = lstride;
+  this->rstride = rstride;
+  this->ostride = ostride;
+  this->batch_high = batch_high > 0 ? batch_high : 1;
+  this->batch_low = batch_low > 0 ? batch_low : 1;
+  left_gstride.row = K * fmt_size * (lstride ? batch_low : 1);
+  right_gstride.row = N * fmt_size * (rstride ? batch_low : 1);
+  output_gstride.row = N * fmt_size * (ostride ? batch_low : 1);
   ctx.set_layer_id(layer_id);
 }
 
@@ -163,7 +171,8 @@ tiling_exit:
   } else {
     for (uint32_t n_idx = 0, pos_n = 0; pos_n < N; n_idx++, pos_n += tile_N) {
       for (uint32_t pos_m = 0; pos_m < M; pos_m += tile_M) {
-        for (uint32_t k_idx = 0, pos_k = 0; pos_k < K; k_idx++, pos_k += tile_K) {
+        for (uint32_t k_idx = 0, pos_k = 0; pos_k < K;
+             k_idx++, pos_k += tile_K) {
           info.n = std::min(N - pos_n, tile_N);
           info.k = std::min(K - pos_k, tile_K);
           info.m = std::min(M - pos_m, tile_M);
@@ -287,13 +296,13 @@ void TgFcKernel::load(int32_t step_idx) {
   if (tile.pos_n == 0 || do_parallel == false) {
     ctx.tdma_load_stride(&tl_L,
                          ga_input + (tile.pos_m * K + tile.pos_k) * fmt_size,
-                         {K * fmt_size});
+                         left_gstride);
   }
   // load R
   if (compressed_pos.empty()) {
     ctx.tdma_load_stride(&tl_R,
                          ga_weight + (tile.pos_k * N + tile.pos_n) * fmt_size,
-                         {N * fmt_size});
+                         right_gstride);
   } else {
     cvi_backend_ml_load_stride(ctx, layer_id,
                                ga_weight + compressed_pos[tile.compress_idx],
@@ -315,7 +324,7 @@ void TgFcKernel::store(int32_t step_idx) {
   update_tl_matrix(step_idx);
   ctx.tdma_store_stride(&tl_Y,
                         ga_output + (tile.pos_m * N + tile.pos_n) * fmt_size,
-                        {N * fmt_size});
+                        output_gstride);
 }
 
 void TgFcKernel::schedule() {
@@ -323,68 +332,83 @@ void TgFcKernel::schedule() {
       llvm::errs() << llvm::format(
           "Tilling FC, M:%d,K:%d,N:%d,tile_M:%d,tile_K:%d,tile_N:%d,fmt:%d\n",
           M, K, N, tile_M, tile_K, tile_N, fmt););
-  for (uint32_t b = 0; b < batch; b++) {
-    if (do_parallel) {
-      for (int step = 0; step < total_steps + 2; step++) {
-        ctx.parallel_enable();
-        if (step > 0 && step - 1 < total_steps) {
-          compute(step - 1);
-        }
-        if (step < total_steps) {
-          load(step);
-        }
-        if (step > 1) {
-          store(step - 2);
-        }
-        ctx.parallel_disable();
+  auto ga_i = ga_input, ga_w = ga_weight, ga_o = ga_output;
+  for (uint32_t b0 = 0; b0 < batch_high; b0++) {
+    for (uint32_t b1 = 0; b1 < batch_low; b1++) {
+      if (lstride) {
+        ga_input = ga_i + b0 * M * left_gstride.row + b1 * K * fmt_size;
+      } else {
+        ga_input = ga_i + (b0 * batch_low + b1) * M * left_gstride.row;
       }
-    } else {
-      for (int step = 0; step < total_steps; step++) {
-        load(step);
-        compute(step);
-        store(step);
+      if (rstride) {
+        ga_weight = ga_w + b0 * K * right_gstride.row + b1 * N * fmt_size;
+      } else {
+        ga_weight = ga_w + (b0 * batch_low + b1) * K * right_gstride.row;
+      }
+      if (ostride) {
+        ga_output = ga_o + b0 * M * output_gstride.row + b1 * N * fmt_size;
+      } else {
+        ga_output = ga_o + (b0 * batch_low + b1) * M * output_gstride.row;
+      }
+
+      if (do_parallel) {
+        for (int step = 0; step < total_steps + 2; step++) {
+          ctx.parallel_enable();
+          if (step > 0 && step - 1 < total_steps) {
+            compute(step - 1);
+          }
+          if (step < total_steps) {
+            load(step);
+          }
+          if (step > 1) {
+            store(step - 2);
+          }
+          ctx.parallel_disable();
+        }
+      } else {
+        for (int step = 0; step < total_steps; step++) {
+          load(step);
+          compute(step);
+          store(step);
+        }
       }
     }
-    ga_input += M * K * fmt_size;
-    ga_weight += N * K * fmt_size;
-    ga_output += M * N * fmt_size;
   }
 }
 
-void cvi_backend_tg_fixed_fc_kernel(const CviBackendContext &ctx,
-                                    uint32_t layer_id, gaddr_t ga_input,
-                                    gaddr_t ga_weight, gaddr_t ga_bias,
-                                    gaddr_t ga_output, int batch, int M, int K,
-                                    int N, bool do_bias, bool do_relu,
-                                    int rshift_width, int multiplier,
-                                    std::vector<int> compressed_pos) {
+void cvi_backend_tg_fixed_fc_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
+    bool do_bias, bool do_relu, int rshift_width, int multiplier,
+    std::vector<int> compressed_pos, int batch_high, int batch_low,
+    bool lstride, bool rstride, bool ostride) {
   LLVM_DEBUG(
       llvm::errs() << llvm::format("cvi_backend_tg_fixed_fc_kernel\n"
                                    "M:%d,K:%d,N:%d, do_bias %d, do_relu %d\n",
                                    M, K, N, do_bias, do_relu));
 
   TgFcKernel kernel(ctx);
-  kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, batch, M, K, N,
-              do_bias, do_relu, rshift_width, multiplier, compressed_pos,
-              CVK_FMT_I8);
+  kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
+              do_bias, do_relu, rshift_width, multiplier, batch_high, batch_low,
+              lstride, rstride, ostride, compressed_pos, CVK_FMT_I8);
 
   kernel.selectTilePolicy();
   kernel.schedule();
 }
 
-void cvi_backend_tg_bf16_fc_kernel(const CviBackendContext &ctx,
-                                   uint32_t layer_id, gaddr_t ga_input,
-                                   gaddr_t ga_weight, gaddr_t ga_bias,
-                                   gaddr_t ga_output, int batch, int M, int K, int N,
-                                   bool do_bias, bool do_relu,
-                                   std::vector<int> compressed_pos) {
+void cvi_backend_tg_bf16_fc_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
+    bool do_bias, bool do_relu, std::vector<int> compressed_pos, int batch_high,
+    int batch_low, bool lstride, bool rstride, bool ostride) {
   LLVM_DEBUG(
       llvm::errs() << llvm::format("cvi_backend_tg_bf16_fc_kernel\n"
                                    "M:%d,K:%d,N:%d, do_bias %d, do_relu %d\n",
                                    M, K, N, do_bias, do_relu));
   TgFcKernel kernel(ctx);
-  kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, batch, M, K, N,
-              do_bias, do_relu, 0, 0, compressed_pos, CVK_FMT_BF16);
+  kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
+              do_bias, do_relu, 0, 0, batch_high, batch_low, lstride, rstride,
+              ostride, compressed_pos, CVK_FMT_BF16);
 
   kernel.selectTilePolicy();
   kernel.schedule();

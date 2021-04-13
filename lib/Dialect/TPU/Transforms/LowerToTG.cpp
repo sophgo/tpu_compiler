@@ -2625,6 +2625,12 @@ Value tpu::MatMulOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("left_transpose",
+                                       builder.getBoolAttr(left_transpose())));
+  attrs.push_back(builder.getNamedAttr("right_transpose",
+                                       builder.getBoolAttr(right_transpose())));
+  attrs.push_back(builder.getNamedAttr(
+      "output_transpose", builder.getBoolAttr(output_transpose())));
   attrs.push_back(
       builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
   if (getOpQuant() == "INT8") {

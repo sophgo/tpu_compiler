@@ -34,13 +34,12 @@ void cvi_backend_tg_fixed_conv_kernel(
     int store_cmpr_act_h_step, int load_cmpr_act_h_step,
     int pad_value = 0, gaddr_t ga_scale_lut = GA_INVALID);
 
-void cvi_backend_tg_fixed_fc_kernel(const CviBackendContext &ctx,
-                                    uint32_t layer_id, gaddr_t ga_input,
-                                    gaddr_t ga_weight, gaddr_t ga_bias,
-                                    gaddr_t ga_output, int batch, int M, int K,
-                                    int N, bool have_bias, bool do_relu,
-                                    int rshift_width, int multiplier,
-                                    std::vector<int> compressed_pos);
+void cvi_backend_tg_fixed_fc_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
+    bool have_bias, bool do_relu, int rshift_width, int multiplier,
+    std::vector<int> compressed_pos, int batch_high = 0, int batch_low = 0,
+    bool lstride = false, bool rstride = false, bool ostride = false);
 
 void cvi_backend_tg_fixed_max_pooling_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -219,12 +218,12 @@ void cvi_backend_tg_bf16_max_pooling3d_kernel(
     int stride_d, int stride_h, int stride_w,
     bool do_relu, const bool ceil_mode);
 
-void cvi_backend_tg_bf16_fc_kernel(const CviBackendContext &ctx,
-                                   uint32_t layer_id, gaddr_t ga_input,
-                                   gaddr_t ga_weight, gaddr_t ga_bias,
-                                   gaddr_t ga_output, int batch, int M, int K,
-                                   int N, bool do_bias, bool do_relu,
-                                   std::vector<int> compr_weight_poss);
+void cvi_backend_tg_bf16_fc_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
+    bool do_bias, bool do_relu, std::vector<int> compr_weight_poss,
+    int batch_high = 0, int batch_low = 0, bool lstride = false,
+    bool rstride = false, bool ostride = false);
 
 void cvi_backend_tg_bf16_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,

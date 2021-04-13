@@ -8,11 +8,11 @@
 
 #include "CviBackendContext.h"
 #include "backend/backend_tl_api.h"
+#include <cmath>
+#include <iostream>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
-#include <iostream>
-#include <cmath>
 
 // Y[M, N] = L[M,K] * R[K,N] + B[4,N]
 class TgFcKernel {
@@ -20,9 +20,10 @@ public:
   TgFcKernel(const CviBackendContext &ctx) : ctx(ctx) {}
 
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
-            gaddr_t ga_bias, gaddr_t ga_output, int batch, int M, int K, int N,
+            gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
             bool do_bias, bool do_relu, int rshift_width, int multiplier,
-            std::vector<int> compressed_pos, cvk_fmt_t fmt);
+            int batch_high, int batch_low, bool lstride, bool rstride,
+            bool ostride, std::vector<int> compressed_pos, cvk_fmt_t fmt);
 
   void selectTilePolicy();
   void schedule();
@@ -54,7 +55,7 @@ protected:
   gaddr_t ga_weight;
   gaddr_t ga_bias;
   gaddr_t ga_output;
-  uint32_t batch;
+
   uint32_t M;
   uint32_t K;
   uint32_t N;
@@ -72,6 +73,15 @@ protected:
   cvk_ml_t tl_L;
   cvk_ml_t tl_B;
   cvk_ml_t tl_R;
+
+  uint32_t batch_high;
+  uint32_t batch_low;
+  bool lstride;
+  bool rstride;
+  bool ostride;
+  cvk_mg_stride_t left_gstride;
+  cvk_mg_stride_t right_gstride;
+  cvk_mg_stride_t output_gstride;
 
   bool do_parallel;
   uint32_t TOTAL_EU;

@@ -22,7 +22,11 @@ private:
   SyncedData output_data;
   // param
   bool do_relu;
-  int batch;
+  bool l_trans;
+  bool r_trans;
+  bool o_trans;
+  int batch_high;
+  int batch_low;
   int M;
   int K;
   int N;
