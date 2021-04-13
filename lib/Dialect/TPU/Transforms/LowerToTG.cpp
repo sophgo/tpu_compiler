@@ -2706,6 +2706,39 @@ struct FoldReshapePattern : public RewritePattern {
   }
 };
 
+template<typename OpTy>
+struct FoldReshapeHorizonPattern : public RewritePattern {
+  FoldReshapeHorizonPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = cast<OpTy>(op);
+    auto formerOp = castOp.getOperand().getDefiningOp();
+    std::vector<Operation*> targets;
+    int cnt = 0;
+    for (auto &use : formerOp->getResult(0).getUses()) {
+      auto child = use.getOwner();
+      if (!isa<OpTy>(child)) {
+        return failure();
+      }
+      if (child->getResult(0) == castOp.getResult()) {
+        llvm::errs() << "replace reshape\n";
+        if (child != op) {
+          targets.push_back(child);
+          llvm::errs() << "found\n";
+        }
+      }
+      cnt++;
+    }
+    llvm::errs() << "name:" << getOpName(formerOp) << ", uses:" << cnt << "\n";
+    for (auto t : targets) {
+      rewriter.replaceOp(t, {castOp.getResult()});
+    }
+    return success();
+  }
+};
+
 static std::unique_ptr<std::vector<uint8_t> > packWeight(
     std::vector<float> *bias, std::vector<float> *rshift,
     std::vector<float> *multiplier, int64_t oc,
@@ -4469,18 +4502,25 @@ struct LowerWeightEmbeddingOpPattern : public RewritePattern {
 
   LogicalResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
-    auto embeddingOp = cast<tpu::EmbeddingOp>(op);
-    auto weightOp = cast<tpu::LoadWeightOp>(embeddingOp.getOperand(1).getDefiningOp());
-    assert(weightOp);
-    if (weightOp.lowered()) {
+    auto castOp = cast<tpu::EmbeddingOp>(op);
+    TensorFile *wTF = getWeightTensorFile(castOp);
+    auto tableOp = cast<tpu::LoadWeightOp>(castOp.getOperand(1).getDefiningOp());
+    assert(tableOp);
+    if (tableOp.lowered()) {
       // lowered already
       return failure();
     }
-    LLVM_DEBUG(llvm::errs() << "Lower Weight for Embedding: "
-                            << getOpName(op) << "\n";);
-    assert(getOpQuant(op) == "BF16");
-    weightOp->setAttr("lowered", rewriter.getBoolAttr(true));
-    weightOp->setAttr("storage", rewriter.getStringAttr("BF16"));
+    std::vector<int64_t> shape;
+    int64_t size;
+    getTensorShapeAndSize(tableOp, shape, size);
+    auto table = readAndDeleteWeightTensor<uint16_t>(tableOp, wTF);
+    std::vector<uint16_t> table_uint16(table->begin(), table->end());
+
+    // save it
+    addWeightTensorAndUpdateWeightOp<uint16_t>(
+        tableOp, "lowered", table_uint16, shape, "BF16", wTF);
+    tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
+    tableOp->setAttr("storage", rewriter.getStringAttr("BF16"));
     return success();
   }
 };
@@ -4577,27 +4617,56 @@ struct LowerCustomOpPattern : public RewritePattern {
 };
 
 
+
+
 template <typename OpTy>
 struct LowerFunctionTypePattern: public RewritePattern {
   LowerFunctionTypePattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
+  void updateInputOpNameIfNeeded(PatternRewriter &rewriter,
+                                 Operation *op, std::string suffix) const {
+    bool needed = true;
+    auto curr_name = getOpName(op).str();
+    if (curr_name.size() > suffix.size()) {
+      auto tail = curr_name.substr(curr_name.size() - suffix.size());
+      if (tail == suffix) {
+        needed = false;
+      }
+    }
+    if (needed) {
+      auto nameAttr = rewriter.getStringAttr(curr_name + suffix);
+      op->setAttr("name", nameAttr);
+    }
+  }
+
   LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
     auto quantOp = cast<OpTy>(op);
     auto prevOp = op->getOperand(0).getDefiningOp();
     auto nextOp = getNextOp(op);
     if (nextOp == nullptr) {
       return failure();
     }
-    if (!isa<tpu::InputOp>(prevOp) && !isa<ReturnOp>(nextOp)) {
+    if (!isa<tpu::InputOp>(prevOp) &&
+        !isa<tpu::ReshapeOp>(prevOp) &&
+        !isa<ReturnOp>(nextOp)) {
       return failure();
     }
 
     auto fn = op->getParentOfType<FuncOp>();
     assert(fn);
+
+    auto getEltType = [](Value value){
+      auto type = value.getType().template cast<TensorType>();
+      return type.getElementType();
+    };
     // change the argType of FuncOp
-    if (isa<tpu::InputOp>(prevOp)) {
+    if (isa<tpu::InputOp>(prevOp) ||
+        isa<tpu::InputOp>(prevOp->getOperand(0).getDefiningOp())) {
+      if (isa<tpu::ReshapeOp>(prevOp)) {
+        prevOp = prevOp->getOperand(0).getDefiningOp();
+      }
       if (quantOp.from() == "NONE" &&
           (quantOp.to() == "INT8" || quantOp.to() == "UINT8") &&
           !clQuantInputsToInt8) {
@@ -4607,12 +4676,37 @@ struct LowerFunctionTypePattern: public RewritePattern {
         auto bSigned = (quantOp.to() == "INT8") ? IntegerType::Signed : IntegerType::Unsigned;
         setOpResultType(argument, IntegerType::get(op->getContext(), 8, bSigned));
         setOpResultType(prevOp->getResult(0), IntegerType::get(op->getContext(), 8, bSigned));
-        prevOp->setAttr("name", quantOp.nameAttr());
+        setOpResultType(op->getOperand(0), IntegerType::get(op->getContext(), 8, bSigned));
+        updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_i8");
         setOpThreshold(prevOp, (quantOp.to() == "INT8" ? 128 : 256) /
                                 quantOp.scale().convertToFloat());
-        setOpZeroPoint(prevOp,
-                       (int)quantOp.zero_point());
+        setOpZeroPoint(prevOp, (int)quantOp.zero_point());
         rewriter.replaceOp(op, {op->getOperand(0)});
+      } else if (quantOp.from() == "NONE" &&
+                 (quantOp.to() == "BF16" || quantOp.to() == "INT16")) {
+        auto argument = prevOp->getOperand(0);
+        if (quantOp.to() == "BF16") {
+          setOpResultType(argument, FloatType::getBF16(op->getContext()));
+          setOpResultType(prevOp->getResult(0), FloatType::getBF16(op->getContext()));
+          setOpResultType(op->getOperand(0), FloatType::getBF16(op->getContext()));
+          updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_bf16");
+        } else {
+          setOpResultType(argument, IntegerType::get(op->getContext(), 16, IntegerType::Signed));
+          setOpResultType(prevOp->getResult(0), IntegerType::get(op->getContext(), 16, IntegerType::Signed));
+          setOpResultType(op->getOperand(0), IntegerType::get(op->getContext(), 16, IntegerType::Signed));
+          updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_i16");
+        }
+        setOpThreshold(prevOp, 1.0);
+        setOpZeroPoint(prevOp, 0);
+        rewriter.replaceOp(op, {op->getOperand(0)});
+      }
+      auto elementType = getEltType(prevOp->getResult(0));
+      for (auto &use : prevOp->getResult(0).getUses()) {
+        auto child = use.getOwner();
+        if (!isa<tpu::ReshapeOp>(child)) {
+          continue;
+        }
+        setOpResultType(child->getResult(0), elementType);
       }
     } else if (isa<ReturnOp>(nextOp) && !clDequantResultsToFp32) {
       // change the returnType of FuncOp
@@ -4699,6 +4793,12 @@ public:
     auto fn = getFunction();
 
     OwningRewritePatternList patterns;
+    patterns.insert<
+        FoldReshapeHorizonPattern<tpu::ReshapeOp>
+        >(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    patterns.clear();
     patterns.insert<
         LowerFunctionTypePattern<tpu::QuantOp>
         >(context);
@@ -4853,6 +4953,7 @@ public:
         FoldReshapePattern<tpu::ReshapeOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
   }
 };
 

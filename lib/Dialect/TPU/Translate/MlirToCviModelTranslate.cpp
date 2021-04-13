@@ -208,7 +208,8 @@ CviTensor::CviTensor(std::string name, TensorType &type, int64_t offset, bool is
             DType::DType_UINT8 : DType::DType_INT8;
     dsize = 1;
   } else if (elementType.isInteger(16)) {
-    dtype = DType::DType_INT16;
+    dtype = elementType.isUnsignedInteger() ?
+            DType::DType_UINT16 : DType::DType_INT16;
     dsize = 2;
   } else if (elementType.isInteger(32)) {
     dtype = DType::DType_INT32;

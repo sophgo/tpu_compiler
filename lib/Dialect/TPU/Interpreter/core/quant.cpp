@@ -68,12 +68,14 @@ static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
   }
 }
 
-static void quantizeFromFp32ToUint16(float *src, float *dst, int64_t size,
+static void quantizeFromFp32ToInt16(float *src, float *dst, int64_t size,
                                      float scale) {
   for (int64_t i = 0; i < size; ++i) {
     int val = std::round(src[i] * scale);
-    if (val > 65535) {
-      val = 65535;
+    if (val > 32767) {
+      val = 32767;
+    } else if (val < -32768) {
+      val = -32768;
     }
     dst[i] = (float)val;
   }
@@ -190,8 +192,8 @@ void QuantOpKernel::invoke() {
   } else if (this->from == "BF16" && this->to == "INT8") {
     quantizeActivationFromBf16ToInt8(output_data->data(), input_data->data(),
                                      output_data->size(), scale);
-  } else if (this->from == "NONE" && this->to == "UINT16") {
-    quantizeFromFp32ToUint16(input_data->data(), output_data->data(),
+  } else if (this->from == "NONE" && this->to == "INT16") {
+    quantizeFromFp32ToInt16(input_data->data(), output_data->data(),
                              input_data->size(), scale);
   } else {
     dump();

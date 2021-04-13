@@ -70,6 +70,10 @@ static int32_t getOpDtypeSize(Operation *op) {
     dsize = sizeof(float);
   } else if (elementType.isInteger(8)) {
     dsize = sizeof(int8_t);
+  } else if (elementType.isInteger(16)) {
+    dsize = sizeof(int16_t);
+  } else if (elementType.isInteger(32)) {
+    dsize = sizeof(int32_t);
   } else if (elementType.isBF16()) {
     dsize = sizeof(uint16_t);
   } else {
