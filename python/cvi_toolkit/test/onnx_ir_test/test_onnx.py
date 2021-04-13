@@ -26,6 +26,7 @@ TEST_ONNX_IR = [
     "Conv2d", # Conv with 2d case
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
+    "FullyConnected",
     "GlobalMaxPool",
     "GRU",
     "LeakyRelu",
@@ -87,10 +88,11 @@ class ONNX_IR_TESTER(object):
             "Conv2d": self.test_Conv2d,
             "Conv3d": self.test_Conv3d,
             "DepthToSpace": self.test_DepthToSpace,
-            "LeakyRelu": self.test_LeakyRelu,
-            "LRN": self.test_LRN,
+            "FullyConnected": self.test_FullyConnected,
             "GlobalMaxPool": self.test_GlobalMaxPool,
             "GRU": self.test_GRU,
+            "LeakyRelu": self.test_LeakyRelu,
+            "LRN": self.test_LRN,
             "Max": self.test_Max,
             "Min": self.test_Min,
             "Mul": self.test_Mul,
@@ -329,26 +331,42 @@ class ONNX_IR_TESTER(object):
 
     def test_Add(self):
         test_case = 'Add'
-        input_shape = [1, 3, 27, 27]
-        output_shape = [1, 3, 27, 27]
+        input_shape = [1, 3, 8, 8]
+        output_shape = [1, 3, 8, 8]
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
-        x1_node = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
+        reduce1_node = helper.make_node(
+            'ReduceMax',
+            ['input'],
+            ['reduce1'],
+            keepdims=1,
+            axes=[1, ],
         )
+        reduce2_node = helper.make_node(
+            'ReduceMax',
+            ['reduce1'],
+            ['reduce2'],
+            keepdims=1,
+            axes=[3, ],
+        )
+        transpose_node = helper.make_node(
+            "Transpose",
+            ['reduce2'],
+            ['trans'],
+            perm=(0,1,3,2),
+        )
+
         add_node = helper.make_node(
             'Add',  # node name
-            ['input', 'X1'],  # inputs
+            ['input', 'trans'],  # inputs
             ['output'],  # outputs
         )
         graph_def = helper.make_graph(
-            [x1_node, add_node],
+            [reduce1_node, reduce2_node, transpose_node, add_node],
             test_case,
             [input],
             [output],
@@ -515,6 +533,68 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         onnx.checker.check_model(model_def)
 
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_FullyConnected(self):
+        test_case = 'FullyConnected'
+        B = 4 # batch only for input
+        M = 16
+        K = 40
+        N = 64
+
+        input_data = np.random.rand(B, M, K).astype(np.float32)
+        filter_data = np.random.rand(K, N).astype(np.float32)
+        div_data = np.array([8.0])
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, list(input_data.shape))
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [B, M, N])
+
+        filter_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['filter'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=filter_data.shape,
+                vals=filter_data.flatten(),
+            ),
+        )
+
+        div_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['div'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=div_data.shape,
+                vals=div_data.flatten(),
+            ),
+        )
+
+        fc_node = helper.make_node(
+            'MatMul',  # node name
+            ['input', 'filter'],  # inputs
+            ['fc'],  # outputs
+        )
+
+        scale_node = helper.make_node(
+            "Div",
+            ['fc', 'div'],
+            ['output'],
+        )
+
+        graph_def = helper.make_graph(
+            [filter_def, div_def, fc_node, scale_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_GlobalMaxPool(self):

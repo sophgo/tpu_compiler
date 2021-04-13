@@ -328,11 +328,6 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   assert(bc == 1);
-  if (bn == 1) {
-    // e.g. [4,3,28,28] x [1,1,28,28] = [1,12,28,28] x [1,1,28,28]
-    c = n * c;
-    n = 1;
-  }
 
   cvi_backend_tg_int8_broadcast_mul_kernel(
     *backend_ctx, layer_id,
@@ -365,11 +360,6 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   assert(bc == 1);
-  if (bn == 1) {
-    // e.g. [4,3,28,28] x [1,1,28,28] = [1,12,28,28] x [1,1,28,28]
-    c = n * c;
-    n = 1;
-  }
 
   cvi_backend_tg_bf16_broadcast_mul_kernel(*backend_ctx, layer_id, ga_inputs,
                                            ga_output, n, c, h, w, bn, bc, bh,

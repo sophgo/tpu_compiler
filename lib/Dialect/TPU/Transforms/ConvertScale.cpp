@@ -40,6 +40,87 @@ using namespace mlir;
 
 namespace {
 
+struct TpuRemoveScalePattern : public RewritePattern {
+  TpuRemoveScalePattern(MLIRContext *context)
+      : RewritePattern("tpu.scale", 6, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::ScaleOp>(op);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    // check whether is only one scale
+    std::unique_ptr<std::vector<float>> weights[2];
+    llvm::StringRef weight_names[2];
+    for (int i = 0; i < 2; ++i) {
+      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          castOp.getOperand(i + 1).getDefiningOp());
+      assert(weight_op && "weight op should be exist");
+      weight_names[i] = weight_op.name();
+      auto type = weight_op.getResult().getType().cast<TensorType>();
+      weights[i] = wTF->readTensor<float>(weight_names[i], type);
+    }
+    float scale = weights[0]->at(0);
+    float bias = weights[1]->at(0);
+    if (bias != 0) {
+      return failure();
+    }
+    for (auto &data : *weights[0]) {
+      if (data != scale) {
+        return failure();
+      }
+    }
+    for (auto &data : *weights[1]) {
+      if (data != bias) {
+        return failure();
+      }
+    }
+    Operation *formerOp = op->getOperand(0).getDefiningOp();
+    if (scale == 1.0f) {
+      wTF->deleteTensor<float>(weight_names[0]);
+      wTF->deleteTensor<float>(weight_names[1]);
+      rewriter.replaceOp(op, op->getOperand(0));
+      return success();
+    }
+    do {
+      if (!formerOp->getResult(0).hasOneUse()) {
+        return failure();
+      }
+      if (isa<tpu::FullyConnectedOp>(formerOp)) {
+        break;
+      }
+      if (isa<tpu::PermuteOp>(formerOp) || isa<tpu::ReshapeOp>(formerOp)) {
+        formerOp = formerOp->getOperand(0).getDefiningOp();
+        continue;
+      }
+      return failure();
+    } while (formerOp != nullptr);
+
+    auto fcOp = cast<tpu::FullyConnectedOp>(formerOp);
+    std::vector<int64_t> shape = getTensorShape(fcOp.filter());
+    auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
+    for (auto &data : *filter) {
+      data *= scale;
+    }
+    addWeightTensorAndUpdateWeightOp<float>(fcOp.filter(), "_scale", *filter,
+                                            shape, "NONE", wTF);
+    if (isTensorNone(fcOp.bias()) == false) {
+      shape = getTensorShape(fcOp.bias());
+      auto bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
+      for (auto &data : *bias) {
+        data *= scale;
+      }
+      addWeightTensorAndUpdateWeightOp<float>(fcOp.bias(), "_scale", *bias,
+                                              shape, "NONE", wTF);
+    }
+
+    wTF->deleteTensor<float>(weight_names[0]);
+    wTF->deleteTensor<float>(weight_names[1]);
+    rewriter.replaceOp(op, op->getOperand(0));
+    return success();
+  }
+};
+
 struct TpuFoldScalePattern : public RewritePattern {
   TpuFoldScalePattern(MLIRContext *context)
       : RewritePattern("tpu.scale", 5, context) {}
@@ -541,6 +622,7 @@ void tpu::ScaleOp::getCanonicalizationPatterns(
                                               OwningRewritePatternList &results,
                                               MLIRContext *context) {
   results.insert<
+      TpuRemoveScalePattern,
       TpuFoldScalePattern,
       TpuMergeScaleIntoConvPattern,
       TpuConvertScaleToDWConvPattern>(context);

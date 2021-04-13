@@ -62,6 +62,17 @@ void tg_broadcast_kernel(const CviBackendContext &ctx,
                           BroadcastType type, cvk_fmt_t fmt) {
   LLVM_DEBUG(llvm::errs() << llvm::format("a shape:[%d,%d,%d,%d] b shape:[%d,%d,%d,%d], relu:%d, fmt:%d\n",
                                n, c, h, w, bn, bc, bh, bw, do_relu, fmt););
+  // reshape
+  if (bn == 1) {
+    // e.g. [4,3,28,28] with [1,1,28,28] = [1,12,28,28] with [1,1,28,28]
+    c *= n;
+    n = 1;
+  }
+  if (bh == 1) {
+    // e.g. [1,12,28,28] with [1,1,1,28] = [1, 12*28, 1, 28] with [1,1,1 28]
+    c *= h;
+    h = 1;
+  }
   // Only support to broadcast in n & c dimension.
   assert(bn == n);
   assert(bc == 1);

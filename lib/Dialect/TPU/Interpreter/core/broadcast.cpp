@@ -19,9 +19,15 @@ BroadcastAddOpKernel::BroadcastAddOpKernel(Operation &op,
   LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
 
   this->shape = getTensorShape(result);
+  auto shape1 = getTensorShape(op.getOperand(0));
+  auto shape2 = getTensorShape(op.getOperand(1));
+  if (shape2.size() == 4 && shape2[1] == 1 && shape2[2] == 1) {
+    shape1[1] *= shape1[2];
+    shape1[2] = 1;
+  }
 
-  this->inputs_shape.push_back(getTensorShape(op.getOperand(0)));
-  this->inputs_shape.push_back(getTensorShape(op.getOperand(1)));
+  this->inputs_shape.push_back(shape1);
+  this->inputs_shape.push_back(shape2);
 
   do_relu = broadcastaddOp.do_relu();
   int axis = broadcastaddOp.axis();

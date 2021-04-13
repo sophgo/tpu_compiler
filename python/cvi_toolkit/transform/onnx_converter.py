@@ -818,15 +818,11 @@ class OnnxConverter(BaseConverter):
                     onnx_node.inputs[0] ,onnx_node.inputs[1] = onnx_node.inputs[1], onnx_node.inputs[0]
                     return self.convert_add_op(onnx_node)
                 elif len(input_shape1) == 4 and input_shape2[1:3] == [1, 1] and input_shape1[3] == input_shape2[3]:
-                    n, c, h, w = input_shape1
                     name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-                    output_shape = [n, c * h, 1, w]
-                    op1_reshape = self.CVI.add_reshape_op(name + "_op1_reshape", [op1], output_shape)
-                    add_op = self.CVI.add_broadcast_add_op(name, [op1_reshape, op2],
-                                                            output_shape, axis=1)
-                    res_reshape = self.CVI.add_reshape_op(name + "_res_reshape", [add_op], [n, c, h, w])
-                    self.addOperand(onnx_node.name, res_reshape,
-                                    [n, c, h, w], TensorType.ACTIVATION)
+                    add_op = self.CVI.add_broadcast_add_op(name, [op1, op2],
+                                                            input_shape1, axis=1)
+                    self.addOperand(onnx_node.name, add_op,
+                                    input_shape1, TensorType.ACTIVATION)
                     return
                 elif len(input_shape1) == 4 and input_shape2[1] == 1 and input_shape1[2:] == input_shape2[2:]:
                     name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
@@ -2057,10 +2053,8 @@ class OnnxConverter(BaseConverter):
             weight_name = "{}_add_weight".format(onnx_node.name)
             weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
             weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor.reshape(K, N), (1, 0)))
-            lhs_reshaped_shape = np.ones(lhs_shape).reshape(-1, K).shape
-            if lhs_reshaped_shape != lhs_shape:
-                lhs_op = self.CVI.add_reshape_op(fc_name + "_filter_reshape",
-                                                 [lhs_op], lhs_reshaped_shape)
+            assert(len(rhs_shape) == 2) #fc not support batch now
+
             operands.append(lhs_op)
             rhs_shape = weight_tensor.shape
             self.addTensor(weight_name, weight_tensor, rhs_shape)
@@ -2072,7 +2066,6 @@ class OnnxConverter(BaseConverter):
                 bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], bias_tensor.shape)
                 operands.append(bias_op)
 
-            output_shape = np.ones(output_shape).reshape((-1, N)).shape
             fc_op = self.CVI.add_fully_connected_op(fc_name, operands, output_shape)
             self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
         else:
