@@ -1081,7 +1081,8 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
             'ins': [],
         }
-        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        op, shape_, _ = self.getOperand(onnx_node.inputs[0])
+        shape = shape_[:];
         # convert conv1d to conv2d
         if len(shape) == 3:
             shape.insert(2,1)
@@ -3376,5 +3377,3 @@ class OnnxConverter(BaseConverter):
         self.convert_tensor()
         self.convert_graph()
         self.TensortoNpz()
-
-
