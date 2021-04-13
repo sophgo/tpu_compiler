@@ -2,7 +2,7 @@ if(NOT tpu_LINKER_LIBS)
   set(tpu_LINKER_LIBS "")
 endif(NOT tpu_LINKER_LIBS)
 list(APPEND tpu_LINKER_LIBS
-  mkldnn)
+  mkldnn ssl crypto)
 
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -Wall -Werror -Wno-pedantic -fno-strict-aliasing -Wno-maybe-uninitialized -Wno-unused-result")
 

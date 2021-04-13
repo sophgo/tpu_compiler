@@ -38,25 +38,53 @@
 #include "llvm/Support/MemoryBuffer.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
+#include <openssl/md5.h>
+#include <map>
 
 #define DEBUG_TYPE "assign_weight_address"
 
 using namespace mlir;
 
 namespace {
+
+template<typename T>
+static bool isRedundantWeight(Operation *op, std::vector<T> &weight_vec,
+                        std::map<std::string, uint64_t> &map,
+                        uint64_t cur_pos, std::string &md5) {
+  MD5_CTX ctx;
+  MD5_Init(&ctx);
+  auto size = weight_vec.size() * sizeof(T);
+  MD5_Update(&ctx, weight_vec.data(), size);
+  unsigned char res[16];
+  MD5_Final(res, &ctx);
+
+  std::stringstream ss;
+  for(int i=0; i < 16; ++i)
+      ss << std::hex << (int)res[i];
+  md5 = ss.str();
+
+  if (map.find(md5) != map.end()) {
+    return true;
+  }
+  map[md5] = cur_pos;
+  return false;
+}
+
 template<typename OpTy>
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context,
       llvm::raw_fd_ostream *weightBinaryFile, llvm::raw_ostream &map_os,
-      size_t alignment, bool compressedWeight)
+      size_t alignment, bool compressedWeight,
+      std::map<std::string, uint64_t> &map)
       : RewritePattern(OpTy::getOperationName(), 1, context),
         weightBinaryFile_(weightBinaryFile),
         map_os_(map_os),
         alignment_(alignment),
-        compressedWeight_(compressedWeight) {}
+        compressedWeight_(compressedWeight),
+        md5AddrMap_(map) {}
 
   LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
     TensorFile *wTF = getWeightTensorFile(op);
     auto weightOp = cast<OpTy>(op);
     if (weightOp.offset().hasValue()) {
@@ -72,22 +100,28 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     assert(weightOp.lowered() && "weight op should be set lowered");
     auto curPos = weightBinaryFile_->tell();
     size_t size = 0;
+    std::string md5;
+    bool isRedundant = false;
+
     if (weightOp.storage() == "INT8") {
       std::vector<int8_t> weight_int8;
       auto weight = wTF->readTensor<int8_t>(tensor_name, type);
       weight_int8.assign(weight->begin(), weight->end());
       size = weight_int8.size();
 
-      // pad to alignment
-      if ( weight_int8.size() % alignment_ ) {
-        size_t pad = alignment_ - (weight_int8.size() % alignment_);
-        for (size_t i = 0; i < pad; ++i) {
-          weight_int8.push_back(-128); // assign a special value for debugging
+      isRedundant = isRedundantWeight<int8_t>(op, weight_int8, md5AddrMap_, curPos, md5);
+      if (!isRedundant) {
+        // pad to alignment
+        if ( weight_int8.size() % alignment_ ) {
+          size_t pad = alignment_ - (weight_int8.size() % alignment_);
+          for (size_t i = 0; i < pad; ++i) {
+            weight_int8.push_back(-128); // assign a special value for debugging
+          }
         }
+        auto weightData = reinterpret_cast<const char*>(weight_int8.data());
+        weightBinaryFile_->write(weightData, weight_int8.size() *
+                                sizeof(int8_t));
       }
-      auto weightData = reinterpret_cast<const char*>(weight_int8.data());
-      weightBinaryFile_->write(weightData, weight_int8.size() *
-                               sizeof(int8_t));
     } else if (weightOp.storage() == "UINT8") {
       // UINT8 is used for packed per-channel info or LUT table
       std::vector<uint8_t> weight_uint8;
@@ -95,16 +129,19 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weight_uint8.assign(weight->begin(), weight->end());
       size = weight_uint8.size();
 
-      // pad to alignment
-      if ( weight_uint8.size() % alignment_ ) {
-        size_t pad = alignment_ - (weight_uint8.size() % alignment_);
-        for (size_t i = 0; i < pad; ++i) {
-          weight_uint8.push_back(0xff); // assign a special value for debugging
+      isRedundant = isRedundantWeight<uint8_t>(op, weight_uint8, md5AddrMap_, curPos, md5);
+      if (!isRedundant) {
+        // pad to alignment
+        if ( weight_uint8.size() % alignment_ ) {
+          size_t pad = alignment_ - (weight_uint8.size() % alignment_);
+          for (size_t i = 0; i < pad; ++i) {
+            weight_uint8.push_back(0xff); // assign a special value for debugging
+          }
         }
+        auto weightData = reinterpret_cast<const char*>(weight_uint8.data());
+        weightBinaryFile_->write(weightData, weight_uint8.size() *
+                                sizeof(uint8_t));
       }
-      auto weightData = reinterpret_cast<const char*>(weight_uint8.data());
-      weightBinaryFile_->write(weightData, weight_uint8.size() *
-                               sizeof(uint8_t));
     } else if (weightOp.storage() == "INT16") {
       // INT16 is used for bias in INT8 per-tensor mode
       // after lowering, this should be UINT16 already
@@ -117,36 +154,42 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       std::vector<uint16_t> weight_uint16(weight->begin(), weight->end());
       size = weight_uint16.size() * sizeof(uint16_t);
 
-      // pad to alignment
-      if ((weight_uint16.size() * sizeof(uint16_t)) % alignment_) {
-        size_t remain = (weight_uint16.size() * sizeof(uint16_t)) % alignment_;
-        size_t pad = (alignment_ - remain) / sizeof(uint16_t);
-        for (size_t i = 0; i < pad; ++i) {
-          // assign a special value for debugging
-          weight_uint16.push_back(0xffff);
+      isRedundant = isRedundantWeight<uint16_t>(op, weight_uint16, md5AddrMap_, curPos, md5);
+      if (!isRedundant) {
+        // pad to alignment
+        if ((weight_uint16.size() * sizeof(uint16_t)) % alignment_) {
+          size_t remain = (weight_uint16.size() * sizeof(uint16_t)) % alignment_;
+          size_t pad = (alignment_ - remain) / sizeof(uint16_t);
+          for (size_t i = 0; i < pad; ++i) {
+            // assign a special value for debugging
+            weight_uint16.push_back(0xffff);
+          }
         }
+        weightBinaryFile_->write(
+            reinterpret_cast<const char *>(weight_uint16.data()),
+            weight_uint16.size() * sizeof(uint16_t));
       }
-      weightBinaryFile_->write(
-          reinterpret_cast<const char *>(weight_uint16.data()),
-          weight_uint16.size() * sizeof(uint16_t));
     } else if (weightOp.storage() == "BF16") {
       std::vector<uint16_t> weight_bf16;
       auto weight = wTF->readTensor<uint16_t>(tensor_name, type);
       weight_bf16.assign(weight->begin(), weight->end());
       size = weight_bf16.size() * sizeof(uint16_t);
 
-      // pad to alignment
-      if ( (weight_bf16.size() * sizeof(uint16_t)) % alignment_ ) {
-        size_t remain = (weight_bf16.size() * sizeof(uint16_t)) % alignment_;
-        size_t pad = (alignment_ - remain) / sizeof(uint16_t);
-        for (size_t i = 0; i < pad; ++i) {
-          // assign a special value for debugging
-          weight_bf16.push_back(0xffff);
+      isRedundant = isRedundantWeight<uint16_t>(op, weight_bf16, md5AddrMap_, curPos, md5);
+      if (!isRedundant) {
+        // pad to alignment
+        if ( (weight_bf16.size() * sizeof(uint16_t)) % alignment_ ) {
+          size_t remain = (weight_bf16.size() * sizeof(uint16_t)) % alignment_;
+          size_t pad = (alignment_ - remain) / sizeof(uint16_t);
+          for (size_t i = 0; i < pad; ++i) {
+            // assign a special value for debugging
+            weight_bf16.push_back(0xffff);
+          }
         }
+        auto weightData = reinterpret_cast<const char*>(weight_bf16.data());
+        weightBinaryFile_->write(weightData, weight_bf16.size() *
+                                sizeof(uint16_t));
       }
-      auto weightData = reinterpret_cast<const char*>(weight_bf16.data());
-      weightBinaryFile_->write(weightData, weight_bf16.size() *
-                               sizeof(uint16_t));
     } else if (weightOp.storage() == "UINT32") {
       // UINT32 is for lowered Conv Bias
       // 1. Per-Channel (no mulitplier) Conv Bias is supposed to be INT32
@@ -160,35 +203,41 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       weight_uint32.assign(weight->begin(), weight->end());
       size = weight_uint32.size() * sizeof(uint32_t);
 
-      // pad to alignment
-      if ( (weight_uint32.size() * sizeof(uint32_t)) % alignment_ ) {
-        size_t remain = (weight_uint32.size() * sizeof(uint32_t)) % alignment_;
-        size_t pad = (alignment_ - remain) / sizeof(uint32_t);
-        for (size_t i = 0; i < pad; ++i) {
-          // assign a special value for debugging
-          weight_uint32.push_back(0xffffffff);
+      isRedundant = isRedundantWeight<uint32_t>(op, weight_uint32, md5AddrMap_, curPos, md5);
+      if (!isRedundant) {
+        // pad to alignment
+        if ( (weight_uint32.size() * sizeof(uint32_t)) % alignment_ ) {
+          size_t remain = (weight_uint32.size() * sizeof(uint32_t)) % alignment_;
+          size_t pad = (alignment_ - remain) / sizeof(uint32_t);
+          for (size_t i = 0; i < pad; ++i) {
+            // assign a special value for debugging
+            weight_uint32.push_back(0xffffffff);
+          }
         }
+        auto weightData = reinterpret_cast<const char*>(weight_uint32.data());
+        weightBinaryFile_->write(weightData, weight_uint32.size() *
+                                sizeof(uint32_t));
       }
-      auto weightData = reinterpret_cast<const char*>(weight_uint32.data());
-      weightBinaryFile_->write(weightData, weight_uint32.size() *
-                               sizeof(uint32_t));
     } else if (weightOp.storage() == "FP32") {
       std::vector<float> weight_fp32;
       auto weight = wTF->readTensor<float>(tensor_name, type);
       weight_fp32.assign(weight->begin(), weight->end());
       size = weight_fp32.size() * sizeof(float);
 
-      // pad to alignment
-      if ( (weight_fp32.size() * sizeof(float)) % alignment_ ) {
-        size_t remain = (weight_fp32.size() * sizeof(float)) % alignment_;
-        size_t pad = (alignment_ - remain) / sizeof(float);
-        for (size_t i = 0; i < pad; ++i) {
-          // assign a special value for debugging
-          weight_fp32.push_back(0xffffffff);
+      isRedundant = isRedundantWeight<float>(op, weight_fp32, md5AddrMap_, curPos, md5);
+      if (!isRedundant) {
+        // pad to alignment
+        if ( (weight_fp32.size() * sizeof(float)) % alignment_ ) {
+          size_t remain = (weight_fp32.size() * sizeof(float)) % alignment_;
+          size_t pad = (alignment_ - remain) / sizeof(float);
+          for (size_t i = 0; i < pad; ++i) {
+            // assign a special value for debugging
+            weight_fp32.push_back(0xffffffff);
+          }
         }
+        auto weightData = reinterpret_cast<const char*>(weight_fp32.data());
+        weightBinaryFile_->write(weightData, weight_fp32.size() * sizeof(float));
       }
-      auto weightData = reinterpret_cast<const char*>(weight_fp32.data());
-      weightBinaryFile_->write(weightData, weight_fp32.size() * sizeof(float));
     } else if (weightOp.storage() == "NONE") {
       return success();
     } else {
@@ -197,18 +246,24 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       assert(0 && "not supported weight storage type");
     }
 
-    auto newPos = weightBinaryFile_->tell();
-    map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "\n";
+    if (!isRedundant) {
+      // checking
+      auto newPos = weightBinaryFile_->tell();
+      map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "\n";
 
-    LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
-                                 tensor_name.str().c_str(), size)
-                 << llvm::format_hex(curPos, 10) << " --> "
-                 << llvm::format_hex(newPos, 10) << " ]\n";);
+      LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
+                                  tensor_name.str().c_str(), size)
+                  << llvm::format_hex(curPos, 10) << " --> "
+                  << llvm::format_hex(newPos, 10) << " ]\n";);
 
-    assert(((curPos % alignment_) == 0) && "Expect aligned curPos");
-    assert(((newPos % alignment_) == 0) && "Expect aligned newPos");
+      assert(((curPos % alignment_) == 0) && "Expect aligned curPos");
+      assert(((newPos % alignment_) == 0) && "Expect aligned newPos");
+    } else {
+      curPos = md5AddrMap_.at(md5);
+    }
 
     // assign the address to weightOp
+    weightOp->setAttr("md5", rewriter.getStringAttr(md5));
     weightOp->setAttr("offset", rewriter.getI64IntegerAttr(curPos + (((uint64_t)1) << 40)));
 
     // Check whether the weight is used by the convolution which indicate it
@@ -232,10 +287,12 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     return success();
   }
 
+
   llvm::raw_fd_ostream *weightBinaryFile_;
   llvm::raw_ostream &map_os_;
   size_t alignment_;
   bool compressedWeight_;
+  std::map<std::string, uint64_t> &md5AddrMap_;
 };
 
 static llvm::cl::opt<size_t> clWeightAlignment(
@@ -282,12 +339,14 @@ public:
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
+
+    std::map<std::string, uint64_t> addrMapping;
     // assign address and generate bin file
     patterns.insert<TpuLoadWeightOpPattern<tpu::LoadWeightOp>,
                     TpuLoadWeightOpPattern<tpu::TL_LG_LoadCoeffOp>
     >(context,
         &weightBinaryFile, weightMapFile->os(), clWeightAlignment,
-        clCompressedWeight);
+        clCompressedWeight, addrMapping);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     weightBinaryFile.close();
