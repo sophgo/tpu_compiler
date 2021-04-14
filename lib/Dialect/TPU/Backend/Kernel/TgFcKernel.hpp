@@ -48,6 +48,7 @@ protected:
   } lmem_size_t;
   lmem_size_t get_lmem_size() const;
   uint32_t total_lmem_size() const;
+  void update_gaddr(uint32_t high_idx, uint32_t low_idx);
 
 protected:
   const CviBackendContext &ctx;
@@ -55,6 +56,8 @@ protected:
   gaddr_t ga_weight;
   gaddr_t ga_bias;
   gaddr_t ga_output;
+
+  gaddr_t ga_i, ga_w, ga_o; // for origin addr
 
   uint32_t M;
   uint32_t K;

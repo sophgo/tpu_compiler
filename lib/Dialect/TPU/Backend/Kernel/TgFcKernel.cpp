@@ -20,10 +20,10 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
   this->M = static_cast<uint32_t>(M);
   this->K = static_cast<uint32_t>(K);
   this->N = static_cast<uint32_t>(N);
-  this->ga_input = ga_input;
-  this->ga_weight = ga_weight;
+  this->ga_i = ga_input;
+  this->ga_w = ga_weight;
   this->ga_bias = ga_bias;
-  this->ga_output = ga_output;
+  this->ga_o = ga_output;
   this->do_bias = do_bias;
   this->do_relu = do_relu;
   this->rshift_width = rshift_width;
@@ -72,7 +72,7 @@ TgFcKernel::lmem_size_t TgFcKernel::get_lmem_size() const {
     size.blob_L = (slice_k() > 1 ? 2 : 1);
     size.blob_R = 2;
     size.blob_B = (slice_n() > 1 ? 2 : 1);
-    size.blob_Y = slice_n();
+    size.blob_Y = (slice_k() > 1 ? slice_n() : 2);
   }
   return size;
 }
@@ -151,7 +151,7 @@ tiling_exit:
   if (tile_M == M && tile_N == N && tile_K == K) {
     do_parallel = false;
   }
-
+  auto size = get_lmem_size();
   if (do_parallel) {
     for (uint32_t k_idx = 0, pos_k = 0; pos_k < K; k_idx++, pos_k += tile_K) {
       for (uint32_t n_idx = 0, pos_n = 0; pos_n < N; n_idx++, pos_n += tile_N) {
@@ -161,7 +161,7 @@ tiling_exit:
         info.pos_n = pos_n;
         info.pos_k = pos_k;
         info.pos_m = 0;
-        info.Y_idx = n_idx;
+        info.Y_idx = n_idx % size.blob_Y;
         info.compress_idx = n_idx * slice_k() + k_idx;
         tiles.emplace_back(info);
         info.RB_idx = 1 - info.RB_idx;
@@ -294,14 +294,15 @@ void TgFcKernel::load(int32_t step_idx) {
   update_tl_matrix(step_idx);
   // load L
   if (tile.pos_n == 0 || do_parallel == false) {
-    ctx.tdma_load_stride(&tl_L,
-                         ga_input + (tile.pos_m * K + tile.pos_k) * fmt_size,
-                         left_gstride);
+    ctx.tdma_load_stride(
+        &tl_L, ga_input + tile.pos_m * left_gstride.row + tile.pos_k * fmt_size,
+        left_gstride);
   }
   // load R
   if (compressed_pos.empty()) {
     ctx.tdma_load_stride(&tl_R,
-                         ga_weight + (tile.pos_k * N + tile.pos_n) * fmt_size,
+                         ga_weight + tile.pos_k * right_gstride.row +
+                             tile.pos_n * fmt_size,
                          right_gstride);
   } else {
     cvi_backend_ml_load_stride(ctx, layer_id,
@@ -323,8 +324,30 @@ void TgFcKernel::store(int32_t step_idx) {
   auto &tile = tiles[step_idx];
   update_tl_matrix(step_idx);
   ctx.tdma_store_stride(&tl_Y,
-                        ga_output + (tile.pos_m * N + tile.pos_n) * fmt_size,
+                        ga_output + tile.pos_m * output_gstride.row +
+                            tile.pos_n * fmt_size,
                         output_gstride);
+}
+
+void TgFcKernel::update_gaddr(uint32_t high_idx, uint32_t low_idx) {
+  if (lstride) {
+    ga_input = ga_i + high_idx * M * left_gstride.row + low_idx * K * fmt_size;
+  } else {
+    ga_input = ga_i + (high_idx * batch_low + low_idx) * M * left_gstride.row;
+  }
+  if (rstride) {
+    ga_weight =
+        ga_w + high_idx * K * right_gstride.row + low_idx * N * fmt_size;
+  } else {
+    ga_weight = ga_w + (high_idx * batch_low + low_idx) * K * right_gstride.row;
+  }
+  if (ostride) {
+    ga_output =
+        ga_o + high_idx * M * output_gstride.row + low_idx * N * fmt_size;
+  } else {
+    ga_output =
+        ga_o + (high_idx * batch_low + low_idx) * M * output_gstride.row;
+  }
 }
 
 void TgFcKernel::schedule() {
@@ -332,25 +355,9 @@ void TgFcKernel::schedule() {
       llvm::errs() << llvm::format(
           "Tilling FC, M:%d,K:%d,N:%d,tile_M:%d,tile_K:%d,tile_N:%d,fmt:%d\n",
           M, K, N, tile_M, tile_K, tile_N, fmt););
-  auto ga_i = ga_input, ga_w = ga_weight, ga_o = ga_output;
   for (uint32_t b0 = 0; b0 < batch_high; b0++) {
     for (uint32_t b1 = 0; b1 < batch_low; b1++) {
-      if (lstride) {
-        ga_input = ga_i + b0 * M * left_gstride.row + b1 * K * fmt_size;
-      } else {
-        ga_input = ga_i + (b0 * batch_low + b1) * M * left_gstride.row;
-      }
-      if (rstride) {
-        ga_weight = ga_w + b0 * K * right_gstride.row + b1 * N * fmt_size;
-      } else {
-        ga_weight = ga_w + (b0 * batch_low + b1) * K * right_gstride.row;
-      }
-      if (ostride) {
-        ga_output = ga_o + b0 * M * output_gstride.row + b1 * N * fmt_size;
-      } else {
-        ga_output = ga_o + (b0 * batch_low + b1) * M * output_gstride.row;
-      }
-
+      update_gaddr(b0, b1);
       if (do_parallel) {
         for (int step = 0; step < total_steps + 2; step++) {
           ctx.parallel_enable();

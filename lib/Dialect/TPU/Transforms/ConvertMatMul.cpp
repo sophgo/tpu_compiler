@@ -82,6 +82,7 @@ struct MergeTransposeMatMulPattern : public RewritePattern {
       if (pmOp.order0() == 0 && pmOp.order1() == 2 && pmOp.order2() == 1 &&
           pmOp.order3() == 3) {
         castOp->setAttr("output_transpose", rewriter.getBoolAttr(true));
+        castOp->setAttr("name", pmOp.nameAttr());
         rewriter.replaceOp(outputOp, {outputOp->getOperand(0)});
         match = true;
       }

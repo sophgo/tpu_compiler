@@ -79,7 +79,7 @@ int FullyConnectedModel::getLmSizePerLane(int tileM, int tileK, int tileN, bool 
     blob_L = (K != tileK ? 2 : 1);
     blob_R = 2;
     blob_B = (N != tileN) ? 2 : 1;
-    blob_Y = (N + tileN - 1) / tileN;
+    blob_Y = (K == tileK ? 2 : (N + tileN - 1) / tileN);
   }
   int tileLSize =
       tileM * euNum * llvm::divideCeil(tileK, euNum * npuNum) * dataTypeSize;
