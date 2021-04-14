@@ -2198,11 +2198,16 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   int64_t size, seq_len, batch_size, input_size, garbage;
   getTensorShapeAndSize(op->getOperand(0), shape, size);
   getNCHW(shape, seq_len, batch_size, input_size, garbage);
-
+  bool only_last = false;
   int64_t seq_len2, num_dir, batch_size2, hidden_size;
   getTensorShapeAndSize(this->getResult(), shape, size);
-  getNCHW(shape, seq_len2, num_dir, batch_size2, hidden_size);
-  assert(seq_len == seq_len2);
+  if (shape.size() == 4) {
+    getNCHW(shape, seq_len2, num_dir, batch_size2, hidden_size);
+    assert(seq_len == seq_len2);
+  } else {
+    getNCHW(shape, num_dir, batch_size2, hidden_size, garbage);
+    only_last = true;
+  }
   assert(batch_size == batch_size2);
   assert(input_size == num_dir * 3 * hidden_size);
 
@@ -2214,7 +2219,13 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   bool with_h0 = (!isTensorNone(initial_h()));
   gaddr_t initial_h_gaddr = GA_INVALID;
   if (with_h0) {
-    initial_h_gaddr = getWeightOpAddress(initial_h().getDefiningOp());
+    auto h_op = initial_h().getDefiningOp();
+    auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(h_op);
+    if (cast_op) {
+      initial_h_gaddr = getWeightOpAddress(h_op);
+    } else {
+      initial_h_gaddr = getOpAddress(h_op);
+    }
   }
 
   bool is_linear_before_reset = this->linear_before_reset();
@@ -2251,7 +2262,7 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
                   tanh_table_data_lut_gaddr, tanh_slope_table_data_lut_gaddr,
                   output_gaddr,
                   seq_len, num_dir, batch_size, hidden_size,
-                  with_bias, with_h0, is_linear_before_reset, is_bidirectional);
+                  with_bias, with_h0, is_linear_before_reset, is_bidirectional, only_last);
   return success();
 }
 

@@ -42,12 +42,21 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
   this->name = gruOp.name().str();
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
-  seq_length = shape[0];
-  num_dir = shape[1];
-  batch_size = shape[2];
-  hidden_size = shape[3];
+  if (shape.size() == 4) {
+    seq_length = shape[0];
+    num_dir = shape[1];
+    batch_size = shape[2];
+    hidden_size = shape[3];
+    assert(input_shape[0] == seq_length);
+    only_last = false;
+  } else {
+    seq_length = input_shape[0];
+    num_dir = shape[0];
+    batch_size = shape[1];
+    hidden_size = shape[2];
+    only_last = true;
+  }
   assert(input_shape.size() == 3);
-  assert(input_shape[0] == seq_length);
   assert(input_shape[1] == batch_size);
   input_size = input_shape[2];
   linear_before_reset = gruOp.linear_before_reset();
@@ -72,6 +81,7 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
 }
+
 void GruOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " GruOp op: [" << this->name
@@ -135,9 +145,13 @@ void GruOpKernel::compute(bool forward) {
       float *ug = update_gate.data() + batch * hidden_size;
       float *rg = reset_gate.data() + batch * hidden_size;
       float *hg = hidden_gate.data() + batch * hidden_size;
-      float *hidden_state =
-          output + (seq_idx * num_dir * batch_size + batch) * hidden_size;
+      float *hidden_state = nullptr;
       float *pre_state = prev_hidden_state + batch * hidden_size;
+      if (only_last) {
+        hidden_state = output + batch * hidden_size;
+      } else {
+        hidden_state = output + (seq_idx * num_dir * batch_size + batch) * hidden_size;
+      }
 #pragma omp parallel for schedule(static, hidden_size / omp_get_num_threads())
       for (int i = 0; i < hidden_size; ++i) {
         ug[i] = sigmoid_(ug[i] + xz[i]);
@@ -146,7 +160,11 @@ void GruOpKernel::compute(bool forward) {
         hidden_state[i] = (1 - ug[i]) * hg[i] + ug[i] * pre_state[i];
       }
     }
-    prev_hidden_state = output + seq_idx * num_dir * batch_size * hidden_size;
+    if (only_last) {
+      prev_hidden_state = output;
+    } else {
+      prev_hidden_state = output + seq_idx * num_dir * batch_size * hidden_size;
+    }
   }
 }
 

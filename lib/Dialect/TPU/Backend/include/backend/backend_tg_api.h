@@ -266,7 +266,7 @@ void cvi_backend_tg_bf16_gru_kernel(
     gaddr_t ga_tanh_table_data_lut, gaddr_t ga_tanh_slope_table_data_lut,
     gaddr_t ga_output, int seq_len, int num_dir, int batch_size,
     int hidden_size, bool do_bias, bool with_initial_h,
-    bool is_linear_before_reset, bool is_bidirectional);
+    bool is_linear_before_reset, bool is_bidirectional, bool only_last = false);
 
 void cvi_backend_tg_bf16_lstm_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

@@ -38,6 +38,7 @@ private:
   int num_dir;
   bool bidirectional;
   bool linear_before_reset;
+  bool only_last;
   // addr
   float *r_z;
   float *r_r;

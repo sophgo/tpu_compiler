@@ -3672,18 +3672,20 @@ struct LowerWeightGruOpPattern : public RewritePattern {
 
     // lower initial_h
     if (!isTensorNone(gruOp.initial_h())) {
-      auto initial_hOp =
-          cast<tpu::LoadWeightOp>(gruOp.initial_h().getDefiningOp());
-      getTensorShapeAndSize(gruOp.initial_h(), shape, size);
-      assert(shape.size() == 3);
-      assert(shape[0] == num_dir);
-      assert(shape[2] == hidden_size);
-      auto h_data = readAndDeleteWeightTensor<float>(gruOp.initial_h(), wTF);
-      std::vector<uint16_t> h_bf16(size);
-      FloatToBFloat16(h_data->data(), h_bf16.data(), size);
-      addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.initial_h(), "lowered",
-                                                 h_bf16, shape, "BF16", wTF);
-      initial_hOp->setAttr("lowered", rewriter.getBoolAttr(true));
+      auto initial_hOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+          gruOp.initial_h().getDefiningOp());
+      if (initial_hOp) {
+        getTensorShapeAndSize(gruOp.initial_h(), shape, size);
+        assert(shape.size() == 3);
+        assert(shape[0] == num_dir);
+        assert(shape[2] == hidden_size);
+        auto h_data = readAndDeleteWeightTensor<float>(gruOp.initial_h(), wTF);
+        std::vector<uint16_t> h_bf16(size);
+        FloatToBFloat16(h_data->data(), h_bf16.data(), size);
+        addWeightTensorAndUpdateWeightOp<uint16_t>(gruOp.initial_h(), "lowered",
+                                                   h_bf16, shape, "BF16", wTF);
+        initial_hOp->setAttr("lowered", rewriter.getBoolAttr(true));
+      }
     }
 
     // lower sigmoid table

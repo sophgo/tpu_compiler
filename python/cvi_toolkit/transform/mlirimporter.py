@@ -967,11 +967,10 @@ class MLIRImporter(object):
         }
 
         gru_name = StringAttr.get(op_name)
-        none = self.add_none_op()
-        if len(inputOperands) < 4:
-            inputOperands.append(none)
-        for _ in range(4):  # add 4 redundant input
-            inputOperands.append(none)
+        if len(inputOperands) < 8:
+            none = self.add_none_op()
+            for _ in range(8 - len(inputOperands)):  # add 4 redundant input
+                inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.GRU.value, inputOperands, [
             tensor_output_type], name=gru_name, quant=self.quant_param, **gru_param)

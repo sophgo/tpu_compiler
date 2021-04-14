@@ -23,7 +23,7 @@ public:
             gaddr_t ga_sigmoid_slope_lut, gaddr_t ga_tanh_lut,
             gaddr_t ga_tanh_slope_lut, gaddr_t ga_output, int seq_length,
             int num_dir, int batch_size, int hidden_size, bool do_bias,
-            bool with_initial_h, bool linear_before_reset, bool bidirectional);
+            bool with_initial_h, bool linear_before_reset, bool bidirectional, bool only_last);
 
   void schedule();
 
@@ -91,6 +91,7 @@ protected:
   bool with_initial_h;
   bool linear_before_reset;
   bool bidirectional;
+  bool only_last;
   cvk_fmt_t fmt;
   int fmt_size;
 

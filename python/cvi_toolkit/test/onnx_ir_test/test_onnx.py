@@ -628,6 +628,7 @@ class ONNX_IR_TESTER(object):
         direction = 'forward' if num_dir == 1 else 'bidirectional'
         input_data = np.random.rand(
             seq_length, batch_size, input_size).astype(np.float32)
+        h_data = np.random.rand(num_dir, batch_size, hidden_size).astype(np.float32)
         w_data = np.random.rand(
             num_dir, 3*hidden_size, input_size).astype(np.float32)
         r_data = np.random.rand(
@@ -637,8 +638,10 @@ class ONNX_IR_TESTER(object):
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, list(input_data.shape))
 
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, [seq_length, num_dir, batch_size, hidden_size])
+        output1 = helper.make_tensor_value_info(
+            'output1', TensorProto.FLOAT, [seq_length, num_dir, batch_size, hidden_size])
+        output2 = helper.make_tensor_value_info(
+            'output2', TensorProto.FLOAT, [num_dir, batch_size, hidden_size])
 
         w_node_def = onnx.helper.make_node(
             'Constant',
@@ -673,19 +676,30 @@ class ONNX_IR_TESTER(object):
                 vals=b_data.flatten(),
             ),
         )
+        h_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['h'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=h_data.shape,
+                vals=h_data.flatten(),
+            ),
+        )
         node_def = onnx.helper.make_node(
             "GRU",
-            inputs=['input', 'w', 'r', 'b'],
-            outputs=['output'],
+            inputs=['input', 'w', 'r', 'b', '', 'h'],
+            outputs=['output1',''],
             direction=direction,
             hidden_size=hidden_size,
             linear_before_reset=1,
         )
         graph_def = helper.make_graph(
-            [w_node_def, r_node_def, b_node_def, node_def],
+            [w_node_def, r_node_def, b_node_def, h_node_def, node_def],
             test_case,
             [input],
-            [output],
+            [output1],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         onnx.checker.check_model(model_def)

@@ -262,6 +262,15 @@ class OnnxConverter(BaseConverter):
             return False
         self.output_nodes = [x for x in self.output_nodes if not find_name_in_tensor_list(x.name)]
 
+    def check_need(self, name):
+        for node in self.converted_nodes:
+            for i in node.inputs:
+                if i == name:
+                    return True
+        for o in self.output_nodes:
+            if name == o.name:
+                return True
+        return False
 
     def addTensor(self, op_name, tensor_data, tensor_shape):
         #cprint("add tensor, name: {}\ntensor data: {}".format(op_name, tensor_data), "yellow")
@@ -1836,7 +1845,7 @@ class OnnxConverter(BaseConverter):
         operands.append(recurrence_op)
 
         new_bias = bias_name + "_recurrence"
-        bias_shape = [num_dir, 3* hidden_size]
+        bias_shape = [num_dir, 3 * hidden_size]
         self.addTensor(new_bias, r_bias, bias_shape)
         r_bias_op = self.CVI.add_load_file_op(new_bias, bias_shape)
         operands.append(r_bias_op)
@@ -1849,7 +1858,7 @@ class OnnxConverter(BaseConverter):
 
         if num_input > 5 and len(onnx_node.inputs[5]) != 0:
             initial_h_name = onnx_node.inputs[5]
-            _, _, tensor_type = self.getOperand(initial_h_name)
+            init_op, _, tensor_type = self.getOperand(initial_h_name)
 
             if tensor_type == TensorType.TENSOR:
                 initial_h_tensor = self.getTensor(initial_h_name)
@@ -1857,13 +1866,29 @@ class OnnxConverter(BaseConverter):
                     initial_h_name, initial_h_tensor.shape)
                 operands.append(initial_h_op)
             else:
-                raise RuntimeError(
-                    "GRU only support initial_h from TENSOR currently.")
-        output_shape = [seq_length, num_dir, batch_size, hidden_size]
-        name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-        gru_op = self.CVI.add_gru_op(name, operands, output_shape, **gru_param)
-        self.addOperand(onnx_node.name, gru_op,
-                        output_shape, TensorType.ACTIVATION)
+                operands.append(init_op)
+
+        out0 = onnx_node.outputs[0]
+        out1 = onnx_node.outputs[1]
+        need0 = len(out0) > 0 and self.check_need(out0)
+        need1 = len(out1) > 0 and self.check_need(out1)
+        if need0 and need1:
+            # TODO: out1 = out0[-1]
+            raise RuntimeError("GRU only support one output currently.")
+        elif need0:
+            output_shape = [seq_length, num_dir, batch_size, hidden_size]
+            name = "{}_{}".format(out0, onnx_node.op_type)
+            gru_op = self.CVI.add_gru_op(
+                name, operands, output_shape, **gru_param)
+            self.addOperand(out0, gru_op, output_shape,
+                            TensorType.ACTIVATION)
+        elif need1:
+            output_shape = [num_dir, batch_size, hidden_size]
+            name = "{}_{}".format(out1, onnx_node.op_type)
+            gru_op = self.CVI.add_gru_op(
+                name, operands, output_shape, **gru_param)
+            self.addOperand(out1, gru_op, output_shape,
+                            TensorType.ACTIVATION)
 
     def convert_hard_sigmoid_op(self, onnx_node):
         operands = list()
