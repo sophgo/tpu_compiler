@@ -4650,15 +4650,6 @@ struct LowerFunctionTypePattern: public RewritePattern {
                                 PatternRewriter &rewriter) const override {
     auto quantOp = cast<OpTy>(op);
     auto prevOp = op->getOperand(0).getDefiningOp();
-    auto nextOp = getNextOp(op);
-    if (nextOp == nullptr) {
-      return failure();
-    }
-    if (!isa<tpu::InputOp>(prevOp) &&
-        !isa<tpu::ReshapeOp>(prevOp) &&
-        !isa<ReturnOp>(nextOp)) {
-      return failure();
-    }
 
     auto fn = op->getParentOfType<FuncOp>();
     assert(fn);
@@ -4714,10 +4705,13 @@ struct LowerFunctionTypePattern: public RewritePattern {
         }
         setOpResultType(child->getResult(0), elementType);
       }
-    } else if (isa<ReturnOp>(nextOp) && !clDequantResultsToFp32) {
-      // change the returnType of FuncOp
-      if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
-        rewriter.replaceOp(op, {op->getOperand(0)});
+    } else if (op->getResult(0).hasOneUse()) {
+      auto nextOp = getNextOp(op);
+      if (isa<ReturnOp>(nextOp) && !clDequantResultsToFp32) {
+        // change the returnType of FuncOp
+        if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
+          rewriter.replaceOp(op, {op->getOperand(0)});
+        }
       }
     } else {
       return failure();
