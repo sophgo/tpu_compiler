@@ -689,6 +689,18 @@ class OnnxConverter(BaseConverter):
                 output_shape = input_shape1
                 add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
                 self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
+            elif len(input_shape1) == 3 and input_shape2[0] == 1 and input_shape1[1:] == input_shape2[1:]:
+                n, h, w = input_shape1
+                weight = np.zeros((n, h, w), dtype=np.float32)
+                add_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+                weight = weight + add_value
+                weight_name = onnx_node.inputs[1] + "_broadcast"
+                self.addTensor(weight_name, weight, weight.shape)
+                op2 = self.CVI.add_load_file_op(weight_name, weight.shape)
+                output_shape = input_shape1
+                add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, op2], output_shape)
+                self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
+
             # [1], [c, 1, 1], [1,c,1,1], [w]
             elif len(input_shape2) == 1 or len(input_shape2) == 3 or \
                 (len(input_shape2) == 4 and input_shape2[2:]==[1,1]) or \
@@ -833,7 +845,6 @@ class OnnxConverter(BaseConverter):
                     return
                 elif len(input_shape1) == 2 and len(input_shape2) == 3:
                     n, c, h = input_shape2
-                    assert(input_shape1 == [c, h] and n == 1)
                     name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
                     output_shape = [n, c, h]
                     op1 = self.CVI.add_reshape_op(name + "_op1_reshape", [op1], output_shape)
@@ -842,7 +853,7 @@ class OnnxConverter(BaseConverter):
                         input_shape1, input_shape2))
             operands.append(op1)
             operands.append(op2)
-            output_shape = input_shape1
+            output_shape = input_shape2
 
             add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
@@ -1000,35 +1011,17 @@ class OnnxConverter(BaseConverter):
 
         axis = onnx_node.attrs['axis']
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
-            tensor_datas = list()
-            tensor_datas_shape = list()
+            max_dims = 0
             for i in onnx_node.inputs:
-                t_d = self.getTensor(i).tensor_data
-                # predict all shape, concat shape lens should all equal
-                tensor_datas_shape.append(len(t_d.shape))
-            # get frequency counts for unique values in an array
-            x = np.array(tensor_datas_shape)
-            y = np.bincount(x)
-            ii = np.nonzero(y)[0]
-            dim_size = np.vstack((ii,y[ii])).T[0][0] # [0][0] is most frequency shape
-
+                data = self.getTensor(i).tensor_data
+                max_dims = len(data.shape) if len(data.shape) > max_dims else max_dims
+            arrays = list()
             for i in onnx_node.inputs:
-                # FIXME: if tensor data is from weight, and it's shape just one
-                #        match with other input shape, use squeeze
-                t_d = self.getTensor(i).tensor_data
-                if len(t_d.shape) == 1 and t_d[0] == -1:
-                    if dim_size == len(t_d.shape):
-                        pass # no need to expaned dims cuz all dim_size are same
-                    else:
-                        t_d = np.expand_dims(t_d, axis=0)
-                tensor_datas.append(t_d)
-
-             # handle input0 shape(1, 1), intput1 shape (1,)
-            if np.array(tensor_datas[0]).size == np.array(tensor_datas[1]).size:
-              shape = np.array(tensor_datas[1]).shape
-              tensor_datas[0] = (np.array(tensor_datas[0]).reshape(shape)).tolist()
-
-            n_t = np.concatenate(tuple(tensor_datas), axis=axis)
+                data = self.getTensor(i).tensor_data
+                if len(data.shape) != max_dims:
+                    data = np.expand_dims(a, axis)
+                arrays.append(data)
+            n_t = np.concatenate(arrays, axis=axis)
             self.addTensor(onnx_node.name, n_t, list(n_t.shape))
             self.addOperand(onnx_node.name, None, list(n_t.shape), TensorType.TENSOR)
         else:
