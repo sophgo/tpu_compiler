@@ -871,6 +871,8 @@ StringRef ReshapeOp::getOpQuant() {
 
 LogicalResult ReshapeOp::setOpQuantMode(StringRef &mode) {
   auto prev_op = this->getOperand().getDefiningOp();
+  if (isa<tpu::InputOp>(prev_op))
+    return success();
   return mlir::setOpQuant(prev_op, mode);
 }
 

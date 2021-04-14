@@ -971,6 +971,9 @@ public:
             name = owner->getName().getStringRef().str();
             if (name == "tpu.quant") {
               inputQuantOp = owner;
+              if (_op->isBeforeInBlock(inputQuantOp)) {
+                continue;
+              }
               // replace to quanted input
               _op->setOperand(0, inputQuantOp->getResult(0));
               break;
