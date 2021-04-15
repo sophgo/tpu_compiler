@@ -49,36 +49,50 @@ struct TpuRemoveScalePattern : public RewritePattern {
     auto castOp = cast<tpu::ScaleOp>(op);
     TensorFile *wTF = getWeightTensorFile(op);
 
-    // check whether is only one scale
-    std::unique_ptr<std::vector<float>> weights[2];
-    llvm::StringRef weight_names[2];
-    for (int i = 0; i < 2; ++i) {
-      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          castOp.getOperand(i + 1).getDefiningOp());
-      assert(weight_op && "weight op should be exist");
-      weight_names[i] = weight_op.name();
-      auto type = weight_op.getResult().getType().cast<TensorType>();
-      weights[i] = wTF->readTensor<float>(weight_names[i], type);
-    }
-    float scale = weights[0]->at(0);
-    float bias = weights[1]->at(0);
-    if (bias != 0) {
+    Operation *formerOp = op->getOperand(0).getDefiningOp();
+    if (!formerOp->getResult(0).hasOneUse() || !op->getResult(0).hasOneUse()) {
       return failure();
     }
-    for (auto &data : *weights[0]) {
+
+    // check whether is only one scale
+    auto scale_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        castOp.getOperand(1).getDefiningOp());
+    if (scale_op == nullptr) {
+      return failure();
+    }
+    auto scale_name = scale_op.name();
+    auto scale_type = scale_op.getResult().getType().cast<TensorType>();
+    auto scale_weight = wTF->readTensor<float>(scale_name, scale_type);
+    float scale = scale_weight->at(0);
+    for (auto &data : *scale_weight) {
       if (data != scale) {
         return failure();
       }
     }
-    for (auto &data : *weights[1]) {
-      if (data != bias) {
+
+    auto bias_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        castOp.getOperand(2).getDefiningOp());
+    llvm::StringRef bias_name;
+    if (bias_op != nullptr) {
+      bias_name = bias_op.name();
+      auto bias_type = bias_op.getResult().getType().cast<TensorType>();
+      auto bias_weight = wTF->readTensor<float>(bias_name, bias_type);
+      float bias = bias_weight->at(0);
+      if (bias != 0.0f) {
         return failure();
       }
+      for (auto &data : *bias_weight) {
+        if (data != bias) {
+          return failure();
+        }
+      }
     }
-    Operation *formerOp = op->getOperand(0).getDefiningOp();
+
     if (scale == 1.0f) {
-      wTF->deleteTensor<float>(weight_names[0]);
-      wTF->deleteTensor<float>(weight_names[1]);
+      wTF->deleteTensor<float>(scale_name);
+      if (bias_op != nullptr) {
+        wTF->deleteTensor<float>(bias_name);
+      }
       rewriter.replaceOp(op, op->getOperand(0));
       return success();
     }
@@ -113,9 +127,12 @@ struct TpuRemoveScalePattern : public RewritePattern {
       addWeightTensorAndUpdateWeightOp<float>(fcOp.bias(), "_scale", *bias,
                                               shape, "NONE", wTF);
     }
+    fcOp->setAttr("name", rewriter.getStringAttr(fcOp.name().str() + "_scale"));
 
-    wTF->deleteTensor<float>(weight_names[0]);
-    wTF->deleteTensor<float>(weight_names[1]);
+    wTF->deleteTensor<float>(scale_name);
+    if (bias_op != nullptr) {
+      wTF->deleteTensor<float>(bias_name);
+    }
     rewriter.replaceOp(op, op->getOperand(0));
     return success();
   }
