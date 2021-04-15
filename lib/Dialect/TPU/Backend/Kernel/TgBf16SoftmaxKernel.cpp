@@ -1394,6 +1394,20 @@ void cvi_backend_tg_bf16_softmax_kernel(const CviBackendContext &ctx, uint32_t l
         outer_size = shape[0] * shape[1]; //c * h
         inner_size = shape[2]; //w
     }
+    if (inner_size == 1) {
+        // strange model
+        cvk_tdma_l2g_tensor_fill_constant_param_t p = {0};
+        cvk_tg_t dst;
+        dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
+        dst.start_address = ga_output;
+        dst.fmt = CVK_FMT_BF16;
+        dst.shape = ctx.tg_shape_t4(1,1,1,outer_size);
+        dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
+        p.constant = ctx.convert_fp32_to_bf16(1.0f);
+        p.dst = &dst;
+        ctx.tdma_l2g_tensor_fill_constant(&p);
+        return;
+    }
     if(doTranspose) {
         bf16_softmax_kernel_4d(ctx, layer_id,
                                ga_input,
