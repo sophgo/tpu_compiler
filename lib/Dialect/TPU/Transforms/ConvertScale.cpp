@@ -127,7 +127,21 @@ struct TpuRemoveScalePattern : public RewritePattern {
       addWeightTensorAndUpdateWeightOp<float>(fcOp.bias(), "_scale", *bias,
                                               shape, "NONE", wTF);
     }
+    // fix name
     fcOp->setAttr("name", rewriter.getStringAttr(fcOp.name().str() + "_scale"));
+    formerOp = op->getOperand(0).getDefiningOp();
+    do {
+      if (auto castOp = llvm::dyn_cast<tpu::ReshapeOp>(formerOp)) {
+        castOp->setAttr("name",
+                        rewriter.getStringAttr(castOp.name().str() + "_scale"));
+      } else if (auto castOp = llvm::dyn_cast<tpu::PermuteOp>(formerOp)) {
+        castOp->setAttr("name",
+                        rewriter.getStringAttr(castOp.name().str() + "_scale"));
+      } else {
+        break;
+      }
+      formerOp = formerOp->getOperand(0).getDefiningOp();
+    } while (formerOp != nullptr);
 
     wTF->deleteTensor<float>(scale_name);
     if (bias_op != nullptr) {

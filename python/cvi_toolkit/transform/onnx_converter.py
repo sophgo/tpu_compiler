@@ -2806,10 +2806,12 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             operands = [op]
-            axis = len(input_shape) - 1
-            for i in range(len(output_shape)):
-                if output_shape[axis] == 1:
-                    axis = axis -1
+            axis = onnx_node.attrs.get('axis', -1)
+            if axis == -1:
+                axis = len(input_shape) - 1
+                for i in range(len(output_shape)):
+                    if output_shape[axis] == 1:
+                        axis = axis -1
             softmax_param = {
                 'axis': axis,
             }
