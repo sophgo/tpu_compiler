@@ -21,9 +21,9 @@
 
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
+#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/PatternMatch.h"
-#include "mlir/IR/BuiltinTypes.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/MachineInfo.h"
@@ -32,6 +32,7 @@
 #include "tpuc/TPUCompressUtil.h"
 #include "tpuc/TPUOperationSupport.h"
 #include "tpuc/TPUTensorSupport.h"
+#include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 
@@ -311,7 +312,8 @@ public:
   LogicalResult matchAndRewrite(TensorTyOp fcOp,
                                 PatternRewriter &rewriter) const override {
 
-    auto filterOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(fcOp.filter().getDefiningOp());
+    auto filterOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
+        fcOp.filter().getDefiningOp());
     if (!filterOp) {
       // filterOp is null means rhs is activation
       return failure();
@@ -444,12 +446,12 @@ public:
     k_sizes.clear();
     fcOp->removeAttr("tile_param");
     fcOp->setAttr("tile_param",
-                 tpu::FcTileParam::get(rewriter.getI32ArrayAttr(tileValues),
-                                       rewriter.getI32ArrayAttr(n_poss),
-                                       rewriter.getI32ArrayAttr(k_poss),
-                                       rewriter.getI32ArrayAttr(n_sizes),
-                                       rewriter.getI32ArrayAttr(k_sizes),
-                                       rewriter.getContext()));
+                  tpu::FcTileParam::get(rewriter.getI32ArrayAttr(tileValues),
+                                        rewriter.getI32ArrayAttr(n_poss),
+                                        rewriter.getI32ArrayAttr(k_poss),
+                                        rewriter.getI32ArrayAttr(n_sizes),
+                                        rewriter.getI32ArrayAttr(k_sizes),
+                                        rewriter.getContext()));
 
     if (canCompress) {
       addWeightTensorAndUpdateWeightOp<DataType>(
@@ -458,9 +460,9 @@ public:
 
       fcOp->setAttr("compressed_weight", rewriter.getBoolAttr(true));
       fcOp->setAttr("compr_weight_poss",
-                   rewriter.getI32ArrayAttr(compr_weight_poss));
+                    rewriter.getI32ArrayAttr(compr_weight_poss));
       fcOp->setAttr("compr_weight_sizes",
-                   rewriter.getI32ArrayAttr(compr_weight_sizes));
+                    rewriter.getI32ArrayAttr(compr_weight_sizes));
 
       struct CompressInfo info;
       info.name = fcOp.name();
@@ -529,6 +531,21 @@ void CompressWeightPass::generateReport(
 void CompressWeightPass::runOnFunction() {
   std::vector<struct CompressInfo> compressInfos;
   MInfo::getChipInfo(getFunction());
+
+  // Remove compressed weight attributes first.
+  getFunction().walk([&](Operation *op) {
+    llvm::TypeSwitch<Operation *>(op)
+        .Case<tpu::TG_INT8_PC_Conv2DOp, tpu::TG_INT8_PT_Conv2DOp,
+              tpu::TG_BF16_Conv2DOp, tpu::TL_LW_Conv2DOp,
+              tpu::TL_LG_INT8_Conv2DOp, tpu::TL_LG_BF16_Conv2DOp,
+              tpu::TL_LG_LoadCoeffOp, tpu::LoadWeightOp>(
+            [&](auto tpuOp) { tpuOp->removeAttr("compressed_weight"); })
+        .Case<tpu::TG_INT8_FullyConnectedOp, tpu::TG_BF16_FullyConnectedOp>(
+            [&](auto tpuOp) {
+              tpuOp->removeAttr("compressed_weight");
+              tpuOp->removeAttr("compr_weight_poss");
+            });
+  });
 
   // Compress convolution weight
   OwningRewritePatternList patterns;

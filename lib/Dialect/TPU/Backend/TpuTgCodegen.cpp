@@ -1832,6 +1832,13 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   std::vector<int> compr_weight_poss;
   if (fcOp.compr_weight_poss().hasValue())
     arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
+  else {
+    if (fcOp.compressed_weight().hasValue() &&
+        fcOp.compressed_weight().getValue()) {
+      llvm::errs() << "  compressed weight enabled, but no poss\n";
+      return failure();
+    }
+  }
 
   cvi_backend_tg_fixed_fc_kernel(
       *backend_ctx, layer_id, ga_input, ga_filter, ga_bias, ga_output, m, k, n,
@@ -1871,6 +1878,13 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   std::vector<int> compr_weight_poss;
   if (fcOp.compr_weight_poss().hasValue())
     arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
+  else {
+    if (fcOp.compressed_weight().hasValue() &&
+        fcOp.compressed_weight().getValue()) {
+      llvm::errs() << "  compressed weight enabled, but no poss\n";
+      return failure();
+    }
+  }
 
   cvi_backend_tg_bf16_fc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
                                 ga_bias, ga_output, m, k, n, with_bias, do_relu,
