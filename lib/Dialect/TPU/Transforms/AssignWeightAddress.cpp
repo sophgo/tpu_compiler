@@ -40,6 +40,10 @@
 #include "llvm/Support/raw_ostream.h"
 #include <openssl/md5.h>
 #include <map>
+#include <set>
+#include <iostream>
+#include <fstream>
+#include <string>
 
 #define DEBUG_TYPE "assign_weight_address"
 
@@ -139,8 +143,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           }
         }
         auto weightData = reinterpret_cast<const char*>(weight_uint8.data());
-        weightBinaryFile_->write(weightData, weight_uint8.size() *
-                                sizeof(uint8_t));
+        weightBinaryFile_->write(weightData, weight_uint8.size() * sizeof(uint8_t));
       }
     } else if (weightOp.storage() == "INT16") {
       // INT16 is used for bias in INT8 per-tensor mode
@@ -187,8 +190,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           }
         }
         auto weightData = reinterpret_cast<const char*>(weight_bf16.data());
-        weightBinaryFile_->write(weightData, weight_bf16.size() *
-                                sizeof(uint16_t));
+        weightBinaryFile_->write(weightData, weight_bf16.size() * sizeof(uint16_t));
       }
     } else if (weightOp.storage() == "UINT32") {
       // UINT32 is for lowered Conv Bias
@@ -215,8 +217,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           }
         }
         auto weightData = reinterpret_cast<const char*>(weight_uint32.data());
-        weightBinaryFile_->write(weightData, weight_uint32.size() *
-                                sizeof(uint32_t));
+        weightBinaryFile_->write(weightData, weight_uint32.size() * sizeof(uint32_t));
       }
     } else if (weightOp.storage() == "FP32") {
       std::vector<float> weight_fp32;
@@ -249,7 +250,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     if (!isRedundant) {
       // checking
       auto newPos = weightBinaryFile_->tell();
-      map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "\n";
+      map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "," << md5 << "\n";
 
       LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
                                   tensor_name.str().c_str(), size)
@@ -315,6 +316,16 @@ static llvm::cl::opt<bool> clCompressedWeight(
     llvm::cl::desc("Generate the compressed weight"),
     llvm::cl::init(false));
 
+static llvm::cl::opt<std::string> clAppendWeightFilename(
+    "tpu-append-weight-bin-filename",
+    llvm::cl::desc("append weight to this append weight bin file"),
+    llvm::cl::init("-"));
+
+static llvm::cl::opt<std::string> clAppendWeightMapFilename(
+    "tpu-append-weight-map-filename",
+    llvm::cl::desc("use append weight file md5 map"),
+    llvm::cl::init("-"));
+
 class AssignWeightAddressPass : public mlir::PassWrapper<AssignWeightAddressPass, FunctionPass> {
 public:
   explicit AssignWeightAddressPass() {}
@@ -336,11 +347,51 @@ public:
         exit(1);
       }
     }
+    std::map<std::string, uint64_t> addrMapping;
+
+    if (clAppendWeightFilename != "-") {
+      std::ifstream appendWeightFile(clAppendWeightFilename.c_str(), std::ios::in | std::ios::binary);
+      if (appendWeightFile) {
+        appendWeightFile.seekg(0, appendWeightFile.end);
+        int length = appendWeightFile.tellg();
+        char *buf = new char[length];
+        appendWeightFile.seekg(0, appendWeightFile.beg);
+        appendWeightFile.read(buf, length);
+        weightBinaryFile.write(buf, length);
+        delete [] buf;
+      } else {
+        llvm::errs() << "open append weight bin file fail\n";
+        exit(1);
+      }
+
+      assert((clAppendWeightMapFilename != "-") && "no append weight map file specified");
+      std::ifstream appendWeightMapFile(clAppendWeightMapFilename.c_str(), std::ios::in);
+      if (appendWeightMapFile) {
+        char buf[1024];
+        
+        while (!appendWeightMapFile.eof()) {
+          memset(buf, 0, 1024);
+          appendWeightMapFile.getline(buf, 1024);
+          std::string str(buf);
+          if (str.empty()) continue;
+          int md5_index = str.rfind(',');
+          const std::string md5 = str.substr(md5_index+1);
+          int pos_index = str.find_first_of(',');
+          const std::string pos = str.substr(pos_index+1, md5_index-pos_index-1);
+          long addr = std::stol(pos, nullptr, 16);
+          addrMapping[md5] = addr;
+          weightMapFile->os().write(buf, strlen(buf));
+          weightMapFile->os().write("\n", 1);
+        }
+      } else {
+        llvm::errs() << "open append weight map file fail\n";
+        exit(1);
+      }
+    }
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
 
-    std::map<std::string, uint64_t> addrMapping;
     // assign address and generate bin file
     patterns.insert<TpuLoadWeightOpPattern<tpu::LoadWeightOp>,
                     TpuLoadWeightOpPattern<tpu::TL_LG_LoadCoeffOp>
