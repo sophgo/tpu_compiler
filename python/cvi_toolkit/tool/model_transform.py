@@ -51,7 +51,7 @@ class ModelTransformTool(object):
         else:
             image = os.path.expanduser(image)
             inputs = self.preprocessor.run(image, batch=self.batch_size)
-            np.savze(str(in_fp32_npz), **{'input': inputs})
+            np.savez(str(in_fp32_npz), **{'input': inputs})
 
         # original model inference to get blobs of all layer
         all_blobs = self._inference_(inputs)
