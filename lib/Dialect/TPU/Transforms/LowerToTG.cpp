@@ -2729,15 +2729,15 @@ struct FoldReshapeHorizonPattern : public RewritePattern {
         return failure();
       }
       if (child->getResult(0) == castOp.getResult()) {
-        llvm::errs() << "replace reshape\n";
+        // llvm::errs() << "replace reshape\n";
         if (child != op) {
           targets.push_back(child);
-          llvm::errs() << "found\n";
+          llvm::errs() << "found a reshape op to be replaced\n";
         }
       }
       cnt++;
     }
-    llvm::errs() << "name:" << getOpName(formerOp) << ", uses:" << cnt << "\n";
+    // llvm::errs() << "name:" << getOpName(formerOp) << ", uses:" << cnt << "\n";
     for (auto t : targets) {
       rewriter.replaceOp(t, {castOp.getResult()});
     }

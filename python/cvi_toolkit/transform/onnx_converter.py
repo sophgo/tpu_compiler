@@ -858,6 +858,7 @@ class OnnxConverter(BaseConverter):
                     output_shape = [n, c, h]
                     op1 = self.CVI.add_reshape_op(name + "_op1_reshape", [op1], output_shape)
                 else:
+                    print(self.CVI.print_module())
                     raise AttributeError("{} v.s. {} shape not same".format(
                         input_shape1, input_shape2))
             operands.append(op1)
@@ -2247,8 +2248,9 @@ class OnnxConverter(BaseConverter):
                   input_shape2[2] == 1:
                     # hoist shape, [1, 507, 80] vs [1, 507, 1] could reshape to
                     # 1, 507, 80, 1 and 1, 507, 1, 1
-                    input_shape1.append(1)
-                    input_shape2.append(1)
+                    #input_shape1.append(1)
+                    #input_shape2.append(1)
+                    pass
 
                 elif len(input_shape1) == 4:
                     if np.prod(input_shape2) == input_shape1[0] * input_shape1[1]:
@@ -2358,10 +2360,22 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, list(output_shape))
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
-            operands = list()
-            operands.append(op)
-            pads_op = self.CVI.add_pad_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pads_param)
-            self.addOperand(onnx_node.name, pads_op, output_shape, TensorType.ACTIVATION)
+            name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+            if len(input_shape) == 3:
+                reshape_input_shape = list(input_shape)
+                reshape_input_shape.insert(0, 1)
+                reshape_op = self.CVI.add_reshape_op(name + "_input_reshape", [op], reshape_input_shape)
+                reshape_output_shape = list(output_shape)
+                reshape_output_shape.insert(0, 1)
+                pads.insert(0, 0)
+                pads.insert(4, 0)
+                pads_op = self.CVI.add_pad_op(name + "_4dim_pad", [reshape_op], reshape_output_shape,
+                              pads=pads, const_val=constant_value)
+                reshape_back_op = self.CVI.add_reshape_op(name, [pads_op], output_shape)
+                self.addOperand(onnx_node.name, reshape_back_op, output_shape, TensorType.ACTIVATION)
+            else:
+                pads_op = self.CVI.add_pad_op(name, [op], output_shape, **pads_param)
+                self.addOperand(onnx_node.name, pads_op, output_shape, TensorType.ACTIVATION)
 
     def convert_prelu_op(self, onnx_node):
         assert(onnx_node.op_type == "PRelu")

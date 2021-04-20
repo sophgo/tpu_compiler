@@ -65,12 +65,20 @@ class DeployTool:
         parser = MlirParser(mlir_file)
         return parser.get_batch_size(0)
 
+    def _is_npz(self, image):
+        return True if image.split('.')[-1] == 'npz' else False
+
     def validate(self, cvimodel, tolerance, excepts, correctness, image):
         batch_size = self.get_batch_size(str(self.quantized_mlir))
         # get all fp32 blobs of fp32 model by tpuc-interpreter
-        x = self.ppa.run(image, batch=batch_size)
         in_fp32_npz = IntermediateFile(self.prefix, 'in_fp32.npz')
-        np.savez(str(in_fp32_npz), **{'input': x})
+        if self._is_npz(image):
+            x = np.load(image)
+            np.savez(str(in_fp32_npz), **x)
+        else:
+            x = self.ppa.run(image, batch=batch_size)
+            np.savez(str(in_fp32_npz), **{'input': x})
+
         blobs_interp_npz = IntermediateFile(self.prefix, 'full_precision_interp.npz', False)
         ret = mlir_inference(self.mlir_file, str(in_fp32_npz),
                              None, str(blobs_interp_npz))
@@ -144,6 +152,7 @@ if __name__ == '__main__':
                         help='if the input frame is width/channel aligned')
     parser.add_argument("--image", required=True, help="input image for inference")
     parser.add_argument("--cvimodel", help='output cvimodel')
+    parser.add_argument("--debug", action='store_true', help='to keep all intermediate files for debug')
     args = parser.parse_args()
 
     if args.cvimodel:
@@ -163,4 +172,5 @@ if __name__ == '__main__':
         tool.build_cvimodel(args.cvimodel, True)
     tool.validate(args.cvimodel, args.tolerance, args.excepts,
                   args.correctness, args.image)
-    tool.cleanup()
+    if not args.debug:
+        tool.cleanup()

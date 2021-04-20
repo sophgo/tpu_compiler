@@ -43,6 +43,7 @@ class KLD_Calibrator(Base_Calibrator):
         self.calibration_math.kl_diversity_hist.restype = c_float
         self.buffered_tensors = dict()
         self.free_buffer_size = buffer_size
+        logger.info("images: {}".format(self.images))
 
     def __activations_size(self, tensors):
         size = 0
@@ -50,11 +51,21 @@ class KLD_Calibrator(Base_Calibrator):
             size += v.size
         return size
 
+    def __is_npz(self, image):
+        return True if image.split('.')[-1] == 'npz' else False
+
     def __activations_generator(self):
         for image in self.images:
             if image not in self.buffered_tensors:
-                x = self.preprocess_func(image)
-                self.model.run(x)
+                if self.__is_npz(image):
+                    x = np.load(image)
+                    for k,v in x.items():
+                        self.model.set_tensor(k, v)
+                        self.model.invoke()
+                else:
+                    x = self.preprocess_func(image)
+                    self.model.run(x)
+
                 activations = self.model.get_all_tensor()
                 size = self.__activations_size(activations)
                 if size <= self.free_buffer_size:

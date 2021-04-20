@@ -176,11 +176,16 @@ class AutoTuner(object):
         for i, image in enumerate(self.images):
             logger.info("**** <{}> {}".format(i, image))
 
+    def __is_npz(self, image):
+        return True if image.split('.')[-1] == 'npz' else False
 
     def __input_data_generator__(self):
         for image in self.images:
             if image not in self.input_data_buffer:
-                x = self.preprocess_func(image)
+                if self.__is_npz(image):
+                    x = np.load(image)
+                else:
+                    x = self.preprocess_func(image)
                 self.input_data_buffer[image] = x
             else:
                 x = self.input_data_buffer[image]
@@ -194,7 +199,12 @@ class AutoTuner(object):
         self.fp32_model.load(self.fp32_mlir)
         self.all_fp32_activations_map = {}
         for idx, data in enumerate(self.__input_data_generator__()):
-            self.fp32_model.run(data)
+            if type(data) == np.lib.npyio.NpzFile:
+                for k, v in data.items():
+                    self.fp32_model.set_tensor(k, v)
+                self.fp32_model.invoke()
+            else:
+                self.fp32_model.run(data)
             self.all_fp32_activations_map[idx] = self.fp32_model.get_all_tensor()
 
     def __get_op_quant_type__(self, model, op_name):
@@ -254,8 +264,12 @@ class AutoTuner(object):
         with QuantedMlirModel(self.fp32_mlir, tmp_table, self.mix_precision_table) as model:
             quant_type = self.__get_op_quant_type__(model, op_name)
             for idx, data in enumerate(self.__input_data_generator__()):
-                # inference until target layer
-                model.run(data, op_name)
+                if type(data) == np.lib.npyio.NpzFile:
+                    for k, v in data.items():
+                        model.set_tensor(k, v)
+                    model.invoke_to(op_name)
+                else:
+                    model.run(data, op_name)
                 # dequant int8 to fp32
                 target_activation = model.get_tensor(op_name)
                 if quant_type == 'INT8':
@@ -317,7 +331,12 @@ class AutoTunerPlus(AutoTuner):
         distance = 0
         with QuantedMlirModel(self.fp32_mlir, tmp_table, self.mix_precision_table) as model:
             for idx, data in enumerate(self.__input_data_generator__()):
-                model.run(data)
+                if type(data) == np.lib.npyio.NpzFile:
+                    for k, v in data.items():
+                        model.set_tensor(k, v)
+                    model.invoke()
+                else:
+                    model.run(data)
 
                 for op_name in target_op:
                     target_activation = model.get_tensor(op_name)

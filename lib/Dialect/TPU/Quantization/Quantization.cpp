@@ -641,6 +641,9 @@ struct TpuQuantInputPassPattern : public RewritePattern {
       // all quant to BF16
       for (auto &use : op->getResult(0).getUses()) {
         auto nextOp = use.getOwner();
+        if (isa<tpu::ReshapeOp>(nextOp)) {
+          continue;
+        }
         auto quant = getOpQuant(nextOp);
         if (quant == "BF16") {
           continue;
@@ -957,31 +960,9 @@ public:
 
     // To make ReshapeOp's result element type same as
     // operand's after quantization
+
     fn.walk([&](tpu::ReshapeOp op) {
       auto _op = op.getOperation();
-      Operation* parantOp = _op->getOperand(0).getDefiningOp();
-      auto name = parantOp->getName().getStringRef().str();
-      Operation* inputQuantOp = NULL;
-
-      if (name == "tpu.input") {
-        // if reshape input is 'tpu.input', it should replace with it
-        for (uint32_t i = 0; i < parantOp->getNumResults(); ++i) {
-          for (auto &use : parantOp->getResult(i).getUses()) {
-            Operation *owner = use.getOwner();
-            name = owner->getName().getStringRef().str();
-            if (name == "tpu.quant") {
-              inputQuantOp = owner;
-              // replace to quanted input
-              _op->setOperand(0, inputQuantOp->getResult(0));
-              break;
-            }
-          }
-          if (inputQuantOp) {
-            break;
-          }
-        }
-      }
-
       auto eltType = _op->getOperand(0).getType().cast<TensorType>().getElementType();
       auto shape = _op->getResult(0).getType().cast<TensorType>().getShape();
       auto type = RankedTensorType::get(shape, eltType);

@@ -260,6 +260,8 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       assert(((curPos % alignment_) == 0) && "Expect aligned curPos");
       assert(((newPos % alignment_) == 0) && "Expect aligned newPos");
     } else {
+      llvm::errs() << "remove a redundant weight:" << tensor_name
+                   << " with md5:" << md5 << "\n";
       curPos = md5AddrMap_.at(md5);
     }
 
@@ -368,7 +370,7 @@ public:
       std::ifstream appendWeightMapFile(clAppendWeightMapFilename.c_str(), std::ios::in);
       if (appendWeightMapFile) {
         char buf[1024];
-        
+
         while (!appendWeightMapFile.eof()) {
           memset(buf, 0, 1024);
           appendWeightMapFile.getline(buf, 1024);

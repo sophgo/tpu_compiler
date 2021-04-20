@@ -4,8 +4,6 @@ import sys
 import abc
 import numpy as np
 import argparse
-import onnxruntime
-import onnx
 from cvi_toolkit.utils.log_setting import setup_logger
 from cvi_toolkit.model import CaffeModel
 from cvi_toolkit.model.ModelFactory import ModelFactory
@@ -16,6 +14,7 @@ from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.utils.mlir_shell import *
 from cvi_toolkit.utils.intermediate_file import IntermediateFile
+import onnx, onnxruntime
 
 logger = setup_logger('root', log_level="INFO")
 
@@ -38,13 +37,21 @@ class ModelTransformTool(object):
         if ret != 0:
             raise RuntimeError("mlir graph optimize fail")
 
-    def model_validate(self, image, tolerance, excepts):
-        # prepare input tensor
-        image = os.path.expanduser(image)
-        inputs = self.preprocessor.run(image, batch=self.batch_size)
+    def _is_npz(self, image):
+        return True if image.split('.')[-1] == 'npz' else False
 
+    def model_validate(self, image, tolerance, excepts):
         in_fp32_npz = IntermediateFile(self.model_name, 'in_fp32.npz', False)
-        np.savez(str(in_fp32_npz), **{'input': inputs})
+        # prepare input tensor
+        if self._is_npz(image):
+            inputs = np.load(image)
+            np.savez(str(in_fp32_npz), **inputs)
+            if len(inputs.files) == 1:
+                inputs = inputs[inputs.files[0]]
+        else:
+            image = os.path.expanduser(image)
+            inputs = self.preprocessor.run(image, batch=self.batch_size)
+            np.savze(str(in_fp32_npz), **{'input': inputs})
 
         # original model inference to get blobs of all layer
         all_blobs = self._inference_(inputs)
@@ -121,10 +128,26 @@ class OnnxModelTransformTool(ModelTransformTool):
         onnx.save(model, str(dump_all_tensors_onnx))
         return output_keys, dump_all_tensors_onnx
 
+    def _fill_inputs(self, ort_session, inputs):
+        inodes = ort_session.get_inputs()
+        if len(inodes) == 1:
+            dtype = np.int64 if inodes[0].type == 'tensor(int64)' \
+                             else np.float32
+            return {inodes[0].name: inputs.astype(dtype)}
+        # inputs is map
+        assert(len(inodes) == len(inputs))
+        data = {}
+        for i in range(len(inodes)):
+            name = inodes[i].name
+            dtype = np.int64 if inodes[i].type == 'tensor(int64)' \
+                             else np.float32
+            data[name] = inputs[name].astype(dtype)
+        return data
+
     def _inference_(self, inputs):
         output_keys, tmp_onnx = self.generate_tmp_onnx()
         ort_session = onnxruntime.InferenceSession(str(tmp_onnx))
-        ort_inputs = {ort_session.get_inputs()[0].name: inputs}
+        ort_inputs = self._fill_inputs(ort_session, inputs)
         ort_outs = ort_session.run(None, ort_inputs)
         output_num = len(ort_outs) - len(output_keys)
         ort_outs = ort_outs[output_num:]
