@@ -44,6 +44,13 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
 
   LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
+    auto inputType = op->getBlock()->getArgument(0).getType().cast<TensorType>();
+    std::vector<int64_t> inputShape = inputType.getShape();
+    std::string inputShapeStr;
+    for (int i = 0; i < (int)inputShape.size(); ++i) {
+      inputShapeStr += std::string("_") + std::to_string(inputShape[i]);
+    }
+
     auto loc = op->getLoc();
     auto concatOp = cast<tpu::ConcatOp>(op);
     TensorFile *wTF = getWeightTensorFile(op);
@@ -109,7 +116,7 @@ struct TpuConvertLoadeweightConcatToLoadweightPattern : public RewritePattern {
 
     auto tensor_name =
         concatOp->getAttrOfType<StringAttr>("name").getValue().str() +
-        "_loadweight";
+        "_loadweight" + inputShapeStr;
     auto type =
         RankedTensorType::get(shape, FloatType::getF32(rewriter.getContext()));
     wTF->addTensor<float>(tensor_name, resultT->data(), type);
