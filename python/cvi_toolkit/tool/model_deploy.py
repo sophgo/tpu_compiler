@@ -60,7 +60,6 @@ class DeployTool:
         if ret != 0:
             raise RuntimeError("mlir to cvimodel failed")
 
-
     def get_batch_size(self, mlir_file):
         parser = MlirParser(mlir_file)
         return parser.get_batch_size(0)
@@ -144,13 +143,15 @@ if __name__ == '__main__':
     parser.add_argument("--tolerance", required=True, help="tolerance")
     parser.add_argument("--excepts", default='-', help="excepts")
     parser.add_argument("--correctness", default='0.99,0.99,0.98', help="correctness")
-    parser.add_argument("--chip", required=True, help="chip platform name")
+    parser.add_argument("--chip", required=True, choices=['cv183x', 'cv182x'], help="chip platform name")
     parser.add_argument("--fuse_preprocess", action='store_true', default=False,
                         help="add tpu preprocesses (mean/scale/channel_swap) in the front of model")
     parser.add_argument("--pixel_format", help="pixel format of input frame to the model")
     parser.add_argument("--aligned_input", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
-    parser.add_argument("--image", required=True, help="input image for inference")
+    parser.add_argument("--dequant_results_to_fp32", type=str2bool, default=True,
+                        help="if dequant all results to fp32")
+    parser.add_argument("--image", required=True, help="input image or npz file for inference")
     parser.add_argument("--cvimodel", help='output cvimodel')
     parser.add_argument("--debug", action='store_true', help='to keep all intermediate files for debug')
     args = parser.parse_args()
@@ -169,7 +170,7 @@ if __name__ == '__main__':
         tool.fuse_preprocess(args.pixel_format,
                              args.aligned_input)
     if args.cvimodel:
-        tool.build_cvimodel(args.cvimodel, True)
+        tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32)
     tool.validate(args.cvimodel, args.tolerance, args.excepts,
                   args.correctness, args.image)
     if not args.debug:
