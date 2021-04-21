@@ -85,6 +85,7 @@ std::unique_ptr<mlir::Pass> createReorderOpPass();
 
 std::unique_ptr<mlir::Pass> createAddTpuPreprocessPass();
 std::unique_ptr<mlir::Pass> createMergeConvConvPoolPass();
+std::unique_ptr<mlir::Pass> createMergePermutePass();
 
 /// Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION

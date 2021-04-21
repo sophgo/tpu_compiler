@@ -103,6 +103,11 @@ def DoMergeConvConvPoolOp : FunctionPass<"merge-conv-conv-pool"> {
   let constructor = "mlir::createMergeConvConvPoolPass()";
 }
 
+def DoMergePermuteOp : FunctionPass<"merge-permute"> {
+  let summary = "Merge permute pattern";
+  let constructor = "mlir::createMergePermutePass()";
+}
+
 def DoAssignChipName : FunctionPass<"assign-chip-name"> {
   let summary = "Assign Chip Name to each tpu op";
   let constructor = "mlir::createAssignChipNamePass()";
