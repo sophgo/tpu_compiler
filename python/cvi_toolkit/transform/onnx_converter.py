@@ -1260,7 +1260,23 @@ class OnnxConverter(BaseConverter):
         group = onnx_node.attrs.get("group", 1)
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
         strides = onnx_node.attrs.get("strides",[1,1])
-        auto_pad = onnx_node.attrs.get("auto_pad", None)
+        pad_method = onnx_node.attrs.get("auto_pad", "NOTSET")
+        output_shape = onnx_node.attrs.get("output_shape", None)
+        if output_shape:
+            total_padding_h = strides[0] * (shape[2] - 1) + (filter_shape[2] - 1) * dilations[0] + 1 - output_shape[0]
+            total_padding_w = strides[1] * (shape[3] - 1) + (filter_shape[3] - 1) * dilations[1] + 1 - output_shape[1]
+            if pad_method == "SAME_UPPER":
+                padding_t = total_padding_h - total_padding_h // 2
+                padding_l = total_padding_w - total_padding_w // 2
+                padding_b = total_padding_h // 2
+                padding_r = total_padding_w  // 2
+                pads = [padding_t, padding_l, padding_b, padding_r]
+            else:
+                padding_t = total_padding_h // 2
+                padding_l = total_padding_w // 2
+                padding_b = total_padding_h - total_padding_h // 2
+                padding_r = total_padding_w - total_padding_w // 2
+                pads = [padding_t, padding_l, padding_b, padding_r]
 
         conv_param = {
             'stride_h':  strides[0],
