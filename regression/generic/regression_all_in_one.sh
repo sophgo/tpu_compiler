@@ -53,9 +53,9 @@ if [ $DO_QUANT_INT8 -eq 1 ]; then
   DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression${postfix}_fused_preprocess
   mkdir -p $DST_DIR
 
-  mv ${NET}_in_fp32_resize_only.npz $DST_DIR/${NET}_only_resize_in_fp32.npz
+  mv ${NET}_int8_in_fp32_resize_only.npz $DST_DIR/${NET}_only_resize_in_fp32.npz
   mv ${NET}_int8.cvimodel $DST_DIR/${NET}_int8.cvimodel
-  mv ${NET}_all_tensors_sim.npz $DST_DIR/${NET}_fused_preprocess_out_all.npz
+  mv ${NET}_int8_quantized_tensors_sim.npz $DST_DIR/${NET}_fused_preprocess_out_all.npz
 fi
 
 if [ $DO_QUANT_BF16 -eq 1 ]; then
@@ -75,7 +75,7 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
 
   DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_bf16${postfix}
   mkdir -p $DST_DIR
-  mv ${NET}_in_fp32_resize_only.npz $DST_DIR/${NET}_only_resize_in_fp32.npz
+  mv ${NET}_bf16_in_fp32_resize_only.npz $DST_DIR/${NET}_only_resize_in_fp32.npz
   mv ${NET}_bf16.cvimodel $DST_DIR/
-  mv ${NET}_all_tensors_sim.npz $DST_DIR/${NET}_bf16_out_all.npz
+  mv ${NET}_bf16_quantized_tensors_sim.npz $DST_DIR/${NET}_bf16_out_all.npz
 fi

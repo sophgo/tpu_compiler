@@ -921,9 +921,9 @@ export TOLERANCE_INT8_PER_TENSOR=0.89,0.86,0.51
 export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
 export TOLERANCE_INT8_MULTIPLER=0.65,0.61,0.01
 # mish layer
-export EXCEPTS="layer136-act,layer137-act,layer138-act,layer142-act,layer148-act,layer149-act,layer153-act"
+export EXCEPTS="layer136-act,layer137-act,layer138-act,layer138-scale,layer142-act,layer148-act,layer149-act,layer149-scale,layer153-act"
 export OUTPUTS="layer139-conv,layer150-conv,layer161-conv"
-export DO_QUANT_BF16=1
+export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 export SPP_NET="false"
@@ -1380,7 +1380,7 @@ export RAW_SCALE=255.0
 export INPUT_SCALE=1.0
 export TOLERANCE_FP32=0.999,0.999,0.978
 export TOLERANCE_INT8_MULTIPLER=0.91,0.90,0.57
-export EXCEPTS=upsample2,upsample1
+export EXCEPTS=upsample2,upsample1,pool1_mask,pool2_mask
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.98,0.87
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
@@ -1437,7 +1437,7 @@ export OUTPUTS=deconv6_0_0
 export TOLERANCE_INT8_MULTIPLER=0.69,0.66,0.11
 export TOLERANCE_BF16=0.96,0.96,0.74
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
-export EXCEPTS=conv2_7_1_a,prelu2_7_0,prelu2_7_1,prelu3_3_0,conv3_3_1_a,prelu3_3_1,prelu4_0_4,upsample4_0_4,upsample5_0_4
+export EXCEPTS=pool1_0_4_mask,pool2_0_4_mask,conv2_7_1_a,prelu2_7_0,prelu2_7_1,prelu3_3_0,conv3_3_1_a,prelu3_3_1,prelu4_0_4,upsample4_0_4,upsample5_0_4
 # export BATCH_SIZE=4
 fi
 
