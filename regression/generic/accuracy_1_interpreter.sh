@@ -49,7 +49,7 @@ fi
 
 if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
   echo "Eval int8_per_tensor with interpreter"
-  tpuc-opt ${NET}_opt_fp32.mlir \
+  tpuc-opt ${NET}_fp32.mlir \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     --assign-chip-name \
@@ -77,7 +77,7 @@ fi
 
 if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
   echo "Eval int8_rshift_only with interpreter"
-  tpuc-opt ${NET}_opt_fp32.mlir \
+  tpuc-opt ${NET}_fp32.mlir \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     --assign-chip-name \
@@ -105,7 +105,7 @@ fi
 
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   echo "Eval int8_multiplier with interpreter"
-  tpuc-opt ${NET}_opt_fp32.mlir \
+  tpuc-opt ${NET}_fp32.mlir \
     --import-calibration-table \
     --calibration-table ${CALI_TABLE} \
     --assign-chip-name \
@@ -234,7 +234,7 @@ fi
 if [ $DO_QUANT_BF16 -eq 1 ]; then
   echo "Eval bf16 with interpreter"
   $EVAL_FUNC \
-    --mlir_file=${NET}_quant_bf16.mlir \
+    --mlir_file=${NET}_bf16_quantized.mlir \
     --label_file=$LABEL_FILE \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --net_input_dims $NET_INPUT_DIMS \
