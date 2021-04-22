@@ -149,6 +149,7 @@ struct MergePermuteOpPattern : public RewritePattern {
 
     std::vector<int32_t> pads;
     arrayAttrToVector(pad_inst_4.pads().getValue(), pads);
+    auto const_val = pad_inst_4.const_val().convertToFloat();
     // generate pad
     SmallVector<Attribute, 8> padsAttr;
     for (unsigned int i = 0; i < 8; i++) {
@@ -171,7 +172,8 @@ struct MergePermuteOpPattern : public RewritePattern {
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     attrs.push_back(rewriter.getNamedAttr("pads",
                            rewriter.getArrayAttr(padsAttr)));
-
+    attrs.push_back(rewriter.getNamedAttr("const_val",
+                           rewriter.getF32FloatAttr(const_val)));
     RankedTensorType output_type = RankedTensorType::get(
                           {inst_1_shape[0], inst_1_shape[1],
                            inst_1_shape[2], inst_1_shape[3] + pads[2] + pads[6]},
@@ -199,8 +201,6 @@ struct MergePermuteOpPattern : public RewritePattern {
     ops_reshape.push_back(newReluOp.getResult());
     std::vector<NamedAttribute> attrs_reshape;
     attrs_reshape.push_back(rewriter.getNamedAttr("name", reshape_inst_9.nameAttr()));
-    attrs_reshape.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     auto newReshapeOp = rewriter.create<tpu::ReshapeOp>(
           inst_9->getLoc(), inst_9->getResult(0).getType(),
           ArrayRef<Value>{ops_reshape},
