@@ -342,7 +342,7 @@ def mlir_quant(fp32_model, calib_table, mix_table,
     cmd.extend(["--print-tpu-op-info",
                 "--tpu-op-info-filename", op_order_csv,
                 fp32_model, "-o", quanted_model])
-    logger.info(" ".join(cmd))
+    logger.debug(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "model_runner")
     return ret.returncode

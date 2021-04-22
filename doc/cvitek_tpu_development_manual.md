@@ -5,7 +5,7 @@
 >
 > 文档版本: 1.5.0
 >
-> 发布日期: 2021-01-29
+> 发布日期: 2021-04-22
 
 © 2020 北京晶视智能科技有限公司
 
@@ -24,6 +24,7 @@
 | V0.3.1 | 2020/11/24 | 肖泉   | 更新mlir op和更新格式 |
 | V1.4.0 | 2020/12/04 | 姜江   | 更新文档结构          |
 | V1.5.0 | 2021/01/29 | 姜江   | 根据工具链1.5修改     |
+| V1.5.0 | 2021/04/22 | 姜江   | 根据工具链1.6修改     |
 <div STYLE="page-break-after: always;"></div>
 # 法律声明
 
@@ -238,7 +239,7 @@
   |BoolAttr            | 属性，布尔属性|
   <br>
 
--   TPU_QuantParamAttr
+- TPU_QuantParamAttr
 
   |参数名称|类型|描述|
   |---|---|---|
@@ -298,7 +299,7 @@
 
   <br>
 
--   TPU_PoolParamAttr
+- TPU_PoolParamAttr
 
   参数名称            类型       描述
   |参数名称|类型|描述|
@@ -400,7 +401,7 @@
 
   <br>
 
--   Crop
+- Crop
 
   |参数名称|类型|描述|类别|
   |---|---|---|---|
@@ -551,7 +552,7 @@
 
   <br>
 
--   Gru
+- Gru
 
   |参数名称|类型|描述|类别|
   |---|---|---|---|
@@ -735,7 +736,7 @@
   |name      | StrAttr                 | 名称         | 属性|
 
   <br>
--   Power
+- Power
 
   |参数名称|类型|描述|类别|
   |---|---|---|---|
@@ -747,7 +748,8 @@
   |name      | StrAttr                 | 名称         | 属性|
 
 <br>
--   PRelu
+
+- PRelu
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output                | AnyTensor               | 输出Tensor           | 输出|
@@ -1038,8 +1040,7 @@
 # mlirimporter.py
 class MLIRImport:
 
-  def __init__(self, inputs_shape, outputs_shape,
-input_type="FP32"):
+  def __init__(self, inputs_shape, outputs_shape, input_type="FP32"):
     for input in inputs_shape:
       assert(isinstance(input, list))
       self.input_shape_list.append(input)
@@ -1166,51 +1167,48 @@ def add_conv_Op(self, op_name, inputOperands,
 
 ### 2.1.2 工具链基本命令
 
-#### 2.1.2.1 前端源框架推理命令
-
-**(1) CAFFE**
+#### 2.1.2.1 model_transform
 
 -   【命令】
   ```sh
-  run_caffe_classifier.py [options] <input_image> <output_npy_file>
+  model_transform.py [options] --mlir <output_mlir_file>
   ```
 -   【作用】
 
-> 基于pycaffe做caffe模型的推理，输出每层的outputs以便后续转模型时候进行逐层比对，保证转模型的正确性。
-
--   【输入输出】
-
-  参数名称          描述
-  |参数名称|描述|
-  |---|---|
-  |\<input_image\>   | 输入图片文件 |
-  |\<output_npy_file\>  | 输出caffe模型输出层的结果 |
+> 将caffe/onnx/模型转换为基于mlir的单精度模型，并做逐层精度比对验证，保证转模型的正确性。
 
 -   【选项】
 
   参数名称                                描述
   |参数名称|描述|
   |---|---|
-  |--model_def                        | caffe模型定义文件(***.prototxt**) |
-  |--pretrained_model                 | caffe模型权重文件(***.caffemodel**) |
-  |--image_resize_dims                          | 输入图片resize后的h和w:   如 **"256,256"**, 可选；如果设置的image_resize_dims和net_input_dims不相等，图片resize后还将center crop到net_input_dims指定的高宽;<br/>如不设置, 则此值默认和net_input_dims相同 |
-  |--resize_keep_aspect_ratio               | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br/>如设置为**1**，在resize后高宽不足的部分会填充0 |
-  |--net_input_dims                           | 模型的input shape的h与w:  如 **"224,224"** |
-  |--model_channel_order                 | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
-  |--raw_scale**^(1)^**                   | raw_scale 默认值为**255** |
-  |--mean**^(1)^**            | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
-  |--input_scale**^(1)^**        | input_scale，默认值为**1.0** |
-  |--std**^(1)^**                           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
-  |--batch_size               | 指定输入的batch num，如果batch size大于1，会将输入的单张图片预处理后做倍增到相应的batch num |
-  |--label_file                     | 如果为分类网络，可以指定标签文件 |
-  |--dump_blobs                           | 输出所有层的结果到npz文件 |
+  |--model_type \<type\>               | 源模型的框架类型, 支持caffe, onnx等框架(pytorch,tensorflow需要先转为onnx)|
+  |--model_name \<name\>               | 模型的名字 |
+  |--model_def \<model_file\>          | 模型文件(***.prototxt**, ***.onnx**等) |
+  |--model_data \<caffemodel\>         | caffe模型权重文件(***.caffemodel**) |
+  |--image_resize_dims \<h,w\>         | 输入图片resize后的h和w, 如"256,256", 可选；<br/>如果设置的image_resize_dims和net_input_dims不相等，<br/>图片resize后还将center crop到net_input_dims指定的高宽;<br/>如不设置, 则此值默认和net_input_dims相同 |
+  |--resize_keep_aspect_ratio \<bool\> | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br/>如设置为**1**，在resize后高宽不足的部分会填充0 |
+  |--net_input_dims \<h,w\>            | 模型的input shape的h与w:  如 **"224,224"** |
+  |--model_channel_order \<order\>     | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
+  |--raw_scale**^(1)^** \<255.0\>      | raw_scale 默认值为**255** |
+  |--mean**^(1)^** \<0,0,0\>           | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
+  |--input_scale**^(1)^** \<1.0\>      | input_scale，默认值为**1.0** |
+  |--std**^(1)^**  \<1,1,1\>           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
+  |--batch_size \<num\>                | 指定生成模型的的batch num |
+  |--gray \<bool\>                     | 是否输入的图片为灰度图，默认值为false |
+  |--image \<image_file\>              | 用于验证单精度模型转换是否正确的参考输入图片 |
+  |--tolerance \<0.99,0.99,0.98\>      | mlir单精度模型与源模型逐层精度对比时所能接受的最小相似度,<br/>相似度包括三项：余弦相似度、相关相似度、欧式距离相似度.<br/>默认值为"0.99,0.99,0.98" |
+  |--excepts \<"-"\>                   | 逐层对比时跳过某些层, 多个层可以用逗号隔开, 如:"layer1,layer2",<br/>默认值为"-",即对比所有层 |
+  |--mlir \<model_fp32_mlir\>          | 输出mlir单精度模型 |
 
   > **^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
 
 -   【示例】
 
   ```sh
-  run_caffe_classifier.py \
+  model_transform.py \
+      --model_type caffe \
+      --model_name yolo_v3 \
       --model_def yolov3.prototxt \
       --pretrained_model yolov3.caffemodel \
       --image_resize_dims '424,424' \
@@ -1222,149 +1220,12 @@ def add_conv_Op(self, op_name, inputOperands,
       --std '1,1,1'
       --model_channel_order 'rgb' \
       --batch_size 1 \
-      --label_file label.txt \
-      --dump_blobs yolov3_blobs.npz \
-      cat.jpg \
-      yolov3_out.npy
+      --mlir yolo_v3_fp32.mlir
   ```
 
 <br>
 
-**(2) ONNX**
-
--   【命令】
-  ```sh
-  run_caffe_classifier.py [options] --input_file <input_image> --output_file <output_npz_file>
-  ```
--   【作用】
-
-> 基于pycaffe做caffe模型的推理，输出每层的outputs以便后续转模型时候进行逐层比对，保证转模型的正确性。
-
--   【输入输出】
-
-  参数名称          描述
-  |参数名称|描述|
-  |---|---|
-  |\<input_image\>   | 输入图片文件 |
-  |\<output_npz_file\>  | 输出onnx模型输出层的结果 |
-
--   【选项】
-
-  参数名称                                描述
-  |参数名称|描述|
-  |---|---|
-  |--model_path                        | onnx模型定义文件(***.onnx**) |
-  |--image_resize_dims                          | 输入图片resize后的h和w:   如 **"256,256"**, 可选；如果设置的image_resize_dims和net_input_dims不相等，图片resize后还将center crop到net_input_dims指定的高宽;<br/>如不设置, 则此值默认和net_input_dims相同 |
-  |--resize_keep_aspect_ratio               | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br/>如设置为**1**，在resize后高宽不足的部分会填充0 |
-  |--net_input_dims                           | 模型的input shape的h与w:  如 **"224,224"** |
-  |--model_channel_order                 | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
-  |--raw_scale**^(1)^**                   | raw_scale 默认值为**255** |
-  |--mean**^(1)^**            | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
-  |--input_scale**^(1)^**        | input_scale，默认值为**1.0** |
-  |--std**^(1)^**                           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
-  |--batch_size               | 指定输入的batch num，如果batch size大于1, <br>会将输入的单张图片预处理后做倍增到相应的batch num |
-  |--dump_tensor                           | 输出所有层的结果到npz文件 |
-
-  > **^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
-
--   【示例】
-
-  ```sh
-  run_onnx_inference.py \
-      --model_path resnet50.onnx \
-      --image_resize_dims '256,256' \
-      --net_input_dims '224,224' \
-      --model_channel_order 'bgr' \
-      --raw_scale 255 \
-      --mean '104.01,116.67,122.68' \
-      --std '1,1,1' \
-      --input_scale 1 \
-      --batch_size 1 \
-      --dump_tensor resnet50_blobs.npz \
-      --input_file cat.jpb \
-      --output_file resnet50_out.npz
-  ```
-
-<br>
-
-#### 2.1.2.1 mlir-opt
-
--   【命令】
-```sh
-mlir-opt [options] <input file> -o <output file>
-```
--   【作用】
-
-> 用于输入的mlir模型文件进行graph优化、int8/bf16量化、指令融合、内存优化等处理。输出为经过处理或优化后的mlir模型文件
-
--   【输入输出】
-
-  参数名称          描述
-  |参数名称|描述|
-  |---|---|
-  |\<input file\>   | 输入.mlir文件|
-  |\<output file\>  | 输出.mlir文件|
-
--   【选项】
-
-  参数名称                                描述
-  |参数名称|描述|
-  |---|---|
-  |--canonicalize                        | 执行所有canonicalize优化|
-  |--convert-bn-to-scale                 | 将BatchNorm操作变换为Scale操做|
-  |--fold-scale                          | 将连续的2个scale变换为1个scale|
-  |--merge-scale-into-conv               | 将Scale操作与之前的Conv操作变换一个操作|
-  |--fuse-relu                           | 将relu与前一个操作融合|
-  |--decompose-normalize                 | 将Normalize操作分解为一系列细粒度操作|
-  |--print-tpu-op-info                   | 输出每个op的信息|
-  |--import-calibration-table            | 导入calibration table|
-  |--calibration-table=\<string\>        | Calibration table文件名|
-  |--tpu-quant                           | 执行模型量化，默认量化方式为对称，Per-Channel，INT8量化|
-  |--quant-int8-per-tensor               | 指定INT8量化以Per-Tensor方式进行|
-  |--quant-full-bf16                     | 指定量化以全bf16方式进行|
-  |--tpu-lower                           | Lowering操作|
-  |--assign-chip-name                    | 设置芯片名称|
-  |--group-ops                           | 执行group ops的优化|
-  |--tg-fuse-leakyrelu                   | 将leaky-relu与前一个conv操作融合|
-  |--deep-fusion-tg2tl-la                | 为SimpleDeepFusion优化进行前置分析|
-  |--deep-fusion-tl-la2lw                | 执行SimpleDeepFusion优化|
-  |--assign-neuron-address               | 为Neuron Tensor分配地址|
-  |--tpu-neuron-address-align=\<ulong\>  | 指定Neuron Tensor分配地址符合alignment|
-  |--assign-weight-address               | 为Weight Tensor分配地址|
-  |--tpu-weight-address-align=\<ulong\>  | 指定Weight Tensor分配地址符合alignment|
-
-<br>
-
-#### 2.1.2.2 mlir-tpu-interpreter
-
--   【命令】
-```sh
-mlir-tpu-interpreter [options] <input file>
-```
--   【作用】
-
-> 用于对mlir
-> fp32模型文件、量化后的int8或bf16模型文件做一次前向推理，用于验证模型转换的正确性或者为了后续的仿真器运行提供参考输出
-
--   【输入输出】
-
-  参数名称         描述
-  |参数名称|描述|
-  |---|---|
-  |\<input file\>  | 输入.mlir文件|
-
--   【选项】
-
-  参数名称                        描述
-  |参数名称|描述|
-  |---|---|
-  |--dump-all-tensor=\<string\>  | 保存所有Tensor数据到指定文件，npz格式|
-  |--tensor-in=\<string\>        | 输入tensor数据文件，npz格式|
-  |--tensor-out=\<string\>       | 输出tensor数据文件，npz格式|
-
-<br>
-
-#### 2.1.2.3 run-calibration
+#### 2.1.2.2 run-calibration
 
 -   【命令】
 ```sh
@@ -1372,8 +1233,7 @@ run_calibration.py <model file> [option]
 ```
 -   【作用】
 
-> 针对mlir
-> fp32模型文件，在测试集上随机挑选的images上做多次推理，统计各层的输出分布情况，计算出每层的threshold等值，输出一个threshold
+> 针对mlir单精度模型，在测试集上随机挑选的images上做推理，统计各层的输出分布情况，计算出每层的threshold等值，输出一个threshold
 > table用于后续的模型量化
 
 -   【输入输出】
@@ -1388,73 +1248,121 @@ run_calibration.py <model file> [option]
   参数名称                    描述
   |参数名称|描述|
   |---|---|
-  |--dataset                 | 指定所用的校准图片集的路径|
-  |--input_num               | 指定所用的校准图片数量|
-  |--histogram_bin_num       | 直方图bin数量|
-  |--calibration_table=\<string\>  | 输出calibration table文件|
-  |--auto-tune                | 开启autotune|
-  |--tuned_table=\<string\>  | 输出经过auto-tunning后的calibration table文件|
+  |--dataset                   | 指定校准图片集的路径|
+  |--input_num                 | 指定校准图片数量|
+  |--histogram_bin_num         | 直方图bin数量, 默认为2048, 可以适当增大该值提升量化的精度 |
+  |-o \<calib_tabe\>           | 输出calibration table文件|
 
 <br>
 
-#### 2.1.2.4 mlir-translate
+#### 2.1.2.3 run_tune
 
 -   【命令】
 
-> mlir-translate [options\] <input file\> -o \<output file\>
+> run_tune.py [options\] <model_fp32_mlir> -tuned_table <tuned_calib_table>
 
 -   【作用】
 
-> 将优化后的mlir模型文件转换为能在仿真器或者Soc平台上运行的cvimodel模型文件
-
-- 【输入输出】
-
-  参数名称          描述
-
-  | 参数名称        | 描述             |
-  | --------------- | ---------------- |
-  | \<input file\>  | 输入文件mlir文件 |
-  | \<output file\> | 输出cvimodel文件 |
+> 针对calibration table在测试集上对各层的threshold做进一步的微调，以期提升模型的整体精度
 
 - 【选项】
 
   参数名称                    描述
 
-  | 参数名称                 | 描述                                   |
-  | ------------------------ | -------------------------------------- |
-  | --mlir-to-cvimodel       | 指定将mlir转换为cvimodel文件           |
-  | --weight-file=\<string\> | 模型的weight文件，转cvimodel文件时必选 |
+  | 参数名称 | 描述 |
+  | --- | --- |
+  | --dataset \<path\>                  | 指定测试集的路径 |
+  | --input_num \<image_num\>           | 指定测试图片的数量，默认为10张图 |
+  | --calibration_table \<calib_table\> | 输入calibration table |
+  | --mix_precision_table \<mix_table\> | 输入mix precision table |
+  | --tune_iteration \<iterate_num\>    | 微调每层threshold的轮数, 默认值为30 |
+  | --stragegy \<stragegy_name\>        | 微调策略:"greedy"或"overall"<br/>"greedy": 以提升每层的欧式距离相似度为目标微调threshold;<br/>"overall":以提升结果的余弦或者欧式距离相似度为目标，微调每层的threshold |
+  | --evaluation \<method_num\>         | "overall"策略的输出精度评估方法："cosine"或"euclid" |
+  | -o \<out_calib_table\>              | 输出微调后的calibration table |
 
 <br>
 
-#### 2.1.2.5 mlir_to_cvimodel
+#### 2.1.2.4 run_mix_precision
 
 -   【命令】
-```sh
-mlir_to_cvimodel.sh \
-    -i quanted_mlir_file \
-    -o cvimodel_file \
-    [other_options]
-```
+
+> run_mix_precision.py <model_fp32_mlir> [options\] -o <mix_precision_table>
+
 -   【作用】
 
-> Bash脚本, 包含lowering, 优化, 指令生成和cvimodel生成等命令的整合脚本
+> 在测试集上计算每层量化为BF16后对于模型输出精度的收益，然后按照收益的大小排序，取靠前的n个层作为后面混精度量化中量化为BF16的层.
 
--   【输入输出】
+- 【选项】
 
-  参数名称            描述
-  |参数名称|描述|
-  |---|---|
-  |quanted_mlir_file  | 输入量化后的mlir文件|
-  |out_cvimodel_file  | 输出的cvimodel文件|
+  参数名称                    描述
 
--   【选项】
+  | 参数名称 | 描述 |
+  | --- | --- |
+  | --dataset \<path\>                  | 指定测试集的路径 |
+  | --input_num \<image_num\>           | 指定测试图片的数量，默认为15张图 |
+  | --image_list \<image_list_file\>    | 输入有测试图片路径列表的文件，用于指定固定数量的图片进行测试, 图片路径须为绝对路径 |
+  | --calibration_table \<calib_table\> | 输入calibration table |
+  | -o \<mix_table\>                    | 输出mix precision table |
 
-  |参数名称|描述|
-  |---|---|
-  |-i \<quanted_mlir_file\>                  |输入量化后的mlir模型文件|
-  |-o \<cvimodel_file\>                      |输出生成的cvimodel file|
-  |--dequant-results-to-fp32=\<true,false\>  |是否需要将output tensors dequant成fp32.默认为true, 即所有的output tensors将输出为fp32格式. 如果int8模型需要输出int8格式的outputs，请将其设置为false|
+<br>
+
+#### 2.1.2.5 model_deploy
+
+-   【命令】
+
+> model_depoly.py [options\] <model_fp32_mlir> --cvimodel <out_cvimodel>
+
+-   【作用】
+
+> 进行int8或bf16量化、生成cvimodel文件；逐层验证量化模型与单精度模型的精度误差；验证cvimodel在仿真器上运行的结果是否正确.
+
+- 【选项】
+
+  参数名称                    描述
+
+  | 参数名称 | 描述 |
+  | --- | --- |
+  | --model_name \<name\>                | 指定模型名 |
+  | --mlir \<model_fp32_mlir\>           | 指定mlir单精度模型文件 |
+  | --calibration_table \<calib_table\>  | 输入calibration table, 可选, 量化为int8模型 |
+  | --mix_precision_table \<mix_table\>  | 输入mix precision table, 可选, 配合calib_table量化为混精度模型 |
+  | --all_bf16                           | 量化为全bf16模型 |
+  | --tolerance  \<cos,cor,euc\>         | 量化模型和单精度模型精度对比所能接受的最小相似度,<br/>相似度包括三项：余弦相似度、相关相似度、欧式距离相似度.|
+  | --excepts \<"-"\>                    | 逐层对比时跳过某些层, 多个层可以用逗号隔开, 如:"layer1,layer2",<br/>默认值为"-",即对比所有层 |
+  | --correctness \<cos,cor,euc\>        | cvimodel在仿真上运行的结果与量化模型推理的结果对比时所能接受的最小相似度,<br/>默认值为:"0.99,0.99,0.98" |
+  | --chip \<chip_name\>                 | cvimodel被部署的目标平台名, 值为"cv183x"或"cv182x" |
+  | --fuse_preprocess \<bool\>           | 是否加入preprocess op到cvimodel中, 默认值为false |
+  | --pixel_format \<format\>            | preprocess所接受的图片输入格式, 可选值为:<br/>  "RGB_PACKED", "BGR_PACKED", "RGB_PLANAR",<br/>"BGR_PLANAR", "YUV420_PLANAR", "GRAYSCALE"等值 |
+  | --aligned_input \<bool\>             | preprocess所接受的输入图片是否为对齐格式, 默认值为false |
+  | --dequant_outputs_to_fp32 \<bool\>   | 是否将模型的输出反量化为fp32格式, 默认值为true |
+  | --image \<image_file\>               | 用于验证精度的参考输入图片 |
+  | --cvimodel \<out_cvimodel\>          | 输出的cvimodel名 |
+
+<br>
+
+
+#### 2.1.2.6 model_runner
+
+-   【命令】
+
+> model_runner -i <inputs.npz> -m <cvimodel> [options\] -o <outputs.npz>
+
+-   【作用】
+
+> 通过仿真器运行生成的cvimodel，用于验证结果的正确性(比命令也可以在EVB上执行)
+
+- 【选项】
+
+  参数名称                    描述
+
+  | 参数名称 | 描述 |
+  | --- | --- |
+  | --model \<cvimodel\>                | 输入cvimodel模型文件, 必选项 |
+  | --input \<input_npz_file\>          | 输入模型的参考输入npz文件，此文件由model_deplopy.py生成, 必选项 |
+  | --output \<output_npz_file\>        | 输出模型推理后的结果, 保存为npz文件, 可以透过numpy去读取，可选项 |
+  | --reference \<reference_npz_file\>  | 输入参考输出npz文件，此文件由model_deploy.py生成，可选项 |
+  | --tolerance  \<cos,cor,euc\>        | 输入模型输出和参考输出精度对比所能接受的最小相似度, 可选项.<br/>相似度包括三项：余弦相似度、相关相似度、欧式距离相似度.|
+<br>
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -1468,7 +1376,7 @@ mlir_to_cvimodel.sh \
 
 ### 2.2.1 FP32模型导入
 
-> 模型导入阶段进行从训练框架模型文件到mlir描述模型的转换。工具链支持对Caffe，TensorFlow，TFLite，ONNX格式模型文件的导入。导入命令都由Python Interface实现。
+> 模型导入阶段进行从训练框架模型文件到mlir描述模型的转换。工具链支持对Caffe，ONNX格式模型文件的导入。导入命令都由Python Interface实现。
 >
 > 模型导入过程主要分为三个部分：
 >
@@ -1478,167 +1386,23 @@ mlir_to_cvimodel.sh \
 >   - 输出对比，将两次推理各自产生的npz文件进行比对，确保模型转换正确
 >   - FP32 MLIR模型图优化，优化后的mlir模型将作为后续流程的源文件
 
-#### 2.2.1.1 原模型推理
-
-- Caffe
-
   ```sh
-  run_caffe_classifier.py \
+  model_transform.py \
+      --model_type $MODEL_TYPE \
+      --model_name $NET \
       --model_def $MODEL_DEF \
-      --pretrained_model $MODEL_DAT \
+      --model_data $MODEL_DAT \
       --image_resize_dims $IMAGE_RESIZE_DIMS \
       --net_input_dims $NET_INPUT_DIMS \
       --raw_scale $RAW_SCALE \
       --mean $MEAN \
       --input_scale $INPUT_SCALE \
       --model_channel_order $MODEL_CHANNEL_ORDER \
+      --gray $GRAY \
       --batch_size $BATCH_SIZE \
-      --label_file $LABEL_FILE \
-      --dump_blobs $CAFFE_BLOBS_NPZ \
-      $IMAGE_PATH \
-      caffe_out.npy
-
-  cvi_npz_tool.py extract $CAFFE_BLOBS_NPZ ${NET}_in_fp32.npz $INPU
+      --mlir ${NET}_fp32.mlir
   ```
-
-- ONNX
-
-  ```sh
-  run_onnx_inference.py \
-      --model_path $MODEL_DEF \
-      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --raw_scale ${RAW_SCALE} \
-      --mean ${MEAN} \
-      --std ${STD} \
-      --batch_size $BATCH_SIZE \
-      --input_scale ${INPUT_SCALE} \
-      --dump_tensor $ONNX_BLOBS_NPZ \
-      --input_file $IMAGE_PATH \
-      --model_channel_order $MODEL_CHANNEL_ORDER \
-      --output_file onnx_out.npz
-
-  cvi_npz_tool.py extract $ONNX_BLOBS_NPZ ${NET}_in_fp32.npz input
-  ```
-
-- TFLite
-
-  ```sh
-  cvi_model_inference.py \
-      --model_def $MODEL_DEF \
-      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --raw_scale ${RAW_SCALE} \
-      --mean ${MEAN} \
-      --std ${STD} \
-      --batch_size $BATCH_SIZE \
-      --input_scale ${INPUT_SCALE} \
-      --data_format nhwc \
-      --dump_tensor $TFLITE_BLOBS_NPZ \
-      --input_file $IMAGE_PATH \
-      --model_channel_order $MODEL_CHANNEL_ORDER \
-      --model_type tflite \
-      --output_file tflite_out.npz
-
-  cvi_npz_tool.py tranpose $TFLITE_BLOBS_NPZ nhwc nchw
-  cvi_npz_tool.py extract $TFLITE_BLOBS_NPZ ${NET}_in_fp32.npz input
-  ```
-
-- TensorFlow
-
-  ```sh
-  cvi_model_inference.py \
-      --model_def $MODEL_DEF \
-      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --raw_scale ${RAW_SCALE} \
-      --mean ${MEAN} \
-      --std ${STD} \
-      --batch_size $BATCH_SIZE \
-      --input_scale ${INPUT_SCALE} \
-      --dump_tensor $TF_BLOBS_NPZ \
-      --input_file $IMAGE_PATH \
-      --model_channel_order $MODEL_CHANNEL_ORDER \
-      --model_type tensorflow \
-      --output_file tf_out.npz \
-      --gray $BGRAY
-
-  cvi_npz_tool.py tranpose $TF_BLOBS_NPZ nhwc nchw
-  cvi_npz_tool.py extract $TF_BLOBS_NPZ ${NET}_in_fp32.npz input
-  ```
-
-<br>
-
-#### 2.2.1.2 原模型导入
-
-导入命令如下：
-
-  ```sh
-# 生成fp32 mlir模型
-cvi_model_convert.py \
-    --model_path $MODEL_DEF \
-    --model_dat $MODEL_DAT \
-    --model_name ${NET} \
-    --model_type $MODEL_TYPE \
-    --batch_size 1 \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --model_channel_order $MODEL_CHANNEL_ORDER \
-    --raw_scale ${RAW_SCALE} \
-    --mean ${MEAN} \
-    --std ${STD} \
-    --input_scale ${INPUT_SCALE} \
-    --gray ${BGRAY} \
-    --mlir_file_path ${NET}.mlir
-
-# 对fp32 mlir模型进行推理
-tpuc-interpreter \
-    ${NET}_opt_fp32.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_fp32.npz \
-    --dump-all-tensor=${NET}_tensor_all_fp32.npz
-
-# 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-'
-# 将结果和源框架的结果进行逐层对比
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_fp32.npz \
-    ${NET}_blobs.npz \
-    --op_info ${NET}_op_info.csv \
-    --excepts $EXCEPTS \
-    --tolerance='0.99,0.99,0.99' -v
-
-# 对mlir进行图优化
-tpuc-opt ${NET}.mlir \
-    --convert-bn-to-scale \
-    --convert-clip-to-relu6 \
-    --canonicalize \
-    --fuse-relu \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info.csv \
-    -o ${NET}_opt_fp32.mlir
-  ```
-
-> **模型导入**：模型导入为mlir文件后，可以调用mlir-tpu-interpreter进行推理验证。输出数据保存为npz文件。还可以选择输出网络每一层tensor的数据，并打包为npz文件，用于逐层数据比对.
-
-> **前端图优化：**发生在进行calibration和量化之前，进行数学等价变换，除host平台浮点计算精度误差外，不引入任何系统误差。主要包括两种类型的变换。一种是前端优化变换，另一种是分解变换。这个阶段的所有优化会保证优化结果仍然能够被mlir-tpu-interpreter执行。
->
-> - 前端优化变换
->
-> 前端等价优化可以简化原有模型、减少计算量、减小推理过程中数据搬运，以达到整体性能的提升。注意在lowering
-> 之后发生的fusion等scheduling优化不属于此范畴。前端优化主要是通过Canonicalization来组织，这是MLIR编译器提供的一种便利措施，它使得注册为canonicalizer的pass得到自动的贪婪匹配和优化。对于同一个Op的多个Pass，canonicalizer基于benefit值确定优化次序，目前支持下述几种变换:
->
-> 1. convert-bn-to-scale：batchnorm在inference时可以等价转换为scale;
-> 2. fold-scale：两个连续的scale可以等价合并为一个，从而节省一个scale运算;
-> 3. merge-scale-into-conv：将连续的一个conv操作和一个scale操作，合并为一个conv，通过对conv权重数据的乘加预处理，节省一个scale运算并保持等价;
-> 4. fuse-relu：将relu和之前的可fuse操作进行fuse，具体包括Conv，Pool，FullyConnected，Eltwise等。Fuse Relu本身并不是运算等价变换，原本属于后端优化范畴，但是如果在quantization之前fuse relu，可以在量化环节产生收益，因此将这个pass提前到前端优化。
->
-> - 分解变换
->
-> 分解变换是将一个操作分解为若干个操作的组合，并保持运算等价。这样做的目的通常是因为这些操作的量化通常需要各个中间运算步骤的量化信息。因此这类变换需要在calibration和量化前进行:
->
-> 1. normalize-decompose：将Normalize操作分解6个操作：Power，Reduction, Sqrt, Reciprocal, EltwiseMul，Scale;
+> 在此命令以及后续的命令中会对mlir模型的Activation输出进行三种相似度的比较：cosine similarity、correlation similarity、eulidean similarity以保证各阶段的精度损失在规定的范围内。
 
 <br>
 
@@ -1657,32 +1421,16 @@ run_calibration.py \
     ${NET}_opt_fp32.mlir \
     --dataset=$DATASET \
     --input_num=${CALIBRATION_IMAGE_COUNT} \
-    --histogram_bin_num=2048 \
-    --calibration_table=${NET}_calibration_table
+    --histogram_bin_num=20480 \
+    -o ${NET}_calibration_table
 ```
 
 > Calibration是获取推理时各个tensor的统计信息过程。每个tensor的统计结果表现为一个threshold值，以及表征每个tensor动态范围的max和min两个值。
->
 > Calibration工具采用python开发，需要输入量化数据集以及对应的模型前处理参数，结果会将每一层的统计threshold值导入到calibration table文件中。
 
 <br>
 
 ### 2.2.3 INT8模型量化
-
-模型INT8量化的命令如下：
-
-```sh
-# 加载calibration table,生成INT8 mlir模型
-tpuc-opt ${NET}_opt_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table ${NET}_calibration_table \
-    --assign-chip-name \
-    --chipname [cv183x|cv182x] \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_int8.csv \
-    -o ${NET}_quant_int8.mlir
-```
 
 > 模型的量化主要分为两种方式：
 >
@@ -1699,39 +1447,28 @@ tpuc-opt ${NET}_opt_fp32.mlir \
 >
 > 在CVITEK工具链的量化工具中主要选择对称量化的方式，目前大部分模型使用此种方式都可取得良好的效果
 
-<br>
-
-### 2.2.4 模型精度测试
-
-INT8模型精度测试的命令如下：
+模型INT8量化的命令如下：
 
 ```sh
-# 用INT8 mlir模型做推理
-tpuc-interpreter ${NET}_quant_int8.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_int8.npz \
-    --dump-all-tensor=${NET}_tensor_all_int8.npz
-
-# 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-'
-# 设置对比的可接受的最小相似度, 以下仅是参考值
-export TOLERANCE_INT8_MULTIPLER='0.9,0.9,0.5'
-# 将INT8 mlir的推理结果和fp mlir的结果进行比较
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_int8.npz \
-    ${NET}_blobs.npz \
-    --op_info ${NET}_op_info_int8.csv \
-    --dequant \
-    --stats_int8_tensor \
-    --except ${EXCEPTS} \
-    --tolerance=${TOLERANCE_INT8_MULTIPLER} -vv
+# 加载calibration table,生成INT8 mlir模型
+model_deploy.py \
+    --model_name ${NET}_int8 \
+    --mlir ${NET}_fp32.mlir \
+    --calibration-table ${NET}_calibration_table \
+    --mix_precision_table ${NET}_mix_table \
+    --chip [cv183x|cv182x] \
+    --image ${IMAGE} \
+    --tolerance ${INT8_QUANT_TOLERANCE} \
+    --excepts ${EXCEPTS} \
+    --cvimodel $CVIMODEL
 ```
+<br>
 
-> 数据的相似度比较：工具链提供了数据分析工具，可以对模型变换的各阶段的各层数据的输出tensor进行以下三种相似度的比较：cosine similarity、correlation similarity、eulidean similarity以保证各阶段的精度损失在规定的范围内。
+> 在此命令mlir量化模型的Activation输出与mlir单精度模型进行三种相似度的比较：cosine similarity、correlation similarity、eulidean similarity以保证各阶段的精度损失在规定的范围内。
 
-如果在逐层对比相似度通过后，特别是如果模型的输出层的相似度比较高时，可以进一步在测试集上验证INT8模型的精度。
+如果在逐层对比相似度通过后，特别是如果模型的输出层的相似度比较高时，可以进一步在测试集上验证mlir量化模型的精度。
 
-> 工具链提供基于interpreter的python binding用于INT8模型的推理，以及相应python工具支持对常见类型网络和常见数据集进行精度测试。用户可以基于python快速扩展，开发和对接自有数据集，后处理等流程。
+> 工具链提供python binding用于mlir量化模型的推理，以及相应python工具支持对常见类型网络和常见数据集进行精度测试。用户可以基于python快速扩展，开发和对接自有数据集，后处理等流程。
 
 如果在做相似度对比时的结果不理想，可以通过以下几种方式进行调整：
 
@@ -1739,124 +1476,90 @@ cvi_npz_tool.py compare \
 
 - 调整run_calibration.py的histogram_bin_num, 可以再扩大10倍或者更多。更大的histogram_bin_num可以使得统计各层activation直方图时的粒度更小，有利于得到更加真实的数据分布；
 
-- 对于INT模型的某些层的相似度掉很多，可以手动调整threshold table文件中对应层的threshold值，可以加大或者缩小，直到再次对比时取得比较好的相似度；
+- 如果INT8模型的某些层的相似度掉很多时，可以手动调整calibration table文件中对应层的threshold值，可以加大或者减小，直到再次对比时取得比较好的相似度；
 
 
 
 <br>除此以外，还可以透过以下方式取得更好的精度:
 
-#### 2.2.4.1 Full-BF16量化
+### 2.2.4 Full-BF16量化
 
 CVITEK TPU支持INT8和BF16两种数据格式运算的加速，在INT8精度不理想时，可以先尝试用将模型量化为BF16模型，再测试精度。其命令如下：
 
 ```sh
 # SET_CHIP_NAME可依据部署的平台类型设置为cv183x或cv182x
-tpuc-opt \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
-    --tpu-quant --quant-full-bf16 \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_bf16.csv \
-    ${NET}_opt_fp32.mlir \
-    -o ${NET}_quant_bf16.mlir
-
-tpuc-interpreter ${NET}_quant_bf16.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_bf16.npz \
-    --dump-all-tensor=${NET}_tensor_all_bf16.npz
-
-# 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-'
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_bf16.npz \
-    ${NET}_tensor_all_fp32.npz \
-    --op_info ${NET}_op_info_bf16.csv \
+model_deploy.py \
+    --model_name ${NET}_bf16 \
+    --mlir ${NET}_fp32.mlir \
+    --all_bf16 \
+    --chip [cv183x|cv182x] \
+    --image ${IMAGE_PATH} \
+    --tolerance ${TOLERANCE_BF16} \
     --excepts ${EXCEPTS} \
-    --tolerance '0.99,0.99,0.9' -vv
+    --correctness 0.99,0.99,0.99 \
+    --cvimodel $cvimodel
+
 ```
 
-#### 2.2.4.2 Mix-Precision量化
+### 2.2.5 Mix-Precision量化
 
 全BF16模型的在CVITEK TPU上的性能会比全INT8模型的差。如果全BF16模型的精度能够满足要求，可以尝试混精度的方式对模型量化，以兼顾性能和精度。混精度的原理是在INT8模型的基础上，透过工具自动搜寻需要转换成BF16的层，然后将这些BF层输出到mix-precision table中。再导入mix-precision table后就可以生成混精度模型。具体命令如下：
 
 ```sh
-tpuc-opt ${NET}_opt_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table ${NET}_calibration_table \
-    -o ${NET}_int8_cali.mlir
+# 可根据需要设置需要量化为BF16的层数
+run_mix_precision.py \
+    ${NET}_fp32.mlir \
+    --dataset ${DATASET_PATH} \
+    --input_num 15 \
+    --max_bf16_layers $MIX_PRECISION_BF16_LAYER_NUM \
+    --calibration_table ${NET}_calib_table.txt \
+    -o ${NET}_mix_precision_table
 
-# 设置需要变成BF16的层的个数, 可根据需要进行设置
-export MIX_PRECISION_BF16_LAYER_NUM=10
-cvi_mix_precision.py \
-    ${NET}_int8_cali.mlir \
-    --dataset ${DATASET} \
-    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM \
-    --mix_table ${NET}_mix_precision_bf16_table
 
-tpuc-opt \
-    --assign-chip-name \
-    --chipname [cv183x|cv182x] \
-    --tpu-quant \
-    --quant-int8-mix-bf16-layers-from-file ${NET}_mix_precision_bf16_table \
-    --tpu-op-info-filename ${NET}_op_info_mix.csv \
-    --print-tpu-op-info \
-    ${NET}_int8_cali.mlir \
-    -o ${NET}_quant_mix.mlir
+model_deploy.py \
+    --model_name ${NET}_bf16 \
+    --mlir ${NET}_fp32.mlir \
+    --calibration_table ${CALIBRATION_TABLE} \
+    --mix_table ${MIX_PRECISION_TABLE} \
+    --chip [cv183x|cv182x] \
+    --image ${IMAGE_PATH} \
+    --tolerance ${TOLERANCE_BF16} \
+    --excepts ${EXCEPTS} \
+    --correctness 0.99,0.99,0.99 \
+    --cvimodel $cvimodel
 
-tpuc-interpreter ${NET}_quant_mix.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_mix.npz \
-    --dump-all-tensor=${NET}_tensor_all_mix.npz
-
-# 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-'
-# 设置对比的可接受的最小相似度, 以下仅是参考值
-export TOLERANCE_MIX_PRECISION='0.9,0.9,0.7'
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_mix.npz \
-    ${NET}_blobs.npz \
-    --op_info ${NET}_op_info_mix.csv \
-    --dequant \
-    --excepts $EXCEPTS \
-    --tolerance=$TOLERANCE_MIX_PRECISION
-    -vv
 ```
-
-#### 2.2.4.3 Auto-Tune
+### 2.2.6 Auto-Tune
 
 如果对模型的性能的要求比较高，混精度的性能不能满足要求，可以尝试使用auto-tune的方式，用工具以优化各层的相似度为目标去调整各层的threshold，以期取得一个比较好的精度。不过此种方式会比较耗时。具体命令如下：
 
 ```sh
-run_calibration.py \
-    ${NET}_opt_fp32.mlir \
+# --mix_precision_table为可选项，此步骤可以在calibration后进行，
+# 也可以在mix-precision后再进行
+run_tune.py \
+    ${NET}_fp32.mlir \
     --dataset=$DATASET \
-    --calibration_table=${NET}_calibration_table \
-    --tuned_table=${NET}_tune_calibration_table \
+    --calibration_table ${NET}_calib_table \
+    --mix_precision_table ${NET}_mix_precision_table \
     --input_num=${COUNT} \
-    --tune_iteration=10 \
-    --auto_tune
+    --tune_iteration=20 \
+    --stragegy greedy \
+    --evaluation euclid
+    -o ${NET}_tuned_calib_table
 
-tpuc-opt ${NET}_opt_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table ${NET}_tune_calibration_table\
-    --assign-chip-name \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_int8.csv \
-    -o ${NET}_quant_int8.mlir
-
-tpuc-interpreter ${NET}_quant_int8.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_int8.npz \
-    --dump-all-tensor=${NET}_tensor_all_int8.npz
-
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_int8.npz \
-    ${NET}_out_fp32.npz \
-    --op_info ${NET}_op_info_int8.csv \
-    --dequant \
-    --tolerance=${INT8_TOLERANCE} -vv
+model_deploy.py \
+    --model_name ${NET}_int8 \
+    --mlir ${NET}_fp32.mlir \
+    --calibration_table ${NET}_tuned_calib_table \
+    --mix_table ${NET}_mix_able \
+    --chip [cv183x|cv182x] \
+    --image ${IMAGE_PATH} \
+    --tolerance ${INT8_QUANT_TOLERANCE} \
+    --excepts ${EXCEPTS} \
+    --correctness 0.99,0.99,0.99 \
+    --cvimodel $cvimodel
 ```
+> auto-tune 可以反复进行，或者更改策略选项以及评估方法选项;或者在mix-precision后再进行auto-tune, 这样会取得比较好的精度
 
 <br>
 
@@ -1865,499 +1568,31 @@ cvi_npz_tool.py compare \
 CVITEK TPU支持crop，减mean，乘scale以及channel swap等前处理操作。此步骤为可选项，可根据需要去添加TPU preprocessing；(由于CVITEK平台的图像处理硬件不支持输出BF16格式，所以对于BF16模型或者混精度模型中第一层为BF16层的模型需要添加TPU preprocessing)。具体命令如下：
 
 ```sh
-# 生成仅做resize的输入数据
 # --pixel_format 设置输入数据的格式，目前支持：
 #                RGB_PACKED, RGB_PLANAR,
 #                BGR_PACKED, BGR_PLANAR,
 #                GRAYSCALE, YUV420_PLANAR
-cvi_preprocess.py \
-    --image_file $IMAGE_PATH \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+model_deploy.py \
+    --model_name ${NET}_int8 \
+    --mlir ${NET}_fp32.mlir \
+    --calibration_table ${NET}_tuned_calib_table \
+    --mix_table ${NET}_mix_able \
+    --chip [cv183x|cv182x] \
+    --image ${IMAGE_PATH} \
+    --tolerance ${INT8_QUANT_TOLERANCE} \
+    --excepts ${EXCEPTS} \
+    --fuse_preprocess \
     --pixel_format BGR_PACKED \
-    --aligned 0 \
-    --batch_size 1 \
-    --input_name input \
-    --output_npz ${NET}_only_resize_in_fp32.npz
-
-# 选择第3章的quant后的mlir, 可选值
-#  - ${NET}_quant_int8.mlir
-#  - ${NET}_quant_bf16.mlir
-#  - ${NET}_quant_mix.mlir
-epxort SRC_MLIR_FILE=${NET}_quant_int8.mlir
-
-tpuc-opt \
-    --add-tpu-preprocess \
-    --pixel_format BGR_PACKED \
-    --input_aligned=false \
-    $SRC_MLIR_FILE.mlir \
-    -o ${NET}_fused_preprocess.mlir
-
-tpuc-interpreter ${NET}_fused_preprocess.mlir \
-    --tensor-in ${NET}_only_resize_in_fp32.npz \
-    --tensor-out ${NET}_out_fused_preprocess.npz \
-    --dump-all-tensor=${NET}_tensor_all_fused_preprocess.npz \
-    --use-tpu-quant-op
-
-# 选择第3章的op info csv，可选值
-#  - ${NET}_op_info_int8.csv
-#  - ${NET}_op_info_bf16.csv
-#  - ${NET}_op_info_mix.csv
-export OP_INFO_CSV_FILE=${NET}_op_info_int8.csv
-# 设置TOLERANCE，和第3章相同
-export TOLERANCE=$TOLERANCE_INT8_MULTIPLER
-
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_fused_preprocess.npz \
-    ${NET}_blobs.npz \
-    --op_info $OP_INFO_CSV_FILE \
-    --dequant \
-    --excepts="$EXCEPTS,input,data" \
-    --tolerance=$TOLERANCE \
-    --stats_int8_tensor \
-    -vv
+    --cvimodel $cvimodel
 ```
 
 <br>
 
-### 2.2.6 模型优化并生成CVIMODEL
-
-在确定量化精度没有问题后，可以进一步做模型的后端优化以及生成cvimodel，具体命令如下：
-
-```sh
-# shell脚本, 包含优化和codegen的所有命令
-$DIR/../mlir_to_cvimodel.sh \
-   -i ${NET}_quant_bf16.mlir \
-   -o ${NET}_bf16.cvimodel
-
-# 仿真器测试
-model_runner \
-    --dump-all-tensors \
-    --input ${NET}_in_fp32.npz \
-    --model ${NET}_bf16.cvimodel \
-    --batch-num $BATCH_SIZE \
-    --output ${NET}_cmdbuf_out_all_bf16.npz
-
-# compare all tensors
-cvi_npz_tool.py compare \
-    ${NET}_cmdbuf_out_all_bf16.npz \
-    ${NET}_tensor_all_bf16.npz \
-    --op_info ${NET}_op_info_bf16.csv \
-    --excepts ${EXCEPTS} \
-    --tolerance='0.99,0.99,0.9' \
-    -vv
-```
-
-后端优化
-
-> Cvitek编译器基于MLIR框架开发，支持解耦的优化pass开发方式，多种优化策略并存，可以根据网络需求进行选择优化或者组合优化，主要是通过mlir-opt进行。
->
-> - 执行效率优化，发掘Op间fusion机会并进行fusion的优化。
->- 内存占用优化，分析Activation内存使用并回收利用的的优化。
->
-生成TPU硬件指令
-
-> 调用mlir-translate进行指令生成，打包量化后的权重文件，并产生cvimodel模型文件。
-仿真器测试
 
 > 生成cvimodel文件后，除可以在目标板runtime进行测试验证外，也可以调用仿真器进行离线测试验证。仿真器可以完全模拟硬件的推理精度。
 >
-> model_runner 是集成了runtime的binary工具，可以直接使用，也可以直接调用runtime API对cvimodel进行离线测试。离线测试的输出结果可以利用cvi_npz_tool.pycompare进行数据比对。推荐的做法是和INT8量化后的mlir文件在interpreter上运行的结果进行比较，所有tensor的内容应为bit-accurate一致（不包含混合量化的场景）。
+> model_runner 是集成了runtime的binary工具，可以直接使用，也可以直接调用runtime API对cvimodel进行离线测试。离线测试的输出结果可以利用cvi_npz_tool.py compare进行数据比对。
 <br>
-
-## 2.3 模型编译示例
-
-### 2.3.1 准备
-
-在模型转换之前，请先设置以下变量：
-
-| 变量名                   | 说明                                                         |
-| ------------------------ | ------------------------------------------------------------ |
-| NET                      | 模型的名字                                                   |
-| MODEL_DEF                | 模型文件 caffe: ***.proto**  onnx: ***.onnx**                |
-| MODEL_DAT                | 权重文件 caffe: ***.caffemodel**                             |
-| IMAGE_RESIZE_DIMS        | 输入图片resize后的h和w:   如 **"256,256"**, 可选；如果设置的IMAGE_RESIZE_DIMS和NET_INPUT_DIMS不相等，图片resize后还将center crop到NET_INPUT_DIMS指定的高宽;<br>如不设置, 则此值默认和NET_INPUT_DIMS相同 |
-| RESIZE_KEEP_ASPECT_RATIO | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br>如设置为**1**，在resize后高宽不满足IMAGE_RESIZE_DIMS的部分会填充0 |
-| NET_INPUT_DIMS           | 模型的input shape的h与w:  如 **"224,224"**                   |
-| MODEL_CHANNEL_ORDER      | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"**       |
-| RAW_SCALE **^(1)^**      | raw_scale 默认值为**255**                                    |
-| MEAN **^(1)^**`          | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和MODEL_CHANNEL_ORDER一致 |
-| INPUT_SCALE **^(1)^**    | input_scale，默认值为**1.0**                                 |
-| STD **^(1)^**            | std, 通道标准差，默认值为**"1,1,1"**                         |
-| BGRAY                    | 是否为单通道的输入(灰度图),  值为**1**或**0**                |
-
-**^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
-
-<br>
-
-<br>
-
-### 2.3.2 模型导入
-
-#### a. 将模型用源框架进行推理，获取每层activation的数据
-
-```sh
-# caffe
-export IMAGE_PATH=xxxx.jpg
-run_caffe_classifier.py \
-      --model_def $MODEL_DEF \
-      --pretrained_model $MODEL_DAT \
-      --image_resize_dims $IMAGE_RESIZE_DIMS \
-      --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-      --model_channel_order $MODEL_CHANNEL_ORDER \
-      --net_input_dims $NET_INPUT_DIMS \
-      --raw_scale $RAW_SCALE \
-      --mean $MEAN \
-      --input_scale $INPUT_SCALE \
-      --gray ${BGRAY} \
-      --batch_size 1 \
-      --dump_blobs ${NET}_blobs.npz \
-      $IMAGE_PATH \
-      caffe_out.npy
-
-# 从${NET}_blobs.npz中提取fp32输入数据
-cvi_npz_tool.py extract ${NET}_blobs.npz ${NET}_in_fp32.npz input
-```
-
-```sh
-# onnx
-run_onnx_inference.py \
-      --model_path $MODEL_DEF \
-      --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-      --model_channel_order $MODEL_CHANNEL_ORDER \
-      --raw_scale ${RAW_SCALE} \
-      --mean ${MEAN} \
-      --std ${STD} \
-      --input_scale ${INPUT_SCALE} \
-      --gray ${BGRAY} \
-      --batch_size 1 \
-      --dump_tensor ${NET}_blobs.npz \
-      --input_file $IMAGE_PATH \
-      --output_file onnx_out.npz
-
-# 从${NET}_blobs.npz中提取fp32输入数据
-cvi_npz_tool.py extract ${NET}_blobs.npz ${NET}_in_fp32.npz input
-```
-
-#### b. 模型导入生成mlir模型, 并和原框架的推理结果做对比，确保转换正确
-
-```sh
-# 生成fp32 mlir模型
-cvi_model_convert.py \
-    --model_path $MODEL_DEF \
-    --model_dat $MODEL_DAT \
-    --model_name ${NET} \
-    --model_type $MODEL_TYPE \
-    --batch_size 1 \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --model_channel_order $MODEL_CHANNEL_ORDER \
-    --raw_scale ${RAW_SCALE} \
-    --mean ${MEAN} \
-    --std ${STD} \
-    --input_scale ${INPUT_SCALE} \
-    --gray ${BGRAY} \
-    --mlir_file_path ${NET}.mlir
-
-# 对mlir进行图优化
-tpuc-opt ${NET}.mlir \
-    --convert-bn-to-scale \
-    --convert-clip-to-relu6 \
-    --canonicalize \
-    --fuse-relu \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info.csv \
-    -o ${NET}_opt_fp32.mlir
-
-# 对fp32 mlir模型进行推理
-tpuc-interpreter ${NET}_opt_fp32.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_fp32.npz \
-    --dump-all-tensor=${NET}_tensor_all_fp32.npz
-
-# 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-'
-# 将结果和源框架的结果进行逐层对比
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_fp32.npz \
-    ${NET}_blobs.npz \
-    --op_info ${NET}_op_info.csv \
-    --excepts $EXCEPTS \
-    --tolerance='0.99,0.99,0.99' -v
-```
-
-<br>
-
-<br>
-
-### 2.3.3 模型量化校正
-
-```sh
-# 设置校正集目录
-export DTATSET='xxxxxx/xxxx'
-# 设置校正集随机选取的图片个数
-export CALIBRATION_IMAGE_COUNT=1000
-
-# 校正并生成calibration table
-run_calibration.py \
-    ${NET}_opt_fp32.mlir \
-    --dataset=$DATASET \
-    --input_num=${CALIBRATION_IMAGE_COUNT} \
-    --calibration_table=${NET}_calibration_table
-```
-
-<br>
-
-<br>
-
-### 2.3.4. 模型量化
-
-#### a. INT8量化
-
-```sh
-# 加载calibration table,生成INT8 mlir模型
-tpuc-opt ${NET}_opt_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table ${NET}_calibration_table \
-    --assign-chip-name \
-    --chipname [cv183x|cv182x] \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_int8.csv \
-    -o ${NET}_quant_int8.mlir
-
-# 用INT8 mlir模型做推理
-tpuc-interpreter ${NET}_quant_int8.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_int8.npz \
-    --dump-all-tensor=${NET}_tensor_all_int8.npz
-
-# 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-'
-# 设置对比的可接受的最小相似度, 以下仅是参考值
-export TOLERANCE_INT8_MULTIPLER='0.9,0.9,0.5'
-# 将INT8 mlir的推理结果和fp mlir的结果进行比较
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_int8.npz \
-    ${NET}_blobs.npz \
-    --op_info ${NET}_op_info_int8.csv \
-    --dequant \
-    --stats_int8_tensor \
-    --except ${EXCEPTS} \
-    --tolerance=${TOLERANCE_INT8_MULTIPLER} -vv
-
-# 优化并生成cvimodel
-$DIR/../mlir_to_cvimodel.sh \
-   -i ${NET}_quant_int8.mlir \
-   -o ${NET}_int8.cvimodel
-# 用仿真器加载cvimodel做一次推理
-model_runner \
-    --dump-all-tensors \
-    --input ${NET}_in_fp32.npz \
-    --model ${NET}_int8.cvimodel \
-    --output ${NET}_cmdbuf_out_all_int8.npz
-# 对比仿真器的结果
-cvi_npz_tool.py compare \
-    ${NET}_cmdbuf_out_all_int8.npz \
-    ${NET}_tensor_all_int8.npz \
-    --op_info ${NET}_op_info_int8.csv
-```
-
-#### b. BF16量化
-
-```sh
-tpuc-opt \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
-    --tpu-quant --quant-full-bf16 \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_bf16.csv \
-    ${NET}_opt_fp32.mlir \
-    -o ${NET}_quant_bf16.mlir
-
-tpuc-interpreter ${NET}_quant_bf16.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_bf16.npz \
-    --dump-all-tensor=${NET}_tensor_all_bf16.npz
-
-# 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-'
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_bf16.npz \
-    ${NET}_tensor_all_fp32.npz \
-    --op_info ${NET}_op_info_bf16.csv \
-    --excepts ${EXCEPTS} \
-    --tolerance '0.99,0.99,0.9' -vv
-
-$DIR/../mlir_to_cvimodel.sh \
-   -i ${NET}_quant_bf16.mlir \
-   -o ${NET}_bf16.cvimodel
-
-# run cvimodel
-model_runner \
-    --dump-all-tensors \
-    --input ${NET}_in_fp32.npz \
-    --model ${NET}_bf16.cvimodel \
-    --batch-num $BATCH_SIZE \
-    --output ${NET}_cmdbuf_out_all_bf16.npz
-
-# compare all tensors
-cvi_npz_tool.py compare \
-    ${NET}_cmdbuf_out_all_bf16.npz \
-    ${NET}_tensor_all_bf16.npz \
-    --op_info ${NET}_op_info_bf16.csv \
-    --excepts ${EXCEPTS} \
-    --tolerance='0.99,0.99,0.9' \
-    -vv
-```
-
-#### c. 混精度量化
-
-```sh
-tpuc-opt ${NET}_opt_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table ${NET}_calibration_table \
-    -o ${NET}_int8_cali.mlir
-
-# 设置需要变成BF16的层的个数, 可根据需要进行设置
-export MIX_PRECISION_BF16_LAYER_NUM=10
-cvi_mix_precision.py \
-    ${NET}_int8_cali.mlir \
-    --dataset ${DATASET} \
-    --input_num=1 \
-    --number_bf16=$MIX_PRECISION_BF16_LAYER_NUM \
-    --mix_table ${NET}_mix_precision_bf16_table
-
-tpuc-opt \
-    --assign-chip-name \
-    --chipname [cv183x|cv182x] \
-    --tpu-quant \
-    --quant-int8-mix-bf16-layers-from-file ${NET}_mix_precision_bf16_table \
-    --tpu-op-info-filename ${NET}_op_info_mix.csv \
-    --print-tpu-op-info \
-    ${NET}_int8_cali.mlir \
-    -o ${NET}_quant_mix.mlir
-
-tpuc-interpreter ${NET}_quant_mix.mlir \
-    --tensor-in ${NET}_in_fp32.npz \
-    --tensor-out ${NET}_out_mix.npz \
-    --dump-all-tensor=${NET}_tensor_all_mix.npz
-
-# 可以根据需要设置需要在对比时跳过的层
-export EXCEPTS='-'
-# 设置对比的可接受的最小相似度, 以下仅是参考值
-export TOLERANCE_MIX_PRECISION='0.9,0.9,0.7'
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_mix.npz \
-    ${NET}_blobs.npz \
-    --op_info ${NET}_op_info_mix.csv \
-    --dequant \
-    --excepts $EXCEPTS \
-    --tolerance=$TOLERANCE_MIX_PRECISION
-    -vv
-
-### 2.3.5 优化并生成cvimodel
-$DIR/../mlir_to_cvimodel.sh \
-   -i ${NET}_mix.mlir \
-   -o ${NET}_mix.cvimodel
-
-model_runner \
-    --dump-all-tensors \
-    --input ${NET}_in_fp32.npz \
-    --model ${NET}_mix.cvimodel \
-    --output ${NET}_cmdbuf_out_all_mix.npz
-
-# compare all tensors
-cvi_npz_tool.py compare \
-    ${NET}_cmdbuf_out_all_mix.npz \
-    ${NET}_tensor_all_mix.npz \
-    --op_info ${NET}_op_info_mix.csv \
-    --tolerance='0.99,0.99,0.9' \
-    -vv
-```
-
-<br>
-
-<br>
-
-### 2.3.6 添加TPU Preprocessing
-
-> INT8模型或MIX模型可以选择用TPU去做预处理，BF16模型或者第一层为BF16层的MIX模型需要添加TPU Preprocessing
-
-```sh
-# 生成仅做resize的输入数据
-# --pixel_format 设置输入数据的格式，目前支持：
-#                RGB_PACKED, RGB_PLANAR,
-#                BGR_PACKED, BGR_PLANAR,
-#                GRAYSCALE, YUV420_PLANAR
-cvi_preprocess.py \
-    --image_file $IMAGE_PATH \
-    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
-    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
-    --pixel_format BGR_PACKED \
-    --aligned 0 \
-    --batch_size 1 \
-    --input_name input \
-    --output_npz ${NET}_only_resize_in_fp32.npz
-
-# 选择第3章的quant后的mlir, 可选值
-#  - ${NET}_quant_int8.mlir
-#  - ${NET}_quant_bf16.mlir
-#  - ${NET}_quant_mix.mlir
-epxort SRC_MLIR_FILE=${NET}_quant_int8.mlir
-
-tpuc-opt \
-    --add-tpu-preprocess \
-    --pixel_format BGR_PACKED \
-    --input_aligned=false \
-    $SRC_MLIR_FILE.mlir \
-    -o ${NET}_fused_preprocess.mlir
-
-tpuc-interpreter ${NET}_fused_preprocess.mlir \
-    --tensor-in ${NET}_only_resize_in_fp32.npz \
-    --tensor-out ${NET}_out_fused_preprocess.npz \
-    --dump-all-tensor=${NET}_tensor_all_fused_preprocess.npz \
-    --use-tpu-quant-op
-
-# 选择2.3.4中的op info csv，可选值
-#  - ${NET}_op_info_int8.csv
-#  - ${NET}_op_info_bf16.csv
-#  - ${NET}_op_info_mix.csv
-export OP_INFO_CSV_FILE=${NET}_op_info_int8.csv
-# 设置TOLERANCE，和第2.3.4章相同
-export TOLERANCE=$TOLERANCE_INT8_MULTIPLER
-
-cvi_npz_tool.py compare \
-    ${NET}_tensor_all_fused_preprocess.npz \
-    ${NET}_blobs.npz \
-    --op_info $OP_INFO_CSV_FILE \
-    --dequant \
-    --excepts="$EXCEPTS,input,data" \
-    --tolerance=$TOLERANCE \
-    --stats_int8_tensor \
-    -vv
-
-
-$DIR/../mlir_to_cvimodel.sh \
-   -i ${NET}_fused_preprocess.mlir \
-   -o ${NET}_fused_preprocess.cvimodel
-
-model_runner \
-    --dump-all-tensors \
-    --input ${NET}_only_resize_in_fp32.npz \
-    --model ${NET}_fused_preprocess.cvimodel \
-    --output ${NET}_cmdbuf_out_all_fused_preprocess.npz
-
-cvi_npz_tool.py compare \
-    ${NET}_cmdbuf_out_all_fused_preprocess.npz \
-    ${NET}_tensor_all_fused_preprocess.npz \
-    --op_info $OP_INFO_CSV_FILE
-```
-
-
 
 <div STYLE="page-break-after: always;"></div>
 

@@ -238,13 +238,12 @@ if __name__ == '__main__':
     parser.add_argument("--model_def", help="model definition file.")
     parser.add_argument("--model_data", help="caffemodel, only for caffe model")
     parser.add_argument("--model_name", help="model name")
-    parser.add_argument("--model_type", help="model_type")
+    parser.add_argument("--model_type", choices=['caffe', 'onnx', 'tensorflow'], help="model_type")
     parser.add_argument("--batch_size", type=int, default=1, help="batch size")
     parser.add_argument("--tolerance", default='0.99,0.99,0.98',
                         help="minimum similarity tolerance to model transform")
     parser.add_argument("--excepts", default='-', help="excepts")
     parser.add_argument("--mlir", required=True, help="output mlir model file")
-    parser.add_argument("--blobs", help='output fp32 blobs of orignal moodel')
     parser = get_preprocess_parser(existed_parser=parser)
     args = parser.parse_args()
 
