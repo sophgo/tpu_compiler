@@ -17,6 +17,12 @@
 
 #define ASSERT(x) assert(x)
 
+void matrixToTensor(const CviBackendContext &ctx, cvk_tl_t *tensor, const cvk_ml_t &matrix) {
+  cvk_tl_shape_t shape = {matrix.shape.n, matrix.shape.c, 1, matrix.shape.w};
+  ctx.lmem_init_tensor(tensor, shape, CVK_FMT_BF16, 1);
+  tensor->start_address = matrix.start_address;
+}
+
 unsigned int doSplitHeightBf16softmax2DParallelInnerSize(const CviBackendContext &ctx, int outerSize, int innerSize) {
     //Default tileN, do not split C/W
     uint8_t eu_align = 1; // hardware constrainst
@@ -32,8 +38,6 @@ unsigned int doSplitHeightBf16softmax2DParallelInnerSize(const CviBackendContext
             tiledOuterSize--;
             continue;
         }
-        cvk_tl_shape_t input_shape = ctx.tl_shape_t4(tiledOuterSize,1,1,innerSize);
-        int inputSize = ctx.lmem_tensor_to_size(input_shape, CVK_FMT_BF16, eu_align);
 
         cvk_tl_shape_t enlargeInputShape = ctx.tl_shape_t4(tiledOuterSize,1,1,parallelC * bf16_euWorkingOneLane);
         int enlargeInputSize = ctx.lmem_tensor_to_size(enlargeInputShape, CVK_FMT_BF16, eu_align);
@@ -45,14 +49,19 @@ unsigned int doSplitHeightBf16softmax2DParallelInnerSize(const CviBackendContext
         int parallelInputSize = ctx.lmem_tensor_to_size(parallel_input_shape, CVK_FMT_BF16, eu_align) * 5;
         //parallel_input_shape + lutWorking * 2 + lutResult * 2
 
-        int requiredSize = tableSize + inputSize + enlargeInputSize + parallelInputSize + maxValueSize;
+        int requiredSize = tableSize + enlargeInputSize + parallelInputSize + maxValueSize;
+        LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                            "        Size:\n"
+                            "         tableSize 0x%lx, enlargeInputSize 0x%lx, maxValue_shape 0x%lx parallel_input_shape 0x%lx,\n", tableSize
+                            , enlargeInputSize, maxValueSize, parallelInputSize
+                           ));
         if(requiredSize < LOCAL_MEM_SIZE) {
             break;
         } else {
             tiledOuterSize--;
         }
     }
-    ASSERT(tiledOuterSize && "Can't fit the constraint!");
+    // ASSERT(tiledOuterSize && "Can't fit the constraint!");
     return tiledOuterSize;
 }
 
@@ -80,14 +89,431 @@ unsigned int doSplitHeightBf16softmax2DParallelOuterSize(const CviBackendContext
         //parallel_input_shape + lutWorking * 2 + lutResult * 2
 
         int requiredSize = tableSize + inputSize + parallelInputSize + maxValueSize;
+        LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                            "        Size:\n"
+                            "         tableSize 0x%lx, inputSize 0x%lx, maxValueSize 0x%lx parallel_input_shape 0x%lx,\n", tableSize
+                            , inputSize, maxValueSize, parallelInputSize
+                           ));
         if(requiredSize < LOCAL_MEM_SIZE) {
             break;
         } else {
             tiledOuterSize--;
         }
     }
-    ASSERT(tiledOuterSize && "Can't fit the constraint!");
+    // ASSERT(tiledOuterSize && "Can't fit the constraint!");
     return tiledOuterSize;
+}
+
+void softmaxLargeSizeHandler(const CviBackendContext &ctx, uint32_t layer_id,
+                            gaddr_t ga_input,
+                            gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
+                            gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,
+                            gaddr_t ga_output,
+                            int outer_size, int inner_size) {
+    const unsigned int tiledOutputSize = 1;
+    uint8_t eu_align = 1; // hardware constrainst
+    int sizePerLane = ceiling_func(inner_size, NPU_NUM);
+
+    //Load exponential table
+    cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
+
+    cvk_tl_t *tl_exponential_table_answer =
+        ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
+    cvk_tl_t *tl_exponential_table_answer_slope =
+        ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
+
+    ASSERT(tl_exponential_table_answer);
+    ASSERT(tl_exponential_table_answer_slope);
+
+    ctx.tdma_load(tl_exponential_table_answer, ga_exponential_table_data_lut);
+    ctx.tdma_load(tl_exponential_table_answer_slope, ga_exponential_slope_table_data_lut);
+    //Load reciprocal table
+
+    cvk_tl_t *tl_reciprocal_table_answer =
+        ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
+    cvk_tl_t *tl_reciprocal_mantissa_table_answer =
+        ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, eu_align);
+
+    ASSERT(tl_reciprocal_table_answer);
+    ASSERT(tl_reciprocal_mantissa_table_answer);
+
+    ctx.tdma_load(tl_reciprocal_table_answer, ga_reciprocal_table_data_lut);
+    ctx.tdma_load(tl_reciprocal_mantissa_table_answer, ga_reciprocal_table_mantissa_data_lut);
+
+    int outerSizeStep = ceiling_func(outer_size, tiledOutputSize);
+    for(int outerSizeCounter = 0; outerSizeCounter < outerSizeStep; outerSizeCounter++) {
+        int outer_pos = outerSizeCounter * tiledOutputSize;
+        unsigned int workingOutputSize = std::min(outer_size - outer_pos, (int)tiledOutputSize);
+
+        cvk_ml_shape_t input_shape = {
+                (uint32_t)workingOutputSize,
+                (uint32_t)NPU_NUM,
+                (uint32_t)ceiling_func(inner_size, NPU_NUM),
+                (uint32_t)inner_size}; //n, c, w, col
+        cvk_ml_t *ml_input =
+            ctx.lmem_alloc_matrix(input_shape, CVK_FMT_BF16, eu_align);
+        ASSERT(ml_input);
+
+        //init to zero
+        cvk_tl_t tl_input;
+        matrixToTensor(ctx, &tl_input, *ml_input);
+        ctx.tiu_zeros(layer_id, &tl_input);
+
+        //load
+        gaddr_t globalSrcAddress = ga_input + outer_pos * inner_size * sizeof(uint16_t);
+        ctx.tdma_load(ml_input, globalSrcAddress);
+
+        cvk_tl_shape_t maxValue_shape = ctx.tl_shape_t4(1,tl_input.shape.c, 1, tl_input.shape.c);
+        cvk_tl_t *tl_maxValueBroadcasted =
+            ctx.lmem_alloc_tensor(maxValue_shape, CVK_FMT_BF16, eu_align);
+        ASSERT(tl_maxValueBroadcasted);
+
+        cvk_tl_t tl_perCMaxValue;
+        tl_perCMaxValue.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+        tl_perCMaxValue.fmt = CVK_FMT_BF16;
+        tl_perCMaxValue.shape = {1, tl_input.shape.c, 1, 1};
+        tl_perCMaxValue.stride = ctx.tl_default_stride(tl_perCMaxValue.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+        cvk_tl_t tl_concatMaxValue;
+        tl_concatMaxValue.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+        tl_concatMaxValue.fmt = CVK_FMT_BF16;
+        tl_concatMaxValue.shape = {1, 1, tl_input.shape.c, 1};
+        tl_concatMaxValue.stride = ctx.tl_default_stride(tl_concatMaxValue.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+        cvk_tl_t tl_maxValue;
+        tl_maxValue.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+        tl_maxValue.fmt = CVK_FMT_BF16;
+        tl_maxValue.shape = {1, 1, 1, 1};
+        tl_maxValue.stride = ctx.tl_default_stride(tl_maxValue.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+        // Calculate per lane max value
+        cvk_tiu_max_pooling_param_t max_pool_param = {0};
+        max_pool_param.ofmap = &tl_perCMaxValue;
+        max_pool_param.ifmap = &tl_input;
+        max_pool_param.kh = 1;
+        max_pool_param.kw = tl_input.shape.w;
+        max_pool_param.stride_h = 1;
+        max_pool_param.stride_w = 1;
+        max_pool_param.layer_id = layer_id;
+        max_pool_param.ins_val = -128;
+        max_pool_param.ins_fp = 0xff7f;
+
+        LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                "  tiu_bf16_max_pooling\n"
+                "    ifmap shape (%d, %d, %d, %d)\n"
+                "    ofmap shape (%d, %d, %d, %d)\n"
+                "    kh %d, kw %d, stride_h %d, stride_w %d\n",
+                tl_input.shape.n, tl_input.shape.c, tl_input.shape.h, tl_input.shape.w, tl_perCMaxValue.shape.n,
+                tl_perCMaxValue.shape.c, tl_perCMaxValue.shape.h, tl_perCMaxValue.shape.w, 1, inner_size, 1, 1););
+        ctx.tiu_max_pooling(&max_pool_param);
+
+        // Concate per lane max value
+        cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
+        p2.src = &tl_perCMaxValue;
+        p2.dst = &tl_concatMaxValue;
+
+        LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                        "         L2L Reshape:\n"
+                        "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                        "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                        p2.src->start_address, p2.src->shape.n,
+                        p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                        p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                        p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                        p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+        ctx.tdma_l2l_tensor_copy(&p2);
+
+        // Get max value
+        cvk_tiu_max_pooling_param_t max_pool_param2 = {0};
+        max_pool_param2.ofmap = &tl_maxValue;
+        max_pool_param2.ifmap = &tl_concatMaxValue;
+        max_pool_param2.kh = tl_input.shape.c;
+        max_pool_param2.kw = 1;
+        max_pool_param2.stride_h = 1;
+        max_pool_param2.stride_w = 1;
+        max_pool_param2.layer_id = layer_id;
+        max_pool_param2.ins_val = -128;
+        max_pool_param2.ins_fp = 0xff7f;
+
+        LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                "  tiu_bf16_max_pooling\n"
+                "    ifmap shape (%d, %d, %d, %d)\n"
+                "    ofmap shape (%d, %d, %d, %d)\n"
+                "    kh %d, kw %d, stride_h %d, stride_w %d\n",
+                tl_concatMaxValue.shape.n, tl_concatMaxValue.shape.c, tl_concatMaxValue.shape.h, tl_concatMaxValue.shape.w, tl_maxValue.shape.n,
+                tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, 1, inner_size, 1, 1););
+        ctx.tiu_max_pooling(&max_pool_param2);
+
+        // Broadcast maxValue (n, 1, 1, 1) -> (n, NPU_NUM, 1, 1)
+        // (n, 1, NPU_NUM, 1)->(n, NPU_NUM, 1, 1)
+        //                 h_str = 0
+        {
+            // reshape
+            cvk_tl_t tl_src = {};
+            tl_src.start_address = tl_maxValue.start_address;  // start of lmem
+            tl_src.fmt = CVK_FMT_BF16;
+            tl_src.shape = tl_concatMaxValue.shape;
+            tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_BF16, /*eu_align=*/1);
+            tl_src.stride.h = 0;
+            tl_src.stride.n = EU_NUM; //every element = sizeof(BF16), and eu_align  1
+
+            cvk_tl_t tl_dst = {};
+            tl_dst.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+            tl_dst.fmt = CVK_FMT_BF16;
+            tl_dst.shape = tl_perCMaxValue.shape;
+            tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+            cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
+            p2.src = &tl_src;
+            p2.dst = &tl_dst;
+
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                            "         L2L Reshape:\n"
+                            "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                            "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                            p2.src->start_address, p2.src->shape.n,
+                            p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                            p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                            p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                            p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+            ctx.tdma_l2l_tensor_copy(&p2);
+        }
+
+        //Input = Input - maxOfInput
+        {
+            cvk_tl_t tl_reshape_parallel_input;
+            tl_reshape_parallel_input.start_address = tl_input.start_address;  // start of lmem
+            tl_reshape_parallel_input.fmt = CVK_FMT_BF16;
+            tl_reshape_parallel_input.shape = tl_input.shape;
+            tl_reshape_parallel_input.shape.h = tl_input.shape.h * tl_input.shape.w;
+            tl_reshape_parallel_input.shape.w = 1;
+            tl_reshape_parallel_input.stride = ctx.tl_default_stride(tl_reshape_parallel_input.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+            cvk_tl_t tl_reshape_maxValueBroadcasted;
+            tl_reshape_maxValueBroadcasted.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+            tl_reshape_maxValueBroadcasted.fmt = CVK_FMT_BF16;
+            tl_reshape_maxValueBroadcasted.shape = tl_reshape_parallel_input.shape;
+            tl_reshape_maxValueBroadcasted.stride = ctx.tl_default_stride(tl_reshape_maxValueBroadcasted.shape, CVK_FMT_BF16, /*eu_align=*/1);
+            tl_reshape_maxValueBroadcasted.stride.h = 0;//h stride =0
+            tl_reshape_maxValueBroadcasted.stride.c = 0;//c stride =0
+            tl_reshape_maxValueBroadcasted.stride.n = EU_NUM; //every element = sizeof(BF16)
+
+            cvk_tiu_sub_param_t p5 = {0};
+            p5.res_high = 0;
+            p5.res_low = &tl_reshape_parallel_input;
+            p5.a_high = 0;
+            p5.a_low = &tl_reshape_parallel_input;
+            p5.b_high = 0;
+            p5.b_low = &tl_reshape_maxValueBroadcasted;
+            p5.rshift_bits = 0;
+            p5.layer_id = layer_id;
+            ctx.tiu_sub(&p5);
+        }
+
+        cvk_tl_shape_t lut_result_shape = tl_input.shape;
+        cvk_tl_t *tl_lut_result =
+            ctx.lmem_alloc_tensor(lut_result_shape, CVK_FMT_BF16, eu_align);
+        ASSERT(tl_lut_result);
+
+        cvk_tl_shape_t lut_working_shape = tl_input.shape;
+        lut_working_shape.n *= 2; // Allocate twice of input as working space
+        cvk_tl_t *tl_lut_working =
+            ctx.lmem_alloc_tensor(lut_working_shape, CVK_FMT_BF16, eu_align);
+        ASSERT(tl_lut_working);
+        //lut exponential
+        //tl_lut_result = exp(tl_parallel_input)
+        {
+            const int table_thresh_min = -15;
+            const int table_thresh_max = 1;
+            cvi_backend_tl_lut(
+            ctx, layer_id,
+            tl_input.start_address, tl_lut_result->start_address, tl_lut_working->start_address,
+            tl_exponential_table_answer->start_address, tl_exponential_table_answer_slope->start_address,
+            table_thresh_min, table_thresh_max, workingOutputSize, NPU_NUM, 1, sizePerLane);
+        }
+
+        //Accumulate exponential value
+        {
+            //Calculate per lane exponential value
+            cvk_tiu_average_pooling_param_t param = {0};
+            param.ofmap = &tl_perCMaxValue;
+            param.ifmap = tl_lut_result;
+            param.kh = tl_input.shape.h;
+            param.kw = tl_input.shape.w;
+            param.ins_h = 0;
+            param.ins_last_h = 0;
+            param.ins_w = 0;
+            param.ins_last_w = 0;
+            param.stride_h = 1;
+            param.stride_w = 1;
+            //Set this value as inner_size instead of 1  to do accumulate
+            //kernel will fill avg_pooling_const / (kh * kw)
+            param.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * tl_input.shape.h * tl_input.shape.w);
+            param.layer_id = layer_id;
+            param.ins_val = 0;
+            param.ins_fp = param.avg_pooling_const;
+
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                "  tiu_bf16_avg_pooling\n"
+                "    ifmap shape (%d, %d, %d, %d)\n"
+                "    ofmap shape (%d, %d, %d, %d)\n"
+                "    kh %d, kw %d, stride_h %d, stride_w %d\n"
+                "    avg_const %f, 0x%x\n",
+                tl_input.shape.n, tl_input.shape.c, tl_input.shape.h, tl_input.shape.w, tl_perCMaxValue.shape.n,
+                tl_perCMaxValue.shape.c, tl_perCMaxValue.shape.h, tl_perCMaxValue.shape.w, param.kh, param.kw, 1, 1,
+                1.0, param.avg_pooling_const););
+            ctx.tiu_average_pooling(&param);
+
+            // Concate per lane accumulator value
+            cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
+            p2.src = &tl_perCMaxValue;
+            p2.dst = &tl_concatMaxValue;
+
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                            "         L2L Reshape:\n"
+                            "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                            "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                            p2.src->start_address, p2.src->shape.n,
+                            p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                            p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                            p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                            p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+            ctx.tdma_l2l_tensor_copy(&p2);
+
+            //Accumulate per lane exponential value
+            cvk_tiu_average_pooling_param_t avgParam = {0};
+            avgParam.ofmap = &tl_maxValue;
+            avgParam.ifmap = &tl_concatMaxValue;
+            avgParam.kh = tl_concatMaxValue.shape.h;
+            avgParam.kw = tl_concatMaxValue.shape.w;
+            avgParam.ins_h = 0;
+            avgParam.ins_last_h = 0;
+            avgParam.ins_w = 0;
+            avgParam.ins_last_w = 0;
+            avgParam.stride_h = 1;
+            avgParam.stride_w = 1;
+            //Set this value as inner_size instead of 1  to do accumulate
+            //kernel will fill avg_pooling_const / (kh * kw)
+            avgParam.avg_pooling_const = ctx.convert_fp32_to_bf16(1.0 * tl_concatMaxValue.shape.h * tl_concatMaxValue.shape.w);
+            avgParam.layer_id = layer_id;
+            avgParam.ins_val = 0;
+            avgParam.ins_fp = avgParam.avg_pooling_const;
+
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                "  tiu_bf16_avg_pooling\n"
+                "    ifmap shape (%d, %d, %d, %d)\n"
+                "    ofmap shape (%d, %d, %d, %d)\n"
+                "    kh %d, kw %d, stride_h %d, stride_w %d\n"
+                "    avg_const %f, 0x%x\n",
+                tl_concatMaxValue.shape.n, tl_concatMaxValue.shape.c, tl_concatMaxValue.shape.h, tl_concatMaxValue.shape.w, tl_maxValue.shape.n,
+                tl_maxValue.shape.c, tl_maxValue.shape.h, tl_maxValue.shape.w, avgParam.kh, avgParam.kw, 1, 1,
+                1.0, avgParam.avg_pooling_const););
+            ctx.tiu_average_pooling(&avgParam);
+        }
+
+        cvk_tl_t *tl_lut_reciprocal_result =
+            ctx.lmem_alloc_tensor(lut_result_shape, CVK_FMT_BF16, eu_align);
+        ASSERT(tl_lut_reciprocal_result);
+        //Lut reciprocal value
+        {
+            cvi_backend_tl_lut_exponential_mul_mantissa(
+            ctx, layer_id,
+            tl_maxValue.start_address, tl_lut_reciprocal_result->start_address, tl_lut_working->start_address,
+            tl_reciprocal_table_answer->start_address, tl_reciprocal_mantissa_table_answer->start_address, workingOutputSize, 1, 1, 1);
+        }
+
+        // Broadcast reciprocal value  (n, 1, 1, 1) -> (n, NPU_NUM, 1, 1)
+        {
+            // reshape
+            cvk_tl_t tl_src = {};
+            tl_src.start_address = tl_lut_reciprocal_result->start_address;  // start of lmem
+            tl_src.fmt = CVK_FMT_BF16;
+            tl_src.shape = tl_concatMaxValue.shape;
+            tl_src.stride = ctx.tl_default_stride(tl_src.shape, CVK_FMT_BF16, /*eu_align=*/1);
+            tl_src.stride.h = 0;
+            tl_src.stride.n = EU_NUM; //every element = sizeof(BF16), and eu_align  1
+
+            cvk_tl_t tl_dst = {};
+            tl_dst.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+            tl_dst.fmt = CVK_FMT_BF16;
+            tl_dst.shape = tl_perCMaxValue.shape;
+            tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, CVK_FMT_BF16, /*eu_align=*/1);
+
+            cvk_tdma_l2l_tensor_copy_param_t p2 = {0};
+            p2.src = &tl_src;
+            p2.dst = &tl_dst;
+
+            LLVM_DEBUG(llvm::dbgs() << llvm::format(
+                            "         L2L Reshape:\n"
+                            "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
+                            "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
+                            p2.src->start_address, p2.src->shape.n,
+                            p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
+                            p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
+                            p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
+                            p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
+            ctx.tdma_l2l_tensor_copy(&p2);
+        }
+
+        //ans = exp(input - maxInput) *  reciprocal value
+        {
+            cvk_tl_t tl_reshape_maxValueBroadcasted;
+            tl_reshape_maxValueBroadcasted.start_address = tl_maxValueBroadcasted->start_address;  // start of lmem
+            tl_reshape_maxValueBroadcasted.fmt = CVK_FMT_BF16;
+            tl_reshape_maxValueBroadcasted.shape = tl_lut_result->shape;
+            tl_reshape_maxValueBroadcasted.stride = ctx.tl_default_stride(tl_lut_result->shape, CVK_FMT_BF16, /*eu_align=*/1);
+            tl_reshape_maxValueBroadcasted.stride.h = 0;//h stride =0
+            tl_reshape_maxValueBroadcasted.stride.c = 0;//c stride =0
+            tl_reshape_maxValueBroadcasted.stride.w = 0;//w stride =0
+            tl_reshape_maxValueBroadcasted.stride.n = EU_NUM; //every element = sizeof(BF16)
+
+            cvk_tiu_mul_param_t p = {0};
+            p.res_high = nullptr;
+            p.res_low = tl_lut_result;
+            p.a = tl_lut_result;
+            p.b = &tl_reshape_maxValueBroadcasted;
+            p.b_is_const = 0;
+            p.rshift_bits = 0;
+            p.layer_id = layer_id;
+            p.relu_enable = false;
+            ctx.tiu_mul(&p);
+        }
+        //Store to dram
+        {
+            cvk_ml_t tl_golden = {0};
+            tl_golden.fmt = CVK_FMT_BF16;
+            tl_golden.start_address = tl_lut_result->start_address;
+            tl_golden.shape = {
+                (uint32_t)workingOutputSize,
+                (uint32_t)NPU_NUM,
+                (uint32_t)sizePerLane,
+                (uint32_t)inner_size}; //n, c, w, col
+            tl_golden.stride = ctx.ml_default_stride(tl_golden.shape, tl_golden.fmt, 1);
+
+            cvk_mg_t ts_data = {0};
+            ts_data.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
+            ts_data.start_address = ga_output + outer_pos * inner_size * sizeof(uint16_t);;
+            ts_data.fmt = tl_golden.fmt;
+            ts_data.shape = {tl_golden.shape.n, tl_golden.shape.col};
+            ts_data.stride = {(uint32_t)(inner_size*sizeof(uint16_t))};
+
+            cvk_tdma_l2g_matrix_copy_param_t p1 = {0};
+            p1.src = &tl_golden;
+            p1.dst = &ts_data;
+            ctx.tdma_l2g_matrix_copy(&p1);
+            // ctx.tdma_store_stride(&tl_golden, ga_output,
+            //                            {inner_size*sizeof(uint16_t)});// original column width
+        }
+        ctx.lmem_free_tensor(tl_lut_reciprocal_result);
+        ctx.lmem_free_tensor(tl_lut_working);
+        ctx.lmem_free_tensor(tl_lut_result);
+        ctx.lmem_free_tensor(tl_maxValueBroadcasted);
+        ctx.lmem_free_matrix(ml_input);
+    }
+    ctx.lmem_free_tensor(tl_reciprocal_mantissa_table_answer);
+    ctx.lmem_free_tensor(tl_reciprocal_table_answer);
+    ctx.lmem_free_tensor(tl_exponential_table_answer_slope);
+    ctx.lmem_free_tensor(tl_exponential_table_answer);
 }
 
 void bf16_softmax_kernel_2d_parallel_inner_size(const CviBackendContext &ctx, uint32_t layer_id,
@@ -636,7 +1062,6 @@ void bf16_softmax_kernel_2d_parallel_inner_size(const CviBackendContext &ctx, ui
     ctx.lmem_free_tensor(tl_exponential_table_answer);
 }
 
-
 void bf16_softmax_kernel_2d_parallel_outer_size(const CviBackendContext &ctx, uint32_t layer_id,
                             gaddr_t ga_input,
                             gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
@@ -1049,20 +1474,32 @@ void bf16_softmax_kernel_2d(const CviBackendContext &ctx, uint32_t layer_id,
     //This constraint is temporarily used.
     //Set uRate ~= 75%
     bool isParallelOuterSize = (outer_size >= NPU_NUM * 3 / 4) ? true : false;
-    if(isParallelOuterSize) {
-        bf16_softmax_kernel_2d_parallel_outer_size(ctx, layer_id,
-                               ga_input,
-                               ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
-                               ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
-                               ga_output,
-                               outer_size, inner_size);
+    unsigned int tiledParallelInnerOutputSize = doSplitHeightBf16softmax2DParallelInnerSize(ctx, outer_size, inner_size);
+    unsigned int tiledParallelOuterOutputSize = doSplitHeightBf16softmax2DParallelOuterSize(ctx, outer_size, inner_size);
+    bool isSizeTooLargeToHandle = (tiledParallelInnerOutputSize == 0) || (tiledParallelOuterOutputSize == 0);
+    if(!isSizeTooLargeToHandle){
+        if(isParallelOuterSize) {
+            bf16_softmax_kernel_2d_parallel_outer_size(ctx, layer_id,
+                                ga_input,
+                                ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
+                                ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
+                                ga_output,
+                                outer_size, inner_size);
+        } else {
+            bf16_softmax_kernel_2d_parallel_inner_size(ctx, layer_id,
+                                ga_input,
+                                ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
+                                ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
+                                ga_output,
+                                outer_size, inner_size);
+        }
     } else {
-        bf16_softmax_kernel_2d_parallel_inner_size(ctx, layer_id,
-                               ga_input,
-                               ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
-                               ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
-                               ga_output,
-                               outer_size, inner_size);
+        softmaxLargeSizeHandler(ctx, layer_id,
+                                ga_input,
+                                ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
+                                ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
+                                ga_output,
+                                outer_size, inner_size);
     }
 }
 
