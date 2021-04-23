@@ -143,10 +143,6 @@ function pack_sampel_cvimodels() {
 function pack_regression_cvimodels() {
   local chip=$1
 
-  if [ ! -e cvimodel_release/$chip ]; then
-    echo "./cvitek_release/$chip not exist"
-    exit 1
-  fi
   if [ ! -e regression_out/$chip/cvimodel_regression ]; then
     echo "./regression_out/$chip/cvimodel_regression not exist"
     exit 1
@@ -159,9 +155,9 @@ function pack_regression_cvimodels() {
   tar zcvf $dest_dir/cvimodel_regression_bs4_${chip}.tar.gz \
            cvimodel_regression_bs4
   tar zcvf $dest_dir/cvimodel_regression_bf16_${chip}.tar.gz \
-           cvimodel_regression_bf16
-  tar zcvf $dest_dir/cvimodel_regression_fused_preprocess_${chip}.tar.gz \
-           cvimodel_regression_fused_preprocess
+           cvimodel_regression_bf16_bs1
+  tar zcvf $dest_dir/cvimodel_regression_bf16_${chip}.tar.gz \
+           cvimodel_regression_bf16_bs4
   popd
 }
 
@@ -171,7 +167,7 @@ pack_sampel_cvimodels cv183x
 pack_regression_cvimodels cv183x
 
 # pack cv182x models
-if [ ! -e cvimodel_release/cv182x ]; then
+if [ ! -e regression_out/cv182x ]; then
   exit 0
 fi
 pack_sampel_cvimodels cv182x

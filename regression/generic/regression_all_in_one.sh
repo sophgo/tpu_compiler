@@ -9,9 +9,9 @@ if [ $BGRAY -eq 1 ]; then
     PIXEL_FORMAT='GRAYSCALE'
 fi
 
-postfix=''
+postfix='bs1'
 if [ $BATCH_SIZE -eq 4 ]; then
-  postfix='_bs4'
+  postfix='bs4'
 fi
 
 model_transform.py \
@@ -44,18 +44,15 @@ if [ $DO_QUANT_INT8 -eq 1 ]; then
     --image ${IMAGE_PATH} \
     --tolerance ${TOLERANCE_INT8_MULTIPLER} \
     --excepts ${EXCEPTS} \
-    --fuse_preprocess \
-    --pixel_format $PIXEL_FORMAT \
-    --aligned_input false \
     --correctness 0.99,0.99,0.99 \
-    --cvimodel ${NET}_int8.cvimodel
+    --cvimodel ${NET}.cvimodel
 
-  DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression${postfix}_fused_preprocess
+  DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_${postfix}
   mkdir -p $DST_DIR
 
-  mv ${NET}_int8_in_fp32_resize_only.npz $DST_DIR/${NET}_only_resize_in_fp32.npz
-  mv ${NET}_int8.cvimodel $DST_DIR/${NET}_int8.cvimodel
-  mv ${NET}_int8_quantized_tensors_sim.npz $DST_DIR/${NET}_fused_preprocess_out_all.npz
+  mv ${NET}_in_fp32.npz $DST_DIR/${NET}_${postfix}_in_fp32.npz
+  mv ${NET}.cvimodel $DST_DIR/${NET}_${postfix}.cvimodel
+  mv ${NET}_quantized_tensors_sim.npz $DST_DIR/${NET}_${postfix}_out_all.npz
 fi
 
 if [ $DO_QUANT_BF16 -eq 1 ]; then
@@ -73,9 +70,9 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
     --correctness ${TOLERANCE_BF16_CMDBUF} \
     --cvimodel ${NET}_bf16.cvimodel
 
-  DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_bf16${postfix}
+  DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_bf16_${postfix}
   mkdir -p $DST_DIR
-  mv ${NET}_bf16_in_fp32_resize_only.npz $DST_DIR/${NET}_only_resize_in_fp32.npz
-  mv ${NET}_bf16.cvimodel $DST_DIR/
-  mv ${NET}_bf16_quantized_tensors_sim.npz $DST_DIR/${NET}_bf16_out_all.npz
+  mv ${NET}_bf16_in_fp32_resize_only.npz $DST_DIR/${NET}_${postfix}_only_resize_in_fp32.npz
+  mv ${NET}_bf16.cvimodel $DST_DIR/${NET}_${postfix}.cvimodel
+  mv ${NET}_bf16_quantized_tensors_sim.npz $DST_DIR/${NET}_${postfix}_bf16_out_all.npz
 fi
