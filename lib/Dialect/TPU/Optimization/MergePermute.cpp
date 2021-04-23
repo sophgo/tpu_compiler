@@ -43,53 +43,6 @@ struct MergePermuteOpPattern : public RewritePattern {
   MergePermuteOpPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
-  bool checkPattern(Operation *op) const {
-    // reshape
-    auto inst_1 = dyn_cast<tpu::ReshapeOp>(op);
-
-    // reshape
-    auto inst_2 = getNextOp(inst_1);
-    if (!(inst_2 && isa<tpu::ReshapeOp>(inst_2)))
-      return false;
-
-    // permute
-    auto inst_3 = getNextOp(inst_2);
-    if (!(inst_3 && isa<tpu::PermuteOp>(inst_3)))
-      return false;
-
-    // pad
-    auto inst_4 = getNextOp(inst_3);
-    if (!(inst_4 && isa<tpu::PadOp>(inst_4)))
-      return false;
-
-    // reshape
-    auto inst_5 = getNextOp(inst_4);
-    if (!(inst_5 && isa<tpu::ReshapeOp>(inst_5)))
-      return false;
-
-    // relu
-    auto inst_6 = getNextOp(inst_5);
-    if (!(inst_6 && isa<tpu::ReluOp>(inst_6)))
-      return false;
-
-    // reshape
-    auto inst_7 = getNextOp(inst_6);
-    if (!(inst_7 && isa<tpu::ReshapeOp>(inst_7)))
-      return false;
-
-    // permute
-    auto inst_8 = getNextOp(inst_7);
-    if (!(inst_8 && isa<tpu::PermuteOp>(inst_8)))
-      return false;
-
-    // reshape
-    auto inst_9 = getNextOp(inst_8);
-    if (!(inst_9 && isa<tpu::ReshapeOp>(inst_9)))
-      return false;
-
-    return true;
-  }
-
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
 
@@ -223,6 +176,146 @@ struct MergePermuteOpPattern : public RewritePattern {
   }
 };
 
+template <typename OpTy>
+struct MergeConvPadReluPattern : public RewritePattern {
+  MergeConvPadReluPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+
+    auto convOp = dyn_cast_or_null<tpu::Conv2DOp>(op);
+    if (!convOp)
+      return failure();
+
+    auto nextOp = getNextOp(convOp);
+    if (!(nextOp && isa<tpu::PadOp>(nextOp)))
+      return failure();
+
+    auto nextnextOp = getNextOp(nextOp);
+    if (!(nextnextOp && isa<tpu::ReluOp>(nextnextOp)))
+      return failure();
+
+    auto padOp = dyn_cast_or_null<tpu::PadOp>(nextOp);
+    auto reluOp = dyn_cast_or_null<tpu::ReluOp>(nextnextOp);
+
+    bool is_dw, with_bias, do_relu;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw;
+    int pt, pb, pl, pr, dh, dw, pad_value;
+    parseConvParam(convOp.param(), false, convOp.input(), convOp.output(),
+                   convOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
+                   pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu,
+                   pad_value);
+
+
+    std::vector<int32_t> pads;
+    arrayAttrToVector(padOp.pads().getValue(), pads);
+
+    if (!((pt == 0) && (pb == 0)))
+      return failure();
+
+    // check if conv with pad from padOp can make ih == oh, iw == ow
+    int cal_oh = ( ih + pads[2] + pads[6] - kh) / sh + 1;
+    int cal_ow = ( iw + pads[3] + pads[7] - kw) / sw + 1;
+    // if success, we can merge pad with conv
+    if (!(cal_oh == ih && cal_ow == iw))
+      return failure();
+
+    std::vector<NamedAttribute> attrs;
+    std::vector<Value> operands;
+    for(uint i = 0; i < convOp.getNumOperands(); i++)
+      operands.push_back(convOp.getOperand(i));
+
+    attrs.push_back(rewriter.getNamedAttr("name",
+                  convOp.nameAttr()));
+    attrs.push_back(rewriter.getNamedAttr("param",
+    tpu::ConvParam::get(
+        rewriter.getI32IntegerAttr(sh),
+        rewriter.getI32IntegerAttr(sw),
+        rewriter.getStringAttr("VALID"),
+        rewriter.getI32IntegerAttr(dh),
+        rewriter.getI32IntegerAttr(dw),
+        rewriter.getI32IntegerAttr(pads[2]), // pd_t
+        rewriter.getI32IntegerAttr(pads[6]), // pd_b
+        rewriter.getI32IntegerAttr(pads[3]), // pd_l
+        rewriter.getI32IntegerAttr(pads[7]), // pd_r
+        rewriter.getI32IntegerAttr(g),
+        rewriter.getBoolAttr(is_dw),
+        rewriter.getBoolAttr(with_bias),
+        rewriter.getBoolAttr(true),
+        rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+        rewriter.getI32IntegerAttr(0), //pad_value
+        rewriter.getContext())));
+    attrs.push_back(
+        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+
+    auto newConvOp = rewriter.create<tpu::Conv2DOp>(
+                      reluOp.getLoc(), reluOp->getResult(0).getType(),
+                      ArrayRef<Value>{operands},
+                      ArrayRef<NamedAttribute>{attrs});
+
+    reluOp.getResult().replaceAllUsesWith(newConvOp.getResult());
+    rewriter.eraseOp(reluOp);
+    rewriter.eraseOp(padOp);
+    rewriter.eraseOp(convOp);
+
+    return success();
+  }
+};
+
+template <typename OpTy>
+struct MergeConvReluPattern : public RewritePattern {
+  MergeConvReluPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+
+    auto convOp = dyn_cast_or_null<tpu::Conv2DOp>(op);
+    if (!convOp)
+      return failure();
+
+    auto nextOp = getNextOp(convOp);
+    if (!(nextOp && isa<tpu::PadOp>(nextOp)))
+      return failure();
+
+    auto nextnextOp = getNextOp(nextOp);
+    if (!(nextnextOp && isa<tpu::ReluOp>(nextnextOp)))
+      return failure();
+
+    auto padOp = dyn_cast_or_null<tpu::PadOp>(nextOp);
+    auto reluOp = dyn_cast_or_null<tpu::ReluOp>(nextnextOp);
+
+    float const_val = padOp.const_val().convertToFloat();
+    if (const_val < 0.0)
+      return failure();
+
+    // set relu for conv
+    convOp->setAttr("param",
+          tpu::ConvParam::get(
+              convOp.param().stride_h(),
+              convOp.param().stride_w(),
+              convOp.param().padding(),
+              convOp.param().dilation_h(),
+              convOp.param().dilation_w(),
+              convOp.param().padding_t(),
+              convOp.param().padding_b(),
+              convOp.param().padding_l(),
+              convOp.param().padding_r(),
+              convOp.param().group(),
+              convOp.param().is_dw(),
+              convOp.param().with_bias(),
+              rewriter.getBoolAttr(true),
+              convOp.param().ins(),
+              convOp.param().pad_value(),
+              rewriter.getContext()));
+
+    reluOp.getResult().replaceAllUsesWith(padOp.getResult());
+    rewriter.eraseOp(reluOp);
+
+    return success();
+  }
+};
 class MergePermuteOpPass
     : public mlir::PassWrapper<MergePermuteOpPass, FunctionPass> {
 public:
@@ -234,7 +327,8 @@ public:
     auto *context = &getContext();
     patterns.clear();
     patterns.insert<
-        MergePermuteOpPattern<tpu::ReshapeOp>
+        MergePermuteOpPattern<tpu::ReshapeOp>,
+        MergeConvReluPattern<tpu::Conv2DOp>
       >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
