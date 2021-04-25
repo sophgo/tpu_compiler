@@ -4624,12 +4624,9 @@ struct LowerCustomOpPattern : public RewritePattern {
   }
 };
 
-
-
-
 template <typename OpTy>
-struct LowerFunctionTypePattern: public RewritePattern {
-  LowerFunctionTypePattern(MLIRContext *context)
+struct EliminateInputQuantOpPattern: public RewritePattern {
+  EliminateInputQuantOpPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   void updateInputOpNameIfNeeded(PatternRewriter &rewriter,
@@ -4648,25 +4645,51 @@ struct LowerFunctionTypePattern: public RewritePattern {
     }
   }
 
+  bool ifAllSiblingsAreSameQuantMode(Operation *input_op, StringRef mode) const {
+    for (auto &use : input_op->getResult(0).getUses()) {
+      auto nextOp = use.getOwner();
+      if (isa<tpu::ReshapeOp>(nextOp)) {
+        nextOp = getNextOp(nextOp);
+        assert(nextOp);
+      }
+      auto quantOp = dyn_cast<tpu::QuantOp>(nextOp);
+      if (!quantOp) {
+        continue;
+      }
+
+      if (quantOp.to() != mode) {
+        return false;
+      }
+    }
+    return true;
+  }
+
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
     auto quantOp = cast<OpTy>(op);
     auto prevOp = op->getOperand(0).getDefiningOp();
 
-    auto fn = op->getParentOfType<FuncOp>();
-    assert(fn);
-
     auto getEltType = [](Value value){
       auto type = value.getType().template cast<TensorType>();
       return type.getElementType();
     };
+    auto fn = op->getParentOfType<FuncOp>();
+    assert(fn);
     // change the argType of FuncOp
     if (isa<tpu::InputOp>(prevOp) ||
         isa<tpu::InputOp>(prevOp->getOperand(0).getDefiningOp())) {
       if (isa<tpu::ReshapeOp>(prevOp)) {
         prevOp = prevOp->getOperand(0).getDefiningOp();
       }
-      if (quantOp.from() == "NONE" &&
+      // if not all sibliings are same quant mode,
+      // change input's mode to BF16
+      if (!ifAllSiblingsAreSameQuantMode(prevOp, quantOp.to())) {
+        auto argument = prevOp->getOperand(0);
+        setOpResultType(argument, FloatType::getBF16(op->getContext()));
+        setOpResultType(prevOp->getResult(0), FloatType::getBF16(op->getContext()));
+        setOpResultType(op->getOperand(0), FloatType::getBF16(op->getContext()));
+        quantOp->setAttr("from", rewriter.getStringAttr("BF16"));
+      } else if (quantOp.from() == "NONE" &&
           (quantOp.to() == "INT8" || quantOp.to() == "UINT8") &&
           !clQuantInputsToInt8) {
         // remove quantOp and change argType
@@ -4699,6 +4722,8 @@ struct LowerFunctionTypePattern: public RewritePattern {
         setOpZeroPoint(prevOp, 0);
         rewriter.replaceOp(op, {op->getOperand(0)});
       }
+
+      // make result type of reshapeOp is as some as its' operand.
       auto elementType = getEltType(prevOp->getResult(0));
       for (auto &use : prevOp->getResult(0).getUses()) {
         auto child = use.getOwner();
@@ -4706,14 +4731,6 @@ struct LowerFunctionTypePattern: public RewritePattern {
           continue;
         }
         setOpResultType(child->getResult(0), elementType);
-      }
-    } else if (op->getResult(0).hasOneUse()) {
-      auto nextOp = getNextOp(op);
-      if (isa<ReturnOp>(nextOp) && !clDequantResultsToFp32) {
-        // change the returnType of FuncOp
-        if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
-          rewriter.replaceOp(op, {op->getOperand(0)});
-        }
       }
     } else {
       return failure();
@@ -4723,7 +4740,108 @@ struct LowerFunctionTypePattern: public RewritePattern {
     // of InputOp and ReturnOp
     std::vector<mlir::Type> arguments;
     std::vector<mlir::Type> returns;
+    Block &entryBlock = fn.front();
+    auto returnOp = dyn_cast<ReturnOp>(entryBlock.back()).getOperation();
+    for (uint32_t i = 0; i < entryBlock.getNumArguments(); ++i) {
+      arguments.push_back(entryBlock.getArgument(i).getType());
+    }
+    for (uint32_t i = 0; i < returnOp->getNumOperands(); ++i) {
+      returns.push_back(returnOp->getOperand(i).getType());
+    }
+    auto fnType = rewriter.getFunctionType(
+          llvm::ArrayRef<mlir::Type>{arguments},
+          llvm::ArrayRef<mlir::Type>{returns});
+    fn.setType(fnType);
+
+    return success();
+  }
+};
+
+template <typename OpTy>
+struct EliminateOutputQuantOpPattern: public RewritePattern {
+  EliminateOutputQuantOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto nextOp = getNextOp(op);
+    if (!nextOp) {
+      return failure();
+    }
+    if (!isa<ReturnOp>(nextOp)) {
+      return failure();
+    }
+    auto fn = op->getParentOfType<FuncOp>();
     assert(fn);
+
+    auto quantOp = cast<OpTy>(op);
+    if (!clDequantResultsToFp32) {
+      // change the returnType of FuncOp
+      if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
+        rewriter.replaceOp(op, {op->getOperand(0)});
+      }
+    }
+
+    // alter the function type to match the real type
+    // of InputOp and ReturnOp
+    std::vector<mlir::Type> arguments;
+    std::vector<mlir::Type> returns;
+    Block &entryBlock = fn.front();
+    auto returnOp = dyn_cast<ReturnOp>(entryBlock.back()).getOperation();
+    for (uint32_t i = 0; i < entryBlock.getNumArguments(); ++i) {
+      arguments.push_back(entryBlock.getArgument(i).getType());
+    }
+    for (uint32_t i = 0; i < returnOp->getNumOperands(); ++i) {
+      returns.push_back(returnOp->getOperand(i).getType());
+    }
+    auto fnType = rewriter.getFunctionType(
+          llvm::ArrayRef<mlir::Type>{arguments},
+          llvm::ArrayRef<mlir::Type>{returns});
+    fn.setType(fnType);
+
+    return success();
+  }
+};
+
+template <typename OpTy>
+struct EliminateUselessQuantOpPattern: public RewritePattern {
+  EliminateUselessQuantOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto quantOp = cast<OpTy>(op);
+    if (quantOp.from() != quantOp.to()) {
+      return failure();
+    }
+    rewriter.replaceOp(op, {op->getOperand(0)});
+    return success();
+  }
+};
+
+template <typename OpTy>
+struct EliminateOutputReshapeOpPattern: public RewritePattern {
+  EliminateOutputReshapeOpPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto nextOp = getNextOp(op);
+    if (!nextOp) {
+      return failure();
+    }
+    if (!isa<ReturnOp>(nextOp)) {
+      return failure();
+    }
+    auto fn = op->getParentOfType<FuncOp>();
+    assert(fn);
+
+    rewriter.replaceOp(op, {op->getOperand(0)});
+
+    // alter the function type to match the real type
+    // of InputOp and ReturnOp
+    std::vector<mlir::Type> arguments;
+    std::vector<mlir::Type> returns;
     Block &entryBlock = fn.front();
     auto returnOp = dyn_cast<ReturnOp>(entryBlock.back()).getOperation();
     for (uint32_t i = 0; i < entryBlock.getNumArguments(); ++i) {
@@ -4802,8 +4920,16 @@ public:
 
     patterns.clear();
     patterns.insert<
-        LowerFunctionTypePattern<tpu::QuantOp>
-        >(context);
+        EliminateInputQuantOpPattern<tpu::QuantOp>,
+        EliminateOutputQuantOpPattern<tpu::QuantOp>,
+        EliminateOutputReshapeOpPattern<tpu::ReshapeOp>
+      >(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    patterns.clear();
+    patterns.insert<
+        EliminateUselessQuantOpPattern<tpu::QuantOp>
+      >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     storeQscaleTableToFile(fn, context);

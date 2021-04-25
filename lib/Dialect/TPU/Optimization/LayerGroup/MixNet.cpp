@@ -1724,7 +1724,7 @@ void MixNet::_add_load_op(int group_idx,
     if (tensor_type == TENSOR_NEURON || tensor_type == TENSOR_NEURON_WINOGRAD) {
       aligned = (true);
     } else {  // TENSOR_COEFF_NEURON
-      if (tensor_type != TENSOR_NEURON_AS_COEFF) {
+      if (tensor_type != TENSOR_NEURON_AS_COEFF && tensor_type != TENSOR_MATRIX) {
         dtype = COEFF;
       }
       aligned = (false);

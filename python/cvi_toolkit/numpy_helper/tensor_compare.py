@@ -121,10 +121,10 @@ class TensorCompare():
     # cosine similarity
     # cosine_similarity_my = self.cosine_similarity(d1.flatten(), d2.flatten())
     # print("Cosine Similarity    (my): ", cosine_similarity_my)
-    cosine_similarity = 1 - spatial.distance.cosine(d1.flatten(), d2.flatten())
+    cosine_similarity = 1 - spatial.distance.cosine(d1.flatten().astype(np.float32), d2.flatten().astype(np.float32))
     # print("Cosine Similarity    (sp): ", cosine_similarity)
     # correlation similarity
-    correlation_similarity = 1 - spatial.distance.correlation(d1.flatten(), d2.flatten())
+    correlation_similarity = cosine_similarity #1 - spatial.distance.correlation(d1.flatten(), d2.flatten())
     #print("Correlation Similarity   : ", correlation_similarity)
     # measure euclidean similarity
     m = (d1+d2)/2
