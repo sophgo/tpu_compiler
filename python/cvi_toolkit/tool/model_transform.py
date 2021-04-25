@@ -2,6 +2,7 @@
 import os
 import sys
 import abc
+import onnx, onnxruntime
 import numpy as np
 import argparse
 from cvi_toolkit.utils.log_setting import setup_logger
@@ -14,7 +15,6 @@ from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.utils.mlir_shell import *
 from cvi_toolkit.utils.intermediate_file import IntermediateFile
-import onnx, onnxruntime
 
 logger = setup_logger('root', log_level="INFO")
 
@@ -111,8 +111,12 @@ class OnnxModelTransformTool(ModelTransformTool):
         # plz refre https://github.com/microsoft/onnxruntime/issues/1455
         output_keys = []
         model = onnx.load(self.onnx_model)
-        no_list = ["Cast", "Shape", "Unsqueeze",
-                    "Gather", "Split", "Constant", "GRU"]
+        no_list = [
+            "Cast", "Shape", "Unsqueeze", "Gather", "Split", "Constant", "GRU",
+            # remove layernorm's sub ops, or it will crash in onnxruntime.
+            "Div", "Sqrt", "Add", "ReduceMean", "Pow", "Sub", "Mul"
+        ]
+
         # tested commited #c3cea486d https://github.com/microsoft/onnxruntime.git
         for x in model.graph.node:
             if x.op_type in no_list:
