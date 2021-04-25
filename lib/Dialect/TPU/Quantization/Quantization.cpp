@@ -623,10 +623,21 @@ struct TpuQuantInputPassPattern : public RewritePattern {
     if (!inputOp) {
       return failure();
     }
+    if (nullptr != getNextOp(op)) {
+      // only one use
+      return failure();
+    }
     bool hasBf16 = false;
     bool hasOther = false;
     for (auto &use : op->getResult(0).getUses()) {
       auto nextOp = use.getOwner();
+      while (isa<tpu::ReshapeOp>(nextOp)) {
+        nextOp = getNextOp(nextOp);
+        if (nextOp == nullptr) {
+          llvm::errs() << "Warning: after reshape, have no nextop";
+          return failure();
+        }
+      }
       auto quant = getOpQuant(nextOp);
       if (quant == "BF16") {
         hasBf16 = true;
@@ -641,8 +652,8 @@ struct TpuQuantInputPassPattern : public RewritePattern {
       // all quant to BF16
       for (auto &use : op->getResult(0).getUses()) {
         auto nextOp = use.getOwner();
-        if (isa<tpu::ReshapeOp>(nextOp)) {
-          continue;
+        while (isa<tpu::ReshapeOp>(nextOp)) {
+          nextOp = getNextOp(nextOp);
         }
         auto quant = getOpQuant(nextOp);
         if (quant == "BF16") {

@@ -57,6 +57,11 @@ void getNCHW(std::vector<int64_t> &shape,
     c = shape[1];
     h = 1;
     w = 1;
+  } else if (shape.size() == 1) {
+    n = shape[0];
+    c = 1;
+    h = 1;
+    w = 1;
   } else {
     llvm_unreachable("unsupported shape size");
   }

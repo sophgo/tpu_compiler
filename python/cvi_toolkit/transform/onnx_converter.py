@@ -272,6 +272,35 @@ class OnnxConverter(BaseConverter):
                 return True
         return False
 
+    # only support c bcast: (n, c, h, w) + (n, 1, h, w)
+    # others like: (1, c, h, w) + (1, 1, h, w) or (1, c, h, w) + (1, 1, 1, w) will convert to c bcast situation
+    def is_bcast_support(self, lshape, rshape):
+        # the same, needn't bcast
+        if lshape == rshape:
+            return False
+        # len should be same
+        if len(lshape) != len(rshape):
+            return False
+        # only support rshape bcast to lshape
+        if np.prod(lshape >= rshape) == 0:
+            return False
+        num_dims = len(lshape)
+        if num_dims > 4 or num_dims == 1:
+            return False
+        if lshape[0] != rshape[0] and lshape[0] != 1 or rshape[1] != 1:
+            return False
+        if num_dims == 2:
+            return True
+        # >= 2 dims
+        if rshape[-1] != lshape[-1]:
+            return False
+        #[n, c, h] + [n, 1, h]
+        if num_dims == 3:
+            return True
+        if rshape[2] == 1 or rshape[2] == lshape[2]:
+            return True
+        return False
+
     def addTensor(self, op_name, tensor_data, tensor_shape):
         #cprint("add tensor, name: {}\ntensor data: {}".format(op_name, tensor_data), "yellow")
         self.converted_tensors.append(OnnxTensor(op_name, tensor_data, tensor_shape))
@@ -790,6 +819,10 @@ class OnnxConverter(BaseConverter):
 
         elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.ACTIVATION:
             if input_shape1 != input_shape2:
+                if np.prod(input_shape2) > np.prod(input_shape1):
+                    # swap, large shape first
+                    op1, op2 = op2, op1
+                    input_shape1, input_shape2 = input_shape2, input_shape1
                 # (n, c, h, w) + (n, c, 1, 1)
                 if len(input_shape1) == 4 and input_shape2[-2:] == [1, 1] and input_shape1[1] == input_shape2[1]:
                     # broadcast add from activation
@@ -834,18 +867,8 @@ class OnnxConverter(BaseConverter):
                     self.addOperand(onnx_node.name, deconv_op,
                                     output_shape, TensorType.ACTIVATION)
                     op2 = deconv_op
-                elif len(input_shape2) == 4 and input_shape1[-2:] == [1, 1] and input_shape1[1] == input_shape2[1]:
-                    # (n c 1 1) + (n c h w)
-                    onnx_node.inputs[0] ,onnx_node.inputs[1] = onnx_node.inputs[1], onnx_node.inputs[0]
-                    return self.convert_add_op(onnx_node)
-                elif len(input_shape1) == 4 and input_shape2[1:3] == [1, 1] and input_shape1[3] == input_shape2[3]:
-                    name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-                    add_op = self.CVI.add_broadcast_add_op(name, [op1, op2],
-                                                            input_shape1, axis=1)
-                    self.addOperand(onnx_node.name, add_op,
-                                    input_shape1, TensorType.ACTIVATION)
-                    return
-                elif len(input_shape1) == 4 and input_shape2[1] == 1 and input_shape1[2:] == input_shape2[2:]:
+                #  (n, c, h, w) + (n, 1, h, w)
+                elif self.is_bcast_support(input_shape1, input_shape2):
                     name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
                     add_op = self.CVI.add_broadcast_add_op(name, [op1, op2],
                                                             input_shape1, axis=1)
@@ -1020,6 +1043,9 @@ class OnnxConverter(BaseConverter):
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
 
         axis = onnx_node.attrs['axis']
+        if axis < 0:
+            axis += len(input_shape1)
+        assert(axis >=0 and axis < len(input_shape1))
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
             max_dims = 0
             for i in onnx_node.inputs:
@@ -2259,29 +2285,20 @@ class OnnxConverter(BaseConverter):
                     # swap
                     op1, op2 = op2, op1
                     input_shape1, input_shape2 = input_shape2, input_shape1
-
-                if len(input_shape1) == 3 and len(input_shape2) == 3 and \
-                  input_shape2[2] == 1:
-                    # hoist shape, [1, 507, 80] vs [1, 507, 1] could reshape to
-                    # 1, 507, 80, 1 and 1, 507, 1, 1
-                    #input_shape1.append(1)
-                    #input_shape2.append(1)
+                # bcast mul, e.g.
+                #   [4,3,28,28] x [4,1,28,28] => [4,3,28,28]
+                #   [4,3,28,28] x [1,1,28,28] => [4,3,28,28]
+                if self.is_bcast_support(input_shape1, input_shape2):
                     pass
-
-                elif len(input_shape1) == 4:
-                    if np.prod(input_shape2) == input_shape1[0] * input_shape1[1]:
-                        # convert to scale op, e.g.
-                        #   [4,3,28,28] x [1,3] => [4,3,28,28]
-                        #   [4,3,28,28] x [4,3] => [4,3,28,28]
-                        pass
-                    elif (len(input_shape2) == 4 and input_shape1[2:] == input_shape2[2:] and
-                            input_shape2[1] == 1 and (input_shape1[0] == input_shape2[0] or input_shape2[0] == 1)):
-                        # bcast mul, e.g.
-                        #   [4,3,28,28] x [4,1,28,28] => [4,3,28,28]
-                        #   [4,3,28,28] x [1,1,28,28] => [4,3,28,28]
-                        pass
-                    else:
-                        raise RuntimeError("{} vs {}  broadcast mul not support".format(
+                # scale, e.g.
+                #   [4,3,28,28] x [1,3] => [4,3,28,28]
+                #   [4,3,28,28] x [4,3] => [4,3,28,28]
+                elif len(input_shape2) > 1 and input_shape1[1] == input_shape2[1] and \
+                      (input_shape1[0] == 1 or input_shape1[0] == input_shape2[0]) and \
+                      (len(input_shape2) == 2 or np.prod(input_shape2[2:]) == 1):
+                    pass
+                else:
+                    raise RuntimeError("{} vs {}  broadcast mul not support".format(
                             input_shape1, input_shape2))
                 axis = 1
                 output_shape = input_shape1
