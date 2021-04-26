@@ -6,9 +6,6 @@
 #include "tpuc/Interpreter/cpu/activation.hpp"
 
 namespace mlir {
-static inline float BF16(float data) {
-  return convert_bf16_fp32(convert_fp32_bf16(data));
-}
 
 LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping) {
   auto lnOp = cast<tpu::LayerNormOp>(op);

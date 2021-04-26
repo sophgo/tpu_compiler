@@ -37,6 +37,7 @@ void TgGruKernel::zeros(const cvk_ml_t &matrix) {
   ctx.tiu_zeros(layer_id, &tl_mem);
 }
 
+// Y[M, N] = L[M,K] * R[K,N] + B[4,N]
 void TgGruKernel::matrix_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
                              const cvk_ml_t &ml_right, const cvk_ml_t &ml_bias,
                              uint8_t ps32_mode) {
@@ -48,7 +49,7 @@ void TgGruKernel::matrix_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
   matrix_for_tiu(&ml_left_);
   matrix_for_tiu(&ml_right_);
   cvk_ml_t *p_bias = nullptr;
-  if (ps32_mode == 0 || ps32_mode == 1) {
+  if (do_bias && (ps32_mode == 0 || ps32_mode == 1)) {
     matrix_for_tiu(&ml_bias_);
     p_bias = &ml_bias_;
   }
@@ -190,7 +191,10 @@ bool TgGruKernel::need_tiling() {
   auto b_shape = ctx.ml_default_shape(4 / fmt_size, hidden_size, fmt);
   auto x_size = ctx.lmem_matrix_to_size(x_shape, fmt, 1);
   auto r_size = ctx.lmem_matrix_to_size(r_shape, fmt, 1);
-  auto b_size = ctx.lmem_matrix_to_size(b_shape, fmt, 1);
+  uint32_t b_size = 0;
+  if (do_bias) {
+    b_size = ctx.lmem_matrix_to_size(b_shape, fmt, 1);
+  }
   uint64_t total_size = lmem_used + 3 * r_size + 3 * b_size + 6 * x_size;
   if (total_size > (uint32_t)LOCAL_MEM_SIZE) {
     return true;
@@ -211,8 +215,10 @@ void TgGruKernel::tiling() {
     auto b_size = ctx.lmem_matrix_to_size(b_shape, fmt, 1);
     addr_recurrence = lmem_used;
     lmem_used += r_size;
-    addr_bias = lmem_used;
-    lmem_used += b_size;
+    if (do_bias) {
+      addr_bias = lmem_used;
+      lmem_used += b_size;
+    }
     addr_work0 = lmem_used;
     lmem_used += std::max(2 * x_size, x_ps32_size);
     addr_work1 = lmem_used;
@@ -289,8 +295,10 @@ void TgGruKernel::matrix_recurrence(const cvk_ml_t &ml_res, int flip,
                                     const tiling_t &tile, gaddr_t ga_weight,
                                     gaddr_t ga_bias) {
   cvk_ml_t ml_weight, ml_bias;
-  fill_matrix(&ml_bias, 4 / fmt_size, tile.h, addr_bias);
-  ctx.tdma_load_stride(&ml_bias, ga_bias + tile.pos_h * fmt_size, h_gstride);
+  if (do_bias) {
+    fill_matrix(&ml_bias, 4 / fmt_size, tile.h, addr_bias);
+    ctx.tdma_load_stride(&ml_bias, ga_bias + tile.pos_h * fmt_size, h_gstride);
+  }
   for (int i = 0; i < step_num; i++) {
     int offset = tiles[i].pos_h * hidden_bytes + tile.pos_h * fmt_size;
     fill_matrix(&ml_weight, tiles[i].h, tile.h, addr_recurrence);
@@ -341,8 +349,9 @@ void TgGruKernel::compute(int idx, bool forward) {
     eltwise_mul(ml_xz, ml_xh);
     eltwise_sub(ml_result, ml_work1, ml_xz);
     if (!only_last) {
-      ctx.tdma_store_stride(&ml_result, ga_store + s_offset + goffset, h_gstride);
-    } else if(idx == seq_length - 1) {
+      ctx.tdma_store_stride(&ml_result, ga_store + s_offset + goffset,
+                            h_gstride);
+    } else if (idx == seq_length - 1) {
       ctx.tdma_store_stride(&ml_result, ga_store + goffset, h_gstride);
     }
   }
@@ -361,9 +370,11 @@ void TgGruKernel::compute_without_tiling(bool forward) {
   assign_matrix(&ml_rz, r_shape);
   assign_matrix(&ml_rr, r_shape);
   assign_matrix(&ml_rh, r_shape);
-  assign_matrix(&ml_rbz, b_shape);
-  assign_matrix(&ml_rbr, b_shape);
-  assign_matrix(&ml_rbh, b_shape);
+  if (do_bias) {
+    assign_matrix(&ml_rbz, b_shape);
+    assign_matrix(&ml_rbr, b_shape);
+    assign_matrix(&ml_rbh, b_shape);
+  }
   assign_matrix(&ml_hidden, x_shape);
   assign_matrix(&ml_xz, x_shape);
   assign_matrix(&ml_xh, x_shape);
@@ -374,9 +385,11 @@ void TgGruKernel::compute_without_tiling(bool forward) {
   ctx.tdma_load(&ml_rz, ga_rz);
   ctx.tdma_load(&ml_rr, ga_rr);
   ctx.tdma_load(&ml_rh, ga_rh);
-  ctx.tdma_load(&ml_rbz, ga_rbz);
-  ctx.tdma_load(&ml_rbr, ga_rbr);
-  ctx.tdma_load(&ml_rbh, ga_rbh);
+  if (do_bias) {
+    ctx.tdma_load(&ml_rbz, ga_rbz);
+    ctx.tdma_load(&ml_rbr, ga_rbr);
+    ctx.tdma_load(&ml_rbh, ga_rbh);
+  }
 
   // load initial_h if exist or clear to zeros
   if (with_initial_h) {
@@ -449,7 +462,8 @@ void TgGruKernel::init(uint32_t layer_id, gaddr_t ga_input,
                        gaddr_t ga_tanh_slope_lut, gaddr_t ga_output,
                        int seq_length, int num_dir, int batch_size,
                        int hidden_size, bool do_bias, bool with_initial_h,
-                       bool linear_before_reset, bool bidirectional, bool only_last) {
+                       bool linear_before_reset, bool bidirectional,
+                       bool only_last) {
   this->layer_id = layer_id;
   this->ga_input = ga_input;
   this->ga_recurrence = ga_recurrence;
@@ -479,7 +493,6 @@ void TgGruKernel::init(uint32_t layer_id, gaddr_t ga_input,
   this->x_gstride.row = input_bytes;
   this->h_gstride.row = hidden_bytes;
   assert(linear_before_reset == true); // support later
-  assert(do_bias == true);             // support later
   init_table();
 }
 

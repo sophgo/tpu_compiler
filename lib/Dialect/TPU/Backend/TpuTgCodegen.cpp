@@ -2327,67 +2327,71 @@ LogicalResult tpu::TG_BF16_LayerNormOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
-  int64_t tensorSize, seq_len, batchSize, inputSize, garbage;
-  getTensorShapeAndSize(op->getOperand(0), shape, tensorSize);
-  getNCHW(shape, seq_len, batchSize, inputSize, garbage);
-
-  int64_t seq_len2, outputC, outputH, hiddenSize;
-  getTensorShapeAndSize(this->getResult(), shape, tensorSize);
-  getNCHW(shape, seq_len2, outputC, outputH, hiddenSize);
+  int64_t size, seq_len, batch_size, input_size, garbage;
+  getTensorShapeAndSize(op->getOperand(0), shape, size);
+  getNCHW(shape, seq_len, batch_size, input_size, garbage);
+  int64_t seq_len2, num_dir, batch_size2, hidden_size;
+  getTensorShapeAndSize(this->getResult(), shape, size);
+  assert(shape.size() == 4);
+  getNCHW(shape, seq_len2, num_dir, batch_size2, hidden_size);
+  assert(seq_len == seq_len2);
+  assert(batch_size == batch_size2);
+  assert(input_size == num_dir * 4 * hidden_size);
 
   bool with_bias = (!isTensorNone(bias()));
   gaddr_t ga_bias = GA_INVALID;
-  if ( with_bias ) {
-    ga_bias =  getWeightOpAddress(bias().getDefiningOp());
+  if (with_bias) {
+    ga_bias = getWeightOpAddress(bias().getDefiningOp());
+  }
+  bool with_h0 = (!isTensorNone(initial_h()));
+  gaddr_t initial_h_gaddr = GA_INVALID;
+  if (with_h0) {
+    auto h_op = initial_h().getDefiningOp();
+    auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(h_op);
+    if (cast_op) {
+      initial_h_gaddr = getWeightOpAddress(h_op);
+    } else {
+      initial_h_gaddr = getOpAddress(h_op);
+    }
+  }
+  bool with_c0 = (!isTensorNone(initial_c()));
+  gaddr_t initial_c_gaddr = GA_INVALID;
+  if (with_c0) {
+    auto c_op = initial_c().getDefiningOp();
+    auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(c_op);
+    if (cast_op) {
+      initial_c_gaddr = getWeightOpAddress(c_op);
+    } else {
+      initial_c_gaddr = getOpAddress(c_op);
+    }
   }
 
   bool is_bidirectional = this->bidirectional();
-
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t weight_gaddr = getWeightOpAddress(weight().getDefiningOp());
   gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence().getDefiningOp());
-  gaddr_t initial_h_gaddr = getWeightOpAddress(initial_h().getDefiningOp());
-  gaddr_t initial_c_gaddr = getWeightOpAddress(initial_c().getDefiningOp());
-  gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table().getDefiningOp());
-  gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table().getDefiningOp());
-  gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table().getDefiningOp());
-  gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table().getDefiningOp());
+  gaddr_t sigmoid_table_data_lut_gaddr =
+      getWeightOpAddress(sigmoid_table().getDefiningOp());
+  gaddr_t sigmoid_slope_table_data_lut_gaddr =
+      getWeightOpAddress(sigmoid_slope_table().getDefiningOp());
+  gaddr_t tanh_table_data_lut_gaddr =
+      getWeightOpAddress(tanh_table().getDefiningOp());
+  gaddr_t tanh_slope_table_data_lut_gaddr =
+      getWeightOpAddress(tanh_slope_table().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
-  LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
-                                                       << "weight_gaddr: " << weight_gaddr << "\n"
-                                                       << "recurrence_gaddr: " << recurrence_gaddr << "\n"
-                                                       << "ga_bias: " << ga_bias << "\n"
-                                                       << "initial_h_gaddr: " << initial_h_gaddr << "\n"
-                                                       << "initial_c_gaddr: " << initial_c_gaddr << "\n"
-                                                       << "sigmoid_table_data_lut_gaddr: " << sigmoid_table_data_lut_gaddr << "\n"
-                                                       << "sigmoid_slope_table_data_lut_gaddr: " << sigmoid_slope_table_data_lut_gaddr << "\n"
-                                                       << "tanh_table_data_lut_gaddr: " << tanh_table_data_lut_gaddr << "\n"
-                                                       << "tanh_slope_table_data_lut_gaddr: " << tanh_slope_table_data_lut_gaddr << "\n"
-                                                       << "output_gaddr: " << output_gaddr << "\n"
-                                                       << "seq_len: " << seq_len << "\n"
-                                                       << "batchSize: " << batchSize << "\n"
-                                                       << "inputSize: " << inputSize << "\n"
-                                                       << "hiddenSize: " << hiddenSize << "\n"
-                                                       << "with_bias: " << with_bias << "\n"
-                                                       << "is_bidirectional: " << is_bidirectional << "\n"
-                                                       << "\n";);
-
-  cvi_backend_tg_bf16_lstm_kernel(*backend_ctx, layer_id,
-                                     input_gaddr, weight_gaddr, recurrence_gaddr,
-                                     ga_bias, initial_h_gaddr, initial_c_gaddr,
-                                     sigmoid_table_data_lut_gaddr, sigmoid_slope_table_data_lut_gaddr,
-                                     tanh_table_data_lut_gaddr, tanh_slope_table_data_lut_gaddr,
-                                     output_gaddr,
-                                     seq_len, batchSize, inputSize, hiddenSize,
-                                     with_bias, is_bidirectional);
+  cvi_backend_tg_bf16_lstm_kernel(
+      *backend_ctx, layer_id, input_gaddr, recurrence_gaddr, ga_bias,
+      initial_h_gaddr, initial_c_gaddr, sigmoid_table_data_lut_gaddr,
+      sigmoid_slope_table_data_lut_gaddr, tanh_table_data_lut_gaddr,
+      tanh_slope_table_data_lut_gaddr, output_gaddr, seq_len, num_dir,
+      batch_size, hidden_size, with_bias, with_h0, with_c0, is_bidirectional);
   return success();
 }
 

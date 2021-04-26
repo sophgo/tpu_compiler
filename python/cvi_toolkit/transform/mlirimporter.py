@@ -62,7 +62,6 @@ class TPU_OpType(Enum):
     LrnThree = 'tpu.lrn_three'
     Lrn = 'tpu.lrn'
     LSTM = 'tpu.lstm'
-    LSTM_CAFFE = 'tpu.lstm_caffe'
     LayerNorm = "tpu.layer_norm"
     Normalize = 'tpu.normalize'
     Mish = 'tpu.mish'
@@ -1063,29 +1062,15 @@ class MLIRImporter(object):
     def add_lstm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-
-        if len(inputOperands) < 6:
-            raise ArithmeticError(
-                "input operand must great than 6. x, w, r, b, initial_h, initial_c")
-
         lstm_param = {
             'bidirectional': BoolAttr.get(kargs['bidirectional'])
         }
-
         lstm_name = StringAttr.get(op_name)
         none = self.add_none_op()
-        for _ in range(4):  # add 4 redundant input
+        for _ in range(9 - len(inputOperands)):  # add 4 redundant input
             inputOperands.append(none)
-
         return self.buildOp(TPU_OpType.LSTM.value, inputOperands, [
             tensor_output_type], name=lstm_name, quant=self.quant_param, **lstm_param)
-
-    def add_lstm_caffe_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = RankedTensorType.get(
-            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-        nameAttr = StringAttr.get(op_name)
-        return self.buildOp(TPU_OpType.LSTM_CAFFE.value, inputOperands, [
-            tensor_output_type], name=nameAttr)
 
     def add_layernorm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

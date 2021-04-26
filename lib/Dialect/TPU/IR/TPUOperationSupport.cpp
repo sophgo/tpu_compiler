@@ -790,21 +790,6 @@ template void parseLeakyReluParam<tpu::TG_BF16_LeakyReluOp>(
     Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
     int8_t &neg_rshift, int8_t &neg_m_i8, float &negative_slope);
 
-void parseLstmParam(
-    Value input, Value weight,
-    int &seq_len, int &batch_size, int &input_size, int& hidden_size) {
-  auto input_type = input.getType().cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-
-  auto weight_type = weight.getType().cast<TensorType>();
-  std::vector<int64_t> w_s(weight_type.getShape());
-
-  seq_len = i_s[0];
-  batch_size = 1;
-  input_size = w_s[2];
-  hidden_size = w_s[1] / 4;
-}
-
 void parseActCompressParam(const tpu::ActCmprParam &param, int &cmpr_n,
     int &cmpr_c, int &cmpr_h, int64_t &step_size, int64_t &total_size) {
   std::vector<int> shapes;

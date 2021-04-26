@@ -2,8 +2,8 @@
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
  *
  */
-#ifndef TG_GRU_KERNEL_HPP
-#define TG_GRU_KERNEL_HPP
+#ifndef TG_LSTM_KERNEL_HPP
+#define TG_LSTM_KERNEL_HPP
 
 #include "CviBackendContext.h"
 #include "backend/backend_tl_api.h"
@@ -13,16 +13,17 @@
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
 
-class TgGruKernel {
+class TgLstmKernel {
 public:
-  TgGruKernel(const CviBackendContext &ctx) : ctx(ctx) {}
+  TgLstmKernel(const CviBackendContext &ctx) : ctx(ctx) {}
 
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_recurrence,
-            gaddr_t ga_bias, gaddr_t ga_initial_h, gaddr_t ga_sigmoid_lut,
-            gaddr_t ga_sigmoid_slope_lut, gaddr_t ga_tanh_lut,
-            gaddr_t ga_tanh_slope_lut, gaddr_t ga_output, int seq_length,
-            int num_dir, int batch_size, int hidden_size, bool do_bias,
-            bool with_initial_h, bool linear_before_reset, bool bidirectional, bool only_last);
+            gaddr_t ga_bias, gaddr_t ga_initial_h, gaddr_t ga_initial_c,
+            gaddr_t ga_sigmoid_lut, gaddr_t ga_sigmoid_slope_lut,
+            gaddr_t ga_tanh_lut, gaddr_t ga_tanh_slope_lut, gaddr_t ga_output,
+            int seq_length, int num_dir, int batch_size, int hidden_size,
+            bool do_bias, bool with_initial_h, bool with_initial_c,
+            bool bidirectional);
 
   void schedule();
 
@@ -37,7 +38,7 @@ protected:
   void compute_with_tiling(bool forward = true);
   void tiling();
   void init_gaddr(bool forward = true);
-  void init_h0();
+  void init_h0c0();
   void compute(int seq_idx, bool forward = true);
   uint8_t ps32_mode(int step_idx);
   void assign_matrix(cvk_ml_t *ml_mem, const cvk_ml_shape_t &shape);
@@ -70,14 +71,15 @@ protected:
   gaddr_t ga_recurrence;
   gaddr_t ga_bias;
   gaddr_t ga_init_h;
+  gaddr_t ga_init_c;
   gaddr_t ga_sigmoid_lut;
   gaddr_t ga_sigmoid_slope_lut;
   gaddr_t ga_tanh_lut;
   gaddr_t ga_tanh_slope_lut;
   gaddr_t ga_output;
   // for bidirectional
-  gaddr_t ga_store, ga_h0;
-  gaddr_t ga_xz, ga_xr, ga_xh, ga_rz, ga_rr, ga_rh, ga_rbz, ga_rbr, ga_rbh;
+  gaddr_t ga_store, ga_h0, ga_c0;
+  gaddr_t ga_xi, ga_xf, ga_xc, ga_xo, ga_ri, ga_rf, ga_rc, ga_ro, ga_rbi, ga_rbf, ga_rbc, ga_rbo;
   int seq_length;
   int batch_size;
   int hidden_size;
@@ -88,9 +90,8 @@ protected:
   uint32_t x_bytes;
   bool do_bias;
   bool with_initial_h;
-  bool linear_before_reset;
+  bool with_initial_c;
   bool bidirectional;
-  bool only_last;
   cvk_fmt_t fmt;
   int fmt_size;
 
@@ -108,12 +109,12 @@ protected:
   int step_num;
   std::vector<tiling_t> tiles;         // tilng hidden_size
   std::vector<cvk_ml_t> ml_hiddens[2]; // one for backup
+  std::vector<cvk_ml_t> ml_cells;       // cell state
   uint32_t addr_recurrence;            // for recurrence
   uint32_t addr_bias;
   uint32_t addr_work0; // for lut buffer and ps32 bias buffer
   uint32_t addr_work1; // for dot(h_t,r) result
-  uint32_t addr_xz;    // for z
-  uint32_t addr_xh;    // for r/h
+  uint32_t addr_work2; // for gate buffer
   cvk_mg_stride_t x_gstride;
   cvk_mg_stride_t h_gstride;
 };

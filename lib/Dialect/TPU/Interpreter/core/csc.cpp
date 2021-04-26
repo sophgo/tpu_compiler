@@ -1,19 +1,15 @@
 #include "tpuc/Interpreter/cpu/csc.hpp"
-
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
-
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/ModuleInterpreter.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
+
 static inline int align_up(int x, int n) {
   if (n == 0 || n == 1) {
     return x;
   }
   return ((x + n - 1) / n) * n;
-}
-
-static inline float BF16(float data) {
-  return convert_bf16_fp32(convert_fp32_bf16(data));
 }
 
 static inline float UINT8(float data) {

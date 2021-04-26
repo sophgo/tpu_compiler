@@ -33,6 +33,7 @@ TEST_ONNX_IR = [
     "GRUh", # test gru output Y_h
     "LeakyRelu",
     "LRN",
+    "LSTM",
     "Max",
     "Min",
     "Mul",
@@ -97,6 +98,7 @@ class ONNX_IR_TESTER(object):
             "GRUh": self.test_GRUh,
             "LeakyRelu": self.test_LeakyRelu,
             "LRN": self.test_LRN,
+            "LSTM": self.test_LSTM,
             "Max": self.test_Max,
             "Min": self.test_Min,
             "Mul": self.test_Mul,
@@ -911,6 +913,102 @@ class ONNX_IR_TESTER(object):
         #only support positive input for lrn
         input_data = -input_data
 
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_LSTM(self):
+        test_case = 'LSTM'
+        seq_length = 75
+        batch_size = 2
+        num_dir = 2
+        input_size = 128
+        hidden_size = 64
+        direction = 'forward' if num_dir == 1 else 'bidirectional'
+        input_data = np.random.rand(
+            seq_length, batch_size, input_size).astype(np.float32)
+        w_data = np.random.rand(
+            num_dir, 4*hidden_size, input_size).astype(np.float32)
+        r_data = np.random.rand(
+            num_dir, 4*hidden_size, hidden_size).astype(np.float32)
+        b_data = np.random.rand(num_dir, 8*hidden_size).astype(np.float32)
+        h0_data = np.random.rand(num_dir, batch_size, hidden_size).astype(np.float32)
+        c0_data = np.random.rand(num_dir, batch_size, hidden_size).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, list(input_data.shape))
+
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [seq_length, num_dir, batch_size, hidden_size])
+
+        w_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['w'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=w_data.shape,
+                vals=w_data.flatten(),
+            ),
+        )
+        r_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['r'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=r_data.shape,
+                vals=r_data.flatten(),
+            ),
+        )
+        b_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['b'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=b_data.shape,
+                vals=b_data.flatten(),
+            ),
+        )
+        h0_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['h0'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=h0_data.shape,
+                vals=h0_data.flatten(),
+            ),
+        )
+        c0_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['c0'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=c0_data.shape,
+                vals=c0_data.flatten(),
+            ),
+        )
+        node_def = onnx.helper.make_node(
+            "LSTM",
+            inputs=['input', 'w', 'r', 'b', '', 'h0','c0'],
+            outputs=['output','',''],
+            direction=direction,
+            hidden_size=hidden_size,
+        )
+        graph_def = helper.make_graph(
+            [w_node_def, r_node_def, b_node_def, h0_node_def, c0_node_def, node_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 

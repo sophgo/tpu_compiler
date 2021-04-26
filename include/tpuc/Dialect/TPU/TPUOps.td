@@ -1301,7 +1301,6 @@ def TPU_LstmOp: TPU_Op<"lstm",
 
     Inputs:
       `input`           : required, the input activation tensor.
-      `weight`          : required, parameter weight tesnor for input, output, forget, and cell gates.
       `recurrence`       : required, recurrence weight tesnor for input, output, forget, and cell gates.
       `bias`            : required, bias vectors for input, output, forget, and cell gates.
       `initial_h`       : required, initial value of the hidden.
@@ -1324,11 +1323,10 @@ def TPU_LstmOp: TPU_Op<"lstm",
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$weight,
     AnyTensor:$recurrence,
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
-    AnyTensor:$initial_h,
-    AnyTensor:$initial_c,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$initial_h,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$initial_c,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_slope_table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_table,
@@ -1340,45 +1338,6 @@ def TPU_LstmOp: TPU_Op<"lstm",
   );
 
   let results = (outs AnyTensor:$output);
-}
-
-def TPU_LstmCaffeOp: TPU_Op<"lstm_caffe",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
-  let summary = "LSTM operator for caffe";
-
-  let description = [{
-    Performs scale on input.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-      `weight_x`        : required, fc weight tensor for input, output, forget, and cell gates.
-      `bias`            : required, bias vectors for input, output, forget, and cell gates.
-      `weight_h`        : required, fc weight tensor for input, output, forget, and cell gates.
-
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor with hidden and cell.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$weight_x,
-    AnyTensor:$bias,
-    AnyTensor:$weight_h,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-  let hasCanonicalizer = 1;
 }
 
 def TPU_MatMulOp : TPU_Op<"matmul",

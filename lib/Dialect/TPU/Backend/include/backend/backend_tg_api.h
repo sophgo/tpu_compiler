@@ -269,14 +269,13 @@ void cvi_backend_tg_bf16_gru_kernel(
     bool is_linear_before_reset, bool is_bidirectional, bool only_last = false);
 
 void cvi_backend_tg_bf16_lstm_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_input, gaddr_t ga_weight, gaddr_t ga_recurrence,
-    gaddr_t ga_bias, gaddr_t ga_initial_h, gaddr_t ga_initial_c,
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_recurrence, gaddr_t ga_bias, gaddr_t ga_initial_h, gaddr_t ga_inital_c,
     gaddr_t ga_sigmoid_table_data_lut, gaddr_t ga_sigmoid_slope_table_data_lut,
     gaddr_t ga_tanh_table_data_lut, gaddr_t ga_tanh_slope_table_data_lut,
-    gaddr_t ga_output,
-    int seq_len, int batch_size, int input_size, int hidden_size,
-    bool do_bias, bool is_bidirectional);
+    gaddr_t ga_output, int seq_len, int num_dir, int batch_size,
+    int hidden_size, bool do_bias, bool with_initial_h, bool with_initial_c,
+    bool is_bidirectional);
 
 void cvi_backend_tg_bf16_softmax_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

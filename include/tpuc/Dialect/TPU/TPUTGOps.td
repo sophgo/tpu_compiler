@@ -837,16 +837,15 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " Lstm operator.";
+  let summary = "TG " # opQuant # " LSTM operator.";
 
   let description = [{
     Inputs:
       `input`           : required, the input activation memref.
-      `weight`          : required, parameter weight memref for update, reset, and hidden gates.
       `recurrence`       : required, recurrence weight memref for update, reset, and hidden gates.
       `bias`            : optional, bias vectors memref for update, reset, and hidden gates.
-      `initial_h`       : required, initial value of the hidden.
-      `initial_c`       : required, initial value of the hidden.
+      `initial_h`       : optional, initial value of the hidden.
+      `initial_c`       : optional, initial value of the cell.
       'sigmoid_table'           : required, the sigmoid_table memref.
       'sigmoid_slope_table'           : required, the sigmoid_slope_table memref.
       'tanh_table'           : required, the tanh_table memref.
@@ -874,11 +873,10 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    AnyTensor:$weight,
     AnyTensor:$recurrence,
     TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$bias,
-    AnyTensor:$initial_h,
-    AnyTensor:$initial_c,
+    TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$initial_h,
+    TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$initial_c,
     AnyTensor:$sigmoid_table,
     AnyTensor:$sigmoid_slope_table,
     AnyTensor:$tanh_table,

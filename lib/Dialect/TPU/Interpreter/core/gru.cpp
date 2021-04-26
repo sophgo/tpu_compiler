@@ -1,9 +1,9 @@
 #include "tpuc/Interpreter/cpu/gru.hpp"
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
 
 namespace mlir {
 double GruOpKernel::sigmoid_(double data) {
@@ -27,7 +27,6 @@ double GruOpKernel::tanh_(double data) {
 
 GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
   auto gruOp = cast<tpu::GruOp>(op);
-  assert(gruOp);
   LLVM_DEBUG(llvm::outs() << " GruOp op: [" << gruOp.name() << "]\n";);
 
   auto opTensors = getOperandTensors(&op, valueMapping);
@@ -67,6 +66,10 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
   input_data = opTensors[0];
   recurrence = opTensors[1];
   bias = opTensors[2];
+  if (bias == nullptr) {
+    bias = std::make_shared<std::vector<float>>(
+        num_dir * 3 * hidden_size, 0.0f);
+  }
   initial_h = opTensors[3];
   if (initial_h == nullptr) {
     initial_h = std::make_shared<std::vector<float>>(
@@ -139,6 +142,14 @@ void GruOpKernel::compute(bool forward) {
               hidden_size, hidden_size, false);
     mkldnn_ip(prev_hidden_state, r_h, r_bh, hidden_gate.data(), batch_size,
               hidden_size, hidden_size, false);
+    if (datatype == DataType::BF16) {
+      clean16bitmantissa(update_gate.data(), update_gate.data(),
+                         update_gate.size());
+      clean16bitmantissa(reset_gate.data(), reset_gate.data(),
+                         reset_gate.size());
+      clean16bitmantissa(hidden_gate.data(), hidden_gate.data(),
+                         hidden_gate.size());
+    }
     for (int batch = 0; batch < batch_size; batch++) {
       float *xz = xt + batch * input_size;
       float *xr = xz + hidden_size;
@@ -151,14 +162,20 @@ void GruOpKernel::compute(bool forward) {
       if (only_last) {
         hidden_state = output + batch * hidden_size;
       } else {
-        hidden_state = output + (seq_idx * num_dir * batch_size + batch) * hidden_size;
+        hidden_state =
+            output + (seq_idx * num_dir * batch_size + batch) * hidden_size;
       }
 #pragma omp parallel for schedule(static, omp_schedule(hidden_size))
       for (int i = 0; i < hidden_size; ++i) {
         ug[i] = sigmoid_(ug[i] + xz[i]);
         rg[i] = sigmoid_(rg[i] + xr[i]);
         hg[i] = tanh_(rg[i] * hg[i] + xh[i]);
-        hidden_state[i] = (1 - ug[i]) * hg[i] + ug[i] * pre_state[i];
+        if (datatype != DataType::BF16) {
+          hidden_state[i] = (1 - ug[i]) * hg[i] + ug[i] * pre_state[i];
+        } else {
+          hidden_state[i] = BF16(BF16(BF16(ug[i] * pre_state[i]) + hg[i]) -
+                                 BF16(ug[i] * hg[i]));
+        }
       }
     }
     if (only_last) {

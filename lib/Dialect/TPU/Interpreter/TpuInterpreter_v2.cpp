@@ -41,6 +41,7 @@
 #include "tpuc/Interpreter/cpu/instancenorm.hpp"
 #include "tpuc/Interpreter/cpu/interpolation.hpp"
 #include "tpuc/Interpreter/cpu/gru.hpp"
+#include "tpuc/Interpreter/cpu/lstm.hpp"
 #include "tpuc/Interpreter/cpu/lrn.hpp"
 #include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "tpuc/Interpreter/cpu/normalize.hpp"
@@ -317,6 +318,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::LrnThreeOp>(op)) {
     auto lrn_kernel_op = std::make_unique<LrnThreeOpKernel>(op, valueMapping);
     oplist.push_back(std::move(lrn_kernel_op));
+    return;
+  }
+  if (isa<tpu::LstmOp>(op)) {
+    auto kernel_op = std::make_unique<LstmOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(kernel_op));
     return;
   }
   if (isa<tpu::MatMulOp>(op)) {

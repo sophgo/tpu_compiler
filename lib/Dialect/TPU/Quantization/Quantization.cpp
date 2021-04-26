@@ -860,6 +860,9 @@ public:
           if (isa<tpu::GruOp>(op)) {
             setOpQuant(op, "BF16");
           }
+          if (isa<tpu::LstmOp>(op)) {
+            setOpQuant(op, "BF16");
+          }
           if (isa<tpu::SquareOp>(op)) {
             setOpQuant(op, "BF16");
           }

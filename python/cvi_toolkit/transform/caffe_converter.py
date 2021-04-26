@@ -70,8 +70,7 @@ class CaffeConverter(BaseConverter):
             'Input': lambda layer: self.convert_input_op(layer),
             'Interp': lambda layer: self.convert_interp_op(layer),
             'LRN': lambda layer: self.convert_lrn_op(layer),
-            'LSTM': lambda layer: self.convert_lstm_op(layer),
-            'Lstm': lambda layer: self.convert_lstm_jun_op(layer),
+            'Lstm': lambda layer: self.convert_lstm_op(layer),
             'Normalize': lambda layer: self.convert_normalize_op(layer),
             'Mish': lambda layer: self.convert_mish_op(layer),
             'Padding': lambda layer: self.convert_padding_op(layer),
@@ -167,7 +166,7 @@ class CaffeConverter(BaseConverter):
         else:
             return find_tensor[0]
 
-    def noneOp(self):
+    def add_none_op(self):
         return self.CVI.add_none_op()
 
     def blob_to_weight_op(self, layer, index, shape=None, permute_order=None, channel_idx=0):
@@ -387,7 +386,7 @@ class CaffeConverter(BaseConverter):
             bias_op = self.blob_to_weight_op(layer, 1)
             operands.append(bias_op)
         else:
-            operands.append(self.noneOp())
+            operands.append(self.add_none_op())
 
         output_shape = [n, oc, ofmap[0], ofmap[1]]
         conv_param = {
@@ -615,7 +614,7 @@ class CaffeConverter(BaseConverter):
             bias_op = self.blob_to_weight_op(layer, 1, [N])
             operands.append(bias_op)
         else:
-            operands.append(self.noneOp())
+            operands.append(self.add_none_op())
         new_op = self.CVI.add_fully_connected_op(
             layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op, output_shape,
@@ -733,42 +732,63 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_lstm_op(self, layer):
-        assert(self.layerType(layer) == 'LSTM')
-        op, input_shape, _ = self.getOperand(layer.bottom[0])
-        seq_length = input_shape[0]
-        batch_size = input_shape[1]
-        num_output = layer.recurrent_param.num_output
-        output_shape = [seq_length, batch_size, num_output]
-        operands = list()
-        operands.append(op)
-        weight_x = self.blob_to_weight_op(layer, 0)
-        bias = self.blob_to_weight_op(layer, 1)
-        weight_h = self.blob_to_weight_op(layer, 2)
-        operands.append(weight_x)
-        operands.append(bias)
-        operands.append(weight_h)
-        new_op = self.CVI.add_lstm_caffe_op(
-            layer.name, operands, output_shape)
-        self.addOperand(layer.top[0], new_op,
-                        output_shape, TensorType.ACTIVATION)
-
-    def convert_lstm_jun_op(self, layer):
         assert(self.layerType(layer) == 'Lstm')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
         seq_length = input_shape[0]
         batch_size = input_shape[1]
-        num_output = layer.lstm_param.num_output
-        output_shape = [seq_length, batch_size, num_output]
+        input_size = input_shape[2]
+        hidden_size = layer.lstm_param.num_output
+
         operands = list()
         operands.append(op)
-        weight_x = self.blob_to_weight_op(layer, 0)
-        weight_h = self.blob_to_weight_op(layer, 1)
-        bias = self.blob_to_weight_op(layer, 2)
-        operands.append(weight_x)
-        operands.append(bias)
-        operands.append(weight_h)
-        new_op = self.CVI.add_lstm_caffe_op(
-            layer.name, operands, output_shape)
+        # weight
+        weight = self.layer_dict[layer.name].blobs[0].data
+        weight = weight.reshape([4, hidden_size*input_size])
+        weight[[1, 2], :] = weight[[2, 1], :]  # ifoc =>iofc
+        weight = weight.reshape([4*hidden_size, input_size])
+        weight_name = layer.name + "_0"
+        self.addTensor(weight_name, weight, weight.shape)
+        weight_op = self.CVI.add_load_file_op(weight_name, weight.shape)
+        operands.append(weight_op)
+        # bias
+        bias = self.layer_dict[layer.name].blobs[2].data
+        bias = bias.reshape([4, hidden_size])
+        bias[[1, 2], :] = bias[[2, 1], :]  # ifoc =>iofc
+        bias = bias.reshape([1, 4*hidden_size])
+        bias_name = layer.name + "_2"
+        self.addTensor(bias_name, bias, bias.shape)
+        bias_op = self.CVI.add_load_file_op(bias_name, bias.shape)
+        operands.append(bias_op)
+        # FC
+        fc_shape = [seq_length, batch_size, 4*hidden_size]
+        fc_op = self.CVI.add_fully_connected_op(
+            "{}_x_transform".format(layer.name), operands, fc_shape)
+
+        operands.clear()
+        operands.append(fc_op)
+        # recurrence
+        r = self.layer_dict[layer.name].blobs[1].data
+        r = r.reshape([4, hidden_size*hidden_size])
+        r[[1, 2], :] = r[[2, 1], :]  # ifoc =>iofc
+        r = r.reshape([1, 4*hidden_size, hidden_size])
+        recurrence_name = layer.name + "_1"
+        self.addTensor(recurrence_name, r, r.shape)
+        recurrence_op = self.CVI.add_load_file_op(recurrence_name, r.shape)
+        operands.append(recurrence_op)
+
+        lstm_param = {
+            'bidirectional': bool(False),
+        }
+        lstm_shape = [seq_length, 1, batch_size, hidden_size]
+        lstm_name = layer.name + "_lstm"
+        lstm_op = self.CVI.add_lstm_op(
+            lstm_name, operands, lstm_shape, **lstm_param)
+
+        # reshape to [seq_length, batch_size, hidden_size]
+        operands.clear()
+        operands.append(lstm_op)
+        output_shape = [seq_length, batch_size, hidden_size]
+        new_op = self.CVI.add_reshape_op(layer.name, operands, output_shape)
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
@@ -1005,7 +1025,7 @@ class CaffeConverter(BaseConverter):
                 bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
                 operands.append(bias_op)
             else:
-                operands.append(self.noneOp())
+                operands.append(self.add_none_op())
             output_shape = input_shape
             new_op = self.CVI.add_scale_op(layer.name, operands, output_shape)
             self.addOperand(layer.top[0], new_op, output_shape,
@@ -1397,7 +1417,7 @@ class CaffeConverter(BaseConverter):
                 bias_op = self.blob_to_weight_op(layer, 1, [input_shape[1]])
                 operands.append(bias_op)
             else:
-                operands.append(self.noneOp())
+                operands.append(self.add_none_op())
             output_shape = input_shape
             new_op = self.CVI.add_scale_op(
                 layer.name, operands, output_shape)
@@ -1553,7 +1573,7 @@ class CaffeConverter(BaseConverter):
           op_mask, _, _ = self.getOperand(layer.bottom[1])
           operands.append(op_mask)
         else:
-          operands.append(self.noneOp())
+          operands.append(self.add_none_op())
 
         new_op = self.CVI.add_upsample_op(
             upsample_name, operands, output_shape, **param)
