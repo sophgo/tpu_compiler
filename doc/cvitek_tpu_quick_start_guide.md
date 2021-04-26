@@ -480,8 +480,6 @@ accuracy_generic.sh yolo_v3_320 5000 2>&1 | tee yolo_v3_320_5000.txt
 * cvitek_mlir_ubuntu-18.04.tar.gz
 * dataset.tar.gz
 
-
-
 #### 步骤 0：加载cvitek_mlir环境
 
 ``` shell
@@ -504,74 +502,9 @@ wget -nc https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deplo
 mkdir workspace && cd workspace
 ```
 
-#### 步骤 2：执行caffe推理 (optional)
+#### 步骤 2：模型转换
 
-取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg：
-
-``` shell
-cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
-```
-
-推理前，我们需要了解这个模型的预处理参数，mobilenet_v2的预处理如下
-
-> transform_param {
->
-> ​    scale:  0.017
->
-> ​    mirror:  true
->
-> ​    crop_size:  224
->
-> ​    mean_value:  [103.94, 116.78, 123.68]
->
-> }
-
-运行caffe推理：
-
-``` shell
-run_caffe_classifier.py \
-    --model_def ../mobilenet_v2_deploy.prototxt \
-    --pretrained_model ../mobilenet_v2.caffemodel \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.94,116.78,123.68 \
-    --input_scale 0.017 \
-    --batch_size 1 \
-    --dump_blobs mobilenet_v2_blobs.npz \
-    ./cat.jpg \
-    caffe_out.npy
-```
-
-得到`mobilenet_v2_blobs.npz`文件，包含caffe推理过程中每一层的数据。
-
-下列命令可以用来查看一个npz文件的内容：
-
-``` shell
-# dump blob names
-cvi_npz_tool.py dump mobilenet_v2_blobs.npz
-
-# dump data for one blob
-# cvi_npz_tool.py dump mobilenet_v2_blobs.npz [blob_name]
-# eg.
-cvi_npz_tool.py dump mobilenet_v2_blobs.npz input
-cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7
-
-# show Top-K
-cvi_npz_tool.py dump mobilenet_v2_blobs.npz fc7 5
-# Show Top-K 5
-# (285, 10.666397)
-# (282, 10.424403)
-# (281, 9.640038)
-# (277, 8.616049)
-# (331, 8.516392)
-```
-
-
-
-#### 步骤 3：转换为mlir，进行前端优化
-
-使用`cvi_model_convert.py`将模型转换成mlir文件，其中有预处理参数如下：
+使用`model_transform.py`将模型转换成mlir文件，其中有预处理参数如下：
 
 | **参数名**          | **说明**                             |
 | ------------------- | ------------------------------------ |
@@ -592,181 +525,76 @@ $$
 由caffe模型转换为mlir：
 
 ``` shell
-cvi_model_convert.py \
-    --model_path ../mobilenet_v2_deploy.prototxt \
-    --model_dat ../mobilenet_v2.caffemodel \
-    --model_name mobilenet_v2 \
-    --model_type caffe \
-    --batch_size 1 \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.94,116.78,123.68 \
-    --std 1.0,1.0,1.0 \
-    --input_scale 0.017 \
-    --model_channel_order bgr \
-    --mlir_file_path mobilenet_v2.mlir
+model_transform.py \
+  --model_type caffe \
+  --model_name mobilenet_v2 \
+  --model_def ../mobilenet_v2_deploy.prototxt \
+  --model_data ../mobilenet_v2.caffemodel \
+  --image ./cat.jpg \
+  --image_resize_dims 256,256 \
+  --keep_aspect_ratio false \
+  --net_input_dims 224,224 \
+  --raw_scale 255.0 \
+  --mean 103.94,115.78,123.68 \
+  --std 1.0,1.0,1.0 \
+  --input_scale 0.017 \
+  --model_channel_order "bgr" \
+  --gray false \
+  --batch_size 1 \
+  --tolerance 0.99,0.99,0.99 \
+  --excepts prob \
+  --mlir mobilenet_v2_fp32.mlir
 ```
 
-得到`mobilenet_v2.mlir`文件。
+得到`mobilenet_v2_fp32.mlir`文件.
+
+其转换过程包括:
+
+- 原始caffe模型的推理, 并将各层结果保存为numpy的npz文件
+
+- 原始caffe模型的导入, 将原始模型转换成MLIR fp32模型
+  - 执行MLIR fp32模型的推理, 将各层输出保存到numpy 的npz文件中
+  - 将caffe模型的推理的结果与MLIR fp32的推理结果对比, 确保转换的MLIR fp32模型正确
+  - 将MLIR fp32模型做优化，作为后续流程的输入
 
 **注：** 上述填入的预处理参数仅仅以信息的形式存放在mlir中，后续转换成cvimodel，也仅以信息的方式存放。对图片的预处理过程需要再外部处理，再传给模型运算。如果需要模型内部对图片进行预处理，请参考12章节：使用TPU做前处理。
 
-执行模型前端优化：
-
-``` shell
-tpuc-opt mobilenet_v2.mlir \
-    --convert-bn-to-scale \
-    --canonicalize \
-    --eltwise-early-stride \
-    --print-tpu-op-info \
-    --tpu-op-info-filename  op_info.csv \
-    -o mobilenet_v2_fp32.mlir
-```
-
-得到`mobilenet_v2_fp32.mlir`文件。
-
- 运行tpuc-interpreter对转换和优化后的mlir模型进行推理，得到的mlir推理的逐层数据：
-
-``` shell
-# extract input data from mobilenet_v2_blobs.npz
-cvi_npz_tool.py extract mobilenet_v2_blobs.npz mobilenet_v2_in_fp32.npz input
-
-# inference with mlir and input data, dump all tensor
-tpuc-interpreter mobilenet_v2_fp32.mlir \
-    --tensor-in mobilenet_v2_in_fp32.npz \
-    --tensor-out mobilenet_v2_out_fp32.npz \
-    --dump-all-tensor=mobilenet_v2_tensor_all_fp32.npz
-```
-
-得到`mobilenet_v2_tensor_all_fp32.npz`。
-
-将caffe推理数据和mlir推理数据进行逐层比对：
-
-``` shell
-cvi_npz_tool.py compare \
-    mobilenet_v2_tensor_all_fp32.npz \
-    mobilenet_v2_blobs.npz \
-    --op_info op_info.csv \
-    --tolerance=0.999,0.999,0.998 -vv
-```
-
-#### 步骤 4：Calibration
+#### 步骤 3：Calibration
 
 Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
 执行calibration：
 
 ``` shell
 run_calibration.py \
-    mobilenet_v2_fp32.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --input_num=1000 \
-    --calibration_table mobilenet_v2_calibration_table
+  mobilenet_v2_fp32.mlir \
+  --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+  --input_num=1000 \
+  --histogram_bin_num=20480 \
+  -o mobilenet_v2_calibration_table
 ```
 
   得到`mobilenet_v2_calibration_table`。
 
-#### 步骤 5：执行量化
-
-执行量化，生成量化后mlir文件；可以通过chipname来指定平台是cv182x还是cv183x；默认值为cv183x：
+#### 步骤 4：模型量化并生成cvimodel
 
 ``` shell
-tpuc-opt mobilenet_v2_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table mobilenet_v2_calibration_table  \
-    --assign-chip-name \
-    --chipname cv183x \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    -o mobilenet_v2_int8.mlir
+model_deploy.py \
+  --model_name mobilenet_v2 \
+  --mlir mobilenet_v2_fp32.mlir \
+  --calibration_table mobilenet_v2_calibration_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.95,0.94,0.69 \
+  --correctness 0.99,0.99,0.99 \
+  --cvimodel mobilenet_v2.cvimodel
 ```
 
-得到`mobilenet_v2_int8.mlir`。
+以上命令包含以下几步:
 
-【可选】此时，推荐对量化后的mlir模型进行推理，并与fp32的模型推理结果进行比对。tpuc-interpreter对INT8模型的推理结果与硬件计算结果完全一致。
+- 生成MLIR int8模型, 运行MLIR量化模型的推理, 并与MLIR fp32模型的结果做比较
+- 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR 量化模型做比较
 
-运行tpuc-interpreter对int8 mlir进行推理，得到的逐层数据：
-
-``` shell
-tpuc-interpreter mobilenet_v2_int8.mlir \
-    --tensor-in mobilenet_v2_in_fp32.npz \
-    --tensor-out mobilenet_v2_out_int8.npz \
-    --dump-all-tensor=mobilenet_v2_tensor_all_int8.npz
-```
-
-得到`mobilenet_v2_tensor_all_int8.npz`。
-
- 将fp32推理数据和int8推理数据进行逐层比对：
-
-``` shell
-cvi_npz_tool.py compare \
-    mobilenet_v2_tensor_all_int8.npz \
-    mobilenet_v2_tensor_all_fp32.npz \
-    --op_info op_info_int8.csv \
-    --dequant \
-    --tolerance 0.94,0.93,0.67 -vv
-```
-
-这里tolerance是一个初步的衡量指标，具备一定相对比较意义，但是取值随网络结构不同有较大动态范围，需根据具体情形进行调节。
-
-如果对模型的精度不满意，可以进一步对calibration table做auto-tune, 具体步骤如下：
-``` sh
-run_calibration.py \
-    mobilenet_v2_fp32.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --input_num=10 \
-    --tune-iteration=3 \
-    --calibration_table mobilenet_v2_calibration_table \
-    --tuned_table mobilenet_v2_tuned_calibration_table
-```
-然后使用新生成的mobilenet_v2_tuned_calibration_table重复步骤5
-
-
-【可选】对数据集进行精度测试(以测试50000张为例，可酌情减少）：
-
-``` shell
-eval_imagenet_pytorch.py \
-    --model=mobilenet_v2_int8.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted  \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.94,116.78,123.68 \
-    --input_scale 0.017 \
-    --count=50000
-```
-
-**注：** 工具名称含pytorch指data加载和精度计算部分为调用pytorch实现
-
-#### 步骤 6：生成cvimodel
-
-生成cvimodel命令：
-
-``` shell
-mlir_to_cvimodel.sh -i mobilenet_v2_int8.mlir -o mobilenet_v2.cvimodel
-```
-
-得到`mobilenet_v2.cvimodel`。
-
-使用model_runner进行测试，model_runner同时支持仿真器测试和EVB运行，命令相同：
-
-``` shell
-model_runner \
-    --input mobilenet_v2_in_fp32.npz \
-    --model mobilenet_v2.cvimodel \
-    --output out.npz
-
-# check output data
-cvi_npz_tool.py dump out.npz prob_dequant 5
-# Show Top-K 5
-# (282, 0.30102175)
-# (285, 0.30102175)
-# (281, 0.098654695)
-# (331, 0.07892632)
-# (287, 0.0631431)
-```
-
-**注：** 随calibraion所选图片不同，calibration结果也不同，因此最终推理结果存在一定差异。
+**注：** --tolerance 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度， --correctnetss 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度, --chip 可以选择cv183x和cv182x 默认使用cv183x
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -827,9 +655,7 @@ torch.onnx.export(model,
 
 得到`resnet18.onnx`。
 
-
-
-#### 步骤 2：执行onnx推理（Optional）
+#### 步骤 2：模型转换
 
 创建工作目录，取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg
 
@@ -852,130 +678,77 @@ cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
 >
 > ])
 
-运行onnx推理（注意此处mean和std是按照BGR排列，而pytorch是按照RGB排列）：
+使用`model_transform.py`将onnx模型转换成mlir文件：
 
 ``` shell
-run_onnx_inference.py \
-    --input_file ./cat.jpg \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 1.0 \
-    --mean 0.406,0.456,0.485 \
-    --std 0.225,0.224,0.229 \
-    --output_file resnet18_out_ref.npz \
-    --dump_tensor resnet18_tensor_all_ref.npz \
-    --model_path ../resnet18.onnx
+model_transform.py \
+  --model_type onnx \
+  --model_name resnet18 \
+  --model_def ../resnet18.onnx \
+  --image ./cat.jpg \
+  --image_resize_dims 256,256 \
+  --keep_aspect_ratio false \
+  --net_input_dims 224,224 \
+  --raw_scale 1.0 \
+  --mean 0.406,0.456,0.485 \
+  --std 0.255,0.244,0.229 \
+  --input_scale 1.0 \
+  --model_channel_order "rgb" \
+  --gray false \
+  --batch_size 1 \
+  --tolerance 0.99,0.99,0.99 \
+  --mlir resnet18_fp32.mlir
 ```
 
-得到`resnet18_tensor_all_ref.npz`。
+得到resnet18_fp32.mlir文件.
 
-查看onnx推理结果：
+其转换过程包括:
 
-``` shell
-# dump blob names
-cvi_npz_tool.py dump resnet18_tensor_all_ref.npz
-# dump data for one blob
-# cvi_npz_tool.py dump resnet18_tensor_all_ref.npz [blob_name]
-# eg.
-cvi_npz_tool.py dump resnet18_tensor_all_ref.npz output_Gemm
-# show Top-K
-cvi_npz_tool.py dump resnet18_out_ref.npz output 5
-# Show Top-K 5
-#  (278, 9.919161)
-#  (285, 9.504534)
-#  (280, 8.917217)
-#  (277, 8.506025)
-#  (287, 8.210453)
-```
+- 原始onnx模型的推理, 并将各层结果保存为numpy的npz文件
 
-#### 步骤 3：转换为mlir，进行前端优化
+- 原始onnx模型的导入, 将原始模型转换成MLIR fp32模型
+  - 执行MLIR fp32模型的推理, 将各层输出保存到numpy 的npz文件中
+  - 将onnx模型的推理的结果与MLIR fp32的推理结果对比, 确保转换的MLIR fp32模型正确
+  - 将MLIR fp32模型做优化，作为后续流程的输入
 
-执行转换和前端优化：
+**注：** 上述填入的预处理参数仅仅以信息的形式存放在mlir中，后续转换成cvimodel，也仅以信息的方式存放。对图片的预处理过程需要再外部处理，再传给模型运算。如果需要模型内部对图片进行预处理，请参考12章节：使用TPU做前处理。
 
-``` shell
-cvi_model_convert.py \
-    --model_path ../resnet18.onnx \
-    --model_name resnet18 \
-    --model_type onnx \
-    --batch_size 1 \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 1.0 \
-    --mean 0.406,0.456,0.485 \
-    --std 0.225,0.224,0.229 \
-    --mlir_file_path resnet18_from_onnx.mlir
+#### 步骤 3：Calibration
 
-tpuc-opt resnet18_from_onnx.mlir \
-    --convert-bn-to-scale \
-    --canonicalize \
-    --eltwise-early-stride \
-    --print-tpu-op-info \
-    --tpu-op-info-filename  op_info.csv \
-    -o resnet18_fp32.mlir
-```
-
-得到resnet18_fp32.mlir文件。
-
-运行tpuc-interpreter对mlir进行推理，得到的逐层数据：
-
-``` shell
-# extract input data  from resnet18_tensor_all_ref.npz
-cvi_npz_tool.py extract resnet18_tensor_all_ref.npz resnet18_in_fp32.npz input
-# inference with mlir  and input data, dump all tensor
-tpuc-interpreter resnet18_fp32.mlir \
-    --tensor-in resnet18_in_fp32.npz \
-    --tensor-out resnet18_out_fp32.npz \
-    --dump-all-tensor=resnet18_tensor_all_fp32.npz
-```
-
-得到`resnet18_tensor_all_fp32.npz`。
-
-将onnx推理数据和mlir推理数据进行逐层比对：
-
-  ``` shell
-cvi_npz_tool.py compare \
-    resnet18_tensor_all_fp32.npz \
-    resnet18_tensor_all_ref.npz \
-    --op_info op_info.csv \
-    --tolerance=0.999,0.999,0.999 -vv
-  ```
-
-
-
-#### 步骤 4-6：同caffe模型相应部分
-
-与第6章编译caffe模型的相应部分相同，此处略，仅列命令供参考。
+Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
+执行calibration：
 
 ``` shell
 run_calibration.py \
-    resnet18_fp32.mlir \
-    --dataset=c$DATASET_PATH/imagenet/img_val_extracted \
-    --input_num=1000 \
-    --calibration_table resnet18_calibration_table
-
-tpuc-opt resnet18_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table resnet18_calibration_table \
-    --assign-chip-name \
-    --chipname cv183x \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    -o resnet18_int8.mlir
-
-mlir_to_cvimodel.sh -i resnet18_int8.mlir -o resnet18.cvimodel
-
-model_runner --input resnet18_in_fp32.npz --model resnet18.cvimodel --output out.npz
-# check output data
-cvi_npz_tool.py dump out.npz
-cvi_npz_tool.py dump out.npz output_Gemm_dequant 5
-# Show Top-K 5
-# (278, 10.189036)
-# (285, 9.962614)
-# (280, 9.283344)
-# (277, 8.830499)
-# (287, 8.604075)
+  resnet18_fp32.mlir \
+  --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+  --input_num=1000 \
+  --histogram_bin_num=20480 \
+  -o resnet18_calibration_table
 ```
+
+  得到`resnet18_calibration_table`。
+
+#### 步骤 4：模型量化并生成cvimodel
+
+``` shell
+model_deploy.py \
+  --model_name resnet18 \
+  --mlir resnet18_fp32.mlir \
+  --calibration_table resnet18_calibration_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.99,0.99,0.87 \
+  --correctness 0.99,0.99,0.99 \
+  --cvimodel resnet18.cvimodel
+```
+
+以上命令同时包含以下几步:
+
+- 生成MLIR int8量化模型, 运行MLIR int8量化模型的推理, 并与MLIR fp32模型的结果做比较
+- 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR int8量化模型结果做比较
+
+**注：** --tolerance 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度， --correctnetss 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度， --chip 可以选择cv183x和cv182x 默认使用cv183x
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -1039,7 +812,7 @@ tree mobilenet_v2
 mkdir workspace && cd workspace
 ```
 
-#### 步骤 2：执行tensorflow推理（Optional）
+#### 步骤 2：模型转换
 
 取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg：
 
@@ -1047,142 +820,77 @@ mkdir workspace && cd workspace
 cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
 ```
 
-运行tensorflow推理：
+将tensorflow模型转成mlir文件
 
 ``` shell
-cvi_model_inference.py \
-    --model_def ../mobilenet_v2  \
-    --image_resize_dims 256,256  \
-    --net_input_dims 224,224 \
-    --raw_scale 255 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --batch_size 1 \
-    --input_scale 1.0 \
-    --input_file ./cat.jpg \
-    --model_channel_order  "rgb" \
-    --data_format  "nhwc" \
-    --model_type tensorflow \
-    --dump_tensor mobilenet_v2_tf_tensor_all_ref.npz  \
-    --output_file  mobilenet_v2_tf_out_ref.npz
-```
-
-检查输出的tensor数据：
-
-``` shell
-cvi_npz_tool.py dump mobilenet_v2_tf_tensor_all_ref.npz
-cvi_npz_tool.py dump mobilenet_v2_tf_out_ref.npz output 5
-# Show Top-K 5
-# (281, 0.5900044)
-# (285, 0.1474876)
-# (282, 0.114474036)
-# (287, 0.028757505)
-# (283, 0.01169785)
-```
-
-由于tensorflow的输出为nhwc格式，后续操作需要各tensor保存为nchw数据格式，执行transpose操作：
-
-``` shell
-cvi_npz_tool.py tranpose mobilenet_v2_tf_tensor_all_ref.npz nhwc  nchw
-```
-
-#### 步骤 3：转换为mlir，进行前端优化
-
-执行转换和优化优化：
-
-``` shell
-cvi_model_convert.py \
-    --model_path ../mobilenet_v2  \
-    --model_name mobilenet_v2_tf  \
-    --model_type tensorflow \
-    --batch_size 1 \
-    --image_resize_dims 256,256  \
-    --net_input_dims 224,224 \
-    --raw_scale 255 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --model_channel_order  "rgb" \
-    --mlir_file_path  mobilenet_v2_tf.mlir
-
-tpuc-opt mobilenet_v2_tf.mlir \
-    --convert-bn-to-scale \
-    --canonicalize \
-    --eltwise-early-stride \
-    --print-tpu-op-info \
-    --tpu-op-info-filename  op_info.csv \
-    -o mobilenet_v2_tf_fp32.mlir
+model_transform.py \
+  --model_type tensorflow \
+  --model_name mobilenet_v2_tf \
+  --model_def ../mobilenet_v2 \
+  --image ./cat.jpg \
+  --image_resize_dims 256,256 \
+  --keep_aspect_ratio false \
+  --net_input_dims 224,224 \
+  --raw_scale 255.0 \
+  --mean 127.5,127.5,127.5 \
+  --std 127.5,127.5,127.5 \
+  --input_scale 1.0 \
+  --model_channel_order "rgb" \
+  --gray false \
+  --batch_size 1 \
+  --tolerance 0.99,0.99,0.99 \
+  --mlir mobilenet_v2_tf_fp32.mlir
 ```
 
 得到`mobilenet_v2_tf_fp32.mlir`文件。
 
-运行tpuc-interpreter对mlir进行推理，得到的逐层数据：
+其转换过程包括:
 
-``` shell
-# extract input data  from mobilenet_v2_tf_tensor_all_ref.npz
-cvi_npz_tool.py extract mobilenet_v2_tf_tensor_all_ref.npz \
-    mobilenet_v2_tf_in_fp32.npz input
-# inference with mlir  and input data, dump all tensor
-tpuc-interpreter mobilenet_v2_tf_fp32.mlir \
-    --tensor-in mobilenet_v2_tf_in_fp32.npz \
-    --tensor-out mobilenet_v2_tf_out_fp32.npz \
-    --dump-all-tensor=mobilenet_v2_tf_tensor_all_fp32.npz
-```
+- 原始tensorflow模型的推理, 并将各层的结果保存为numpy的npz文件
 
-得到`mobilenet_v2_tf_tensor_all_fp32.npz`。
+- 原始tensorflow模型的导入, 将原始模型转换成MLIR fp32模型
+  - 执行MLIR fp32模型的推理, 将各层输出保存到numpy 的npz文件中
+  - 将tensorflow模型的推理的结果与MLIR fp32的推理结果对比, 确保转换的MLIR fp32模型正确
+  - 将MLIR fp32模型做优化，作为后续流程的输入
 
+**注：** 上述填入的预处理参数仅仅以信息的形式存放在mlir中，后续转换成cvimodel，也仅以信息的方式存放。对图片的预处理过程需要再外部处理，再传给模型运算。如果需要模型内部对图片进行预处理，请参考12章节：使用TPU做前处理。
 
+#### 步骤 3：Calibration
 
-将tensorflow推理数据和mlir推理数据进行逐层比对：
-
-  ``` shell
-cvi_npz_tool.py compare \
-    mobilenet_v2_tf_tensor_all_fp32.npz \
-    mobilenet_v2_tf_tensor_all_ref.npz \
-    --op_info op_info.csv \
-    --tolerance=0.999,0.999,0.999 -vv
-  ```
-
-
-
-#### 步骤 4-6：同caffe模型相应部分
-
-与第6章编译caffe模型的相应部分相同，此处略，仅列命令供参考。（注意预处理部分和Caffe的模型有区别）
+Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
+执行calibration：
 
 ``` shell
 run_calibration.py \
-    mobilenet_v2_tf_fp32.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --input_num=1000 \
-    --image_resize_dims 256,256  \
-    --calibration_table  mobilenet_v2_tf_calibration_table
-
-tpuc-opt mobilenet_v2_tf_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table  mobilenet_v2_tf_calibration_table \
-    --assign-chip-name \
-    --chipname cv183x \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename  op_info_int8.csv \
-    -o mobilenet_v2_tf_int8.mlir
-
-mlir_to_cvimodel.sh -i mobilenet_v2_tf_int8.mlir -o mobilenet_v2_tf.cvimodel
-
-model_runner \
-    --input mobilenet_v2_tf_in_fp32.npz \
-    --model mobilenet_v2_tf.cvimodel \
-    --output out.npz
-
-# check output data
-cvi_npz_tool.py dump out.npz
-# cvi_npz_tool.py dump out.npz [output_name] 5
-# Show Top-K 5
-# (281, 0.35996246)
-# (285, 0.20923087)
-# (282, 0.12161694)
-# (287, 0.064578906)
-# (283, 0.018208908)
+  mobilenet_v2_tf_fp32.mlir \
+  --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+  --input_num=1000 \
+  --histogram_bin_num=20480 \
+  -o mobilenet_v2_tf_calibration_table
 ```
+
+  得到`mobilenet_v2_tf_calibration_table`。
+
+#### 步骤 4：模型量化并生成cvimodel
+
+``` shell
+model_deploy.py \
+  --model_name mobilenet_v2_tf \
+  --mlir mobilenet_v2_tf_fp32.mlir \
+  --calibration_table mobilenet_v2_tf_calibration_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.95,0.94,0.64 \
+  --correctness 0.99,0.99,0.99 \
+  --cvimodel mobilenet_v2_tf.cvimodel
+```
+
+以上命令同时包含以下几步:
+
+- 生成MLIR int8量化模型，运行MLIR int8量化模型的推理, 并与MLIR fp32模型的结果做比较
+- 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR int8量化模型结果做比较
+
+**注：** --tolerance 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度， --correctnetss 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度， --chip 可以选择cv183x和cv182x 默认使用cv183x
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -1256,9 +964,7 @@ onnx.save(model, 'mnet_25_new.onnx')
 
 得到`mnet_25_new.onnx`。
 
-
-
-#### 步骤 2：执行onnx推理（Optional）
+#### 步骤 2：模型转换
 
 创建workspace，取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg
 
@@ -1279,132 +985,79 @@ cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
 >
 > INPUT_SCALE=1.0
 
-运行onnx推理：
+将onnx模型转成mlir文件
 
 ``` shell
-run_onnx_inference.py \
-    --input_file ./cat.jpg \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --output_file mnet_25_out_ref.npz \
-    --dump_tensor mnet_25_tensor_all_ref.npz \
-    --model_path ../mnet_25_new.onnx
+model_transform.py \
+  --model_type onnx \
+  --model_name mnet_25 \
+  --model_def ../mnet_25_new.onnx \
+  --image ./cat.jpg \
+  --image_resize_dims 256,256 \
+  --keep_aspect_ratio false \
+  --net_input_dims 224,224 \
+  --raw_scale 255.0 \
+  --mean 127.5,127.5,127.5 \
+  --std 127.5,127.5,127.5 \
+  --input_scale 1.0 \
+  --model_channel_order "rgb" \
+  --gray false \
+  --batch_size 1 \
+  --tolerance 0.99,0.99,0.99 \
+  --mlir mnet_25_fp32.mlir
 ```
 
-得到`mnet_25_tensor_all_ref.npz`。
+得到`mnet_25_fp32.mlir`文件.
 
+其转换过程包括:
 
+- 原始tensorflow模型的推理, 并将各层结果保存为numpy的npz文件
 
-#### 步骤 3：转换为mlir，进行前端优化
+- 原始tensorflow模型的导入, 将原始模型转换成MLIR fp32模型
+  - 执行MLIR fp32模型的推理, 将各层输出保存到numpy 的npz文件中
+  - 将caffe模型的推理的结果与MLIR fp32的推理结果对比, 确保转换的MLIR fp32模型正确
+  - 将MLIR fp32模型做优化，作为后续流程的输入
 
-执行转换和前端优化：
+**注：** 上述填入的预处理参数仅仅以信息的形式存放在mlir中，后续转换成cvimodel，也仅以信息的方式存放。对图片的预处理过程需要再外部处理，再传给模型运算。如果需要模型内部对图片进行预处理，请参考12章节：使用TPU做前处理。
 
-``` shell
-cvi_model_convert.py \
-    --model_path ../mnet_25_new.onnx \
-    --model_name mnet_25 \
-    --model_type onnx \
-    --batch_size 1 \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --model_channel_order "rgb" \
-    --mlir_file_path mnet_25.mlir
+#### 步骤 4：Calibration
 
-tpuc-opt mnet_25.mlir \
-    --convert-bn-to-scale \
-    --canonicalize \
-    --eltwise-early-stride \
-    --print-tpu-op-info \
-    --tpu-op-info-filename  op_info.csv \
-    -o mnet_25_fp32.mlir
-```
-
-得到`mnet_25_fp32.mlir`文件。
-
-运行tpuc-interpreter对mlir进行推理，得到的逐层数据：
-
-``` shell
-# extract input data  from resnet18_tensor_all_ref.npz
-cvi_npz_tool.py extract  mnet_25_tensor_all_ref.npz mnet_25_in_fp32.npz input
-# inference with mlir  and input data, dump all tensor
-tpuc-interpreter  mnet_25.mlir \
-    --tensor-in mnet_25_in_fp32.npz \
-    --tensor-out mnet_25_out_fp32.npz \
-    --dump-all-tensor=mnet_25_tensor_all_fp32.npz
-```
-
-得到`mnet_25_tensor_all_fp32.npz`。
-
-将onnx推理数据和mlir推理数据进行逐层比对：
-
-``` shell
-cvi_npz_tool.py compare \
-    mnet_25_tensor_all_fp32.npz \
-    mnet_25_tensor_all_ref.npz \
-    --op_info op_info.csv \
-    --tolerance=0.999,0.999,0.999 -vv
-```
-
-
-
-#### 步骤 4-6：同caffe模型相应部分
-
-与第6章编译caffe模型的相应部分相同，此处略，仅列命令供参考。
+Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
+执行calibration：
 
 ``` shell
 run_calibration.py \
-    mnet_25_fp32.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --input_num=1000 \
-    --calibration_table mnet_25_calibration_table
-
-tpuc-opt mnet_25_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table mnet_25_calibration_table \
-    --assign-chip-name \
-    --chipname cv183x \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    -o mnet_25_int8.mlir
-
-tpuc-interpreter mnet_25_int8.mlir \
-    --tensor-in mnet_25_in_fp32.npz \
-    --tensor-out mnet_25_out_int8.npz \
-    --dump-all-tensor=mnet_25_tensor_all_int8.npz
-
-cvi_npz_tool.py compare \
-    mnet_25_tensor_all_int8.npz \
-    mnet_25_tensor_all_fp32.npz \
-    --op_info op_info_int8.csv \
-    --dequant \
-    --tolerance 0.86,0.82,0.32 -vv
-
-mlir_to_cvimodel.sh -i mnet_25_int8.mlir -o mnet_25.cvimodel
-
-model_runner \
-    --input mnet_25_in_fp32.npz \
-    --model mnet_25.cvimodel \
-    --output out.npz
-
-# check output data
-cvi_npz_tool.py dump out.npz
-cvi_npz_tool.py dump out.npz MobilenetV1/Predictions/Softmax:0_Softmax_dequant 5
-#Show Top-K 5
-# (281, 0.2077467)
-# (331, 0.1741617)
-# (332, 0.1460063)
-# (280, 0.10261449)
-# (105, 0.10261449)
+  mnet_25_fp32.mlir \
+  --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+  --input_num=1000 \
+  --histogram_bin_num=20480 \
+  -o mnet_25_calibration_table
 ```
+
+  得到`mnet_25_calibration_table`。
+
+#### 步骤 5：模型量化并生成cvimodel
+
+``` shell
+model_deploy.py \
+  --model_name mnet_25 \
+  --mlir mnet_25_fp32.mlir \
+  --calibration_table mnet_25_calibration_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.93,0.90,0.62 \
+  --correctness 0.99,0.99,0.99 \
+  --cvimodel mnet_25.cvimodel
+```
+
+以上命令同时包含以下几步:
+
+- 生成MLIR int8量化模型, 运行MLIR int8量化模型的推理, 并与MLIR fp32模型的结果做比较
+- 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR int8量化模型结果做比较
+
+**注：** --tolerance 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度， --correctnetss 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度， --chip 可以选择cv183x和cv182x 默认使用cv183x
+
+
 
 使用tpu-mlir-interpreter测试精度：
 
@@ -1426,7 +1079,7 @@ eval_classifier.py \
 
 # INT8
 eval_classifier.py \
-    --mlir_file=mnet_25_int8.mlir \
+    --mlir_file=mnet_25_quantized.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --label_file=$REGRESSION_PATH/data/synset_words.txt \
     --image_resize_dims 256,256 \
@@ -1458,8 +1111,6 @@ eval_classifier.py \
 ``` shell
 source cvitek_mlir/cvitek_envs.sh
 ```
-
-
 
 #### 步骤 1：获取tensorflow模型，并转换为tflite模型
 
@@ -1565,8 +1216,6 @@ cvi_model_inference.py \
 
 得到`resnet50_out_ref.npz`。
 
-
-
 #### 步骤 3：转换为mlir，进行前端优化
 
 执行转换和前端优化：
@@ -1606,11 +1255,9 @@ tpuc-interpreter resnet50_int8_opt.mlir \
 
 得到resnet50_out_int8.npz。
 
+#### 步骤 4：生成cvimodel
 
-
-#### 步骤 4-6：同caffe模型相应部分
-
-与第6章编译caffe模型的相应部分相同，此处略，仅列命令供参考。此模型输入为int8模型, 不须做calibraion。
+此模型输入为int8模型, 不须做calibraion。
 
 ``` shell
 mlir_to_cvimodel.sh -i resnet50_int8_opt.mlir -o resnet50.cvimodel
@@ -1709,9 +1356,7 @@ onnx.save(model, 'mnet_25_new.onnx')
 
 得到`mnet_25_new.onnx`。
 
-
-
-#### 步骤1：执行onnx推理（Optional）
+#### 步骤1：模型转换
 
 取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg：
 
@@ -1732,81 +1377,32 @@ cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
 >
 > INPUT_SCALE=1.0
 
-运行onnx推理：
+转换为mlir文件:
 
 ``` shell
-run_onnx_inference.py \
-    --input_file ./cat.jpg \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --output_file mnet_25_out_ref.npz \
-    --dump_tensor mnet_25_tensor_all_ref.npz \
-    --model_path ../mnet_25_new.onnx
-```
-
-得到`mnet_25_tensor_all_ref.npz`。
-
-#### 步骤 2：转换为mlir，进行前端优化
-
-执行转换和前端优化：
-
-``` shell
-cvi_model_convert.py \
-    --model_path ../mnet_25_new.onnx \
-    --model_name mnet_25 \
-    --model_type onnx \
-    --batch_size 1 \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --model_channel_order "rgb" \
-    --mlir_file_path mnet_25.mlir
-
-tpuc-opt mnet_25.mlir \
-    --convert-bn-to-scale \
-    --canonicalize \
-    --eltwise-early-stride \
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info.csv \
-    -o mnet_25_fp32.mlir
+model_transform.py \
+  --model_type onnx \
+  --model_name mnet_25 \
+  --model_def ../mnet_25_new.onnx \
+  --image ./cat.jpg \
+  --image_resize_dims 256,256 \
+  --keep_aspect_ratio false \
+  --net_input_dims 224,224 \
+  --raw_scale 255.0 \
+  --mean 127.5,127.5,127.5 \
+  --std 127.5,127.5,127.5 \
+  --input_scale 1.0 \
+  --model_channel_order "rgb" \
+  --gray false \
+  --batch_size 1 \
+  --tolerance 0.99,0.99,0.99 \
+  --mlir mnet_25_fp32.mlir
 ```
 
 得到`mnet_25_fp32.mlir`文件。
 
-运行tpuc-interpreter对mlir进行推理，得到的逐层数据：
 
-``` shell
-# extract input data from resnet18_tensor_all_ref.npz
-cvi_npz_tool.py extract mnet_25_tensor_all_ref.npz mnet_25_in_fp32.npz input
-
-# inference with mlir and input data, dump all tensor
-tpuc-interpreter mnet_25.mlir \
-    --tensor-in mnet_25_in_fp32.npz \
-    --tensor-out mnet_25_out_fp32.npz \
-    --dump-all-tensor=mnet_25_tensor_all_fp32.npz
-```
-
-得到`mnet_25_tensor_all_fp32.npz`。
-
-将onnx推理数据和mlir推理数据进行逐层比对：
-
-``` shell
-cvi_npz_tool.py compare \
-    mnet_25_tensor_all_fp32.npz \
-    mnet_25_tensor_all_ref.npz \
-    --op_info op_info.csv \
-    --tolerance=0.999,0.999,0.999 -vv
-```
-
-
-#### 步骤 3：测试FP32模型精度（Optional）
+#### 步骤 2：测试FP32模型精度（Optional）
 
 使用tpu-mlir-interpreter测试精度：
 
@@ -1836,8 +1432,6 @@ eval_classifier.py \
 
 测试得到FP32模型精度为Top-1 49.2% Top-5 73.5%。
 
-
-
 #### 步骤 4：进行INT8量化
 
 进行calibration：
@@ -1855,30 +1449,16 @@ run_calibration.py \
 进行INT8量化，并进行逐层比较：
 
 ``` shell
-tpuc-opt mnet_25_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table mnet_25_calibration_table \
-    --assign-chip-name \
-    --chipname cv183x \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    -o mnet_25_int8.mlir
-
-tpuc-interpreter mnet_25_int8.mlir \
-    --tensor-in mnet_25_in_fp32.npz \
-    --tensor-out mnet_25_out_int8.npz \
-    --dump-all-tensor=mnet_25_tensor_all_int8.npz
-
-cvi_npz_tool.py compare \
-    mnet_25_tensor_all_int8.npz \
-    mnet_25_tensor_all_fp32.npz \
-    --op_info op_info_int8.csv \
-    --dequant \
-    --tolerance 0.90,0.88,0.59 -vv
+model_deploy.py \
+  --model_name mnet_25 \
+  --mlir mnet_25_fp32.mlir \
+  --calibration_table mnet_25_calibration_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.93,0.90,0.62 \
+  --correctness 0.99,0.99,0.99 \
+  --cvimodel mnet_25.cvimodel.npz
 ```
-
-
 
 #### 步骤 5：测试INT8模型精度（Optional)
 
@@ -1887,7 +1467,7 @@ cvi_npz_tool.py compare \
 ``` shell
 # INT8
 eval_classifier.py \
-    --mlir_file=mnet_25_int8.mlir \
+    --mlir_file=mnet_25_quantized.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --label_file=$REGRESSION_PATH/data/synset_words.txt \
     --image_resize_dims 256,256 \
@@ -1909,26 +1489,21 @@ eval_classifier.py \
 
 测试得到INT8模型精度为Top-1 43.2% Top-5 68.3%，比FP32模型精度（Top-1 49.2% Top-5 73.5%）有一定幅度下降。
 
-
-
 #### 步骤 6：进行混合量化搜索，并进行混合量化
 
 搜索混合量化表。此模型共有59层，选择多少层进行替换，可以根据对精度的需要，以及测试的精度结果来进行调整。搜索用的数据集数量也可以根据需要调整。
 
- 此处以替换其中6层为例（`--number_bf16=6`），搜索用的测试数据集为100张：
+ 此处以替换其中6层为例（`--max_bf16_layers=6`），搜索用的测试数据集为100张：
 
 ``` shell
-tpuc-opt mnet_25_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table mnet_25_calibration_table \
-    -o mnet_25_cali.mlir
-
-cvi_mix_precision.py \
-    mnet_25_cali.mlir \
+run_mix_precision.py \
+    mnet_25_fp32.mlir \
+    --model_name mnet25 \
     --dataset ${DATESET_PATH} \
+    --calibration_table mnet_25_calibration_table \
     --input_num=20 \
-    --number_bf16=6 \
-    --mix_table mnet_25_mix_precision_bf16_table
+    --max_bf16_layers=6 \
+    -o mnet_25_mix_precision_bf16_table
 ```
 
 得到`mnet_25_mix_precision_bf16_table`，内容如下：
@@ -1946,18 +1521,17 @@ cat mnet_25_mix_precision_bf16_table
 进行混合量化：
 
 ``` shell
-tpuc-opt \
-    --assign-chip-name
-    --chipname cv183x \
-    --tpu-quant \
-    --quant-int8-mix-bf16-layers-from-file mnet_25_mix_precision_bf16_table \
-    --tpu-op-info-filename mnet_25_op_info_mix.csv \
-    --print-tpu-op-info \
-    mnet_25_cali.mlir \
-    -o mnet_25_mix_precision.mlir
+model_deploy.py \
+  --model_name mnet_25 \
+  --mlir mnet_25_fp32.mlir \
+  --calibration_table mnet_25_calibration_table \
+  --mix_precision_table mnet_25_mix_precision_bf16_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.94,0.93,0.67 \
+  --correctness 0.99,0.99,0.99 \
+  --cvimodel mnet_25_mix_precision.cvimodel
 ```
-
-
 
 #### 步骤 7：测试混合量化模型精度 (Optional)
 
@@ -1966,7 +1540,7 @@ tpuc-opt \
 ``` shell
 # MIXED, 6 layers
 eval_classifier.py \
-    --mlir_file=mnet_25_mix_precision.mlir \
+    --mlir_file=mnet_25_quantized.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --label_file=$REGRESSION_PATH/data/synset_words.txt \
     --image_resize_dims 256,256 \
@@ -2005,12 +1579,15 @@ eval_classifier.py \
 全bf16量化的测量：
 
 ``` shell
-tpuc-opt mnet_25_fp32.mlir \
-    --assign-chip-name \
-    --chipname cv183x \
-    --tpu-quant --quant-full-bf16 \
-    --tpu-op-info-filename mnet_25_op_info_bf16.csv \
-    -o mnet_25_bf16.mlir
+model_deploy.py \
+  --model_name mnet_25 \
+  --mlir mnet_25_fp32.mlir \
+  --all_bf16 \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.99,0.99,0.86 \
+  --correctness 0.99,0.99,0.94 \
+  --cvimodel mnet_25_all_bf16_precision.cvimodel
 
 # BF16
 # Test: [49950/50000]     Time  0.031 ( 0.036)    Loss 6.4377e+00 (6.5711e+00)    Acc@1 100.00 ( 48.49)   Acc@5 100.00 ( 73.06)
@@ -2029,17 +1606,6 @@ tpuc-opt mnet_25_fp32.mlir \
 | BF16              | 48.5%     | 73.1%     |
 | FP32              | 49.2%     | 73.5%     |
 
-#### 步骤 8：生成cvimodel
-
-``` shell
-mlir_to_cvimodel.sh -i mnet_25_mix_precision.mlir -o mnet_25_mix.cvimodel
-
-model_runner \
-    --input mnet_25_in_fp32.npz \
-    --model mnet_25_mix.cvimodel \
-    --output out.npz
-```
-
 <div STYLE="page-break-after: always;"></div>
 
 ## 12 使用TPU做前处理
@@ -2052,11 +1618,11 @@ CV183X提供两种硬件资源进行神经网络模型的前处理加速。
 
 客户可以基于系统优化需要，灵活选择使用哪个引擎进行预处理。使用VPSS进行预处理的详细使用方法请参阅《CV18xx 媒体软件开发参考》，本文档不做介绍。本章介绍使用TPU做前处理的具体步骤。本章以Caffe模型编译为例，按照第6章的步骤稍做修改，生成支持前处理的cvimodel。以`mobilenet_v2`为例。
 
-#### 步骤 0-5：与Caffe章节相应步骤相同
+#### 步骤 0-3：与Caffe章节相应步骤相同
 
-假设用户以及按照第6章所述步骤，以及执行完整的不含TPU预处理过程的模型迁移。
+假设用户以及按照第6章所述步骤，执行完模型转换并生成calibraiton table后。
 
-#### 步骤 6：生成含TPU预处理的cvimodel
+#### 步骤 4：模型量化并生成含TPU预处理的cvimodel
 
 首先，加载cvitek_mlir环境：
 
@@ -2065,18 +1631,25 @@ source cvitek_mlir/cvitek_envs.sh
 cd models_mobilenet_v2/workspace
 ```
 
-按前面的步骤，`mobilenet_v2_int8.mlir`中已经包含了预处理信息，只需调用`tpuc-opt`指定在模型内做预处理：
+执行以下命令：
 
 ``` shell
-tpuc-opt \
-    --add-tpu-preprocess \
-    --pixel_format BGR_PACKED \
-    --input_aligned=false \
-    mobilenet_v2_int8.mlir \
-    -o mobilenet_v2_fused_preprocess_int8.mlir
+model_deploy.py \
+  --model_name mobilenet_v2 \
+  --mlir mobilenet_v2_fp32.mlir \
+  --calibration_table mobilenet_v2_calibration_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.96,0.96,0.71 \
+  --fuse_preprocess \
+  --pixel_format BGR_PACKED \
+  --aligned_input false \
+  --excepts data \
+  --correctness 0.99,0.99,0.99 \
+  --cvimodel mobilenet_v2_fused_preprocess.cvimodel
 ```
 
-得到`mobilenet_v2_fused_preprocess_int8.mlir`。
+就可以得到带前处理的cvimodel.
 
 其中`pixel_format`用于指定输入的数据格式，有这几种格式：
 
@@ -2089,102 +1662,10 @@ tpuc-opt \
 | GRAYSCALE     | 仅有一个灰色通道，按nchw摆放 |
 | YUV420_PLANAR | yuv420格式，按照nchw摆放     |
 
-其中`input_aligned`用于表示是否数据存在对齐，如果数据来源于VPSS，则会有数据对齐要求，比如w按照32字节对齐。
+其中`aligned_input`用于表示是否数据存在对齐，如果数据来源于VPSS，则会有数据对齐要求，比如w按照32字节对齐。
 
-生成cvimodel，如下：
+以上过程包含以下几步:
 
-``` shell
-mlir_to_cvimodel.sh \
-    -i mobilenet_v2_fused_preprocess_int8.mlir \
-    -o mobilenet_v2_fused_preprocess.cvimodel
-```
-
-
-
-#### 步骤 7：测试cvimodel
-
-首先生成resize后的图像数据，并保存为npy文件，用于作为测试的输入。因为caffe的推理过程是先resize为256,256，再crop为224,224，因此下面先对input做resize，然后在TPU中做crop.
-
-可以使用如下命令生成`mobilenet_v2_resize_only_in_fp32.npz`：
-
-``` shell
-cvi_preprocess.py  \
-    --image_file ./cat.jpg \
-    --image_resize_dims 256,256 \
-    --pixel_format BGR_PACKED \
-    --keep_aspect_ratio 0 \
-    --aligned 0 \
-    --batch_size 1 \
-    --input_name input \
-    --output_npz mobilenet_v2_resize_only_in_fp32.npz
-
-# dump
-cvi_npz_tool.py dump mobilenet_v2_resize_only_in_fp32.npz input
-#   ...
-#   [192 207 216]
-#   [185 201 210]
-#   [159 176 185]]]]
-# shape (1, 256, 256, 3)
-# dtype uint8
-```
-
-运行model_runner推理，并dump输出数据：
-
-``` shell
-model_runner \
-    --dump-all-tensors \
-    --input mobilenet_v2_resize_only_in_fp32.npz \
-    --model mobilenet_v2_fused_preprocess.cvimodel \
-    --output mobilenet_v2_cmdbuf_out_all_fused_preprocess_int8.npz
-
-# check output data
-cvi_npz_tool.py dump mobilenet_v2_cmdbuf_out_all_fused_preprocess_int8.npz prob_dequant 5
-# Show Top-K 5
-# (285, 0.26896998)
-# (282, 0.26896998)
-# (281, 0.08361348)
-# (287, 0.06243373)
-# (277, 0.06243373)
-
-```
-
-
-
-#### 步骤 8：使用interpreter进行数据验证（Optional）
-
-作为调试手段，当数据出现不正常情况时，我们仍然可以interpreter进行推理，并对每层的数据进行比对。
-
-运行tpuc-interpreter对转换和优化后的fp32 mlir模型进行推理，得到的mlir推理的逐层数据：
-
-``` shell
-tpuc-interpreter mobilenet_v2_fused_preprocess_int8.mlir \
-    --tensor-in mobilenet_v2_resize_only_in_fp32.npz \
-    --tensor-out mobilenet_v2_out_fused_preprocess_int8.npz \
-    --dump-all-tensor=mobilenet_v2_tensor_all_fused_preprocess_int8.npz \
-    --use-tpu-quant-op
-```
-
-将caffe推理数据和mlir推理数据进行逐层比对：
-
-``` shell
-cvi_npz_tool.py compare \
-    mobilenet_v2_tensor_all_fused_preprocess_int8.npz \
-    mobilenet_v2_blobs.npz \
-    --op_info op_info_int8.csv \
-    --dequant \
-    --excepts="data" \
-    --tolerance 0.93,0.93,0.54 -vv
-```
-
-将caffe推理数据和model_runner执行执行结果进行逐层比对：
-
-``` shell
-cvi_npz_tool.py compare \
-    mobilenet_v2_cmdbuf_out_all_fused_preprocess_int8.npz \
-    mobilenet_v2_blobs.npz \
-    --op_info op_info_int8.csv \
-    --dequant \
-    --excepts="data" \
-    --tolerance 0.93,0.93,0.54 -vv
-```
-
+- 生成带前处理的MLIR int8模型, 以及不包含前处理的输入 mobilenet_v2_resized_only_in_fp32.npz
+- 执行MLIR int8推理 与 MLIR fp32 推理结果的比较, 验证MLIR int8 带前处理模型的正确性
+- 生成带前处理的 cvimodel, 以及调用仿真器执行推理, 将结果与 MLIR int8 带前处理的模型的推理结果做比较
