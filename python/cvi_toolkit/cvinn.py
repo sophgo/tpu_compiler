@@ -6,7 +6,7 @@ from .calibration.kld_calibrator import KLD_Calibrator
 from .calibration.tuner import AutoTuner
 from .utils.mlir_shell import checkReturnValue, mlir_opt, \
                                 mlir_import_calibration, mlir_tpu_quant, mlir_lower_opt, mlir_gen_cvimodel, \
-    mlir_calibration, run_cvimodel, gen_bf16_mlir, get_chip_name
+    mlir_calibration, run_cvimodel, get_chip_name
 from .utils.log_setting import setup_logger
 
 import subprocess

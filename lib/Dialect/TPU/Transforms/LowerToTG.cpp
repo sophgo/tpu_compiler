@@ -821,7 +821,7 @@ Value tpu::EmbeddingOp::convertToTG() {
   auto castOp = cast<tpu::EmbeddingOp>(op);
   auto builder = Builder(op->getContext());
 
-  if (getOpQuant() == "BF16") {
+  if (getOpQuant() == "BF16" || getOpQuant() == "INT8") {
     std::vector<NamedAttribute> param;
     for (auto &attr : castOp->getAttrs()) {
       if (attr.first == "name" || attr.first == "gaddr" ||
@@ -2712,39 +2712,6 @@ struct FoldReshapePattern : public RewritePattern {
   }
 };
 
-template<typename OpTy>
-struct FoldReshapeHorizonPattern : public RewritePattern {
-  FoldReshapeHorizonPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
-
-  LogicalResult matchAndRewrite(Operation *op,
-                                PatternRewriter &rewriter) const override {
-    auto castOp = cast<OpTy>(op);
-    auto formerOp = castOp.getOperand().getDefiningOp();
-    std::vector<Operation*> targets;
-    int cnt = 0;
-    for (auto &use : formerOp->getResult(0).getUses()) {
-      auto child = use.getOwner();
-      if (!isa<OpTy>(child)) {
-        return failure();
-      }
-      if (child->getResult(0) == castOp.getResult()) {
-        // llvm::errs() << "replace reshape\n";
-        if (child != op) {
-          targets.push_back(child);
-          llvm::errs() << "found a reshape op to be replaced\n";
-        }
-      }
-      cnt++;
-    }
-    // llvm::errs() << "name:" << getOpName(formerOp) << ", uses:" << cnt << "\n";
-    for (auto t : targets) {
-      rewriter.replaceOp(t, {castOp.getResult()});
-    }
-    return success();
-  }
-};
-
 static std::unique_ptr<std::vector<uint8_t> > packWeight(
     std::vector<float> *bias, std::vector<float> *rshift,
     std::vector<float> *multiplier, int64_t oc,
@@ -4521,14 +4488,24 @@ struct LowerWeightEmbeddingOpPattern : public RewritePattern {
     std::vector<int64_t> shape;
     int64_t size;
     getTensorShapeAndSize(tableOp, shape, size);
-    auto table = readAndDeleteWeightTensor<uint16_t>(tableOp, wTF);
-    std::vector<uint16_t> table_uint16(table->begin(), table->end());
-
-    // save it
-    addWeightTensorAndUpdateWeightOp<uint16_t>(
-        tableOp, "lowered", table_uint16, shape, "BF16", wTF);
-    tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
-    tableOp->setAttr("storage", rewriter.getStringAttr("BF16"));
+    if (getOpQuant(castOp) == "INT8") {
+      auto table = readAndDeleteWeightTensor<float>(tableOp, wTF);
+      std::vector<int8_t> constValueInt8(table->begin(),
+                                         table->end());
+      // save it
+      addWeightTensorAndUpdateWeightOp<int8_t>(tableOp,
+          "lowered", constValueInt8, shape, "INT8", wTF);
+      tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
+      tableOp->setAttr("storage", rewriter.getStringAttr("INT8"));
+    } else {
+      auto table = readAndDeleteWeightTensor<uint16_t>(tableOp, wTF);
+      std::vector<uint16_t> table_uint16(table->begin(), table->end());
+      // save it
+      addWeightTensorAndUpdateWeightOp<uint16_t>(
+          tableOp, "lowered", table_uint16, shape, "BF16", wTF);
+      tableOp->setAttr("lowered", rewriter.getBoolAttr(true));
+      tableOp->setAttr("storage", rewriter.getStringAttr("BF16"));
+    }
     return success();
   }
 };
@@ -4647,18 +4624,26 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
 
   bool ifAllSiblingsAreSameQuantMode(Operation *input_op, StringRef mode) const {
     for (auto &use : input_op->getResult(0).getUses()) {
-      auto nextOp = use.getOwner();
-      if (isa<tpu::ReshapeOp>(nextOp)) {
-        nextOp = getNextOp(nextOp);
-        assert(nextOp);
-      }
-      auto quantOp = dyn_cast<tpu::QuantOp>(nextOp);
-      if (!quantOp) {
-        continue;
-      }
-
-      if (quantOp.to() != mode) {
-        return false;
+      auto next = use.getOwner();
+      if (isa<tpu::ReshapeOp>(next)) {
+        for (auto &use_ : next->getResult(0).getUses()) {
+          auto next_ = use_.getOwner();
+          auto quantOp = dyn_cast<tpu::QuantOp>(next_);
+          if (!quantOp) {
+            continue;
+          }
+          if (quantOp.to() != mode) {
+            return false;
+          }
+        }
+      } else {
+        auto quantOp = dyn_cast<tpu::QuantOp>(next);
+        if (!quantOp) {
+          continue;
+        }
+        if (quantOp.to() != mode) {
+          return false;
+        }
       }
     }
     return true;
@@ -4913,12 +4898,6 @@ public:
     auto fn = getFunction();
 
     OwningRewritePatternList patterns;
-    patterns.insert<
-        FoldReshapeHorizonPattern<tpu::ReshapeOp>
-        >(context);
-    applyPatternsAndFoldGreedily(fn, std::move(patterns));
-
-    patterns.clear();
     patterns.insert<
         EliminateInputQuantOpPattern<tpu::QuantOp>,
         EliminateOutputQuantOpPattern<tpu::QuantOp>,

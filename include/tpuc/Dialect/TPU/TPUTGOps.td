@@ -474,6 +474,7 @@ class TPU_TG_EmbeddingOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
+def TPU_TG_INT8_EmbeddingOp : TPU_TG_EmbeddingOp<"tg_int8_embedding", "Int8">;
 def TPU_TG_BF16_EmbeddingOp : TPU_TG_EmbeddingOp<"tg_bf16_embedding", "Bf16">;
 
 class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,

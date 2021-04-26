@@ -9,7 +9,8 @@ logger = setup_logger('root')
 
 std_log_flag = logger.level <= logging.DEBUG
 if std_log_flag:
-    std_output_flag = {'capture_output': True}
+    std_output_flag = {'stdout': subprocess.STDPIPE,
+                       'stderr': subprocess.STDOUT}
 else:
     std_output_flag = {'stdout': subprocess.DEVNULL,
                        'stderr': subprocess.STDOUT}
@@ -296,7 +297,7 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
 
 def fp32_blobs_compare(a_npz, b_npz, op_order, tolerance,
                        dequant=False, excepts=None,
-                       show_detail=True):
+                       show_detail=True, int8_tensor_close=True):
     cmd = [
         "cvi_npz_tool.py", "compare", a_npz, b_npz,
         "--op_info", op_order,
@@ -305,6 +306,8 @@ def fp32_blobs_compare(a_npz, b_npz, op_order, tolerance,
         cmd.extend(["--dequant", "--stats_int8_tensor"])
     if excepts:
         cmd.extend(["--except", excepts])
+    if not int8_tensor_close:
+        cmd.extend(['--int8_tensor_close', '0'])
     if show_detail:
         cmd.append('-vv')
     logger.info(" ".join(cmd))

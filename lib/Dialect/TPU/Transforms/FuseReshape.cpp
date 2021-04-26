@@ -39,8 +39,46 @@
 using namespace mlir;
 
 namespace {
-struct TpuFuseReshapePattern : public RewritePattern {
-  TpuFuseReshapePattern(MLIRContext *context)
+
+// remove input---- reshape --output1
+//              |-- reshape -- output2
+struct FoldSiblingReshapePattern : public RewritePattern {
+  FoldSiblingReshapePattern(MLIRContext *context)
+      : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::ReshapeOp>(op);
+    auto parentOp = castOp.getOperand().getDefiningOp();
+    std::vector<Operation*> targets;
+    int cnt = 0;
+    for (auto &use : parentOp->getResult(0).getUses()) {
+      auto child = use.getOwner();
+      if (child == op) {
+        continue;
+      }
+      if (!isa<tpu::ReshapeOp>(child)) {
+        continue;
+      }
+      if (child->getResult(0).getType() == castOp.getResult().getType()) {
+        targets.push_back(child);
+      }
+      cnt++;
+    }
+    if (cnt == 0) {
+      return failure();
+    }
+
+    for (auto t : targets) {
+      op->moveBefore(t);
+      rewriter.replaceOp(t, {castOp.getResult()});
+    }
+    return success();
+  }
+};
+
+struct TpuFuseDescendantReshapePattern : public RewritePattern {
+  TpuFuseDescendantReshapePattern(MLIRContext *context)
       : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
@@ -138,11 +176,13 @@ struct TpuReshapeReduceMaxPattern : public RewritePattern {
     for (auto &use : op->getResult(0).getUses()) {
       if (auto tpuOp = llvm::dyn_cast<tpu::ReduceMaxOp>(use.getOwner())) {
         nextOp = tpuOp.getOperation();
-        if (tpuOp.axes().hasValue())
+        if (tpuOp.axes().hasValue()) {
           arrayAttrToVector(tpuOp.axes().getValue(), axes_array);
+        }
         break;
-      } else
+      } else {
         return failure();
+      }
     }
 
     if (axes_array.size() != 1)
@@ -244,9 +284,10 @@ public:
 
   void runOnFunction() override {
     OwningRewritePatternList patterns;
-    patterns.insert<TpuFuseReshapePattern>(&getContext());
+    patterns.insert<TpuFuseDescendantReshapePattern>(&getContext());
     patterns.insert<TpuReshapeReduceMaxPattern>(&getContext());
     patterns.insert<TpuDReshapeReduceMaxPattern>(&getContext());
+    patterns.insert<FoldSiblingReshapePattern>(&getContext());
     applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 
@@ -257,9 +298,10 @@ public:
 void tpu::ReshapeOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<
-    TpuFuseReshapePattern,
+    TpuFuseDescendantReshapePattern,
     TpuReshapeReduceMaxPattern,
-    TpuDReshapeReduceMaxPattern
+    TpuDReshapeReduceMaxPattern,
+    FoldSiblingReshapePattern
   >(context);
 }
 

@@ -25,8 +25,11 @@ class DeployTool:
         self.ppa.load_config(self.mlir_file, 0)
         self.with_preprocess = False
         self.ppb = None
+        self.mix = False
 
     def quantize(self, calib_table, mix_table, all_bf16, chip):
+        if not calib_table and not mix_table and not all_bf16:
+            self.mix = True
         ret = mlir_quant(self.mlir_file, calib_table, mix_table, all_bf16, chip,
                          str(self.quantized_mlir), str(self.quantized_op_info_csv))
         if ret != 0:
@@ -121,7 +124,8 @@ class DeployTool:
                                  str(all_tensors_interp_npz),
                                  str(self.quantized_op_info_csv),
                                  tolerance=correctness,
-                                 show_detail=False)
+                                 show_detail=True,
+                                 int8_tensor_close=self.mix)
         if ret != 0:
             raise RuntimeError("validate fail")
 

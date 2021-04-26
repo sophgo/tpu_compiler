@@ -1653,12 +1653,47 @@ LogicalResult tpu::ArgMaxOp::quantizeInt8() {
   return success();
 }
 
+LogicalResult tpu::EmbeddingOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+
+  auto castOp = cast<tpu::EmbeddingOp>(op);
+  TensorFile *wTF = getWeightTensorFile(op);
+
+
+  int64_t tableSize;
+  std::vector<int64_t> tableShape;
+  std::unique_ptr<std::vector<float> > table;
+  table = readAndDeleteWeightTensor<float>(op->getOperand(1), wTF);
+  getTensorShapeAndSize(op->getOperand(1), tableShape, tableSize);
+  // create new tensors
+  auto new_table = std::make_unique<std::vector<float> >(tableSize);
+  float threshold_y = getOpThreshold(op);
+  float scale = 127.0 / threshold_y;
+  auto src_ptr = table->data();
+  auto dst_ptr = new_table->data();
+  for (int i = 0; i < tableSize; i++) {
+    dst_ptr[i] = floor(src_ptr[i] * scale + 0.5);
+    if (dst_ptr[i] > 127) {
+      dst_ptr[i] = 127.0;
+    } else if (dst_ptr[i] < -128) {
+      dst_ptr[i] = -128.0;
+    }
+  }
+  addWeightTensorAndUpdateWeightOp<float>(castOp.table(),
+      "quant", *new_table, tableShape, "INT8", wTF);
+  setOpResultType(op->getResult(0),
+                  IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+  return success();
+}
+
+
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::AbsOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CscOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CustomOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::DilateOp)
-DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::EmbeddingOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::GruOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InstanceNormOp)

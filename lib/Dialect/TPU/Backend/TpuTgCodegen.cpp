@@ -1276,12 +1276,17 @@ LogicalResult tpu::TG_BF16_DilateOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_BF16_EmbeddingOp::codegen(void *ctx) {
+LogicalResult tpu::TG_INT8_EmbeddingOp::codegen(void *ctx) {
   std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
   llvm_unreachable(errorMsg.c_str());
   return success();
 }
 
+LogicalResult tpu::TG_BF16_EmbeddingOp::codegen(void *ctx) {
+  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
+  llvm_unreachable(errorMsg.c_str());
+  return success();
+}
 
 LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
