@@ -21,6 +21,7 @@ script_path = os.path.dirname(os.path.abspath(__file__))
 TEST_ONNX_IR = [
     "Abs",
     "Add",
+    "AddConst",
     "AveragePool",
 #    "Concat",
     "Conv2d", # Conv with 2d case
@@ -29,6 +30,7 @@ TEST_ONNX_IR = [
     "FullyConnected",
     "GlobalMaxPool",
     "GRU",
+    "GRUh", # test gru output Y_h
     "LeakyRelu",
     "LRN",
     "Max",
@@ -83,6 +85,7 @@ class ONNX_IR_TESTER(object):
         self.test_function = {
             "Abs": self.test_Abs,
             "Add": self.test_Add,
+            "AddConst": self.test_AddConst,
             "AveragePool": self.test_AveragePool,
             "Concat": self.test_Concat,
             "Conv2d": self.test_Conv2d,
@@ -91,6 +94,7 @@ class ONNX_IR_TESTER(object):
             "FullyConnected": self.test_FullyConnected,
             "GlobalMaxPool": self.test_GlobalMaxPool,
             "GRU": self.test_GRU,
+            "GRUh": self.test_GRUh,
             "LeakyRelu": self.test_LeakyRelu,
             "LRN": self.test_LRN,
             "Max": self.test_Max,
@@ -140,9 +144,13 @@ class ONNX_IR_TESTER(object):
         self.mlir_model = MLIRModel()
         self.mlir_model.load_model(fp32_opt_mlir)
         mlir_out = self.mlir_model.inference(input_data)
+        fp32_tensors = self.mlir_model.get_all_tensor()
 
         # Test output
         np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
+
+        mlir_npz = "{}_fp32.npz".format(model_name)
+        np.savez(mlir_npz, **fp32_tensors)
 
         if self.cvi_model_test:
             for i in NOT_SUPPORT_CMDBUF_TEST_IR:
@@ -175,6 +183,8 @@ class ONNX_IR_TESTER(object):
                 int8_tensors = self.mlir_model.get_all_tensor()
                 ref_npz = "{}_tensor_all_int8.npz".format(model_name)
                 np.savez(ref_npz, **int8_tensors)
+                npz_compare([ref_npz, mlir_npz,  "--tolerance",
+                             "0.6,0.6,0.6", "--dequant", "--op_info", int8_csv])
 
                 # lower
                 tg_mlir = "tg_{}_int8.mlir".format(model_name)
@@ -227,6 +237,8 @@ class ONNX_IR_TESTER(object):
                 bf16_tensors = self.mlir_model.get_all_tensor()
                 ref_npz = "{}_tensor_all_bf16.npz".format(model_name)
                 np.savez(ref_npz, **bf16_tensors)
+                npz_compare([ref_npz, mlir_npz,  "--tolerance",
+                             "0.8,0.8,0.8", "--dequant", "--op_info", bf16_csv])
 
                 # lower
                 tg_mlir = "tg_{}_bf16.mlir".format(model_name)
@@ -328,6 +340,46 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
+    def test_AddConst(self):
+        test_case = 'AddConst'
+        input_shape = [1, 3, 28, 28]
+        output_shape = [1, 3, 28, 28]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+        w_data = np.random.rand(input_shape[0], input_shape[1],
+                                input_shape[2], input_shape[3]).astype(np.float32)
+        w_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['w'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=w_data.shape,
+                vals=w_data.flatten(),
+            ),
+        )
+
+        add_node = helper.make_node(
+            'Add',  # node name
+            ['input', 'w'],  # inputs
+            ['output'],  # outputs
+        )
+        graph_def = helper.make_graph(
+            [w_node_def, add_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                                    input_shape[2], input_shape[3]).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Add(self):
         test_case = 'Add'
@@ -620,15 +672,16 @@ class ONNX_IR_TESTER(object):
 
     def test_GRU(self):
         test_case = 'GRU'
-        seq_length = 175
+        seq_length = 75
         batch_size = 2
         num_dir = 2
-        input_size = 256
-        hidden_size = 128
+        input_size = 64
+        hidden_size = 32
         direction = 'forward' if num_dir == 1 else 'bidirectional'
         input_data = np.random.rand(
             seq_length, batch_size, input_size).astype(np.float32)
-        h_data = np.random.rand(num_dir, batch_size, hidden_size).astype(np.float32)
+        h_data = np.random.rand(num_dir, batch_size,
+                                hidden_size).astype(np.float32)
         w_data = np.random.rand(
             num_dir, 3*hidden_size, input_size).astype(np.float32)
         r_data = np.random.rand(
@@ -638,10 +691,8 @@ class ONNX_IR_TESTER(object):
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, list(input_data.shape))
 
-        output1 = helper.make_tensor_value_info(
-            'output1', TensorProto.FLOAT, [seq_length, num_dir, batch_size, hidden_size])
-        output2 = helper.make_tensor_value_info(
-            'output2', TensorProto.FLOAT, [num_dir, batch_size, hidden_size])
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [seq_length, num_dir, batch_size, hidden_size])
 
         w_node_def = onnx.helper.make_node(
             'Constant',
@@ -690,7 +741,7 @@ class ONNX_IR_TESTER(object):
         node_def = onnx.helper.make_node(
             "GRU",
             inputs=['input', 'w', 'r', 'b', '', 'h'],
-            outputs=['output1',''],
+            outputs=['output', ''],
             direction=direction,
             hidden_size=hidden_size,
             linear_before_reset=1,
@@ -699,7 +750,93 @@ class ONNX_IR_TESTER(object):
             [w_node_def, r_node_def, b_node_def, h_node_def, node_def],
             test_case,
             [input],
-            [output1],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_GRUh(self):
+        test_case = 'GRUh'
+        seq_length = 75
+        batch_size = 2
+        num_dir = 2
+        input_size = 128
+        hidden_size = 64
+        direction = 'forward' if num_dir == 1 else 'bidirectional'
+        input_data = np.random.rand(
+            seq_length, batch_size, input_size).astype(np.float32)
+        h_data = np.random.rand(num_dir, batch_size,
+                                hidden_size).astype(np.float32)
+        w_data = np.random.rand(
+            num_dir, 3*hidden_size, input_size).astype(np.float32)
+        r_data = np.random.rand(
+            num_dir, 3*hidden_size, hidden_size).astype(np.float32)
+        b_data = np.random.rand(num_dir, 6*hidden_size).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, list(input_data.shape))
+
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [num_dir, batch_size, hidden_size])
+
+        w_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['w'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=w_data.shape,
+                vals=w_data.flatten(),
+            ),
+        )
+        r_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['r'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=r_data.shape,
+                vals=r_data.flatten(),
+            ),
+        )
+        b_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['b'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=b_data.shape,
+                vals=b_data.flatten(),
+            ),
+        )
+        h_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['h'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=h_data.shape,
+                vals=h_data.flatten(),
+            ),
+        )
+        node_def = onnx.helper.make_node(
+            "GRU",
+            inputs=['input', 'w', 'r', 'b', '', 'h'],
+            outputs=['', 'output'],
+            direction=direction,
+            hidden_size=hidden_size,
+            linear_before_reset=1,
+        )
+        graph_def = helper.make_graph(
+            [w_node_def, r_node_def, b_node_def, h_node_def, node_def],
+            test_case,
+            [input],
+            [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         onnx.checker.check_model(model_def)

@@ -56,6 +56,17 @@ using namespace mlir;
 namespace mlir {
 
 ///
+/// bypass Ops quantization method
+///
+LogicalResult quantizeBf16BypassOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+
+  return success();
+}
+
+///
 /// Conv Ops quantization method
 ///
 template<typename OpTy>
@@ -435,6 +446,42 @@ LogicalResult quantizeBf16FullyConnectedOps(Operation *op) {
     addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(2),
         "quant", *bias, biasShape, "FP32", wTF);
   }
+
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+
+  return success();
+}
+
+// eltwise
+template <typename OpTy>
+LogicalResult quantizeBf16EltwiseOps(Operation *op) {
+  assert(getOpQuant(op) == "BF16");
+
+  auto castOp = cast<OpTy>(op);
+  Value weightOp;
+  int index = 0;
+  for (; index < 2; ++index) {
+    weightOp = castOp.getOperand(index);
+    if (isa<tpu::LoadWeightOp>(weightOp.getDefiningOp())) {
+      break;
+    }
+  }
+  if (index >= 2) {
+    return quantizeBf16BypassOps(op);
+  }
+
+  TensorFile *wTF = getWeightTensorFile(op);
+  auto wdata = readAndDeleteWeightTensor<float>(weightOp, wTF);
+  auto shape = getTensorShape(weightOp);
+  auto size = getTensorSize(weightOp);
+  std::vector<bfloat16> data_bf16(size);
+
+  FloatToBFloat16(wdata->data(), data_bf16.data(), size);
+  BFloat16ToFloat(data_bf16.data(), wdata->data(), size);
+
+  // update op
+  addWeightTensorAndUpdateWeightOp<float>(weightOp, "quant", *wdata, shape,
+                                          "BF16", wTF);
 
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
@@ -983,35 +1030,9 @@ LogicalResult quantizeBf16PReluOps(Operation *op) {
   return success();
 }
 
-///
-/// bypass Ops quantization method
-///
-LogicalResult quantizeBf16BypassOps(Operation *op) {
-  assert(getOpQuant(op) == "BF16");
-
-  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
-
-  return success();
-}
-
 //===----------------------------------------------------------------------===//
 // quantizeBf16 API
 //===----------------------------------------------------------------------===//
-
-#define DECLARE_QUANTIZE_BF16_BYPASS_METHOD(OP) \
-  LogicalResult OP::quantizeBf16() { \
-    LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() \
-                 << " [" << getOpName() << "]\n";); \
-    Operation *op = this->getOperation(); \
-    return quantizeBf16BypassOps(op); \
-  }
-
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::AbsOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastMulOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastAddOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastSubOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ConcatOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ClipOp)
 
 LogicalResult tpu::ArgMaxOp::quantizeBf16() {
   Operation *op = this->getOperation();
@@ -1025,10 +1046,6 @@ LogicalResult tpu::Conv2DOp::quantizeBf16() {
   Operation *op = this->getOperation();
   return quantizeBf16ConvOps<tpu::Conv2DOp>(op, 2);
 }
-
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CropOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::DilateOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CustomOp)
 
 LogicalResult tpu::DeConv2DOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
@@ -1067,10 +1084,33 @@ LogicalResult tpu::EmbeddingOp::quantizeBf16() {
   return success();
 }
 
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseAddOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMaxOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMinOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::EltwiseMulOp)
+LogicalResult tpu::EltwiseAddOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16EltwiseOps<tpu::EltwiseAddOp>(op);
+}
+
+LogicalResult tpu::EltwiseMaxOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16EltwiseOps<tpu::EltwiseMaxOp>(op);
+}
+
+LogicalResult tpu::EltwiseMinOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16EltwiseOps<tpu::EltwiseMinOp>(op);
+}
+
+LogicalResult tpu::EltwiseMulOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBf16EltwiseOps<tpu::EltwiseMulOp>(op);
+}
 
 LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
@@ -1086,7 +1126,6 @@ LogicalResult tpu::GruOp::quantizeBf16() {
   return quantizeBf16GruOps(op);
 }
 
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InputOp)
 LogicalResult tpu::InterpOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -1097,8 +1136,6 @@ LogicalResult tpu::InterpOp::quantizeBf16() {
   interpOp.setOpQuantMode(type);
   return success();
 }
-
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InstanceNormOp)
 
 LogicalResult tpu::LayerNormOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
@@ -1142,26 +1179,6 @@ LogicalResult tpu::MishOp::quantizeBf16() {
   return quantizeBF16LutOps<tpu::MishOp>(op);
 }
 
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PadOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PermuteOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PixelShuffleOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolAvg2DOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMax2DOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMax3DOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMaskOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PowerOp)
-// DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReciprocalOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReluOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReorgOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ROIPoolingOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceL2Op)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMeanOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMaxOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReverseOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ShuffleChannelOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SquareOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::MatMulOp)
-
 LogicalResult tpu::QuadraticSumOp::quantizeBf16() {
   Operation *op = this->getOperation();
   // for high precision
@@ -1177,8 +1194,6 @@ LogicalResult tpu::SqrtOp::quantizeBf16() {
   Operation *op = this->getOperation();
   return quantizeBF16SqrtOps(op);
 }
-
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ScaleLutOp)
 
 LogicalResult tpu::ReciprocalOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
@@ -1207,9 +1222,6 @@ LogicalResult tpu::ExpOp::quantizeBf16() {
   Operation *op = this->getOperation();
   return quantizeBF16LutOps<tpu::ExpOp>(op);
 }
-// DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TanHOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SliceOp)
-// DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SqrtOp)
 
 LogicalResult tpu::SoftmaxOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName()
@@ -1225,13 +1237,60 @@ LogicalResult tpu::SoftPlusOp::quantizeBf16() {
   return quantizeBF16LutOps<tpu::SoftPlusOp>(op);
 }
 
+//
+// quantization bypass
+//
+#define DECLARE_QUANTIZE_BF16_BYPASS_METHOD(OP) \
+  LogicalResult OP::quantizeBf16() { \
+    LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() \
+                 << " [" << getOpName() << "]\n";); \
+    Operation *op = this->getOperation(); \
+    return quantizeBf16BypassOps(op); \
+  }
+
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::AbsOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastMulOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastAddOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastSubOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ConcatOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ClipOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CropOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CscOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CustomOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::DilateOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InputOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::InstanceNormOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::MatMulOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PadOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PermuteOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PixelShuffleOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolAvg2DOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMax2DOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMax3DOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMaskOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PowerOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReluOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReorgOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceL2Op)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMeanOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMaxOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReverseOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ROIPoolingOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ScaleLutOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ShuffleChannelOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SliceOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SoftmaxCpuOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SquareOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SwapChannelOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TileOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TileInterpOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CscOp)
+DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)
 
+
+
+//
+// quantization disabled
+//
 #define DECLARE_QUANTIZE_BF16_DISABLED_METHOD(OP) \
   LogicalResult OP::quantizeBf16() { \
     LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() \
