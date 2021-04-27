@@ -32,40 +32,116 @@ protected:
     int h;
   } tiling_t;
   enum SoftmaxMode {Softmax2D, Softmax4D};
+  enum OperateMode {Sub, Mul};
+
+  /**
+	 * @brief Select softmax mode
+	 */
   void selectSoftmaxMode(int64_t* shape);
+
+  /**
+	 * @brief Fill one to dram as golden
+	 */
   void fillOneAsGolden();
+
+  /**
+	 * @brief Transform matrix to tensor
+   * @param tensor output tensor
+   * @param matrix input matrix
+	 */
   void matrixToTensor(cvk_tl_t *tensor, const cvk_ml_t &matrix);
+
+  /**
+	 * @brief Split height of softmax2D which parallel inner size to NPU_NUM
+	 */
   unsigned int doSplitHeightBf16softmax2DParallelInnerSize();
+
+  /**
+	 * @brief Split height of softmax2D which parallel outer size to NPU_NUM
+	 */
   unsigned int doSplitHeightBf16softmax2DParallelOuterSize();
+
+  /**
+	 * @brief Do softmax2D which inner size is too large to handle in normal case. For example, shape(1, 16002) and shape(400, 16002)
+	 */
   void softmaxLargeSizeHandler();
+
+  /**
+	 * @brief Do softmax2D which parallel inner size to NPU_NUM
+	 */
   void bf16_softmax_kernel_2d_parallel_inner_size();
+
+  /**
+	 * @brief Do softmax2D which parallel outer size to NPU_NUM
+	 */
   void bf16_softmax_kernel_2d_parallel_outer_size();
+
+  /**
+	 * @brief Split height of softmax4D
+	 */
   int doSplitHeightBf16softmax4D();
+
+  /**
+	 * @brief Do softmax 4D
+	 */
   void bf16_softmax_kernel_4d();
+
+  /**
+	 * @brief Do softmax 2D
+	 */
   void bf16_softmax_kernel_2d();
+
+  /**
+	 * @brief Get exponential value
+	 * @param tl_in Input tensor
+   * @param tl_out Output tensor
+   * @param tl_work Working space
+	 */
   void exponential(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work);
+
+  /**
+	 * @brief Get reciprocal value
+	 * @param tl_in Input tensor
+   * @param tl_out Output tensor
+   * @param tl_work Working space
+	 */
   void reciprocal(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work);
   
-  void init_table();
-  void free_table();
-  void assign_matrix(cvk_ml_t *ml_mem, const cvk_ml_shape_t &shape);
-  void fill_matrix(cvk_ml_t *ml_mem, uint32_t row, uint32_t col, uint32_t addr);
-  void assign_addr(cvk_tl_t *tl_mem, uint32_t size);
-  void matrix_to_tensor(cvk_tl_t *tensor, const cvk_ml_t &matrix);
-  void matrix_for_tiu(cvk_ml_t *matrix);
-  void matrix_mul(const cvk_ml_t &ml_res, const cvk_ml_t &ml_left,
-                  const cvk_ml_t &ml_right, const cvk_ml_t &ml_bias,
-                  uint8_t ps32_mode = 0);
-  void matrix_recurrence(const cvk_ml_t &ml_res, int flip, const tiling_t &tile,
-                         gaddr_t ga_weight, gaddr_t ga_bias);
-  void zeros(const cvk_ml_t &matrix);
+  /**
+	 * @brief Broadcast one data to all lane in the same address
+	 * @param tl_in input broadcasted data address
+   * @param tl_out output broadcasted data address
+	 */
+  void broadcast_one_data_to_all_lane(cvk_tl_t *tl_in, cvk_tl_t *tl_out);
 
+  /**
+	 * @brief Every input sub one specific data
+	 * @param tl_in_out Input/output tensor
+   * @param tl_operand operand tensor
+   * @param operate operate mode
+   * @param isParallelInLane is outerSize parallel in lane
+	 */
+  void every_input_operate_one_specific_data(cvk_tl_t *tl_in_out, cvk_tl_t *tl_operand, OperateMode operate, bool isParallelInLane);
+
+  /**
+	 * @brief Initialize and load table
+	 */
+  void init_table();
+
+  /**
+	 * @brief Free table
+	 */
+  void free_table();
+
+  /**
+	 * @brief Get max value in tl_in and store to tl_out
+	 */
   void max_per_lane_value(cvk_tl_t *tl_in, cvk_tl_t *tl_out);
+
+  /**
+	 * @brief Accumulate data in tl_in per land and store to tl_out
+	 */
   void accumulate_per_lane_value(cvk_tl_t *tl_in, cvk_tl_t *tl_out);
-  void exponential(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
-               const cvk_ml_t &ml_buff);
-  void reciprocal(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
-            const cvk_ml_t &ml_buff);
 
 protected:
   const CviBackendContext &ctx;
@@ -90,26 +166,10 @@ protected:
 
   // for lmem addr alloc
   cvk_tl_shape_t table_shape;
-  uint32_t table_size;
   cvk_tl_t *tl_exponential_table_answer;
   cvk_tl_t *tl_exponential_table_answer_slope;
   cvk_tl_t *tl_reciprocal_table_answer;
   cvk_tl_t *tl_reciprocal_mantissa_table_answer;
-  uint32_t lmem_used;
-
-  // for tiling
-  int step_size;
-  int step_num;
-  std::vector<tiling_t> tiles;         // tilng hidden_size
-  std::vector<cvk_ml_t> ml_hiddens[2]; // one for backup
-  uint32_t addr_recurrence;            // for recurrence
-  uint32_t addr_bias;
-  uint32_t addr_work0; // for lut buffer and ps32 bias buffer
-  uint32_t addr_work1; // for dot(h_t,r) result
-  uint32_t addr_xz;    // for z
-  uint32_t addr_xh;    // for r/h
-  cvk_mg_stride_t x_gstride;
-  cvk_mg_stride_t h_gstride;
 };
 
 #endif
