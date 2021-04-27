@@ -24,7 +24,7 @@
 | V0.3.1 | 2020/11/24 | 肖泉   | 更新mlir op和更新格式 |
 | V1.4.0 | 2020/12/04 | 姜江   | 更新文档结构          |
 | V1.5.0 | 2021/01/29 | 姜江   | 根据工具链1.5修改     |
-| V1.5.0 | 2021/04/22 | 姜江   | 根据工具链1.6修改     |
+| V1.5.1 | 2021/04/22 | 姜江   | 根据工具链1.5.1修改   |
 <div STYLE="page-break-after: always;"></div>
 # 法律声明
 
@@ -1052,7 +1052,7 @@ class MLIRImport:
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
-
+ 	
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -1563,7 +1563,7 @@ model_deploy.py \
 
 <br>
 
-### 2.2.5 添加TPU Preprocessing
+### 2.2.7 添加TPU Preprocessing
 
 CVITEK TPU支持crop，减mean，乘scale以及channel swap等前处理操作。此步骤为可选项，可根据需要去添加TPU preprocessing；(由于CVITEK平台的图像处理硬件不支持输出BF16格式，所以对于BF16模型或者混精度模型中第一层为BF16层的模型需要添加TPU preprocessing)。具体命令如下：
 
@@ -1602,7 +1602,7 @@ model_deploy.py \
 
 在runtime环境中部署cvimodel，请现在命令行中使用cvimodel_tool去查看cvimodel的详情，如输入、输出tensors的shape、name等，权重、Activations占用空间等信息，具体使用方法如下：
 ```sh
-$ cvimodel -a dump -i xxx.cvimodel
+$ cvimodel_tool -a dump -i xxx.cvimodel
 ```
 该命令的输出如下：
 
@@ -2322,7 +2322,7 @@ CVI_RC CVI_NN_SetTensorWithVideoFrame(
 ```
 【描述】
 
-> 将视频帧数据拷贝到张量(不再使用，用于兼容v1.3之前的版本)
+> 将视频帧数据拷贝到张量
 
 |参数名称|描述|输入/输出|
 |---|---|---|

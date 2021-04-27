@@ -1059,7 +1059,7 @@ model_deploy.py \
 
 
 
-使用tpu-mlir-interpreter测试精度：
+上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度：
 
 ``` shell
 # FP32
@@ -1356,7 +1356,7 @@ onnx.save(model, 'mnet_25_new.onnx')
 
 得到`mnet_25_new.onnx`。
 
-#### 步骤1：模型转换
+#### 步骤 1：模型转换
 
 取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg：
 
@@ -1404,7 +1404,7 @@ model_transform.py \
 
 #### 步骤 2：测试FP32模型精度（Optional）
 
-使用tpu-mlir-interpreter测试精度：
+使用pymlir python接口测试精度：
 
 ``` shell
 # FP32
@@ -1462,7 +1462,7 @@ model_deploy.py \
 
 #### 步骤 5：测试INT8模型精度（Optional)
 
-使用tpu-mlir-interpreter测试精度：
+上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度：
 
 ``` shell
 # INT8
@@ -1535,7 +1535,7 @@ model_deploy.py \
 
 #### 步骤 7：测试混合量化模型精度 (Optional)
 
-使用tpu-mlir-interpreter测试精度：
+上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度：
 
 ``` shell
 # MIXED, 6 layers
