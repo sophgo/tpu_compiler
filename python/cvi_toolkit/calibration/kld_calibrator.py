@@ -11,75 +11,101 @@ import os
 import copy
 import math
 import pymlir
-import logging
-from base_calibrator import Base_Calibrator
 from ctypes import *
 from tqdm import tqdm
 import datetime
 
-
+from cvi_toolkit.data.preprocess import preprocess
+from cvi_toolkit.utils.mlir_parser import MlirParser
 from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 
+class BaseKldCalibrator:
+    def __init__(self, math_lib_path='calibration_math.so'):
+        self.calib_lib = CDLL(math_lib_path)
+        self.calib_lib.kl_diversity.restype = c_float
+        self.calib_lib.kl_diversity_hist.restype = c_float
 
-class KLD_Calibrator(Base_Calibrator):
-    def __init__(self,
-                 image_list,
-                 mlir_file,
-                 preprocess_func,
-                 histogram_bin_num=2048,
-                 math_lib_path='calibration_math.so',
-                 custom_op_plugin='',
-                 buffer_size=0x40000000):
-        super().__init__(image_list, mlir_file, preprocess_func,
-                         custom_op_plugin=custom_op_plugin)
-        if not self.is_symmetric_quantization:
-            raise RuntimeError(
-                "KLD_Calibrator only support symmetric quantization")
+    def histogram(self, ndarray, abs_max, bin_num):
+        t = np.abs(ndarray.flatten())
+        t = t[t != 0]
+        width = abs_max / (bin_num - 1)
 
-        self.histogram_bin_num = int(histogram_bin_num)
-        self.calibration_math = CDLL(math_lib_path)
-        self.calibration_math.kl_diversity.restype = c_float
-        self.calibration_math.kl_diversity_hist.restype = c_float
-        self.buffered_tensors = dict()
+        if t.size > 0:
+            hist, _ = np.histogram(np.floor(t / width + 0.5),
+                                    bins=bin_num,
+                                    range=(0, bin_num-1),
+                                    density=False)
+        else:
+            hist = np.zeros(bin_num)
+        hist = hist.astype(np.int32)
+        return hist, width
+
+    def kld_threshold(self, hist, width, bin_num):
+        threshold = self.calib_lib.kl_diversity_hist(
+                        hist.ctypes.data_as(POINTER(c_int)),
+                        c_float(width),
+                        c_longlong(bin_num))
+        return threshold
+
+
+class ActivationCalibrator(BaseKldCalibrator):
+    def __init__(self, mlir_file, image_list, histogram_bin_num,
+                 buffer_size, custom_op_plugin=None):
+        super().__init__()
+        self.images = image_list
+        self.input_num = len(self.images)
+        self.preprocessor = preprocess()
+        self.preprocessor.load_config(mlir_file, 0)
+
+        self.model = pymlir.module()
+        if custom_op_plugin:
+            self.model.set_plugin(custom_op_plugin)
+        self.model.load(mlir_file)
+
+        self.tensor_max = {}
+        self.tensor_min = {}
+        self.histogram_bin_num = histogram_bin_num
+
+        self.buffered_activations = dict()
         self.free_buffer_size = buffer_size
-        logger.info("images: {}".format(self.images))
+        logger.info("Max buffer size: {} Bytes".format(buffer_size))
 
-    def __activations_size(self, tensors):
+    def _activations_size(self, tensors):
         size = 0
         for k, v in tensors.items():
             size += v.size
         return size
 
-    def __is_npz(self, image):
+    def _is_npz(self, image):
         return True if image.split('.')[-1] == 'npz' else False
 
-    def __activations_generator(self):
+    def _activations_generator(self):
         for image in self.images:
-            if image not in self.buffered_tensors:
-                if self.__is_npz(image):
+            if image not in self.buffered_activations:
+                if self._is_npz(image):
                     x = np.load(image)
                     for k,v in x.items():
                         self.model.set_tensor(k, v)
                         self.model.invoke()
                 else:
-                    x = self.preprocess_func(image)
+                    x = self.preprocessor.run(image)
                     self.model.run(x)
 
                 activations = self.model.get_all_tensor()
-                size = self.__activations_size(activations)
+                size = self._activations_size(activations)
                 if size <= self.free_buffer_size:
-                    self.buffered_tensors[image] = activations
+                    self.buffered_activations[image] = activations
                     self.free_buffer_size -= size
             else:
-                activations = self.buffered_tensors[image]
+                activations = self.buffered_activations[image]
             yield image, activations
 
     def find_min_max(self):
         tensor_min_max_dict = dict()
 
         pbar = tqdm(self.images, total=self.input_num, position=0, leave=True)
-        for image, activations in self.__activations_generator():
+        for image, activations in self._activations_generator():
             pbar.set_description("Find Min Max *{}".format(self.free_buffer_size))
             pbar.update(1)
 
@@ -103,31 +129,21 @@ class KLD_Calibrator(Base_Calibrator):
         return tensor_min_max_dict
 
     def do_histogram(self, data_max):
+        logger.info("calculate histogram, histogram number: {}".format(
+                    self.histogram_bin_num))
+
         data_hist = {}
         width_hist = {}
-        logger.info("calculate histogram, histogram number: {}".format(
-            self.histogram_bin_num))
-        pbar = tqdm(self.images, total=self.input_num, position=0, leave=True)
 
-        for image, activations in self.__activations_generator():
+        pbar = tqdm(self.images, total=self.input_num, position=0, leave=True)
+        for image, activations in self._activations_generator():
             img_name = image.split("/")[-1]
             pbar.set_description("histogram: {}".format(img_name))
             pbar.update(1)
 
             for op_name, activation in activations.items():
-                t = np.abs(activation.flatten())
-                t = t[t != 0]
-
-                width = data_max[op_name] / (self.histogram_bin_num - 1)
-                if t.size > 0:
-                    hist, _ = np.histogram(np.floor(t / width + 0.5),
-                                           bins=self.histogram_bin_num,
-                                           range=(0, self.histogram_bin_num-1),
-                                           density=False)
-                else:
-                    hist = np.zeros(self.histogram_bin_num)
-
-                hist = hist.astype(np.int32)
+                hist, width = self.histogram(activation, data_max[op_name],
+                                      self.histogram_bin_num)
                 if op_name not in data_hist:
                     data_hist[op_name] = hist
                     width_hist[op_name] = width
@@ -137,10 +153,17 @@ class KLD_Calibrator(Base_Calibrator):
 
         return data_hist, width_hist
 
-    def __find_threshold_by_kld(self, data, width):
-        return self.calibration_math.kl_diversity_hist(
-            data.ctypes.data_as(POINTER(c_int)), c_float(width),
-            c_longlong(self.histogram_bin_num))
+    def find_threshold(self, data_hist, width_hist):
+        thresholds = {}
+        num = len(data_hist)
+        pbar = tqdm(range(num), total=num, position=0, leave=True)
+        for item in data_hist:
+            pbar.set_description("threshold: {}".format(item))
+            pbar.update(1)
+            thresholds[item] = self.kld_threshold(data_hist[item], width_hist[item],
+                                                  self.histogram_bin_num)
+        pbar.close()
+        return thresholds
 
     def run(self, output_calibration_table):
         # step 1: find min max
@@ -155,23 +178,21 @@ class KLD_Calibrator(Base_Calibrator):
         data_hist, width_hist = self.do_histogram(abs_value)
 
         # step3 calculate kld
-        thresholds = {}
-        for item in data_hist:
-            thresholds[item] = self.__find_threshold_by_kld(data_hist[item], width_hist[item])
+        thresholds = self.find_threshold(data_hist, width_hist)
 
         # step4 dump to calibration table
         op_layer = self.model.op_info
-        with open(output_calibration_table, 'w') as writer:
+        with open(output_calibration_table, 'w') as f:
             top_format = "###\n# file: {}\n# genetated time: {}\n"
             top_format += "# histogram number: {}\n# sample number: {}\n###\n"
             cali_info = top_format.format(output_calibration_table,
                                           datetime.datetime.now(),
                                           self.histogram_bin_num,
                                           self.input_num)
-            writer.write(cali_info)
+            f.write(cali_info)
 
             calibration_format = "# op_name    threshold    min    max\n"
-            writer.write(calibration_format)
+            f.write(calibration_format)
             for op_dict in op_layer:
                 op_name = op_dict['name']
                 threshold = thresholds[op_name]
@@ -179,4 +200,27 @@ class KLD_Calibrator(Base_Calibrator):
                 max_value = activations_min_max_map[op_name][1]
                 threshold_info = "{} {:.5f} {:.5f} {:.5f}\n".format(
                     op_name, threshold, min_value, max_value)
-                writer.write(threshold_info)
+                f.write(threshold_info)
+
+
+class WeightCalibrator(BaseKldCalibrator):
+    def __init__(self, mlir_file, histogram_bin_num):
+        super().__init__()
+        self.bin_num = histogram_bin_num
+        self.parser = MlirParser(mlir_file)
+        weight_npz = self.parser.get_weight_file_name()
+        self.weights = np.load(weight_npz)
+
+    def min_max_vals(self, ndarray):
+        min_val = np.min(ndarray)
+        max_val = np.max(ndarray)
+        abs_max = max(abs(min_val), abs(max_val))
+        return (min_val, max_val, abs_max)
+
+    def run(self):
+        for w_name in self.weights.files:
+            ndarray = self.weights[w_name]
+            min_, max_, abs_max_ = self.min_max_vals(ndarray)
+            hist, width = self.histogram(ndarray, abs_max_, self.bin_num)
+            threshold = self.kld_threshold(hist, width, self.bin_num)
+            logger.info("{}: {} {} {} {}".format(w_name, threshold, min_, max_, abs_max_))

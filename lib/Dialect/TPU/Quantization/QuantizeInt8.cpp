@@ -1339,6 +1339,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::CscOp>(op)
       || isa<tpu::GruOp>(op)
       || isa<tpu::LstmOp>(op)
+      || isa<tpu::EmbeddingOp>(op)
       || isa<tpu::PoolMaskOp>(op)) {
     skip_checking = true;
   }
