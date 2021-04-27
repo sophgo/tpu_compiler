@@ -317,19 +317,9 @@ struct MergeConvReluPattern : public RewritePattern {
   }
 };
 
-static inline void printFunction(FuncOp *fn) {
-  std::string res;
-  llvm::raw_string_ostream os(res);
-  fn->walk([&](Operation *op) {
-    op->print(os);
-    os << "\n";
-  });
-  llvm::errs() << res;
-}
-
 template <typename OpTy>
-struct SwitchConv2DHWPattern : public RewritePattern {
-  SwitchConv2DHWPattern(MLIRContext *context)
+struct SwitchConvPadHWPattern : public RewritePattern {
+  SwitchConvPadHWPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
@@ -428,7 +418,7 @@ struct SwitchConv2DHWPattern : public RewritePattern {
                       ArrayRef<NamedAttribute>{attrs_0});
 
     // 2 add conv0
-    //   convert inst_1 conv(n, c, 1, w) to conv(n, c, w, 1)
+    //   convert conv(n, c, 1, w) to conv(n, c, w, 1)
     // 2.1 first convert weight shape
     TensorFile *wTF = getWeightTensorFile(op);
     std::vector<int64_t> shape_conv_0_w = getTensorShape(conv_0.getOperand(1));
@@ -440,15 +430,15 @@ struct SwitchConv2DHWPattern : public RewritePattern {
     addWeightTensorAndUpdateWeightOp<float>(conv_0.getOperand(1),
       "", *filter, shape_conv_0_w, "NONE", wTF);
 
-    // 2.2 convert conv
+    // 2.2 convert conv, switch output h/w and param h/w
     std::vector<NamedAttribute> attrs_1;
     std::vector<Value> operands_1;
-
     operands_1.push_back(new_inst_0.getResult());
     for(uint i = 1; i < conv_0.getNumOperands(); i++)
       operands_1.push_back(conv_0.getOperand(i));
     attrs_1.push_back(rewriter.getNamedAttr("name",
                   conv_0.nameAttr()));
+    // switch h/w and dilation_h/w
     attrs_1.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(
               conv_0.param().stride_w(),
@@ -481,16 +471,14 @@ struct SwitchConv2DHWPattern : public RewritePattern {
                       ArrayRef<Value>{operands_1},
                       ArrayRef<NamedAttribute>{attrs_1});
 
-    // 3
-    // add pad
+    // 3 add pad0
     std::vector<int32_t> pads;
     std::vector<Value> operands_2;
     std::vector<NamedAttribute> attrs_2;
+    SmallVector<Attribute, 8> padsAttr;
     std::vector<int64_t> shape_pad_0 = getTensorShape(new_inst_1.getResult());
     arrayAttrToVector(pad_0.pads().getValue(), pads);
     auto const_val = pad_0.const_val().convertToFloat();
-    // generate pad
-    SmallVector<Attribute, 8> padsAttr;
     for (unsigned int i = 0; i < 8; i++) {
       int v = pads[i];
       if (i == 2)
@@ -567,7 +555,7 @@ struct SwitchConv2DHWPattern : public RewritePattern {
                       ArrayRef<Value>{operands_3},
                       ArrayRef<NamedAttribute>{attrs_3});
 
-    // add conv2
+    // 5 add conv2
     auto filter_conv2 = readAndDeleteWeightTensor<float>(conv_2.filter(), wTF);
     addWeightTensorAndUpdateWeightOp<float>(conv_2.getOperand(1),
       "", *filter_conv2, shape_conv_0_w, "NONE", wTF);
@@ -611,14 +599,13 @@ struct SwitchConv2DHWPattern : public RewritePattern {
                       ArrayRef<Value>{operands_4},
                       ArrayRef<NamedAttribute>{attrs_4});
 
-    // add pad2
+    // 6 add pad1
     std::vector<Value> operands_5;
     std::vector<NamedAttribute> attrs_5;
+    SmallVector<Attribute, 8> padsAttr_1;
     std::vector<int64_t> shape_pad_1 = getTensorShape(new_inst_4.getResult());
     arrayAttrToVector(pad_1.pads().getValue(), pads);
     const_val = pad_1.const_val().convertToFloat();
-    // generate pad
-    SmallVector<Attribute, 8> padsAttr_1;
     for (unsigned int i = 0; i < 8; i++) {
       int v = pads[i];
       if (i == 2)
@@ -652,7 +639,7 @@ struct SwitchConv2DHWPattern : public RewritePattern {
           ArrayRef<Value>{operands_5},
           ArrayRef<NamedAttribute>{attrs_5});
 
-    // add conv2
+    // 7 add conv2
     std::vector<NamedAttribute> attrs_6;
     std::vector<Value> operands_6;
 
@@ -695,9 +682,9 @@ struct SwitchConv2DHWPattern : public RewritePattern {
                       ArrayRef<Value>{operands_6},
                       ArrayRef<NamedAttribute>{attrs_6});
 
-
+    // erase orignal ops and update dependency
     inst_9->getResult(0).replaceAllUsesWith(new_inst_6.getResult());
-    //
+
     rewriter.eraseOp(inst_9);
     rewriter.eraseOp(inst_8);
     rewriter.eraseOp(inst_7);
@@ -708,6 +695,362 @@ struct SwitchConv2DHWPattern : public RewritePattern {
     rewriter.eraseOp(inst_2);
     rewriter.eraseOp(inst_1);
     rewriter.eraseOp(inst_0);
+    return success();
+  }
+};
+
+template <typename OpTy>
+struct SwitchConv2DHWPattern : public RewritePattern {
+  SwitchConv2DHWPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto conv_op = dyn_cast_or_null<tpu::Conv2DOp>(op);
+    if (!conv_op)
+      return failure();
+    auto prev_op = op->getOperand(0).getDefiningOp();
+
+    std::vector<int64_t> shape_opd0 = getTensorShape(conv_op->getOperand(0));
+    // search for (n, c, 1, w) case
+    if(!(shape_opd0.size() == 4 && shape_opd0[2] == 1 && shape_opd0[3] != 1))
+      return failure();
+
+    // generate reshape op
+    rewriter.setInsertionPointAfter(conv_op);
+    std::vector<int64_t> shape_0 = getTensorShape(prev_op->getResult(0));
+    auto type_0 = prev_op->getResult(0).getType().cast<RankedTensorType>();
+    RankedTensorType out_type_0 = RankedTensorType::get(
+                          {shape_0[0], shape_0[1],
+                           shape_0[3], shape_0[2]},
+                           type_0.getElementType());
+
+    // 1. add reshape ->(n, c, 1, w) to (n, c, w, 1)
+    std::vector<NamedAttribute> attrs_0;
+    std::vector<Value> operands_0;
+    std::string reshape_inst_0_name = conv_op.nameAttr().getValue().str() + "_reshape";
+    operands_0.push_back(conv_op.getOperand(0));
+    attrs_0.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(reshape_inst_0_name)));
+    auto reshape_inst_0 = rewriter.create<tpu::ReshapeOp>(
+                      conv_op.getLoc(), out_type_0,
+                      ArrayRef<Value>{operands_0},
+                      ArrayRef<NamedAttribute>{attrs_0});
+
+    // generate conv op, update weight op
+    TensorFile *wTF = getWeightTensorFile(op);
+    std::vector<int64_t> shape_filter = getTensorShape(conv_op.getOperand(1));
+    if (!(shape_filter.size() == 4 && shape_filter[2] == 1))
+      return failure();
+    shape_filter[2] = shape_filter[3];
+    shape_filter[3] = 1;
+    auto filter = readAndDeleteWeightTensor<float>(conv_op.filter(), wTF);
+    addWeightTensorAndUpdateWeightOp<float>(conv_op.getOperand(1),
+      "", *filter, shape_filter, "NONE", wTF);
+
+    // convert conv, switch output h/w and param h/w
+    std::vector<NamedAttribute> conv_attrs;
+    std::vector<Value> conv_opds;
+    conv_opds.push_back(reshape_inst_0.getResult());
+    for(uint i = 1; i < conv_op.getNumOperands(); i++)
+      conv_opds.push_back(conv_op.getOperand(i));
+    conv_attrs.push_back(rewriter.getNamedAttr("name",
+                  conv_op.nameAttr()));
+    // switch h/w and dilation_h/w
+    conv_attrs.push_back(rewriter.getNamedAttr("param",
+        tpu::ConvParam::get(
+              conv_op.param().stride_w(),
+              conv_op.param().stride_h(),
+              conv_op.param().padding(),
+              conv_op.param().dilation_w(),
+              conv_op.param().dilation_h(),
+              conv_op.param().padding_t(),
+              conv_op.param().padding_b(),
+              conv_op.param().padding_l(),
+              conv_op.param().padding_r(),
+              conv_op.param().group(),
+              conv_op.param().is_dw(),
+              conv_op.param().with_bias(),
+              conv_op.param().do_relu(),
+              conv_op.param().ins(),
+              conv_op.param().pad_value(),
+              rewriter.getContext())));
+    conv_attrs.push_back(
+        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+
+    std::vector<int64_t> shape_conv_0 = getTensorShape(conv_op.getResult());
+    RankedTensorType out_type_conv_0 = RankedTensorType::get(
+                          {shape_conv_0[0], shape_conv_0[1],
+                           shape_conv_0[3], shape_conv_0[2]},
+                           type_0.getElementType());
+
+    auto new_conv = rewriter.create<tpu::Conv2DOp>(
+                      conv_op.getLoc(), out_type_conv_0,
+                      ArrayRef<Value>{conv_opds},
+                      ArrayRef<NamedAttribute>{conv_attrs});
+
+    // reshape back
+    std::vector<NamedAttribute> attrs_1;
+    std::vector<Value> operands_1;
+    std::string reshape_inst_1_name = conv_op.nameAttr().getValue().str() + "_reshape_back";
+    operands_1.push_back(new_conv.getResult());
+    attrs_1.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(reshape_inst_1_name)));
+    auto reshape_inst_1 = rewriter.create<tpu::ReshapeOp>(
+                      conv_op.getLoc(), conv_op.getResult().getType(),
+                      ArrayRef<Value>{operands_1},
+                      ArrayRef<NamedAttribute>{attrs_1});
+
+    // update dependency
+    conv_op.getResult().replaceAllUsesWith(reshape_inst_1.getResult());
+    // erase ops
+    rewriter.eraseOp(conv_op);
+
+    return success();
+  }
+};
+
+template <typename OpTy>
+struct SwitchPadHWPattern : public RewritePattern {
+  SwitchPadHWPattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto pad_op = dyn_cast_or_null<tpu::PadOp>(op);
+    if (!pad_op)
+      return failure();
+    auto prev_op = op->getOperand(0).getDefiningOp();
+
+    std::vector<int64_t> shape_opd0 = getTensorShape(pad_op->getOperand(0));
+    // search for (n, c, 1, w) case
+    if(!(shape_opd0.size() == 4 && shape_opd0[2] == 1 && shape_opd0[3] != 1))
+      return failure();
+
+    // generate reshape op
+    rewriter.setInsertionPointAfter(pad_op);
+    std::vector<int64_t> shape_0 = getTensorShape(prev_op->getResult(0));
+    auto type_0 = prev_op->getResult(0).getType().cast<RankedTensorType>();
+    RankedTensorType out_type_0 = RankedTensorType::get(
+                          {shape_0[0], shape_0[1],
+                           shape_0[3], shape_0[2]},
+                           type_0.getElementType());
+
+    // 1. add reshape ->(n, c, 1, w) to (n, c, w, 1)
+    std::vector<NamedAttribute> attrs_0;
+    std::vector<Value> operands_0;
+    std::string reshape_inst_0_name = pad_op.nameAttr().getValue().str() + "_reshape";
+    operands_0.push_back(pad_op.getOperand());
+    attrs_0.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(reshape_inst_0_name)));
+    auto reshape_inst_0 = rewriter.create<tpu::ReshapeOp>(
+                      pad_op.getLoc(), out_type_0,
+                      ArrayRef<Value>{operands_0},
+                      ArrayRef<NamedAttribute>{attrs_0});
+
+
+    // pad
+    std::vector<int32_t> pads;
+    std::vector<Value> pad_opds;
+    std::vector<NamedAttribute> pad_attrs;
+    SmallVector<Attribute, 8> padsAttr;
+    std::vector<int64_t> shape_pad_0 = getTensorShape(reshape_inst_0.getResult());
+    arrayAttrToVector(pad_op.pads().getValue(), pads);
+    auto const_val = pad_op.const_val().convertToFloat();
+    for (unsigned int i = 0; i < 8; i++) {
+      int v = pads[i];
+      if (i == 2)
+        v = pads[3];
+      else if (i == 3)
+        v = pads[2];
+      else if (i == 6)
+        v = pads[7];
+      else if (i == 7)
+        v = pads[6];
+      auto padAttr = rewriter.getI32IntegerAttr(v);
+      padsAttr.push_back(padAttr);
+    }
+
+    pad_opds.push_back(reshape_inst_0.getResult());
+    pad_attrs.push_back(rewriter.getNamedAttr("name", pad_op.nameAttr()));
+    pad_attrs.push_back(
+        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    pad_attrs.push_back(rewriter.getNamedAttr("pads",
+                           rewriter.getArrayAttr(padsAttr)));
+    pad_attrs.push_back(rewriter.getNamedAttr("const_val",
+                           rewriter.getF32FloatAttr(const_val)));
+    RankedTensorType output_type_pad = RankedTensorType::get(
+                          {shape_pad_0[0], shape_pad_0[1],
+                           shape_pad_0[2] + pads[3] + pads[7],
+                           shape_pad_0[3] + pads[2] + pads[6]},
+                           type_0.getElementType());
+
+    auto new_pad_op = rewriter.create<tpu::PadOp>(
+          pad_op.getLoc(), output_type_pad,
+          ArrayRef<Value>{pad_opds},
+          ArrayRef<NamedAttribute>{pad_attrs});
+
+    // reshape back
+    std::vector<NamedAttribute> attrs_1;
+    std::vector<Value> operands_1;
+    std::string reshape_inst_1_name = pad_op.nameAttr().getValue().str() + "_reshape";
+    operands_1.push_back(new_pad_op.getResult());
+    attrs_1.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(reshape_inst_1_name)));
+    auto reshape_inst_1 = rewriter.create<tpu::ReshapeOp>(
+                      pad_op.getLoc(), pad_op.getResult().getType(),
+                      ArrayRef<Value>{operands_1},
+                      ArrayRef<NamedAttribute>{attrs_1});
+
+    // update dependency
+    pad_op.getResult().replaceAllUsesWith(reshape_inst_1.getResult());
+    // erase ops
+    rewriter.eraseOp(pad_op);
+
+    return success();
+  }
+};
+
+
+template <typename OpTy>
+struct ExtendGroupConvShapePattern : public RewritePattern {
+  ExtendGroupConvShapePattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto conv_op = dyn_cast_or_null<tpu::Conv2DOp>(op);
+
+    auto opd0 = conv_op.getOperand(0);
+    auto opd1 = conv_op.getOperand(1);
+    auto op_result = conv_op.getResult();
+
+    std::vector<int64_t> input_shape = getTensorShape(opd0);
+    std::vector<int64_t> filter_shape = getTensorShape(opd1);
+    std::vector<int64_t> result_shape = getTensorShape(op_result);
+
+    // input_shape size is 3 and filter_shape size is 5
+    // and is group conv
+    if (!((input_shape.size() == 3) && (filter_shape.size() == 5) &&
+        (input_shape[1] == filter_shape[0]) &&
+        (result_shape[1] == input_shape[1])))
+      return failure();
+    if (!(filter_shape[3] == 1 && filter_shape[4] == 1))
+      return failure();
+
+    // generate reshape op
+    rewriter.setInsertionPointAfter(conv_op);
+    auto type_0 = conv_op->getOperand(0).getType().cast<RankedTensorType>();
+    RankedTensorType out_type_0 = RankedTensorType::get(
+                          {input_shape[0], input_shape[1],
+                           input_shape[2], 1},
+                           type_0.getElementType());
+
+    // 1. add reshape ->(n, c, w) to (n, c, w, 1)
+    std::vector<NamedAttribute> attrs_0;
+    std::vector<Value> operands_0;
+    std::string reshape_inst_0_name = conv_op.nameAttr().getValue().str() + "_reshape";
+    operands_0.push_back(conv_op.getOperand(0));
+    attrs_0.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(reshape_inst_0_name)));
+    auto reshape_inst_0 = rewriter.create<tpu::ReshapeOp>(
+                      conv_op.getLoc(), out_type_0,
+                      ArrayRef<Value>{operands_0},
+                      ArrayRef<NamedAttribute>{attrs_0});
+
+    // set conv
+    std::vector<NamedAttribute> conv_attrs;
+    std::vector<Value> conv_opds;
+    conv_opds.push_back(reshape_inst_0.getResult());
+    for(uint i = 1; i < conv_op.getNumOperands(); i++)
+      conv_opds.push_back(conv_op.getOperand(i));
+    conv_attrs.push_back(rewriter.getNamedAttr("name",
+                  conv_op.nameAttr()));
+    // switch h/w and dilation_h/w
+    conv_attrs.push_back(rewriter.getNamedAttr("param",
+        tpu::ConvParam::get(
+              conv_op.param().stride_h(),
+              conv_op.param().stride_w(),
+              conv_op.param().padding(),
+              conv_op.param().dilation_h(),
+              conv_op.param().dilation_w(),
+              conv_op.param().padding_t(),
+              conv_op.param().padding_b(),
+              conv_op.param().padding_l(),
+              conv_op.param().padding_r(),
+              conv_op.param().group(),
+              conv_op.param().is_dw(),
+              conv_op.param().with_bias(),
+              conv_op.param().do_relu(),
+              conv_op.param().ins(),
+              conv_op.param().pad_value(),
+              rewriter.getContext())));
+    conv_attrs.push_back(
+        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+
+    RankedTensorType out_type_conv_0 = RankedTensorType::get(
+                          {result_shape[0], result_shape[1],
+                           result_shape[2], 1},
+                           type_0.getElementType());
+
+    auto new_conv = rewriter.create<tpu::Conv2DOp>(
+                      conv_op.getLoc(), out_type_conv_0,
+                      ArrayRef<Value>{conv_opds},
+                      ArrayRef<NamedAttribute>{conv_attrs});
+
+    // reshape back
+    std::vector<NamedAttribute> attrs_1;
+    std::vector<Value> operands_1;
+    std::string reshape_inst_1_name = conv_op.nameAttr().getValue().str() + "_reshape_back";
+    operands_1.push_back(new_conv.getResult());
+    attrs_1.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(reshape_inst_1_name)));
+    auto reshape_inst_1 = rewriter.create<tpu::ReshapeOp>(
+                      conv_op.getLoc(), conv_op.getResult().getType(),
+                      ArrayRef<Value>{operands_1},
+                      ArrayRef<NamedAttribute>{attrs_1});
+
+    conv_op.getResult().replaceAllUsesWith(reshape_inst_1.getResult());
+    rewriter.eraseOp(conv_op);
+    return success();
+  }
+};
+
+template <typename OpTy>
+struct cleanReshapePattern : public RewritePattern {
+  cleanReshapePattern(MLIRContext *context)
+      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto first_op = dyn_cast_or_null<tpu::ReshapeOp>(op);
+
+    auto next_op = getNextOp(first_op);
+    auto last_op = next_op;
+
+    while(next_op) {
+      if (isa<tpu::ReshapeOp>(next_op)) {
+        last_op = next_op;
+        next_op = getNextOp(next_op);
+      } else {
+        break;
+      }
+    }
+
+    // not reshape + reshape pattern
+    if (!isa<tpu::ReshapeOp>(last_op))
+      return failure();
+
+    std::vector<int64_t> input_shape = getTensorShape(first_op->getOperand(0));
+    std::vector<int64_t> output_shape = getTensorShape(last_op->getResult(0));
+
+    if (input_shape.size() != output_shape.size())
+      return failure();
+
+    for(uint i = 0; i < input_shape.size(); i++) {
+      if (input_shape[i] != output_shape[i])
+        return failure();
+    }
+
+    // erase all reshape ops
+    auto input_operand = first_op->getOperand(0).getDefiningOp();
+    last_op->getResult(0).replaceAllUsesWith(input_operand->getResult(0));
+    rewriter.eraseOp(last_op);
+
     return success();
   }
 };
@@ -723,11 +1066,33 @@ public:
     patterns.clear();
     patterns.insert<
         MergePermuteOpPattern<tpu::ReshapeOp>,
-        MergeConvReluPattern<tpu::Conv2DOp>,
-        SwitchConv2DHWPattern<tpu::Conv2DOp>
+        MergeConvReluPattern<tpu::Conv2DOp>
       >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
-    printFunction(&fn);
+
+    patterns.clear();
+    patterns.insert<
+        SwitchConvPadHWPattern<tpu::Conv2DOp>
+      >(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    /*
+    // The following optimization has the same effect as
+    // SwitchConvPadHWPattern, but more common
+    patterns.clear();
+    patterns.insert<
+        SwitchConv2DHWPattern<tpu::Conv2DOp>,
+        SwitchPadHWPattern<tpu::PadOp>,
+        ExtendGroupConvShapePattern<tpu::Conv2DOp>
+      >(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    patterns.clear();
+    patterns.insert<
+        cleanReshapePattern<tpu::ReshapeOp>
+      >(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+    */
   }
 };
 
