@@ -35,7 +35,6 @@ if __name__ == '__main__':
                         help='output threshold table')
     args = parser.parse_args()
 
-    logger.info(args.buffer_size)
     buffer_size = int(args.buffer_size) * 0x40000000
 
     selector = ImageSelector(args.dataset, args.input_num,
@@ -47,3 +46,7 @@ if __name__ == '__main__':
                                 args.histogram_bin_num, buffer_size,
                                 custom_op_plugin=args.custom_op_plugin)
     calibrator.run(args.calibration_table)
+
+    if False:
+        wcalibrator = WeightCalibrator(args.model_file, args.histogram_bin_num)
+        wcalibrator.run()

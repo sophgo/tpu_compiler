@@ -122,7 +122,7 @@ class ActivationCalibrator(BaseKldCalibrator):
             for op_name, (_min, _max) in tensor_min_max_dict.items():
                 if _max == 0:
                     # if network outputs are all zero, change it to 1e-5 for them.
-                    logging.warning("WARNING: layer {} is all zeros. Please check the input data "
+                    logger.warning("WARNING: layer {} is all zeros. Please check the input data "
                                     "correctness.".format(op_name))
                     tensor_min_max_dict[op_name] = (_min, 1e-5)
         pbar.close()
