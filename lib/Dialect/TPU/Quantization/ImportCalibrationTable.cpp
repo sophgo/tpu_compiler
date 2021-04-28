@@ -224,7 +224,7 @@ public:
     // Support symmetric quantization only
     std::map<std::string, float> threshold_map;
     std::unordered_map<std::string, std::vector<float>> weight_threshold_map;
-    llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n";
+    LLVM_DEBUG(llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n");
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
     std::regex old_pattern("[a-zA-Z0-9.:;@_\\/-]+ [-0-9.e]+");
@@ -254,7 +254,7 @@ public:
         threshold_map[name] = threshold;
 
       } else if (std::regex_match(line, info_pattern)) {
-        llvm::errs() << "\n  infomation  " << line << "\n";
+        LLVM_DEBUG(llvm::errs() << "\n  infomation  " << line << "\n");
       }else if(std::regex_match(line, weight_pattern)){
         std::vector<float> weight_threshold;
         iss.ignore(256, ' '); // skip "weight"

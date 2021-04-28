@@ -319,6 +319,7 @@ public:
 public:
   py::list opInfo_;
   py::list weightInfo;
+  static std::string version;
 
 private:
   std::unique_ptr<MLIRContext> context;
@@ -330,6 +331,8 @@ private:
   std::unique_ptr<ModuleInterpreter> interpreter_;
   std::string pluginFilePath_ = "";
 };
+
+std::string py_module::version = MLIR_VERSION;
 
 // wrap as Python module
 PYBIND11_MODULE(pymlir, m) {
@@ -359,5 +362,6 @@ PYBIND11_MODULE(pymlir, m) {
       .def("invoke", py::overload_cast<>(&py_module::invoke))
       .def("invoke", py::overload_cast<const std::string>(&py_module::invoke))
       .def("get_input_details", &py_module::get_input_details)
-      .def("get_output_details", &py_module::get_output_details);
+      .def("get_output_details", &py_module::get_output_details)
+      .def_readonly_static("version", &py_module::version);
 }

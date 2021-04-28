@@ -6,6 +6,7 @@
 import os, sys
 import re
 import argparse
+from cvi_toolkit.utils.version import declare_toolchain_version
 from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 from cvi_toolkit.calibration.images_selector import ImageSelector
@@ -19,6 +20,7 @@ def buffer_size_type(arg):
     return val
 
 if __name__ == '__main__':
+    declare_toolchain_version()
     parser = argparse.ArgumentParser()
     parser.add_argument('model_file', metavar='model_file', help='Model file')
     parser.add_argument('--dataset', type=str, help='dataset for calibration or auto-tune')

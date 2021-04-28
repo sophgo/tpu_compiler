@@ -11,6 +11,7 @@ import cv2
 import numpy as np
 from pathlib import Path
 import random
+from cvi_toolkit.utils.version import declare_toolchain_version
 from cvi_toolkit.calibration.tuner import AutoTuner, AutoTunerPlus
 from cvi_toolkit import preprocess
 
@@ -40,6 +41,7 @@ def generate_image_list(image_list_file, dataset_path, image_num):
 
 
 if __name__ == '__main__':
+    declare_toolchain_version()
     parser = argparse.ArgumentParser()
     parser.add_argument('model_file', metavar='model_file', help='Model file')
     parser.add_argument('--custom_op_plugin', help='set file path of custom op plugin')

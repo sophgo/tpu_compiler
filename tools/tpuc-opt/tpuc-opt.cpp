@@ -43,7 +43,6 @@ static cl::opt<std::string>
                         cl::init("-"));
 
 int main(int argc, char **argv) {
-  llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
   InitLLVM y(argc, argv);
 
   DialectRegistry registry;

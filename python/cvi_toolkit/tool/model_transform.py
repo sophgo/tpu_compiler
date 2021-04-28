@@ -5,6 +5,7 @@ import abc
 import onnx, onnxruntime
 import numpy as np
 import argparse
+from cvi_toolkit.utils.version import declare_toolchain_version
 from cvi_toolkit.utils.log_setting import setup_logger
 from cvi_toolkit.model import CaffeModel
 from cvi_toolkit.model.ModelFactory import ModelFactory
@@ -236,7 +237,7 @@ def get_model_transform(args):
 
 
 if __name__ == '__main__':
-    pycaffe_dir = os.path.dirname(__file__)
+    declare_toolchain_version()
     parser = argparse.ArgumentParser()
     parser.add_argument("--image", required=True, help="input image for inference")
     parser.add_argument("--model_def", help="model definition file.")

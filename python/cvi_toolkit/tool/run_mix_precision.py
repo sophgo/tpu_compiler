@@ -8,6 +8,7 @@ import logging
 from pathlib import Path
 import random
 
+from cvi_toolkit.utils.version import declare_toolchain_version
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.calibration.MixPrecision import MixPrecSearcher
 
@@ -35,6 +36,7 @@ def generate_image_list(image_list_file, dataset_path, image_num):
     return image_list
 
 if __name__ == '__main__':
+    declare_toolchain_version()
     parser = argparse.ArgumentParser(description="Generate bf16 table")
     parser.add_argument('model_file', help='fp32 mlir file')
     parser.add_argument('--model_name', default='generic', help='Model name')

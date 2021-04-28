@@ -151,6 +151,7 @@ class ActivationCalibrator(BaseKldCalibrator):
                     # update histogram
                     data_hist[op_name] += hist
 
+        pbar.close()
         return data_hist, width_hist
 
     def find_threshold(self, data_hist, width_hist):

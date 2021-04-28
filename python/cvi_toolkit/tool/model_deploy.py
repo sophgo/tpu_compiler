@@ -7,6 +7,7 @@ import time
 import skimage
 import caffe
 import numpy as np
+from cvi_toolkit.utils.version import declare_toolchain_version
 from cvi_toolkit.utils.log_setting import setup_logger
 from cvi_toolkit.data.preprocess import preprocess
 from cvi_toolkit.utils.mlir_shell import *
@@ -133,11 +134,12 @@ class DeployTool:
         IntermediateFile.cleanup()
 
 
-if __name__ == '__main__':
-    # fix bool bug of argparse
-    def str2bool(v):
-      return v.lower() in ("yes", "true", "1")
+# fix bool bug of argparse
+def str2bool(v):
+    return v.lower() in ("yes", "true", "1")
 
+if __name__ == '__main__':
+    declare_toolchain_version()
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_name", required=True, help="model_name")
     parser.add_argument("--mlir", required=True, help="optimized mlir fp32 model")
