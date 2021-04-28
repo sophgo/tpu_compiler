@@ -292,6 +292,7 @@ def TPU_TL_LutOp : TPU_Op<"tl_lut",
     Inputs:
       `input`          : required, the variadic activation memref.
       `table`          : required, the lookup table
+      `table_mantissa` : optional, for bf16 mantissa
 
     Attributes:
       `region`          : required, the memory region to reside in, could be
@@ -314,7 +315,7 @@ def TPU_TL_LutOp : TPU_Op<"tl_lut",
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$table,
-    AnyTensor:$table_mantissa,
+    TPU_TensorOfOrNone<[F32,BF16]>:$table_mantissa,
     TPU_LMLayoutAttr:$lm_layout,
     I32Attr:$la_input,
     I32Attr:$la_working,

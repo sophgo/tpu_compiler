@@ -24,15 +24,14 @@ private:
   SyncedData output_data;
   SyncedData scale_data;
   SyncedData bias_data;
+  SyncedData lut;
+  SyncedData mantissa_lut;
   // param
   int32_t normalized_size;
   int32_t batch_size;
   float eps;
   bool affine;
   std::vector<int32_t> normalized_shape;
-  // bf16 only
-  std::vector<uint16_t> lut;
-  std::vector<uint16_t> mantissa_lut;
 };
 } // namespace mlir
 

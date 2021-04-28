@@ -45,6 +45,11 @@ using namespace mlir;
 
 namespace mlir {
 
+inline static float INT8(float data) {
+  data = std::floor(data + 0.5);
+  return std::max(std::min(data, 127.0f), -128.0f);
+}
+
 ///
 /// Conv Ops quantization method
 ///
@@ -530,8 +535,7 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
   getTensorShapeAndSize(op->getOperand(1), neg_slope_shape, neg_slope_size);
   int c = neg_slope_shape[1];
   // create tensors for rshift and multiplier
-  auto new_negative_slope =
-      std::vector<float>(neg_slope_size);
+  std::vector<float> new_negative_slope(neg_slope_size);
 
   auto rshift_pos = std::vector<float>(1);
   auto multiplier_pos = std::vector<float>(1);
@@ -589,20 +593,19 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
 
   // update op
   auto shape = std::vector<int64_t>{1};
-  StringRef storageType = "INT8";
-  addWeightTensorAndUpdateWeightOp<float>(op->getOperand(1),
-      "negative_slope", new_negative_slope, neg_slope_shape, storageType, wTF);
+  addWeightTensorAndUpdateWeightOp<float>(preluOp.filter(),
+      "negative_slope", new_negative_slope, neg_slope_shape, "INT8", wTF);
   auto rshift_pos_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "rshift_pos", rshift_pos, shape, storageType, wTF, wfV);
+      op, "rshift_pos", rshift_pos, shape, "NONE", wTF, wfV);
   preluOp.setOperand(6, rshift_pos_op);
 
   auto multiplier_pos_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "multiplier_pos", multiplier_pos, shape, storageType, wTF,
+      op, "multiplier_pos", multiplier_pos, shape, "NONE", wTF,
       wfV);
   preluOp.setOperand(7, multiplier_pos_op);
 
   auto rshift_neg_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "rshift_neg", rshift_neg, shape, storageType, wTF, wfV);
+      op, "rshift_neg", rshift_neg, shape, "NONE", wTF, wfV);
   preluOp.setOperand(8, rshift_neg_op);
 
   setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
@@ -613,7 +616,7 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
 ///
 /// Lut Ops quantization method
 ///
-template<typename OpTy>
+template <typename OpTy>
 LogicalResult quantizeInt8LutOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
   // support per-tensor only for now
@@ -634,22 +637,13 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
                           << "\n";);
   int npu_num = MInfo::lane_num;
 
-  //<! 1880v2 hw config
-  int table_h;
-  int table_w;
-  int table_hw;
-
-  int tbl_shape;
-  std::vector<float> y0_table;
-
   //<! 1880v2 hw int8 config
-  table_h = 16;
-  table_w = 16;
-  table_hw = table_h * table_w;
+  int table_h = 16;
+  int table_w = 16;
+  int table_hw = table_h * table_w;
+  int tbl_shape = npu_num * table_hw;
 
-  tbl_shape = npu_num * table_hw;
-  y0_table.resize(tbl_shape);
-  std::vector<float> table_mantissa(tbl_shape,0); //do nothing during int8 quant
+  std::vector<float> y0_table(tbl_shape, 0);
 
   // input: 0~127, -128~ -1, Y=1/(1+EXP(-X*thx/128)) * 128/thy
   // output:0~127, negative is invalid
@@ -657,71 +651,36 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
     for (int idx = 0; idx < table_hw; ++idx) {
       char lutInput = static_cast<char>(idx);
       float index = lutInput * threshold_x / 127.0;
-
-      if(OpTy::getOperationName()=="tpu.reciprocal"){
-        int lutOutputI32 = 127;
+      float lutOutput = 127.0f;
+      if (OpTy::getOperationName() == "tpu.reciprocal") {
         if (index != 0) {
-          float lutOutput = 1.0 / (index)*127.0 / threshold_y;
-          lutOutputI32 = std::floor(lutOutput + 0.5);
-          lutOutputI32 = (lutOutputI32 > 127)
-                             ? 127
-                             : (lutOutputI32 < -128) ? -128 : lutOutputI32;
+          lutOutput = 1.0 / (index)*127.0 / threshold_y;
         }
-        y0_table[n * table_hw + idx] = lutOutputI32;
-      }else if(OpTy::getOperationName()=="tpu.sqrt"){
-        float lutOutput = pow(index,0.5) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                          ? 127
-                          : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        y0_table[n * table_hw + idx] = lutOutputI32;
+      } else if (OpTy::getOperationName() == "tpu.sqrt") {
+        lutOutput = pow(index, 0.5) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.sigmoid") {
         index = -lutInput * threshold_x / 127.0;
-        float lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        y0_table[n * table_hw + idx] = lutOutputI32;
+        lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.tanh") {
         index = lutInput * threshold_x / 127.0;
-        float lutOutput = std::tanh(index) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        y0_table[n * table_hw + idx] = lutOutputI32;
+        lutOutput = std::tanh(index) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.exp") {
         index = lutInput * threshold_x / 127.0;
-        float lutOutput = std::exp(index) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        y0_table[n * table_hw + idx] = lutOutputI32;
+        lutOutput = std::exp(index) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.mish") {
         index = lutInput * threshold_x / 127.0;
         auto castOp = dyn_cast<tpu::MishOp>(op);
-        float mish_threshold = castOp.mish_threshold().convertToFloat();
-        float lutOutput = my_mish_caffe(index, mish_threshold) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        y0_table[n * table_hw + idx] = lutOutputI32;
+        auto mish_threshold = castOp.mish_threshold().convertToFloat();
+        lutOutput = my_mish_caffe(index, mish_threshold) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.softplus") {
         index = lutInput * threshold_x / 127.0;
         auto castOp = dyn_cast<tpu::SoftPlusOp>(op);
-        float threshold = castOp.threshold().convertToFloat();
-        float lutOutput = softplus_activate(index, threshold) * 127.0 / threshold_y;
-        int lutOutputI32 = std::floor(lutOutput + 0.5);
-        lutOutputI32 = (lutOutputI32 > 127)
-                           ? 127
-                           : (lutOutputI32 < -128) ? -128 : lutOutputI32;
-        y0_table[n * table_hw + idx] = lutOutputI32;
+        auto threshold = castOp.threshold().convertToFloat();
+        lutOutput = softplus_activate(index, threshold) * 127.0 / threshold_y;
       } else {
         assert(false && "not support now");
       }
+      y0_table[n * table_hw + idx] = INT8(lutOutput);
     }
   }
 
@@ -730,12 +689,10 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
   StringRef storageType = "INT8";
   auto y0_table_op = addWeightTensorAndCreateWeightOp<float>(
       op, "y0_table", y0_table, shape, storageType, wTF, wfV);
-  auto mantissa_table_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "mantissa_table", table_mantissa, shape, storageType, wTF, wfV);
   lutOp.setOperand(1, y0_table_op);
-  lutOp.setOperand(2, mantissa_table_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+  setOpResultType(op->getResult(0),
+                  IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -760,12 +717,10 @@ LogicalResult quantizeInt8ScaleLutOps(Operation *op) {
   int table_w = 16;
   int table_hw = table_h * table_w;
   int table_size = c * table_hw;
-  std::vector<float> table(table_size, 0.0f);
+  std::vector<float> table(table_size, 0);
   for (int i = 0; i < c; i++) {
     for (int idx = 0; idx < table_hw; ++idx) {
-      float data = std::floor(idx * scale[i] + bias[i] + 0.5);
-      data = std::min(std::max(data, -128.0f), 127.0f);
-      table[i * table_hw + idx] = data;
+      table[i * table_hw + idx] = INT8(idx * scale[i] + bias[i]);
     }
   }
   auto shape = std::vector<int64_t>{1, c, table_h, table_w};
@@ -1025,14 +980,14 @@ LogicalResult quantizeInt8ConcatOps(Operation *op) {
 template<typename T>
 static bool checkFloatNeedQuant(const std::vector<T> &data_v) {
   for (auto &data: data_v) {
-    if (data != std::floor(data) || data > 127 || data < -127) {
+    if (data != (T)INT8(data)) {
       return true;
     }
   }
   return false;
 }
 
-template<typename OpTy>
+template <typename OpTy>
 LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
   // support per-tensor only for now
@@ -1049,7 +1004,7 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   // get thresholds
   float threshold_y = getOpThreshold(op);
   LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
-               << std::to_string(threshold_y) << "\n";);
+                          << std::to_string(threshold_y) << "\n";);
   float threshold_x = 0;
   int const_idx = 0;
 
@@ -1060,20 +1015,19 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
       continue;
     }
     threshold_x = getOpThreshold(formerOp);
-    LLVM_DEBUG(llvm::errs() << "  threshold_x = "
-               << std::to_string(threshold_x) << "\n";);
+    LLVM_DEBUG(llvm::errs() << "  threshold_x = " << std::to_string(threshold_x)
+                            << "\n";);
   }
-
-  auto const_opd = readAndDeleteWeightTensor<float>(op->getOperand(const_idx), wTF);
+  auto weightOp = op->getOperand(const_idx);
+  auto const_opd = readAndDeleteWeightTensor<float>(weightOp, wTF);
   std::vector<int64_t> const_shape;
   int64_t const_size;
-  getTensorShapeAndSize(op->getOperand(const_idx), const_shape, const_size);
+  getTensorShapeAndSize(weightOp, const_shape, const_size);
   assert(const_size == (int64_t)const_opd->size());
 
-  auto max_elem = *std::max_element(const_opd->begin(), const_opd->end(),
-                                    [](float a, float b) {
-                                      return (std::abs(a) < std::abs(b));
-                                    });
+  auto max_elem = *std::max_element(
+      const_opd->begin(), const_opd->end(),
+      [](float a, float b) { return (std::abs(a) < std::abs(b)); });
   //
   // determine the qscale
   //
@@ -1086,30 +1040,24 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   }
 
   // create tensors for rshift and multiplier
-  auto rshift = std::make_unique<std::vector<float> >(1);
-  auto multiplier = std::make_unique<std::vector<float> >(1);
+  auto rshift = std::make_unique<std::vector<float>>(1);
+  auto multiplier = std::make_unique<std::vector<float>>(1);
 
   // create tensors for rshift and multiplier
   uint32_t multiplier_u32;
-  int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale,
-                         &multiplier_u32, true);
+  int8_t rshift_i8 =
+      findRShiftAndMultiplierFromQScale(qscale, &multiplier_u32, true);
   rshift->at(0) = static_cast<float>(rshift_i8);
   multiplier->at(0) = static_cast<float>(multiplier_u32);
-  LLVM_DEBUG(llvm::errs()
-             << "  rshift = "
-             << std::to_string(rshift->at(0))
-             << ", multiplier = "
-             << std::to_string(multiplier->at(0)) << "\n");
+  LLVM_DEBUG(llvm::errs() << "  rshift = " << std::to_string(rshift->at(0))
+                          << ", multiplier = "
+                          << std::to_string(multiplier->at(0)) << "\n");
 
   std::vector<float> quant_const(const_size, 0);
   if (need_quant) {
     for (int i = 0; i < const_size; i++) {
-      float float_quant = floor((*const_opd)[i] * 127.0 / max_elem + 0.5);
-      quant_const[i] = std::round(float_quant);
-      if (quant_const[i] > 127)
-        quant_const[i] = 127.0;
-      if (quant_const[i] < -128)
-        quant_const[i] = -128.0;
+      float float_quant = (*const_opd)[i] * 127.0 / max_elem;
+      quant_const[i] = INT8(float_quant);
     }
   } else {
     for (int i = 0; i < const_size; i++) {
@@ -1118,24 +1066,23 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   }
 
   // update op
-  addWeightTensorAndUpdateWeightOp<float>(op->getOperand(const_idx),
-      "quant", quant_const, const_shape, "INT8", wTF);
+  addWeightTensorAndUpdateWeightOp<float>(weightOp, "quant", quant_const,
+                                           const_shape, "INT8", wTF);
 
   // add rshift and multiplier to weight
   StringRef storageType = "NONE";
   auto shape = std::vector<int64_t>{1};
 
   auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "rshift", *rshift, shape, storageType,
-      wTF, wfV);
+      op, "rshift", *rshift, shape, storageType, wTF, wfV);
   op->setOperand(4, rshift_op);
 
   auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "multiplier", *multiplier, shape, storageType,
-      wTF, wfV);
+      op, "multiplier", *multiplier, shape, storageType, wTF, wfV);
   op->setOperand(5, multiplier_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+  setOpResultType(op->getResult(0),
+                  IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }
@@ -1168,8 +1115,9 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
   int const_idx = 1;
   int64_t const_size;
   std::vector<int64_t> const_shape;
-  auto const_opd = readAndDeleteWeightTensor<float>(op->getOperand(const_idx), wTF);
-  getTensorShapeAndSize(op->getOperand(const_idx), const_shape, const_size);
+  auto weightOp = op->getOperand(const_idx);
+  auto const_opd = readAndDeleteWeightTensor<float>(weightOp, wTF);
+  getTensorShapeAndSize(weightOp, const_shape, const_size);
   assert(const_size == (int64_t)const_opd->size());
 
   auto max_elem = *std::max_element(const_opd->begin(), const_opd->end(),
@@ -1178,15 +1126,11 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
                                     });
   std::vector<float> quant_const(const_size, 0);
   for (int i = 0; i < const_size; i++) {
-    float float_quant = floor((*const_opd)[i] * 127.0 / max_elem + 0.5);
-    quant_const[i] = std::round(float_quant);
-    if (quant_const[i] > 127)
-      quant_const[i] = 127.0;
-    if (quant_const[i] < -128)
-      quant_const[i] = -128.0;
+    float float_quant = (*const_opd)[i] * 127.0 / max_elem;
+    quant_const[i] = INT8(float_quant);
   }
   // update op
-  addWeightTensorAndUpdateWeightOp<float>(op->getOperand(const_idx),
+  addWeightTensorAndUpdateWeightOp<float>(weightOp,
       "quant", quant_const, const_shape, "INT8", wTF);
   //
   // determine the qscale
@@ -1618,33 +1562,6 @@ LogicalResult tpu::ReduceMaxOp::quantizeInt8() {
   return quantizeInt8RescaleNoWeightOps<tpu::ReduceMaxOp>(op);
 }
 
-/*
-This Ops does not support quantizie
-their quant interface are kept for holding threshold only
-*/
-#define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \
-  LogicalResult OP::quantizeInt8() { \
-    LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
-                 << " [" << getOpName() << ", disabled]\n";); \
-    assert(false); \
-    return failure(); \
-  }
-
-DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::ReshapeOp)
-DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnOneOp)
-DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnTwoOp)
-DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnThreeOp)
-
-/*
-These Ops does not do quantization, need threshold_x == thrshold_y
-*/
-#define DECLARE_QUANTIZE_INT8_BYPASS_METHOD(OP) \
-  LogicalResult OP::quantizeInt8() { \
-    LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
-                 << " [" << getOpName() << "]\n";); \
-    Operation *op = this->getOperation(); \
-    return quantizeInt8BypassOps(op); \
-  }
 
 LogicalResult tpu::ArgMaxOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
@@ -1663,7 +1580,6 @@ LogicalResult tpu::EmbeddingOp::quantizeInt8() {
   auto castOp = cast<tpu::EmbeddingOp>(op);
   TensorFile *wTF = getWeightTensorFile(op);
 
-
   int64_t tableSize;
   std::vector<int64_t> tableShape;
   std::unique_ptr<std::vector<float> > table;
@@ -1676,12 +1592,7 @@ LogicalResult tpu::EmbeddingOp::quantizeInt8() {
   auto src_ptr = table->data();
   auto dst_ptr = new_table->data();
   for (int i = 0; i < tableSize; i++) {
-    dst_ptr[i] = floor(src_ptr[i] * scale + 0.5);
-    if (dst_ptr[i] > 127) {
-      dst_ptr[i] = 127.0;
-    } else if (dst_ptr[i] < -128) {
-      dst_ptr[i] = -128.0;
-    }
+    dst_ptr[i] = INT8(src_ptr[i] * scale);
   }
   addWeightTensorAndUpdateWeightOp<float>(castOp.table(),
       "quant", *new_table, tableShape, "INT8", wTF);
@@ -1690,6 +1601,16 @@ LogicalResult tpu::EmbeddingOp::quantizeInt8() {
   return success();
 }
 
+/*
+These Ops does not do quantization, need threshold_x == thrshold_y
+*/
+#define DECLARE_QUANTIZE_INT8_BYPASS_METHOD(OP) \
+  LogicalResult OP::quantizeInt8() { \
+    LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
+                 << " [" << getOpName() << "]\n";); \
+    Operation *op = this->getOperation(); \
+    return quantizeInt8BypassOps(op); \
+  }
 
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::AbsOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
@@ -1722,5 +1643,22 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SquareOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileInterpOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
+
+/*
+This Ops does not support quantizie
+their quant interface are kept for holding threshold only
+*/
+#define DECLARE_QUANTIZE_INT8_DISABLED_METHOD(OP) \
+  LogicalResult OP::quantizeInt8() { \
+    LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() \
+                 << " [" << getOpName() << ", disabled]\n";); \
+    assert(false); \
+    return failure(); \
+  }
+
+DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::ReshapeOp)
+DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnOneOp)
+DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnTwoOp)
+DECLARE_QUANTIZE_INT8_DISABLED_METHOD(tpu::LrnThreeOp)
 
 } // namespace mlir

@@ -416,7 +416,7 @@ class TFLiteConverter(BaseConverter):
         rshift_shape = list(rshift_data.shape)
         self.addTensor(rshift_name, rshift_data, rshift_data)
         rshift_op = self.CVI.add_load_file_op(
-            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="NONE")
         operands.append(rshift_op)
 
         multipiler_name = "{}_multipiler".format(add_name)
@@ -425,7 +425,7 @@ class TFLiteConverter(BaseConverter):
         multipiler_shape = list(multipiler_data.shape)
         self.addTensor(multipiler_name, multipiler_data, multipiler_data)
         multipiler_op = self.CVI.add_load_file_op(
-            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="NONE")
         operands.append(multipiler_op)
 
         int8_quant_info = {
@@ -1191,7 +1191,7 @@ class TFLiteConverter(BaseConverter):
         rshift_shape = list(rshift_data.shape)
         self.addTensor(rshift_name, rshift_data, rshift_shape)
         rshift_op = self.CVI.add_load_file_op(
-            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="UINT8")
+            rshift_name, rshift_shape, tensor_type=TPU_TensorType.FP32, storage="NONE")
         operands.append(rshift_op)
 
         # add multipiler op
@@ -1201,7 +1201,7 @@ class TFLiteConverter(BaseConverter):
         self.addTensor(multipiler_name, multipiler_data,
                        multipiler_shape)
         mutlipiler_op = self.CVI.add_load_file_op(
-            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="UINT32")
+            multipiler_name, multipiler_shape, tensor_type=TPU_TensorType.FP32, storage="NONE")
         operands.append(mutlipiler_op)
 
         int8_quant_info = {

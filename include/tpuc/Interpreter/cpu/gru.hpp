@@ -28,6 +28,10 @@ private:
   SyncedData recurrence;
   SyncedData bias;
   SyncedData initial_h;
+  SyncedData sigmoid_lut;
+  SyncedData sigmoid_slope_lut;
+  SyncedData tanh_lut;
+  SyncedData tanh_slope_lut;
   SyncedDataShape input_shape;
 
   // param
@@ -49,12 +53,6 @@ private:
   float *input;
   float *output;
   float *prev_hidden_state;
-
-  // bf16 only
-  std::vector<uint16_t> sigmoid_lut;
-  std::vector<uint16_t> sigmoid_slope_lut;
-  std::vector<uint16_t> tanh_lut;
-  std::vector<uint16_t> tanh_slope_lut;
 };
 } // namespace mlir
 #endif

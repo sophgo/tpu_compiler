@@ -9,7 +9,7 @@ namespace mlir {
 double LstmOpKernel::sigmoid_(double data) {
   if (datatype == DataType::BF16) {
     float var = data;
-    bf16_lut_slope(&var, &var, 1, sigmoid_lut, sigmoid_slope_lut, -8, 8);
+    bf16_lut_slope(&var, &var, 1, *sigmoid_lut, *sigmoid_slope_lut, -8, 8);
     return var;
   } else {
     return 0.5 * tanh(0.5 * data) + 0.5;
@@ -18,7 +18,7 @@ double LstmOpKernel::sigmoid_(double data) {
 double LstmOpKernel::tanh_(double data) {
   if (datatype == DataType::BF16) {
     float var = data;
-    bf16_lut_slope(&var, &var, 1, tanh_lut, tanh_slope_lut, -8, 8);
+    bf16_lut_slope(&var, &var, 1, *tanh_lut, *tanh_slope_lut, -8, 8);
     return var;
   } else {
     return tanh(data);
@@ -72,13 +72,10 @@ LstmOpKernel::LstmOpKernel(Operation &op, value_map_t &valueMapping) {
     initial_c = std::make_shared<std::vector<float>>(
         num_dir * batch_size * hidden_size, 0.0f);
   }
-
-  if (datatype == DataType::BF16) {
-    sigmoid_lut.assign(opTensors[5]->begin(), opTensors[5]->end());
-    sigmoid_slope_lut.assign(opTensors[6]->begin(), opTensors[6]->end());
-    tanh_lut.assign(opTensors[7]->begin(), opTensors[7]->end());
-    tanh_slope_lut.assign(opTensors[8]->begin(), opTensors[8]->end());
-  }
+  sigmoid_lut = opTensors[5];
+  sigmoid_slope_lut = opTensors[6];
+  tanh_lut = opTensors[7];
+  tanh_slope_lut = opTensors[8];
   output_data = resultTensor;
   // record mapping table for nexi op connecting
   valueMapping[result] = std::move(resultTensor);
@@ -171,7 +168,8 @@ void LstmOpKernel::compute(bool forward) {
           cell_state[i] = gf[i] * cell_state[i] + gi[i] * gc[i];
           hidden_state[i] = go[i] * tanh_(cell_state[i]);
         } else {
-          cell_state[i] = BF16(BF16(gf[i] * cell_state[i]) + BF16(gi[i] * gc[i]));
+          cell_state[i] =
+              BF16(BF16(gf[i] * cell_state[i]) + BF16(gi[i] * gc[i]));
           hidden_state[i] = BF16(go[i] * tanh_(cell_state[i]));
         }
       }

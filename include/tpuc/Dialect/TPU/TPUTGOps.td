@@ -1020,6 +1020,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Inputs:
       `input`          : required, the variadic activation memref.
       `table`          : required, the lookup table
+      `table_mantissa` : optional, for bf16 mantissa table
 
     Attributes:
       `region`          : required, the memory region to reside in, could be
@@ -1047,7 +1048,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$table,
-    AnyTensor:$table_mantissa,
+    TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$table_mantissa,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,

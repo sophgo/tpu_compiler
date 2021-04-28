@@ -43,12 +43,12 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 
-  std::vector<float> y0_table_op;
-  std::vector<float> slope_table;
+  SyncedData y0_table_op;
+  SyncedData slope_table;
 
   // bf16
-  std::vector<uint16_t> y0_bf16_table_op;
-  std::vector<uint16_t> y0_bf16_slope_table;
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -70,12 +70,12 @@ private:
 
   float mish_threshold;
 
-  std::vector<float> y0_table_op;
-  std::vector<float> slope_table;
+  SyncedData y0_table_op;
+  SyncedData slope_table;
 
   // bf16
-  std::vector<uint16_t> y0_bf16_table_op;
-  std::vector<uint16_t> y0_bf16_slope_table;
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -97,10 +97,10 @@ private:
 
   std::vector<float> slope_data;
 
-  std::vector<float> rshift_postive;
-  std::vector<float> rshift_negative;
-  std::vector<float> multiplier_postive;
-  std::vector<float> multiplier_negative;
+  SyncedData rshift_postive;
+  SyncedData rshift_negative;
+  SyncedData multiplier_postive;
+  SyncedData multiplier_negative;
   float negative_slope;
 
   // asymmetric
@@ -141,11 +141,11 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 
-  std::vector<float> slope_data;
+  SyncedData slope_data;
 
-  std::vector<float> rshift_postive;
-  std::vector<float> rshift_negative;
-  std::vector<float> multiplier_postive;
+  SyncedData rshift_postive;
+  SyncedData rshift_negative;
+  SyncedData multiplier_postive;
 };
 
 class ReshapeOpKernel : public CPUOpKernel<ReshapeOpKernel> {
@@ -181,12 +181,12 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 
-  std::vector<float> y0_table_op;
-  std::vector<float> slope_table;
+  SyncedData y0_table_op;
+  SyncedData slope_table;
 
   // bf16
-  std::vector<uint16_t> y0_bf16_table_op;
-  std::vector<uint16_t> y0_bf16_slope_table;
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -207,12 +207,12 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 
-  std::vector<float> y0_table_op;
-  std::vector<float> slope_table;
+  SyncedData y0_table_op;
+  SyncedData slope_table;
 
   // bf16
-  std::vector<uint16_t> y0_bf16_table_op;
-  std::vector<uint16_t> y0_bf16_slope_table;
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -233,13 +233,13 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 
-  std::vector<float> y0_table_op;
-  std::vector<float> slope_table;
+  SyncedData y0_table_op;
+  SyncedData slope_table;
 
   float threshold;
   // bf16
-  std::vector<uint16_t> y0_bf16_table_op;
-  std::vector<uint16_t> y0_bf16_slope_table;
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -260,12 +260,12 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 
-  std::vector<float> y0_table_op;
-  std::vector<float> slope_table;
+  SyncedData y0_table_op;
+  SyncedData slope_table;
 
   // bf16
-  std::vector<uint16_t> y0_bf16_table_op;
-  std::vector<uint16_t> y0_bf16_slope_table;
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };
@@ -303,12 +303,12 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 
-  std::vector<float> y0_table_op;
-  std::vector<float> slope_table;
+  SyncedData y0_table_op;
+  SyncedData slope_table;
 
   // bf16
-  std::vector<uint16_t> y0_bf16_table_op;
-  std::vector<uint16_t> y0_bf16_slope_table;
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
 };

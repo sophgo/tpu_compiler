@@ -44,9 +44,6 @@
 
 using namespace mlir;
 
-extern float BF16_TABLE_START;
-extern float BF16_TABLE_END;
-
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
 

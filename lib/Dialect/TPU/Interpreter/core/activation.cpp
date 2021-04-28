@@ -11,12 +11,10 @@
 
 namespace mlir {
 int omp_schedule(int count) {
-  return (count + omp_get_num_threads() -1) / omp_get_num_threads();
+  return (count + omp_get_num_threads() - 1) / omp_get_num_threads();
 }
 
-float BF16(float data) {
-  return convert_bf16_fp32(convert_fp32_bf16(data));
-}
+float BF16(float data) { return convert_bf16_fp32(convert_fp32_bf16(data)); }
 
 void relu(float *src, float *dst, size_t size) {
 #pragma omp parallel for schedule(static, omp_schedule(size))
@@ -116,12 +114,13 @@ ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping) {
   this->name = expOp.name().str();
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
+
   if (datatype == DataType::INT8) {
-    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_table_op = opTensors[1];
+    slope_table = opTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_bf16_table_op = opTensors[1];
+    y0_bf16_slope_table = opTensors[2];
     bf16_min_range = expOp.min_range().convertToFloat();
     bf16_max_range = expOp.max_range().convertToFloat();
   }
@@ -154,11 +153,11 @@ void ExpOpKernel::invoke() {
   if (datatype == DataType::INT8) {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
     bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
-                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
@@ -197,11 +196,11 @@ MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping) {
   set_datatype(getOpQuant(&op).str());
 
   if (datatype == DataType::INT8) {
-    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_table_op = opTensors[1];
+    slope_table = opTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_bf16_table_op = opTensors[1];
+    y0_bf16_slope_table = opTensors[2];
     bf16_min_range = mishOp.min_range().convertToFloat();
     bf16_max_range = mishOp.max_range().convertToFloat();
   }
@@ -236,14 +235,14 @@ void MishOpKernel::invoke() {
   if (datatype == DataType::INT8) {
 #pragma omp parallel for schedule(static, omp_schedule(size))
     for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
     bf16_lut_slope(input_data->data(), output_data->data(), size,
-                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
-#pragma omp parallel for schedule(static, omp_schedule(size ))
+#pragma omp parallel for schedule(static, omp_schedule(size))
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = mish_caffe(input_data->at(i), mish_threshold);
     }
@@ -285,12 +284,10 @@ LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping) {
     assert(opTensors[6]);
     assert(opTensors[7]);
     assert(opTensors[8]);
-
-    this->rshift_postive.assign(opTensors[5]->begin(), opTensors[5]->end());
-    this->multiplier_postive.assign(opTensors[6]->begin(), opTensors[6]->end());
-    this->rshift_negative.assign(opTensors[7]->begin(), opTensors[7]->end());
-    this->multiplier_negative.assign(opTensors[8]->begin(),
-                                     opTensors[8]->end());
+    rshift_postive = opTensors[5];
+    multiplier_postive = opTensors[6];
+    rshift_negative = opTensors[7];
+    multiplier_negative = opTensors[8];
   }
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
@@ -326,43 +323,43 @@ void LeakyReluOpKernel::invoke() {
       // in case that modify original pointer
       std::vector<float> input_copy(input_data->begin(), input_data->end());
       size_t copy_size = input_copy.size();
-#pragma omp parallel for schedule(static,  omp_schedule(copy_size))
+#pragma omp parallel for schedule(static, omp_schedule(copy_size))
       for (size_t i = 0; i < copy_size; i++) {
         input_copy.at(i) += input_offset;
       }
-      bool do_pos_scale = (multiplier_postive.at(0) != 0.0) ? true : false;
+      bool do_pos_scale = (multiplier_postive->at(0) != 0.0) ? true : false;
 #pragma omp parallel for schedule(static, omp_schedule(size))
       for (int i = 0; i < size; ++i) {
         if (input_copy.at(i) > 0) {
           if (do_pos_scale) {
             output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-                input_copy.at(i), (uint32_t)rshift_postive.at(0),
-                multiplier_postive.at(0), false, output_offset);
+                input_copy.at(i), (uint32_t)rshift_postive->at(0),
+                multiplier_postive->at(0), false, output_offset);
           } else {
             output_data->at(i) = input_copy.at(i);
           }
         } else {
           output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              input_copy.at(i), (uint32_t)rshift_negative.at(0),
-              multiplier_negative.at(0), false, output_offset);
+              input_copy.at(i), (uint32_t)rshift_negative->at(0),
+              multiplier_negative->at(0), false, output_offset);
         }
       }
     } else {
-      bool do_pos_scale = (multiplier_postive.at(0) != 0.0) ? true : false;
+      bool do_pos_scale = (multiplier_postive->at(0) != 0.0) ? true : false;
 
       for (int i = 0; i < size; ++i) {
         if (input_data->at(i) > 0) {
           if (do_pos_scale) {
             output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-                input_data->at(i), (uint32_t)rshift_postive.at(0),
-                multiplier_postive.at(0), false);
+                input_data->at(i), (uint32_t)rshift_postive->at(0),
+                multiplier_postive->at(0), false);
           } else {
             output_data->at(i) = input_data->at(i);
           }
         } else {
           output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              input_data->at(i), (uint32_t)rshift_negative.at(0),
-              multiplier_negative.at(0), false);
+              input_data->at(i), (uint32_t)rshift_negative->at(0),
+              multiplier_negative->at(0), false);
         }
       }
     }
@@ -433,7 +430,7 @@ PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping) {
   auto type = result.getType().cast<TensorType>();
   this->shape = type.getShape();
 
-  this->slope_data.assign(opTensors[1]->begin(), opTensors[1]->end());
+  this->slope_data = opTensors[1];
 
   this->name = preluOp.name().str();
   this->op_type = op.getName().getStringRef().str();
@@ -447,9 +444,9 @@ PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping) {
     assert(opTensors[6]);
     assert(opTensors[7]);
     assert(opTensors[8]);
-    this->rshift_postive.assign(opTensors[6]->begin(), opTensors[6]->end());
-    this->multiplier_postive.assign(opTensors[7]->begin(), opTensors[7]->end());
-    this->rshift_negative.assign(opTensors[8]->begin(), opTensors[8]->end());
+    this->rshift_postive = opTensors[6];
+    this->multiplier_postive = opTensors[7];
+    this->rshift_negative = opTensors[8];
   }
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
@@ -487,7 +484,7 @@ void PReluOpKernel::invoke() {
           output_data->at(index + i) = input_data->at(index + i);
         } else {
           output_data->at(index + i) =
-              slope_data[channel] * input_data->at(index + i);
+              slope_data->at(channel) * input_data->at(index + i);
         }
       }
     }
@@ -497,11 +494,11 @@ void PReluOpKernel::invoke() {
     for (int i = 0; i < size; ++i) {
       if (input_data->at(i) > 0) {
         output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-            output_data->at(i), (uint32_t)rshift_postive.at(0),
-            multiplier_postive.at(0), false);
+            output_data->at(i), (uint32_t)rshift_postive->at(0),
+            multiplier_postive->at(0), false);
       } else {
         output_data->at(i) = (float)applyRShiftAndSaturateInt8(
-            output_data->at(i), (uint32_t)rshift_negative.at(0));
+            output_data->at(i), (uint32_t)rshift_negative->at(0));
       }
     }
   } else if (datatype == DataType::BF16) {
@@ -530,11 +527,11 @@ ReciprocalOpKernel::ReciprocalOpKernel(Operation &op,
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_table_op = opTensors[1];
+    slope_table = opTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_bf16_table_op = opTensors[1];
+    y0_bf16_slope_table = opTensors[2];
     bf16_min_range = rOp.min_range().convertToFloat();
     bf16_max_range = rOp.max_range().convertToFloat();
   }
@@ -567,7 +564,7 @@ void ReciprocalOpKernel::invoke() {
   if (datatype == DataType::INT8) {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
@@ -650,11 +647,11 @@ SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping) {
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_table_op = opTensors[1];
+    slope_table = opTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_bf16_table_op = opTensors[1];
+    y0_bf16_slope_table = opTensors[2];
     bf16_min_range = sigmoidOp.min_range().convertToFloat();
     bf16_max_range = sigmoidOp.max_range().convertToFloat();
   }
@@ -687,11 +684,11 @@ void SigmoidOpKernel::invoke() {
   if (datatype == DataType::INT8) {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
     bf16_lut_slope(input_data->data(), output_data->data(), output_size,
-                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
@@ -727,11 +724,11 @@ SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping) {
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_table_op = opTensors[1];
+    slope_table = opTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_bf16_table_op = opTensors[1];
+    y0_bf16_slope_table = opTensors[2];
     bf16_min_range = spOp.min_range().convertToFloat();
     bf16_max_range = spOp.max_range().convertToFloat();
   }
@@ -764,11 +761,11 @@ void SoftPlusOpKernel::invoke() {
   if (datatype == DataType::INT8) {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
     bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
-                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
@@ -804,11 +801,11 @@ SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping) {
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_table_op = opTensors[1];
+    slope_table = opTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_bf16_table_op = opTensors[1];
+    y0_bf16_slope_table = opTensors[2];
     bf16_min_range = sqrtOp.min_range().convertToFloat();
     bf16_max_range = sqrtOp.max_range().convertToFloat();
   }
@@ -841,7 +838,7 @@ void SqrtOpKernel::invoke() {
   if (datatype == DataType::INT8) {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
@@ -933,11 +930,11 @@ TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping) {
   this->op_type = op.getName().getStringRef().str();
   set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_table_op = opTensors[1];
+    slope_table = opTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op.assign(opTensors[1]->begin(), opTensors[1]->end());
-    y0_bf16_slope_table.assign(opTensors[2]->begin(), opTensors[2]->end());
+    y0_bf16_table_op = opTensors[1];
+    y0_bf16_slope_table = opTensors[2];
     bf16_min_range = tanhOp.min_range().convertToFloat();
     bf16_max_range = tanhOp.max_range().convertToFloat();
   }
@@ -970,11 +967,11 @@ void TanHOpKernel::invoke() {
   if (datatype == DataType::INT8) {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = y0_table_op.at((unsigned char)input_data->at(i));
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
     bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
-                   y0_bf16_table_op, y0_bf16_slope_table, bf16_min_range,
+                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
                    bf16_max_range);
   } else {
 

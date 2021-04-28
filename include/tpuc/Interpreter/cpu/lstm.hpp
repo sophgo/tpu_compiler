@@ -29,6 +29,10 @@ private:
   SyncedData bias;
   SyncedData initial_h;
   SyncedData initial_c;
+  SyncedData sigmoid_lut;
+  SyncedData sigmoid_slope_lut;
+  SyncedData tanh_lut;
+  SyncedData tanh_slope_lut;
   SyncedDataShape input_shape;
 
   // param
@@ -52,12 +56,6 @@ private:
   float *output;
   float *pre_state_h;
   float *pre_state_c;
-
-  // bf16 only
-  std::vector<uint16_t> sigmoid_lut;
-  std::vector<uint16_t> sigmoid_slope_lut;
-  std::vector<uint16_t> tanh_lut;
-  std::vector<uint16_t> tanh_slope_lut;
 };
 } // namespace mlir
 #endif

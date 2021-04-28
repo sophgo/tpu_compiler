@@ -919,8 +919,8 @@ void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
 }
 
 void bf16_lut_mantissa(float *input, float *output, int size,
-                       const std::vector<uint16_t> &bf16_lut,
-                       const std::vector<uint16_t> &bf16_mantissa_lut) {
+                       const std::vector<float> &bf16_lut,
+                       const std::vector<float> &bf16_mantissa_lut) {
   for (int i = 0; i < size; i++) {
     uint16_t bf16InputValue = convert_fp32_bf16(input[i]);
     float input_bf16 = convert_bf16_fp32(bf16InputValue);
@@ -934,17 +934,15 @@ void bf16_lut_mantissa(float *input, float *output, int size,
       exponentIndex = floor(log2(-1 * input_bf16));
       exponentIndex += 62 + 129; // 62 means start with 2^-62, index from 129
     }
-    float exponentFloatValue = convert_bf16_fp32(bf16_lut[exponentIndex]);
-    float mantissaFloatValue =
-        convert_bf16_fp32(bf16_mantissa_lut[bf16InputValue & 0xff]);
-    output[i] = convert_bf16_fp32(
-        convert_fp32_bf16(exponentFloatValue * mantissaFloatValue));
+    float exponent = bf16_lut[exponentIndex];
+    float mantissa = bf16_mantissa_lut[bf16InputValue & 0xff];
+    output[i] = convert_bf16_fp32(convert_fp32_bf16(exponent * mantissa));
   }
 }
 
 void bf16_lut_slope(float *input, float *output, int size,
-                    const std::vector<uint16_t> &bf16_lut,
-                    const std::vector<uint16_t> &bf16_slope_lut,
+                    const std::vector<float> &bf16_lut,
+                    const std::vector<float> &bf16_slope_lut,
                     int bf16_table_start, int bf16_table_end) {
 
   // interger index range
@@ -967,13 +965,13 @@ void bf16_lut_slope(float *input, float *output, int size,
     float delta_x = rescale_input - rescale_input_i8;
 
     // get slope
-    uint16_t slope = bf16_slope_lut[rescale_input_i8 & 0xff];
+    auto slope = bf16_slope_lut[rescale_input_i8 & 0xff];
 
     // base y0 = f(x0)
-    uint16_t base = bf16_lut[rescale_input_i8 & 0xff];
+    auto base = bf16_lut[rescale_input_i8 & 0xff];
 
     // result = y0 + delta * slope
-    float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
+    float r = base + delta_x * slope;
     output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
   }
 }

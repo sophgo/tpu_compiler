@@ -9,7 +9,7 @@ namespace mlir {
 double GruOpKernel::sigmoid_(double data) {
   if (datatype == DataType::BF16) {
     float var = data;
-    bf16_lut_slope(&var, &var, 1, sigmoid_lut, sigmoid_slope_lut, -8, 8);
+    bf16_lut_slope(&var, &var, 1, *sigmoid_lut, *sigmoid_slope_lut, -8, 8);
     return var;
   } else {
     return 0.5 * tanh(0.5 * data) + 0.5;
@@ -18,7 +18,7 @@ double GruOpKernel::sigmoid_(double data) {
 double GruOpKernel::tanh_(double data) {
   if (datatype == DataType::BF16) {
     float var = data;
-    bf16_lut_slope(&var, &var, 1, tanh_lut, tanh_slope_lut, -8, 8);
+    bf16_lut_slope(&var, &var, 1, *tanh_lut, *tanh_slope_lut, -8, 8);
     return var;
   } else {
     return tanh(data);
@@ -67,8 +67,8 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
   recurrence = opTensors[1];
   bias = opTensors[2];
   if (bias == nullptr) {
-    bias = std::make_shared<std::vector<float>>(
-        num_dir * 3 * hidden_size, 0.0f);
+    bias =
+        std::make_shared<std::vector<float>>(num_dir * 3 * hidden_size, 0.0f);
   }
   initial_h = opTensors[3];
   if (initial_h == nullptr) {
@@ -76,10 +76,10 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
         num_dir * batch_size * hidden_size, 0.0f);
   }
   if (datatype == DataType::BF16) {
-    sigmoid_lut.assign(opTensors[4]->begin(), opTensors[4]->end());
-    sigmoid_slope_lut.assign(opTensors[5]->begin(), opTensors[5]->end());
-    tanh_lut.assign(opTensors[6]->begin(), opTensors[6]->end());
-    tanh_slope_lut.assign(opTensors[7]->begin(), opTensors[7]->end());
+    sigmoid_lut = opTensors[4];
+    sigmoid_slope_lut = opTensors[5];
+    tanh_lut = opTensors[6];
+    tanh_slope_lut = opTensors[7];
   }
   output_data = resultTensor;
   // record mapping table for next op connecting

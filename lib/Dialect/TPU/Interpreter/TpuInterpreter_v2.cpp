@@ -81,8 +81,6 @@
 #include <mutex>
 #include <numeric>
 
-extern float BF16_TABLE_START;
-extern float BF16_TABLE_END;
 namespace mlir {
 
 void ModuleInterpreter::prepareOperation(Operation &op) {
@@ -126,16 +124,8 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     } else {
       if (type.getElementType().isF32()) {
         tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
-      } else if (type.getElementType().isInteger(8)) {
-        llvm_unreachable("we save int8 weight as fp32 for now");
-      } else if (type.getElementType().isBF16()) {
-        auto tensor_bf16 = weightFile_->readTensor<bfloat16>(tensor_name, type);
-        tensor = std::move(
-            std::make_unique<std::vector<float>>(tensor_bf16->size()));
-        BFloat16ToFloat(tensor_bf16->data(), tensor->data(),
-                        tensor_bf16->size());
       } else {
-        llvm_unreachable("no support type");
+        llvm_unreachable("only support fp32 weight");
       }
     }
     std::string weight_name = loadWeightOp.name().str();

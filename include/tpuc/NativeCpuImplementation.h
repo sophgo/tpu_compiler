@@ -166,11 +166,11 @@ void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
                                    int table_hw);
 
 void bf16_lut_mantissa(float *input, float *output, int size,
-                       const std::vector<uint16_t> &bf16_lut,
-                       const std::vector<uint16_t> &bf16_mantissa_lut);
+                       const std::vector<float> &bf16_lut,
+                       const std::vector<float> &bf16_mantissa_lut);
 void bf16_lut_slope(float *input, float *output, int size,
-                    const std::vector<uint16_t> &bf16_lut,
-                    const std::vector<uint16_t> &bf16_slope_lut,
+                    const std::vector<float> &bf16_lut,
+                    const std::vector<float> &bf16_slope_lut,
                     int bf16_table_start, int bf16_table_end);
 
 int my_reduce_l2(float *input, float *output,

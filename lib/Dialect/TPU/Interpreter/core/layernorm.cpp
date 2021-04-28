@@ -1,9 +1,9 @@
 #include "tpuc/Interpreter/cpu/layernorm.hpp"
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
 
 namespace mlir {
 
@@ -28,6 +28,8 @@ LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping) {
   input_data = opTensors[0];
   scale_data = opTensors[1];
   bias_data = opTensors[2];
+  lut = opTensors[3];
+  mantissa_lut = opTensors[4];
   eps = lnOp.eps().convertToFloat();
   arrayAttrToVector(lnOp.normalized_shape(), this->normalized_shape);
   output_data = resultTensor;
@@ -48,8 +50,8 @@ LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping) {
     affine = true;
   }
   if (datatype == DataType::BF16) {
-    lut.assign(opTensors[3]->begin(), opTensors[3]->end());
-    mantissa_lut.assign(opTensors[4]->begin(), opTensors[4]->end());
+    assert(lut);
+    assert(mantissa_lut);
   }
   // record mapping table for next op connecting
   valueMapping[result] = std::move(resultTensor);
@@ -101,15 +103,14 @@ void LayerNormOpKernel::normalize_bf16(float *src, float *dst, int size) {
     var += std::pow(data, 2);
   }
   var = BF16(var / size) + BF16(eps);
-  bf16_lut_mantissa(&var, &var, 1, lut, mantissa_lut);
+  bf16_lut_mantissa(&var, &var, 1, *lut, *mantissa_lut);
   for (int i = 0; i < size; i++) {
     data = BF16(src[i] - mean);
     dst[i] = BF16(data * var);
   }
   if (affine) {
     for (int i = 0; i < size; i++) {
-      dst[i] =
-          BF16(BF16(dst[i] * BF16(scale_data->at(i))) + BF16(bias_data->at(i)));
+      dst[i] = BF16(BF16(dst[i] * scale_data->at(i)) + bias_data->at(i));
     }
   }
 }
