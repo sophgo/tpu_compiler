@@ -53,7 +53,7 @@ if __name__ == '__main__':
     parser.add_argument('--tune_iteration', type=int, default=30,
                         help='''iteration for tool to find better threhold,
                                 The larger the value, the longer it will take''')
-    parser.add_argument('--threshold_update_factor', default=0.01,
+    parser.add_argument('--threshold_update_factor', type=float, default=0.01,
                         help='threshold update factor')
     parser.add_argument('--strategy', choices=['greedy', 'overall'],
                         default='improve-outputs')

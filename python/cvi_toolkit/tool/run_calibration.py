@@ -41,7 +41,7 @@ if __name__ == '__main__':
 
     selector = ImageSelector(args.dataset, args.input_num,
                              args.image_list, debug=False)
-    selector.dump('{}_images_list.txt'.format(args.calibration_table.split('.')[-1]))
+    selector.dump('{}_images_list.txt'.format(args.calibration_table.split('.')[0]))
 
     # calibration
     calibrator = ActivationCalibrator(args.model_file, selector.image_list,
