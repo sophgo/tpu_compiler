@@ -477,6 +477,12 @@ void cvi_backend_tg_pad_kernel(
     int input_c, int input_h, int input_w, int *pads, float const_val,
     cvk_fmt_t fmt);
 
+void cvi_backend_tg_fill_const_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_ofmap, int output_n,
+    int output_c, int output_h, int output_w, float const_val,
+    cvk_fmt_t fmt);
+
 void cvi_backend_tg_upsample_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_ifmap, gaddr_t ga_ofmap, uint32_t input_n, uint32_t input_c,

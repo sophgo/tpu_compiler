@@ -57,7 +57,15 @@ void cvi_backend_tg_pad_kernel(
   dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
 
   cvk_tdma_l2g_tensor_fill_constant_param_t p0;
-  p0.constant = (int)const_val;
+  if (fmt == CVK_FMT_BF16) {
+    p0.constant = ctx.convert_fp32_to_bf16(const_val);
+  } else if (fmt == CVK_FMT_I8) {
+    assert(const_val >= -128 && const_val <= 127);
+    int8_t val = (int8_t)const_val;
+    p0.constant = *((uint8_t *)&val);
+  } else {
+    assert(0);
+  }
   p0.dst = &dst;
   ctx.tdma_l2g_tensor_fill_constant(&p0);
 

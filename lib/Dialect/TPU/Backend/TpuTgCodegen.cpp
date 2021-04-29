@@ -2434,31 +2434,43 @@ LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
     inner_size = shape[2]; //w
   }
 
-
+  int layer_id = getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
-  gaddr_t exponential_table_data_lut_gaddr = getWeightOpAddress(exponential_table().getDefiningOp());
-  gaddr_t exponential_slope_table_data_lut_gaddr = getWeightOpAddress(exponential_slope_table().getDefiningOp());
-  gaddr_t reciprocal_table_data_lut_gaddr = getWeightOpAddress(reciprocal_table().getDefiningOp());
-  gaddr_t reciprocal_mantissa_table_data_lut_gaddr = getWeightOpAddress(reciprocal_mantissa_table().getDefiningOp());
-  int layer_id = getOpLayerId(op);
 
-  LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
-                                                       << "exponential_table_data_lut_gaddr: " << exponential_table_data_lut_gaddr << "\n"
-                                                       << "exponential_slope_table_data_lut_gaddr: " << exponential_slope_table_data_lut_gaddr << "\n"
-                                                       << "reciprocal_table_data_lut_gaddr: " << reciprocal_table_data_lut_gaddr << "\n"
-                                                       << "reciprocal_mantissa_table_data_lut_gaddr: " << reciprocal_mantissa_table_data_lut_gaddr << "\n"
-                                                       << "output_gaddr: " << output_gaddr << "\n"
-                                                       << "outer_size: " << outer_size << "\n"
-                                                       << "inner_size: " << inner_size << "\n"
-                                                       << "\n";);
+  // special case, if softmax 2d's inner size == 1,
+  // we only need to fill 1.0 to all dimensions
+  if (shape.size() == 2 && inner_size == 1) {
+    cvi_backend_tg_fill_const_kernel(
+        *backend_ctx, layer_id, output_gaddr,
+        1, 1, 1, shape.data()[0], 1.0, CVK_FMT_BF16);
+  } else {
+    gaddr_t exponential_table_data_lut_gaddr = getWeightOpAddress(exponential_table().getDefiningOp());
+    gaddr_t exponential_slope_table_data_lut_gaddr = getWeightOpAddress(exponential_slope_table().getDefiningOp());
+    gaddr_t reciprocal_table_data_lut_gaddr = getWeightOpAddress(reciprocal_table().getDefiningOp());
+    gaddr_t reciprocal_mantissa_table_data_lut_gaddr = getWeightOpAddress(reciprocal_mantissa_table().getDefiningOp());
 
-  cvi_backend_tg_bf16_softmax_kernel(*backend_ctx, layer_id,
-                                            input_gaddr,
-                                            exponential_table_data_lut_gaddr, exponential_slope_table_data_lut_gaddr,
-                                            reciprocal_table_data_lut_gaddr, reciprocal_mantissa_table_data_lut_gaddr,
-                                            output_gaddr,
-                                            shape.data(), axis, dimension);
+    LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
+                            << "exponential_table_data_lut_gaddr: "
+                            << exponential_table_data_lut_gaddr << "\n"
+                            << "exponential_slope_table_data_lut_gaddr: "
+                            << exponential_slope_table_data_lut_gaddr << "\n"
+                            << "reciprocal_table_data_lut_gaddr: "
+                            << reciprocal_table_data_lut_gaddr << "\n"
+                            << "reciprocal_mantissa_table_data_lut_gaddr: "
+                            << reciprocal_mantissa_table_data_lut_gaddr << "\n"
+                            << "output_gaddr: " << output_gaddr << "\n"
+                            << "outer_size: " << outer_size << "\n"
+                            << "inner_size: " << inner_size << "\n"
+                            << "\n";);
+
+    cvi_backend_tg_bf16_softmax_kernel(
+        *backend_ctx, layer_id, input_gaddr,
+        exponential_table_data_lut_gaddr, exponential_slope_table_data_lut_gaddr,
+        reciprocal_table_data_lut_gaddr, reciprocal_mantissa_table_data_lut_gaddr,
+        output_gaddr,
+        shape.data(), axis, dimension);
+  }
   return success();
 }
 
