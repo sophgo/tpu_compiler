@@ -104,10 +104,6 @@ class Group {
 
   bool backward_slice(int out_tensor_id, std::list<int> &branches,
                       bool max_h_slice, bool no_split_h, int n_loop, int h_loop);
-
-  bool group_has_winograd_tensors();
-
-  bmerr_t group_winograd_out_tensors_check();
 };
 
 }

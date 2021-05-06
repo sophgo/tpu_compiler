@@ -172,7 +172,6 @@ void MixNet::add_tl_layer(int group_idx, int layer_id, net_timestep* time_step, 
     Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[i]);
     const std::string& name = in_tensor->name();
     if (in_tensor->type() != TENSOR_NEURON &&
-        in_tensor->type() != TENSOR_NEURON_WINOGRAD &&
         in_tensor->type() != TENSOR_MATRIX) {
       // coeff not do slice, no need postfix
       mix_op->add_bottom_name(name);
@@ -1642,21 +1641,17 @@ void MixNet::_add_load_op(int group_idx,
   Tensor* tensor = net_graph_->get_tensor_by_id(tensor_id);
   std::string storage = tensor->storage();
   net_graph_->get_tensor_dim(tensor_id, tensor_dim);
-
   name = tensor->name();
   Value src_opd = weightFileOp_->getResult(0);
 
-  if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_COEFF_LUT) {
-    laddr = net_graph_->get_tensor_local_offset(tensor_id);
+  local_shape[0] = (tensor_dim[0]);
+  local_shape[1] = (tensor_dim[1]);
+  local_shape[2] = (tensor_dim[2]);
+  local_shape[3] = (tensor_dim[3]);
+  laddr = net_graph_->get_tensor_local_offset(tensor_id);
 
-    if (tensor_type == TENSOR_COEFF_LUT) {
-      // lut case, no need to reshape
-      local_shape[0] = (tensor_dim[0]);
-      local_shape[1] = (tensor_dim[1]);
-      local_shape[2] = (tensor_dim[2]);
-      local_shape[3] = (tensor_dim[3]);
-    }
-    else {
+  if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_COEFF_LUT) {
+    if (tensor_type != TENSOR_COEFF_LUT) {
       // to match mlir requirement for conv weight, shape is
       // (oc, ic, kh, kw)
       local_shape[0] = tensor_dim[1];
@@ -1665,40 +1660,24 @@ void MixNet::_add_load_op(int group_idx,
       local_shape[3] = tensor_dim[3];
     }
 
-    aligned = (false);
-    transpose = (false);
     tensor_type_str = "CONV_COEFF";
     if (tensor_type == TENSOR_COEFF_LUT) {
       tensor_type_str = "LUT_COEFF";
     }
     dtype = COEFF;
-    attrs.push_back(builder_.getNamedAttr("storage", builder_.getStringAttr(storage)));
+    attrs.push_back(builder_.getNamedAttr("storage",
+                                          builder_.getStringAttr(storage)));
   } else if (tensor_type == TENSOR_BIAS) {
-    laddr = net_graph_->get_tensor_local_offset(tensor_id);
-
-    local_shape[0] = (tensor_dim[0]);
-    local_shape[1] = (tensor_dim[1]);
-    local_shape[2] = (tensor_dim[2]);
-    local_shape[3] = (tensor_dim[3]);
-
-    aligned = (false);
-    transpose = (false);
     tensor_type_str = "BIAS";
     dtype = COEFF;
-    attrs.push_back(builder_.getNamedAttr("storage", builder_.getStringAttr(storage)));
+    attrs.push_back(builder_.getNamedAttr("storage",
+                                          builder_.getStringAttr(storage)));
   } else if (tensor_type == TENSOR_DEPTHCONV_OPD1) {
-    laddr = net_graph_->get_tensor_local_offset(tensor_id);
-
-    local_shape[0] = (tensor_dim[0]);
-    local_shape[1] = (tensor_dim[1]);
-    local_shape[2] = (tensor_dim[2]);
-    local_shape[3] = (tensor_dim[3]);
-
-    aligned = (true);
-    transpose = (false);
+    aligned = true;
     tensor_type_str = "CONV_DEPTH_OPD1";
     dtype = COEFF;
-    attrs.push_back(builder_.getNamedAttr("storage", builder_.getStringAttr(storage)));
+    attrs.push_back(builder_.getNamedAttr("storage",
+                                          builder_.getStringAttr(storage)));
   } else {
     int n_idx = tensor->n_idx;
     int n_slice = tensor->n_slice;
@@ -1721,15 +1700,13 @@ void MixNet::_add_load_op(int group_idx,
     local_shape[2] = (h_slice);
     local_shape[3] = (tensor_dim[3]);
 
-    if (tensor_type == TENSOR_NEURON || tensor_type == TENSOR_NEURON_WINOGRAD) {
-      aligned = (true);
-    } else {  // TENSOR_COEFF_NEURON
+    if (tensor_type == TENSOR_NEURON) {
+      aligned = true;
+    } else {
       if (tensor_type != TENSOR_NEURON_AS_COEFF && tensor_type != TENSOR_MATRIX) {
         dtype = COEFF;
       }
-      aligned = (false);
     }
-    transpose = (false);
     net_graph_->set_tensor_local_offest(tensor_id, laddr);
     tensor_type_str = "NEURON";
     attrs.push_back(builder_.getNamedAttr("offset", builder_.getI64IntegerAttr(offset)));

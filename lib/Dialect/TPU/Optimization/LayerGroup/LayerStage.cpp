@@ -401,7 +401,7 @@ void net_timestep::generate_hold_coeff_tensor() {
       tensor_type_t tensor_type = net_graph_->get_tensor_type(tensor_id);
 
       if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_BIAS ||
-          tensor_type == TENSOR_COEFF_LUT || tensor_type == TENSOR_COEFF_WINOGRAD ||
+          tensor_type == TENSOR_COEFF_LUT ||
           tensor_type == TENSOR_DEPTHCONV_OPD1 ) {
         hold_coeff_tensor[tensor_id] = i;
 
@@ -429,7 +429,7 @@ bool net_timestep::is_tensor_hold_in_memory(int tensor_id) {
 bool net_timestep::is_tensor_weight(tensor_type_t tensor_type) {
   if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_BIAS ||
       tensor_type == TENSOR_COEFF_LUT || tensor_type == TENSOR_COEFF_NEURON ||
-      tensor_type == TENSOR_COEFF_WINOGRAD || tensor_type == TENSOR_NEURON_AS_COEFF) {
+      tensor_type == TENSOR_NEURON_AS_COEFF) {
     return true;
   } else {
     return false;
@@ -509,6 +509,36 @@ bmerr_t net_timestep::get_min_secs(bool b_hold_coeff, float &min_secs) {
   }
   return BM_SUCCESS;
 }
+
+// hw h limit is 4095-32, so after h slice, the h size
+// must smaller than 4095-32
+
+int net_timestep::get_hw_minimal_h_slice(Group * group) {
+  int minimal_h_slice = 1;
+  int min_h_slice_in = 1, min_h_slice_out = 1;
+  int HW_H_LIMIT = 4095-32;
+  std::set<int> in_tensors = group->get_group_in_neuron_tensors();
+  for (auto tid: in_tensors) {
+    Tensor * tensor = net_graph_->get_tensor_by_id(tid);
+    int h = tensor->h();
+    if (h > HW_H_LIMIT) {
+      min_h_slice_in = h / HW_H_LIMIT + 1;
+    }
+  }
+
+  std::vector<int> out_tensors = group->get_group_out_tensors();
+  for (auto tid: out_tensors) {
+    Tensor * tensor = net_graph_->get_tensor_by_id(tid);
+    int h = tensor->h();
+    if (h > HW_H_LIMIT) {
+      min_h_slice_out = h / HW_H_LIMIT + 1;
+    }
+  }
+
+  minimal_h_slice = std::max(min_h_slice_in, min_h_slice_out);
+  return minimal_h_slice;
+}
+
 // Returns true if a suitable split result is found. The result will
 // be saved in nsecs_and_hsecs, that holds the slcing number of cuts
 // by n and h. The slicing strategy is based on the size of local memory
@@ -560,6 +590,11 @@ bmerr_t net_timestep::find_minimal_nh_slice(Group* group, int max_n_slice, int m
     int max_num = static_cast<int>(ceil(min_secs));
     nsecs_and_hsecs.first = (max_n_slice + max_num - 1) / max_num;
   }
+
+  // get minimal h_slice for hw-limitation
+  int hw_minimal_h_slice = get_hw_minimal_h_slice(group);
+  if (hw_minimal_h_slice > nsecs_and_hsecs.second)
+    nsecs_and_hsecs.second = hw_minimal_h_slice;
 
   if(!(nsecs_and_hsecs.first <= max_n_slice && nsecs_and_hsecs.second <= max_h_slice)) {
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L2

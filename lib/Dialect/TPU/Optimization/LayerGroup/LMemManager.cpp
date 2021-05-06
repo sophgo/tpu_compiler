@@ -97,7 +97,7 @@ bool LmemManager::is_tensor_resident_in_lmem(int tid) {
   tensor_type_t type = net_graph_->get_tensor_type(tid);
   if (type == TENSOR_COEFF || type == TENSOR_COEFF_NEURON || type == TENSOR_BIAS ||
       type == TENSOR_COEFF_LUT || type == TENSOR_DEPTHCONV_OPD1 ||
-      type == TENSOR_COEFF_WINOGRAD || type == TENSOR_NEURON_AS_COEFF) {
+      type == TENSOR_NEURON_AS_COEFF) {
     return true;
   }
   return false;

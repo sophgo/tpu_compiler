@@ -55,6 +55,7 @@ class net_timestep {
 
   void generate_mem_buffer();
   void update_mem_buffer_size();
+  int get_hw_minimal_h_slice(Group * group);
 
   void generate_tsm_buffer(bool one_loop);
 

@@ -153,16 +153,9 @@ uint32_t Tensor::lmem_size() {
     w = 1;
   }
 
-  if (type_ == TENSOR_NEURON_WINOGRAD) {
-    h = ALIGN(h, 2);
-    w = ALIGN(w, 2);
-  }
-
   if (type_ == TENSOR_IMM || type_ == TENSOR_NEURON || type_ == TENSOR_MATRIX ||
-      type_ == TENSOR_DEPTHCONV_OPD1 || type_ == TENSOR_NEURON_WINOGRAD) {
+      type_ == TENSOR_DEPTHCONV_OPD1) {
     return n * ceiling_func(c, NPU_NUM) * ALIGN(h * w, EU_NUM) * unit_size_;
-  } else if (type_ == TENSOR_COEFF_WINOGRAD) {
-    return n * ceiling_func(c, NPU_NUM) * 4 * 4 * unit_size_;
   } else {
     return n * ceiling_func(c, NPU_NUM) * h * w * unit_size_;
   }

@@ -104,51 +104,6 @@ std::set<int> Group::get_group_in_neuron_tensors() {
   return group_in_neuron_tensors;
 }
 
-// Check if there is winograd tensor in group.
-bool Group::group_has_winograd_tensors() {
-  for (int i = 0; i < static_cast<int>(layers_.size()); i++) {
-    int id = layers_[i];
-    const std::vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
-    for (int j = 0; j < static_cast<int>(out_tensors.size()); ++j) {
-      int tid = out_tensors[j];
-      if (net_graph_->get_tensor_type(tid) == TENSOR_NEURON_WINOGRAD) {
-        return true;
-      }
-    }
-  }
-  return false;
-}
-
-// Check out winograd tensor.
-bmerr_t Group::group_winograd_out_tensors_check() {
-  int nsecs = nsecs_and_hsecs.first;
-  int hsecs = nsecs_and_hsecs.second;
-  for (int hslice_idx = 0; hslice_idx < hsecs; hslice_idx++) {
-    bmerr_t status = update_tensor_slices(nsecs, hsecs, 0, hslice_idx);
-    if (status == BM_ERR_FAILURE) {
-      return BM_ERR_FAILURE;
-    }
-    for (int i = 0; i < static_cast<int>(layers_.size()); i++) {
-      int id = layers_[i];
-      const std::vector<int>& out_tensors = net_graph_->get_out_tensors_of_layer(id);
-      for (int j = 0; j < static_cast<int>(out_tensors.size()); ++j) {
-        int tid = out_tensors[j];
-        if (net_graph_->get_tensor_type(tid) == TENSOR_NEURON_WINOGRAD) {
-          const Tensor* out_tensor = net_graph_->get_tensor_by_id(tid);
-          int res_h = out_tensor->h_slice;
-          int res_w = net_graph_->get_tensor_width(tid);
-          if (std::ceil((1.0 * res_h / 2)) * std::ceil((1.0 * res_w / 2)) >= 4096) {
-            LLVM_DEBUG(llvm::errs() << "invalid winograd output res_h="
-                                    << res_h << ",res_w=" << res_w << "\n";);
-            return BM_ERR_NOT_SUPPORTED;
-          }
-        }
-      }
-    }
-  }
-  return BM_SUCCESS;
-}
-
 void Group::show_group_layers() {
   for (int i = 0; i < (int)layers_.size(); i++)
     LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
@@ -215,13 +170,9 @@ int Group::get_max_hsecs() {
   return max_h_slice;
 }
 
-bmerr_t Group::assign_steps() {
-  return assign_steps_without_tsm();
-}
-
 // This function is used to construct the time step and find the appropriate partitioning
 // strategy according to the time step.
-bmerr_t Group::assign_steps_without_tsm() {
+bmerr_t Group::assign_steps() {
   bmerr_t status = BM_ERR_FAILURE;
   // clear time_step and nescs_and_hsecs.
   if (time_step) {
@@ -261,26 +212,16 @@ bmerr_t Group::assign_steps_without_tsm() {
                             << nsecs_and_hsecs.first << "/" << max_n_slice
                             << ", " << nsecs_and_hsecs.second << "/" << max_h_slice << ")\n";);
     reset_tensor_hslice_max();
-    if (group_has_winograd_tensors()) {
-      status = group_winograd_out_tensors_check();
-      if (status == BM_ERR_FAILURE) {
-        return BM_ERR_FAILURE;
-      } else if (status == BM_ERR_NOT_SUPPORTED) {
-        nsecs_and_hsecs.second++;
-        continue;
-      }
-    } else {
-      // check validation of layer group if nsecs_and_hsecs.second > 1,
-      // and update h_slice_max
-      if (nsecs_and_hsecs.second > 1) {
-        for (int h_idx = 0; h_idx < nsecs_and_hsecs.second; h_idx++) {
-          status = update_tensor_slices(nsecs_and_hsecs.first,
-                                        nsecs_and_hsecs.second, 0, h_idx);
-          if (status == BM_ERR_FAILURE) {
-            LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
-                                    << "[Find_Fit_NH_Slice] End with failed: Update tensor slice failed\n";);
-            return BM_ERR_FAILURE;
-          }
+    // check validation of layer group if nsecs_and_hsecs.second > 1,
+    // and update h_slice_max
+    if (nsecs_and_hsecs.second > 1) {
+      for (int h_idx = 0; h_idx < nsecs_and_hsecs.second; h_idx++) {
+        status = update_tensor_slices(nsecs_and_hsecs.first,
+                                      nsecs_and_hsecs.second, 0, h_idx);
+        if (status == BM_ERR_FAILURE) {
+          LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
+                                  << "[Find_Fit_NH_Slice] End with failed: Update tensor slice failed\n";);
+          return BM_ERR_FAILURE;
         }
       }
     }
@@ -351,14 +292,9 @@ bool Group::validate_tensor_slice() {
   for (auto id : layers_) {
     const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
 
-    // if (im_layer->type() == IR_CONVOLUTION || im_layer->type() == IR_POOLING ||
-    //     im_layer->type() == IR_DECONVOLUTION || im_layer->type() == IR_INNERPRODUCT) {
-    //   continue;
-    // }
-
     for (auto& tensor : im_layer->in_tensors) {
       if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-          tensor->type() == TENSOR_COEFF_LUT || tensor->type() == TENSOR_COEFF_WINOGRAD ||
+          tensor->type() == TENSOR_COEFF_LUT ||
           tensor->type() == TENSOR_DEPTHCONV_OPD1) {
         continue;
       }
@@ -479,7 +415,6 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
 
     if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
         tensor->type() == TENSOR_COEFF_LUT ||
-        tensor->type() == TENSOR_COEFF_WINOGRAD ||
         tensor->type() == TENSOR_DEPTHCONV_OPD1) {
       continue;
     }
@@ -493,18 +428,6 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
     } else if (layer_type == IR_CONVOLUTION || layer_type == IR_POOLING) {
       h_idx = out_h_idx * sh - pt;
       h_slice = (out_h_slice - 1) * sh + kh;
-      if (out_tensor->type() == TENSOR_NEURON_WINOGRAD) {
-        if (out_h_slice % 2 == 1) {
-          if ((h_idx + pt) % 2 == 1) {
-            h_idx -= 1;
-            h_slice += 1;
-            out_tensor->set_h_slice_skip_first();
-          } else {
-            h_slice += 1;
-            out_tensor->set_h_slice_skip_last();
-          }
-        }
-      }
     } else if (layer_type == IR_DECONVOLUTION) {
       int bottom_h = tensor->h();
       int height_insert0 = (bottom_h - 1) * sh + 1;
@@ -607,12 +530,6 @@ bool Group::backward_slice(int out_tensor_id, std::list<int>& branches, bool max
         h_slice = 1;
       }
     }
-
-    // LLVM_DEBUG(llvm::errs() << "tensor_id: " << tensor->id() << " n_idx: "
-    //     << n_idx << " h_idx: " << h_idx
-    //     << ", n_slice: " << n_slice << ", h_slice: " << h_slice
-    //     << " out_h_idx: " << out_h_idx << " out_h_slice: " << out_h_slice
-    //     << " pt: " << pt << " sh: " << sh << " kh: " << kh << "\n";);
 
     if (cur_h_slice != -1 && (cur_h_slice != h_slice || cur_h_idx != h_idx)) {
       LLVM_DEBUG(llvm::errs()

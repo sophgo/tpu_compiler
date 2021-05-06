@@ -89,7 +89,7 @@ int TdmaCycle::init(const TENSOR_STEP& step) {
     local_shape[2] = (h_slice);
     local_shape[3] = (tensor_dim[3]);
 
-    if (tensor_type == TENSOR_NEURON || tensor_type == TENSOR_NEURON_WINOGRAD) {
+    if (tensor_type == TENSOR_NEURON) {
       aligned = (true);
     }
   }

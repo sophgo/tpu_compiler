@@ -15,8 +15,6 @@ typedef enum tensor_type {
   TENSOR_COEFF_NEURON,
   TENSOR_NEURON_AS_COEFF,
   TENSOR_DEPTHCONV_OPD1,
-  TENSOR_COEFF_WINOGRAD,
-  TENSOR_NEURON_WINOGRAD,
   TENSOR_IMM,  // intermediate buf for IR compute
 } tensor_type_t;
 
