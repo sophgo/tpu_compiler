@@ -53,7 +53,7 @@ class TensorCompare():
   def euclidean_distance(self, x, y):
     return sqrt(sum(pow(a-b,2) for a, b in zip(x, y)))
 
-  def signal_to_quantization_noise_ratio(self, signal_raw, signal_dequant, remove_zero=True):
+  def sqnr_similarity(self, signal_raw, signal_dequant, remove_zero=True):
     # SQNR is non-commutative
     # Unlike other distance function
     # Cannot change the order of signal_raw and signal_dequant
@@ -81,74 +81,100 @@ class TensorCompare():
 
     return sqnr
 
-  def show_diff(self, d1, d2):
+  def all_diffs(self, d1, d2):
+    diffs = list()
     d1f = d1.flatten()
     d2f = d2.flatten()
-    print("show_diff, total len = " + str(len(d1f)))
     if d1f.dtype == np.int8:
       assert(d2f.dtype == np.int8)
       for i in range(len(d1f)):
         if (d1f[i] != d2f[i]):
-          print(i, d1f[i], d2f[i])
+          diffs.append((i, d1f[i], d2f[i]))
     else:
       atol = 10**(-self.close_order_tol)
       rtol = 10**(-self.close_order_tol)
       for i in range(len(d1f)):
         if fabs(d1f[i] - d2f[i]) > (atol + rtol * fabs(d2f[i])):
-          print(i, d1f[i], d2f[i])
+          diffs.append((i, d1f[i], d2f[i]))
+      return diffs
 
-  def compare(self, d1, d2, int8_tensor_close=True):
+  def diff_details(self, d1, d2, verbose):
     details = {}
+    if verbose > 1:
+      K = 5
+      tk1 = get_topk(d1, K)
+      tk2 = get_topk(d2, K)
+      details['top-k'] = (tk1, tk2)
+    if verbose > 2:
+      details['diffs'] = self.all_diffs(d1,d2)
+    if verbose > 3:
+      details['all'] = (d1, d2)
+    return details
+
+  def compare(self, d1, d2, verbose, int8_tensor_close=True):
+    similarities = {}
     if (len(d1) != len(d2)):
-      return (False, self.NOT_MATCH, details)
+      return (False, self.NOT_MATCH, similarities, None)
 
     if np.array_equal(d1, d2):
-      return (True, self.EQUAL, details)
+      return (True, self.EQUAL, similarities, None)
 
     # int8 only check equal, not close
     if d1.dtype == np.int8 and int8_tensor_close:
-      return (False, self.NOT_EQUAL, details)
+      details = self.diff_details(d1, d2, verbose)
+      return (False, self.NOT_EQUAL, similarities, details)
 
     # check allclose
-    for order in range(10, 1, -1):
+    for order in range((self.close_order_tol + 2), 1, -1):
       if (np.allclose(d1, d2, rtol=1 * 10**(-order), atol=1e-8, equal_nan=True)):
         break
     if order >= self.close_order_tol:
-      details["close_order"] = order
-      return (True, self.CLOSE, details)
+      similarities["close_order"] = order
+      return (True, self.CLOSE, similarities, None)
 
     # check similarity
     # cosine similarity
     # cosine_similarity_my = self.cosine_similarity(d1.flatten(), d2.flatten())
-    # print("Cosine Similarity    (my): ", cosine_similarity_my)
-    cosine_similarity = 1 - spatial.distance.cosine(d1.flatten().astype(np.float32), d2.flatten().astype(np.float32))
-    # print("Cosine Similarity    (sp): ", cosine_similarity)
+    cosine_similarity = 1 - spatial.distance.cosine(d1.flatten().astype(np.float32),
+                                                    d2.flatten().astype(np.float32))
     # correlation similarity
-    correlation_similarity = cosine_similarity #1 - spatial.distance.correlation(d1.flatten(), d2.flatten())
-    #print("Correlation Similarity   : ", correlation_similarity)
+    #1 - spatial.distance.correlation(d1.flatten(), d2.flatten())
+    correlation_similarity = cosine_similarity
     # measure euclidean similarity
     m = (d1+d2)/2
     euclidean_similarity = 1 - (self.euclidean_distance(d1.flatten(), d2.flatten()) /
                                 self.square_rooted(m.flatten()))
-    # print("Euclidean Similarity (my): ", euclidean_simliarity_my)
 
-    signal_to_quantization_noise_ratio = self.signal_to_quantization_noise_ratio(d1, d2)
+    sqnr = self.sqnr_similarity(d1, d2)
 
-    details["cosine_similarity"]       = cosine_similarity
-    details["correlation_similarity"]  = correlation_similarity
-    details["euclidean_similarity"]    = euclidean_similarity
-    details["signal_to_quantization_noise_ratio"]    = signal_to_quantization_noise_ratio
+    similarities["cosine"]       = cosine_similarity
+    similarities["correlation"]  = correlation_similarity
+    similarities["euclid"]    = euclidean_similarity
+    similarities["sqnr"]    = sqnr
     # check similarity
     if (cosine_similarity > self.cosine_similarity_tol
         and correlation_similarity > self.correlation_similarity_tol
         and euclidean_similarity > self.euclidean_similarity_tol
-        and signal_to_quantization_noise_ratio > self.signal_to_quantization_noise_tol):
-      return (True, self.SIMILAR, details)
+        and sqnr > self.signal_to_quantization_noise_tol):
+      return (True, self.SIMILAR, similarities, None)
     else:
       # Not similar
-      return (False, self.NOT_SIMILAR, details)
+      details = self.diff_details(d1, d2, verbose)
+      return (False, self.NOT_SIMILAR, similarities, details)
 
-  def print_result(self, d1, d2, name, result, verbose):
+  def int8_tensor_stats(self, d):
+    d_int8 = d.astype(np.int8)
+    pos = np.sum(d_int8 == 127)
+    neg = np.sum(d_int8 == -128)
+    zeros = np.sum(d_int8 == 0)
+    b_low = np.sum(np.abs(d_int8) <= 8) # 16, 32, 63
+    tol = d_int8.size
+    print("    pos(x=127)    = {:.4f}  [{}/{}]".format(pos / tol, pos, tol))
+    print("    neg(x=-128)   = {:.4f}  [{}/{}]".format(neg / tol, neg, tol))
+    print("    zeros(x=0)    = {:.4f}  [{}/{}]".format(zeros / tol, zeros, tol))
+    print("    low(abs(x)<8) = {:.4f}  [{}/{}]".format(b_low / tol, b_low, tol))
+
+  def print_result(self, d1, name, result, verbose):
     print("[{:<32}] {:>12} [{:>6}]".format(name, result[1],
            "PASSED" if result[0] else "FAILED"))
     if (verbose > 0):
@@ -156,25 +182,36 @@ class TensorCompare():
       if (result[1] == self.CLOSE):
         print("    close order            = {}".format(result[2]["close_order"]))
       if (result[1] == self.SIMILAR or result[1] == self.NOT_SIMILAR):
-        print("    cosine_similarity      = {:.6f}".format(result[2]["cosine_similarity"]))
-        print("    correlation_similarity = {:.6f}".format(result[2]["correlation_similarity"]))
-        print("    euclidean_similarity   = {:.6f}".format(result[2]["euclidean_similarity"]))
-        print("    signal_to_quantization_noise_ratio (SQNR)   = {:.6f}".format(result[2]["signal_to_quantization_noise_ratio"]))
+        print("    cosine_similarity      = {:.6f}".format(result[2]["cosine"]))
+        print("    correlation_similarity = {:.6f}".format(result[2]["correlation"]))
+        print("    euclidean_similarity   = {:.6f}".format(result[2]["euclid"]))
+        print("    sqnr_similarity        = {:.6f}".format(result[2]["sqnr"]))
+    if d1.dtype == np.int8:
+      self.int8_tensor_stats(d1)
+
+    details = result[-1]
+    if not details:
+      return
     if (verbose > 1 and not result[0]):
-      K = 5
-      print("Target")
-      for i in get_topk(d1, K):
-        print(i)
-      print("Reference")
-      for i in get_topk(d2, K):
-        print(i)
+      print('top-k:')
+      print(' idx-t  target  idx-r  ref')
+      tk1, tk2 = details['top-k']
+      for i in range(len(tk1)):
+        idx_t, target = tk1[i]
+        idx_r, ref = tk2[i]
+        print(" ", idx_t, target, idx_r, ref)
     if (verbose > 2 and not result[0]):
-      self.show_diff(d1,d2)
+      print("all-diffs:")
+      print(" idx  target  ref")
+      for i in details['diffs']:
+        print(" ", *i)
     if (verbose > 3 and not result[0]):
-      print("Target")
-      print(d1)
-      print("Reference")
-      print(d2)
+      print("all-elements:")
+      print(" idx  target  ref")
+      target, ref = details['all']
+      for i in range(len(target)):
+        print(" ", i, target[i], ref[i])
+
 
 class TensorCompareStats():
   def __init__(self):
@@ -191,7 +228,7 @@ class TensorCompareStats():
     self.min_cosine_similarity = 1.0
     self.min_correlation_similarity = 1.0
     self.min_euclidean_similarity = 1.0
-    self.min_signal_to_quantization_noise_ratio = float('inf')
+    self.min_sqnr = float('inf')
 
   def update(self, name, result):
     self.results[name] = result
@@ -207,10 +244,10 @@ class TensorCompareStats():
     self.count[result[1]] = self.count[result[1]] + 1
     # record min similarity
     if result[1] == TensorCompare.SIMILAR or result[1] == TensorCompare.NOT_SIMILAR:
-      self.min_cosine_similarity = min(self.min_cosine_similarity, result[2]["cosine_similarity"])
-      self.min_correlation_similarity = min(self.min_correlation_similarity, result[2]["correlation_similarity"])
-      self.min_euclidean_similarity = min(self.min_euclidean_similarity, result[2]["euclidean_similarity"])
-      self.min_signal_to_quantization_noise_ratio = min(self.min_signal_to_quantization_noise_ratio, result[2]["signal_to_quantization_noise_ratio"])
+      self.min_cosine_similarity = min(self.min_cosine_similarity, result[2]["cosine"])
+      self.min_correlation_similarity = min(self.min_correlation_similarity, result[2]["correlation"])
+      self.min_euclidean_similarity = min(self.min_euclidean_similarity, result[2]["euclid"])
+      self.min_sqnr = min(self.min_sqnr, result[2]["sqnr"])
 
   def print_result(self):
     print("%d compared"%(len(self.results)))
@@ -227,24 +264,22 @@ class TensorCompareStats():
             self.min_cosine_similarity,
             self.min_correlation_similarity,
             self.min_euclidean_similarity,
-            self.min_signal_to_quantization_noise_ratio))
+            self.min_sqnr))
 
-  def save_result(self, csv_file):
+  def save_result(self, csv_file, operations, quant_types):
     has_similarity = lambda x: (x == TensorCompare.SIMILAR
                                 or x == TensorCompare.NOT_SIMILAR)
     with open(csv_file, mode='w') as f:
-      f.write("name, equal, close, close_order, similar, "
-              "sim_cosn, sim_corr, sim_eucl, SQNR, pass\n")
+      f.write("name, op, quant, pass, sim_cos, sim_euc, sqnr\n")
       for name, result in self.results.items():
-        f.write("{}, {}, {}, {}, {}, {}, {}, {}, {}\n".format(
-          name,
-          bool(result[1] == TensorCompare.EQUAL),
-          bool(result[1] == TensorCompare.CLOSE),
-          result[2]["close_order"] if (result[1] == TensorCompare.CLOSE) else "na.",
-          bool(result[1] == TensorCompare.SIMILAR),
-          result[2]["cosine_similarity"] if has_similarity(result[1]) else "na.",
-          result[2]["correlation_similarity"] if has_similarity(result[1])  else "na.",
-          result[2]["euclidean_similarity"] if has_similarity(result[1])  else "na.",
-          result[2]["signal_to_quantization_noise_ratio"] if has_similarity(result[1])  else "na.",
-          bool(result[0]),
-        ))
+        op = operations.get(name, '-')
+        qtype = quant_types.get(name, '-')
+        is_equal = bool(result[1] == TensorCompare.EQUAL)
+        is_close = bool(result[1] == TensorCompare.CLOSE)
+        is_similar = bool(result[1] == TensorCompare.SIMILAR)
+        is_pass = bool(is_similar or is_close or is_equal)
+        cos = float(result[2]["cosine"]) if has_similarity(result[1]) else 1.0
+        euc = float(result[2]["euclid"]) if has_similarity(result[1]) else 1.0
+        sqnr = float(result[2]["sqnr"]) if has_similarity(result[1]) else float('-inf')
+        f.write("{}, {}, {}, {}, {}, {}, {}\n".format(
+          name, op, qtype, is_pass, cos, euc, sqnr))

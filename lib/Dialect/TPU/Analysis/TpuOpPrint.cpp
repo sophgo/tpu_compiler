@@ -60,7 +60,7 @@ public:
         if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
           std::string op_name = mlir::getOpName(op).str();
           file_os << op_name;
-          file_os << "," << getOpLayerId(op);
+          file_os << "," << op->getName().getStringRef().str();
           if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
             file_os << "," << getOpQuant(op);
             if (getOpQuant(op) == "INT8") {

@@ -72,7 +72,7 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
 
   DST_DIR=$CVIMODEL_REL_PATH/cvimodel_regression_bf16_${postfix}
   mkdir -p $DST_DIR
-  mv ${NET}_bf16_in_fp32_resize_only.npz $DST_DIR/${NET}_${postfix}_only_resize_in_fp32.npz
+  mv ${NET}_in_fp32_resize_only.npz $DST_DIR/${NET}_${postfix}_only_resize_in_fp32.npz
   mv ${NET}_bf16.cvimodel $DST_DIR/${NET}_${postfix}.cvimodel
-  mv ${NET}_bf16_quantized_tensors_sim.npz $DST_DIR/${NET}_${postfix}_bf16_out_all.npz
+  mv ${NET}_quantized_tensors_sim.npz $DST_DIR/${NET}_${postfix}_bf16_out_all.npz
 fi
