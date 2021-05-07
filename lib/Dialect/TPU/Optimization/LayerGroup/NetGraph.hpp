@@ -34,12 +34,12 @@ class NetGraph {
   FuncOp * getFn();
   void parse_graph(FuncOp * fn);
   const ImLayer* get_layer_by_op(Operation * op);
-//   // get tensor type
+  // get tensor type
   tensor_type_t get_tensor_type(int tensor_id);
   int getImLayerSize();
   bool layer_inplace_compute(int layer_id);
 
-//   // get layer parameter
+  // get layer parameter
   const ImLayer* get_layer_by_id(int layer_id);
   const std::vector<int>& get_in_tensors_of_layer(int layer_id);
   const std::vector<int>& get_out_tensors_of_layer(int layer_id);
@@ -50,21 +50,22 @@ class NetGraph {
   int get_tensor_width(int tensor_id);
   int get_tensor_unit_size(int tensor_id);
   void get_tensor_dim(int tensor_id, int* tensor_dim);
-  gaddr_t get_tensor_tsm_mem(int tensor_id);
   int get_tensor_local_offset(int tensor_id);
 
   void get_tl_tensor_dim(int t_id, int * dims, bool is_h_split);
   void get_tl_tensor_dim_pads(int t_id, int * dims,
                               int * pads, bool is_h_split);
 
-//   // get tensor parameter
+  // get tensor parameter
   Tensor* get_tensor_by_id(int id);
   void set_tensor_local_offest(int tensor_id, int local_mem_offset);
   void set_tensor_tsm_offest(int tensor_id, gaddr_t gaddr);
 
   void set_tensor_num_height_slice(int tensor_id, int n_idx, int n_slice, int h_idx, int h_slice,
                                    bool h_slice_skip_first, bool h_slice_skip_last);
-  void set_tensor_height_slice_max(int tensor_id, int h_slice_max);
+
+  void set_tensor_h_slice_max(int tensor_id, int h_slice_max);
+  void set_tensor_w_slice_max(int tensor_id, int h_slice_max);
 
   int get_tensor_from_layer(int tensor_id);
   const std::vector<int>& get_tensor_to_layer(int tensor_id);

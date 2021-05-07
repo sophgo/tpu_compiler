@@ -55,7 +55,7 @@ class net_timestep {
 
   void generate_mem_buffer();
   void update_mem_buffer_size();
-  int get_hw_minimal_h_slice(Group * group);
+  int get_minimal_h_slice_for_hw_limitation(Group * group);
 
   void generate_tsm_buffer(bool one_loop);
 
@@ -84,8 +84,8 @@ class net_timestep {
   int tensor_range_end_timestep(const TENSOR_STEP& tensor_timestep);
 
   bmerr_t get_min_secs(bool b_hold_coeff, float &min_secs);
-  bmerr_t find_minimal_nh_slice(Group* group, int max_n_slice, int max_h_slice,
-                          std::pair<int, int>& nsecs_and_hsecs);
+  bmerr_t find_minimal_slice(Group* group, int max_n_slice, int max_h_slice,
+                          std::pair<int, int>& group_slice_);
 
  protected:
   NetGraph* net_graph_;

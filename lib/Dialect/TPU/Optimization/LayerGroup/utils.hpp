@@ -68,7 +68,12 @@ typedef enum {
   USE_FIT_H_SLICE = 0,
   USE_MAX_H_SLICE = 1,
   LG_MAX_H_SLICE
-}LG_Strategy;
+}LG_Slice_Limit;
+
+typedef enum {
+  LG_Slice_Dim_H = 0,
+  LG_Slice_Dim_W = 1
+}LG_Slice_Dim;
 
 typedef enum {
   NEURON = 0,

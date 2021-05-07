@@ -26,7 +26,7 @@ class GroupOptimizer {
   FuncOp * fn_;
   FuncOp out_fn_;
   MLIRContext * context_;
-  LG_Strategy strategy_;
+  LG_Slice_Limit slice_limit_;
   std::vector<uint64_t> cost_;
 
   void do_group(std::vector<Group*>& groups);
@@ -38,7 +38,7 @@ class GroupOptimizer {
   void layer_group();
   uint64_t cal_group_cost();
   void choose_best_group();
-  void set_strategy(int s);
+  void set_slice_limit(int s);
 };
 
 }

@@ -19,16 +19,19 @@ class Group {
  public:
   explicit Group(NetGraph *net_graph) : time_step(nullptr),
               net_graph_(net_graph), layers_(), lowered_(false),
-              strategy_(USE_FIT_H_SLICE) {}
+              slice_limit_(USE_FIT_H_SLICE),
+              slice_dim_(LG_Slice_Dim_H) {}
 
   Group(NetGraph *net_graph, std::vector<int> layers)
       : time_step(nullptr), net_graph_(net_graph), layers_(layers),
-        lowered_(false), strategy_(USE_FIT_H_SLICE) {}
+        lowered_(false), slice_limit_(USE_FIT_H_SLICE),
+        slice_dim_(LG_Slice_Dim_H) {}
 
   Group(NetGraph *net_graph, std::vector<int>::iterator begin,
         std::vector<int>::iterator end)
       : time_step(nullptr), net_graph_(net_graph), layers_(),
-        lowered_(false), strategy_(USE_FIT_H_SLICE) {
+        lowered_(false), slice_limit_(USE_FIT_H_SLICE),
+        slice_dim_(LG_Slice_Dim_H) {
     layers_.assign(begin, end);
   }
 
@@ -50,17 +53,22 @@ class Group {
 
   int get_batch_num() const;
 
-  int get_max_hsecs();
+  int get_max_secs();
 
   std::vector<int> get_group_out_tensors();
 
   std::set<int> get_group_in_neuron_tensors();
 
   bool check_valid();
+  bool check_valid_wrap();
 
-  bool valid_pattern();
+  bool check_if_pattern_support();
 
-  bmerr_t update_tensor_slices(int nsecs, int hsecs, int nslice_idx = -1, int hslice_idx = -1);
+  bool check_if_can_slice_group();
+
+  bmerr_t update_slices(int nsecs, int hsecs, int nslice_idx = -1, int hslice_idx = -1);
+  bmerr_t update_nw_slices(int nsecs, int hsecs, int nslice_idx = -1, int hslice_idx = -1);
+  bmerr_t update_nh_slices(int nsecs, int hsecs, int nslice_idx = -1, int hslice_idx = -1);
 
   bmerr_t assign_steps();
   // bmerr_t assign_steps_with_tsm();
@@ -80,29 +88,38 @@ class Group {
 
   int get_group_id() { return group_id_; }
 
-  void set_strategy(int s);
+  void set_slice_limit(int s);
+
+  void set_slice_dim(LG_Slice_Dim slice_dim);
 
   void clear_temp_data();
 
   void print(std::ostream &pOs) const;
 
   net_timestep *time_step;
-  std::pair<int, int> nsecs_and_hsecs;
+  // layer slice info, now only support
+  // n slice + h slice or n slice + w slice
+  std::pair<int, int> group_slice_;
 
  private:
   NetGraph *net_graph_;
   std::vector<int> layers_;
   bool lowered_;
   int group_id_;
-  LG_Strategy strategy_;
+  LG_Slice_Limit slice_limit_;
+  LG_Slice_Dim slice_dim_;
 
-  bool validate_tensor_slice();
+  bool validate_nh_slice();
+  bool validate_nw_slice();
 
   void reset_tensor_slice();
 
-  void reset_tensor_hslice_max();
+  void reset_tensor_hwslice_max();
 
-  bool backward_slice(int out_tensor_id, std::list<int> &branches,
+  bool backward_nh_slice(int out_tensor_id, std::list<int> &branches,
+                      bool max_h_slice, bool no_split_h, int n_loop, int h_loop);
+
+  bool backward_nw_slice(int out_tensor_id, std::list<int> &branches,
                       bool max_h_slice, bool no_split_h, int n_loop, int h_loop);
 };
 

@@ -8,7 +8,7 @@ namespace mlir {
 GroupOptimizer::GroupOptimizer(NetGraph* net_graph, FuncOp * fn, MLIRContext * context)
     : net_graph_(net_graph),
       mix_net_(net_graph, fn, context),
-      fn_(fn), context_(context), strategy_(USE_FIT_H_SLICE) {}
+      fn_(fn), context_(context), slice_limit_(USE_FIT_H_SLICE) {}
 
 GroupOptimizer::~GroupOptimizer() {
   for (auto groups: groups_v_){
@@ -68,30 +68,30 @@ void GroupOptimizer::choose_best_group() {
     min_idx = 0;
 
   // set group_
-  set_strategy(min_idx);
+  set_slice_limit(min_idx);
   LLVM_DEBUG(llvm::errs() << LOG_TAB_L1
              <<"[Layer Strategy] set strategy to :" << min_idx << "\n";);
   groups_.clear();
   for(auto &group: groups_v_[min_idx]) {
-    group->set_strategy(min_idx);
+    group->set_slice_limit(min_idx);
     groups_.push_back(group);
   }
 }
 
-void GroupOptimizer::set_strategy(int s) {
-  strategy_ = (LG_Strategy)s;
+void GroupOptimizer::set_slice_limit(int s) {
+  slice_limit_ = (LG_Slice_Limit)s;
 }
 
 void GroupOptimizer::layer_group() {
   std::vector<uint64_t> cost;
   // Try method 1
-  set_strategy(USE_FIT_H_SLICE);
+  set_slice_limit(USE_FIT_H_SLICE);
   do_group(groups_);
   cost_.push_back(cal_group_cost());
   groups_v_.push_back(groups_);
   groups_.clear();
   // Try method 2
-  set_strategy(USE_MAX_H_SLICE);
+  set_slice_limit(USE_MAX_H_SLICE);
   do_group(groups_);
   cost_.push_back(cal_group_cost());
   groups_v_.push_back(groups_);
@@ -162,7 +162,7 @@ void GroupOptimizer::add_valid_custers(std::vector<Group*>& groups, Group* targe
     auto group =
         std::make_shared<Group>(net_graph_, target->begin() + start, target->begin() + cut + 1);
 
-    group->set_strategy((int)strategy_);
+    group->set_slice_limit((int)slice_limit_);
     if (group->check_valid()) {
       valid = cut;
       left = cut;
@@ -369,8 +369,8 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
   if (group->lowered()) {
     return;
   }
-  int n_secs = group->nsecs_and_hsecs.first;
-  int h_secs = group->nsecs_and_hsecs.second;
+  int n_secs = group->group_slice_.first;
+  int h_secs = group->group_slice_.second;
 
   mix_net_.set_start_op(op);
   mix_net_.add_group_start_ops(gid, group, op, n_secs, h_secs);
@@ -379,7 +379,7 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
   for (int n_loop = 0; n_loop < n_secs; n_loop++) {
     for (int h_loop = 0; h_loop < h_secs; h_loop++) {
 
-      group->update_tensor_slices(n_secs, h_secs, n_loop, h_loop);
+      group->update_slices(n_secs, h_secs, n_loop, h_loop);
 
       for (int step_id = 0; step_id < group->time_step->get_timestep_num(); ++step_id) {
         mix_net_.parallel_start();

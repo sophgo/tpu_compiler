@@ -513,7 +513,7 @@ bmerr_t net_timestep::get_min_secs(bool b_hold_coeff, float &min_secs) {
 // hw h limit is 4095-32, so after h slice, the h size
 // must smaller than 4095-32
 
-int net_timestep::get_hw_minimal_h_slice(Group * group) {
+int net_timestep::get_minimal_h_slice_for_hw_limitation(Group * group) {
   int minimal_h_slice = 1;
   int min_h_slice_in = 1, min_h_slice_out = 1;
   int HW_H_LIMIT = 4095-32;
@@ -540,24 +540,23 @@ int net_timestep::get_hw_minimal_h_slice(Group * group) {
 }
 
 // Returns true if a suitable split result is found. The result will
-// be saved in nsecs_and_hsecs, that holds the slcing number of cuts
-// by n and h. The slicing strategy is based on the size of local memory
+// be saved in group_slice, that holds the slcing number of cuts
+// by n and h/w. The slicing strategy is based on the size of local memory
 // used by each step.
-bmerr_t net_timestep::find_minimal_nh_slice(Group* group, int max_n_slice, int max_h_slice,
-                                      std::pair<int, int>& nsecs_and_hsecs) {
-  nsecs_and_hsecs.first = max_n_slice;
-  nsecs_and_hsecs.second = 1;
+bmerr_t net_timestep::find_minimal_slice(Group* group,
+                                            int max_n_slice, int max_h_w_slice,
+                                            std::pair<int, int>& group_slice) {
+  float min_secs = 0.0;
+  group_slice.first = max_n_slice;
+  group_slice.second = 1;
   LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
                           << "[Find_Min_NH_Slice] Begin\n";);
   // slice group into n pieces,
   // then we could find the best splits
-  if (BM_ERR_FAILURE == group->update_tensor_slices(max_n_slice, 1)) {
+  if (BM_ERR_FAILURE == group->update_slices(max_n_slice, 1)) {
     return BM_ERR_FAILURE;
   }
-
   update_mem_buffer_size();
-
-  float min_secs = 0.0;
 
   // first try with coeff not hold in local memory
   hold_coeff_tensor.clear();
@@ -576,37 +575,37 @@ bmerr_t net_timestep::find_minimal_nh_slice(Group* group, int max_n_slice, int m
   }
 
   if (min_secs > (float)max_n_slice) {
-    if ( min_secs > (float)(max_n_slice * max_h_slice)) {
+    if ( min_secs > (float)(max_n_slice * max_h_w_slice)) {
       LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
                               << "[Find_Min_NH_Slice] End with failed: min slice = "
                               << min_secs <<" > ( "  << max_n_slice << " * "
-                              << max_h_slice << ") \n";);
+                              << max_h_w_slice << ") \n";);
       return BM_ERR_FAILURE;
     } else {
-      nsecs_and_hsecs.first = max_n_slice;
-      nsecs_and_hsecs.second = (int)(ceil(min_secs/max_n_slice));
+      group_slice.first = max_n_slice;
+      group_slice.second = (int)(ceil(min_secs/max_n_slice));
     }
   } else {
     int max_num = static_cast<int>(ceil(min_secs));
-    nsecs_and_hsecs.first = (max_n_slice + max_num - 1) / max_num;
+    group_slice.first = (max_n_slice + max_num - 1) / max_num;
   }
 
   // get minimal h_slice for hw-limitation
-  int hw_minimal_h_slice = get_hw_minimal_h_slice(group);
-  if (hw_minimal_h_slice > nsecs_and_hsecs.second)
-    nsecs_and_hsecs.second = hw_minimal_h_slice;
+  int hw_minimal_h_slice = get_minimal_h_slice_for_hw_limitation(group);
+  if (hw_minimal_h_slice > group_slice.second)
+    group_slice.second = hw_minimal_h_slice;
 
-  if(!(nsecs_and_hsecs.first <= max_n_slice && nsecs_and_hsecs.second <= max_h_slice)) {
+  if(!(group_slice.first <= max_n_slice && group_slice.second <= max_h_w_slice)) {
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
                             << "[Find_Min_NH_Slice] End with failed: ("
-                            << nsecs_and_hsecs.first << "/" << max_n_slice
-                            << ", " << nsecs_and_hsecs.second << "/" << max_h_slice << ")\n";);
+                            << group_slice.first << "/" << max_n_slice
+                            << ", " << group_slice.second << "/" << max_h_w_slice << ")\n";);
     return BM_ERR_FAILURE;
   } else {
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
                             << "[Find_Min_NH_Slice] End with success: min slice = "
                             << min_secs <<" ==> ( " << max_n_slice << " * "
-                            << nsecs_and_hsecs.second << ") \n";);
+                            << group_slice.second << ") \n";);
     return BM_SUCCESS;
   }
 

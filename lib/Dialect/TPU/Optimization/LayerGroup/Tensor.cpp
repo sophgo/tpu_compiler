@@ -202,6 +202,16 @@ void Tensor::set_nh_slice(int n_idx, int n_slice, int h_idx, int h_slice) {
   }
 }
 
+void Tensor::set_nw_slice(int n_idx, int n_slice, int w_idx, int w_slice) {
+  this->n_idx = n_idx;
+  this->n_slice = n_slice;
+  this->w_idx = w_idx;
+  this->w_slice = w_slice;
+  if (w_slice != dims_[3] && w_slice > this->w_slice_max) {
+    this->w_slice_max = w_slice;
+  }
+}
+
 uint64_t Tensor::gmem_size() {
   int n = dims_[0];
   int c = dims_[1];

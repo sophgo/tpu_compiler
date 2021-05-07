@@ -351,25 +351,25 @@ static bool tensor_conflict_with_npu_exe(NetGraph* net_graph, net_timestep* time
 
 bmerr_t GroupSteps::balance_tdma_tiu(NetGraph* net_graph, Group* group,
                                      net_timestep** time_step,
-                                     const std::pair<int, int>& nsecs_and_hsecs) {
+                                     const std::pair<int, int>& group_slice_) {
 
   if (group->size() == 1) {
     return BM_SUCCESS;
   }
 
-  int nsecs = nsecs_and_hsecs.first;
-  int hsecs = nsecs_and_hsecs.second;
+  int nsecs = group_slice_.first;
+  int hsecs = group_slice_.second;
 
-  bmerr_t status = group->update_tensor_slices(nsecs, hsecs);
+  bmerr_t status = group->update_slices(nsecs, hsecs);
   if (status == BM_ERR_FAILURE) {
     return BM_ERR_FAILURE;
   }
 
-  bool one_shot = nsecs_and_hsecs.first == 1 && nsecs_and_hsecs.second == 1;
+  bool one_shot = group_slice_.first == 1 && group_slice_.second == 1;
   LmemManager lmem(net_graph);
   if (clEnableLayerBalance) {
     net_timestep* new_timestep = new net_timestep(**time_step);
-    balance_tdma_tiu_steps(net_graph, group, new_timestep, nsecs_and_hsecs);
+    balance_tdma_tiu_steps(net_graph, group, new_timestep, group_slice_);
 
     // check if satisfy the local memory
     (*time_step)->update_mem_buffer_size();
@@ -409,7 +409,7 @@ bmerr_t GroupSteps::balance_tdma_tiu(NetGraph* net_graph, Group* group,
 // operations to keep balance.
 bmerr_t GroupSteps::balance_tdma_tiu_steps(NetGraph* net_graph, Group* group,
                                            net_timestep* time_step,
-                                           const std::pair<int, int>& nsecs_and_hsecs) {
+                                           const std::pair<int, int>& group_slice_) {
   int timestep_num = time_step->get_timestep_num();
   int* timestep_slack = new int[timestep_num];
   for (int i = 0; i < timestep_num; ++i) {

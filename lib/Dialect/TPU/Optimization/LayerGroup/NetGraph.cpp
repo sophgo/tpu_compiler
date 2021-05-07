@@ -144,10 +144,6 @@ void NetGraph::get_tensor_dim(int tensor_id, int* tensor_dim) {
   tensor_dim[3] = iter->second.get()->w();
 }
 
-gaddr_t NetGraph::get_tensor_tsm_mem(int tensor_id) {
-  auto iter = Tensor::map_id_to_tensor.find(tensor_id);
-  return iter->second.get()->tsm_addr;
-}
 void NetGraph::set_tensor_local_offest(int tensor_id, int local_mem_offset) {
   auto iter = Tensor::map_id_to_tensor.find(tensor_id);
   iter->second.get()->laddr = local_mem_offset;
@@ -170,9 +166,14 @@ void NetGraph::set_tensor_num_height_slice(int tensor_id, int n_idx, int n_slice
   iter->second.get()->h_slice_skip_last = h_slice_skip_last;
 }
 
-void NetGraph::set_tensor_height_slice_max(int tensor_id, int h_slice_max) {
+void NetGraph::set_tensor_h_slice_max(int tensor_id, int h_slice_max) {
   auto iter = Tensor::map_id_to_tensor.find(tensor_id);
   iter->second.get()->h_slice_max = h_slice_max;
+}
+
+void NetGraph::set_tensor_w_slice_max(int tensor_id, int w_slice_max) {
+  auto iter = Tensor::map_id_to_tensor.find(tensor_id);
+  iter->second.get()->w_slice_max = w_slice_max;
 }
 
 Tensor* NetGraph::get_tensor_by_id(int id) {

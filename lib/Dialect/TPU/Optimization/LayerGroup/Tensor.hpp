@@ -64,6 +64,7 @@ class Tensor {
   uint64_t gmem_size();
 
   void set_nh_slice(int n_idx, int n_slice, int h_idx, int h_slice);
+  void set_nw_slice(int n_idx, int n_slice, int w_idx, int w_slice);
 
   void set_postfix(int group_id, int n_loop, int h_loop) {
     group = group_id;
@@ -106,6 +107,9 @@ class Tensor {
   int h_idx;
   int h_slice;
   int h_slice_max;
+  int w_idx;
+  int w_slice;
+  int w_slice_max;
   int group;
   int h_loop_;
   int n_loop_;
