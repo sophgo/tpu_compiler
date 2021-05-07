@@ -16,7 +16,7 @@ import shutil
 from tqdm import tqdm
 from scipy import spatial
 
-from ..utils.mlir_shell import mlir_int8_quant, mlir_mix_quant
+from ..utils.mlir_shell import mlir_quant
 from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 
@@ -118,12 +118,8 @@ class QuantedMlirModel:
         self.quanted_mlir_file = '{}.quanted.tune.mlir'.format(fp32_mlir)
 
     def __enter__(self):
-        if self.mix_precision_table:
-            ret = mlir_mix_quant(self.fp32_mlir, self.quanted_mlir_file,
-                                 self.calib_table, self.mix_precision_table)
-        else:
-            ret = mlir_int8_quant(self.fp32_mlir, self.quanted_mlir_file,
-                                self.calib_table)
+        ret = mlir_quant(self.fp32_mlir, self.quanted_mlir_file, "cv183x", "tmp.csv",
+                        calib_table=self.calib_table, mix_table=self.mix_precision_table)
         if ret != 0:
             raise RuntimeError("generate quanted mlir model failed")
         self.model = pymlir.module()

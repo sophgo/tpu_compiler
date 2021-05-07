@@ -42,7 +42,6 @@ fi
 export BATCH_SIZE
 
 # default inference and test image, for imagenet models only
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/cat.jpg
 
 # do postprocess
@@ -202,7 +201,6 @@ fi
 if [ $NET = "icnet" ]; then
 export MODEL_DEF=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_bnnomerge.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/ICNet/caffe/icnet_cityscapes_trainval_90k_bnnomerge.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/0.png
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_0
 export NET_INPUT_DIMS=1025,2049
@@ -275,7 +273,6 @@ fi
 if [ $NET = "mobilenet_v3" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/mobilenetv3_rw.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_mobilenetv3_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenetv3_calibration_table
 export RAW_SCALE=1
 export INPUT_SCALE=0.875
@@ -304,7 +301,6 @@ fi
 if [ $NET = "nasnet_mobile" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/nasnet_mobile/onnx/nasnet_mobile.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/nasnet_mobile_calibration_table
 export RAW_SCALE=1
 export INPUT_SCALE=1
@@ -472,7 +468,6 @@ fi
 if [ $NET = "arcface_res50" ]; then
 export MODEL_DEF=$MODEL_PATH/face_recognition/arcface_res50/caffe/arcface_res50.prototxt
 export MODEL_DAT=$MODEL_PATH/face_recognition/arcface_res50/caffe/arcface_res50.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/Aaron_Eckhart_0001.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
@@ -495,7 +490,6 @@ fi
 if [ $NET = "retinaface_mnet25_600" ]; then
 export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_600.prototxt
 export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_retinaface_mnet25_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/parade.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
 export INPUT=data
@@ -525,7 +519,6 @@ fi
 if [ $NET = "retinaface_mnet25" ]; then
 export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/mnet_320.prototxt
 export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/mnet.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_retinaface_mnet25_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/parade.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/retinaface_mnet25_calibration_table
 export INPUT=data
@@ -554,7 +547,6 @@ fi
 if [ $NET = "retinaface_res50" ]; then
 export MODEL_DEF=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000.prototxt
 export MODEL_DAT=$MODEL_PATH/face_detection/retinaface/caffe/R50-0000.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_${NET}_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/parade.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
@@ -585,7 +577,6 @@ if [ $NET = "ssd300" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/ssd/caffe/ssd300/deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/ssd/caffe/ssd300/VGG_coco_SSD_300x300_iter_400000.caffemodel
 export LABEL_MAP=$MODEL_PATH/object_detection/ssd/caffe/ssd300/labelmap_coco.prototxt
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_ssd_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
@@ -608,7 +599,6 @@ if [ $NET = "mobilenet_ssd" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/ssd/caffe/mobilenet_ssd/MobileNetSSD_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/ssd/caffe/mobilenet_ssd/MobileNetSSD_deploy.caffemodel
 export LABEL_MAP=$MODEL_PATH/object_detection/ssd/caffe/mobilenet_ssd/labelmap_voc.prototxt
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_ssd_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export INPUT=data
@@ -628,7 +618,6 @@ fi
 if [ $NET = "yolo_v1_448" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v1/caffe/yolo_tiny_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v1/caffe/yolo_tiny.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v1_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v1_448_calibration_table
 export INPUT=data
@@ -648,7 +637,6 @@ fi
 if [ $NET = "yolo_v2_1080" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/caffe_deploy_1080.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/yolov2.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v2_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
 export INPUT=data
@@ -670,7 +658,6 @@ fi
 if [ $NET = "yolo_v2_416" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/caffe_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/yolov2.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v2_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
 export INPUT=data
@@ -691,7 +678,6 @@ fi
 if [ $NET = "yolo_v3_608" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/608/yolov3_608.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/608/yolov3_608.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
@@ -715,7 +701,6 @@ fi
 if [ $NET = "yolo_v3_416" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
@@ -744,7 +729,6 @@ if [ $NET = "yolo_v3_416_onnx" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/onnx/yolov3-416.onnx
 export MODEL_DAT=""
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_yolo_v3_0_onnx.sh
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_416_onnx_threshold_table
 export NET_INPUT_DIMS=416,416
@@ -759,7 +743,6 @@ fi
 if [ $NET = "yolo_v3_320" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_320.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
@@ -785,7 +768,6 @@ fi
 if [ $NET = "yolo_v3_160" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_160.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
 export INPUT=input
@@ -808,7 +790,6 @@ fi
 if [ $NET = "yolo_v3_512x288" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_512x288.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/416/yolov3_416.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_calibration_table_autotune
 export INPUT=input
@@ -833,7 +814,6 @@ if [ $NET = "yolo_v3_tiny" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_tiny.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_tiny.caffemodel
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_tiny_calibration_table
 export INPUT=input
@@ -856,7 +836,6 @@ if [ $NET = "yolo_v3_spp" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_spp.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v3/caffe/yolov3_spp.caffemodel
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v3_0_caffe.sh
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_spp_calibration_table
 export INPUT=input
@@ -881,7 +860,6 @@ if [ $NET = "faster_rcnn" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/frcn/caffe/faster_rcnn.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/frcn/caffe/faster_rcnn.caffemodel
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_frcn_0_caffe.sh
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_frcn.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/faster_rcnn_calibration_table
 export INPUT=input
@@ -904,7 +882,6 @@ fi
 if [ $NET = "yolo_v4" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/caffe/yolov4.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v4/caffe/yolov4.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v4_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_calibration_table_autotune
@@ -934,7 +911,6 @@ fi
 if [ $NET = "yolo_v4_with_detection" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/caffe/yolov4_with_detection.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v4/caffe/yolov4.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v4_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_calibration_table_autotune
@@ -964,7 +940,6 @@ fi
 if [ $NET = "yolo_v4_540x960" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/caffe/540x960/yolov4.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v4/caffe/yolov4.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_yolo_v4_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_calibration_table_autotune
@@ -994,7 +969,6 @@ fi
 if [ $NET = "yolo_v4_tiny" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/onnx/yolov4_1_3_416_416_static.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_yolo_v4_tiny_0_onnx.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export DO_CALIBRATION=0
@@ -1030,7 +1004,6 @@ fi
 if [ $NET = "resnet18" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnet18.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export IMAGE_RESIZE_DIMS=256,256
 export NET_INPUT_DIMS=224,224
@@ -1055,7 +1028,6 @@ fi
 if [ $NET = "resnetv2" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/onnx/resnetv2_tf_50_10.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export IMAGE_RESIZE_DIMS=256,256
 export NET_INPUT_DIMS=224,224
@@ -1081,7 +1053,6 @@ fi
 if [ $NET = "ghostnet" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/ghostnet/onnx/ghostnet_pytorch.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_1000
 export IMAGE_RESIZE_DIMS=256,256
 export NET_INPUT_DIMS=224,224
@@ -1106,7 +1077,6 @@ fi
 if [ $NET = "efficientnet_b0" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-b0/onnx/efficientnet_b0.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 # export DO_CALIBRATION=1
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/efficientnet_b0_onnx_calibration_table_1000
 export IMAGE_RESIZE_DIMS=256,256
@@ -1135,7 +1105,6 @@ fi
 if [ $NET = "efficientdet_d0" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/object_detection/efficientdet-d0/onnx/efficientdet-d0.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export NOT_COMPARE_FP32=1
 # export DO_CALIBRATION=1
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
@@ -1158,7 +1127,6 @@ fi
 if [ $NET = "lstm_toy" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/toy/lstm/onnx/lstm_toy.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_lstm_toy_0_onnx.sh
 export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
@@ -1174,7 +1142,6 @@ if [ $NET = "ocr" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/speech/ocr/onnx/ocr_no_argmax.onnx
 export MODEL_DAT=""
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_ocr_0_onnx.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/ocr.jpg
 export INPUT=input
 export OUTPUTS_FP32=output
@@ -1196,7 +1163,6 @@ fi
 if [ $NET = "gru_toy" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/toy/gru/onnx/gru_toy.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_gru_toy_0_onnx.sh
 export INPUT=input
 export OUTPUTS_FP32=output
 export OUTPUTS=output
@@ -1211,7 +1177,6 @@ fi
 if [ $NET = "efficientnet-lite_b0" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/efficientnet-lite/b0/onnx/efficientnet_lite.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/efficientnet-lite-b0_onnx_threshold_table_1000
 export IMAGE_RESIZE_DIMS=256,256
 export NET_INPUT_DIMS=224,224
@@ -1232,7 +1197,6 @@ fi
 if [ $NET = "fcos" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/object_detection/fcos/onnx/fcos.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/fcos_calibration_table
 export IMAGE_RESIZE_DIMS=800,1216
 export NET_INPUT_DIMS=800,1216
@@ -1253,7 +1217,6 @@ if [ $NET = "alphapose" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/pose/alphapose/onnx/alphapose_resnet50_256x192.onnx
 export IMAGE_PATH=$REGRESSION_PATH/data/pose_256_192.jpg
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/alphapose_calibration_table
 export IMAGE_RESIZE_DIMS=256,192
 export NET_INPUT_DIMS=256,192
@@ -1274,7 +1237,6 @@ fi
 if [ $NET = "espcn_3x" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/super_resolution/espcn/onnx/espcn_3x.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_espcn_0_onnx.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/espcn_3x_calibration_table
 export IMAGE_RESIZE_DIMS=85,85
 export NET_INPUT_DIMS=85,85
@@ -1298,7 +1260,6 @@ fi
 if [ $NET = "unet" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/segmentation/unet/onnx/unet.onnx
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_unet_0_onnx.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/0.png
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table_0
 export NET_INPUT_DIMS=256,256
@@ -1324,7 +1285,6 @@ if [ $NET = "ecanet50" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/ecanet/onnx/ecanet50.onnx
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export MODEL_CHANNEL_ORDER="rgb"
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
@@ -1346,7 +1306,6 @@ if [ $NET = "res2net50" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/imagenet/res2net/onnx/res2net50_48w_2s.onnx
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export MODEL_CHANNEL_ORDER="rgb"
 export NET_INPUT_DIMS=224,224
 export IMAGE_RESIZE_DIMS=256,256
@@ -1366,7 +1325,6 @@ fi
 if [ $NET = "segnet" ]; then
 export MODEL_DEF=$MODEL_PATH/segmentation/segnet/caffe/segnet_model_driving_webdemo_fix.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/segnet/caffe/segnet_weights_driving_webdemo.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_segmentation_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/camvid.png
 export COLOURS_LUT=$REGRESSION_PATH/data/camvid12_lut.png
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -1389,7 +1347,6 @@ fi
 if [ $NET = "erfnet" ]; then
 export MODEL_DEF=$MODEL_PATH/segmentation/erfnet/caffe/erfnet_deploy_mergebn.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/erfnet/caffe/erfnet_cityscapes_mergebn.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_segmentation_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/erfnet_calibration_table
 export IMAGE_PATH=$REGRESSION_PATH/data/city.png
 export COLOURS_LUT=$REGRESSION_PATH/data/city_lut.png
@@ -1419,7 +1376,6 @@ fi
 if [ $NET = "enet" ]; then
 export MODEL_DEF=$MODEL_PATH/segmentation/enet/caffe/enet_deploy_final.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/enet/caffe/cityscapes_weights.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_segmentation_0_caffe.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/city.png
 export COLOURS_LUT=$REGRESSION_PATH/data/city_lut.png
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/enet_calibration_table
@@ -1445,7 +1401,6 @@ if [ $NET = "gaitset" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/pose/gaitset/onnx/gaitset.onnx
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_gaitset_0_onnx.sh
 export IMAGE_PATH=$REGRESSION_PATH/data/002-bg-02-018-124.png
 export IMAGE_RESIZE_DIMS=64,64
 export NET_INPUT_DIMS=64,64
@@ -1468,7 +1423,6 @@ export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/segmentation/bisenetv2/onnx/bisenetv2.onnx
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export IMAGE_PATH=$REGRESSION_PATH/data/munich_000299_000019_leftImg8bit.png
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_onnx/regression_bisenetv2_0_onnx.sh
 # https://github.com/CoinCheung/BiSeNet/blob/master/tools/demo.py
 export NET_INPUT_DIMS=1024,2048
 export IMAGE_RESIZE_DIMS=1024,2048
@@ -1496,7 +1450,6 @@ fi
 if [ $NET = "resnet50_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/resnet/tensorflow/resnet50
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/resnet50_tensorflow_calibration_table_1000
 export IMAGE_RESIZE_DIMS=224,224
 export NET_INPUT_DIMS=224,224
@@ -1517,7 +1470,6 @@ fi
 if [ $NET = "mobilenet_v1_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v1/tensorflow/mobilenet_v1
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v1_tf_threshold_table_1000
 export IMAGE_RESIZE_DIMS=256,256
 export NET_INPUT_DIMS=224,224
@@ -1537,7 +1489,6 @@ fi
 if [ $NET = "mobilenet_v2_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v2/tensorflow/mobilenetv2
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenet_v2_tf_threshold_table_1000
 export IMAGE_RESIZE_DIMS=256,256
 export NET_INPUT_DIMS=224,224
@@ -1556,7 +1507,6 @@ fi
 if [ $NET = "vgg16_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/vgg/tensorflow/vgg16
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/vgg16_tf_threshold_table_1000
 export IMAGE_RESIZE_DIMS=256,256
 export NET_INPUT_DIMS=224,224
@@ -1574,7 +1524,6 @@ fi
 if [ $NET = "densenet121_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/densenet/tensorflow/densenet121/
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/densenet121_tf_threshold_table_1000
 export IMAGE_RESIZE_DIMS=224,224
 export NET_INPUT_DIMS=224,224
@@ -1592,7 +1541,6 @@ fi
 if [ $NET = "inception_v3_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/imagenet/inception_v3/tensorflow/inceptionv3/
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/inceptionv3_tf_threshold_table_1000
 export IMAGE_RESIZE_DIMS=299,299
 export NET_INPUT_DIMS=299,299
@@ -1612,7 +1560,6 @@ fi
 if [ $NET = "fcn-8s" ]; then
 export MODEL_DEF=$MODEL_PATH/segmentation/fcn-8s/caffe/deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/segmentation/fcn-8s/caffe/fcn-8s-pascalcontext.caffemodel
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_caffe/regression_fcn-8s_0_caffe.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/fcn-8s_calibration_table
 export NET_INPUT_DIMS=500,500
 export IMAGE_RESIZE_DIMS=500,500
@@ -1632,7 +1579,6 @@ fi
 if [ $NET = "espcn_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_tensorflow.sh
 export CALI_TABLE=
 export IMAGE_RESIZE_DIMS=540,960
 export NET_INPUT_DIMS=540,960
@@ -1655,7 +1601,6 @@ if [ $NET = "yolo_v3_416_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/tensorflow/yolo_v3_416_without_detection
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/data/run_tensorflow/regression_yolo_v3_0_tf.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v3_416_tf_calibration_table_1000
 export IMAGE_RESIZE_DIMS=416,416
 export RESIZE_KEEP_ASPECT_RATIO=1
@@ -1676,7 +1621,6 @@ export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v5/onnx/yolov5s.onnx
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
-export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
 export NET_INPUT_DIMS=640,640 # h,w
 export IMAGE_RESIZE_DIMS=640,640
 export DO_CALIBRATION=0

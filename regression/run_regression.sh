@@ -34,48 +34,6 @@ run_generic()
 }
 export -f run_generic
 
-run_generic_all()
-{
-  local run_extra=$1
-  local err=0
-  # bs = 1
-  for net in ${net_list_generic[@]}
-  do
-    run_generic $net 1
-    if [ "$?" -ne 0 ]; then
-      err=1
-    fi
-  done
-  # bs = 4
-  for net in ${net_list_batch[@]}
-  do
-    run_generic $net 4
-    if [ "$?" -ne 0 ]; then
-      err=1
-    fi
-  done
-  # extra
-  if [ $run_extra -eq 1 ]; then
-    # bs = 1
-    for net in ${net_list_generic_extra[@]}
-    do
-      run_generic $net 1
-      if [ "$?" -ne 0 ]; then
-        err=1
-      fi
-    done
-    # bs = 4
-    for net in ${net_list_batch_extra[@]}
-    do
-      run_generic $net 4
-      if [ "$?" -ne 0 ]; then
-        err=1
-      fi
-    done
-  fi
-  return $err
-}
-
 run_generic_all_parallel()
 {
   local run_extra=$1
@@ -120,31 +78,6 @@ run_accuracy()
   fi
 }
 export -f run_accuracy
-
-run_accuracy_all()
-{
-  local count=$1
-  local run_extra=$2
-  local err=0
-  for net in ${net_list_accuracy[@]}
-  do
-    run_accuracy $net $count
-    if [ "$?" -ne 0 ]; then
-      err=1
-    fi
-  done
-  # extra
-  if [ $run_extra -eq 1 ]; then
-    for net in ${net_list_accuracy_extra[@]}
-    do
-      run_accuracy $net $count
-      if [ "$?" -ne 0 ]; then
-        err=1
-      fi
-    done
-  fi
-  return $err
-}
 
 run_accuracy_all_parallel()
 {
@@ -276,7 +209,7 @@ done < ${model_list_file}
 
 pushd $WORKSPACE_PATH
 echo "" > verdict.log
-# run specified network and exit
+# run specified model and exit
 if [ ! -z "$network" ]; then
   run_generic $network $bs
   ERR=$?
@@ -290,30 +223,19 @@ if [ ! -z "$network" ]; then
 fi
 
 ERR=0
-if [ $RUN_IN_PARALLEL -eq 0 ]; then
-  run_generic_all $run_extra
+# run all models in model_lists.txt
+run_generic_all_parallel $run_extra
+if [ "$?" -ne 0 ]; then
+  ERR=1
+fi
+# run all accuracy test in model_lists.txt
+if [ $run_accuracy -ne 0 ]; then
+  run_accuracy_all_parallel $run_accuracy $run_extra
   if [ "$?" -ne 0 ]; then
     ERR=1
-  fi
-  if [ $run_accuracy -ne 0 ]; then
-    run_accuracy_all $run_accuracy $run_extra
-    if [ "$?" -ne 0 ]; then
-      ERR=1
-    fi
-  fi
-else
-  run_generic_all_parallel $run_extra
-  if [ "$?" -ne 0 ]; then
-    ERR=1
-  fi
-  if [ $run_accuracy -ne 0 ]; then
-    run_accuracy_all_parallel $run_accuracy $run_extra
-    if [ "$?" -ne 0 ]; then
-      ERR=1
-    fi
   fi
 fi
-
+# run onnx ir test
 if [ $run_onnx_test -ne 0 ]; then
   run_onnx_ir_test
   if [ "$?" -ne 0 ]; then

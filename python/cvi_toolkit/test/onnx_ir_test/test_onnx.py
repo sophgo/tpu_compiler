@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 
 from cvi_toolkit.model.mlir_model import MLIRModel
-from cvi_toolkit.utils.mlir_shell import mlir_import_calibration, mlir_tpu_quant, \
-    mlir_lower_opt, mlir_build_cvimodel_no_opt, mlir_opt, \
-    run_cvimodel, get_chip_name
+from cvi_toolkit.utils.mlir_shell import mlir_quant, \
+     mlir_opt, mlir_to_cvimodel, run_cvimodel
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.numpy_helper import npz_compare
 from onnx import onnx, numpy_helper
@@ -51,10 +50,17 @@ TEST_ONNX_IR = [
     "Sum",
 #    "Transpose",
 ]
-chip = get_chip_name()
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
 NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Resize", "Slice", "Transpose", "Sum"]
+
+def get_chip_name():
+    runchip = os.environ.get('SET_CHIP_NAME', None)
+    if not runchip:
+        log.warning(
+            "no found SET_CHIP_NAME environment value, set 183x as default")
+        return "cv183x"
+    return runchip
 
 def make_test_calibration_table(tensors, table_name):
     # simple calibration table
@@ -141,7 +147,7 @@ class ONNX_IR_TESTER(object):
          # opt
         fp32_opt_mlir = "{}_opt.mlir".format(model_name)
         fp32_csv = "{}_fp32.csv".format(model_name)
-        mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv, chip=chip)
+        mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
         self.mlir_model = None
         self.mlir_model = MLIRModel()
         self.mlir_model.load_model(fp32_opt_mlir)
@@ -166,15 +172,12 @@ class ONNX_IR_TESTER(object):
                 # gen cali table
                 make_test_calibration_table(tensors, table_name)
 
-                # import table
-                cali_mlir = "{}_cali.mlir".format(model_name)
-                int8_csv = "{}_int8.csv".format(model_name)
-                ret = mlir_import_calibration(fp32_opt_mlir, cali_mlir, table_name)
-                if ret < 0: raise RuntimeError("import_calibration failed")
-
                 # quant
                 quant_mlir = "{}_quant_int8.mlir".format(model_name)
-                ret = mlir_tpu_quant(cali_mlir, quant_mlir, int8_csv)
+                int8_csv = "{}_int8.csv".format(model_name)
+                chip = get_chip_name()
+                ret = mlir_quant(fp32_opt_mlir, quant_mlir, chip,
+                                 int8_csv, calib_table=table_name)
                 if ret < 0: raise RuntimeError("tpu_quant failed")
 
                 # get mlir output
@@ -188,14 +191,9 @@ class ONNX_IR_TESTER(object):
                 npz_compare([ref_npz, mlir_npz,  "--tolerance",
                              "0.6,0.6,0.6", "--dequant", "--op_info", int8_csv])
 
-                # lower
-                tg_mlir = "tg_{}_int8.mlir".format(model_name)
-                ret = mlir_lower_opt(quant_mlir, tg_mlir)
-                if ret < 0: raise RuntimeError("lower_opt failed")
-
                 # gen cvimodel
                 cvimodel = "{}_int8.cvimodel".format(model_name)
-                ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
+                ret = mlir_to_cvimodel(quant_mlir, cvimodel)
                 if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
                 # run cvi_model
@@ -222,13 +220,15 @@ class ONNX_IR_TESTER(object):
                 # opt
                 fp32_opt_mlir = "{}_opt_bf16.mlir".format(model_name)
                 fp32_csv = "{}_fp32.csv".format(model_name)
-                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv, chip=chip)
+                mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
 
                 bf16_csv = "{}_bf16.csv".format(model_name)
 
                 # quant
                 quant_mlir = "{}_quant_bf16.mlir".format(model_name)
-                ret = mlir_tpu_quant(fp32_opt_mlir, quant_mlir, bf16_csv, quant_mode="bf16")
+                chip = get_chip_name()
+                ret = mlir_quant(fp32_opt_mlir, quant_mlir, chip,
+                                 bf16_csv, all_bf16=True)
                 if ret < 0: raise RuntimeError("tpu_quant failed")
 
                 # get mlir output
@@ -242,14 +242,9 @@ class ONNX_IR_TESTER(object):
                 npz_compare([ref_npz, mlir_npz,  "--tolerance",
                              "0.8,0.8,0.8", "--dequant", "--op_info", bf16_csv])
 
-                # lower
-                tg_mlir = "tg_{}_bf16.mlir".format(model_name)
-                ret = mlir_lower_opt(quant_mlir, tg_mlir)
-                if ret < 0: raise RuntimeError("lower_opt failed")
-
                 # gen cvimodel
                 cvimodel = "{}_bf16.cvimodel".format(model_name)
-                ret = mlir_build_cvimodel_no_opt(tg_mlir, cvimodel)
+                ret = mlir_to_cvimodel(quant_mlir, cvimodel)
                 if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
                 # run cvi_model
@@ -1627,15 +1622,26 @@ class ONNX_IR_TESTER(object):
             ['X3'],  # outputs
         )
 
+        s1_def = helper.make_node(
+            'Sum',  # node name
+            ['input', 'X1'],  # inputs
+            ['S1'],  # outputs
+        )
+        s2_def = helper.make_node(
+            'Sum',  # node name
+            ['X2', 'X3'],  # inputs
+            ['S2'],  # outputs
+        )
+
         #test three input
         sum_def = helper.make_node(
             'Sum',  # node name
-            ['input', 'X1', 'X2', 'X3'],  # inputs
+            ['S1', 'S2'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [x1_def, x2_def, x3_def, sum_def],
+            [x1_def, x2_def, x3_def, s1_def, s2_def, sum_def],
             test_case,
             [input],
             [output],

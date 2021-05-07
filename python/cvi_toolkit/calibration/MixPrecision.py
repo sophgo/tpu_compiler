@@ -26,8 +26,8 @@ class MixQuantModel:
         self.model = self._build()
 
     def _build(self):
-        ret = mlir_quant(self.fp32_mlir, self.calib_table, self.mix_table,
-                         self.all_bf16, "cv183x", self.quanted_mlir_file, "tmp.csv")
+        ret = mlir_quant(self.fp32_mlir, self.quanted_mlir_file, "cv183x", "tmp.csv",
+                         self.all_bf16, self.calib_table, self.mix_table)
         if ret != 0:
             raise RuntimeError("generate quanted mlir model failed")
         model = pymlir.module()

@@ -52,10 +52,12 @@ class DeployTool:
 
     def quantize(self, calib_table, mix_table, all_bf16, chip,
                  fuse_preprocess, pixel_format, aligned_input):
-        if not calib_table and not mix_table and not all_bf16:
-            self.mix_precision_table = True
-        ret = mlir_quant(self.mlir_file, calib_table, mix_table, all_bf16, chip,
-                         str(self.quantized_mlir), str(self.quantized_op_info_csv))
+        if not all_bf16 and mix_table:
+            self.mix_precision = True
+        ret = mlir_quant(self.mlir_file, str(self.quantized_mlir),
+                         chip, str(self.quantized_op_info_csv),
+                         all_bf16, calib_table, mix_table)
+
         check_return_value(ret == 0, 'quantization failed')
 
         if fuse_preprocess:

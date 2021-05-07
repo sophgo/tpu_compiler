@@ -39,29 +39,6 @@ if [ $INT8_MODEL -eq 1 ]; then
   $DIR/regression_9_int8_quantized_model.sh
 else
   $DIR/regression_all_in_one.sh
-  #/bin/bash $FP32_INFERENCE_SCRIPT
-  #$DIR/regression_1_fp32.sh
-  #if [ $DO_QUANT_INT8 -eq 1 ]; then
-  #  if [ $DO_CALIBRATION -eq 1 ]; then
-  #    $DIR/regression_2_int8_calibration.sh
-  #  fi
-  #  $DIR/regression_3_int8.sh
-  #  if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
-  #    $DIR/regression_4_int8_fuse_preprocess.sh
-  #    if [ $DO_YUV420_FUSED_PREPROCESS -eq 1 ]; then
-  #      $DIR/regression_5_int8_yuv420_fuse_preprocess.sh
-  #    fi
-  #  fi
-  #fi
-  #if [ $DO_QUANT_BF16 -eq 1 ]; then
-  #  $DIR/regression_6_bf16.sh
-  #  if [ $DO_FUSED_PREPROCESS -eq 1 ]; then
-  #    $DIR/regression_7_bf16_fuse_preprocess.sh
-  #  fi
-  #fi
-  #if [ $DO_QUANT_MIX -eq 1 ]; then
-  #  $DIR/regression_8_mix.sh
-  #fi
 fi
 popd
 
