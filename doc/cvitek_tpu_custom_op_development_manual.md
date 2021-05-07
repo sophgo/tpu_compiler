@@ -52,7 +52,7 @@
 
 ## 1 概述
 
-Cvitek工具链提供了丰富多样的IR(OP或算子), 并仍在不断的扩充中。利用这些IR可以很方便的进行各类型网络模型的编译转换并部署到CV1835X平台上。目前已支持IR如下表所示： 
+Cvitek工具链提供了丰富多样的IR(OP或算子), 并仍在不断的扩充中。利用这些IR可以很方便的进行各类型网络模型的编译转换并部署到CV1835X平台上。目前已支持IR如下表所示：
 
 | **BatchNorm**      | **BroadCastMal**   | **Concat**          | **Conv2D**     | **Clip**       |
 | ------------------ | ------------------ | ------------------- | -------------- | -------------- |
@@ -409,7 +409,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --tpu-weight-address-align=16   \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight.bin     \
-    --tpu-generate-compressed-weight         \
     --assign-neuron-address                  \
     --tpu-neuron-memory-reuse                \
     --tpu-neuron-address-align=64            \
@@ -619,7 +618,6 @@ Calibration的过程可以参考前面第一节编写leakyrelu的方式，准备
     --tpu-weight-address-align=16            \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight.bin     \
-    --tpu-generate-compressed-weight         \
     --assign-neuron-address                  \
     --tpu-neuron-memory-reuse                \
     --tpu-neuron-address-align=64            \
@@ -833,7 +831,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --tpu-weight-address-align=16            \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight.bin     \
-    --tpu-generate-compressed-weight         \
     --assign-neuron-address                  \
     --tpu-neuron-memory-reuse                \
     --tpu-neuron-address-align=64            \
@@ -988,7 +985,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --tpu-weight-address-align=16            \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight.bin     \
-    --tpu-generate-compressed-weight         \
     --assign-neuron-address                  \
     --tpu-neuron-memory-reuse                \
     --tpu-neuron-address-align=64            \

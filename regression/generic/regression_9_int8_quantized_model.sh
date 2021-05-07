@@ -49,7 +49,6 @@ tpuc-opt $optimized_mlir \
     --tpu-weight-address-align=16 \
     --tpu-weight-map-filename=weight_map.csv \
     --tpu-weight-bin-filename=weight.bin \
-    --tpu-generate-compressed-weight \
     --assign-neuron-address \
     --tpu-neuron-memory-reuse \
     --tpu-neuron-address-align=64 \

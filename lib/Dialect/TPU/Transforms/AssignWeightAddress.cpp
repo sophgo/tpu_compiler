@@ -78,13 +78,11 @@ template<typename OpTy>
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context,
       llvm::raw_fd_ostream *weightBinaryFile, llvm::raw_ostream &map_os,
-      size_t alignment, bool compressedWeight,
-      std::map<std::string, uint64_t> &map)
+      size_t alignment, std::map<std::string, uint64_t> &map)
       : RewritePattern(OpTy::getOperationName(), 1, context),
         weightBinaryFile_(weightBinaryFile),
         map_os_(map_os),
         alignment_(alignment),
-        compressedWeight_(compressedWeight),
         md5AddrMap_(map) {}
 
   LogicalResult matchAndRewrite(Operation *op,
@@ -269,24 +267,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     weightOp->setAttr("md5", rewriter.getStringAttr(md5));
     weightOp->setAttr("offset", rewriter.getI64IntegerAttr(curPos + (((uint64_t)1) << 40)));
 
-    // Check whether the weight is used by the convolution which indicate it
-    // uses the compressed weight.
-    if (compressedWeight_) {
-      for (auto &use : op->getResult(0).getUses()) {
-        auto *useOp = use.getOwner();
-        if (auto convOp = dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
-          // Weight only, exclude bias.
-          if (convOp.filter().getDefiningOp() == op &&
-              convOp.compressed_weight().hasValue() &&
-              convOp.compressed_weight().getValue()){
-            // Mark the weight compressed
-            weightOp->setAttr("compressed", rewriter.getBoolAttr(true));
-            break;
-          }
-        }
-      }
-    }
-
     return success();
   }
 
@@ -294,7 +274,6 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
   llvm::raw_fd_ostream *weightBinaryFile_;
   llvm::raw_ostream &map_os_;
   size_t alignment_;
-  bool compressedWeight_;
   std::map<std::string, uint64_t> &md5AddrMap_;
 };
 
@@ -397,9 +376,8 @@ public:
     // assign address and generate bin file
     patterns.insert<TpuLoadWeightOpPattern<tpu::LoadWeightOp>,
                     TpuLoadWeightOpPattern<tpu::TL_LG_LoadCoeffOp>
-    >(context,
-        &weightBinaryFile, weightMapFile->os(), clWeightAlignment,
-        clCompressedWeight, addrMapping);
+    >(context, &weightBinaryFile, weightMapFile->os(),
+      clWeightAlignment, addrMapping);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     weightBinaryFile.close();
