@@ -224,6 +224,7 @@ public:
     // Support symmetric quantization only
     std::map<std::string, float> threshold_map;
     std::unordered_map<std::string, std::vector<float>> weight_threshold_map;
+    std::unordered_map<std::string, int> weight_bitwidth_map;
     LLVM_DEBUG(llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n");
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
@@ -231,6 +232,7 @@ public:
     std::regex new_pattern(
         "[a-zA-Z0-9.:;@_\\/-]+ [-0-9.e]+ [-0-9.e]+ [-0-9.e]+");
     std::regex weight_pattern("weight [a-zA-Z0-9.:;@_\\/-]+ .*");
+    std::regex bitwidth_pattern("bitwidth [a-zA-Z0-9.:;@_\\/-]+ \\d+");
     std::regex info_pattern("#.*");
     while (std::getline(infile, line)) {
       std::istringstream iss(line);
@@ -255,7 +257,7 @@ public:
 
       } else if (std::regex_match(line, info_pattern)) {
         LLVM_DEBUG(llvm::errs() << "\n  infomation  " << line << "\n");
-      }else if(std::regex_match(line, weight_pattern)){
+      } else if(std::regex_match(line, weight_pattern)){
         std::vector<float> weight_threshold;
         iss.ignore(256, ' '); // skip "weight"
         iss >> name;
@@ -265,6 +267,11 @@ public:
           LLVM_DEBUG(llvm::errs() << "  name " << name << " weight threshold: " << threshold << "\n";);
         }
         weight_threshold_map[name] = weight_threshold;
+      } else if(std::regex_match(line, bitwidth_pattern)){
+        iss.ignore(256, ' '); // skip "bitwidth"
+        int bitwidth;
+        iss >> name >> bitwidth;
+        weight_bitwidth_map[name] = bitwidth;
       } else {
         // Format of threshold table error
         llvm::errs() << line;
@@ -279,6 +286,7 @@ public:
       LLVM_DEBUG(llvm::errs() << op->getName() << "\n";);
       if (isa<tpu::LoadWeightOp>(op)) {
         setWeightThresholdFromMap(op, weight_threshold_map);
+        setWeightBitwidthFromMap(op, weight_bitwidth_map);
       } else if (llvm::dyn_cast<tpu::PoolMaskOp>(op)) {
         setOpThreshold(op, 127);
         setOpQuantParamType(op, "THRESHOLD");
@@ -384,6 +392,24 @@ private:
     }
     return ret;
   }
+
+  LogicalResult setWeightBitwidthFromMap(
+      Operation *op,
+      std::unordered_map<std::string, int> &bitwidth_map) {
+    auto weightOp = llvm::dyn_cast<tpu::LoadWeightOp>(op);
+    auto builder = Builder(op->getContext());
+    std::string op_name = weightOp.name().str();
+    if (!bitwidth_map.count(op_name)) {
+      return failure();
+    }
+    int bitwidth = bitwidth_map[op_name];
+    if (bitwidth > 32) {
+      llvm_unreachable((op_name + " quant_bitwidth too large").c_str());
+    }
+    weightOp->setAttr("quant_bitwidth", builder.getI32IntegerAttr(bitwidth));
+    return success();
+  }
+
   LogicalResult setWeightThresholdFromMap(
       Operation *op,
       std::unordered_map<std::string, std::vector<float>> &threshold_map) {

@@ -41,7 +41,7 @@ uint32_t findRShiftForBiasI16(float max_bias, float threshold_y);
 uint32_t findRShiftForBiasI32(float max_bias, float threshold_y);
 
 double findQScaleForFilter(float max_filter,
-                          float threshold_y, float threshold_x);
+                          float threshold_y, float threshold_x, int quant_bitwidth = 8);
 double findQScaleForBiasI32(float max_bias, float threshold_y);
 int8_t findRShiftAndMultiplierFromQScale(double qscale,
                                            uint32_t *multiplier = nullptr,
@@ -117,7 +117,7 @@ void quantizeBiasInt8PerLayerMultiplier(float *bias,
 void quantizeWeightInt8Multiplier(float *filter, float *bias,
     int64_t oc, int64_t isz, float threshold_y, float threshold_x,
     float *new_filter, float *new_bias,
-    float *rshift_per_channel, float *multiplier_per_channel, std::vector<float> &filter_threshold);
+    float *rshift_per_channel, float *multiplier_per_channel, std::vector<float> &filter_threshold, int quant_bitwidth = 8);
 
 void quantizeActivationFromFp32ToInt8(float *output, float *input,
     int64_t size, float scale, bool tpu_mode=false, int zero_point=0);

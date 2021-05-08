@@ -122,6 +122,10 @@ uint32_t findRShiftForBiasI32(float max_bias, float threshold_y) {
   return 31;
 }
 
+inline static float MAX_QUANT(int quant_bitwidth){
+  return (float)((1 << (quant_bitwidth-1)) -1);
+}
+
 /// find a QScale for Filter (with multiplier)
 ///   Q(W) = W * (threshold_x / threshold_y) * (1 / QScale)
 ///   find a QScale so that Q(max_filter) = 127
@@ -132,9 +136,9 @@ uint32_t findRShiftForBiasI32(float max_bias, float threshold_y) {
 ///   => QScale = Multiplier / (1 << RShift)
 ///   where Multiplier is an interger
 double findQScaleForFilter(float max_filter, float threshold_y,
-                           float threshold_x) {
+                           float threshold_x, int quant_bitwidth) {
   assert(threshold_y > 0 && threshold_x > 0);
-  double qscale = (max_filter * threshold_x) / (127.0f * threshold_y);
+  double qscale = (max_filter * threshold_x) / (MAX_QUANT(quant_bitwidth)* threshold_y);
   return qscale;
 }
 
@@ -828,7 +832,7 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias, int64_t oc,
                                   float threshold_x, float *new_filter,
                                   float *new_bias, float *rshift_per_channel,
                                   float *multiplier_per_channel,
-                                  std::vector<float> &filter_threshold) {
+                                  std::vector<float> &filter_threshold, int quant_bitwidth) {
 
   std::vector<float> max_filter(oc);
   bool use_filter_threshold = filter_threshold.size() > 0;
@@ -840,13 +844,13 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias, int64_t oc,
     max_filter[i] = use_filter_threshold ? filter_threshold[i]
                                          : findMaxWeight(&filter[isz * i], isz);
     double qscale =
-        findQScaleForFilter(max_filter[i], threshold_y, threshold_x);
+        findQScaleForFilter(max_filter[i], threshold_y, threshold_x, quant_bitwidth);
     if (qscale >= 1) {
       // Now 1880v2 not support lshift, if qscale > 1, rshift <= 0 not working
       // now we fix threshold_w to limit value qscale = (thr_w * thr_x) / (127.0
       // * thr_y) thr_w = qscale * 127.0 * thr_y / thr_x qscale = 0.99999999
       qscale = 0.999999;
-      max_filter[i] = qscale * 127.0 * threshold_y / threshold_x;
+      max_filter[i] = qscale * MAX_QUANT(quant_bitwidth) * threshold_y / threshold_x;
       LLVM_DEBUG(llvm::errs()
                      << "WARNING: adjust threshold_w for qscale"
                      << ", qscale_filter = " << qscale << ", max_filter[" << i

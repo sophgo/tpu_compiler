@@ -164,6 +164,8 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
                           TPU hardware, eg. packed, transposed, etc.
       `compressed`      : indicating the weight data has been compressed to
                           utilize hardware decompression.
+      `threshold`       : optional, max threshold, support per-channel
+      `quant_bitwidth`        : quant bitwidth, default 8bit
       `offset`          : global address of the weight tensor, which is an
                           offset within `WEIGHT` memory region.
     Result:
@@ -180,6 +182,7 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
     DefaultValuedAttr<BoolAttr, "false">:$lowered,
     DefaultValuedAttr<BoolAttr, "false">:$compressed,
     OptionalAttr<F32ArrayAttr>: $threshold,
+    DefaultValuedAttr<I32Attr, "8">: $quant_bitwidth,
     OptionalAttr<I64Attr>:$offset
   );
 

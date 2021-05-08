@@ -84,6 +84,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   }
   assert(filterSize % oc == 0);
   int64_t isz = filterSize / oc;
+  int bitwidth = filterOp.quant_bitwidth();
 
   // get bias tensor
   std::unique_ptr<std::vector<float> > bias = nullptr;
@@ -149,7 +150,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
         filter->data(), bias ? bias->data() : nullptr, oc, isz, threshold_y,
         threshold_x, new_filter->data(), bias ? new_bias->data() : nullptr,
         rshift_per_channel->data(), multiplier_per_channel->data(),
-        filter_threshold);
+        filter_threshold, bitwidth);
 
   } else {
     assert(0);
