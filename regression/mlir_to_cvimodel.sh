@@ -7,13 +7,17 @@ function usage() {
   echo "  $0"
   echo -e "\t-i input_mlir_file (required)"
   echo -e "\t-o output_cvimodel (required)"
-  echo -e "\t--dequant-results-to-fp32=true|fale (option, default: true)"
+  echo -e "\t--dequant-results-to-fp32=true|false (option, default: true)"
+  echo -e "\t--compress-weight=true|false (option, default: true)"
+  echo -e "\t--append-weight=true|false (option, default: false)"
 }
 
 SHORT=hi:o:
-LONG=dequant-results-to-fp32:
+LONG0=dequant-results-to-fp32:
+LONG1=compress-weight:
+LONG2=append-weight:
 
-OPTS=$(getopt --options $SHORT --long $LONG --name "$0" -- "$@")
+OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --name "$0" -- "$@")
 if [ $? != 0 ]; then
   echo "Failed to parse options...."
   exit 1
@@ -23,29 +27,37 @@ eval set -- "$OPTS"
 while true; do
   case "$1" in
     -h )
-       usage
-       exit 1
-       ;;
+      usage
+      exit 1
+      ;;
     -i )
-       mlir_file="$2"
-       shift 2
-       ;;
+      mlir_file="$2"
+      shift 2
+      ;;
     -o )
-       out_cvimodel="$2"
-       shift 2
-       ;;
+      out_cvimodel="$2"
+      shift 2
+      ;;
     --dequant-results-to-fp32 )
-       dequant_to_fp32="$2"
-       shift 2
-       ;;
+      dequant_to_fp32="$2"
+      shift 2
+      ;;
+    --compress-weight )
+      compress_weight="$2"
+      shift 2
+      ;;
+    --append-weight )
+      append_weight="$2"
+      shift 2
+      ;;
     -- )
-       shift
-       break
-       ;;
+      shift
+      break
+      ;;
     * )
-       echo "Invalid Argumnets..."
-       exit 1
-       ;;
+      echo "Invalid Argumnets..."
+      exit 1
+      ;;
   esac
 done
 
@@ -59,6 +71,16 @@ if [ x"$out_cvimodel" == x ]; then
 fi
 if [ x"$dequant_to_fp32" == x ]; then
   dequant_to_fp32=true
+fi
+if [ x"$compress_weight" == x ]; then
+  compress_weight=true
+fi
+compress_weight_opt=""
+if [ $compress_weight = true ]; then
+  compress_weight_opt="--compress-weight"
+fi
+if [ x"$append_weight" == x ]; then
+  append_weight=false
 fi
 
 optimized_mlir="__lower_opt.mlir"
@@ -80,12 +102,13 @@ tpuc-opt $mlir_file \
 
 tpuc-opt $optimized_mlir \
     --tg-op-tile \
-    --compress-activation \
-    --compress-weight \
+    $compress_weight_opt \
     --assign-weight-address \
+    --tpu-append-weight=$append_weight \
     --tpu-weight-address-align=16 \
+    --tpu-weight-bin-filename=_weight.bin \
     --tpu-weight-map-filename=_weight_map.csv \
-    --tpu-weight-bin-filename=weight.bin \
+    --compress-activation \
     --assign-neuron-address \
     --tpu-neuron-memory-reuse \
     --tpu-neuron-address-align=64 \
@@ -95,6 +118,5 @@ tpuc-opt $optimized_mlir \
 
 tpuc-translate $final_mlir \
     --mlir-to-cvimodel \
-    --weight-file weight.bin \
+    --weight-file _weight.bin \
     -o $out_cvimodel
-rm -f weight.bin

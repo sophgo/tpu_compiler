@@ -1052,7 +1052,7 @@ class MLIRImport:
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
- 	
+
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -1879,10 +1879,8 @@ CVI_NN_CleanupModel释放句柄的资源。
 ##### CVI_CONFIG_OPTION
 ```c++
 typedef enum {
-  OPTION_BATCH_SIZE = 1,
   OPTION_OUTPUT_ALL_TENSORS = 4,
-  OPTION_SKIP_PREPROCESS = 5, // deprecated
-  OPTION_SKIP_POSTPROCESS = 6 // deprecated
+  OPTION_PROGRAM_INDEX      = 9
 } CVI_CONFIG_OPTION;
 ```
 【描述】
@@ -1891,10 +1889,8 @@ typedef enum {
 
 |名称                       | 类型   |默认值  | 描述|
 |---|---|---|---|
-|OPTION_BATCH_SIZE        |   int  |  1     |   配置推理模型的batch size，cvimodel可以存放模型多个batch size的指令，如果设置的batch size在cvimodel不存在，则SetConfig会返回失败|
+|OPTION_PRGRAM_INDEX        |   int  |  0     |   配置推理模型的program index，cvimodel可以存放模型多个batch size或者多种分辨率的指令(或称为program)，通过program id可以选择执行对应的program|
 |OPTION_OUTPUT_ALL_TENOSRS|   bool |  false |   配置runtime将模型所有可见的TENSOR作为模型的输出，则选项可以作为debug的手段之一|
-|OPTION_SKIP_PREPROCESS   |   bool |  false |   配置runtime跳过模型的预处理阶段，即直接以int8类型的数据做为输入(version 1.2后不再使用)|
-|OPTION_SKIP_POSTPROCESS  |   bool |  false |   配置runtime跳过模型的后处理阶段，即直接输出int8的数据作为输出(version 1.2后不再使用)|
 
 ##### 返回码
 ```c++
@@ -1925,10 +1921,6 @@ typedef enum {
 -   CVI_NN_CloneModel: 复制神经网络模型
 
 -   CVI_NN_SetConfig:　配置神经网络模型
-
--   CVI_NN_GetConfig: 获取神经网络模型配置
-
--   CVI_NN_GetModelBatchSizes：获得模型的batch数据
 
 -   CVI_NN_GetInputOutputTensors：获取输入以及输出TENSOR的信息
 
@@ -2048,58 +2040,6 @@ CVI_RC CVI_NN_SetConfig(
 CVI_NN_SetConfig(model, OPTION_BATCH_SIZE, 1);
 CVI_NN_SetConfig(model, OPTION_OUTPUT_ALL_TENSORS, false);
 ```
-<br>
-
-##### CVI_NN_GetConfig
-
-【原型】
-```c++
-CVI_RC CVI_NN_GetConfig(
-    CVI_MODEL_HANDLE model,
-    CVI_CONFIG_OPTION option,
-    ...)
-```
-【描述】
-
-> 获取模型的配置，可供选项请参考[CVI_CONFIG_OPTION](#_CVI_CONFIG_OPTION)。
-
-  参数名称       描述                       输入/输出
-|参数名称|描述|输入/输出|
-|---|---|---|
-|model         | 模型句柄                     | 输入|
-|option        | 配置选项                     | 输入|
-|可变参数指针        | 根据option的类型传入指针          | 输出|
-
-【示例】
-```c++
-int32_t batch_size;
-bool dump_all_tensors;
-
-CVI_NN_GetConfig(model, OPTION_BATCH_SIZE, &batch_size);
-CVI_NN_GetConfig(model, OPTION_PREPARE_BUF_FOR_INPUTS,
-                 prepare_buf_for_inputs);
-```
-<br>
-
-##### CVI_NN_GetModelBatchSizes
-
-【原型】
-```c++
-CVI_RC CVI_NN_GetModelBatchSizes(
-    CVI_MODEL_HANDLE model, int32_t **batchSizes,
-    int32_t *num);
-```
-
-【描述】
-
-> 获得模型的batch数据
-
-|  参数名称     |描述|            输入/输出|
-|---|---|---|
-|  tensor     |  tensor指针   |   输入|
-|  batchSizes |  batch数组指针 |  输出|
-|  num        |  数组元素个数  |  输出|
-
 <br>
 
 ##### CVI_NN_GetInputOutputTensors

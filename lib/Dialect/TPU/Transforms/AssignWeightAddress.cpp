@@ -40,6 +40,7 @@
 #include "llvm/Support/raw_ostream.h"
 #include <openssl/md5.h>
 #include <map>
+#include <memory>
 #include <set>
 #include <iostream>
 #include <fstream>
@@ -50,6 +51,32 @@
 using namespace mlir;
 
 namespace {
+
+static llvm::cl::opt<size_t> clWeightAlignment(
+    "tpu-weight-address-align",
+    llvm::cl::desc("Specify the alignment for weight"),
+    llvm::cl::init(16));
+
+static llvm::cl::opt<std::string> clWeightMapFilename(
+    "tpu-weight-map-filename",
+    llvm::cl::desc("record weight offset with its name into a csv map file"),
+    llvm::cl::init("-"));
+
+static llvm::cl::opt<std::string> clWeightBinFilename(
+    "tpu-weight-bin-filename",
+    llvm::cl::desc("weight bin filename"),
+    llvm::cl::init("-"));
+
+static llvm::cl::opt<bool> clCompressedWeight(
+    "tpu-generate-compressed-weight",
+    llvm::cl::desc("Generate the compressed weight"),
+    llvm::cl::init(false));
+
+static llvm::cl::opt<bool> clAppendWeight(
+    "tpu-append-weight",
+    llvm::cl::desc("append weight to weight bin file"),
+    llvm::cl::init(false));
+
 
 template<typename T>
 static bool isRedundantWeight(Operation *op, std::vector<T> &weight_vec,
@@ -62,10 +89,11 @@ static bool isRedundantWeight(Operation *op, std::vector<T> &weight_vec,
   unsigned char res[16];
   MD5_Final(res, &ctx);
 
-  std::stringstream ss;
+  std::string s;
+  llvm::raw_string_ostream os(s);
   for(int i=0; i < 16; ++i)
-      ss << std::hex << (int)res[i];
-  md5 = ss.str();
+    os << llvm::format_hex_no_prefix((int)res[i], 2);
+  md5 = os.str();
 
   if (map.find(md5) != map.end()) {
     return true;
@@ -77,13 +105,15 @@ static bool isRedundantWeight(Operation *op, std::vector<T> &weight_vec,
 template<typename OpTy>
 struct TpuLoadWeightOpPattern : public RewritePattern {
   TpuLoadWeightOpPattern(MLIRContext *context,
-      llvm::raw_fd_ostream *weightBinaryFile, llvm::raw_ostream &map_os,
-      size_t alignment, std::map<std::string, uint64_t> &map)
+      std::unique_ptr<std::fstream> &weightBinFile,
+      std::unique_ptr<std::fstream> &weightMapFile,
+      std::map<std::string, uint64_t> &map,
+      size_t alignment)
       : RewritePattern(OpTy::getOperationName(), 1, context),
-        weightBinaryFile_(weightBinaryFile),
-        map_os_(map_os),
-        alignment_(alignment),
-        md5AddrMap_(map) {}
+        bin_os_(weightBinFile),
+        map_os_(weightMapFile),
+        md5AddrMap_(map),
+        alignment_(alignment) {}
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
@@ -95,12 +125,12 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
     }
 
     // read the tensor
-    auto tensor_name = weightOp.name();
+    auto tensor_name = weightOp.name().str();
     LLVM_DEBUG(llvm::errs() << "tensor name " << tensor_name << "\n";);
 
     auto type = weightOp.getResult().getType().template cast<TensorType>();
     assert(weightOp.lowered() && "weight op should be set lowered");
-    auto curPos = weightBinaryFile_->tell();
+    auto curPos = (uint64_t)bin_os_->tellp();
     size_t size = 0;
     std::string md5;
     bool isRedundant = false;
@@ -121,7 +151,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           }
         }
         auto weightData = reinterpret_cast<const char*>(weight_int8.data());
-        weightBinaryFile_->write(weightData, weight_int8.size() *
+        bin_os_->write(weightData, weight_int8.size() *
                                 sizeof(int8_t));
       }
     } else if (weightOp.storage() == "UINT8") {
@@ -141,7 +171,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           }
         }
         auto weightData = reinterpret_cast<const char*>(weight_uint8.data());
-        weightBinaryFile_->write(weightData, weight_uint8.size() * sizeof(uint8_t));
+        bin_os_->write(weightData, weight_uint8.size() * sizeof(uint8_t));
       }
     } else if (weightOp.storage() == "INT16") {
       // INT16 is used for bias in INT8 per-tensor mode
@@ -166,7 +196,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
             weight_uint16.push_back(0xffff);
           }
         }
-        weightBinaryFile_->write(
+        bin_os_->write(
             reinterpret_cast<const char *>(weight_uint16.data()),
             weight_uint16.size() * sizeof(uint16_t));
       }
@@ -188,7 +218,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           }
         }
         auto weightData = reinterpret_cast<const char*>(weight_bf16.data());
-        weightBinaryFile_->write(weightData, weight_bf16.size() * sizeof(uint16_t));
+        bin_os_->write(weightData, weight_bf16.size() * sizeof(uint16_t));
       }
     } else if (weightOp.storage() == "UINT32") {
       // UINT32 is for lowered Conv Bias
@@ -215,7 +245,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           }
         }
         auto weightData = reinterpret_cast<const char*>(weight_uint32.data());
-        weightBinaryFile_->write(weightData, weight_uint32.size() * sizeof(uint32_t));
+        bin_os_->write(weightData, weight_uint32.size() * sizeof(uint32_t));
       }
     } else if (weightOp.storage() == "FP32") {
       std::vector<float> weight_fp32;
@@ -235,7 +265,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
           }
         }
         auto weightData = reinterpret_cast<const char*>(weight_fp32.data());
-        weightBinaryFile_->write(weightData, weight_fp32.size() * sizeof(float));
+        bin_os_->write(weightData, weight_fp32.size() * sizeof(float));
       }
     } else if (weightOp.storage() == "NONE") {
       return success();
@@ -245,16 +275,18 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       assert(0 && "not supported weight storage type");
     }
 
+    // assign the address to weightOp
+    tensor_name += "_";
+    tensor_name += md5.substr(0, 5);
+
     if (!isRedundant) {
       // checking
-      auto newPos = weightBinaryFile_->tell();
-      map_os_ << tensor_name << "," << llvm::format_hex(curPos, 10) << "," << md5 << "\n";
-
-      LLVM_DEBUG(llvm::errs() << llvm::format("[%-36s][%8d] : [ ",
-                                  tensor_name.str().c_str(), size)
-                  << llvm::format_hex(curPos, 10) << " --> "
-                  << llvm::format_hex(newPos, 10) << " ]\n";);
-
+      auto newPos = bin_os_->tellp();
+      std::string s;
+      llvm::raw_string_ostream os(s);
+      os << tensor_name << "," << llvm::format_hex(curPos, 10)
+          << "," << md5 << "," << size << "\n";
+      map_os_->write(os.str().c_str(), os.str().size());
       assert(((curPos % alignment_) == 0) && "Expect aligned curPos");
       assert(((newPos % alignment_) == 0) && "Expect aligned newPos");
     } else {
@@ -263,7 +295,7 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
       curPos = md5AddrMap_.at(md5);
     }
 
-    // assign the address to weightOp
+    weightOp->setAttr("name", rewriter.getStringAttr(tensor_name));
     weightOp->setAttr("md5", rewriter.getStringAttr(md5));
     weightOp->setAttr("offset", rewriter.getI64IntegerAttr(curPos + (((uint64_t)1) << 40)));
 
@@ -271,104 +303,68 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
   }
 
 
-  llvm::raw_fd_ostream *weightBinaryFile_;
-  llvm::raw_ostream &map_os_;
-  size_t alignment_;
+  std::unique_ptr<std::fstream> &bin_os_;
+  std::unique_ptr<std::fstream> &map_os_;
   std::map<std::string, uint64_t> &md5AddrMap_;
+  size_t alignment_;
 };
 
-static llvm::cl::opt<size_t> clWeightAlignment(
-    "tpu-weight-address-align",
-    llvm::cl::desc("Specify the alignment for weight"),
-    llvm::cl::init(16));
-
-static llvm::cl::opt<std::string> clWeightMapFilename(
-    "tpu-weight-map-filename",
-    llvm::cl::desc("record weight offset with its name into a csv map file"),
-    llvm::cl::init("-"));
-
-static llvm::cl::opt<std::string> clWeightBinFilename(
-    "tpu-weight-bin-filename",
-    llvm::cl::desc("weight bin filename"),
-    llvm::cl::init("-"));
-
-static llvm::cl::opt<bool> clCompressedWeight(
-    "tpu-generate-compressed-weight",
-    llvm::cl::desc("Generate the compressed weight"),
-    llvm::cl::init(false));
-
-static llvm::cl::opt<std::string> clAppendWeightFilename(
-    "tpu-append-weight-bin-filename",
-    llvm::cl::desc("append weight to this append weight bin file"),
-    llvm::cl::init("-"));
-
-static llvm::cl::opt<std::string> clAppendWeightMapFilename(
-    "tpu-append-weight-map-filename",
-    llvm::cl::desc("use append weight file md5 map"),
-    llvm::cl::init("-"));
-
-class AssignWeightAddressPass : public mlir::PassWrapper<AssignWeightAddressPass, FunctionPass> {
+class AssignWeightAddressPass : public mlir::PassWrapper<AssignWeightAddressPass,
+                                                         FunctionPass> {
 public:
   explicit AssignWeightAddressPass() {}
+
+  static void checkIfFileGood(std::string &fileName,
+                              std::unique_ptr<std::fstream> &stream) {
+    if (!stream->is_open()) {
+      llvm::errs() << "cannot open output file '" + fileName + "\n";
+      assert(0);
+    }
+  }
+
+  static void loadAddressMapping(std::string &mapFileName,
+                                 std::map<std::string, uint64_t> &addrMapping) {
+    auto stream = std::make_unique<std::fstream>(mapFileName.c_str(),
+                                                 std::fstream::in);
+    checkIfFileGood(mapFileName, stream);
+
+    char buf[512];
+    while (!stream->eof()) {
+      memset(buf, 0, sizeof(buf));
+      stream->getline(buf, sizeof(buf));
+      StringRef str(buf);
+      if (str.empty()) {
+        continue;
+      }
+      SmallVector<StringRef, 4> fields;
+      str.split(fields, ',', -1, true);
+      auto pos = fields[1].str();
+      auto md5 = fields[2].str();
+      auto addr = std::stol(pos, nullptr, 16);
+      addrMapping[md5] = addr;
+    }
+  }
 
   void runOnFunction() override {
     auto fn = getFunction();
     // create a bin file
-    std::error_code ec;
     assert((clWeightBinFilename != "-") && "no weight bin file specified");
-    llvm::raw_fd_ostream weightBinaryFile(clWeightBinFilename, ec);
+    assert((clWeightMapFilename != "-") && "no weight map file specified");
 
-    // create a map file
-    std::unique_ptr<llvm::ToolOutputFile> weightMapFile = nullptr;
-    if (clWeightMapFilename != "-") {
-      std::string errorMessage;
-      weightMapFile = openOutputFile(clWeightMapFilename, &errorMessage);
-      if (!weightMapFile) {
-        llvm::errs() << errorMessage << "\n";
-        exit(1);
-      }
-    }
+    auto flags = std::fstream::out;
     std::map<std::string, uint64_t> addrMapping;
 
-    if (clAppendWeightFilename != "-") {
-      std::ifstream appendWeightFile(clAppendWeightFilename.c_str(), std::ios::in | std::ios::binary);
-      if (appendWeightFile) {
-        appendWeightFile.seekg(0, appendWeightFile.end);
-        int length = appendWeightFile.tellg();
-        char *buf = new char[length];
-        appendWeightFile.seekg(0, appendWeightFile.beg);
-        appendWeightFile.read(buf, length);
-        weightBinaryFile.write(buf, length);
-        delete [] buf;
-      } else {
-        llvm::errs() << "open append weight bin file fail\n";
-        exit(1);
-      }
-
-      assert((clAppendWeightMapFilename != "-") && "no append weight map file specified");
-      std::ifstream appendWeightMapFile(clAppendWeightMapFilename.c_str(), std::ios::in);
-      if (appendWeightMapFile) {
-        char buf[1024];
-
-        while (!appendWeightMapFile.eof()) {
-          memset(buf, 0, 1024);
-          appendWeightMapFile.getline(buf, 1024);
-          std::string str(buf);
-          if (str.empty()) continue;
-          int md5_index = str.rfind(',');
-          const std::string md5 = str.substr(md5_index+1);
-          int pos_index = str.find_first_of(',');
-          const std::string pos = str.substr(pos_index+1, md5_index-pos_index-1);
-          long addr = std::stol(pos, nullptr, 16);
-          addrMapping[md5] = addr;
-          weightMapFile->os().write(buf, strlen(buf));
-          weightMapFile->os().write("\n", 1);
-        }
-      } else {
-        llvm::errs() << "open append weight map file fail\n";
-        exit(1);
-      }
+    if (clAppendWeight) {
+      loadAddressMapping(clWeightMapFilename, addrMapping);
+      flags = flags | std::fstream::app;
     }
+    auto weightBinFile = std::make_unique<std::fstream>(
+                            clWeightBinFilename.c_str(),
+                            flags | std::fstream::binary);
+    checkIfFileGood(clWeightBinFilename, weightBinFile);
+    auto weightMapFile = std::make_unique<std::fstream>(
+                            clWeightMapFilename.c_str(), flags);
+    checkIfFileGood(clWeightMapFilename, weightMapFile);
 
     OwningRewritePatternList patterns;
     auto *context = &getContext();
@@ -376,15 +372,12 @@ public:
     // assign address and generate bin file
     patterns.insert<TpuLoadWeightOpPattern<tpu::LoadWeightOp>,
                     TpuLoadWeightOpPattern<tpu::TL_LG_LoadCoeffOp>
-    >(context, &weightBinaryFile, weightMapFile->os(),
-      clWeightAlignment, addrMapping);
+    >(context, weightBinFile, weightMapFile,
+      addrMapping, clWeightAlignment);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
-    weightBinaryFile.close();
-
-    if (weightMapFile) {
-      weightMapFile->keep();
-    }
+    weightBinFile->close();
+    weightMapFile->close();
   }
 };
 

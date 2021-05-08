@@ -70,11 +70,18 @@ def mlir_add_preprocess(quanted_mlir, new_mlir, pixel_format, aligned_input=Fals
     checkReturnValue(ret, "mlir_add_preprocess")
     return ret.returncode
 
-def mlir_to_cvimodel(quanted_model, cvimodel, dequant_results_to_fp32=True):
+def mlir_to_cvimodel(quanted_model, cvimodel,
+                     dequant_results_to_fp32=True,
+                     compress_weight=True,
+                     append_weight=False):
     cmd = ["mlir_to_cvimodel.sh",
            "-i", quanted_model, "-o", cvimodel,
            "--dequant-results-to-fp32",
-           str(dequant_results_to_fp32).lower()]
+           str(dequant_results_to_fp32).lower(),
+           "--compress-weight",
+           str(compress_weight).lower(),
+           "--append-weight",
+           str(append_weight).lower()]
     logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "mlir_to_cvimodel")
@@ -93,26 +100,6 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
     checkReturnValue(ret, "model_runner")
     return ret.returncode
 
-def fp32_blobs_compare(a_npz, b_npz, op_order, tolerance,
-                       dequant=False, excepts=None,
-                       show_detail=True, int8_tensor_close=True):
-    cmd = [
-        "cvi_npz_tool.py", "compare", a_npz, b_npz,
-        "--op_info", op_order,
-        "--tolerance", tolerance]
-    if dequant:
-        cmd.extend(["--dequant", "--stats_int8_tensor"])
-    if excepts:
-        cmd.extend(["--except", excepts])
-    if not int8_tensor_close:
-        cmd.extend(['--int8_tensor_close', '0'])
-    if show_detail:
-        cmd.append('-vv')
-    logger.info(" ".join(cmd))
-    ret = subprocess.run(cmd)
-    checkReturnValue(ret, "compare")
-    return ret.returncode
-
 def mlir_inference(mlir_model, input_npz, out_npz, all_tensor_npz):
     cmd = [
         "tpuc-interpreter", mlir_model,
@@ -123,4 +110,24 @@ def mlir_inference(mlir_model, input_npz, out_npz, all_tensor_npz):
     logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "tpuc interpreter")
+    return ret.returncode
+
+def fp32_blobs_compare(a_npz, b_npz, op_order, tolerance,
+                       dequant=False, excepts=None,
+                       show_detail=True, mix_precision=False):
+    cmd = [
+        "cvi_npz_tool.py", "compare", a_npz, b_npz,
+        "--op_info", op_order,
+        "--tolerance", tolerance]
+    if dequant:
+        cmd.extend(["--dequant", "--stats_int8_tensor"])
+    if excepts:
+        cmd.extend(["--except", excepts])
+    if mix_precision:
+        cmd.extend(['--int8_tensor_close', '0'])
+    if show_detail:
+        cmd.append('-vv')
+    logger.info(" ".join(cmd))
+    ret = subprocess.run(cmd)
+    checkReturnValue(ret, "compare")
     return ret.returncode

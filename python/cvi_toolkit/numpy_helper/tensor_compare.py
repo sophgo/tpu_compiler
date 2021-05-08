@@ -147,10 +147,10 @@ class TensorCompare():
 
     sqnr = self.sqnr_similarity(d1, d2)
 
-    similarities["cosine"]       = cosine_similarity
-    similarities["correlation"]  = correlation_similarity
-    similarities["euclid"]    = euclidean_similarity
-    similarities["sqnr"]    = sqnr
+    similarities["cosine"] = cosine_similarity
+    similarities["correlation"] = correlation_similarity
+    similarities["euclid"] = euclidean_similarity
+    similarities["sqnr"] = sqnr
     # check similarity
     if (cosine_similarity > self.cosine_similarity_tol
         and correlation_similarity > self.correlation_similarity_tol
