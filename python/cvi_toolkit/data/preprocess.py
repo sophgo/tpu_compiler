@@ -42,13 +42,19 @@ class ImageResizeTool:
         rescale_w = int(iw * scale)
         rescale_h = int(ih * scale)
         resized_img = cv2.resize(image, (rescale_w, rescale_h))
-        new_image = np.full((h, w, 3), 0, dtype=image.dtype)
         paste_w = (w - rescale_w) // 2
         paste_h = (h - rescale_h) // 2
-
-        new_image[paste_h:paste_h + rescale_h,
-                paste_w: paste_w + rescale_w, :] = resized_img
-        return new_image
+        if image.ndim == 3 and image.shape[2] == 3:
+            new_image = np.full((h, w, 3), 0, dtype=image.dtype)
+            new_image[paste_h:paste_h + rescale_h,
+                      paste_w: paste_w + rescale_w, :] = resized_img
+            return new_image
+        elif image.ndim == 2:
+            new_image = np.full((h, w), 0, dtype=image.dtype)
+            new_image[paste_h:paste_h + rescale_h,
+                      paste_w: paste_w + rescale_w] = resized_img
+            return new_image
+        raise RuntimeError("invalid image shape:{}".format(image.shape))
 
 def add_preprocess_parser(parser):
     parser.add_argument("--net_input_dims", type=str,
