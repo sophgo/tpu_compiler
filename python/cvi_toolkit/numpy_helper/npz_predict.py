@@ -23,7 +23,7 @@ def quantize(d1, threshold):
 def npz_predict(args_list):
   args = predict_args(args_list)
   npzfile = np.load(args.ref_file)
-  ordered_names, thresholds = load_op_info(args.op_info)
+  ordered_names, operations, quant_types, thresholds = load_op_info(args.op_info)
   predict = {}
   for name in ordered_names:
     if name in npzfile:
