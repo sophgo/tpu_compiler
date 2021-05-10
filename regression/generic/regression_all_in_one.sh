@@ -75,4 +75,5 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
   mv ${NET}_in_fp32_resize_only.npz $DST_DIR/${NET}_${postfix}_only_resize_in_fp32.npz
   mv ${NET}_bf16.cvimodel $DST_DIR/${NET}_${postfix}.cvimodel
   mv ${NET}_quantized_tensors_sim.npz $DST_DIR/${NET}_${postfix}_bf16_out_all.npz
+  mv ${NET}_quantized.mlir ${NET}_bf16_quantized.mlir
 fi

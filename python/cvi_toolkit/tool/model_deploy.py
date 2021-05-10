@@ -145,7 +145,7 @@ class DeployTool:
                                  tolerance=correctness,
                                  excepts=excepts,
                                  show_detail=True,
-                                 mix_precision=self.mix_precision)
+                                 mix_precision=True) #self.mix_precision)
         check_return_value(ret == 0, "accuracy validation of cvimodel failed")
 
     def cleanup(self):
