@@ -102,6 +102,19 @@ static bool isLoadDecompressedOp(Operation *op) {
   return false;
 }
 
+static bool isLoadNeuronWithWSliceOp(Operation *def_op, Operation *use_op) {
+  std::vector<int64_t> def_shapes = getTensorShape(def_op->getResult(0));
+  std::vector<int64_t> use_shapes = getTensorShape(use_op->getResult(0));
+  if (def_shapes.size() == use_shapes.size() &&
+      def_shapes.size() == 4) {
+    if (def_shapes[3] != use_shapes[3])
+      return true;
+    else
+      return false;
+  }
+  return false;
+}
+
 static bool isLargeDmaTransfer(Operation *op) {
   auto dataTypeSize = getDataTypeSize(op->getResult(0));
   std::vector<int64_t> shapes = getTensorShape(op->getResult(0));
@@ -810,8 +823,13 @@ public:
       if (!llvm::dyn_cast<tpu::TL_LG_StoreOp>(opdOp))
         break;
 
-      if (inputShapes.size() == 4)
+      if (inputShapes.size() == 4) {
+        // if w get sliced, skip
+        if (inputShapes[3] != outputShapes[3])
+          return failure();
         storeShapes.push_back(inputShapes);
+      }
+
     }
 
     // tl_lg_join -> tl_lg_load_neuron
@@ -839,8 +857,12 @@ public:
                  << ", shape (" << shapes[0] << ", " << shapes[1] << ", "
                  << shapes[2] << ", " << shapes[3] << ")\n");
 
-      if (shapes.size() == 4)
+      if (shapes.size() == 4) {
+        // if w get sliced, skip
+        if (shapes[3] != outputShapes[3])
+          return failure();
         loadShapes.push_back(shapes);
+      }
     }
 
     int n_step, oc_step, oh_step;
@@ -1523,6 +1545,11 @@ void CompressActivationPass::markLoadDeCompressed() {
       auto useOp = use.getOwner();
 
       if (!isLoadDecompressedOp(useOp)) {
+        result = false;
+        break;
+      }
+      // Not support tg + tl_lg_load_neuron(w slice)
+      if (isLoadNeuronWithWSliceOp(op, useOp)) {
         result = false;
         break;
       }

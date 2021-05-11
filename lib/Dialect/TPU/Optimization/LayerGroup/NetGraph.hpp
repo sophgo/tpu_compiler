@@ -61,8 +61,7 @@ class NetGraph {
   void set_tensor_local_offest(int tensor_id, int local_mem_offset);
   void set_tensor_tsm_offest(int tensor_id, gaddr_t gaddr);
 
-  void set_tensor_num_height_slice(int tensor_id, int n_idx, int n_slice, int h_idx, int h_slice,
-                                   bool h_slice_skip_first, bool h_slice_skip_last);
+  void reset_tensor_slice(int tensor_id);
 
   void set_tensor_h_slice_max(int tensor_id, int h_slice_max);
   void set_tensor_w_slice_max(int tensor_id, int h_slice_max);

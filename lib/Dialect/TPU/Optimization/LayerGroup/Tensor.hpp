@@ -75,6 +75,7 @@ class Tensor {
   int get_group_id() const { return group; }
   int get_n_loop() { return n_loop_; }
   int get_h_loop() { return h_loop_; }
+  LG_Slice_Dim get_slice_dim() { return slice_dim_; }
 
   void set_h_slice_skip_first() { this->h_slice_skip_first = true; }
 
@@ -110,6 +111,7 @@ class Tensor {
   int w_idx;
   int w_slice;
   int w_slice_max;
+  LG_Slice_Dim slice_dim_;
   int group;
   int h_loop_;
   int n_loop_;

@@ -154,16 +154,16 @@ void NetGraph::set_tensor_tsm_offest(int tensor_id, gaddr_t gaddr) {
   iter->second.get()->tsm_addr = gaddr;
 }
 
-void NetGraph::set_tensor_num_height_slice(int tensor_id, int n_idx, int n_slice, int h_idx,
-                                            int h_slice, bool h_slice_skip_first,
-                                            bool h_slice_skip_last) {
+void NetGraph::reset_tensor_slice(int tensor_id) {
   auto iter = Tensor::map_id_to_tensor.find(tensor_id);
-  iter->second.get()->n_idx = n_idx;
-  iter->second.get()->n_slice = n_slice;
-  iter->second.get()->h_idx = h_idx;
-  iter->second.get()->h_slice = h_slice;
-  iter->second.get()->h_slice_skip_first = h_slice_skip_first;
-  iter->second.get()->h_slice_skip_last = h_slice_skip_last;
+  iter->second.get()->n_idx = -1;
+  iter->second.get()->n_slice = -1;
+  iter->second.get()->h_idx = -1;
+  iter->second.get()->h_slice = -1;
+  iter->second.get()->w_idx = -1;
+  iter->second.get()->w_slice = -1;
+  iter->second.get()->h_slice_skip_first = 0;
+  iter->second.get()->h_slice_skip_last = 0;
 }
 
 void NetGraph::set_tensor_h_slice_max(int tensor_id, int h_slice_max) {
@@ -213,41 +213,73 @@ void NetGraph::get_tl_tensor_dim_pads(int t_id, int * dims,
                                       int * pads, bool is_h_split) {
   get_tensor_dim(t_id, dims);
   Tensor* t = get_tensor_by_id(t_id);
+  LG_Slice_Dim slice_dim = t->get_slice_dim();
 
-  dims[0] = t->n_slice;
-  dims[2] = t->h_slice;
+  if (slice_dim == LG_Slice_Dim_H) {
+    dims[0] = t->n_slice;
+    dims[2] = t->h_slice;
 
-  if (is_h_split) {
-    // update h dim
-    int real_h_idx = (t->h_idx > 0) ? t->h_idx : 0;
-    int h_end = t->h_idx + t->h_slice;
-    int real_h_slice = (h_end > t->h()) ? (t->h() - real_h_idx) :
-                        (h_end - real_h_idx);
-    dims[2] = real_h_slice;
+    if (is_h_split) {
+      // update h dim
+      int real_h_idx = (t->h_idx > 0) ? t->h_idx : 0;
+      int h_end = t->h_idx + t->h_slice;
+      int real_h_slice = (h_end > t->h()) ? (t->h() - real_h_idx) :
+                          (h_end - real_h_idx);
+      dims[2] = real_h_slice;
 
-    // update pad
-    pads[0] = (t->h_idx > 0) ? 0 : ( 0 - t->h_idx);
-    pads[1] = (h_end > t->h()) ? (h_end - t->h()) : 0;
+      // update pad
+      pads[0] = (t->h_idx > 0) ? 0 : ( 0 - t->h_idx);
+      pads[1] = (h_end > t->h()) ? (h_end - t->h()) : 0;
+    }
+  } else if (slice_dim == LG_Slice_Dim_W) {
+    dims[0] = t->n_slice;
+    dims[3] = t->w_slice;
+
+    if (is_h_split) {
+      // update h dim
+      int real_w_idx = (t->w_idx > 0) ? t->w_idx : 0;
+      int w_end = t->w_idx + t->w_slice;
+      int real_w_slice = (w_end > t->w()) ? (t->w() - real_w_idx) :
+                          (w_end - real_w_idx);
+      dims[3] = real_w_slice;
+
+      // update pad
+      pads[2] = (t->w_idx > 0) ? 0 : ( 0 - t->w_idx);
+      pads[3] = (w_end > t->w()) ? (w_end - t->w()) : 0;
+    }
   }
-
 }
 
 void NetGraph::get_tl_tensor_dim(int t_id, int * dims, bool is_h_split) {
   get_tensor_dim(t_id, dims);
   Tensor* t = get_tensor_by_id(t_id);
+  LG_Slice_Dim slice_dim = t->get_slice_dim();
 
-  dims[0] = t->n_slice;
-  dims[2] = t->h_slice;
+  if (slice_dim == LG_Slice_Dim_H) {
+    dims[0] = t->n_slice;
+    dims[2] = t->h_slice;
 
-  if (is_h_split) {
-    // update h dim
-    int real_h_idx = (t->h_idx > 0) ? t->h_idx : 0;
-    int h_end = t->h_idx + t->h_slice;
-    int real_h_slice = (h_end > t->h()) ? (t->h() - real_h_idx) :
-                        (h_end - real_h_idx);
-    dims[2] = real_h_slice;
+    if (is_h_split) {
+      // update h dim
+      int real_h_idx = (t->h_idx > 0) ? t->h_idx : 0;
+      int h_end = t->h_idx + t->h_slice;
+      int real_h_slice = (h_end > t->h()) ? (t->h() - real_h_idx) :
+                          (h_end - real_h_idx);
+      dims[2] = real_h_slice;
+    }
+  } else if (slice_dim == LG_Slice_Dim_W) {
+    dims[0] = t->n_slice;
+    dims[3] = t->w_slice;
+
+    if (is_h_split) {
+      // update w dim
+      int real_w_idx = (t->w_idx > 0) ? t->w_idx : 0;
+      int w_end = t->w_idx + t->w_slice;
+      int real_w_slice = (w_end > t->w()) ? (t->w() - real_w_idx) :
+                          (w_end - real_w_idx);
+      dims[3] = real_w_slice;
+    }
   }
-
 }
 
 

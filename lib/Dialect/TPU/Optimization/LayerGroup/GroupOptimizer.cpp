@@ -269,14 +269,12 @@ int GroupOptimizer::calc_group_out_tensors_size(Group* target, const std::vector
 }
 
 bmerr_t GroupOptimizer::optimize() {
-
-  // do_group(groups_);
   layer_group();
 
   int group_id = 0;
   for (auto group : groups_) {
-    bmerr_t status = group->assign_steps();
-    if (status == BM_ERR_FAILURE) {
+    bool ret = group->check_valid();
+    if (!ret) {
       llvm::errs() << "local memory allocate failed\n";
       assert(0);
     }
@@ -370,25 +368,23 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
     return;
   }
   int n_secs = group->group_slice_.first;
-  int h_secs = group->group_slice_.second;
+  int hw_secs = group->group_slice_.second;
 
   mix_net_.set_start_op(op);
-  mix_net_.add_group_start_ops(gid, group, op, n_secs, h_secs);
+  mix_net_.add_group_start_ops(gid, group, op, n_secs, hw_secs);
 
   bool first_loop = true;
   for (int n_loop = 0; n_loop < n_secs; n_loop++) {
-    for (int h_loop = 0; h_loop < h_secs; h_loop++) {
-
-      group->update_slices(n_secs, h_secs, n_loop, h_loop);
+    for (int h_loop = 0; h_loop < hw_secs; h_loop++) {
+      group->update_slices(n_secs, hw_secs, n_loop, h_loop);
 
       for (int step_id = 0; step_id < group->time_step->get_timestep_num(); ++step_id) {
+        mix_net_.set_param(group, gid, step_id, n_loop, h_loop);
         mix_net_.parallel_start();
         int cur_layer = group->time_step->get_layer(step_id);
 
         if (cur_layer != -1) {
-          mix_net_.add_tl_layer(
-              gid, cur_layer, group->time_step, step_id,
-              h_secs != 1, n_loop, h_loop);
+          mix_net_.add_tl_layer(cur_layer);
         }
 
         const std::vector<TENSOR_STEP>& cur_tensors = group->time_step->get_tensors(step_id);
@@ -399,8 +395,7 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
             continue;
           }
 
-          mix_net_.add_transport_op(
-              gid, cur_tensors[i], group->time_step, step_id);
+          mix_net_.add_transport_op(gid, cur_tensors[i]);
         }
 
         mix_net_.parallel_end();
@@ -410,7 +405,7 @@ void GroupOptimizer::lower_to_tl(Operation *op, int gid) {
     }
   }
 
-  mix_net_.add_group_end_ops(gid, group, n_secs, h_secs);
+  mix_net_.add_group_end_ops(gid, group, n_secs, hw_secs);
 
   group->set_lowered(true);
 }

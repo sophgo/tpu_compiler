@@ -110,7 +110,9 @@ void Group::show_group_layers() {
   LLVM_DEBUG(llvm::errs() << "\n";);
 }
 
-bool Group::check_valid_wrap() {
+// This function is used to construct the time step and find the appropriate partitioning
+// strategy according to the time step.
+bmerr_t Group::assign_steps() {
   bmerr_t status = BM_SUCCESS;
   LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] Begin: ";);
   show_group_layers();
@@ -120,7 +122,7 @@ bool Group::check_valid_wrap() {
   if (BM_ERR_FAILURE == status) {
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
                           << "[Find_Fit_NH_Slice] Failed with pattern not support\n";);
-    return false;
+    return status;
   }
 
   // check if we can slice layers
@@ -128,27 +130,31 @@ bool Group::check_valid_wrap() {
   if (BM_ERR_FAILURE == status) {
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] End with Failed: ";);
     show_group_layers();
-    return false;
+    return status;
   }
 
   LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] End with Valid: ";);
   show_group_layers();
 
-  return true;
+  return status;
 }
 
 void Group::set_slice_dim(LG_Slice_Dim slice_dim) {
   slice_dim_ = slice_dim;
 }
 
+LG_Slice_Dim Group::get_slice_dim() {
+  return slice_dim_;
+}
+
 bool Group::check_valid() {
   set_slice_dim(LG_Slice_Dim_H);
-  if(check_valid_wrap()) {
+  if(assign_steps() == BM_SUCCESS) {
     return true;
   }
 
   // set_slice_dim(LG_Slice_Dim_W);
-  // if(check_valid_wrap()) {
+  // if(assign_steps() == BM_SUCCESS) {
   //   return true;
   // }
 
@@ -261,80 +267,7 @@ int Group::get_max_secs() {
   return max_slice;
 }
 
-// This function is used to construct the time step and find the appropriate partitioning
-// strategy according to the time step.
-bmerr_t Group::assign_steps() {
-  bmerr_t status = BM_ERR_FAILURE;
-  // clear time_step and nescs_and_hsecs.
-  if (time_step) {
-    delete time_step;
-  }
 
-  status = check_if_pattern_support();
-  if (BM_ERR_FAILURE == status) {
-    LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-                          << "[Find_Fit_NH_Slice] Failed with pattern not support\n";);
-    return status;
-  }
-
-  group_slice_ = {1, 1};
-  time_step = new net_timestep(net_graph_);
-
-  GroupSteps::timestep_assgin(net_graph_, this, time_step);
-
-  if (layers_.size() == 1) {
-    return BM_SUCCESS;
-  }
-
-  int max_n_slice = get_batch_num();
-  int max_h_slice = get_max_secs();
-  reset_tensor_hwslice_max();
-  status = time_step->find_minimal_slice(this, max_n_slice,
-                                      max_h_slice, group_slice_);
-  if (status == BM_ERR_FAILURE) {
-    return BM_ERR_FAILURE;
-  }
-
-  LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-                          << "[Find_Fit_NH_Slice] Begin\n";);
-  while (group_slice_.first <= max_n_slice && group_slice_.second <= max_h_slice) {
-    LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
-                            << "[Find_Fit_NH_Slice] check n_slice and h_slice: ("
-                            << group_slice_.first << "/" << max_n_slice
-                            << ", " << group_slice_.second << "/" << max_h_slice << ")\n";);
-    reset_tensor_hwslice_max();
-    // check validation of layer group if group_slice_.second > 1,
-    // and update h_slice_max
-    if (group_slice_.second > 1) {
-      for (int h_idx = 0; h_idx < group_slice_.second; h_idx++) {
-        status = update_slices(group_slice_.first,
-                                      group_slice_.second, 0, h_idx);
-        if (status == BM_ERR_FAILURE) {
-          LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
-                                  << "[Find_Fit_NH_Slice] End with failed: Update tensor slice failed\n";);
-          return BM_ERR_FAILURE;
-        }
-      }
-    }
-
-    status = GroupSteps::balance_tdma_tiu(net_graph_, this, &time_step, group_slice_);
-
-    if (status == BM_ERR_FAILURE) {
-      if (group_slice_.first < max_n_slice) {
-        group_slice_.first++;
-      } else {
-        group_slice_.second++;
-      }
-    } else {
-      break;
-    }
-  }
-  LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-                          << "[Find_Fit_NH_Slice] Success with n slice: "
-                          << group_slice_.first << " h slice: "
-                          << group_slice_.second << "\n";);
-  return status;
-}
 
 static bool is_output_op(Operation * op) {
   for (auto &use : op->getResult(0).getUses()) {
@@ -376,6 +309,17 @@ bool Group::check_if_pattern_support() {
     }
   }
 
+  // deconv not support slice w
+  if (slice_dim_ == LG_Slice_Dim_W) {
+    for (auto id : layers_) {
+      const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
+      Operation * op = im_layer->op();
+      if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op) ||
+          isa<tpu::TG_BF16_DeConv2DOp>(op)) {
+        return BM_ERR_FAILURE;
+      }
+    }
+  }
   return BM_SUCCESS;
 }
 
@@ -464,11 +408,11 @@ void Group::reset_tensor_slice() {
     const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
 
     for (auto& tensor : im_layer->in_tensors) {
-      net_graph_->set_tensor_num_height_slice(tensor->id(), -1, -1, -1, -1, 0, 0);
+      net_graph_->reset_tensor_slice(tensor->id());
     }
 
     for (auto& tensor : im_layer->out_tensors) {
-      net_graph_->set_tensor_num_height_slice(tensor->id(), -1, -1, -1, -1, 0, 0);
+      net_graph_->reset_tensor_slice(tensor->id());
     }
   }
 }
@@ -718,7 +662,6 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
     getConvParam(im_layer->op(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
                  pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, do_ic_align,
                  do_leaky_relu, pad_value);
-
     if (dw > 1) {
       kw = dw * (kw - 1) + 1;
     }
@@ -737,7 +680,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
 
   int n_idx = out_tensor->n_idx > 0 ? out_tensor->n_idx : 0;
   int out_w_idx = out_tensor->w_idx > 0 ? out_tensor->w_idx : 0;
-  int width = net_graph_->get_tensor_height(out_tensor_id);
+  int width = net_graph_->get_tensor_width(out_tensor_id);
 
   if (!max_w_slice) {
     int w_end = out_tensor->w_idx + out_w_slice;
@@ -873,7 +816,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
       LLVM_DEBUG(llvm::errs()
         << LOG_TAB_L3
         << "[Update Tensor Slice][Warning]: "
-        << "data slice in h dimension is conflicted for tensor "
+        << "data slice in w dimension is conflicted for tensor "
         << back_tensors[i] << " cur_w_idx:" << cur_w_idx << " w_idx:" << w_idx
         << " cur_w_slice:" << cur_w_slice << " w_slice:" << w_slice << "\n";);
       return false;
@@ -1017,7 +960,10 @@ void Group::print(std::ostream& pOs) const {
   pOs << "==============================================\n";
   int n_sec = group_slice_.first;
   int h_sec = group_slice_.second;
-  pOs << "(NSec, HSec) = (" << n_sec << ", " << h_sec << ")\n";
+  if (slice_dim_ == LG_Slice_Dim_H)
+    pOs << "(NSec, HSec) = (" << n_sec << ", " << h_sec << ")\n";
+  else
+    pOs << "(NSec, WSec) = (" << n_sec << ", " << h_sec << ")\n";
   pOs << "layer number: " << layers().size() << "\n";
   pOs << "layers: ";
   for (auto layer_id : layers()) {

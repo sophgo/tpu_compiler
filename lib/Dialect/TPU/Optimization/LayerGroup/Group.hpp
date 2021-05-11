@@ -60,7 +60,6 @@ class Group {
   std::set<int> get_group_in_neuron_tensors();
 
   bool check_valid();
-  bool check_valid_wrap();
 
   bool check_if_pattern_support();
 
@@ -91,6 +90,8 @@ class Group {
   void set_slice_limit(int s);
 
   void set_slice_dim(LG_Slice_Dim slice_dim);
+
+  LG_Slice_Dim get_slice_dim();
 
   void clear_temp_data();
 

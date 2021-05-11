@@ -513,30 +513,32 @@ bmerr_t net_timestep::get_min_secs(bool b_hold_coeff, float &min_secs) {
 // hw h limit is 4095-32, so after h slice, the h size
 // must smaller than 4095-32
 
-int net_timestep::get_minimal_h_slice_for_hw_limitation(Group * group) {
-  int minimal_h_slice = 1;
-  int min_h_slice_in = 1, min_h_slice_out = 1;
-  int HW_H_LIMIT = 4095-32;
+int net_timestep::get_minimal_slice_for_hw_limitation(Group * group) {
+  int minimal_slice = 1;
+  int min_slice_in = 1, min_slice_out = 1;
+  int HW_HW_LIMIT = 4095-32;
   std::set<int> in_tensors = group->get_group_in_neuron_tensors();
   for (auto tid: in_tensors) {
     Tensor * tensor = net_graph_->get_tensor_by_id(tid);
-    int h = tensor->h();
-    if (h > HW_H_LIMIT) {
-      min_h_slice_in = h / HW_H_LIMIT + 1;
+    int h_or_w = (group->get_slice_dim() == LG_Slice_Dim_H)
+                  ? tensor->h() : tensor->w();
+    if (h_or_w > HW_HW_LIMIT) {
+      min_slice_in = h_or_w / HW_HW_LIMIT + 1;
     }
   }
 
   std::vector<int> out_tensors = group->get_group_out_tensors();
   for (auto tid: out_tensors) {
     Tensor * tensor = net_graph_->get_tensor_by_id(tid);
-    int h = tensor->h();
-    if (h > HW_H_LIMIT) {
-      min_h_slice_out = h / HW_H_LIMIT + 1;
+    int h_or_w = (group->get_slice_dim() == LG_Slice_Dim_H)
+                  ? tensor->h() : tensor->w();
+    if (h_or_w > HW_HW_LIMIT) {
+      min_slice_out = h_or_w / HW_HW_LIMIT + 1;
     }
   }
 
-  minimal_h_slice = std::max(min_h_slice_in, min_h_slice_out);
-  return minimal_h_slice;
+  minimal_slice = std::max(min_slice_in, min_slice_out);
+  return minimal_slice;
 }
 
 // Returns true if a suitable split result is found. The result will
@@ -591,9 +593,9 @@ bmerr_t net_timestep::find_minimal_slice(Group* group,
   }
 
   // get minimal h_slice for hw-limitation
-  int hw_minimal_h_slice = get_minimal_h_slice_for_hw_limitation(group);
-  if (hw_minimal_h_slice > group_slice.second)
-    group_slice.second = hw_minimal_h_slice;
+  int hw_minimal_slice = get_minimal_slice_for_hw_limitation(group);
+  if (hw_minimal_slice > group_slice.second)
+    group_slice.second = hw_minimal_slice;
 
   if(!(group_slice.first <= max_n_slice && group_slice.second <= max_h_w_slice)) {
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L2

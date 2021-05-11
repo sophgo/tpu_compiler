@@ -76,7 +76,7 @@ std::shared_ptr<Tensor> Tensor::register_tensor(
                                 ShapedType *s_type, const std::string& name,
                                 tensor_type_t type, int layer_id,
                                 std::string storage) {
-  int n = 0, c = 0, h = 0, w = 1;
+  int n = 0, c = 0, h = 1, w = 1;
   std::vector<int64_t> shape = s_type->getShape();
   switch (s_type->getRank()) {
     case 5:
@@ -134,11 +134,19 @@ std::shared_ptr<Tensor> Tensor::register_imm_tensor(const std::shared_ptr<Tensor
 uint32_t Tensor::lmem_size() {
   int n = n_slice < 1 ? dims_[0] : n_slice;
   int c = dims_[1];
-  int h = h_slice < 1 ? dims_[2] : h_slice;
-  if (h_slice_max != -1) {
-    h = h_slice_max;
-  }
+  int h = dims_[2];
   int w = dims_[3];
+  if (slice_dim_ == LG_Slice_Dim_H) {
+    h = h_slice < 1 ? dims_[2] : h_slice;
+    if (h_slice_max != -1) {
+      h = h_slice_max;
+    }
+  } else if (slice_dim_ == LG_Slice_Dim_W) {
+    w = w_slice < 1 ? dims_[3] : w_slice;
+    if (w_slice_max != -1) {
+      w = w_slice_max;
+    }
+  }
 
   if (n == 0) {
     n = 1;
@@ -197,6 +205,7 @@ void Tensor::set_nh_slice(int n_idx, int n_slice, int h_idx, int h_slice) {
   this->n_slice = n_slice;
   this->h_idx = h_idx;
   this->h_slice = h_slice;
+  this->slice_dim_ = LG_Slice_Dim_H;
   if (h_slice != dims_[2] && h_slice > this->h_slice_max) {
     this->h_slice_max = h_slice;
   }
@@ -207,6 +216,7 @@ void Tensor::set_nw_slice(int n_idx, int n_slice, int w_idx, int w_slice) {
   this->n_slice = n_slice;
   this->w_idx = w_idx;
   this->w_slice = w_slice;
+  this->slice_dim_ = LG_Slice_Dim_W;
   if (w_slice != dims_[3] && w_slice > this->w_slice_max) {
     this->w_slice_max = w_slice;
   }
