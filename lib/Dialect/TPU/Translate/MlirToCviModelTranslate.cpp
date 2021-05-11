@@ -48,6 +48,7 @@
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "backend/backend_tg_api.h"
 #include "backend/backend_tl_api.h"
+#include "lz4.h"
 
 #define DEBUG_TYPE "mlir-to-cvimodel"
 
@@ -59,6 +60,11 @@ static llvm::cl::opt<std::string>
     clWeightBinFileName("weight-file", llvm::cl::desc("saved weight bin filename"));
 
 extern llvm::cl::opt<std::string> clRunChipType;
+
+static llvm::cl::opt<bool>
+    isCompress("z", llvm::cl::desc("Enable compress cmdbuf"),
+                  llvm::cl::init(false));
+
 
 extern float BF16_TABLE_START;
 extern float BF16_TABLE_END;
@@ -612,13 +618,53 @@ FBSection CviModelBuilder::buildSection(std::string name, cvi::model::SectionTyp
 }
 
 FBSection CviModelBuilder::buildSection(std::string name, cvi::model::SectionType type,
-                                        std::vector<uint8_t> data) {
+                                        std::vector<uint8_t>& data) {
   auto fbName = fbb_.CreateString(name);
   uint32_t size = 0;
   uint32_t offset = 0;
+
+  size = (uint32_t)data.size();
+  offset = (uint32_t)binBuffer_.size();
+
+  // if need compress data
+  do {
+    if (!isCompress) {
+      break;
+    }
+
+    // only compress CMDBUF
+    if (type != SectionType_CMDBUF) {
+      break;
+    }
+
+    if (!size) {
+      break;
+    }
+    size_t out_bufsize = LZ4_compressBound(size);
+    std::vector<uint8_t> out_buf(out_bufsize);
+
+    size_t out_size = LZ4_compress_default(
+        reinterpret_cast<char *>(data.data()),
+        reinterpret_cast<char *>(out_buf.data()), size, out_bufsize);
+    if (out_size < 1) {
+      llvm::errs() << "compress cmdbuf failed!\n";
+      break;
+    }
+
+    llvm::errs() << "compress cmdbuf [" << name.c_str()
+                 << " decompressed size:" << size
+                 << " compressed size:" << out_size << "]\n";
+
+    if (out_size > size) {
+      llvm::errs() << "compressed size large than decompressed size don't need compress!\n";
+    }
+    binBuffer_.insert(binBuffer_.end(), out_buf.begin(), out_buf.begin() + out_size);
+    return CreateSection(fbb_, type, fbName, out_size, offset, false, true, size);
+  }
+  while (false);
+
+  // don't need compress data
   if (data.size()) {
-    size = (uint32_t)data.size();
-    offset = (uint32_t)binBuffer_.size();
     binBuffer_.insert(binBuffer_.end(), data.begin(), data.end());
   }
   return CreateSection(fbb_, type, fbName, size, offset);

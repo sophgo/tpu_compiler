@@ -173,7 +173,7 @@ private:
   FBSection buildSection(std::string name, cvi::model::SectionType type,
                          std::string fileName);
   FBSection buildSection(std::string name, cvi::model::SectionType type,
-                         std::vector<uint8_t> data);
+                         std::vector<uint8_t>& data);
 };
 
 namespace mlir {
