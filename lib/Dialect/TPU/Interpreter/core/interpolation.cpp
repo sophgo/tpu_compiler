@@ -3,6 +3,12 @@
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
+static inline float coordinate_transform_pytorch (
+    float x_resized, float x_scale, float length_resized, float length_original) {
+  // please refer NativeCpuImplementation.cpp for more details
+  return length_resized > 1 ? ((x_resized + 0.5f) / x_scale - 0.5f) : 0.0f;
+}
+
 // copy from caffe_cpu_interp2
 void interp(const int channels, const float *data1, const int x1, const int y1,
             const int height1, const int width1, const int Height1,
@@ -91,7 +97,7 @@ template <typename T>
 void upsampleBilinear(int64_t batch_size, int64_t num_channels,
                       int64_t input_height, int64_t input_width,
                       float height_scale, float width_scale, const T *Xdata,
-                      T *Ydata) {
+                      T *Ydata, bool pytorch = false) {
   int64_t output_width = static_cast<int64_t>(input_width * width_scale);
   int64_t output_height = static_cast<int64_t>(input_height * height_scale);
 
@@ -100,6 +106,14 @@ void upsampleBilinear(int64_t batch_size, int64_t num_channels,
       for (int64_t y = 0; y < output_height; ++y) {
         float in_y =
             std::min(y / height_scale, static_cast<float>(input_height - 1));
+        if (pytorch) {
+          in_y = height_scale == 1 ? static_cast<float>(y)
+            : coordinate_transform_pytorch(static_cast<float>(y), height_scale,
+                static_cast<float>(output_height),
+                static_cast<float>(input_height));
+          in_y = std::max(0.0f, std::min(in_y, static_cast<float>(input_height - 1)));
+        }
+
         const int64_t in_y1 =
             std::min(static_cast<int64_t>(in_y), input_height - 1);
         const int64_t in_y2 = std::min(in_y1 + 1, input_height - 1);
@@ -116,6 +130,16 @@ void upsampleBilinear(int64_t batch_size, int64_t num_channels,
         for (int64_t x = 0; x < output_width; ++x) {
           float in_x =
               std::min(x / width_scale, static_cast<float>(input_width - 1));
+          if (pytorch) {
+            in_x = width_scale == 1 ? static_cast<float>(x)
+                                    : coordinate_transform_pytorch(
+                                          static_cast<float>(x), width_scale,
+                                          static_cast<float>(output_width),
+                                          static_cast<float>(input_width));
+            in_x = std::max(
+                0.0f, std::min(in_x, static_cast<float>(input_width - 1)));
+          }
+
           const int64_t in_x1 =
               std::min(static_cast<int64_t>(in_x), input_width - 1);
           const int64_t in_x2 = std::min(in_x1 + 1, input_width - 1);
@@ -144,11 +168,11 @@ void upsampleBilinear(int64_t batch_size, int64_t num_channels,
 }
 
 void interp_linear(float *input, float *output, int n, int c, int ih, int iw,
-                   int oh, int ow) {
+                   int oh, int ow, bool pytorch = false) {
   float height_scale = (float)oh / (float)ih;
   float width_scale = (float)ow / (float)iw;
   upsampleBilinear<float>(n, c, ih, iw, height_scale, width_scale, input,
-                          output);
+                          output, pytorch);
 }
 
 namespace mlir {
@@ -247,6 +271,11 @@ void InterpolationOpKernel::invoke() {
   } else if (coordinate_transformation_mode == "half_pixel") {
     interp_linear(input_data->data(), output_data->data(), in, ic, ih, iw, oh,
                   ow);
+  } else if (coordinate_transformation_mode == "pytorch_half_pixel") {
+    interp_linear(input_data->data(), output_data->data(), in, ic, ih, iw, oh,
+                  ow, true);
+  } else {
+    llvm_unreachable("coordinate_transformation_model not support");
   }
 }
 void InterpolationOpKernel::dump() { OpKernel::dump(); }

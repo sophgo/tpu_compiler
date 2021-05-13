@@ -43,6 +43,7 @@ TEST_ONNX_IR = [
     "ReduceMax",
     "ReduceMean",
     "Resize",
+    "ResizeLinear",
 #    "Reciprocal",
     "Slice",
     "Sigmoid",
@@ -52,7 +53,7 @@ TEST_ONNX_IR = [
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
-NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Resize", "Slice", "Transpose", "Sum"]
+NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Slice", "Transpose", "Sum"]
 
 def get_chip_name():
     runchip = os.environ.get('SET_CHIP_NAME', None)
@@ -114,6 +115,7 @@ class ONNX_IR_TESTER(object):
             "Reciprocal": self.test_Reciprocal,
             "Relu": self.test_Relu,
             "Resize": self.test_Resize,
+            "ResizeLinear": self.test_ResizeLinear,
             "Slice": self.test_Slice,
             "Sigmoid": self.test_Sigmoid,
             "Sub": self.test_Sub,
@@ -1433,6 +1435,79 @@ class ONNX_IR_TESTER(object):
 
         graph_def = helper.make_graph(
             [roi_node_def, scales_node_def, sizes_node_def, resize_node],
+            test_case,
+            [input],
+            [output]
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                                    input_shape[2], input_shape[3]).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_ResizeLinear(self):
+        test_case = "test_Resize_Linear"
+        input_shape = [1, 32, 26, 3]
+        output_shape = [1, 32, 52, 6]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+
+        sizes = np.array([1, 32, 52, 6], dtype=np.int64)
+        roi = np.array([], dtype=np.float32)
+        scales = np.array([], dtype=np.float32)
+        roi_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['roi'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=roi.shape,
+                vals=roi.flatten(),
+            ),
+        )
+        scales_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['scales'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=scales.shape,
+                vals=scales.flatten(),
+            ),
+        )
+        sizes_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['sizes'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=sizes.shape,
+                vals=sizes.flatten(),
+            ),
+        )
+        x1_node = helper.make_node(
+            'Neg',
+            ['input'],
+            ['X1'],
+        )
+        resize_node = helper.make_node(
+            'Resize',
+            inputs=['X1', 'roi', 'scales', 'sizes'],
+            outputs=['output'],
+            mode='linear',
+            coordinate_transformation_mode='pytorch_half_pixel'
+        )
+
+        graph_def = helper.make_graph(
+            [x1_node, roi_node_def, scales_node_def, sizes_node_def, resize_node],
             test_case,
             [input],
             [output]
