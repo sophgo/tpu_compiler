@@ -612,7 +612,7 @@ run_calibration.py \
   mobilenet_v2_fp32.mlir \
   --dataset=$DATASET_PATH/imagenet/img_val_extracted \
   --input_num=1000 \
-  --histogram_bin_num=20480 \
+  --histogram_bin_num=2048 \
   -o mobilenet_v2_calibration_table
 ```
 
@@ -766,7 +766,7 @@ run_calibration.py \
   resnet18_fp32.mlir \
   --dataset=$DATASET_PATH/imagenet/img_val_extracted \
   --input_num=1000 \
-  --histogram_bin_num=20480 \
+  --histogram_bin_num=2048 \
   -o resnet18_calibration_table
 ```
 
@@ -908,7 +908,7 @@ run_calibration.py \
   mobilenet_v2_tf_fp32.mlir \
   --dataset=$DATASET_PATH/imagenet/img_val_extracted \
   --input_num=1000 \
-  --histogram_bin_num=20480 \
+  --histogram_bin_num=2048 \
   -o mobilenet_v2_tf_calibration_table
 ```
 
@@ -1073,7 +1073,7 @@ run_calibration.py \
   mnet_25_fp32.mlir \
   --dataset=$DATASET_PATH/imagenet/img_val_extracted \
   --input_num=1000 \
-  --histogram_bin_num=20480 \
+  --histogram_bin_num=2048 \
   -o mnet_25_calibration_table
 ```
 

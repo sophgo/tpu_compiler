@@ -278,6 +278,7 @@ cmake -G Ninja \
     -DWITH_CUDA=OFF -DWITH_IPP=OFF -DWITH_LAPACK=OFF \
     -DWITH_DC1394=OFF -DWITH_GPHOTO2=OFF \
     -DCMAKE_BUILD_TYPE=RELEASE \
+    -DPYTHON_DEFAULT_EXECUTABLE=$(which python3) \
     -DBUILD_opencv_videoio=OFF \
     -DBUILD_opencv_superres=OFF \
     -DBUILD_opencv_videostab=OFF \

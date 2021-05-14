@@ -1421,7 +1421,7 @@ run_calibration.py \
     ${NET}_opt_fp32.mlir \
     --dataset=$DATASET \
     --input_num=${CALIBRATION_IMAGE_COUNT} \
-    --histogram_bin_num=20480 \
+    --histogram_bin_num=2048 \
     -o ${NET}_calibration_table
 ```
 
