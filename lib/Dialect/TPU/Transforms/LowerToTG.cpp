@@ -3675,6 +3675,8 @@ struct EliminateOutputQuantOpPattern: public RewritePattern {
       if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
         rewriter.replaceOp(op, {op->getOperand(0)});
       }
+    } else {
+      return failure();
     }
 
     // alter the function type to match the real type

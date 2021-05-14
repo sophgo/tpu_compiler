@@ -1448,16 +1448,17 @@ class ONNX_IR_TESTER(object):
 
     def test_ResizeLinear(self):
         test_case = "test_Resize_Linear"
-        input_shape = [1, 32, 26, 3]
-        output_shape = [1, 32, 52, 6]
+        input_shape = [1, 32, 208, 24]
+        output_shape = [1, 2, 416, 48]
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
+        X2 = helper.make_tensor_value_info(
+            'X2', TensorProto.FLOAT, [1, 32, 416, 48])
 
-
-        sizes = np.array([1, 32, 52, 6], dtype=np.int64)
+        sizes = np.array([1, 32, 416, 48], dtype=np.int64)
         roi = np.array([], dtype=np.float32)
         scales = np.array([], dtype=np.float32)
         roi_node_def = onnx.helper.make_node(
@@ -1501,16 +1502,51 @@ class ONNX_IR_TESTER(object):
         resize_node = helper.make_node(
             'Resize',
             inputs=['X1', 'roi', 'scales', 'sizes'],
-            outputs=['output'],
+            outputs=['X2'],
             mode='linear',
             coordinate_transformation_mode='pytorch_half_pixel'
         )
+        weight_data = np.random.randn(2, 32, 3, 3).astype(np.float32)
+        bias_data = np.random.randn(2).astype(np.float32)
+
+        weight_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['conv_w'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=weight_data.shape,
+                vals=weight_data.flatten(),
+            ),
+        )
+        bias_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['conv_b'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=bias_data.shape,
+                vals=bias_data.flatten(),
+            ),
+        )
+        conv_node_def = onnx.helper.make_node(
+            "Conv",
+            inputs=['X2', 'conv_w', 'conv_b'],
+            outputs=['output'],
+            kernel_shape=[3, 3],
+            pads=[1, 1, 1, 1],
+            strides=[1, 1],
+            dilations=[1, 1],
+            group=1,
+        )
 
         graph_def = helper.make_graph(
-            [x1_node, roi_node_def, scales_node_def, sizes_node_def, resize_node],
+            [x1_node, roi_node_def, scales_node_def, sizes_node_def, resize_node, weight_node_def, bias_node_def, conv_node_def],
             test_case,
             [input],
-            [output]
+            [output, X2]
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)

@@ -72,6 +72,15 @@ struct EliminateReshapeOpPattern : public RewritePattern {
   }
 };
 
+static bool hasMoreUser(Operation *op) {
+  int user = 0;
+  for (auto &use : op->getResult(0).getUses()) {
+    (void)use;
+    user++;
+  }
+  return (user > 1);
+}
+
 struct SinkCpuOPToReturnOpPattern : public RewritePattern {
   SinkCpuOPToReturnOpPattern(MLIRContext *context)
       : RewritePattern(ReturnOp::getOperationName(), 1, context) {}
@@ -85,21 +94,15 @@ struct SinkCpuOPToReturnOpPattern : public RewritePattern {
       if (!isa<tpu::GenericCpuOp>(opd) && !isa<tpu::ReshapeOp>(opd)) {
         continue;
       }
+      if (hasMoreUser(opd)) {
+        continue;
+      }
       opd->moveBefore(insertPoint);
       insertPoint = opd;
     }
     return success();
   }
 };
-
-static bool hasMoreUser(Operation *op) {
-  int user = 0;
-  for (auto &use : op->getResult(0).getUses()) {
-    (void)use;
-    user++;
-  }
-  return (user > 1);
-}
 
 template<typename OpTy>
 struct MoveCpuOPToCloseUserPattern : public RewritePattern {
