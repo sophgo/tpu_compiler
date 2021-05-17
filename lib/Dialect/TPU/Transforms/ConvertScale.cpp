@@ -50,7 +50,7 @@ struct TpuRemoveScalePattern : public RewritePattern {
     TensorFile *wTF = getWeightTensorFile(op);
 
     Operation *formerOp = op->getOperand(0).getDefiningOp();
-    if (!formerOp->getResult(0).hasOneUse() || !op->getResult(0).hasOneUse()) {
+    if (!formerOp->getResult(0).hasOneUse()) {
       return failure();
     }
 
