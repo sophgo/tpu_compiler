@@ -331,6 +331,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
         input_data = np.random.rand(input_shape[0], input_shape[1],
@@ -374,6 +375,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
 
@@ -423,6 +425,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
 
@@ -457,6 +460,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
@@ -513,6 +517,7 @@ class ONNX_IR_TESTER(object):
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
@@ -557,6 +562,7 @@ class ONNX_IR_TESTER(object):
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
@@ -582,6 +588,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
@@ -645,6 +652,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
@@ -665,6 +673,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
@@ -752,6 +761,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
@@ -838,6 +848,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
@@ -869,6 +880,7 @@ class ONNX_IR_TESTER(object):
 
         # Create the model (ModelProto)
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
 
@@ -905,6 +917,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
         #only support positive input for lrn
@@ -1006,6 +1019,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
@@ -1039,6 +1053,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
@@ -1075,6 +1090,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
@@ -1118,6 +1134,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
@@ -1153,6 +1170,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
@@ -1179,6 +1197,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
 
@@ -1219,6 +1238,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         model_name = '{}.onnx'.format(test_case)
         onnx.save(model_def, model_name)
         input_data = np.random.randn(input_shape[0], input_shape[1],
@@ -1253,6 +1273,7 @@ class ONNX_IR_TESTER(object):
 
         # Create the model (ModelProto)
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
         # avoid divide 0
@@ -1296,6 +1317,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
         input_data = np.random.rand(input_shape[0], input_shape[1],
@@ -1336,6 +1358,7 @@ class ONNX_IR_TESTER(object):
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
@@ -1373,6 +1396,7 @@ class ONNX_IR_TESTER(object):
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
@@ -1441,6 +1465,7 @@ class ONNX_IR_TESTER(object):
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
@@ -1550,6 +1575,7 @@ class ONNX_IR_TESTER(object):
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
@@ -1558,7 +1584,7 @@ class ONNX_IR_TESTER(object):
     def test_Slice(self):
         _test_case = 'Slice'
         testbench_path = os.path.join(script_path,
-            "cvi_toolkit/test/onnx_ir_test/testbenchs/slice.yaml")
+            "./testbenchs/slice.yaml")
         with open(testbench_path, "r") as stream:
             testbenchs = yaml.load(stream)
             for _t in testbenchs:
@@ -1629,6 +1655,7 @@ class ONNX_IR_TESTER(object):
                     [output],
                 )
                 model_def = helper.make_model(graph_def, producer_name=test_case)
+                model_def.opset_import[0].version = 11
 
                 input_data = np.random.rand(input_shape[0], input_shape[1],
                                 input_shape[2], input_shape[3]).astype(np.float32)
@@ -1663,6 +1690,7 @@ class ONNX_IR_TESTER(object):
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
 
@@ -1698,6 +1726,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
 
         input_data = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
@@ -1758,6 +1787,7 @@ class ONNX_IR_TESTER(object):
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
         input_data = np.random.rand(input_shape[0], input_shape[1],
@@ -1808,6 +1838,7 @@ class ONNX_IR_TESTER(object):
                 [output],
             )
             model_def = helper.make_model(graph_def, producer_name=test_case)
+            model_def.opset_import[0].version = 11
             onnx.checker.check_model(model_def)
 
             input_data = np.random.rand(input_shape[0], input_shape[1],
@@ -1892,7 +1923,9 @@ class ONNX_IR_TESTER(object):
                     [output],
                 )
 
-                return helper.make_model(graph_def, producer_name=test_case)
+                model_def = helper.make_model(graph_def, producer_name=test_case)
+                model_def.opset_import[0].version = 11
+                return model_def
 
             def gen_inputs(self):
                 # random data
