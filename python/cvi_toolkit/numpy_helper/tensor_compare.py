@@ -13,8 +13,7 @@ def second(elem):
   return elem[1]
 
 def get_topk(a, k):
-  if (a.size < k):
-    return []
+  k = min(a.size, k)
   idx = np.argpartition(-a.ravel(),k)[:k]
   # return np.column_stack(np.unravel_index(idx, a.shape))
   topk = list(zip(idx, np.take(a, idx)))
@@ -101,7 +100,7 @@ class TensorCompare():
   def diff_details(self, d1, d2, verbose):
     details = {}
     if verbose > 1:
-      K = 5
+      K = 10
       tk1 = get_topk(d1, K)
       tk2 = get_topk(d2, K)
       details['top-k'] = (tk1, tk2)

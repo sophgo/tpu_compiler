@@ -90,14 +90,17 @@ def load_op_info(op_info_file):
   with open(op_info_file, mode='r') as mapfile:
     print("Using op_info file %s"%(op_info_file))
     reader = csv.reader(mapfile)
-    for rows in reader:
-      ordered_names.append(rows[0])
-      if (rows[2][:4] == "INT8"):
-        thresholds[rows[0]] = float(rows[3])
+    for row in reader:
+      name, optype, qtype, thres = row
+      ordered_names.append(name)
+      if qtype[:4] == "INT8":
+        thresholds[name] = float(thres)
+        if optype == 'tpu.argmax':
+          thresholds[name] = 127
       else:
-        thresholds[rows[0]] = 0.0
-      operations[rows[0]] = rows[1]
-      quant_types[rows[0]] = rows[2]
+        thresholds[name] = 0.0
+      operations[name] = optype
+      quant_types[name] = qtype
   return ordered_names, operations, quant_types, thresholds
 
 def dequantize(d1, threshold):
