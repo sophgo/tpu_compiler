@@ -5,3 +5,4 @@ install/
 regression/regression_out/*
 regression/cvimodel_release/*
 lib/Dialect/TPU/Backend/test/tmp/*
+mkldnn_lnx_1.0.2_cpu_gomp.tgz

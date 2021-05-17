@@ -20,10 +20,14 @@ export REGRESSION_PATH=$PROJECT_ROOT/regression
 # run path
 export PATH=$INSTALL_PATH/tpuc/bin:$PATH
 export PATH=$INSTALL_PATH/tpuc/python:$PATH
+export PATH=$INSTALL_PATH/tpuc/python/cvi_toolkit:$PATH
+export PATH=$INSTALL_PATH/tpuc/python/cvi_toolkit/tool:$PATH
+export PATH=$INSTALL_PATH/tpuc/python/cvi_toolkit/performance/performance_viewer:$PATH
 export PATH=$PROJECT_ROOT:$PATH
 export PATH=$PROJECT_ROOT/regression:$PATH
 export PATH=$PROJECT_ROOT/regression/generic:$PATH
 export PATH=$PROJECT_ROOT/build/llvm/bin:$PATH
+export PATH=$PROJECT_ROOT/python/cvi_toolkit/test/onnx_ir_test:$PATH
 
 export LD_LIBRARY_PATH=$INSTALL_PATH/tpuc/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$INSTALL_PATH/mkldnn/lib:$LD_LIBRARY_PATH

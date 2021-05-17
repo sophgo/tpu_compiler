@@ -177,8 +177,6 @@ mkdir -p $TPU_PYTHON_PATH
 
 # download and unzip mkldnn
 if [ ! -e $INSTALL_PATH/mkldnn ]; then
-  mkdir -p $BUILD_PATH/mkldnn
-  pushd $BUILD_PATH/mkldnn
   if [ ! -f mkldnn_lnx_1.0.2_cpu_gomp.tgz ]; then
     wget https://github.com/intel/mkl-dnn/releases/download/v1.0.2/mkldnn_lnx_1.0.2_cpu_gomp.tgz
   fi
@@ -186,7 +184,6 @@ if [ ! -e $INSTALL_PATH/mkldnn ]; then
   mkdir -p $INSTALL_PATH/mkldnn
   mv mkldnn_lnx_1.0.2_cpu_gomp/* $INSTALL_PATH/mkldnn
   rm -rf mkldnn_lnx_1.0.2_cpu_gomp
-  popd
 fi
 
 # build pybind11
@@ -268,6 +265,10 @@ cmake -G Ninja \
     -DLLVM_ENABLE_ASSERTIONS=ON \
     $PROJECT_ROOT
 cmake --build . --target install
+# TFLite flatbuffer Schema
+${INSTALL_PATH}/flatbuffers/bin/flatc \
+    -o $TPU_PYTHON_PATH --python \
+    $PROJECT_ROOT/python/tflite_schema/schema.fbs
 popd
 
 # build opencv
@@ -291,48 +292,6 @@ cmake -G Ninja \
     -DBUILD_opencv_photo=OFF \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/opencv
 cmake --build . --target install
-popd
-
-
-CVI_PY_TOOLKIT=$PROJECT_ROOT/python/cvi_toolkit
-# python package
-cp -ar $CVI_PY_TOOLKIT/ $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/*.py $TPU_PYTHON_PATH/
-
-# python script
-cp $CVI_PY_TOOLKIT/binary_helper/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/calibration/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/eval/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/inference/caffe/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/inference/mlir/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/inference/onnx/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/inference/tensorflow/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/inference/tflite_int8/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/inference/postprocess/*.py $TPU_PYTHON_PATH/
-cp $CVI_PY_TOOLKIT/tool/*.py $TPU_PYTHON_PATH/
-cp -ar $CVI_PY_TOOLKIT/test/onnx_ir_test/*.py $TPU_PYTHON_PATH/
-
-
-cp -ar $CVI_PY_TOOLKIT/retinaface/ $TPU_PYTHON_PATH/
-pushd $TPU_PYTHON_PATH/retinaface; make; popd
-cp -ar $TPU_PYTHON_PATH/retinaface/* $TPU_PYTHON_PATH/
-
-# Build rcnn cython
-pushd $TPU_PYTHON_PATH/rcnn/cython
-python3 setup.py build_ext --inplace
-python3 setup.py clean
-popd
-
-# TFLite flatbuffer Schema
-${INSTALL_PATH}/flatbuffers/bin/flatc \
-    -o $TPU_PYTHON_PATH --python \
-    $PROJECT_ROOT/python/tflite_schema/schema.fbs
-
-# calibration tool
-mkdir -p $BUILD_PATH/calibration
-pushd $BUILD_PATH/calibration
-cmake $CVI_PY_TOOLKIT/calibration && make
-cp calibration_math.so $INSTALL_PATH/tpuc/lib
 popd
 
 # build cmodel
@@ -365,20 +324,6 @@ rm -f $INSTALL_PATH/tpuc/regression_models.sh
 rm -f $INSTALL_PATH/tpuc/regression_models_e2e.sh
 rm -f $INSTALL_PATH/tpuc/regression_models_fused_preprocess.sh
 popd
-
-# build cvimath
-mkdir -p $BUILD_PATH/cvimath
-pushd $BUILD_PATH/cvimath
-cmake -G Ninja -DCHIP=BM1880v2 -DRUNTIME=CMODEL \
-    -DCMAKE_BUILD_TYPE=Release -DCMAKE_C_FLAGS_RELEASE=-O3 \
-    -DCMAKE_CXX_FLAGS_RELEASE=-O3 \
-    -DTPU_SDK_ROOT=$INSTALL_PATH/tpuc \
-    -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
-    $PROJECT_ROOT/externals/cvimath
-cmake --build . --target install
-#ctest --progress || true
-popd
-
 
 # build systemc (for profiling)
 # building has some issue, has to build in place for now

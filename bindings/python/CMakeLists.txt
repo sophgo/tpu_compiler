@@ -27,3 +27,4 @@ target_link_libraries(pymlir PRIVATE
 )
 install(TARGETS pymlir DESTINATION python)
 
+add_subdirectory(kld)

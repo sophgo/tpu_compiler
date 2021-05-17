@@ -68,6 +68,7 @@ add_subdirectory(include)
 add_subdirectory(lib)
 add_subdirectory(tools)
 add_subdirectory(bindings/python)
+add_subdirectory(python)
 
 install(FILES cvitek_envs.sh
   DESTINATION ../)
