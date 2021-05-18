@@ -115,7 +115,7 @@ class OnnxModelTransformTool(ModelTransformTool):
         no_list = [
             "Cast", "Shape", "Unsqueeze", "Gather", "Split", "Constant", "GRU",
             # remove layernorm's sub ops, or it will crash in onnxruntime.
-            "Div", "Sqrt", "Add", "ReduceMean", "Pow", "Sub", "Mul"
+            "Div", "Sqrt", "Add", "ReduceMean", "Pow", "Sub", "Mul", "LSTM"
         ]
 
         # tested commited #c3cea486d https://github.com/microsoft/onnxruntime.git

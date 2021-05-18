@@ -2086,6 +2086,8 @@ class OnnxConverter(BaseConverter):
             raise RuntimeError(
                 "GRU does not test the case of specify the sequence_lens.")
 
+        initial_h_name = ""
+        initial_h_op = None
         if num_input > 5 and len(onnx_node.inputs[5]) != 0:
             initial_h_name = onnx_node.inputs[5]
             init_op, _, tensor_type = self.getOperand(initial_h_name)
@@ -2106,9 +2108,12 @@ class OnnxConverter(BaseConverter):
 
             if tensor_type == TensorType.TENSOR:
                 initial_c_tensor = self.getTensor(initial_c_name)
-                initial_c_op = self.CVI.add_load_file_op(
-                    initial_c_name, initial_c_tensor.shape)
-                operands.append(initial_c_op)
+                if initial_c_name == initial_h_name:
+                    operands.append(initial_h_op)
+                else:
+                    initial_c_op = self.CVI.add_load_file_op(
+                        initial_c_name, initial_c_tensor.shape)
+                    operands.append(initial_c_op)
             else:
                 operands.append(init_op)
         else:
