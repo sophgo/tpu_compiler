@@ -2834,6 +2834,7 @@ class OnnxConverter(BaseConverter):
                     start = int(starts[0])
                     end = ends[0] if ends[0] < np.iinfo(
                         np.int64).max else len(tensor_data) - 1
+                    end = int(end)
                     output_data = tensor_data.take(
                         indices=range(start, end), axis=axis)
                 output_shape = list(output_data.shape)
