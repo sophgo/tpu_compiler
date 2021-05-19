@@ -1310,7 +1310,7 @@ run_calibration.py <model file> [option]
 
 -   【命令】
 
-> model_depoly.py [options\] <model_fp32_mlir> --cvimodel <out_cvimodel>
+> model_deploy.py [options\] <model_fp32_mlir> --cvimodel <out_cvimodel>
 
 -   【作用】
 
@@ -1335,6 +1335,8 @@ run_calibration.py <model file> [option]
   | --pixel_format \<format\>            | preprocess所接受的图片输入格式, 可选值为:<br/>  "RGB_PACKED", "BGR_PACKED", "RGB_PLANAR",<br/>"BGR_PLANAR", "YUV420_PLANAR", "GRAYSCALE"等值 |
   | --aligned_input \<bool\>             | preprocess所接受的输入图片是否为对齐格式, 默认值为false |
   | --dequant_outputs_to_fp32 \<bool\>   | 是否将模型的输出反量化为fp32格式, 默认值为true |
+  | --compress_weight \<bool\>           | 是否对权重进行压缩，默认值为true|
+  | --merge_weight                       | 与同一个工作目前中生成的模型共享权重，用于后续合并同一个模型依据不同batch或分辨率生成的cvimodel. 打开此选项时，需要将compress_weight设置为false|
   | --image \<image_file\>               | 用于验证精度的参考输入图片 |
   | --cvimodel \<out_cvimodel\>          | 输出的cvimodel名 |
 
@@ -1791,6 +1793,7 @@ typedef struct {
   uint64_t        paddr;
   CVI_MEM_TYPE_E  mem_type;
   float           qscale;
+  ...
 } CVI_TENSOR;
 ```
 
@@ -1885,7 +1888,7 @@ typedef enum {
 ```
 【描述】
 
-定义CVI_NN_GetConfig/CVI_NN_SetConfig接口获取或者设置模型配置的枚举类型:
+定义CVI_NN_SetConfig接口获取或者设置模型配置的枚举类型:
 
 |名称                       | 类型   |默认值  | 描述|
 |---|---|---|---|

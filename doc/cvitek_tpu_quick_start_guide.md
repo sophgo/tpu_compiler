@@ -1712,3 +1712,128 @@ model_deploy.py \
 - 生成带前处理的MLIR int8模型, 以及不包含前处理的输入 mobilenet_v2_resized_only_in_fp32.npz
 - 执行MLIR int8推理 与 MLIR fp32 推理结果的比较, 验证MLIR int8 带前处理模型的正确性
 - 生成带前处理的 cvimodel, 以及调用仿真器执行推理, 将结果与 MLIR int8 带前处理的模型的推理结果做比较
+
+
+<div STYLE="page-break-after: always;"></div>
+
+## 13 合并cvimodel模型文件
+对于同一个模型，可以依据输入的batch size以及分辨率(不同的h和w)分别生成独立的cvimodel文件。不过为了节省外存和运存，可以选择将这些相关的cvimodel文件合并为一个cvimodel文件，共享其权重部分。具体步骤如下：
+#### 步骤 1：
+请参考前述章节，新建workspace，通过model_transform.py将mobilenet_v2的caffemodel转换为mlir fp32模型:
+
+``` shell
+model_transform.py \
+  --model_type caffe \
+  --model_name mobilenet_v2 \
+  --model_def ../mobilenet_v2_deploy.prototxt \
+  --model_data ../mobilenet_v2.caffemodel \
+  --image ./cat.jpg \
+  --image_resize_dims 256,256 \
+  --keep_aspect_ratio false \
+  --net_input_dims 224,224 \
+  --raw_scale 255.0 \
+  --mean 103.94,115.78,123.68 \
+  --std 1.0,1.0,1.0 \
+  --input_scale 0.017 \
+  --model_channel_order "bgr" \
+  --gray false \
+  --batch_size 1 \
+  --tolerance 0.99,0.99,0.99 \
+  --excepts prob \
+  --mlir mobilenet_v2_fp32_bs1.mlir
+```
+通过run_calibration.py工具对mobilenet_v2_fp32.mlir进行量化校验获得calibration table文件`mobilenet_v2_calibration_table`.
+然后将模型量化并生成cvimodel：
+
+``` shell
+ # 权重压缩会导致生成的cvimodel中的权重文件产生差异，为了最大限度的共享权重，需要将`--compress_weight`选项关闭
+ model_deploy.py \
+  --model_name mobilenet_v2 \
+  --mlir mobilenet_v2_fp32_bs1.mlir \
+  --calibration_table mobilenet_v2_calibration_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.95,0.94,0.69 \
+  --correctness 0.99,0.99,0.99 \
+  --compress_weight false \
+  --cvimodel mobilenet_v2_bs1.cvimodel
+```
+
+#### 步骤 2：
+同步骤1，在同一个workspace中生成batch为4的mlir fp32文件:
+
+``` shell
+model_transform.py \
+  --model_type caffe \
+  --model_name mobilenet_v2 \
+  --model_def ../mobilenet_v2_deploy.prototxt \
+  --model_data ../mobilenet_v2.caffemodel \
+  --image ./cat.jpg \
+  --image_resize_dims 256,256 \
+  --keep_aspect_ratio false \
+  --net_input_dims 224,224 \
+  --raw_scale 255.0 \
+  --mean 103.94,115.78,123.68 \
+  --std 1.0,1.0,1.0 \
+  --input_scale 0.017 \
+  --model_channel_order "bgr" \
+  --gray false \
+  --batch_size 4 \
+  --tolerance 0.99,0.99,0.99 \
+  --excepts prob \
+  --mlir mobilenet_v2_fp32_bs4.mlir
+```
+使用`mobilenet_v2_calibration_table`文件将模型量化并生成cvimodel：
+
+``` shell
+ # 关闭--compress_weight选项的同时，打开--merge_weight选项
+ model_deploy.py \
+  --model_name mobilenet_v2 \
+  --mlir mobilenet_v2_fp32_bs1.mlir \
+  --calibration_table mobilenet_v2_calibration_table \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.95,0.94,0.69 \
+  --correctness 0.99,0.99,0.99 \
+  --compress_weight false \
+  --merge_weight \
+  --cvimodel mobilenet_v2_bs4.cvimodel
+```
+#### 步骤 3
+使用cvimodel_tool合并两个cvimodel文件:
+``` shell
+cvimodel_tool \
+  -a merge \
+     mobilenet_v2_bs1.cvimodel \
+     mobilenet_v2_bs4.cvimodel \
+  -o mobilenet_v2_bs1_bs4.cvimodel
+```
+#### 步骤 4
+在运行时可以通过命令：
+``` shell
+cvimodel -a dump -i mobilenet_v2_bs1_bs4.cvimodel
+```
+查看bs1和bs4指令的program id，在运行时可以透过如下方式去运行不同的batch指令：
+``` c++
+CVI_MODEL_HANDEL bs1_handle;
+CVI_RC ret = CVI_NN_RegisterModel("mobilenet_v2_bs1_bs4.cvimodel", &bs1_handle);
+assert(ret == CVI_RC_SUCCESS);
+CVI_NN_SetConfig(bs1_handle, OPTION_PROGRAM_INDEX, 0);
+CVI_NN_GetInputOutputTensors(bs_handle, ...);
+....
+
+
+CVI_MODEL_HANDLE bs4_handle;
+// 复用已加载的模型
+CVI_RC ret = CVI_NN_CloneModel(bs1_handle, &bs4_handle);
+assert(ret == CVI_RC_SUCCESS);
+// 选择bs4的指令
+CVI_NN_SetConfig(bs4_handle, OPTION_PROGRAM_INDEX, 1);
+CVI_NN_GetInputOutputTensors(bs_handle, ...);
+...
+
+// 最后销毁bs1_handle, bs4_handel
+CVI_NN_CleanupModel(bs1_handle);
+CVI_NN_CleanupModel(bs4_handle);
+
+```
