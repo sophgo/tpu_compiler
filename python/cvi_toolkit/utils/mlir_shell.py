@@ -60,8 +60,10 @@ def mlir_quant(fp32_model, quanted_model, chip_name, op_order_csv,
     return ret.returncode
 
 def mlir_add_preprocess(quanted_mlir, new_mlir, pixel_format, aligned_input=False):
-    cmd = ["tpuc-opt", "--add-tpu-preprocess",
-           "--pixel_format", pixel_format]
+    cmd = ["tpuc-opt",
+           "--add-tpu-preprocess",
+           "--pixel_format", pixel_format,
+           "--canonicalize"]
     if aligned_input:
         cmd.append("--input_aligned=true")
     cmd.extend([quanted_mlir, "-o", new_mlir])

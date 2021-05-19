@@ -1,4 +1,4 @@
-//===- ConvertConv2D.cpp - convert Conv2D----------------------------------===//
+//===- ConvertInterp.cpp - convert Conv2D----------------------------------===//
 //
 // Copyright 2019 The MLIR Authors.
 //

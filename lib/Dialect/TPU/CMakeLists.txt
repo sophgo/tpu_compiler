@@ -48,8 +48,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertPriorBoxToLoadWeight.cpp
   Transforms/ReorderOp.cpp
   Transforms/ConvertInterp.cpp
-  Transforms/ConvertConv2D.cpp
-  Transforms/ConvertConv3D.cpp
+  Transforms/ConvertSwapChannel.cpp
   Transforms/ConvertLrn.cpp
   Transforms/ConvertUpsample.cpp
   Transforms/ConvertTile.cpp

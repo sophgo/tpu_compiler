@@ -310,7 +310,6 @@ public:
         for (int i = 0; i < (int)use_op->getNumOperands(); i++) {
           if (use_op->getOperand(i) == inputOp.getResult()) {
             use_op->setOperand(i, currentOp);
-            llvm::errs() << "set operand\n";
           }
         }
       }

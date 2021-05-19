@@ -96,7 +96,6 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 
-  let hasCanonicalizer = 1;
 }
 
 class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
@@ -166,7 +165,6 @@ class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 
-  let hasCanonicalizer = 1;
 }
 
 class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
@@ -2742,7 +2740,9 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
+
 def TPU_TanHOp : TPU_LutOp<"tanh", "TanH">;
 
 class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
