@@ -21,6 +21,7 @@ export REGRESSION_PATH=$PROJECT_ROOT/regression
 export PATH=$INSTALL_PATH/tpuc/bin:$PATH
 export PATH=$INSTALL_PATH/tpuc/python:$PATH
 export PATH=$INSTALL_PATH/tpuc/python/cvi_toolkit:$PATH
+export PATH=$INSTALL_PATH/tpuc/python/cvi_toolkit/eval:$PATH
 export PATH=$INSTALL_PATH/tpuc/python/cvi_toolkit/tool:$PATH
 export PATH=$INSTALL_PATH/tpuc/python/cvi_toolkit/performance/performance_viewer:$PATH
 export PATH=$PROJECT_ROOT:$PATH
