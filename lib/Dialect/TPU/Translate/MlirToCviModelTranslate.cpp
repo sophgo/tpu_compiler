@@ -79,6 +79,22 @@ typedef struct {
   char padding[2];
 } CviModelHeader;
 
+static void getFnInputsOutputs(FuncOp &fn, std::vector<std::string> &inputs,
+                               std::vector<std::string> &outputs) {
+  fn.walk([&](Operation *op) {
+    if (isa<tpu::InputOp>(op)) {
+      auto opName = getOpName(op);
+      inputs.push_back(opName.str());
+    } else if (isa<ReturnOp>(op)) {
+      for (int i = 0; i < (int)op->getNumOperands(); i++) {
+        auto opd = op->getOperand(i).getDefiningOp();
+        auto opdName = getOpName(opd);
+        outputs.push_back(opdName.str());
+      }
+    }
+  });
+}
+
 static void getOpGroupInputsOutputs(std::vector<Operation *> &group,
                                     std::vector<std::string> &inputs,
                                     std::vector<std::string> &outputs) {
@@ -469,19 +485,11 @@ static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap,
 }
 
 void CviModelBuilder::parseModule() {
-  mainFunc_.walk([&](Operation *op) {
-    if (op->getName().getDialect()->getNamespace() != "tpu" || isa<tpu::InputOp>(op) ||
-        isa<tpu::WeightFileOp>(op) || isa<ReturnOp>(op)) {
-    } else {
-      ops_.push_back(op);
-    }
-  });
 
   std::map<std::string, float> qscaleMap;
   std::map<std::string, int> zpMap;
   loadQScaleTable(mainFunc_, qscaleMap, zpMap);
-
-  getOpGroupInputsOutputs(ops_, inputs_, outputs_);
+  getFnInputsOutputs(mainFunc_, inputs_, outputs_);
 
   mainFunc_.walk([&](Operation *op) {
     if (op->getName().getDialect()->getNamespace() != "tpu" || isa<tpu::NoneOp>(op) ||

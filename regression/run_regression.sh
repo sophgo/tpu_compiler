@@ -106,7 +106,7 @@ run_onnx_ir_test()
 {
   # IR test
   local err=0
-  onnx_ir_test.sh all_ir > onnx_all_ir\.log | true
+  onnx_ir_test.sh  > onnx_all_ir\.log | true
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
     echo "onnx all ir test FAILED" >> verdict.log
     return 1

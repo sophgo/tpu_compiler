@@ -49,6 +49,16 @@ def bf16_to_fp32(d_bf16):
     d_fp32[i] = struct.unpack('<f', struct.pack('<HH', 0, d_bf16[i]))[0]
   return d_fp32.reshape(s)
 
+def fp32_to_bf16(d_fp32):
+  s = d_fp32.shape
+  d_fp32 = d_fp32.flatten()
+  assert d_fp32.dtype == np.float32
+  d_bf16 = np.empty_like(d_fp32, dtype=np.uint16)
+  for i in range(len(d_bf16)):
+    bytes = struct.pack('f', d_fp32[i])
+    d_bf16[i] = struct.unpack('<H', struct.pack('BB', bytes[2], bytes[3]))[0]
+  return d_bf16.reshape(s)
+
 def align_type_and_shape(d1, d2):
   try:
     d2 = d2.reshape(d1.shape)

@@ -5,15 +5,18 @@ from cvi_toolkit.utils.mlir_shell import mlir_quant, \
      mlir_opt, mlir_to_cvimodel, run_cvimodel
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.numpy_helper import npz_compare
-from onnx import onnx, numpy_helper
+from cvi_toolkit.numpy_helper.npz_compare import fp32_to_bf16
+import onnx
 from onnx import helper
-from onnx import AttributeProto, TensorProto, GraphProto
+from onnx import TensorProto
 import yaml
 import onnxruntime
+import pyruntime
 import numpy as np
 import os
 import sys
 import gc
+import re
 
 script_path = os.path.dirname(os.path.abspath(__file__))
 
@@ -76,14 +79,32 @@ def _onnx_inference(input, model_name, input_name="input", input_cb=None):
         ort_inputs = input_cb(model_name, "onnx", input)
     else:
         ort_inputs = {input_name: input}
-
-    ort_outs = ort_session.run(None, ort_inputs)
-    return ort_outs[0]
+    outs = ort_session.run(None, ort_inputs)
+    ort_outputs = ort_session.get_outputs()
+    outputs = {}
+    idx = 0
+    for output in ort_outputs:
+        outputs[output.name] = outs[idx]
+        idx = idx + 1
+    return outputs
 
 def onnx_inference(input, model_def, model_name, input_cb = None):
     model = "{}.onnx".format(model_name)
     onnx.save(model_def, model)
     return _onnx_inference(input, model, input_cb=input_cb)
+
+def cvimodel_inference(input, model_name):
+    model = pyruntime.Model(model_name)
+    assert(model != None)
+    model_in = model.inputs[0].data
+    assert(model_in.dtype == input.dtype)
+    assert(model_in.size == input.size)
+    model_in[:] = input.reshape(model_in.shape)
+    model.forward()
+    outputs = {}
+    for output in model.outputs:
+        outputs[output.name] = np.array(output.data)
+    return outputs
 
 class ONNX_IR_TESTER(object):
     def __init__(self):
@@ -144,8 +165,9 @@ class ONNX_IR_TESTER(object):
         if callable(input_cb):
             batch_size = input_cb(model_name, "batch", input_data)
 
-        print(batch_size)
-        onnx_out = onnx_inference(input_data, model_def, model_name, input_cb)
+        onnx_outs = onnx_inference(input_data, model_def, model_name, input_cb)
+        num_outputs = len(onnx_outs)
+
          # opt
         fp32_opt_mlir = "{}_opt.mlir".format(model_name)
         fp32_csv = "{}_fp32.csv".format(model_name)
@@ -153,11 +175,20 @@ class ONNX_IR_TESTER(object):
         self.mlir_model = None
         self.mlir_model = MLIRModel()
         self.mlir_model.load_model(fp32_opt_mlir)
-        mlir_out = self.mlir_model.inference(input_data)
+        mlir_outs = self.mlir_model.inference(input_data)
         fp32_tensors = self.mlir_model.get_all_tensor()
-
         # Test output
-        np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
+        assert(len(mlir_outs) == num_outputs)
+        if num_outputs > 1:
+            patten = re.compile(r"_\w+?$")
+            for name in mlir_outs:
+                onnx_name = patten.sub("", name)
+                print("Compare mlir[{}] : onnx[{}]".format(name, onnx_name))
+                np.testing.assert_allclose(mlir_outs[name], onnx_outs[onnx_name], rtol=1e-5, atol=1e-01)
+        else:
+            mlir_out = mlir_outs.popitem()[1]
+            onnx_out = onnx_outs.popitem()[1]
+            np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
 
         mlir_npz = "{}_fp32.npz".format(model_name)
         np.savez(mlir_npz, **fp32_tensors)
@@ -186,9 +217,10 @@ class ONNX_IR_TESTER(object):
                 del self.mlir_model
                 self.mlir_model = MLIRModel()
                 self.mlir_model.load_model(quant_mlir)
-                mlir_int8_out = self.mlir_model.inference(input_data)
+                mlir_int8_outs = self.mlir_model.inference(input_data)
+                assert(len(mlir_int8_outs) == num_outputs)
                 int8_tensors = self.mlir_model.get_all_tensor()
-                ref_npz = "{}_tensor_all_int8.npz".format(model_name)
+                ref_npz = "{}_all_tensor_int8_mlir.npz".format(model_name)
                 np.savez(ref_npz, **int8_tensors)
                 npz_compare([ref_npz, mlir_npz,  "--tolerance",
                              "0.6,0.6,0.6", "--dequant", "--op_info", int8_csv])
@@ -199,18 +231,15 @@ class ONNX_IR_TESTER(object):
                 if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
                 # run cvi_model
-                input_file = "{}_input.npz".format(model_name)
-                output_tensor_npz = "{}_all_tensor.npz".format(model_name)
+                output_tensor_npz = "{}_all_tensor_int8_cvi.npz".format(model_name)
+                input_i8 = int8_tensors['input_quant_i8'].astype(np.int8)
 
-                if callable(input_cb):
-                    inputs = input_cb(model_name, "cvimodel", tensors)
-                else:
-                    inputs = {"input": tensors['input']}
-                np.savez(input_file, **inputs)
-
-                ret = run_cvimodel(
-                    input_file, cvimodel, output_tensor_npz, all_tensors=True)
-                if ret < 0: raise RuntimeError("run_cvimodel failed")
+                cvi_outs = cvimodel_inference(input_i8, cvimodel)
+                assert(len(cvi_outs) == num_outputs)
+                for name in cvi_outs:
+                    if name not in int8_tensors:
+                        raise RuntimeError("cvimodel output name not correct")
+                np.savez(output_tensor_npz, **cvi_outs)
                 npz_compare([output_tensor_npz, ref_npz,
                              "--tolerance", "0.99,0.99,0.9"])
 
@@ -237,9 +266,10 @@ class ONNX_IR_TESTER(object):
                 del self.mlir_model
                 self.mlir_model = MLIRModel()
                 self.mlir_model.load_model(quant_mlir)
-                mlir_bf16_out = self.mlir_model.inference(input_data)
+                mlir_bf16_outs = self.mlir_model.inference(input_data)
+                assert(len(mlir_bf16_outs) == num_outputs)
                 bf16_tensors = self.mlir_model.get_all_tensor()
-                ref_npz = "{}_tensor_all_bf16.npz".format(model_name)
+                ref_npz = "{}_all_tensor_bf16_mlir.npz".format(model_name)
                 np.savez(ref_npz, **bf16_tensors)
                 npz_compare([ref_npz, mlir_npz,  "--tolerance",
                              "0.8,0.8,0.8", "--dequant", "--op_info", bf16_csv])
@@ -250,19 +280,14 @@ class ONNX_IR_TESTER(object):
                 if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
                 # run cvi_model
-                input_file = "{}_input.npz".format(model_name)
-                output_tensor_npz = "{}_all_tensor.npz".format(model_name)
-
-                if callable(input_cb):
-                    inputs = input_cb(model_name, "cvimodel", tensors)
-                else:
-                    inputs = {"input": tensors['input']}
-
-                np.savez(input_file, **inputs)
-
-                ret = run_cvimodel(
-                    input_file, cvimodel, output_tensor_npz, all_tensors=True)
-                if ret < 0: raise RuntimeError("run_cvimodel failed")
+                output_tensor_npz = "{}_all_tensor_bf16_cvi.npz".format(model_name)
+                input_bf16 = fp32_to_bf16(tensors['input'])
+                cvi_outs = cvimodel_inference(input_bf16, cvimodel)
+                assert(len(cvi_outs) == num_outputs)
+                for name in cvi_outs:
+                    if name not in bf16_tensors:
+                        raise RuntimeError("cvimodel output name not correct")
+                np.savez(output_tensor_npz, **cvi_outs)
                 npz_compare([output_tensor_npz, ref_npz, "--op_info", bf16_csv, "--tolerance", "0.9,0.9,0.9", "-vv"])
 
         del self.mlir_model
@@ -281,15 +306,18 @@ class ONNX_IR_TESTER(object):
         self.converter.run()
         del self.converter
         gc.collect()
-        onnx_out = _onnx_inference(input_data, model_path, input_name, input_cb)
+        onnx_outs = _onnx_inference(input_data, model_path, input_name)
 
         self.mlir_model = MLIRModel()
         self.mlir_model.load_model(fp32_mlir)
-        mlir_out = self.mlir_model.inference(input_data)
+        mlir_outs = self.mlir_model.inference(input_data)
         # Test output
-        np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
-
-
+        assert(len(mlir_outs) == len(onnx_outs))
+        patten = re.compile(r"_\w+?$")
+        for name in mlir_outs:
+            onnx_name = patten.sub("", name)
+            print("Compare mlir[{}] : onnx[{}]".format(name, onnx_name))
+            np.testing.assert_allclose(mlir_outs[name], onnx_outs[onnx_name], rtol=1e-5, atol=1e-01)
 
         del self.mlir_model
 
