@@ -8,7 +8,7 @@ namespace mlir {
 GroupOptimizer::GroupOptimizer(NetGraph* net_graph, FuncOp * fn, MLIRContext * context)
     : net_graph_(net_graph),
       mix_net_(net_graph, fn, context),
-      fn_(fn), context_(context), slice_limit_(USE_FIT_H_SLICE) {}
+      fn_(fn), context_(context), slice_limit_(LG_FIT_SLICE_METHOD) {}
 
 GroupOptimizer::~GroupOptimizer() {
   for (auto groups: groups_v_){
@@ -34,7 +34,7 @@ uint64_t GroupOptimizer::cal_group_cost() {
                               << "[In tensor]: " << tensor->gmem_size() << " " << tensor->lmem_size()
                               << " n_c_h_w: " << tensor->n() << " " << tensor->c()
                               << " " << tensor->h() << " " << tensor->w()
-                              << "total cost: " << cost << "\n");
+                              << " total cost: " << cost << "\n");
     }
 
     std::vector<int> out_tensors = group->get_group_out_tensors();
@@ -46,7 +46,7 @@ uint64_t GroupOptimizer::cal_group_cost() {
                               << "[Out tensor]: " << tensor->gmem_size() << " " << tensor->lmem_size()
                               << " n_c_h_w: " << tensor->n() << " " << tensor->c()
                               << " " << tensor->h() << " " << tensor->w()
-                              << "total cost: " << cost << "\n");
+                              << " total cost: " << cost << "\n");
     }
 
     total_cost += cost;
@@ -85,62 +85,121 @@ void GroupOptimizer::set_slice_limit(int s) {
 void GroupOptimizer::layer_group() {
   std::vector<uint64_t> cost;
   // Try method 1
-  set_slice_limit(USE_FIT_H_SLICE);
-  do_group(groups_);
+  LLVM_DEBUG(llvm::errs()
+             << LOG_TAB_L0 << "[LAYER_GROUP] Try FIT_SLICE Method.\n");
+  set_slice_limit(LG_FIT_SLICE_METHOD);
+  do_group();
   cost_.push_back(cal_group_cost());
   groups_v_.push_back(groups_);
   groups_.clear();
   // Try method 2
-  set_slice_limit(USE_MAX_H_SLICE);
-  do_group(groups_);
+  LLVM_DEBUG(llvm::errs()
+             << LOG_TAB_L0 << "[LAYER_GROUP] Try MAX_SLICE Method.\n");
+  set_slice_limit(LG_MAX_SLICE_METHOD);
+  do_group();
   cost_.push_back(cal_group_cost());
   groups_v_.push_back(groups_);
   groups_.clear();
-
+  // choose method
+  LLVM_DEBUG(llvm::errs()
+             << LOG_TAB_L0 << "[LAYER_GROUP] Choose Method.\n");
   choose_best_group();
+}
+
+// first group with h slice,
+// then try to group the rest layer with w slice
+void GroupOptimizer::do_group() {
+  LLVM_DEBUG(llvm::errs()
+             << LOG_TAB_L1 << "[DO_GROUP] Try Slice H Dim.\n");
+  do_group_with_h_slice();
+  LLVM_DEBUG(llvm::errs()
+             << LOG_TAB_L1 << "[DO_GROUP] Try Slice W Dim.\n");
+  do_group_with_w_slice();
+}
+
+bool GroupOptimizer::isGroupFusible(Group * group) {
+  assert(group);
+  if (group->size() > 1)
+    return false;
+  assert(group->size() == 1);
+  const std::vector<int> layers = group->layers();
+  const ImLayer * layer = net_graph_->get_layer_by_id(layers[0]);
+  if (layer->fusible == false)
+    return false;
+
+  return true;
+}
+
+// after group with h slice method,
+// try to group rest layer with w slice method
+void GroupOptimizer::do_group_with_w_slice() {
+  std::vector<Group *> groups;
+  for(auto group: groups_) {
+    groups.push_back(group);
+  }
+  groups_.clear();
+
+  Group * sub_group = new Group(net_graph_);
+
+  for (auto group : groups) {
+    if (isGroupFusible(group)) {
+      const std::vector<int> layers = group->layers();
+      sub_group->append(layers[0]);
+    } else {
+      if (!sub_group->empty()) {
+        const std::vector<int> layers = sub_group->layers();
+        sub_group->set_slice_dim(LG_Slice_Dim_W);
+        add_valid_group(sub_group);
+        delete sub_group;
+        sub_group = new Group(net_graph_);
+      }
+
+      // group cannot fuse, just copy
+      groups_.push_back(group);
+    }
+  }
 }
 
 // This function is used to group all layers. In a group, the top layer can directly
 // use the results of the bottom layer without going through the store/load process,
 // which reduces GDMA operations.
-void GroupOptimizer::do_group(std::vector<Group*>& Groups) {
-  Group* rough = new Group(net_graph_);
+void GroupOptimizer::do_group_with_h_slice() {
+  Group* sub_group = new Group(net_graph_);
 
   for (auto layer = ImLayer::layers.begin(); layer != ImLayer::layers.end(); ++layer) {
     int id = (*layer)->id();
-
     if (!(*layer)->fusible) {
       // let these layers to be a single layer group.
-      if (!rough->empty()) {
-        add_valid_custers(Groups, rough);
-        delete rough;
-        rough = new Group(net_graph_);
+      if (!sub_group->empty()) {
+        add_valid_group(sub_group);
+        delete sub_group;
+        sub_group = new Group(net_graph_);
       }
 
-      rough->append(id);
-      add_valid_custers(Groups, rough);
-      delete rough;
-      rough = new Group(net_graph_);
+      sub_group->append(id);
+      add_valid_group(sub_group);
+      delete sub_group;
+      sub_group = new Group(net_graph_);
     } else {
-      rough->append(id);
+      sub_group->append(id);
     }
   }
 
-  if (!rough->empty()) {
-    add_valid_custers(Groups, rough);
+  if (!sub_group->empty()) {
+    add_valid_group(sub_group);
   }
 
-  for (auto Group : groups_) {
-    Group->clear_temp_data();
+  for (auto group : groups_) {
+    group->clear_temp_data();
   }
 
-  delete rough;
+  delete sub_group;
 }
 
 // This fucntion does two things:
 //   1. Use the binary search to group all layers;
 //   2. Adjust the position before and after grouping to minimize global memory.
-void GroupOptimizer::add_valid_custers(std::vector<Group*>& groups, Group* target) {
+void GroupOptimizer::add_valid_group(Group* target) {
   int num = target->size();
   int start = 0;
   const int end = num - 1;
@@ -163,6 +222,7 @@ void GroupOptimizer::add_valid_custers(std::vector<Group*>& groups, Group* targe
         std::make_shared<Group>(net_graph_, target->begin() + start, target->begin() + cut + 1);
 
     group->set_slice_limit((int)slice_limit_);
+    group->set_slice_dim(target->get_slice_dim());
     if (group->check_valid()) {
       valid = cut;
       left = cut;
@@ -179,7 +239,8 @@ void GroupOptimizer::add_valid_custers(std::vector<Group*>& groups, Group* targe
   for (int i = 0; i < static_cast<int>(cut_points.size()); i++) {
     int end = cut_points[i];
     auto* group = new Group(net_graph_, target->begin() + start, target->begin() + end + 1);
-    groups.push_back(group);
+    group->set_slice_dim(target->get_slice_dim());
+    groups_.push_back(group);
     start = end + 1;
   }
 }
@@ -208,6 +269,8 @@ std::vector<int> GroupOptimizer::optimize_cut_points(Group* target, const std::v
       Group* group = new Group(net_graph_, target->begin() + solution[moving_idx] + 1,
                                  target->begin() + solution[moving_idx + 1] + 1);
 
+      group->set_slice_limit((int)slice_limit_);
+      group->set_slice_dim(target->get_slice_dim());
       if (!group->check_valid()) {
         delete group;
         break;

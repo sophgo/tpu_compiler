@@ -19,18 +19,18 @@ class Group {
  public:
   explicit Group(NetGraph *net_graph) : time_step(nullptr),
               net_graph_(net_graph), layers_(), lowered_(false),
-              slice_limit_(USE_FIT_H_SLICE),
+              slice_limit_(LG_FIT_SLICE_METHOD),
               slice_dim_(LG_Slice_Dim_H) {}
 
   Group(NetGraph *net_graph, std::vector<int> layers)
       : time_step(nullptr), net_graph_(net_graph), layers_(layers),
-        lowered_(false), slice_limit_(USE_FIT_H_SLICE),
+        lowered_(false), slice_limit_(LG_FIT_SLICE_METHOD),
         slice_dim_(LG_Slice_Dim_H) {}
 
   Group(NetGraph *net_graph, std::vector<int>::iterator begin,
         std::vector<int>::iterator end)
       : time_step(nullptr), net_graph_(net_graph), layers_(),
-        lowered_(false), slice_limit_(USE_FIT_H_SLICE),
+        lowered_(false), slice_limit_(LG_FIT_SLICE_METHOD),
         slice_dim_(LG_Slice_Dim_H) {
     layers_.assign(begin, end);
   }

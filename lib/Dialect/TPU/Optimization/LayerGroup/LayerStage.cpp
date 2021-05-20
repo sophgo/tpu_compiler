@@ -489,7 +489,7 @@ bmerr_t net_timestep::get_min_secs(bool b_hold_coeff, float &min_secs) {
     int mem_require = cur_mem_size - cur_coeff_size;
     float min_secs_tmp = (float)(mem_require) / mem_left;
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
-                            << "[Find_Min_NH_Slice]Step: " << i
+                            << "[Find_Min_Slice]Step: " << i
                             << " mem_size: " << cur_mem_size
                             << " coeff_mem_size: " << cur_coeff_size
                             << " mem require size: " << mem_require
@@ -498,7 +498,7 @@ bmerr_t net_timestep::get_min_secs(bool b_hold_coeff, float &min_secs) {
                             << "\n";);
     if (min_secs_tmp < 0.0) {
       LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-                              << "[Find_Min_NH_Slice] slice data in h dimension failed "
+                              << "[Find_Min_Slice] slice data in h dimension failed "
                               << "\n";);
       return BM_ERR_FAILURE;
     }

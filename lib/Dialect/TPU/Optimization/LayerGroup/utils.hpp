@@ -65,8 +65,8 @@ static inline int ceiling_func(int numerator, int denominator) {
 #define SMALL_TDMA_SIZE (10*1024*1024)
 // layer group strategy
 typedef enum {
-  USE_FIT_H_SLICE = 0,
-  USE_MAX_H_SLICE = 1,
+  LG_FIT_SLICE_METHOD = 0,
+  LG_MAX_SLICE_METHOD = 1,
   LG_MAX_H_SLICE
 }LG_Slice_Limit;
 

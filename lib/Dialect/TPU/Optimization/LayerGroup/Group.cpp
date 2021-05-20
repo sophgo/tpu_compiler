@@ -105,6 +105,10 @@ std::set<int> Group::get_group_in_neuron_tensors() {
 }
 
 void Group::show_group_layers() {
+  if (slice_dim_ == LG_Slice_Dim_H)
+    LLVM_DEBUG(llvm::errs() << "(Sclie H Dim)");
+  else
+    LLVM_DEBUG(llvm::errs() << "(Sclie W Dim)");
   for (int i = 0; i < (int)layers_.size(); i++)
     LLVM_DEBUG(llvm::errs() << " " << layers_[i];);
   LLVM_DEBUG(llvm::errs() << "\n";);
@@ -114,27 +118,25 @@ void Group::show_group_layers() {
 // strategy according to the time step.
 bmerr_t Group::assign_steps() {
   bmerr_t status = BM_SUCCESS;
-  LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] Begin: ";);
-  show_group_layers();
+
+  if (layers_.size() == 1) {
+    return BM_SUCCESS;
+  }
 
   // check layer pattern we do not support
   status = check_if_pattern_support();
   if (BM_ERR_FAILURE == status) {
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-                          << "[Find_Fit_NH_Slice] Failed with pattern not support\n";);
+                          << "[Find_Fit_Slice] Failed with pattern not support\n";);
     return status;
   }
 
   // check if we can slice layers
   status = check_if_can_slice_group();
   if (BM_ERR_FAILURE == status) {
-    LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] End with Failed: ";);
-    show_group_layers();
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L2 << "[Check Group] Failed with slice group.\n";);
     return status;
   }
-
-  LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] End with Valid: ";);
-  show_group_layers();
 
   return status;
 }
@@ -148,17 +150,18 @@ LG_Slice_Dim Group::get_slice_dim() {
 }
 
 bool Group::check_valid() {
-  set_slice_dim(LG_Slice_Dim_H);
+  LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] Begin: ";);
+  show_group_layers();
+
   if(assign_steps() == BM_SUCCESS) {
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] End with Valid: ";);
+    show_group_layers();
     return true;
+  } else {
+    LLVM_DEBUG(llvm::errs() << LOG_TAB_L1 << "[Check Group] End with Failed: ";);
+    show_group_layers();
+    return false;
   }
-
-  // set_slice_dim(LG_Slice_Dim_W);
-  // if(assign_steps() == BM_SUCCESS) {
-  //   return true;
-  // }
-
-  return false;
 }
 
 bool Group::check_if_can_slice_group(){
@@ -166,10 +169,6 @@ bool Group::check_if_can_slice_group(){
   // assgin timestep
   time_step = new net_timestep(net_graph_);
   GroupSteps::timestep_assgin(net_graph_, this, time_step);
-
-  if (layers_.size() == 1) {
-    return BM_SUCCESS;
-  }
 
   // try to slice group
   group_slice_ = {1, 1};
@@ -183,10 +182,14 @@ bool Group::check_if_can_slice_group(){
   }
 
   LLVM_DEBUG(llvm::errs() << LOG_TAB_L2
-                          << "[Find_Fit_NH_Slice] Begin\n";);
+                          << "[Find_Fit_Slice] Begin, ";);
+  if (slice_dim_ == LG_Slice_Dim_H)
+    LLVM_DEBUG(llvm::errs() << "Slice H Dim\n";);
+  else
+    LLVM_DEBUG(llvm::errs() << "Slice W Dim\n";);
   while (group_slice_.first <= max_n_slice && group_slice_.second <= max_hw_slice) {
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
-                            << "[Find_Fit_NH_Slice] check n_slice and h_slice: ("
+                            << "[Find_Fit_Slice] check slice: ("
                             << group_slice_.first << "/" << max_n_slice
                             << ", " << group_slice_.second << "/" << max_hw_slice << ")\n";);
     reset_tensor_hwslice_max();
@@ -198,7 +201,7 @@ bool Group::check_if_can_slice_group(){
                                       group_slice_.second, 0, slice_idx);
         if (status == BM_ERR_FAILURE) {
           LLVM_DEBUG(llvm::errs() << LOG_TAB_L3
-                                  << "[Find_Fit_NH_Slice] End with failed: Update tensor slice failed\n";);
+                                  << "[Find_Fit_Slice] End with failed: Update tensor slice failed\n";);
           return BM_ERR_FAILURE;
         }
       }
@@ -237,7 +240,7 @@ void Group::set_slice_limit(int s) {
 
 int Group::get_max_secs() {
   int max_slice = 32;
-  if (slice_limit_ == USE_FIT_H_SLICE) {
+  if (slice_limit_ == LG_FIT_SLICE_METHOD) {
     int any_layer = layers_[0];
     int any_tensor = net_graph_->get_in_tensors_of_layer(any_layer)[0];
     // the temporary code for the large input tensor, such as yolo-608
@@ -260,7 +263,7 @@ int Group::get_max_secs() {
     } else {
       max_slice = 8;
     }
-  } else if (slice_limit_ == USE_MAX_H_SLICE) {
+  } else if (slice_limit_ == LG_MAX_SLICE_METHOD) {
     max_slice = 1024;
   }
 
@@ -971,9 +974,12 @@ void Group::print(std::ostream& pOs) const {
     pOs << im_layer->type_name() << "(" << im_layer->name() << "), ";
   }
   pOs << "\n";
-  time_step->show_timestep(pOs);
-  time_step->show_mem_buffer(pOs);
-  time_step->show_tsm_buffer(pOs);
+  if (layers_.size() > 1) {
+    time_step->show_timestep(pOs);
+    time_step->show_mem_buffer(pOs);
+    time_step->show_tsm_buffer(pOs);
+  }
+
 }
 
 void Group::clear_temp_data() {

@@ -29,9 +29,11 @@ class GroupOptimizer {
   LG_Slice_Limit slice_limit_;
   std::vector<uint64_t> cost_;
 
-  void do_group(std::vector<Group*>& groups);
-  void do_group_seso(std::vector<Group*>& groups);
-  void add_valid_custers(std::vector<Group*>& groups, Group* target);
+  void do_group();
+  void do_group_with_h_slice();
+  void do_group_with_w_slice();
+  bool isGroupFusible(Group * group);
+  void add_valid_group(Group* target);
   std::vector<int> optimize_cut_points(Group* target, const std::vector<int>& cut_points);
   int calc_group_out_tensors_size(Group* target, const std::vector<int>& cut_points);
   void set_input_output_tensor();
