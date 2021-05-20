@@ -16,6 +16,7 @@ from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.utils.mlir_shell import *
 from cvi_toolkit.utils.intermediate_file import IntermediateFile
+from cvi_toolkit.utils.mlir_parser import MlirParser
 
 logger = setup_logger('root', log_level="INFO")
 
@@ -236,6 +237,48 @@ def get_model_transform(args):
     return tool
 
 
+class Mlir2Graph:
+    def __init__(self, mlir):
+        self.parser = MlirParser(mlir)
+        self.to_graph(mlir + ".pb")
+
+    def create_input_tvis(self):
+        ops = self.parser.get_all_ops()
+        tvis = []
+        for op in ops:
+            if op.type == 'tpu.input':
+                tvi = onnx.helper.make_tensor_value_info(
+                            op.name, onnx.TensorProto.FLOAT, op.shape)
+                tvis.append(tvi)
+        return tvis
+
+    def create_output_tvis(self):
+        ops = self.parser.get_all_ops()
+        outputs = set(self.parser.get_output_op_names())
+        tvis = []
+        for op in ops:
+            if op.name in outputs:
+                tvi = onnx.helper.make_tensor_value_info(
+                            op.name, onnx.TensorProto.FLOAT, op.shape)
+                tvis.append(tvi)
+        return tvis
+
+    def to_graph(self, graph):
+        inputs = self.create_input_tvis()
+        outputs = self.create_output_tvis()
+        nodes = []
+        for op in self.parser.get_all_ops():
+            if op.type == "tpu.input":
+                continue
+            node = onnx.helper.make_node(
+                op.type, op.opds, [op.name], shape=op.shape, **op.attrs)
+            nodes.append(node)
+
+        graph_def = onnx.helper.make_graph(nodes, 'mlir', inputs, outputs)
+        model_def = onnx.helper.make_model(graph_def, producer_name="cvitek")
+        onnx.save(model_def, graph)
+
+
 if __name__ == '__main__':
     declare_toolchain_version()
     parser = argparse.ArgumentParser()
@@ -249,10 +292,13 @@ if __name__ == '__main__':
                         help="minimum similarity tolerance to model transform")
     parser.add_argument("--excepts", default='-', help="excepts")
     parser.add_argument("--mlir", required=True, help="output mlir model file")
+    parser.add_argument("--graph", action='store_true', help="generate graph to pb file")
     parser = get_preprocess_parser(existed_parser=parser)
     args = parser.parse_args()
 
     tool = get_model_transform(args)
     tool.model_transform(args.mlir)
     tool.model_validate(args.image, args.tolerance, args.excepts)
+    if args.graph:
+        Mlir2Graph(args.mlir)
     tool.cleanup()

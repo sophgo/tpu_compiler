@@ -32,6 +32,7 @@ model_transform.py \
   --batch_size $BATCH_SIZE \
   --tolerance ${TOLERANCE_FP32} \
   --excepts ${EXCEPTS} \
+  --graph \
   --mlir ${NET}_fp32.mlir
 
 if [ $DO_QUANT_INT8 -eq 1 ]; then

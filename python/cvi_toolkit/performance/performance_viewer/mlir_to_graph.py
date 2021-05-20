@@ -38,7 +38,7 @@ def to_onnx(parser, onnx_file):
         if op.type == "tpu.input":
             continue
         node = helper.make_node(
-            op.type, op.opds, [op.name])
+            op.type, op.opds, [op.name], shape=op.shape, **op.attrs)
         nodes.append(node)
 
     graph_def = helper.make_graph(nodes, 'mlir', inputs, outputs)

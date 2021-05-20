@@ -9,6 +9,7 @@ class Operation:
         self.loc = Operation.loc(op)
         self.shape = Operation.shape(op)
         self.opds = Operation.operands(op, body, idx)
+        self.attrs = Operation.attrs(op)
 
     def __str__(self):
         return self.name + "," + self.type + "," + self.loc + "," + str(self.shape) + "," + str(self.opds)
@@ -20,6 +21,16 @@ class Operation:
     @staticmethod
     def type(op):
         return op.operation.name
+
+    @staticmethod
+    def attrs(op):
+        arr_map = {}
+        for i in range(len(op.attributes)):
+            attr = op.attributes[i]
+            k, v = str(attr.name), str(attr.attr)
+            if k != 'name':
+                arr_map[k] = v
+        return arr_map
 
     @staticmethod
     def loc(op):
