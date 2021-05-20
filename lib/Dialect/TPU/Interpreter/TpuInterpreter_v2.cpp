@@ -657,4 +657,24 @@ void ModuleInterpreter::allocate_tensors() {
   }
 };
 
+std::vector<std::shared_ptr<std::vector<float>>>
+getOperandTensors(Operation *op, const value_map_t &valueMapping) {
+  std::vector<std::shared_ptr<std::vector<float>>> opdT;
+  for (auto operand : op->getOperands()) {
+    if (isTensorNone(operand)) {
+      opdT.push_back(nullptr);
+      continue;
+    }
+    auto it = valueMapping.find(operand);
+    if(it == valueMapping.end()){
+      llvm::errs() << "not find: " << operand.getDefiningOp()->getName() << "\n";
+      llvm_unreachable("value mapping false");
+    };
+    opdT.push_back(it->second);
+  }
+  return opdT;
+}
+
+std::string ModuleInterpreter::customOpPluginFile_ = "";
+
 } // namespace mlir

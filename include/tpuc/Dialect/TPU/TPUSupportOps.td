@@ -31,7 +31,6 @@ include "tpuc/Dialect/TPU/TPUBase.td"
 def TPU_QuantOp: TPU_Op<"quant",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Quantization/Dequantization operator";
 
@@ -68,7 +67,6 @@ def TPU_QuantOp: TPU_Op<"quant",
 def TPU_ReQuantOp: TPU_Op<"requant",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Requantization operator";
 
@@ -100,7 +98,6 @@ def TPU_ReQuantOp: TPU_Op<"requant",
 
 def TPU_ReshapeOp: TPU_Op<"reshape",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -127,7 +124,6 @@ def TPU_ReshapeOp: TPU_Op<"reshape",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : to return previous Op`s quant info
       No `TpuOpLowerInterface`  : no lower
       `TpuTGOpCodegenInterface` : to return previous Op`s gaddr

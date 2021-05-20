@@ -32,7 +32,6 @@ include "tpuc/Dialect/TPU/TPUAttribute.td"
 class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = opSummary # " operator";
@@ -75,7 +74,6 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `TPU_QuantSupportPerChannel`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -101,7 +99,6 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = opSummary # " operator";
@@ -144,7 +141,6 @@ class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `TPU_QuantSupportPerChannel`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -170,7 +166,6 @@ class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "eltwise " # opSummary # " operator";
@@ -205,7 +200,6 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -235,7 +229,6 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
 class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
@@ -269,7 +262,6 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -297,7 +289,6 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
 def TPU_AbsOp: TPU_Op<"abs",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Abs operator";
@@ -324,7 +315,6 @@ def TPU_AbsOp: TPU_Op<"abs",
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -341,7 +331,6 @@ def TPU_AbsOp: TPU_Op<"abs",
 
 def TPU_ArgMaxOp: TPU_Op<"argmax",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
@@ -375,8 +364,7 @@ def TPU_ArgMaxOp: TPU_Op<"argmax",
 
 def TPU_BatchNormOp: TPU_Op<"batch_norm",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
   let summary = "BatchNorm operator";
 
   let description = [{
@@ -403,7 +391,6 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       No `TpuOpQuantInterface`  : convert to ScaleOp befor quant
       NO `TpuOpLowerInterface`  : convert to ScaleOp befor quant
   }];
@@ -427,7 +414,6 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
 class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Broadcast " # opSummary # " operator";
@@ -457,7 +443,6 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `TPU_QuantSupportPerChannel`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -485,7 +470,6 @@ def TPU_BroadcastMulOp : TPU_BroadcastOp<"broadcast_mul", "Mul">;
 def TPU_ConcatOp: TPU_Op<"concat",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Concat operator";
@@ -518,7 +502,6 @@ def TPU_ConcatOp: TPU_Op<"concat",
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -570,7 +553,6 @@ def TPU_Conv3DOp : TPU_Conv3dOp<"conv_3d", "Convolution">;
 
 def TPU_CropOp: TPU_Op<"crop",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
@@ -599,7 +581,6 @@ def TPU_CropOp: TPU_Op<"crop",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -618,7 +599,6 @@ def TPU_CropOp: TPU_Op<"crop",
 
 def TPU_CscOp: TPU_Op<"csc",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
@@ -653,8 +633,7 @@ def TPU_DeConv2DOp : TPU_ConvOp<"deconv_2d", "Deconvolution">;
 
 def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
   let summary = "DetectionOutput operator";
 
   let description = [{
@@ -682,7 +661,6 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
       `TPU_QuantSupportPerChannel`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -707,7 +685,6 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
 def TPU_DilateOp: TPU_Op<"dilate",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Dilate operator";
@@ -731,7 +708,6 @@ def TPU_DilateOp: TPU_Op<"dilate",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -757,7 +733,6 @@ def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
 def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Fully connected operator";
@@ -788,7 +763,6 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
       `TPU_QuantSupportPerChannel`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -814,8 +788,7 @@ def TPU_ExpOp : TPU_LutOp<"exp", "Exp">;
 
 def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
   let summary = "Faster rcnn detection operator";
 
   let description = [{
@@ -837,7 +810,6 @@ def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
   }];
 
 
@@ -857,7 +829,6 @@ def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
 def TPU_GruOp: TPU_Op<"gru",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "GRU operator";
@@ -881,7 +852,6 @@ def TPU_GruOp: TPU_Op<"gru",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -908,7 +878,6 @@ def TPU_GruOp: TPU_Op<"gru",
 def TPU_InputOp: TPU_Op<"input",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
   let summary = "Input operator";
 
@@ -940,7 +909,6 @@ def TPU_InputOp: TPU_Op<"input",
 def TPU_InterpOp: TPU_Op<"interp",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Interp operator";
@@ -977,7 +945,6 @@ def TPU_InterpOp: TPU_Op<"interp",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1008,7 +975,6 @@ def TPU_InstanceNormOp: TPU_Op<"instance_norm",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "InstanceNorm operator";
 
@@ -1033,7 +999,6 @@ def TPU_InstanceNormOp: TPU_Op<"instance_norm",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
   }];
 
@@ -1053,7 +1018,6 @@ def TPU_InstanceNormOp: TPU_Op<"instance_norm",
 def TPU_LayerNormOp: TPU_Op<"layer_norm",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Layer Normalize operator";
@@ -1081,7 +1045,6 @@ def TPU_LayerNormOp: TPU_Op<"layer_norm",
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1105,7 +1068,6 @@ def TPU_LayerNormOp: TPU_Op<"layer_norm",
 def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Leaky Relu operator";
@@ -1147,7 +1109,6 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1174,7 +1135,6 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
 class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
      DeclareOpInterfaceMethods<TpuOpQuantInterface>]>  {
 
   let summary = opSummary # " operator";
@@ -1220,7 +1180,6 @@ def TPU_LrnThreeOp : TPU_LrnPartOp<"lrn_three", "lrn part three, for middle data
 def TPU_LrnOp: TPU_Op<"lrn",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
      DeclareOpInterfaceMethods<TpuOpQuantInterface>,
      DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
 
@@ -1258,7 +1217,6 @@ def TPU_LrnOp: TPU_Op<"lrn",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1289,7 +1247,6 @@ def TPU_LrnOp: TPU_Op<"lrn",
 def TPU_LstmOp: TPU_Op<"lstm",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "LSTM operator for onnx";
@@ -1314,7 +1271,6 @@ def TPU_LstmOp: TPU_Op<"lstm",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1341,7 +1297,6 @@ def TPU_LstmOp: TPU_Op<"lstm",
 def TPU_MatMulOp : TPU_Op<"matmul",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Matrix multiply operator";
@@ -1364,7 +1319,6 @@ def TPU_MatMulOp : TPU_Op<"matmul",
       `TPU_QuantSupportPerChannel`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1391,8 +1345,7 @@ def TPU_MatMulOp : TPU_Op<"matmul",
 
 def TPU_NormalizeOp: TPU_Op<"normalize",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
   let summary = "Normalize operator";
 
   let description = [{
@@ -1415,7 +1368,6 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       No `TpuOpQuantInterface`  : convert to ScaleOp befor quant
       NO `TpuOpLowerInterface`  : convert to ScaleOp befor quant
   }];
@@ -1463,7 +1415,6 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1487,7 +1438,6 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
 def TPU_PermuteOp: TPU_Op<"permute",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
 
@@ -1512,7 +1462,6 @@ def TPU_PermuteOp: TPU_Op<"permute",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1536,7 +1485,6 @@ def TPU_PermuteOp: TPU_Op<"permute",
 def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
 
@@ -1560,7 +1508,6 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1580,7 +1527,6 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
 def TPU_ClipOp: TPU_Op<"clip",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
 
@@ -1604,7 +1550,6 @@ def TPU_ClipOp: TPU_Op<"clip",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1628,7 +1573,6 @@ def TPU_ClipOp: TPU_Op<"clip",
 def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "average pool_2d operator";
@@ -1661,7 +1605,6 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1684,7 +1627,6 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
 def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "max pool_2d operator";
@@ -1712,7 +1654,6 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1731,7 +1672,6 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
 def TPU_PoolMax3DOp : TPU_Op<"pool_max_3d",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "max pool_3d operator";
@@ -1759,7 +1699,6 @@ def TPU_PoolMax3DOp : TPU_Op<"pool_max_3d",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1778,7 +1717,6 @@ def TPU_PoolMax3DOp : TPU_Op<"pool_max_3d",
 def TPU_CustomOp : TPU_Op<"custom_op",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
   let summary = "generic customer cpu operator";
 
@@ -1819,7 +1757,6 @@ def TPU_CustomOp : TPU_Op<"custom_op",
 
 def TPU_PowerOp: TPU_Op<"power",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
@@ -1849,7 +1786,6 @@ def TPU_PowerOp: TPU_Op<"power",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower
   }];
@@ -1871,7 +1807,6 @@ def TPU_PowerOp: TPU_Op<"power",
 def TPU_PReluOp : TPU_Op<"prelu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "prelu operator";
@@ -1913,7 +1848,6 @@ def TPU_PReluOp : TPU_Op<"prelu",
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -1939,8 +1873,7 @@ def TPU_PReluOp : TPU_Op<"prelu",
 
 def TPU_PriorBoxOp: TPU_Op<"priorbox",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
 
   let summary = "Priorbox operator";
 
@@ -1971,7 +1904,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
   }];
 
   let arguments = (
@@ -1999,7 +1931,6 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
 
 def TPU_ProposalOp: TPU_Op<"proposal",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
   let summary = "Proposal operator";
 
@@ -2024,7 +1955,6 @@ def TPU_ProposalOp: TPU_Op<"proposal",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface`  : support common TPU Op interface
-      `TpuOpInterpInterface`  : support interperter
   }];
 
   let arguments = (
@@ -2048,7 +1978,6 @@ def TPU_ReciprocalOp : TPU_LutOp<"reciprocal", "Reciprocal">;
 def TPU_ReluOp: TPU_Op<"relu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Relu/Relu6 operator";
@@ -2077,7 +2006,6 @@ def TPU_ReluOp: TPU_Op<"relu",
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2098,7 +2026,6 @@ def TPU_ReluOp: TPU_Op<"relu",
 def TPU_ReorgOp : TPU_Op<"reorg",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
      DeclareOpInterfaceMethods<TpuOpQuantInterface>,
      DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
 
@@ -2126,7 +2053,6 @@ def TPU_ReorgOp : TPU_Op<"reorg",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2144,8 +2070,7 @@ def TPU_ReorgOp : TPU_Op<"reorg",
 
 def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
   let summary = "RetinaFaceDetection operator";
 
   let description = [{
@@ -2170,7 +2095,6 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
       `TPU_QuantSupportPerChannel`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
   }];
 
@@ -2189,7 +2113,6 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
 def TPU_ReverseOp: TPU_Op<"reverse",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
      DeclareOpInterfaceMethods<TpuOpQuantInterface>,
      DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
 
@@ -2217,7 +2140,6 @@ def TPU_ReverseOp: TPU_Op<"reverse",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2236,7 +2158,6 @@ def TPU_ReverseOp: TPU_Op<"reverse",
 def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
      DeclareOpInterfaceMethods<TpuOpQuantInterface>]>  {
 
   let summary = "ROIPooling operator";
@@ -2261,7 +2182,6 @@ def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
   }];
 
@@ -2280,8 +2200,7 @@ def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
 
 def TPU_ScaleOp: TPU_Op<"scale",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
   let summary = "Scale operator";
 
   let description = [{
@@ -2303,7 +2222,6 @@ def TPU_ScaleOp: TPU_Op<"scale",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       No `TpuOpQuantInterface`  : convert to DW conv befor quant
       NO `TpuOpLowerInterface`  : convert to DW conv befor quant
   }];
@@ -2324,7 +2242,6 @@ def TPU_ScaleOp: TPU_Op<"scale",
 
 def TPU_ScaleLutOp: TPU_Op<"scale_lut",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
@@ -2348,7 +2265,6 @@ def TPU_ScaleLutOp: TPU_Op<"scale_lut",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2395,7 +2311,6 @@ def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {
       `TPU_QuantPerTensorOnly`
       `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2419,7 +2334,6 @@ def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {
 def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
      DeclareOpInterfaceMethods<TpuOpQuantInterface>,
      DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
 
@@ -2447,7 +2361,6 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2467,7 +2380,6 @@ def TPU_SigmoidOp : TPU_LutOp<"sigmoid", "Sigmoid">;
 
 def TPU_SliceOp: TPU_Op<"slice",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
      DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
@@ -2499,7 +2411,6 @@ def TPU_SliceOp: TPU_Op<"slice",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower
   }];
@@ -2519,7 +2430,6 @@ def TPU_SliceOp: TPU_Op<"slice",
 def TPU_SoftmaxOp: TPU_Op<"softmax",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Softmax operator";
@@ -2545,7 +2455,6 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
                                of the next/prev Ops.
       No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
@@ -2569,7 +2478,6 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
 def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>]> {
   let summary = "SoftmaxCpu operator";
 
@@ -2594,7 +2502,6 @@ def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
                                of the next/prev Ops.
       No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
@@ -2616,7 +2523,6 @@ def TPU_SqrtOp : TPU_LutOp<"sqrt", "Sqrt">;
 def TPU_SquareOp: TPU_Op<"square",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Square operator";
@@ -2637,7 +2543,6 @@ def TPU_SquareOp: TPU_Op<"square",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
                                of the next/prev Ops.
       No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
@@ -2656,7 +2561,6 @@ def TPU_SquareOp: TPU_Op<"square",
 def TPU_QuadraticSumOp: TPU_Op<"quadratic_sum",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Sum of Squares operator";
@@ -2677,7 +2581,6 @@ def TPU_QuadraticSumOp: TPU_Op<"quadratic_sum",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
                                of the next/prev Ops.
       No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
@@ -2698,7 +2601,6 @@ def TPU_QuadraticSumOp: TPU_Op<"quadratic_sum",
 def TPU_SwapChannelOp: TPU_Op<"swap_channel",
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-     DeclareOpInterfaceMethods<TpuOpInterpInterface>,
      DeclareOpInterfaceMethods<TpuOpQuantInterface>,
      DeclareOpInterfaceMethods<TpuOpLowerInterface>]>  {
 
@@ -2726,7 +2628,6 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2748,7 +2649,6 @@ def TPU_TanHOp : TPU_LutOp<"tanh", "TanH">;
 class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Tile operator";
@@ -2791,7 +2691,6 @@ class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2817,7 +2716,6 @@ def TPU_TileInterpOp : TPU_TileComOp<"tile_interp", "interp">;
 def TPU_UpsampleOp: TPU_Op<"upsample",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Upsample operator";
@@ -2846,7 +2744,6 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2867,8 +2764,7 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
 
 def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>]> {
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
   let summary = "YoloDetection operator";
 
   let description = [{
@@ -2892,7 +2788,6 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
   }];
 
   let arguments = (
@@ -2917,7 +2812,6 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
 def TPU_PadOp: TPU_Op<"pad",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "Pad operator";
@@ -2942,7 +2836,6 @@ def TPU_PadOp: TPU_Op<"pad",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -2963,7 +2856,6 @@ def TPU_PadOp: TPU_Op<"pad",
 def TPU_PoolMaskOp: TPU_Op<"pool_mask",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "pooling mask operator";
@@ -2985,7 +2877,6 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -3004,7 +2895,6 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
 def TPU_ReduceL2Op: TPU_Op<"reduce_l2",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>
       ]> {
@@ -3032,7 +2922,6 @@ def TPU_ReduceL2Op: TPU_Op<"reduce_l2",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -3056,7 +2945,6 @@ def TPU_ReduceL2Op: TPU_Op<"reduce_l2",
 def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "ReduceMax operator";
@@ -3080,7 +2968,6 @@ def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -3104,7 +2991,6 @@ def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
 def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
   let summary = "ReduceMean operator";
@@ -3128,7 +3014,6 @@ def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
     Interfaces or Traits:
       `NoSideEffect`
       `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
   }];
@@ -3151,7 +3036,6 @@ def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
 
 def TPU_EmbeddingOp: TPU_Op<"embedding",
       [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpInterpInterface>,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
        DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {

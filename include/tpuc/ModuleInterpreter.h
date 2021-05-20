@@ -78,13 +78,6 @@ public:
     return Value(nullptr);
   }
 
-  LogicalResult
-  doRun(std::vector<int64_t> input_shape, std::vector<float> &input_vec,
-        std::map<std::string, std::vector<float>> *results,
-        std::map<std::string, std::vector<float>> *allTensorMap = nullptr);
-
-  void getShape(std::map<std::string, std::vector<int64_t>> *shapeMap);
-
   static std::string &getCustomOpPluginFile() { return customOpPluginFile_; }
 
   static void setCustomOpPluginFile(std::string &file) {
@@ -139,13 +132,7 @@ public:
     weight_data_list.clear();
   }
 
-protected:
-  virtual LogicalResult runOperation(Operation &op);
-
 private:
-  LogicalResult runFunctions();
-  LogicalResult runOneFunction(FuncOp func);
-  LogicalResult runBlock(Block &bb);
 
   std::vector<Value> getInputsList() { return inputsList; }
   std::vector<Value> getResultsList() { return resultsList; }
@@ -191,12 +178,6 @@ protected:
 std::vector<std::shared_ptr<std::vector<float>>>
 getOperandTensors(Operation *op, const value_map_t &valueMapping);
 
-LogicalResult
-runTpuModule(ModuleOp m, std::string pluginFile,
-             std::vector<int64_t> input_shape, std::vector<float> &input_data,
-             std::map<std::string, std::vector<float>> *results,
-             std::map<std::string, std::vector<int64_t>> *shapeMap,
-             std::map<std::string, std::vector<float>> *allTensorMap);
 }; // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_MODULEINTERPRETER_H_

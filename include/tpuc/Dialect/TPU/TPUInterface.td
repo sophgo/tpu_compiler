@@ -57,21 +57,6 @@ def TpuOpCommonInterface : OpInterface<"TpuOpCommonInterface"> {
   ];
 }
 
-def TpuOpInterpInterface : OpInterface<"TpuOpInterpInterface"> {
-  let description = [{
-    TPU_Op common interface.
-  }];
-
-  let methods = [
-    InterfaceMethod<[{
-        Do interpret.
-      }],
-      "LogicalResult", "interpret",
-          (ins "DenseMap<Value, std::shared_ptr<std::vector<float> > > &":$valueMapping)
-    >,
-  ];
-}
-
 def TpuOpQuantInterface : OpInterface<"TpuOpQuantInterface"> {
   let description = [{
     TPU_Op quantization interface.

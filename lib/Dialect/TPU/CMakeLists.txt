@@ -56,7 +56,6 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertMatMul.cpp
   Transforms/Canonicalizer.cpp
   Transforms/LowerToTG.cpp
-  Interpreter/TpuInterpreter.cpp
   Interpreter/TpuInterpreter_v2.cpp
   ${interpreter_sources}
   Interpreter/NativeCpuImplementation.cpp
