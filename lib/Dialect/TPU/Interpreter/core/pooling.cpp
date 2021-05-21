@@ -199,17 +199,6 @@ void PoolingOpKernel::set_i8_avg_mkldnn() {
   }
 }
 
-void PoolingOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Pool op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
 void PoolingOpKernel::fp32_invoke() {
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
@@ -298,24 +287,5 @@ void PoolingOpKernel::invoke() {
                        output_data->size());
   }
 }
-std::vector<float> PoolingOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-void PoolingOpKernel::dump() {
-  std::string pm = pool_method == POOL_METHOD::AVG ? "Average" : "Max";
 
-  OpKernel::dump();
-  llvm::outs() << "\tMethod:" << pm << "\n";
-
-  llvm::outs() << "\tStrides: " << sh << "*" << sw << "\n";
-  llvm::outs() << "\tPadding: "
-               << "top: " << pt << ", buttom: " << pb << ", left: " << pl
-               << ", right: " << pr << "\n";
-  if (this->datatype == DataType::INT8 && pool_method == POOL_METHOD::AVG) {
-    llvm::outs() << "\tRSHIFT: " << rshift << "\n";
-    llvm::outs() << "\tMULTIPLIER: " << multiplier << "\n";
-  }
-}
 } // namespace mlir

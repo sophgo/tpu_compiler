@@ -31,16 +31,14 @@ public:
 
   CPUOpKernel() = delete;
 
-  void set_tensor(const std::vector<float> &data) {
-    static_cast<T *>(this)->set_tensor(data);
+  virtual void set_tensor(const std::vector<float> &data) {
+    llvm_unreachable("NOT support set_tensor");
   }
 
   std::vector<float> get_tensor() {
-    return static_cast<T *>(this)->get_tensor();
-  }
-
-  void invoke() override {
-    static_cast<T *>(this)->invoke();
+    // deep copy
+    std::vector<float> ret(resTensor->begin(), resTensor->end());
+    return ret;
   }
 
 protected:
@@ -81,8 +79,6 @@ public:
       // input op no need to invoke, skip
   };
   void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump();
 
 private:
   SyncedData data;

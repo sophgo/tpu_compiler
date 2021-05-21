@@ -19,16 +19,6 @@ ROIPoolingOpKernel::ROIPoolingOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void ROIPoolingOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO!");
-};
-
-std::vector<float> ROIPoolingOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ROIPoolingOpKernel::invoke() {
   int batch = input_shape[0];
   int channel = input_shape[1];
@@ -103,5 +93,4 @@ void ROIPoolingOpKernel::invoke() {
   }
 }
 
-void ROIPoolingOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

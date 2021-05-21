@@ -106,21 +106,6 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   assert(mkl_net.size() == mkl_net_args.size() && "something is missing");
 } // namespace mlir
 
-void FullyConnectedOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " FullyConnected op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-std::vector<float> FullyConnectedOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
 void FullyConnectedOpKernel::invoke() {
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
@@ -144,11 +129,5 @@ void FullyConnectedOpKernel::invoke() {
                        output_data->size());
   }
 }
-void FullyConnectedOpKernel::dump() {
-  OpKernel::dump();
-  if (this->datatype == DataType::INT8) {
-    llvm::outs() << "\tRSHIFT: " << rshift << "\n";
-    llvm::outs() << "\tMULTIPLIER: " << multiplier << "\n";
-  }
-}
+
 } // namespace mlir

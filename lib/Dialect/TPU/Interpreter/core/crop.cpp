@@ -52,23 +52,6 @@ CropOpKernel::CropOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void CropOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " CropOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-}
-
-std::vector<float> CropOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void CropOpKernel::invoke() {
   std::vector<int> indices(input_shape.size(), 0);
   std::vector<int64_t> crop_shape(this->shape.begin(), this->shape.end());
@@ -76,5 +59,4 @@ void CropOpKernel::invoke() {
        crop_shape.data(), 0, crop_offset.data(), indices.data());
 }
 
-void CropOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

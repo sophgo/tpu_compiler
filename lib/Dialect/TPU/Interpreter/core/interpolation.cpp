@@ -198,23 +198,6 @@ InterpolationOpKernel::InterpolationOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void InterpolationOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " InterpolationOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> InterpolationOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void InterpolationOpKernel::invoke() {
   int in = input_shape[0];
   int ic = input_shape[1];
@@ -263,5 +246,5 @@ void InterpolationOpKernel::invoke() {
     llvm_unreachable("coordinate_transformation_model not support");
   }
 }
-void InterpolationOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

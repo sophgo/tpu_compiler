@@ -138,23 +138,6 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void QuantOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Quant op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> QuantOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void QuantOpKernel::invoke() {
   if (this->from == "NONE" && this->to == "INT8") {
     bool useTpuQuantOp = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
@@ -185,13 +168,6 @@ void QuantOpKernel::invoke() {
   }
 }
 
-void QuantOpKernel::dump() {
-  OpKernel::dump();
-  llvm::outs() << "\tScale: " << this->scale << "\n";
-  llvm::outs() << "\tFrom: " << this->from << "\n";
-  llvm::outs() << "\tTo: " << this->to << "\n";
-}
-
 ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
   auto requantOp = cast<tpu::ReQuantOp>(op);
@@ -201,23 +177,6 @@ ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping)
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
-}
-
-void ReQuantOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " ReQuant op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> ReQuantOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void ReQuantOpKernel::invoke() {
@@ -258,12 +217,6 @@ void ReQuantOpKernel::invoke() {
       output_data->at(i) = std::nearbyint(output_data->at(i));
     }
   }
-}
-void ReQuantOpKernel::dump() {
-  OpKernel::dump();
-  llvm::outs() << "\tScale: " << this->scale << "\n";
-  llvm::outs() << "\tInput Offset: " << this->input_offset << "\n";
-  llvm::outs() << "\tOutput Offset: " << this->output_offset << "\n";
 }
 
 } // namespace mlir

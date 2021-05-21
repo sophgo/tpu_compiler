@@ -13,9 +13,6 @@ public:
   EltwiseAddOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   void fp32_invoke();
@@ -48,9 +45,6 @@ public:
   EltwiseMaxOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   void fp32_invoke();
@@ -78,9 +72,6 @@ public:
   EltwiseMinOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   void fp32_invoke();
@@ -108,9 +99,6 @@ public:
   EltwiseMulOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   void fp32_invoke();

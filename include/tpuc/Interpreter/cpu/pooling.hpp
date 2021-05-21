@@ -17,9 +17,6 @@ public:
   PoolingOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
   void set_i8_avg_mkldnn();
 
 private:

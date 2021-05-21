@@ -30,16 +30,6 @@ ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void ConcatOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO");
-}
-
-std::vector<float> ConcatOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ConcatOpKernel::invoke() {
   std::vector<int64_t> output_shape = this->shape;
 
@@ -97,8 +87,4 @@ void ConcatOpKernel::invoke() {
   }
 }
 
-void ConcatOpKernel::dump() {
-  OpKernel::dump();
-  llvm::outs() << "\tConcat Axis: " << axis << "\n";
-}
 } // namespace mlir

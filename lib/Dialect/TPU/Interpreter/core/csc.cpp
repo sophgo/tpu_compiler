@@ -89,23 +89,6 @@ CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void CscOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " CscOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> CscOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void CscOpKernel::invoke() {
   if (shape.size() < 4 || input_shape.size() < 4) {
     dump();
@@ -134,5 +117,5 @@ void CscOpKernel::invoke() {
     output_data->assign(input_data->begin(), input_data->end());
   }
 }
-void CscOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

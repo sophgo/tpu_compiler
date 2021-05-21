@@ -21,11 +21,6 @@ void InputOpKernel::set_tensor(const std::vector<float> &data) {
     llvm_unreachable(" size not same!");
   }
   this->data->assign(data.begin(), data.end());
-};
-std::vector<float> InputOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->data->begin(), this->data->end());
-  return ret;
 }
-void InputOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

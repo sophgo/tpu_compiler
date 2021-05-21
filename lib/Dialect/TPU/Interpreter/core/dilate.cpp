@@ -48,23 +48,6 @@ DilateOpKernel::DilateOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void DilateOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " DilateOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> DilateOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void DilateOpKernel::invoke() {
   int n = this->input_shape.at(0);
   int ic = this->input_shape.at(1);
@@ -75,9 +58,4 @@ void DilateOpKernel::invoke() {
                    0, ins_w, 0, n, ic, ih, iw, fill_constant);
 }
 
-void DilateOpKernel::dump() {
-  OpKernel::dump();
-  llvm::outs() << "\tIns Height: " << ins_h << "\n";
-  llvm::outs() << "\tIns Width: " << ins_w << "\n";
-}
 } // namespace mlir

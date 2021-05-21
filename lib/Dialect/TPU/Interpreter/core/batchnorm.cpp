@@ -16,23 +16,6 @@ BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void BatchNormOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " BatchNorm op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-}
-
-std::vector<float> BatchNormOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void BatchNormOpKernel::invoke() {
   if (datatype != DataType::FP32) {
     llvm_unreachable("except fp32, other mode please fused batchnorm");
@@ -82,5 +65,5 @@ void BatchNormOpKernel::invoke() {
     variance->at(i) = variance->at(i) * scale->at(0);
   }
 }
-void BatchNormOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

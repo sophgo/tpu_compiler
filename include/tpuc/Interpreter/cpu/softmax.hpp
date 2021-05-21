@@ -13,9 +13,6 @@ public:
   SoftmaxOpKernel(Operation &op, value_map_t &valueMapping, bool cpu=false);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;

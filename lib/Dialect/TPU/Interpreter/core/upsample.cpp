@@ -16,23 +16,6 @@ UpsampleOpKernel::UpsampleOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void UpsampleOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " UpsampleOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> UpsampleOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void UpsampleOpKernel::invoke() {
   int n = shape[0];
   int c = shape[1];
@@ -55,5 +38,5 @@ void UpsampleOpKernel::invoke() {
     }
   }
 }
-void UpsampleOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

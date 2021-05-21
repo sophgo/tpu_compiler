@@ -51,26 +51,8 @@ PermuteOpKernel::PermuteOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void PermuteOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " PermuteOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> PermuteOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void PermuteOpKernel::invoke() {
   permute(input_data->data(), output_data->data(), input_shape, order);
 }
 
-void PermuteOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

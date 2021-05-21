@@ -188,22 +188,6 @@ LrnOpKernel::LrnOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void LrnOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Lrn op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-std::vector<float> LrnOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void LrnOpKernel::invoke() {
 
   int n = input_shape[0];
@@ -244,7 +228,6 @@ void LrnOpKernel::invoke() {
                        output_data->size());
   }
 }
-void LrnOpKernel::dump() { OpKernel::dump(); }
 
 LrnOneOpKernel::LrnOneOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -260,22 +243,6 @@ LrnOneOpKernel::LrnOneOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void LrnOneOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Lrn op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-std::vector<float> LrnOneOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void LrnOneOpKernel::invoke() {
 
   int n = input_shape[0];
@@ -285,7 +252,6 @@ void LrnOneOpKernel::invoke() {
   lrn_one(input_data->data(), output_data->data(), n, c, h, w, local_size,
           alpha);
 }
-void LrnOneOpKernel::dump() { OpKernel::dump(); }
 
 LrnTwoOpKernel::LrnTwoOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -300,22 +266,6 @@ LrnTwoOpKernel::LrnTwoOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void LrnTwoOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Lrn op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-std::vector<float> LrnTwoOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void LrnTwoOpKernel::invoke() {
 
   int n = input_shape[0];
@@ -325,7 +275,6 @@ void LrnTwoOpKernel::invoke() {
 
   lrn_two(input_data->data(), output_data->data(), n, c, h, w, local_size);
 }
-void LrnTwoOpKernel::dump() { OpKernel::dump(); }
 
 LrnThreeOpKernel::LrnThreeOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -341,22 +290,6 @@ LrnThreeOpKernel::LrnThreeOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void LrnThreeOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Lrn op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-std::vector<float> LrnThreeOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void LrnThreeOpKernel::invoke() {
 
   int n = input_shape[0];
@@ -366,5 +299,5 @@ void LrnThreeOpKernel::invoke() {
 
   lrn_three(input_data->data(), output_data->data(), n, c, h, w, beta, k);
 }
-void LrnThreeOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

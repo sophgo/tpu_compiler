@@ -15,23 +15,6 @@ QuadraticSumOpKernel::QuadraticSumOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void QuadraticSumOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Quant op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> QuadraticSumOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void QuadraticSumOpKernel::invoke() {
   int n = input_shape[0];
   int c = input_shape[1];
@@ -45,7 +28,5 @@ void QuadraticSumOpKernel::invoke() {
                        output_data->size());
   }
 }
-
-void QuadraticSumOpKernel::dump() { OpKernel::dump(); }
 
 } // namespace mlir

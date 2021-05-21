@@ -199,23 +199,6 @@ ReduceL2OpKernel::ReduceL2OpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void ReduceL2OpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " ReduceL2Op op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> ReduceL2OpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ReduceL2OpKernel::invoke() {
   reduce_l2(input_data->data(), output_data->data(), input_shape, axes);
   if (datatype == DataType::INT8) {
@@ -228,8 +211,6 @@ void ReduceL2OpKernel::invoke() {
                        output_data->size());
   }
 }
-void ReduceL2OpKernel::dump() { OpKernel::dump(); }
-
 
 ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -251,23 +232,6 @@ ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void ReduceMaxOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " ReduceMaxOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> ReduceMaxOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ReduceMaxOpKernel::invoke() {
   reduce_max(input_data->data(), output_data->data(), input_shape, axes);
   if (datatype == DataType::INT8) {
@@ -280,7 +244,6 @@ void ReduceMaxOpKernel::invoke() {
                        output_data->size());
   }
 }
-void ReduceMaxOpKernel::dump() { OpKernel::dump(); }
 
 ReduceMeanOpKernel::ReduceMeanOpKernel(Operation &op,
                                        value_map_t &valueMapping)
@@ -303,23 +266,6 @@ ReduceMeanOpKernel::ReduceMeanOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void ReduceMeanOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " ReduceMeanOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> ReduceMeanOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ReduceMeanOpKernel::invoke() {
 
   if (datatype == DataType::FP32) {
@@ -333,6 +279,5 @@ void ReduceMeanOpKernel::invoke() {
                        output_data->size());
   }
 }
-void ReduceMeanOpKernel::dump() { OpKernel::dump(); }
 
 } // namespace mlir

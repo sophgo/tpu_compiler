@@ -56,23 +56,6 @@ AbsOpKernel::AbsOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void AbsOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Abs op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> AbsOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void AbsOpKernel::invoke() {
   size_t output_size = output_data->size();
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
@@ -80,8 +63,6 @@ void AbsOpKernel::invoke() {
     output_data->at(i) = std::fabs(input_data->at(i));
   }
 }
-
-void AbsOpKernel::dump() { OpKernel::dump(); }
 
 ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -98,23 +79,6 @@ ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping)
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
-}
-
-void ExpOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Exp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-}
-
-std::vector<float> ExpOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void ExpOpKernel::invoke() {
@@ -136,15 +100,6 @@ void ExpOpKernel::invoke() {
   }
 }
 
-void ExpOpKernel::dump() {
-  OpKernel::dump();
-
-  if (this->datatype == DataType::BF16) {
-    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
-                 << bf16_max_range << "\n";
-  }
-}
-
 MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping)
   : CPUOpKernel(op, valueMapping) {
   auto mishOp = cast<tpu::MishOp>(op);
@@ -160,23 +115,6 @@ MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping)
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
-}
-
-void MishOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Mish op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> MishOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void MishOpKernel::invoke() {
@@ -199,8 +137,6 @@ void MishOpKernel::invoke() {
     }
   }
 }
-
-void MishOpKernel::dump() { OpKernel::dump(); }
 
 LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping)
   : CPUOpKernel(op, valueMapping) {
@@ -226,23 +162,6 @@ LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping)
     rshift_negative = this->opdTensors[7];
     multiplier_negative = this->opdTensors[8];
   }
-}
-
-void LeakyReluOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " LeakyRelu op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> LeakyReluOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void LeakyReluOpKernel::invoke() {
@@ -306,36 +225,15 @@ void LeakyReluOpKernel::invoke() {
   }
 }
 
-void LeakyReluOpKernel::dump() { OpKernel::dump(); }
-
 ReluOpKernel::ReluOpKernel(Operation &op, value_map_t &valueMapping)
   : CPUOpKernel(op, valueMapping) {
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
 }
 
-void ReluOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Relu op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> ReluOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ReluOpKernel::invoke() {
   relu(input_data->data(), output_data->data(), output_data->size());
 }
-
-void ReluOpKernel::dump() { OpKernel::dump(); }
 
 PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping)
   : CPUOpKernel(op, valueMapping) {
@@ -352,23 +250,6 @@ PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping)
     this->multiplier_postive = this->opdTensors[7];
     this->rshift_negative = this->opdTensors[8];
   }
-}
-
-void PReluOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " PRelu op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> PReluOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void PReluOpKernel::invoke() {
@@ -410,8 +291,6 @@ void PReluOpKernel::invoke() {
   }
 }
 
-void PReluOpKernel::dump() { OpKernel::dump(); }
-
 ReciprocalOpKernel::ReciprocalOpKernel(Operation &op,
                                        value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -432,23 +311,6 @@ ReciprocalOpKernel::ReciprocalOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void ReciprocalOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Reciprocal op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> ReciprocalOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ReciprocalOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
@@ -464,44 +326,18 @@ void ReciprocalOpKernel::invoke() {
   }
 }
 
-void ReciprocalOpKernel::dump() {
-  OpKernel::dump();
-
-  if (this->datatype == DataType::BF16) {
-    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
-                 << bf16_max_range << "\n";
-  }
-}
-
 ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
   // get tensors
   input_data = this->opdTensors[0];
-  output_data = this->opdTensors[0];
-  valueMapping[op.getResult(0)] = output_data;
-}
-
-void ReshapeOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " PRelu op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> ReshapeOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
+  this->resTensor.reset();
+  this->resTensor = this->opdTensors[0];
+  output_data = this->resTensor;
+  valueMapping[op.getResult(0)] = this->resTensor;
 }
 
 void ReshapeOpKernel::invoke() {
 }
-
-void ReshapeOpKernel::dump() { OpKernel::dump(); }
 
 SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -518,23 +354,6 @@ SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping)
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
-}
-
-void SigmoidOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Sigmoid op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> SigmoidOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void SigmoidOpKernel::invoke() {
@@ -556,15 +375,6 @@ void SigmoidOpKernel::invoke() {
   }
 }
 
-void SigmoidOpKernel::dump() {
-  OpKernel::dump();
-
-  if (this->datatype == DataType::BF16) {
-    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
-                 << bf16_max_range << "\n";
-  }
-}
-
 SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
   auto spOp = cast<tpu::SoftPlusOp>(op);
@@ -580,23 +390,6 @@ SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping)
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
-}
-
-void SoftPlusOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " SoftPlus op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> SoftPlusOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void SoftPlusOpKernel::invoke() {
@@ -618,15 +411,6 @@ void SoftPlusOpKernel::invoke() {
   }
 }
 
-void SoftPlusOpKernel::dump() {
-  OpKernel::dump();
-
-  if (this->datatype == DataType::BF16) {
-    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
-                 << bf16_max_range << "\n";
-  }
-}
-
 SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
   auto sqrtOp = cast<tpu::SqrtOp>(op);
@@ -644,23 +428,6 @@ SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void SqrtOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Sqrt op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> SqrtOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void SqrtOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
@@ -676,36 +443,11 @@ void SqrtOpKernel::invoke() {
   }
 }
 
-void SqrtOpKernel::dump() {
-  OpKernel::dump();
-  if (this->datatype == DataType::BF16) {
-    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
-                 << bf16_max_range << "\n";
-  }
-}
-
 SquareOpKernel::SquareOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
-}
-
-void SquareOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Square op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-}
-
-std::vector<float> SquareOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void SquareOpKernel::invoke() {
@@ -722,7 +464,6 @@ void SquareOpKernel::invoke() {
   }
 }
 
-void SquareOpKernel::dump() { OpKernel::dump(); }
 
 TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -739,23 +480,6 @@ TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping)
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
-}
-
-void TanHOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " TanH op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> TanHOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void TanHOpKernel::invoke() {
@@ -778,12 +502,4 @@ void TanHOpKernel::invoke() {
   }
 }
 
-void TanHOpKernel::dump() {
-  OpKernel::dump();
-
-  if (this->datatype == DataType::BF16) {
-    llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
-                 << bf16_max_range << "\n";
-  }
-}
 } // namespace mlir

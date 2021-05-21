@@ -66,23 +66,6 @@ LstmOpKernel::LstmOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void LstmOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " LstmOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> LstmOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void LstmOpKernel::update_addr(bool forward) {
   if (forward) {
     r_i = recurrence->data();
@@ -174,5 +157,4 @@ void LstmOpKernel::invoke() {
   }
 }
 
-void LstmOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

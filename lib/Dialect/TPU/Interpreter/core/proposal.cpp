@@ -168,16 +168,6 @@ ProposalOpKernel::ProposalOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void ProposalOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO!");
-};
-
-std::vector<float> ProposalOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ProposalOpKernel::invoke() {
   int batch = score_shape[0];
   int channel = score_shape[1];
@@ -247,5 +237,4 @@ void ProposalOpKernel::invoke() {
   }
 }
 
-void ProposalOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

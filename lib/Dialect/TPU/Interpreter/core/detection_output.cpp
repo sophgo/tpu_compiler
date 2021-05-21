@@ -345,16 +345,6 @@ DetectionOutputOpKernel::DetectionOutputOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void DetectionOutputOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO");
-};
-
-std::vector<float> DetectionOutputOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void DetectionOutputOpKernel::invoke() {
   int num = loc_shape[0];
   int num_priors = prior_shape[2] / 4;
@@ -548,8 +538,6 @@ void DetectionOutputOpKernel::invoke() {
   }
 }
 
-void DetectionOutputOpKernel::dump() { OpKernel::dump(); }
-
 YoloDetectionOpKernel::YoloDetectionOpKernel(Operation &op,
                                              value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -602,16 +590,6 @@ YoloDetectionOpKernel::YoloDetectionOpKernel(Operation &op,
   // get tensors
   inputs_data = this->opdTensors;
   output_data = this->resTensor;
-}
-
-void YoloDetectionOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO");
-};
-
-std::vector<float> YoloDetectionOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void YoloDetectionOpKernel::invoke() {
@@ -678,7 +656,6 @@ void YoloDetectionOpKernel::invoke() {
     }
   }
 }
-void YoloDetectionOpKernel::dump() { OpKernel::dump(); }
 
 FrcnDetectionOpKernel::FrcnDetectionOpKernel(Operation &op,
                                              value_map_t &valueMapping)
@@ -695,16 +672,6 @@ FrcnDetectionOpKernel::FrcnDetectionOpKernel(Operation &op,
   scores = this->opdTensors[1];
   rois = this->opdTensors[2];
   output_data = this->resTensor;
-}
-
-void FrcnDetectionOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO");
-};
-
-std::vector<float> FrcnDetectionOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
 }
 
 void FrcnDetectionOpKernel::invoke() {
@@ -777,5 +744,5 @@ void FrcnDetectionOpKernel::invoke() {
     delete[] dets;
   }
 }
-void FrcnDetectionOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

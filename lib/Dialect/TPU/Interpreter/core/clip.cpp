@@ -25,23 +25,6 @@ ClipOpKernel::ClipOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void ClipOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " ClipOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-}
-
-std::vector<float> ClipOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void ClipOpKernel::invoke() {
   for (size_t i = 0; i < output_data->size(); i++) {
     output_data->at(i) = std::max(min, std::min(input_data->at(i), max));
@@ -59,5 +42,4 @@ void ClipOpKernel::invoke() {
   }
 }
 
-void ClipOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

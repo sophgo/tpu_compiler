@@ -120,17 +120,6 @@ void BroadcastAddOpKernel::invoke() {
                        output_data->size());
   }
 }
-void BroadcastAddOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO!");
-};
-
-std::vector<float> BroadcastAddOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
-void BroadcastAddOpKernel::dump() { OpKernel::dump(); }
 
 BroadcastMulOpKernel::BroadcastMulOpKernel(Operation &op,
                                            value_map_t &valueMapping)
@@ -206,27 +195,6 @@ void BroadcastMulOpKernel::invoke() {
     clean16bitmantissa(output_data->data(), output_data->data(),
                        output_data->size());
   }
-}
-
-void BroadcastMulOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " BroadcastMul op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-}
-
-std::vector<float> BroadcastMulOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
-void BroadcastMulOpKernel::dump() {
-  OpKernel::dump();
 }
 
 BroadcastSubOpKernel::BroadcastSubOpKernel(Operation &op,
@@ -337,17 +305,5 @@ void BroadcastSubOpKernel::invoke() {
                        output_data->size());
   }
 }
-
-void BroadcastSubOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO!");
-};
-
-std::vector<float> BroadcastSubOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
-void BroadcastSubOpKernel::dump() { OpKernel::dump(); }
 
 } // namespace mlir

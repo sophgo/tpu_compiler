@@ -24,16 +24,6 @@ CustomOpKernel::CustomOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void CustomOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO");
-}
-
-std::vector<float> CustomOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void CustomOpKernel::invoke() {
   if (datatype == DataType::FP32) {
     plugin->fp32Interpret(
@@ -52,5 +42,4 @@ void CustomOpKernel::invoke() {
   }
 }
 
-void CustomOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

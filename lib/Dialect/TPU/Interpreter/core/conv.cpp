@@ -277,22 +277,6 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping)
   assert(mkl_net.size() == mkl_net_args.size() && "something is missing");
 }
 
-void Conv2DOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Conv op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-std::vector<float> Conv2DOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void Conv2DOpKernel::fp32_invoke() {
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
@@ -301,7 +285,7 @@ void Conv2DOpKernel::fp32_invoke() {
   if (do_relu) {
     relu(output_data->data(), output_data->data(), output_data->size());
   }
-};
+}
 
 void Conv2DOpKernel::i8_invoke() {
   // mkldnn not support non zero padding
@@ -369,24 +353,4 @@ void Conv2DOpKernel::invoke() {
   }
 }
 
-void Conv2DOpKernel::dump() {
-  OpKernel::dump();
-  std::string filter_shape_str, input_shape_str;
-  for (auto &i : this->input_shape) {
-    input_shape_str = input_shape_str + std::to_string(i) + " ";
-  }
-  for (auto &i : this->filter_shape) {
-    filter_shape_str = filter_shape_str + std::to_string(i) + " ";
-  }
-
-  llvm::outs() << "\tInput Shape: " << input_shape_str << "\n";
-  llvm::outs() << "\tFilter Shape: " << filter_shape_str << "\n";
-  llvm::outs() << "\tPad top: " << pt << " bottom: " << pb << " left: " << pl
-               << " right: " << pr << "\n";
-  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
-  if (this->datatype == DataType::INT8) {
-    llvm::outs() << "\tPERCHANNEL: " << is_perchannel << "\n";
-    llvm::outs() << "\tMULTIPLIER: " << use_multiplier << "\n";
-  }
-}
 } // namespace mlir

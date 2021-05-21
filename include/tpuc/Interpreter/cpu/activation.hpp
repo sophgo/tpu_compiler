@@ -18,9 +18,6 @@ public:
   AbsOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -34,9 +31,6 @@ public:
   ExpOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -59,9 +53,6 @@ public:
   MishOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -79,6 +70,7 @@ private:
   int bf16_min_range;
   int bf16_max_range;
 };
+
 class LeakyReluOpKernel : public CPUOpKernel<LeakyReluOpKernel> {
 public:
   static constexpr const char *OpName = "CPULeakyReluOp";
@@ -86,9 +78,6 @@ public:
   LeakyReluOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -115,9 +104,6 @@ public:
   ReluOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -132,9 +118,6 @@ public:
   PReluOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -155,9 +138,6 @@ public:
   ReshapeOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -172,9 +152,6 @@ public:
   SigmoidOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -198,9 +175,6 @@ public:
   ReciprocalOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -224,9 +198,6 @@ public:
   SoftPlusOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -251,9 +222,6 @@ public:
   SqrtOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -277,9 +245,6 @@ public:
   SquareOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;
@@ -294,9 +259,6 @@ public:
   TanHOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
-  void set_tensor(const std::vector<float> &data) override;
-  std::vector<float> get_tensor() override;
-  void dump() override;
 
 private:
   SyncedData input_data;

@@ -29,16 +29,6 @@ MatMulOpKernel::MatMulOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void MatMulOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("not support now!!");
-};
-
-std::vector<float> MatMulOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void MatMulOpKernel::invoke() {
   float *r_data = right_data->data();
   float *l_data = left_data->data();
@@ -97,5 +87,4 @@ void MatMulOpKernel::invoke() {
   }
 }
 
-void MatMulOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

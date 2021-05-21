@@ -20,23 +20,6 @@ EmbeddingOpKernel::EmbeddingOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void EmbeddingOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " embeddingOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> EmbeddingOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void EmbeddingOpKernel::invoke() {
   auto input = input_data->data();
   auto table = table_data->data();
@@ -55,5 +38,5 @@ void EmbeddingOpKernel::invoke() {
     memcpy(output + out_offset, table + table_offset, feature_dim * sizeof(float));
   }
 }
-void EmbeddingOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

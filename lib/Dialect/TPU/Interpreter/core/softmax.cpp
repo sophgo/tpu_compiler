@@ -20,14 +20,6 @@ SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping,
   output_data = this->resTensor;
 }
 
-void SoftmaxOpKernel::set_tensor(const std::vector<float> &data) {
-  this->input_data->assign(data.begin(), data.end());
-};
-std::vector<float> SoftmaxOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
 void SoftmaxOpKernel::invoke() {
   if (this->shape.size() == 2) {
     bool isBF16 = datatype == DataType::BF16;
@@ -45,10 +37,9 @@ void SoftmaxOpKernel::invoke() {
                            this->shape, isBF16);
     assert(ret == 0);
   } else {
-    OpKernel::dump();
+    dump();
     llvm_unreachable("TODO");
   }
 }
 
-void SoftmaxOpKernel::dump() { OpKernel::dump(); };
 } // namespace mlir

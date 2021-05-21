@@ -62,23 +62,6 @@ DepthToSpaceOpKernel::DepthToSpaceOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void DepthToSpaceOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " DepthToSpaceOp op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-
-std::vector<float> DepthToSpaceOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void DepthToSpaceOpKernel::invoke() {
   if (shape.size() < 4 || input_shape.size() < 4) {
     dump();
@@ -94,5 +77,5 @@ void DepthToSpaceOpKernel::invoke() {
   pixelshuffle(input_data->data(), output_data->data(), on, ic, ih, iw, on, oc,
                oh, ow, upscale_factor, dcr_mode);
 }
-void DepthToSpaceOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

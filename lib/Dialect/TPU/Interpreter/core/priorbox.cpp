@@ -30,16 +30,6 @@ PriorBoxOpKernel::PriorBoxOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void PriorBoxOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO");
-};
-
-std::vector<float> PriorBoxOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void PriorBoxOpKernel::invoke() {
   assert(input_image_shape.size() == 4 && input_shape.size() == 4);
 
@@ -139,17 +129,4 @@ void PriorBoxOpKernel::invoke() {
   }
 }
 
-void PriorBoxOpKernel::dump() {
-  OpKernel::dump();
-
-  llvm::outs() << "\tClip: " << clip << "\n";
-  llvm::outs() << "\tUse Default Aspect Ratio: " << use_default_aspect_ratio
-               << "\n";
-  llvm::outs() << "\tOffset: " << offset << "\n";
-  llvm::outs() << "\tStep Width: " << step_w << "\n";
-  llvm::outs() << "\tStep Height: " << step_h << "\n";
-  llvm::outs() << "\tImage Width: " << img_width << "\n";
-  llvm::outs() << "\tImage Height: " << img_height << "\n";
-  llvm::outs() << "\tPriorBox Number: " << num_priors << "\n";
-}
 } // namespace mlir

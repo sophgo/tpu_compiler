@@ -14,22 +14,6 @@ NormalizeOpKernel::NormalizeOpKernel(Operation &op, value_map_t &valueMapping)
   output_data = this->resTensor;
 }
 
-void NormalizeOpKernel::set_tensor(const std::vector<float> &data) {
-  if (data.size() != this->input_data->capacity()) {
-    llvm::errs() << " Normalize op: [" << this->name
-                 << "] required memsize :" << this->input_data->capacity()
-                 << "\n";
-    llvm::errs() << " input data size: " << data.size() << "\n";
-    llvm_unreachable(" size not same!");
-  }
-  this->input_data->assign(data.begin(), data.end());
-};
-std::vector<float> NormalizeOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
-
 void NormalizeOpKernel::invoke() {
 
   int n = this->shape.at(0);
@@ -56,5 +40,5 @@ void NormalizeOpKernel::invoke() {
       }
   }
 }
-void NormalizeOpKernel::dump() { OpKernel::dump(); }
+
 } // namespace mlir

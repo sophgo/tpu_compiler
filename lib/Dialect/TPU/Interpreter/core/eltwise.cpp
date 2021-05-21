@@ -44,15 +44,6 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void EltwiseAddOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO!");
-};
-
-std::vector<float> EltwiseAddOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
 void EltwiseAddOpKernel::fp32_invoke() {
 
   std::fill(output_data->begin(), output_data->end(), 0);
@@ -123,11 +114,6 @@ void EltwiseAddOpKernel::invoke() {
   }
 };
 
-void EltwiseAddOpKernel::dump() {
-  OpKernel::dump();
-  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
-}
-
 EltwiseMaxOpKernel::EltwiseMaxOpKernel(Operation &op,
                                        value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -153,15 +139,6 @@ EltwiseMaxOpKernel::EltwiseMaxOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void EltwiseMaxOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO!");
-};
-
-std::vector<float> EltwiseMaxOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
 void EltwiseMaxOpKernel::fp32_invoke() {
 
   output_data->assign(inputs_data[0]->begin(), inputs_data[0]->end());
@@ -231,11 +208,6 @@ void EltwiseMaxOpKernel::invoke() {
   }
 };
 
-void EltwiseMaxOpKernel::dump() {
-  OpKernel::dump();
-  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
-}
-
 EltwiseMinOpKernel::EltwiseMinOpKernel(Operation &op,
                                        value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -262,15 +234,6 @@ EltwiseMinOpKernel::EltwiseMinOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void EltwiseMinOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO!");
-};
-
-std::vector<float> EltwiseMinOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
 void EltwiseMinOpKernel::fp32_invoke() {
 
   output_data->assign(inputs_data[0]->begin(), inputs_data[0]->end());
@@ -340,11 +303,6 @@ void EltwiseMinOpKernel::invoke() {
   }
 };
 
-void EltwiseMinOpKernel::dump() {
-  OpKernel::dump();
-  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
-}
-
 EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
                                        value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -376,15 +334,6 @@ EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
   output_data = this->resTensor;
 }
 
-void EltwiseMulOpKernel::set_tensor(const std::vector<float> &data) {
-  llvm_unreachable("TODO!");
-};
-
-std::vector<float> EltwiseMulOpKernel::get_tensor() {
-  // deep copy
-  std::vector<float> ret(this->output_data->begin(), this->output_data->end());
-  return ret;
-}
 void EltwiseMulOpKernel::fp32_invoke() {
   int in = this->shape.at(0);
   int ic = this->shape.at(1);
@@ -444,8 +393,4 @@ void EltwiseMulOpKernel::invoke() {
   }
 };
 
-void EltwiseMulOpKernel::dump() {
-  OpKernel::dump();
-  llvm::outs() << "\tDo_RELU: " << do_relu << "\n";
-}
 } // namespace mlir
