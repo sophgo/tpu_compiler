@@ -2378,7 +2378,15 @@ class OnnxConverter(BaseConverter):
         mode = onnx_node.attrs.get("mode", "constant")
         if isinstance(mode, bytes):
             mode = mode.decode("utf-8")
-        if mode != "constant": raise RuntimeError("Todo support pad op mode {}".format(mode))
+
+        if mode == "constant":
+            pass
+        if mode == "edge":
+            pass
+        elif mode == 'reflect':
+            return self.convert_reflectionpad1d_op(onnx_node)
+        else:
+            raise RuntimeError("Todo support pad op mode {}".format(mode))
 
         # opset 11, value from second input
         if len(onnx_node.inputs) > 2:
@@ -2386,7 +2394,9 @@ class OnnxConverter(BaseConverter):
         else:
             constant_value = onnx_node.attrs.get("value", 0.0)
 
-        op, input_shape, input_type = self.getOperand(onnx_node.inputs[0])
+        op, _input_shape, input_type = self.getOperand(onnx_node.inputs[0])
+
+        input_shape = list(_input_shape)
 
         if len(onnx_node.inputs) > 1:
             # padding data from input
@@ -2399,6 +2409,28 @@ class OnnxConverter(BaseConverter):
             pads = onnx_node.attrs.get("pads")
             if pads == None:
                 raise RuntimeError("No paddings value")
+
+        dims = len(input_shape)
+        _pads = list(pads)
+        is_reshape = False
+        name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+        op_name = onnx_node.name
+        if dims < 4:
+            name = "{}_to4".format(onnx_node.name)
+            operands, _expand_shape = self.add_extend_4dim(input_shape,
+                    name, onnx_node.op_type, [op])
+            input_shape = _expand_shape
+            op = operands[0]
+
+            begins = pads[:dims]
+            ends = pads[dims:]
+            pads = list(np.full(4 - dims, 0)) + list(begins) \
+                    + list(np.full(4 - dims, 0)) + list(ends)
+            name = "{}_{}_4".format(onnx_node.name, onnx_node.op_type)
+            op_name = "{}_4".format(onnx_node.name)
+            dims = len(input_shape)
+            is_reshape = True
+
         if len(pads) != 2 * len(input_shape):
             raise RuntimeError("pads number is two times as same as input shape ({} v.s 2 * {})".format(len(pads), len(input_shape)))
 
@@ -2408,11 +2440,11 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
             return
 
-        dims = len(input_shape)
         np_pads = tuple(zip(pads[:dims], pads[dims:]))
         pads_param = {
           "pads": pads,
           "const_val": constant_value,
+          "pad_mode": mode,
         }
 
         output_shape = np.sum([input_shape, pads[:dims], pads[dims:]], axis=0)
@@ -2575,11 +2607,31 @@ class OnnxConverter(BaseConverter):
         else:
             raise RuntimeError("Second type must be {}".format(TensorType.TENSOR))
 
+    @staticmethod
+    def half_pixel_scale(scale, pad):
+        # for example, scale = 2, scale_list = [0.75, 0.25, 0.25, 0.75]
+        count = int(scale)
+        scale_list = [0.0] * count * 2
+        for i in range(count):
+            idx = pad - i
+            if idx < 0:
+                idx = idx + count
+            distance = (0.5 + i) / scale + 0.5
+            distance = distance - int(distance)
+            scale_list[idx] = 1 - distance
+            scale_list[count + idx] = distance
+        return scale_list
+
+
     def convert_resize_op(self, onnx_node):
         assert(onnx_node.op_type == "Resize")
         mode = onnx_node.attrs.get("mode", "nearest")
 
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        scale_factor = []
+        sizes = 0
+        use_size = False
+
         if len(onnx_node.inputs) > 2:
             # onnx opset 11
             scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
@@ -2602,23 +2654,99 @@ class OnnxConverter(BaseConverter):
             if not use_size:
                 sizes = input_shape * scale_factor
             on, oc, oh, ow = sizes
-            attr = {
-                'height': int(oh),
-                'width': int(ow),
-                'pad_beg': 0,
-                'pad_end': 0,
-                'shrink_factor': 0,
-                'zoom_factor': 0,
-                'coordinate_transformation_mode': coordinate_transformation_mode
-            }
+            _, ic, ih, iw = input_shape
 
-            output_shape = [int(i) for i in [on, oc, oh, ow]]
+            scale_h = oh / ih
+            scale_w = ow / iw
 
-            interp_op = self.CVI.add_interp_op(
-                "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
-            self.addOperand(onnx_node.name, interp_op,
-                            output_shape, TensorType.ACTIVATION)
-            return
+            if scale_h == 1.0 and scale_w == 1.0:
+                self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+                return
+            if coordinate_transformation_mode == b"pytorch_half_pixel" \
+                    and int(scale_h) == scale_h and int(scale_w) == scale_w:
+                # pad edge
+                pads_param = {
+                    "pads": [0, 0, 1, 1, 0, 0, 1, 1],
+                    "const_val": 0,
+                    "pad_mode": 'edge',
+                }
+                output_shape = list(input_shape)
+                for idx, v in enumerate(output_shape):
+                    output_shape[idx] =\
+                            int(pads_param['pads'][idx] + v + pads_param['pads'][idx + 4])
+
+                name = "{}_{}_pad_edge".format(onnx_node.name, onnx_node.op_type)
+                pads_op = self.CVI.add_pad_op(name, [op], output_shape, **pads_param)
+
+                # conv to replace with resize
+                input_shape = list(output_shape)
+                # w-direction
+                ins_h = int(scale_h - 1)
+                ins_w = int(scale_w - 1)
+                stride_h = 1
+                stride_w = 1
+                kh = int(2 * scale_h)
+                kw = int(2 * scale_w)
+                pad_t = int(scale_h/2) - 1
+                pad_b = int(scale_h) - pad_t - 2
+                pad_l = int(scale_w/2) - 1
+                pad_r = int(scale_w) - pad_l - 2
+                oh = int(((input_shape[2] - 1) * (ins_h + 1) + 1 + pad_t + pad_b - kh) / stride_h) + 1
+                ow = int(((input_shape[3] - 1) * (ins_w + 1) + 1 + pad_l + pad_r - kw) / stride_w) + 1
+
+                output_shape = [on, oc, oh, ow]
+                conv_param = {
+                    'stride_h':  stride_h,
+                    'stride_w':  stride_w,
+                    'padding': "VALID",
+                    'dilation_h': 1,
+                    'dilation_w': 1,
+                    'padding_t': pad_t,
+                    'padding_b': pad_b,
+                    'padding_l': pad_l,
+                    'padding_r': pad_r,
+                    'group': ic,
+                    'is_dw': True,
+                    'with_bias': False,
+                    'do_relu': False,
+                    'ins': [ins_w, ins_h],
+                }
+
+                # weight_shape = [ic, 1, 1, kh, kw]
+                factor_w = np.array(self.half_pixel_scale(scale_w, pad_l)).reshape(1,kw)
+                factor_h = np.array(self.half_pixel_scale(scale_h, pad_t)).reshape(kh,1)
+                factor = np.dot(factor_h, factor_w).reshape(1, 1, 1, kh, kw)
+                conv_tensor_data = np.tile(np.array(factor), (ic, 1, 1, 1, 1))
+                weight_name = "{}_add_weight".format(onnx_node.name)
+                self.addTensor(weight_name, conv_tensor_data, conv_tensor_data.shape)
+                weight_op = self.CVI.add_load_file_op(weight_name, conv_tensor_data.shape)
+
+                operands = list()
+                operands.append(pads_op)
+                operands.append(weight_op)
+
+                name = "{}_{}_conv_w".format(onnx_node.name, onnx_node.op_type)
+                conv_op = self.CVI.add_conv_op(name, operands, output_shape, **conv_param)
+                self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
+                return
+            else:
+                attr = {
+                    'height': int(oh),
+                    'width': int(ow),
+                    'pad_beg': 0,
+                    'pad_end': 0,
+                    'shrink_factor': 0,
+                    'zoom_factor': 0,
+                    'coordinate_transformation_mode': coordinate_transformation_mode
+                }
+
+                output_shape = [int(i) for i in [on, oc, oh, ow]]
+
+                interp_op = self.CVI.add_interp_op(
+                    "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
+                self.addOperand(onnx_node.name, interp_op,
+                                output_shape, TensorType.ACTIVATION)
+                return
 
         elif mode == b"nearest":
             operands = [op]
@@ -2633,6 +2761,9 @@ class OnnxConverter(BaseConverter):
                 input_shape[3] * scale_factor[3])
             group = ic
             output_shape = [int(on), int(oc), int(oh), int(ow)]
+            if input_shape == output_shape:
+                self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+                return
             # use deconv(depthwise)
             deconv_param = {
                 'stride_h':  int(oh / ih),

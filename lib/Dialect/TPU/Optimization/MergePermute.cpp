@@ -200,13 +200,12 @@ struct MergeConvPadReluPattern : public RewritePattern {
     auto reluOp = dyn_cast_or_null<tpu::ReluOp>(nextnextOp);
 
     bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw;
     int pt, pb, pl, pr, dh, dw, pad_value;
     parseConvParam(convOp.param(), false, convOp.input(), convOp.output(),
-                   convOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
-                   pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu,
-                   pad_value);
-
+                   convOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h,
+                   ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
+                   do_relu, pad_value);
 
     std::vector<int32_t> pads;
     arrayAttrToVector(padOp.pads().getValue(), pads);
@@ -243,7 +242,7 @@ struct MergeConvPadReluPattern : public RewritePattern {
         rewriter.getBoolAttr(is_dw),
         rewriter.getBoolAttr(with_bias),
         rewriter.getBoolAttr(true),
-        rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+        convOp.param().ins(), // [0]ins_w/[1]ins_h
         rewriter.getI32IntegerAttr(0), //pad_value
         rewriter.getContext())));
     attrs.push_back(

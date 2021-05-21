@@ -441,7 +441,7 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     Value input, Value output, Value filter,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
-    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
+    int &kh, int &kw, int &ins_h, int &ins_w, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu, int &pad_value) {
   dh = p.dilation_h().getInt();
   dw = p.dilation_w().getInt();
@@ -489,6 +489,11 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   kh = f_s[f_s.size() - 2];
   kw = f_s[f_s.size() - 1];
 
+  std::vector<int32_t> ins;
+  arrayAttrToVector(p.ins(), ins);
+  ins.resize(2, 0);
+  ins_h = ins[1];
+  ins_w = ins[0];
 
   g = p.group().getInt();
   if (g != 1 || f_s.size() == 5) {

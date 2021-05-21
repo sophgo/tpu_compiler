@@ -702,6 +702,7 @@ class TPU_TL_LG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           pad values for axis
       `const_val`       : A scalar value to be used if the mode
                           chosen is `constant` (by default it is 0).
+      `mode`            : optional, Supported modes: `constant`(default), `reflect`, `edge`
       `name`            : required, name for comparing, or debug.
       `chipname`        : optional, chipname.
 
@@ -721,6 +722,7 @@ class TPU_TL_LG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$la_output,
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
+    DefaultValuedAttr<StrAttr, "constant">:$mode,
     BoolAttr:$align,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,

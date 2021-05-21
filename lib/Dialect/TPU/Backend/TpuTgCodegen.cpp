@@ -697,9 +697,9 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
-                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -757,7 +757,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
-      0, 0, //ins_h, ins_w
+      ins_h, ins_w, //ins_h, ins_w
       sh, sw,
       with_bias, // bias_term,
       do_relu ? 1 : 0, // do_activation,
@@ -789,9 +789,9 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
-                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -872,7 +872,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
-      0, 0,                               // ins_h, ins_w
+      ins_h, ins_w,                               // ins_h, ins_w
       sh, sw,
       with_bias,                                 // bias_term,
       do_relu ? 1 : 0,                           // do_activation,
@@ -904,10 +904,14 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh,
+                 dw, is_dw, with_bias, do_relu, pad_value);
+
+  std::vector<int32_t> ins;
+  arrayAttrToVector(param().ins(), ins);
+  ins.resize(2, 0);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -958,7 +962,7 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       kh, kw,
       dh, dw,
       pt, pb, pl, pr, // pad (t, b, l, r)
-      0, 0,
+      ins_h, ins_w,                               // ins_h, ins_w
       sh, sw,
       with_bias,
       do_relu ? 1 : 0,
@@ -992,10 +996,12 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+      pad_value;
+  int no_use0, no_use1;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr,
+                 dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -1064,10 +1070,12 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+      pad_value;
+  int no_use0, no_use1;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr,
+                 dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -3656,6 +3664,7 @@ LogicalResult tpu::TG_INT8_PadOp::codegen(void *ctx) {
   // parse param
   std::vector<int32_t> pads;
   auto const_val = this->const_val().convertToFloat();
+  auto mode = this->mode().str().c_str();
   arrayAttrToVector(this->pads().getValue(), pads);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -3673,6 +3682,7 @@ LogicalResult tpu::TG_INT8_PadOp::codegen(void *ctx) {
       w,
       pads.data(),
       const_val,
+      mode,
       CVK_FMT_I8
   );
 
@@ -3693,6 +3703,7 @@ LogicalResult tpu::TG_BF16_PadOp::codegen(void *ctx) {
   // parse param
   std::vector<int32_t> pads;
   auto const_val = this->const_val().convertToFloat();
+  auto mode = this->mode().str().c_str();
   arrayAttrToVector(this->pads().getValue(), pads);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -3710,6 +3721,7 @@ LogicalResult tpu::TG_BF16_PadOp::codegen(void *ctx) {
       w,
       pads.data(),
       const_val,
+      mode,
       CVK_FMT_BF16
   );
 

@@ -170,14 +170,14 @@ int TiuCycle::get_cycle(int cur_layer) {
 
 void TiuCycle::set_tl_conv_param() {
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
   int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
   bool do_ic_align = false;
   bool do_leaky_relu = false;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(op);
 
   getConvParam(op, n, ic, ih, iw, oc, oh, ow, g,
-               kh, kw, sh, sw, pt, pb, pl, pr,
+               kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                dh, dw, is_dw, with_bias, do_relu, do_ic_align,
                do_leaky_relu, pad_value);
 
@@ -211,14 +211,14 @@ void TiuCycle::set_tl_conv_param() {
 
 void TiuCycle::set_tl_deconv_param(){
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, no_use0, no_use1;
   int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
   bool do_ic_align = false;
   bool do_leaky_relu = false;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(op);
 
   getConvParam(op, n, ic, ih, iw, oc, oh, ow, g,
-               kh, kw, sh, sw, pt, pb, pl, pr,
+               kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr,
                dh, dw, is_dw, with_bias, do_relu, do_ic_align,
                do_leaky_relu, pad_value);
 

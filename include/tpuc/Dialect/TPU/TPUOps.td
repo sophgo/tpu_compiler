@@ -2828,6 +2828,7 @@ def TPU_PadOp: TPU_Op<"pad",
                           pad values for axis
       `const_val`       : A scalar value to be used if the mode
                           chosen is `constant` (by default it is 0).
+      `mode`            : optional, Supported modes: `constant`(default), `reflect`, `edge`
       `chipname`        : optional, chipname.
 
     Result:
@@ -2846,6 +2847,7 @@ def TPU_PadOp: TPU_Op<"pad",
     StrAttr:$name,
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
+    DefaultValuedAttr<StrAttr, "constant">:$mode,
     OptionalAttr<StrAttr>:$chipname
   );
 

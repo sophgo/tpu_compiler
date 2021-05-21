@@ -23,6 +23,7 @@ private:
   // param
   int const_val;
   std::vector<int32_t> pads;
+  std::string mode = "constant";
 };
 } // namespace mlir
 #endif

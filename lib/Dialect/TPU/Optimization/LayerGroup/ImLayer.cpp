@@ -177,7 +177,15 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImLeakyRelu>(op);
   } else if (isa<tpu::TG_INT8_PadOp>(op) ||
              isa<tpu::TG_BF16_PadOp>(op)) {
-    layer = std::make_shared<ImPad>(op);
+    auto mode = op->getAttr("mode").template cast<::mlir::StringAttr>().getValue().str();
+    if (mode == "edge") {
+      LLVM_DEBUG(llvm::errs()
+          << "Not support pad under 'edge' mode : " << getOpName(op) << "\n";);
+      layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
+    }
+    else {
+      layer = std::make_shared<ImPad>(op);
+    }
   } else if (isa<tpu::TG_INT8_CropOp>(op) ||
              isa<tpu::TG_BF16_CropOp>(op)) {
     if (is_channel_align(op)) {
@@ -244,12 +252,12 @@ static std::string getWeightStorage(Operation *p) {
 
 ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
   int sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   bool do_ic_align = false;
   bool fuse_leaky = false;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(p);
-  getConvParam(p, n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+  getConvParam(p, n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                dh, dw, is_dw, with_bias, do_relu, do_ic_align, fuse_leaky,
                pad_value);
 
@@ -347,11 +355,11 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
   int sh, sw, pt, pb, pl, pr, dh, dw;
-  int pad_value;
+  int pad_value, no_use0, no_use1;
   bool do_ic_align, do_leaky_relu;
   bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(p);
   getConvParam(p, n, ic, ih, iw, oc, oh, ow,
-                 g, kh, kw, sh, sw,
+                 g, kh, kw, no_use0, no_use1, sh, sw,
                  pt, pb, pl, pr, dh, dw,
                  is_dw, with_bias,
                  do_relu, do_ic_align, do_leaky_relu, pad_value);

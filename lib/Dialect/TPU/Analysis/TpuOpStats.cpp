@@ -91,10 +91,10 @@ private:
   template <typename OpTy>
   void dumpConv2DOpParam(OpTy &op, llvm::raw_ostream &os) {
     bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
     bool is_deconv = isa<tpu::DeConv2DOp>(op.getOperation());
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
 
     uint64_t mac_count = (uint64_t)ow * oh * kh * kw * g * (ic / g) * (oc / g) * n;

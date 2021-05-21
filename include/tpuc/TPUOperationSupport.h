@@ -80,11 +80,12 @@ LogicalResult setOpBufferReused(Operation *op, bool flag);
 
 tpu::QuantParam getDefaultQuantParam(Builder &builder);
 
-void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
-    Value input, Value output, Value filter,
-    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
-    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
-    bool &is_dw, bool &with_bias, bool &do_relu, int &pad_value);
+void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
+                    Value output, Value filter, int &n, int &ic, int &ih,
+                    int &iw, int &oc, int &oh, int &ow, int &g, int &kh,
+                    int &kw, int &ins_h, int &ins_w, int &sh, int &sw, int &pt,
+                    int &pb, int &pl, int &pr, int &dh, int &dw, bool &is_dw,
+                    bool &with_bias, bool &do_relu, int &pad_value);
 
 void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
     Value input, Value output, Value filter,
@@ -154,14 +155,13 @@ public:
             isa<tpu::DeConv2DOp>(op)) {
             is_deconv = true;
         }
-        parseConvParam(param, is_deconv, input, output, filter,
-                       n, ic, ih, iw, oc, oh, ow, group,
-                       kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
-                       is_dw, with_bias, do_relu, pad_val);
+        parseConvParam(param, is_deconv, input, output, filter, n, ic, ih, iw,
+                       oc, oh, ow, group, kh, kw, ins_h, ins_w, sh, sw, pt, pb,
+                       pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_val);
     }
     int n, ic, ih, iw;
     int oc, oh, ow, group;
-    int kh, kw, sh, sw;
+    int kh, kw, ins_h, ins_w, sh, sw;
     int pt, pb, pl, pr;
     int dh, dw;
     bool is_dw;

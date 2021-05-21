@@ -475,8 +475,7 @@ void cvi_backend_tg_pad_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n,
     int input_c, int input_h, int input_w, int *pads, float const_val,
-    cvk_fmt_t fmt);
-
+    const char* mode, cvk_fmt_t fmt);
 void cvi_backend_tg_fill_const_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_ofmap, int output_n,

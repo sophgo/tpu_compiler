@@ -42,12 +42,12 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
     struct SimpleMemoryUsageAnalysis_details *details,
     int batch_size) {
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw,
       pad_value;
   bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
-  parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
+  parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(), n,
+                 ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt,
+                 pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   if (batch_size != -1) {
     n = batch_size;

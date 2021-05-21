@@ -498,14 +498,24 @@ void CviBackendContext::tiling_nchw(std::vector<tiling_info_t> &tiling_result,
   int max_c = std::min(c, MAX_CHANNEL);
   int max_n = std::min(n, MAX_CHANNEL);
   int min_c = 1;
+  int min_w = 1;
   if (mode == TilingNHW) { // keep c
     assert(max_c == c && "keep c, but c too large");
     min_c = max_c;
+  } else if (mode == TilingNCH) { // keep w
+    assert(max_w == w && "keep w, but w too large");
+    min_w = max_w;
+  } else if (mode == TilingNH) { // keep cw
+    assert(max_c == c && "keep c, but c too large");
+    assert(max_w == w && "keep w, but w too large");
+    min_c = max_c;
+    min_w = max_w;
   }
+
 
   int step_w, step_h, step_c, step_n;
   uint32_t lmem_required = 0;
-  for (step_w = max_w; step_w >= 1; --step_w) {
+  for (step_w = max_w; step_w >= min_w; --step_w) {
     for (step_h = max_h; step_h >= 1; --step_h) {
       for (step_n = max_n; step_n >= 1; --step_n) {
         for (step_c = max_c; step_c >= min_c;) {

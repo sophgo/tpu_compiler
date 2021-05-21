@@ -57,11 +57,11 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
-      pad_value;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl,
+      pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
-                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                 with_bias, do_relu, pad_value);
+                 oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh,
+                 dw, is_dw, with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -74,7 +74,7 @@ LogicalResult tpu::TL_LA_Conv2DOp::codegen(void *ctx) {
   cvi_backend_tl_conv_LA(*backend_ctx, layer_id,
       ga_input, ga_output, ga_filter, ga_pc_info,
       n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-      dh, dw, pt, pb, pl, pr, sh, sw,
+      dh, dw, pt, pb, pl, pr, sh, sw, ins_h, ins_w,
       false, with_bias, do_relu, do_ic_alignment);
   return success();
 }
@@ -86,11 +86,11 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
-      pad_value;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl,
+      pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
-                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                 with_bias, do_relu, pad_value);
+                 oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh,
+                 dw, is_dw, with_bias, do_relu, pad_value);
 
   gaddr_t ga_input = tl_load_flag() ? getPreviousOpAddress(op) : GA_INVALID;
   gaddr_t ga_output = tl_store_flag() ? getOpAddress(op) : GA_INVALID;
@@ -189,7 +189,7 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         la_input, la_output, la_working,
         ga_filter, ga_pc_info,
         n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-        dh, dw, pt, pb, pl, pr, sh, sw,
+        dh, dw, pt, pb, pl, pr, sh, sw, ins_h, ins_w,
         false, with_bias, do_relu,
         true, ga_output,
         do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8,
@@ -199,7 +199,7 @@ LogicalResult tpu::TL_LW_Conv2DOp::codegen(void *ctx) {
         la_input, la_output, la_working,
         ga_filter, ga_pc_info,
         n, ic, ih, iw, g, oc, oh, ow, kh, kw,
-        dh, dw, pt, pb, pl, pr, sh, sw,
+        dh, dw, pt, pb, pl, pr, sh, sw, ins_h, ins_w,
         false, with_bias, do_relu,
         false, GA_INVALID,
         do_leaky_relu, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8,

@@ -33,6 +33,8 @@ typedef struct _conv_args {
   uint8_t pad_r;
   uint8_t sh;
   uint8_t sw;
+  uint8_t ins_h;
+  uint8_t ins_w;
   bool result_add;
   bool with_bias;
   bool do_relu;
@@ -65,6 +67,8 @@ static void conv_la_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
   int  pad_r = args.pad_r;
   int  sh = args.sh;
   int  sw = args.sw;
+  int  ins_h = args.ins_h;
+  int  ins_w = args.ins_w;
   uint16_t kh_ext = dh * (kh - 1) + 1;
   uint16_t kw_ext = dw * (kw - 1) + 1;
   uint32_t oh = (ih + pad_t + pad_b - kh_ext) / sh + 1;
@@ -191,8 +195,10 @@ static void conv_la_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
         param.ifmap = &tl_ifmap_step;
         param.weight = tl_filter[flip];
         param.chl_quan_param = &tl_perchannel_oc_pos;
-        param.ins_h = param.ins_last_h = 0;
-        param.ins_w = param.ins_last_w = 0;
+        param.ins_h = ins_h;
+        param.ins_w = ins_w;
+        param.ins_last_h = 0;
+        param.ins_last_w = 0;
         param.pad_top = pad_t;
         param.pad_bottom = pad_b;
         param.pad_left = pad_l;
@@ -228,8 +234,10 @@ static void conv_la_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
         param.ifmap = &tl_ifmap_oc_pos;
         param.weight = tl_filter[flip];
         param.chl_quan_param = &tl_perchannel_oc_pos;
-        param.ins_h = param.ins_last_h = 0;
-        param.ins_w = param.ins_last_w = 0;
+        param.ins_h = ins_h;
+        param.ins_w = ins_w;
+        param.ins_last_h = 0;
+        param.ins_last_w = 0;
         param.pad_top = pad_t;
         param.pad_bottom = pad_b;
         param.pad_left = pad_l;
@@ -395,10 +403,12 @@ static void conv_lw_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
   int  pad_r = args.pad_r;
   int  sh = args.sh;
   int  sw = args.sw;
+  int  ins_h = args.ins_h;
+  int  ins_w = args.ins_w;
   uint16_t kh_ext = dh * (kh - 1) + 1;
   uint16_t kw_ext = dw * (kw - 1) + 1;
-  uint32_t oh = (ih + pad_t + pad_b - kh_ext) / sh + 1;
-  uint32_t ow = (iw + pad_l + pad_r - kw_ext) / sw + 1;
+  uint32_t oh = (((ih - 1) * (ins_h + 1) + 1) + pad_t + pad_b - kh_ext) / sh + 1;
+  uint32_t ow = (((iw - 1) * (ins_w + 1) + 1) + pad_l + pad_r - kw_ext) / sw + 1;
   assert(oh == args.oh);
   assert(ow == args.ow);
   bool result_add = args.result_add;
@@ -552,8 +562,10 @@ static void conv_lw_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
       param.ifmap = &tl_ifmap_step;
       param.weight = &tl_filter;
       param.chl_quan_param = &tl_perchannel_oc_pos;
-      param.ins_h = param.ins_last_h = 0;
-      param.ins_w = param.ins_last_w = 0;
+      param.ins_h = ins_h;
+      param.ins_w = ins_w;
+      param.ins_last_h = 0;
+      param.ins_last_w = 0;
       param.pad_top = pad_t;
       param.pad_bottom = pad_b;
       param.pad_left = pad_l;
@@ -587,8 +599,10 @@ static void conv_lw_oc_step(const CviBackendContext &ctx, uint32_t layer_id,
       param.ifmap = &tl_ifmap_oc_pos;
       param.weight = &tl_filter;
       param.chl_quan_param = &tl_perchannel_oc_pos;
-      param.ins_h = param.ins_last_h = 0;
-      param.ins_w = param.ins_last_w = 0;
+      param.ins_h = ins_h;
+      param.ins_w = ins_w;
+      param.ins_last_h = 0;
+      param.ins_last_w = 0;
       param.pad_top = pad_t;
       param.pad_bottom = pad_b;
       param.pad_left = pad_l;
@@ -691,6 +705,7 @@ void cvi_backend_tl_conv_LA(
     uint16_t kh, uint16_t kw, uint8_t dilation_h, uint8_t dilation_w,
     uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left, uint8_t pad_right,
     uint8_t stride_h, uint8_t stride_w,
+    uint8_t insert_h, uint8_t insert_w,
     bool result_add, bool with_bias, bool do_relu, bool do_ic_alignment) {
 
   conv_args_t args;
@@ -712,6 +727,8 @@ void cvi_backend_tl_conv_LA(
   args.pad_r = pad_right;
   args.sh = stride_h;
   args.sw = stride_w;
+  args.ins_h = insert_h;
+  args.ins_w = insert_w;
   args.result_add = false;
   args.with_bias = with_bias;
   args.do_relu = do_relu;
@@ -734,6 +751,7 @@ void cvi_backend_tl_conv_LW(
     uint16_t kh, uint16_t kw, uint8_t dilation_h, uint8_t dilation_w,
     uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left, uint8_t pad_right,
     uint8_t stride_h, uint8_t stride_w,
+    uint8_t insert_h, uint8_t insert_w,
     bool result_add, bool with_bias, bool do_relu,
     bool do_store, gaddr_t ga_ofmap,
     bool do_leaky_relu,
@@ -760,6 +778,8 @@ void cvi_backend_tl_conv_LW(
   args.pad_r = pad_right;
   args.sh = stride_h;
   args.sw = stride_w;
+  args.ins_h = insert_h;
+  args.ins_w = insert_w;
   args.result_add = false;
   args.with_bias = with_bias;
   args.do_relu = do_relu;
@@ -785,6 +805,7 @@ void cvi_backend_tl_conv(
   uint32_t kh, uint32_t kw, uint32_t dilation_h, uint32_t dilation_w,
   uint32_t pad_h_top, uint32_t pad_h_bottom, uint32_t pad_w_left, uint32_t pad_w_right,
   uint32_t stride_h, uint32_t stride_w,
+  uint32_t insert_h, uint32_t insert_w,
   uint32_t result_add, uint32_t ctrl, bool do_bias,
   bool do_relu, float slope,
   int rshift, int rshift_len,
@@ -902,8 +923,10 @@ void cvi_backend_tl_conv(
       param.ifmap = &tl_input;
       param.weight = &weight;
       param.chl_quan_param = &perchannel;
-      param.ins_h = param.ins_last_h = 0;
-      param.ins_w = param.ins_last_w = 0;
+      param.ins_h = insert_h;
+      param.ins_w = insert_w;
+      param.ins_last_h = 0;
+      param.ins_last_w = 0;
       param.pad_top = pad_h_top;
       param.pad_bottom = pad_h_bottom;
       param.pad_left = pad_w_left;
@@ -935,8 +958,10 @@ void cvi_backend_tl_conv(
     param.ifmap = &tl_input;
     param.weight = &tl_weight;
     param.chl_quan_param = &tl_chl_quan_param;
-    param.ins_h = param.ins_last_h = 0;
-    param.ins_w = param.ins_last_w = 0;
+    param.ins_h = insert_h;
+    param.ins_w = insert_w;
+    param.ins_last_h = 0;
+    param.ins_last_w = 0;
     param.pad_top = pad_h_top;
     param.pad_bottom = pad_h_bottom;
     param.pad_left = pad_w_left;
@@ -1029,8 +1054,10 @@ void cvi_backend_tl_conv(
         param.ifmap = &input;
         param.weight = &weight;
         param.chl_quan_param = &tl_chl_quan_param;
-        param.ins_h = param.ins_last_h = 0;
-        param.ins_w = param.ins_last_w = 0;
+        param.ins_h = insert_h;
+        param.ins_w = insert_w;
+        param.ins_last_h = 0;
+        param.ins_last_w = 0;
         param.pad_top = pad_h_top;
         param.pad_bottom = pad_h_bottom;
         param.pad_left = pad_w_left;
@@ -1067,6 +1094,7 @@ void cvi_backend_bf16_tl_conv(
   uint32_t kh, uint32_t kw, uint32_t dilation_h, uint32_t dilation_w,
   uint32_t pad_h_top, uint32_t pad_h_bottom, uint32_t pad_w_left, uint32_t pad_w_right,
   uint32_t stride_h, uint32_t stride_w,
+  uint32_t insert_h, uint32_t insert_w,
   bool with_bias, bool do_relu) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -1129,8 +1157,10 @@ void cvi_backend_bf16_tl_conv(
     param.ifmap = &tl_input;
     param.weight = &tl_weight;
     param.bias = with_bias ? &tl_bias : 0;
-    param.ins_h = param.ins_last_h = 0;
-    param.ins_w = param.ins_last_w = 0;
+    param.ins_h = insert_h;
+    param.ins_w = insert_w;
+    param.ins_last_h = 0;
+    param.ins_last_w = 0;
     param.pad_top = pad_h_top;
     param.pad_bottom = pad_h_bottom;
     param.pad_left = pad_w_left;
@@ -1154,8 +1184,10 @@ void cvi_backend_bf16_tl_conv(
     param.ifmap = &tl_input;
     param.weight = &tl_weight;
     param.bias = with_bias ? &tl_bias : 0;
-    param.ins_h = param.ins_last_h = 0;
-    param.ins_w = param.ins_last_w = 0;
+    param.ins_h = insert_h;
+    param.ins_w = insert_w;
+    param.ins_last_h = 0;
+    param.ins_last_w = 0;
     param.pad_top = pad_h_top;
     param.pad_bottom = pad_h_bottom;
     param.pad_left = pad_w_left;
@@ -1248,8 +1280,10 @@ void cvi_backend_bf16_tl_conv(
         param.ifmap = &input;
         param.weight = &weight;
         param.bias = with_bias ? &tl_bias : 0;
-        param.ins_h = param.ins_last_h = 0;
-        param.ins_w = param.ins_last_w = 0;
+        param.ins_h = insert_h;
+        param.ins_w = insert_w;
+        param.ins_last_h = 0;
+        param.ins_last_w = 0;
         param.pad_top = pad_h_top;
         param.pad_bottom = pad_h_bottom;
         param.pad_left = pad_w_left;

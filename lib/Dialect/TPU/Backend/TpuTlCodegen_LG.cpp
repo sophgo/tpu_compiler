@@ -193,10 +193,11 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
-  parseConvParam(param(), false, input(), output(), filter(),
-                 n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl,
+      pr, dh, dw, pad_value;
+  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
+                 oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh,
+                 dw, is_dw, with_bias, do_relu, pad_value);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -227,7 +228,7 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
     la_input, la_output, la_weight, la_working, la_perchanel,
     n, ic, ih, iw,
     g, oc, oh, ow, kh, kw, dh,
-    dw, ph_t, ph_b, pw_l, pw_r, sh, sw,
+    dw, ph_t, ph_b, pw_l, pw_r, sh, sw, ins_h, ins_w,
     0,/*result_add*/
     0, /*ctrl*/
     with_bias,
@@ -252,11 +253,11 @@ LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
   int sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), filter(),
                  n, ic, ih, iw, oc, oh, ow, g,
-                 kh, kw, sh, sw, pt, pb, pl, pr,
+                 kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                  dh, dw, is_dw, with_bias, do_relu, pad_value);
 
   laddr_t la_input = this->la_input();
@@ -281,7 +282,7 @@ LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
     la_input, la_output, la_weight, la_working, la_bias,
     n, ic, ih, iw,
     g, oc, oh, ow, kh, kw, dh,
-    dw, ph_t, ph_b, pw_l, pw_r, sh, sw,
+    dw, ph_t, ph_b, pw_l, pw_r, sh, sw, ins_h, ins_w,
     with_bias,
     do_relu
     );
@@ -298,8 +299,9 @@ LogicalResult tpu::TL_LG_INT8_DeConv2DOp::codegen(void *ctx) {
 
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+  int no_use0, no_use1;
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
-                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu, pad_value);
 
   laddr_t la_input = this->la_input();
@@ -347,8 +349,9 @@ LogicalResult tpu::TL_LG_BF16_DeConv2DOp::codegen(void *ctx) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g;
   int kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
+  int no_use0, no_use1;
   parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
-                 oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
+                 oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                  with_bias, do_relu, pad_value);
 
   laddr_t la_input = this->la_input();

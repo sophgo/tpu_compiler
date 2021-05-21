@@ -53,10 +53,10 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
     assert(op);
 
     bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw,
         pad_value;
     parseConvParam(op.param(), false, op.input(), op.output(), op.filter(), n,
-                   ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
 
     LLVM_DEBUG(llvm::errs() << "TL_LA2LW: layer ID " << getOpLayerId(opInst)
@@ -932,10 +932,10 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
     //auto loc = op->getLoc();
 
     bool is_dw, with_bias, do_relu;
-    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
+    int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw,
         pad_value;
     parseConvParam(op.param(), false, op.input(), op.output(), op.filter(), n,
-                   ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
 
     assert (op.lm_layout() != "NONE");

@@ -5,7 +5,7 @@ namespace mlir {
 void getConvParam(Operation *p,
                   int &n, int &ic, int &ih, int &iw,
                   int &oc, int &oh, int &ow, int &g,
-                  int &kh, int &kw,
+                  int &kh, int &kw, int &ins_h, int &ins_w,
                   int &sh, int &sw, int &pt, int &pb,
                   int &pl, int &pr, int &dh, int &dw,
                   bool &is_dw, bool &with_bias,
@@ -16,7 +16,7 @@ void getConvParam(Operation *p,
   if (auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p)) {
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
@@ -24,7 +24,7 @@ void getConvParam(Operation *p,
   } else if (auto op = dyn_cast<tpu::TG_BF16_Conv2DOp>(p)) {
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
@@ -32,7 +32,7 @@ void getConvParam(Operation *p,
   } else if (auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(p)) {
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
@@ -40,7 +40,7 @@ void getConvParam(Operation *p,
   }else if (auto op = dyn_cast<tpu::TG_BF16_DeConv2DOp>(p)) {
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
-                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr,
+                   n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;

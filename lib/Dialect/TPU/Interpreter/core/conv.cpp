@@ -2,6 +2,7 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Interpreter/cpu/pad.hpp"
+#include "tpuc/NativeCpuImplementation.h"
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
@@ -130,22 +131,37 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping)
   : CPUOpKernel(op, valueMapping) {
   auto castOp = cast<tpu::Conv2DOp>(op);
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
-                 castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
-                 pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
+                 castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h,
+                 ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
+                 do_relu, pad_value);
   is_asymmetric = isOpQuantAsymmetric(&op);
   // get weight name
   auto filterOp =
       llvm::dyn_cast<tpu::LoadWeightOp>(castOp.filter().getDefiningOp());
-  std::string filter_name = filterOp.name().str();
+  std::string filter_name;
+  if (filterOp) {
+    filter_name = filterOp.name().str();
+  }
+  else {
+    filter_name = castOp.filter().getDefiningOp()->getName().getStringRef().str();
+  }
+
   weight_list.push_back(filter_name);
   if(with_bias){
     // get bias name
     auto biasOp =
         llvm::dyn_cast<tpu::LoadWeightOp>(castOp.bias().getDefiningOp());
-    std::string bias_name = biasOp.name().str();
+    std::string bias_name;
+    if (biasOp) {
+      bias_name = biasOp.name().str();
+    }
+    else {
+      bias_name = castOp.bias().getDefiningOp()->getName().getStringRef().str();
+    }
+
     weight_list.push_back(bias_name);
   }
-  arrayAttrToVector(castOp.param().ins(), ins);
+
   // int8 init
   if (datatype == DataType::INT8) {
     auto quant_rshift = this->opdTensors[5];
@@ -179,6 +195,16 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping)
   bias_data = this->opdTensors[2];
 
   output_data = this->resTensor;
+
+  // ins_w as w, ins_h is h
+  if (ins_w || ins_h) {
+    _ih = ih;
+    _iw = iw;
+    ih = (ih - 1) * (ins_h + 1) + 1;
+    iw = (iw - 1) * (ins_w + 1) + 1;
+    _input_data = input_data;
+    input_data = std::make_shared<std::vector<float>>(n * ic * ih * iw);
+  }
 
   // set mkldnn
   this->mkl_eng = mkldnn::engine(mkldnn::engine::kind::cpu, 0);
@@ -278,6 +304,16 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping)
 }
 
 void Conv2DOpKernel::fp32_invoke() {
+  if (ins_w || ins_h) {
+    // dilate activation
+    my_dilateActivation (_input_data->data(), input_data->data(),
+        /*pad_h_t=*/0, /*pad_h_b=*/0,
+        ins_h, /*ins_h_l=*/0,
+        /*pad_w_l=*/0, /*pad_w_r=*/0,
+        ins_w, /*ins_w_l=*/0,
+        n, ic, _ih, _iw, /*fill_constant=*/0);
+  }
+
   for (size_t i = 0; i < mkl_net.size(); ++i) {
     mkl_net.at(i).execute(mkl_stream, mkl_net_args.at(i));
   }
@@ -290,6 +326,16 @@ void Conv2DOpKernel::fp32_invoke() {
 void Conv2DOpKernel::i8_invoke() {
   // mkldnn not support non zero padding
   // we handle it.
+  if (ins_w || ins_h) {
+    // dilate activation
+    my_dilateActivation (_input_data->data(), input_data->data(),
+        /*pad_h_t=*/0, /*pad_h_b=*/0,
+        ins_h, /*ins_h_l=*/0,
+        /*pad_w_l=*/0, /*pad_w_r=*/0,
+        ins_w, /*ins_w_l=*/0,
+        n, ic, _ih, _iw, /*fill_constant=*/0);
+  }
+
   if (pad_value != 0 && is_asymmetric) {
     once_mkldnn_conv(input_data->data(), filter_data->data(),
                      use_multiplier ? nullptr : bias_data->data(),

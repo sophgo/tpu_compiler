@@ -45,7 +45,11 @@ class ModelFactory(object):
                 self.model.load_model(model_file)
 
     def inference(self, input):
-       return self.model.inference(input)
+        if self.model_type == 'mlir':
+            outs = self.model.inference(input)
+            return list(outs.values())[0]
+        else:
+            return self.model.inference(input)
 
     def get_all_tensor(self, input_data=None, npz_file=None):
         tensor_dict = self.model.get_all_tensor(input_data=input_data)

@@ -1410,6 +1410,7 @@ Value tpu::PadOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("pads", padsAttr()));
   attrs.push_back(builder.getNamedAttr("const_val", const_valAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("mode", modeAttr()));
 
   if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
     assert(getOpQuantParamType() == "NONE");

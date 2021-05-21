@@ -198,6 +198,10 @@ struct TpuFusePadPattern : public RewritePattern {
     auto pad_n_end = pads[4];
     auto pad_c_end = pads[5];
 
+    if (padOp.mode().str() == "edge") {
+      return failure();
+    }
+
     if (pad_n_begin != 0 || pad_n_end != 0 ||
         pad_c_begin != 0 || pad_c_end != 0)
       return failure();

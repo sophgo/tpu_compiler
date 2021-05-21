@@ -49,6 +49,8 @@ private:
   int g;
   int kh;
   int kw;
+  int ins_h;
+  int ins_w;
   int sh;
   int sw;
   int pt;
@@ -61,8 +63,9 @@ private:
   bool is_deconv = false;
   bool do_bias_later = false;
   bool do_relu_later = false;
-  std::vector<int32_t> ins;
   bool is_asymmetric;
+  int _ih, _iw;
+  SyncedData _input_data;
 
   // mkldnn setting
   mkldnn::engine mkl_eng;

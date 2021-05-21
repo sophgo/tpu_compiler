@@ -386,6 +386,8 @@ public:
   typedef enum TilingDim {
     TilingAll = 0, // reshape(NxCxHxW) and tiling to [1, NPU_NUM, x, EU_NUM]
     TilingNHW,     // keep c, tiling n,h,w
+    TilingNCH,     // keep w, tiling n,c,h
+    TilingNH,     // keep cw, tiling n,h
     TilingNCHW,    // tiling n,c,h,w
   } tiling_mode_t;
 

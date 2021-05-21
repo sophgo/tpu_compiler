@@ -1127,12 +1127,16 @@ class MLIRImporter(object):
 
         pads = kargs['pads']
         const_val = kargs['const_val']
+        pad_mode = kargs.get('pad_mode', 'constant')
+
         checkType(pads, list)
 
         pad_name = StringAttr.get(op_name)
         pads_attr = ArrayAttr.get(
             [IntegerAttr.get(self.i32Type, x) for x in pads])
         const_val_attr = FloatAttr.get_f32(const_val)
+        pad_mode_attr = StringAttr.get(pad_mode)
+
         if mode == TPU_MODE.INT8:
             quant_param = self.create_int8_quant_attr(**kargs)
         elif mode == TPU_MODE.FP32:
@@ -1141,7 +1145,7 @@ class MLIRImporter(object):
             raise RuntimeError("No support quant mode {}".format(mode))
 
         return self.buildOp(TPU_OpType.Pad.value, inputOperands, [
-            tensor_output_type], name=pad_name, quant=quant_param, pads=pads_attr, const_val=const_val_attr)
+            tensor_output_type], name=pad_name, quant=quant_param, pads=pads_attr, const_val=const_val_attr, mode=pad_mode_attr)
 
     def add_pool_mask_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

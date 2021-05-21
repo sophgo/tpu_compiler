@@ -447,14 +447,14 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
   IR_TYPE layer_type = im_layer->type();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
   int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
 
   if (layer_type == IR_CONVOLUTION ||
       layer_type == IR_DECONVOLUTION) {
     bool do_ic_align = false;
     bool do_leaky_relu = false;
-    getConvParam(im_layer->op(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
+    getConvParam(im_layer->op(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw,
                  pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, do_ic_align,
                  do_leaky_relu, pad_value);
 
@@ -652,14 +652,14 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
   IR_TYPE layer_type = im_layer->type();
 
   bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw;
+  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
   int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
 
   if (layer_type == IR_CONVOLUTION ||
       layer_type == IR_DECONVOLUTION) {
     bool do_ic_align = false;
     bool do_leaky_relu = false;
-    getConvParam(im_layer->op(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
+    getConvParam(im_layer->op(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw,
                  pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, do_ic_align,
                  do_leaky_relu, pad_value);
     if (dw > 1) {
