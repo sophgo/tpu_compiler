@@ -229,7 +229,6 @@
 
 - 基础属性类型
 
-  类型                 描述
   |类型|描述|
   |---|---|
   |StrAttr             | 属性，字符串类型属性|
@@ -255,7 +254,6 @@
 
 - TPU_QuantModeAttr
 
-  枚举   描述
   |枚举|描述|
   |---|---|
   |NONE  | 无量化，保持FP32|
@@ -266,7 +264,6 @@
 
 - TPU_QuantParamTypeAttr
 
-  枚举                描述
   |枚举|描述|
   |---|---|
   |NONE               | 当前Op的量化无需变量|
@@ -282,7 +279,6 @@
 
 - TPU_ConvParamAttr
 
-  参数名称     类型              描述
   |参数名称|类型|描述|
   |---|---|---|
   |stride_h    | I32Attr         | stride_h|
@@ -301,7 +297,6 @@
 
 - TPU_PoolParamAttr
 
-  参数名称            类型       描述
   |参数名称|类型|描述|
   |---|---|---|
   |kernel_h           | I32Attr  | kernel_h|
@@ -770,7 +765,6 @@
 
 - PriorBox
 
-  参数名称                   类型                      描述                 类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output                    | AnyTensor               | 输出Tensor           | 输出|
@@ -1000,7 +994,6 @@
 
 - Upsample
 
-  参数名称   类型                      描述            类别
   |参数名称|类型|描述|类别|
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor      | 输出|
