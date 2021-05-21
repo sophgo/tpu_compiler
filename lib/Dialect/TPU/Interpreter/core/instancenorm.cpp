@@ -4,41 +4,21 @@
 
 namespace mlir {
 InstanceNormOpKernel::InstanceNormOpKernel(Operation &op,
-                                           value_map_t &valueMapping) {
+                                           value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto inOp = cast<tpu::InstanceNormOp>(op);
-  assert(inOp);
-  LLVM_DEBUG(llvm::outs() << " InstanceNorm op: [" << inOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = inOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-  this->name = inOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  // only cpu layer
-  set_datatype("NONE");
-  // get tensors
-
   // gamma_value * (x - mean_value) / np.sqrt(var_value + epsilon) + beta_value
   // where `mean` and `variance` are computed per instance per channel
   // mean = np.mean(x, axis=axis, keepdims=True)
   // var = np.var(x, axis=axis, keepdims=True)
 
   // input
-  input_data = opTensors[0];
-  scale = opTensors[1];
-  bias = opTensors[2];
+  input_data = this->opdTensors[0];
+  scale = this->opdTensors[1];
+  bias = this->opdTensors[2];
   variance_epsilon = inOp.variance_epsilon().convertToFloat();
-
   // output
-  output_data = resultTensor;
-
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  output_data = this->resTensor;
 }
 
 void InstanceNormOpKernel::set_tensor(const std::vector<float> &data) {

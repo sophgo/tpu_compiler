@@ -41,32 +41,17 @@ void crop(float *input, float *output, long int *input_shape,
   }
 };
 
-CropOpKernel::CropOpKernel(Operation &op, value_map_t &valueMapping) {
+CropOpKernel::CropOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto cropOp = cast<tpu::CropOp>(op);
-  assert(cropOp);
-  LLVM_DEBUG(llvm::outs() << " CropOp op: [" << cropOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = cropOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = cropOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = cropOp.name().str();
   arrayAttrToVector(cropOp.crop_offset().getValue(), this->crop_offset);
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void CropOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " CropOp op: [" << this->name
@@ -76,7 +61,7 @@ void CropOpKernel::set_tensor(const std::vector<float> &data) {
     llvm_unreachable(" size not same!");
   }
   this->input_data->assign(data.begin(), data.end());
-};
+}
 
 std::vector<float> CropOpKernel::get_tensor() {
   // deep copy

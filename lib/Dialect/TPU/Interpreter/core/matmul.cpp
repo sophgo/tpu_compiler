@@ -7,41 +7,28 @@
 
 namespace mlir {
 
-MatMulOpKernel::MatMulOpKernel(Operation &op, value_map_t &valueMapping) {
+MatMulOpKernel::MatMulOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto castOp = cast<tpu::MatMulOp>(op);
-  assert(castOp);
-  LLVM_DEBUG(llvm::outs() << " MatMulOp op: [" << castOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = castOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-  this->name = castOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
   this->do_relu = castOp.do_relu();
-  set_datatype(getOpQuant(&op).str());
   l_trans = castOp.left_transpose();
   r_trans = castOp.right_transpose();
   o_trans = castOp.output_transpose();
   parseMatMulParam(op.getOperand(0), op.getOperand(1), op.getResult(0), M, K, N,
                    batch_high, batch_low, l_trans, r_trans, o_trans);
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[4];
-    auto quant_multiplier = opTensors[5];
+    auto quant_rshift = this->opdTensors[4];
+    auto quant_multiplier = this->opdTensors[5];
     assert(quant_rshift);
     assert(quant_multiplier);
     rshift = quant_rshift->at(0);
     multiplier = quant_multiplier->at(0);
   }
-  left_data = opTensors[0];
-  right_data = opTensors[1];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  left_data = this->opdTensors[0];
+  right_data = this->opdTensors[1];
+  output_data = this->resTensor;
 }
+
 void MatMulOpKernel::set_tensor(const std::vector<float> &data) {
   llvm_unreachable("not support now!!");
 };

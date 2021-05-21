@@ -4,29 +4,17 @@
 #include "tpuc/ModuleInterpreter.h"
 namespace mlir {
 
-DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping) {
+DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping)
+  : CPUOpKernel(op, valueMapping) {
   auto castOp = cast<tpu::DeConv2DOp>(op);
-  assert(castOp);
-  LLVM_DEBUG(llvm::outs() << " DeConv op: [" << castOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = castOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
                  castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
                  pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
   is_asymmetric = isOpQuantAsymmetric(&op);
-  this->name = castOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   // int8 init
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[5];
-    auto quant_multiplier = opTensors[6];
+    auto quant_rshift = this->opdTensors[5];
+    auto quant_multiplier = this->opdTensors[6];
     assert(quant_rshift);
     if (!isOpQuantPerchannel(&op)) {
       this->is_perchannel = false;
@@ -42,23 +30,18 @@ DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping) {
       }
     }
   }
-
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = castOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
 
   auto filter_type = castOp.filter().getType().template cast<TensorType>();
   this->filter_shape = filter_type.getShape();
-
   // get tensors
-  assert(opTensors.size() == 7);
-  input_data = opTensors[0];
-  filter_data = opTensors[1];
-  bias_data = opTensors[2];
+  assert(this->opdTensors.size() == 7);
+  input_data = this->opdTensors[0];
+  filter_data = this->opdTensors[1];
+  bias_data = this->opdTensors[2];
 
-  output_data = resultTensor;
+  output_data = this->resTensor;
 
   // set mkldnn
   this->mkl_eng = mkldnn::engine(mkldnn::engine::kind::cpu, 0);
@@ -156,10 +139,8 @@ DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping) {
         {{MKLDNN_ARG_FROM, prim_dst_memory}, {MKLDNN_ARG_TO, mkl_dst_memory}});
   }
   assert(mkl_net.size() == mkl_net_args.size() && "something is missing");
-
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
 }
+
 void DeConv2DOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " DeConv op: [" << this->name

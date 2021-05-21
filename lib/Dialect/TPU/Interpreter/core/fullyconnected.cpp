@@ -5,28 +5,15 @@
 
 namespace mlir {
 FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
-                                               value_map_t &valueMapping) {
+                                               value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
-  assert(fcOp);
-  LLVM_DEBUG(llvm::outs() << " FullyConnected op: [" << fcOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = fcOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-  this->name = fcOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   parseFullyConnectedParam(fcOp.input(), fcOp.output(), fcOp.filter(), m, k, n);
   // get tensors
-  input_data = opTensors[0];
-  filter_data = opTensors[1];
-  bias_data = opTensors[2];
-  output_data = resultTensor;
+  input_data = this->opdTensors[0];
+  filter_data = this->opdTensors[1];
+  bias_data = this->opdTensors[2];
+  output_data = this->resTensor;
 
   this->do_relu = fcOp.do_relu();
 
@@ -35,8 +22,8 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   this->mkl_stream = mkldnn::stream(mkl_eng);
 
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[5];
-    auto quant_multiplier = opTensors[6];
+    auto quant_rshift = this->opdTensors[5];
+    auto quant_multiplier = this->opdTensors[6];
     if (!quant_rshift) {
       llvm_unreachable("quant_rshift is null!");
     }
@@ -117,9 +104,6 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
         {{MKLDNN_ARG_FROM, dst_memory}, {MKLDNN_ARG_TO, mkl_dst_memory}});
   }
   assert(mkl_net.size() == mkl_net_args.size() && "something is missing");
-
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
 } // namespace mlir
 
 void FullyConnectedOpKernel::set_tensor(const std::vector<float> &data) {

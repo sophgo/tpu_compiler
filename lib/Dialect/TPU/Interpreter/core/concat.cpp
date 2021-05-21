@@ -5,29 +5,15 @@
 
 namespace mlir {
 
-ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping) {
+ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto concatOp = cast<tpu::ConcatOp>(op);
-  assert(concatOp);
-  LLVM_DEBUG(llvm::outs() << " ConcatOp op: [" << concatOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = concatOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  this->shape = getTensorShape(result);
-
-  this->name = concatOp.name().str();
   this->axis = concatOp.axis();
   this->input_number = concatOp.getNumInputs();
   this->do_relu = concatOp.do_relu();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[input_number + 2];
-    auto quant_multiplier = opTensors[input_number + 3];
+    auto quant_rshift = this->opdTensors[input_number + 2];
+    auto quant_multiplier = this->opdTensors[input_number + 3];
     if (quant_rshift != nullptr && quant_multiplier != nullptr) {
       need_quant = true;
       rshift.assign(quant_rshift->begin(), quant_rshift->end());
@@ -38,16 +24,15 @@ ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping) {
   inputs_data.resize(input_number);
   inputs_shape.resize(input_number);
   for (size_t i = 0; i < input_number; i++) {
-    inputs_data[i] = opTensors[i];
+    inputs_data[i] = this->opdTensors[i];
     inputs_shape[i] = getTensorShape(op.getOperand(i));
   }
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  output_data = this->resTensor;
 }
+
 void ConcatOpKernel::set_tensor(const std::vector<float> &data) {
   llvm_unreachable("TODO");
-};
+}
 
 std::vector<float> ConcatOpKernel::get_tensor() {
   // deep copy

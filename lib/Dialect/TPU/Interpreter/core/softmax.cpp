@@ -4,59 +4,20 @@
 #include "tpuc/NativeCpuImplementation.h"
 
 namespace mlir {
-SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto castOp = cast<tpu::SoftmaxOp>(op);
-  assert(castOp);
-  LLVM_DEBUG(llvm::outs() << " Softmax op: [" << castOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = castOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->axis = castOp.axis();
-  this->name = castOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
-  // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
-}
 
 SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping,
-                                 bool cpu) {
-  if (!cpu) {
-    SoftmaxOpKernel(op, valueMapping);
-    return;
+                                 bool cpu)
+    : CPUOpKernel(op, valueMapping) {
+  if (cpu) {
+    auto castOp = cast<tpu::SoftmaxCpuOp>(op);
+    this->axis = castOp.axis();
+  } else {
+    auto castOp = cast<tpu::SoftmaxOp>(op);
+    this->axis = castOp.axis();
   }
-
-  auto castOp = cast<tpu::SoftmaxCpuOp>(op);
-  LLVM_DEBUG(llvm::outs() << " SoftmaxCpuOp op: [" << castOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = castOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->axis = castOp.axis();
-  this->name = castOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
 
 void SoftmaxOpKernel::set_tensor(const std::vector<float> &data) {
@@ -87,6 +48,7 @@ void SoftmaxOpKernel::invoke() {
     OpKernel::dump();
     llvm_unreachable("TODO");
   }
-};
+}
+
 void SoftmaxOpKernel::dump() { OpKernel::dump(); };
 } // namespace mlir

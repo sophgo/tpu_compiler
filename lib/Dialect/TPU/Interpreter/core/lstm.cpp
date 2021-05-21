@@ -25,24 +25,11 @@ double LstmOpKernel::tanh_(double data) {
   }
 }
 
-LstmOpKernel::LstmOpKernel(Operation &op, value_map_t &valueMapping) {
+LstmOpKernel::LstmOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto lstmOp = cast<tpu::LstmOp>(op);
-  assert(lstmOp);
-  LLVM_DEBUG(llvm::outs() << " LstmOp op: [" << lstmOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = lstmOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = lstmOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-  this->name = lstmOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   assert(shape.size() == 4);
   seq_length = shape[0];
   num_dir = shape[1];
@@ -55,30 +42,28 @@ LstmOpKernel::LstmOpKernel(Operation &op, value_map_t &valueMapping) {
   input_size = input_shape[2];
   bidirectional = lstmOp.bidirectional();
   // get tensors
-  input_data = opTensors[0];
-  recurrence = opTensors[1];
-  bias = opTensors[2];
+  input_data = this->opdTensors[0];
+  recurrence = this->opdTensors[1];
+  bias = this->opdTensors[2];
   if (bias == nullptr) {
     bias =
         std::make_shared<std::vector<float>>(num_dir * 4 * hidden_size, 0.0f);
   }
-  initial_h = opTensors[3];
+  initial_h = this->opdTensors[3];
   if (initial_h == nullptr) {
     initial_h = std::make_shared<std::vector<float>>(
         num_dir * batch_size * hidden_size, 0.0f);
   }
-  initial_c = opTensors[4];
+  initial_c = this->opdTensors[4];
   if (initial_c == nullptr) {
     initial_c = std::make_shared<std::vector<float>>(
         num_dir * batch_size * hidden_size, 0.0f);
   }
-  sigmoid_lut = opTensors[5];
-  sigmoid_slope_lut = opTensors[6];
-  tanh_lut = opTensors[7];
-  tanh_slope_lut = opTensors[8];
-  output_data = resultTensor;
-  // record mapping table for nexi op connecting
-  valueMapping[result] = std::move(resultTensor);
+  sigmoid_lut = this->opdTensors[5];
+  sigmoid_slope_lut = this->opdTensors[6];
+  tanh_lut = this->opdTensors[7];
+  tanh_slope_lut = this->opdTensors[8];
+  output_data = this->resTensor;
 }
 
 void LstmOpKernel::set_tensor(const std::vector<float> &data) {

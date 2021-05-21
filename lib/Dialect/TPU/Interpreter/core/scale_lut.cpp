@@ -3,29 +3,12 @@
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
-ScaleLutOpKernel::ScaleLutOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto castOp = cast<tpu::ScaleLutOp>(op);
-  assert(castOp);
-  LLVM_DEBUG(llvm::outs() << " ScaleLutOp: [" << castOp.name() << "]\n";);
 
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = castOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = castOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
-  // get tensors
-  input_data = opTensors[0];
-  table = opTensors[1];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+ScaleLutOpKernel::ScaleLutOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
+  input_data = this->opdTensors[0];
+  table = this->opdTensors[1];
+  output_data = this->resTensor;
 }
 
 void ScaleLutOpKernel::invoke() {

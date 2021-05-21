@@ -10,9 +10,7 @@ class SoftmaxOpKernel : public CPUOpKernel<SoftmaxOpKernel> {
 public:
   static constexpr const char *OpName = "CPUSoftmaxOp";
 
-  SoftmaxOpKernel(Operation &op, value_map_t &valueMapping);
-
-  SoftmaxOpKernel(Operation &op, value_map_t &valueMapping, bool cpu);
+  SoftmaxOpKernel(Operation &op, value_map_t &valueMapping, bool cpu=false);
 
   void invoke() override;
   void set_tensor(const std::vector<float> &data) override;
@@ -27,6 +25,7 @@ private:
   // param
   int axis;
 };
+
 } // namespace mlir
 
 #endif

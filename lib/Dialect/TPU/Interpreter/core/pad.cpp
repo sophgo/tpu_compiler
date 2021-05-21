@@ -54,35 +54,18 @@ void pad_constant(float *input, float *output,
   }
 }
 
-PadOpKernel::PadOpKernel(Operation &op, value_map_t &valueMapping) {
+PadOpKernel::PadOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto padOp = cast<tpu::PadOp>(op);
-  assert(padOp);
-  LLVM_DEBUG(llvm::outs() << " PadOp op: [" << padOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = padOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = padOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
   this->const_val = padOp.const_val().convertToFloat();
   arrayAttrToVector(padOp.pads().getValue(), this->pads);
-
-  this->name = padOp.name().str();
-
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void PadOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " PadOp op: [" << this->name

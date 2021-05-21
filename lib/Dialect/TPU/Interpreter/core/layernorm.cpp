@@ -7,32 +7,18 @@
 
 namespace mlir {
 
-LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping) {
+LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto lnOp = cast<tpu::LayerNormOp>(op);
-  assert(lnOp);
-  LLVM_DEBUG(llvm::outs() << " LayerNorm op: [" << lnOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = lnOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = lnOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   // get tensors
-  input_data = opTensors[0];
-  scale_data = opTensors[1];
-  bias_data = opTensors[2];
-  lut = opTensors[3];
-  mantissa_lut = opTensors[4];
+  input_data = this->opdTensors[0];
+  scale_data = this->opdTensors[1];
+  bias_data = this->opdTensors[2];
+  lut = this->opdTensors[3];
+  mantissa_lut = this->opdTensors[4];
   eps = lnOp.eps().convertToFloat();
   arrayAttrToVector(lnOp.normalized_shape(), this->normalized_shape);
-  output_data = resultTensor;
+  output_data = this->resTensor;
   normalized_size = 1;
   batch_size = 1;
   size_t nm_dims = normalized_shape.size();
@@ -53,8 +39,6 @@ LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping) {
     assert(lut);
     assert(mantissa_lut);
   }
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
 }
 
 void LayerNormOpKernel::set_tensor(const std::vector<float> &data) {

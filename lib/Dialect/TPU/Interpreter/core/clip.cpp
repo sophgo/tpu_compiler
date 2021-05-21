@@ -4,42 +4,27 @@
 
 namespace mlir {
 
-ClipOpKernel::ClipOpKernel(Operation &op, value_map_t &valueMapping) {
+ClipOpKernel::ClipOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto clipOp = cast<tpu::ClipOp>(op);
-  assert(clipOp);
-  LLVM_DEBUG(llvm::outs() << " ClipOp op: [" << clipOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = clipOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = clipOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
   this->name = clipOp.name().str();
   this->max = clipOp.max().convertToFloat();
   this->min = clipOp.min().convertToFloat();
 
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[3];
-    auto quant_multiplier = opTensors[4];
+    auto quant_rshift = this->opdTensors[3];
+    auto quant_multiplier = this->opdTensors[4];
 
     this->rshift = quant_rshift->at(0);
     this->multiplier = quant_multiplier->at(0);
   }
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void ClipOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " ClipOp op: [" << this->name
@@ -49,7 +34,7 @@ void ClipOpKernel::set_tensor(const std::vector<float> &data) {
     llvm_unreachable(" size not same!");
   }
   this->input_data->assign(data.begin(), data.end());
-};
+}
 
 std::vector<float> ClipOpKernel::get_tensor() {
   // deep copy

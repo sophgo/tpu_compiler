@@ -6,26 +6,16 @@
 namespace mlir {
 
 BroadcastAddOpKernel::BroadcastAddOpKernel(Operation &op,
-                                           value_map_t &valueMapping) {
+                                           value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto broadcastaddOp = cast<tpu::BroadcastAddOp>(op);
-  assert(broadcastaddOp);
-  LLVM_DEBUG(llvm::outs() << " BroadcastAdd op: [" << broadcastaddOp.name()
-                          << "]\n";);
 
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = broadcastaddOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  this->shape = getTensorShape(result);
   auto shape1 = getTensorShape(op.getOperand(0));
   auto shape2 = getTensorShape(op.getOperand(1));
   if (shape2.size() == 4 && shape2[1] == 1 && shape2[2] == 1) {
     shape1[1] *= shape1[2];
     shape1[2] = 1;
   }
-
   this->inputs_shape.push_back(shape1);
   this->inputs_shape.push_back(shape2);
 
@@ -34,24 +24,16 @@ BroadcastAddOpKernel::BroadcastAddOpKernel(Operation &op,
   if (axis != 1) {
     llvm_unreachable("only support axis 1 broadcast mul");
   }
-
-  this->name = broadcastaddOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[4];
-    auto quant_multiplier = opTensors[5];
+    auto quant_rshift = this->opdTensors[4];
+    auto quant_multiplier = this->opdTensors[5];
     assert(quant_rshift && quant_multiplier);
     rshift = quant_rshift->at(0);
     multiplier.assign(quant_multiplier->begin(), quant_multiplier->end());
   }
-
   // get tensors
-  inputs_data = opTensors;
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  inputs_data = this->opdTensors;
+  output_data = this->resTensor;
 }
 
 void BroadcastAddOpKernel::i8_invoke() {
@@ -151,45 +133,29 @@ std::vector<float> BroadcastAddOpKernel::get_tensor() {
 void BroadcastAddOpKernel::dump() { OpKernel::dump(); }
 
 BroadcastMulOpKernel::BroadcastMulOpKernel(Operation &op,
-                                           value_map_t &valueMapping) {
+                                           value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto broadcastmulOp = cast<tpu::BroadcastMulOp>(op);
-  assert(broadcastmulOp);
-  LLVM_DEBUG(llvm::outs() << " BroadcastMul op: [" << broadcastmulOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = broadcastmulOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-  this->scale_shape = getTensorShape(op.getOperand(1));
-
   do_relu = broadcastmulOp.do_relu();
   int axis = broadcastmulOp.axis();
   if (axis != 1) {
     llvm_unreachable("only support axis 1 broadcast mul");
   }
 
-  this->name = broadcastmulOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-
-  set_datatype(getOpQuant(&op).str());
+  this->scale_shape = getTensorShape(op.getOperand(1));
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[4];
-    auto quant_multiplier = opTensors[5];
+    auto quant_rshift = this->opdTensors[4];
+    auto quant_multiplier = this->opdTensors[5];
     assert(quant_rshift && quant_multiplier);
     rshift = quant_rshift->at(0);
     mutliplier = quant_multiplier->at(0);
   }
   // get tensors
-  input_data = opTensors[0];
-  scale = opTensors[1];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  scale = this->opdTensors[1];
+  output_data = this->resTensor;
 }
+
 void BroadcastMulOpKernel::invoke() {
   int64_t n, c, h, w, bn, bc, bh, bw;
   getNCHW(shape, n, c, h, w);
@@ -241,6 +207,7 @@ void BroadcastMulOpKernel::invoke() {
                        output_data->size());
   }
 }
+
 void BroadcastMulOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " BroadcastMul op: [" << this->name
@@ -250,55 +217,41 @@ void BroadcastMulOpKernel::set_tensor(const std::vector<float> &data) {
     llvm_unreachable(" size not same!");
   }
   this->input_data->assign(data.begin(), data.end());
-};
+}
+
 std::vector<float> BroadcastMulOpKernel::get_tensor() {
   // deep copy
   std::vector<float> ret(this->output_data->begin(), this->output_data->end());
   return ret;
 }
-void BroadcastMulOpKernel::dump() { OpKernel::dump(); }
+
+void BroadcastMulOpKernel::dump() {
+  OpKernel::dump();
+}
 
 BroadcastSubOpKernel::BroadcastSubOpKernel(Operation &op,
-                                           value_map_t &valueMapping) {
+                                           value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto broadcastsubOp = cast<tpu::BroadcastSubOp>(op);
-  assert(broadcastsubOp);
-  LLVM_DEBUG(llvm::outs() << " BroadcastSub op: [" << broadcastsubOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = broadcastsubOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  this->shape = getTensorShape(result);
-
-  this->inputs_shape.push_back(getTensorShape(op.getOperand(0)));
-  this->inputs_shape.push_back(getTensorShape(op.getOperand(1)));
-
   do_relu = broadcastsubOp.do_relu();
   int axis = broadcastsubOp.axis();
   if (axis != 1) {
     llvm_unreachable("only support axis 1 broadcast mul");
   }
 
-  this->name = broadcastsubOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[4];
-    auto quant_multiplier = opTensors[5];
+    auto quant_rshift = this->opdTensors[4];
+    auto quant_multiplier = this->opdTensors[5];
     assert(quant_rshift && quant_multiplier);
     rshift = quant_rshift->at(0);
     multiplier.assign(quant_multiplier->begin(), quant_multiplier->end());
   }
 
+  this->inputs_shape.push_back(getTensorShape(op.getOperand(0)));
+  this->inputs_shape.push_back(getTensorShape(op.getOperand(1)));
   // get tensors
-  inputs_data = opTensors;
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  inputs_data = this->opdTensors;
+  output_data = this->resTensor;
 }
 
 void BroadcastSubOpKernel::i8_invoke() {
@@ -384,6 +337,7 @@ void BroadcastSubOpKernel::invoke() {
                        output_data->size());
   }
 }
+
 void BroadcastSubOpKernel::set_tensor(const std::vector<float> &data) {
   llvm_unreachable("TODO!");
 };

@@ -2,40 +2,82 @@
 #ifndef INTERPRETER_CPU_CORE_H
 #define INTERPRETER_CPU_CORE_H
 #include "tpuc/Interpreter/core.h"
-
+#include "tpuc/TPUTensorSupport.h"
+#include "tpuc/TPUOperationSupport.h"
+#include "llvm/Support/raw_ostream.h"
 #include "mlir/IR/BuiltinOps.h"
 #include "mlir/Support/LLVM.h"
-#include "llvm/Support/raw_ostream.h"
 
 #include <memory>
 #include <vector>
 
 namespace mlir {
-using value_map_t = DenseMap<Value, std::shared_ptr<std::vector<float>>>;
 
 template <typename T>
 class CPUOpKernel : public OpKernel {
 
 public:
+  CPUOpKernel(Operation &op, value_map_t &valueMapping, bool hasOpds = true) {
+    auto type = op.getResult(0).getType().cast<TensorType>();
+    this->shape = type.getShape();
+    this->name = getOpName(&op).str();
+    this->op_type = op.getName().getStringRef().str();
+    set_datatype(getOpQuant(&op).str());
+    if (hasOpds) {
+      assignOperandTensors(op, valueMapping);
+    }
+    assignResultTensor(op, valueMapping);
+  }
+
+  CPUOpKernel() = delete;
+
   void set_tensor(const std::vector<float> &data) {
     static_cast<T *>(this)->set_tensor(data);
-  };
+  }
+
   std::vector<float> get_tensor() {
     return static_cast<T *>(this)->get_tensor();
-  };
-  void invoke() override { static_cast<T *>(this)->invoke(); };
+  }
+
+  void invoke() override {
+    static_cast<T *>(this)->invoke();
+  }
+
+protected:
+
+  void assignOperandTensors(Operation &op, const value_map_t &valueMapping) {
+    for (auto opd : op.getOperands()) {
+      if (isTensorNone(opd)) {
+        opdTensors.push_back(nullptr);
+        continue;
+      }
+      auto it = valueMapping.find(opd);
+      if (it == valueMapping.end()) {
+        llvm::errs() << "not find: " << opd.getDefiningOp()->getName() << "\n";
+        llvm_unreachable("value mapping false");
+      }
+      opdTensors.emplace_back(it->second);
+    }
+  }
+
+  void assignResultTensor(Operation &op, value_map_t &valueMapping) {
+    auto result = op.getResult(0);
+    auto size = getTensorSize(result);
+    resTensor = std::make_shared<std::vector<float>>(size);
+    valueMapping[result] = resTensor;
+  }
+
+protected:
+  std::vector<SyncedData> opdTensors;
+  SyncedData resTensor;
 };
 
 class InputOpKernel : public CPUOpKernel<InputOpKernel> {
 public:
   static constexpr const char *OpName = "CPUInputOp";
-
-  InputOpKernel(SyncedData data, SyncedDataShape shape, int index = 0)
-      : data(data), index(index){};
-
   InputOpKernel(Operation &op, value_map_t &valueMapping,
                 std::vector<std::pair<std::string, size_t>> &input_details);
-  void invoke() override{
+  void invoke() override {
       // input op no need to invoke, skip
   };
   void set_tensor(const std::vector<float> &data) override;
@@ -44,22 +86,6 @@ public:
 
 private:
   SyncedData data;
-  int index; // index
-};
-
-class LoadWeightOpKernel : public CPUOpKernel<LoadWeightOpKernel> {
-public:
-  static constexpr const char *OpName = "LoadWeightOp";
-
-  LoadWeightOpKernel(SyncedData weight_data, SyncedDataShape shape)
-      : weight_data(weight_data){};
-  void invoke() override {
-    llvm::errs() << "load wegiht op no need to invoke, skip\n";
-  };
-  void dump() { OpKernel::dump(); };
-
-private:
-  SyncedData weight_data;
 };
 
 }; // namespace mlir

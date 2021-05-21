@@ -3,34 +3,17 @@
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
-NormalizeOpKernel::NormalizeOpKernel(Operation &op, value_map_t &valueMapping) {
+NormalizeOpKernel::NormalizeOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto normOp = cast<tpu::NormalizeOp>(op);
-  assert(normOp);
-  LLVM_DEBUG(llvm::outs() << " Normalize op: [" << normOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = normOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   this->across_spatial = normOp.across_spatial();
   this->channel_shared = normOp.channel_shared();
-
-  this->name = normOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype("NONE");
   // get tensors
-  input_data = opTensors[0];
-  scale_data = opTensors[1];
-
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  scale_data = this->opdTensors[1];
+  output_data = this->resTensor;
 }
+
 void NormalizeOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Normalize op: [" << this->name

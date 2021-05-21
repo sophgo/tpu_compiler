@@ -9,59 +9,39 @@
 
 namespace mlir {
 
-PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
+PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   tpu::PoolParam pool_param;
-  Value mlir_input_value;
-  Value result;
-  std::string name;
   bool is_avg;
   if (isa<tpu::PoolAvg2DOp>(op)) {
     auto poolavgOp = cast<tpu::PoolAvg2DOp>(op);
     pool_method = POOL_METHOD::AVG;
-    mlir_input_value = poolavgOp.input();
-    result = poolavgOp.getResult();
     pool_param = poolavgOp.param();
-    name = poolavgOp.name().str();
     is_avg = true;
   } else if (isa<tpu::PoolMax2DOp>(op)) {
     auto poolmaxOp = cast<tpu::PoolMax2DOp>(op);
     pool_method = POOL_METHOD::MAX;
-    mlir_input_value = poolmaxOp.input();
-    result = poolmaxOp.getResult();
     pool_param = poolmaxOp.param();
-    name = poolmaxOp.name().str();
     is_avg = false;
   }
 
-  LLVM_DEBUG(llvm::outs() << " Pool op: [" << name << "]\n";);
-  this->name = name;
-  this->op_type = op.getName().getStringRef().str();
   this->input_shape = getTensorShape(op.getOperand(0));
-
   this->is_asymmetric = isOpQuantAsymmetric(&op);
   if (!is_asymmetric && pad_value != 0) {
     llvm::errs() << "pad value:" << pad_value << "\n";
     llvm_unreachable("symmetric pad is zero");
   }
 
-  set_datatype(getOpQuant(&op).str());
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  parsePoolParam(pool_param, mlir_input_value, result, n, c, ih, iw, oh, ow, kh,
+  auto input_value = op.getOperand(0);
+  auto result = op.getResult(0);
+  parsePoolParam(pool_param, input_value, result, n, c, ih, iw, oh, ow, kh,
                  kw, sh, sw, pt, pb, pl, pr, pad_value, is_global, do_relu,
                  count_include_pad);
   is_asymmetric = isOpQuantAsymmetric(&op);
 
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
   using tag = mkldnn::memory::format_tag;
   using dt = mkldnn::memory::data_type;
 
@@ -75,8 +55,8 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
     // mkldnn pool can not simulate this case,
     // we use detphwise conv,  use mutlipiler and rshift to handle 1 / (kh* kw)
     // clean mkldn and reset
-    auto quant_rshift = opTensors[3];
-    auto quant_multiplier = opTensors[4];
+    auto quant_rshift = this->opdTensors[3];
+    auto quant_multiplier = this->opdTensors[4];
     if (!quant_rshift) {
       llvm_unreachable("quant_rshift is null!");
     }
@@ -137,9 +117,6 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping) {
     }
   }
   assert(mkl_net.size() == mkl_net_args.size() && "something is missing");
-
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
 }
 
 void PoolingOpKernel::set_i8_avg_mkldnn() {

@@ -125,33 +125,17 @@ void dequantizeFromInt8ToFp32(float *src, float *dst, int64_t size, float scale,
 }
 
 namespace mlir {
-QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping) {
+QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto quantOp = cast<tpu::QuantOp>(op);
-  assert(quantOp);
-  LLVM_DEBUG(llvm::outs() << " Quant op: [" << quantOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = quantOp.getResult();
-  auto size = getTensorSize(result);
-  auto output_dataensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = quantOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
   this->scale = quantOp.scale().convertToFloat();
   this->zero_point = quantOp.zero_point();
   this->from = quantOp.from().str();
   this->to = quantOp.to().str();
   this->prevOp = quantOp.getOperand().getDefiningOp(); // input
-
-  set_datatype(getOpQuant(&op).str());
   // get tensors
-  input_data = opTensors[0];
-  output_data = output_dataensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(output_dataensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
 
 void QuantOpKernel::set_tensor(const std::vector<float> &data) {
@@ -208,31 +192,15 @@ void QuantOpKernel::dump() {
   llvm::outs() << "\tTo: " << this->to << "\n";
 }
 
-ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping) {
+ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto requantOp = cast<tpu::ReQuantOp>(op);
-  assert(requantOp);
-  LLVM_DEBUG(llvm::outs() << " ReQuant op: [" << requantOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = requantOp.getResult();
-  auto size = getTensorSize(result);
-  auto output_dataensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = requantOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
   this->scale = requantOp.qscale().convertToFloat();
   this->input_offset = (float)-getPreviousOpZeroPoint(&op);
   this->output_offset = (float)getOpZeroPoint(&op);
-
-  set_datatype("NONE");
   // get tensors
-  input_data = opTensors[0];
-  output_data = output_dataensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(output_dataensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
 
 void ReQuantOpKernel::set_tensor(const std::vector<float> &data) {

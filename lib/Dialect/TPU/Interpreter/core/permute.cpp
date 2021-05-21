@@ -35,37 +35,22 @@ void permute(float *src, float *dst, const std::vector<int64_t> &input_shape,
   }
 };
 
-PermuteOpKernel::PermuteOpKernel(Operation &op, value_map_t &valueMapping) {
+PermuteOpKernel::PermuteOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto permuteOp = cast<tpu::PermuteOp>(op);
-  assert(permuteOp);
-  LLVM_DEBUG(llvm::outs() << " PermuteOp op: [" << permuteOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = permuteOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = permuteOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = permuteOp.name().str();
   this->order = {
       permuteOp.order0(),
       permuteOp.order1(),
       permuteOp.order2(),
       permuteOp.order3(),
   };
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void PermuteOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " PermuteOp op: [" << this->name

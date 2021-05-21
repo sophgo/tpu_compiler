@@ -252,6 +252,8 @@ cp $INSTALL_PATH/cnpy/lib/* $INSTALL_PATH/tpuc/lib/
 
 mkdir -p $BUILD_PATH/tpuc
 pushd $BUILD_PATH/tpuc
+# _CXXFLAGS="-ggdb -fopenmp"
+# _BUILD_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=${_CXXFLAGS}"
 cmake -G Ninja \
     $BUILD_FLAG \
     -DMKLDNN_PATH=$INSTALL_PATH/mkldnn \

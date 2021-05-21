@@ -43,7 +43,7 @@ TEST_ONNX_IR = [
     "Neg",
     "Relu",
     "PRelu",
-    "ReduceMax",
+#    "ReduceMax",
     "ReduceMean",
     "Resize",
     "ResizeLinear",

@@ -3,28 +3,16 @@
 #include "tpuc/ModuleInterpreter.h"
 
 namespace mlir {
+
 InputOpKernel::InputOpKernel(
     Operation &op, value_map_t &valueMapping,
-    std::vector<std::pair<std::string, size_t>> &input_details) {
-  auto inputOp = dyn_cast<tpu::InputOp>(op);
-  LLVM_DEBUG(llvm::outs() << " Input op: [" << inputOp.name() << "]\n";);
+    std::vector<std::pair<std::string, size_t>> &input_details)
+    : CPUOpKernel(op, valueMapping, false) {
 
-  auto result = inputOp.getResult();
-  auto type = result.getType().cast<TensorType>();
-  int64_t size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  this->shape = type.getShape();
-
-  this->name = inputOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  input_details.push_back(std::make_pair(name, size));
-
-  set_datatype(getOpQuant(&op).str());
-  this->data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_details.push_back(std::make_pair(this->name, this->resTensor->size()));
+  this->data = this->resTensor;
 }
+
 void InputOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->data->capacity()) {
     llvm::errs() << " Input op: [" << this->name

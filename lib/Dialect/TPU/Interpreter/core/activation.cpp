@@ -10,6 +10,7 @@
 #include <cmath>
 
 namespace mlir {
+
 int omp_schedule(int count) {
   return (count + omp_get_num_threads() - 1) / omp_get_num_threads();
 }
@@ -48,29 +49,13 @@ float mish_caffe(float x_val, float mish_threshold) {
   return x_val * mish_caffe_tanh_part(x_val, mish_threshold);
 }
 
-AbsOpKernel::AbsOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto absOp = cast<tpu::AbsOp>(op);
-  assert(absOp);
-  LLVM_DEBUG(llvm::outs() << " Abs op: [" << absOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = absOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = absOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
+AbsOpKernel::AbsOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void AbsOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Abs op: [" << this->name
@@ -98,39 +83,23 @@ void AbsOpKernel::invoke() {
 
 void AbsOpKernel::dump() { OpKernel::dump(); }
 
-ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping) {
+ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto expOp = cast<tpu::ExpOp>(op);
-  assert(expOp);
-  LLVM_DEBUG(llvm::outs() << " Exp op: [" << expOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = expOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = expOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   if (datatype == DataType::INT8) {
-    y0_table_op = opTensors[1];
-    slope_table = opTensors[2];
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op = opTensors[1];
-    y0_bf16_slope_table = opTensors[2];
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
     bf16_min_range = expOp.min_range().convertToFloat();
     bf16_max_range = expOp.max_range().convertToFloat();
   }
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void ExpOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Exp op: [" << this->name
@@ -140,7 +109,7 @@ void ExpOpKernel::set_tensor(const std::vector<float> &data) {
     llvm_unreachable(" size not same!");
   }
   this->input_data->assign(data.begin(), data.end());
-};
+}
 
 std::vector<float> ExpOpKernel::get_tensor() {
   // deep copy
@@ -176,41 +145,23 @@ void ExpOpKernel::dump() {
   }
 }
 
-MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping) {
+MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping)
+  : CPUOpKernel(op, valueMapping) {
   auto mishOp = cast<tpu::MishOp>(op);
-  assert(mishOp);
-  LLVM_DEBUG(llvm::outs() << " Mish op: [" << mishOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = mishOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = mishOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  this->mish_threshold = mishOp.mish_threshold().convertToFloat();
-
-  set_datatype(getOpQuant(&op).str());
-
   if (datatype == DataType::INT8) {
-    y0_table_op = opTensors[1];
-    slope_table = opTensors[2];
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op = opTensors[1];
-    y0_bf16_slope_table = opTensors[2];
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
     bf16_min_range = mishOp.min_range().convertToFloat();
     bf16_max_range = mishOp.max_range().convertToFloat();
   }
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void MishOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Mish op: [" << this->name
@@ -251,47 +202,32 @@ void MishOpKernel::invoke() {
 
 void MishOpKernel::dump() { OpKernel::dump(); }
 
-LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping) {
+LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping)
+  : CPUOpKernel(op, valueMapping) {
   auto leaky_reluOp = cast<tpu::LeakyReluOp>(op);
-  assert(leaky_reluOp);
-  LLVM_DEBUG(llvm::outs() << " LeakyRelu op: [" << leaky_reluOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = leaky_reluOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
 
   this->negative_slope = leaky_reluOp.negative_slope().convertToFloat();
-
-  this->name = leaky_reluOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   this->is_asymmetric = isOpQuantAsymmetric(&op);
   if (is_asymmetric) {
     this->input_offset = -getPreviousOpZeroPoint(&op);
     this->output_offset = getOpZeroPoint(&op);
   }
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 
   if (datatype == DataType::INT8) {
-    assert(opTensors[5]);
-    assert(opTensors[6]);
-    assert(opTensors[7]);
-    assert(opTensors[8]);
-    rshift_postive = opTensors[5];
-    multiplier_postive = opTensors[6];
-    rshift_negative = opTensors[7];
-    multiplier_negative = opTensors[8];
+    assert(this->opdTensors[5]);
+    assert(this->opdTensors[6]);
+    assert(this->opdTensors[7]);
+    assert(this->opdTensors[8]);
+    rshift_postive = this->opdTensors[5];
+    multiplier_postive = this->opdTensors[6];
+    rshift_negative = this->opdTensors[7];
+    multiplier_negative = this->opdTensors[8];
   }
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
 }
+
 void LeakyReluOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " LeakyRelu op: [" << this->name
@@ -372,28 +308,12 @@ void LeakyReluOpKernel::invoke() {
 
 void LeakyReluOpKernel::dump() { OpKernel::dump(); }
 
-ReluOpKernel::ReluOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto reluOp = cast<tpu::ReluOp>(op);
-  assert(reluOp);
-  LLVM_DEBUG(llvm::outs() << " Relu op: [" << reluOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = reluOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = reluOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-  // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+ReluOpKernel::ReluOpKernel(Operation &op, value_map_t &valueMapping)
+  : CPUOpKernel(op, valueMapping) {
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void ReluOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Relu op: [" << this->name
@@ -417,40 +337,23 @@ void ReluOpKernel::invoke() {
 
 void ReluOpKernel::dump() { OpKernel::dump(); }
 
-PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto preluOp = cast<tpu::PReluOp>(op);
-  assert(preluOp);
-  LLVM_DEBUG(llvm::outs() << " PRelu op: [" << preluOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = preluOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->slope_data = opTensors[1];
-
-  this->name = preluOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
+PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping)
+  : CPUOpKernel(op, valueMapping) {
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 
+  this->slope_data = this->opdTensors[1];
   if (datatype == DataType::INT8) {
-    assert(opTensors[6]);
-    assert(opTensors[7]);
-    assert(opTensors[8]);
-    this->rshift_postive = opTensors[6];
-    this->multiplier_postive = opTensors[7];
-    this->rshift_negative = opTensors[8];
+    assert(this->opdTensors[6]);
+    assert(this->opdTensors[7]);
+    assert(this->opdTensors[8]);
+    this->rshift_postive = this->opdTensors[6];
+    this->multiplier_postive = this->opdTensors[7];
+    this->rshift_negative = this->opdTensors[8];
   }
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
 }
+
 void PReluOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " PRelu op: [" << this->name
@@ -510,38 +413,25 @@ void PReluOpKernel::invoke() {
 void PReluOpKernel::dump() { OpKernel::dump(); }
 
 ReciprocalOpKernel::ReciprocalOpKernel(Operation &op,
-                                       value_map_t &valueMapping) {
+                                       value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
+
   auto rOp = cast<tpu::ReciprocalOp>(op);
-  assert(rOp);
-  LLVM_DEBUG(llvm::outs() << " Reciprocal op: [" << rOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = rOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = rOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op = opTensors[1];
-    slope_table = opTensors[2];
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op = opTensors[1];
-    y0_bf16_slope_table = opTensors[2];
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
     bf16_min_range = rOp.min_range().convertToFloat();
     bf16_max_range = rOp.max_range().convertToFloat();
   }
 
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void ReciprocalOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Reciprocal op: [" << this->name
@@ -583,30 +473,14 @@ void ReciprocalOpKernel::dump() {
   }
 }
 
-ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto reshapeOp = cast<tpu::ReshapeOp>(op);
-  assert(reshapeOp);
-  LLVM_DEBUG(llvm::outs() << " PRelu op: [" << reshapeOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = reshapeOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = reshapeOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
+ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   // get tensors
-  input_data = opTensors[0];
-  output_data = opTensors[0];
-
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(opTensors[0]);
+  input_data = this->opdTensors[0];
+  output_data = this->opdTensors[0];
+  valueMapping[op.getResult(0)] = output_data;
 }
+
 void ReshapeOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " PRelu op: [" << this->name
@@ -625,43 +499,27 @@ std::vector<float> ReshapeOpKernel::get_tensor() {
 }
 
 void ReshapeOpKernel::invoke() {
-  // reshape op no need to invoke, skip
 }
 
 void ReshapeOpKernel::dump() { OpKernel::dump(); }
 
-SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping) {
+SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto sigmoidOp = cast<tpu::SigmoidOp>(op);
-  assert(sigmoidOp);
-  LLVM_DEBUG(llvm::outs() << " Sigmoid op: [" << sigmoidOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = sigmoidOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = sigmoidOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op = opTensors[1];
-    slope_table = opTensors[2];
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op = opTensors[1];
-    y0_bf16_slope_table = opTensors[2];
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
     bf16_min_range = sigmoidOp.min_range().convertToFloat();
     bf16_max_range = sigmoidOp.max_range().convertToFloat();
   }
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void SigmoidOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Sigmoid op: [" << this->name
@@ -707,38 +565,23 @@ void SigmoidOpKernel::dump() {
   }
 }
 
-SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping) {
+SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto spOp = cast<tpu::SoftPlusOp>(op);
-  assert(spOp);
-  LLVM_DEBUG(llvm::outs() << " SoftPlus op: [" << spOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = spOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-  this->threshold = spOp.threshold().convertToFloat();
-  this->name = spOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op = opTensors[1];
-    slope_table = opTensors[2];
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op = opTensors[1];
-    y0_bf16_slope_table = opTensors[2];
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
     bf16_min_range = spOp.min_range().convertToFloat();
     bf16_max_range = spOp.max_range().convertToFloat();
   }
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void SoftPlusOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " SoftPlus op: [" << this->name
@@ -784,38 +627,23 @@ void SoftPlusOpKernel::dump() {
   }
 }
 
-SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping) {
+SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto sqrtOp = cast<tpu::SqrtOp>(op);
-  assert(sqrtOp);
-  LLVM_DEBUG(llvm::outs() << " Sqrt op: [" << sqrtOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = sqrtOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = sqrtOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op = opTensors[1];
-    slope_table = opTensors[2];
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op = opTensors[1];
-    y0_bf16_slope_table = opTensors[2];
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
     bf16_min_range = sqrtOp.min_range().convertToFloat();
     bf16_max_range = sqrtOp.max_range().convertToFloat();
   }
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void SqrtOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Sqrt op: [" << this->name
@@ -850,36 +678,19 @@ void SqrtOpKernel::invoke() {
 
 void SqrtOpKernel::dump() {
   OpKernel::dump();
-
   if (this->datatype == DataType::BF16) {
     llvm::outs() << "\tBf16 Range: " << bf16_min_range << " ~ "
                  << bf16_max_range << "\n";
   }
 }
 
-SquareOpKernel::SquareOpKernel(Operation &op, value_map_t &valueMapping) {
-  auto squareOp = cast<tpu::SquareOp>(op);
-  assert(squareOp);
-  LLVM_DEBUG(llvm::outs() << " Square op: [" << squareOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = squareOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = squareOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
+SquareOpKernel::SquareOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void SquareOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Square op: [" << this->name
@@ -889,7 +700,7 @@ void SquareOpKernel::set_tensor(const std::vector<float> &data) {
     llvm_unreachable(" size not same!");
   }
   this->input_data->assign(data.begin(), data.end());
-};
+}
 
 std::vector<float> SquareOpKernel::get_tensor() {
   // deep copy
@@ -913,38 +724,23 @@ void SquareOpKernel::invoke() {
 
 void SquareOpKernel::dump() { OpKernel::dump(); }
 
-TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping) {
+TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto tanhOp = cast<tpu::TanHOp>(op);
-  assert(tanhOp);
-  LLVM_DEBUG(llvm::outs() << " TanH op: [" << tanhOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = tanhOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = tanhOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    y0_table_op = opTensors[1];
-    slope_table = opTensors[2];
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op = opTensors[1];
-    y0_bf16_slope_table = opTensors[2];
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
     bf16_min_range = tanhOp.min_range().convertToFloat();
     bf16_max_range = tanhOp.max_range().convertToFloat();
   }
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void TanHOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " TanH op: [" << this->name

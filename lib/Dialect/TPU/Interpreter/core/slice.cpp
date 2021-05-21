@@ -23,36 +23,20 @@ void slice(float *input, float *output, int axis, int offset,
     std::memcpy(output + output_offset, input + input_offset,
                 sizeof(float) * axis_slice_size * isz);
   }
-};
-SliceOpKernel::SliceOpKernel(Operation &op, value_map_t &valueMapping) {
+}
+
+SliceOpKernel::SliceOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto sliceOp = cast<tpu::SliceOp>(op);
-  assert(sliceOp);
-  LLVM_DEBUG(llvm::outs() << " SliceOp op: [" << sliceOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = sliceOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = sliceOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = sliceOp.name().str();
   this->axis = sliceOp.axis();
   this->offset = sliceOp.offset();
-
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void SliceOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " SliceOp op: [" << this->name

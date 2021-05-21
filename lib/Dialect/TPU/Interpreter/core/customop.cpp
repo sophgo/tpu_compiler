@@ -4,23 +4,10 @@
 
 namespace mlir {
 
-CustomOpKernel::CustomOpKernel(Operation &op, value_map_t &valueMapping) {
+CustomOpKernel::CustomOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto customOp = cast<tpu::CustomOp>(op);
-  assert(customOp);
-  LLVM_DEBUG(llvm::outs() << " CustomOp op: [" << customOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = customOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-  this->name = customOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
   this->operation_name = customOp.operation_name().str();
-  set_datatype(getOpQuant(&op).str());
-
   convertAttributesToOpParam(customOp.param(), param);
 
   auto& pluginFile = ModuleInterpreter::getCustomOpPluginFile();
@@ -28,15 +15,13 @@ CustomOpKernel::CustomOpKernel(Operation &op, value_map_t &valueMapping) {
   assert(this->plugin);
 
   // get tensors
-  inputs_data.resize(opTensors.size());
-  inputs_shape.resize(opTensors.size());
-  for (size_t i = 0; i < opTensors.size(); i++) {
-    inputs_data[i] = opTensors[i];
+  inputs_data.resize(this->opdTensors.size());
+  inputs_shape.resize(this->opdTensors.size());
+  for (size_t i = 0; i < this->opdTensors.size(); i++) {
+    inputs_data[i] = this->opdTensors[i];
     inputs_shape[i] = getTensorShape(op.getOperand(i));
   }
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  output_data = this->resTensor;
 }
 
 void CustomOpKernel::set_tensor(const std::vector<float> &data) {

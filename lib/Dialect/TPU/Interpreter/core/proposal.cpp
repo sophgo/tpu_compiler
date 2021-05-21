@@ -147,23 +147,11 @@ static void anchor_box_nms(std::vector<std::vector<float>> &pred_boxes,
 
 namespace mlir {
 
-ProposalOpKernel::ProposalOpKernel(Operation &op, value_map_t &valueMapping) {
+ProposalOpKernel::ProposalOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto proposalOp = cast<tpu::ProposalOp>(op);
-  assert(proposalOp);
-  LLVM_DEBUG(llvm::outs() << " ProposalOp op: [" << proposalOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = proposalOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   this->score_shape = op.getOperand(0).getType().cast<TensorType>().getShape();
   this->bbox_shape = op.getOperand(1).getType().cast<TensorType>().getShape();
-  this->name = proposalOp.name().str();
 
   this->net_input_h = proposalOp.net_input_h();
   this->net_input_w = proposalOp.net_input_w();
@@ -174,15 +162,12 @@ ProposalOpKernel::ProposalOpKernel(Operation &op, value_map_t &valueMapping) {
   this->rpn_nms_post_top_n = proposalOp.rpn_nms_post_top_n();
   generate_anchors(anchor_base_size, anchor_scale, anchor_ratio, anchor_boxes);
 
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   // get tensors
-  score = opTensors[0];
-  bbox_deltas = opTensors[1];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  score = this->opdTensors[0];
+  bbox_deltas = this->opdTensors[1];
+  output_data = this->resTensor;
 }
+
 void ProposalOpKernel::set_tensor(const std::vector<float> &data) {
   llvm_unreachable("TODO!");
 };

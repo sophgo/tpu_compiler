@@ -31,39 +31,23 @@ void dilateActivation(float *input, float *output, int pad_h_t, int pad_h_b,
     }
   }
 }
-DilateOpKernel::DilateOpKernel(Operation &op, value_map_t &valueMapping) {
+DilateOpKernel::DilateOpKernel(Operation &op, value_map_t &valueMapping)
+  : CPUOpKernel(op, valueMapping) {
   auto dilateOp = cast<tpu::DilateOp>(op);
-  assert(dilateOp);
-  LLVM_DEBUG(llvm::outs() << " DilateOp op: [" << dilateOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = dilateOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = dilateOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = dilateOp.name().str();
 
   std::vector<int32_t> ins;
   arrayAttrToVector(dilateOp.ins().getValue(), ins);
 
   this->ins_w = ins.size() > 0 ? ins[0] : 0;
   this->ins_h = ins.size() > 1 ? ins[1] : 0;
-
   this->fill_constant = dilateOp.fill_constant();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void DilateOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " DilateOp op: [" << this->name

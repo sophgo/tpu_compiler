@@ -5,36 +5,19 @@
 namespace mlir {
 
 ShuffleChannelOpKernel::ShuffleChannelOpKernel(Operation &op,
-                                               value_map_t &valueMapping) {
+                                               value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto shufflechannelOp = cast<tpu::ShuffleChannelOp>(op);
-  assert(shufflechannelOp);
-  LLVM_DEBUG(llvm::outs() << " ShuffleChannelOp op: ["
-                          << shufflechannelOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = shufflechannelOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type =
       shufflechannelOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = shufflechannelOp.name().str();
   this->group = shufflechannelOp.group();
 
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void ShuffleChannelOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " ShuffleChannelOp op: [" << this->name
@@ -44,7 +27,7 @@ void ShuffleChannelOpKernel::set_tensor(const std::vector<float> &data) {
     llvm_unreachable(" size not same!");
   }
   this->input_data->assign(data.begin(), data.end());
-};
+}
 
 std::vector<float> ShuffleChannelOpKernel::get_tensor() {
   // deep copy

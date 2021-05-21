@@ -180,42 +180,25 @@ void reduce_l2(float *input, float *output,
   std::copy(_output, _output + size, output);
 }
 
-ReduceL2OpKernel::ReduceL2OpKernel(Operation &op, value_map_t &valueMapping) {
+ReduceL2OpKernel::ReduceL2OpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto reducemaxOp = cast<tpu::ReduceL2Op>(op);
-  assert(reducemaxOp);
-  LLVM_DEBUG(llvm::outs() << " ReduceL2Op op: [" << reducemaxOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = reducemaxOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  this->shape = getTensorShape(result);
-
   auto input_type = reducemaxOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = reducemaxOp.name().str();
   arrayAttrToVector(reducemaxOp.axes().getValue(), this->axes);
-
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[3];
-    auto quant_multiplier = opTensors[4];
+    auto quant_rshift = this->opdTensors[3];
+    auto quant_multiplier = this->opdTensors[4];
     assert(quant_rshift);
     assert(quant_multiplier);
     this->rshift = quant_rshift->at(0);
     this->multiplier = quant_multiplier->at(0);
   }
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void ReduceL2OpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " ReduceL2Op op: [" << this->name
@@ -248,42 +231,26 @@ void ReduceL2OpKernel::invoke() {
 void ReduceL2OpKernel::dump() { OpKernel::dump(); }
 
 
-ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping) {
+ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto reducemaxOp = cast<tpu::ReduceMaxOp>(op);
-  assert(reducemaxOp);
-  LLVM_DEBUG(llvm::outs() << " ReduceMaxOp op: [" << reducemaxOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = reducemaxOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  this->shape = getTensorShape(result);
-
   auto input_type = reducemaxOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = reducemaxOp.name().str();
   arrayAttrToVector(reducemaxOp.axes().getValue(), this->axes);
 
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[3];
-    auto quant_multiplier = opTensors[4];
+    auto quant_rshift = this->opdTensors[3];
+    auto quant_multiplier = this->opdTensors[4];
     assert(quant_rshift);
     assert(quant_multiplier);
     this->rshift = quant_rshift->at(0);
     this->multiplier = quant_multiplier->at(0);
   }
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void ReduceMaxOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " ReduceMaxOp op: [" << this->name
@@ -316,42 +283,26 @@ void ReduceMaxOpKernel::invoke() {
 void ReduceMaxOpKernel::dump() { OpKernel::dump(); }
 
 ReduceMeanOpKernel::ReduceMeanOpKernel(Operation &op,
-                                       value_map_t &valueMapping) {
+                                       value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto reducemeanOp = cast<tpu::ReduceMeanOp>(op);
-  assert(reducemeanOp);
-  LLVM_DEBUG(llvm::outs() << " ReduceMeanOp op: [" << reducemeanOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = reducemeanOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  this->shape = getTensorShape(result);
-
   auto input_type = reducemeanOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = reducemeanOp.name().str();
   arrayAttrToVector(reducemeanOp.axes().getValue(), this->axes);
 
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[3];
-    auto quant_multiplier = opTensors[4];
+    auto quant_rshift = this->opdTensors[3];
+    auto quant_multiplier = this->opdTensors[4];
     assert(quant_rshift);
     assert(quant_multiplier);
     this->rshift = quant_rshift->at(0);
     this->multiplier = quant_multiplier->at(0);
   }
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void ReduceMeanOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " ReduceMeanOp op: [" << this->name

@@ -4,32 +4,15 @@
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/QuantizationArithmetic.h"
 
-// Quantize an Activation tensor into INT8, given threshold
-
 namespace mlir {
+
 QuadraticSumOpKernel::QuadraticSumOpKernel(Operation &op,
-                                           value_map_t &valueMapping) {
-  auto quantOp = cast<tpu::QuadraticSumOp>(op);
-  assert(quantOp);
-  LLVM_DEBUG(llvm::outs() << " Quant op: [" << quantOp.name() << "]\n";);
+                                           value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
 
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = quantOp.getResult();
-  auto size = getTensorSize(result);
-  auto output_dataensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  this->shape = getTensorShape(result);
   this->input_shape = getTensorShape(op.getOperand(0));
-  this->name = quantOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-
-  set_datatype(getOpQuant(&op).str());
-  // get tensors
-  input_data = opTensors[0];
-  output_data = output_dataensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(output_dataensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
 
 void QuadraticSumOpKernel::set_tensor(const std::vector<float> &data) {

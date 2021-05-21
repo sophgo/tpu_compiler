@@ -126,24 +126,13 @@ void once_mkldnn_conv(float *input, float *weight, float *bias, float *output,
   s.wait();
 }
 
-Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
+Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping)
+  : CPUOpKernel(op, valueMapping) {
   auto castOp = cast<tpu::Conv2DOp>(op);
-  assert(castOp);
-  LLVM_DEBUG(llvm::outs() << " Conv op: [" << castOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = castOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
                  castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw,
                  pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
   is_asymmetric = isOpQuantAsymmetric(&op);
-  this->name = castOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-
   // get weight name
   auto filterOp =
       llvm::dyn_cast<tpu::LoadWeightOp>(castOp.filter().getDefiningOp());
@@ -156,15 +145,11 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
     std::string bias_name = biasOp.name().str();
     weight_list.push_back(bias_name);
   }
-
   arrayAttrToVector(castOp.param().ins(), ins);
-
-  set_datatype(getOpQuant(&op).str());
-
   // int8 init
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[5];
-    auto quant_multiplier = opTensors[6];
+    auto quant_rshift = this->opdTensors[5];
+    auto quant_multiplier = this->opdTensors[6];
     assert(quant_rshift);
     if (!isOpQuantPerchannel(&op)) {
       this->is_perchannel = false;
@@ -181,9 +166,6 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
     }
   }
 
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = castOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
 
@@ -191,12 +173,12 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
   this->filter_shape = filter_type.getShape();
 
   // get tensors
-  assert(opTensors.size() == 7);
-  input_data = opTensors[0];
-  filter_data = opTensors[1];
-  bias_data = opTensors[2];
+  assert(this->opdTensors.size() == 7);
+  input_data = this->opdTensors[0];
+  filter_data = this->opdTensors[1];
+  bias_data = this->opdTensors[2];
 
-  output_data = resultTensor;
+  output_data = this->resTensor;
 
   // set mkldnn
   this->mkl_eng = mkldnn::engine(mkldnn::engine::kind::cpu, 0);
@@ -293,9 +275,6 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping) {
         {{MKLDNN_ARG_FROM, prim_dst_memory}, {MKLDNN_ARG_TO, mkl_dst_memory}});
   }
   assert(mkl_net.size() == mkl_net_args.size() && "something is missing");
-
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
 }
 
 void Conv2DOpKernel::set_tensor(const std::vector<float> &data) {

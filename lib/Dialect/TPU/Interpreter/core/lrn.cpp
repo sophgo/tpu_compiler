@@ -163,47 +163,31 @@ void lrn_int8(float *input, float *output, int n, int c, int h, int w,
 }
 
 namespace mlir {
-LrnOpKernel::LrnOpKernel(Operation &op, value_map_t &valueMapping) {
+LrnOpKernel::LrnOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto lrnOp = cast<tpu::LrnOp>(op);
-  assert(lrnOp);
-  LLVM_DEBUG(llvm::outs() << " Lrn op: [" << lrnOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = lrnOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  this->shape = getTensorShape(result);
   this->input_shape = getTensorShape(op.getOperand(0));
   if (this->input_shape.size() < 4) {
     llvm_unreachable("input shape size less than 4");
   }
-
-  this->name = lrnOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   this->local_size = lrnOp.local_size();
   this->alpha = lrnOp.alpha().convertToFloat();
   this->beta = lrnOp.beta().convertToFloat();
   this->k = lrnOp.k().convertToFloat();
-
   if (datatype == DataType::INT8) {
-    sqr_lut_data = opTensors[1];
-    power_lut_data = opTensors[2];
+    sqr_lut_data = this->opdTensors[1];
+    power_lut_data = this->opdTensors[2];
     this->sum_rshift = lrnOp.sum_rshift();
     this->lrn_rshift = lrnOp.lrn_rshift();
     this->quant_data0 = lrnOp.quant_data0();
     this->quant_data1 = lrnOp.quant_data1();
   }
   // get tensors
-  input_data = opTensors[0];
-  scale_data = opTensors[3];
-
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  scale_data = this->opdTensors[3];
+  output_data = this->resTensor;
 }
+
 void LrnOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Lrn op: [" << this->name
@@ -262,36 +246,20 @@ void LrnOpKernel::invoke() {
 }
 void LrnOpKernel::dump() { OpKernel::dump(); }
 
-LrnOneOpKernel::LrnOneOpKernel(Operation &op, value_map_t &valueMapping) {
+LrnOneOpKernel::LrnOneOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto lrnOp = cast<tpu::LrnOneOp>(op);
-  assert(lrnOp);
-  LLVM_DEBUG(llvm::outs() << " LrnOne op: [" << lrnOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = lrnOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  this->shape = getTensorShape(result);
   this->input_shape = getTensorShape(op.getOperand(0));
   if (this->input_shape.size() < 4) {
     llvm_unreachable("input shape size less than 4");
   }
-
-  this->name = lrnOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   this->local_size = lrnOp.local_size();
   this->alpha = lrnOp.alpha().convertToFloat();
-
   // get tensors
-  input_data = opTensors[0];
-
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void LrnOneOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Lrn op: [" << this->name
@@ -319,35 +287,19 @@ void LrnOneOpKernel::invoke() {
 }
 void LrnOneOpKernel::dump() { OpKernel::dump(); }
 
-LrnTwoOpKernel::LrnTwoOpKernel(Operation &op, value_map_t &valueMapping) {
+LrnTwoOpKernel::LrnTwoOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto lrnOp = cast<tpu::LrnTwoOp>(op);
-  assert(lrnOp);
-  LLVM_DEBUG(llvm::outs() << " LrnOne op: [" << lrnOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = lrnOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  this->shape = getTensorShape(result);
   this->input_shape = getTensorShape(op.getOperand(0));
   if (this->input_shape.size() < 4) {
     llvm_unreachable("input shape size less than 4");
   }
-
-  this->name = lrnOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   this->local_size = lrnOp.local_size();
-
   // get tensors
-  input_data = opTensors[0];
-
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void LrnTwoOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Lrn op: [" << this->name
@@ -375,36 +327,20 @@ void LrnTwoOpKernel::invoke() {
 }
 void LrnTwoOpKernel::dump() { OpKernel::dump(); }
 
-LrnThreeOpKernel::LrnThreeOpKernel(Operation &op, value_map_t &valueMapping) {
+LrnThreeOpKernel::LrnThreeOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto lrnOp = cast<tpu::LrnThreeOp>(op);
-  assert(lrnOp);
-  LLVM_DEBUG(llvm::outs() << " LrnTwo op: [" << lrnOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = lrnOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  this->shape = getTensorShape(result);
   this->input_shape = getTensorShape(op.getOperand(0));
   if (this->input_shape.size() < 4) {
     llvm_unreachable("input shape size less than 4");
   }
-
-  this->name = lrnOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   this->k = lrnOp.k().convertToFloat();
   this->beta = lrnOp.beta().convertToFloat();
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void LrnThreeOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " Lrn op: [" << this->name

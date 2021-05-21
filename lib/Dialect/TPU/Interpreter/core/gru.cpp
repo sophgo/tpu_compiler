@@ -25,23 +25,11 @@ double GruOpKernel::tanh_(double data) {
   }
 }
 
-GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
+GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto gruOp = cast<tpu::GruOp>(op);
-  LLVM_DEBUG(llvm::outs() << " GruOp op: [" << gruOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = gruOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   auto input_type = gruOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-  this->name = gruOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
   if (shape.size() == 4) {
     seq_length = shape[0];
     num_dir = shape[1];
@@ -63,27 +51,25 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping) {
   assert(linear_before_reset == true);
   bidirectional = gruOp.bidirectional();
   // get tensors
-  input_data = opTensors[0];
-  recurrence = opTensors[1];
-  bias = opTensors[2];
+  input_data = this->opdTensors[0];
+  recurrence = this->opdTensors[1];
+  bias = this->opdTensors[2];
   if (bias == nullptr) {
     bias =
         std::make_shared<std::vector<float>>(num_dir * 3 * hidden_size, 0.0f);
   }
-  initial_h = opTensors[3];
+  initial_h = this->opdTensors[3];
   if (initial_h == nullptr) {
     initial_h = std::make_shared<std::vector<float>>(
         num_dir * batch_size * hidden_size, 0.0f);
   }
   if (datatype == DataType::BF16) {
-    sigmoid_lut = opTensors[4];
-    sigmoid_slope_lut = opTensors[5];
-    tanh_lut = opTensors[6];
-    tanh_slope_lut = opTensors[7];
+    sigmoid_lut = this->opdTensors[4];
+    sigmoid_slope_lut = this->opdTensors[5];
+    tanh_lut = this->opdTensors[6];
+    tanh_slope_lut = this->opdTensors[7];
   }
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  output_data = this->resTensor;
 }
 
 void GruOpKernel::set_tensor(const std::vector<float> &data) {

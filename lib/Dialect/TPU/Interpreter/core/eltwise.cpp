@@ -5,23 +5,10 @@
 
 namespace mlir {
 EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
-                                       value_map_t &valueMapping) {
+                                       value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
 
   auto elt_addOp = cast<tpu::EltwiseAddOp>(op);
-  LLVM_DEBUG(llvm::outs() << " Eltwise Add op: [" << elt_addOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = elt_addOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  this->shape = getTensorShape(result);
-
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-  this->name = elt_addOp.name().str();
   const unsigned nInputs = op.getNumOperands() - 4;
   this->do_quant = getOpQuantParamType(&op) != "NONE";
   this->is_asymmetric = isOpQuantAsymmetric(&op);
@@ -33,8 +20,8 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
     coeff.assign(nInputs, 1.0f);
   }
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[nInputs + 2];
-    auto quant_multiplier = opTensors[nInputs + 3];
+    auto quant_rshift = this->opdTensors[nInputs + 2];
+    auto quant_multiplier = this->opdTensors[nInputs + 3];
     if (do_quant) {
       assert(quant_rshift);
       assert(quant_multiplier);
@@ -51,13 +38,10 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
       this->output_offset = getOpZeroPoint(&op);
     }
   }
-
-  opTensors.erase(opTensors.begin() + nInputs, opTensors.end());
+  this->opdTensors.erase(this->opdTensors.begin() + nInputs, this->opdTensors.end());
   // get tensors
-  inputs_data = opTensors;
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  inputs_data = this->opdTensors;
+  output_data = this->resTensor;
 }
 
 void EltwiseAddOpKernel::set_tensor(const std::vector<float> &data) {
@@ -145,30 +129,16 @@ void EltwiseAddOpKernel::dump() {
 }
 
 EltwiseMaxOpKernel::EltwiseMaxOpKernel(Operation &op,
-                                       value_map_t &valueMapping) {
+                                       value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
 
   auto elt_addOp = cast<tpu::EltwiseMaxOp>(op);
-  LLVM_DEBUG(llvm::outs() << " Eltwise Max op: [" << elt_addOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = elt_addOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  this->shape = getTensorShape(result);
-
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-  this->name = elt_addOp.name().str();
   const unsigned nInputs = op.getNumOperands() - 4;
   this->do_quant = getOpQuantParamType(&op) != "NONE";
-
   this->do_relu = elt_addOp.do_relu();
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[nInputs + 2];
-    auto quant_multiplier = opTensors[nInputs + 3];
+    auto quant_rshift = this->opdTensors[nInputs + 2];
+    auto quant_multiplier = this->opdTensors[nInputs + 3];
     if (do_quant) {
       assert(quant_rshift);
       assert(quant_multiplier);
@@ -177,13 +147,10 @@ EltwiseMaxOpKernel::EltwiseMaxOpKernel(Operation &op,
                               quant_multiplier->end());
     }
   }
-
-  opTensors.erase(opTensors.begin() + nInputs, opTensors.end());
+  this->opdTensors.erase(this->opdTensors.begin() + nInputs, this->opdTensors.end());
   // get tensors
-  inputs_data = opTensors;
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  inputs_data = this->opdTensors;
+  output_data = this->resTensor;
 }
 
 void EltwiseMaxOpKernel::set_tensor(const std::vector<float> &data) {
@@ -270,30 +237,17 @@ void EltwiseMaxOpKernel::dump() {
 }
 
 EltwiseMinOpKernel::EltwiseMinOpKernel(Operation &op,
-                                       value_map_t &valueMapping) {
+                                       value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
 
   auto elt_addOp = cast<tpu::EltwiseMinOp>(op);
-  LLVM_DEBUG(llvm::outs() << " Eltwise Max op: [" << elt_addOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = elt_addOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  this->shape = getTensorShape(result);
-
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-  this->name = elt_addOp.name().str();
   const unsigned nInputs = op.getNumOperands() - 4;
   this->do_quant = getOpQuantParamType(&op) != "NONE";
 
   this->do_relu = elt_addOp.do_relu();
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[nInputs + 2];
-    auto quant_multiplier = opTensors[nInputs + 3];
+    auto quant_rshift = this->opdTensors[nInputs + 2];
+    auto quant_multiplier = this->opdTensors[nInputs + 3];
     if (do_quant) {
       assert(quant_rshift);
       assert(quant_multiplier);
@@ -302,13 +256,10 @@ EltwiseMinOpKernel::EltwiseMinOpKernel(Operation &op,
                               quant_multiplier->end());
     }
   }
-
-  opTensors.erase(opTensors.begin() + nInputs, opTensors.end());
+  this->opdTensors.erase(this->opdTensors.begin() + nInputs, this->opdTensors.end());
   // get tensors
-  inputs_data = opTensors;
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  inputs_data = this->opdTensors;
+  output_data = this->resTensor;
 }
 
 void EltwiseMinOpKernel::set_tensor(const std::vector<float> &data) {
@@ -395,21 +346,10 @@ void EltwiseMinOpKernel::dump() {
 }
 
 EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
-                                       value_map_t &valueMapping) {
+                                       value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
 
   auto elt_mulOp = cast<tpu::EltwiseMulOp>(op);
-  LLVM_DEBUG(llvm::outs() << " Eltwise Mul op: [" << elt_mulOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = elt_mulOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  this->shape = getTensorShape(result);
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-  this->name = elt_mulOp.name().str();
   const unsigned nInputs = op.getNumOperands() - 4;
 
   this->do_quant = getOpQuantParamType(&op) != "NONE";
@@ -419,8 +359,8 @@ EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
   }
   this->do_relu = elt_mulOp.do_relu();
   if (datatype == DataType::INT8) {
-    auto quant_rshift = opTensors[nInputs + 2];
-    auto quant_multiplier = opTensors[nInputs + 3];
+    auto quant_rshift = this->opdTensors[nInputs + 2];
+    auto quant_multiplier = this->opdTensors[nInputs + 3];
     if (do_quant) {
       assert(quant_rshift);
       assert(quant_multiplier);
@@ -430,12 +370,10 @@ EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
     }
   }
 
-  opTensors.erase(opTensors.begin() + nInputs, opTensors.end());
+  this->opdTensors.erase(this->opdTensors.begin() + nInputs, this->opdTensors.end());
   // get tensors
-  inputs_data = opTensors;
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  inputs_data = this->opdTensors;
+  output_data = this->resTensor;
 }
 
 void EltwiseMulOpKernel::set_tensor(const std::vector<float> &data) {

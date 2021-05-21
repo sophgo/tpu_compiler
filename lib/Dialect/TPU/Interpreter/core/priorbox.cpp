@@ -6,20 +6,9 @@
 
 namespace mlir {
 
-PriorBoxOpKernel::PriorBoxOpKernel(Operation &op, value_map_t &valueMapping) {
+PriorBoxOpKernel::PriorBoxOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto priorboxOp = cast<tpu::PriorBoxOp>(op);
-  assert(priorboxOp);
-  LLVM_DEBUG(llvm::outs() << " PriorBoxOp op: [" << priorboxOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = priorboxOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
   this->input_shape = op.getOperand(0).getType().cast<TensorType>().getShape();
 
   this->input_image_shape =
@@ -38,15 +27,9 @@ PriorBoxOpKernel::PriorBoxOpKernel(Operation &op, value_map_t &valueMapping) {
   arrayAttrToVector(priorboxOp.aspect_ratios(), this->aspect_ratios);
   arrayAttrToVector(priorboxOp.variance(), this->variance);
 
-  this->name = priorboxOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-  // get tensors
-
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  output_data = this->resTensor;
 }
+
 void PriorBoxOpKernel::set_tensor(const std::vector<float> &data) {
   llvm_unreachable("TODO");
 };

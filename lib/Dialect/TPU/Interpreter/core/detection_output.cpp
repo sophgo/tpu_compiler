@@ -304,19 +304,9 @@ static void nms(detections *dets, int num, float nms_threshold) {
 namespace mlir {
 
 DetectionOutputOpKernel::DetectionOutputOpKernel(Operation &op,
-                                                 value_map_t &valueMapping) {
+                                                 value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto detection_outputOp = cast<tpu::DetectionOutputOp>(op);
-  assert(detection_outputOp);
-  LLVM_DEBUG(llvm::outs() << " DetectionOutputOp op: ["
-                          << detection_outputOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = detection_outputOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
 
   auto loc_type =
       detection_outputOp.input()[0].getType().template cast<TensorType>();
@@ -347,19 +337,14 @@ DetectionOutputOpKernel::DetectionOutputOpKernel(Operation &op,
   } else {
     llvm_unreachable("code type wrong");
   }
-  this->name = detection_outputOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   // get tensors
-  loc_data = opTensors[0];
-  conf_data = opTensors[1];
-  prior_data = opTensors[2];
+  loc_data = this->opdTensors[0];
+  conf_data = this->opdTensors[1];
+  prior_data = this->opdTensors[2];
 
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  output_data = this->resTensor;
 }
+
 void DetectionOutputOpKernel::set_tensor(const std::vector<float> &data) {
   llvm_unreachable("TODO");
 };
@@ -566,23 +551,9 @@ void DetectionOutputOpKernel::invoke() {
 void DetectionOutputOpKernel::dump() { OpKernel::dump(); }
 
 YoloDetectionOpKernel::YoloDetectionOpKernel(Operation &op,
-                                             value_map_t &valueMapping) {
+                                             value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto yoOp = cast<tpu::YoloDetectionOp>(op);
-  assert(yoOp);
-  LLVM_DEBUG(llvm::outs() << " YoloDetectionOp op: [" << yoOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = yoOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = yoOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   this->net_input_h = yoOp.net_input_h();
   this->net_input_w = yoOp.net_input_w();
   this->obj_threshold = yoOp.obj_threshold().convertToFloat();
@@ -598,7 +569,7 @@ YoloDetectionOpKernel::YoloDetectionOpKernel(Operation &op,
   while (std::getline(iss, s, ',')) {
     this->vec_anchors.push_back(atof(s.c_str()));
   }
-  this->input_count = opTensors.size();
+  this->input_count = this->opdTensors.size();
   for (int i = 0; i < input_count; i++) {
     inputs_shape.push_back(getTensorShape(op.getOperand(i)));
   }
@@ -629,12 +600,10 @@ YoloDetectionOpKernel::YoloDetectionOpKernel(Operation &op,
   }
 
   // get tensors
-  inputs_data = opTensors;
-
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  inputs_data = this->opdTensors;
+  output_data = this->resTensor;
 }
+
 void YoloDetectionOpKernel::set_tensor(const std::vector<float> &data) {
   llvm_unreachable("TODO");
 };
@@ -712,39 +681,22 @@ void YoloDetectionOpKernel::invoke() {
 void YoloDetectionOpKernel::dump() { OpKernel::dump(); }
 
 FrcnDetectionOpKernel::FrcnDetectionOpKernel(Operation &op,
-                                             value_map_t &valueMapping) {
+                                             value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto frcndOp = cast<tpu::FrcnDetectionOp>(op);
-  assert(frcndOp);
-  LLVM_DEBUG(llvm::outs() << " FrcnDetectionOp op: [" << frcndOp.name()
-                          << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = frcndOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
   this->rois_shape = op.getOperand(2).getType().cast<TensorType>().getShape();
-
-  this->name = frcndOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   this->class_num = frcndOp.class_num();
   this->keep_topk = frcndOp.keep_topk();
   this->nms_threshold = frcndOp.nms_threshold().convertToFloat();
   this->obj_threshold = frcndOp.obj_threshold().convertToFloat();
 
   // get tensors
-  bbox_deltas = opTensors[0];
-  scores = opTensors[1];
-  rois = opTensors[2];
-
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  bbox_deltas = this->opdTensors[0];
+  scores = this->opdTensors[1];
+  rois = this->opdTensors[2];
+  output_data = this->resTensor;
 }
+
 void FrcnDetectionOpKernel::set_tensor(const std::vector<float> &data) {
   llvm_unreachable("TODO");
 };

@@ -76,35 +76,19 @@ void yuv420_csc(float *input, float *output, int n, int c, int h, int w,
 
 namespace mlir {
 
-CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping) {
+CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto cscOp = cast<tpu::CscOp>(op);
-  assert(cscOp);
-  LLVM_DEBUG(llvm::outs() << " CscOp op: [" << cscOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = cscOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
 
   auto input_type = cscOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = cscOp.name().str();
   this->pixel_format = cscOp.pixel_format().str();
   this->aligned = cscOp.aligned();
-
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype(getOpQuant(&op).str());
-
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
+
 void CscOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " CscOp op: [" << this->name

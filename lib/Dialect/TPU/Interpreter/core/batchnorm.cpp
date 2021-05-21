@@ -4,33 +4,18 @@
 #include "tpuc/Interpreter/cpu/activation.hpp"
 
 namespace mlir {
-BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping) {
+BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto bnOp = cast<tpu::BatchNormOp>(op);
-  assert(bnOp);
-  LLVM_DEBUG(llvm::outs() << " BatchNorm op: [" << bnOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = bnOp.getResult();
-  auto size = getTensorSize(result);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-
-  this->name = bnOp.name().str();
-  this->op_type = op.getName().getStringRef().str();
-  set_datatype("NONE");
   // get tensors
-  input_data = opTensors[0];
-  mean = opTensors[1];
-  variance = opTensors[2];
-  scale = opTensors[3];
+  input_data = this->opdTensors[0];
+  mean = this->opdTensors[1];
+  variance = this->opdTensors[2];
+  scale = this->opdTensors[3];
   variance_epsilon = bnOp.variance_epsilon().convertToFloat();
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  output_data = this->resTensor;
 }
+
 void BatchNormOpKernel::set_tensor(const std::vector<float> &data) {
   if (data.size() != this->input_data->capacity()) {
     llvm::errs() << " BatchNorm op: [" << this->name
@@ -40,7 +25,8 @@ void BatchNormOpKernel::set_tensor(const std::vector<float> &data) {
     llvm_unreachable(" size not same!");
   }
   this->input_data->assign(data.begin(), data.end());
-};
+}
+
 std::vector<float> BatchNormOpKernel::get_tensor() {
   // deep copy
   std::vector<float> ret(this->output_data->begin(), this->output_data->end());

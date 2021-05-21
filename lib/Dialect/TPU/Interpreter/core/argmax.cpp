@@ -5,32 +5,15 @@
 
 namespace mlir {
 
-ArgMaxOpKernel::ArgMaxOpKernel(Operation &op, value_map_t &valueMapping) {
+ArgMaxOpKernel::ArgMaxOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
   auto argmaxOp = cast<tpu::ArgMaxOp>(op);
-  assert(argmaxOp);
-  LLVM_DEBUG(llvm::outs() << " ArgMaxOp op: [" << argmaxOp.name() << "]\n";);
-
-  auto opTensors = getOperandTensors(&op, valueMapping);
-  auto result = argmaxOp.getResult();
-  auto size = getTensorSize(result);
-  auto resultTensor = std::make_shared<std::vector<float>>(size);
-  LLVM_DEBUG(llvm::outs() << "    =>required memory size: [" << size << "]\n";);
-  auto type = result.getType().cast<TensorType>();
-  this->shape = type.getShape();
-  set_datatype(getOpQuant(&op).str());
-
   auto input_type = argmaxOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-
-  this->name = argmaxOp.name().str();
   this->axis = argmaxOp.axis();
-  this->op_type = op.getName().getStringRef().str();
-  //set_datatype(getOpQuant(&op).str());
   // get tensors
-  input_data = opTensors[0];
-  output_data = resultTensor;
-  // record mapping table for next op connecting
-  valueMapping[result] = std::move(resultTensor);
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
 }
 
 void ArgMaxOpKernel::set_tensor(const std::vector<float> &data) {
