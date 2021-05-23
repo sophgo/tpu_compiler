@@ -1427,6 +1427,9 @@ class ONNX_IR_TESTER(object):
         model_def.opset_import[0].version = 11
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
+        input_data = input_data.reshape(tuple(input_shape))
+        indices = np.argmax(input_data, axis=1)
+        input_data[:, indices] += 0.1
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
