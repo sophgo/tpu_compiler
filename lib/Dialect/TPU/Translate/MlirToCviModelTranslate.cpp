@@ -832,8 +832,8 @@ void CviModelBuilder::storeModel(llvm::raw_ostream &output) {
   genMD5Hash(modelData, (uint8_t *)header.md5);
   std::string magic = u8"CviModel";
   std::string padding = u8"AA";
-  strncpy(header.magic, magic.c_str(), 8);
-  strncpy(header.padding, padding.c_str(), 2);
+  memcpy(header.magic, magic.c_str(), 8);
+  memcpy(header.padding, magic.c_str(), 2);
   memset(header.chip, 0, sizeof(header.chip));
   strncpy(header.chip, clRunChipType.c_str(), clRunChipType.length());
   header.body_size = fbb_.GetSize();

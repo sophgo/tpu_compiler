@@ -138,8 +138,9 @@ std::unique_ptr<std::vector<T> > readWeightTensor(
   auto name = weightOp.name();
   auto type = weightOp.getResult().getType().cast<TensorType>();
   auto tensor = wTF->readTensor<T>(name, type);
-  return std::move(tensor);
+  return tensor;
 }
+
 template std::unique_ptr<std::vector<float> > readWeightTensor(
     Value opd, TensorFile *wTF);
 
@@ -152,14 +153,14 @@ std::unique_ptr<std::vector<T> > readAndDeleteWeightTensor(
     auto type = weightOp.getResult().getType().cast<TensorType>();
     auto tensor = wTF->readTensor<T>(name, type);
     wTF->deleteTensor<T>(name);
-    return std::move(tensor);
+    return tensor;
   } else if (auto weightOp = llvm::dyn_cast_or_null<tpu::TL_LG_LoadCoeffOp>(
                   opd.getDefiningOp())) {
     auto name = weightOp.name();
     auto type = weightOp.getResult().getType().cast<TensorType>();
     auto tensor = wTF->readTensor<T>(name, type);
     wTF->deleteTensor<T>(name);
-    return std::move(tensor);
+    return tensor;
   } else {
     assert(0);
   }

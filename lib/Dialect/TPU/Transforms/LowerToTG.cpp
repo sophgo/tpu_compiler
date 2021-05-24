@@ -2750,7 +2750,7 @@ static std::unique_ptr<std::vector<uint8_t> > packWeight(
     }
   }
 
-  return std::move(packed);
+  return packed;
 }
 
 template <typename OpTy>

@@ -1,6 +1,9 @@
 cmake_minimum_required(VERSION 3.10)
+if(POLICY CMP0116)
+  cmake_policy(SET CMP0116 NEW)
+endif()
 
-project(circt LANGUAGES CXX C)
+project(tpuc LANGUAGES CXX C)
 
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED YES)
