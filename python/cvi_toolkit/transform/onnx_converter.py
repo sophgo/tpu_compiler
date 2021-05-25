@@ -2381,7 +2381,7 @@ class OnnxConverter(BaseConverter):
 
         if mode == "constant":
             pass
-        if mode == "edge":
+        elif mode == "edge":
             pass
         elif mode == 'reflect':
             return self.convert_reflectionpad1d_op(onnx_node)
@@ -2662,7 +2662,10 @@ class OnnxConverter(BaseConverter):
             if scale_h == 1.0 and scale_w == 1.0:
                 self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
                 return
-            if coordinate_transformation_mode == b"pytorch_half_pixel" \
+            if ow > 1 and oh > 1 and coordinate_transformation_mode == b"pytorch_half_pixel":
+                coordinate_transformation_mode = b"half_pixel"
+
+            if coordinate_transformation_mode == b"half_pixel" \
                     and int(scale_h) == scale_h and int(scale_w) == scale_w:
                 # pad edge
                 pads_param = {

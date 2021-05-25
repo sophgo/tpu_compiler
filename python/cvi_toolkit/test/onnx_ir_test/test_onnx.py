@@ -46,7 +46,7 @@ TEST_ONNX_IR = [
     "PRelu",
 #    "ReduceMax",
     "ReduceMean",
-    "Resize",
+    "ResizeNearest",
     "ResizeLinear",
     "ResizePytorch",
 #   "ResizeModel",
@@ -139,7 +139,7 @@ class ONNX_IR_TESTER(object):
             "Reciprocal": self.test_Reciprocal,
             "Pad": self.test_Pad,
             "Relu": self.test_Relu,
-            "Resize": self.test_Resize,
+            "ResizeNearest": self.test_ResizeNearest,
             "ResizeLinear": self.test_ResizeLinear,
             "ResizePytorch": self.test_ResizePytorch,
             "ResizeModel": self.test_ResizeModel,
@@ -1502,8 +1502,8 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
-    def test_Resize(self):
-        test_case = "test_Resize"
+    def test_ResizeNearest(self):
+        test_case = "test_ResizeNearest"
         input_shape = [1, 96, 3, 4]
         output_shape = [1, 96, 6, 8]
 
@@ -1572,8 +1572,9 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_ResizeLinear(self):
-        test_case = "test_Resize_Linear"
-        input_shape = [1, 32, 208, 24]
+        # by cpu, with two outputs, scale is not integer
+        test_case = "test_ResizeLinear"
+        input_shape = [1, 32, 208, 30]
         output_shape = [1, 2, 416, 48]
 
         input = helper.make_tensor_value_info(
@@ -1629,7 +1630,7 @@ class ONNX_IR_TESTER(object):
             inputs=['X1', 'roi', 'scales', 'sizes'],
             outputs=['X2'],
             mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
+            coordinate_transformation_mode='half_pixel'
         )
         weight_data = np.random.randn(2, 32, 3, 3).astype(np.float32)
         bias_data = np.random.randn(2).astype(np.float32)
@@ -1682,9 +1683,10 @@ class ONNX_IR_TESTER(object):
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_ResizePytorch(self):
+        # by npu, scale is integer
         test_case = "test_ResizePytorch"
-        input_shape = [1, 32, 24, 192]
-        output_shape = [1, 32, 48, 384]
+        input_shape = [1, 32, 24, 12]
+        output_shape = [1, 32, 48, 96]
         #input_shape = [1, 32, 6, 48]
         #output_shape = [1, 32, 12, 96]
         #input_shape = [1, 2, 6, 8]
@@ -1737,14 +1739,9 @@ class ONNX_IR_TESTER(object):
             ['input'],  # inputs
             ['X1'],  # outputs
         )
-        add_node = helper.make_node(
-            'Mul',  # node name
-            ['input', 'X1'],  # inputs
-            ['add'],  # outputs
-        )
         resize_node = helper.make_node(
             'Resize',
-            inputs=['add', 'roi', 'scales', 'sizes'],
+            inputs=['X1', 'roi', 'scales', 'sizes'],
             outputs=['output'],
             mode='linear',
             coordinate_transformation_mode='pytorch_half_pixel'
@@ -1752,7 +1749,7 @@ class ONNX_IR_TESTER(object):
         )
 
         graph_def = helper.make_graph(
-            [x1_node, add_node, roi_node_def, scales_node_def, sizes_node_def, resize_node],
+            [x1_node, roi_node_def, scales_node_def, sizes_node_def, resize_node],
             test_case,
             [input],
             [output]

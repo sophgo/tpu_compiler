@@ -3,10 +3,14 @@
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
-static inline float coordinate_transform_pytorch (
-    float x_resized, float x_scale, float length_resized, float length_original) {
+static inline float coordinate_transform (
+    float x_resized, float x_scale, float length_resized, bool pytorch) {
   // please refer NativeCpuImplementation.cpp for more details
-  return length_resized > 1 ? ((x_resized + 0.5f) / x_scale - 0.5f) : 0.0f;
+  if (pytorch) {
+    return length_resized > 1 ? ((x_resized + 0.5f) / x_scale - 0.5f) : 0.0f;
+  } else {
+    return (x_resized + 0.5f) / x_scale - 0.5f;
+  }
 }
 
 // copy from caffe_cpu_interp2
@@ -106,13 +110,13 @@ void upsampleBilinear(int64_t batch_size, int64_t num_channels,
       for (int64_t y = 0; y < output_height; ++y) {
         float in_y =
             std::min(y / height_scale, static_cast<float>(input_height - 1));
-        if (pytorch) {
-          in_y = height_scale == 1 ? static_cast<float>(y)
-            : coordinate_transform_pytorch(static_cast<float>(y), height_scale,
-                static_cast<float>(output_height),
-                static_cast<float>(input_height));
-          in_y = std::max(0.0f, std::min(in_y, static_cast<float>(input_height - 1)));
-        }
+        in_y = height_scale == 1
+                   ? static_cast<float>(y)
+                   : coordinate_transform(static_cast<float>(y), height_scale,
+                                          static_cast<float>(output_height),
+                                          pytorch);
+        in_y = std::max(0.0f,
+                        std::min(in_y, static_cast<float>(input_height - 1)));
 
         const int64_t in_y1 =
             std::min(static_cast<int64_t>(in_y), input_height - 1);
@@ -130,15 +134,13 @@ void upsampleBilinear(int64_t batch_size, int64_t num_channels,
         for (int64_t x = 0; x < output_width; ++x) {
           float in_x =
               std::min(x / width_scale, static_cast<float>(input_width - 1));
-          if (pytorch) {
-            in_x = width_scale == 1 ? static_cast<float>(x)
-                                    : coordinate_transform_pytorch(
-                                          static_cast<float>(x), width_scale,
-                                          static_cast<float>(output_width),
-                                          static_cast<float>(input_width));
-            in_x = std::max(
-                0.0f, std::min(in_x, static_cast<float>(input_width - 1)));
-          }
+          in_x = width_scale == 1
+                     ? static_cast<float>(x)
+                     : coordinate_transform(static_cast<float>(x), width_scale,
+                                            static_cast<float>(output_width),
+                                            pytorch);
+          in_x = std::max(0.0f,
+                          std::min(in_x, static_cast<float>(input_width - 1)));
 
           const int64_t in_x1 =
               std::min(static_cast<int64_t>(in_x), input_width - 1);
