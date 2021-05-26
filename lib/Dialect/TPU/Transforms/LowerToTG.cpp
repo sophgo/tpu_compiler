@@ -534,6 +534,7 @@ Value tpu::Conv2DOp::convertToTG() {
     attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name().str() + "_pad")));
     attrs.push_back(builder.getNamedAttr("const_val", builder.getF32FloatAttr(0)));
     attrs.push_back(builder.getNamedAttr("pads", builder.getI32ArrayAttr(ArrayRef<int32_t>({pads}))));
+    attrs.push_back(builder.getNamedAttr("mode", builder.getStringAttr("constant")));
     if (getOpQuant() == "INT8") {
       auto padOp = OpBuilder(op).create<tpu::TG_INT8_PadOp>(op->getLoc(),
           resultType, ArrayRef<Value>{input()},

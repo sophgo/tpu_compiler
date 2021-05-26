@@ -120,10 +120,10 @@ static bool is_channel_align(Operation* op) {
 std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   std::shared_ptr<ImLayer> layer;
   if (isa<tpu::TG_INT8_AbsOp>(op) ||
-             isa<tpu::TG_BF16_AbsOp>(op)) {
+      isa<tpu::TG_BF16_AbsOp>(op)) {
     layer = std::make_shared<ImAbs>(op);
   } else if (isa<tpu::TG_INT8_PC_Conv2DOp>(op) ||
-      isa<tpu::TG_BF16_Conv2DOp>(op)) {
+             isa<tpu::TG_BF16_Conv2DOp>(op)) {
     layer = std::make_shared<ImConv>(op);
   } else if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op) ||
              isa<tpu::TG_BF16_DeConv2DOp>(op)) {
