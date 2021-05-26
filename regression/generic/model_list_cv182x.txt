@@ -45,6 +45,7 @@ blazeface                 N        N        N        Y        N        N
 resnet18                  N        N        N        Y        Y        N
 efficientnet_b0           N        N        N        Y        Y        N
 efficientnet-lite_b0      N        N        N        Y        Y        N
+faceboxes                 N        N        N        Y        N        N
 alphapose                 N        N        N        Y        Y        N
 espcn_3x                  N        N        N        Y        Y        N
 unet                      N        N        N        Y        N        N

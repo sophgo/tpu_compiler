@@ -353,6 +353,37 @@ export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
 
+if [ $NET = "faceboxes" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/face_detection/faceboxes/onnx/faceboxes.onnx
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export FP32_INFERENCE_SCRIPT=$REGRESSION_PATH/generic/regression_0_onnx.sh
+export NET_INPUT_DIMS=915,1347
+export IMAGE_RESIZE_DIMS=915,1347
+export RAW_SCALE=255.0
+export MEAN=104,117,123
+export INPUT_SCALE=1.0
+export MODEL_CHANNEL_ORDER="bgr"
+export INPUT=input.1
+export EVAL_MODEL_TYPE="widerface"
+export OBJ_THRESHOLD=0.005
+export NMS_THRESHOLD=0.45
+export DATASET=$DATASET_PATH/widerface/WIDER_val/images
+export ANNOTATION=$DATASET_PATH/widerface/wider_face_split
+export TOLERANCE_INT8_PER_TENSOR=0.91,0.91,0.58
+export TOLERANCE_INT8_RSHIFT_ONLY=0.91,0.91,0.58
+export TOLERANCE_INT8_MULTIPLER=0.70,0.70,-0.10
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export TOLERANCE_FP32=0.999,0.999,0.96 #
+export DO_PREPROCESS=0
+export BGRAY=0
+# just compare last one
+fi
+
+
 if [ $NET = "shufflenet_v2" ]; then
 export MODEL_DEF=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.prototxt
 export MODEL_DAT=$MODEL_PATH/imagenet/shufflenet_v2/caffe/shufflenet_v2_x0.5.caffemodel
