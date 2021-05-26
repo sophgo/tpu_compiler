@@ -1045,7 +1045,7 @@ class MLIRImport:
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
-
+ 	
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -1665,7 +1665,6 @@ d. program信息
 ### 获取输入输出Tensor
 
 > 接下来，程序通过API分别获取Input Tensor和Output Tensor信息。对于支持多种batch_size的cvimodel，需要则会获取Tensor时指定batch_size。每个Tensor有自身的名称，类型，维度信息，以及存储空间。
->
 
 ### 执行推理
 
@@ -2363,3 +2362,46 @@ def forward(self)
  for out in model.outputs:
    print(outputs)
 ```
+
+
+
+## 3.4 Runtime日志设置
+
+#### Runtime日志路径
+
+> /var/log/tpu
+
+
+
+#### Runtime日志配置
+
+> 以修改输出日志级别为info为例：
+>
+> 修改/etc/rsyslog.d/tpu.conf文件
+>
+> 输入：
+>
+> if $syslogfacility-text == "local6" and ( $syslogseverity <= 6) then /dev/console （日志级别小于等于6则输出到终端）
+>
+> if $syslogfacility-text == "local6" and ( $syslogseverity <= 6) then /var/log/tpu（日志级别小于等于6则输出到/var/log/tpu文件中）
+>
+> 然后使用命令
+>
+> /etc/init.d/P01rsyslog restart
+>
+> 即可生效
+
+
+
+#### Runtime日志级别
+
+| FATAL   | 0    |
+| :------ | ---- |
+| ERROR   | 3    |
+| WARNING | 4    |
+| NOTICE  | 5    |
+| INFO    | 6    |
+| DEBUG   | 7    |
+
+
+
