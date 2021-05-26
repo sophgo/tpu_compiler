@@ -41,6 +41,7 @@ enet                      N        N        N        Y        N        N
 fcn-8s                    N        N        N        Y        N        N
 
 # onnx
+blazeface                 N        N        N        Y        N        N
 resnet18                  N        N        N        Y        Y        N
 efficientnet_b0           N        N        N        Y        Y        N
 efficientnet-lite_b0      N        N        N        Y        Y        N

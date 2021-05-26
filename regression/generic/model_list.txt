@@ -43,6 +43,7 @@ fcn-8s                    N        N        N        Y        N        N
 resnet_res_blstm          N        N        N        Y        Y        N
 
 # onnx
+blazeface                 N        N        N        Y        N        N
 resnet18                  Y        N        N        N        Y        N
 efficientnet_b0           N        Y        N        Y        N        N
 efficientnet-lite_b0      Y        N        N        N        Y        N
