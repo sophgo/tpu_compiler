@@ -16,7 +16,7 @@ void cvi_backend_tg_swap_channel_kernel(const CviBackendContext &ctx,
                                         gaddr_t output_gaddr,
                                         int input_dim_size, int *input_dim,
                                         int *channel_order, cvk_fmt_t fmt) {
-  assert(input_dim_size == 4 && input_dim[1] == 3 && "paramter error");
+  assert(input_dim_size == 4 && input_dim[1] == 3 && "parameter error");
   cvk_tg_shape_t shape =
       ctx.tg_shape_t4(input_dim[0], 1, input_dim[2], input_dim[3]);
   cvk_tg_stride_t stride =
