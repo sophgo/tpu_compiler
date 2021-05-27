@@ -103,6 +103,8 @@ static bool isLoadDecompressedOp(Operation *op) {
 }
 
 static bool isLoadNeuronWithWSliceOp(Operation *def_op, Operation *use_op) {
+  if (isLgLoadNeuronOp(def_op) == false)
+    return false;
   std::vector<int64_t> def_shapes = getTensorShape(def_op->getResult(0));
   std::vector<int64_t> use_shapes = getTensorShape(use_op->getResult(0));
   if (def_shapes.size() == use_shapes.size() &&
