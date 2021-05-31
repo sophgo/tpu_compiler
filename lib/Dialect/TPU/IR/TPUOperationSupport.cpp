@@ -139,6 +139,8 @@ void arrayAttrToVector(const ArrayAttr &arrayAttr, std::vector<float> &vector) {
 llvm::StringRef getOpName(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
     return tpuOp.getOpName();
+  } else if (auto castOp = llvm::dyn_cast<tpu::LoadWeightOp>(op)) {
+    return castOp.name();
   } else if (isa<ReturnOp>(op)) {
     return llvm::StringRef("std.return");
   } else {
