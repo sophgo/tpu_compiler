@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class LayerNormOpKernel : public CPUOpKernel<LayerNormOpKernel> {
+class LayerNormOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULayerNormOp";
   LayerNormOpKernel(Operation &op, value_map_t &valueMapping);

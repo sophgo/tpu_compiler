@@ -6,7 +6,7 @@
 
 namespace mlir {
 
-class FullyConnectedOpKernel : public CPUOpKernel<FullyConnectedOpKernel> {
+class FullyConnectedOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUFullyConnectedOp";
 

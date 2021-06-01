@@ -4,7 +4,7 @@
 #include "tpuc/Interpreter/cpukernel.h"
 
 namespace mlir {
-class ConcatOpKernel : public CPUOpKernel<ConcatOpKernel> {
+class ConcatOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUConcatOp";
 

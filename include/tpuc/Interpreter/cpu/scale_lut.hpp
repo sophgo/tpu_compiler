@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class ScaleLutOpKernel : public CPUOpKernel<ScaleLutOpKernel> {
+class ScaleLutOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUScaleLutOp";
 

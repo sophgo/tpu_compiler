@@ -5,7 +5,7 @@
 
 namespace mlir {
 
-class MatMulOpKernel : public CPUOpKernel<MatMulOpKernel> {
+class MatMulOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUMatMulOp";
 

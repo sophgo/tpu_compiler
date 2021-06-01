@@ -6,7 +6,7 @@
 namespace mlir {
 void permute(float *src, float *dst, const std::vector<int64_t> &input_shape,
              std::vector<unsigned int> &order);
-class PermuteOpKernel : public CPUOpKernel<PermuteOpKernel> {
+class PermuteOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPermuteOp";
 

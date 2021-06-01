@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class ROIPoolingOpKernel : public CPUOpKernel<ROIPoolingOpKernel> {
+class ROIPoolingOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUROIPoolingOp";
 

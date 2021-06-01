@@ -5,7 +5,7 @@
 
 namespace mlir {
 
-class LrnOpKernel : public CPUOpKernel<LrnOpKernel> {
+class LrnOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULrnOp";
 
@@ -34,7 +34,7 @@ private:
   int quant_data1;
 };
 
-class LrnOneOpKernel : public CPUOpKernel<LrnOneOpKernel> {
+class LrnOneOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULrnOp";
 
@@ -52,7 +52,7 @@ private:
   int local_size;
 };
 
-class LrnTwoOpKernel : public CPUOpKernel<LrnTwoOpKernel> {
+class LrnTwoOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULrnOp";
 
@@ -69,7 +69,7 @@ private:
   int local_size;
 };
 
-class LrnThreeOpKernel : public CPUOpKernel<LrnThreeOpKernel> {
+class LrnThreeOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULrnOp";
 

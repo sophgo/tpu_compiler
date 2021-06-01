@@ -7,7 +7,7 @@ namespace mlir {
 void crop(float *input, float *output, long int *input_shape,
           long int *output_shape, int cur_dim, int *offsets, int *indices);
 
-class CropOpKernel : public CPUOpKernel<CropOpKernel> {
+class CropOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUCropOp";
 

@@ -5,7 +5,7 @@
 
 namespace mlir {
 
-class DepthToSpaceOpKernel : public CPUOpKernel<DepthToSpaceOpKernel> {
+class DepthToSpaceOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUDepthToSpaceOp";
 

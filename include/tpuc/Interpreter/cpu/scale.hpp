@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class ScaleOpKernel : public CPUOpKernel<ScaleOpKernel> {
+class ScaleOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUScaleOp";
 

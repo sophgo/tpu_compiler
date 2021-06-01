@@ -5,7 +5,7 @@
 
 namespace mlir {
 
-class LstmOpKernel : public CPUOpKernel<LstmOpKernel> {
+class LstmOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULstmOp";
 

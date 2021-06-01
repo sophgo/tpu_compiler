@@ -135,33 +135,6 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping)
                  ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
                  do_relu, pad_value);
   is_asymmetric = isOpQuantAsymmetric(&op);
-  // get weight name
-  auto filterOp =
-      llvm::dyn_cast<tpu::LoadWeightOp>(castOp.filter().getDefiningOp());
-  std::string filter_name;
-  if (filterOp) {
-    filter_name = filterOp.name().str();
-  }
-  else {
-    filter_name = castOp.filter().getDefiningOp()->getName().getStringRef().str();
-  }
-
-  weight_list.push_back(filter_name);
-  if(with_bias){
-    // get bias name
-    auto biasOp =
-        llvm::dyn_cast<tpu::LoadWeightOp>(castOp.bias().getDefiningOp());
-    std::string bias_name;
-    if (biasOp) {
-      bias_name = biasOp.name().str();
-    }
-    else {
-      bias_name = castOp.bias().getDefiningOp()->getName().getStringRef().str();
-    }
-
-    weight_list.push_back(bias_name);
-  }
-
   // int8 init
   if (datatype == DataType::INT8) {
     auto quant_rshift = this->opdTensors[5];

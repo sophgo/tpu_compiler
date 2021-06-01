@@ -585,26 +585,6 @@ std::vector<float> ModuleInterpreter::get_tensor(std::string name) {
   llvm::errs() << " Not Find Op name: " << name << " tensor \n";
   return std::vector<float>();
 }
-std::vector<std::string>
-ModuleInterpreter::get_weight_name(const std::string &name) {
-  std::lock_guard<std::mutex> lock(invoke_lock);
-  for (auto &node : oplist) {
-    if (node->get_name() == name) {
-      return node->get_weight_name();
-    }
-  }
-  llvm::errs() << " Not Find Op name: " << name << " tensor \n";
-  return std::vector<std::string>();
-}
-
-std::vector<std::pair<std::string, std::string>>
-ModuleInterpreter::get_tensor_info() {
-  std::vector<std::pair<std::string, std::string>> op_info;
-  for (auto &node : oplist) {
-    op_info.push_back(std::make_pair(node->get_name(), node->get_op_type()));
-  }
-  return op_info;
-}
 
 std::vector<int64_t> ModuleInterpreter::get_tensor_shape(std::string name) {
   for (auto &node : oplist) {
@@ -623,23 +603,6 @@ void ModuleInterpreter::dump(std::string name) {
     }
   }
   llvm::errs() << " Not Find Op name: " << name << " tensor \n";
-}
-
-void ModuleInterpreter::setWeightData(std::string name,
-                                      std::vector<float> data) {
-  if (weight_data_list.count(name)) {
-    if (weight_data_list[name].first.size() != data.size()) {
-      llvm::errs() << "change weight size is wrong ("
-                   << weight_data_list[name].first.size() << "v.s. "
-                   << data.size() << ")\n";
-    } else {
-      change_weight_table[name].assign(data.begin(), data.end());
-    }
-  } else {
-    llvm::errs() << "No load_wight Op " << name << "in mlir\n";
-  }
-  reset();
-  allocate_tensors();
 }
 
 void ModuleInterpreter::allocate_tensors() {

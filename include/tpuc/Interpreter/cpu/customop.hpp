@@ -8,7 +8,7 @@
 #include <memory>
 namespace mlir {
 
-class CustomOpKernel : public CPUOpKernel<CustomOpKernel> {
+class CustomOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUCustomOp";
 

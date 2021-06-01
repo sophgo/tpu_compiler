@@ -13,11 +13,11 @@
 
 namespace mlir {
 
-template <typename T>
 class CPUOpKernel : public OpKernel {
 
 public:
-  CPUOpKernel(Operation &op, value_map_t &valueMapping, bool hasOpds = true) {
+  CPUOpKernel(Operation &op, value_map_t &valueMapping,
+              bool hasOpds = true) {
     auto type = op.getResult(0).getType().cast<TensorType>();
     this->shape = type.getShape();
     this->name = getOpName(&op).str();
@@ -27,9 +27,13 @@ public:
       assignOperandTensors(op, valueMapping);
     }
     assignResultTensor(op, valueMapping);
+    signature = generateSignature(op);
+    this->op = op.getResult(0).getDefiningOp();
   }
 
   CPUOpKernel() = delete;
+
+  virtual ~CPUOpKernel() {}
 
   virtual void set_tensor(const std::vector<float> &data) {
     llvm_unreachable("NOT support set_tensor");
@@ -40,6 +44,22 @@ public:
     std::vector<float> ret(resTensor->begin(), resTensor->end());
     return ret;
   }
+
+  static std::string generateSignature(Operation &op) {
+    std::string signature;
+    std::string s;
+    llvm::raw_string_ostream os(s);
+    op.print(os);
+    auto str = os.str();
+    for (int i = 0; i < (int)str.size(); i++) {
+      if (str[i] == ')') {
+        signature = str.substr(i + 1);
+        break;
+      }
+    }
+    return signature;
+  }
+
 
 protected:
 
@@ -65,12 +85,17 @@ protected:
     valueMapping[result] = resTensor;
   }
 
+public:
+  Operation *op;
+  std::string signature;
+  bool dirty = true;
+
 protected:
   std::vector<SyncedData> opdTensors;
   SyncedData resTensor;
 };
 
-class InputOpKernel : public CPUOpKernel<InputOpKernel> {
+class InputOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUInputOp";
   InputOpKernel(Operation &op, value_map_t &valueMapping,

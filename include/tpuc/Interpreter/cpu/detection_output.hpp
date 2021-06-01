@@ -6,7 +6,7 @@
 
 namespace mlir {
 
-class DetectionOutputOpKernel : public CPUOpKernel<DetectionOutputOpKernel> {
+class DetectionOutputOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUDetectionOutputOp";
 
@@ -34,7 +34,7 @@ private:
   Decode_CodeType code_type;
 };
 
-class YoloDetectionOpKernel : public CPUOpKernel<YoloDetectionOpKernel> {
+class YoloDetectionOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUYoloDetectionOpKernel";
 
@@ -65,7 +65,7 @@ private:
   std::vector<float> vec_anchors;
 };
 
-class FrcnDetectionOpKernel : public CPUOpKernel<FrcnDetectionOpKernel> {
+class FrcnDetectionOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUFrcnDetectionOp";
 

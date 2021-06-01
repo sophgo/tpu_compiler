@@ -4,7 +4,7 @@
 #include "tpuc/Interpreter/cpukernel.h"
 
 namespace mlir {
-class PoolMaskOpKernel : public CPUOpKernel<PoolMaskOpKernel> {
+class PoolMaskOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPoolMaskOp";
 

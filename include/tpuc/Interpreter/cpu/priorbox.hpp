@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class PriorBoxOpKernel : public CPUOpKernel<PriorBoxOpKernel> {
+class PriorBoxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPriorBoxOp";
 

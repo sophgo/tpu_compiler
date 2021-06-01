@@ -5,7 +5,7 @@
 
 namespace mlir {
 
-class InterpolationOpKernel : public CPUOpKernel<InterpolationOpKernel> {
+class InterpolationOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUInterpolationOp";
 

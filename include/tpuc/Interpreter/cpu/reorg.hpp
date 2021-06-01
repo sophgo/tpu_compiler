@@ -4,7 +4,7 @@
 #include "tpuc/Interpreter/cpukernel.h"
 
 namespace mlir {
-class ReorgOpKernel : public CPUOpKernel<ReorgOpKernel> {
+class ReorgOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReorgOp";
 

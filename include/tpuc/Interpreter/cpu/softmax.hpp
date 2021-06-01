@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class SoftmaxOpKernel : public CPUOpKernel<SoftmaxOpKernel> {
+class SoftmaxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSoftmaxOp";
 

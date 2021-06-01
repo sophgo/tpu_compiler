@@ -4,7 +4,7 @@
 #include "tpuc/Interpreter/cpukernel.h"
 
 namespace mlir {
-class ShuffleChannelOpKernel : public CPUOpKernel<ShuffleChannelOpKernel> {
+class ShuffleChannelOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUShuffleChannelOp";
 

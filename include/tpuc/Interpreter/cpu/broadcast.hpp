@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class BroadcastAddOpKernel : public CPUOpKernel<BroadcastAddOpKernel> {
+class BroadcastAddOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUBroadcastAddOp";
 
@@ -26,7 +26,7 @@ private:
   float rshift;
   std::vector<float> multiplier;
 };
-class BroadcastMulOpKernel : public CPUOpKernel<BroadcastMulOpKernel> {
+class BroadcastMulOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUBroadcastMulOp";
 
@@ -45,7 +45,7 @@ private:
   float rshift;
   float mutliplier;
 };
-class BroadcastSubOpKernel : public CPUOpKernel<BroadcastSubOpKernel> {
+class BroadcastSubOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUBroadcastSubOp";
 

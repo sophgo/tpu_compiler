@@ -132,7 +132,8 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping)
   this->zero_point = quantOp.zero_point();
   this->from = quantOp.from().str();
   this->to = quantOp.to().str();
-  this->prevOp = quantOp.getOperand().getDefiningOp(); // input
+  auto prevOp = quantOp.getOperand().getDefiningOp(); // input
+  this->useTpuQuant = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
@@ -140,9 +141,8 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping)
 
 void QuantOpKernel::invoke() {
   if (this->from == "NONE" && this->to == "INT8") {
-    bool useTpuQuantOp = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
     quantizeFromFp32ToInt8(input_data->data(), output_data->data(),
-                           input_data->size(), scale, zero_point, useTpuQuantOp);
+                           input_data->size(), scale, zero_point, useTpuQuant);
   } else if ((this->from == "INT8" || this->from == "UINT8") &&
              this->to == "NONE") {
     dequantizeFromInt8ToFp32(input_data->data(), output_data->data(),

@@ -7,7 +7,7 @@
 
 namespace mlir {
 
-class ReduceL2OpKernel : public CPUOpKernel<ReduceL2OpKernel> {
+class ReduceL2OpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReduceL2Op";
 
@@ -28,7 +28,7 @@ private:
   int multiplier;
 };
 
-class ReduceMaxOpKernel : public CPUOpKernel<ReduceMaxOpKernel> {
+class ReduceMaxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReduceMaxOp";
 
@@ -49,7 +49,7 @@ private:
   int multiplier;
 };
 
-class ReduceMeanOpKernel : public CPUOpKernel<ReduceMeanOpKernel> {
+class ReduceMeanOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReduceMeanOp";
 

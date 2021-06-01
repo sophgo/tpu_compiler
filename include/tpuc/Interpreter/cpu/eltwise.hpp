@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class EltwiseAddOpKernel : public CPUOpKernel<EltwiseAddOpKernel> {
+class EltwiseAddOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEltwiseAddOp";
 
@@ -38,7 +38,7 @@ private:
   std::vector<float> coeff;
 };
 
-class EltwiseMaxOpKernel : public CPUOpKernel<EltwiseMaxOpKernel> {
+class EltwiseMaxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEltwiseMaxOp";
 
@@ -65,7 +65,7 @@ private:
   bool do_relu;
 };
 
-class EltwiseMinOpKernel : public CPUOpKernel<EltwiseMinOpKernel> {
+class EltwiseMinOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEltwiseMinOp";
 
@@ -92,7 +92,7 @@ private:
   bool do_relu;
 };
 
-class EltwiseMulOpKernel : public CPUOpKernel<EltwiseMulOpKernel> {
+class EltwiseMulOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEltwiseMulOp";
 

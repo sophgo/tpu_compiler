@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class QuantOpKernel : public CPUOpKernel<QuantOpKernel> {
+class QuantOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUQuantOp";
 
@@ -22,10 +22,10 @@ private:
   std::string to;
   float scale;
   int zero_point = 0;
-  Operation* prevOp;
+  bool useTpuQuant;
 };
 
-class ReQuantOpKernel : public CPUOpKernel<ReQuantOpKernel> {
+class ReQuantOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReQuantOp";
 

@@ -11,7 +11,7 @@ import copy
 import math
 import shutil
 import time
-import pymlir
+import pytuner
 import shutil
 from tqdm import tqdm
 from scipy import spatial
@@ -109,39 +109,15 @@ class CalibrationTable:
                     f.write("{} {:.5f} {:.5f} {:.5f}\n".format(k, *v))
 
 
-class QuantedMlirModel:
-    def __init__(self, fp32_mlir, calib_table, mix_precision_table):
-        self.model = None
-        self.fp32_mlir = fp32_mlir
-        self.calib_table = calib_table
-        self.mix_precision_table = mix_precision_table
-        self.quanted_mlir_file = '{}.quanted.tune.mlir'.format(fp32_mlir)
-
-    def __enter__(self):
-        ret = mlir_quant(self.fp32_mlir, self.quanted_mlir_file, "cv183x", "tmp.csv",
-                        calib_table=self.calib_table, mix_table=self.mix_precision_table)
-        if ret != 0:
-            raise RuntimeError("generate quanted mlir model failed")
-        self.model = pymlir.module()
-        self.model.load(self.quanted_mlir_file)
-        return self.model
-
-    def __exit__(self, type, value, traceback):
-        mlir_weight_file = self.model.get_weight_file_path()
-        del self.model
-        os.remove(self.quanted_mlir_file)
-        os.remove(mlir_weight_file)
-
-
 class AutoTuner(object):
     def __init__(self, model_file, input_calib_table, mix_precision_table,
                  output_tune_table, tune_image_list, tune_image_num,
                  tune_iteration,  preprocess_func, threshold_update_factor,
                  evaluation_method):
-
+        self.fp32_mlir = model_file
         self.skip_op = general_skip_op
         self.tuned_table = CalibrationTable(input_calib_table)
-        self.mix_precision_table = mix_precision_table
+        self.mix_precision_table = mix_precision_table if mix_precision_table else ""
         self.output_tune_table = output_tune_table
 
         self.threshold_update_factor = threshold_update_factor
@@ -152,15 +128,15 @@ class AutoTuner(object):
         logger.info("[*] evaluation_method: {}".format(evaluation_method))
         logger.info("[*] threshold_update_factor: {}".format(threshold_update_factor))
 
-        self.__choose_tune_images__(tune_image_list, tune_image_num)
+        self.__choose_tune_images(tune_image_list, tune_image_num)
         self.preprocess_func = preprocess_func
         self.input_data_buffer = dict()
 
-        self.fp32_mlir = model_file
-        self.fp32_model = pymlir.module()
-        self.__prepare_for_compare__()
+        self.tuner = pytuner.tuner(self.images_num)
+        self.__prepare_for_compare()
 
-    def __choose_tune_images__(self, image_list, tune_image_num):
+
+    def __choose_tune_images(self, image_list, tune_image_num):
         if type(image_list) == str:
             with open(image_list, 'r') as f:
                 self.images = f.readlines()
@@ -175,39 +151,23 @@ class AutoTuner(object):
     def __is_npz(self, image):
         return True if image.split('.')[-1] == 'npz' else False
 
-    def __input_data_generator__(self):
-        for image in self.images:
-            if image not in self.input_data_buffer:
-                if self.__is_npz(image):
-                    x = np.load(image)
-                else:
-                    x = self.preprocess_func(image)
-                self.input_data_buffer[image] = x
-            else:
-                x = self.input_data_buffer[image]
-            yield x
-
-    def __prepare_for_compare__(self):
+    def __prepare_for_compare(self):
         # restore input calib table's data to
         # output tune table firstly.
-        self.tuned_table.dump(self.output_tune_table)
-        # get fp32 target layer activation
-        self.fp32_model.load(self.fp32_mlir)
+        self.tuner.load(self.fp32_mlir)
+        self.tuner.build()
         self.all_fp32_activations_map = {}
-        for idx, data in enumerate(self.__input_data_generator__()):
-            if type(data) == np.lib.npyio.NpzFile:
+        for idx, image in enumerate(self.images):
+            if self.__is_npz(image):
+                x = np.load(image)
                 for k, v in data.items():
-                    self.fp32_model.set_tensor(k, v)
-                self.fp32_model.invoke()
+                    self.tuner.set_tensor(k, v, idx)
             else:
-                self.fp32_model.run(data)
-            self.all_fp32_activations_map[idx] = self.fp32_model.get_all_tensor()
-
-    def __get_op_quant_type__(self, model, op_name):
-        for op in model.op_info:
-            if op['name'] == op_name:
-                return op['quant']
-        raise RuntimeError("unknown op_name:{}".format(op_name))
+                x = self.preprocess_func(image)
+                self.tuner.set_tensor("data", x, idx)
+        self.tuner.invoke()
+        for idx in range(self.images_num):
+            self.all_fp32_activations_map[idx] = self.tuner.get_all_tensors(idx)
 
     def find_better_threshold(self, target_op, tune_op, prev_threshold,
                               prev_distance, search_up):
@@ -257,34 +217,42 @@ class AutoTuner(object):
 
         op_name = target_op
         distance = 0
-        with QuantedMlirModel(self.fp32_mlir, tmp_table, self.mix_precision_table) as model:
-            quant_type = self.__get_op_quant_type__(model, op_name)
-            for idx, data in enumerate(self.__input_data_generator__()):
-                if type(data) == np.lib.npyio.NpzFile:
-                    for k, v in data.items():
-                        model.set_tensor(k, v)
-                    model.invoke_to(op_name)
-                else:
-                    model.run(data, op_name)
-                # dequant int8 to fp32
-                target_activation = model.get_tensor(op_name)
-                if quant_type == 'INT8':
-                    scale = threshold / 127.0
-                    target_activation = target_activation * scale
-                # sqrt(sum(x^2))
-                target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
-                if self.evaluation_method == 'euclid':
-                    distance += np.linalg.norm(target_op_fp32_activation.flatten() -
-                                            target_activation.flatten())
-                else: # cosine
-                    distance += spatial.distance.cosine(
-                                    target_op_fp32_activation.flatten(),
-                                    target_activation.flatten())
+
+        self.tuner.load(self.fp32_mlir)
+        self.tuner.quantize(tmp_table, self.mix_precision_table)
+        self.tuner.build()
+        # for idx, image in enumerate(self.images):
+        #     if self.__is_npz(image):
+        #         x = np.load(image)
+        #         for k, v in data.items():
+        #             self.tuner.set_tensor(k, v, idx)
+        #     else:
+        #         x = self.preprocess_func(image)
+        #         self.tuner.set_tensor("data", x, idx)
+        self.tuner.invoke(op_name)
+        data_type = self.tuner.get_tensor_type(op_name)
+
+        for idx in range(self.images_num):
+            # dequant int8 to fp32
+            target_activation = self.tuner.get_tensor(op_name, idx)
+            if data_type == 'INT8':
+                scale = threshold / 127.0
+                target_activation = target_activation * scale
+            # sqrt(sum(x^2))
+            target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
+            if self.evaluation_method == 'euclid':
+                distance += np.linalg.norm(target_op_fp32_activation.flatten() -
+                                        target_activation.flatten())
+            else: # cosine
+                distance += spatial.distance.cosine(
+                                target_op_fp32_activation.flatten(),
+                                target_activation.flatten())
         distance /= self.images_num
         return distance
 
     def run(self):
-        pbar = tqdm(self.fp32_model.op_info)
+        op_info = self.tuner.op_info()
+        pbar = tqdm(op_info)
         for tune_op in pbar:
             op_name = tune_op["name"]
             pbar.set_description("tune: {}".format(op_name))
@@ -323,41 +291,37 @@ class AutoTunerPlus(AutoTuner):
         # make tmp table
         tmp_table = self.output_tune_table + '.tmp'
         self.tuned_table.update_to(tmp_table, tune_op, threshold)
+        self.tuner.load(self.fp32_mlir)
+        self.tuner.quantize(tmp_table, self.mix_precision_table)
+        self.tuner.build()
+        self.tuner.invoke(op_name)
 
         distance = 0
-        with QuantedMlirModel(self.fp32_mlir, tmp_table, self.mix_precision_table) as model:
-            for idx, data in enumerate(self.__input_data_generator__()):
-                if type(data) == np.lib.npyio.NpzFile:
-                    for k, v in data.items():
-                        model.set_tensor(k, v)
-                    model.invoke()
-                else:
-                    model.run(data)
+        for idx in range(self.images_num):
+            for op_name in target_op:
+                target_activation = self.tuner.get_tensor(op_name, idx)
+                target_data_type = self.tuner.get_tensor_type(op_name)
+                if target_data_type == 'INT8':
+                    scale = threshold / 127.0
+                    target_activation = target_activation * scale
 
-                for op_name in target_op:
-                    target_activation = model.get_tensor(op_name)
-                    target_quant_type = self.__get_op_quant_type__(model, op_name)
-                    if target_quant_type == 'INT8':
-                        scale = threshold / 127.0
-                        target_activation = target_activation * scale
+                target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
 
-                    target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
-
-                    # distance += np.sum(target_op_fp32_activation.flatten() != target_activation.flatten())
-                    if self.evaluation_method == 'euclid':
-                        distance += np.linalg.norm(target_op_fp32_activation.flatten() -
-                                                target_activation.flatten())
-                    else: # cosine
-                        distance += spatial.distance.cosine(
-                                        target_op_fp32_activation.flatten(),
-                                        target_activation.flatten())
+                # distance += np.sum(target_op_fp32_activation.flatten() != target_activation.flatten())
+                if self.evaluation_method == 'euclid':
+                    distance += np.linalg.norm(target_op_fp32_activation.flatten() -
+                                            target_activation.flatten())
+                else: # cosine
+                    distance += spatial.distance.cosine(
+                                    target_op_fp32_activation.flatten(),
+                                    target_activation.flatten())
         distance /= self.images_num
         return distance
 
     def run(self):
-        target_ops = set(self.fp32_model.get_output_details())
-
-        pbar = tqdm(self.fp32_model.op_info)
+        target_ops = set(self.tuner.get_output_details())
+        op_info = self.tuner.op_info()
+        pbar = tqdm(op_info)
         for tune_op in pbar:
             op_name = tune_op["name"]
             pbar.set_description("tune: {}".format(op_name))

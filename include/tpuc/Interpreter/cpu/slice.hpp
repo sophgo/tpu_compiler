@@ -7,7 +7,7 @@
 namespace mlir {
 void slice(float *input, float *output, int axis, int offset,
            std::vector<int64_t> input_shape, std::vector<int64_t> output_shape);
-class SliceOpKernel : public CPUOpKernel<SliceOpKernel> {
+class SliceOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSliceOp";
 

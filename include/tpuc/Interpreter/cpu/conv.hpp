@@ -9,7 +9,7 @@ void once_mkldnn_conv(float *input, float *weight, float *bias, float *output,
                       int n, int ic, int ih, int iw, int oc, int oh, int ow,
                       int kh, int kw, int sh, int sw, int dh, int dw, int pt,
                       int pb, int pl, int pr, int g, int pad_value);
-class Conv2DOpKernel : public CPUOpKernel<Conv2DOpKernel> {
+class Conv2DOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUConv2DOp";
 

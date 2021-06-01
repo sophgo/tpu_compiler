@@ -4,7 +4,7 @@
 #include "tpuc/Interpreter/cpukernel.h"
 
 namespace mlir {
-class ReverseOpKernel : public CPUOpKernel<ReverseOpKernel> {
+class ReverseOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReverseOp";
 

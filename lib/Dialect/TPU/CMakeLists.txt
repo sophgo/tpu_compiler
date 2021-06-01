@@ -57,6 +57,7 @@ add_llvm_library(MLIRTPU
   Transforms/Canonicalizer.cpp
   Transforms/LowerToTG.cpp
   Interpreter/TpuInterpreter_v2.cpp
+  Interpreter/MlirModuleInterpreter.cpp
   ${interpreter_sources}
   Interpreter/NativeCpuImplementation.cpp
   Interpreter/CpuLayer_DetectionOutput.cpp

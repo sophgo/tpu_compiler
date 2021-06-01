@@ -7,7 +7,7 @@
 #include <memory>
 namespace mlir {
 
-class PoolingOpKernel : public CPUOpKernel<PoolingOpKernel> {
+class PoolingOpKernel : public CPUOpKernel {
 
   enum class POOL_METHOD { MAX, AVG };
 

@@ -5,7 +5,7 @@
 
 namespace mlir {
 
-class GruOpKernel : public CPUOpKernel<GruOpKernel> {
+class GruOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUGruOp";
 

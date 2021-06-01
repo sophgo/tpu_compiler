@@ -9,7 +9,7 @@ void dilateActivation(float *input, float *output, int pad_h_t, int pad_h_b,
                       int ins_h, int ins_h_l, int pad_w_l, int pad_w_r,
                       int ins_w, int ins_w_l, int n, int c, int h, int w,
                       int fill_constant);
-class DilateOpKernel : public CPUOpKernel<DilateOpKernel> {
+class DilateOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUDilateOp";
 

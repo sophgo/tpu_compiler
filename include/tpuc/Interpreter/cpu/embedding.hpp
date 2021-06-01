@@ -8,7 +8,7 @@ void embedding(int *index,  float *table, float *output,
                std::vector<int64_t> &indexShape, std::vector<int64_t> &tableShape,
                std::vector<int64_t> &topShape);
 
-class EmbeddingOpKernel : public CPUOpKernel<EmbeddingOpKernel> {
+class EmbeddingOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEmbeddingOp";
 

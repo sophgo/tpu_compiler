@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class NormalizeOpKernel : public CPUOpKernel<NormalizeOpKernel> {
+class NormalizeOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUNormlizeOp";
 

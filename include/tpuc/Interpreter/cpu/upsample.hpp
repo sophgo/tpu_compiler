@@ -4,7 +4,7 @@
 #include "tpuc/Interpreter/cpukernel.h"
 
 namespace mlir {
-class UpsampleOpKernel : public CPUOpKernel<UpsampleOpKernel> {
+class UpsampleOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUUpsampleOp";
 

@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class BatchNormOpKernel : public CPUOpKernel<BatchNormOpKernel> {
+class BatchNormOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUBatchNormOp";
 

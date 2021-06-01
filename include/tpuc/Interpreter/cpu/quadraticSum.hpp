@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class QuadraticSumOpKernel : public CPUOpKernel<QuadraticSumOpKernel> {
+class QuadraticSumOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUQuadraticSumOp";
 

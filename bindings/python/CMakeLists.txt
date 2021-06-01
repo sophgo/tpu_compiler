@@ -5,7 +5,7 @@ if (POLICY CMP0048)
   cmake_policy(SET CMP0048 NEW)
 endif()
 
-project(pymlir)
+project(pybinding)
 SET(CMAKE_BUILD_WITH_INSTALL_RPATH TRUE)
 SET(CMAKE_INSTALL_RPATH "\${ORIGIN}/")
 
@@ -26,5 +26,19 @@ target_link_libraries(pymlir PRIVATE
   LLVMSupport
 )
 install(TARGETS pymlir DESTINATION python)
+
+pybind11_add_module(pytuner pytuner.cpp)
+
+target_link_libraries(pytuner PRIVATE
+  MLIRAnalysis
+  MLIRParser
+  MLIRPass
+  MLIRTransforms
+  MLIRSupport
+  MLIRTPU
+  MLIROptLib
+  TPUCSupport
+)
+install(TARGETS pytuner DESTINATION python)
 
 add_subdirectory(kld)

@@ -6,7 +6,7 @@
 #include <memory>
 namespace mlir {
 
-class Conv3DOpKernel : public CPUOpKernel<Conv3DOpKernel> {
+class Conv3DOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUConv3DOp";
 

@@ -11,7 +11,7 @@ void leaky_relu(float *src, float *dst, size_t size, float negative_slope);
 int omp_schedule(int count);
 float BF16(float data);
 
-class AbsOpKernel : public CPUOpKernel<AbsOpKernel> {
+class AbsOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUAbsOpOp";
 
@@ -24,7 +24,7 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 };
-class ExpOpKernel : public CPUOpKernel<ExpOpKernel> {
+class ExpOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUExpOpOp";
 
@@ -46,7 +46,7 @@ private:
   int bf16_min_range;
   int bf16_max_range;
 };
-class MishOpKernel : public CPUOpKernel<MishOpKernel> {
+class MishOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUMishOp";
 
@@ -71,7 +71,7 @@ private:
   int bf16_max_range;
 };
 
-class LeakyReluOpKernel : public CPUOpKernel<LeakyReluOpKernel> {
+class LeakyReluOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULeakyReluOp";
 
@@ -97,7 +97,7 @@ private:
   int input_offset = 0;
   int output_offset = 0;
 };
-class ReluOpKernel : public CPUOpKernel<ReluOpKernel> {
+class ReluOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReluOp";
 
@@ -111,7 +111,7 @@ private:
   SyncedDataShape input_shape;
 };
 
-class PReluOpKernel : public CPUOpKernel<PReluOpKernel> {
+class PReluOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPReluOp";
 
@@ -131,7 +131,7 @@ private:
   SyncedData multiplier_postive;
 };
 
-class ReshapeOpKernel : public CPUOpKernel<ReshapeOpKernel> {
+class ReshapeOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReshapeOp";
 
@@ -145,7 +145,7 @@ private:
   SyncedDataShape input_shape;
 };
 
-class SigmoidOpKernel : public CPUOpKernel<SigmoidOpKernel> {
+class SigmoidOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSigmoidOp";
 
@@ -168,7 +168,7 @@ private:
   int bf16_max_range;
 };
 
-class ReciprocalOpKernel : public CPUOpKernel<ReciprocalOpKernel> {
+class ReciprocalOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReciprocalOpOp";
 
@@ -191,7 +191,7 @@ private:
   int bf16_max_range;
 };
 
-class SoftPlusOpKernel : public CPUOpKernel<SoftPlusOpKernel> {
+class SoftPlusOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSoftPlusOpOp";
 
@@ -215,7 +215,7 @@ private:
   int bf16_max_range;
 };
 
-class SqrtOpKernel : public CPUOpKernel<SqrtOpKernel> {
+class SqrtOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSqrtOpOp";
 
@@ -238,7 +238,7 @@ private:
   int bf16_max_range;
 };
 
-class SquareOpKernel : public CPUOpKernel<SquareOpKernel> {
+class SquareOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSquareOpOp";
 
@@ -252,7 +252,7 @@ private:
   SyncedDataShape input_shape;
 };
 
-class TanHOpKernel : public CPUOpKernel<TanHOpKernel> {
+class TanHOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUTanHOpOp";
 

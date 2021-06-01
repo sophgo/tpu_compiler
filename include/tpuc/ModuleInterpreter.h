@@ -61,24 +61,9 @@ public:
     }
   }
 
-  Value findWeightValue(std::string name) {
-    for (FuncOp func : mlirModule.getOps<FuncOp>()) {
-      for (Block &bb : func.getBlocks()) {
-        for (auto &op : bb) {
-          if (isa<tpu::LoadWeightOp>(op)) {
-            auto loadWeightOp = dyn_cast<tpu::LoadWeightOp>(op);
-            std::string weight_name = loadWeightOp.name().str();
-            if (weight_name == name) {
-              return loadWeightOp.getResult();
-            }
-          }
-        }
-      }
-    }
-    return Value(nullptr);
+  static std::string &getCustomOpPluginFile() {
+    return customOpPluginFile_;
   }
-
-  static std::string &getCustomOpPluginFile() { return customOpPluginFile_; }
 
   static void setCustomOpPluginFile(std::string &file) {
     customOpPluginFile_ = file;
@@ -96,9 +81,8 @@ public:
   void invoke();
   void invoke(std::string name);
   void invoke_to(const std::string& name);
-  std::vector<std::pair<std::string, std::string>> get_tensor_info();
-  bool set_tensor(std::string name, const std::vector<float> &data);
 
+  bool set_tensor(std::string name, const std::vector<float> &data);
   std::vector<float> get_tensor(std::string name);
   std::vector<int64_t> get_tensor_shape(std::string name);
   void dump(std::string name);
@@ -113,16 +97,7 @@ public:
       ret.push_back(op->get_name());
     }
     return ret;
-  };
-  std::vector<std::string> get_weight_name(const std::string &name);
-
-  std::unordered_map<std::string,
-                     std::pair<std::vector<float>, std::vector<int64_t>>>
-  getWeightData() {
-    return this->weight_data_list;
   }
-
-  void setWeightData(std::string name, std::vector<float> data);
 
   void reset(void) {
     valueMapping.clear();
@@ -175,9 +150,6 @@ protected:
   std::mutex invoke_lock;
 };
 
-std::vector<std::shared_ptr<std::vector<float>>>
-getOperandTensors(Operation *op, const value_map_t &valueMapping);
-
-}; // namespace mlir
+} // namespace mlir
 
 #endif // MLIR_DIALECT_TPU_MODULEINTERPRETER_H_

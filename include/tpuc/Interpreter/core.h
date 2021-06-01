@@ -20,14 +20,14 @@ class OpKernel {
 
 public:
   OpKernel(){};
-  ~OpKernel(){};
+  virtual ~OpKernel(){};
   virtual void invoke() = 0;
   virtual void set_tensor(const std::vector<float> &data) = 0;
   virtual std::vector<float> get_tensor() = 0;
 
   std::string get_name() { return this->name; }
   SyncedDataShape get_shape() { return this->shape; }
-  std::string get_datatype() {
+  std::string get_data_type() {
     if (this->datatype == DataType::BF16) {
       return "BF16";
     } else if (this->datatype == DataType::INT8) {
@@ -49,7 +49,6 @@ public:
     }
   }
   std::string get_op_type() { return this->op_type; }
-  std::vector<std::string> get_weight_name() { return this->weight_list; }
 
   virtual void dump() {
     std::string shape_str;
@@ -62,18 +61,18 @@ public:
     llvm::outs() << this->op_type << "\n";
     llvm::outs() << "\tName: " << this->name << "\n";
     llvm::outs() << "\tShape: " << shape_str << "\n";
-    llvm::outs() << "\tDataType: " << this->get_datatype() << "\n";
+    llvm::outs() << "\tDataType: " << this->get_data_type() << "\n";
   };
 
-protected:
+public:
   SyncedDataShape shape;
   std::string name;
   std::string op_type;
-  std::vector<std::string> weight_list;
 
   size_t size;
   DataType datatype = DataType::FP32;
 };
-}; // namespace mlir
+
+} // namespace mlir
 
 #endif

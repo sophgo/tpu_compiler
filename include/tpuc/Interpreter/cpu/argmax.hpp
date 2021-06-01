@@ -5,7 +5,7 @@
 
 namespace mlir {
 
-class ArgMaxOpKernel : public CPUOpKernel<ArgMaxOpKernel> {
+class ArgMaxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUArgMaxOp";
 

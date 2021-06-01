@@ -7,7 +7,7 @@ namespace mlir {
 void pad_constant(float *input, float *output,
                   std::vector<int64_t> &input_shape, std::vector<int> &pads,
                   float const_val);
-class PadOpKernel : public CPUOpKernel<PadOpKernel> {
+class PadOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPadOp";
 
