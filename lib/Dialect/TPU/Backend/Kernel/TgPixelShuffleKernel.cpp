@@ -16,14 +16,24 @@
 static void pixelShuffle_split(
     const CviBackendContext &ctx, uint32_t input_n, uint32_t input_c,
     uint32_t input_h, uint32_t input_w, uint32_t output_c, uint32_t output_h,
-    uint32_t output_w, uint32_t factor, cvk_fmt_t fmt, int eu_align, uint32_t &h_step) {
+    uint32_t output_w, uint32_t factor, cvk_fmt_t fmt, int eu_align, uint32_t &h_step,
+    bool isDCR) {
   h_step = input_h;
+  uint32_t c = factor * NPU_NUM;
+  uint32_t n = factor;
+
+  if (isDCR) {
+    // tile for output
+    c = input_c / factor / factor;
+    n = factor * factor;
+  }
+
   for (; h_step > 0; --h_step) {
-    cvk_tl_shape_t tiled_ifmap_shape = {factor, factor * NPU_NUM, h_step, input_w};
+    cvk_tl_shape_t tiled_ifmap_shape = {n, c, h_step, input_w};
     uint32_t tiled_ifmap_size =
         ctx.lmem_tensor_to_size(tiled_ifmap_shape, fmt, eu_align);
 
-    cvk_tl_shape_t tiled_ofmap_shape =  {factor, factor * NPU_NUM, h_step, input_w};
+    cvk_tl_shape_t tiled_ofmap_shape =  {n, c, h_step, input_w};
     uint32_t tiled_ofmap_size =
         ctx.lmem_tensor_to_size(tiled_ofmap_shape, fmt, eu_align);
     uint32_t total_size = tiled_ifmap_size + tiled_ofmap_size;
@@ -39,17 +49,70 @@ static void pixelShuffle_split(
 static void pixelShuffle_assign_lmem_layout(
     const CviBackendContext &ctx, uint32_t tiling_c, uint32_t tiling_h, uint32_t input_c,
     uint32_t input_h, uint32_t input_w, uint32_t output_c, uint32_t output_h,
-    uint32_t output_w, uint32_t factor, cvk_fmt_t fmt, int eu_align, cvk_tl_t &tl_ifmap, cvk_tl_t &tl_ofmap) {
+    uint32_t output_w, uint32_t factor, cvk_fmt_t fmt, int eu_align, cvk_tl_t &tl_ifmap, cvk_tl_t &tl_ofmap, bool isDCR) {
 
   uint32_t tl_offset = 0; // begin of local memory
-  ctx.lmem_init_tensor(&tl_ifmap, {factor, factor * NPU_NUM, tiling_h, input_w}, fmt, eu_align);
-  tl_ifmap.start_address = tl_offset;
-  tl_offset += ctx.lmem_tensor_to_size(tl_ifmap.shape, tl_ifmap.fmt,
-                                       tl_ifmap.eu_align);
+  uint32_t n = factor;
+  uint32_t c = factor * NPU_NUM;
+  if (isDCR) {
+    c = input_c / factor / factor;
+  }
 
-  ctx.lmem_init_tensor(&tl_ofmap, {factor, factor * NPU_NUM, tiling_h, input_w}, fmt,
-                       eu_align);
+  ctx.lmem_init_tensor(&tl_ifmap, {n, c, tiling_h, input_w}, fmt, eu_align);
+  tl_ifmap.start_address = tl_offset;
+  auto offset = ctx.lmem_tensor_to_size(tl_ifmap.shape, tl_ifmap.fmt,
+                                       tl_ifmap.eu_align);
+  if (isDCR) {
+    cvk_tl_t tl_tmp;
+    ctx.lmem_init_tensor(&tl_tmp, {factor * factor, c, tiling_h, input_w}, fmt, eu_align);
+    offset = ctx.lmem_tensor_to_size(tl_tmp.shape, tl_tmp.fmt, tl_tmp.eu_align);
+  }
+
+  tl_offset += offset;
+
+  ctx.lmem_init_tensor(&tl_ofmap, tl_ifmap.shape, fmt, eu_align);
   tl_ofmap.start_address = tl_offset;
+}
+
+// gap c for take c by gap(oc)
+// for dcr mode that layout could be we follow:
+// input shape = 1,8,2,2
+//    c0          c1         c2        c3          c4        c5         c6         c7
+//[[ 0,  1],  [[ 4,  5], [[ 8,  9], [[12, 13], [[16, 17],  [[20, 21], [[24, 25] [[28, 29],
+//[ 2,  3]],  [ 6,  7]],  [10, 11]], [14, 15]], [18, 19]], [22, 23]] [26, 27]] [30, 31]],,
+// it should load c0/c2/c4/c6 as tl channel 0
+//                c1/c3/c5/c7 as tl channel 1
+static void pixelShuffle_tensor_load_gapc(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
+    cvk_tg_stride_t &ifmap_gstride, int n_pos, int c_pos, int h_pos, cvk_fmt_t fmt, cvk_tl_shape_t tileShape, int oc) {
+  uint64_t ga_ifmap_offset = ifmap_gstride.n * n_pos + ifmap_gstride.c * c_pos
+                                                           + ifmap_gstride.h * h_pos;
+
+  cvk_tg_t tg_ifmap = {0};
+  tg_ifmap.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_ifmap);
+  tg_ifmap.fmt = fmt;
+  tg_ifmap.start_address = ga_ifmap + ga_ifmap_offset;
+  tg_ifmap.shape = {
+      tileShape.c, tileShape.n, tileShape.h,
+      tileShape.w};
+  tg_ifmap.stride =  ifmap_gstride;
+  tg_ifmap.stride.n = tg_ifmap.stride.c * oc;
+
+  cvk_tl_t tl_dst;
+  tl_dst.start_address = 0;  // Same as ifmap = 0
+  tl_dst.fmt = fmt;
+  tl_dst.shape = {tileShape.c, tileShape.n, tileShape.h, tileShape.w};
+  tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, fmt, /*eu_align=*/0);
+
+  ctx.tdma_load_stride(&tl_dst, ga_ifmap + ga_ifmap_offset, tg_ifmap.stride);
+
+  LLVM_DEBUG(llvm::dbgs()
+      << "  pixelShuffle_tensor_load_gapc\n"
+      << "    tg offset " << ga_ifmap_offset
+      << ", shape(" << tileShape.n
+      << ", " << tileShape.c << ", " << tileShape.h
+      << "), stride(" << tg_ifmap.stride.n
+      << ", " << tg_ifmap.stride.c << ", " << tg_ifmap.stride.h << ")\n");
 }
 
 static void pixelShuffle_tensor_load_nc_transpose(
@@ -97,7 +160,7 @@ static void pixelShuffle_tensor_load_nc_transpose(
 }
 
 static void pixelShuffle_tiu_copy(
-    const CviBackendContext &ctx, uint32_t layer_id, cvk_tl_t *tl_ifmap, cvk_tl_t *tl_ofmap, int factor) {
+    const CviBackendContext &ctx, uint32_t layer_id, cvk_tl_t *tl_ifmap, cvk_tl_t *tl_ofmap, int factor, bool isDCR) {
 
   cvk_tl_t tl_dst;
   tl_dst.start_address = tl_ofmap->start_address;  // start of lmem
@@ -110,6 +173,13 @@ static void pixelShuffle_tiu_copy(
       (uint32_t)(factor * factor * tl_ofmap->shape.w * bytesize),
       (uint32_t)(factor * bytesize)
   };
+
+  if (isDCR) {
+    // w direction, -1 we calculate c distance that wrap by NPU_NUM
+    tl_dst.stride.c = 
+      ((tl_ifmap->shape.c-1) / NPU_NUM) * factor * factor * tl_ofmap->shape.w * tl_ofmap->shape.h * bytesize;
+    tl_dst.stride.n = (factor-1) * bytesize;
+  }
 
   cvk_tiu_copy_param_t p2 = {0};
   p2.src = tl_ifmap;
@@ -126,6 +196,20 @@ static void pixelShuffle_tiu_copy(
                  p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
                  p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
   ctx.tiu_copy(&p2);
+
+  if (isDCR) {
+    // h direction
+    assert(factor == 2);
+    for (int i = 1; i < factor; i++) {
+      cvk_tl_t _tl_ifmap = *tl_ifmap;
+      _tl_ifmap.start_address = tl_ifmap->start_address + i * factor * tl_ifmap->stride.n;
+      tl_dst.start_address = tl_ofmap->start_address + factor * tl_ofmap->shape.w * bytesize;
+
+      p2.src = &_tl_ifmap;
+      p2.dst = &tl_dst;
+      ctx.tiu_copy(&p2);
+    }
+  }
 }
 
 static void pixelShuffle_tensor_store(
@@ -174,7 +258,7 @@ static void pixelShuffle_tensor_store(
 
 static void _pixel_shuffle_fixed_kernel_new(const CviBackendContext &ctx, uint32_t layer_id,
                                      gaddr_t ga_ifmap, gaddr_t ga_ofmap, uint32_t input_n, uint32_t input_c,
-                                     uint32_t input_h, uint32_t input_w, uint32_t factor, cvk_fmt_t fmt) {
+                                     uint32_t input_h, uint32_t input_w, uint32_t factor, bool isDCR, cvk_fmt_t fmt) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "pixel_shuffle_fixed_bmkernel:\n"
@@ -196,10 +280,17 @@ static void _pixel_shuffle_fixed_kernel_new(const CviBackendContext &ctx, uint32
   uint32_t oc_step = (oc >= (uint32_t)NPU_NUM) ? NPU_NUM : oc;
   uint32_t c_step = oc_step * factor * factor;
   uint32_t h_step = 0;
+
+  if (isDCR) {
+    // leverage whole channel
+    oc_step = oc;
+    c_step = oc_step * factor * factor;
+  }
+
   pixelShuffle_split(
     ctx, in, ic, ih, iw,
     oc,  oh, ow,
-    factor, fmt, eu_align, h_step);
+    factor, fmt, eu_align, h_step, isDCR);
   if (!h_step)
     return;
 
@@ -223,14 +314,20 @@ static void _pixel_shuffle_fixed_kernel_new(const CviBackendContext &ctx, uint32
         // 1. Assign local memory layout
         cvk_tl_t tl_ifmap, tl_ofmap;
         pixelShuffle_assign_lmem_layout(ctx, tiling_c, tiling_h, ic, ih, iw, oc,
-                                    oh, ow, factor, fmt, eu_align, tl_ifmap, tl_ofmap);
+                                    oh, ow, factor, fmt, eu_align, tl_ifmap, tl_ofmap, isDCR);
         // 2. tensor load
         cvk_tl_shape_t tileShape = {oc_step, factor * factor, tiling_h, iw};
-        pixelShuffle_tensor_load_nc_transpose(ctx, layer_id, ga_ifmap, ifmap_gstride, n_pos, c_pos, h_pos,
-                            fmt, tileShape);
+        if (isDCR) {
+          pixelShuffle_tensor_load_gapc(ctx, layer_id, ga_ifmap, ifmap_gstride, 
+              n_pos, c_pos , h_pos, fmt, tileShape, oc);
+        }
+        else {
+          pixelShuffle_tensor_load_nc_transpose(ctx, layer_id, ga_ifmap, ifmap_gstride, n_pos, c_pos, h_pos,
+              fmt, tileShape);
+        }
 
         // 3. tiu copy
-        pixelShuffle_tiu_copy(ctx, layer_id, &tl_ifmap, &tl_ofmap, factor);
+        pixelShuffle_tiu_copy(ctx, layer_id, &tl_ifmap, &tl_ofmap, factor, isDCR);
 
         // 4. tensor store
         uint32_t oc_pos = c_pos / (factor * factor);
@@ -248,7 +345,7 @@ void cvi_backend_tg_fixed_pixel_shuffle_kernel(const CviBackendContext &ctx,
                                                gaddr_t ga_ifmap,
                                                gaddr_t ga_ofmap, int input_n,
                                                int input_c, int input_h,
-                                               int input_w, int factor) {
+                                               int input_w, int factor, bool isDCR) {
 
   // For tdma
   ctx.set_layer_id(layer_id);
@@ -257,7 +354,7 @@ void cvi_backend_tg_fixed_pixel_shuffle_kernel(const CviBackendContext &ctx,
       ctx, layer_id, ga_ifmap, ga_ofmap,
       (uint32_t)input_n, (uint32_t)input_c,
       (uint32_t)input_h, (uint32_t)input_w,
-      (uint32_t)factor, CVK_FMT_I8);
+      (uint32_t)factor, isDCR, CVK_FMT_I8);
 }
 
 void cvi_backend_tg_bf16_pixel_shuffle_kernel(const CviBackendContext &ctx,
@@ -265,7 +362,7 @@ void cvi_backend_tg_bf16_pixel_shuffle_kernel(const CviBackendContext &ctx,
                                               gaddr_t ga_ifmap,
                                               gaddr_t ga_ofmap, int input_n,
                                               int input_c, int input_h,
-                                              int input_w, int factor) {
+                                              int input_w, int factor, bool isDCR) {
   // For tdma
   ctx.set_layer_id(layer_id);
 
@@ -273,5 +370,5 @@ void cvi_backend_tg_bf16_pixel_shuffle_kernel(const CviBackendContext &ctx,
       ctx, layer_id, ga_ifmap, ga_ofmap,
       (uint32_t)input_n, (uint32_t)input_c,
       (uint32_t)input_h, (uint32_t)input_w,
-      (uint32_t)factor, CVK_FMT_BF16);
+      (uint32_t)factor, isDCR, CVK_FMT_BF16);
 }

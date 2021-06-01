@@ -667,15 +667,30 @@ class ONNX_IR_TESTER(object):
 
     def test_DepthToSpace(self):
         test_case = 'DepthToSpace'
-        input_data = np.arange(51200).reshape(1, 640, 10, 8).astype(np.float32)
+        in_shape = [1, 640, 10, 8]
+        in_shape = [1, 8, 3, 4]
+        in_shape = [1, 32, 3, 4]
+        in_shape = [1, 128, 3, 4]
+        in_shape = [1, 256, 3, 4]
+        in_shape = [1, 256, 4, 4]
+        in_shape = [1, 256, 54, 96]
+        in_shape = [1, 256, 540, 960]
+        in_shape = [1, 256, 1080, 1920]
+        n, c, h, w = in_shape
+        blocksize = 2
+        mode='CRD'
+        mode='DCR' # default
+        out_shape = [n, c // (blocksize*blocksize), h * blocksize, w * blocksize]
+        input_data = np.arange(np.prod(in_shape)).reshape(in_shape).astype(np.float32)
+        input_data = np.random.rand(*in_shape).reshape(in_shape).astype(np.float32)
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, list(input_data.shape))
         output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, [1, 160, 20, 16])
+            'output', TensorProto.FLOAT, out_shape)
         node_def = onnx.helper.make_node(
             "DepthToSpace",
-            mode='DCR',
-            blocksize=2,
+            mode=mode,
+            blocksize=blocksize,
             inputs=['input'],
             outputs=['output'],
         )

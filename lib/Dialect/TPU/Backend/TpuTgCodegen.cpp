@@ -3412,9 +3412,11 @@ LogicalResult tpu::TG_INT8_PixelShuffleOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
+  bool isDCR = this->mode().str() == "DCR";
+
   cvi_backend_tg_fixed_pixel_shuffle_kernel(*backend_ctx, layer_id, input_gaddr,
                                             output_gaddr, n, c, h, w,
-                                            upscale_factor);
+                                            upscale_factor, isDCR);
 
   return success();
 }
@@ -3438,10 +3440,11 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
+  bool isDCR = this->mode().str() == "DCR";
 
   cvi_backend_tg_bf16_pixel_shuffle_kernel(*backend_ctx, layer_id, input_gaddr,
                                            output_gaddr, n, c, h, w,
-                                           upscale_factor);
+                                           upscale_factor, isDCR);
 
   return success();
 }

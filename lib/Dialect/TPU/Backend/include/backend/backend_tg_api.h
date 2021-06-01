@@ -252,12 +252,14 @@ void cvi_backend_tg_bf16_lut_interpolation_kernel(
 
 void cvi_backend_tg_fixed_pixel_shuffle_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_ifmap,
-    gaddr_t ga_ofmap, int input_n, int input_c, int input_h, int input_w, int factor);
+    gaddr_t ga_ofmap, int input_n, int input_c, int input_h, int input_w, int factor,
+	bool isDCR);
 
 void cvi_backend_tg_bf16_pixel_shuffle_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n, int input_c,
-    int input_h, int input_w, int factor);
+    int input_h, int input_w, int factor,
+	bool isDCR);
 
 void cvi_backend_tg_bf16_gru_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,

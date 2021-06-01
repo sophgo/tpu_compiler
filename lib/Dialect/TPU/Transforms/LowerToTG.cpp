@@ -1959,7 +1959,7 @@ Value tpu::PixelShuffleOp::convertToTG() {
   std::vector<Value> operands;
   operands.push_back(input());
 
-  if (this->mode().str() == "DCR") {
+  if (0 && this->mode().str() == "DCR") {
     // use cpu op
     std::vector<NamedAttribute> param;
     param.push_back(builder.getNamedAttr("mode", modeAttr()));
