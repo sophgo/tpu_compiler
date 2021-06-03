@@ -4,6 +4,13 @@
 #define DEBUG_TYPE "group_ops"
 namespace mlir {
 
+static llvm::cl::OptionCategory clOptionsCategory("Layer Group Optimizer Option");
+
+static llvm::cl::opt<bool> clEnableLayerWSlice(
+    "enable-wslice",
+    llvm::cl::desc("Enable layer w slice in layer group"),
+    llvm::cl::init(false),
+    llvm::cl::cat(clOptionsCategory));
 
 GroupOptimizer::GroupOptimizer(NetGraph* net_graph, FuncOp * fn, MLIRContext * context)
     : net_graph_(net_graph),
@@ -112,9 +119,12 @@ void GroupOptimizer::do_group() {
   LLVM_DEBUG(llvm::errs()
              << LOG_TAB_L1 << "[DO_GROUP] Try Slice H Dim.\n");
   do_group_with_h_slice();
-  LLVM_DEBUG(llvm::errs()
-             << LOG_TAB_L1 << "[DO_GROUP] Try Slice W Dim.\n");
-  do_group_with_w_slice();
+  if (clEnableLayerWSlice) {
+    LLVM_DEBUG(llvm::errs()
+              << LOG_TAB_L1 << "[DO_GROUP] Try Slice W Dim.\n");
+    do_group_with_w_slice();
+  }
+
 }
 
 bool GroupOptimizer::isGroupFusible(Group * group) {

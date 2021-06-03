@@ -437,8 +437,8 @@ void Group::reset_tensor_hwslice_max() {
 }
 
 // Breadth-first traversal of all the tensors and set n_slice and h_slice.
-bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool max_h_slice,
-                           bool no_split_h, int n_loop, int h_loop) {
+bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool b_default_h_slice,
+                              bool b_not_split_h, int n_loop, int h_loop) {
   int id = net_graph_->get_tensor_from_layer(out_tensor_id);
 
   // the out tensor is the input tensor of the group
@@ -479,9 +479,9 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
 
   int n_idx = out_tensor->n_idx > 0 ? out_tensor->n_idx : 0;
   int out_h_idx = out_tensor->h_idx > 0 ? out_tensor->h_idx : 0;
-  int height = net_graph_->get_tensor_height(out_tensor_id);
+  int height = out_tensor->h();
 
-  if (!max_h_slice) {
+  if (b_default_h_slice == false) {
     int h_end = out_tensor->h_idx + out_h_slice;
     out_h_slice = h_end > height ? height - out_h_idx : h_end - out_h_idx;
   }
@@ -502,7 +502,7 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
     int cur_h_idx = tensor->h_idx;
     int cur_h_slice = tensor->h_slice;
 
-    if (no_split_h) {
+    if (b_not_split_h) {
       h_idx = 0;
       h_slice = tensor->h();
     } else if (layer_type == IR_CONVOLUTION || layer_type == IR_POOLING) {
@@ -642,8 +642,8 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
 }
 
 // Breadth-first traversal of all the tensors and set n_slice and h_slice.
-bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool max_w_slice,
-                           bool no_split_w, int n_loop, int w_loop) {
+bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool b_default_w_slice,
+                              bool b_not_split_w, int n_loop, int w_loop) {
   int id = net_graph_->get_tensor_from_layer(out_tensor_id);
 
   // the out tensor is the input tensor of the group
@@ -685,7 +685,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
   int out_w_idx = out_tensor->w_idx > 0 ? out_tensor->w_idx : 0;
   int width = net_graph_->get_tensor_width(out_tensor_id);
 
-  if (!max_w_slice) {
+  if (b_default_w_slice == false) {
     int w_end = out_tensor->w_idx + out_w_slice;
     out_w_slice = w_end > width ? width - out_w_idx : w_end - out_w_idx;
   }
@@ -706,7 +706,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
     int cur_w_idx = tensor->w_idx;
     int cur_w_slice = tensor->w_slice;
 
-    if (no_split_w) {
+    if (b_not_split_w) {
       w_idx = 0;
       w_slice = tensor->w();
     } else if (layer_type == IR_CONVOLUTION || layer_type == IR_POOLING) {

@@ -20,12 +20,7 @@ class Group {
   explicit Group(NetGraph *net_graph) : time_step(nullptr),
               net_graph_(net_graph), layers_(), lowered_(false),
               slice_limit_(LG_FIT_SLICE_METHOD),
-              slice_dim_(LG_Slice_Dim_H) {}
-
-  Group(NetGraph *net_graph, std::vector<int> layers)
-      : time_step(nullptr), net_graph_(net_graph), layers_(layers),
-        lowered_(false), slice_limit_(LG_FIT_SLICE_METHOD),
-        slice_dim_(LG_Slice_Dim_H) {}
+              slice_dim_(LG_Slice_Dim_H) {group_slice_ = {1, 1};}
 
   Group(NetGraph *net_graph, std::vector<int>::iterator begin,
         std::vector<int>::iterator end)
@@ -33,6 +28,7 @@ class Group {
         lowered_(false), slice_limit_(LG_FIT_SLICE_METHOD),
         slice_dim_(LG_Slice_Dim_H) {
     layers_.assign(begin, end);
+    group_slice_ = {1, 1};
   }
 
   ~Group();
