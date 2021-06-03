@@ -347,7 +347,18 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   // add out tensor
   add_out_tensor(p->getResult(0), TENSOR_NEURON);
   if (fuse_leaky) {
-    add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+    bool prev_leaky_relu = false;
+    auto prev_leaky_reluAttr = p->getAttr("prev_leaky_relu").template dyn_cast_or_null<::mlir::BoolAttr>();
+    if (prev_leaky_reluAttr) {
+      prev_leaky_relu = prev_leaky_reluAttr.getValue();
+    }
+
+    if (prev_leaky_relu) {
+      add_imm_tensor(in_tensors[0], 1, name_ + "_imm");
+    }
+    else {
+      add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+    }
   }
 }
 

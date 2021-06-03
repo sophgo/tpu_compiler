@@ -790,6 +790,12 @@ template void parseLeakyReluParam<tpu::TG_INT8_PT_Conv2DOp>(
 template void parseLeakyReluParam<tpu::TG_INT8_PC_Conv2DOp>(
     Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
     int8_t &neg_rshift, int8_t &neg_m_i8, float &negative_slope);
+template void parseLeakyReluParam<tpu::TG_BF16_Conv2DOp>(
+    Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
+    int8_t &neg_rshift, int8_t &neg_m_i8, float &negative_slope);
+template void parseLeakyReluParam<tpu::TG_BF16_DeConv2DOp>(
+    Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
+    int8_t &neg_rshift, int8_t &neg_m_i8, float &negative_slope);
 template void parseLeakyReluParam<tpu::TG_INT8_LeakyReluOp>(
     Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
     int8_t &neg_rshift, int8_t &neg_m_i8, float &negative_slope);

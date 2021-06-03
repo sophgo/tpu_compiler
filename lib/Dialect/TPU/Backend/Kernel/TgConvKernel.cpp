@@ -727,9 +727,21 @@ void Conv::allocateLocalMemOfFusedActivation() {
   if (args.do_leaky_relu) {
     // Leaky relu needs two local memory for tl_reg, tl_relu
     // Same setting as output
-    allocateTiledLocalMem(lmFusedActDescs, 2,
-                          getTiledShapesForLmAllocationOfOuput(),
-                          getTiledEuAlignForLmAllocationOfOutput());
+    int buffer_nr = 2; // tl_relu + tl_neg
+    if (args.prev_leaky_relu) {
+      if (args.tiu_fmt == CVK_FMT_BF16) {
+        buffer_nr = 1;
+      }
+
+      allocateTiledLocalMem(lmFusedActDescs, buffer_nr,
+                            getTiledShapesForLmAllocationOfInput(),
+                            getTiledEuAlignForLmAllocationOfInput());
+    }
+    else {
+      allocateTiledLocalMem(lmFusedActDescs, buffer_nr,
+                            getTiledShapesForLmAllocationOfOuput(),
+                            getTiledEuAlignForLmAllocationOfOutput());
+    }
   }
 }
 
@@ -1273,6 +1285,16 @@ void Conv::loadInput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
       (tilePolicy == SingleBufferPolicyType))
     ignoreOutputChannel = true;
 
+  if (args.prev_leaky_relu) {
+    ctx.parallel_disable();
+    ctx.lmem_init_tensor(&tl_load, tl_shape,
+                       lmInputDescs[lmIndex]->getDataFormat(),
+                       lmInputDescs[lmIndex]->getEuAlign());
+    tl_load.start_address = lmInputDescs[lmIndex]->getAddress();
+    computeLeakyRelu(&tl_load);
+    ctx.parallel_enable();
+  }
+
   cModelDebug.recordInput(args.layer_id, gmOutputPoss, ga_input_load,
                           ga_input_offset, cur_gm_input_poss,
                           cur_gm_input_shapes, ignoreOutputChannel);
@@ -1536,91 +1558,113 @@ void Conv::computeLeakyRelu(cvk_tl_t *tl_output) {
   cvk_tl_t tl_relu;
   ctx.lmem_init_tensor(&tl_relu, tl_output->shape, tl_output->fmt,
                        tl_output->eu_align);
-  tl_relu.start_address = lmFusedActDescs[1]->getAddress();
 
-  bool isIgnorePosPart = (args.activation_gt_scale == 1);
-  bool isSlopeSmallerThanOne =
+  if (args.tiu_fmt == CVK_FMT_I8) {
+    tl_relu.start_address = lmFusedActDescs[1]->getAddress();
+
+    bool isIgnorePosPart = (args.activation_gt_scale == 1);
+    bool isSlopeSmallerThanOne =
       ((args.activation_le_scale >> args.activation_le_rshift) == 0);
 
-  if (isIgnorePosPart) {
-    cvk_tiu_mul_param_t p4 = {0};
-    p4.res_high = nullptr;
-    p4.res_low = &tl_relu;
-    p4.a = tl_output;
-    p4.b_const.val = args.activation_le_scale;
-    p4.b_const.is_signed = true;
-    p4.b_is_const = 1;
-    p4.rshift_bits = args.activation_le_rshift;
-    p4.layer_id = args.layer_id;
-    p4.relu_enable = 0;
-    ctx.tiu_mul(&p4);
+    if (isIgnorePosPart) {
+      cvk_tiu_mul_param_t p4 = {0};
+      p4.res_high = nullptr;
+      p4.res_low = &tl_relu;
+      p4.a = tl_output;
+      p4.b_const.val = args.activation_le_scale;
+      p4.b_const.is_signed = true;
+      p4.b_is_const = 1;
+      p4.rshift_bits = args.activation_le_rshift;
+      p4.layer_id = args.layer_id;
+      p4.relu_enable = 0;
+      ctx.tiu_mul(&p4);
 
-    if (isSlopeSmallerThanOne) {
+      if (isSlopeSmallerThanOne) {
+        cvk_tiu_max_param_t p1 = {0};
+        p1.max = tl_output;
+        p1.a = tl_output;
+        p1.b = &tl_relu;
+        p1.b_is_const = 0;
+        p1.layer_id = args.layer_id;
+        ctx.tiu_max(&p1);
+      } else {
+        cvk_tiu_min_param_t p1 = {0};
+        p1.min = tl_output;
+        p1.a = tl_output;
+        p1.b = &tl_relu;
+        p1.b_is_const = 0;
+        p1.layer_id = args.layer_id;
+        ctx.tiu_min(&p1);
+      }
+    } else {
       cvk_tiu_max_param_t p1 = {0};
-      p1.max = tl_output;
+      p1.max = &tl_relu;
       p1.a = tl_output;
-      p1.b = &tl_relu;
-      p1.b_is_const = 0;
+      p1.b_is_const = 1;
+      p1.b_const.is_signed = 1;
+      p1.b_const.val = 0;
       p1.layer_id = args.layer_id;
       ctx.tiu_max(&p1);
-    } else {
-      cvk_tiu_min_param_t p1 = {0};
-      p1.min = tl_output;
-      p1.a = tl_output;
-      p1.b = &tl_relu;
-      p1.b_is_const = 0;
-      p1.layer_id = args.layer_id;
-      ctx.tiu_min(&p1);
+
+      cvk_tiu_mul_param_t p2 = {0};
+      p2.res_high = nullptr;
+      p2.res_low = &tl_relu;
+      p2.a = &tl_relu;
+      p2.b_const.val = args.activation_gt_scale;
+      p2.b_const.is_signed = true;
+      p2.b_is_const = 1;
+      p2.rshift_bits = args.activation_gt_rshift;
+      p2.layer_id = args.layer_id;
+      p2.relu_enable = 0;
+      ctx.tiu_mul(&p2);
+
+      cvk_tiu_min_param_t p3 = {0};
+      p3.min = &tl_neg;
+      p3.a = tl_output;
+      p3.b_is_const = 1;
+      p3.b_const.val = 0;
+      p3.b_const.is_signed = 1;
+      p3.layer_id = args.layer_id;
+      ctx.tiu_min(&p3);
+
+      cvk_tiu_mul_param_t p4 = {0};
+      p4.res_high = nullptr;
+      p4.res_low = &tl_neg;
+      p4.a = &tl_neg;
+      p4.b_const.val = args.activation_le_scale;
+      p4.b_const.is_signed = true;
+      p4.b_is_const = 1;
+      p4.rshift_bits = args.activation_le_rshift;
+      p4.layer_id = args.layer_id;
+      p4.relu_enable = 0;
+      ctx.tiu_mul(&p4);
+
+      cvk_tiu_or_int8_param_t p5 = {0};
+      p5.res = tl_output;
+      p5.a = &tl_relu;
+      p5.b = &tl_neg;
+      p5.layer_id = args.layer_id;
+      ctx.tiu_or_int8(&p5);
     }
-  } else {
-    cvk_tiu_max_param_t p1 = {0};
-    p1.max = &tl_relu;
-    p1.a = tl_output;
-    p1.b_is_const = 1;
-    p1.b_const.is_signed = 1;
-    p1.b_const.val = 0;
-    p1.layer_id = args.layer_id;
-    ctx.tiu_max(&p1);
+  }
+  else {
+    // bf16
+    auto tl_ofmap = *tl_output;
+    auto tl_ifmap = tl_neg;
+    // keep org
+    cvk_tiu_copy_param_t param = {0};
+    param.src = &tl_ofmap;
+    param.dst = &tl_ifmap;
+    param.layer_id = args.layer_id;
+    ctx.tiu_copy(&param);
 
-    cvk_tiu_mul_param_t p2 = {0};
-    p2.res_high = nullptr;
-    p2.res_low = &tl_relu;
-    p2.a = &tl_relu;
-    p2.b_const.val = args.activation_gt_scale;
-    p2.b_const.is_signed = true;
-    p2.b_is_const = 1;
-    p2.rshift_bits = args.activation_gt_rshift;
-    p2.layer_id = args.layer_id;
-    p2.relu_enable = 0;
-    ctx.tiu_mul(&p2);
-
-    cvk_tiu_min_param_t p3 = {0};
-    p3.min = &tl_neg;
-    p3.a = tl_output;
-    p3.b_is_const = 1;
-    p3.b_const.val = 0;
-    p3.b_const.is_signed = 1;
-    p3.layer_id = args.layer_id;
-    ctx.tiu_min(&p3);
-
-    cvk_tiu_mul_param_t p4 = {0};
-    p4.res_high = nullptr;
-    p4.res_low = &tl_neg;
-    p4.a = &tl_neg;
-    p4.b_const.val = args.activation_le_scale;
-    p4.b_const.is_signed = true;
-    p4.b_is_const = 1;
-    p4.rshift_bits = args.activation_le_rshift;
-    p4.layer_id = args.layer_id;
-    p4.relu_enable = 0;
-    ctx.tiu_mul(&p4);
-
-    cvk_tiu_or_int8_param_t p5 = {0};
-    p5.res = tl_output;
-    p5.a = &tl_relu;
-    p5.b = &tl_neg;
-    p5.layer_id = args.layer_id;
-    ctx.tiu_or_int8(&p5);
+    auto slope = args.activation_arg[0];
+    cvi_backend_bf16_tl_leaky_relu(
+      ctx, args.layer_id,
+      tl_ifmap.start_address, tl_output->start_address,
+      tl_output->shape.n, tl_output->shape.c,
+      tl_output->shape.h, tl_output->shape.w,
+      slope);
   }
 }
 
@@ -1733,7 +1777,7 @@ void Conv::compute(std::vector<uint32_t> gmOutputPoss,
   // Restore LayerId
   args.layer_id = originalLayerId;
 
-  if (args.do_leaky_relu)
+  if (args.do_leaky_relu && !args.prev_leaky_relu)
     computeLeakyRelu(&tl_output);
 }
 
@@ -2135,7 +2179,14 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
           // Leaky relu need tl_neg, tl_relu.
           // tl_relu, tl_neg are not from tmda and not final output.
           // One copy is enough.
-          if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
+          if (args.prev_leaky_relu) {
+            int buffer_nr = 2; // tl_relu + tl_neg
+            if (args.tiu_fmt == CVK_FMT_BF16) {
+              buffer_nr = 1;
+            }
+            total_needed += buffer_nr * ifmap_size;
+          }
+          else if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
             total_needed += 2 * ofmap_size; // tl_relu + tl_neg
           }
 
@@ -2321,7 +2372,14 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
         // Leaky relu need tl_neg, tl_relu.
         // tl_relu, tl_neg are not from tmda and not final output.
         // One copy is enough.
-        if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
+        if (args.prev_leaky_relu) {
+          int buffer_nr = 2; // tl_relu + tl_neg
+          if (args.tiu_fmt == CVK_FMT_BF16) {
+            buffer_nr = 1;
+          }
+          total_needed += buffer_nr * ifmap_size;
+        }
+        else if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
           total_needed += 2 * ofmap_size; // tl_relu + tl_neg
         }
 
@@ -2865,7 +2923,14 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
           // Leaky relu need tl_neg, tl_relu.
           // tl_relu, tl_neg are not from tmda and not final output.
           // One copy is enough.
-          if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
+          if (args.prev_leaky_relu) {
+            int buffer_nr = 2; // tl_relu + tl_neg
+            if (args.tiu_fmt == CVK_FMT_BF16) {
+              buffer_nr = 1;
+            }
+            total_needed += buffer_nr * ifmap_size;
+          }
+          else if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
             total_needed += 2 * ofmap_size; // tl_relu + tl_neg
           }
 
@@ -3097,7 +3162,14 @@ bool Conv::canNoTile() {
 
   // Leaky relu need tl_neg, tl_relu.
   // tl_relu, tl_neg are not from tmda and not final output.
-  if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
+  if (args.prev_leaky_relu) {
+    int buffer_nr = 2; // tl_relu + tl_neg
+    if (args.tiu_fmt == CVK_FMT_BF16) {
+      buffer_nr = 1;
+    }
+    total_needed += buffer_nr * ifmap_size;
+  }
+  else if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
     total_needed += 2 * ofmap_size; // tl_relu + tl_neg
   }
 
@@ -3468,7 +3540,7 @@ void cvi_backend_tg_fixed_conv_kernel(
     uint16_t kh, uint16_t kw, uint16_t dilation_h, uint16_t dilation_w,
     uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left, uint8_t pad_right,
     uint8_t insert_h, uint8_t insert_w, uint8_t stride_h, uint8_t stride_w,
-    int do_bias, int do_activation, float activation_arg[],
+    int do_bias, int do_activation, int prev_leaky_relu, float activation_arg[],
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
     bool do_ic_alignment, int store_cmpr_act, int load_cmpr_act,
@@ -3530,6 +3602,7 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args.stride_w = stride_w;
   conv->args.do_bias = static_cast<bool>(do_bias);
   conv->args.do_activation = static_cast<bool>(do_activation);
+  conv->args.prev_leaky_relu = static_cast<bool>(prev_leaky_relu);
   conv->args.activation_arg = activation_arg;
   conv->args.activation_gt_scale = activation_gt_scale;
   conv->args.activation_gt_rshift = activation_gt_rshift;
@@ -3604,7 +3677,8 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint16_t kh, uint16_t kw, uint16_t dilation_h, uint16_t dilation_w,
     uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left, uint8_t pad_right,
     uint8_t ins_h, uint8_t ins_w, uint8_t stride_h, uint8_t stride_w,
-    int do_bias, int do_activation, bool fp32_output, int store_cmpr_act,
+    int do_bias, int do_activation, bool prev_leaky_relu, float activation_arg[],
+    bool fp32_output, int store_cmpr_act,
     int load_cmpr_act, bool do_load_cmpr_wgt, int store_cmpr_act_c_step,
     int load_cmpr_act_c_step, int store_cmpr_act_h_step,
     int load_cmpr_act_h_step) {
@@ -3655,6 +3729,8 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args.stride_w = stride_w;
   conv->args.do_bias = static_cast<bool>(do_bias);
   conv->args.do_activation = static_cast<bool>(do_activation);
+  conv->args.prev_leaky_relu = static_cast<bool>(prev_leaky_relu);
+  conv->args.activation_arg = activation_arg;
   conv->args.layer_id = layer_id;
   conv->args.store_cmpr_act = store_cmpr_act;
   conv->args.load_cmpr_act = load_cmpr_act;

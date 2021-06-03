@@ -218,6 +218,7 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
   int8_t neg_rshift = 0, neg_m_i8 = 0;
   float neg_slope = 0.0;
 
+  bool prev_leaky_relu = this->prev_leaky_relu();
   if (this->do_leaky_relu())
     parseTLConvLeakyParam(op, pos_rshift, pos_m_i8,
                           neg_rshift, neg_m_i8, neg_slope);
@@ -233,6 +234,7 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
     0, /*ctrl*/
     with_bias,
     do_relu,
+    prev_leaky_relu,
     neg_slope,
     0,/*rshift,*/
     oc, /*right_shift_len,*/
@@ -276,6 +278,14 @@ LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
   int pw_r = this->pad_right_w();
   int layer_id = getOpLayerId(op);
 
+  float neg_slope = 0.0;
+  bool prev_leaky_relu = this->prev_leaky_relu();
+
+  if (this->do_leaky_relu()) {
+    neg_slope = this->negative_slope().getValue().convertToFloat();
+  }
+
+
   cvi_backend_bf16_tl_conv(
     *backend_ctx,
     layer_id,
@@ -284,7 +294,9 @@ LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
     g, oc, oh, ow, kh, kw, dh,
     dw, ph_t, ph_b, pw_l, pw_r, sh, sw, ins_h, ins_w,
     with_bias,
-    do_relu
+    do_relu,
+    prev_leaky_relu,
+    neg_slope
     );
 
   return success();

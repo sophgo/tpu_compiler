@@ -807,7 +807,7 @@ void cvi_backend_tl_conv(
   uint32_t stride_h, uint32_t stride_w,
   uint32_t insert_h, uint32_t insert_w,
   uint32_t result_add, uint32_t ctrl, bool do_bias,
-  bool do_relu, float slope,
+  bool do_relu, bool prev_leaky_relu, float slope,
   int rshift, int rshift_len,
   int8_t rshift_pos, int8_t rshift_neg, int8_t m_i8_pos, int8_t m_i8_neg,
   bool do_ic_alignment) {
@@ -917,6 +917,12 @@ void cvi_backend_tl_conv(
       perchannel.shape = {1, static_cast<uint32_t>(cur_oc), 1, 1};
       perchannel.stride = ctx.tl_default_stride(perchannel.shape, CVK_FMT_I8, 0);
 
+      if (do_leaky_relu && prev_leaky_relu) {
+        cvk_tl_t tl_relu_working = tl_input;
+        tl_relu_working.start_address = la_working;
+        tl_leaky_relu(ctx, layer_id, tl_input, tl_relu_working, rshift_pos, m_i8_pos, rshift_neg, m_i8_neg);
+      }
+
       // Per-channel quantization
       cvk_tiu_convolution_param_t param = {nullptr};
       param.ofmap = &output;
@@ -945,12 +951,19 @@ void cvi_backend_tl_conv(
       ctx.tiu_convolution(&param);
     }
 
-    if (do_leaky_relu) {
+    if (do_leaky_relu && !prev_leaky_relu) {
       cvk_tl_t tl_relu_working = tl_output;
       tl_relu_working.start_address = la_working;
       tl_leaky_relu(ctx, layer_id, tl_output, tl_relu_working, rshift_pos, m_i8_pos, rshift_neg, m_i8_neg);
     }
   } else if (group == input_c && group == output_c) {
+
+    if (do_leaky_relu && prev_leaky_relu) {
+      cvk_tl_t tl_relu_working = tl_input;
+      tl_relu_working.start_address = la_working;
+      tl_leaky_relu(ctx, layer_id, tl_input, tl_relu_working, rshift_pos, m_i8_pos, rshift_neg, m_i8_neg);
+    }
+
     // depthwise convolution
     // Per-channel quantization
     cvk_tiu_depthwise_convolution_param_t param = {0};
@@ -977,7 +990,7 @@ void cvi_backend_tl_conv(
     param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
     ctx.tiu_depthwise_convolution(&param);
 
-    if (do_leaky_relu) {
+    if (do_leaky_relu && !prev_leaky_relu) {
       cvk_tl_t tl_relu_working = tl_output;
       tl_relu_working.start_address = la_working;
       tl_leaky_relu(ctx, layer_id, tl_output, tl_relu_working, rshift_pos, m_i8_pos, rshift_neg, m_i8_neg);
@@ -1049,6 +1062,12 @@ void cvi_backend_tl_conv(
         tl_chl_quan_param.stride =
             ctx.tl_default_stride(tl_chl_quan_param.shape, CVK_FMT_I8, 0);
 
+        if (do_leaky_relu && prev_leaky_relu) {
+          cvk_tl_t tl_relu_working = tl_input;
+          tl_relu_working.start_address = la_working;
+          tl_leaky_relu(ctx, layer_id, tl_input, tl_relu_working, rshift_pos, m_i8_pos, rshift_neg, m_i8_neg);
+        }
+
         cvk_tiu_convolution_param_t param = {nullptr};
         param.ofmap = &output;
         param.ifmap = &input;
@@ -1075,7 +1094,7 @@ void cvi_backend_tl_conv(
         param.ins_fp = ctx.convert_fp32_to_bf16(0.0); // symmetric quantization
         ctx.tiu_convolution(&param);
 
-        if (do_leaky_relu) {
+        if (do_leaky_relu && !prev_leaky_relu) {
           cvk_tl_t tl_relu_working = tl_output;
           tl_relu_working.start_address = la_working;
           tl_leaky_relu(ctx, layer_id, tl_output, tl_relu_working, rshift_pos, m_i8_pos, rshift_neg, m_i8_neg);
@@ -1083,6 +1102,27 @@ void cvi_backend_tl_conv(
       }
     }
   }
+}
+
+static void codegen_leaky_relu(
+    const CviBackendContext& ctx, uint32_t layer_id,
+    cvk_tl_t tl_output, laddr_t la_working, float slope) {
+  cvk_tl_t tl_relu_working = tl_output;
+  tl_relu_working.start_address = la_working;
+
+  // keep org
+  cvk_tiu_copy_param_t param = {0};
+  param.src = &tl_output;
+  param.dst = &tl_relu_working;
+  param.layer_id = layer_id;
+  ctx.tiu_copy(&param);
+
+  cvi_backend_bf16_tl_leaky_relu(
+      ctx, layer_id,
+      la_working, tl_output.start_address,
+      tl_output.shape.n, tl_output.shape.c,
+      tl_output.shape.h, tl_output.shape.w,
+      slope);
 }
 
 void cvi_backend_bf16_tl_conv(
@@ -1095,7 +1135,7 @@ void cvi_backend_bf16_tl_conv(
   uint32_t pad_h_top, uint32_t pad_h_bottom, uint32_t pad_w_left, uint32_t pad_w_right,
   uint32_t stride_h, uint32_t stride_w,
   uint32_t insert_h, uint32_t insert_w,
-  bool with_bias, bool do_relu) {
+  bool with_bias, bool do_relu, bool prev_leaky_relu, float slope) {
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                   "cvi_backend_bf16_tl_conv:\n"
@@ -1110,6 +1150,14 @@ void cvi_backend_bf16_tl_conv(
                   input_w, output_c, output_h, output_w, group, kh, kw, pad_h_top, pad_h_bottom, pad_w_left,
                   pad_w_right, stride_h, stride_w, with_bias, do_relu
                   ));
+
+  bool do_leaky_relu = false;
+  if (slope != 0.0) {
+    do_leaky_relu = true;
+  }
+
+  LLVM_DEBUG(llvm::errs() << "do_leaky_relu:" << do_leaky_relu << "\n";);
+
 
   // input
   cvk_tl_shape_t tl_input_shape = ctx.tl_shape_t4(input_n,input_c,input_h,input_w);
@@ -1150,6 +1198,10 @@ void cvi_backend_bf16_tl_conv(
   tl_bias.shape = ctx.tl_shape_t4(2, output_c, 1, 1);
   tl_bias.stride =
       ctx.tl_default_stride(tl_bias.shape, CVK_FMT_BF16, 0);
+
+  if (prev_leaky_relu && do_leaky_relu) {
+    codegen_leaky_relu(ctx, layer_id, tl_input, la_working, slope);
+  }
 
   if (group == 1) {
     cvk_tiu_pt_convolution_param_t param = {0};
@@ -1301,5 +1353,9 @@ void cvi_backend_bf16_tl_conv(
         ctx.tiu_pt_convolution(&param);
       }
     }
+  }
+
+  if (!prev_leaky_relu && do_leaky_relu) {
+    codegen_leaky_relu(ctx, layer_id, tl_output, la_working, slope);
   }
 }

@@ -761,6 +761,7 @@ LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
       sh, sw,
       with_bias, // bias_term,
       do_relu ? 1 : 0, // do_activation,
+      0, // prev_leaky_relu
       do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
       fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
       fused_leakyrelu_pos_rshift,         // activation_gt_rshift,
@@ -810,6 +811,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   float fused_negative_slope = 0.0f;
 
   // in layer group, conv + leaky will be one op
+  bool prev_leaky_relu = this->prev_leaky_relu();
   if (this->do_leaky_relu()) {
       int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
       float negativeSlope;
@@ -876,6 +878,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
       sh, sw,
       with_bias,                                 // bias_term,
       do_relu ? 1 : 0,                           // do_activation,
+      prev_leaky_relu,
       do_relu ? &fused_negative_slope : nullptr, // activation_arg,
       fused_leakyrelu_pos_m_i8,                  // activation_gt_scale,
       fused_leakyrelu_pos_rshift,                // activation_gt_rshift,
@@ -949,6 +952,20 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   bool do_cmpr_wgt = this->compressed_weight().hasValue() ?
                      this->compressed_weight().getValue() : false;
 
+  float fused_negative_slope = 0.0f;
+
+  // in layer group, conv + leaky will be one op
+  bool do_activation = false;
+  bool prev_leaky_relu = this->prev_leaky_relu();
+  if (this->do_leaky_relu()) {
+      int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+      float negativeSlope;
+      parseLeakyReluParam<tpu::TG_BF16_Conv2DOp>(
+          op, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
+      fused_negative_slope       = negativeSlope;
+      do_activation = true;
+  }
+
   cvi_backend_tg_bf16_conv_kernel(
       *backend_ctx,
       layer_id,  // layer_id
@@ -965,7 +982,9 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       ins_h, ins_w,                               // ins_h, ins_w
       sh, sw,
       with_bias,
-      do_relu ? 1 : 0,
+      do_activation || do_relu,
+      prev_leaky_relu,
+      do_activation ? (&fused_negative_slope) : nullptr, // activation_arg,
       false, // fp32_output
       store_cmpr_act,
       load_cmpr_act,
@@ -1042,6 +1061,7 @@ LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
       stride_h, stride_w,
       with_bias, // bias_term,
       do_relu ? 1 : 0, // do_activation,
+      0,         // prev_leaky_relu
       nullptr,   // activation_arg,
       0,         // activation_gt_scale,
       0,         // activation_gt_rshift,
@@ -1087,8 +1107,17 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   }
   int layer_id = getOpLayerId(op);
 
+  bool do_activation = false;
+  float fused_negative_slope = 0.0f;
+  bool prev_leaky_relu = this->prev_leaky_relu();
+
   if (this->do_leaky_relu()) {
-    assert(0);
+    int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
+    float negativeSlope;
+    parseLeakyReluParam<tpu::TG_BF16_DeConv2DOp>(
+        op, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
+    fused_negative_slope       = negativeSlope;
+    do_activation = true;
   }
 
   int kh_ext = (kh - 1) * dh + 1;
@@ -1118,7 +1147,9 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
       ins_h, ins_w,
       sh, sw,
       with_bias, // bias_term,
-      do_relu ? 1 : 0, // do_activation,
+      do_relu || do_activation, // do_activation,
+      prev_leaky_relu,
+      do_activation ? (&fused_negative_slope) : nullptr, // activation_arg,
       false, // fp32_output
       0,     // store_compr_act
       0,     // load_compr_act
@@ -2538,6 +2569,8 @@ LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
       h, w,
       false,
       false,
+      false,   // prev_leaky_relu
+      nullptr, // activation_arg[]
       this->high_precision().getValue(),
       0,     // store_compr_act
       0,     // load_compr_act
