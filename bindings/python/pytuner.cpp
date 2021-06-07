@@ -77,19 +77,21 @@ public:
   PyTuner(int batch);
   ~PyTuner() {}
 
-  void load(std::string &mlir_file);
-  void quantize(std::string &calib_table, std::string &mix_table);
+  void load(const std::string &mlir_file);
+  void quantize(const std::string &calib_table, const std::string &mix_table);
   void buildInterpreter();
-  void setInputTensor(std::string &name, np_data_t &array, int bidx);
-  void invokeTo(std::string &name);
+  void setData(const std::string &name, np_data_t &array);
+  void setData(np_data_t &array);
+  void invokeTo(const std::string &name);
   py::list getOpInfo();
-  py::array getTensor(std::string &name, int bidx);
+  py::array getTensor(std::string &name);
   std::string getTensorType(std::string &name);
-  py::dict getAllTensors(int bidx);
+  py::dict getAllTensors();
   py::list getOutputDetails();
 
 private:
   bool isValidOp(Operation *op);
+  void resetBatchSize();
 
 public:
   static std::string version;
@@ -97,20 +99,23 @@ public:
 private:
   std::unique_ptr<MLIRContext> context;
   OwningModuleRef module_;
+  MlirModuleInterpreter interp_;
   int batch = 0;
-  std::vector<std::unique_ptr<MlirModuleInterpreter>> interpreters;
   std::string pluginFilePath_ = "";
 };
 
 PyTuner::PyTuner(int batch) : batch(batch) {
-  for (int i = 0;  i < batch; i++) {
-    interpreters.emplace_back(std::make_unique<MlirModuleInterpreter>());
-  }
+  registerDoAssignChipNamePass();
+  registerDoImportCalibrationTablePass();
+  registerDoTpuQuantPass();
+  registerDoChangeBatchSizePass();
 }
 
-void PyTuner::load(std::string &mlir_file) {
-  Timer timer;
-
+void PyTuner::load(const std::string &mlir_file) {
+  // Timer timer;
+  if (context) {
+    context.reset();
+  }
   DialectRegistry registry;
   registry.insert<tpu::TPUDialect, StandardOpsDialect>();
   context = std::make_unique<MLIRContext>(registry);
@@ -128,12 +133,32 @@ void PyTuner::load(std::string &mlir_file) {
   if (!this->module_) {
     llvm_unreachable("could not parse the input IR\n");
   }
-  timer.stopAndPrint("load");
+
+  resetBatchSize();
+  // timer.stopAndPrint("load");
 }
 
-void PyTuner::quantize(std::string &calib_table, std::string &mix_table) {
-  Timer timer;
+void PyTuner::resetBatchSize() {
+  std::vector<const char*> cmdline = {
+    "tpuc-opt",
+    "--batch-size",
+    std::to_string(batch).c_str(),
+  };
 
+  llvm::cl::ResetAllOptionOccurrences();
+  llvm::cl::ParseCommandLineOptions(cmdline.size(), cmdline.data());
+
+  mlir::PassManager pm(context.get());
+  pm.addNestedPass<FuncOp>(mlir::createChangeBatchSizePass());
+  mlir::applyPassManagerCLOptions(pm);
+  if (mlir::failed(pm.run(*this->module_))) {
+    assert(0);
+  }
+}
+
+void PyTuner::quantize(const std::string &calib_table,
+                       const std::string &mix_table) {
+  // Timer timer;
   std::vector<const char*> cmdline = {
     "tpuc-opt",
     "--chipname", "cv183x",
@@ -141,10 +166,6 @@ void PyTuner::quantize(std::string &calib_table, std::string &mix_table) {
     "--quant-int8-mix-bf16-layers-from-file",
     mix_table.c_str()
   };
-
-  registerDoAssignChipNamePass();
-  registerDoImportCalibrationTablePass();
-  registerDoTpuQuantPass();
 
   llvm::cl::ResetAllOptionOccurrences();
   llvm::cl::ParseCommandLineOptions(cmdline.size(), cmdline.data());
@@ -163,16 +184,16 @@ void PyTuner::quantize(std::string &calib_table, std::string &mix_table) {
   this->module_->print(output->os());
   output->keep();
   */
-  timer.stopAndPrint("quantize");
+  // timer.stopAndPrint("quantize");
 }
 
 void PyTuner::buildInterpreter() {
-  Timer timer;
+  // Timer timer;
   MlirModuleInterpreter::updateWeightMap(module_);
-  for (int i = 0; i < batch; i++) {
-    interpreters[i]->loadModule(module_);
-  }
-  timer.stopAndPrint("update kernel list");
+  // timer.stopAndPrint("update weight list");
+  // timer.restart();
+  interp_.loadModule(module_);
+  // timer.stopAndPrint("update kernel xx");
 }
 
 bool PyTuner::isValidOp(Operation *op) {
@@ -206,47 +227,71 @@ py::list PyTuner::getOpInfo() {
   return op_list;
 }
 
-void PyTuner::setInputTensor(std::string &name,
-                             np_data_t &array, int bidx) {
+void PyTuner::setData(const std::string &name, np_data_t &array) {
+  int idx = 0;
+  auto &details = interp_.input_details;
+  if (!name.empty()) {
+    bool found = false;
+    for (; idx < (int)details.size(); idx++) {
+      if (name == details[idx].first) {
+        found = true;
+        break;
+      }
+    }
+    if (!found) {
+      llvm::errs() << "cannot find input tensor with name:"
+                  << name << "\n";
+      llvm_unreachable("Please check..");
+    }
+  }
+  if (array.size() != details[idx].second) {
+    llvm::errs() << "input tensor size not same, needed is "
+                << details[idx].second << ", get "
+                << array.size() << "\n";
+    llvm_unreachable("please check..");
+  }
   std::vector<float> input_data(array.size());
-  std::memcpy(input_data.data(), array.data(), array.size() * sizeof(float));
-  interpreters[bidx]->setTensor(name, input_data);
+  std::memcpy(input_data.data(), array.data(),
+              array.size() * sizeof(float));
+  interp_.setTensor(details[idx].first, input_data);
 }
 
-py::array PyTuner::getTensor(std::string &name, int bidx) {
-  std::shared_ptr<std::vector<float>> tensor = interpreters[bidx]->getTensor(name);
-  std::vector<int64_t> shape = interpreters[bidx]->getTensorShape(name);
+void PyTuner::setData(np_data_t &array) {
+  setData("", array);
+}
+
+py::array PyTuner::getTensor(std::string &name) {
+  std::shared_ptr<std::vector<float>> tensor = interp_.getTensor(name);
+  std::vector<int64_t> shape = interp_.getTensorShape(name);
   return genNumpyArray(tensor, shape);
 }
 
 std::string PyTuner::getTensorType(std::string &name) {
-  return interpreters[0]->getDataType(name);
+  return interp_.getDataType(name);
 }
 
 py::list PyTuner::getOutputDetails() {
   py::list list;
-  auto outputs = interpreters[0]->outputDetails();
+  auto outputs = interp_.outputDetails();
   for (auto &i : outputs) {
     list.append(i);
   }
   return list;
 }
 
-py::dict PyTuner::getAllTensors(int bidx) {
+py::dict PyTuner::getAllTensors() {
   py::dict dict;
-  for (auto &kv : interpreters[bidx]->activationMapping) {
+  for (auto &kv : interp_.activationMapping) {
     py::str py_s(kv.first);
     dict[py_s] = genNumpyArray(kv.second, {(int64_t)kv.second->size()});
   }
   return dict;
 }
 
-void PyTuner::invokeTo(std::string &targetOp) {
-  Timer timer;
-  for (int i = 0; i < batch; i++) {
-    interpreters[i]->invokeTo(targetOp);
-  }
-  timer.stopAndPrint("invokeTo");
+void PyTuner::invokeTo(const std::string &targetOp) {
+  // Timer timer;
+  interp_.invokeTo(targetOp);
+  // timer.stopAndPrint("invokeTo");
 }
 
 std::string PyTuner::version = MLIR_VERSION;
@@ -263,8 +308,8 @@ PYBIND11_MODULE(pytuner, m) {
            "quantization with calib_table and mix_table")
       .def("build", &PyTuner::buildInterpreter)
       .def("op_info", &PyTuner::getOpInfo)
-      .def("set_tensor", &PyTuner::setInputTensor,
-           "set input data to model")
+      .def("set_data", py::overload_cast<np_data_t&>(&PyTuner::setData))
+      .def("set_data", py::overload_cast<const std::string&, np_data_t&>(&PyTuner::setData))
       .def("get_tensor", &PyTuner::getTensor)
       .def("get_tensor_type", &PyTuner::getTensorType)
       .def("get_all_tensors", &PyTuner::getAllTensors)
