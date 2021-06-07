@@ -138,6 +138,7 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func) {
         krnl->op = op;
         valueMapping[op->getResult(0)] = activationMapping[name];
         kernel_list_.emplace_back(krnl);
+        // llvm::errs() << name << " is clean\n";
         return;
       } else {
         activationMapping.erase(name);
@@ -342,7 +343,7 @@ void MlirModuleInterpreter::invokeTo(std::string name) {
 }
 
 void MlirModuleInterpreter::setTensor(std::string &name,
-                                      const std::vector<float> &data) {
+                                       const std::vector<float> &data) {
   auto it = activationMapping.find(name);
   if (it == activationMapping.end()) {
     llvm::errs() << " Not Find Op name: " << name << " tensor \n";

@@ -28,7 +28,6 @@ add_llvm_library(MLIRTPU
   Transforms/CompressActivation.cpp
   Transforms/CompressWeight.cpp
   Transforms/ConvertBnToScale.cpp
-  Transforms/ChangeBatchSize.cpp
   Transforms/ConvertScale.cpp
   Transforms/ConvertClip.cpp
   Transforms/ConvertNormalize.cpp

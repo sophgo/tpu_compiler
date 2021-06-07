@@ -148,37 +148,26 @@ class AutoTuner(object):
         for i, image in enumerate(self.images):
             logger.info("**** <{}> {}".format(i, image))
 
-    def __load_data(self, images):
-        def is_npz(image):
-            return True if image.split('.')[-1] == 'npz' else False
-        if is_npz(images[0]):
-            all = np.load(images[0])
-            for i in range(1, len(images), 1):
-                x = np.load(images[i])
-                for k, v in x.items():
-                    all[k] = np.concatenate([all[k], v], axis=None)
-            return all
-        else:
-            all = []
-            for img in images:
-                x = self.preprocess_func(img)
-                all.append(x)
-            return np.concatenate(all, axis=None)
+    def __is_npz(self, image):
+        return True if image.split('.')[-1] == 'npz' else False
 
     def __prepare_for_compare(self):
         # restore input calib table's data to
         # output tune table firstly.
         self.tuner.load(self.fp32_mlir)
         self.tuner.build()
-        data = self.__load_data(self.images)
-        if type(data) == dict:
-            for k, v in data.items():
-                self.tuner.set_data(k, v)
-        else:
-            self.tuner.set_data(data)
-        data_map = {}
+        self.all_fp32_activations_map = {}
+        for idx, image in enumerate(self.images):
+            if self.__is_npz(image):
+                x = np.load(image)
+                for k, v in data.items():
+                    self.tuner.set_tensor(k, v, idx)
+            else:
+                x = self.preprocess_func(image)
+                self.tuner.set_tensor("data", x, idx)
         self.tuner.invoke()
-        self.all_fp32_activations_map = self.tuner.get_all_tensors()
+        for idx in range(self.images_num):
+            self.all_fp32_activations_map[idx] = self.tuner.get_all_tensors(idx)
 
     def find_better_threshold(self, target_op, tune_op, prev_threshold,
                               prev_distance, search_up):
@@ -232,24 +221,32 @@ class AutoTuner(object):
         self.tuner.load(self.fp32_mlir)
         self.tuner.quantize(tmp_table, self.mix_precision_table)
         self.tuner.build()
+        # for idx, image in enumerate(self.images):
+        #     if self.__is_npz(image):
+        #         x = np.load(image)
+        #         for k, v in data.items():
+        #             self.tuner.set_tensor(k, v, idx)
+        #     else:
+        #         x = self.preprocess_func(image)
+        #         self.tuner.set_tensor("data", x, idx)
         self.tuner.invoke(op_name)
         data_type = self.tuner.get_tensor_type(op_name)
 
-        # dequant int8 to fp32
-        target_activation = self.tuner.get_tensor(op_name).reshape((self.images_num, -1))
-        if data_type == 'INT8':
-            scale = threshold / 127.0
-            target_activation = target_activation * scale
-        # sqrt(sum(x^2))
-        target_op_fp32_activation = self.all_fp32_activations_map[op_name].reshape((self.images_num, -1))
-        for i in range(self.images_num):
+        for idx in range(self.images_num):
+            # dequant int8 to fp32
+            target_activation = self.tuner.get_tensor(op_name, idx)
+            if data_type == 'INT8':
+                scale = threshold / 127.0
+                target_activation = target_activation * scale
+            # sqrt(sum(x^2))
+            target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
             if self.evaluation_method == 'euclid':
-                distance += np.linalg.norm(target_op_fp32_activation[i, :] -
-                                        target_activation[i, :])
+                distance += np.linalg.norm(target_op_fp32_activation.flatten() -
+                                        target_activation.flatten())
             else: # cosine
                 distance += spatial.distance.cosine(
-                                target_op_fp32_activation[i, :],
-                                target_activation[i, :])
+                                target_op_fp32_activation.flatten(),
+                                target_activation.flatten())
         distance /= self.images_num
         return distance
 
@@ -297,27 +294,27 @@ class AutoTunerPlus(AutoTuner):
         self.tuner.load(self.fp32_mlir)
         self.tuner.quantize(tmp_table, self.mix_precision_table)
         self.tuner.build()
-        self.tuner.invoke()
+        self.tuner.invoke(op_name)
 
         distance = 0
-        for op_name in target_op:
-            target_activation = self.tuner.get_tensor(op_name).reshape((self.images_num, -1))
-            target_data_type = self.tuner.get_tensor_type(op_name)
-            if target_data_type == 'INT8':
-                scale = threshold / 127.0
-                target_activation = target_activation * scale
+        for idx in range(self.images_num):
+            for op_name in target_op:
+                target_activation = self.tuner.get_tensor(op_name, idx)
+                target_data_type = self.tuner.get_tensor_type(op_name)
+                if target_data_type == 'INT8':
+                    scale = threshold / 127.0
+                    target_activation = target_activation * scale
 
-            target_op_fp32_activation = self.all_fp32_activations_map[op_name].reshape((self.images_num, -1))
+                target_op_fp32_activation = self.all_fp32_activations_map[idx][op_name]
 
-            for i in range(self.images_num):
                 # distance += np.sum(target_op_fp32_activation.flatten() != target_activation.flatten())
                 if self.evaluation_method == 'euclid':
-                    distance += np.linalg.norm(target_op_fp32_activation[i, :] -
-                                            target_activation[i, :])
+                    distance += np.linalg.norm(target_op_fp32_activation.flatten() -
+                                            target_activation.flatten())
                 else: # cosine
                     distance += spatial.distance.cosine(
-                                    target_op_fp32_activation[i, :],
-                                    target_activation[i, :])
+                                    target_op_fp32_activation.flatten(),
+                                    target_activation.flatten())
         distance /= self.images_num
         return distance
 

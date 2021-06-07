@@ -198,11 +198,6 @@ def DoAddTpuPreprocess: FunctionPass<"add-tpu-preprocess"> {
   let constructor = "mlir::createAddTpuPreprocessPass()";
 }
 
-def DoChangeBatchSize: FunctionPass<"change-batch-size"> {
-  let summary = "Change batch size of all Ops";
-  let constructor = "mlir::createChangeBatchSizePass()";
-}
-
 def TpucCanonicalizer : Pass<"canonicalize"> {
   let summary = "Canonicalize operations";
   let description = [{
