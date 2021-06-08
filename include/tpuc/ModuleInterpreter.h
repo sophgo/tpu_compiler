@@ -55,11 +55,7 @@ public:
   // Interpret the given MLIR module expressed in MLIR TPU IR dialect
   explicit ModuleInterpreter(ModuleOp module)
       : mlirModule(module), weightFile_(nullptr) {}
-  virtual ~ModuleInterpreter() {
-    if (weightFile_) {
-      delete weightFile_;
-    }
-  }
+  virtual ~ModuleInterpreter() {}
 
   static std::string &getCustomOpPluginFile() {
     return customOpPluginFile_;

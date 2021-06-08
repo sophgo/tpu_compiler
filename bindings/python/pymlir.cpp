@@ -94,6 +94,10 @@ public:
   py_module() {}
   ~py_module() {
     interpreter_.reset();
+    auto module = module_.release();
+    if (module) {
+      module.erase();
+    }
     context.reset();
   }
 

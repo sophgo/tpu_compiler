@@ -45,6 +45,13 @@ namespace tpu {
 class TPUDialect : public Dialect {
 public:
   explicit TPUDialect(MLIRContext *context);
+  ~TPUDialect() {
+    auto file = (TensorFile *)getPriv();
+    if (file) {
+      delete file;
+    }
+  }
+
   static StringRef getDialectNamespace() { return "tpu"; }
 
   void* getPriv() { return priv; };

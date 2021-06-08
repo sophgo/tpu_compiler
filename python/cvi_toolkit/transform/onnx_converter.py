@@ -91,7 +91,9 @@ class OnnxNode(BaseNode):
         info = dict()
         info["name"] = node.output[0]
         info["op_type"] = node.op_type
-        info["attrs"] = [(attr.name, translate_onnx(attr.name, convert_onnx_attribute_proto(attr))) for attr in node.attribute]
+        info["attrs"] = [(attr.name, \
+                          translate_onnx(attr.name, convert_onnx_attribute_proto(attr))) \
+                          for attr in node.attribute]
         info["inputs"] = node.input
         info["outputs"] = node.output
         super().__init__(info)
@@ -240,10 +242,10 @@ class OnnxConverter(BaseConverter):
         # init importer
         self.CVI = MLIRImporter(inputs, outputs, "FP32", output_weight_file=self.output_weight_file)
 
-    def getNonde(self, op_name):
-        for t in self.converted_nodes:
-            if t and  t.name == op_name:
-                return t
+    def getNode(self, op_name):
+        for node in self.converted_nodes:
+            if node and node.name == op_name:
+                return node
         return None
 
     def remove_tensor_from_input_nodes(self):
@@ -476,14 +478,13 @@ class OnnxConverter(BaseConverter):
                 consumed.clear()
         self.converted_nodes = [node for node in self.converted_nodes if node]
 
-        # form layerNorm op form onnx
-        # sudpport default param.elementwise_affine
+        # form layerNorm op from onnx
+        # support default param.elementwise_affine
         consumed = list()      # idx
         ln_in, ln_out = [], []
         base_pattern =  ["ReduceMean", "Sub", "Pow", "ReduceMean",
                          "Add", "Sqrt", "Div", "Mul", "Add"]
         for i, node in enumerate(self.converted_nodes):
-
             if node.op_type == "Constant":
                 continue
             if len(base_pattern) > 0 and node.op_type == base_pattern[0]:
@@ -493,7 +494,8 @@ class OnnxConverter(BaseConverter):
                     ln_in.append(node.inputs[0])
 
                 elif node.op_type == "Mul":
-                    if "layer_norm" in node.inputs[1]:
+                    # second operand should be weight tensor
+                    if not self.getNode(node.inputs[1]):
                         ln_in.append(node.inputs[1])
                     else:
                         base_pattern = ["ReduceMean", "Sub", "Pow", "ReduceMean",
@@ -503,12 +505,12 @@ class OnnxConverter(BaseConverter):
                         ln_out.clear()
 
                 elif node.op_type == "Add":
-                    n = self.getNonde(node.inputs[1])
-                    if not n and "layer_norm" in node.inputs[1]:
+                    opd_b = self.getNode(node.inputs[1])
+                    if not opd_b: # is weight tensor
                         ln_in.append(node.inputs[1])
                         ln_out.append(node.outputs[0])
-                    elif n.op_type == "Constant":
-                        eps = numpy_helper.to_array(n.attrs['value'])
+                    elif opd_b.op_type == "Constant":
+                        eps = numpy_helper.to_array(opd_b.attrs['value'])
             else:
                 base_pattern = ["ReduceMean", "Sub", "Pow", "ReduceMean",
                                 "Add", "Sqrt", "Div", "Mul", "Add"]
@@ -558,8 +560,8 @@ class OnnxConverter(BaseConverter):
             if node.op_type != "MatMul":
                 i += 1
                 continue
-            # rhs should be activation
-            if self.getNonde(node.inputs[1]):
+            # rhs should be weight, skip if it's activation
+            if self.getNode(node.inputs[1]):
                 i += 1
                 continue
             if i + 1 >= len(self.converted_nodes):
@@ -569,7 +571,7 @@ class OnnxConverter(BaseConverter):
             if next_node.op_type != "Add":
                 i += 1
                 continue
-            if self.getNonde(next_node.inputs[1]):
+            if self.getNode(next_node.inputs[1]):
                 i += 1
                 continue
 
@@ -1410,14 +1412,19 @@ class OnnxConverter(BaseConverter):
 
     def convert_clip_op(self, onnx_node):
         assert(onnx_node.op_type == "Clip")
-        clip_min = onnx_node.attrs.get('min', -np.inf)
-        clip_max = onnx_node.attrs.get('max', np.inf)
+        if len(onnx_node.inputs) == 3:
+            min_val = self.getTensor(onnx_node.inputs[1])
+            max_val = self.getTensor(onnx_node.inputs[2])
+            clip_min = float(min_val.tensor_data)
+            clip_max = float(max_val.tensor_data)
+        else:
+            clip_min = onnx_node.attrs.get('min', -np.inf)
+            clip_max = onnx_node.attrs.get('max', np.inf)
 
         clip_param = {
             'min':  clip_min,
             'max':  clip_max,
         }
-
         op, shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         output_shape = shape
 
@@ -3537,23 +3544,24 @@ class OnnxConverter(BaseConverter):
     def convert_reduce_mean_op(self, onnx_node):
         assert(onnx_node.op_type == "ReduceMean")
         checkKey(onnx_node.attrs, 'axes')
-        checkKey(onnx_node.attrs, 'keepdims')
         axes = onnx_node.attrs['axes']
-        keepdims = onnx_node.attrs['keepdims']
+        keepdims = onnx_node.attrs.get('keepdims', 1)
         op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
         output_shape = input_shape0
 
         axis = 0
         if len(axes) == 1:
+            if axes[0] == -1:
+                axes[0] = len(input_shape0) - 1
+
             if axes[0] != 2 and axes[0] != 3:
                 raise RuntimeError("{} axis not support, please add".format(axes[0]))
 
-            # deep copy
             output_shape = list(input_shape0)
-            output_shape.pop(axes[0])
-
-            if keepdims != 0:
-                output_shape.extend([1])
+            if keepdims == 0:
+                output_shape.pop(axes[0])
+            else:
+                output_shape[axes[0]] = 1
 
         elif len(axes) == 2 and axes[0] == 2 and axes[1] == 3:
             if keepdims == 0:

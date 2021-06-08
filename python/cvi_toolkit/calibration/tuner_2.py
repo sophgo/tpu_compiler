@@ -3,7 +3,7 @@
 # Copyright (C) Cristal Vision Technologies Inc.
 # All Rights Reserved.
 ##
-
+import gc
 import numpy as np
 import sys
 import os
@@ -23,7 +23,6 @@ logger = setup_logger('root')
 general_skip_op = [
 #    'tpu.concat',
     'tpu.crop',
-    'tpu.clip',
     'tpu.detectionoutput',
     'tpu.dummy',
     'tpu.exp',
@@ -147,25 +146,30 @@ class AutoTuner(object):
         logger.info("[*] selected images->")
         for i, image in enumerate(self.images):
             logger.info("**** <{}> {}".format(i, image))
+        with open("{}.image.list".format(self.output_tune_table), 'w') as f:
+            for image in self.images:
+                f.write("{}\n".format(image))
 
-    def __is_npz(self, image):
-        return True if image.split('.')[-1] == 'npz' else False
+    def __load_data(self):
+        def is_npz(image):
+            return True if image.split('.')[-1] == 'npz' else False
+        for idx, image in enumerate(self.images):
+            if is_npz(image):
+                x = np.load(image)
+                for k, v in data.items():
+                    self.tuner.set_data(k, v, idx)
+            else:
+                x = self.preprocess_func(image)
+                self.tuner.set_data(x, idx)
 
     def __prepare_for_compare(self):
         # restore input calib table's data to
         # output tune table firstly.
         self.tuner.load(self.fp32_mlir)
         self.tuner.build()
-        self.all_fp32_activations_map = {}
-        for idx, image in enumerate(self.images):
-            if self.__is_npz(image):
-                x = np.load(image)
-                for k, v in data.items():
-                    self.tuner.set_tensor(k, v, idx)
-            else:
-                x = self.preprocess_func(image)
-                self.tuner.set_tensor("data", x, idx)
+        self.__load_data()
         self.tuner.invoke()
+        self.all_fp32_activations_map = {}
         for idx in range(self.images_num):
             self.all_fp32_activations_map[idx] = self.tuner.get_all_tensors(idx)
 
@@ -190,7 +194,12 @@ class AutoTuner(object):
                 break
             try_cnt += 1
 
-            cur_distance = self.calc_distance(target_op, tune_op, cur_threshold)
+            try:
+                cur_distance = self.calc_distance(target_op, tune_op, cur_threshold)
+            except Exception as e:
+                logger.info("Warning: {}".format(e))
+                fail_cnt += 1
+                continue
 
             logger.info("cur[{}] threshold: {:5f}, distance: {:5f}".format(
                         try_cnt, cur_threshold, cur_distance))
@@ -208,6 +217,8 @@ class AutoTuner(object):
                 prev_threshold = cur_threshold
             else:
                 fail_cnt += 1
+        collected = gc.collect()
+        logger.info("gc, free {} objects".format(collected))
         return prev_distance
 
     def calc_distance(self, target_op, tune_op, threshold):
@@ -221,14 +232,6 @@ class AutoTuner(object):
         self.tuner.load(self.fp32_mlir)
         self.tuner.quantize(tmp_table, self.mix_precision_table)
         self.tuner.build()
-        # for idx, image in enumerate(self.images):
-        #     if self.__is_npz(image):
-        #         x = np.load(image)
-        #         for k, v in data.items():
-        #             self.tuner.set_tensor(k, v, idx)
-        #     else:
-        #         x = self.preprocess_func(image)
-        #         self.tuner.set_tensor("data", x, idx)
         self.tuner.invoke(op_name)
         data_type = self.tuner.get_tensor_type(op_name)
 
@@ -275,6 +278,7 @@ class AutoTuner(object):
 
             logger.info("tuning op: {} finish, tune_distance: {}".format(
                 op_name, tune_distance))
+            break
 
 
 class AutoTunerPlus(AutoTuner):
@@ -294,7 +298,7 @@ class AutoTunerPlus(AutoTuner):
         self.tuner.load(self.fp32_mlir)
         self.tuner.quantize(tmp_table, self.mix_precision_table)
         self.tuner.build()
-        self.tuner.invoke(op_name)
+        self.tuner.invoke()
 
         distance = 0
         for idx in range(self.images_num):

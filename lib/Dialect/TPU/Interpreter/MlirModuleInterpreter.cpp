@@ -295,6 +295,7 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func) {
                   << " op in interpreter_v2\n";
     } else if (isa<tpu::ReshapeOp>(op)) {
       activationMapping[name] = valueMapping[op->getOperand(0)];
+      valueMapping[op->getResult(0)] = valueMapping[op->getOperand(0)];
       auto opd_name = getOpName(op->getOperand(0).getDefiningOp()).str();
       kernel_map_[name] = kernel_map_[opd_name];
       return;

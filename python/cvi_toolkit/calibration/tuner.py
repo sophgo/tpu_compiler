@@ -3,7 +3,7 @@
 # Copyright (C) Cristal Vision Technologies Inc.
 # All Rights Reserved.
 ##
-
+import gc
 import numpy as np
 import sys
 import os
@@ -23,7 +23,6 @@ logger = setup_logger('root')
 general_skip_op = [
 #    'tpu.concat',
     'tpu.crop',
-    'tpu.clip',
     'tpu.detectionoutput',
     'tpu.dummy',
     'tpu.exp',
@@ -171,6 +170,9 @@ class AutoTuner(object):
         logger.info("[*] selected images->")
         for i, image in enumerate(self.images):
             logger.info("**** <{}> {}".format(i, image))
+        with open("{}.image.list".format(self.output_tune_table), 'w') as f:
+            for image in self.images:
+                f.write("{}\n".format(image))
 
     def __is_npz(self, image):
         return True if image.split('.')[-1] == 'npz' else False
@@ -230,7 +232,12 @@ class AutoTuner(object):
                 break
             try_cnt += 1
 
-            cur_distance = self.calc_distance(target_op, tune_op, cur_threshold)
+            try:
+                cur_distance = self.calc_distance(target_op, tune_op, cur_threshold)
+            except Exception as e:
+                logger.info("warning but continue: {}".format(e))
+                fail_cnt += 1
+                continue
 
             logger.info("cur[{}] threshold: {:5f}, distance: {:5f}".format(
                         try_cnt, cur_threshold, cur_distance))
@@ -248,6 +255,8 @@ class AutoTuner(object):
                 prev_threshold = cur_threshold
             else:
                 fail_cnt += 1
+        collected = gc.collect()
+        logger.info("gc, {} objects freed".format(collected))
         return prev_distance
 
     def calc_distance(self, target_op, tune_op, threshold):

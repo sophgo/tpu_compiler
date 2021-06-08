@@ -1017,7 +1017,9 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
 
       auto layer_name = mlir::getOpName(clipOp).str();
       //bool in_black_list = std::find(clFuseClipLayers.begin(), clFuseClipLayers.end(), layer_name) != clFuseClipLayers.end();
-      bool in_white_list = std::find(clSkipFuseClipLayers.begin(), clSkipFuseClipLayers.end(), layer_name) != clSkipFuseClipLayers.end();
+      bool in_white_list = std::find(clSkipFuseClipLayers.begin(),
+                                     clSkipFuseClipLayers.end(), layer_name) !=
+                                     clSkipFuseClipLayers.end();
 
       // white list priority is more than black one
       if (in_white_list) {
@@ -1030,8 +1032,7 @@ struct TpuTpuQuantClipPassPattern : public RewritePattern {
                   << " thre " << tpuOp.getOpQuantThreshold()
                   << ", new clip " << mlir::getOpName(clipOp).str()
                   << " thre is " << threshold_max << "\n";);
-      }
-      else {
+      } else {
         LLVM_DEBUG(llvm::errs() << "cant fuse previous op " << formerOpName << ", not remove it\n";);
         return failure();
       }
