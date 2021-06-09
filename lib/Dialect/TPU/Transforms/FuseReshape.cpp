@@ -40,6 +40,28 @@ using namespace mlir;
 
 namespace {
 
+// fold reshape ops:  reshape -> reshape -> reshape => reshape
+struct FoldReshapePattern : public RewritePattern {
+  FoldReshapePattern(MLIRContext *context)
+      : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::ReshapeOp>(op);
+
+    auto formerOp = castOp.getOperand().getDefiningOp();
+    if (!matchPattern(formerOp, m_Op<tpu::ReshapeOp>())) {
+      return failure();
+    }
+    if (!formerOp->getResult(0).hasOneUse()) {
+      return failure();
+    }
+    castOp.setOperand(formerOp->getOperand(0));
+    rewriter.replaceOp(formerOp, {castOp.getResult()});
+    return success();
+  }
+};
+
 // remove input---- reshape --output1
 //              |-- reshape -- output2
 struct FoldSiblingReshapePattern : public RewritePattern {
@@ -77,77 +99,31 @@ struct FoldSiblingReshapePattern : public RewritePattern {
   }
 };
 
-struct TpuFuseDescendantReshapePattern : public RewritePattern {
-  TpuFuseDescendantReshapePattern(MLIRContext *context)
+struct TpuRemoveIdentityReshapePattern : public RewritePattern {
+  TpuRemoveIdentityReshapePattern(MLIRContext *context)
       : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-
+    auto castOp = cast<tpu::ReshapeOp>(op);
+    auto formerOp = op->getOperand(0).getDefiningOp();
+    if (!formerOp->getResult(0).hasOneUse()) {
+      return failure();
+    }
     auto outputShapes = getTensorShape(op->getResult(0));
-    auto inputShapes = getTensorShape(op->getOperand(0));
+    auto inputShapes = getTensorShape(formerOp->getResult(0));
 
-    // 1. Remove single useless reshape
-    if (inputShapes.size() == outputShapes.size()) {
-      bool useless = true;
-      for (unsigned i = 0; i < inputShapes.size(); ++i) {
-        if (inputShapes[i] != outputShapes[i]) {
-          useless = false;
-          break;
-        }
-      }
-
-      if (useless) {
-        LLVM_DEBUG(llvm::dbgs()
-            << "ReshapePattern: " << getOpName(op)
-            << ", layer ID " << getOpLayerId(op)
-            << ", inputs " << inputShapes.size()
-            << ", outputs " << outputShapes.size()
-            << ", remove " << getOpName(op) << "\n");
-        op->getResult(0).replaceAllUsesWith(op->getOperand(0));
-        rewriter.eraseOp(op);
-        return success();
+    if (inputShapes.size() != outputShapes.size()) {
+      return failure();
+    }
+    for (unsigned i = 0; i < inputShapes.size(); ++i) {
+      if (inputShapes[i] != outputShapes[i]) {
+        return failure();
       }
     }
-
-    // 2. Remove redundant reshape -> reshape
-    //    e.g. input - reshape - reshape - quant => input - quant
-    auto opdOp = op->getOperand(0).getDefiningOp();
-    if (llvm::dyn_cast<tpu::ReshapeOp>(opdOp)) {
-      auto opdInputShape = getTensorShape(opdOp->getOperand(0));
-
-      if (opdInputShape.size() != outputShapes.size())
-        return failure();
-
-      for (unsigned i = 0; i < outputShapes.size(); ++i)
-        if (opdInputShape[i] != outputShapes[i])
-          return failure();
-
-      // Check reshape - reshape has only one use
-      if (std::distance(op->getOperand(0).use_begin(),
-                        op->getOperand(0).use_end()) > 1)
-        return failure();
-
-      if (std::distance(op->getResult(0).use_begin(),
-                        op->getResult(0).use_end()) > 1)
-        return failure();
-
-      LLVM_DEBUG(llvm::dbgs()
-          << "ReshapePattern: " << getOpName(op)
-          << ", layer ID " << getOpLayerId(op)
-          << ", inputs " << inputShapes.size()
-          << ", outputs " << outputShapes.size()
-          << ", remove " << getOpName(op)
-          << ", " << getOpName(opdOp) << "\n");
-
-      op->getResult(0).replaceAllUsesWith(op->getOperand(0));
-      opdOp->getResult(0).replaceAllUsesWith(opdOp->getOperand(0));
-      rewriter.eraseOp(op);
-      rewriter.eraseOp(opdOp);
-      return success();
-    }
-
-    return failure();
+    formerOp->setAttr("name", castOp.nameAttr());
+    rewriter.replaceOp(op, {formerOp->getResult(0)});
+    return success();
   }
 };
 
@@ -284,10 +260,11 @@ public:
 
   void runOnFunction() override {
     OwningRewritePatternList patterns;
-    patterns.insert<TpuFuseDescendantReshapePattern>(&getContext());
+    patterns.insert<TpuRemoveIdentityReshapePattern>(&getContext());
     patterns.insert<TpuReshapeReduceMaxPattern>(&getContext());
     patterns.insert<TpuDReshapeReduceMaxPattern>(&getContext());
     patterns.insert<FoldSiblingReshapePattern>(&getContext());
+    patterns.insert<FoldReshapePattern>(&getContext());
     applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 
@@ -298,10 +275,11 @@ public:
 void tpu::ReshapeOp::getCanonicalizationPatterns(
     OwningRewritePatternList &results, MLIRContext *context) {
   results.insert<
-    TpuFuseDescendantReshapePattern,
+    TpuRemoveIdentityReshapePattern,
     TpuReshapeReduceMaxPattern,
     TpuDReshapeReduceMaxPattern,
-    FoldSiblingReshapePattern
+    FoldSiblingReshapePattern,
+    FoldReshapePattern
   >(context);
 }
 
