@@ -135,7 +135,7 @@ class QuantedMlirModel:
 class AutoTuner(object):
     def __init__(self, model_file, input_calib_table, mix_precision_table,
                  output_tune_table, tune_image_list, tune_image_num,
-                 tune_iteration,  preprocess_func, threshold_update_factor,
+                 tune_iteration,  tune_layers, preprocess_func, threshold_update_factor,
                  evaluation_method):
 
         self.skip_op = general_skip_op
@@ -145,6 +145,7 @@ class AutoTuner(object):
 
         self.threshold_update_factor = threshold_update_factor
         self.tune_iteration = tune_iteration
+        self.tune_layers = set(tune_layers) if tune_layers else None
         self.evaluation_method = evaluation_method
 
         logger.info("[*] tune_iteration: {}".format(tune_iteration))
@@ -301,6 +302,9 @@ class AutoTuner(object):
             if tune_op['type'] in self.skip_op:
                 continue
 
+            if self.tune_layers and op_name not in self.tune_layers:
+                continue
+
             if op_name not in self.tuned_table.thresholds_map:
                 continue
 
@@ -321,11 +325,11 @@ class AutoTuner(object):
 class AutoTunerPlus(AutoTuner):
     def __init__(self, model_file, input_calib_table, mix_precision_table,
                  output_tune_table, tune_image_list, tune_image_num,
-                 tune_iteration, preprocess_func, threshold_update_factor,
+                 tune_iteration, tune_layers, preprocess_func, threshold_update_factor,
                  evaluation_method):
         super().__init__(model_file, input_calib_table, mix_precision_table,
                          output_tune_table, tune_image_list, tune_image_num,
-                         tune_iteration, preprocess_func, threshold_update_factor,
+                         tune_iteration, tune_layers, preprocess_func, threshold_update_factor,
                          evaluation_method)
 
     def calc_distance(self, target_op, tune_op, threshold):
@@ -372,6 +376,9 @@ class AutoTunerPlus(AutoTuner):
             pbar.set_description("tune: {}".format(op_name))
             pbar.update(1)
             if tune_op['type'] in self.skip_op:
+                continue
+
+            if self.tune_layers and op_name not in self.tune_layers:
                 continue
 
             if op_name not in self.tuned_table.thresholds_map:

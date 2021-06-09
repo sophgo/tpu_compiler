@@ -12,7 +12,8 @@ import numpy as np
 from pathlib import Path
 import random
 from cvi_toolkit.utils.version import declare_toolchain_version
-from cvi_toolkit.calibration.tuner import AutoTuner, AutoTunerPlus
+import cvi_toolkit.calibration.tuner_2  as tuner_2
+import cvi_toolkit.calibration.tuner as tuner_1
 from cvi_toolkit import preprocess
 
 
@@ -39,6 +40,17 @@ def generate_image_list(image_list_file, dataset_path, image_num):
         image_list = random_select_images(dataset_path, image_num)
     return image_list
 
+def load_tune_layers(tune_layers_file):
+    if not tune_layers_file:
+        return None
+    layers = []
+    with open(tune_layers_file, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line and not line.startswith('#'):
+                layers.append(line)
+    return layers
+
 
 if __name__ == '__main__':
     declare_toolchain_version()
@@ -53,6 +65,8 @@ if __name__ == '__main__':
     parser.add_argument('--tune_iteration', type=int, default=30,
                         help='''iteration for tool to find better threhold,
                                 The larger the value, the longer it will take''')
+    parser.add_argument('--tune_layers', type=str, help='''specify a file contains layers need to be tuned,
+                                 one layer per line''')
     parser.add_argument('--threshold_update_factor', type=float, default=0.01,
                         help='threshold update factor')
     parser.add_argument('--strategy', choices=['greedy', 'overall'],
@@ -60,6 +74,7 @@ if __name__ == '__main__':
     parser.add_argument('--evaluation', choices=['cosine', 'euclid'], default='euclid',
                         help='evaluation method, cosine is "cosine similarity",'
                              'euclid is "eculidean distance')
+    parser.add_argument('--speedup', action='store_true', help='trial feature, speedup tune procedure')
     parser.add_argument('-o', "--tuned_table", type=str, required=True,
                         help='output tuned calibration table file')
 
@@ -69,6 +84,7 @@ if __name__ == '__main__':
     def p_func(input_file): return preprocessor.run(input_file)
 
     image_list = generate_image_list(args.image_list, args.dataset, args.input_num)
+    tune_layers = load_tune_layers(args.tune_layers)
     kargs = {
         'model_file': args.model_file,
         'input_calib_table': args.calibration_table,
@@ -77,13 +93,21 @@ if __name__ == '__main__':
         'tune_image_list': image_list,
         'tune_image_num': args.input_num,
         'tune_iteration': args.tune_iteration,
+        'tune_layers': tune_layers,
         'preprocess_func': p_func,
         'threshold_update_factor': args.threshold_update_factor,
         'evaluation_method': args.evaluation
     }
 
-    if args.strategy == 'greedy':
-        tuner = AutoTuner(**kargs)
-    else: # 'overall'
-        tuner = AutoTunerPlus(**kargs)
+    if args.speedup:
+        if args.strategy == 'greedy':
+            tuner = tuner_2.AutoTuner(**kargs)
+        else: # 'overall'
+            tuner = tuner_2.AutoTunerPlus(**kargs)
+    else:
+        if args.strategy == 'greedy':
+            tuner = tuner_1.AutoTuner(**kargs)
+        else: # 'overall'
+            tuner = tuner_1.AutoTunerPlus(**kargs)
+
     tuner.run()

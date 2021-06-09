@@ -79,6 +79,9 @@ bool MlirModuleInterpreter::isKernelDirty(std::shared_ptr<CPUOpKernel> &krnl,
   if (isa<tpu::InputOp>(op)) {
     return false;
   }
+  if (krnl->dirty) {
+    return true;
+  }
   // check if signature updated.
   auto new_signature = CPUOpKernel::generateSignature(*op);
   bool dirty = (krnl->signature != new_signature) ? true : false;
