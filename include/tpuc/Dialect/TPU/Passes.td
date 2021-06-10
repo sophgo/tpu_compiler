@@ -13,11 +13,6 @@ def DoTpuQuant : FunctionPass<"tpu-quant"> {
   let constructor = "mlir::createTpuQuantPass()";
 }
 
-def DoTpuQuantClip : FunctionPass<"tpu-quant-clip"> {
-  let summary = "merge clip's threshold to former";
-  let constructor = "mlir::createTpuQuantClipPass()";
-}
-
 def DoImportCalibrationTable : FunctionPass<"import-calibration-table"> {
   let summary = "Import calibration table from external tools";
   let constructor = "mlir::createImportCalibrationTablePass()";

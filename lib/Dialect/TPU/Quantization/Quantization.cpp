@@ -109,28 +109,6 @@ static llvm::cl::opt<std::string> clQuantLayerByFile(
     llvm::cl::desc("Enable bf16 mix-presion on specify layers by file"),
     llvm::cl::cat(clOptionsCategory));
 
-static llvm::cl::list<std::string> clFuseClipLayers(
-    "fuse-clip-layers",
-    llvm::cl::desc("fuse clips by name"),
-    llvm::cl::ZeroOrMore,
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<std::string> clFuseClipLayersByFile(
-    "fuse-clip-layers-from-file",
-    llvm::cl::desc("fuse clips from file"),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::list<std::string> clSkipFuseClipLayers(
-    "skip-fuse-clip-layers",
-    llvm::cl::desc("skip fuse clips by name"),
-    llvm::cl::ZeroOrMore,
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<std::string> clSkipFuseClipLayersByFile(
-    "skip-fuse-clip-layers-from-file",
-    llvm::cl::desc("skip fuse clips from file"),
-    llvm::cl::cat(clOptionsCategory));
-
 static llvm::cl::opt<std::string> clSetLutMinMaxByFile(
     "set-lut-min-max-from-file",
     llvm::cl::desc("Set bf16 lut min/max range from file"),
@@ -282,14 +260,13 @@ struct TpuConvertSoftmaxToSoftmaxCpu : public RewritePattern {
         operands.push_back(op->getOperand(i));
       }
 
-        // Return same opValue
+      // Return same opValue
       auto loc = op->getLoc();
       auto newOp = rewriter.create<tpu::SoftmaxCpuOp>(loc,
         op->getResult(0).getType(),
         operands,
         op->getAttrs());
 
-      // replace to relu->clip
       rewriter.replaceOp(op, {newOp});
       return success();
     }
@@ -518,98 +495,33 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
   }
 }
 
-struct TpuTpuQuantClipPassPattern : public RewritePattern {
-  TpuTpuQuantClipPassPattern(MLIRContext *context)
-      : RewritePattern("tpu.clip", 1, context) {}
+struct ConvertClipOpToIdentityOpPattern : public RewritePattern {
+  ConvertClipOpToIdentityOpPattern(MLIRContext *context)
+      : RewritePattern(tpu::ClipOp::getOperationName(), 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    auto builder = OpBuilder(op);
+                                PatternRewriter &rewriter) const override {
+    auto clipOp = cast<tpu::ClipOp>(op);
 
-    if (auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op)) {
-
-      // check quant type
-      auto formerOp = clipOp.getOperand(0).getDefiningOp();
-      auto curr_quant = getOpQuant(op);
-      auto prev_quant = getOpQuant(formerOp);
-      auto next_quant = getOpQuant(op->getResult(0).getDefiningOp());
-
-      // check threshold_max/threshold_min has assigned
-      auto threshold_max = clipOp.quant().threshold_max().getValue().convertToFloat();
-      auto threshold_min = clipOp.quant().threshold_min().getValue().convertToFloat();
-      if (threshold_max == 0 && threshold_min == 0 && curr_quant == "INT8") {
-        assert(0 && "you MUST do import-calibration-table before\n");
-      }
-
-      std::string formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-      if (!formerOp->getResult(0).hasOneUse()) {
-        LLVM_DEBUG(llvm::errs() << "Not overwrtie more users op: " << formerOpName << ", not remove it\n";);
-        return failure();
-      }
-
-      auto layer_name = mlir::getOpName(clipOp).str();
-      //bool in_black_list = std::find(clFuseClipLayers.begin(), clFuseClipLayers.end(), layer_name) != clFuseClipLayers.end();
-      bool in_white_list = std::find(clSkipFuseClipLayers.begin(), clSkipFuseClipLayers.end(), layer_name) != clSkipFuseClipLayers.end();
-
-      // white list priority is more than black one
-      if (in_white_list) {
-          LLVM_DEBUG(llvm::errs() << "config not quant op: " << layer_name << "\n";);
-          return failure();
-      }
-
-      if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(formerOp)) {
-          LLVM_DEBUG(llvm::errs() << "over old " << mlir::getOpName(formerOp).str()
-                  << " thre " << tpuOp.getOpQuantThreshold()
-                  << ", new clip " << mlir::getOpName(clipOp).str()
-                  << " thre is " << threshold_max << "\n";);
-      }
-      else {
-        LLVM_DEBUG(llvm::errs() << "cant fuse previous op " << formerOpName << ", not remove it\n";);
-        return failure();
-      }
-
-      // always overwrite threshold for high accuracy
-      if (curr_quant == "BF16" && prev_quant == "INT8" && next_quant == "INT8") {
-        LLVM_DEBUG(llvm::errs() << "need to do in bf16 cuz prev/next is int8\n";);
-        return failure();
-      }
-
-      if (curr_quant == "INT8" && prev_quant == "BF16") {
-        // TODO: fuse relu to previous
-        LLVM_DEBUG(llvm::errs() << "leave for relu\n";);
-        std::vector<NamedAttribute> attrs;
-        attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(layer_name)));
-        attrs.push_back(builder.getNamedAttr("quant", clipOp.quant()));
-
-        auto op = rewriter.create<tpu::ReluOp>(
-            clipOp.getLoc(), clipOp.getResult().getType(),
-            ArrayRef<Value>{ clipOp.getOperand(0) },
-            ArrayRef<NamedAttribute>{attrs});
-
-        rewriter.replaceOp(clipOp, {op.getResult()});
-
-        // overwrite previous one
-        setOpThreshold(formerOp, threshold_max);
-        return success();
-      }
-
-      if (prev_quant == "BF16") {
-        LLVM_DEBUG(llvm::errs() << "no need to quant to int8 cuz former one " << formerOpName << " is bf16 quant type\n";);
-        return failure();
-      }
-
-      // update attr Only
-      setOpThreshold(formerOp, threshold_max);
-      formerOp->setAttr(llvm::StringRef("name"), rewriter.getStringAttr(layer_name));
-
-      // remove clip
-      rewriter.replaceOp(clipOp, {clipOp.getOperand(0)});
-
-      return success();
+    auto curr_quant = getOpQuant(op);
+    if (curr_quant != "INT8") {
+      return failure();
     }
+    float threshold_y = getOpThreshold(op);
+    auto formerOp = op->getOperand(0).getDefiningOp();
+    setOpThreshold(formerOp, threshold_y);
 
-    // default
-    return failure();
+    // convert int8 clip op to identity op (reshape op)
+    std::vector<NamedAttribute> attrs;
+    auto nameAttr = rewriter.getStringAttr(getOpName(op).str() + "_Identity");
+    attrs.push_back(rewriter.getNamedAttr("name", nameAttr));
+    auto reshapeOp = rewriter.create<tpu::ReshapeOp>(
+                      clipOp.getLoc(), clipOp.getResult().getType(),
+                      ArrayRef<Value>{op->getOperand(0)},
+                      ArrayRef<NamedAttribute>{attrs});
+    formerOp->setAttr("name", clipOp.nameAttr());
+    rewriter.replaceOp(op, {reshapeOp});
+    return success();
   }
 };
 
@@ -889,10 +801,7 @@ public:
 
     OwningRewritePatternList patterns;
 
-    // check clip(relu6) is fused or leave for bf16
-    // we implement relu6 with threshold, if no need quant(bf16 case)
-    // we SHOULD do relu6 op
-    patterns.insert<TpuTpuQuantClipPassPattern>(context);
+    patterns.insert<ConvertClipOpToIdentityOpPattern>(context);
     // patch for dialation > 15
     patterns.insert<TpuConvertDilationWeightPattern>(context);
     patterns.insert<TpuMergeLrnPattern>(context);
@@ -992,102 +901,6 @@ public:
   }
 };
 
-
-namespace {
-struct TpuTpuQuantClipPassPattern : public RewritePattern {
-  TpuTpuQuantClipPassPattern(MLIRContext *context)
-      : RewritePattern("tpu.clip", 1, context) {}
-
-  LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-    if (auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op)) {
-      // check threshold_max/threshold_min has assigned
-      auto threshold_max = clipOp.quant().threshold_max().getValue().convertToFloat();
-      auto threshold_min = clipOp.quant().threshold_min().getValue().convertToFloat();
-      if (threshold_max == 0 && threshold_min == 0) {
-        assert(0 && "you MUST do import-calibration-table before\n");
-      }
-
-      auto formerOp = clipOp.getOperand(0).getDefiningOp();
-      std::string formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-      if (!formerOp->getResult(0).hasOneUse()) {
-        LLVM_DEBUG(llvm::errs() << "Not overwrtie more users op: " << formerOpName << ", not remove it\n";);
-        return failure();
-      }
-
-      auto layer_name = mlir::getOpName(clipOp).str();
-      //bool in_black_list = std::find(clFuseClipLayers.begin(), clFuseClipLayers.end(), layer_name) != clFuseClipLayers.end();
-      bool in_white_list = std::find(clSkipFuseClipLayers.begin(),
-                                     clSkipFuseClipLayers.end(), layer_name) !=
-                                     clSkipFuseClipLayers.end();
-
-      // white list priority is more than black one
-      if (in_white_list) {
-          LLVM_DEBUG(llvm::errs() << "config not quant op: " << layer_name << "\n";);
-          return failure();
-      }
-
-      if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(formerOp)) {
-          LLVM_DEBUG(llvm::errs() << "over old " << mlir::getOpName(formerOp).str()
-                  << " thre " << tpuOp.getOpQuantThreshold()
-                  << ", new clip " << mlir::getOpName(clipOp).str()
-                  << " thre is " << threshold_max << "\n";);
-      } else {
-        LLVM_DEBUG(llvm::errs() << "cant fuse previous op " << formerOpName << ", not remove it\n";);
-        return failure();
-      }
-
-      // update attr Only
-      setOpThreshold(formerOp, threshold_max);
-      formerOp->setAttr(llvm::StringRef("name"), rewriter.getStringAttr(layer_name));
-
-      // remove clip
-      rewriter.replaceOp(clipOp, {clipOp.getOperand(0)});
-
-      return success();
-    }
-
-    // default
-    return failure();
-  }
-};
-
-class TpuQuantClipPass : public mlir::PassWrapper<TpuQuantClipPass, FunctionPass> {
-public:
-  explicit TpuQuantClipPass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
-
-  void runOnFunction() override {
-
-    // black list
-    std::ifstream infile(clFuseClipLayersByFile);
-    std::string line;
-    while (std::getline(infile, line)) {
-        clFuseClipLayers.push_back(line);
-    }
-
-    // white list
-    std::ifstream infile2(clSkipFuseClipLayersByFile);
-    while (std::getline(infile2, line)) {
-        clSkipFuseClipLayers.push_back(line);
-    }
-
-    auto fn = getFunction();
-
-    OwningRewritePatternList patterns;
-    auto *context = &getContext();
-    patterns.insert<TpuTpuQuantClipPassPattern>(context);
-    applyPatternsAndFoldGreedily(fn, std::move(patterns));
-  }
-
-private:
-  llvm::raw_ostream &os;
-};
-} // namespace
-
 std::unique_ptr<mlir::Pass> mlir::createTpuQuantPass() {
   return std::make_unique<TpuQuantPass>();
-}
-
-std::unique_ptr<mlir::Pass> mlir::createTpuQuantClipPass() {
-  return std::make_unique<TpuQuantClipPass>();
 }
