@@ -83,8 +83,8 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
       tl_input.start_address = out_addr;
       cvk_tiu_mul_param_t p = {0};
       p.res_high = nullptr;
-      p.res_low = &tl_input;
-      p.a = &tl_input;
+      p.res_low = &tl_output;
+      p.a = &tl_output;
       if (fmt == CVK_FMT_BF16) {
         p.b_const.val = ctx.convert_fp32_to_bf16(1.0);
         p.rshift_bits = 0;
@@ -96,7 +96,23 @@ static void cvi_backend_tl_concat_local(const CviBackendContext &ctx,
       p.b_is_const = 1;
       p.layer_id = layer_id;
       p.relu_enable = do_relu ? 1 : 0;
-      ctx.tiu_mul(&p);
+      // offset start with NPU_NUM start, 0x1000 for hw limitation
+      uint32_t step = 0x1000 - NPU_NUM;
+      int align_up_c = align_up(tl_output.shape.c, step);
+      int slice_nr = align_up_c / step;
+      uint32_t in_csize_local =
+        ALIGN(shape.h * shape.w * ctx.bytesize_of_fmt(fmt), EU_NUM) * (step / NPU_NUM);
+      for (int s = 0; s < slice_nr; s++) {
+        cvk_tl_t _tl_output = {};
+        _tl_output.start_address = tl_output.start_address + s * in_csize_local;
+        _tl_output.fmt = fmt;
+        _tl_output.shape = shape;
+        _tl_output.shape.c = std::min(tl_output.shape.c - s * step, step);
+        _tl_output.stride = ctx.tl_default_stride(shape, fmt, /*eu_aling=*/1);
+        p.res_low = &_tl_output;
+        p.a = &_tl_output;
+        ctx.tiu_mul(&p);
+      }
     }
 
     concat_c += input_dim_c[i];

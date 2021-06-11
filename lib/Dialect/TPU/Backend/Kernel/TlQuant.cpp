@@ -78,7 +78,21 @@ void cvi_backend_tl_quant(
     p.relu_enable = 0;
     p.layer_id = layer_id;
 
-    ctx.tiu_mul(&p);
+    uint32_t step = 0x1000 - NPU_NUM;
+    int slice_nr = align_up(tl_output->shape.c, step) / step;
+    uint32_t in_csize_local =
+      ALIGN(tl_output->shape.h * tl_output->shape.w * ctx.bytesize_of_fmt(tl_output->fmt), EU_NUM) * (step / NPU_NUM);
+    for (int s = 0; s < slice_nr; s++) {
+      cvk_tl_t _tl_output = {};
+      _tl_output.start_address = tl_output->start_address + s * in_csize_local;
+      _tl_output.fmt = tl_output->fmt;
+      _tl_output.shape = tl_output->shape;
+      _tl_output.shape.c = std::min(tl_output->shape.c - s * step, step);
+      _tl_output.stride = ctx.tl_default_stride(tl_output->shape, tl_output->fmt, /*eu_aling=*/1);
+      p.res_low = &_tl_output;
+      p.a = &_tl_output;
+      ctx.tiu_mul(&p);
+    }
 
   } else {
     cvk_tl_t *tl_working = new cvk_tl_t;
