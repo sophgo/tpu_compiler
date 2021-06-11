@@ -1,9 +1,9 @@
 #include "tpuc/Interpreter/cpu/lstm.hpp"
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
+#include "internal.hpp"
 
 namespace mlir {
 double LstmOpKernel::sigmoid_(double data) {

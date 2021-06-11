@@ -1332,226 +1332,6 @@ void my_interp(const int channels,
   }
 }
 
-
-template <typename Dtype>
-static void array_mul(const int N, const Dtype *a, Dtype *b, Dtype *y) {
-  for (int i = 0; i < N; i++) {
-    y[i] = a[i] * b[i];
-  }
-}
-
-template <typename Dtype>
-static void array_axpy(const int N, const Dtype alpha, const Dtype *X,
-                       Dtype *Y) {
-  for (int i = 0; i < N; i++) {
-    Y[i] = X[i] * alpha + Y[i];
-  }
-}
-
-template <typename Dtype>
-static void array_ax(const int N, const Dtype *X, const Dtype alpha, Dtype *Y) {
-  for (int i = 0; i < N; i++) {
-    Y[i] = X[i] * alpha;
-  }
-}
-
-template <typename Dtype>
-static void array_add(const int N, const Dtype *X, const Dtype alpha,
-                      Dtype *Y) {
-  for (int i = 0; i < N; i++) {
-    Y[i] = X[i] + alpha;
-  }
-}
-
-template <typename Dtype>
-static void array_powx(const int N, const Dtype *a, const Dtype b, Dtype *y) {
-  for (int i = 0; i < N; i++) {
-    y[i] = std::pow(a[i], b);
-  }
-}
-
-// lrn step one
-int my_lrn_one(float *input, float *output, int n, int c, int h, int w,
-               unsigned int local_size, float alpha) {
-  int count = n * c * h * w;
-  array_mul(count, input, input, output);
-  array_ax(count, output, alpha / local_size, output);
-  return 0;
-}
-
-// lrn step two
-int my_lrn_two(float *input, float *output, int n, int c, int h, int w,
-               unsigned int local_size) {
-  int count = n * c * h * w;
-  // start with the constant value
-  for (int i = 0; i < count; ++i) {
-    output[i] = 0;
-  }
-  int batch_size = c * h * w;
-  int frame_size = h * w;
-  int pre_pad = (local_size - 1) / 2;
-  std::vector<float> padded_square((c + local_size - 1) * h * w, 0.0f);
-  float *padded_square_data = padded_square.data();
-  // go through the images
-  for (int index_n = 0; index_n < n; ++index_n) {
-    float *in_data = input + index_n * batch_size;
-    float *out_data = output + index_n * batch_size;
-    memcpy(padded_square_data + pre_pad * frame_size, in_data,
-           batch_size * sizeof(float));
-    for (uint32_t index_c = 0; index_c < local_size; ++index_c) {
-      array_axpy(frame_size, 1.0f, padded_square_data + index_c * frame_size,
-                 out_data);
-    }
-    for (int index_c = 1; index_c < c; ++index_c) {
-      // copy previous scale
-      memcpy(out_data + index_c * frame_size,
-             out_data + (index_c - 1) * frame_size, frame_size * sizeof(float));
-      // add head
-      array_axpy(frame_size, 1.0f,
-                 padded_square_data + (index_c + local_size - 1) * frame_size,
-                 out_data + index_c * frame_size);
-      // subtract tail
-      array_axpy(frame_size, -1.0f,
-                 padded_square_data + (index_c - 1) * frame_size,
-                 out_data + index_c * frame_size);
-    }
-  }
-  return 0;
-}
-
-// lrn step three
-int my_lrn_three(float *input, float *output, int n, int c, int h, int w,
-                 float beta, float k) {
-  int count = n * c * h * w;
-  array_add(count, input, k, output);
-  array_powx(count, output, -beta, output);
-  return 0;
-}
-
-// lrn step main
-int my_lrn_main(float *input, float *scale, float *output, int n, int c, int h,
-                int w) {
-  int count = n * c * h * w;
-  array_mul(count, scale, input, output);
-  return 0;
-}
-
-int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
-                unsigned int local_size, float *sqr_lut, float *power_lut,
-                int sq_right_shift, int lrn_right_shift, int quant0,
-                int quant1) {
-  int count = n * c * h * w;
-  int pre_pad = (local_size - 1) / 2;
-  int padded_c = c + local_size - 1;
-  int batch_size = c * h * w;
-  int frame_size = h * w;
-  std::vector<float> padded_square(padded_c * h * w, 0.0f);
-  std::vector<float> scale(count, 0.0f);
-  float *padded_square_data = padded_square.data();
-  float *scale_data = scale.data();
-  for (int i = 0; i < count; i++) {
-    output[i] = 0;
-  }
-  float *square_data = padded_square_data + pre_pad * frame_size;
-  for (int index_n = 0; index_n < n; index_n++) {
-    float *in_ndata = input + index_n * batch_size;
-    float *scale_ndata = scale_data + index_n * batch_size;
-    for (int i = 0; i < batch_size; i++) {
-      square_data[i] = sqr_lut[(uint8_t)in_ndata[i]];
-    }
-    for (uint32_t index_c = 0; index_c < local_size; ++index_c) {
-      array_axpy(frame_size, (float)quant0,
-                 padded_square_data + index_c * frame_size, scale_ndata);
-    }
-    for (int index_c = 1; index_c < c; ++index_c) {
-      // copy previous scale
-      memcpy(scale_ndata + index_c * frame_size,
-             scale_ndata + (index_c - 1) * frame_size,
-             frame_size * sizeof(float));
-      // add head
-      array_axpy(frame_size, (float)quant0,
-                 padded_square_data + (index_c + local_size - 1) * frame_size,
-                 scale_ndata + index_c * frame_size);
-      // subtract tail
-      array_axpy(frame_size, (float)-quant0,
-                 padded_square_data + (index_c - 1) * frame_size,
-                 scale_ndata + index_c * frame_size);
-    }
-  }
-  float sq_scale = 1.0f / (1 << sq_right_shift);
-  float lrn_scale = 1.0f / (1 << lrn_right_shift);
-  for (int i = 0; i < count; i++) {
-    scale_data[i] = std::floor(scale_data[i] * sq_scale + 0.5f);
-    if (scale_data[i] < 0.0f) {
-      scale_data[i] = 0.0f;
-    } else if (scale_data[i] > 255.0f) {
-      scale_data[i] = 255.0;
-    }
-    output[i] = power_lut[(uint8_t)scale_data[i]];
-    output[i] *= input[i] * quant1 * lrn_scale;
-    output[i] = std::floor(output[i] + 0.5f);
-    if (output[i] < -128.0f) {
-      output[i] = -128.0f;
-    } else if (output[i] > 127.0f) {
-      output[i] = 127.0f;
-    }
-  }
-  return 0;
-}
-
-// reverse
-int my_reverse(float *input, float *output, int n, int c, int h, int w,
-               int axis) {
-  int dim[] = {n, c, h, w};
-  int stride[] = {c * h * w, h * w, w, 1};
-  for (int in = 0; in < n; in++) {
-    for (int ic = 0; ic < c; ic++) {
-      for (int ih = 0; ih < h; ih++) {
-        for (int iw = 0; iw < w; iw++) {
-          int src_index[] = {in, ic, ih, iw};
-          int dst_index[] = {in, ic, ih, iw};
-          dst_index[axis] = dim[axis] - src_index[axis] - 1;
-          int src_offset = src_index[0] * stride[0] + src_index[1] * stride[1] +
-                           src_index[2] * stride[2] + src_index[3] * stride[3];
-          int dst_offset = dst_index[0] * stride[0] + dst_index[1] * stride[1] +
-                           dst_index[2] * stride[2] + dst_index[3] * stride[3];
-          output[dst_offset] = input[src_offset];
-        }
-      }
-    }
-  }
-  return 0;
-}
-
-// shuffle channel
-int my_shuffle_channel(float *input, float *output, unsigned int group, int n, int c,  int frame_size) {
-    LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ",  g: " << group
-                          << ", f: " << frame_size << "\n";);
-    const int batch_length = frame_size * c;
-    int group_column = int(c/ group);
-    if (c % group != 0) {
-      llvm::errs() << "Error: Wrong group size, c=" << c << ", group =" << group;
-      assert(0);
-    }
-
-    for(int i = 0; i < n; ++i)
-    {
-      float * p_in = input + i * batch_length;
-      float * p_out = output + i * batch_length;
-      for (uint32_t j = 0; j < group; ++j) // 2
-      {
-          for(int k = 0; k < group_column ; ++k) // 3
-          {
-              float* p_i = p_in + (j * group_column + k ) * frame_size;
-              float* p_o = p_out + (k * group + j ) * frame_size;
-
-              memcpy((void*)p_o, (void*)p_i, frame_size * sizeof(float) );
-          }
-      }
-    }
-  return 0;
-}
-
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w) {
 #ifdef DUMP_FLAG
@@ -1583,23 +1363,6 @@ int my_scale(float *input, float *scale, float *bias,
   }
   dump_idx ++;
 #endif // DUMP_FLAG
-  return 0;
-}
-
-// swap channel
-int my_swap_channel(float *input, float *output, int n, int c, int h, int w, int * order) {
-  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ",  h: " << h
-                          << ", w: " << w << "\n";);
-  int frame_size = h * w;
-  int batch_length = c * h * w;
-
-  for (int i = 0; i < n; ++i) {
-    for (int j = 0; j < c; j++) {
-      float *p_in = input + i * batch_length + frame_size * order[j];
-      float *p_out = output + i * batch_length + frame_size * j ;
-      memcpy((void *)p_out, (void *)p_in, frame_size * sizeof(float));
-    }
-  }
   return 0;
 }
 
@@ -1829,36 +1592,13 @@ int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_
   return 0;
 }
 
-static float revert_threshold;
-float softplus_activate (float x, float threshold) {
-  if (x > threshold) return x;                // too large
-  else if (x < -threshold) return expf(x);    // too small
+float softplus_activate(float x, float threshold) {
+  if (x > threshold)
+    return x; // too large
+  else if (x < -threshold)
+    return expf(x); // too small
   return logf(expf(x) + 1);
 }
-
-double my_softplus_wrapper(double x_val) {
-  return softplus_activate(x_val, revert_threshold);
-}
-
-int my_softplus(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16,
-    float threshold) {
-  if (!is_bf16) {
-    // fp32
-    int shape_size =  n * c * h * w;
-    for (int i = 0; i < shape_size; ++i) {
-      output[i] = softplus_activate(input[i], threshold);
-    }
-  }
-  else {
-    revert_threshold = threshold;
-    double (*activate_func)(double);
-    activate_func = my_softplus_wrapper;
-    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, activate_func);
-  }
-  return 0;
-}
-
 
 inline int crop_offset(const std::vector<int>& indices,long int *shape) {
   int offset = 0;
@@ -2090,7 +1830,7 @@ int my_permute(float *input, float *output, int in, int ic, int ih, int iw,
 }
 
 // mish, copy from caffe
-inline float tanh_activate (float x) {
+static inline float tanh_activate (float x) {
   return (2 / (1 + expf(-2 * x)) - 1);
 }
 
@@ -2102,100 +1842,6 @@ float my_mish_caffe(float x_val, float mish_threshold) {
   return x_val * my_mish_caffe_tanh_part(x_val, mish_threshold);
 }
 
-double my_mish_wrapper(double x_val) {
-  return my_mish_caffe(x_val, revert_threshold);
-}
-
-int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf16, float mish_threshold) {
-  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
-                          << ", w: " << w << "\n";);
-  int npu_num = MInfo::lane_num;
-
-  //<! 1880v2 hw bf16 config
-  int table_h = 32;
-  int table_w = 8;
-  std::vector<float> y0_table;
-  std::vector<float> y0_slope_table; // use in bf16
-  int table_hw = table_h * table_w;
-  int tbl_shape = npu_num * table_hw;
-  y0_table.resize(tbl_shape);
-  y0_slope_table.resize(tbl_shape);
-  std::vector<float> y0_fp32_table(table_hw);
-  std::vector<float> y0_fp32_slope_table(table_hw);
-  std::vector<uint16_t> y0_bf16_table(table_hw);
-  std::vector<uint16_t> y0_bf16_slope_table(table_hw);
-
-  // use function pointer
-  double (*activate_func)(double);
-  revert_threshold = mish_threshold;
-  activate_func = my_mish_wrapper;
-
-  gen_bf16_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-      y0_fp32_table.data(), activate_func);
-
-  gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-      y0_fp32_table.data(), y0_fp32_slope_table.data(),
-      activate_func);
-
-  for (int i = 0; i < table_hw; i++) {
-    // convert fp32 to bf16
-    y0_bf16_table.data()[i] = convert_fp32_bf16(y0_fp32_table.data()[i]);
-    y0_bf16_slope_table.data()[i] = convert_fp32_bf16(y0_fp32_slope_table.data()[i]);
-  }
-
-  int shape_size =  n * c * h * w;
-  int scale = 256 / (BF16_TABLE_END - BF16_TABLE_START); // quant from interger index range from 16(-8~8)->256(lut index size)
-
-  // rounding
-  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
-
-  for (int i = 0; i < shape_size; ++i) {
-    if (!is_bf16) {
-      output[i] = my_mish_caffe(input[i], mish_threshold);
-    }
-    else {
-      float rescale_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) * scale;
-      uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
-
-      // get interger part to get table index and x0
-      int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
-
-      // get delta x (x - x0)
-      float delta_x = rescale_input - rescale_input_i8;
-
-      // get slope
-      uint16_t slope = y0_bf16_slope_table[rescale_input_i8 & 0xff];
-
-      // base y0 = f(x0)
-      uint16_t base = y0_bf16_table[rescale_input_i8 & 0xff];
-
-      // result = y0 + delta * slope
-      float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
-      output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
-    }
-  }
-
-  return 0;
-}
-
-int my_mish(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16,
-    float mish_threshold) {
-  if (!is_bf16) {
-    // fp32
-    int shape_size =  n * c * h * w;
-    for (int i = 0; i < shape_size; ++i) {
-      output[i] = my_mish_caffe(input[i], mish_threshold);
-    }
-  }
-  else {
-    double (*activate_func)(double);
-    revert_threshold = mish_threshold;
-    activate_func = my_mish_wrapper;
-    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, activate_func);
-  }
-  return 0;
-}
 
 int my_normalize(float *input,float *scale, float *output,
     bool across_spatial,bool channel_shared,

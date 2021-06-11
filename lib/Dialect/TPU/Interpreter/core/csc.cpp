@@ -3,7 +3,7 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/ModuleInterpreter.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
+#include "internal.hpp"
 
 static inline int align_up(int x, int n) {
   if (n == 0 || n == 1) {

@@ -1,6 +1,9 @@
 #ifndef MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_
 #define MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_
 
+//
+// mkldnn functions
+//
 int mkldnn_conv(float *input, float *weight, float *bias,
     float *output, int n, int ic, int ih, int iw, int oc, int oh, int ow,
     int kh, int kw, int sh, int sw, int dh,int dw, int pt, int pb, int pl, int pr, int g, int pad_value);
@@ -17,8 +20,14 @@ int mkldnn_pool(float *input, float *output,
 int mkldnn_ip(float *input, float *weight, float *bias,
     float *output, int m, int k, int n, bool transpose);
 
-// int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
+void mkldnn_conv3d(float *input, float *weight, float *bias, float *output,
+  int batch, int ic, int id, int ih, int iw, int oc, int od, int oh, int ow,
+  int g, int kd, int kh, int kw, int sd, int sh, int sw, int dd, int dh, int dw,
+  int pd0, int pt, int pb, int pd1, int pl, int pr);
 
+//
+// native cpu functions
+//
 int my_abs(float *input, float *output,
     int n, int c, int h, int w);
 
@@ -63,26 +72,8 @@ int my_interptile(float *input, float *output, int n, int c, int h, int w,
 
 int my_interp_linear(float *input, float* output, int n, int c, int ih, int iw, int oh, int ow);
 
-int my_lrn_one(float *input, float *output, int n, int c, int h, int w,
-               unsigned int local_size, float alpha);
-int my_lrn_two(float *input, float *output, int n, int c, int h, int w,
-               unsigned int local_size);
-int my_lrn_three(float *input, float *output, int n, int c, int h, int w,
-                 float beta, float k);
-int my_lrn_main(float *input, float *scale, float *output, int n, int c, int h,
-                int w);
-int my_lrn_int8(float *input, float *output, int n, int c, int h, int w,
-                unsigned int local_size, float *sqr_lut, float *power_lut,
-                int sum_rshift, int lrn_rshit, int quant0, int quant1);
-int my_reverse(float *input, float *output, int n, int c, int h, int w,
-               int axis);
-int my_shuffle_channel(float *input, float *output, unsigned int group, int n,
-                       int c, int frame_size);
-
 int my_scale(float *input, float *scale, float *bias,
     float *output, int n, int c, int h, int w);
-
-int my_swap_channel(float *input, float *output, int n, int c,  int h, int w, int * order);
 
 int my_pixelshuffle(float *input, float *output, int in, int ic,
                     int ih, int iw, int on, int oc, int oh, int ow,
@@ -102,9 +93,6 @@ int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
 int my_softmax2D(float *input, float *output, int n, int c, bool is_bf16);
 int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16);
 int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16);
-int my_softplus(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16,
-    float threshold);
 int my_tanh(float *input, float *output, int n, int c, int h, int w,
     float* y0_table, float* slope_table, bool is_bf16);
 int my_tanh(float *input, float *output,
@@ -116,14 +104,6 @@ int my_permute(float *input, float *output, int in, int ic, int ih, int iw,
 float my_mish_caffe(float x_val, float mish_threshold = 20.0);
 
 float my_mish_caffe_tanh_part(float x_val, float mish_threshold = 20.0);
-
-int my_mish(std::vector<float> &input,
-    std::vector<float> &output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16, float mish_threshold = 20.0);
-int my_mish(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table,
-    bool is_bf16, float mish_threshold = 20.0);
-int my_mish(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false, float mish_threshold = 20.0);
 
 int my_normalize(float *input,float *scale, float *output,
     bool across_spatial,bool channel_shared,
@@ -142,36 +122,6 @@ int my_reorg(float *input, float *output, uint32_t stride, int n, int c, int h, 
 int my_pad_constant(float *input, float *output,
                     std::vector<int64_t> &input_shape,
                     std::vector<int> &pads, float const_val);
-
-void gen_bf16_table(int start, int end, int table_hw, float *table,
-                           double (*activate_func)(double));
-
-void gen_bf16_slope_table(int start, int end, int table_hw,
-                                         float *table,
-                                         float *slope_table, double (*activate_func)(double));
-
-void bf16_gen_reciprocal(int start, int end, int table_hw, uint16_t *table_data);
-void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw, uint16_t *table_mantissa);
-
-void bf16_gen_sqrt(int start, int table_hw, uint16_t *table_data);
-void bf16_gen_sqrt_mantissa(int table_hw, uint16_t *table_mantissa);
-
-// y = 1/sqrt(x)
-void bf16_gen_reciprocal_sqrt(int start, int table_hw, uint16_t *table_data);
-void bf16_gen_reciprocal_sqrt_mantissa(int table_hw, uint16_t *table_mantissa);
-
-void bf16_gen_power_exp_table(uint16_t *table_data, float beta,
-                              int start, int table_hw);
-void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
-                                   int table_hw);
-
-void bf16_lut_mantissa(float *input, float *output, int size,
-                       const std::vector<float> &bf16_lut,
-                       const std::vector<float> &bf16_mantissa_lut);
-void bf16_lut_slope(float *input, float *output, int size,
-                    const std::vector<float> &bf16_lut,
-                    const std::vector<float> &bf16_slope_lut,
-                    int bf16_table_start, int bf16_table_end);
 
 int my_reduce_l2(float *input, float *output,
                      std::vector<int64_t> &input_shape,
@@ -219,8 +169,36 @@ void pool3d_float_ref(float *input, float *output,
 
 float softplus_activate (float x, float threshold = 20);
 
-void mkldnn_conv3d(float *input, float *weight, float *bias, float *output,
-  int batch, int ic, int id, int ih, int iw, int oc, int od, int oh, int ow,
-  int g, int kd, int kh, int kw, int sd, int sh, int sw, int dd, int dh, int dw,
-  int pd0, int pt, int pb, int pd1, int pl, int pr);
+//
+// bf16 table functions
+//
+void gen_bf16_table(int start, int end, int table_hw, float *table,
+                           double (*activate_func)(double));
+
+void gen_bf16_slope_table(int start, int end, int table_hw,
+                                         float *table,
+                                         float *slope_table, double (*activate_func)(double));
+
+void bf16_gen_reciprocal(int start, int end, int table_hw, uint16_t *table_data);
+void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw, uint16_t *table_mantissa);
+
+void bf16_gen_sqrt(int start, int table_hw, uint16_t *table_data);
+void bf16_gen_sqrt_mantissa(int table_hw, uint16_t *table_mantissa);
+
+// y = 1/sqrt(x)
+void bf16_gen_reciprocal_sqrt(int start, int table_hw, uint16_t *table_data);
+void bf16_gen_reciprocal_sqrt_mantissa(int table_hw, uint16_t *table_mantissa);
+
+void bf16_gen_power_exp_table(uint16_t *table_data, float beta,
+                              int start, int table_hw);
+void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
+                                   int table_hw);
+
+void bf16_lut_mantissa(float *input, float *output, int size,
+                       const std::vector<float> &bf16_lut,
+                       const std::vector<float> &bf16_mantissa_lut);
+void bf16_lut_slope(float *input, float *output, int size,
+                    const std::vector<float> &bf16_lut,
+                    const std::vector<float> &bf16_slope_lut,
+                    int bf16_table_start, int bf16_table_end);
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

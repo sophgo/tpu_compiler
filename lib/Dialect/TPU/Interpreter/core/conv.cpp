@@ -1,9 +1,9 @@
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/NativeCpuImplementation.h"
 #include "tpuc/ModuleInterpreter.h"
+#include "internal.hpp"
 
 namespace mlir {
 

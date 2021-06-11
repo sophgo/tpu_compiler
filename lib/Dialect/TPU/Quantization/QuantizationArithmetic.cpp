@@ -3,7 +3,6 @@
 #include "mlir/IR/BuiltinTypes.h"
 #include "llvm/Support/Debug.h"
 #include "llvm/Support/raw_ostream.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
 
 #define DEBUG_TYPE "quant_arithmetic"
 
@@ -981,6 +980,10 @@ void quantizeActivationFromFp32ToInt8(float *output, float *input, int64_t size,
       output[i] = (float)val;
     }
   }
+}
+
+static inline int omp_schedule(int count) {
+  return (count + omp_get_num_threads() - 1) / omp_get_num_threads();
 }
 
 /// DeQuantize an Activation tensor from INT8, given threshold

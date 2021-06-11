@@ -1,7 +1,7 @@
 #include "tpuc/Interpreter/cpu/broadcast.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
+#include "internal.hpp"
 
 namespace mlir {
 

@@ -1,8 +1,9 @@
 #include "tpuc/Interpreter/cpu/conv3d.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/ModuleInterpreter.h"
+#include "internal.hpp"
+
 namespace mlir {
 
 static void get_strides_from_shapes5d(

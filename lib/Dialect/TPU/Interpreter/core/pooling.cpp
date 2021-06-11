@@ -5,7 +5,7 @@
 #include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/MachineInfo.h"
 #include "tpuc/ModuleInterpreter.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
+#include "internal.hpp"
 
 namespace mlir {
 

@@ -1,7 +1,7 @@
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
+#include "internal.hpp"
 
 namespace mlir {
 BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping)

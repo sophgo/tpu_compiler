@@ -1,7 +1,8 @@
 #include "tpuc/Interpreter/cpu/deconv.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/Interpreter/cpu/activation.hpp"
 #include "tpuc/ModuleInterpreter.h"
+#include "internal.hpp"
+
 namespace mlir {
 
 DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping)

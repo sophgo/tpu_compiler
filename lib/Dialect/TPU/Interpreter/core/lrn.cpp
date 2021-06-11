@@ -209,7 +209,7 @@ void LrnOpKernel::invoke() {
              h, w);
 
   } else if (datatype == DataType::INT8) {
-    my_lrn_int8(input_data->data(), output_data->data(), n, c, h, w, local_size,
+    lrn_int8(input_data->data(), output_data->data(), n, c, h, w, local_size,
                 sqr_lut_data->data(), power_lut_data->data(), sum_rshift,
                 lrn_rshift, quant_data0, quant_data1);
   } else {

@@ -6,48 +6,11 @@
 // FIXME: this head should not be here,
 //  using interpreter own float convert is better
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
+#include "internal.hpp"
 
 #include <cmath>
 
 namespace mlir {
-
-int omp_schedule(int count) {
-  return (count + omp_get_num_threads() - 1) / omp_get_num_threads();
-}
-
-float BF16(float data) { return convert_bf16_fp32(convert_fp32_bf16(data)); }
-
-void relu(float *src, float *dst, size_t size) {
-#pragma omp parallel for schedule(static, omp_schedule(size))
-  for (size_t i = 0; i < size; ++i) {
-    dst[i] = src[i] > 0 ? src[i] : 0;
-  }
-}
-
-void leaky_relu(float *src, float *dst, size_t size, float negative_slope) {
-#pragma omp parallel for schedule(static, omp_schedule(size))
-  for (size_t i = 0; i < size; ++i) {
-    dst[i] = src[i] > 0 ? src[i] : src[i] * negative_slope;
-  }
-};
-
-inline float tanh_activate(float x) { return (2 / (1 + expf(-2 * x)) - 1); }
-
-float softplus_activate(float x, float threshold) {
-  if (x > threshold)
-    return x; // too large
-  else if (x < -threshold)
-    return expf(x); // too small
-  return logf(expf(x) + 1);
-}
-
-float mish_caffe_tanh_part(float x_val, float mish_threshold) {
-  return tanh_activate(softplus_activate(x_val, mish_threshold));
-}
-
-float mish_caffe(float x_val, float mish_threshold) {
-  return x_val * mish_caffe_tanh_part(x_val, mish_threshold);
-}
 
 AbsOpKernel::AbsOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
@@ -134,7 +97,7 @@ void MishOpKernel::invoke() {
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(size))
     for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) = mish_caffe(input_data->at(i), mish_threshold);
+      output_data->at(i) = my_mish_caffe(input_data->at(i), mish_threshold);
     }
   }
 }
