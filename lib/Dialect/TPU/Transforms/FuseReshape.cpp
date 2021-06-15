@@ -105,7 +105,6 @@ struct TpuRemoveIdentityReshapePattern : public RewritePattern {
 
   LogicalResult matchAndRewrite(Operation *op,
                                      PatternRewriter &rewriter) const override {
-    auto castOp = cast<tpu::ReshapeOp>(op);
     auto formerOp = op->getOperand(0).getDefiningOp();
     if (!formerOp->getResult(0).hasOneUse()) {
       return failure();
@@ -121,7 +120,6 @@ struct TpuRemoveIdentityReshapePattern : public RewritePattern {
         return failure();
       }
     }
-    formerOp->setAttr("name", castOp.nameAttr());
     rewriter.replaceOp(op, {formerOp->getResult(0)});
     return success();
   }

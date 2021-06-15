@@ -512,15 +512,15 @@ struct ConvertClipOpToIdentityOpPattern : public RewritePattern {
     setOpThreshold(formerOp, threshold_y);
 
     // convert int8 clip op to identity op (reshape op)
-    std::vector<NamedAttribute> attrs;
-    auto nameAttr = rewriter.getStringAttr(getOpName(op).str() + "_Identity");
-    attrs.push_back(rewriter.getNamedAttr("name", nameAttr));
-    auto reshapeOp = rewriter.create<tpu::ReshapeOp>(
-                      clipOp.getLoc(), clipOp.getResult().getType(),
-                      ArrayRef<Value>{op->getOperand(0)},
-                      ArrayRef<NamedAttribute>{attrs});
+    // std::vector<NamedAttribute> attrs;
+    // auto nameAttr = rewriter.getStringAttr(getOpName(op).str() + "_Identity");
+    // attrs.push_back(rewriter.getNamedAttr("name", nameAttr));
+    // auto reshapeOp = rewriter.create<tpu::ReshapeOp>(
+    //                   clipOp.getLoc(), clipOp.getResult().getType(),
+    //                   ArrayRef<Value>{op->getOperand(0)},
+    //                   ArrayRef<NamedAttribute>{attrs});
     formerOp->setAttr("name", clipOp.nameAttr());
-    rewriter.replaceOp(op, {reshapeOp});
+    rewriter.replaceOp(op, {clipOp.getOperand(0)});
     return success();
   }
 };
