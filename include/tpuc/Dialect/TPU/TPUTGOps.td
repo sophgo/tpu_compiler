@@ -216,7 +216,6 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `pc_info`         : required, the perchannel weight memref.
 
     Attributes:
-      `prev_leaky_relu` : optional, merge previous leaky relu
       `pt_rshift`       : optional, rshift for per-tensor mode.
       `param`           : required, a ConvParam struct attributes, carrying
                           stride, padding, dilation, group, is_dw, with_bias,
@@ -255,7 +254,6 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
-    DefaultValuedAttr<BoolAttr, "false">:$prev_leaky_relu,
     DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,

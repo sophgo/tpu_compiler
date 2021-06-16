@@ -303,8 +303,6 @@ static void add_fused_leaky_attrs(Builder &builder, Operation * op,
                       conv_op.m_i8_negAttr()));
     attrs.push_back(builder.getNamedAttr("do_leaky_relu",
                     builder.getBoolAttr(true)));
-    attrs.push_back(builder.getNamedAttr("prev_leaky_relu",
-                    builder.getBoolAttr(conv_op.prev_leaky_relu())));
   } else if (auto conv_op = dyn_cast<tpu::TG_BF16_Conv2DOp>(op)) {
     if (conv_op.negative_slope().hasValue())
       attrs.push_back(builder.getNamedAttr("negative_slope",
@@ -323,8 +321,6 @@ static void add_fused_leaky_attrs(Builder &builder, Operation * op,
                       conv_op.m_i8_negAttr()));
     attrs.push_back(builder.getNamedAttr("do_leaky_relu",
                     builder.getBoolAttr(true)));
-    attrs.push_back(builder.getNamedAttr("prev_leaky_relu",
-                    conv_op.prev_leaky_reluAttr()));
   }
 
 }

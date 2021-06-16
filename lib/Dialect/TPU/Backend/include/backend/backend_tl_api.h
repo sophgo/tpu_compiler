@@ -164,7 +164,7 @@ void cvi_backend_tl_conv(
   uint32_t stride_h, uint32_t stride_w,
   uint32_t insert_h, uint32_t insert_w,
   uint32_t result_add, uint32_t ctrl, bool do_bias,
-  bool do_relu, bool prev_leaky_relu, float neg_slope,
+  bool do_relu, float neg_slope,
   int rshift, int rshift_len,
   int8_t rshift_pos, int8_t rshift_neg, int8_t m_i8_pos, int8_t m_i8_neg,
   bool do_ic_alignment);
@@ -179,7 +179,7 @@ void cvi_backend_bf16_tl_conv(
   uint32_t pad_h_top, uint32_t pad_h_bottom, uint32_t pad_w_left, uint32_t pad_w_right,
   uint32_t stride_h, uint32_t stride_w,
   uint32_t insert_h, uint32_t insert_w,
-  bool do_bias, bool do_relu, bool prev_leaky_relu, float neg_slope);
+  bool do_bias, bool do_relu);
 
 void cvi_backend_tl_eltwise(
     const CviBackendContext &ctx, uint32_t layer_id,

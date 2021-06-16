@@ -682,7 +682,6 @@ struct Conv_ARGS {
   uint8_t stride_w;
   bool do_bias;
   bool do_activation;
-  bool prev_leaky_relu;
   float *activation_arg;
   int activation_gt_scale;
   int activation_gt_rshift;
