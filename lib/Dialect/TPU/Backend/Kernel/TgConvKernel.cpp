@@ -2293,7 +2293,8 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
       }
 
       // Split ic
-      for (int32_t ic_step = max_ic_step; ic_step > 0;
+      for (int32_t ic_step = max_ic_step;
+           ic_step > npu_num;
            ic_step = align_up(ic_step / 2, npu_num)) {
         uint32_t ofmapSizeMultiplier =
             (ic_step < static_cast<int32_t>(group_input_channels())) ? 4 : 1;
