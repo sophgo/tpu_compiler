@@ -62,13 +62,12 @@ int64_t GmemAllocator::assignGaddr(std::vector<Operation *> &ops,
   for (auto op : ops) {
     LLVM_DEBUG(llvm::errs() << "loop #" << album.size() - 1 << "\n");
     auto snapshot = album[album.size() - 1];
+    allocGmemBlock(snapshot, op);
     if (neuronMemoryReuse) {
       reuseGmemBlock(snapshot, op, liveRange);
     }
-    allocGmemBlock(snapshot, op);
     album.push_back(snapshot);
   }
-
 
   LLVM_DEBUG(
     int i = 0;
@@ -78,7 +77,7 @@ int64_t GmemAllocator::assignGaddr(std::vector<Operation *> &ops,
       for (auto &blk : snapshot) {
         llvm::errs() << "\t" << j++ << " "
                     << (blk.op ? blk.op->getName().getStringRef() : llvm::StringRef("null"))
-                    << ":" << (blk.op ? getOpName(blk.op) : llvm::StringRef("null"))
+                    << (blk.op ? getOpName(blk.op) : llvm::StringRef("null"))
                     << ", start:" << blk.start << ", size:" << blk.size
                     << ", free:" << (blk.op ? false : true) << "\n";
       }
