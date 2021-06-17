@@ -100,7 +100,7 @@ class TensorCompare():
   def diff_details(self, d1, d2, verbose):
     details = {}
     if verbose > 1:
-      K = 10
+      K = min(10, len(d1))
       tk1 = get_topk(d1, K)
       tk2 = get_topk(d2, K)
       details['top-k'] = (tk1, tk2)

@@ -2266,41 +2266,6 @@ int my_reduce_max(float *input, float *output,
   return 0;
 }
 
-int my_tile(float *input, float *output, std::vector<int64_t> &input_shape,
-            std::vector<int64_t> &output_shape, std::vector<int32_t> &resp) {
-  int axis = 0;
-  int tiles = 0;
-  auto iter = resp.begin();
-  for (int i = 0; iter != resp.end(); ++iter, ++i) {
-    if (*iter != 1) {
-      axis = i;
-      tiles = *iter;
-      break;
-    }
-  }
-
-  int outer_count = std::accumulate(input_shape.begin(), input_shape.begin() + axis,
-                        1, std::multiplies<int>());
-  int inner_count = std::accumulate(input_shape.begin() + axis, input_shape.end(),
-                        1, std::multiplies<int>());
-
-  llvm::errs() << "axis: " << axis << ", " << tiles << "\n";
-  llvm::errs() << "tile input_shape: (" << input_shape[0] << ", " << input_shape[1]
-                           << ", " << input_shape[2] << ", " << input_shape[3] << ")" << "\n";
-  int input_offset = 0;
-  int output_offset = 0;
-  for (int out = 0; out < outer_count; ++out) {
-    for (int t = 0; t < tiles; ++t) {
-      auto start = input + input_offset;
-      auto end = start + inner_count;
-      std::copy(start, end, output + output_offset);
-      output_offset += inner_count;
-    }
-    input_offset += inner_count;
-  }
-  return 0;
-}
-
 static inline float BF16(float data) {
   return convert_bf16_fp32(convert_fp32_bf16(data));
 }

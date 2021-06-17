@@ -51,7 +51,6 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertSwapChannel.cpp
   Transforms/ConvertLrn.cpp
   Transforms/ConvertUpsample.cpp
-  Transforms/ConvertTile.cpp
   Transforms/ConvertPower.cpp
   Transforms/ConvertMatMul.cpp
   Transforms/Canonicalizer.cpp

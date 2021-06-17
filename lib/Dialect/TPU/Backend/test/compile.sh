@@ -8,7 +8,7 @@ BATCH_SIZE=`sed -r -n 's/^.+?tpu_func\(%arg0: tensor<([[:digit:]]+?)x.+?$/\1/p' 
 OP_NAME=`echo $1 | sed -r -n 's/^(.+?)\.mlir$/\1/p'`
 echo "to compile $MLIR_MODEL batch=$BATCH_SIZE"
 
-export SET_CHIP_NAME="cv183x"
+export SET_CHIP_NAME="cv182x"
 if [ ! -e "$DIR/tmp" ]; then
   mkdir -p $DIR/tmp
 fi

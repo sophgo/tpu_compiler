@@ -64,6 +64,7 @@
 #include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
+#include "tpuc/Interpreter/cpu/tile.hpp"
 #include "tpuc/Interpreter/cpu/upsample.hpp"
 #include "tpuc/Interpreter/cpu/embedding.hpp"
 #include "tpuc/Interpreter/cpu/matmul.hpp"
@@ -503,6 +504,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   }
   if (isa<tpu::TanHOp>(op)) {
     auto t_kernel_op = std::make_unique<TanHOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(t_kernel_op));
+    return;
+  }
+  if (isa<tpu::TileOp>(op)) {
+    auto t_kernel_op = std::make_unique<TileOpKernel>(op, valueMapping);
     oplist.push_back(std::move(t_kernel_op));
     return;
   }

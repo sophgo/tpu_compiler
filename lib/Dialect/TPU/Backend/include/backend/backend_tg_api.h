@@ -464,14 +464,11 @@ void cvi_backend_tg_swap_channel_kernel(
     gaddr_t input_gaddr, gaddr_t output_gaddr, int input_dim_size,
     int *input_dim, int * channel_order, cvk_fmt_t fmt);
 
-// tile h/w, plz refer np.tile for more details
-int cvi_backend_tg_tile_kernel(
-    const CviBackendContext &ctx,
-    gaddr_t input_gaddr, int input_n, int input_c, int input_h, int input_w,
-    cvk_fmt_t input_fmt, gaddr_t output_gaddr,
-    int output_n, int output_c, int output_h, int output_w,
-    cvk_fmt_t output_fmt, int* tile_factors, int tile_factors_len,
-    uint32_t layer_id);
+// only support tile axis dim
+void cvi_backend_tg_tile_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+                                gaddr_t input_gaddr, gaddr_t output_gaddr,
+                                int n, int c, int h, int w, int axis,
+                                int factor, cvk_fmt_t fmt);
 
 void cvi_backend_tg_pad_kernel(
     const CviBackendContext& ctx,

@@ -1643,7 +1643,7 @@ class TPU_TG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_INT8_ScaleLutOp : TPU_TG_ScaleLutOp<"tg_int8_scale_lut", "Int8">;
 
-class TPU_TG_TileComOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+class TPU_TG_TileOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
@@ -1654,14 +1654,11 @@ class TPU_TG_TileComOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `axis`            : required, axis to be repeated
+      `tiles`           : required, repeat times in axis dim
+      `buffer_reused`   : optional, whether buffer is reused.
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
-      `resp`            : optional, `input` is promoted to be d-dimensional by prepending new axes. So a shape (3,) array is promoted to (1, 3) for 2-D replication, or shape (1, 1, 3) for 3-D replication. If this is not the desired behavior, promote `input` to d-dimensions manually before calling this function.
-      `buffer_reused`   : optional, whether buffer is reused.
-
       `name`            : required, name for comparing, or debug.
       `chipname`        : optional, chipname.
 
@@ -1676,7 +1673,8 @@ class TPU_TG_TileComOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<I32ArrayAttr>:$resp,
+    I32Attr:$axis,
+    I32Attr:$tiles,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
@@ -1686,10 +1684,8 @@ class TPU_TG_TileComOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_TileOp : TPU_TG_TileComOp<"tg_int8_tile", "Int8">;
-def TPU_TG_BF16_TileOp : TPU_TG_TileComOp<"tg_bf16_tile", "Bf16">;
-def TPU_TG_INT8_TileInterpOp : TPU_TG_TileComOp<"tg_int8_tile_interp", "Int8">;
-def TPU_TG_BF16_TileInterpOp : TPU_TG_TileComOp<"tg_bf16_tile_interp", "Bf16">;
+def TPU_TG_INT8_TileOp : TPU_TG_TileOp<"tg_int8_tile", "Int8">;
+def TPU_TG_BF16_TileOp : TPU_TG_TileOp<"tg_bf16_tile", "Bf16">;
 
 class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

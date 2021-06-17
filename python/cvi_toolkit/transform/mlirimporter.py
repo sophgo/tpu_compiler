@@ -1653,16 +1653,10 @@ class MLIRImporter(object):
         checkKey(kargs, 'tiles')
 
         tile_name = StringAttr.get(op_name)
-        resp = [1, 1, 1, 1]
-        resp[kargs['axis']] = kargs['tiles']
-        resp = ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in resp])
         tile_param = {
-            'resp': resp
+            'axis':   IntegerAttr.get(self.i32Type, kargs['axis']),
+            'tiles':  IntegerAttr.get(self.i32Type, kargs['tiles'])
         }
-
-        none = self.add_none_op()
-        for _ in range(4):
-            inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.Tile.value, inputOperands, [
             tensor_output_type], name=tile_name, quant=self.quant_param, **tile_param)

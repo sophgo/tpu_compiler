@@ -143,9 +143,6 @@ int my_reduce_max(float *input, float *output,
 int my_roipooling(float *data, float *rois, float *output, int pooled_h, int pooled_w,
                   float spatial_scale, int batch, int num_rois, int channel, int height, int width);
 
-int my_tile(float *input, float *output, std::vector<int64_t> &input_shape,
-            std::vector<int64_t> &output_shape, std::vector<int32_t> &resp);
-
 // type = 0:fp32,=1:u8,=2:bf16
 void my_yuv420_csc(float *input, float *output, int n, int c, int h, int w,
                    std::vector<int> order, int type = 0);

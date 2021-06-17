@@ -24,6 +24,7 @@ mlir_list=(
   layernorm.mlir
   gru.mlir
   pool_mask.mlir
+  tile.mlir
 #  yuv420.mlir
 #  conv3d.mlir
 #  matmul_transpose.mlir

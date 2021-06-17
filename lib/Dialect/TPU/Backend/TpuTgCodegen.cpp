@@ -3295,100 +3295,45 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_TileOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   // backend not ok now
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> input_shape = getTensorShape(input());
-  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
-
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  std::vector<int32_t> resp;
-  arrayAttrToVector(this->resp().getValue(), resp);
-
-  assert(resp[0] == 1 && resp[1] == 1 && "only support hw tile");
-  int tile_h = resp[2];
-  int tile_w = resp[3];
-  resp.clear();
-  resp = {tile_h, tile_w};
-
 
   int64_t input_n, input_c, input_h, input_w;
-  int64_t output_n, output_c, output_h, output_w;
   getNCHW(input_shape, input_n, input_c, input_h, input_w);
-  getNCHW(output_shape, output_n, output_c, output_h, output_w);
 
-  // axis order is nchw
-  // only support resp.size() == 2, hw tile
-  // resp[0] is h tile, resp[1] is w tile
-  cvi_backend_tg_tile_kernel(*backend_ctx,
-      input_gaddr, input_n, input_c, input_h, input_w, CVK_FMT_I8,
-      output_gaddr, output_n, output_c, output_h, output_w, CVK_FMT_I8,
-      resp.data(), resp.size(), layer_id);
+  cvi_backend_tg_tile_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
+                             input_n, input_c, input_h, input_w, axis(),
+                             tiles(), CVK_FMT_I8);
 
   return success();
 }
 
 LogicalResult tpu::TG_BF16_TileOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   // backend not ok now
-#if 0
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   std::vector<int64_t> input_shape = getTensorShape(input());
-  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
-
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  std::vector<int32_t> resp;
-  arrayAttrToVector(this->resp().getValue(), resp);
-  tile_forward_kernel(*backend_ctx, layer_id,
-                      input_gaddr, output_gaddr,
-                      input_shape.size(), input_shape.data(),
-                      output_shape.size(), output_shape.data(),
-                      resp.size(), resp.data(), CVK_FMT_BF16);
-#endif
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
-  return success();
-}
 
-LogicalResult tpu::TG_INT8_TileInterpOp::codegen(void *ctx) {
-  /*
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
+  int64_t input_n, input_c, input_h, input_w;
+  getNCHW(input_shape, input_n, input_c, input_h, input_w);
 
-  std::vector<int64_t> input_shape = getTensorShape(input());
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-  std::vector<int32_t> resp;
-  arrayAttrToVector(this->resp().getValue(), resp);
-  */
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_TileInterpOp::codegen(void *ctx) {
-  /*
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-  */
-  std::string errorMsg = "unsupported tg op " + getOpName().str() + "\n";
-  llvm_unreachable(errorMsg.c_str());
+  cvi_backend_tg_tile_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
+                             input_n, input_c, input_h, input_w, axis(),
+                             tiles(), CVK_FMT_BF16);
 
   return success();
 }

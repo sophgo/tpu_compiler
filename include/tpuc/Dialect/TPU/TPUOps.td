@@ -2646,7 +2646,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
 
 def TPU_TanHOp : TPU_LutOp<"tanh", "TanH">;
 
-class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
+def TPU_TileOp: TPU_Op<"tile",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuOpQuantInterface>,
@@ -2669,11 +2669,8 @@ class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
     Inputs:
       `input`           : required, the input activation tensor.
-      `resp`            : optional, `input` is promoted to be d-dimensional by prepending new axes. So a shape (3,) array is promoted to (1, 3) for 2-D replication, or shape (1, 1, 3) for 3-D replication. If this is not the desired behavior, promote `input` to d-dimensions manually before calling this function.
-      `quant_scale`     : optional,
-      `quant_zeropoint` : optional,
-      `quant_rshift`    : optional,
-      `quant_multiplier`: optional,
+      `axis`            : required, axis to be repeated
+      `tiles`           : required, repeat times in axis dim
 
     Attributes:
       `quant`           : required, a QuantParam struct attributes, to carrying
@@ -2697,21 +2694,15 @@ class TPU_TileComOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    I32Attr:$axis,
+    I32Attr:$tiles,
     TPU_QuantParamAttr:$quant,
-    OptionalAttr<I32ArrayAttr>:$resp,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
 
   let results = (outs AnyTensor:$output);
-  let hasCanonicalizer = 1;
 }
-def TPU_TileOp : TPU_TileComOp<"tile", "Tile">;
-def TPU_TileInterpOp : TPU_TileComOp<"tile_interp", "interp">;
 
 def TPU_UpsampleOp: TPU_Op<"upsample",
       [NoSideEffect,

@@ -1899,7 +1899,8 @@ Value tpu::TileOp::convertToTG() {
 
   // keep info to tg
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("resp", respAttr()));
+  attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
+  attrs.push_back(builder.getNamedAttr("tiles", tilesAttr()));
 
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_TileOp>(
@@ -1908,38 +1909,6 @@ Value tpu::TileOp::convertToTG() {
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_TileOp>(
-        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  }
-  llvm_unreachable("unsupported type");
-
-  return nullptr;
-}
-
-Value tpu::TileInterpOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-
-  std::vector<Value> operands;
-  operands.push_back(input());
-
-  std::vector<NamedAttribute> attrs;
-
-  // keep info to tg
-  attrs.push_back(builder.getNamedAttr("resp",
-        builder.getArrayAttr(resp().getValue())));
-
-  if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_TileInterpOp>(
-        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_TileInterpOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
