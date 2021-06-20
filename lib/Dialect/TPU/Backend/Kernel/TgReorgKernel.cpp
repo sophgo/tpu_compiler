@@ -22,10 +22,10 @@ void cvi_backend_tg_fixed_reorg_kernel(const CviBackendContext &ctx,
       for (int w = 0; w < stride; w++) {
         cvi_backend_tg_fixed_avg_pooling_kernel(
             ctx, layer_id,
-            input_gaddr + (h * width + w) * sizeof(uint8_t),
+            input_gaddr + (h * width * stride + w) * sizeof(uint8_t),
             output_gaddr + (h * stride + w) * output_c_stride,
-            batch, channel, // n, c
-            height, width, // h, w
+            batch, channel / (stride * stride), // n, c
+            height * stride, width * stride, // h, w
             1, 1,
             0, 0, 0, 0,
             stride, stride,
@@ -50,11 +50,11 @@ void cvi_backend_tg_bf16_reorg_kernel(const CviBackendContext &ctx, uint32_t lay
           cvi_backend_tg_bf16_pooling_kernel(
               ctx,
               layer_id,
-              input_gaddr + (h * width + w) * sizeof(uint16_t),
+              input_gaddr + (h * width * stride + w) * sizeof(uint16_t),
               output_gaddr + (h * stride + w) * output_c_stride,
               uint32_t(-1),
               uint32_t(-1),
-              batch, channel, height, width,
+              batch, channel / (stride * stride), height * stride, width *stride,
               1, 1,
               0, 0, 0, 0,
               stride, stride,

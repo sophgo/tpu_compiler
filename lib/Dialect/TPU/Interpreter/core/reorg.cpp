@@ -17,22 +17,22 @@ ReorgOpKernel::ReorgOpKernel(Operation &op, value_map_t &valueMapping)
 
 void ReorgOpKernel::invoke() {
   int n = input_shape[0];
-  int out_c = input_shape[1] * stride * stride;
-  int out_h = input_shape[2] / stride;
-  int out_w = input_shape[3] / stride;
-  int in_c = input_shape[1];
-  int in_w = input_shape[2];
-  int in_h = input_shape[3];
+  int c = input_shape[1];
+  int h = input_shape[2];
+  int w = input_shape[3];
+  int out_c = c / (stride * stride);
+  int out_w = w * stride;
+  int out_h = h * stride;
   for (int b = 0; b < n; b++) {
-    for (int k = 0; k < out_c; k++) {
-      for (int j = 0; j < out_h; j++) {
-        for (int i = 0; i < out_w; i++) {
-          int in_index = i + out_w * (j + out_h * (k + out_c * b));
-          int c2 = k % in_c;
-          int offset = k / in_c;
+    for (int k = 0; k < c; k++) {
+      for (int j = 0; j < h; j++) {
+        for (int i = 0; i < w; i++) {
+          int in_index = i + w * (j + h * (k + c * b));
+          int c2 = k % out_c;
+          int offset = k / out_c;
           int w2 = i * stride + offset % stride;
           int h2 = j * stride + offset / stride;
-          int out_index = w2 + in_w * (h2 + in_h * (c2 + in_c * b));
+          int out_index = w2 + out_w * (h2 + out_h * (c2 + out_c * b));
           output_data->at(in_index) = input_data->at(out_index);
         }
       }
