@@ -14,7 +14,7 @@ def second(elem):
 
 def get_topk(a, k):
   k = min(a.size, k)
-  idx = np.argpartition(-a.ravel(),k)[:k]
+  idx = np.argpartition(-a.ravel(), k - 1)[:k]
   # return np.column_stack(np.unravel_index(idx, a.shape))
   topk = list(zip(idx, np.take(a, idx)))
   #return topk

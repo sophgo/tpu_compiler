@@ -1270,6 +1270,8 @@ class CaffeConverter(BaseConverter):
         operands = list()
         operands.append(op)
         assert(len(input_shape) == 4)
+        reverse = layer.reorg_param.reverse
+        assert(reverse == False)
         stride = layer.reorg_param.stride
         output_shape = list(input_shape)
         output_shape[0] = input_shape[0]

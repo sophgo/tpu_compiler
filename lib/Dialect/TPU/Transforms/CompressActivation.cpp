@@ -43,6 +43,7 @@ namespace {
 
 static constexpr int64_t kMinTdmaSize = 256;
 static constexpr int64_t kMinOcNum = 8;
+static constexpr int64_t kMaxOcNum = 4063;
 
 static llvm::cl::opt<unsigned> clCmprActOverheadRatio(
     "tpu-cmpr-act-overhead-ratio",
@@ -273,6 +274,9 @@ static bool isValidCompressTgEltAddOp(Operation *op) {
 
   // Too trivial
   if (c < kMinOcNum)
+    return false;
+
+  if (c > kMaxOcNum)
     return false;
 
   // Not support multi-batch
