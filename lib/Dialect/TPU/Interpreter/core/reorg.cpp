@@ -21,8 +21,8 @@ void ReorgOpKernel::invoke() {
   int out_h = input_shape[2] / stride;
   int out_w = input_shape[3] / stride;
   int in_c = input_shape[1];
-  int in_w = input_shape[2];
-  int in_h = input_shape[3];
+  int in_h = input_shape[2];
+  int in_w = input_shape[3];
   for (int b = 0; b < n; b++) {
     for (int k = 0; k < out_c; k++) {
       for (int j = 0; j < out_h; j++) {
