@@ -177,9 +177,15 @@ void PyTuner::quantize(const std::string &calib_table, const std::string &mix_ta
   // timer.stopAndPrint("quantize");
 }
 
+static int omp_schedule(int count) {
+  return (count + omp_get_num_threads() - 1) / omp_get_num_threads();
+}
+
 void PyTuner::buildInterpreter() {
   // Timer timer;
   MlirModuleInterpreter::updateWeightMap(module_);
+
+  #pragma omp parallel for schedule(static, omp_schedule(batch))
   for (int i = 0; i < batch; i++) {
     interpreters[i]->loadModule(module_);
   }
