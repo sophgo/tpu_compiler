@@ -197,6 +197,7 @@ class OnnxConverter(BaseConverter):
             "Sub": lambda node: self.convert_sub_op(node),
             "Sum": lambda node: self.convert_sum_op(node),
             "Tanh": lambda node: self.convert_activation_op(node),
+            "Tile": lambda node: self.convert_tile_op(node),
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Where": lambda node: self.convert_where_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
@@ -3267,6 +3268,40 @@ class OnnxConverter(BaseConverter):
                 assert(input_shape_i == input_shape)
             sum_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, sum_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_tile_op(self, onnx_node):
+        assert(onnx_node.op_type == "Tile")
+        input_op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        _, tile_shape, tile_type = self.getOperand(onnx_node.inputs[1])
+        assert(tensor_type == TensorType.ACTIVATION)
+        assert(tile_type == TensorType.TENSOR)
+        assert(1 == len(tile_shape))
+        assert(tile_shape[0] == len(input_shape))
+        tile_data = self.getTensor(onnx_node.inputs[1]).tensor_data
+        if np.prod(tile_data) == 1:
+            self.addOperand(onnx_node.name, input_op, input_shape, TensorType.ACTIVATION)
+            return
+        last_shape = list(input_shape)
+        last_op = input_op
+        last_i = 0
+        last_name = ""
+        for i in range(tile_shape[0]):
+            last_i = tile_shape[0] - i - 1
+            if tile_data[last_i] != 1:
+                break
+        for i in range(last_i+1):
+            if tile_data[i] == 1:
+                continue
+            attr = {
+                'axis': i,
+                'tiles': int(tile_data[i])
+            }
+            last_name = onnx_node.name
+            if i != last_i:
+                last_name += "_{}".format(i)
+            last_shape[i] = last_shape[i] * tile_data[i]
+            last_op = self.CVI.add_tile_op("{}_{}".format(last_name, onnx_node.op_type), [last_op], last_shape, **attr)
+        self.addOperand(last_name, last_op, last_shape, TensorType.ACTIVATION)
 
     def convert_transpose_op(self, onnx_node):
         assert(onnx_node.op_type == "Transpose")

@@ -56,6 +56,7 @@ TEST_ONNX_IR = [
     "Sigmoid",
     "Sub",
     "Sum",
+    "Tile",
 #    "Transpose",
 ]
 
@@ -154,6 +155,7 @@ class ONNX_IR_TESTER(object):
             "Sub": self.test_Sub,
             "Sum": self.test_Sum,
             "Transpose": self.test_Transpose,
+            "Tile": self.test_Tile,
             "ReduceMean": self.test_ReduceMean,
             "ReduceMax": self.test_ReduceMax,
         }
@@ -2310,6 +2312,51 @@ class ONNX_IR_TESTER(object):
 
             onnx.checker.check_model(model_def)
             self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Tile(self):
+        test_case = 'Tile'
+        input_shape = [2,4,6,8]
+        output_shape = [16,24,24,16]
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        param_node = onnx.helper.make_node(
+                    'Constant',
+                    inputs=[],
+                    outputs=['tiles'],
+                    value=onnx.helper.make_tensor(
+                        name='const_tensor',
+                        data_type=onnx.TensorProto.INT64,
+                        dims=[4],
+                        vals=np.array([8,6,4,2]),
+                    ),
+                )
+        x1_node = helper.make_node(
+            'Neg',
+            ['input'],
+            ['X1'],
+        )
+        tile_node = helper.make_node(
+            'Tile',
+            ['X1', 'tiles'],
+            ['output'],
+        )
+        graph_def = helper.make_graph(
+            [param_node, x1_node, tile_node],
+            test_case,
+            [input],
+            [output],
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                        input_shape[2], input_shape[3]).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Concat(self):
         test_case = 'Concat'
