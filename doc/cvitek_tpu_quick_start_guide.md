@@ -1541,10 +1541,9 @@ eval_classifier.py \
 ``` shell
 run_mix_precision.py \
     mnet_25_fp32.mlir \
-    --model_name mnet25 \
-    --dataset ${DATESET_PATH} \
-    --calibration_table mnet_25_calibration_table \
+    --dataset ${DATASET_PATH} \
     --input_num=20 \
+    --calibration_table mnet_25_calibration_table \
     --max_bf16_layers=6 \
     -o mnet_25_mix_precision_bf16_table
 ```

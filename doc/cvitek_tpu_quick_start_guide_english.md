@@ -890,7 +890,7 @@ The conversion process includes:
 - Inference of the original tensorflow model, and save the results of each layer as a numpy npz file
 
 - Import of the original tensorflow model, convert the original model into an MLIR fp32 model
-  - 
+  -
   - Execute the inference of the MLIR fp32 model, and save the output of each layer to the numpy npz file
   - Compare the inference results of the tensorflow model with the inference results of MLIR fp32 to ensure that the converted MLIR fp32 model is correct
   - Optimize the MLIR fp32 model as the input of the subsequent process
@@ -1538,8 +1538,7 @@ Search the mix quantization table. This model has 59 layers. How many layers are
 ``` shell
 run_mix_precision.py \
     mnet_25_fp32.mlir \
-    --model_name mnet25 \
-    --dataset ${DATESET_PATH} \
+    --dataset ${DATASET_PATH} \
     --calibration_table mnet_25_calibration_table \
     --input_num=20 \
     --max_bf16_layers=6 \

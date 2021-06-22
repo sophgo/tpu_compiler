@@ -174,8 +174,8 @@ class SimpleTuner:
                 distance += np.linalg.norm(target_fp32_activations.flatten() -
                                            target_activations.flatten())
                 distance /= len(self.images)
-                tqdm.write("tuning {}, threshold: {}, distance:{}".format(op_name,
-                           threshold, distance))
+                # tqdm.write("tuning {}, threshold: {}, distance:{}".format(op_name,
+                #            threshold, distance))
                 if distance < minimum_distance:
                     best_threshold = threshold
                     minimum_distance = distance
@@ -347,8 +347,20 @@ class ActivationCalibrator(BaseKldCalibrator):
                                  self.images, 15, self.preprocessor)
         thresholds = self.tuner.run()
 
-        # step 5: dump threshold table of default histogram bins
+        # step 5: dump threshold table after tuning
         with open(output_calibration_table, 'w') as f:
+            f.write("# genetated time: {}\n".format(datetime.datetime.now()))
+            f.write("# sample number: {}\n###\n".format(self.input_num))
+            f.write("# op_name    threshold    min    max\n")
+            for op in op_layers:
+                op_name = op['name']
+                threshold = thresholds[op_name]
+                min_value, max_value, _ = activations_statistics[op_name]
+                f.write("{} {:.5f} {:.5f} {:.5f}\n".format(op_name, threshold,
+                                                           min_value, max_value))
+
+        # step 6: dump threshold table of default histogram bins
+        with open(output_calibration_table + '.1', 'w') as f:
             f.write("# genetated time: {}\n".format(datetime.datetime.now()))
             f.write("# histogram number: {}\n".format(self.histogram_bin_num))
             f.write("# sample number: {}\n###\n".format(self.input_num))
@@ -360,18 +372,6 @@ class ActivationCalibrator(BaseKldCalibrator):
                 f.write("{} {:.5f} {:.5f} {:.5f}\n".format(op_name, threshold,
                                                          min_value, max_value))
 
-        # step 6: dump threshold table after tuning
-        with open(output_calibration_table + '.1', 'w') as f:
-            f.write("# genetated time: {}\n".format(datetime.datetime.now()))
-            f.write("# sample number: {}\n###\n".format(self.input_num))
-            f.write("# op_name    threshold    min    max\n")
-            for op in op_layers:
-                op_name = op['name']
-                threshold = thresholds[op_name]
-                min_value, max_value, _ = activations_statistics[op_name]
-                f.write("{} {:.5f} {:.5f} {:.5f}\n".format(op_name, threshold,
-                                                           min_value, max_value))
-
         # step 7: dump all thresholds to csv files
         with open(output_calibration_table + '.csv', 'w') as f:
             f.write("name,default({}),best,min,max,abs,{}\n".format(self.histogram_bin_num,
@@ -381,7 +381,7 @@ class ActivationCalibrator(BaseKldCalibrator):
                 default_threshold = thresholds_map[self.histogram_bin_num][op_name]
                 best_threshold = thresholds[op_name]
                 min_value, max_value, abs_value = activations_statistics[op_name]
-                f.write("{},{:.5f},{:.5f},{:.5f},".format(
+                f.write("{},{:.5f},{:.5f},{:.5f},{:.5f},{:5f},".format(
                         op_name, default_threshold,
                         best_threshold, min_value, max_value, abs_value))
                 _str_thres = []

@@ -3,7 +3,6 @@
 # Copyright (C) Cristal Vision Technologies Inc.
 # All Rights Reserved.
 ##
-import gc
 import numpy as np
 import sys
 import os
@@ -256,8 +255,6 @@ class AutoTuner(object):
                 prev_threshold = cur_threshold
             else:
                 fail_cnt += 1
-        collected = gc.collect()
-        logger.info("gc, {} objects freed".format(collected))
         return prev_distance
 
     def calc_distance(self, target_op, tune_op, threshold):

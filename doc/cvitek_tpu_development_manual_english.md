@@ -1038,7 +1038,7 @@ class MLIRImport:
 【Main attributes】
 
  	MLIRImport.input_shape_list is the Input tensor shape of the model;
- 	
+
  	MLIRImport.output_shape_list is the Output tensor shape of the model.
 
 【Main method】
@@ -1256,7 +1256,7 @@ run_calibration.py <model file> [option]
   | --calibration_table \<calib_table\> | Input calibration table |
   | --mix_precision_table \<mix_table\> | Input mix precision table |
   | --tune_iteration \<iterate_num\>    | Fine-tune the number of rounds of threshold for each layer, the default value is 30 |
-  | --stragegy \<stragegy_name\>        | Fine-tuning strategy: "greedy" or "overall"<br/>"greedy": ine-tune the threshold with the goal of improving the Euclidean distance similarity of each layer;<br/>"overall":To improve the cosine or Euclidean distance similarity of the result as the goal, fine-tune the threshold of each layer |
+  | --strategy \<strategy_name\>        | Fine-tuning strategy: "greedy" or "overall"<br/>"greedy": ine-tune the threshold with the goal of improving the Euclidean distance similarity of each layer;<br/>"overall":To improve the cosine or Euclidean distance similarity of the result as the goal, fine-tune the threshold of each layer |
   | --evaluation \<method_num\>         | Evaluation Method of Output Accuracy of "Overall" Strategy："cosine" or "euclid" |
   | -o \<out_calib_table\>              | Output the fine-tuned calibration table |
 
@@ -1514,8 +1514,8 @@ run_tune.py \
     --mix_precision_table ${NET}_mix_precision_table \
     --input_num=${COUNT} \
     --tune_iteration=20 \
-    --stragegy greedy \
-    --evaluation euclid
+    --strategy greedy \
+    --evaluation euclid \
     -o ${NET}_tuned_calib_table
 
 model_deploy.py \

@@ -1045,7 +1045,7 @@ class MLIRImport:
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
- 	
+
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -1269,7 +1269,7 @@ run_calibration.py <model file> [option]
   | --calibration_table \<calib_table\> | 输入calibration table |
   | --mix_precision_table \<mix_table\> | 输入mix precision table |
   | --tune_iteration \<iterate_num\>    | 微调每层threshold的轮数, 默认值为30 |
-  | --stragegy \<stragegy_name\>        | 微调策略:"greedy"或"overall"<br/>"greedy": 以提升每层的欧式距离相似度为目标微调threshold;<br/>"overall":以提升结果的余弦或者欧式距离相似度为目标，微调每层的threshold |
+  | --strategy \<strategy_name\>        | 微调策略:"greedy"或"overall"<br/>"greedy": 以提升每层的欧式距离相似度为目标微调threshold;<br/>"overall":以提升结果的余弦或者欧式距离相似度为目标，微调每层的threshold |
   | --evaluation \<method_num\>         | "overall"策略的输出精度评估方法："cosine"或"euclid" |
   | -o \<out_calib_table\>              | 输出微调后的calibration table |
 
@@ -1538,8 +1538,8 @@ run_tune.py \
     --mix_precision_table ${NET}_mix_precision_table \
     --input_num=${COUNT} \
     --tune_iteration=20 \
-    --stragegy greedy \
-    --evaluation euclid
+    --strategy greedy \
+    --evaluation euclid \
     -o ${NET}_tuned_calib_table
 
 model_deploy.py \
