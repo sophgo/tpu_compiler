@@ -147,47 +147,63 @@ void cvi_backend_tl_lut(
                  << "\n";
   );
 
-  if (la_working == 0 && la_slope_table == 0) {
-    // assign in MixNet.cpp::_add_tl_activation_op
-    // int8 lut
-    cvk_tl_t *tl_input = new cvk_tl_t;
-    cvk_tl_t *tl_output = new cvk_tl_t;
-    cvk_tl_t *tl_y_table = new cvk_tl_t;
+  // offset start with NPU_NUM start, 0x1000 for hw limitation
+  auto fmt = CVK_FMT_I8;
+  uint32_t step = 0x1000 - NPU_NUM;
+  int align_up_c = align_up(c, step);
+  int slice_nr = align_up_c / step;
+  uint32_t in_csize_local =
+    ALIGN(h * w * ctx.bytesize_of_fmt(fmt), EU_NUM) * (step / NPU_NUM);
+  auto _la_input = la_input;
+  auto _la_output = la_output;
+  auto _c = c;
+  for (int s = 0; s < slice_nr; s++) {
+    la_input = _la_input + s * in_csize_local;
+    la_output = _la_output + s * in_csize_local;
+    c = std::min(_c - s * step, step);
 
-    tl_input->start_address = la_input;
-    tl_input->fmt = CVK_FMT_I8;
-    tl_input->shape = ctx.tl_shape_t4(n, c, h, w);
-    tl_input->stride = ctx.tl_default_stride(tl_input->shape, CVK_FMT_I8, /*eu_align=*/1);
+    if (la_working == 0 && la_slope_table == 0) {
+      // assign in MixNet.cpp::_add_tl_activation_op
+      // int8 lut
+      cvk_tl_t *tl_input = new cvk_tl_t;
+      cvk_tl_t *tl_output = new cvk_tl_t;
+      cvk_tl_t *tl_y_table = new cvk_tl_t;
 
-    tl_output->start_address = la_output;
-    tl_output->fmt = CVK_FMT_I8;
-    tl_output->shape = ctx.tl_shape_t4(n, c, h, w);
-    tl_output->stride = ctx.tl_default_stride(tl_output->shape, CVK_FMT_I8, /*eu_align=*/1);
+      tl_input->start_address = la_input;
+      tl_input->fmt = CVK_FMT_I8;
+      tl_input->shape = ctx.tl_shape_t4(n, c, h, w);
+      tl_input->stride = ctx.tl_default_stride(tl_input->shape, CVK_FMT_I8, /*eu_align=*/1);
 
-    tl_y_table->start_address = la_y_table;
-    tl_y_table->fmt = CVK_FMT_I8;
-    tl_y_table->shape = ctx.lut_table_shape(CVK_FMT_I8);
-    tl_y_table->stride = ctx.tl_default_stride(tl_y_table->shape, CVK_FMT_I8, /*eu_align=*/1);
+      tl_output->start_address = la_output;
+      tl_output->fmt = CVK_FMT_I8;
+      tl_output->shape = ctx.tl_shape_t4(n, c, h, w);
+      tl_output->stride = ctx.tl_default_stride(tl_output->shape, CVK_FMT_I8, /*eu_align=*/1);
 
-    //compute
-    cvk_tiu_lookup_table_param_t p12 = {0};
-    p12.ifmap = tl_input;
-    p12.ofmap = tl_output;
-    p12.table = tl_y_table;
-    p12.layer_id = layer_id;
-    ctx.tiu_lookup_table(&p12);
+      tl_y_table->start_address = la_y_table;
+      tl_y_table->fmt = CVK_FMT_I8;
+      tl_y_table->shape = ctx.lut_table_shape(CVK_FMT_I8);
+      tl_y_table->stride = ctx.tl_default_stride(tl_y_table->shape, CVK_FMT_I8, /*eu_align=*/1);
 
-    delete tl_y_table;
-    delete tl_output;
-    delete tl_input;
-  }
-  else {
-    // bf16 lut
-    // FIXME: need remove later
-    cvi_backend_bf16_tl_lut_slope_method(ctx, layer_id,
-        la_input, la_output, la_working,
-        la_y_table, la_slope_table,
-        thresh_min, thresh_max, false, n, c, h, w);
+      //compute
+      cvk_tiu_lookup_table_param_t p12 = {0};
+      p12.ifmap = tl_input;
+      p12.ofmap = tl_output;
+      p12.table = tl_y_table;
+      p12.layer_id = layer_id;
+      ctx.tiu_lookup_table(&p12);
+
+      delete tl_y_table;
+      delete tl_output;
+      delete tl_input;
+    }
+    else {
+      // bf16 lut
+      // FIXME: need remove later
+      cvi_backend_bf16_tl_lut_slope_method(ctx, layer_id,
+          la_input, la_output, la_working,
+          la_y_table, la_slope_table,
+          thresh_min, thresh_max, false, n, c, h, w);
+    }
   }
 }
 

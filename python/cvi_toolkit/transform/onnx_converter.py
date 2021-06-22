@@ -2737,6 +2737,7 @@ class OnnxConverter(BaseConverter):
                 operands.append(weight_op)
 
                 name = "{}_{}_conv_w".format(onnx_node.name, onnx_node.op_type)
+                output_shape = [int(v) for v in output_shape]
                 conv_op = self.CVI.add_conv_op(name, operands, output_shape, **conv_param)
                 self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
                 return
