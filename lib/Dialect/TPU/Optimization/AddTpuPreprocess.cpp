@@ -180,6 +180,7 @@ public:
       {"YUV420_PLANAR", {"bgr", "nchw"}}
     };
 
+    SmallVector<tpu::QuantOp, 4> toErase;
     fn.walk([&](tpu::InputOp inputOp) {
       // get attributes of input
       StringRef quantType = "INT8";
@@ -188,7 +189,7 @@ public:
         if (auto quantOp = dyn_cast<tpu::QuantOp>(nextOp)) {
           quantType = quantOp.to();
           quantOp.replaceAllUsesWith(inputOp.getResult());
-          quantOp.erase();
+          toErase.push_back(quantOp);
         }
       }
       auto threshold = getOpThreshold(inputOp);
@@ -314,6 +315,10 @@ public:
         }
       }
     });
+
+    for (auto quantOp : llvm::reverse(toErase)) {
+      quantOp.erase();
+    }
 
     // alter the function type to match the real type
     // of InputOp and ReturnOp
