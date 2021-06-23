@@ -51,6 +51,9 @@ def load_tune_layers(tune_layers_file):
                 layers.append(line)
     return layers
 
+# fix bool bug of argparse
+def str2bool(v):
+  return v.lower() in ("yes", "true", "1")
 
 if __name__ == '__main__':
     declare_toolchain_version()
@@ -74,7 +77,8 @@ if __name__ == '__main__':
     parser.add_argument('--evaluation', choices=['cosine', 'euclid'], default='euclid',
                         help='evaluation method, cosine is "cosine similarity",'
                              'euclid is "eculidean distance')
-    parser.add_argument('--speedup', action='store_true', help='trial feature, speedup tune procedure')
+    parser.add_argument("--speedup", type=str2bool, default=True,
+                        help='trial feature, speedup tune procedure')
     parser.add_argument('-o', "--tuned_table", type=str, required=True,
                         help='output tuned calibration table file')
 
