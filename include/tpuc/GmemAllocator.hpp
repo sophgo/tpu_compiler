@@ -10,22 +10,17 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/TPUOperationSupport.h"
 #include "tpuc/TPUTensorSupport.h"
-
+#include "GmemAllocatorMethod.h"
 
 namespace mlir {
-
-class GmemBlock {
-public:
-  int64_t start;
-  uint64_t size;
-  Operation *op;
-};
 
 class GmemAllocator {
 public:
   GmemAllocator(
       std::map<Operation *, int64_t> &gaddrMap,
       uint32_t alignment = 16);
+  void registerMethod(std::string method_name, bool reuse);
+  void registerAllMethod();
   int64_t assignGaddr(
       std::vector<Operation *> &ops,
       std::map<Operation *, std::vector<uint32_t>> &liveRange,
@@ -41,19 +36,11 @@ public:
       int64_t baseGaddr,
       uint32_t alignment);
 
-  std::map<Operation *, int64_t> &gaddrMap;
-
-private:
+  std::map<Operation *, int64_t> &gaddrMap_;
   uint32_t alignment;
-  std::vector<std::list<GmemBlock>> album;
-
-  void reuseGmemBlock(
-      std::list<GmemBlock> &snapshot, Operation *op,
-      std::map<Operation *, std::vector<uint32_t>> &liveRange);
-  void allocGmemBlock(std::list<GmemBlock> &snapshot, Operation *op);
-  void mergeFreeGmemBlocks(std::list<GmemBlock> &snapshot);
-  void backPropagateToAssignGaddr();
-  int64_t updateGmemUsedStatistic(std::vector<Operation *> &ops);
+private:
+  std::vector<std::string> reuse_methods_;
+  std::vector<std::string> methods_;
 };
 
 } // namespace mlir

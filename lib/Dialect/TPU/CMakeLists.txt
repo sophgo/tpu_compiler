@@ -45,6 +45,7 @@ add_llvm_library(MLIRTPU
   Transforms/AssignChipName.cpp
   Transforms/DivideOpsToSubFunc.cpp
   Transforms/GmemAllocator.cpp
+  Transforms/GmemAllocatorMethod.cpp
   Transforms/ConvertPriorBoxToLoadWeight.cpp
   Transforms/ReorderOp.cpp
   Transforms/ConvertInterp.cpp
