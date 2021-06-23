@@ -23,6 +23,7 @@ retinaface_mnet25_600     N        N        N        Y        N        N
 retinaface_res50          N        N        N        Y        N        N
 ssd300                    N        N        N        Y        Y        N
 mobilenet_ssd             Y        N        N        N        Y        N
+yolact                    Y        N        N        N        Y        N
 yolo_v1_448               N        N        N        Y        N        N
 yolo_v2_1080              N        N        N        Y        N        N
 yolo_v2_416               N        N        N        Y        N        N

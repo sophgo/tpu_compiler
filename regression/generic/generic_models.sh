@@ -713,6 +713,24 @@ export EVAL_MODEL_TYPE="voc2012"
 export EVAL_SCRIPT_VOC="eval_detector_voc.py"
 fi
 
+if [ $NET = "yolact" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/segmentation/yolact/onnx/yolact_resnet50_coco_4outputs.onnx
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export NET_INPUT_DIMS=550,550
+export IMAGE_RESIZE_DIMS=550,550
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export INPUT=input
+export DO_QUANT_BF16=0
+export TOLERANCE_INT8_PER_TENSOR=0.9,0.88,0.51
+export TOLERANCE_INT8_RSHIFT_ONLY=0.92,0.90,0.58
+export TOLERANCE_INT8_MULTIPLER=0.82,0.79,0.29
+export TOLERANCE_BF16=0.99,0.99,0.97
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.98
+fi
+
 if [ $NET = "yolo_v1_448" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v1/caffe/yolo_tiny_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v1/caffe/yolo_tiny.caffemodel
