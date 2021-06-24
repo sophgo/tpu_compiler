@@ -58,7 +58,6 @@ run_tune.py \
     --tune_iteration=3 \
     --strategy greedy \
     --evaluation euclid \
-    --speedup \
     -o ${NET}_tuned_calib_0.txt
 
 run_tune.py \
@@ -70,7 +69,6 @@ run_tune.py \
     --tune_iteration=3 \
     --strategy overall \
     --evaluation cosine \
-    --speedup \
     -o ${NET}_tuned_calib_1.txt
 
 popd
