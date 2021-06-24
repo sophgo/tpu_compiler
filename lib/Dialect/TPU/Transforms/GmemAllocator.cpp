@@ -74,6 +74,11 @@ int64_t GmemAllocator::assignGaddr(
     std::vector<Operation *> &ops,
     std::map<Operation *, std::vector<uint32_t>> &liveRange,
     bool neuronMemoryReuse, int64_t baseGaddr) {
+  if (ops.empty()) {
+    llvm::errs() << "Warning input ops is empty!\n";
+    return 0;
+  }
+
   if (!reuse_methods_.size() && !methods_.size()) {
     registerAllMethod();
   }
