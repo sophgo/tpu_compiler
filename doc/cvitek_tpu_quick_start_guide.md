@@ -1803,7 +1803,7 @@ model_transform.py \
 ``` shell
 cvimodel_tool \
   -a merge \
-     mobilenet_v2_bs1.cvimodel \
+  -i mobilenet_v2_bs1.cvimodel \
      mobilenet_v2_bs4.cvimodel \
   -o mobilenet_v2_bs1_bs4.cvimodel
 ```
