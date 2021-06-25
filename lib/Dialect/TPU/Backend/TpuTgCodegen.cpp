@@ -853,11 +853,11 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
 
   // Backend fuse previous scale lut op
   gaddr_t ga_scale_lut = GA_INVALID;
-  auto prevOp = op->getOperand(0).getDefiningOp();
-  if (auto prevTpuOp = llvm::dyn_cast<tpu::TG_INT8_ScaleLutOp>(prevOp)) {
-    ga_scale_lut = getWeightOpAddress(prevTpuOp.table().getDefiningOp());
-    ga_input = getPreviousOpAddress(prevOp);
-  }
+  // auto prevOp = op->getOperand(0).getDefiningOp();
+  // if (auto prevTpuOp = llvm::dyn_cast<tpu::TG_INT8_ScaleLutOp>(prevOp)) {
+  //   ga_scale_lut = getWeightOpAddress(prevTpuOp.table().getDefiningOp());
+  //   ga_input = getPreviousOpAddress(prevOp);
+  // }
 
   cvi_backend_tg_fixed_conv_kernel(
       *backend_ctx,
@@ -2195,15 +2195,15 @@ LogicalResult tpu::TG_INT8_ScaleLutOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
 
   // backend tg conv fusion only
-  if (op->getResult(0).hasOneUse()) {
-    for (auto &use : op->getResult(0).getUses()) {
-      auto useOp = use.getOwner();
-      if (llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
-        LLVM_DEBUG(llvm::dbgs() << "  fused to conv\n";);
-        return success();
-      }
-    }
-  }
+  // if (op->getResult(0).hasOneUse()) {
+  //   for (auto &use : op->getResult(0).getUses()) {
+  //     auto useOp = use.getOwner();
+  //     if (llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
+  //       LLVM_DEBUG(llvm::dbgs() << "  fused to conv\n";);
+  //       return success();
+  //     }
+  //   }
+  // }
 
   cvi_backend_tg_scale_lut_kernel(*backend_ctx,
                                   layer_id, // layer_id,

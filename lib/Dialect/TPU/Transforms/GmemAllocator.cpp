@@ -82,7 +82,7 @@ int64_t GmemAllocator::assignGaddr(
   if (!reuse_methods_.size() && !methods_.size()) {
     registerAllMethod();
   }
-   
+
   std::vector<std::string> *cur_methods;
   if (neuronMemoryReuse) {
     cur_methods = &reuse_methods_;

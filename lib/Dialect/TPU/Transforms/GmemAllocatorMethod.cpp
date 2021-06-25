@@ -391,10 +391,10 @@ int64_t GmemAllocFitFirst::assignGaddr(std::vector<Operation *> &ops,
   for (auto op : ops) {
     LLVM_DEBUG(llvm::errs() << "loop #" << album_.size() - 1 << "\n");
     auto snapshot = album_[album_.size() - 1];
-    allocGmemBlock(snapshot, op);
     if (neuronMemoryReuse) {
       reuseGmemBlock(snapshot, op, liveRange);
     }
+    allocGmemBlock(snapshot, op);
     album_.push_back(snapshot);
   }
 
