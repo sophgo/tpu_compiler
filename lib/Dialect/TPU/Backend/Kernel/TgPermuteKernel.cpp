@@ -31,11 +31,7 @@ void TgPermuteKernel::convert_order() {
     // if c not swap, then use tiu_copy to do permute
     return;
   }
-  if (order[3] == 3 || w == 1) {
-    // xxx3 use tdma directly
-    by_tdma = true;
-    return;
-  }
+
   if (is_order(0, 2, 3, 1)) {
     if (n < NPU_NUM) {
       n_loop = n;
@@ -73,6 +69,21 @@ void TgPermuteKernel::convert_order() {
   if (is_order(3, 2, 0, 1)) {
     n = n * c;
     reshape(h);
+    return;
+  }
+  if (is_order(0, 2, 1, 3) && n < NPU_NUM) {
+    n_loop = n;
+    if (c >= h) {
+      update_NCHW(1, c, h, w);
+    } else {
+      update_NCHW(c, h, 1, w);
+    }
+    update_order(2, 1, 0, 3);
+    return;
+  }
+  if (order[3] == 3 || w == 1) {
+    // xxx3 use tdma directly
+    by_tdma = true;
     return;
   }
   llvm::errs() << llvm::format("Not support permute case, fmt:%d, "

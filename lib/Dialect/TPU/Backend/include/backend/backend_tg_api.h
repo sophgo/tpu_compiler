@@ -90,12 +90,6 @@ void cvi_backend_tg_fixed_lrn_kernel(
     int sum_right_shift_width, int lrn_right_shift_width, int quant_data0,
     int quant_data1);
 
-void cvi_backend_tg_fixed_reorg_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t output_gaddr,
-    int batch, int channel, int height, int width,
-    int stride);
-
 void cvi_backend_tg_fixed_eltwise_add_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,
@@ -371,11 +365,6 @@ void cvi_backend_tg_bf16_reduce_mean_kernel(
     int n, int c, int h, int w,
     int axes[], int num_axes);
 
-void cvi_backend_tg_bf16_reorg_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t output_gaddr,
-    int batch, int channel, int height, int width, int stride);
-
 void cvi_backend_tg_bf16_lrn_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
     gaddr_t output_gaddr, gaddr_t exp_table_gaddr, gaddr_t mantissa_table_gaddr,
@@ -404,6 +393,11 @@ void cvi_backend_tg_relu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     uint64_t ga_input, uint64_t ga_output, int n,
     int c, int h, int w, cvk_fmt_t fmt);
+
+void cvi_backend_tg_reorg_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t input_gaddr, gaddr_t output_gaddr,
+    int batch, int channel, int height, int width, int stride, cvk_fmt_t fmt);
 
 void cvi_backend_tg_permute_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -441,10 +435,6 @@ void cvi_backend_tg_scale_lut_kernel(const CviBackendContext &ctx,
                                        gaddr_t top_gaddr, gaddr_t table_gaddr,
                                        int input_n, int input_c, int input_h,
                                        int input_w, cvk_fmt_t fmt);
-
-void cvi_backend_tg_shuffle_channel_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,
-    gaddr_t output_gaddr, int n, int c, int h, int w, int group, cvk_fmt_t fmt);
 
 // slice, refer to tg op, support int8 and bf16
 void cvi_backend_tg_slice_kernel(

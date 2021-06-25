@@ -3123,8 +3123,8 @@ LogicalResult tpu::TG_BF16_ReluOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_ReorgOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -3138,16 +3138,15 @@ LogicalResult tpu::TG_INT8_ReorgOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_fixed_reorg_kernel(*backend_ctx, layer_id,
-                                       input_gaddr, output_gaddr, n, c,
-                                       h, w, stride);
+  cvi_backend_tg_reorg_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
+                              n, c, h, w, stride, CVK_FMT_I8);
 
   return success();
 }
 
 LogicalResult tpu::TG_BF16_ReorgOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -3161,9 +3160,8 @@ LogicalResult tpu::TG_BF16_ReorgOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_bf16_reorg_kernel(*backend_ctx, layer_id,
-                            input_gaddr, output_gaddr,
-                            n, c, h, w, stride);
+  cvi_backend_tg_reorg_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
+                              n, c, h, w, stride, CVK_FMT_BF16);
 
   return success();
 }
@@ -3222,9 +3220,10 @@ LogicalResult tpu::TG_INT8_ShuffleChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, layer_id, input_gaddr,
-                                        output_gaddr, n, c, h, w, group,
-                                        CVK_FMT_I8);
+
+  cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, input_gaddr,
+                                output_gaddr, n, group, c / group, h*w, 0, 2, 1,
+                                3, CVK_FMT_I8);
   return success();
 }
 
@@ -3242,9 +3241,9 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  cvi_backend_tg_shuffle_channel_kernel(*backend_ctx, layer_id, input_gaddr,
-                                        output_gaddr, n, c, h, w, group,
-                                        CVK_FMT_BF16);
+  cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, input_gaddr,
+                                output_gaddr, n, group, c / group, h*w, 0, 2, 1,
+                                3, CVK_FMT_BF16);
   return success();
 }
 

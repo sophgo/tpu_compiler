@@ -125,7 +125,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgReverseKernel.cpp
   Backend/Kernel/TgScaleKernel.cpp
   Backend/Kernel/TgScaleLutKernel.cpp
-  Backend/Kernel/TgShuffleChannelKernel.cpp
   Backend/Kernel/TgSliceKernel.cpp
   Backend/Kernel/TgSwapChannelKernel.cpp
   Backend/Kernel/TgYuv420Kernel.cpp
