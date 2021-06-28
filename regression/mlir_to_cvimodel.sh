@@ -10,14 +10,16 @@ function usage() {
   echo -e "\t--dequant-results-to-fp32=true|false (option, default: true)"
   echo -e "\t--compress-weight=true|false (option, default: true)"
   echo -e "\t--append-weight=true|false (option, default: false)"
+  echo -e "\t--compress-instruction=true|false (option, default: false)"
 }
 
 SHORT=hi:o:
 LONG0=dequant-results-to-fp32:
 LONG1=compress-weight:
 LONG2=append-weight:
+LONG3=compress-instruction:
 
-OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --name "$0" -- "$@")
+OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --name "$0" -- "$@")
 if [ $? != 0 ]; then
   echo "Failed to parse options...."
   exit 1
@@ -50,6 +52,10 @@ while true; do
       append_weight="$2"
       shift 2
       ;;
+    --compress-instruction )
+      compress_instruction="$2"
+      shift 2
+      ;;
     -- )
       shift
       break
@@ -78,6 +84,13 @@ fi
 compress_weight_opt=""
 if [ $compress_weight = true ]; then
   compress_weight_opt="--compress-weight"
+fi
+if [ x"$compress_instruction" == x ]; then
+  compress_instruction=false
+fi
+compress_instruction_opt=""
+if [ $compress_instruction = true ]; then
+  compress_instruction_opt="-z"
 fi
 if [ x"$append_weight" == x ]; then
   append_weight=false
@@ -119,4 +132,5 @@ tpuc-opt $optimized_mlir \
 tpuc-translate $final_mlir \
     --mlir-to-cvimodel \
     --weight-file _weight.bin \
+    ${compress_instruction_opt} \
     -o $out_cvimodel
