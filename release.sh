@@ -11,7 +11,7 @@ echo "RELEASE_PATH: $RELEASE_PATH"
 echo "WORKING_PATH: $WORKING_PATH"
 
 os_ver=$( lsb_release -sr )
-dest_dir=$RELEASE_PATH/$(date '+%Y-%m-%d')-${os_ver}
+dest_dir=$RELEASE_PATH
 rm -rf $dest_dir
 mkdir -p $dest_dir
 
