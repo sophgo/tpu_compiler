@@ -3643,7 +3643,8 @@ struct EliminateOutputQuantOpPattern: public RewritePattern {
     auto quantOp = cast<OpTy>(op);
     if (!clDequantResultsToFp32) {
       // change the returnType of FuncOp
-      if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
+      if ((quantOp.from() == "INT8" && quantOp.to() == "NONE") ||
+          (quantOp.from() == "BF16" && quantOp.to() == "NONE")) {
         rewriter.replaceOp(op, {op->getOperand(0)});
       }
     } else {
