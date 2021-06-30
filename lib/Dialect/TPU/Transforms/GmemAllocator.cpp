@@ -67,7 +67,7 @@ void GmemAllocator::registerMethod(std::string method_name, bool reuse) {
 void GmemAllocator::registerAllMethod() {
   registerMethod("FitFirstAssign", true);
   registerMethod("FitFirstAssign", false);
-  registerMethod("LargestFirstAssign", true);
+  registerMethod("OpSizeOrderAssign", true);
 }
 
 int64_t GmemAllocator::assignGaddr(

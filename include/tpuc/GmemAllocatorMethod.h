@@ -90,6 +90,63 @@ public:
                       bool neuronMemoryReuse, int64_t baseGaddr) override;
 };
 
+class GmemAllocLargeOrder : public GmemAllocatorMethod {
+public:
+  struct OpAddr {
+    Operation *op;
+    int64_t start = 0;
+    int64_t end = 0;
+    uint32_t size = 0;
+    OpAddr(Operation *_op, uint32_t _size) {
+      op = _op;
+      size = _size;
+    }
+  };
+  typedef std::list<std::shared_ptr<OpAddr>> LineSet;
+
+public:
+  GmemAllocLargeOrder(std::map<Operation *, int64_t> &gaddrMap,
+                      uint32_t aligment);
+
+  int64_t assignGaddr(std::vector<Operation *> &ops,
+                      std::map<Operation *, std::vector<uint32_t>> &liveRange,
+                      bool neuronMemoryReuse, int64_t baseGaddr) override;
+
+  void allocGmemBlock(std::list<GmemBlock> &snapshot, Operation *op,
+                      int64_t s_addr, uint32_t size);
+
+  int64_t allocGmemBlock(std::list<GmemBlock> &snapshot,
+                                         Operation *op) override;
+};
+
+class GmemAllocOpSizeOrder : public GmemAllocatorMethod {
+public:
+  struct OpAddr {
+    Operation *op;
+    int64_t start = 0;
+    int64_t end = 0;
+    uint32_t size = 0;
+    int32_t first_op = 0;
+    int32_t end_op = 0;
+
+    OpAddr(Operation *_op, uint32_t _size, int32_t _first_op, int32_t _end_op) {
+      op = _op;
+      size = _size;
+      first_op = _first_op;
+      end_op = _end_op;
+    }
+  };
+  typedef std::list<std::shared_ptr<OpAddr>> LineSet;
+
+public:
+  GmemAllocOpSizeOrder(std::map<Operation *, int64_t> &gaddrMap,
+                      uint32_t aligment);
+
+  int64_t assignGaddr(std::vector<Operation *> &ops,
+                      std::map<Operation *, std::vector<uint32_t>> &liveRange,
+                      bool neuronMemoryReuse, int64_t baseGaddr) override;
+};
+
 class GmemAllocatorMethodFactory {
 public:
   static GmemAllocatorMethod *
@@ -99,6 +156,10 @@ public:
       return static_cast<GmemAllocatorMethod*>(new GmemAllocLargestFirst(gaddrMap, aligment));
     } else if (method_name == "FitFirstAssign") {
       return static_cast<GmemAllocatorMethod*>(new GmemAllocFitFirst(gaddrMap, aligment));
+    } else if (method_name == "LargeOrderAssign") {
+      return static_cast<GmemAllocatorMethod*>(new GmemAllocLargeOrder(gaddrMap, aligment));
+    } else if (method_name == "OpSizeOrderAssign") {
+      return static_cast<GmemAllocatorMethod*>(new GmemAllocOpSizeOrder(gaddrMap, aligment));
     } else {
       assert(0);
       return nullptr;
