@@ -3263,7 +3263,7 @@ LogicalResult tpu::TG_INT8_SwapChannelOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   std::vector<int32_t> order;
-  arrayAttrToVector(this->channel_order().getValue(), order);
+  arrayAttrToVector(this->channel_order(), order);
   cvi_backend_tg_swap_channel_kernel(*backend_ctx, layer_id,
                                        input_gaddr, output_gaddr,  (int)input_shape_fix.size(),
                                        input_shape_fix.data(), order.data(), CVK_FMT_I8);
@@ -3282,7 +3282,7 @@ LogicalResult tpu::TG_BF16_SwapChannelOp::codegen(void *ctx) {
     input_shape_fix.push_back((int)dim);
   }
   std::vector<int32_t> order;
-  arrayAttrToVector(this->channel_order().getValue(), order);
+  arrayAttrToVector(this->channel_order(), order);
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);

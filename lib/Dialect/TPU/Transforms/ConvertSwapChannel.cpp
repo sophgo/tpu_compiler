@@ -48,7 +48,7 @@ struct TpuMergeSwapChannelToConv2DPattern : public RewritePattern {
                                 PatternRewriter &rewriter) const override {
     auto swapOp = cast<tpu::SwapChannelOp>(op);
     std::vector<int32_t> order;
-    arrayAttrToVector(swapOp.channel_order().getValue(), order);
+    arrayAttrToVector(swapOp.channel_order(), order);
     std::vector<Operation *> targetOps;
     // check if all use is conv2d
     for (auto &use : op->getResult(0).getUses()) {

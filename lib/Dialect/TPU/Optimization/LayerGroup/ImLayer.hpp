@@ -52,6 +52,7 @@ typedef enum {
   IR_UPSAMPLE,
   IR_SHUFFLECHANNEL,
   IR_SLICE,
+  IR_SWAPCHANNEL,
   IR_ARITHMETIC,
   IR_PAD,
   IR_CROP,
@@ -211,6 +212,11 @@ class ImShuffleChannel : public ImLayer {
 class ImSlice : public ImLayer {
  public:
   explicit ImSlice(Operation *op);
+};
+
+class ImSwapChannel : public ImLayer {
+ public:
+  explicit ImSwapChannel(Operation *op);
 };
 
 class ImArithmetic : public ImLayer {

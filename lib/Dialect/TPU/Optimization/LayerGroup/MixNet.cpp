@@ -277,6 +277,9 @@ void MixNet::add_tl_layer(int layer_id) {
     case IR_SLICE:
       _add_tl_slice_op(mix_op, in_tensors, out_tensors);
      break;
+    case IR_SWAPCHANNEL:
+      _add_tl_swap_channel_op(mix_op, in_tensors, out_tensors);
+     break;
 
     default:
       llvm::errs() << "unknown layer type:" << layer_type << "\n";
@@ -2385,6 +2388,75 @@ void MixNet::_add_tl_slice_op(MixOp * mix_op,
                         get_start_op()->getLoc(), output_type,
                         ArrayRef<Value>{operands},
                         ArrayRef<NamedAttribute>{attrs});
+    add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
+  }
+}
+
+void MixNet::_add_tl_swap_channel_op(MixOp *mix_op,
+                                     const std::vector<int> &in_tensors,
+                                     const std::vector<int> &out_tensors) {
+  const ImLayer *im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  Operation *op = im_layer->op();
+  auto opd0 = op->getOperand(0);
+  auto old_input_type = opd0.getType().cast<RankedTensorType>();
+  std::vector<int32_t> order;
+  mlir::ArrayAttr orderAttr;
+  if (auto tg_op = dyn_cast<tpu::TG_INT8_SwapChannelOp>(op)) {
+    //arrayAttrToVector(tg_op.channel_order(), order);
+    orderAttr = tg_op.channel_orderAttr();
+  } else if (auto tg_op = dyn_cast<tpu::TG_BF16_SwapChannelOp>(op)) {
+    orderAttr = tg_op.channel_orderAttr();
+  }
+
+  int bottom_dim[4];
+  int top_dim[4];
+
+  net_graph_->get_tl_tensor_dim(in_tensors[0], bottom_dim, is_h_w_split_);
+  net_graph_->get_tl_tensor_dim(out_tensors[0], top_dim, is_h_w_split_);
+
+  std::string name = mix_op->name();
+  uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+
+  Builder builder_(context_);
+  std::vector<NamedAttribute> attrs;
+
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  attrs.push_back(
+      builder_.getNamedAttr("la_input", builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                                        builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("channel_order", orderAttr));
+
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+      {bottom_dim[0], bottom_dim[1], bottom_dim[2], bottom_dim[3]},
+      old_input_type.getElementType());
+
+  RankedTensorType output_type =
+      RankedTensorType::get({top_dim[0], top_dim[1], top_dim[2], top_dim[3]},
+                            old_input_type.getElementType());
+
+  // setup input operation
+  std::vector<Value> operands;
+  Operation *input_op =
+      get_op_from_name(mix_op->bottom_name(0)).getDefiningOp();
+  input_op->getResult(0).setType(input_type);
+  operands.push_back(input_op->getResult(0));
+
+  if (isa<tpu::TG_INT8_SwapChannelOp>(op)) {
+    auto tl_op =
+        OpBuilder(get_start_op())
+            .create<tpu::TL_LG_INT8_SwapChannelOp>(
+                get_start_op()->getLoc(), output_type,
+                ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
+    add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
+  } else if (isa<tpu::TG_BF16_SwapChannelOp>(op)) {
+    auto tl_op =
+        OpBuilder(get_start_op())
+            .create<tpu::TL_LG_BF16_SwapChannelOp>(
+                get_start_op()->getLoc(), output_type,
+                ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
     add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
   }
 }

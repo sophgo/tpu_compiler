@@ -1857,4 +1857,42 @@ LogicalResult tpu::TL_LG_BF16_SliceOp::codegen(void *ctx) {
   );
   return success();
 }
+
+LogicalResult tpu::TL_LG_INT8_SwapChannelOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  int layer_id = getOpLayerId(op);
+  std::vector<int32_t> order;
+  arrayAttrToVector(this->channel_order(), order);
+  cvi_backend_tl_swap_channel(*backend_ctx, layer_id, la_input, la_output, n, c,
+                              h, w, order.data(), CVK_FMT_I8);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_BF16_SwapChannelOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  int layer_id = getOpLayerId(op);
+  std::vector<int32_t> order;
+  arrayAttrToVector(this->channel_order(), order);
+  cvi_backend_tl_swap_channel(*backend_ctx, layer_id, la_input, la_output, n, c,
+                              h, w, order.data(), CVK_FMT_BF16);
+  return success();
+}
 }

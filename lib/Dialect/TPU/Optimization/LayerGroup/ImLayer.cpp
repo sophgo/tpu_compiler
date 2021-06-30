@@ -161,6 +161,9 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::TG_INT8_SliceOp>(op) ||
              isa<tpu::TG_BF16_SliceOp>(op)) {
     layer = std::make_shared<ImSlice>(op);
+  } else if (isa<tpu::TG_INT8_SwapChannelOp>(op) ||
+             isa<tpu::TG_BF16_SwapChannelOp>(op)) {
+    layer = std::make_shared<ImSwapChannel>(op);
   } else if (isa<tpu::TG_INT8_LrnOp>(op) ||
              isa<tpu::TG_BF16_LrnOp>(op)) {
     layer = std::make_shared<ImLrn>(op);
@@ -595,6 +598,11 @@ ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
       }
     }
   }
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+}
+
+ImSwapChannel::ImSwapChannel(Operation *op): ImLayer(IR_SWAPCHANNEL, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }

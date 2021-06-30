@@ -2613,7 +2613,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
       `input`           : required, the input activation tensor.
 
     Attributes:
-      `channel_order` : optional, channel swap order
+      `channel_order`   : required, channel swap order
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `chipname`        : optional, chipname.
@@ -2634,7 +2634,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<I32ArrayAttr>:$channel_order,
+    I32ArrayAttr:$channel_order,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname

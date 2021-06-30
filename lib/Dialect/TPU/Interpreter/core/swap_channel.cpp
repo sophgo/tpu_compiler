@@ -10,7 +10,7 @@ SwapChannelOpKernel::SwapChannelOpKernel(Operation &op,
   auto swapchannelOp = cast<tpu::SwapChannelOp>(op);
   auto input_type = swapchannelOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-  arrayAttrToVector(swapchannelOp.channel_order().getValue(), order);
+  arrayAttrToVector(swapchannelOp.channel_order(), order);
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;

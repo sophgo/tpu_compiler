@@ -534,6 +534,7 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_INT8_CropOp>,
       LGLoweringPattern<tpu::TG_INT8_ReluOp>,
       LGLoweringPattern<tpu::TG_INT8_SliceOp>,
+      LGLoweringPattern<tpu::TG_INT8_SwapChannelOp>,
       // BF16
       LGLoweringPattern<tpu::TG_BF16_Conv2DOp>,
       LGLoweringPattern<tpu::TG_BF16_DeConv2DOp>,
@@ -554,6 +555,7 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
       LGLoweringPattern<tpu::TG_BF16_CropOp>,
       LGLoweringPattern<tpu::TG_BF16_ReluOp>,
       LGLoweringPattern<tpu::TG_BF16_SliceOp>,
+      LGLoweringPattern<tpu::TG_BF16_SwapChannelOp>,
       // Other
       LGLoweringPattern<tpu::TG_QuantOp>
       >(fn_, context, this);

@@ -461,6 +461,11 @@ void cvi_backend_tl_pixel_shuffle_LA(
     uint32_t input_n, uint32_t input_c, uint32_t input_h, uint32_t input_w,
     uint32_t factor);
 
+void cvi_backend_tl_swap_channel(const CviBackendContext &ctx,
+                                 uint32_t layer_id, laddr_t la_input,
+                                 laddr_t la_output, int n, int c, int h, int w,
+                                 int *order, cvk_fmt_t fmt);
+
 void cvi_backend_tl_bf16_ps32_to_fp32(const CviBackendContext &ctx,
                                       uint32_t layer_id, laddr_t la_addr,
                                       int n, int c, int h, int w);

@@ -153,6 +153,10 @@ class MixNet {
                        const std::vector<int>& in_tensors,
                        const std::vector<int>& out_tensors);
 
+  void _add_tl_swap_channel_op(MixOp * mix_op,
+                       const std::vector<int>& in_tensors,
+                       const std::vector<int>& out_tensors);
+
   void _add_load_op(int group_idx, int tensor_id);
 
   void _add_store_op(int group_idx, int tensor_id);

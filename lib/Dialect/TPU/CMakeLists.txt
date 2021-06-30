@@ -156,6 +156,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TlQuant.cpp
   Backend/Kernel/TlScale.cpp
   Backend/Kernel/TlScaleLut.cpp
+  Backend/Kernel/TlSwapChannel.cpp
   Backend/Kernel/TlTdma.cpp
   Backend/Kernel/TlUpsample.cpp
   Backend/Kernel/TlSlice.cpp
