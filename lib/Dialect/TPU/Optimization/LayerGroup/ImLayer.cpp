@@ -99,22 +99,21 @@ void ImLayer::add_imm_tensor(const std::shared_ptr<Tensor> associcate,
   imm_tensors.push_back(tensor);
 }
 
-static bool is_channel_align(Operation* op) {
+static bool is_channel_align(Operation *op) {
   // ONLY shift channel offset align NPU_NUM
   std::vector<int32_t> crop_offsets;
   if (auto crop_op = dyn_cast<tpu::TG_INT8_CropOp>(op)) {
     arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
-  }
-  else if(auto crop_op = dyn_cast<tpu::TG_BF16_CropOp>(op)) {
+  } else if (auto crop_op = dyn_cast<tpu::TG_BF16_CropOp>(op)) {
     arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
-  }
-  else  {
+  } else {
     llvm_unreachable("unsupported op");
   }
-
+  if (crop_offsets.size() < 4) {
+    return false;
+  }
   // offset should be n/c/h/w
-  bool _is_channel_align = crop_offsets[1] % NPU_NUM == 0;
-  return _is_channel_align;
+  return crop_offsets[1] % NPU_NUM == 0;
 }
 
 std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
@@ -191,14 +190,7 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     }
   } else if (isa<tpu::TG_INT8_CropOp>(op) ||
              isa<tpu::TG_BF16_CropOp>(op)) {
-    if (is_channel_align(op)) {
-      layer = std::make_shared<ImCrop>(op);
-    }
-    else {
-      LLVM_DEBUG(llvm::errs()
-          << "Not support crop with channel setting, : " << getOpName(op) << "\n";);
-      layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
-    }
+    layer = std::make_shared<ImCrop>(op);
   } else if (isa<tpu::TG_INT8_ReluOp>(op) || isa<tpu::TG_BF16_ReluOp>(op)) {
     layer = std::make_shared<ImRelu>(op);
   } else if (isa<tpu::GenericCpuOp>(op)) {
@@ -700,9 +692,12 @@ ImPad::ImPad(Operation *op): ImLayer(IR_PAD, op, true) {
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
-ImCrop::ImCrop(Operation *op): ImLayer(IR_CROP, op, true) {
+ImCrop::ImCrop(Operation *op) : ImLayer(IR_CROP, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
+  if (false == is_channel_align(op)) {
+    fusible = false;
+  }
 }
 
 ImRelu::ImRelu(Operation *op): ImLayer(IR_RELU, op, true) {

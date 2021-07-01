@@ -53,6 +53,7 @@ TEST_ONNX_IR = [
 #   "ResizeModel",
 #    "Reciprocal",
     "Slice",
+    "Slice_3dim", # test slice for 3 dims
     "Sigmoid",
     "Sub",
     "Sum",
@@ -61,7 +62,7 @@ TEST_ONNX_IR = [
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
-NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Conv4Bit","Slice", "Transpose", "Sum"]
+NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Conv4Bit", "Transpose", "Sum"]
 
 QUANT_BITWIDTH = {}
 
@@ -151,6 +152,7 @@ class ONNX_IR_TESTER(object):
             "ResizePytorch": self.test_ResizePytorch,
             "ResizeModel": self.test_ResizeModel,
             "Slice": self.test_Slice,
+            "Slice_3dim": self.test_Slice_3dim,
             "Sigmoid": self.test_Sigmoid,
             "Sub": self.test_Sub,
             "Sum": self.test_Sum,
@@ -2128,6 +2130,89 @@ class ONNX_IR_TESTER(object):
 
                 onnx.checker.check_model(model_def)
                 self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Slice_3dim(self):
+        test_case = 'Slice_3dim'
+        input_shape = [13, 1, 256]
+        output_shape = [13, 1, 128]
+        x = np.random.randn(np.prod(input_shape)).reshape(
+            input_shape).astype(np.float32)
+
+        starts = np.array([0, 0, 0], dtype=np.int64)
+        ends = np.array(output_shape, dtype=np.int64)
+        axes = np.array([0, 1, 2], dtype=np.int64)
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+        start_node = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['starts'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=starts.shape,
+                vals=starts.flatten().astype(int),
+            ),
+        )
+        ends_node = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['ends'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=ends.shape,
+                vals=ends.flatten().astype(int),
+            ),
+        )
+        axes_node = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['axes'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=axes.shape,
+                vals=axes.flatten().astype(int),
+            ),
+        )
+        slice_def = helper.make_node(
+            'Slice',  # node name
+            ['input', 'starts', 'ends', 'axes'],  # inputs
+            ['X1'],  # outputs
+        )
+        filter_data = np.random.rand(128, 128).astype(np.float32)
+        filter_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['filter'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=filter_data.shape,
+                vals=filter_data.flatten(),
+            ),
+        )
+        fc_node = helper.make_node(
+            'MatMul',  # node name
+            ['X1', 'filter'],  # inputs
+            ['output'],  # outputs
+        )
+        graph_def = helper.make_graph(
+            #[neg_node, start_node, ends_node, axes_node, node_def],
+            [start_node, ends_node, axes_node, slice_def, filter_def, fc_node],
+            test_case,
+            [input],
+            [output],
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(x, model_def, test_case)
 
     def test_Sigmoid(self):
         test_case = 'Sigmoid'

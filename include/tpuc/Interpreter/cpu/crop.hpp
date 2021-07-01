@@ -4,8 +4,6 @@
 #include "tpuc/Interpreter/cpukernel.h"
 
 namespace mlir {
-void crop(float *input, float *output, long int *input_shape,
-          long int *output_shape, int cur_dim, int *offsets, int *indices);
 
 class CropOpKernel : public CPUOpKernel {
 public:
@@ -16,6 +14,8 @@ public:
   void invoke() override;
 
 private:
+  void crop(int cur_dim, int *offsets, int *indices);
+  int offset(const std::vector<int> &indices, const SyncedDataShape &shape);
   SyncedData input_data;
   SyncedData output_data;
   SyncedDataShape input_shape;

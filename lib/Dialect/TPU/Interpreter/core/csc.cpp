@@ -1,7 +1,6 @@
 #include "tpuc/Interpreter/cpu/csc.hpp"
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/ModuleInterpreter.h"
 #include "internal.hpp"
 

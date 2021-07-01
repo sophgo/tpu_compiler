@@ -2992,8 +2992,6 @@ class OnnxConverter(BaseConverter):
             }
 
             output_shape = list(crop_shape)
-            if len(output_shape) < 4:
-                output_shape.extend([1] * (4 - len(output_shape)))
             crop_op = self.CVI.add_crop_op("{}_{}".format(
                 onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
             self.addOperand(onnx_node.name, crop_op,
@@ -3091,46 +3089,24 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Split")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         axis = onnx_node.attrs.get('axis', 0)
-        split = onnx_node.attrs.get('split', [len(onnx_node.outputs)])
+        num_output = len(onnx_node.outputs)
+        if axis < 0:
+            axis += len(input_shape)
+        slice = input_shape[axis] // num_output
+        split = onnx_node.attrs.get('split', [slice] * num_output)
         if tensor_type == TensorType.TENSOR:
-
             data = self.getTensor(onnx_node.inputs[0]).tensor_data
-            if len(split) == 1:
-                outputs = np.split(data, len(onnx_node.outputs), axis=axis)
-                for i, _ in enumerate(onnx_node.outputs):
-                    self.addTensor(str(_), outputs[i], list(outputs[i].shape))
-                    self.addOperand(str(_), None, list(outputs[i].shape), TensorType.TENSOR)
-            else:
-                outputs = np.split(data, split)
-                for i in onnx_node.outputs:
-                    self.addTensor(str(i), outputs[i], list(outputs[i].shape))
-                    self.addOperand(str(i), None, list(outputs[i].shape), TensorType.TENSOR)
+            outputs = np.split(data, split)
+            for i in onnx_node.outputs:
+                self.addTensor(str(i), outputs[i], list(outputs[i].shape))
+                self.addOperand(str(i), None, list(outputs[i].shape), TensorType.TENSOR)
         else:
-            slice_num = len(split)
             offset = 0
-            if len(input_shape) != 4 or axis != 1:
-                if split[0] != len(onnx_node.outputs):
-                    raise RuntimeError("currently channel only, input must be 4, you are shape {} and axis {}".format(input_shape, axis))
-
-                split_dim_v = input_shape[axis] // split[0]
-                for i, name in enumerate(onnx_node.outputs):
-                    output_shape = list(input_shape)
-                    output_shape[axis] = split_dim_v
-                    crop_offset = np.zeros(len(output_shape)).astype(np.int)
-                    crop_offset[axis] = i
-                    attr = {
-                      "crop_offset": list(crop_offset),
-                      "crop_shape": output_shape
-                    }
-                    op_name = "{}_{}".format(name, onnx_node.op_type)
-                    crop_op = self.CVI.add_crop_op(op_name, [op], output_shape, **attr)
-                    self.addOperand(name, crop_op, output_shape, TensorType.ACTIVATION)
-                return
-
             for i, name in zip(split, onnx_node.outputs):
-                output_shape = [input_shape[0], i, input_shape[2], input_shape[3]]
+                output_shape = list(input_shape)
+                output_shape[axis] = i
                 attr = {
-                    "axis": 1,
+                    "axis": axis,
                     "offset": offset
                  }
                 slice_op = self.CVI.add_slice_op("{}_{}".format(

@@ -588,6 +588,9 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
         auto crop_op = cast<tpu::TG_BF16_CropOp>(im_layer->op());
         arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
       }
+      if (crop_offsets.size() != 4) {
+        return false;
+      }
 
       h_idx = out_h_idx ? out_h_idx + crop_offsets[2] : 0;
       if (out_h_idx == 0) {
@@ -791,6 +794,9 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
       } else if(isa<tpu::TG_BF16_CropOp>(im_layer->op())) {
         auto crop_op = cast<tpu::TG_BF16_CropOp>(im_layer->op());
         arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+      }
+      if (crop_offsets.size() < 4) {
+        return false;
       }
 
       w_idx = out_w_idx ? out_w_idx + crop_offsets[3] : 0;

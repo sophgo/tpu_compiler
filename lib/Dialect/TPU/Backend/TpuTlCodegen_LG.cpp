@@ -1693,13 +1693,20 @@ LogicalResult tpu::TL_LG_BF16_PadOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TL_LG_INT8_CropOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   auto input_shape = getTensorShape(op->getOperand(0));
   auto output_shape = getTensorShape(op->getResult(0));
+
+  for (uint32_t i = input_shape.size(); i < 4; i++) {
+    input_shape.push_back(1);
+  }
+  for (uint32_t i = output_shape.size(); i < 4; i++) {
+    output_shape.push_back(1);
+  }
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -1709,27 +1716,26 @@ LogicalResult tpu::TL_LG_INT8_CropOp::codegen(void *ctx) {
   std::vector<int32_t> crop_offsets;
   arrayAttrToVector(this->crop_offsets().getValue(), crop_offsets);
 
-  cvi_backend_tl_crop(
-      *backend_ctx,
-      layer_id, //layer_id,
-      input_shape.data(),
-      output_shape.data(),
-      la_input,
-      la_output,
-      crop_offsets.data()
-  );
+  cvi_backend_tl_crop(*backend_ctx, layer_id, input_shape.data(),
+                      output_shape.data(), la_input, la_output,
+                      crop_offsets.data());
   return success();
 }
 
 LogicalResult tpu::TL_LG_BF16_CropOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   auto input_shape = getTensorShape(op->getOperand(0));
   auto output_shape = getTensorShape(op->getResult(0));
-
+  for (uint32_t i = input_shape.size(); i < 4; i++) {
+    input_shape.push_back(1);
+  }
+  for (uint32_t i = output_shape.size(); i < 4; i++) {
+    output_shape.push_back(1);
+  }
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
 
@@ -1738,15 +1744,9 @@ LogicalResult tpu::TL_LG_BF16_CropOp::codegen(void *ctx) {
   std::vector<int32_t> crop_offsets;
   arrayAttrToVector(this->crop_offsets().getValue(), crop_offsets);
 
-  cvi_backend_tl_bf16_crop(
-      *backend_ctx,
-      layer_id, //layer_id,
-      input_shape.data(),
-      output_shape.data(),
-      la_input,
-      la_output,
-      crop_offsets.data()
-  );
+  cvi_backend_tl_bf16_crop(*backend_ctx, layer_id, input_shape.data(),
+                           output_shape.data(), la_input, la_output,
+                           crop_offsets.data());
   return success();
 }
 
