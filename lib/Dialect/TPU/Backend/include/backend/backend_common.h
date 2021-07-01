@@ -52,6 +52,9 @@ void cvi_backend_submit(
 void cvi_backend_get_cmdbuf(
     CviBackendContext *ctx, std::vector<uint8_t> &cmdbuf);
 
+void cvi_backend_dmabuf_convert(
+    CviBackendContext *ctx, std::vector<uint8_t> &dmabuf);
+
 void cvi_backend_parallel_enable(CviBackendContext *ctx);
 
 void cvi_backend_parallel_disable(CviBackendContext *ctx);

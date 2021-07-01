@@ -133,6 +133,7 @@ public:
   flatbuffers::Offset<Routine> build();
 
   std::vector<uint8_t> cmdbuf;
+  std::vector<uint8_t> dmabuf;
 
 private:
   void codeGen();

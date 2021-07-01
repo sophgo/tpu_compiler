@@ -62,7 +62,11 @@ static llvm::cl::opt<std::string>
 extern llvm::cl::opt<std::string> clRunChipType;
 
 static llvm::cl::opt<bool>
-    isCompress("z", llvm::cl::desc("Enable compress cmdbuf"),
+    clCompressCmdbuf("z", llvm::cl::desc("Enable compress cmdbuf"),
+                  llvm::cl::init(false));
+
+static llvm::cl::opt<bool>
+    clUsingDmabuf("using-dmabuf", llvm::cl::desc("using dmabuf"),
                   llvm::cl::init(false));
 
 
@@ -414,6 +418,9 @@ void CviTpuRoutine::codeGen() {
 
   cvi_backend_submit(backend_ctx);
   cvi_backend_get_cmdbuf(backend_ctx, cmdbuf);
+  if (clUsingDmabuf) {
+    cvi_backend_dmabuf_convert(backend_ctx, dmabuf);
+  }
   cvi_backend_delete_context(backend_ctx);
 }
 
@@ -421,8 +428,15 @@ flatbuffers::Offset<Routine> CviTpuRoutine::build() {
   FBStringVector fbInputs, fbOutputs;
   buildInputsOutputs(fbb_, inputs, outputs, fbInputs, fbOutputs);
   auto fbName = fbb_.CreateString(name);
-  auto fbRoutine = CreateTpuRoutine(fbb_, fbName);
-  return CreateRoutine(fbb_, RoutineType_TPU, fbInputs, fbOutputs, fbRoutine, 0);
+  if (clUsingDmabuf) {
+    auto fbRoutine = CreateTpuRoutine(fbb_, 0, fbName);
+    return CreateRoutine(fbb_, RoutineType_TPU, fbInputs, fbOutputs, fbRoutine,
+                         0);
+  } else {
+    auto fbRoutine = CreateTpuRoutine(fbb_, fbName);
+    return CreateRoutine(fbb_, RoutineType_TPU, fbInputs, fbOutputs, fbRoutine,
+                         0);
+  }
 }
 
 CviModelBuilder::CviModelBuilder(ModuleOp &module) : fbb_(1024) {
@@ -633,18 +647,13 @@ FBSection CviModelBuilder::buildSection(std::string name, cvi::model::SectionTyp
 
   // if need compress data
   do {
-    if (!isCompress) {
+    if (!clCompressCmdbuf || !size) {
+      break;
+    } else if (type != SectionType_CMDBUF &&
+               type != SectionType_DMABUF) {
       break;
     }
 
-    // only compress CMDBUF
-    if (type != SectionType_CMDBUF) {
-      break;
-    }
-
-    if (!size) {
-      break;
-    }
     size_t out_bufsize = LZ4_compressBound(size);
     std::vector<uint8_t> out_buf(out_bufsize);
 
@@ -652,21 +661,21 @@ FBSection CviModelBuilder::buildSection(std::string name, cvi::model::SectionTyp
         reinterpret_cast<char *>(data.data()),
         reinterpret_cast<char *>(out_buf.data()), size, out_bufsize);
     if (out_size < 1) {
-      llvm::errs() << "compress cmdbuf failed!\n";
+      llvm::errs() << "compress buf failed!\n";
       break;
     }
 
-    llvm::errs() << "compress cmdbuf [" << name.c_str()
-                 << " decompressed size:" << size
-                 << " compressed size:" << out_size << "]\n";
+    llvm::errs() << "compress buf [" << name.c_str()
+                 << " ] " << size << " => "
+                 << out_size << "\n";
 
     if (out_size > size) {
       llvm::errs() << "compressed size large than decompressed size don't need compress!\n";
+      break;
     }
     binBuffer_.insert(binBuffer_.end(), out_buf.begin(), out_buf.begin() + out_size);
     return CreateSection(fbb_, type, fbName, out_size, offset, false, true, size);
-  }
-  while (false);
+  } while (false);
 
   // don't need compress data
   if (data.size()) {
@@ -686,8 +695,15 @@ FBSectionVector CviModelBuilder::buildSections() {
   for (auto rt : routines_) {
     if (rt->isTpuRoutine) {
       auto tpuRt = (CviTpuRoutine *)rt;
-      auto cmdbufSec = buildSection(tpuRt->name, SectionType_CMDBUF, tpuRt->cmdbuf);
-      sectionVec.push_back(cmdbufSec);
+      if (clUsingDmabuf) {
+        auto dmabufSec =
+            buildSection(tpuRt->name, SectionType_DMABUF, tpuRt->dmabuf);
+        sectionVec.push_back(dmabufSec);
+      } else {
+        auto cmdbufSec =
+            buildSection(tpuRt->name, SectionType_CMDBUF, tpuRt->cmdbuf);
+        sectionVec.push_back(cmdbufSec);
+      }
     }
   }
 
@@ -779,7 +795,8 @@ FBTensorVector CviModelBuilder::buildNeuronMap() {
     }
     auto fbShapeVec = fbb_.CreateVector(shape);
     auto fbShape = CreateShape(fbb_, fbShapeVec);
-    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type, 0, 0, tensor->zero_point, tensor->qscale);
+    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type, 0, 0,
+                                   tensor->zero_point, tensor->qscale);
     auto fbTensor = CreateTensorDirect(
         fbb_, 0, tensor->name.c_str(), tensor->offset, tensor->dtype,
         fbShape, 0, fbQuant, tensor->overwritten,

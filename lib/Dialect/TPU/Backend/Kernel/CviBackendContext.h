@@ -34,6 +34,7 @@ public:
 
   void write_cmdbuf(const void *cmdbuf, uint32_t size);
   void read_cmdbuf(std::vector<uint8_t> &out_cmdbuf);
+  void dmabuf_convert(std::vector<uint8_t> &dmabuf);
   void submit();
 
   int cvi_chip_info_context(CVI_CHIP_INFO_E cvi_chip_info_e) const;

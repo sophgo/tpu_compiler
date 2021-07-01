@@ -59,6 +59,16 @@ void CviBackendContext::read_cmdbuf(std::vector<uint8_t> &out_cmdbuf) {
   out_cmdbuf.assign(cmdbuf_.begin(), cmdbuf_.end());
 }
 
+void CviBackendContext::dmabuf_convert(std::vector<uint8_t> &dmabuf) {
+  uint32_t dmabuf_sz = 0;
+  uint32_t pmu_sz = 0;
+  cvk_ctx_->ops->dmabuf_size(cmdbuf_.data(), cmdbuf_.size(),
+                             &dmabuf_sz, &pmu_sz);
+  dmabuf.resize(dmabuf_sz);
+  cvk_ctx_->ops->dmabuf_convert(cmdbuf_.data(), cmdbuf_.size(),
+                                dmabuf.data());
+}
+
 void CviBackendContext::submit() {
   uint32_t size;
   uint8_t *cmdbuf = cvk_ctx_->ops->acquire_cmdbuf(cvk_ctx_, &size);
@@ -107,11 +117,18 @@ void cvi_backend_delete_context(CviBackendContext *ctx) {
   delete ctx;
 }
 
-void cvi_backend_submit(CviBackendContext *ctx) { ctx->submit(); }
+void cvi_backend_submit(CviBackendContext *ctx) {
+  ctx->submit();
+}
 
 void cvi_backend_get_cmdbuf(CviBackendContext *ctx,
                             std::vector<uint8_t> &cmdbuf) {
   ctx->read_cmdbuf(cmdbuf);
+}
+
+void cvi_backend_dmabuf_convert(CviBackendContext *ctx,
+                                std::vector<uint8_t> &dmabuf) {
+  ctx->dmabuf_convert(dmabuf);
 }
 
 void cvi_backend_parallel_enable(CviBackendContext *ctx) {
