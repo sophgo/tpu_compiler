@@ -31,6 +31,7 @@ TEST_ONNX_IR = [
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
     "FullyConnected",
+    "Gather",
     "GlobalMaxPool",
     "GRU",
     "GRUh", # test gru output Y_h
@@ -63,6 +64,7 @@ TEST_ONNX_IR = [
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
 NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Conv4Bit", "Transpose", "Sum"]
+NOT_SUPPORT_INT8_TEST_IR = ["Gather"]
 
 QUANT_BITWIDTH = {}
 
@@ -132,6 +134,7 @@ class ONNX_IR_TESTER(object):
             "Conv3d": self.test_Conv3d,
             "DepthToSpace": self.test_DepthToSpace,
             "FullyConnected": self.test_FullyConnected,
+            "Gather": self.test_Gather,
             "GlobalMaxPool": self.test_GlobalMaxPool,
             "GRU": self.test_GRU,
             "GRUh": self.test_GRUh,
@@ -216,6 +219,10 @@ class ONNX_IR_TESTER(object):
 
             tensors = self.mlir_model.get_all_tensor()
             if self.quant_mode == "int8":
+                for i in NOT_SUPPORT_INT8_TEST_IR:
+                    if i == model_name:
+                        print("{} not support bf16 test!".format(model_name))
+                        return
                 table_name = "{}_cali_table".format(model_name)
                 # gen cali table
                 make_test_calibration_table(tensors, table_name)
@@ -247,7 +254,11 @@ class ONNX_IR_TESTER(object):
 
                 # run cvi_model
                 output_tensor_npz = "{}_all_tensor_int8_cvi.npz".format(model_name)
-                input_i8 = int8_tensors['input_quant_i8'].astype(np.int8)
+                input_i8 = None
+                if 'input_quant_i8' in int8_tensors:
+                    input_i8 = int8_tensors['input_quant_i8'].astype(np.int8)
+                elif 'input_quant_u16' in int8_tensors:
+                    input_i8 = int8_tensors['input_quant_u16'].astype(np.uint16)
 
                 cvi_outs = cvimodel_inference(input_i8, cvimodel)
                 assert(len(cvi_outs) == num_outputs)
@@ -296,7 +307,13 @@ class ONNX_IR_TESTER(object):
 
                 # run cvi_model
                 output_tensor_npz = "{}_all_tensor_bf16_cvi.npz".format(model_name)
-                input_bf16 = fp32_to_bf16(tensors['input'])
+                input_bf16 = None
+                if 'input_quant_i16' in bf16_tensors:
+                    input_bf16 = tensors['input'].astype(np.int16)
+                elif 'input_quant_u16' in bf16_tensors:
+                    input_bf16 = tensors['input'].astype(np.uint16)
+                else:
+                    input_bf16 = tensors['input']
                 cvi_outs = cvimodel_inference(input_bf16, cvimodel)
                 assert(len(cvi_outs) == num_outputs)
                 for name in cvi_outs:
@@ -708,6 +725,48 @@ class ONNX_IR_TESTER(object):
         model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Gather(self):
+        test_case = 'Gather'
+        total_tokens = 60004
+        input_shape = [1, 13]
+        output_shape = [1, 13, 256]
+        input_data = np.random.randint(0, total_tokens, input_shape).astype(np.int64)
+        token_data = np.random.randn(total_tokens, 256).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.INT64, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        token_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['tokens'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=token_data.shape,
+                vals=token_data.flatten(),
+            ),
+        )
+
+        gather_node = helper.make_node(
+            'Gather',  # node name
+            ['tokens','input'],  # inputs
+            ['output'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [token_def, gather_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_FullyConnected(self):
@@ -2654,9 +2713,10 @@ if __name__ == "__main__":
         pass_list_bf16 = list()
 
         for i in TEST_ONNX_IR:
-            tester.test_function.get(i)()
-            pass_list_i8.append(i)
-            print("TEST {} Finish".format(i))
+            if i not in NOT_SUPPORT_INT8_TEST_IR:
+                tester.test_function.get(i)()
+                pass_list_i8.append(i)
+                print("TEST {} Finish".format(i))
 
         for i in TEST_ONNX_IR:
             if i not in NOT_SUPPORT_BF16_TEST_IR:
@@ -2666,7 +2726,8 @@ if __name__ == "__main__":
 
         print("INT8 {} PASS {}".format("="*4, "="*4))
         for i in pass_list_i8:
-            print("\t {}".format(i))
+            if i not in NOT_SUPPORT_INT8_TEST_IR:
+                print("\t {}".format(i))
 
         print("BF16 {} PASS {}".format("="*4, "="*4))
         for i in pass_list_bf16:

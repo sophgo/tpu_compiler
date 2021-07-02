@@ -80,6 +80,16 @@ static void quantizeFromFp32ToInt16(float *src, float *dst, int64_t size,
     dst[i] = (float)val;
   }
 }
+
+static void quantizeFromFp32ToUInt16(float *src, float *dst, int64_t size,
+                                     float scale) {
+  for (int64_t i = 0; i < size; ++i) {
+    int val = std::round(src[i] * scale);
+    val = std::max(0, std::min(val, 65535));
+    dst[i] = (float)val;
+  }
+}
+
 /// Dequant an Int8 Activation tensor to Bf16, given threshold
 /// Keep interpreter int8 quant align with TPU
 void dequantizeFromInt8ToBf16(float *src, float *dst, int64_t size, float scale,
@@ -171,6 +181,9 @@ void QuantOpKernel::invoke() {
                                      output_data->size(), scale);
   } else if (this->from == "NONE" && this->to == "INT16") {
     quantizeFromFp32ToInt16(input_data->data(), output_data->data(),
+                             input_data->size(), scale);
+  } else if (this->from == "NONE" && this->to == "UINT16") {
+    quantizeFromFp32ToUInt16(input_data->data(), output_data->data(),
                              input_data->size(), scale);
   } else {
     dump();

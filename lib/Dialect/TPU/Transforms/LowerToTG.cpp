@@ -3571,13 +3571,13 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
         setOpZeroPoint(prevOp, (int)quantOp.zero_point());
         rewriter.replaceOp(op, {op->getOperand(0)});
       } else if (quantOp.from() == "NONE" &&
-                 (quantOp.to() == "BF16" || quantOp.to() == "INT16")) {
+                 (quantOp.to() == "UINT16" || quantOp.to() == "INT16")) {
         auto argument = prevOp->getOperand(0);
-        if (quantOp.to() == "BF16") {
-          setOpResultType(argument, FloatType::getBF16(op->getContext()));
-          setOpResultType(prevOp->getResult(0), FloatType::getBF16(op->getContext()));
-          setOpResultType(op->getOperand(0), FloatType::getBF16(op->getContext()));
-          updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_bf16");
+        if (quantOp.to() == "UINT16") {
+          setOpResultType(argument, IntegerType::get(op->getContext(), 16, IntegerType::Unsigned));
+          setOpResultType(prevOp->getResult(0), IntegerType::get(op->getContext(), 16, IntegerType::Unsigned));
+          setOpResultType(op->getOperand(0), IntegerType::get(op->getContext(), 16, IntegerType::Unsigned));
+          updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_u16");
         } else {
           setOpResultType(argument, IntegerType::get(op->getContext(), 16, IntegerType::Signed));
           setOpResultType(prevOp->getResult(0), IntegerType::get(op->getContext(), 16, IntegerType::Signed));

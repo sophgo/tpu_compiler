@@ -127,7 +127,7 @@ static void insertQuantOp(Operation *op) {
 
   StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
   if (isa<tpu::EmbeddingOp>(op)) {
-    curr_quant = "INT16";
+    curr_quant = "UINT16";
   }
   for (unsigned i = 0; i < op->getNumOperands(); i++) {
     auto prev_op = op->getOperand(i).getDefiningOp();
@@ -196,6 +196,8 @@ static void insertQuantOp(Operation *op) {
       name = prev_name.str() + "_dequant";
     } else if (curr_quant == "INT16") {
       name = prev_name.str() + "_quant_i16";
+    } else if (curr_quant == "UINT16") {
+      name = prev_name.str() + "_quant_u16";
     }
     // check if prev op has inserted quant/dequant op
     auto opd = op->getOperand(i).getDefiningOp();

@@ -158,7 +158,6 @@ class OnnxConverter(BaseConverter):
             "Equal": lambda node: self.convert_equal_op(node),
             "Exp" :lambda node: self.convert_activation_op(node),
             "Expand": lambda node: self.convert_expand_op(node),
-            "Embedding": lambda node: self.convert_embedding_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
             "Gather": lambda node: self.convert_gather_op(node),
             "Gemm": lambda node: self.convert_gemm_op(node),
@@ -539,21 +538,6 @@ class OnnxConverter(BaseConverter):
                 ln_in.clear()
                 ln_out.clear()
         self.converted_nodes = [node for node in self.converted_nodes if node]
-
-        # reconstruct embedding op
-        # current just support padding_idx = 0
-        # num_embeddings, embedding_dim param derive form weight's shape
-        for i, node in enumerate(self.converted_nodes):
-            if node.op_type == "Gather" and node.inputs[0].endswith(".weight"):
-                info = {}
-                info["name"] = node.name
-                info["op_type"] = "Embedding"
-                info["attrs"] = node.attrs
-                info["inputs"] = node.inputs
-                info["outputs"] = node.outputs
-                embedding_node = BaseNode(info)
-                self.converted_nodes[i] = embedding_node
-                # break  # allways in encoder early phase
 
         i = 1
         while i < len(self.converted_nodes):
@@ -1036,12 +1020,7 @@ class OnnxConverter(BaseConverter):
         if len(onnx_node.inputs) == 1:
             # convert concat op to reshape op if has only one input
             op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
-            if tensor_type != TensorType.ACTIVATION:
-                raise RuntimeError("Tensor can not concat with activation")
-            operands = [op]
-            reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
-                                                  operands, input_shape)
-            self.addOperand(onnx_node.name, reshape_op, input_shape, TensorType.ACTIVATION)
+            self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
             return
 
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
@@ -1060,7 +1039,7 @@ class OnnxConverter(BaseConverter):
             for i in onnx_node.inputs:
                 data = self.getTensor(i).tensor_data
                 if len(data.shape) != max_dims:
-                    data = np.expand_dims(a, axis)
+                    data = np.expand_dims(data, axis)
                 arrays.append(data)
             n_t = np.concatenate(arrays, axis=axis)
             self.addTensor(onnx_node.name, n_t, list(n_t.shape))
@@ -1086,9 +1065,8 @@ class OnnxConverter(BaseConverter):
                     for dim, value in enumerate(op_shape):
                         if dim == axis:
                             output_shape[dim] += value
-                        else:
-                            if output_shape[dim] != value:
-                                raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(axis, output_shape, op_shape))
+                        elif output_shape[dim] != value:
+                            raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(axis, output_shape, op_shape))
 
             concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
             self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
@@ -1710,24 +1688,6 @@ class OnnxConverter(BaseConverter):
         else:
             raise RuntimeError("not implement yet")
 
-    def convert_embedding_op(self, onnx_node):
-        assert(onnx_node.op_type == "Embedding")
-
-        op, shape, _ = self.getOperand(onnx_node.inputs[1])
-        operands = list()
-        operands.append(op)
-        word_emb_name = onnx_node.inputs[0]
-        word_emb_tensor = self.getTensor(word_emb_name)
-        table_name = word_emb_name + onnx_node.name
-        self.addTensor(table_name, word_emb_tensor.tensor_data, word_emb_tensor.shape)
-        word_emb_op = self.CVI.add_load_file_op(table_name, word_emb_tensor.shape)
-        operands.append(word_emb_op)
-        num_embeddings, embedding_dim = word_emb_tensor.shape
-        output_shape = shape
-        output_shape.append(embedding_dim)
-        embedding_op = self.CVI.add_embedding_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-        self.addOperand(onnx_node.name, embedding_op, output_shape, TensorType.ACTIVATION)
-
     def convert_flatten_op(self, onnx_node):
         assert(onnx_node.op_type == "Flatten")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
@@ -1779,6 +1739,21 @@ class OnnxConverter(BaseConverter):
             else:
                 logger.warning("indices:", indices)
                 raise("TODO: Our Ir not support gather function")
+        elif tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.ACTIVATION:
+            op, shape, _ = self.getOperand(onnx_node.inputs[1])
+            operands = list()
+            operands.append(op)
+            word_emb_name = onnx_node.inputs[0]
+            word_emb_tensor = self.getTensor(word_emb_name)
+            table_name = word_emb_name + onnx_node.name
+            self.addTensor(table_name, word_emb_tensor.tensor_data, word_emb_tensor.shape)
+            word_emb_op = self.CVI.add_load_file_op(table_name, word_emb_tensor.shape)
+            operands.append(word_emb_op)
+            _, embedding_dim = word_emb_tensor.shape
+            output_shape = shape
+            output_shape.append(embedding_dim)
+            embedding_op = self.CVI.add_embedding_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, embedding_op, output_shape, TensorType.ACTIVATION)
         else:
             raise("TODO: Our Ir not support gather function")
 
