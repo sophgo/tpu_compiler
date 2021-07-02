@@ -133,7 +133,17 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping)
   this->from = quantOp.from().str();
   this->to = quantOp.to().str();
   auto prevOp = quantOp.getOperand().getDefiningOp(); // input
-  this->useTpuQuant = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
+  //this->useTpuQuant = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
+  if (isa<tpu::ReshapeOp>(prevOp)) {
+    auto pprevOp = cast<tpu::ReshapeOp>(prevOp).getOperand().getDefiningOp();
+    if (isa<tpu::InputOp>(pprevOp)) {
+      this->useTpuQuant = false;
+    } else {
+      this->useTpuQuant = clUseTPUQuantOp;
+    }
+  } else {
+    this->useTpuQuant = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
+  }
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
