@@ -126,7 +126,7 @@ class SimpleTuner:
         for i, image in enumerate(self.images):
             if is_npz(image):
                 x = np.load(image)
-                for k, v in data.items():
+                for k, v in x.items():
                     self.tuner.set_data(k, v, i)
             else:
                 x = preprocessor.run(image)
@@ -224,7 +224,7 @@ class ActivationCalibrator(BaseKldCalibrator):
                     x = np.load(image)
                     for k,v in x.items():
                         self.model.set_tensor(k, v)
-                        self.model.invoke()
+                    self.model.invoke()
                 else:
                     x = self.preprocessor.run(image)
                     self.model.run(x)
@@ -254,7 +254,7 @@ class ActivationCalibrator(BaseKldCalibrator):
 
             for op_name, activation in activations.items():
                 if op_name not in activations_statistics:
-                    minimum, maximum = 0, 0
+                    minimum, maximum = np.min(activation), np.max(activation)
                 else:
                     minimum, maximum, _ = activations_statistics[op_name]
                 min_value = min(np.min(activation), minimum)
@@ -267,9 +267,9 @@ class ActivationCalibrator(BaseKldCalibrator):
             _min, _max, _ = v
             if _max == 0:
                 # if network outputs are all zero, change it to 1e-5 for them.
-                activations_statistics[op_name] = (_min, 1e-5)
+                activations_statistics[k] = (-1e-5, 1e-5, 1e-5)
                 logger.warning("WARNING: layer {} is all zeros. Please check the "
-                               "input data correctness.".format(op_name))
+                               "input data correctness.".format(k))
         pbar.close()
         return activations_statistics
 

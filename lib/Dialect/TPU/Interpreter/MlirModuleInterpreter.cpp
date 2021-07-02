@@ -300,10 +300,12 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func) {
       llvm::errs() << "no support " << op->getName().getStringRef()
                   << " op in interpreter_v2\n";
     } else if (isa<tpu::ReshapeOp>(op)) {
-      activationMapping[name] = valueMapping[op->getOperand(0)];
-      valueMapping[op->getResult(0)] = valueMapping[op->getOperand(0)];
+      auto resTensor = valueMapping[op->getOperand(0)];
+      activationMapping[name] = resTensor;
+      valueMapping[op->getResult(0)] = resTensor;
       auto opd_name = getOpName(op->getOperand(0).getDefiningOp()).str();
-      kernel_map_[name] = kernel_map_[opd_name];
+      auto krnl = kernel_map_[opd_name];
+      kernel_map_[name] = krnl;
       return;
     } else {
       std::stringstream err_msg;
@@ -311,7 +313,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func) {
                   << " op in interpreter_v2\n";
       llvm_unreachable("TODO");
     }
-    activationMapping[name] = valueMapping[op->getResult(0)];
+    auto resTensor = valueMapping[op->getResult(0)];
+    activationMapping[name] = resTensor;
     kernel_map_[name] = krnl;
     kernel_list_.emplace_back(krnl);
   });
