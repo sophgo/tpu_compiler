@@ -342,6 +342,10 @@ public:
            (k_poss.size() == n_sizes.size()) &&
            (n_sizes.size() == k_sizes.size()));
 
+    // n_poss/k_poss/n_sizes/k_sizes were erased at first time.
+    if (!n_poss.size())
+      return failure();
+
     bool isBf16Flt = isBf16Tensor(fcOp.filter());
     int fltEltSize = getDataTypeSize(fcOp.filter());
     assert(fltEltSize == sizeof(DataType) && "Expect correct data type");
