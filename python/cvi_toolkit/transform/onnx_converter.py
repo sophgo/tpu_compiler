@@ -507,8 +507,12 @@ class OnnxConverter(BaseConverter):
                 elif node.op_type == "Add":
                     opd_b = self.getNode(node.inputs[1])
                     if not opd_b: # is weight tensor
-                        ln_in.append(node.inputs[1])
-                        ln_out.append(node.outputs[0])
+                        b_tensor = self.getTensor(node.inputs[1])
+                        if not b_tensor.shape:
+                            eps = b_tensor.tensor_data
+                        else:
+                            ln_in.append(node.inputs[1])
+                            ln_out.append(node.outputs[0])
                     elif opd_b.op_type == "Constant":
                         eps = numpy_helper.to_array(opd_b.attrs['value'])
             else:
@@ -1094,7 +1098,7 @@ class OnnxConverter(BaseConverter):
             'ins': [],
         }
         op, shape_, _ = self.getOperand(onnx_node.inputs[0])
-        shape = shape_[:];
+        shape = shape_[:]
         # convert conv1d to conv2d
         if len(shape) == 3:
             shape.insert(2,1)
@@ -3656,8 +3660,8 @@ class OnnxConverter(BaseConverter):
         self.addOperand(onnx_node.name, reduce_mean_op, output_shape, TensorType.ACTIVATION)
 
     def run(self):
+        self.convert_tensor()
         self.convert_node()
         self.refine_node()
-        self.convert_tensor()
         self.convert_graph()
         self.TensortoNpz()

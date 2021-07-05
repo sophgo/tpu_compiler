@@ -1064,12 +1064,6 @@ void TgSoftmaxKernel::selectSoftmaxMode(int64_t* shape) {
         h = shape[2];
         functionMode = Softmax2D;
     }
-    if (inner_size == 1) {
-        // strange model
-        // Because inner_size == 1, the probability is 100%(1)
-        fillOneAsGolden();
-        return;
-    }
 }
 
 void TgSoftmaxKernel::fillOneAsGolden() {
@@ -1086,12 +1080,19 @@ void TgSoftmaxKernel::fillOneAsGolden() {
 }
 
 void TgSoftmaxKernel::schedule() {
-    if(functionMode == Softmax4D) {
-        bf16_softmax_kernel_4d();
-    } else {
-        bf16_softmax_kernel_2d();
-    }
-    free_table();
+  if (inner_size == 1) {
+    // strange model
+    // Because inner_size == 1, the probability is 100%(1)
+    fillOneAsGolden();
+    return;
+  }
+  init_table();
+  if (functionMode == Softmax4D) {
+    bf16_softmax_kernel_4d();
+  } else {
+    bf16_softmax_kernel_2d();
+  }
+  free_table();
 }
 
 void TgSoftmaxKernel::exponential(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work) {
@@ -1129,7 +1130,6 @@ void TgSoftmaxKernel::init(uint32_t layer_id,
     this->fmt = CVK_FMT_BF16;
     this->fmt_size = ctx.bytesize_of_fmt(fmt);
     selectSoftmaxMode(shape);
-    init_table();
 }
 
 void TgSoftmaxKernel::init_table() {

@@ -58,6 +58,7 @@ TEST_ONNX_IR = [
     "Sigmoid",
     "Sub",
     "Sum",
+    "Softmax",
     "Tile",
 #    "Transpose",
 ]
@@ -159,6 +160,7 @@ class ONNX_IR_TESTER(object):
             "Sigmoid": self.test_Sigmoid,
             "Sub": self.test_Sub,
             "Sum": self.test_Sum,
+            "Softmax": self.test_Softmax,
             "Transpose": self.test_Transpose,
             "Tile": self.test_Tile,
             "ReduceMean": self.test_ReduceMean,
@@ -1466,7 +1468,7 @@ class ONNX_IR_TESTER(object):
         pads = np.array([0, 0, 1, 4, 0, 0, 2, 3]).astype(np.int64)  # pad order [x1_begin, x2_begin, ..., x1_end, x2_end, ...]
         #pads = np.array([0, 0, 1, 1, 0, 0, 1, 1]).astype(np.int64)  # pad order [x1_begin, x2_begin, ..., x1_end, x2_end, ...]
         for idx, p in enumerate(pads):
-            dim = idx % 4;
+            dim = idx % 4
             output_shape[dim] = int(output_shape[dim] + p)
 
         output = helper.make_tensor_value_info(
@@ -2402,6 +2404,40 @@ class ONNX_IR_TESTER(object):
 
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Softmax(self):
+        test_case = 'Softmax'
+        input_shape = [4, 1, 1]
+        output_shape = [4, 1, 1]
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+        softmax_def = helper.make_node(
+            'Softmax',
+            ['X1'],
+            ['output'],
+            axis = 2,
+        )
+        graph_def = helper.make_graph(
+            [x1_def, softmax_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        onnx.checker.check_model(model_def)
+
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                        input_shape[2]).astype(np.float32)
 
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)

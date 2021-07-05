@@ -1581,9 +1581,15 @@ Value tpu::PReluOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-static bool is_fmt_support(llvm::StringRef fmt_str) {
-  return (fmt_str == "INT8" || fmt_str == "NONE" || fmt_str == "UINT8" ||
-          fmt_str == "BF16" || fmt_str == "FP32");
+// cpu quant, only support fp32 <=> int8
+static bool quant_by_cpu(llvm::StringRef from, llvm::StringRef to) {
+  if ((from == "NONE" || from == "FP32") && to == "INT8") {
+    return true;
+  }
+  if (from == "INT8"  && (to == "NONE" || to == "FP32")) {
+    return true;
+  }
+  return false;
 }
 
 Value tpu::QuantOp::convertToTG() {
@@ -1596,9 +1602,7 @@ Value tpu::QuantOp::convertToTG() {
   operands.push_back(input());
 
   auto parentOp = this->getOperand().getDefiningOp();
-  if ((isa<tpu::InputOp>(parentOp) && from() != "UINT8") ||
-       false == is_fmt_support(from()) ||
-       false == is_fmt_support(to())) {
+  if (isa<tpu::InputOp>(parentOp) && quant_by_cpu(from(), to())) {
     std::vector<NamedAttribute> param;
     param.push_back(builder.getNamedAttr("from", fromAttr()));
     param.push_back(builder.getNamedAttr("to", toAttr()));
