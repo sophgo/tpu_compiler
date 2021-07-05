@@ -199,7 +199,7 @@ class TensorCompare():
         idx_t, target = tk1[i]
         idx_r, ref = tk2[i]
         print(" ", idx_t, target, idx_r, ref)
-    if (verbose > 2 and not result[0]):
+    if (verbose > 2 and not result[0] and details['diffs'] is not None):
       print("all-diffs:")
       print(" idx  target  ref")
       for i in details['diffs']:
@@ -208,8 +208,8 @@ class TensorCompare():
       print("all-elements:")
       print(" idx  target  ref")
       target, ref = details['all']
-      for i in range(len(target)):
-        print(" ", i, target[i], ref[i])
+      for index, val in np.ndenumerate(target):
+        print(" ", index, val, ref[index])
 
 
 class TensorCompareStats():
