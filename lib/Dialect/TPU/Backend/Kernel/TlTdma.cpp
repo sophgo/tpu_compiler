@@ -463,7 +463,7 @@ void cvi_backend_tl_store_fp32(const CviBackendContext &ctx,
   tl_src.stride = {stride.n, (uint32_t)EU_NUM, stride.h, stride.w};
 
   cvk_tg_shape_t tg_shape = {(uint32_t)n, (uint32_t)c, (uint32_t)h, (uint32_t) (2 * w)};
-  cvk_tg_t tg_dst;
+  cvk_tg_t tg_dst = {0};
   ctx.gmem_init_tensor(&tg_dst, tg_shape, fmt);
   tg_dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_dst);
   tg_dst.start_address = ga_dst;

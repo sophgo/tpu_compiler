@@ -169,13 +169,13 @@ static void storeOutput(const CviBackendContext &ctx, int oc, int od, int oh,
       oc * od * oh * ow * ds, od * oh * ow * ds, ow * ds, ds};
   uint32_t od_stride = oh * ow * ds;
 
-  cvk_tg_t gm_res;
+  cvk_tg_t gm_res = {0};
   ctx.gmem_init_tensor(&gm_res, tg_res_shape, fmt);
   gm_res.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_res);
   gm_res.start_address = ga_res + od_stride * odi;
   gm_res.stride = tg_stride;
 
-  cvk_tdma_l2g_tensor_copy_param_t param;
+  cvk_tdma_l2g_tensor_copy_param_t param = {0};
   memset(&param, 0, sizeof(param));
   param.src = tl_res;
   param.dst = &gm_res;

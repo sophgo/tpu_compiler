@@ -22,10 +22,17 @@
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 
 #define DEBUG_TYPE "native-cpu"
+using namespace mkldnn;
 
 //#define DUMP_FLAG
+static inline float BF16(float data) {
+  return convert_bf16_fp32(convert_fp32_bf16(data));
+}
 
-using namespace mkldnn;
+static inline float UINT8(float data) {
+  return static_cast<float>(convert_fp32_u8(data));
+}
+
 
 #ifdef DUMP_FLAG
 static size_t write_bianry_file(std::string filename, const char *data,
@@ -502,19 +509,6 @@ int mkldnn_ip(float *input, float *weight, float *bias,
   return 0;
 }
 
-// int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
-//   LLVM_DEBUG(
-//     llvm::errs() << "  n: " << n << ", c: " << c
-//                  << ", h: " << h << ", w: " << w << "\n";
-//   );
-
-//   for (int i = 0; i < n * c * h * w; ++i) {
-//     output[i] = exp(input[i]);
-//   }
-
-//   return 0;
-// }
-
 template <typename Dtype>
 inline Dtype sigmoid(Dtype x) {
   return 0.5 * tanh(0.5 * x) + 0.5;
@@ -650,9 +644,8 @@ void gen_bf16_table(int start, int end, int table_hw, float *table,
   }
 }
 
-void gen_bf16_slope_table(int start, int end, int table_hw,
-                                         float *table,
-                                         float *slope_table, double (*activate_func)(double)) {
+void gen_bf16_slope_table(int start, int end, int table_hw, float *table,
+                          float *slope_table, double (*activate_func)(double)) {
   // int range = abs(end - start);
   // float interval = (float)range / (float)table_hw;
   int half = table_hw / 2;
@@ -947,22 +940,15 @@ void bf16_lut_slope(float *input, float *output, int size,
 
   // interger index range
   // from 16(-8~8)->256(lut index size)
-  float scale = 256 / (bf16_table_end - bf16_table_start);
-
-  // rounding
-  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
+  float scale = BF16(256.0 / (bf16_table_end - bf16_table_start));
 
   for (int i = 0; i < size; ++i) {
-    float reOffset_input = convert_bf16_fp32(convert_fp32_bf16(input[i]));
-    float rescale_input =
-        convert_bf16_fp32(convert_fp32_bf16(reOffset_input)) * scale;
-    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
+    float rescale_bf16_input = BF16(BF16(input[i]) * scale);
     // get interger part
-    int rescale_input_i8 =
-        _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
-
+    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_bf16_input);
+    int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
     // get delta x (x - x0)
-    float delta_x = rescale_input - rescale_input_i8;
+    float delta_x = BF16(rescale_bf16_input - rescale_input_i8);
 
     // get slope
     auto slope = bf16_slope_lut[rescale_input_i8 & 0xff];
@@ -971,8 +957,36 @@ void bf16_lut_slope(float *input, float *output, int size,
     auto base = bf16_lut[rescale_input_i8 & 0xff];
 
     // result = y0 + delta * slope
-    float r = base + delta_x * slope;
-    output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
+    output[i] = BF16(base + delta_x * slope);
+  }
+}
+
+void bf16_lut_exp_slope(float *input, float *output, int size,
+                        const std::vector<float> &bf16_lut,
+                        const std::vector<float> &bf16_slope_lut,
+                        int bf16_table_start, int bf16_table_end) {
+
+  // interger index range
+  // from 16(-8~8)->256(lut index size)
+  float scale = BF16(256.0 / (bf16_table_end - bf16_table_start));
+  float offset = BF16((bf16_table_end + bf16_table_start) / 2);
+
+  for (int i = 0; i < size; ++i) {
+    float rescale_bf16_input = BF16(BF16(input[i] - offset) * scale);
+    // get interger part
+    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_bf16_input);
+    int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
+    // get delta x (x - x0)
+    float delta_x = BF16(rescale_bf16_input - rescale_input_i8);
+
+    // get slope
+    auto slope = bf16_slope_lut[rescale_input_i8 & 0xff];
+
+    // base y0 = f(x0)
+    auto base = bf16_lut[rescale_input_i8 & 0xff];
+
+    // result = y0 + delta * slope
+    output[i] = BF16(base + delta_x * slope);
   }
 }
 
@@ -1050,85 +1064,6 @@ int my_lut_interpolation(float *input, float *output, int n, int c, int h, int w
 
   return 0;
 }
-// \y0_bf16_slope_table and \y0_bf16_table occupy sizeof(float) and its content quanted as bf16 layout
-static void hw_lut(float *input, float *output,
-    int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table,
-    double (*activate_func)(double)) {
-  int shape_size =  n * c * h * w;
-
-  float scale = 256 / (BF16_TABLE_END - BF16_TABLE_START); // quant from interger index range from 16(-8~8)->256(lut index size)
-
-  // rounding
-  scale = convert_bf16_fp32(convert_fp32_bf16(scale));
-  //std::for_each(std::execution::par, input.begin(), input.end(), [&](const size_t& i) {
-  for (int i = 0; i < shape_size; ++i) {
-    float reOffset_input = convert_bf16_fp32(convert_fp32_bf16(input[i]));
-
-    float rescale_input = convert_bf16_fp32(convert_fp32_bf16(reOffset_input)) * scale;
-    //float rescale_input = convert_bf16_fp32(convert_fp32_bf16(input[i])) * scale;
-    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_input);
-
-    // get interger part to get table index and x0
-    int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
-
-    // get delta x (x - x0)
-    float delta_x = rescale_input - rescale_input_i8;
-
-    // get slope
-    uint16_t slope = y0_bf16_slope_table[rescale_input_i8 & 0xff];
-
-    // base y0 = f(x0)
-    uint16_t base = y0_bf16_table[rescale_input_i8 & 0xff];
-
-    // result = y0 + delta * slope
-    float r = convert_bf16_fp32(base) + delta_x * convert_bf16_fp32(slope);
-
-    output[i] = convert_bf16_fp32(convert_fp32_bf16(r));
-  }
-
-  //});
-}
-
-int my_tanh(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16) {
-  if (!is_bf16) {
-    // fp32
-    int shape_size =  n * c * h * w;
-    for (int i = 0; i < shape_size; ++i) {
-      output[i] = std::tanh(input[i]);
-    }
-  }
-  else {
-    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, std::tanh);
-  }
-  return 0;
-}
-
-int my_sigmoid(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16) {
-  LLVM_DEBUG(llvm::errs() << "  n: " << n << ", c: " << c << ", h: " << h
-                          << ", w: " << w << "\n";);
-
-  if (!is_bf16) {
-    int shape_size =  n * c * h * w;
-    for (int i = 0; i < shape_size; ++i) {
-      output[i] = sigmoid(input[i]);
-    }
-  }
-  else {
-    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, sigmoid);
-  }
-
-  return 0;
-}
-
-int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
-  double (*activate_func)(double);
-  activate_func = sigmoid;
-  my_lut_interpolation(input, output, n, c, h, w, is_bf16, activate_func, BF16_TABLE_START, BF16_TABLE_END, false);
-  return 0;
-}
 
 int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
   double (*activate_func)(double);
@@ -1139,20 +1074,6 @@ int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16
   return 0;
 }
 
-int my_exp(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16) {
-  if (!is_bf16) {
-    // fp32
-    int shape_size =  n * c * h * w;
-    for (int i = 0; i < shape_size; ++i) {
-      output[i] = exp(input[i]);
-    }
-  }
-  else {
-    hw_lut(input, output, n, c, h, w, y0_bf16_table, y0_bf16_slope_table, exp);
-  }
-  return 0;
-}
 int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool is_bf16) {
   const int expStart = -62;
   const int expEnd = 63;
@@ -1452,146 +1373,6 @@ int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
   return 0;
 }
 
-int my_softmax2D(float *input, float *output, int n, int c, bool is_bf16) {
-#ifdef DUMP_FLAG
-  static int dump_idx = 0;
-  std::string prefix = std::string("softmax") + std::to_string(dump_idx);
-  if (dump_idx == 0) {
-    write_bianry_file(prefix + std::string("_in.bin"),
-        (const char *)input, n * c * sizeof(float));
-  }
-#endif // DUMP_FLAG
-
-  // find max and subtract the max to avoid numerical issues
-  // float max_input = input[0];
-  float *max_input = (float *)malloc(n * sizeof(float));
-  float *ex = (float *)malloc(n * c * sizeof(float));
-  float *tmp = (float *)malloc(n * c * sizeof(float));
-  //init
-  for (int index = 0; index < n; index++)
-      max_input[index] = std::numeric_limits<float>::lowest();
-
-  for (int ni = 0; ni < n; ++ni) {
-    // find out max value
-    for (int ci = 0; ci < c; ++ci) {
-      int i = ni * c + ci;
-      if (input[i] > max_input[ni])
-        max_input[ni] = input[i];
-    }
-
-    // sub max value
-    for (int ci = 0; ci < c; ++ci) {
-      int i = ni * c + ci;
-      tmp[i] = input[i] - max_input[ni];
-    }
-  }
-
-  // do exp
-  my_exp(tmp, ex, n, c, 1, 1, is_bf16);
-
-
-  for (int ni = 0; ni < n; ++ni) {
-    float sum_of_ex = 0.0f;
-    for (int ci = 0; ci < c; ++ci) {
-      int i = ni * c + ci;
-      sum_of_ex += ex[i];
-    }
-    float reciprocalValue;
-    my_reciprocal(&sum_of_ex, &reciprocalValue, 1, 1, 1, 1, is_bf16);
-    for (int ci = 0; ci < c; ++ci) {
-      int i = ni * c + ci;
-      output[i] = ex[i] * reciprocalValue;
-    }
-  }
-  free(ex);
-  free(tmp);
-  free(max_input);
-#ifdef DUMP_FLAG
-  if (dump_idx == 0) {
-    write_bianry_file(prefix + std::string("_out.bin"),
-        (const char *)output, n * c * sizeof(float));
-  }
-  dump_idx ++;
-#endif // DUMP_FLAG
-  return 0;
-}
-
-
-int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16) {
-  int iter = 0;
-  // Only support axis == 1 so far, which means calculate softmax along C
-  assert(axis == 1);
-  for (int N = 0; N < shape[0]; ++N) {
-    for (int H = 0; H < shape[2]; ++H) {
-      for (int W = 0; W < shape[3]; ++W) {
-
-        // find max and subtract the max to avoid numerical issues
-        float max_val = std::numeric_limits<float>::lowest();
-        for (int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3])
-            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
-
-          max_val = std::max(input[iter], max_val);
-        }
-
-        // find softmax divisor
-        std::vector<float> ex(shape[1]);
-        std::vector<float> tmp(shape[1]);
-
-        for(int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3])
-            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
-          tmp[C] = input[iter] - max_val;
-        }
-        // do exp
-        my_exp(tmp.data(), ex.data(), 1, shape[1], 1, 1, is_bf16);
-        float sum_of_ex = 0.0f;
-        for (int C = 0; C < shape[1]; ++C) {
-          sum_of_ex += ex[C];
-        }
-        float reciprocalValue;
-        my_reciprocal(&sum_of_ex, &reciprocalValue, 1, 1, 1, 1, is_bf16);
-
-        // calculate softmax
-        for (int C = 0; C < shape[1]; ++C) {
-          iter = (N * shape[1] * shape[2] * shape[3])
-            + (C * shape[2] * shape[3]) + (H * shape[3]) + W;
-
-          output[iter] = ex[C] * reciprocalValue;
-        }
-      }
-    }
-  }
-  return 0;
-}
-
-int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16) {
-  assert(shape.size() == 3);
-  int c = shape[0];
-  int h = shape[1];
-  int w = shape[2];
-  //just for axis = 2 now
-  assert(axis == 2);
-
-  auto tmp_resultT = std::make_unique<std::vector<float> >(w);
-  float *tmp = (float *)tmp_resultT.get()->data();
-
-  for(int ci = 0; ci < c; ci++) {
-    for(int hi = 0; hi < h; hi++) {
-      for(int wi = 0; wi < w; wi++) {
-        tmp[wi] = input[ci * w * h + hi * w + wi];
-      }
-
-      int ret = my_softmax2D(tmp, tmp, 1, w, is_bf16);
-      assert(ret == 0);
-      for(int wi = 0; wi < w; wi++) {
-        output[ci * w * h + hi * w + wi] = tmp[wi];
-      }
-    }  //end for hi
-  } //end for ci
-  return 0;
-}
-
 float softplus_activate(float x, float threshold) {
   if (x > threshold)
     return x; // too large
@@ -1666,34 +1447,6 @@ void my_dilateActivation (float* input, float* output,
       }
     }
   }
-}
-
-int my_tanh(float *input, float *output,
-    int n, int c, int h, int w) {
-#ifdef DUMP_FLAG
-  static int dump_idx = 0;
-  std::string prefix = std::string("tanh") + std::to_string(dump_idx);
-  if (dump_idx < 4) {
-    write_bianry_file(prefix + std::string("_in.bin"),
-        (const char *)input, n * c * h * w * sizeof(float));
-  }
-#endif // DUMP_FLAG
-  LLVM_DEBUG(
-    llvm::errs() << "  n: " << n << ", c: " << c
-                 << ", h: " << h << ", w: " << w << "\n";
-  );
-
-  for (int i = 0; i < n * c * h * w; ++i) {
-    output[i] = tanh(input[i]);
-  }
-#ifdef DUMP_FLAG
-  if (dump_idx < 4) {
-    write_bianry_file(prefix + std::string("_out.bin"),
-        (const char *)output, n * c * h * w * sizeof(float));
-  }
-  dump_idx ++;
-#endif // DUMP_FLAG
-  return 0;
 }
 
 int my_interptile(float *input, float *output, int n, int c, int h, int w,
@@ -2264,14 +2017,6 @@ int my_reduce_max(float *input, float *output,
     }
   }
   return 0;
-}
-
-static inline float BF16(float data) {
-  return convert_bf16_fp32(convert_fp32_bf16(data));
-}
-
-static inline float UINT8(float data) {
-  return static_cast<float>(convert_fp32_u8(data));
 }
 
 static inline int align_up(int x, int n) {

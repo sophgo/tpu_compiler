@@ -37,13 +37,8 @@ int my_avg_pooling(float *input, float *output, int n, int c, int ih, int iw,
 int my_lut_interpolation(float *input, float *output, int n, int c, int h, int w,
                          bool is_bf16, double (*activate_func)(double),
                          float thresh_min, float thresh_max, bool isExpFunc);
-int my_sigmoid(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
 int my_exp(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
-int my_exp(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16 = false);
 int my_reciprocal(float *input, float *output, int n, int c, int h, int w, bool is_bf16 = false);
-int my_sigmoid(float *input, float *output, int n, int c, int h, int w,
-    float* y0_bf16_table, float* y0_bf16_slope_table, bool is_bf16 = false);
 int my_crop(float *input, float *output, long int *input_shape, long int *output_shape,  int cur_dim, int *offsets, int *indices);
 
 int calc_dilute_hw (int h, int ins_h, int ins_h_l, int pad_h_b, int pad_h_t);
@@ -89,14 +84,6 @@ int my_div(float *input, float *output, int in, int ic,
 
 int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
                 int scale_h, int scale_w);
-
-int my_softmax2D(float *input, float *output, int n, int c, bool is_bf16);
-int my_softmax4D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16);
-int my_softmax3D(float *input, float *output, int axis, const std::vector<int64_t>& shape, bool is_bf16);
-int my_tanh(float *input, float *output, int n, int c, int h, int w,
-    float* y0_table, float* slope_table, bool is_bf16);
-int my_tanh(float *input, float *output,
-    int n, int c, int h, int w);
 
 int my_permute(float *input, float *output, int in, int ic, int ih, int iw,
                int order0, int order1, int order2, int order3);
@@ -198,4 +185,8 @@ void bf16_lut_slope(float *input, float *output, int size,
                     const std::vector<float> &bf16_lut,
                     const std::vector<float> &bf16_slope_lut,
                     int bf16_table_start, int bf16_table_end);
+void bf16_lut_exp_slope(float *input, float *output, int size,
+                        const std::vector<float> &bf16_lut,
+                        const std::vector<float> &bf16_slope_lut,
+                        int bf16_table_start, int bf16_table_end);
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

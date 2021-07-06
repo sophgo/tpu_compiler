@@ -177,7 +177,7 @@ static void storeOutput(
   tl_output.stride.h = llvm::alignTo(tl_output.stride.h, EU_NUM);
 
   cvk_tg_shape_t tg_output_shape = ctx.tg_shape_t4(1, ic, od, oh * ow);
-  cvk_tg_t tg_output;
+  cvk_tg_t tg_output = {0};
   ctx.gmem_init_tensor(&tg_output, tg_output_shape, fmt);
   tg_output.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
   tg_output.start_address = ga_output;

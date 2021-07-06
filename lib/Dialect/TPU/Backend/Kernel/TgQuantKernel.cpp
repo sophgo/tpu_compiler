@@ -271,7 +271,7 @@ void TgQuantKernel::store(int32_t step_idx, int32_t flip) {
   tl_ofmap.shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w * store_unit);
   tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, tl_ofmap.fmt, 1);
 
-  cvk_tg_t dst = {};
+  cvk_tg_t dst = {0};
   dst.start_address = ga_output + tile.offset * to_byte / 2;
   dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
   dst.fmt = (store_unit == 2 ? CVK_FMT_BF16 : to);
@@ -296,7 +296,7 @@ void TgQuantKernel::storeTensorStrided(int32_t step_idx, int32_t flip) {
   uint32_t ga_offset = tile.pos_n * tg_stride.n + tile.pos_c * tg_stride.c +
                        tile.pos_h * tg_stride.h;
 
-  cvk_tg_t dst = {};
+  cvk_tg_t dst = {0};
   dst.start_address = ga_output + ga_offset;
   dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
   dst.fmt = dst_fmt;

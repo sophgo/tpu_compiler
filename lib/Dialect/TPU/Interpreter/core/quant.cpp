@@ -5,7 +5,11 @@
 
 #include <cmath>
 
-extern llvm::cl::opt<bool> clUseTPUQuantOp;
+llvm::cl::opt<bool>
+    clUseTPUQuantOp("use-tpu-quant-op",
+                llvm::cl::desc("Quant op inference by tpu instead of cpu"),
+                llvm::cl::init(true));
+
 static inline signed char tpu_float2int8(float v, int mode = 0) {
 
   int int32 = 0;

@@ -61,15 +61,19 @@ void LayerNormOpKernel::normalize_fp32(float *src, float *dst, int size) {
 }
 
 void LayerNormOpKernel::normalize_bf16(float *src, float *dst, int size) {
-  float sum = BF16(std::accumulate(src, src + size, 0.0f));
-  float mean = BF16(sum / size);
+  float mean = 0.0f;
   float var = 0;
   float data;
+  float avg_const = BF16(1.0 / size);
+  for (int i = 0; i < size; i++) {
+    mean += src[i] * avg_const;
+  }
+  mean = BF16(mean);
   for (int i = 0; i < size; i++) {
     data = BF16(src[i] - mean);
-    var += std::pow(data, 2);
+    var += BF16(std::pow(data, 2)) * avg_const;
   }
-  var = BF16(var / size) + BF16(eps);
+  var = BF16(BF16(var) + BF16(eps));
   bf16_lut_mantissa(&var, &var, 1, *lut, *mantissa_lut);
   for (int i = 0; i < size; i++) {
     data = BF16(src[i] - mean);

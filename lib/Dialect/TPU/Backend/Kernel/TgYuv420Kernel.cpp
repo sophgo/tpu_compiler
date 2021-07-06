@@ -203,7 +203,7 @@ void TgYuv420Kernel::load_u8_to_bf16(cvk_tl_t *dst, uint64_t src_gaddr,
 void TgYuv420Kernel::store_bf16_to_u8(cvk_tl_t *src, uint64_t dst_gaddr,
                                       cvk_tg_stride_t stride) {
 
-  cvk_tg_t dst;
+  cvk_tg_t dst = {0};
   dst.start_address = dst_gaddr;
   dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
   dst.int8_rnd_mode = 0;

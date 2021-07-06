@@ -125,7 +125,7 @@ void TgReQuantKernel::store(int32_t step_idx, int32_t flip) {
   tl_ofmap.shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, tl_ofmap.fmt, 1);
 
-  cvk_tg_t dst;
+  cvk_tg_t dst = {0};
   dst.start_address = ga_output + tile.offset * 1 / 2;
   dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(dst.start_address);
   dst.fmt = CVK_FMT_I8;

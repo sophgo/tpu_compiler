@@ -906,14 +906,14 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias, int64_t oc,
 }
 
 static inline signed char float2int8(float v, int mode = 0) {
-  if (mode == 0) {
-    int int32 = std::round(v);
+  if (mode == 1) { // round to zero
+    int int32 = (int)v; //std::round(v);
     if (int32 > 127)
       return 127;
     if (int32 < -128)
       return -128;
     return (signed char)int32;
-  } else {
+  } else { // round to nearest even
     int int32 = 0;
     float fraction, integer;
     float abs_v = std::abs(v);
@@ -966,7 +966,7 @@ void quantizeActivationFromFp32ToInt8(float *output, float *input, int64_t size,
       f_tmp = f_tmp + zero_point;
       bf_tmp = FloatToBFloat16(f_tmp);
       f_tmp = BFloat16ToFloat(bf_tmp);
-      output[i] = (float)float2int8(f_tmp, 1);
+      output[i] = (float)float2int8(f_tmp, 0);
     }
   } else {
     for (int64_t i = 0; i < size; ++i) {
@@ -1062,12 +1062,12 @@ void quantizeActivationFromBf16ToInt8(float *output, float *input, int64_t size,
   scale = BFloat16ToFloat(bf_scale);
 #pragma omp parallel for schedule(static, omp_schedule(size))
   for (int64_t i = 0; i < size; ++i) {
-    auto bf_input = FloatToBFloat16(input[i]);
-    auto f_input = BFloat16ToFloat(bf_input);
-    float f_tmp = f_input * scale;
+    // auto bf_input = FloatToBFloat16(input[i]);
+    // auto f_input = BFloat16ToFloat(bf_input);
+    float f_tmp = input[i] * scale;
     bf_tmp = FloatToBFloat16(f_tmp);
     f_tmp = BFloat16ToFloat(bf_tmp);
-    output[i] = (float)float2int8(f_tmp, 1);
+    output[i] = (float)float2int8(f_tmp, 0);
   }
 }
 

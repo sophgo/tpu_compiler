@@ -43,11 +43,6 @@
 
 #define DEBUG_TYPE "convert_to_tg"
 
-llvm::cl::opt<bool>
-    clUseTPUQuantOp("use-tpu-quant-op",
-                llvm::cl::desc("Quant op inference by tpu instead of cpu"),
-                llvm::cl::init(true));
-
 llvm::cl::opt<bool> clDequantResultsToFp32(
     "dequant-results-to-fp32",
     llvm::cl::desc("Dequant all outputs of network from int8 to fp32"),
