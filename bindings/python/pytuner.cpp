@@ -79,7 +79,7 @@ public:
 
   void load(const std::string &mlir_file);
   void quantize(const std::string &calib_table, const std::string &mix_table);
-  void buildInterpreter();
+  void buildInterpreter(std::string &target_op);
   void setData(const std::string &name, np_data_t &array, int bidx);
   void setData(np_data_t &array, int bidx);
   void invokeTo(std::string &name);
@@ -181,13 +181,15 @@ static int omp_schedule(int count) {
   return (count + omp_get_num_threads() - 1) / omp_get_num_threads();
 }
 
-void PyTuner::buildInterpreter() {
+void PyTuner::buildInterpreter(std::string &target_op) {
   // Timer timer;
   MlirModuleInterpreter::updateWeightMap(module_);
+  // timer.stopAndPrint("update weight list");
+  // timer.restart();
 
   #pragma omp parallel for schedule(static, omp_schedule(batch))
   for (int i = 0; i < batch; i++) {
-    interpreters[i]->loadModule(module_);
+    interpreters[i]->loadModule(module_, target_op);
   }
   // timer.stopAndPrint("update kernel list");
 }
@@ -305,7 +307,8 @@ PYBIND11_MODULE(pytuner, m) {
       .def("quantize", &PyTuner::quantize, py::arg("calib_table"),
            py::arg("mix_table") = "",
            "quantization with calib_table and mix_table")
-      .def("build", &PyTuner::buildInterpreter)
+      .def("build", &PyTuner::buildInterpreter, py::arg("target_op") = "",
+           "rebuild interpreter to target layer if set")
       .def("op_info", &PyTuner::getOpInfo)
       .def("set_data", py::overload_cast<np_data_t&, int>(&PyTuner::setData))
       .def("set_data", py::overload_cast<const std::string&, np_data_t&, int>(&PyTuner::setData))

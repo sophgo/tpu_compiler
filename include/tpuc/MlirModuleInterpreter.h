@@ -36,7 +36,7 @@ public:
   MlirModuleInterpreter() {}
   ~MlirModuleInterpreter() {}
 
-  void loadModule(OwningModuleRef &module_op);
+  void loadModule(OwningModuleRef &module_op, std::string &target_op);
   void invokeTo(std::string name);
   void setTensor(std::string &name, const std::vector<float> &data);
   std::shared_ptr<std::vector<float>> getTensor(std::string &name);
@@ -48,7 +48,7 @@ public:
   }
 
 private:
-  void updateKernelList(FuncOp &op);
+  void updateKernelList(FuncOp &op, std::string &target_op);
   bool isKernelDirty(std::shared_ptr<CPUOpKernel> &krnl,
                      Operation *op);
 

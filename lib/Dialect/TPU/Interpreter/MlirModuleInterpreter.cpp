@@ -63,13 +63,13 @@
 namespace mlir {
 
 
-void MlirModuleInterpreter::loadModule(OwningModuleRef &module_op) {
+void MlirModuleInterpreter::loadModule(OwningModuleRef &module_op, std::string &target_op) {
   for (auto func : module_op->getOps<FuncOp>()) {
     MInfo Machineinfo;
     if (func->getAttr("chipname")) {
       Machineinfo.getChipInfo(func);
     }
-    updateKernelList(func);
+    updateKernelList(func, target_op);
     break;
   }
 }
@@ -107,10 +107,14 @@ bool MlirModuleInterpreter::isKernelDirty(std::shared_ptr<CPUOpKernel> &krnl,
   return dirty;
 }
 
-void MlirModuleInterpreter::updateKernelList(FuncOp &func) {
+void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_op) {
   kernel_list_.clear();
   valueMapping.clear();
+  bool completed = false;
   func.walk([&](Operation *op) {
+    if (completed) {
+      return;
+    }
     if (isa<tpu::WeightFileOp>(op) ||
         isa<tpu::NoneOp>(op)) {
       return;
@@ -123,16 +127,21 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func) {
       llvm::errs() << "no support " << op->getName().getStringRef()
                   << " op in interpreter_v2\n";
       return;
-    } else if (isa<tpu::LoadWeightOp>(op)) {
-      auto result = op->getResult(0);
-      auto name = getOpName(op).str();
-      valueMapping[result] = weightMapping[name];
-      return;
     } else if (op->getName().getDialect()->getNamespace() != "tpu") {
       return;
     }
 
     auto name = getOpName(op).str();
+    if (!target_op.empty() && target_op == name) {
+      completed = true;
+    }
+
+    if (isa<tpu::LoadWeightOp>(op)) {
+      auto result = op->getResult(0);
+      valueMapping[result] = weightMapping[name];
+      return;
+    }
+
     auto it = kernel_map_.find(name);
     if (it != kernel_map_.end()) {
       auto &krnl = it->second;

@@ -161,7 +161,7 @@ class SimpleTuner:
                 self.threshold_table.update_to(tmp_table, op_name, threshold)
                 self.tuner.load(self.fp32_mlir)
                 self.tuner.quantize(tmp_table)
-                self.tuner.build()
+                self.tuner.build(op_name)
                 self.tuner.invoke(op_name)
                 data_type = self.tuner.get_tensor_type(op_name)
                 distance = 0
@@ -265,7 +265,7 @@ class ActivationCalibrator(BaseKldCalibrator):
         # check max is zero
         for k, v in activations_statistics.items():
             _min, _max, _ = v
-            if _max == 0:
+            if _abs == 0:
                 # if network outputs are all zero, change it to 1e-5 for them.
                 activations_statistics[k] = (-1e-5, 1e-5, 1e-5)
                 logger.warning("WARNING: layer {} is all zeros. Please check the "
