@@ -1576,12 +1576,12 @@ Value tpu::PReluOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-// cpu quant, only support fp32 <=> int8
+// cpu quant, only support fp32 <=> (int8/bf16)
 static bool quant_by_cpu(llvm::StringRef from, llvm::StringRef to) {
-  if ((from == "NONE" || from == "FP32") && to == "INT8") {
+  if ((from == "NONE" || from == "FP32") && (to == "INT8" || to == "BF16")) {
     return true;
   }
-  if (from == "INT8"  && (to == "NONE" || to == "FP32")) {
+  if ((from == "INT8" || from == "BF16") && (to == "NONE" || to == "FP32")) {
     return true;
   }
   return false;

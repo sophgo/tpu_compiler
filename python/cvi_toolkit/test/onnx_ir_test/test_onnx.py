@@ -65,7 +65,7 @@ TEST_ONNX_IR = [
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
 NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Conv4Bit", "Transpose", "Sum"]
-NOT_SUPPORT_INT8_TEST_IR = ["Gather"]
+NOT_SUPPORT_INT8_TEST_IR = ["Gather", "Softmax"] # just for save test time
 
 QUANT_BITWIDTH = {}
 
@@ -182,7 +182,6 @@ class ONNX_IR_TESTER(object):
         self.converter.run()
         del self.converter
         gc.collect()
-
 
         onnx_outs = onnx_inference(input_data, model_def, model_name, input_cb)
         num_outputs = len(onnx_outs)
@@ -2410,35 +2409,43 @@ class ONNX_IR_TESTER(object):
 
     def test_Softmax(self):
         test_case = 'Softmax'
-        input_shape = [4, 1, 1]
-        output_shape = [4, 1, 1]
-        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-        x1_def = helper.make_node(
+        input_shape = [4, 64, 128, 1]
+        output_shape = list(input_shape)
+        neg_def = helper.make_node(
             'Neg',  # node name
             ['input'],  # inputs
-            ['X1'],  # outputs
+            ['X0'],  # outputs
         )
-        softmax_def = helper.make_node(
+        x1_def = helper.make_node(
             'Softmax',
+            ['X0'],
             ['X1'],
-            ['output'],
-            axis = 2,
+            axis=2,
         )
+        x2_def = helper.make_node(
+            'Softmax',
+            ['X0'],
+            ['X2'],
+            axis=3,
+        )
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        X1 = helper.make_tensor_value_info(
+            'X1', TensorProto.FLOAT, output_shape)
+        X2 = helper.make_tensor_value_info(
+            'X2', TensorProto.FLOAT, output_shape)
         graph_def = helper.make_graph(
-            [x1_def, softmax_def],
+            [neg_def, x1_def, x2_def],
             test_case,
             [input],
-            [output],
+            [X1, X2],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
-
         input_data = np.random.rand(input_shape[0], input_shape[1],
-                        input_shape[2]).astype(np.float32)
-
+                                    input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 

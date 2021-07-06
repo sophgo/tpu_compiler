@@ -3044,25 +3044,13 @@ class OnnxConverter(BaseConverter):
         else:
             operands = [op]
             axis = onnx_node.attrs.get('axis', -1)
-            if axis == -1:
-                axis = len(input_shape) - 1
-                for i in range(len(output_shape)):
-                    if output_shape[axis] == 1:
-                        axis = axis -1
+            if axis < 0:
+                axis += len(input_shape)
             softmax_param = {
                 'axis': axis,
             }
-            name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-            if axis == 3:
-                n, c, h, w = input_shape
-                shape_ = (n * c * h, w)
-                reshape_op_0 = self.CVI.add_reshape_op(name + "_reshape_0", [op], shape_)
-                softmax_op = self.CVI.add_softmax_op(name + "_2d", [reshape_op_0], shape_, axis=1)
-                reshape_op_1 = self.CVI.add_reshape_op(name, [softmax_op], output_shape)
-                self.addOperand(onnx_node.name, reshape_op_1, output_shape, TensorType.ACTIVATION)
-            else:
-                softmax_op = self.CVI.add_softmax_op(name, operands, output_shape, **softmax_param)
-                self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
+            softmax_op = self.CVI.add_softmax_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **softmax_param)
+            self.addOperand(onnx_node.name, softmax_op, output_shape, TensorType.ACTIVATION)
 
     def convert_skip_op(self, onnx_node):
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])

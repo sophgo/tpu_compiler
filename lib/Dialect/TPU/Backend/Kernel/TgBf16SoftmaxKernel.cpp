@@ -11,6 +11,7 @@
 #include <llvm/Support/raw_ostream.h>
 #include <iostream>
 #include <cmath>
+#include <numeric>
 #include "backend/backend_tl_api.h"
 #include "TgBf16SoftmaxKernel.hpp"
 
@@ -1032,51 +1033,44 @@ void TgSoftmaxKernel::max_per_lane_value(cvk_tl_t *tl_in, cvk_tl_t *tl_out) {
                     tl_out->shape.c, tl_out->shape.h, tl_out->shape.w, tl_in->shape.h, tl_in->shape.w, 1, 1););
 }
 
-void TgSoftmaxKernel::selectSoftmaxMode(int64_t* shape) {
-    if (dimension == 2) {
-        outer_size = shape[0];
-        inner_size = shape[1];
-        n = shape[0];
-        c = shape[1];
-        functionMode = Softmax2D;
-    } else if (dimension == 4) {
-        assert(axis == 1 && "Support only axis = 1 (Align c)");
-        n = shape[0];
-        c = shape[1];
-        h = shape[2];
-        w = shape[3];
-        if(shape[2] * shape[3] == 1) {
-            outer_size = shape[0]; //n
-            inner_size = shape[1]; //c
-            functionMode = Softmax2D;
-        } else {
-            // batchStep = shape[0];
-            outer_size = shape[0] * shape[2] * shape[3]; //n
-            inner_size = shape[1]; //c
-            functionMode = Softmax4D;
-        }
-    } else if (dimension == 3) {
-        assert(axis == 2 && "Support only axis = 2");
-        outer_size = shape[0] * shape[1]; //c * h
-        inner_size = shape[2]; //w
-        n = shape[0];
-        c = shape[1];
-        h = shape[2];
-        functionMode = Softmax2D;
-    }
+void TgSoftmaxKernel::selectSoftmaxMode(int64_t *shape) {
+  n = std::accumulate(shape, shape + axis, 1, std::multiplies<int64_t>());
+  int end = 1;
+  if (axis + 1 < dimension) {
+    end = std::accumulate(shape + axis + 1, shape + dimension, 1,
+                          std::multiplies<int64_t>());
+  }
+  c = shape[axis];
+  inner_size = c;
+  axis = 1;
+  if (end == 1) {
+    functionMode = Softmax2D;
+    outer_size = n;
+    h = 1;
+    w = 1;
+  } else {
+    functionMode = Softmax4D;
+    outer_size = n * end;
+    h = shape[axis + 1];
+    w = end / h;
+  }
 }
 
 void TgSoftmaxKernel::fillOneAsGolden() {
-    cvk_tdma_l2g_tensor_fill_constant_param_t p = {0};
-    cvk_tg_t dst;
-    dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
-    dst.start_address = ga_output;
-    dst.fmt = fmt;
-    dst.shape = ctx.tg_shape_t4(1, 1, 1, outer_size);
-    dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
-    p.constant = ctx.convert_fp32_to_bf16(1.0f);
-    p.dst = &dst;
-    ctx.tdma_l2g_tensor_fill_constant(&p);
+  cvk_tdma_l2g_tensor_fill_constant_param_t p = {0};
+  cvk_tg_t dst;
+  dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
+  dst.start_address = ga_output;
+  dst.fmt = fmt;
+  if (w == 1) {
+    dst.shape = ctx.tg_shape_t4(1, n, c, h);
+  } else {
+    dst.shape = ctx.tg_shape_t4(n, c, h, w);
+  }
+  dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
+  p.constant = ctx.convert_fp32_to_bf16(1.0f);
+  p.dst = &dst;
+  ctx.tdma_l2g_tensor_fill_constant(&p);
 }
 
 void TgSoftmaxKernel::schedule() {
