@@ -171,6 +171,11 @@ struct TgSliceAddressPattern : public RewritePattern {
 
     if (opd->getAttr("buffer_reused")) {
       castOp->setAttr("buffer_reused", rewriter.getBoolAttr(true));
+    } else if (isa<tpu::ReshapeOp>(opd)) {
+      opd = opd->getOperand(0).getDefiningOp();
+      if (opd->getAttr("buffer_reused")) {
+        castOp->setAttr("buffer_reused", rewriter.getBoolAttr(true));
+      }
     }
     return success();
   }
