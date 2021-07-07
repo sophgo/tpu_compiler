@@ -81,6 +81,15 @@ void TgPermuteKernel::convert_order() {
     update_order(2, 1, 0, 3);
     return;
   }
+  if (is_order(2, 0, 1, 3)) {
+    if (n * c > h) {
+      update_NCHW(1, n * c, h, w);
+    } else {
+      update_NCHW(n * c, h, 1, w);
+    }
+    update_order(2, 1, 0, 3);
+    return;
+  }
   if (order[3] == 3 || w == 1) {
     // xxx3 use tdma directly
     by_tdma = true;
