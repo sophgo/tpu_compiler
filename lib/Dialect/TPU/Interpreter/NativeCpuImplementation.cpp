@@ -941,34 +941,6 @@ void bf16_lut_slope(float *input, float *output, int size,
   // interger index range
   // from 16(-8~8)->256(lut index size)
   float scale = BF16(256.0 / (bf16_table_end - bf16_table_start));
-
-  for (int i = 0; i < size; ++i) {
-    float rescale_bf16_input = BF16(BF16(input[i]) * scale);
-    // get interger part
-    uint16_t rescale_input_bf16 = convert_fp32_bf16(rescale_bf16_input);
-    int rescale_input_i8 = _convert_bf16_s8(rescale_input_bf16, /*int8_rnd_mode=*/1);
-    // get delta x (x - x0)
-    float delta_x = BF16(rescale_bf16_input - rescale_input_i8);
-
-    // get slope
-    auto slope = bf16_slope_lut[rescale_input_i8 & 0xff];
-
-    // base y0 = f(x0)
-    auto base = bf16_lut[rescale_input_i8 & 0xff];
-
-    // result = y0 + delta * slope
-    output[i] = BF16(base + delta_x * slope);
-  }
-}
-
-void bf16_lut_exp_slope(float *input, float *output, int size,
-                        const std::vector<float> &bf16_lut,
-                        const std::vector<float> &bf16_slope_lut,
-                        int bf16_table_start, int bf16_table_end) {
-
-  // interger index range
-  // from 16(-8~8)->256(lut index size)
-  float scale = BF16(256.0 / (bf16_table_end - bf16_table_start));
   float offset = BF16((bf16_table_end + bf16_table_start) / 2);
 
   for (int i = 0; i < size; ++i) {

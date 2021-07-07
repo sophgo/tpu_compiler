@@ -264,7 +264,7 @@ class ActivationCalibrator(BaseKldCalibrator):
 
         # check max is zero
         for k, v in activations_statistics.items():
-            _min, _max, _ = v
+            _min, _max, _abs = v
             if _abs == 0:
                 # if network outputs are all zero, change it to 1e-5 for them.
                 activations_statistics[k] = (-1e-5, 1e-5, 1e-5)

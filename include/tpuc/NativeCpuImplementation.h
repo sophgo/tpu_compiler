@@ -185,8 +185,4 @@ void bf16_lut_slope(float *input, float *output, int size,
                     const std::vector<float> &bf16_lut,
                     const std::vector<float> &bf16_slope_lut,
                     int bf16_table_start, int bf16_table_end);
-void bf16_lut_exp_slope(float *input, float *output, int size,
-                        const std::vector<float> &bf16_lut,
-                        const std::vector<float> &bf16_slope_lut,
-                        int bf16_table_start, int bf16_table_end);
 #endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_

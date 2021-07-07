@@ -52,9 +52,9 @@ void ExpOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_exp_slope(input_data->data(), output_data->data(), output_data->size(),
-                       *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
-                       bf16_max_range);
+    bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
+                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
+                   bf16_max_range);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {

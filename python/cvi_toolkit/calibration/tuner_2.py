@@ -156,7 +156,7 @@ class AutoTuner(object):
         for idx, image in enumerate(self.images):
             if is_npz(image):
                 x = np.load(image)
-                for k, v in data.items():
+                for k, v in x.items():
                     self.tuner.set_data(k, v, idx)
             else:
                 x = self.preprocess_func(image)
