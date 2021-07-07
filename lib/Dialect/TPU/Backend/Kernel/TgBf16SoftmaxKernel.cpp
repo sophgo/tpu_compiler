@@ -56,7 +56,7 @@ unsigned int TgSoftmaxKernel::doSplitHeightBf16softmax2DParallelInnerSize() {
                             "         tableSize 0x%lx, enlargeInputSize 0x%lx, maxValue_shape 0x%lx parallel_input_shape 0x%lx,\n", tableSize
                             , enlargeInputSize, maxValueSize, parallelInputSize
                            ));
-        if(requiredSize < LOCAL_MEM_SIZE) {
+        if(requiredSize <= LOCAL_MEM_SIZE) {
             break;
         } else {
             tiledOuterSize--;
@@ -93,7 +93,7 @@ unsigned int TgSoftmaxKernel::doSplitHeightBf16softmax2DParallelOuterSize() {
                             "         tableSize 0x%lx, inputSize 0x%lx, maxValueSize 0x%lx parallel_input_shape 0x%lx,\n", tableSize
                             , inputSize, maxValueSize, parallelInputSize
                            ));
-        if(requiredSize < LOCAL_MEM_SIZE) {
+        if(requiredSize <= LOCAL_MEM_SIZE) {
             break;
         } else {
             tiledOuterSize--;
@@ -715,188 +715,127 @@ void TgSoftmaxKernel::bf16_softmax_kernel_2d() {
     }
 }
 
+// (1,c,h*w,1), do h tiling
 int TgSoftmaxKernel::doSplitHeightBf16softmax4D() {
-    //Default tileN, do not split C/W
-    uint8_t eu_align = 1; // hardware constrainst
-    int tileH = h;
+  uint32_t tableSize = ctx.lmem_tensor_to_size(table_shape, fmt, 1) * 4;
+  int step_h = std::min(h, MAX_CHANNEL / w);
+  for (; step_h > 0; step_h--) {
+    auto shape0 = ctx.tl_shape_t4(c, step_h * w, 1, 1); // for input/output
+    uint32_t size0 = ctx.lmem_tensor_to_size(shape0, fmt, 1);
 
-    int tableSize = ctx.lmem_tensor_to_size(table_shape, fmt, eu_align) * 4;
+    auto shape1 = ctx.tl_shape_t4(1, step_h * w, 1, c); // for transpose
+    uint32_t size1 = ctx.lmem_tensor_to_size(shape1, fmt, 1) * 4;
 
-    while(true) {
-        if(tileH * w > 4095 - 32) {
-            tileH--;
-            continue;
-        }
-        cvk_tl_shape_t input_shape = ctx.tl_shape_t4(c,tileH * w,1,1);
-        int inputSize = ctx.lmem_tensor_to_size(input_shape, fmt, eu_align);
-        cvk_tl_shape_t input_transposed_shape = ctx.tl_shape_t4(1,tileH * w,1,c);
-        int inputTransposedSize = ctx.lmem_tensor_to_size(input_transposed_shape, fmt, eu_align) * 5;
-        //transposedInput + lutWorking*2 + lutResult * 2
+    auto shape2 = ctx.tl_shape_t4(1, step_h * w, 1, 1);
+    uint32_t size2 = ctx.lmem_tensor_to_size(shape2, fmt, 1) * 2;
 
-        cvk_tl_shape_t maxValue_shape = ctx.tl_shape_t4(1,tileH * w,1,1);
-        int maxValueSize = ctx.lmem_tensor_to_size(maxValue_shape, fmt, eu_align);
-        int requiredSize = tableSize + inputSize + inputTransposedSize + maxValueSize;
-        if(requiredSize < LOCAL_MEM_SIZE) {
-            break;
-        } else {
-            tileH--;
-        }
+    uint32_t required = size0 + size1 + size2 + tableSize;
+    if (required <= (uint32_t)LOCAL_MEM_SIZE) {
+      break;
     }
-    ASSERT(tileH && "Can't fit the constraint!");
-    return tileH;
+  }
+  ASSERT(step_h && "Can't fit the constraint!");
+  return step_h;
 }
 
 void TgSoftmaxKernel::bf16_softmax_kernel_4d() {
-    int tileH = doSplitHeightBf16softmax4D();
-    uint8_t eu_align = 1; // hardware constrainst
+  int step_h = doSplitHeightBf16softmax4D();
+  int num_step = ceiling_func(h, step_h);
+  auto gstride = ctx.tg_default_stride(ctx.tg_shape_t4(c, h * w, 1, 1), fmt);
 
-    int hStep = ceiling_func(h, tileH);
-    for(int hStepCounter = 0; hStepCounter < hStep; hStepCounter++) {
-        int h_pos = hStepCounter * tileH;
-        int tileHeightSize = std::min(h - h_pos, tileH);
-        //Allocate input
-        cvk_tl_shape_t input_shape = ctx.tl_shape_t4(c,tileHeightSize * w,1,1);
-        cvk_tl_t *tl_input =
-            ctx.lmem_alloc_tensor(input_shape, fmt, eu_align);
-        ASSERT(tl_input);
+  for (int step = 0; step < num_step; step++) {
+    int pos_h = step * step_h;
+    int tile_h = std::min(h - pos_h, step_h) * w;
 
-        cvk_tl_shape_t input_transposed_shape = ctx.tl_shape_t4(1,tileHeightSize * w,1,c);
-        //Allocate transpose input
-        cvk_tl_t *tl_transpose_input =
-            ctx.lmem_alloc_tensor(input_transposed_shape, fmt, eu_align);
-        ASSERT(tl_transpose_input);
+    auto shape0 = ctx.tl_shape_t4(c, tile_h, 1, 1);
+    auto tl_origin = ctx.lmem_alloc_tensor(shape0, fmt, 1);
+    ASSERT(tl_origin);
 
-        for(int i = 0; i < n; i++) {
-            //load input
-            gaddr_t inputAddr = ga_input + i * h * w * c * sizeof(uint16_t) + h_pos * w * sizeof(uint16_t);
-            cvk_tg_stride_t ifmap_gstride = ctx.tg_default_stride({(uint32_t)c,(uint32_t) h * w, 1, 1}, fmt);
-            // original shape
-            // ctx.tdma_load(tl_input, inputAddr);
-            ctx.tdma_load_stride(tl_input, inputAddr, ifmap_gstride);
+    auto shape1 = ctx.tl_shape_t4(1, tile_h, 1, c);
+    auto tl_trans = ctx.lmem_alloc_tensor(shape1, fmt, 1);
+    ASSERT(tl_trans);
+    auto tl_lut = ctx.lmem_alloc_tensor(shape1, fmt, 1);
+    ASSERT(tl_lut);
 
-            cvk_tl_t tl_dst;
-            tl_dst.start_address = tl_transpose_input->start_address;  // start of lmem
-            tl_dst.fmt = tl_input->fmt;
-            tl_dst.shape = tl_input->shape;
-            int bytesize = tl_input->stride.w;
-            int cStride = align_up(c * bytesize, EU_NUM);
-            tl_dst.stride = {(uint32_t)bytesize, (uint32_t)cStride, (uint32_t)bytesize, (uint32_t)bytesize};
+    auto shape2 = ctx.tl_shape_t4(1, tile_h, 1, 1);
+    auto tl_max = ctx.lmem_alloc_tensor(shape2, fmt, 1);
+    ASSERT(tl_max);
+    auto tl_reciprocal = ctx.lmem_alloc_tensor(shape2, fmt, 1);
+    ASSERT(tl_reciprocal);
 
-            cvk_tiu_copy_param_t p2 = {0};
-            p2.src = tl_input;
-            p2.dst = &tl_dst;
-            p2.layer_id = layer_id;
+    auto shape3 = ctx.tl_shape_t4(2, tile_h, 1, c);
+    auto tl_working = ctx.lmem_alloc_tensor(shape3, fmt, 1);
+    ASSERT(tl_working);
 
-            LLVM_DEBUG(llvm::dbgs() << llvm::format(
-                            "        L2L Reshape:\n"
-                            "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
-                            "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
-                            p2.src->start_address, p2.src->shape.n,
-                            p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
-                            p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
-                            p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
-                            p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-            ctx.tiu_copy(&p2);
+    for (int n_idx = 0; n_idx < n; n_idx++) {
+      int goffset = (n_idx * c * h + pos_h) * w * gstride.w;
+      ctx.tdma_load_stride(tl_origin, ga_input + goffset, gstride);
 
-            cvk_tl_shape_t maxValue_shape = ctx.tl_shape_t4(1,tileHeightSize * w,1,1);
-            cvk_tl_t *tl_maxValue =
-                ctx.lmem_alloc_tensor(maxValue_shape, fmt, eu_align);
-            ASSERT(tl_maxValue);
+      cvk_tl_t tl_dst = *tl_trans;
+      tl_dst.shape = tl_origin->shape;
+      std::swap(tl_dst.stride.n, tl_dst.stride.w);
 
-            max_per_lane_value(tl_transpose_input, tl_maxValue);
+      cvk_tiu_copy_param_t p2 = {0};
+      p2.src = tl_origin;
+      p2.dst = &tl_dst;
+      p2.layer_id = layer_id;
+      ctx.tiu_copy(&p2);
 
-            //Input = Input - maxOfInput
-            every_input_operate_one_specific_data(tl_transpose_input, tl_maxValue, Sub, true);
+      max_per_lane_value(tl_trans, tl_max);
 
-            cvk_tl_shape_t lut_working_shape = ctx.tl_shape_t4(2,tileHeightSize * w,1,c);
-            cvk_tl_t *tl_lut_working =
-                ctx.lmem_alloc_tensor(lut_working_shape, fmt, eu_align);
-            ASSERT(tl_lut_working);
+      // Input = Input - maxOfInput
+      every_input_operate_one_specific_data(tl_trans, tl_max, Sub, true);
 
-            cvk_tl_t *tl_lut_result =
-                ctx.lmem_alloc_tensor(input_transposed_shape, fmt, eu_align);
-            ASSERT(tl_lut_result);
-            //lut exponential
-            //tl_lut_result = exp(tl_input)
-            exponential(tl_transpose_input, tl_lut_result, tl_lut_working);
+      // lut exponential
+      // tl_lut = exp(tl_origin)
+      exponential(tl_trans, tl_lut, tl_working);
 
-            accumulate_per_lane_value(tl_lut_result, tl_maxValue);
+      accumulate_per_lane_value(tl_lut, tl_max);
 
-            cvk_tl_t *tl_lut_reciprocal_result =
-                ctx.lmem_alloc_tensor(input_transposed_shape, fmt, eu_align);
-            ASSERT(tl_lut_reciprocal_result);
-            //Lut reciprocal value
-            reciprocal(tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+      // Lut reciprocal value
+      reciprocal(tl_max, tl_reciprocal, tl_working);
 
-            //ans = exp(input - maxInput) *  reciprocal value
-            //Every c multiply its reciprocal value
-            {
-                cvk_tl_t tl_reshape_reciprocal_value;
-                tl_reshape_reciprocal_value.start_address = tl_lut_reciprocal_result->start_address;  // start of lmem
-                tl_reshape_reciprocal_value.fmt = fmt;
-                tl_reshape_reciprocal_value.shape = tl_lut_result->shape;
-                tl_reshape_reciprocal_value.stride = ctx.tl_default_stride(tl_reshape_reciprocal_value.shape, fmt, /*eu_align=*/1);
-                tl_reshape_reciprocal_value.stride.w = 0;//w stride =0
+      // ans = exp(input - maxInput) *  reciprocal value
+      // Every c multiply its reciprocal value
+      {
+        cvk_tl_t tl_bcast = *tl_reciprocal;
+        tl_bcast.shape.w = tl_lut->shape.w;
+        tl_bcast.stride.w = 0;
 
-                cvk_tiu_mul_param_t p = {0};
-                p.res_high = nullptr;
-                p.res_low = tl_lut_result;
-                p.a = tl_lut_result;
-                p.b = &tl_reshape_reciprocal_value;
-                p.b_is_const = 0;
-                p.rshift_bits = 0;
-                p.layer_id = layer_id;
-                p.relu_enable = false;
-                ctx.tiu_mul(&p);
-            }
+        cvk_tiu_mul_param_t p = {0};
+        p.res_high = nullptr;
+        p.res_low = tl_lut;
+        p.a = tl_lut;
+        p.b = &tl_bcast;
+        p.b_is_const = 0;
+        p.rshift_bits = 0;
+        p.layer_id = layer_id;
+        p.relu_enable = false;
+        ctx.tiu_mul(&p);
+      }
 
-            {
-                // (1, h*w, 1, c) -> (c, h*w, 1, 1)
-                cvk_tl_t tl_dst;
-                tl_dst.start_address = tl_input->start_address;  // start of lmem
-                tl_dst.fmt = tl_lut_result->fmt;
-                tl_dst.shape = tl_lut_result->shape;
-                int bytesize = tl_lut_result->stride.w;
-                tl_dst.stride = {
-                    (uint32_t)bytesize,
-                    (uint32_t)tl_input->stride.c,
-                    (uint32_t)bytesize,
-                    (uint32_t)tl_input->stride.n
-                };
+      {
+        // (1, h*w, 1, c) -> (c, h*w, 1, 1)
+        cvk_tl_t tl_dst = *tl_origin;
+        tl_dst.shape = tl_lut->shape;
+        std::swap(tl_dst.stride.n, tl_dst.stride.w);
 
-                cvk_tiu_copy_param_t p2 = {0};
-                p2.src = tl_lut_result;
-                p2.dst = &tl_dst;
-                p2.layer_id = layer_id;
-
-                LLVM_DEBUG(llvm::dbgs() << llvm::format(
-                                "        L2L Reshape:\n"
-                                "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
-                                "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
-                                p2.src->start_address, p2.src->shape.n,
-                                p2.src->shape.c, p2.src->shape.h, p2.src->shape.w, p2.src->stride.n,
-                                p2.src->stride.c, p2.src->stride.h, p2.src->stride.w, p2.dst->start_address,
-                                p2.dst->shape.n, p2.dst->shape.c, p2.dst->shape.h, p2.dst->shape.w,
-                                p2.dst->stride.n, p2.dst->stride.c, p2.dst->stride.h, p2.dst->stride.w));
-                ctx.tiu_copy(&p2);
-
-                cvk_tl_t *selected_tl_output = tl_input;
-                //store
-                // gaddr_t outputAddr = ga_output + i * h * w * c * sizeof(uint16_t);
-                gaddr_t outputAddr = ga_output + i * h * w * c * sizeof(uint16_t) + h_pos * w * sizeof(uint16_t);
-                cvk_tg_stride_t ofmap_gstride = ctx.tg_default_stride({(uint32_t)c, (uint32_t)h * w, 1, 1}, fmt);
-                // // original shape
-                ctx.tdma_store_stride(selected_tl_output, outputAddr, ofmap_gstride);
-                // ctx.tdma_store(selected_tl_output, outputAddr);
-            }
-            ctx.lmem_free_tensor(tl_lut_reciprocal_result);
-            ctx.lmem_free_tensor(tl_lut_result);
-            ctx.lmem_free_tensor(tl_lut_working);
-            ctx.lmem_free_tensor(tl_maxValue);
-        }
-        ctx.lmem_free_tensor(tl_transpose_input);
-        ctx.lmem_free_tensor(tl_input);
+        cvk_tiu_copy_param_t p2 = {0};
+        p2.src = tl_lut;
+        p2.dst = &tl_dst;
+        p2.layer_id = layer_id;
+        ctx.tiu_copy(&p2);
+      }
+      // store
+      ctx.tdma_store_stride(tl_origin, ga_output + goffset, gstride);
     }
+    ctx.lmem_free_tensor(tl_working);
+    ctx.lmem_free_tensor(tl_reciprocal);
+    ctx.lmem_free_tensor(tl_max);
+    ctx.lmem_free_tensor(tl_lut);
+    ctx.lmem_free_tensor(tl_trans);
+    ctx.lmem_free_tensor(tl_origin);
+  }
 }
 
 void TgSoftmaxKernel::accumulate_per_lane_value(cvk_tl_t *tl_in, cvk_tl_t *tl_out) {
@@ -1042,7 +981,6 @@ void TgSoftmaxKernel::selectSoftmaxMode(int64_t *shape) {
   }
   c = shape[axis];
   inner_size = c;
-  axis = 1;
   if (end == 1) {
     functionMode = Softmax2D;
     outer_size = n;
