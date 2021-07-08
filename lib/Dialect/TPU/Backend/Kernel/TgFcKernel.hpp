@@ -21,9 +21,10 @@ public:
 
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
             gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
-            bool do_bias, bool do_relu, int rshift_width, int multiplier,
-            int batch_high, int batch_low, bool lstride, bool rstride,
-            bool ostride, std::vector<int> compressed_pos, cvk_fmt_t fmt);
+            bool do_bias, bool do_relu, std::vector<int> *rshift_width,
+            std::vector<int> *multiplier, int batch_high, int batch_low,
+            bool lstride, bool rstride, bool ostride,
+            std::vector<int> compressed_pos, cvk_fmt_t fmt);
 
   void selectTilePolicy();
   void schedule();
@@ -48,7 +49,16 @@ protected:
   } lmem_size_t;
   lmem_size_t get_lmem_size() const;
   uint32_t total_lmem_size() const;
-  void update_gaddr(uint32_t high_idx, uint32_t low_idx);
+  void update_batch_info(int high_idx, int low_idx);
+
+  bool try_tiling_group_parallel();
+  bool try_no_tiling();
+  bool try_tiling_parallel();
+  bool try_tiling_no_parallel();
+  void tiling_generic();
+  void schedule_parallel();
+  void schedule_group_parallel();
+  void schedule_no_parallel();
 
 protected:
   const CviBackendContext &ctx;
@@ -57,7 +67,7 @@ protected:
   gaddr_t ga_bias;
   gaddr_t ga_output;
 
-  gaddr_t ga_i, ga_w, ga_o; // for origin addr
+  gaddr_t ga_i, ga_w, ga_o, ga_b; // for origin addr
 
   uint32_t M;
   uint32_t K;
@@ -65,8 +75,10 @@ protected:
 
   bool do_bias;
   bool do_relu;
-  int rshift_width;
-  int multiplier;
+  std::vector<int> rshift;
+  std::vector<int> multiplier;
+  int cur_rshift;
+  int cur_multiplier;
   std::vector<int> compressed_pos;
   cvk_fmt_t fmt;
   int fmt_size;
@@ -77,8 +89,9 @@ protected:
   cvk_ml_t tl_B;
   cvk_ml_t tl_R;
 
-  uint32_t batch_high;
-  uint32_t batch_low;
+  int batch_high;
+  int batch_low;
+  int batch; // high * low
   bool lstride;
   bool rstride;
   bool ostride;
@@ -87,10 +100,12 @@ protected:
   cvk_mg_stride_t output_gstride;
 
   bool do_parallel;
+  uint32_t maxM, maxK, maxN;
   uint32_t TOTAL_EU;
   uint32_t tile_M;
   uint32_t tile_K;
   uint32_t tile_N;
+  int compress_offset; // for batch compress pos
   typedef struct TileInfo {
     uint32_t pos_m;
     uint32_t pos_k;
@@ -101,9 +116,19 @@ protected:
     int RB_idx;
     int L_idx;
     int Y_idx;
+    int batch_high;
+    int batch_low;
     int compress_idx; // compress pos
   } tile_info_t;
   std::vector<tile_info_t> tiles;
+  typedef enum {
+    FC_NO_TILING,
+    FC_GROUP_PARALLEL,
+    FC_PARALLEL,
+    FC_NO_PARALLEL,
+  } fc_mode_t;
+  fc_mode_t mode;
+  bool group_parallel;
   int total_steps;
   std::vector<uint32_t> Y_laddr; // [M, tile_N]
   uint32_t L_laddr[2];           // [M, tile_K]

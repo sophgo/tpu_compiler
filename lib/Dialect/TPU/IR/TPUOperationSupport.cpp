@@ -691,34 +691,34 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
   count_include_pad = p.count_include_pad().getValue();
 }
 
-void parseFullyConnectedParam(
-    Value input, Value output, Value filter,
-    int &m, int &k, int &n) {
-  auto input_type = input.getType().template cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
+// [4, 3, 28] dot [4,5,28] => [4,3,5] : batch = 4, m = 3, k = 28, n = 5
+// [4, 3, 28] dot [5,28]   => [4,3,5] : batch = 1, m = 12, k = 28, n = 5
+void parseFullyConnectedParam(Value lhs, Value rhs, Value output, int &batch,
+                              int &m, int &k, int &n) {
+  auto lhs_type = lhs.getType().template cast<TensorType>();
+  std::vector<int64_t> a_s(lhs_type.getShape());
+  auto rhs_type = rhs.getType().cast<TensorType>();
+  std::vector<int64_t> b_s(rhs_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = filter.getType().cast<TensorType>();
-  std::vector<int64_t> f_s(filter_type.getShape());
-  int64_t axis = o_s.size() - 1;
-  m = 1;
-  for (int i = 0; i < axis; i++) {
-    assert((i_s[i] == o_s[i]) && "input M not equal to output M");
-    m *= i_s[i];
+  size_t o_dim = o_s.size();
+  size_t b_dim = b_s.size();
+  assert(b_dim >= 2);
+  k = b_s[b_dim - 1];
+  n = b_s[b_dim - 2];
+  batch = std::accumulate(b_s.data(), b_s.data() + b_dim - 2, 1,
+                          std::multiplies<int64_t>());
+  if (batch > 1) {
+    m = a_s[o_dim - 2];
+  } else {
+    m = std::accumulate(a_s.data(), a_s.data() + o_dim - 1, 1,
+                        std::multiplies<int64_t>());
   }
-  k = 1;
-  for (uint32_t i = axis; i < i_s.size(); i++) {
-    k *= i_s[i];
-  }
-  // assuming transpose is false
-  assert((k == f_s[1]) && "input K not equal to filter K");
-  assert((f_s[0] == o_s[axis]) && "filter N not equal to output N");
-  n = o_s[axis];
 }
 
 void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
-                      int &n, int &batch_high, int &batch_low,
-                      bool left_trans, bool right_trans,bool output_trans) {
+                      int &n, int &batch_high, int &batch_low, bool left_trans,
+                      bool right_trans, bool output_trans) {
   auto lhs_type = lhs.getType().template cast<TensorType>();
   std::vector<int64_t> a_s(lhs_type.getShape());
   auto rhs_type = rhs.getType().cast<TensorType>();
