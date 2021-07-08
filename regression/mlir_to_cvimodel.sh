@@ -8,6 +8,7 @@ function usage() {
   echo -e "\t-i input_mlir_file (required)"
   echo -e "\t-o output_cvimodel (required)"
   echo -e "\t--dequant-results-to-fp32=true|false (option, default: true)"
+  echo -e "\t--expose-bf16-inputs=true|false (option, default: false)"
   echo -e "\t--compress-weight=true|false (option, default: true)"
   echo -e "\t--append-weight=true|false (option, default: false)"
   echo -e "\t--compress-instruction=true|false (option, default: false)"
@@ -18,8 +19,9 @@ LONG0=dequant-results-to-fp32:
 LONG1=compress-weight:
 LONG2=append-weight:
 LONG3=compress-instruction:
+LONG4=expose-bf16-inputs:
 
-OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --name "$0" -- "$@")
+OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --long $LONG4 --name "$0" -- "$@")
 if [ $? != 0 ]; then
   echo "Failed to parse options...."
   exit 1
@@ -42,6 +44,10 @@ while true; do
       ;;
     --dequant-results-to-fp32 )
       dequant_to_fp32="$2"
+      shift 2
+      ;;
+    --expose-bf16-inputs )
+      expose_bf16_inputs="$2"
       shift 2
       ;;
     --compress-weight )
@@ -78,6 +84,9 @@ fi
 if [ x"$dequant_to_fp32" == x ]; then
   dequant_to_fp32=true
 fi
+if [ x"$expose_bf16_inputs" == x ]; then
+  expose_bf16_inputs=false
+fi
 if [ x"$compress_weight" == x ]; then
   compress_weight=true
 fi
@@ -103,6 +112,7 @@ set -x
 tpuc-opt $mlir_file \
     --tpu-lower \
     --dequant-results-to-fp32=$dequant_to_fp32 \
+    --expose-bf16-inputs=$expose_bf16_inputs \
     --reorder-op \
     --eltwise-early-stride \
     --tg-fuse-leakyrelu \

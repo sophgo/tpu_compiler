@@ -48,9 +48,9 @@ llvm::cl::opt<bool> clDequantResultsToFp32(
     llvm::cl::desc("Dequant all outputs of network from int8 to fp32"),
     llvm::cl::init(true));
 
-llvm::cl::opt<bool> clQuantInputsToInt8(
-    "quant-inputs-to-int8",
-    llvm::cl::desc("Quant all inputs of network from fp32 to int8"),
+llvm::cl::opt<bool> clExposeBf16Inputs(
+    "expose-bf16-inputs",
+    llvm::cl::desc("expose bf16 inputs without quantied from fp32"),
     llvm::cl::init(false));
 
 namespace mlir {
@@ -3555,8 +3555,7 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
         setOpResultType(op->getOperand(0), FloatType::getBF16(op->getContext()));
         quantOp->setAttr("from", rewriter.getStringAttr("BF16"));
       } else if (quantOp.from() == "NONE" &&
-          (quantOp.to() == "INT8" || quantOp.to() == "UINT8") &&
-          !clQuantInputsToInt8) {
+                 (quantOp.to() == "INT8" || quantOp.to() == "UINT8")) {
         // remove quantOp and change argType
         // and inputOp's type to int8
         auto argument = prevOp->getOperand(0);
@@ -3583,6 +3582,16 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
           setOpResultType(op->getOperand(0), IntegerType::get(op->getContext(), 16, IntegerType::Signed));
           updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_i16");
         }
+        setOpThreshold(prevOp, 1.0);
+        setOpZeroPoint(prevOp, 0);
+        rewriter.replaceOp(op, {op->getOperand(0)});
+      } else if (quantOp.from() == "NONE" && quantOp.to() == "BF16" &&
+                 clExposeBf16Inputs) {
+        auto argument = prevOp->getOperand(0);
+        setOpResultType(argument, FloatType::getBF16(op->getContext()));
+        setOpResultType(prevOp->getResult(0), FloatType::getBF16(op->getContext()));
+        setOpResultType(op->getOperand(0), FloatType::getBF16(op->getContext()));
+        updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_bf16");
         setOpThreshold(prevOp, 1.0);
         setOpZeroPoint(prevOp, 0);
         rewriter.replaceOp(op, {op->getOperand(0)});

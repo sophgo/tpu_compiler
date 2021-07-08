@@ -74,12 +74,15 @@ def mlir_add_preprocess(quanted_mlir, new_mlir, pixel_format, aligned_input=Fals
 
 def mlir_to_cvimodel(quanted_model, cvimodel,
                      dequant_results_to_fp32=True,
+                     expose_bf16_inputs=False,
                      compress_weight=True,
                      append_weight=False):
     cmd = ["mlir_to_cvimodel.sh",
            "-i", quanted_model, "-o", cvimodel,
            "--dequant-results-to-fp32",
            str(dequant_results_to_fp32).lower(),
+           "--expose-bf16-inputs",
+           str(expose_bf16_inputs).lower(),
            "--compress-weight",
            str(compress_weight).lower(),
            "--append-weight",

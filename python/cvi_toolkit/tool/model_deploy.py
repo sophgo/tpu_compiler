@@ -119,11 +119,12 @@ class DeployTool:
 
 
     def build_cvimodel(self, cvimodel, dequant_results_to_fp32=True,
-                       compress_weight=True, append_weight=False):
+                       expose_bf16_inputs=False, compress_weight=True,
+                       append_weight=False):
         IntermediateFile('_', 'lower_opt.mlir', False)
         IntermediateFile('_', 'final.mlir', False)
         ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel,
-                               dequant_results_to_fp32,
+                               dequant_results_to_fp32, expose_bf16_inputs,
                                compress_weight, append_weight)
         check_return_value(ret == 0, "failed to generate cvimodel")
 
@@ -175,6 +176,8 @@ if __name__ == '__main__':
                         help='if the input frame is width/channel aligned')
     parser.add_argument("--dequant_results_to_fp32", type=str2bool, default=True,
                         help="if dequantize results to fp32")
+    parser.add_argument("--expose_bf16_inputs", type=str2bool, default=False,
+                        help="if expose bf16 inputs without quantied from fp32")
     parser.add_argument("--compress_weight", type=str2bool, default=True,
                         help="if compress weight while generate cvimodel")
     parser.add_argument("--merge_weight", action='store_true',
@@ -198,7 +201,8 @@ if __name__ == '__main__':
 
     # generate cvimodel and validate accuracy
     tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32,
-                        args.compress_weight, args.merge_weight)
+                        args.expose_bf16_inputs, args.compress_weight,
+                        args.merge_weight)
     tool.validate_cvimodel(args.cvimodel, args.correctness, args.excepts)
 
     if not args.debug:

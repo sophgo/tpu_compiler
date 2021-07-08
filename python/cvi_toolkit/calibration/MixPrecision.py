@@ -13,7 +13,7 @@ from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root')
 
 tpu_skip_op = ['tpu.input', 'tpu.quant', 'tpu.layer_norm', 'tpu.softmax'
-               'tpu.split', 'tpu.concat', 'tpu.reshape', 'tpu.gru']
+               'tpu.split', 'tpu.reshape', 'tpu.gru']
 
 class MixQuantModel:
     def __init__(self, fp32_mlir, all_bf16=False,
