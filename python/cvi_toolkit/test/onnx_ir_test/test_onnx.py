@@ -184,6 +184,7 @@ class ONNX_IR_TESTER(object):
         gc.collect()
 
         onnx_outs = onnx_inference(input_data, model_def, model_name, input_cb)
+        input_data = input_data.astype(np.float32)
         num_outputs = len(onnx_outs)
         input_npz = "{}_input_fp32.npz".format(model_name)
         np.savez(input_npz, input=input_data)
