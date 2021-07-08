@@ -112,9 +112,8 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu, bool &count_include_pad);
 
-void parseFullyConnectedParam(
-    Value input, Value output, Value filter,
-    int &m, int &k, int &n);
+void parseFullyConnectedParam(Value lhs, Value rhs, Value output, int &batch,
+                              int &m, int &k, int &n);
 
 void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
                       int &n, int &batch_high, int &batch_low,

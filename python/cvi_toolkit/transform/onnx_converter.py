@@ -550,7 +550,8 @@ class OnnxConverter(BaseConverter):
                 i += 1
                 continue
             # rhs should be weight, skip if it's activation
-            if self.getNode(node.inputs[1]):
+            filter_node = self.getNode(node.inputs[1])
+            if filter_node and filter_node.op_type != 'Constant':
                 i += 1
                 continue
             if i + 1 >= len(self.converted_nodes):
@@ -560,7 +561,8 @@ class OnnxConverter(BaseConverter):
             if next_node.op_type != "Add":
                 i += 1
                 continue
-            if self.getNode(next_node.inputs[1]):
+            add_node = self.getNode(next_node.inputs[1])
+            if add_node and add_node.op_type != 'Constant':
                 i += 1
                 continue
 
@@ -2137,11 +2139,9 @@ class OnnxConverter(BaseConverter):
             weight_name = "{}_add_weight".format(onnx_node.name)
             weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
             weight_tensor_shape = weight_tensor.shape
-            if len(weight_tensor_shape) == 3 and weight_tensor_shape[0] != 1:
-                return self.convert_group_matmul_op(onnx_node)
-
-            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor.reshape(K, N), (1, 0)))
-            assert(len(rhs_shape) == 2) #fc not support group now
+            order = [ i for i in range(len(weight_tensor_shape))]
+            order[-1],order[-2] = order[-2],order[-1]
+            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, order))
 
             operands.append(lhs_op)
             rhs_shape = weight_tensor.shape
@@ -2159,56 +2159,6 @@ class OnnxConverter(BaseConverter):
         else:
             matmul_op = self.CVI.add_matmul_op(fc_name, [lhs_op, rhs_op], output_shape)
             self.addOperand(onnx_node.name, matmul_op, output_shape, TensorType.ACTIVATION)
-
-    def convert_group_matmul_op(self, onnx_node):
-        input_op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-        weight, weight_shape, opd_type = self.getOperand(onnx_node.inputs[1])
-        assert(opd_type == TensorType.TENSOR)
-        assert(len(weight_shape) == 3)
-        C, K, N = weight_shape
-        _, M, _ = input_shape
-
-        weight_name = onnx_node.inputs[1]
-        weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
-        weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (0, 2, 1)))
-        has_bias = False
-        bias_tensor = None
-        bias_name = None
-        if len(onnx_node.inputs) == 3:
-            bias_tensor = self.getTensor(onnx_node.inputs[2]).tensor_data
-            bias_name = onnx_node.inputs[2]
-            has_bias = True
-
-        output_ops = []
-        for i in range(C):
-            shape = [1, M, K]
-            name = "{}_{}_slice_{}".format(onnx_node.name, onnx_node.op_type, i)
-            opd0 = self.CVI.add_slice_op(name, [input_op], shape, axis=0, offset=i)
-
-            shape = (N, K)
-            weight_data = weight_tensor[i, :, :]
-            name = "{}_{}".format(weight_name, i)
-            self.addTensor(name, weight_data, shape)
-            opd1 = self.CVI.add_load_file_op(name, shape)
-
-            operands = [opd0, opd1]
-            if has_bias:
-                shape = [N]
-                bias_data = bias_tensor[i, :]
-                name = "{}_{}".format(bias_name, i)
-                self.addTensor(name, bias_data, shape)
-                opd2 = self.CVI.add_load_file_op(name, shape)
-                operands.append(opd2)
-
-            name = "{}_{}_{}".format(onnx_node.name, onnx_node.op_type, i)
-            fc_op = self.CVI.add_fully_connected_op(name, operands, [1, M, N])
-            output_ops.append(fc_op)
-
-        # concat all channels
-        output_shape = [C, M, N]
-        name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-        concat_op = self.CVI.add_concat_op(name, output_ops, output_shape, axis=0)
-        self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")

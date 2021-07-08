@@ -39,7 +39,7 @@ public:
     int32_t pad_t, int32_t pad_b, int32_t pad_l, int32_t pad_r,
     int32_t kh, int32_t kw, int32_t stride_h, int32_t stride_w,
     bool is_avg_pooling, bool do_relu, int32_t rshift,
-    int32_t mutlipliers, bool ceil_mode,
+    int32_t multipliers, bool ceil_mode,
     int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
     int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
 

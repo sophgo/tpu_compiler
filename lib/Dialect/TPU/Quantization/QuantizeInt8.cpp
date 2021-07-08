@@ -201,7 +201,6 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   return success();
 }
 
-
 ///
 /// FC Ops quantization method
 ///
@@ -217,116 +216,74 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
 
   // parse param
-  int m, k, n;
-  parseFullyConnectedParam(fcOp.input(), fcOp.output(), fcOp.filter(),
-                           m, k, n);
+  int batch, m, k, n;
+  parseFullyConnectedParam(fcOp.input(), fcOp.filter(), fcOp.output(), batch, m,
+                           k, n);
 
-  // get filter tensor
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(fcOp.filter().getDefiningOp());
-  double qscale = 0;
-
-  std::unique_ptr<std::vector<float> > filter;
-  float* filter_data = NULL;
+  float *filter_data = NULL;
   int64_t filterSize = 0;
-  bool qdm = true;
   std::vector<int64_t> filterShape;
-  if (weightOp) {
-      filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
-      getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
-      assert(filterSize == k * n);
-      filter_data = filter->data();
-  }
-  else {
-      float threshold_y = getOpThreshold(op);
-      // align eltwise mul with all of inputs are activation \quantizeInt8MultiplyOps
-      unsigned nInputs = 2; // rhs/lhs only
-      std::vector<float> threshold_x(nInputs);
-      for (unsigned i = 0; i < nInputs; ++i) {
-          threshold_x[i] = getPreviousOpThreshold(op, i);
-          LLVM_DEBUG(llvm::errs() << "  threshold_x[" << i << "] = "
-                  << std::to_string(threshold_x[i]) << "\n";);
-      }
-
-      //
-      // determine the qscale
-      //
-      float threshold_prod = std::accumulate(
-              threshold_x.begin(), threshold_x.end(), 1.0, std::multiplies<>());
-      qscale = threshold_prod / threshold_y / 127.0;
-
-      filter_data = NULL;
-      // NOTICE: per layer ONLY
-      //qdm = false;
-  }
+  auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);
+  getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
+  assert(filterSize == batch * k * n);
+  filter_data = filter->data();
 
   // get bias tensor
-  std::unique_ptr<std::vector<float> > bias = nullptr;
+  std::unique_ptr<std::vector<float>> bias = nullptr;
   std::vector<int64_t> biasShape;
   int64_t biasSize = 0;
-  if ( !isTensorNone(fcOp.bias()) ) {
+  if (!isTensorNone(fcOp.bias())) {
     bias = readAndDeleteWeightTensor<float>(fcOp.bias(), wTF);
     getTensorShapeAndSize(fcOp.bias(), biasShape, biasSize);
-    assert(biasSize == n);
+    assert(biasSize == batch * n);
   }
 
   // create new tensors
-  auto new_filter = std::make_unique<std::vector<float> >(filterSize);
-  std::unique_ptr<std::vector<float> > new_bias = nullptr;
+  auto new_filter = std::make_unique<std::vector<float>>(filterSize);
+  std::unique_ptr<std::vector<float>> new_bias = nullptr;
   if (bias) {
-    new_bias = std::make_unique<std::vector<float> >(biasSize);
+    new_bias = std::make_unique<std::vector<float>>(biasSize);
   }
 
   // create tensors for rshift and multiplier
-  auto rshift = std::make_unique<std::vector<float> >(1);
-  auto multiplier_per_layer = std::make_unique<std::vector<float>>(1);
+  auto rshift_per_batch = std::make_unique<std::vector<float>>(batch);
+  auto multiplier_per_batch = std::make_unique<std::vector<float>>(batch);
   // get threshold
   float threshold_x = getPreviousOpThreshold(op);
   float threshold_y = getOpThreshold(op);
   LLVM_DEBUG(llvm::errs() << " > " << getOpName(op)
-               << ", threshold_y = "<< std::to_string(threshold_y)
-               << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
+                          << ", threshold_y = " << std::to_string(threshold_y)
+                          << ", threshold_x = " << std::to_string(threshold_x)
+                          << "\n";);
 
   // quantization
-  if (weightOp) {
-      quantizeWeightInt8PerLayerMultiplier(filter_data, bias ? bias->data() : nullptr,
-                               n, k, threshold_y, threshold_x,
-                               new_filter->data(), bias ? new_bias->data() : nullptr,
-                               rshift->data(),
-                               multiplier_per_layer->data());
+  quantizeWeightInt8ForFC(
+      filter_data, bias ? bias->data() : nullptr, batch, n, k, threshold_y,
+      threshold_x, new_filter->data(), bias ? new_bias->data() : nullptr,
+      rshift_per_batch->data(), multiplier_per_batch->data());
 
-      // update op
-      addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(1),
-              "quant", *new_filter, filterShape, "INT8", wTF);
-
-  }
-  else if (bias) {
-      // only quant bias under rhs is activation
-      quantizeBiasInt8PerLayerMultiplier(bias ? bias->data() : nullptr,
-                                   n, k, threshold_y, threshold_x,
-                                   new_filter->data(), bias ? new_bias->data() : nullptr,
-                                   rshift->data(),
-                                   multiplier_per_layer->data(),
-                                   qscale, qdm);
-  }
+  // update op
+  addWeightTensorAndUpdateWeightOp<float>(
+      fcOp.getOperand(1), "quant", *new_filter, filterShape, "INT8", wTF);
 
   if (bias) {
     // qdm mode, bias use INT32
-    addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(2),
-        "quant", *new_bias, biasShape, "INT32", wTF);
+    addWeightTensorAndUpdateWeightOp<float>(fcOp.getOperand(2), "quant",
+                                            *new_bias, biasShape, "INT32", wTF);
   }
 
   // add rshift to weight
-  auto shape = std::vector<int64_t>{1};
+  auto shape = std::vector<int64_t>{batch};
   auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "rshift", *rshift, shape, "NONE",
-      wTF, wfV);
+      op, "rshift", *rshift_per_batch, shape, "NONE", wTF, wfV);
   fcOp.setOperand(5, rshift_op);
 
   auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
-      op, "multiplier", *multiplier_per_layer, shape, "NONE", wTF, wfV);
+      op, "multiplier", *multiplier_per_batch, shape, "NONE", wTF, wfV);
   fcOp.setOperand(6, multiplier_op);
 
-  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+  setOpResultType(op->getResult(0),
+                  IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
 }

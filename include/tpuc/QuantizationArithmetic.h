@@ -102,10 +102,11 @@ void quantizeWeightInt8PerChannel(float *filter, float *bias,
     int64_t oc, int64_t isz, float threshold_y, float threshold_x,
     float *new_filter, float *new_bias, float *rshift_per_channel);
 
-void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
-    int64_t oc, int64_t isz, float threshold_y, float threshold_x,
-    float *new_filter, float *new_bias,
-    float *rshift_per_layer, float *multiplier_per_layer);
+void quantizeWeightInt8ForFC(float *filter, float *bias, int64_t batch,
+                             int64_t N, int64_t K, float threshold_y,
+                             float threshold_x, float *new_filter,
+                             float *new_bias, float *rshift_per_batch,
+                             float *multiplier_per_batch);
 
 void quantizeBiasInt8PerLayerMultiplier(float *bias,
     int64_t oc, int64_t isz, float threshold_y, float threshold_x,

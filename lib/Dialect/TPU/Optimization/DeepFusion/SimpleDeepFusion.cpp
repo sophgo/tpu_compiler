@@ -254,14 +254,14 @@ private:
 
   void analyzeFullyConnectedOpParam(tpu::TG_INT8_FullyConnectedOp &op,
       llvm::raw_ostream &os) {
-    int m, k, n;
-    parseFullyConnectedParam(op.input(), op.output(), op.filter(), m, k, n);
+    int batch, m, k, n;
+    parseFullyConnectedParam(op.input(), op.filter(), op.output(), batch, m, k, n);
 
-    uint64_t mac_count = m * k * n;
+    uint64_t mac_count = batch * m * k * n;
     stats->increaseMacCount(mac_count);
 
-    uint64_t inputNeuronSizePerLane = MInfo::getSizePerLane(m, k, 1, 1, false);
-    uint64_t outputNeuronSizePerLane = MInfo::getSizePerLane(m, n, 1, 1, false);
+    uint64_t inputNeuronSizePerLane = batch * MInfo::getSizePerLane(m, k, 1, 1, false);
+    uint64_t outputNeuronSizePerLane = batch * MInfo::getSizePerLane(m, n, 1, 1, false);
     uint64_t totalPerLane = inputNeuronSizePerLane + outputNeuronSizePerLane;
     if (totalPerLane <= MInfo::lmem_per_lane) {
       stats->pushChain(op.getResult());

@@ -19,25 +19,18 @@ private:
   SyncedData filter_data;
   SyncedData bias_data;
   SyncedData output_data;
+  SyncedData rshift_data;
+  SyncedData multiplier_data;
   SyncedDataShape input_shape;
   SyncedDataShape filter_shape;
   SyncedDataShape bias_shape;
 
   // param
+  int batch;
   int m;
   int k;
   int n;
   bool do_relu = false;
-  // int8
-  float rshift;
-  float multiplier;
-
-  // mkldnn setting
-  mkldnn::engine mkl_eng;
-  mkldnn::stream mkl_stream;
-
-  std::vector<mkldnn::primitive> mkl_net;
-  std::vector<std::unordered_map<int, mkldnn::memory>> mkl_net_args;
 };
 } // namespace mlir
 
