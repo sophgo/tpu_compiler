@@ -21,10 +21,9 @@ public:
 
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
             gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
-            bool do_bias, bool do_relu, std::vector<int> *rshift_width,
-            std::vector<int> *multiplier, int batch_high, int batch_low,
-            bool lstride, bool rstride, bool ostride,
-            std::vector<int> compressed_pos, cvk_fmt_t fmt);
+            bool do_bias, bool do_relu, int rshift_width, int multiplier,
+            int batch_high, int batch_low, bool lstride, bool rstride,
+            bool ostride, std::vector<int> compressed_pos, cvk_fmt_t fmt);
 
   void selectTilePolicy();
   void schedule();
@@ -50,7 +49,6 @@ protected:
   lmem_size_t get_lmem_size() const;
   uint32_t total_lmem_size() const;
   void update_gaddr(uint32_t high_idx, uint32_t low_idx);
-  void update_quant(uint32_t high_idx, uint32_t low_idx);
 
 protected:
   const CviBackendContext &ctx;
@@ -59,7 +57,7 @@ protected:
   gaddr_t ga_bias;
   gaddr_t ga_output;
 
-  gaddr_t ga_i, ga_w, ga_o, ga_b; // for origin addr
+  gaddr_t ga_i, ga_w, ga_o; // for origin addr
 
   uint32_t M;
   uint32_t K;
@@ -67,10 +65,8 @@ protected:
 
   bool do_bias;
   bool do_relu;
-  std::vector<int> rshift;
-  std::vector<int> multiplier;
-  int cur_rshift;
-  int cur_multiplier;
+  int rshift_width;
+  int multiplier;
   std::vector<int> compressed_pos;
   cvk_fmt_t fmt;
   int fmt_size;
@@ -95,7 +91,6 @@ protected:
   uint32_t tile_M;
   uint32_t tile_K;
   uint32_t tile_N;
-  int compress_offset; // for batch compress pos
   typedef struct TileInfo {
     uint32_t pos_m;
     uint32_t pos_k;

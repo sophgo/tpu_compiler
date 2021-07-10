@@ -1100,8 +1100,8 @@ Value tpu::EltwiseMulOp::convertToTG() {
 }
 
 Value tpu::FullyConnectedOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
@@ -1112,21 +1112,22 @@ Value tpu::FullyConnectedOp::convertToTG() {
   operands.push_back(bias());
 
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(
-      builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
+  attrs.push_back(builder.getNamedAttr("do_relu",
+      builder.getBoolAttr(do_relu())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
     // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
-    std::vector<int32_t> rshift_v(rshift->begin(), rshift->end());
-    attrs.push_back(
-        builder.getNamedAttr("rshift", builder.getI32ArrayAttr(rshift_v)));
-    auto multiplier =
-        readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
-    std::vector<int32_t> multiplier_v(multiplier->begin(), multiplier->end());
-    attrs.push_back(builder.getNamedAttr("multiplier",
-                                         builder.getI32ArrayAttr(multiplier_v)));
+    assert(rshift->size() == 1);
+    attrs.push_back(builder.getNamedAttr("rshift",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    attrs.push_back(builder.getNamedAttr(
+        "mutliplier",
+        builder.getI32IntegerAttr(static_cast<int32_t>(multiplier->at(0)))));
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_FullyConnectedOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
@@ -2604,7 +2605,7 @@ Value tpu::MatMulOp::convertToTG() {
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
     assert(multiplier->size() == 1);
     attrs.push_back(builder.getNamedAttr(
-        "multiplier",
+        "mutliplier",
         builder.getI32IntegerAttr(static_cast<int32_t>(multiplier->at(0)))));
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_MatMulOp>(
@@ -3018,21 +3019,16 @@ static void transposeConvolution3dFilter(std::vector<T> &w,
 template <typename T>
 static void transposeFullyConnectedFilter(std::vector<T> &w,
                                           const std::vector<int64_t> &s) {
-  int dim = s.size();
-  int batch = std::accumulate(s.data(), s.data() + dim - 2, 1,
-                              std::multiplies<int64_t>());
-  int row = s[dim - 2];
-  int col = s[dim - 1];
-  std::vector<T> w_t(row * col);
-  for (int b = 0; b < batch; b++) {
-    T *pdata = w.data() + b * row * col;
-    for (int i = 0; i < row; i++) {
-      for (int j = 0; j < col; j++) {
-        w_t[j * row + i] = pdata[i * col + j];
-      }
+  assert(s.size() == 2);
+  int row = s[0];
+  int col = s[1];
+  std::vector<T> w_t(w.size());
+  for (int i = 0; i < row; i++) {
+    for (int j = 0; j < col; j++) {
+      w_t[j * row + i] = w[i * col  + j];
     }
-    std::copy(w_t.begin(), w_t.end(), pdata);
   }
+  w.assign(w_t.begin(), w_t.end());
 }
 
 template <typename T>
@@ -3220,23 +3216,13 @@ static LogicalResult lowerBias(Value op, TensorFile *wTF,
   int64_t size;
   getTensorShapeAndSize(op, shape, size);
   auto bias = readAndDeleteWeightTensor<float>(op, wTF);
-  int64_t batch = 1, isz = size;
-  size_t dim = shape.size();
-  if (dim > 1) {
-    batch = std::accumulate(shape.data(), shape.data() + dim - 1, 1,
-                            std::multiplies<int64_t>());
-    isz = shape[dim - 1];
-  }
   if (storage == "NONE" || storage == "FP32") {
+    // NOTE: for 1880v2, bias is fp32, rather than bf16
+    // however, for simplicity, in quantizeBf16, we quantize all tensor into
+    // bf16 before lowering to hardware, we need to expand the bf16 to fp32
+    // first then transpose into 2 stripes of uint16_t
     std::vector<uint32_t> bias_u32(size);
-    std::vector<float> tmp_bias(isz);
-    std::vector<uint32_t> tmp_u32(isz);
-    for (int b = 0; b < batch; b++) {
-      std::copy(bias->data() + b * isz, bias->data() + (b + 1) * isz,
-                tmp_bias.data());
-      transposeBiasFp32(tmp_bias, tmp_u32);
-      std::copy(tmp_bias.begin(), tmp_bias.end(), bias_u32.data() + b * isz);
-    }
+    transposeBiasFp32(*bias, bias_u32);
     // after expand to FP32 and transpose, this is not FP32 anymore
     // it is 2 stripes of UINT16(BF16)
     // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
@@ -3244,17 +3230,13 @@ static LogicalResult lowerBias(Value op, TensorFile *wTF,
     addWeightTensorAndUpdateWeightOp<uint32_t>(op, "lowered", bias_u32, shape,
                                                "UINT32", wTF);
   } else if (storage == "INT32") {
-    std::vector<uint32_t> bias_u32(size);
-    std::vector<int32_t> bias_i32(isz);
-    for (int b = 0; b < batch; b++) {
-      std::copy(bias->data() + b * isz, bias->data() + (b + 1) * isz,
-                bias_i32.data());
-      transposeBiasInt32(bias_i32);
-      memcpy(bias_u32.data() + b * isz, bias_i32.data(), isz * sizeof(int32_t));
-    }
+    std::vector<int32_t> bias_i32(bias->begin(), bias->end());
+    transposeBiasInt32(bias_i32);
     // after transpose, this is not INT32 anymore, it is 2 stripes of UINT8
     // we save it as UINT32, to carry the eltment bitwidth, so we don`t need
     // to change the shape.
+    std::vector<uint32_t> bias_u32(size);
+    memcpy(bias_u32.data(), bias_i32.data(), size * sizeof(int32_t));
     addWeightTensorAndUpdateWeightOp<uint32_t>(op, "lowered", bias_u32, shape,
                                                "UINT32", wTF);
   } else if (storage == "INT16") {

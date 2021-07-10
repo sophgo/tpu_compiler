@@ -31,7 +31,6 @@ TEST_ONNX_IR = [
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
     "FullyConnected",
-    "GroupFC", # test Group FC
     "Gather",
     "GlobalMaxPool",
     "GRU",
@@ -136,7 +135,6 @@ class ONNX_IR_TESTER(object):
             "Conv3d": self.test_Conv3d,
             "DepthToSpace": self.test_DepthToSpace,
             "FullyConnected": self.test_FullyConnected,
-            "GroupFC": self.test_GroupFC,
             "Gather": self.test_Gather,
             "GlobalMaxPool": self.test_GlobalMaxPool,
             "GRU": self.test_GRU,
@@ -827,70 +825,6 @@ class ONNX_IR_TESTER(object):
 
         graph_def = helper.make_graph(
             [filter_def, div_def, fc_node, scale_node],
-            test_case,
-            [input],
-            [output],
-        )
-        model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 11
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_GroupFC(self):
-        test_case = 'GroupFC'
-        input_shape = [16, 40, 43]
-        filter_shape = [16, 43, 48]
-        bias_shape = [16, 1, 48]
-        output_shape = [16, 40, 48]
-
-        input_data = np.random.rand(np.prod(input_shape)).reshape(
-            input_shape).astype(np.float32)
-        filter_data = np.random.rand(np.prod(filter_shape)).reshape(
-            filter_shape).astype(np.float32)
-        bias_data = np.random.rand(np.prod(bias_shape)).reshape(
-            bias_shape).astype(np.float32)
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-
-        filter_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['filter'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=filter_data.shape,
-                vals=filter_data.flatten(),
-            ),
-        )
-        bias_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['bias'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=bias_data.shape,
-                vals=bias_data.flatten(),
-            ),
-        )
-
-        fc_node = helper.make_node(
-            'MatMul',  # node name
-            ['input', 'filter'],  # inputs
-            ['fc'],  # outputs
-        )
-        add_node = helper.make_node(
-            'Add',
-            ['fc', 'bias'],
-            ['output'],
-        )
-
-        graph_def = helper.make_graph(
-            [filter_def, bias_def, fc_node, add_node],
             test_case,
             [input],
             [output],
@@ -2487,18 +2421,12 @@ class ONNX_IR_TESTER(object):
             'Softmax',
             ['X0'],
             ['X1'],
-            axis=1,
+            axis=2,
         )
         x2_def = helper.make_node(
             'Softmax',
             ['X0'],
             ['X2'],
-            axis=2,
-        )
-        x3_def = helper.make_node(
-            'Softmax',
-            ['X0'],
-            ['X3'],
             axis=3,
         )
 
@@ -2508,13 +2436,11 @@ class ONNX_IR_TESTER(object):
             'X1', TensorProto.FLOAT, output_shape)
         X2 = helper.make_tensor_value_info(
             'X2', TensorProto.FLOAT, output_shape)
-        X3 = helper.make_tensor_value_info(
-            'X3', TensorProto.FLOAT, output_shape)
         graph_def = helper.make_graph(
-            [neg_def, x1_def, x2_def, x3_def],
+            [neg_def, x1_def, x2_def],
             test_case,
             [input],
-            [X1, X2, X3],
+            [X1, X2],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11

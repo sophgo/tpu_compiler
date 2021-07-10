@@ -212,12 +212,9 @@ public:
                << "convertFullyConnectedTilePattern: layer ID "
                << mlir::getOpLayerId(op) << ", " << tpuOp.name() << "\n");
 
-    int batch, m, k, n;
-    parseFullyConnectedParam(tpuOp.input(), tpuOp.filter(), tpuOp.output(),
-                             batch, m, k, n);
-    if (batch > 1) {
-      return failure();
-    }
+    int m, k, n;
+    parseFullyConnectedParam(tpuOp.input(), tpuOp.output(), tpuOp.filter(), m,
+                             k, n);
 
     bool hasBias = isTensorNone(tpuOp.bias()) ? false : true;
 

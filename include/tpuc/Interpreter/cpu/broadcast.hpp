@@ -43,7 +43,7 @@ private:
   // param
   bool do_relu;
   float rshift;
-  float multiplier;
+  float mutliplier;
 };
 class BroadcastSubOpKernel : public CPUOpKernel {
 public:

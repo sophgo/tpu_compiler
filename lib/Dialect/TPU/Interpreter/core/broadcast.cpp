@@ -137,7 +137,7 @@ BroadcastMulOpKernel::BroadcastMulOpKernel(Operation &op,
     auto quant_multiplier = this->opdTensors[5];
     assert(quant_rshift && quant_multiplier);
     rshift = quant_rshift->at(0);
-    multiplier = quant_multiplier->at(0);
+    mutliplier = quant_multiplier->at(0);
   }
   // get tensors
   input_data = this->opdTensors[0];
@@ -189,7 +189,7 @@ void BroadcastMulOpKernel::invoke() {
   if (datatype == DataType::INT8) {
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, true);
+          output_data->at(i), (uint32_t)rshift, (uint32_t)mutliplier, true);
     }
   } else if (datatype == DataType::BF16) {
     clean16bitmantissa(output_data->data(), output_data->data(),

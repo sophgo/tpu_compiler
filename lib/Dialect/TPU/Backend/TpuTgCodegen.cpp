@@ -1813,24 +1813,31 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int batch, m, k, n;
-  parseFullyConnectedParam(input(), filter(), output(), batch, m, k, n);
+  int m, k, n;
+  parseFullyConnectedParam(input(), output(), filter(), m, k, n);
   bool do_relu = this->do_relu();
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  auto rhs = filter().getDefiningOp();
+  gaddr_t ga_filter;
+  if (isa<tpu::LoadWeightOp>(rhs)) {
+    ga_filter = getWeightOpAddress(rhs);
+  }
+  else {
+    ga_filter = getOpAddress(rhs);
+  }
 
   gaddr_t ga_bias = GA_INVALID;
   bool with_bias = false;
-  if (!isTensorNone(bias())) {
+  if ( !isTensorNone(bias()) ) {
     ga_bias = getWeightOpAddress(bias().getDefiningOp());
     with_bias = true;
   }
   int layer_id = getOpLayerId(op);
-  std::vector<int32_t> rshift_v;
-  std::vector<int32_t> multiplier_v;
-  arrayAttrToVector(this->rshift().getValue(), rshift_v);
-  arrayAttrToVector(this->multiplier().getValue(), multiplier_v);
+
+  int8_t rshift_int8 = rshift().getValue();
+  int32_t multiplier = this->mutliplier().getValue();
+  int rshift = static_cast<int>(rshift_int8);
 
   auto fcOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op);
   std::vector<int> compr_weight_poss;
@@ -1846,7 +1853,7 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_fc_kernel(
       *backend_ctx, layer_id, ga_input, ga_filter, ga_bias, ga_output, m, k, n,
-      with_bias, do_relu, rshift_v, multiplier_v, compr_weight_poss, batch);
+      with_bias, do_relu, rshift, multiplier, compr_weight_poss);
 
   return success();
 }
@@ -1857,8 +1864,8 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int batch, m, k, n;
-  parseFullyConnectedParam(input(), filter(),output(), batch, m, k, n);
+  int m, k, n;
+  parseFullyConnectedParam(input(), output(), filter(), m, k, n);
   bool do_relu = this->do_relu();
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -1892,7 +1899,7 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
 
   cvi_backend_tg_bf16_fc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
                                 ga_bias, ga_output, m, k, n, with_bias, do_relu,
-                                compr_weight_poss, batch);
+                                compr_weight_poss);
 
   return success();
 }
@@ -2537,15 +2544,14 @@ LogicalResult tpu::TG_INT8_MatMulOp::codegen(void *ctx) {
 
   int layer_id = getOpLayerId(op);
 
-  int8_t rshift_int8 = this->rshift().getValue();
-  int32_t multiplier = this->multiplier().getValue();
-  std::vector<int32_t> rshift_v(1, rshift_int8);
-  std::vector<int32_t> multiplier_v(1, multiplier);
+  int8_t rshift_int8 = rshift().getValue();
+  int32_t multiplier = this->mutliplier().getValue();
+  int rshift = static_cast<int>(rshift_int8);
   std::vector<int> compr_weight_poss;
 
   cvi_backend_tg_fixed_fc_kernel(*backend_ctx, layer_id, ga_left, ga_right,
                                  GA_INVALID, ga_output, M, K, N, false, do_relu,
-                                 rshift_v, multiplier_v, compr_weight_poss,
+                                 rshift, multiplier, compr_weight_poss,
                                  batch_high, batch_low, lt, rt, ot);
 
   return success();

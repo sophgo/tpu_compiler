@@ -359,10 +359,8 @@ public:
 
     // In dialect, weight shape is NxK !
     // weight already transposed (NxK -> KxN), but shape not updated !
-    size_t dim = filterShape.size();
-    assert(dim == 2);
-    int N = filterShape[dim - 2];
-    int K = filterShape[dim - 1];
+    int N = filterShape[0];
+    int K = filterShape[1];
 
     LLVM_DEBUG(llvm::dbgs()
                << "CompressFcWeightPattern: layer ID "
@@ -412,7 +410,7 @@ public:
       cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
       cmdInfo.bias0 = isBf16Flt ? 127 : 0;
       getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
-                            cmdInfo.is_bfloat16, &cmdInfo);
+                           cmdInfo.is_bfloat16, &cmdInfo);
 
       // Create Compress data.
       int requiredSize = getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
@@ -422,15 +420,15 @@ public:
 
       if (isBf16Flt)
         compressBf16Data(plainData->data(), stepSize, compressedData->data(),
-                          &compressedSize, &cmdInfo);
+                         &compressedSize, &cmdInfo);
       else
         compressInt8Data(plainData->data(), stepSize, compressedData->data(),
-                          &compressedSize, &cmdInfo);
+                         &compressedSize, &cmdInfo);
 
       if ((dstOffset + compressedSize) > (K * N * fltEltSize)) {
         LLVM_DEBUG(llvm::dbgs()
-                    << "      compressed size exceed, dstOffset " << dstOffset
-                    << " + " << compressedSize << " > " << (K * N) << "\n");
+                   << "      compressed size exceed, dstOffset " << dstOffset
+                   << " + " << compressedSize << " > " << (K * N) << "\n");
         canCompress = false;
         break;
       }

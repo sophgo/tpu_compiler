@@ -720,68 +720,63 @@ void quantizeWeightInt8PerChannel(float *filter, float *bias, int64_t oc,
   }
 }
 
-void quantizeWeightInt8ForFC(float *filter, float *bias, int64_t batch,
-                             int64_t N, int64_t K, float threshold_y,
-                             float threshold_x, float *new_filter,
-                             float *new_bias, float *rshift_per_batch,
-                             float *multiplier_per_batch) {
+void quantizeWeightInt8PerLayerMultiplier(float *filter, float *bias,
+                                          int64_t oc, int64_t isz,
+                                          float threshold_y, float threshold_x,
+                                          float *new_filter, float *new_bias,
+                                          float *rshift_per_layer,
+                                          float *multiplier_per_layer) {
+  auto max_bias = std::vector<float>(oc);
 
   // find qscale
-  std::vector<float> max_filter(batch);
-  std::vector<double> qscale(batch);
-  int64_t isz = N * K;
-  for (int i = 0; i < batch; i++) {
-    max_filter[i] = findMaxWeight(filter + i * isz, isz);
-    qscale[i] = findQScaleForFilter(max_filter[i], threshold_y, threshold_x);
-  }
-
-  std::vector<float> max_bias(batch * N);
+  float max_filter = findMaxWeight(filter, oc * isz);
+  double qscale = findQScaleForFilter(max_filter, threshold_y, threshold_x);
   if (bias) {
-    for (int i = 0; i < batch; i++) {
-      for (int n = 0; n < N; ++n) {
-        int index = i * N + n;
-        max_bias[index] = fabs(bias[index]);
-        double qscale_bias = findQScaleForBiasI32(max_bias[index], threshold_y);
-        if (qscale_bias > qscale[i]) {
-          LLVM_DEBUG(llvm::errs()
-                         << "WARNING: adjust qscale for bias"
-                         << ", qscale_filter = " << qscale[i]
-                         << ", qscale_bias = " << qscale_bias << "\n";);
-          qscale[i] = qscale_bias;
-        }
+    for (auto i = 0; i < oc; ++i) {
+      max_bias[i] = fabs(bias[i]);
+      double qscale_bias = findQScaleForBiasI32(max_bias[i], threshold_y);
+      if (qscale_bias > qscale) {
+        LLVM_DEBUG(llvm::errs() << "WARNING: adjust qscale for bias"
+                                << ", qscale_filter = " << qscale
+                                << ", qscale_bias = " << qscale_bias << "\n";);
+        qscale = qscale_bias;
       }
     }
   }
   // decompose qscale into rshift and muliplier
   uint32_t multiplier;
-  for (int i = 0; i < batch; i++) {
-    rshift_per_batch[i] = (float)findRShiftAndMultiplierFromQScale(
-        qscale[i], &multiplier, true, 255);
-    multiplier_per_batch[i] = (float)multiplier;
+  rshift_per_layer[0] =
+      (float)findRShiftAndMultiplierFromQScale(qscale, &multiplier, true, 255);
+  multiplier_per_layer[0] = (float)multiplier;
+  for (auto i = 0; i < oc; ++i) {
+    LLVM_DEBUG(llvm::errs()
+                   << "  max_filter: " << std::to_string(max_filter)
+                   << ", max_bias[" << i
+                   << "] : " << std::to_string(max_bias[i])
+                   << ", qscale : " << qscale << "  [multiplier : rshift]= ["
+                   << std::to_string(multiplier_per_layer[0]) << " : "
+                   << std::to_string(rshift_per_layer[0]) << "]\n";);
   }
 
-  for (int i = 0; i < batch; i++) {
-    for (int j = 0; j < isz; ++j) {
-      int index = i * isz + j;
-      new_filter[index] = (float)quantizeFilterRShiftAndMultiplier(
-          filter[index], threshold_y, threshold_x, rshift_per_batch[i],
-          multiplier_per_batch[i], true);
-    }
+  // quantize weight
+  int64_t weight_planner = oc * isz;
+  for (int64_t i = 0; i < weight_planner; ++i) {
+    new_filter[i] = (float)quantizeFilterRShiftAndMultiplier(
+        filter[i], threshold_y, threshold_x, rshift_per_layer[0],
+        multiplier_per_layer[0], true);
   }
 
   if (bias) {
-    for (int i = 0; i < batch; i++) {
-      for (int n = 0; n < N; ++n) {
-        int index = i * N + n;
-        new_bias[index] = (float)quantizeBiasRShiftAndMultiplier(
-            bias[index], threshold_y, rshift_per_batch[i],
-            multiplier_per_batch[i], true);
-      }
+    for (int64_t i = 0; i < oc; ++i) {
+      new_bias[i] = (float)quantizeBiasRShiftAndMultiplier(
+          bias[i], threshold_y, rshift_per_layer[0], multiplier_per_layer[0],
+          true);
     }
   }
 }
 
 // ONLY deal with bias w/o weight and plz refer
+// quantizeWeightInt8PerLayerMultiplier for more details
 void quantizeBiasInt8PerLayerMultiplier(float *bias, int64_t oc, int64_t isz,
                                         float threshold_y, float threshold_x,
                                         float *new_filter, float *new_bias,

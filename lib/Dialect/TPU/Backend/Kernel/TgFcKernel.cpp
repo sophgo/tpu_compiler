@@ -11,8 +11,8 @@
 
 void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
                       gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
-                      bool do_bias, bool do_relu, std::vector<int>* rshift_width,
-                      std::vector<int>* multiplier, int batch_high, int batch_low,
+                      bool do_bias, bool do_relu, int rshift_width,
+                      int multiplier, int batch_high, int batch_low,
                       bool lstride, bool rstride, bool ostride,
                       std::vector<int> compressed_pos, cvk_fmt_t fmt) {
 
@@ -22,15 +22,16 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
   this->N = static_cast<uint32_t>(N);
   this->ga_i = ga_input;
   this->ga_w = ga_weight;
-  this->ga_b = ga_bias;
+  this->ga_bias = ga_bias;
   this->ga_o = ga_output;
   this->do_bias = do_bias;
   this->do_relu = do_relu;
+  this->rshift_width = rshift_width;
+  this->multiplier = multiplier;
   this->compressed_pos = compressed_pos;
   this->fmt = fmt;
   this->total_steps = 1;
   this->fmt_size = ctx.bytesize_of_fmt(fmt);
-  this->compress_offset = 0;
   TOTAL_EU = NPU_NUM * ctx.tiu_eu_num(fmt);
   tile_N = this->N;
   tile_K = this->K;
@@ -40,30 +41,9 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
   this->ostride = ostride;
   this->batch_high = batch_high > 0 ? batch_high : 1;
   this->batch_low = batch_low > 0 ? batch_low : 1;
-  this->cur_multiplier = 0;
-  this->cur_rshift = 0;
   left_gstride.row = K * fmt_size * (lstride ? batch_low : 1);
   right_gstride.row = N * fmt_size * (rstride ? batch_low : 1);
   output_gstride.row = N * fmt_size * (ostride ? batch_low : 1);
-  size_t batch = this->batch_high *  this->batch_low;
-  if (rshift_width != nullptr) {
-    if (rshift_width->size() == 1) {
-      this->rshift.assign(batch, rshift_width->at(0));
-    } else if (rshift_width->size() == batch) {
-      this->rshift.assign(rshift_width->begin(), rshift_width->end());
-    } else {
-      llvm_unreachable("rshift size error");
-    }
-  }
-  if (multiplier != nullptr) {
-    if (multiplier->size() == 1) {
-      this->multiplier.assign(batch, multiplier->at(0));
-    } else if (multiplier->size() == batch) {
-      this->multiplier.assign(multiplier->begin(), multiplier->end());
-    } else {
-      llvm_unreachable("multiplier size error");
-    }
-  }
   ctx.set_layer_id(layer_id);
 }
 
@@ -271,16 +251,16 @@ void TgFcKernel::compute(int32_t step_idx) {
   // processing stage.
   // So, only set chan_quan = 1 if no tiling or last tile.
   // And when chan_quan is enabled, des_opt_res0_int8 must be 1
-  if (cur_multiplier != 0) {
+  if (multiplier != 0) {
     cvk_tiu_matrix_multiplication_qm_param_t p = {0};
     p.res = &tl_Y;
     p.left = &tl_L;
     p.right = &tl_R;
     p.bias = p_bias;
-    p.rshift_bits = is_last ? cur_rshift : 0; // quantization down
+    p.rshift_bits = is_last ? rshift_width : 0; // quantization down
     p.relu_enable = relu_enable;
     p.ps32_mode = ps32_mode;
-    p.quan_m = cur_multiplier;
+    p.quan_m = multiplier;
     p.layer_id = layer_id;
     p.res_is_int8 = 1;
     ctx.tiu_matrix_multiplication_qm(&p);
@@ -291,7 +271,7 @@ void TgFcKernel::compute(int32_t step_idx) {
     p.right = &tl_R;
     p.bias = p_bias;
     p.lshift_bits = 0;                          // deprecated
-    p.rshift_bits = is_last ? cur_rshift : 0; // quantization down
+    p.rshift_bits = is_last ? rshift_width : 0; // quantization down
     p.res_is_int8 = is_last ? 1 : 0;            // output 8bit
     p.add_result = 0;                           // deprecated
     p.relu_enable = relu_enable;
@@ -326,7 +306,7 @@ void TgFcKernel::load(int32_t step_idx) {
                          right_gstride);
   } else {
     cvi_backend_ml_load_stride(ctx, layer_id,
-                               ga_weight + compressed_pos[tile.compress_idx + compress_offset],
+                               ga_weight + compressed_pos[tile.compress_idx],
                                tl_R.start_address, tile.k, tile.n, tile.n,
                                false, true, fmt, fmt, true);
   }
@@ -350,36 +330,24 @@ void TgFcKernel::store(int32_t step_idx) {
 }
 
 void TgFcKernel::update_gaddr(uint32_t high_idx, uint32_t low_idx) {
-  uint32_t batch_idx = high_idx * batch_low + low_idx;
   if (lstride) {
     ga_input = ga_i + high_idx * M * left_gstride.row + low_idx * K * fmt_size;
   } else {
-    ga_input = ga_i + batch_idx * M * left_gstride.row;
+    ga_input = ga_i + (high_idx * batch_low + low_idx) * M * left_gstride.row;
   }
   if (rstride) {
     ga_weight =
         ga_w + high_idx * K * right_gstride.row + low_idx * N * fmt_size;
   } else {
-    ga_weight = ga_w + batch_idx * K * right_gstride.row;
+    ga_weight = ga_w + (high_idx * batch_low + low_idx) * K * right_gstride.row;
   }
   if (ostride) {
     ga_output =
         ga_o + high_idx * M * output_gstride.row + low_idx * N * fmt_size;
   } else {
-    ga_output = ga_o + batch_idx * M * output_gstride.row;
+    ga_output =
+        ga_o + (high_idx * batch_low + low_idx) * M * output_gstride.row;
   }
-  if (do_bias) {
-    ga_bias = ga_b + batch_idx * N * 4;
-  }
-  compress_offset = (high_idx * batch_low + low_idx) * slice_k() * slice_n();
-}
-
-void TgFcKernel::update_quant(uint32_t high_idx, uint32_t low_idx) {
-  if (multiplier.empty() || rshift.empty()) {
-    return;
-  }
-  cur_multiplier = multiplier[high_idx * batch_low + low_idx];
-  cur_rshift = rshift[high_idx * batch_low + low_idx];
 }
 
 void TgFcKernel::schedule() {
@@ -390,7 +358,6 @@ void TgFcKernel::schedule() {
   for (uint32_t b0 = 0; b0 < batch_high; b0++) {
     for (uint32_t b1 = 0; b1 < batch_low; b1++) {
       update_gaddr(b0, b1);
-      update_quant(b0, b1);
       if (do_parallel) {
         for (int step = 0; step < total_steps + 2; step++) {
           ctx.parallel_enable();
@@ -419,7 +386,7 @@ void TgFcKernel::schedule() {
 void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
-    bool do_bias, bool do_relu, std::vector<int>rshift_width, std::vector<int>multiplier,
+    bool do_bias, bool do_relu, int rshift_width, int multiplier,
     std::vector<int> compressed_pos, int batch_high, int batch_low,
     bool lstride, bool rstride, bool ostride) {
   LLVM_DEBUG(
@@ -429,7 +396,7 @@ void cvi_backend_tg_fixed_fc_kernel(
 
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
-              do_bias, do_relu, &rshift_width, &multiplier, batch_high, batch_low,
+              do_bias, do_relu, rshift_width, multiplier, batch_high, batch_low,
               lstride, rstride, ostride, compressed_pos, CVK_FMT_I8);
 
   kernel.selectTilePolicy();
@@ -447,7 +414,7 @@ void cvi_backend_tg_bf16_fc_kernel(
                                    M, K, N, do_bias, do_relu));
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
-              do_bias, do_relu, nullptr, nullptr, batch_high, batch_low, lstride, rstride,
+              do_bias, do_relu, 0, 0, batch_high, batch_low, lstride, rstride,
               ostride, compressed_pos, CVK_FMT_BF16);
 
   kernel.selectTilePolicy();
