@@ -33,7 +33,7 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
   this->fmt_size = ctx.bytesize_of_fmt(fmt);
   this->compress_offset = 0;
   TOTAL_EU = NPU_NUM * ctx.tiu_eu_num(fmt);
-  uint32_t max_tiu = (1 << 12) - 1; // 1880v2: 12 bit
+  uint32_t max_tiu = MAX_TIU_CHL; // 1880v2: 12 bit
   this->maxM = std::min(this->M, max_tiu);
   this->maxK = std::min(this->K, max_tiu);
   this->maxN = std::min(this->N, max_tiu);
@@ -69,6 +69,9 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
     } else {
       llvm_unreachable("multiplier size error");
     }
+  }
+  if (compressed_pos.empty() == false) {
+    this->ga_weight = ga_weight;
   }
   ctx.set_layer_id(layer_id);
 }
@@ -460,11 +463,13 @@ void TgFcKernel::update_batch_info(int high_idx, int low_idx) {
   } else {
     ga_input = ga_i + batch_idx * M * left_gstride.row;
   }
-  if (rstride) {
-    ga_weight =
-        ga_w + high_idx * K * right_gstride.row + low_idx * N * fmt_size;
-  } else {
-    ga_weight = ga_w + batch_idx * K * right_gstride.row;
+  if (compressed_pos.empty()) {
+    if (rstride) {
+      ga_weight =
+          ga_w + high_idx * K * right_gstride.row + low_idx * N * fmt_size;
+    } else {
+      ga_weight = ga_w + batch_idx * K * right_gstride.row;
+    }
   }
   if (ostride) {
     ga_output =

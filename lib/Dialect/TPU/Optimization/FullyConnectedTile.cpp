@@ -19,19 +19,19 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/TPUOperationSupport.h"
-#include "tpuc/Passes.h"
-#include "tpuc/MachineInfo.h"
-#include "tpuc/Support/TensorFile.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/BuiltinTypes.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/DialectConversion.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/MachineInfo.h"
+#include "tpuc/Passes.h"
+#include "tpuc/Support/TensorFile.h"
+#include "tpuc/TPUOperationSupport.h"
 #include "llvm/ADT/StringRef.h"
 #include "llvm/Support/CommandLine.h"
 #include "llvm/Support/Debug.h"
@@ -45,10 +45,10 @@ namespace tpu {
 
 class FullyConnectedModel {
 public:
-  FullyConnectedModel(const MInfo &mInfo, int M, int K, int N, bool hasB,
-                      int dataTypeSize)
-      : mInfo(mInfo), M(M), K(K), N(N), hasB(hasB), dataTypeSize(dataTypeSize) {
-  }
+  FullyConnectedModel(const MInfo &mInfo, int batch, int M, int K, int N,
+                      bool hasB, int dataTypeSize)
+      : mInfo(mInfo), batch(batch), M(M), K(K), N(N), hasB(hasB),
+        dataTypeSize(dataTypeSize) {}
 
   struct TileInfo {
     int m_step;
@@ -56,31 +56,62 @@ public:
     int k_step;
   };
 
+  typedef enum {
+    GROUP_PARALLEL,
+    NO_TILING,
+    PARALLEL,
+    NO_PARALLEL,
+  } model_t;
+
+  model_t mode;
   TileInfo getTileSizes();
-  int getLmSizePerLane(int tileM, int tileK, int tileN, bool do_parallel = false);
+  void update_blob();
+  int getLmSizePerLane();
   void getTilePoss(TileInfo tileInfo, std::vector<int> &n_poss,
                    std::vector<int> &k_poss, std::vector<int> &n_sizes,
                    std::vector<int> &k_sizes);
 
   const MInfo &mInfo;
+  int batch = {0};
   int M = {0};
   int K = {0};
   int N = {0};
+  int tileM;
+  int tileK;
+  int tileN;
+  int blob_L, blob_R, blob_B, blob_Y;
   bool hasB = {false};
   int dataTypeSize = {1};
 };
 
-// Y(M, N) = L(M, K) * R(K, N) + B(1, N)
-int FullyConnectedModel::getLmSizePerLane(int tileM, int tileK, int tileN, bool do_parallel) {
-  const int npuNum = mInfo.lane_num;
-  const int euNum = mInfo.eu_num / dataTypeSize; // bf16: 1/2 eu num
-  int blob_L = 1, blob_R = 1, blob_B = 1, blob_Y = 1;
-  if (do_parallel && !(tileM == M && tileK == K && tileN == N)) {
+void FullyConnectedModel::update_blob() {
+  switch (mode) {
+  case GROUP_PARALLEL:
+    blob_L = 2;
+    blob_R = 2;
+    blob_B = 2;
+    blob_Y = 2;
+    break;
+  case PARALLEL:
     blob_L = (K != tileK ? 2 : 1);
     blob_R = 2;
     blob_B = (N != tileN) ? 2 : 1;
     blob_Y = (K == tileK ? 2 : (N + tileN - 1) / tileN);
+    break;
+  default:
+    blob_L = 1;
+    blob_R = 1;
+    blob_B = 1;
+    blob_Y = 1;
+    break;
   }
+}
+
+// Y(M, N) = L(M, K) * R(K, N) + B(1, N)
+int FullyConnectedModel::getLmSizePerLane() {
+  update_blob();
+  const int npuNum = mInfo.lane_num;
+  const int euNum = mInfo.eu_num / dataTypeSize; // bf16: 1/2 eu num
   int tileLSize =
       tileM * euNum * llvm::divideCeil(tileK, euNum * npuNum) * dataTypeSize;
 
@@ -121,17 +152,43 @@ int FullyConnectedModel::getLmSizePerLane(int tileM, int tileK, int tileN, bool 
 
 FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
   int max_tiu = (4095 - 32);
+  int totalEuNum = mInfo.lane_num * (mInfo.eu_num / dataTypeSize);
   int maxM = std::min(M, max_tiu); // TIU 12bit
   int maxK = std::min(K, max_tiu); // TIU 12bit
   int maxN = std::min(N, max_tiu);
-  // 1/2 EU in bf16
-  int totalEuNum = mInfo.lane_num * (mInfo.eu_num / dataTypeSize);
-  bool do_parallel = (maxM == M);
-  // try parallel first
-  for (int tileM = maxM; tileM > 0;) {
-    for (int tileK = maxK; tileK > 0; tileK--) {
-      for (int tileN = maxN; tileN > 0;) {
-        int needed = getLmSizePerLane(tileM, tileK, tileN, do_parallel);
+  // try group parallel
+  mode = GROUP_PARALLEL;
+  if (batch > 1 && maxM == M && maxK == K) {
+    tileM = maxM;
+    tileK = maxK;
+    for (tileN = maxN; tileN > 0;) {
+      int needed = getLmSizePerLane();
+      if (needed <= (int)mInfo.lmem_per_lane) {
+        return {tileM, tileN, tileK};
+      }
+      if (tileN % totalEuNum) {
+        tileN -= (tileN % totalEuNum);
+      } else {
+        tileN -= totalEuNum;
+      }
+    }
+  }
+  mode = NO_TILING;
+  if (batch == 1 && maxM == M && maxK == K && maxN == N) {
+    tileM = maxM;
+    tileK = maxK;
+    tileN = maxN;
+    int needed = getLmSizePerLane();
+    if (needed <= (int)mInfo.lmem_per_lane) {
+      return {tileM, tileN, tileK};
+    }
+  }
+  mode = PARALLEL;
+  if (maxM == M) {
+    tileM = maxM;
+    for (tileK = maxK; tileK > 0; tileK--) {
+      for (tileN = maxN; tileN > 0;) {
+        int needed = getLmSizePerLane();
         if (needed <= (int)mInfo.lmem_per_lane) {
           return {tileM, tileN, tileK};
         }
@@ -142,13 +199,23 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
         }
       }
     }
-    if (do_parallel) {
-      do_parallel = false;
-    } else {
-      tileM--;
+  }
+  mode = NO_PARALLEL;
+  for (int tileM = maxM; tileM > 0; tileM--) {
+    for (int tileK = maxK; tileK > 0; tileK--) {
+      for (int tileN = maxN; tileN > 0;) {
+        int needed = getLmSizePerLane();
+        if (needed <= (int)mInfo.lmem_per_lane) {
+          return {tileM, tileN, tileK};
+        }
+        if (tileN % totalEuNum) {
+          tileN -= (tileN % totalEuNum);
+        } else {
+          tileN -= totalEuNum;
+        }
+      }
     }
   }
-  llvm_unreachable("FC tiling failed");
   return {0, 0, 0};
 }
 
@@ -200,7 +267,7 @@ public:
       : OpRewritePattern<OpTy>(ctx), mInfo(mInfo) {}
 
   LogicalResult matchAndRewrite(OpTy tpuOp,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
 
     // Already configured
     if (tpuOp.tile_param().hasValue())
@@ -215,15 +282,12 @@ public:
     int batch, m, k, n;
     parseFullyConnectedParam(tpuOp.input(), tpuOp.filter(), tpuOp.output(),
                              batch, m, k, n);
-    if (batch > 1) {
-      return failure();
-    }
 
     bool hasBias = isTensorNone(tpuOp.bias()) ? false : true;
 
     int dataTypeSize = getDataTypeSize(op->getResult(0));
-    auto fcModel(std::make_unique<FullyConnectedModel>(mInfo, m, k, n,
-                                                       hasBias, dataTypeSize));
+    auto fcModel(std::make_unique<FullyConnectedModel>(mInfo, batch, m, k, n, hasBias,
+                                                       dataTypeSize));
 
     FullyConnectedModel::TileInfo tileInfo = fcModel->getTileSizes();
     if (!tileInfo.m_step || !tileInfo.k_step || !tileInfo.n_step)
@@ -238,12 +302,12 @@ public:
     std::vector<int> k_sizes;
     fcModel->getTilePoss(tileInfo, n_poss, k_poss, n_sizes, k_sizes);
     tpuOp->setAttr("tile_param",
-                  tpu::FcTileParam::get(rewriter.getI32ArrayAttr(tileValues),
-                                        rewriter.getI32ArrayAttr(n_poss),
-                                        rewriter.getI32ArrayAttr(k_poss),
-                                        rewriter.getI32ArrayAttr(n_sizes),
-                                        rewriter.getI32ArrayAttr(k_sizes),
-                                        rewriter.getContext()));
+                   tpu::FcTileParam::get(rewriter.getI32ArrayAttr(tileValues),
+                                         rewriter.getI32ArrayAttr(n_poss),
+                                         rewriter.getI32ArrayAttr(k_poss),
+                                         rewriter.getI32ArrayAttr(n_sizes),
+                                         rewriter.getI32ArrayAttr(k_sizes),
+                                         rewriter.getContext()));
 
     return success();
   }
@@ -251,7 +315,8 @@ public:
   MInfo &mInfo;
 };
 
-struct FullyConnectedTilePass : public mlir::PassWrapper<FullyConnectedTilePass, FunctionPass> {
+struct FullyConnectedTilePass
+    : public mlir::PassWrapper<FullyConnectedTilePass, FunctionPass> {
   void runOnFunction() override;
 };
 

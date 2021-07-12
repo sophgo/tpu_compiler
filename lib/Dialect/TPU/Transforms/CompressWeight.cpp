@@ -346,6 +346,10 @@ public:
     if (!n_poss.size())
       return failure();
 
+    int batch, M, K, N;
+    parseFullyConnectedParam(fcOp.input(), fcOp.filter(), fcOp.output(),
+                             batch, M, K, N);
+
     bool isBf16Flt = isBf16Tensor(fcOp.filter());
     int fltEltSize = getDataTypeSize(fcOp.filter());
     assert(fltEltSize == sizeof(DataType) && "Expect correct data type");
@@ -356,13 +360,7 @@ public:
     int64_t filterSize;
     std::vector<int64_t> filterShape;
     getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
-
-    // In dialect, weight shape is NxK !
-    // weight already transposed (NxK -> KxN), but shape not updated !
-    size_t dim = filterShape.size();
-    assert(dim == 2);
-    int N = filterShape[dim - 2];
-    int K = filterShape[dim - 1];
+    assert(filterSize == batch * N * K);
 
     LLVM_DEBUG(llvm::dbgs()
                << "CompressFcWeightPattern: layer ID "
@@ -389,60 +387,62 @@ public:
     int dstOffset = 0;
     std::vector<int> compr_weight_poss;
     std::vector<int> compr_weight_sizes;
-    for (unsigned i = 0; i < n_poss.size(); ++i) {
-      int n_pos = n_poss[i];
-      int k_pos = k_poss[i];
-      int n_size = n_sizes[i];
-      int k_size = k_sizes[i];
-      int srcOffset = k_pos * N + n_pos;
+    for (int b = 0; b < batch; b++) {
+      for (unsigned i = 0; i < n_poss.size(); ++i) {
+        int n_pos = n_poss[i];
+        int k_pos = k_poss[i];
+        int n_size = n_sizes[i];
+        int k_size = k_sizes[i];
+        int srcOffset = b * N * K + k_pos * N + n_pos;
 
-      assert((n_pos < N) && (n_size <= N) && "Expect valid n pos, size");
-      assert((k_pos < K) && (k_size <= K) && "Expect valid k pos, size");
+        assert((n_pos < N) && (n_size <= N) && "Expect valid n pos, size");
+        assert((k_pos < K) && (k_size <= K) && "Expect valid k pos, size");
 
-      int stepSize = n_size * k_size * fltEltSize;
-      auto plainData = std::make_unique<std::vector<uint8_t>>(stepSize);
-      stridedMatrixMemcpy<DataType>((DataType *)plainData->data(),
-                                    filter->data() + srcOffset, N, k_size,
-                                    n_size);
+        int stepSize = n_size * k_size * fltEltSize;
+        auto plainData = std::make_unique<std::vector<uint8_t>>(stepSize);
+        stridedMatrixMemcpy<DataType>((DataType *)plainData->data(),
+                                      filter->data() + srcOffset, N, k_size,
+                                      n_size);
 
-      // Calculate compress parameter first.
-      CompressCommandInfo cmdInfo;
-      std::memset(&cmdInfo, 0, sizeof(cmdInfo));
-      cmdInfo.signedness = isBf16Flt ? 0 : 1;
-      cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
-      cmdInfo.bias0 = isBf16Flt ? 127 : 0;
-      getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
-                            cmdInfo.is_bfloat16, &cmdInfo);
+        // Calculate compress parameter first.
+        CompressCommandInfo cmdInfo;
+        std::memset(&cmdInfo, 0, sizeof(cmdInfo));
+        cmdInfo.signedness = isBf16Flt ? 0 : 1;
+        cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
+        cmdInfo.bias0 = isBf16Flt ? 127 : 0;
+        getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
+                              cmdInfo.is_bfloat16, &cmdInfo);
 
-      // Create Compress data.
-      int requiredSize = getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
-      auto compressedData =
-          std::make_unique<std::vector<uint8_t>>(requiredSize);
-      int compressedSize = requiredSize;
+        // Create Compress data.
+        int requiredSize = getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
+        auto compressedData =
+            std::make_unique<std::vector<uint8_t>>(requiredSize);
+        int compressedSize = requiredSize;
 
-      if (isBf16Flt)
-        compressBf16Data(plainData->data(), stepSize, compressedData->data(),
-                          &compressedSize, &cmdInfo);
-      else
-        compressInt8Data(plainData->data(), stepSize, compressedData->data(),
-                          &compressedSize, &cmdInfo);
+        if (isBf16Flt)
+          compressBf16Data(plainData->data(), stepSize, compressedData->data(),
+                            &compressedSize, &cmdInfo);
+        else
+          compressInt8Data(plainData->data(), stepSize, compressedData->data(),
+                            &compressedSize, &cmdInfo);
 
-      if ((dstOffset + compressedSize) > (K * N * fltEltSize)) {
-        LLVM_DEBUG(llvm::dbgs()
-                    << "      compressed size exceed, dstOffset " << dstOffset
-                    << " + " << compressedSize << " > " << (K * N) << "\n");
-        canCompress = false;
-        break;
+        if ((dstOffset + compressedSize) > (filterSize * fltEltSize)) {
+          LLVM_DEBUG(llvm::dbgs()
+                      << "      compressed size exceed, dstOffset " << dstOffset
+                      << " + " << compressedSize << " > " << (K * N) << "\n");
+          canCompress = false;
+          break;
+        }
+
+        // Fill compressed data.
+        std::memcpy(newFilter->data() + dstOffset / fltEltSize,
+                    compressedData->data(), compressedSize);
+
+        compr_weight_poss.push_back(dstOffset);
+        // compr_weight_sizes.push_back(compressedSize);
+
+        dstOffset += compressedSize;
       }
-
-      // Fill compressed data.
-      std::memcpy(newFilter->data() + dstOffset / fltEltSize,
-                  compressedData->data(), compressedSize);
-
-      compr_weight_poss.push_back(dstOffset);
-      // compr_weight_sizes.push_back(compressedSize);
-
-      dstOffset += compressedSize;
     }
 
     // Remove tiled position and size to simplify mlir
@@ -472,7 +472,7 @@ public:
 
       struct CompressInfo info;
       info.name = fcOp.name();
-      info.size = K * N * fltEltSize;
+      info.size = filterSize * fltEltSize;
       info.compressedSize = dstOffset;
       compressInfos_.push_back(info);
 
