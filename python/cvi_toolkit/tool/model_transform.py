@@ -26,7 +26,7 @@ class ModelTransformTool(object):
         self.batch_size = batch_size
         self.preprocessor = preprocessor
         self.preprocess_args = preprocessor.to_dict()
-        self.op_info_csv = IntermediateFile(self.model_name, 'op_info.csv', False)
+        self.op_info_csv = IntermediateFile(self.model_name, 'op_info.csv', True)
 
     def cleanup(self):
         IntermediateFile.cleanup()

@@ -73,6 +73,11 @@ def DoConvertSwishToRelu : FunctionPass<"convert-swish-to-relu"> {
   let constructor = "mlir::createConvertSwishToReluPass()";
 }
 
+def DoFuseSigmoidEltMulToSwish : FunctionPass<"fuse-sigmoid-mul-to-swish"> {
+  let summary = "Convert Sigmoid + EltMul to Swish";
+  let constructor = "mlir::createFuseSigmoidEltMulToSwishPass()";
+}
+
 def DoConvertClipToRelu6 : FunctionPass<"convert-clip-to-relu6"> {
   let summary = "Convert clip to relu6";
   let constructor = "mlir::createConvertClipToRelu6Pass()";

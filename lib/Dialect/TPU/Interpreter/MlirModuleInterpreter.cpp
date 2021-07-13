@@ -177,6 +177,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<SoftmaxOpKernel>(*op, valueMapping);
     } else if (isa<tpu::SigmoidOp>(op)) {
       krnl = std::make_shared<SigmoidOpKernel>(*op, valueMapping);
+    } else if (isa<tpu::SwishOp>(op)) {
+      krnl = std::make_shared<SwishOpKernel>(*op, valueMapping);
     } else if (isa<tpu::SliceOp>(op)) {
       krnl = std::make_shared<SliceOpKernel>(*op, valueMapping);
     } else if (isa<tpu::ConcatOp>(op)) {

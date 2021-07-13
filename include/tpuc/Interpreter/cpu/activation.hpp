@@ -162,6 +162,29 @@ private:
   int bf16_max_range;
 };
 
+class SwishOpKernel : public CPUOpKernel {
+public:
+  static constexpr const char *OpName = "CPUSwishOp";
+
+  SwishOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  SyncedData y0_table_op;
+  SyncedData slope_table;
+
+  // bf16
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
+  int bf16_min_range;
+  int bf16_max_range;
+};
+
 class ReciprocalOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReciprocalOpOp";

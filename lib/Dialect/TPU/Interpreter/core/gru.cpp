@@ -1,4 +1,5 @@
 #include "tpuc/Interpreter/cpu/gru.hpp"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
@@ -9,7 +10,7 @@ namespace mlir {
 double GruOpKernel::sigmoid_(double data) {
   if (datatype == DataType::BF16) {
     float var = data;
-    bf16_lut_slope(&var, &var, 1, *sigmoid_lut, *sigmoid_slope_lut, -8, 8);
+    bf16_lut_slope("sigmoid", &var, &var, 1, *sigmoid_lut, *sigmoid_slope_lut);
     return var;
   } else {
     return 0.5 * tanh(0.5 * data) + 0.5;
@@ -18,7 +19,7 @@ double GruOpKernel::sigmoid_(double data) {
 double GruOpKernel::tanh_(double data) {
   if (datatype == DataType::BF16) {
     float var = data;
-    bf16_lut_slope(&var, &var, 1, *tanh_lut, *tanh_slope_lut, -8, 8);
+    bf16_lut_slope("tanh", &var, &var, 1, *tanh_lut, *tanh_slope_lut);
     return var;
   } else {
     return tanh(data);

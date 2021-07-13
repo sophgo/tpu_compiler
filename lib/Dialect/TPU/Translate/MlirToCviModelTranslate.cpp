@@ -66,9 +66,6 @@ static llvm::cl::opt<bool>
                   llvm::cl::init(false));
 
 
-extern float BF16_TABLE_START;
-extern float BF16_TABLE_END;
-
 typedef struct {
   char magic[8];
   uint32_t body_size;

@@ -1,4 +1,5 @@
 #include "tpuc/Interpreter/cpu/activation.hpp"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
@@ -52,9 +53,8 @@ void ExpOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
-                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
-                   bf16_max_range);
+    bf16_lut_slope("exp", input_data->data(), output_data->data(), output_data->size(),
+                   *y0_bf16_table_op, *y0_bf16_slope_table);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
@@ -91,13 +91,12 @@ void MishOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope(input_data->data(), output_data->data(), size,
-                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
-                   bf16_max_range);
+    bf16_lut_slope("mish", input_data->data(), output_data->data(), size,
+                   *y0_bf16_table_op, *y0_bf16_slope_table);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(size))
     for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) = my_mish_caffe(input_data->at(i), mish_threshold);
+      output_data->at(i) = my_mish_activate(input_data->at(i));
     }
   }
 }
@@ -328,13 +327,48 @@ void SigmoidOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope(input_data->data(), output_data->data(), output_size,
-                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
-                   bf16_max_range);
+    bf16_lut_slope("sigmoid", input_data->data(), output_data->data(), output_size,
+                   *y0_bf16_table_op, *y0_bf16_slope_table);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = 0.5 * tanh(0.5 * input_data->at(i)) + 0.5;
+    }
+  }
+}
+
+SwishOpKernel::SwishOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
+  auto sigmoidOp = cast<tpu::SwishOp>(op);
+  if (datatype == DataType::INT8) {
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
+    bf16_min_range = sigmoidOp.min_range().convertToFloat();
+    bf16_max_range = sigmoidOp.max_range().convertToFloat();
+  }
+  // get tensors
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
+}
+
+void SwishOpKernel::invoke() {
+  size_t output_size = output_data->size();
+  if (datatype == DataType::INT8) {
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
+    for (size_t i = 0; i < output_size; ++i) {
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
+    }
+  } else if (datatype == DataType::BF16) {
+    bf16_lut_slope("swish", input_data->data(), output_data->data(), output_size,
+                   *y0_bf16_table_op, *y0_bf16_slope_table);
+  } else {
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
+    for (size_t i = 0; i < output_size; ++i) {
+      auto val = input_data->at(i);
+      output_data->at(i) = val / (1 + std::exp(-val));
     }
   }
 }
@@ -364,13 +398,12 @@ void SoftPlusOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
-                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
-                   bf16_max_range);
+    bf16_lut_slope("softplus", input_data->data(), output_data->data(), output_data->size(),
+                   *y0_bf16_table_op, *y0_bf16_slope_table);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) = softplus_activate(input_data->at(i), threshold);
+      output_data->at(i) = logf(expf(input_data->at(i)) + 1);
     }
   }
 }
@@ -454,9 +487,8 @@ void TanHOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope(input_data->data(), output_data->data(), output_data->size(),
-                   *y0_bf16_table_op, *y0_bf16_slope_table, bf16_min_range,
-                   bf16_max_range);
+    bf16_lut_slope("tanh", input_data->data(), output_data->data(), output_data->size(),
+                   *y0_bf16_table_op, *y0_bf16_slope_table);
   } else {
 
 #pragma omp parallel for schedule(static, omp_schedule(output_size))

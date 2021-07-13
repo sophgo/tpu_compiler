@@ -27,6 +27,7 @@
 #include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include "tpuc/MachineInfo.h"
 #include "tpuc/NativeCpuImplementation.h"
 #include "tpuc/Passes.h"
@@ -42,14 +43,6 @@
 
 #define DEBUG_TYPE "quantize_bf16"
 
-float BF16_TABLE_START = -8.0f;
-float BF16_TABLE_END = 8.0f;
-static float revert_threshold;
-static double sigmoid(double x) { return 0.5 * tanh(0.5 * x) + 0.5; }
-static double mish(double x) { return my_mish_caffe(x, revert_threshold); }
-static double softplus(double x) {
-  return softplus_activate(x, revert_threshold);
-}
 
 using namespace mlir;
 
@@ -88,23 +81,10 @@ static void quantizeBf16WeightOp(Value op, TensorFile *wTF) {
 //
 // lut
 //
-typedef enum lut_type {
-  // mantissa
-  RECIPROCAL = 0,
-  SQRT,
-  RECIPROCAL_SQRT,
-  POWER,
-  // slope
-  SIGMOID = 1024,
-  TANH,
-  EXP,
-  MISH,
-  SOFTPLUS,
-} lut_type_t;
 
 // insert bf16 table to operands
-static void insertBf16LutOp(Operation *op, int tableIndex, int mantissaIndex,
-                            lut_type_t type, float param = 0.0f) {
+static void insertBf16LutOp(Operation *op, const std::string &type_name, const std::string &method,
+                            int tableIndex, int mantissaIndex, float param = 0.0f) {
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
   int npu_num = MInfo::lane_num;
@@ -115,77 +95,22 @@ static void insertBf16LutOp(Operation *op, int tableIndex, int mantissaIndex,
   int table_hw = table_h * table_w;
   int tbl_shape = npu_num * table_hw;
 
-  bool is_slope = (type >= 1024); // slope or mantissa
   std::vector<float> table_fp32(tbl_shape);
   std::vector<float> mantissa_fp32(tbl_shape);
   std::vector<bfloat16> table_bf16(table_hw);
   std::vector<bfloat16> mantissa_bf16(table_hw);
+  float range_start = -62;
+  float range_end = 63;
 
-  const int start = is_slope ? BF16_TABLE_START : -62;
-  const int end = is_slope ? BF16_TABLE_END : 63;
-  std::string type_name;
-  switch (type) {
-  case RECIPROCAL:
-    type_name = "reciprocal";
-    bf16_gen_reciprocal(start, end, table_hw, table_bf16.data());
-    bf16_gen_reciprocal_mantissa(start, end, table_hw, mantissa_bf16.data());
-    break;
-  case SQRT:
-    type_name = "sqrt";
-    bf16_gen_sqrt(start, table_hw, table_bf16.data());
-    bf16_gen_sqrt_mantissa(table_hw, mantissa_bf16.data());
-    break;
-  case RECIPROCAL_SQRT:
-    type_name = "reciprocal_sqrt";
-    bf16_gen_reciprocal_sqrt(start, table_hw, table_bf16.data());
-    bf16_gen_reciprocal_sqrt_mantissa(table_hw, mantissa_bf16.data());
-    break;
-  case POWER:
-    type_name = "power";
-    bf16_gen_power_exp_table(table_bf16.data(), param, start, table_hw);
-    bf16_gen_power_mantissa_table(mantissa_bf16.data(), param, table_hw);
-    break;
-  case SIGMOID:
-    type_name = "sigmoid";
-    gen_bf16_table(start, end, table_hw, table_fp32.data(), sigmoid);
-    gen_bf16_slope_table(BF16_TABLE_START, BF16_TABLE_END, table_hw,
-                         table_fp32.data(), mantissa_fp32.data(), sigmoid);
-    break;
-  case TANH:
-    type_name = "tanh";
-    gen_bf16_table(start, end, table_hw, table_fp32.data(), tanh);
-    gen_bf16_slope_table(start, end, table_hw, table_fp32.data(),
-                         mantissa_fp32.data(), tanh);
-    break;
-  case EXP:
-    type_name = "exp";
-    gen_bf16_table(start, end, table_hw, table_fp32.data(), exp);
-    gen_bf16_slope_table(start, end, table_hw, table_fp32.data(),
-                         mantissa_fp32.data(), exp);
-    if (start <= -15) {
-      table_fp32[128] = 0; // Make lut exp(x) = 0 when x <= START
-    }
-    break;
-  case MISH:
-    type_name = "miss";
-    gen_bf16_table(start, end, table_hw, table_fp32.data(), mish);
-    gen_bf16_slope_table(start, end, table_hw, table_fp32.data(),
-                         mantissa_fp32.data(), mish);
-    break;
-  case SOFTPLUS:
-    type_name = "softplus";
-    gen_bf16_table(start, end, table_hw, table_fp32.data(), softplus);
-    gen_bf16_slope_table(start, end, table_hw, table_fp32.data(),
-                         mantissa_fp32.data(), softplus);
-    break;
-  }
   std::string suffix_mantissa;
-  if (is_slope) {
-    suffix_mantissa = type_name + "_slope_table";
-    FloatToBFloat16(table_fp32.data(), table_bf16.data(), table_hw);
-    FloatToBFloat16(mantissa_fp32.data(), mantissa_bf16.data(), table_hw);
-  } else {
+  if (method == "mantissa") {
+    bf16_gen_exponent_mantissa_table(type_name, table_bf16.data(), mantissa_bf16.data(), param);
     suffix_mantissa = type_name + "_mantissa_table";
+  } else {
+    bf16_gen_base_slope_table(type_name, table_fp32.data(), mantissa_fp32.data(), range_start, range_end);
+    suffix_mantissa = type_name + "_slope_table";
+    FloatToBFloat16(table_fp32.data(), table_bf16.data(), table_hw, false);
+    FloatToBFloat16(mantissa_fp32.data(), mantissa_bf16.data(), table_hw);
   }
   BFloat16ToFloat(table_bf16.data(), table_fp32.data(), table_hw);
   BFloat16ToFloat(mantissa_bf16.data(), mantissa_fp32.data(), table_hw);
@@ -204,6 +129,9 @@ static void insertBf16LutOp(Operation *op, int tableIndex, int mantissaIndex,
   auto table_mantissa_op = addWeightTensorAndCreateWeightOp<float>(
       op, suffix_mantissa, mantissa_fp32, shape, storageType, wTF, wfV);
 
+  auto builder = Builder(op->getContext());
+  op->setAttr("min_range", builder.getF32FloatAttr(range_start));
+  op->setAttr("max_range", builder.getF32FloatAttr(range_end));
   op->setOperand(tableIndex, table_op);
   op->setOperand(mantissaIndex, table_mantissa_op);
 }
@@ -267,32 +195,22 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   // use LUT
   setOpQuantParamType(op, "LUT_BF16");
 
-  auto lutOp = cast<OpTy>(op);
-  auto _start = BF16_TABLE_START;
-  auto _end = BF16_TABLE_END;
-
-  BF16_TABLE_START = lutOp.min_range().convertToFloat();
-  BF16_TABLE_END = lutOp.max_range().convertToFloat();
-
-  if (OpTy::getOperationName() == "tpu.sigmoid") {
-    insertBf16LutOp(op, 1, 2, SIGMOID);
-  } else if (OpTy::getOperationName() == "tpu.tanh") {
-    insertBf16LutOp(op, 1, 2, TANH);
-  } else if (OpTy::getOperationName() == "tpu.exp") {
-    insertBf16LutOp(op, 1, 2, EXP);
-  } else if (OpTy::getOperationName() == "tpu.mish") {
-    auto castOp = dyn_cast<tpu::MishOp>(op);
-    revert_threshold = castOp.mish_threshold().convertToFloat();
-    insertBf16LutOp(op, 1, 2, MISH);
-  } else if (OpTy::getOperationName() == "tpu.softplus") {
-    auto castOp = dyn_cast<tpu::SoftPlusOp>(op);
-    revert_threshold = castOp.threshold().convertToFloat();
-    insertBf16LutOp(op, 1, 2, SOFTPLUS);
+  if (isa<tpu::SigmoidOp>(op)) {
+    insertBf16LutOp(op, "sigmoid", "slope", 1, 2);
+  } else if (isa<tpu::SwishOp>(op)) {
+    insertBf16LutOp(op, "swish", "slope", 1, 2);
+  } else if (isa<tpu::TanHOp>(op)) {
+    insertBf16LutOp(op, "tanh", "slope", 1, 2);
+  } else if (isa<tpu::ExpOp>(op)) {
+    insertBf16LutOp(op, "exp", "slope", 1, 2);
+  } else if (isa<tpu::MishOp>(op)) {
+    insertBf16LutOp(op, "mish", "slope", 1, 2);
+  } else if (isa<tpu::SoftPlusOp>(op)) {
+    insertBf16LutOp(op, "softplus", "slope", 1, 2);
   } else {
     llvm_unreachable("not support now");
   }
-  BF16_TABLE_START = _start;
-  BF16_TABLE_END = _end;
+
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -424,8 +342,8 @@ LogicalResult tpu::GruOp::quantizeBf16() {
   TensorFile *wTF = getWeightTensorFile(op);
   quantizeBf16WeightOp(recurrence(), wTF);
   quantizeBf16WeightOp(initial_h(), wTF);
-  insertBf16LutOp(op, 4, 5, SIGMOID);
-  insertBf16LutOp(op, 6, 7, TANH);
+  insertBf16LutOp(op, "sigmoid", "slope", 4, 5);
+  insertBf16LutOp(op, "tanh", "slope", 6, 7);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -448,7 +366,7 @@ LogicalResult tpu::LayerNormOp::quantizeBf16() {
   TensorFile *wTF = getWeightTensorFile(op);
   quantizeBf16WeightOp(scale(), wTF);
   quantizeBf16WeightOp(bias(), wTF);
-  insertBf16LutOp(op, 3, 4, RECIPROCAL_SQRT);
+  insertBf16LutOp(op, "reciprocal_sqrt", "mantissa", 3, 4);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -478,7 +396,7 @@ LogicalResult tpu::LrnOp::quantizeBf16() {
   assert(getOpQuant() == "BF16");
   auto lrnOp = cast<tpu::LrnOp>(op);
   float beta = lrnOp.beta().convertToFloat();
-  insertBf16LutOp(op, 1, 2, POWER, beta);
+  insertBf16LutOp(op, "power", "mantissa", 1, 2, beta);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -491,8 +409,8 @@ LogicalResult tpu::LstmOp::quantizeBf16() {
   quantizeBf16WeightOp(recurrence(), wTF);
   quantizeBf16WeightOp(initial_h(), wTF);
   quantizeBf16WeightOp(initial_c(), wTF);
-  insertBf16LutOp(op, 5, 6, SIGMOID);
-  insertBf16LutOp(op, 7, 8, TANH);
+  insertBf16LutOp(op, "sigmoid", "slope", 5, 6);
+  insertBf16LutOp(op, "tanh", "slope", 7, 8);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -518,7 +436,7 @@ LogicalResult tpu::SqrtOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
-  insertBf16LutOp(op, 1, 2, SQRT);
+  insertBf16LutOp(op, "sqrt", "mantissa", 1, 2);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -528,7 +446,7 @@ LogicalResult tpu::ReciprocalOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
-  insertBf16LutOp(op, 1, 2, RECIPROCAL);
+  insertBf16LutOp(op, "reciprocal", "mantissa", 1, 2);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -538,6 +456,13 @@ LogicalResult tpu::SigmoidOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBF16LutOps<tpu::SigmoidOp>(op);
+}
+
+LogicalResult tpu::SwishOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBF16LutOps<tpu::SwishOp>(op);
 }
 
 LogicalResult tpu::TanHOp::quantizeBf16() {
@@ -559,10 +484,8 @@ LogicalResult tpu::SoftmaxOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
-  BF16_TABLE_START = -15;
-  BF16_TABLE_END = 1;
-  insertBf16LutOp(op, 1, 2, EXP);
-  insertBf16LutOp(op, 3, 4, RECIPROCAL);
+  insertBf16LutOp(op, "exp", "slope", 1, 2);
+  insertBf16LutOp(op, "reciprocal", "mantissa", 3, 4);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }

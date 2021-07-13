@@ -2372,6 +2372,8 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
 
 def TPU_SigmoidOp : TPU_LutOp<"sigmoid", "Sigmoid">;
 
+def TPU_SwishOp : TPU_LutOp<"swish", "Swish">;
+
 def TPU_SliceOp: TPU_Op<"slice",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

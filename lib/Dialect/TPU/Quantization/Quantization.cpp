@@ -341,6 +341,7 @@ void setBF16LutMinMaxPattern(FuncOp& fn) {
             || isa<tpu::MishOp>(op)
             || isa<tpu::ReciprocalOp>(op)
             || isa<tpu::SigmoidOp>(op)
+            || isa<tpu::SwishOp>(op)
             || isa<tpu::SqrtOp>(op)
             || isa<tpu::ExpOp>(op)
             || isa<tpu::TanHOp>(op)

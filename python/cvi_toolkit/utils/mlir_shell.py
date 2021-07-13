@@ -24,6 +24,7 @@ def checkReturnValue(ret, func: str):
 
 def mlir_opt(mlirfile, opt_mlirfile, op_info_csv):
     ret = subprocess.run(["tpuc-opt",
+                            "--fuse-sigmoid-mul-to-swish",
                             "--convert-bn-to-scale",
                             "--convert-clip-to-relu6",
                             "--canonicalize",

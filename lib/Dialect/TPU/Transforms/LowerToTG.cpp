@@ -2086,6 +2086,46 @@ Value tpu::SigmoidOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::SwishOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+
+  int nInputs = 3; // input and table
+  std::vector<Value> operands;
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  // get default/assign value
+  attrs.push_back(builder.getNamedAttr("max_range",
+      builder.getF32FloatAttr(max_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("min_range",
+      builder.getF32FloatAttr(min_range().convertToFloat())));
+  attrs.push_back(builder.getNamedAttr("added_offset",
+      builder.getBoolAttr(added_offset())));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    attrs.push_back(
+        builder.getNamedAttr("method", builder.getStringAttr("slope")));
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::SliceOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -3961,6 +4001,7 @@ public:
         DefaultToTGPattern<tpu::ScaleLutOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
+        DefaultToTGPattern<tpu::SwishOp>,
         DefaultToTGPattern<tpu::SliceOp>,
         DefaultToTGPattern<tpu::SqrtOp>,
         DefaultToTGPattern<tpu::SwapChannelOp>,

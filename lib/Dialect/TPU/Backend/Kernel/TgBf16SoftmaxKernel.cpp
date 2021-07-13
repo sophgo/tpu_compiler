@@ -1029,7 +1029,7 @@ void TgSoftmaxKernel::schedule() {
 
 void TgSoftmaxKernel::exponential(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work) {
     const int table_thresh_min = -15;
-    const int table_thresh_max = 1;
+    const int table_thresh_max = 15;
     cvi_backend_tl_lut(
         ctx, layer_id,
         tl_in->start_address, tl_out->start_address, tl_work->start_address,

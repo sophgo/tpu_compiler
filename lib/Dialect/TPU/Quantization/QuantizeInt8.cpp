@@ -618,6 +618,9 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
       } else if (OpTy::getOperationName() == "tpu.sigmoid") {
         index = -lutInput * threshold_x / 127.0;
         lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
+      } else if (OpTy::getOperationName() == "tpu.swish") {
+        index = lutInput * threshold_x / 127.0;
+        lutOutput = index / (1 + std::exp(-index)) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.tanh") {
         index = lutInput * threshold_x / 127.0;
         lutOutput = std::tanh(index) * 127.0 / threshold_y;
@@ -626,14 +629,10 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
         lutOutput = std::exp(index) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.mish") {
         index = lutInput * threshold_x / 127.0;
-        auto castOp = dyn_cast<tpu::MishOp>(op);
-        auto mish_threshold = castOp.mish_threshold().convertToFloat();
-        lutOutput = my_mish_caffe(index, mish_threshold) * 127.0 / threshold_y;
+        lutOutput = my_mish_activate(index) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.softplus") {
         index = lutInput * threshold_x / 127.0;
-        auto castOp = dyn_cast<tpu::SoftPlusOp>(op);
-        auto threshold = castOp.threshold().convertToFloat();
-        lutOutput = softplus_activate(index, threshold) * 127.0 / threshold_y;
+        lutOutput = logf(expf(index) + 1) * 127.0 / threshold_y;
       } else {
         assert(false && "not support now");
       }
@@ -1476,6 +1475,13 @@ LogicalResult tpu::SigmoidOp::quantizeInt8() {
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8LutOps<tpu::SigmoidOp>(op);
+}
+
+LogicalResult tpu::SwishOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8LutOps<tpu::SwishOp>(op);
 }
 
 LogicalResult tpu::SoftPlusOp::quantizeInt8() {

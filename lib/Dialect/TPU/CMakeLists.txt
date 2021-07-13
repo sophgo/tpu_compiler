@@ -31,7 +31,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertScale.cpp
   Transforms/ConvertClip.cpp
   Transforms/ConvertNormalize.cpp
-  Transforms/ConvertSwishToRelu.cpp
+  Transforms/ConvertSwish.cpp
   Transforms/ConvertPermute.cpp
   Transforms/FuseAsymmetricZeroPointShift.cpp
   Transforms/FuseRelu.cpp

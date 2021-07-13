@@ -104,31 +104,33 @@ struct EliminateDeadcodePattern : public RewritePattern {
       : RewritePattern("tpu.tl_lg_join", 1, context),
         ctx_(context) {}
 
-  LogicalResult
-      matchAndRewrite(Operation *op,
-                     PatternRewriter &rewriter) const override {
-    Operation * tl_join = op;
-    Operation * load_op;
-    if (tl_join->getNumOperands() != 1)
-      return failure();
-    Operation * store_op = tl_join->getOperand(0).getDefiningOp();
-    auto tl_store = dyn_cast<tpu::TL_LG_StoreOp>(store_op);
-    if (!tl_store)
-      return failure();
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
 
-    if (!(tl_join->getResult(0).hasOneUse()))
+    if (op->getNumOperands() != 1) {
       return failure();
-    for (auto &use : op->getResult(0).getUses()) {
-      load_op = use.getOwner();
-      break;
     }
-    // should be join + load, or return fail
-    Operation * join_next = tl_join->getNextNode();
-    if (join_next != load_op)
-      return failure();
 
+    auto store_op = op->getOperand(0).getDefiningOp();
+    auto tl_store = dyn_cast<tpu::TL_LG_StoreOp>(store_op);
+    if (!tl_store) {
+      return failure();
+    }
+    // join op should be next to store op
+    if (store_op->getNextNode() != op) {
+      return failure();
+    }
+
+    auto load_op = getNextOp(op);
+    if (!load_op) {
+      return failure();
+    }
     auto tl_load = dyn_cast<tpu::TL_LG_LoadNeuronOp>(load_op);
     if (!tl_load) {
+      return failure();
+    }
+    // load op should be next to join op
+    if (op->getNextNode() != load_op) {
       return failure();
     }
 
@@ -143,68 +145,6 @@ struct EliminateDeadcodePattern : public RewritePattern {
       // set disable_parallel to previous op
       Operation * prev_op = store_op->getPrevNode();
       auto prev_tl_op = llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(prev_op);
-
-      // travel store / load range that make sure the lmem not dirty
-      // ----group 3---
-      // eltwise-add output addr: 64
-      // conv output 0: shape is 1x64x56x56xsi8, overwrite 64
-      // ----group 4---
-      // tl_copy(eltwise-add) # cnt copy from 64 cuz dirty it in different groups
-
-      std::string store_op_name = mlir::getOpName(store_op).str();
-      std::string load_op_name = mlir::getOpName(load_op).str();
-      // c align up lanes
-      //  #define NPU_NUM (MInfo::lane_num)
-      auto get_output_len = [&](Value v) mutable -> int {
-        std::vector<int64_t> tensor_shape = getTensorShape(v);
-        //auto type = RankedTensorType::get(store_shape, v.getType().cast<RankedTensorType>());
-        auto eltType = v.getType().cast<TensorType>().getElementType();
-        int bitWidth = eltType.getIntOrFloatBitWidth();
-        // unit: byte
-        int n_size = tensor_shape[0];
-        int c_size = ceiling_func(tensor_shape[1], NPU_NUM);
-        int hw_size = tensor_shape[2] * tensor_shape[3] * (bitWidth / 8);
-        hw_size = ceiling_func(hw_size, EU_NUM);
-        int total_size = n_size * c_size * hw_size;
-        return total_size;
-      };
-
-      int store_sz = get_output_len(store_op->getResult(0));
-      int x1 = store_laddr;
-      int x2 = store_laddr + store_sz;
-
-      LLVM_DEBUG(llvm::dbgs() << llvm::format("op travel from %s(%d~%d) to %s\n",
-            store_op_name.c_str(), x1, x2, load_op_name.c_str()));
-
-      for (auto node = store_op->getNextNode(); node && node != load_op;
-          node = node->getNextNode()) {
-        std::string curr_name = mlir::getOpName(node).str();
-        LLVM_DEBUG(llvm::dbgs() << llvm::format("op: %s ", curr_name.c_str()));
-        int output_addr = -1;
-        if (auto attr = node->getAttr("la_output")) {
-          output_addr = attr.cast<IntegerAttr>().getInt();
-        } else if (auto attr = node->getAttr("la_dst")) {
-          output_addr = attr.cast<IntegerAttr>().getInt();
-        } else if (auto attr = node->getAttr("laddr")) {
-          output_addr = attr.cast<IntegerAttr>().getInt();
-        } else {
-          LLVM_DEBUG(llvm::dbgs() <<
-            llvm::format(" cnt get op output, continue it\n", curr_name.c_str()));
-          continue;
-        }
-
-        int output_sz = get_output_len(node->getResult(0));
-        int y1 = output_addr;
-        int y2 = output_addr + output_sz;
-        LLVM_DEBUG(llvm::dbgs() << llvm::format("start %d end %d\n",
-              y1, y2));
-        if (std::max(x1,y1) <= std::min(x2,y2)) {
-          LLVM_DEBUG(llvm::dbgs() <<
-            llvm::format("op: %s output range is overlap store's, cant copy it\n", curr_name.c_str()));
-          // overlap, skip copy
-          return failure();
-        }
-      }
 
       if (tl_store.getDisableParallel())
         prev_tl_op.setDisableParallel(true);

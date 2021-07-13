@@ -1,5 +1,6 @@
 #include "internal.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
@@ -101,8 +102,8 @@ void SoftmaxOpKernel::invoke_bf16() {
     }
 
     // e^x
-    bf16_lut_slope(ex_arr, ex_arr, channel * inner_dim,
-                   *exp_table, *exp_slope_table, -15, 1);
+    bf16_lut_slope("exp", ex_arr, ex_arr, channel * inner_dim,
+                   *exp_table, *exp_slope_table);
 
     // sum of (e^x)
     float const_val = BF16(BF16(1.0 * channel) / channel);
