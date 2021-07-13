@@ -2106,7 +2106,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
         }
 
         // Add weight size
-        coeff_oc_step_size +=
+        uint32_t weight_size =
             ctx.lmem_tensor_to_size(ctx.tl_shape_t4(ic_step, oc_step, kh, kw),
                                     args.tiu_fmt, /*eu_align=*/0);
 
@@ -2114,32 +2114,26 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
         for (tile_info.n = 1; tile_info.n <= n; ++tile_info.n) {
           int32_t n_step = ceiling_func(n, tile_info.n);
 
-          uint32_t total_needed = 0;
-
           uint32_t ofmap_size = ctx.lmem_tensor_to_size(
               ctx.tl_shape_t4(n_step, oc_step, oh_step, ow_step), args.tiu_fmt,
               /*eu_align=*/1);
-          total_needed += ofmap_size;
 
           uint32_t ifmap_size = ctx.lmem_tensor_to_size(
               ctx.tl_shape_t4(n_step, ic_step, ih_step, iw_step), args.tiu_fmt,
               /*eu_align=*/1);
-          total_needed += ifmap_size;
-
-          total_needed += coeff_oc_step_size;
-
-          // Double buffers so that TDMA load and store can run during TIU
-          // executes.
-          total_needed *= bufferMultiplier;
 
           // Leaky relu need tl_neg, tl_relu.
           // tl_relu, tl_neg are not from tmda and not final output.
           // One copy is enough.
+          uint32_t extra_size = scaleLutSize;
           if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
-            total_needed += 2 * ofmap_size; // tl_relu + tl_neg
+            extra_size += 2 * ofmap_size; // tl_relu + tl_neg
           }
 
-          total_needed += scaleLutSize;
+          uint32_t total_needed =
+              (ifmap_size + ofmap_size + weight_size + coeff_oc_step_size) *
+                  bufferMultiplier +
+              extra_size;
 
           tile_info.n_step = n_step;
           tile_info.oc_step = oc_step;
@@ -2152,18 +2146,27 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
           tile_info.favor_dma = favor_dma;
 
           if (total_needed <= getLmSizePerLane() && checkDmaPolicy(tile_info)) {
-            LLVM_DEBUG(
-                llvm::errs() << llvm::format(
-                    "    Slices (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d"
-                    ", ih_step=%d, iw_step=%d, ic_step=%d)\n"
-                    "      coeff_oc_step_size %d, total_needed %d\n"
-                    "      ifmap shape (%d, %d, %d, %d)\n"
-                    "      weight shape (%d, %d, %d, %d)\n"
-                    "      ofmap shape (%d, %d, %d, %d)\n",
-                    n_step, oc_step, oh_step, ow_step, ih_step, iw_step,
-                    ic_step, coeff_oc_step_size, total_needed, n_step, ic_step,
-                    ih_step, iw_step, oc_step, ic_step, kh, kw, n_step, oc_step,
-                    oh_step, ow_step));
+            LLVM_DEBUG(llvm::errs() << llvm::format(
+                           "  Conv::determineTileSize\n    "
+                           "Tile (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d"
+                           ", ih_step=%d, iw_step=%d, ic_step=%d)\n    "
+                           "inputSize %d, outputSize %d, weightSize %d"
+                           ", biasSize %d, totalSizePerLane %d"
+                           ", totalSize %d/%d(%d)\n    "
+                           "ifmap shape (%d, %d, %d, %d)\n    "
+                           "weight shape (%d, %d, %d, %d)\n    "
+                           "ofmap shape (%d, %d, %d, %d)\n    "
+                           "useDoubleBuffer %d, favor_dma %d\n",
+                           n_step, oc_step, oh_step, ow_step, ih_step, iw_step,
+                           ic_step, ifmap_size * bufferMultiplier,
+                           ofmap_size * bufferMultiplier,
+                           weight_size * bufferMultiplier,
+                           coeff_oc_step_size * bufferMultiplier, total_needed,
+                           total_needed * NPU_NUM, LOCAL_MEM_SIZE * NPU_NUM,
+                           (total_needed * 100) / LOCAL_MEM_SIZE, n_step,
+                           ic_step, ih_step, iw_step, oc_step, ic_step, kh, kw,
+                           n_step, oc_step, oh_step, ow_step, useDoubleBuffer,
+                           favor_dma));
             LLVM_DEBUG(llvm::errs() << "  <= determineTileSize succeed\n");
             return true;
           }
@@ -2841,36 +2844,30 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
           }
 
           // Add weight size
-          coeff_oc_step_size +=
+          uint32_t weight_size =
               ctx.lmem_tensor_to_size(ctx.tl_shape_t4(ic_step, oc_step, kh, kw),
                                       args.tiu_fmt, /*eu_align=*/1);
-
-          uint32_t total_needed = 0;
 
           uint32_t ofmap_size = ctx.lmem_tensor_to_size(
               ctx.tl_shape_t4(n_step, oc_step, oh_step, ow_step), args.tiu_fmt,
               /*eu_align=*/1);
-          total_needed += ofmap_size;
 
           uint32_t ifmap_size = ctx.lmem_tensor_to_size(
               ctx.tl_shape_t4(n_step, oc_step, ih_step, iw_step), args.tiu_fmt,
               /*eu_align=*/1);
-          total_needed += ifmap_size;
-
-          total_needed += coeff_oc_step_size;
-
-          // Double buffers so that TDMA load and store can run during TIU
-          // executes.
-          total_needed *= bufferMultiplier;
 
           // Leaky relu need tl_neg, tl_relu.
           // tl_relu, tl_neg are not from tmda and not final output.
           // One copy is enough.
+          uint32_t extra_size = scaleLutSize;
           if (do_activation && activation_arg && activation_arg[0] != 0.0f) {
-            total_needed += 2 * ofmap_size; // tl_relu + tl_neg
+            extra_size += 2 * ofmap_size; // tl_relu + tl_neg
           }
 
-          total_needed += scaleLutSize;
+          uint32_t total_needed =
+              (ifmap_size + ofmap_size + weight_size + coeff_oc_step_size) *
+                  bufferMultiplier +
+              extra_size;
 
           tile_info.n_step = n_step;
           tile_info.oc_step = oc_step;
@@ -2886,18 +2883,27 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
           if (total_needed <= getLmSizePerLane() && checkDmaPolicy(tile_info)) {
             tile_info.n_step = n_step;
 
-            LLVM_DEBUG(
-                llvm::errs() << llvm::format(
-                    "    Slices (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d"
-                    ", ih_step=%d, iw_step=%d, ic_step=%d)\n"
-                    "      coeff_oc_step_size %d, total_needed %d\n"
-                    "      ifmap shape (%d, %d, %d, %d)\n"
-                    "      weight shape (%d, %d, %d, %d)\n"
-                    "      ofmap shape (%d, %d, %d, %d)\n",
-                    n_step, oc_step, oh_step, ow_step, ih_step, iw_step,
-                    ic_step, coeff_oc_step_size, total_needed, n_step, oc_step,
-                    ih_step, iw_step, oc_step, ic_step, kh, kw, n_step, oc_step,
-                    oh_step, ow_step));
+            LLVM_DEBUG(llvm::errs() << llvm::format(
+                           "  Conv::determineDwTileSize\n    "
+                           "Tile (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d"
+                           ", ih_step=%d, iw_step=%d, ic_step=%d)\n    "
+                           "inputSize %d, outputSize %d, weightSize %d"
+                           ", biasSize %d, totalSizePerLane %d"
+                           ", totalSize %d/%d(%d)\n    "
+                           "tiled ifmap shape (%d, %d, %d, %d)\n    "
+                           "tiled weight shape (%d, %d, %d, %d)\n    "
+                           "tiled ofmap shape (%d, %d, %d, %d)\n    "
+                           "use_double_buffer %d, favor_dma %d\n",
+                           n_step, oc_step, oh_step, ow_step, ih_step, iw_step,
+                           ic_step, ifmap_size * bufferMultiplier,
+                           ofmap_size * bufferMultiplier,
+                           weight_size * bufferMultiplier,
+                           coeff_oc_step_size * bufferMultiplier, total_needed,
+                           total_needed * NPU_NUM, LOCAL_MEM_SIZE * NPU_NUM,
+                           (total_needed * 100) / LOCAL_MEM_SIZE, n_step,
+                           oc_step, ih_step, iw_step, oc_step, ic_step, kh, kw,
+                           n_step, oc_step, oh_step, ow_step, use_double_buffer,
+                           favor_dma));
             LLVM_DEBUG(llvm::errs() << "<= determineDwTileSize succeed"
                                     << "\n");
             return true;
@@ -3567,7 +3573,7 @@ void cvi_backend_tg_fixed_conv_kernel(
 
   // Try depthwise convolution.
   if (conv->isDwConv()) {
-    if (conv->determineDwTileSize(true, true))
+    if (conv->determineDwTileSize(true, false))
       return conv->dwConv();
     else
       assert(0 && "DwConv does not support single buffer yet");
@@ -3610,7 +3616,7 @@ void cvi_backend_tg_bf16_conv_kernel(
     int load_cmpr_act_c_step, int store_cmpr_act_h_step,
     int load_cmpr_act_h_step) {
 
-  // this message is too long for llvm::format, so seperate it
+  // this message is too long for llvm::format, so separate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "cvi_backend_tg_bf16_conv_kernel:\n"
                  "    layer_id %d\n"
@@ -3683,7 +3689,7 @@ void cvi_backend_tg_bf16_conv_kernel(
 
   // Try depthwise convolution.
   if (conv->isDwConv()) {
-    if (conv->determineDwTileSize(true, true)) {
+    if (conv->determineDwTileSize(true, false)) {
       return conv->dwConv();
     } else
       assert(0 && "DwConv does not support single buffer yet");

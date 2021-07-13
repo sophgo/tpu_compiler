@@ -170,35 +170,27 @@ int ConvolutionBaseModel::getLmSizePerLane(TileInfo &tileInfo) {
 
   if (totalSize <= mInfo.lmem_per_lane) {
     LLVM_DEBUG(llvm::dbgs()
-        << "  ConvolutionBaseModel::getLmSizePerLane\n    "
-        << "Tile (n_step=" << n_step
-        << ", oc_step=" << oc_step
-        << ", oh_step=" << oh_step
-        << ", ow_step=" << ow_step
-        << ", ih_step=" << ih_step
-        << ", iw_step=" << iw_step
-        << ", ic_step=" << ic_step << ")\n    "
-        << "inputSize " << inputSize
-        << ", outputSize " << outputSize
-        << ", weightSize " << weightSize
-        << ", biasSize " << biasSize
-        << "(do_chl_quan " << do_chl_quan
-        << ", with_bias " << with_bias << ")"
-        << ", totalSize " << totalSize << "\n    "
-        << "tiled input shape (" << n_step
-        << ", " << ic_step
-        << ", " << ih_step
-        << ", " << iw_step << ")\n    "
-        << "tiled weight shape (" << oc_step
-        << ", " << ic_step_4_weight
-        << ", " << kh
-        << ", " << kw << ")\n    "
-        << "tiled output shape (" << n_step
-        << ", " << oc_step
-        << ", " << oh_step
-        << ", " << ow_step << ")\n    "
-        << "use_double_buffer " << tileInfo.use_double_buffer
-        << ", favor_dma " << tileInfo.favor_dma << "\n");
+               << "  ConvolutionBaseModel::getLmSizePerLane\n    "
+               << "Tile (n_step=" << n_step << ", oc_step=" << oc_step
+               << ", oh_step=" << oh_step << ", ow_step=" << ow_step
+               << ", ih_step=" << ih_step << ", iw_step=" << iw_step
+               << ", ic_step=" << ic_step << ")\n    "
+               << "inputSize " << inputSize * bufferMultiplier
+               << ", outputSize " << outputSize * bufferMultiplier
+               << ", weightSize " << weightSize * bufferMultiplier
+               << ", biasSize " << biasSize * bufferMultiplier
+               << "(do_chl_quan " << do_chl_quan << ", with_bias " << with_bias
+               << ")"
+               << ", totalSizePerLane " << totalSize << ", totalSize "
+               << totalSize * mInfo.lane_num << "\n    "
+               << "tiled input shape (" << n_step << ", " << ic_step << ", "
+               << ih_step << ", " << iw_step << ")\n    "
+               << "tiled weight shape (" << oc_step << ", " << ic_step_4_weight
+               << ", " << kh << ", " << kw << ")\n    "
+               << "tiled output shape (" << n_step << ", " << oc_step << ", "
+               << oh_step << ", " << ow_step << ")\n    "
+               << "use_double_buffer " << tileInfo.use_double_buffer
+               << ", favor_dma " << tileInfo.favor_dma << "\n");
   }
 
   return totalSize;
@@ -209,8 +201,8 @@ int ConvolutionBaseModel::getLmSizePerLane(TileInfo &tileInfo) {
 // However TDMA engine can handle small data transfer efficiently.
 //
 // E.g. Resnet50 scale2b_branch2c in DDR3 platform.
-//   (1, 96, 56, 56) tiu 19471, store 31056, 77 fps
-//   (1, 32, 56, 56) tiu 6535, store 10376, 84 fps
+//   (1, 96, 56, 56), wr 294 kB, tiu 19471, store 31056, 77 fps
+//   (1, 32, 56, 56), wr 98 kB, tiu 6535, store 10376, 84 fps
 //
 // The load/store reorder may be useful in intra-layer and
 // inter-layer.
