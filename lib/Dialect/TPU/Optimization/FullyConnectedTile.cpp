@@ -201,9 +201,9 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
     }
   }
   mode = NO_PARALLEL;
-  for (int tileM = maxM; tileM > 0; tileM--) {
-    for (int tileK = maxK; tileK > 0; tileK--) {
-      for (int tileN = maxN; tileN > 0;) {
+  for (tileM = maxM; tileM > 0; tileM--) {
+    for (tileK = maxK; tileK > 0; tileK--) {
+      for (tileN = maxN; tileN > 0;) {
         int needed = getLmSizePerLane();
         if (needed <= (int)mInfo.lmem_per_lane) {
           return {tileM, tileN, tileK};
