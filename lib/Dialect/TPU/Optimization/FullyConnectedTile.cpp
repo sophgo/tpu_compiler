@@ -174,7 +174,7 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
     }
   }
   mode = NO_TILING;
-  if (batch == 1 && maxM == M && maxK == K && maxN == N) {
+  if (maxM == M && maxK == K && maxN == N) {
     tileM = maxM;
     tileK = maxK;
     tileN = maxN;

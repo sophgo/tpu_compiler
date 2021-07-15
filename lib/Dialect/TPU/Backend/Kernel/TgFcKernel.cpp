@@ -122,7 +122,7 @@ uint32_t TgFcKernel::total_lmem_size() const {
          lmem_size.blob_B * lmem_size.B + lmem_size.blob_Y * lmem_size.Y;
 }
 
-void TgFcKernel::update_laddr() {
+void TgFcKernel::set_laddr() {
   auto lmem_size = get_lmem_size();
   uint32_t last_laddr = 0;
   for (uint32_t y = 0; y < lmem_size.blob_Y; y++) {
@@ -154,8 +154,8 @@ bool TgFcKernel::try_tiling_group_parallel() {
   if (batch == 1 || maxK != K || maxM != M) {
     return false;
   }
-  tile_K = K;
-  tile_M = M;
+  tile_K = maxK;
+  tile_M = maxM;
   for (tile_N = maxN; tile_N > 0;) {
     if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
       goto tiling_group_parallel_exit;
@@ -190,9 +190,12 @@ tiling_group_parallel_exit:
 
 bool TgFcKernel::try_no_tiling() {
   mode = FC_NO_TILING;
-  if (batch > 1 || maxM != M || maxN != N || maxK != K) {
+  if (maxM != M || maxN != N || maxK != K) {
     return false;
   }
+  tile_K = maxK;
+  tile_M = maxM;
+  tile_N = maxN;
   if (total_lmem_size() > (uint32_t)LOCAL_MEM_SIZE) {
     return false;
   }
@@ -212,7 +215,7 @@ bool TgFcKernel::try_tiling_parallel() {
   if (maxM != M) {
     return false;
   }
-
+  tile_M = maxM;
   for (tile_K = maxK; tile_K > 0; tile_K--) {
     for (tile_N = maxN; tile_N > 0;) {
       if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
@@ -300,7 +303,7 @@ void TgFcKernel::selectTilePolicy() {
     assert(0);
   }
   total_steps = tiles.size();
-  update_laddr();
+  set_laddr();
   if (compressed_pos.empty() == false) {
     assert(batch * slice_n() * slice_k() == compressed_pos.size());
   }
@@ -322,6 +325,9 @@ void TgFcKernel::update_tl_matrix(int32_t step_idx) {
   ctx.lmem_init_matrix(&tl_Y, ctx.ml_default_shape(tile.m, tile.n, fmt), fmt,
                        1);
   tl_Y.start_address = Y_laddr[tile.Y_idx];
+  if (mode == FC_GROUP_PARALLEL) {
+    update_batch_info(tile.batch_high, tile.batch_low);
+  }
 }
 
 void TgFcKernel::matrix_for_tiu() {
@@ -342,9 +348,7 @@ void TgFcKernel::compute(int32_t step_idx) {
   auto &tile = tiles[step_idx];
   update_tl_matrix(step_idx);
   matrix_for_tiu();
-  if (mode == FC_GROUP_PARALLEL) {
-    update_batch_info(tile.batch_high, tile.batch_low);
-  }
+
   bool is_last = is_last_k(step_idx);
   uint32_t ps32_mode = 0;   // normal mode
   uint32_t relu_enable = 0; // 1880v2 relu can be used in ps32_mode
@@ -412,9 +416,6 @@ bool TgFcKernel::is_last_k(int32_t step_idx) const {
 void TgFcKernel::load(int32_t step_idx) {
   auto &tile = tiles[step_idx];
   update_tl_matrix(step_idx);
-  if (mode == FC_GROUP_PARALLEL) {
-    update_batch_info(tile.batch_high, tile.batch_low);
-  }
   // load L
   if (tile.pos_n == 0 || mode == FC_NO_PARALLEL) {
     ctx.tdma_load_stride(
@@ -447,9 +448,6 @@ void TgFcKernel::store(int32_t step_idx) {
   }
   auto &tile = tiles[step_idx];
   update_tl_matrix(step_idx);
-  if (mode == FC_GROUP_PARALLEL) {
-    update_batch_info(tile.batch_high, tile.batch_low);
-  }
   ctx.tdma_store_stride(&tl_Y,
                         ga_output + tile.pos_m * output_gstride.row +
                             tile.pos_n * fmt_size,

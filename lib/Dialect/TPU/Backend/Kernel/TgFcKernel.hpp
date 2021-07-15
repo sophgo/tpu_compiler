@@ -37,7 +37,7 @@ protected:
                             bool ps32 = false) const;
 
   void update_tl_matrix(int32_t step_idx);
-  void update_laddr();
+  void set_laddr();
   void matrix_for_tiu();
   bool is_last_k(int32_t step_idx) const;
   inline uint32_t slice_m() const { return (M + tile_M - 1) / tile_M; }
@@ -128,7 +128,6 @@ protected:
     FC_NO_PARALLEL,
   } fc_mode_t;
   fc_mode_t mode;
-  bool group_parallel;
   int total_steps;
   std::vector<uint32_t> Y_laddr; // [M, tile_N]
   uint32_t L_laddr[2];           // [M, tile_K]
