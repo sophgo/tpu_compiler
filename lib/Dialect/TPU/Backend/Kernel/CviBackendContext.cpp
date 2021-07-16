@@ -449,6 +449,25 @@ const cvk_tl_shape_t &CviBackendContext::lut_table_shape(cvk_fmt_t fmt) const {
   return table_fixed;
 }
 
+bool CviBackendContext::size_to_hw(int size, int&h, int&w) const {
+  if (size <= MAX_WIDTH) {
+    h = 1;
+    w = size;
+    return true;
+  }
+  int div = std::sqrt(size);
+  for (h = div; h >= 2; h--) {
+    if (size % h == 0) {
+      w = size / h;
+      break;
+    }
+  }
+  if (h <= MAX_WIDTH && w <= MAX_WIDTH) {
+    return true;
+  }
+  return false;
+}
+
 void CviBackendContext::tiling_all(std::vector<tiling_info_t> &tiling_result,
                                    int64_t total, cvk_fmt_t fmt, int blob_num,
                                    uint32_t lmem_size) const {

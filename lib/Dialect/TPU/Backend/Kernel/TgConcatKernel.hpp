@@ -30,7 +30,6 @@ protected:
   void store(int32_t step_idx);
   void update_output(int output_dim[], int dim_size, int concat_axis);
   uint32_t &axis_dim(cvk_tg_shape_t &shape);
-  uint64_t axis_size(const cvk_tg_shape_t &shape) const;
   uint64_t dst_offset(const CviBackendContext::tiling_info_t &tile) const;
 
 protected:
@@ -42,6 +41,8 @@ protected:
   bool do_relu;
   int dim_size;
   int axis;
+  int axis_before;
+  int axis_after;
   int input_num;
   cvk_fmt_t fmt;
   int32_t layer_id;

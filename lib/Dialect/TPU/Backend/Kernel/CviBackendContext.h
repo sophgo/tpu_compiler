@@ -403,6 +403,7 @@ public:
     uint64_t offset; // gmem offset
   } tiling_info_t;
 
+  bool size_to_hw(int size, int&h, int&w) const;
   void tiling_packing(std::vector<tiling_info_t> &tiling_result, int n, int c,
                       int h, int w, cvk_fmt_t fmt, int blob_num = 1,
                       uint32_t reserved_lmem = 0,

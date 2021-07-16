@@ -17,34 +17,18 @@
 
 #define ASSERT(x) assert(x)
 
-static void size_to_hw(int size, int &h, int &w) {
-  if (size <= MAX_WIDTH) {
-    h = 1;
-    w = size;
-    return;
-  }
-  int div = std::sqrt(size);
-  for (h = div; h >= 2; h--) {
-    if (size % h == 0) {
-      w = size / h;
-      break;
-    }
-  }
-  if (h <= MAX_WIDTH && w <= MAX_WIDTH) {
-    return;
-  }
-  llvm::errs() << llvm::format("LayerNorm normalized size[%d] is too large\n",
-                               size);
-  assert(0);
-}
-
 void cvi_backend_tg_bf16_layernorm_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_table, gaddr_t ga_mantissa_table, gaddr_t ga_scale,
     gaddr_t ga_bias, gaddr_t ga_output, int batch_size, int normalized_size,
     float eps, bool affine) {
   int h, w;
-  size_to_hw(normalized_size, h, w);
+  bool ret = ctx.size_to_hw(normalized_size, h, w);
+  if (ret == false) {
+    llvm::errs() << llvm::format("LayerNorm normalized size[%d] is too large\n",
+                                 normalized_size);
+    assert(0);
+  }
   uint32_t lmem_used = 0;
   cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
   cvk_tl_t *tl_lut = ctx.lmem_alloc_tensor(table_shape, CVK_FMT_BF16, 1);

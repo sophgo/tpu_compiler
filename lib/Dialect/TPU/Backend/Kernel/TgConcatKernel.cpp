@@ -7,9 +7,11 @@
 
 #include "TgConcatKernel.hpp"
 #include "CviBackendContext.h"
+#include <cmath>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
+#include <numeric>
 
 #define DEBUG_TYPE "cvi_backend_concat_kernel"
 
@@ -28,70 +30,30 @@ uint32_t &TgConcatKernel::axis_dim(cvk_tg_shape_t &shape) {
   }
 }
 
-uint64_t TgConcatKernel::axis_size(const cvk_tg_shape_t &shape) const {
-  uint64_t size = 1;
-  switch (axis) {
-  case 0:
-    size = shape.n * shape.c * shape.h * shape.w;
-    break;
-  case 1:
-    size = shape.c * shape.h * shape.w;
-    break;
-  case 2:
-    size = shape.h * shape.w;
-    break;
-  case 3:
-    size = shape.w;
-    break;
-  default:
-    assert(0 && "axis should less than 4");
-    break;
-  }
-  return size;
-}
-
 void TgConcatKernel::update_output(int output_dim[], int dim_size,
                                    int concat_axis) {
   axis = concat_axis;
-  switch (dim_size) {
-  case 4:
-    output_shape = ctx.tg_shape_t4(output_dim[0], output_dim[1], output_dim[2],
-                                   output_dim[3]);
+  axis_before =
+      std::accumulate(output_dim, output_dim + axis, 1, std::multiplies<int>());
+  axis_after = std::accumulate(output_dim + axis + 1, output_dim + dim_size, 1,
+                               std::multiplies<int>());
+  int axis_dim = output_dim[axis];
+  int h, w;
+  bool ret = ctx.size_to_hw(axis_after, h, w);
+  assert(ret && "axis after size too large");
+  if (axis_before == 1) {
+    tiling_mode = CviBackendContext::TilingAll;
+    output_shape = ctx.tg_shape_t4(axis_before, axis_dim, h, w);
+    axis = 1;
+  } else if (h == 1 && (axis_dim < axis_before || w == 1)) {
+    output_shape = ctx.tg_shape_t4(1, axis_before, axis_dim, w);
+    axis = 2;
+  } else {
+    output_shape = ctx.tg_shape_t4(axis_before, axis_dim, h, w);
+    axis = 1;
+  }
 
-    break;
-  case 3: // w = 1
-    output_shape =
-        ctx.tg_shape_t4(output_dim[0], output_dim[1], output_dim[2], 1);
-    break;
-  case 2: // n = 1, w = 1
-    output_shape = ctx.tg_shape_t4(1, output_dim[0], output_dim[1], 1);
-    axis = concat_axis + 1;
-    break;
-  case 1: // n = 1, c = 1, w = 1
-    output_shape = ctx.tg_shape_t4(1, 1, output_dim[0], 1);
-    axis = 2;
-    break;
-  default: // not support
-    assert(0 && "dim size large than 4, not supported");
-    break;
-  }
   output_stride = ctx.tg_default_stride(output_shape, fmt);
-  if (axis == 3 && output_shape.h != 1 &&
-      output_stride.w >= (uint32_t)0x10000) {
-    // hstride should less than 0x10000, c = c*h, h = 1
-    output_shape.c *= output_shape.h;
-    output_shape.h = output_shape.w;
-    output_shape.w = 1;
-    output_stride = ctx.tg_default_stride(output_shape, fmt);
-    axis = 2;
-  }
-  // TilingAll is better than TilingNCHW
-  for (int i = 0; i < concat_axis; i++) {
-    if (output_dim[i] != 1) {
-      return;
-    }
-  }
-  tiling_mode = CviBackendContext::TilingAll;
 }
 
 void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
@@ -135,7 +97,8 @@ void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
     }
     info.ga_input = input_gaddrs[i];
     info.ga_output = output_gaddr + axis_addr_offset;
-    axis_addr_offset += ctx.bytesize_of_fmt(fmt) * axis_size(info.shape);
+    axis_addr_offset +=
+        ctx.bytesize_of_fmt(fmt) * axis_dim(info.shape) * axis_after;
     inputs.emplace_back(info);
   }
 }
