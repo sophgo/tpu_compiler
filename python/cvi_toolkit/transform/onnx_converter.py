@@ -3278,95 +3278,15 @@ class OnnxConverter(BaseConverter):
                 }
                 pixel_shuffle_op = self.CVI.add_pixelshuffle_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
                 self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.ACTIVATION)
-            elif len(transpose_perm) == 4:
-                # channel swap
-                on = input_shape[transpose_perm[0]]
-                oc = input_shape[transpose_perm[1]]
-                oh = input_shape[transpose_perm[2]]
-                ow = input_shape[transpose_perm[3]]
-                output_shape = [on, oc, oh, ow]
-                operands = [op]
-                attr = {
-                    'order0': transpose_perm[0],
-                    'order1': transpose_perm[1],
-                    'order2': transpose_perm[2],
-                    'order3': transpose_perm[3],
-                }
-                permute_op = self.CVI.add_permute_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-                self.addOperand(onnx_node.name, permute_op, output_shape, TensorType.ACTIVATION)
-
-            elif len(transpose_perm) == 3:
-                """
-                    Our tpu only support 4 dim transpose, we reshape 3dim to 4
-                    and after transpose reshape back
-                """
-                # not dirty origin shape
-                _input_shape = list(input_shape)
-                _input_shape.insert(0, 1)
-                reshape_op = self.CVI.add_reshape_op("{}_{}_to_four_dim".format(
-                    onnx_node.name, onnx_node.op_type), [op], _input_shape)
-                on = _input_shape[0]
-                oc = _input_shape[transpose_perm[0]+1]
-                oh = _input_shape[transpose_perm[1]+1]
-                ow = _input_shape[transpose_perm[2]+1]
-                output_shape = [on, oc, oh, ow]
-
-                attr = {
-                    'order0': 0,
-                    'order1': transpose_perm[0]+1,
-                    'order2': transpose_perm[1]+1,
-                    'order3': transpose_perm[2]+1,
-                }
-                permute_op = self.CVI.add_permute_op("{}_{}".format(
-                    onnx_node.name, onnx_node.op_type), [reshape_op], output_shape, **attr)
-                output_shape = output_shape[1:]
-                reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
-                    onnx_node.name, onnx_node.op_type), [permute_op], output_shape)
-                self.addOperand(onnx_node.name, reshape_back_op,
-                                output_shape, TensorType.ACTIVATION)
-            elif len(transpose_perm) == 5:
-                """
-                    Our tpu only support 4 dim transpose, dim5 not support
-                    if transpose_perm first element is 0 and input_shape first is 1(not batch)
-                    we can skip this dim
-                """
-                if transpose_perm[0] == 0 and input_shape[0] == 1:
-                    # reshape to dim 4
-                    new_shape = input_shape[1:]
-                    reshape_op = self.CVI.add_reshape_op("{}_{}_to_four_dim".format(
-                        onnx_node.name, onnx_node.op_type), [op], new_shape)
-
-                    new_transpose_term = [x - 1 for x in transpose_perm]
-                    # skip first diim
-                    new_transpose_term = new_transpose_term[1:]
-
-                    # tranpose
-                    on = new_shape[new_transpose_term[0]]
-                    oc = new_shape[new_transpose_term[1]]
-                    oh = new_shape[new_transpose_term[2]]
-                    ow = new_shape[new_transpose_term[3]]
-                    output_shape = [on, oc, oh, ow]
-
-                    attr = {
-                        'order0': new_transpose_term[0],
-                        'order1': new_transpose_term[1],
-                        'order2': new_transpose_term[2],
-                        'order3': new_transpose_term[3],
-                    }
-
-                    permute_op = self.CVI.add_permute_op("{}_{}".format(
-                        onnx_node.name, onnx_node.op_type), [reshape_op], output_shape, **attr)
-
-                    output_shape.insert(0, 1)
-
-                    reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
-                        onnx_node.name, onnx_node.op_type), [permute_op], output_shape)
-                    self.addOperand(onnx_node.name, reshape_back_op,
-                        output_shape, TensorType.ACTIVATION)
-                else:
-                    raise RuntimeError("transpose dim 5 is not support")
             else:
-                raise RuntimeError("only support dim 4 transpose and pixel shuffle case")
+                output_shape = list(input_shape)
+                for i in range(len(transpose_perm)):
+                    output_shape[i] = input_shape[transpose_perm[i]]
+                attr = {
+                    'order': transpose_perm,
+                }
+                permute_op = self.CVI.add_permute_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
+                self.addOperand(onnx_node.name, permute_op, output_shape, TensorType.ACTIVATION)
 
     def convert_where_op(self, onnx_node):
         assert(onnx_node.op_type == "Where")

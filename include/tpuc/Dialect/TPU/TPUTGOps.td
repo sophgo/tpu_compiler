@@ -1078,10 +1078,7 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`          : required, the activation memref.
 
     Attributes:
-      `order0`          : required, The new order0 of the axes of data.
-      `order1`          : required, The new order1 of the axes of data.
-      `order2`          : required, The new order2 of the axes of data.
-      `order3`          : required, The new order3 of the axes of data.
+      `order`          : required, The new order of the axes of data.
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -1102,10 +1099,7 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    I32Attr:$order0,
-    I32Attr:$order1,
-    I32Attr:$order2,
-    I32Attr:$order3,
+    I32ArrayAttr:$order,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,

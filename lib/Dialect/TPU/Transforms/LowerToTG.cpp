@@ -1381,10 +1381,7 @@ Value tpu::PermuteOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("order0", order0Attr()));
-  attrs.push_back(builder.getNamedAttr("order1", order1Attr()));
-  attrs.push_back(builder.getNamedAttr("order2", order2Attr()));
-  attrs.push_back(builder.getNamedAttr("order3", order3Attr()));
+  attrs.push_back(builder.getNamedAttr("order", orderAttr()));
 
   if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_PermuteOp>(op->getLoc(),

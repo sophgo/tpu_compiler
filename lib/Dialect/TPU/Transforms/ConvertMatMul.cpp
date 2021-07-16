@@ -59,10 +59,13 @@ struct MergeTransposeMatMulPattern : public RewritePattern {
       return failure();
     }
     bool match = false;
+    int pattern[] = {0, 2, 1, 3};
+    std::vector<int> p(pattern, pattern + 4);
     if (isa<tpu::PermuteOp>(leftOp) && leftOp->getResult(0).hasOneUse()) {
       auto pmOp = cast<tpu::PermuteOp>(leftOp);
-      if (pmOp.order0() == 0 && pmOp.order1() == 2 && pmOp.order2() == 1 &&
-          pmOp.order3() == 3) {
+      std::vector<int> order;
+      arrayAttrToVector(pmOp.order(), order);
+      if (order == p) {
         castOp->setAttr("left_transpose", rewriter.getBoolAttr(true));
         rewriter.replaceOp(leftOp, {leftOp->getOperand(0)});
         match = true;
@@ -70,8 +73,9 @@ struct MergeTransposeMatMulPattern : public RewritePattern {
     }
     if (isa<tpu::PermuteOp>(rightOp) && rightOp->getResult(0).hasOneUse()) {
       auto pmOp = cast<tpu::PermuteOp>(rightOp);
-      if (pmOp.order0() == 0 && pmOp.order1() == 2 && pmOp.order2() == 1 &&
-          pmOp.order3() == 3) {
+      std::vector<int> order;
+      arrayAttrToVector(pmOp.order(), order);
+      if (order == p) {
         castOp->setAttr("right_transpose", rewriter.getBoolAttr(true));
         rewriter.replaceOp(rightOp, {rightOp->getOperand(0)});
         match = true;
@@ -79,8 +83,9 @@ struct MergeTransposeMatMulPattern : public RewritePattern {
     }
     if (outputOp != nullptr && isa<tpu::PermuteOp>(outputOp)) {
       auto pmOp = cast<tpu::PermuteOp>(outputOp);
-      if (pmOp.order0() == 0 && pmOp.order1() == 2 && pmOp.order2() == 1 &&
-          pmOp.order3() == 3) {
+      std::vector<int> order;
+      arrayAttrToVector(pmOp.order(), order);
+      if (order == p) {
         castOp->setAttr("output_transpose", rewriter.getBoolAttr(true));
         castOp->setAttr("name", pmOp.nameAttr());
         rewriter.replaceOp(outputOp, {outputOp->getOperand(0)});
@@ -108,65 +113,36 @@ struct TransposeRightMatrixPattern : public RewritePattern {
     if (rightShape.size() != 2 || leftShape.size() != 2) {
       return failure();
     }
-    int k = leftShape[1];
-    bool need_transpose = false;
-    int n = rightShape[1];
-    if (k != rightShape[0]) {
-      need_transpose = true;
-      n = rightShape[0];
+    if (rightShape[0] == leftShape[1]) {
+      return failure();
     }
-    if (!need_transpose) {
+    if (rightShape[1] != leftShape[1]) {
+      llvm_unreachable("matmul shape uncorrect");
       return failure();
     }
 
     std::vector<Value> operands;
     std::vector<NamedAttribute> attrs;
 
-    auto elementType = rightOp->getResult(0)
-                           .getType()
-                           .cast<RankedTensorType>()
-                           .getElementType();
+    auto prevOp = rightOp->getOperand(0).getDefiningOp();
 
-    auto prevReshapeOp = rightOp->getOperand(0).getDefiningOp();
-    if (isa<tpu::ReshapeOp>(prevReshapeOp)) {
-      return failure();
-    }
-    auto type = RankedTensorType::get({n, k, 1, 1}, elementType);
-    prevReshapeOp->getResult(0).setType(type);
-
-    type = RankedTensorType::get({k, n, 1, 1}, elementType);
-    std::string name = getOpName(prevReshapeOp).str() + "_transposed";
-
+    std::string name = getOpName(prevOp).str() + "_transposed";
+    std::vector<int> order;
+    order = {1, 0};
     attrs.push_back(
         rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
     attrs.push_back(
-        rewriter.getNamedAttr("order0", rewriter.getI32IntegerAttr(1)));
-    attrs.push_back(
-        rewriter.getNamedAttr("order1", rewriter.getI32IntegerAttr(0)));
-    attrs.push_back(
-        rewriter.getNamedAttr("order2", rewriter.getI32IntegerAttr(2)));
-    attrs.push_back(
-        rewriter.getNamedAttr("order3", rewriter.getI32IntegerAttr(3)));
-    attrs.push_back(
-        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-
-    operands.push_back(prevReshapeOp->getResult(0));
+        rewriter.getNamedAttr("order", rewriter.getI32ArrayAttr(order)));
+    operands.push_back(prevOp->getResult(0));
+    std::vector<int64_t> oshape;
+    oshape = {rightShape[1], rightShape[0]};
+    auto result_type =
+        RankedTensorType::get(oshape, rightType.getElementType());
     auto permuteOp = rewriter.create<tpu::PermuteOp>(
-        op->getLoc(), type, ArrayRef<Value>{operands},
+        op->getLoc(), result_type, ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
 
-    attrs.clear();
-    operands.clear();
-    name += "_reshape";
-    attrs.push_back(
-        rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-    operands.push_back(permuteOp);
-    type = RankedTensorType::get({k, n}, elementType);
-    auto reshapeOp = rewriter.create<tpu::ReshapeOp>(
-        op->getLoc(), type, ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-
-    op->setOperand(1, reshapeOp.getResult());
+    op->setOperand(1, permuteOp.getResult());
     return success();
   }
 };

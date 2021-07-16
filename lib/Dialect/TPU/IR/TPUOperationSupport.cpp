@@ -755,6 +755,25 @@ void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
   assert((n == o_s[axis]) && "rhs N not equal to output N");
 }
 
+void parsePermuteParam(const std::vector<int64_t> &input_shape,
+                       const std::vector<int> &order,
+                       std::vector<int64_t> &shape_4,
+                       std::vector<int> &order_4) {
+  int num_dims = order.size();
+  if (num_dims > 4) {
+    for (int i = 0; i < num_dims - 4; i++) {
+      assert(input_shape[i] == 1 && "> 4 dim, should be 1");
+      assert(order[i] == i && "> 4 dim, order can't change");
+    }
+  }
+  order_4 = {0, 1, 2, 3};
+  shape_4 = {1, 1, 1, 1};
+  for (int end = num_dims - 1, idx = 3; end >= 0 && idx >= 0; end--, idx--) {
+    shape_4[idx] = input_shape[end];
+    order_4[idx] = order[end] + idx - end;
+  }
+}
+
 template<typename OpTy>
 void parseLeakyReluParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,

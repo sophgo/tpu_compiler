@@ -2620,58 +2620,52 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
   auto input_type = input().getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
-
   std::vector<int> orders;
-  orders.push_back(this->order0());
-  orders.push_back(this->order1());
-  orders.push_back(this->order2());
-  orders.push_back(this->order3());
-
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-
-  cvi_backend_tg_permute_kernel(
-      *backend_ctx, layer_id, input_gaddr, output_gaddr, i_s[0], i_s[1], i_s[2],
-      i_s[3], orders[0], orders[1], orders[2], orders[3], CVK_FMT_I8);
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  auto input_type = input().getType().template cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-
-  std::vector<int64_t> i_nchw(4,1);
-  for (uint64_t i = 0; i < i_s.size(); i++) {
-    i_nchw[i] = i_s[i];
-  }
-
-  std::vector<int> orders;
-  orders.push_back(this->order0());
-  orders.push_back(this->order1());
-  orders.push_back(this->order2());
-  orders.push_back(this->order3());
+  arrayAttrToVector(this->order(), orders);
+  std::vector<int64_t> shape_4;
+  std::vector<int> order_4;
+  parsePermuteParam(i_s, orders, shape_4, order_4);
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
   cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, input_gaddr,
-                                output_gaddr, i_nchw[0], i_nchw[1], i_nchw[2],
-                                i_nchw[3], orders[0], orders[1], orders[2],
-                                orders[3], CVK_FMT_BF16);
+                                output_gaddr, shape_4[0], shape_4[1],
+                                shape_4[2], shape_4[3], order_4[0], order_4[1],
+                                order_4[2], order_4[3], CVK_FMT_I8);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_type = input().getType().template cast<TensorType>();
+  std::vector<int64_t> i_s(input_type.getShape());
+  std::vector<int> orders;
+  arrayAttrToVector(this->order(), orders);
+  std::vector<int64_t> shape_4;
+  std::vector<int> order_4;
+  parsePermuteParam(i_s, orders, shape_4, order_4);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, input_gaddr,
+                                output_gaddr, shape_4[0], shape_4[1],
+                                shape_4[2], shape_4[3], order_4[0], order_4[1],
+                                order_4[2], order_4[3], CVK_FMT_BF16);
   return success();
 }
 

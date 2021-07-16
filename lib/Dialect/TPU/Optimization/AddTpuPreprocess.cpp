@@ -399,18 +399,11 @@ private:
     std::vector<int> orders{0, 3, 1, 2};
 
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(builder.getNamedAttr("name",
-        builder.getStringAttr(name_)));
-    attrs.push_back(builder.getNamedAttr("quant",
-        getDefaultQuantParam(builder)));
-    attrs.push_back(builder.getNamedAttr("order0",
-        builder.getI32IntegerAttr(orders[0])));
-    attrs.push_back(builder.getNamedAttr("order1",
-        builder.getI32IntegerAttr(orders[1])));
-    attrs.push_back(builder.getNamedAttr("order2",
-        builder.getI32IntegerAttr(orders[2])));
-    attrs.push_back(builder.getNamedAttr("order3",
-        builder.getI32IntegerAttr(orders[3])));
+    attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name_)));
+    attrs.push_back(
+        builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
+    attrs.push_back(
+        builder.getNamedAttr("order", builder.getI32ArrayAttr(orders)));
 
     auto type = this->getTensorType(builder, {n, c, resize_h, resize_w}, "UINT8");
     auto newOp = builder.create<tpu::PermuteOp>(

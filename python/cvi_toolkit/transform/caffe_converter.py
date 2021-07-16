@@ -930,15 +930,11 @@ class CaffeConverter(BaseConverter):
             op, _, _ = self.getOperand(bottom)
             operands.append(op)
         p = layer.permute_param
-        assert(len(p.order) == 4)
         output_shape = list(input_shape)
-        for i in range(4):
+        for i in range(len(p.order)):
             output_shape[i] = input_shape[p.order[i]]
         param = {
-            'order0': p.order[0],
-            'order1': p.order[1],
-            'order2': p.order[2],
-            'order3': p.order[3],
+            'order': p.order,
         }
         new_op = self.CVI.add_permute_op(
             layer.name, operands, output_shape, **param)

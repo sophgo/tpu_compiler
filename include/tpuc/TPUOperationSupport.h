@@ -120,6 +120,11 @@ void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
                       bool left_trans = false, bool right_trans = false,
                       bool output_trans = false);
 
+void parsePermuteParam(const std::vector<int64_t> &input_shape,
+                       const std::vector<int> &order,
+                       std::vector<int64_t> &shape_4,
+                       std::vector<int> &order_4);
+
 template<typename OpTy>
 void parseLeakyReluParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,

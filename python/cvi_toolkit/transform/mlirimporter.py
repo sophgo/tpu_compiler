@@ -1302,17 +1302,11 @@ class MLIRImporter(object):
     def add_permute_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-        checkKey(kargs, 'order0')
-        checkKey(kargs, 'order1')
-        checkKey(kargs, 'order2')
-        checkKey(kargs, 'order3')
+        checkKey(kargs, 'order')
 
         permute_name = StringAttr.get(op_name)
         attr_dict = {
-            'order0':  IntegerAttr.get(self.i32Type, kargs['order0']),
-            'order1':  IntegerAttr.get(self.i32Type, kargs['order1']),
-            'order2':  IntegerAttr.get(self.i32Type, kargs['order2']),
-            'order3':  IntegerAttr.get(self.i32Type, kargs['order3']),
+            'order':  ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['order']]),
         }
         return self.buildOp(TPU_OpType.Permute.value, inputOperands, [
             tensor_output_type], name=permute_name, quant=self.quant_param, **attr_dict)

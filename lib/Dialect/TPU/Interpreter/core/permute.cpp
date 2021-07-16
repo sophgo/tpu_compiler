@@ -4,18 +4,14 @@
 
 namespace mlir {
 
-void permute(float *src, float *dst, const std::vector<int64_t> &input_shape,
-             std::vector<unsigned int> &order) {
-  if (order.size() != 4) {
-    llvm_unreachable("permute order number must be 4");
-  }
-  int in = input_shape[0];
-  int ic = input_shape[1];
-  int ih = input_shape[2];
-  int iw = input_shape[3];
-  std::vector<int> shape(input_shape.begin(), input_shape.end());
-  int size =
-      std::accumulate(shape.begin(), shape.end(), 1, std::multiplies<>());
+void permute(float *src, float *dst, const std::vector<int64_t> &ishape,
+             std::vector<int> &order) {
+  int in = ishape[0];
+  int ic = ishape[1];
+  int ih = ishape[2];
+  int iw = ishape[3];
+  int size = std::accumulate(ishape.begin(), ishape.end(), 1,
+                             std::multiplies<int64_t>());
   std::vector<float> tmp_data(size);
   std::memcpy(tmp_data.data(), src, size * sizeof(float));
   for (int n = 0; n < in; n++) {
@@ -24,10 +20,10 @@ void permute(float *src, float *dst, const std::vector<int64_t> &input_shape,
         for (int w = 0; w < iw; w++) {
           int cur[4] = {n, c, h, w};
           int in_idx = w + h * iw + c * ih * iw + n * ic * ih * iw;
-          int out_idx = cur[order[3]] + cur[order[2]] * shape[order[3]] +
-                        cur[order[1]] * shape[order[3]] * shape[order[2]] +
-                        cur[order[0]] * shape[order[3]] * shape[order[2]] *
-                            shape[order[1]];
+          int out_idx = cur[order[3]] + cur[order[2]] * ishape[order[3]] +
+                        cur[order[1]] * ishape[order[3]] * ishape[order[2]] +
+                        cur[order[0]] * ishape[order[3]] * ishape[order[2]] *
+                            ishape[order[1]];
           dst[out_idx] = tmp_data[in_idx];
         }
       }
@@ -40,19 +36,15 @@ PermuteOpKernel::PermuteOpKernel(Operation &op, value_map_t &valueMapping)
   auto permuteOp = cast<tpu::PermuteOp>(op);
   auto input_type = permuteOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
-  this->order = {
-      permuteOp.order0(),
-      permuteOp.order1(),
-      permuteOp.order2(),
-      permuteOp.order3(),
-  };
+  arrayAttrToVector(permuteOp.order(), this->order);
+  parsePermuteParam(input_shape, order, shape_4, order_4);
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
 }
 
 void PermuteOpKernel::invoke() {
-  permute(input_data->data(), output_data->data(), input_shape, order);
+  permute(input_data->data(), output_data->data(), shape_4, order_4);
 }
 
 } // namespace mlir

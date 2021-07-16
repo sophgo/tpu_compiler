@@ -1450,10 +1450,7 @@ def TPU_PermuteOp: TPU_Op<"permute",
       `input`               : required, the input activation tensor.
 
     Attributes:
-      `order0`    : required, The new order0 of the axes of data.
-      `order1`    : required, The new order1 of the axes of data.
-      `order2`    : required, The new order2 of the axes of data.
-      `order3`    : required, The new order3 of the axes of data.
+      `order`    : required, The new order of the axes of data.
       `chipname`  : optional, chipname.
 
     Result:
@@ -1468,10 +1465,7 @@ def TPU_PermuteOp: TPU_Op<"permute",
 
   let arguments = (
     ins AnyTensor:$input,
-    I32Attr:$order0,
-    I32Attr:$order1,
-    I32Attr:$order2,
-    I32Attr:$order3,
+    I32ArrayAttr:$order,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname

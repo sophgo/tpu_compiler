@@ -20,7 +20,9 @@ private:
   SyncedDataShape input_shape;
 
   // param
-  std::vector<unsigned int> order;
+  std::vector<int> order;
+  std::vector<int> order_4;
+  SyncedDataShape shape_4;
 };
 } // namespace mlir
 #endif

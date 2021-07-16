@@ -867,10 +867,7 @@ class TFConverter(BaseConverter):
         if len(input_shape) == 4 and len(node.shape) == 2:
             # flatten
             attr = {
-                        'order0': 0,
-                        'order1': 2,
-                        'order2': 3,
-                        'order3': 1,
+                'order': [0,2,3,1],
             }
             permute_shape = [input_shape[0], input_shape[2], input_shape[3], input_shape[1]]
             op = self.CVI.add_permute_op("{}_transpose".format(

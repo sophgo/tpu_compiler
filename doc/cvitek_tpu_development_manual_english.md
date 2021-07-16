@@ -663,10 +663,7 @@ It is recommended to use docker. For details, please refer to Chapter 3 "develop
   |---|---|---|---|
   |output    | AnyTensor               | output Tensor | Output |
   |input     | AnyTensor               | input Tensor | Input |
-  |order0    | NonNegativeI32Attr      | Permute order0 | Attribute |
-  |order1    | NonNegativeI32Attr      | Permute order1 | Attribute |
-  |order2    | NonNegativeI32Attr      | Permute order2 | Attribute |
-  |order3    | NonNegativeI32Attr      | Permute order3 | Attribute |
+  |order     | I32ArrayAttr            | Permute order | Attribute |
   |quant     | TPU_QuantParamAttr      | Quant parameter | Attribute |
   |name      | StrAttr                 | operation name | Attribute |
 

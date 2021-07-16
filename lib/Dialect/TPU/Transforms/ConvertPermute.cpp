@@ -56,14 +56,10 @@ struct TpuPermuteToReshapePattern : public RewritePattern {
     int64_t input_size;
     getTensorShapeAndSize(permuteOp.input(), shape, input_size);
 
-    uint32_t dim_size = shape.size();
-    assert(dim_size == 4);
-    uint32_t start = 0, end = dim_size - 1;
-    std::vector<uint32_t> order;
-    order.push_back(permuteOp.order0());
-    order.push_back(permuteOp.order1());
-    order.push_back(permuteOp.order2());
-    order.push_back(permuteOp.order3());
+    int dim_size = shape.size();
+    int start = 0, end = dim_size - 1;
+    std::vector<int32_t> order;
+    arrayAttrToVector(permuteOp.order(), order);
     while (start < dim_size && start == order[start]) {
       start++;
     }
@@ -72,7 +68,7 @@ struct TpuPermuteToReshapePattern : public RewritePattern {
     }
     bool do_reshape = true;
     int64_t sum = 1;
-    for (uint32_t index = start; index <= end; index++) {
+    for (int index = start; index <= end; index++) {
       sum *= shape[index];
       if (shape[index] != 1 && sum != shape[index]) {
         do_reshape = false;

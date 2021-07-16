@@ -669,10 +669,7 @@
   |---|---|---|---|
   |output    | AnyTensor               | 输出Tensor       | 输出|
   |input     | AnyTensor               | 输入Tensor       | 输入|
-  |order0    | NonNegativeI32Attr      | Permute order0 | 属性|
-  |order1    | NonNegativeI32Attr      | Permute order1 | 属性|
-  |order2    | NonNegativeI32Attr      | Permute order2 | 属性|
-  |order3    | NonNegativeI32Attr      | Permute order3 | 属性|
+  |order     | I32ArrayAttr            | Permute order   | 属性|
   |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name      | StrAttr                 | 名称             | 属性|
 
