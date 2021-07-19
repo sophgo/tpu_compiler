@@ -61,31 +61,28 @@ struct MergeTransposeMatMulPattern : public RewritePattern {
     bool match = false;
     int pattern[] = {0, 2, 1, 3};
     std::vector<int> p(pattern, pattern + 4);
+    std::vector<int> order_4;
+    std::vector<int64_t> shape_4;
     if (isa<tpu::PermuteOp>(leftOp) && leftOp->getResult(0).hasOneUse()) {
-      auto pmOp = cast<tpu::PermuteOp>(leftOp);
-      std::vector<int> order;
-      arrayAttrToVector(pmOp.order(), order);
-      if (order == p) {
+      parsePermuteParam<tpu::PermuteOp>(leftOp, shape_4, order_4);
+      if (order_4 == p) {
         castOp->setAttr("left_transpose", rewriter.getBoolAttr(true));
         rewriter.replaceOp(leftOp, {leftOp->getOperand(0)});
         match = true;
       }
     }
     if (isa<tpu::PermuteOp>(rightOp) && rightOp->getResult(0).hasOneUse()) {
-      auto pmOp = cast<tpu::PermuteOp>(rightOp);
-      std::vector<int> order;
-      arrayAttrToVector(pmOp.order(), order);
-      if (order == p) {
+      parsePermuteParam<tpu::PermuteOp>(rightOp, shape_4, order_4);
+      if (order_4 == p) {
         castOp->setAttr("right_transpose", rewriter.getBoolAttr(true));
         rewriter.replaceOp(rightOp, {rightOp->getOperand(0)});
         match = true;
       }
     }
     if (outputOp != nullptr && isa<tpu::PermuteOp>(outputOp)) {
-      auto pmOp = cast<tpu::PermuteOp>(outputOp);
-      std::vector<int> order;
-      arrayAttrToVector(pmOp.order(), order);
-      if (order == p) {
+      parsePermuteParam<tpu::PermuteOp>(outputOp, shape_4, order_4);
+      if (order_4 == p) {
+        auto pmOp = cast<tpu::PermuteOp>(outputOp);
         castOp->setAttr("output_transpose", rewriter.getBoolAttr(true));
         castOp->setAttr("name", pmOp.nameAttr());
         rewriter.replaceOp(outputOp, {outputOp->getOperand(0)});

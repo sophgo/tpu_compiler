@@ -644,6 +644,8 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     ins AnyTensor:$input,
     AnyTensor:$filter,
     TPU_TensorOfOrNone<[I32, I16]>:$bias,
+    DefaultValuedAttr<BoolAttr, "false">:$input_transpose,
+    DefaultValuedAttr<BoolAttr, "false">:$output_transpose,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     OptionalAttr<I32ArrayAttr>:$rshift,
     OptionalAttr<I32ArrayAttr>:$multiplier,

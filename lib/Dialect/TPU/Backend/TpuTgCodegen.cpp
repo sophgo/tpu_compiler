@@ -1808,13 +1808,15 @@ LogicalResult tpu::TG_BF16_EltwiseMulOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
-  int batch, m, k, n;
-  parseFullyConnectedParam(input(), filter(), output(), batch, m, k, n);
+  bool lstride = this->input_transpose();
+  bool ostride = this->output_transpose();
+  int batch_high, batch_low, m, k, n;
+  parseFullyConnectedParam<tpu::TG_INT8_FullyConnectedOp>(op, batch_high,
+                                                          batch_low, m, k, n);
   bool do_relu = this->do_relu();
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -1846,19 +1848,23 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
 
   cvi_backend_tg_fixed_fc_kernel(
       *backend_ctx, layer_id, ga_input, ga_filter, ga_bias, ga_output, m, k, n,
-      with_bias, do_relu, rshift_v, multiplier_v, compr_weight_poss, batch);
+      with_bias, do_relu, rshift_v, multiplier_v, compr_weight_poss, batch_high,
+      batch_low, lstride, false, ostride);
 
   return success();
 }
 
 LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  int batch, m, k, n;
-  parseFullyConnectedParam(input(), filter(),output(), batch, m, k, n);
+  bool lstride = this->input_transpose();
+  bool ostride = this->output_transpose();
+  int batch_high, batch_low, m, k, n;
+  parseFullyConnectedParam<tpu::TG_BF16_FullyConnectedOp>(op, batch_high,
+                                                          batch_low, m, k, n);
   bool do_relu = this->do_relu();
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -1866,13 +1872,12 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   auto rhs = filter().getDefiningOp();
   if (isa<tpu::LoadWeightOp>(rhs)) {
     ga_filter = getWeightOpAddress(rhs);
-  }
-  else {
+  } else {
     ga_filter = getOpAddress(rhs);
   }
   gaddr_t ga_bias = GA_INVALID;
   bool with_bias = false;
-  if ( !isTensorNone(bias()) ) {
+  if (!isTensorNone(bias())) {
     ga_bias = getWeightOpAddress(bias().getDefiningOp());
     with_bias = true;
   }
@@ -1892,7 +1897,8 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
 
   cvi_backend_tg_bf16_fc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
                                 ga_bias, ga_output, m, k, n, with_bias, do_relu,
-                                compr_weight_poss, batch);
+                                compr_weight_poss, batch_high, batch_low,
+                                lstride, false, ostride);
 
   return success();
 }
@@ -2528,8 +2534,7 @@ LogicalResult tpu::TG_INT8_MatMulOp::codegen(void *ctx) {
   bool lt = left_transpose();
   bool rt = right_transpose();
   bool ot = output_transpose();
-  parseMatMulParam(op->getOperand(0), op->getOperand(1), op->getResult(0),
-                   M, K, N, batch_high, batch_low, lt, rt, ot);
+  parseMatMulParam<tpu::TG_INT8_MatMulOp>(op, batch_high, batch_low, M, K, N);
   bool do_relu = this->do_relu();
   gaddr_t ga_left = getOpAddress(op->getOperand(0).getDefiningOp());
   gaddr_t ga_right = getOpAddress(op->getOperand(1).getDefiningOp());
@@ -2561,8 +2566,7 @@ LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
   bool lt = left_transpose();
   bool rt = right_transpose();
   bool ot = output_transpose();
-  parseMatMulParam(op->getOperand(0), op->getOperand(1), op->getResult(0),
-                   M, K, N, batch_high, batch_low, lt, rt, ot);
+  parseMatMulParam<tpu::TG_BF16_MatMulOp>(op, batch_high, batch_low, M, K, N);
   bool do_relu = this->do_relu();
   gaddr_t ga_left = getOpAddress(op->getOperand(0).getDefiningOp());
   gaddr_t ga_right = getOpAddress(op->getOperand(1).getDefiningOp());
@@ -2624,14 +2628,9 @@ LogicalResult tpu::TG_INT8_PermuteOp::codegen(void *ctx) {
                           << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
-  auto input_type = input().getType().template cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-  std::vector<int> orders;
-  arrayAttrToVector(this->order(), orders);
   std::vector<int64_t> shape_4;
   std::vector<int> order_4;
-  parsePermuteParam(i_s, orders, shape_4, order_4);
+  parsePermuteParam<tpu::TG_INT8_PermuteOp>(op, shape_4, order_4);
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
@@ -2649,14 +2648,9 @@ LogicalResult tpu::TG_BF16_PermuteOp::codegen(void *ctx) {
                           << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
-  auto input_type = input().getType().template cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-  std::vector<int> orders;
-  arrayAttrToVector(this->order(), orders);
   std::vector<int64_t> shape_4;
   std::vector<int> order_4;
-  parsePermuteParam(i_s, orders, shape_4, order_4);
+  parsePermuteParam<tpu::TG_BF16_PermuteOp>(op, shape_4, order_4);
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);

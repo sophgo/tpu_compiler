@@ -775,6 +775,8 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<BoolAttr, "false">:$input_transpose,
+    DefaultValuedAttr<BoolAttr, "false">:$output_transpose,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
@@ -782,6 +784,7 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 def TPU_ExpOp : TPU_LutOp<"exp", "Exp">;

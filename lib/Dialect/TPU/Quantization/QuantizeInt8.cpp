@@ -216,10 +216,10 @@ LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
 
   // parse param
-  int batch, m, k, n;
-  parseFullyConnectedParam(fcOp.input(), fcOp.filter(), fcOp.output(), batch, m,
-                           k, n);
-
+  int batch_high, batch_low, m, k, n;
+  parseFullyConnectedParam<tpu::FullyConnectedOp>(op, batch_high, batch_low, m,
+                                                  k, n);
+  int batch = batch_high * batch_low;
   int64_t filterSize = 0;
   std::vector<int64_t> filterShape;
   auto filter = readAndDeleteWeightTensor<float>(fcOp.filter(), wTF);

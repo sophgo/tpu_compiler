@@ -346,9 +346,10 @@ public:
     if (!n_poss.size())
       return failure();
 
-    int batch, M, K, N;
-    parseFullyConnectedParam(fcOp.input(), fcOp.filter(), fcOp.output(),
-                             batch, M, K, N);
+    int batch_high, batch_low, M, K, N;
+    parseFullyConnectedParam<TensorTyOp>(fcOp.getOperation(), batch_high,
+                                         batch_low, M, K, N);
+    int batch = batch_high * batch_low;
 
     bool isBf16Flt = isBf16Tensor(fcOp.filter());
     int fltEltSize = getDataTypeSize(fcOp.filter());

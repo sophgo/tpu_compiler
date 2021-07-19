@@ -54,6 +54,7 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertUpsample.cpp
   Transforms/ConvertPower.cpp
   Transforms/ConvertMatMul.cpp
+  Transforms/ConvertFullyConnected.cpp
   Transforms/Canonicalizer.cpp
   Transforms/LowerToTG.cpp
   Interpreter/TpuInterpreter_v2.cpp

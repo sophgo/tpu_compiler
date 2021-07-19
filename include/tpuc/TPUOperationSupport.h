@@ -112,17 +112,16 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
     bool &is_global, bool &do_relu, bool &count_include_pad);
 
-void parseFullyConnectedParam(Value lhs, Value rhs, Value output, int &batch,
+template <typename OpTy>
+void parseFullyConnectedParam(Operation *op, int &batch_high, int &batch_low,
                               int &m, int &k, int &n);
 
-void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
-                      int &n, int &batch_high, int &batch_low,
-                      bool left_trans = false, bool right_trans = false,
-                      bool output_trans = false);
+template <typename OpTy>
+void parseMatMulParam(Operation *op, int &batch_high, int &batch_low, int &m,
+                      int &k, int &n);
 
-void parsePermuteParam(const std::vector<int64_t> &input_shape,
-                       const std::vector<int> &order,
-                       std::vector<int64_t> &shape_4,
+template <typename OpTy>
+void parsePermuteParam(Operation *op, std::vector<int64_t> &shape_4,
                        std::vector<int> &order_4);
 
 template<typename OpTy>

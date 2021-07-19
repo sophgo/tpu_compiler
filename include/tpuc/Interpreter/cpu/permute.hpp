@@ -17,10 +17,8 @@ public:
 private:
   SyncedData input_data;
   SyncedData output_data;
-  SyncedDataShape input_shape;
 
   // param
-  std::vector<int> order;
   std::vector<int> order_4;
   SyncedDataShape shape_4;
 };

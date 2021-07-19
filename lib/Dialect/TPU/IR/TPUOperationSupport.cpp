@@ -693,55 +693,82 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
 
 // [4, 3, 28] dot [4,5,28] => [4,3,5] : batch = 4, m = 3, k = 28, n = 5
 // [4, 3, 28] dot [5,28]   => [4,3,5] : batch = 1, m = 12, k = 28, n = 5
-void parseFullyConnectedParam(Value lhs, Value rhs, Value output, int &batch,
-                              int &m, int &k, int &n) {
-  auto lhs_type = lhs.getType().template cast<TensorType>();
-  std::vector<int64_t> a_s(lhs_type.getShape());
-  auto rhs_type = rhs.getType().cast<TensorType>();
-  std::vector<int64_t> b_s(rhs_type.getShape());
-  auto output_type = output.getType().template cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
+template <typename OpTy>
+void parseFullyConnectedParam(Operation *op, int &batch_high, int &batch_low,
+                              int &m, int &k, int &n)
+{
+  auto castOp = cast<OpTy>(op);
+  auto a_s = getTensorShape(castOp.input());
+  auto b_s = getTensorShape(castOp.filter());
+  auto o_s = getTensorShape(castOp.output());
+  bool input_trans = castOp.input_transpose();
+  bool output_trans = castOp.output_transpose();
   size_t o_dim = o_s.size();
   size_t b_dim = b_s.size();
   assert(b_dim >= 2);
   k = b_s[b_dim - 1];
   n = b_s[b_dim - 2];
-  batch = std::accumulate(b_s.data(), b_s.data() + b_dim - 2, 1,
-                          std::multiplies<int64_t>());
-  if (batch > 1) {
-    m = a_s[o_dim - 2];
+  batch_low = 1;
+  batch_high = 1;
+  if (input_trans) {
+    batch_low = a_s[o_dim - 2];
+    m = a_s[o_dim - 3];
+    batch_high = std::accumulate(a_s.data(), a_s.data() + o_dim - 3, 1,
+                                 std::multiplies<int64_t>());
+  } else if (output_trans) {
+    batch_low = o_s[o_dim - 2];
+    m = o_s[o_dim - 3];
+    batch_high = std::accumulate(o_s.data(), o_s.data() + o_dim - 3, 1,
+                                 std::multiplies<int64_t>());
   } else {
-    m = std::accumulate(a_s.data(), a_s.data() + o_dim - 1, 1,
-                        std::multiplies<int64_t>());
+    batch_low = std::accumulate(b_s.data(), b_s.data() + b_dim - 2, 1,
+                                std::multiplies<int64_t>());
+    if (batch_low > 1) {
+      m = a_s[o_dim - 2];
+    } else {
+      m = std::accumulate(a_s.data(), a_s.data() + o_dim - 1, 1,
+                          std::multiplies<int64_t>());
+    }
   }
 }
 
-void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
-                      int &n, int &batch_high, int &batch_low, bool left_trans,
-                      bool right_trans, bool output_trans) {
-  auto lhs_type = lhs.getType().template cast<TensorType>();
-  std::vector<int64_t> a_s(lhs_type.getShape());
-  auto rhs_type = rhs.getType().cast<TensorType>();
-  std::vector<int64_t> b_s(rhs_type.getShape());
-  auto output_type = output.getType().template cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
+template void parseFullyConnectedParam<tpu::FullyConnectedOp>(
+    Operation *op, int &batch_high, int &batch_low, int &m, int &k, int &n);
+template void parseFullyConnectedParam<tpu::TG_INT8_FullyConnectedOp>(
+    Operation *op, int &batch_high, int &batch_low, int &m, int &k, int &n);
+template void parseFullyConnectedParam<tpu::TG_BF16_FullyConnectedOp>(
+    Operation *op, int &batch_high, int &batch_low, int &m, int &k, int &n);
+
+template <typename OpTy>
+void parseMatMulParam(Operation *op, int &batch_high, int &batch_low, int &m,
+                      int &k, int &n) {
+  auto castOp = cast<OpTy>(op);
+  auto a_s = getTensorShape(op->getOperand(0));
+  auto b_s = getTensorShape(op->getOperand(1));
+  auto o_s = getTensorShape(castOp.output());
+  bool left_trans = castOp.left_transpose();
+  bool right_trans = castOp.right_transpose();
+  bool output_trans = castOp.output_transpose();
   int64_t axis = o_s.size() - 1;
+  batch_low = 1;
+  batch_high = 1;
   if (left_trans || right_trans || output_trans) {
-    // if has tranpose, num_dims == 4
-    batch_high = a_s[0];
-    k = a_s[3];
-    n = b_s[3];
+    // if has tranpose, num_dims == 4 or 3
+    k = a_s[axis];
+    n = o_s[axis];
     if (left_trans) {
-      batch_low = a_s[2];
-      m = a_s[1];
+      batch_low = a_s[axis - 1];
+      m = a_s[axis - 2];
     } else {
-      batch_low = a_s[1];
-      m = a_s[2];
+      batch_low = a_s[axis - 2];
+      m = a_s[axis - 1];
+    }
+    if (axis == 3) {
+      batch_high = a_s[0];
     }
     return;
   }
-  batch_low = 1;
-  batch_high = 1;
+
   for (int i = 0; i < axis - 1; i++) {
     assert((a_s[i] == o_s[i]) && "lhs B not equal to output B");
     assert((a_s[i] == b_s[i]) && "lhs B not equal to rhs B");
@@ -755,24 +782,47 @@ void parseMatMulParam(Value lhs, Value rhs, Value output, int &m, int &k,
   assert((n == o_s[axis]) && "rhs N not equal to output N");
 }
 
-void parsePermuteParam(const std::vector<int64_t> &input_shape,
-                       const std::vector<int> &order,
-                       std::vector<int64_t> &shape_4,
+template void parseMatMulParam<tpu::MatMulOp>(Operation *op, int &batch_high,
+                                              int &batch_low, int &m, int &k,
+                                              int &n);
+template void parseMatMulParam<tpu::TG_INT8_MatMulOp>(Operation *op,
+                                                      int &batch_high,
+                                                      int &batch_low, int &m,
+                                                      int &k, int &n);
+template void parseMatMulParam<tpu::TG_BF16_MatMulOp>(Operation *op,
+                                                      int &batch_high,
+                                                      int &batch_low, int &m,
+                                                      int &k, int &n);
+
+template <typename OpTy>
+void parsePermuteParam(Operation *op, std::vector<int64_t> &shape_4,
                        std::vector<int> &order_4) {
+  auto pmOp = llvm::dyn_cast<OpTy>(op);
+  auto shape = getTensorShape(pmOp.input());
+  std::vector<int> order;
+  arrayAttrToVector(pmOp.order(), order);
   int num_dims = order.size();
   if (num_dims > 4) {
     for (int i = 0; i < num_dims - 4; i++) {
-      assert(input_shape[i] == 1 && "> 4 dim, should be 1");
+      assert(shape[i] == 1 && "> 4 dim, should be 1");
       assert(order[i] == i && "> 4 dim, order can't change");
     }
   }
   order_4 = {0, 1, 2, 3};
   shape_4 = {1, 1, 1, 1};
   for (int end = num_dims - 1, idx = 3; end >= 0 && idx >= 0; end--, idx--) {
-    shape_4[idx] = input_shape[end];
+    shape_4[idx] = shape[end];
     order_4[idx] = order[end] + idx - end;
   }
 }
+
+template void parsePermuteParam<tpu::PermuteOp>(Operation *op,
+                                                std::vector<int64_t> &shape_4,
+                                                std::vector<int> &order_4);
+template void parsePermuteParam<tpu::TG_INT8_PermuteOp>(
+    Operation *op, std::vector<int64_t> &shape_4, std::vector<int> &order_4);
+template void parsePermuteParam<tpu::TG_BF16_PermuteOp>(
+    Operation *op, std::vector<int64_t> &shape_4, std::vector<int> &order_4);
 
 template<typename OpTy>
 void parseLeakyReluParam(Operation *op,

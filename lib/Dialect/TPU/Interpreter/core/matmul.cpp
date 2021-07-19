@@ -1,9 +1,9 @@
 #include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
+#include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
-#include "internal.hpp"
 
 namespace mlir {
 
@@ -14,8 +14,7 @@ MatMulOpKernel::MatMulOpKernel(Operation &op, value_map_t &valueMapping)
   l_trans = castOp.left_transpose();
   r_trans = castOp.right_transpose();
   o_trans = castOp.output_transpose();
-  parseMatMulParam(op.getOperand(0), op.getOperand(1), op.getResult(0), M, K, N,
-                   batch_high, batch_low, l_trans, r_trans, o_trans);
+  parseMatMulParam<tpu::MatMulOp>(&op, batch_high, batch_low, M, K, N);
   if (datatype == DataType::INT8) {
     auto quant_rshift = this->opdTensors[4];
     auto quant_multiplier = this->opdTensors[5];

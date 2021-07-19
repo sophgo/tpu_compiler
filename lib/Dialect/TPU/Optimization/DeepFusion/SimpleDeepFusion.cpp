@@ -254,9 +254,10 @@ private:
 
   void analyzeFullyConnectedOpParam(tpu::TG_INT8_FullyConnectedOp &op,
       llvm::raw_ostream &os) {
-    int batch, m, k, n;
-    parseFullyConnectedParam(op.input(), op.filter(), op.output(), batch, m, k, n);
-
+    int batch, batch_high, batch_low, m, k, n;
+    parseFullyConnectedParam<tpu::TG_INT8_FullyConnectedOp>(
+        op.getOperation(), batch_high, batch_low, m, k, n);
+    batch = batch_high * batch_low;
     uint64_t mac_count = batch * m * k * n;
     stats->increaseMacCount(mac_count);
 

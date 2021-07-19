@@ -26,10 +26,9 @@ private:
   SyncedDataShape bias_shape;
 
   // param
-  int batch;
-  int m;
-  int k;
-  int n;
+  int batch, batch_high, batch_low;
+  int m, k, n;
+  bool ltrans, otrans;
   bool do_relu = false;
 };
 } // namespace mlir

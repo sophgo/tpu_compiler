@@ -130,9 +130,12 @@ private:
        << "\n";
   }
 
-  void dumpFullyConnectedOpParam(tpu::FullyConnectedOp &op, llvm::raw_ostream &os) {
-    int batch, m, k, n;
-    parseFullyConnectedParam(op.input(), op.filter(), op.output(), batch, m, k, n);
+  void dumpFullyConnectedOpParam(tpu::FullyConnectedOp &op,
+                                 llvm::raw_ostream &os) {
+    int batch, batch_high, batch_low, m, k, n;
+    parseFullyConnectedParam<tpu::FullyConnectedOp>(op.getOperation(), batch_high,
+                             batch_low, m, k, n);
+    batch = batch_high * batch_low;
 
     uint64_t mac_count = (uint64_t)batch * m * k * n;
     total_mac_count += mac_count;
@@ -145,7 +148,6 @@ private:
        << mac_count
        << "\n";
   }
-
 };
 
 } // namespace

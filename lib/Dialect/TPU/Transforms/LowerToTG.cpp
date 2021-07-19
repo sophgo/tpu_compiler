@@ -1123,18 +1123,20 @@ Value tpu::FullyConnectedOp::convertToTG() {
   attrs.push_back(
       builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-
+  attrs.push_back(builder.getNamedAttr("input_transpose",
+                                       builder.getBoolAttr(input_transpose())));
+  attrs.push_back(builder.getNamedAttr(
+      "output_transpose", builder.getBoolAttr(output_transpose())));
   if (getOpQuant() == "INT8") {
     // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     std::vector<int32_t> rshift_v(rshift->begin(), rshift->end());
     attrs.push_back(
         builder.getNamedAttr("rshift", builder.getI32ArrayAttr(rshift_v)));
-    auto multiplier =
-        readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
+    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
     std::vector<int32_t> multiplier_v(multiplier->begin(), multiplier->end());
-    attrs.push_back(builder.getNamedAttr("multiplier",
-                                         builder.getI32ArrayAttr(multiplier_v)));
+    attrs.push_back(builder.getNamedAttr(
+        "multiplier", builder.getI32ArrayAttr(multiplier_v)));
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_FullyConnectedOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
@@ -3412,8 +3414,10 @@ struct LowerWeightFullyConnectedOpPattern : public RewritePattern {
     auto type = WEIGHT_FC_TRANSPOSE;
     auto ret_filter = lowerWeight(fcOp.filter(), wTF, rewriter, type);
     // lower bias
-    int batch, m, k, n;
-    parseFullyConnectedParam(fcOp.input(), fcOp.filter(), fcOp.output(), batch, m, k, n);
+    int batch_high, batch_low, m, k, n;
+    parseFullyConnectedParam<tpu::FullyConnectedOp>(op, batch_high, batch_low,
+                                                    m, k, n);
+    int batch = batch_high * batch_low;
     auto ret_bias = failure();
     if (batch == 1) {
       ret_bias = lowerBias(fcOp.bias(), wTF, rewriter);

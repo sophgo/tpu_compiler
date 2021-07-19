@@ -33,12 +33,7 @@ void permute(float *src, float *dst, const std::vector<int64_t> &ishape,
 
 PermuteOpKernel::PermuteOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
-  auto permuteOp = cast<tpu::PermuteOp>(op);
-  auto input_type = permuteOp.input().getType().template cast<TensorType>();
-  this->input_shape = input_type.getShape();
-  arrayAttrToVector(permuteOp.order(), this->order);
-  parsePermuteParam(input_shape, order, shape_4, order_4);
-  // get tensors
+  parsePermuteParam<tpu::PermuteOp>(&op, shape_4, order_4);
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
 }
