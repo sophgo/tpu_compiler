@@ -243,21 +243,19 @@ void cvi_backend_tl_lut_LA(
     int n, int c, int h, int w,
     bool do_load, bool do_store);
 
-void cvi_backend_tl_lut(
+void cvi_backend_int8_tl_lut(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t la_input, laddr_t la_output, laddr_t la_working,
-    laddr_t la_y_table, laddr_t la_slope_lut,
-    int thresh_min, int thresh_max,
+    laddr_t la_input, laddr_t la_output, laddr_t la_y_table,
     int n, int c, int h, int w);
 
 void cvi_backend_bf16_tl_lut(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
     laddr_t la_y_table, laddr_t la_slope_lut,
-    int thresh_min, int thresh_max, bool added_offset,
+    int thresh_min, int thresh_max,
     int n, int c, int h, int w, int method);
 
-void cvi_backend_tl_lut_exponential_mul_mantissa(
+void cvi_backend_bf16_tl_lut_mantissa_method(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
     laddr_t la_exponential_table, laddr_t la_mantissa_lut,
@@ -267,7 +265,7 @@ void cvi_backend_bf16_tl_lut_slope_method(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
     laddr_t la_y_table, laddr_t la_slope_table,
-    int thresh_min, int thresh_max, bool added_offset, int n, int c, int h, int w);
+    int thresh_min, int thresh_max, int n, int c, int h, int w);
 
 void cvi_backend_tl_prelu(
     const CviBackendContext &ctx, uint32_t layer_id,

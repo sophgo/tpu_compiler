@@ -250,8 +250,6 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `max_range`       : required, we cut to max_range and outlier saturate it
       `min_range`       : required, we cut to min_range and outlier saturate it
       `layer_id`        : optional, id for profiling.
-      `has_table`       : optional, if has lookup table.
-      `added_offset`    : optional, set to ture if we had added offset value via add op
       `chipname`        : optional, chipname.
 
     Result:
@@ -270,12 +268,10 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     ins Variadic<AnyTensor>:$inputs,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
-    OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,
-    DefaultValuedAttr<BoolAttr, "false">:$added_offset,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -1404,10 +1400,8 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `mish_threshold`  : optional, mish activation used
       `max_range`       : required, we cut to max_range and outlier saturate it
       `min_range`       : required, we cut to min_range and outlier saturate it
-      `has_table`       : optional, if has lookup table.
       `chipname`        : optional, chipname.
 
     Result:
@@ -1428,9 +1422,7 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
-    OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
-    DefaultValuedAttr<F32Attr, "20.0">:$mish_threshold,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -2294,10 +2286,8 @@ def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `mish_threshold`  : optional, mish activation used
       `max_range`       : required, we cut to max_range and outlier saturate it
       `min_range`       : required, we cut to min_range and outlier saturate it
-      `has_table`       : optional, if has lookup table.
       `chipname`        : optional, chipname.
 
     Result:
@@ -2318,7 +2308,6 @@ def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
-    OptionalAttr<BoolAttr>:$has_table,
     StrAttr:$name,
     DefaultValuedAttr<F32Attr, "20.0">:$threshold,
     TPU_QuantParamAttr:$quant,

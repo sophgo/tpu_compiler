@@ -133,7 +133,7 @@ void TgLstmKernel::sigmoid(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
   cvi_backend_bf16_tl_lut_slope_method(
       ctx, layer_id, ml_in.start_address, ml_out.start_address,
       ml_buff.start_address, addr_sigmoid, addr_sigmoid_slope,
-      -1 * SIGMOID_BF16_LUT_RANGE, SIGMOID_BF16_LUT_RANGE, false,
+      -1 * SIGMOID_BF16_LUT_RANGE, SIGMOID_BF16_LUT_RANGE,
       ml_in.shape.n, ml_in.shape.c, 1, ml_in.shape.w);
 }
 void TgLstmKernel::tanh(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
@@ -141,7 +141,7 @@ void TgLstmKernel::tanh(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
   cvi_backend_bf16_tl_lut_slope_method(
       ctx, layer_id, ml_in.start_address, ml_out.start_address,
       ml_buff.start_address, addr_tanh, addr_tanh_slope,
-      -1 * TANH_BF16_LUT_RANGE, TANH_BF16_LUT_RANGE, false,
+      -1 * TANH_BF16_LUT_RANGE, TANH_BF16_LUT_RANGE,
       ml_in.shape.n, ml_in.shape.c, 1, ml_in.shape.w);
 }
 

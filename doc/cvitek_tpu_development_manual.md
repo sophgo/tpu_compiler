@@ -630,9 +630,7 @@
   |input           | Variadic Tensor         | 输入Tensor    | 多输入|
   |table           | TPU_TensorOfOrNone      | lut表        | 输入|
   |table_mantissa  | TPU_TensorOfOrNone      | mantissa表   | 输入|
-  |has_table       | BoolAttr                | 是否有lut表     | 属性|
   |quant           | TPU_QuantParamAttr      | Quant参数     | 属性|
-  |mish_threshold  | F32Attr                 | threshold   | 属性|
   |name            | StrAttr                 | 名称          | 属性|
 
   <br>
@@ -911,7 +909,6 @@
   |input           | AnyTensor               | 输入Tensor           | 输入|
   |table           | TensorOfOrNone          | LUT table          | 输入(可选)|
   |table_mantissa  | TensorOfOrNone          | LUT table mantissa | 输入(可选)|
-  |has_table       | BoolAttr                | 是否使用LUT计算          | 属性|
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
@@ -938,7 +935,6 @@
   |input           | AnyTensor               | 输入Tensor           | 输入|
   |table           | TensorOfOrNone          | LUT table          | 输入(可选)|
   |table_mantissa  | TensorOfOrNone          | LUT table mantissa | 输入(可选)|
-  |has_table       | BoolAttr                | 是否使用LUT计算          | 属性|
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
@@ -967,7 +963,6 @@
   |input           | AnyTensor               | 输入Tensor           | 输入|
   |table           | TensorOfOrNone          | LUT table          | 输入(可选)|
   |table_mantissa  | TensorOfOrNone          | LUT table mantissa | 输入(可选)|
-  |has_table       | BoolAttr                | 是否使用LUT计算          | 属性|
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 

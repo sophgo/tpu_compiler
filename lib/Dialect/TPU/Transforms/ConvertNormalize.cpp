@@ -222,8 +222,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_sqrt;
     attrs_sqrt.push_back(rewriter.getNamedAttr("name",
                          rewriter.getStringAttr(op_name + "_sqrt")));
-    attrs_sqrt.push_back(rewriter.getNamedAttr("has_table",
-                         rewriter.getBoolAttr(false)));
     attrs_sqrt.push_back(rewriter.getNamedAttr("quant",
                          getDefaultQuantParam(rewriter)));
     auto sqrt_op = rewriter.create<tpu::SqrtOp>(
@@ -239,8 +237,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_reciprocal;
     attrs_reciprocal.push_back(rewriter.getNamedAttr("name",
                                rewriter.getStringAttr(op_name+"_reciprocal")));
-    attrs_reciprocal.push_back(rewriter.getNamedAttr("has_table",
-                               rewriter.getBoolAttr(false)));
     attrs_reciprocal.push_back(rewriter.getNamedAttr("quant",
                                getDefaultQuantParam(rewriter)));
     auto reciprocal_op = rewriter.create<tpu::ReciprocalOp>(

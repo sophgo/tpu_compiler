@@ -1159,14 +1159,12 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
   std::vector<NamedAttribute> attrs;
   float table_thresh_min;
   float table_thresh_max;
-  bool added_offset;
 
   if (auto old_op = dyn_cast<tpu::TG_INT8_LutOp>(im_layer->op())) {
     old_input_type =
       old_op.getOperand(0).getType().cast<RankedTensorType>();
     table_thresh_min = old_op.min_range().convertToFloat();
     table_thresh_max = old_op.max_range().convertToFloat();
-    added_offset = old_op.added_offset();
   }
   else if (auto old_op = dyn_cast<tpu::TG_BF16_LutOp>(im_layer->op())) {
     old_input_type =
@@ -1176,7 +1174,6 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
     bf16Type = FloatType::getBF16(builder_.getContext()); // for td define
     table_thresh_min = old_op.min_range().convertToFloat();
     table_thresh_max = old_op.max_range().convertToFloat();
-    added_offset = old_op.added_offset();
     attrs.push_back(builder_.getNamedAttr("method", old_op.methodAttr()));
   }
   else {
@@ -1216,9 +1213,6 @@ void MixNet::_add_tl_activation_op(MixOp * mix_op,
                            builder_.getF32FloatAttr(table_thresh_max)));
   attrs.push_back(builder_.getNamedAttr("min_range",
                            builder_.getF32FloatAttr(table_thresh_min)));
-  attrs.push_back(builder_.getNamedAttr("added_offset",
-                           builder_.getBoolAttr(added_offset)));
-
   // setup input/output type
   RankedTensorType input_type = RankedTensorType::get(
                           {bottom_dim[0], bottom_dim[1],

@@ -319,7 +319,6 @@ class TPU_TL_LG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `max_range`       : optional, we cut to min_range and outlier saturate it
       `min_range`       : optional, we cut to min_range and outlier saturate it
-      `added_offset`    : optional, set to ture if we had added offset value via add op
   }];
 
   let arguments = (
@@ -332,7 +331,6 @@ class TPU_TL_LG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$la_working,
     I32Attr:$la_y_table,
     DefaultValuedAttr<I32Attr, "0">:$la_slope_lut,
-    DefaultValuedAttr<BoolAttr, "false">:$added_offset,
     OptionalAttr<StrAttr>:$method,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,

@@ -53,8 +53,6 @@ private:
   SyncedData output_data;
   SyncedDataShape input_shape;
 
-  float mish_threshold;
-
   SyncedData y0_table_op;
   SyncedData slope_table;
 

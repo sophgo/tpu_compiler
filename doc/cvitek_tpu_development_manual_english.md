@@ -624,9 +624,7 @@ It is recommended to use docker. For details, please refer to Chapter 3 "develop
   |input           | Variadic Tensor         | input Tensor | multiple input |
   |table           | TPU_TensorOfOrNone      | lut table  | Input |
   |table_mantissa  | TPU_TensorOfOrNone      | mantissa table | Input |
-  |has_table       | BoolAttr                | whether it has lut table | Attribute |
   |quant           | TPU_QuantParamAttr      | Quant parameter | Attribute |
-  |mish_threshold  | F32Attr                 | threshold   | Attribute |
   |name            | StrAttr                 | operation name | Attribute |
 
   <br>
@@ -905,7 +903,6 @@ It is recommended to use docker. For details, please refer to Chapter 3 "develop
   |input           | AnyTensor               | input Tensor       | input |
   |table           | TensorOfOrNone          | LUT table          | input(optional) |
   |table_mantissa  | TensorOfOrNone          | LUT table mantissa | input(optional) |
-  |has_table       | BoolAttr                | use LUT or not | attribute |
   |quant           | TPU_QuantParamAttr      | Quant parameter  | attribute |
   |name            | StrAttr                 | operation name   | attribute |
 
@@ -932,7 +929,6 @@ It is recommended to use docker. For details, please refer to Chapter 3 "develop
   |input           | AnyTensor               | input Tensor       | input |
   |table           | TensorOfOrNone          | LUT table          | input(optional) |
   |table_mantissa  | TensorOfOrNone          | LUT table mantissa | input(optional) |
-  |has_table       | BoolAttr                | use LUT or not | attribute |
   |quant           | TPU_QuantParamAttr      | Quant parameter  | attribute |
   |name            | StrAttr                 | operation name   | attribute |
 
@@ -960,7 +956,6 @@ It is recommended to use docker. For details, please refer to Chapter 3 "develop
   |input           | AnyTensor               | input Tensor       | input |
   |table           | TensorOfOrNone          | LUT table          | input(optional) |
   |table_mantissa  | TensorOfOrNone          | LUT table mantissa | input(optional) |
-  |has_table       | BoolAttr                | use LUT or not | attribute |
   |quant           | TPU_QuantParamAttr      | Quant parameter | attribute |
   |name            | StrAttr                 | operation name   | attribute |
 

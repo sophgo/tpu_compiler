@@ -708,8 +708,6 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
-  laddr_t la_working = this->la_working();
-  laddr_t la_slope_lut = this->la_slope_lut();
   laddr_t la_y_table = this->la_y_table();
 
   std::vector<int64_t> shape;
@@ -717,17 +715,11 @@ LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
   getNCHW(shape, n, c, h, w);
 
-  const int table_thresh_min = -8;
-  const int table_thresh_max = 8;
-  cvi_backend_tl_lut( *backend_ctx,
+  cvi_backend_int8_tl_lut( *backend_ctx,
                       layer_id,
                       la_input,
                       la_output,
-                      la_working,
                       la_y_table,
-                      la_slope_lut,
-                      table_thresh_min,
-                      table_thresh_max,
                       n, c, h, w);
   return success();
 
@@ -757,7 +749,6 @@ LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
 
   float table_thresh_min = this->min_range().convertToFloat();
   float table_thresh_max = this->max_range().convertToFloat();
-  bool added_offset = this->added_offset();
   auto lut_method = method().getValue().str();
   // method 0: mantissa, 1: slope
   int method = 0;
@@ -775,7 +766,6 @@ LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
                           la_slope_lut,
                           table_thresh_min,
                           table_thresh_max,
-                          added_offset,
                           n, c, h, w, method);
   return success();
 }

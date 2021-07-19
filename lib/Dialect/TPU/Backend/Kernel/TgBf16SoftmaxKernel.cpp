@@ -6,6 +6,7 @@
  */
 
 #include "CviBackendContext.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
@@ -1028,20 +1029,20 @@ void TgSoftmaxKernel::schedule() {
 }
 
 void TgSoftmaxKernel::exponential(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work) {
-    const int table_thresh_min = -15;
-    const int table_thresh_max = 15;
-    cvi_backend_tl_lut(
-        ctx, layer_id,
-        tl_in->start_address, tl_out->start_address, tl_work->start_address,
-        tl_exponential_table_answer->start_address, tl_exponential_table_answer_slope->start_address,
-        table_thresh_min, table_thresh_max, tl_in->shape.n, tl_in->shape.c, tl_in->shape.h, tl_in->shape.w);
+    cvi_backend_bf16_tl_lut_slope_method(
+        ctx, layer_id, tl_in->start_address,
+        tl_out->start_address, tl_work->start_address,
+        tl_exponential_table_answer->start_address,
+        tl_exponential_table_answer_slope->start_address,
+        -1 * EXP_BF16_LUT_RANGE, EXP_BF16_LUT_RANGE,
+        tl_in->shape.n, tl_in->shape.c, tl_in->shape.h, tl_in->shape.w);
 }
 
 void TgSoftmaxKernel::reciprocal(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work) {
-    cvi_backend_tl_lut_exponential_mul_mantissa(
-        ctx, layer_id,
-        tl_in->start_address, tl_out->start_address, tl_work->start_address,
-        tl_reciprocal_table_answer->start_address, tl_reciprocal_mantissa_table_answer->start_address, tl_in->shape.n, tl_in->shape.c, tl_in->shape.h, tl_in->shape.w);
+    cvi_backend_bf16_tl_lut_mantissa_method(
+        ctx, layer_id, tl_in->start_address, tl_out->start_address, tl_work->start_address,
+        tl_reciprocal_table_answer->start_address, tl_reciprocal_mantissa_table_answer->start_address,
+        tl_in->shape.n, tl_in->shape.c, tl_in->shape.h, tl_in->shape.w);
 }
 
 void TgSoftmaxKernel::init(uint32_t layer_id,

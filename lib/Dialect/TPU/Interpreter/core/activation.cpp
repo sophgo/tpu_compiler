@@ -66,7 +66,6 @@ void ExpOpKernel::invoke() {
 MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping)
   : CPUOpKernel(op, valueMapping) {
   auto mishOp = cast<tpu::MishOp>(op);
-  this->mish_threshold = mishOp.mish_threshold().convertToFloat();
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
     slope_table = this->opdTensors[2];

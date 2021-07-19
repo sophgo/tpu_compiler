@@ -128,12 +128,10 @@ void cvi_backend_tl_lut_LA(
 
 
 // for layer group
-
-void cvi_backend_tl_lut(
+void cvi_backend_int8_tl_lut(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t la_input, laddr_t la_output, laddr_t la_working,
-    laddr_t la_y_table, laddr_t la_slope_table,
-    int thresh_min, int thresh_max, int n, int c, int h, int w) {
+    laddr_t la_input, laddr_t la_output, laddr_t la_y_table,
+    int n, int c, int h, int w) {
 
   ctx.set_layer_id(layer_id);
   LLVM_DEBUG(
@@ -142,7 +140,6 @@ void cvi_backend_tl_lut(
                  << "\n                     "
                  << "la_i = " << la_input
                  << ", la_o = " << la_output
-                 << ", la_w = " << la_working
                  << ", la_lut = " << la_y_table
                  << "\n";
   );
@@ -162,48 +159,38 @@ void cvi_backend_tl_lut(
     la_output = _la_output + s * in_csize_local;
     c = std::min(_c - s * step, step);
 
-    if (la_working == 0 && la_slope_table == 0) {
-      // assign in MixNet.cpp::_add_tl_activation_op
-      // int8 lut
-      cvk_tl_t *tl_input = new cvk_tl_t;
-      cvk_tl_t *tl_output = new cvk_tl_t;
-      cvk_tl_t *tl_y_table = new cvk_tl_t;
+    // assign in MixNet.cpp::_add_tl_activation_op
+    // int8 lut
+    cvk_tl_t *tl_input = new cvk_tl_t;
+    cvk_tl_t *tl_output = new cvk_tl_t;
+    cvk_tl_t *tl_y_table = new cvk_tl_t;
 
-      tl_input->start_address = la_input;
-      tl_input->fmt = CVK_FMT_I8;
-      tl_input->shape = ctx.tl_shape_t4(n, c, h, w);
-      tl_input->stride = ctx.tl_default_stride(tl_input->shape, CVK_FMT_I8, /*eu_align=*/1);
+    tl_input->start_address = la_input;
+    tl_input->fmt = CVK_FMT_I8;
+    tl_input->shape = ctx.tl_shape_t4(n, c, h, w);
+    tl_input->stride = ctx.tl_default_stride(tl_input->shape, CVK_FMT_I8, /*eu_align=*/1);
 
-      tl_output->start_address = la_output;
-      tl_output->fmt = CVK_FMT_I8;
-      tl_output->shape = ctx.tl_shape_t4(n, c, h, w);
-      tl_output->stride = ctx.tl_default_stride(tl_output->shape, CVK_FMT_I8, /*eu_align=*/1);
+    tl_output->start_address = la_output;
+    tl_output->fmt = CVK_FMT_I8;
+    tl_output->shape = ctx.tl_shape_t4(n, c, h, w);
+    tl_output->stride = ctx.tl_default_stride(tl_output->shape, CVK_FMT_I8, /*eu_align=*/1);
 
-      tl_y_table->start_address = la_y_table;
-      tl_y_table->fmt = CVK_FMT_I8;
-      tl_y_table->shape = ctx.lut_table_shape(CVK_FMT_I8);
-      tl_y_table->stride = ctx.tl_default_stride(tl_y_table->shape, CVK_FMT_I8, /*eu_align=*/1);
+    tl_y_table->start_address = la_y_table;
+    tl_y_table->fmt = CVK_FMT_I8;
+    tl_y_table->shape = ctx.lut_table_shape(CVK_FMT_I8);
+    tl_y_table->stride = ctx.tl_default_stride(tl_y_table->shape, CVK_FMT_I8, /*eu_align=*/1);
 
-      //compute
-      cvk_tiu_lookup_table_param_t p12 = {0};
-      p12.ifmap = tl_input;
-      p12.ofmap = tl_output;
-      p12.table = tl_y_table;
-      p12.layer_id = layer_id;
-      ctx.tiu_lookup_table(&p12);
+    //compute
+    cvk_tiu_lookup_table_param_t p12 = {0};
+    p12.ifmap = tl_input;
+    p12.ofmap = tl_output;
+    p12.table = tl_y_table;
+    p12.layer_id = layer_id;
+    ctx.tiu_lookup_table(&p12);
 
-      delete tl_y_table;
-      delete tl_output;
-      delete tl_input;
-    }
-    else {
-      // bf16 lut
-      // FIXME: need remove later
-      cvi_backend_bf16_tl_lut_slope_method(ctx, layer_id,
-          la_input, la_output, la_working,
-          la_y_table, la_slope_table,
-          thresh_min, thresh_max, false, n, c, h, w);
-    }
+    delete tl_y_table;
+    delete tl_output;
+    delete tl_input;
   }
 }
 
@@ -211,21 +198,20 @@ void cvi_backend_bf16_tl_lut(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
     laddr_t la_y_table, laddr_t la_slope_table,
-    int thresh_min, int thresh_max, bool added_offset,
-    int n, int c, int h, int w,
-    int method) {
+    int thresh_min, int thresh_max,
+    int n, int c, int h, int w, int method) {
   ctx.parallel_disable();
   if (method == METHOD_MANTISSA) {
     // for reciprocal/sqrt/power
     laddr_t la_exponential_table = la_y_table;
     laddr_t la_mantissa_lut = la_slope_table;
-    cvi_backend_tl_lut_exponential_mul_mantissa(ctx, layer_id,
+    cvi_backend_bf16_tl_lut_mantissa_method(ctx, layer_id,
             la_input, la_output, la_working,
             la_exponential_table, la_mantissa_lut, n, c, h, w);
   } else if (method == METHOD_SLOPE) {
     cvi_backend_bf16_tl_lut_slope_method(ctx, layer_id,
             la_input, la_output, la_working,
-            la_y_table, la_slope_table, thresh_min, thresh_max, added_offset, n, c, h, w);
+            la_y_table, la_slope_table, thresh_min, thresh_max, n, c, h, w);
   }
 }
 
@@ -234,7 +220,7 @@ void cvi_backend_bf16_tl_lut_slope_method(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
     laddr_t la_y_table, laddr_t la_slope_table,
-    int thresh_min, int thresh_max, bool added_offset, int n, int c, int h, int w) {
+    int thresh_min, int thresh_max, int n, int c, int h, int w) {
 
   ctx.set_layer_id(layer_id);
   LLVM_DEBUG(
@@ -250,13 +236,8 @@ void cvi_backend_bf16_tl_lut_slope_method(
                  << ", thresh_max = " << thresh_max
                  << "\n";
   );
-  bool isSync = (abs(thresh_min) == thresh_max);
-  float offset = (float)(thresh_max + thresh_min) / 2;
-  int range = (thresh_max - thresh_min);
-  const int lut_index_num = 256;
-  if (added_offset) {
-    isSync = true;
-  }
+  assert(abs(thresh_min) == thresh_max);
+  float scale = 256.0 / (thresh_max - thresh_min);
 
   cvk_tl_t _tl_ifmap = {}, _tl_ofmap_slope = {}, _tl_ofmap_y0 = {}, _tl_table_answer = {}, _tl_table_answer_slope = {};
   cvk_tl_t *tl_ifmap, *tl_ofmap_slope, *tl_ofmap_y0, *tl_table_answer, *tl_table_answer_slope;
@@ -306,28 +287,14 @@ void cvi_backend_bf16_tl_lut_slope_method(
   tl_table_answer_slope->shape = tl_table_answer->shape;
   tl_table_answer_slope->stride = tl_table_answer->stride;
 
-  if(!isSync){
-    cvk_tiu_add_param_t p90 = {0};
-    p90.res_high = nullptr;
-    p90.res_low = tl_tmp;
-    p90.a_high = nullptr;
-    p90.a_low = tl_ifmap;
-    p90.b_is_const = true;
-    p90.b_const.val = ctx.convert_fp32_to_bf16((-1.0 * offset));
-    p90.rshift_bits = 0;
-    p90.layer_id = layer_id;
-    p90.relu_enable = 0;
-    ctx.tiu_add(&p90);
-  }
-
   cvk_tdma_l2l_tensor_copy_param_t p3 = {0};
   // scale input for remap its idx(-x~x) to (-127~127), dirty tl_ifmap
   cvk_tiu_mul_param_t p4 = {0};
   p4.res_high = NULL;
   p4.res_low = tl_tmp;
-  p4.a = isSync ? tl_ifmap : tl_tmp;
+  p4.a = tl_ifmap;
   p4.b_is_const = 1;
-  p4.b_const.val = ctx.convert_fp32_to_bf16((float)lut_index_num / (float)range);
+  p4.b_const.val = ctx.convert_fp32_to_bf16(scale);
   p4.rshift_bits = 0;
   p4.relu_enable = 0;
   p4.layer_id = layer_id;
@@ -425,7 +392,7 @@ void cvi_backend_bf16_tl_lut_slope_method(
   ctx.tiu_mac(&p7);
 }
 
-void cvi_backend_tl_lut_exponential_mul_mantissa(
+void cvi_backend_bf16_tl_lut_mantissa_method(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
     laddr_t la_exponential_table, laddr_t la_mantissa_lut,
@@ -434,7 +401,7 @@ void cvi_backend_tl_lut_exponential_mul_mantissa(
   ctx.set_layer_id(layer_id);
   ctx.parallel_disable();
   LLVM_DEBUG(
-    llvm::errs() << "cvi_backend_tl_lut_exponential_mul_mantissa: nchw = ("
+    llvm::errs() << "cvi_backend_bf16_tl_lut_mantissa_method: nchw = ("
                  << n << "," << c << "," << h << "," << w << ")"
                  << "\n                     "
                  << "la_i = " << la_input
