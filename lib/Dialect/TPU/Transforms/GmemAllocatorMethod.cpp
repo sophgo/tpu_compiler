@@ -553,7 +553,7 @@ int64_t GmemAllocLargeOrder::assignGaddr(std::vector<Operation *> &ops,
 
   llvm::errs() << "alloc from " << min_gmem_idx << "th largest\n"; 
 
-  //LLVM_DEBUG(
+  LLVM_DEBUG(
   int i = 0;
   for (auto snapshot : album_) {
     llvm::errs() << "Snapshot idx:" << i++ << "\n";
@@ -568,7 +568,7 @@ int64_t GmemAllocLargeOrder::assignGaddr(std::vector<Operation *> &ops,
                    << ", free:" << (blk.op ? false : true) << "\n";
     }
   }
-  //);
+  );
 
   backPropagateToAssignGaddr();
   auto totalGmemUsed = updateGmemUsedStatistic(ops);

@@ -91,6 +91,7 @@ add_llvm_library(MLIRTPU
   Optimization/LayerGroup/LayerStage.cpp
   Optimization/LayerGroup/Steps.cpp
   Optimization/LayerGroup/LMemManager.cpp
+  Optimization/LayerGroup/LMemAllocMethod.cpp
   Optimization/LayerGroup/MixNet.cpp
   Optimization/LayerGroup/DeadCodeEliminate.cpp
   Optimization/LayerGroup/utils.cpp

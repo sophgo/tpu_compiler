@@ -12,14 +12,6 @@
 
 namespace mlir {
 
-typedef struct {
-  int start;
-  int size;
-  int tid;
-  int step;
-  bool busy;
-} LMEM_BLOCK;
-
 class LmemManager {
  public:
   explicit LmemManager(NetGraph* net_graph);
@@ -28,21 +20,6 @@ class LmemManager {
 
  private:
   NetGraph* net_graph_;
-  std::vector<std::list<LMEM_BLOCK>> block_record_;
-
-  void init(std::list<LMEM_BLOCK>& block_list);
-  bool is_tensor_resident_in_lmem(int tid);
-
-  void recycle_lmem(std::list<LMEM_BLOCK>& block_list, net_timestep* time_step, int cur_step,
-                    bool one_shoot);
-
-  bool alloc_block(std::list<LMEM_BLOCK>& block_list, int tid, int step_idx);
-
-  void merge_free_blocks(std::list<LMEM_BLOCK>& block_list);
-
-  bool figure_out_tensors_real_addr(net_timestep* time_step);
-
-  void show_blocks(std::list<LMEM_BLOCK>& block_list);
 };
 
 }
