@@ -1174,6 +1174,7 @@ def add_conv_Op(self, op_name, inputOperands,
   |--image_resize_dims \<h,w\>         | 输入图片resize后的h和w, 如"256,256", 可选；<br/>如果设置的image_resize_dims和net_input_dims不相等，<br/>图片resize后还将center crop到net_input_dims指定的高宽;<br/>如不设置, 则此值默认和net_input_dims相同 |
   |--resize_keep_aspect_ratio \<bool\> | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br/>如设置为**1**，在resize后高宽不足的部分会填充0 |
   |--net_input_dims \<h,w\>            | 模型的input shape的h与w:  如 **"224,224"** |
+  |--channel_num \<h,w\>            | 模型的input shape的c, 默认值为**3** |
   |--model_channel_order \<order\>     | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
   |--raw_scale**^(1)^** \<255.0\>      | raw_scale 默认值为**255** |
   |--mean**^(1)^** \<0,0,0\>           | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
@@ -1317,7 +1318,7 @@ run_calibration.py <model file> [option]
   | --correctness \<cos,cor,euc\>        | cvimodel在仿真上运行的结果与量化模型推理的结果对比时所能接受的最小相似度,<br/>默认值为:"0.99,0.99,0.98" |
   | --chip \<chip_name\>                 | cvimodel被部署的目标平台名, 值为"cv183x"或"cv182x" |
   | --fuse_preprocess \<bool\>           | 是否加入preprocess op到cvimodel中, 默认值为false |
-  | --pixel_format \<format\>            | preprocess所接受的图片输入格式, 可选值为:<br/>  "RGB_PACKED", "BGR_PACKED", "RGB_PLANAR",<br/>"BGR_PLANAR", "YUV420_PLANAR", "GRAYSCALE"等值 |
+  | --pixel_format \<format\>            | preprocess所接受的图片输入格式, 可选值为:<br/>  "RGB_PACKED", "BGR_PACKED", "RGB_PLANAR",<br/>"BGR_PLANAR", "YUV420_PLANAR", "GRAYSCALE", "RGBA_PLANAR"等值 |
   | --aligned_input \<bool\>             | preprocess所接受的输入图片是否为对齐格式, 默认值为false |
   | --dequant_outputs_to_fp32 \<bool\>   | 是否将模型的输出反量化为fp32格式, 默认值为true |
   | --compress_weight \<bool\>           | 是否对权重进行压缩，默认值为true|

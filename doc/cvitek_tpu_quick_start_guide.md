@@ -1703,6 +1703,7 @@ model_deploy.py \
 | BGR_PACKED    | bgr顺序，按照nhwc摆放        |
 | GRAYSCALE     | 仅有一个灰色通道，按nchw摆放 |
 | YUV420_PLANAR | yuv420格式，按照nchw摆放     |
+| RGBA_PLANAR | rgba格式，按照nchw摆放     |
 
 其中`aligned_input`用于表示是否数据存在对齐，如果数据来源于VPSS，则会有数据对齐要求，比如w按照32字节对齐。
 

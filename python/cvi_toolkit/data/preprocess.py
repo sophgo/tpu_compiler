@@ -1,4 +1,5 @@
-
+import os
+import PIL
 import numpy as np
 import cv2
 import argparse
@@ -13,6 +14,7 @@ supported_pixel_formats = [
     'BGR_PACKED',
     'GRAYSCALE',
     'YUV420_PLANAR',
+    'RGBA_PLANAR',
     None
 ]
 
@@ -22,7 +24,8 @@ pixel_format_attributes = {
     'BGR_PLANAR':    ('bgr', 'nchw'),
     'BGR_PACKED':    ('bgr', 'nhwc'),
     'GRAYSCALE':     ('bgr', 'nchw'),
-    'YUV420_PLANAR': ('bgr', 'nchw')
+    'YUV420_PLANAR': ('bgr', 'nchw'),
+    'RGBA_PLANAR': ('rgba', 'nchw')
 }
 
 # fix bool bug of argparse
@@ -61,17 +64,19 @@ def add_preprocess_parser(parser):
                          help="'h,w', model's input heigh/width dimension")
     parser.add_argument("--resize_dims", type=str,
                         help="Image was resize to fixed 'h,w', default is same as net_input_dims")
+    parser.add_argument("--channel_num", type=int,  default=3,
+                        help="channel number of inputed image")
     parser.add_argument("--keep_aspect_ratio", type=str2bool, default=False,
                         help="Resize image by keeping same ratio, any areas which" +
                              "are not taken are filled with 0")
     parser.add_argument("--crop_method", choices=['center', 'centor', 'right'], default='center')
     parser.add_argument("--raw_scale", type=float, default=255.0,
                         help="Multiply raw input image data by this scale.")
-    parser.add_argument("--mean", default='0,0,0', help="Per Channel image mean values")
-    parser.add_argument("--std", default='1,1,1', help="Per Channel image std values")
+    parser.add_argument("--mean", default='0,0,0,0', help="Per Channel image mean values")
+    parser.add_argument("--std", default='1,1,1,1', help="Per Channel image std values")
     parser.add_argument("--input_scale", type=float, default=1.0,
                         help="Multiply input features by this scale.")
-    parser.add_argument("--channel_order", choices=['bgr', 'rgb'], default='bgr',
+    parser.add_argument("--channel_order", choices=['bgr', 'rgb', 'rgba'], default='bgr',
                         help="channel order of model inference used")
     parser.add_argument("--pixel_format", choices=supported_pixel_formats, default=None,
                         help='fixel format of output data that sent into model')
@@ -104,9 +109,9 @@ class preprocess(object):
 
     def config(self, net_input_dims=None,
                resize_dims=None, crop_method='center', keep_aspect_ratio=False,
-               raw_scale=255.0, mean='0,0,0', std='1,1,1', input_scale=1.0,
+               raw_scale=255.0, mean='0,0,0,0', std='1,1,1,1', input_scale=1.0,
                channel_order='bgr', pixel_format=None, data_format='nchw',
-               aligned=False, gray=False, **ignored):
+               aligned=False, gray=False, channel_num=3, **ignored):
         if not net_input_dims and not resize_dims:
             raise RuntimeError("net_input_dims or resize_dims should be set")
 
@@ -123,10 +128,47 @@ class preprocess(object):
         self.crop_method = crop_method
         self.keep_aspect_ratio = keep_aspect_ratio
 
+        self.channel_order = channel_order
+        self.pixel_format = pixel_format
+        self.aligned = aligned
+        self.channel_num = channel_num
+
+        if not self.pixel_format:
+            if gray or self.channel_num == 1:
+                self.pixel_format = 'GRAYSCALE'
+            elif self.channel_num == 4:
+                self.pixel_format = 'RGBA_PLANAR'
+                assert(data_format == 'nchw')
+            elif data_format == 'nchw':
+                self.pixel_format = 'BGR_PLANAR' if self.channel_order == 'bgr' else \
+                                    'RGB_PLANAR'
+            else:
+                self.pixel_format = 'BGR_PACKED' if self.channel_order == 'bgr' else \
+                                    'RGB_PACKED'
+        if self.pixel_format not in supported_pixel_formats:
+            raise RuntimeError("{} unsupported pixel format".format(pixel_format))
+
+        if self.pixel_format == "RGBA_PLANAR":
+            self.channel_order = 'rgba'
+            self.channel_num = 4
+        elif self.pixel_format == "GRAYSCALE":
+            self.channel_num = 1
+        elif self.pixel_format == "YUV420_PLANAR":
+            self.channel_num = 3
+            self.aligned = True
+        else:
+            self.channel_num = 3
+
+        self.data_format = 'nchw' if self.pixel_format.endswith('PLANAR') else 'nhwc'
+
         _raw_scale = raw_scale
         _mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
+        assert(_mean.size >= self.channel_num)
+        _mean = _mean[:self.channel_num]
         _mean = _mean[:, np.newaxis, np.newaxis]
         _std = np.array([float(s) for s in std.split(',')], dtype=np.float32)
+        assert(_std.size >= self.channel_num)
+        _std = _std[:self.channel_num]
         _std = _std[:, np.newaxis, np.newaxis]
         _input_scale = float(input_scale)
 
@@ -140,28 +182,6 @@ class preprocess(object):
         sb = _input_scale / _std
         self.perchannel_scale = sa * sb
         self.perchannel_mean = _mean * sb
-
-        self.channel_order = channel_order
-        self.pixel_format = pixel_format
-        self.aligned = aligned
-
-        if not self.pixel_format:
-            if gray:
-                self.pixel_format = 'GRAYSCALE'
-            elif data_format == 'nchw':
-                self.pixel_format = 'BGR_PLANAR' if self.channel_order == 'bgr' else \
-                                    'RGB_PLANAR'
-            else:
-                self.pixel_format = 'BGR_PACKED' if self.channel_order == 'bgr' else \
-                                    'RGB_PACKED'
-        if self.pixel_format not in supported_pixel_formats:
-            raise RuntimeError("{} unsupported pixel format".format(pixel_format))
-
-        self.data_format = 'nchw' if self.pixel_format.endswith('PLANAR') else 'nhwc'
-        self.gray = True if self.pixel_format == 'GRAYSCALE' else False
-
-        if self.pixel_format == "YUV420_PLANAR":
-            self.aligned = True
 
         info_str = \
             "\n\t _______________________________________________________________________ \n" + \
@@ -180,6 +200,7 @@ class preprocess(object):
                "\tkeep_aspect_ratio     : {}\n" + \
                "\t--------------------------\n" + \
                "\tchannel_order         : {}\n" + \
+               "\tchannel_num          : {}\n" + \
                "\tperchannel_scale      : {}\n" + \
                "\tperchannel_mean       : {}\n" + \
                "\t   raw_scale          : {}\n" + \
@@ -191,7 +212,7 @@ class preprocess(object):
                "\taligned               : {}\n"
         info_str += format_str.format(
                 self.net_input_dims, self.resize_dims, self.crop_method,
-                self.keep_aspect_ratio, self.channel_order,
+                self.keep_aspect_ratio, self.channel_order, self.channel_num,
                 list(self.perchannel_scale.flatten()), list(self.perchannel_mean.flatten()),
                 _raw_scale, list(_mean.flatten()), list(_std.flatten()), _input_scale,
                 self.pixel_format, self.aligned)
@@ -214,7 +235,7 @@ class preprocess(object):
         shape = [shape_type.get_dim_size(i) for i in range(shape_type.rank)]
         attrs = mlir.ir.DictAttr(target.attributes['preprocess'])
         self.net_input_dims = shape[2:]
-        self.gray = True if shape[1] == 1 else False
+        self.channel_num = shape[1]
         self.pixel_format = mlir.ir.StringAttr(attrs['pixel_format']).value
         self.channel_order = mlir.ir.StringAttr(attrs['channel_order']).value
         self.keep_aspect_ratio = mlir.ir.BoolAttr(attrs['keep_aspect_ratio']).value
@@ -238,6 +259,7 @@ class preprocess(object):
                "\tkeep_aspect_ratio     : {}\n" + \
                "\t--------------------------\n" + \
                "\tchannel_order         : {}\n" + \
+               "\tchannel_num           : {}\n" + \
                "\tperchannel_scale      : {}\n" + \
                "\tperchannel_mean       : {}\n" + \
                "\t--------------------------\n" + \
@@ -245,7 +267,7 @@ class preprocess(object):
                "\taligned               : {}\n"
         logger.info(format_str.format(
                 self.net_input_dims, self.resize_dims, self.crop_method,
-                self.keep_aspect_ratio, self.channel_order,
+                self.keep_aspect_ratio, self.channel_order, self.channel_num,
                 list(self.perchannel_scale.flatten()),
                 list(self.perchannel_mean.flatten()),
                 self.pixel_format, self.aligned))
@@ -323,13 +345,21 @@ class preprocess(object):
         image = None
         if type(input) == str:
             image_path = str(input).rstrip()
-            mode = cv2.IMREAD_GRAYSCALE if self.gray else cv2.IMREAD_COLOR
-            image = cv2.imread(image_path, mode)
-            if image is None:
+            if not os.path.exists(image_path):
                 raise RuntimeError("{} doesn't existed !!!".format(image_path))
+
+            if self.channel_num == 1:
+                image = cv2.imread(image_path, cv2.IMREAD_GRAYSCALE)
+            elif self.channel_num == 3:
+                image = cv2.imread(image_path, cv2.IMREAD_COLOR)
+            elif self.channel_num == 4:
+                image = cv2.imread(image_path, cv2.IMREAD_UNCHANGED)
+                if image.shape[-1] != 4:
+                    image = PIL.Image.open(image_path).convert('RGBA')
+                    image = np.array(image)
         elif isinstance(input, np.ndarray):
             assert(input.shape[-1] == 3)
-            if self.gray:
+            if self.channel_num == 1:
                 image = cv2.cvtColor(input, cv2.COLOR_BGR2GRAY)
             else:
                 image = input
@@ -343,7 +373,7 @@ class preprocess(object):
             image = ImageResizeTool.stretch_resize(
                 image, self.resize_dims[0], self.resize_dims[1])
 
-        if self.gray:
+        if self.channel_num == 1:
             # if grapscale image,
             # expand dim to (1, h, w)
             image = np.expand_dims(image, axis=0)
@@ -382,45 +412,36 @@ class preprocess(object):
             else:
                 x = self.__center_crop(x, self.net_input_dims)
 
-        # if color order for preprocessing is not "bgr",
-        # swap it to correct order
-        if self.channel_order != "bgr":
-            x = x[[2,1,0], :, :]
-
-        # convert from uint8 to fp32
         x = x.astype(np.float32)
 
-        # preprocess
-        if self.gray:
+        if self.pixel_format == 'GRAYSCALE':
             self.perchannel_mean = self.perchannel_mean[:1]
             self.perchannel_scale = self.perchannel_scale[:1]
-        # rescale
-        x = x * self.perchannel_scale - self.perchannel_mean
-
-        # if not 'bgr', swap back
-        if self.channel_order != 'bgr':
-            x = x[[2, 1, 0], :, :]
-
-        if self.pixel_format == 'YUV420_PLANAR':
+            x = x * self.perchannel_scale - self.perchannel_mean
+            x = self.align_planar_frame(x, self.aligned)
+            x = np.expand_dims(x, axis=0)
+        elif self.pixel_format == 'YUV420_PLANAR':
             # swap to 'rgb'
-            x = x[[2,1,0], :, :]
+            x = x[[2, 1, 0], :, :]
+            x = x * self.perchannel_scale - self.perchannel_mean
             x = np.transpose(x, (1, 2, 0))
             x = self.rgb2yuv420(x)
             x = x.astype(np.float32)
             assert(batch == 1)
-        elif self.pixel_format == 'GRAYSCALE':
-            x = self.align_planar_frame(x, self.aligned)
+        elif self.pixel_format == 'RGBA_PLANAR':
+            x = x * self.perchannel_scale - self.perchannel_mean
             x = np.expand_dims(x, axis=0)
-        else:
-            if self.pixel_format.startswith('RGB'):
-                # swap to 'rgb'
+        else:  # RGB_PLANAR|PACKED or  BGR_PLANAR|PACKED
+            if self.channel_order == "rgb":
                 x = x[[2, 1, 0], :, :]
+                x = x * self.perchannel_scale - self.perchannel_mean
+            else:
+                x = x * self.perchannel_scale - self.perchannel_mean
             if self.data_format == 'nhwc':
                 x = np.transpose(x, (1, 2, 0))
                 x = self.align_packed_frame(x, self.aligned)
             else:
                 x = self.align_planar_frame(x, self.aligned)
-            # expand to 4 dimensions
             x = np.expand_dims(x, axis=0)
 
         if batch > 1:

@@ -177,7 +177,8 @@ public:
       {"BGR_PLANAR",    {"bgr", "nchw"}},
       {"BGR_PACKED",    {"bgr", "nhwc"}},
       {"GRAYSCALE",     {"bgr", "nchw"}},
-      {"YUV420_PLANAR", {"bgr", "nchw"}}
+      {"YUV420_PLANAR", {"bgr", "nchw"}},
+      {"RGBA_PLANAR", {"rgba", "nchw"}}
     };
 
     SmallVector<tpu::QuantOp, 4> toErase;
@@ -547,6 +548,8 @@ private:
                       bool swap_channel) {
     std::string name_ = name + "_preprocess_scale_lut";
     float qscale = 128.0f / threshold;
+    std::vector<int64_t> shape = getTensorShape(opd);
+    int channel = shape[1];
 
     std::vector<float> scale;
     std::vector<float> bias;
@@ -557,17 +560,17 @@ private:
       bias.push_back(-1 * m.convertToFloat());
     }
     if (scale.empty()) {
-      scale.assign(3, 1.0);
+      scale.assign(channel, 1.0);
     }
     if (bias.empty()) {
-      bias.assign(3, 0.0);
+      bias.assign(channel, 0.0);
     }
     if (swap_channel) {
       // keep order bgr
       std::swap(scale[0], scale[2]);
       std::swap(bias[0], bias[2]);
     }
-    for (int i = 0; i < 3; i++) {
+    for (int i = 0; i < channel; i++) {
       scale[i] *= qscale;
       bias[i] *= qscale;
     }

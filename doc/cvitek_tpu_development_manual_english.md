@@ -1300,7 +1300,7 @@ run_calibration.py <model file> [option]
   | --correctness \<cos,cor,euc\>        | The minimum similarity that can be accepted when the results of cvimodel running on the simulation are compared with the results of the quantitative model inference,<br/>the default value is :"0.99,0.99,0.98" |
   | --chip \<chip_name\>                 | The name of the target platform where cvimodel is deployed,  the value is "cv183x" or "cv182x". |
   | --fuse_preprocess \<bool\>           | Whether to add preprocess op to cvimodel, the default value is false |
-  | --pixel_format \<format\>            | The image input format accepted by preprocess, the optional values are:<br/>  "RGB_PACKED", "BGR_PACKED", "RGB_PLANAR",<br/>"BGR_PLANAR", "YUV420_PLANAR", "GRAYSCALE" |
+  | --pixel_format \<format\>            | The image input format accepted by preprocess, the optional values are:<br/>  "RGB_PACKED", "BGR_PACKED", "RGB_PLANAR",<br/>"BGR_PLANAR", "YUV420_PLANAR", "GRAYSCALE", "RGBA_PLANAR"  |
   | --aligned_input \<bool\>             | Whether the input image accepted by preprocess is in alignment format, the default value is false |
   | --dequant_outputs_to_fp32 \<bool\>   | Whether to dequantize the output of the model to fp32 format, the default value is true |
   | --image \<image_file\>               | Input image used to verify accuracy |

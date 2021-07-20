@@ -1326,54 +1326,6 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PixelShuffle.value, inputOperands, [
             tensor_output_type], name=pixelshuffle_name, quant=self.quant_param, **attr_dict)
 
-    def add_preprocess_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        # preprocess not follow input type
-        tensor_output_type = RankedTensorType.get(
-            tuple(output_tensor_shape), self.f32Type)
-
-        checkKey(kargs, 'crop_offset')
-        checkKey(kargs, 'channel_order')
-        checkKey(kargs, 'perchannel_mean')
-        checkKey(kargs, 'perchannel_scale')
-        checkKey(kargs, 'pixel_format')
-        checkKey(kargs, 'aligned')
-
-        # default color_order and transpose_order
-        color_order = np.array([0 ,1, 2])
-        transpose_order = np.array([0, 1, 2, 3])
-
-        attribute_map = {
-            'RGB_PLANAR'    : ('rgb', 'nchw'),
-            'RGB_PACKED'   : ('rgb', 'nhwc'),
-            'BGR_PLANAR'    : ('bgr', 'nchw'),
-            'BGR_PACKED'   : ('bgr', 'nhwc'),
-            'YUV420_PLANAR' : ('bgr', 'nchw'),
-            'GRAYSCALE'     : ('bgr', 'nchw')
-        }
-        pixel_format = kargs['pixel_format']
-        src_color_order, src_data_layout = attribute_map[pixel_format]
-
-        if kargs['channel_order'] != src_color_order:
-            color_order = np.array([2,1,0])
-        if src_data_layout == "nhwc":
-            transpose_order = np.array([0, 3, 1, 2])
-
-        preprocess_name = StringAttr.get(op_name)
-
-        attrs = {
-            'mean': ArrayAttr.get([FloatAttr.get_f32(x) for x in kargs['perchannel_mean']]),
-            'std': ArrayAttr.get([FloatAttr.get_f32(1 / x) for x in kargs['perchannel_scale']]),
-            'scale': FloatAttr.get_f32(1),
-            'raw_scale': FloatAttr.get_f32(255),
-            'pixel_format': StringAttr.get(kargs['pixel_format']),
-            'color_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in color_order]),
-            'transpose_order': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in transpose_order]),
-            'crop_offset': ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['crop_offset']]),
-        }
-
-        return self.buildOp(TPU_OpType.Preprocess.value, inputOperands, [
-            tensor_output_type], name=preprocess_name, quant=self.quant_param, **attrs)
-
     def add_prelu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
