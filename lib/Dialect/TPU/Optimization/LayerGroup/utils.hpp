@@ -180,5 +180,8 @@ void getLrnParam(Operation * op, uint32_t &local_size,
                   int &sum_rshift, int &lrn_rshift,
                   int &quant_data0, int &quant_data1,
                   float &alpha, float &k);
+
+void getLayerNormParam(Operation *op, std::vector<int64_t> &input_shape,
+                       std::vector<int> &normalized_shape, int &axis);
 }
 #endif

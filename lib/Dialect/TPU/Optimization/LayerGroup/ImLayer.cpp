@@ -163,6 +163,8 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::TG_INT8_SwapChannelOp>(op) ||
              isa<tpu::TG_BF16_SwapChannelOp>(op)) {
     layer = std::make_shared<ImSwapChannel>(op);
+  } else if (isa<tpu::TG_BF16_LayerNormOp>(op)) {
+    layer = std::make_shared<ImLayerNorm>(op);
   } else if (isa<tpu::TG_INT8_LrnOp>(op) ||
              isa<tpu::TG_BF16_LrnOp>(op)) {
     layer = std::make_shared<ImLrn>(op);
@@ -642,6 +644,40 @@ ImScaleLut::ImScaleLut(Operation *op) : ImLayer(IR_SCALE_LUT, op, true) {
   std::string storage = getWeightStorage(load_table);
   std::string table_name = load_table.name().str();
   add_in_tensor(n, c, h, w, usize, storage, table_name, TENSOR_COEFF_LUT);
+}
+
+ImLayerNorm::ImLayerNorm(Operation *op) : ImLayer(IR_LAYERNORM, op, true) {
+  int axis;
+  std::vector<int64_t> input_shape;
+  std::vector<int> normalized_shape;
+  getLayerNormParam(op, input_shape, normalized_shape, axis);
+  if (axis != 2 || (input_shape.size() != 3 && input_shape.size() != 4)) {
+    fusible = false;
+    return;
+  }
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
+  auto castOp = cast<tpu::TG_BF16_LayerNormOp>(op);
+  // table and mantissa
+  add_in_tensor(castOp.table(), TENSOR_COEFF_LUT);
+  add_in_tensor(castOp.mantissa_table(), TENSOR_COEFF_LUT);
+
+  if (false == isTensorNone(castOp.scale()) &&
+      false == isTensorNone(castOp.bias())) {
+    add_in_tensor(castOp.scale(), TENSOR_COEFF_LUT);
+    add_in_tensor(castOp.bias(), TENSOR_COEFF_LUT);
+  }
+  int normalized_size =
+      std::accumulate(normalized_shape.begin(), normalized_shape.end(), 1,
+                      std::multiplies<int>());
+  int eu_num = EU_NUM / 2; // bf16 = 2 bytes
+  int blob_num = 4;
+  if (normalized_size >= 3 * eu_num) {
+    blob_num = 2;
+  } else if (2 * normalized_size >= 3 * eu_num) {
+    blob_num = 3;
+  }
+  add_imm_tensor(in_tensors[0], blob_num, name_ + "_imm");
 }
 
 ImAbs::ImAbs(Operation *op): ImLayer(IR_ABS, op, true) {

@@ -285,6 +285,14 @@ void cvi_backend_tl_bf16_prelu(
     int n, int c,
     int h, int w);
 
+void cvi_backend_tl_bf16_layernorm(const CviBackendContext &ctx,
+                                   uint32_t layer_id, laddr_t la_input,
+                                   laddr_t la_output, laddr_t la_table,
+                                   laddr_t la_mantissa_table, laddr_t la_scale,
+                                   laddr_t la_bias, laddr_t la_working,
+                                   bool affine, float eps, int n, int c, int h,
+                                   int w);
+
 void cvi_backend_tl_scale_qi32(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_ifmap, laddr_t la_ofmap, laddr_t la_working,

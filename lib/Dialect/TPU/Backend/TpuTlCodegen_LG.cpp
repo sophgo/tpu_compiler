@@ -1885,4 +1885,29 @@ LogicalResult tpu::TL_LG_BF16_SwapChannelOp::codegen(void *ctx) {
                               h, w, order.data(), CVK_FMT_BF16);
   return success();
 }
+
+LogicalResult tpu::TL_LG_BF16_LayerNormOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  laddr_t la_table = this->la_table();
+  laddr_t la_mantissa_table = this->la_mantissa_table();
+  laddr_t la_scale = this->la_scale();
+  laddr_t la_bias = this->la_bias();
+  laddr_t la_working = this->la_working();
+  bool affine = this->affine();
+  float eps = this->eps().convertToFloat();
+  int layer_id = getOpLayerId(op);
+  cvi_backend_tl_bf16_layernorm(*backend_ctx, layer_id, la_input, la_output,
+                                la_table, la_mantissa_table, la_scale, la_bias,
+                                la_working, affine, eps, n, c, h, w);
+  return success();
+}
 }

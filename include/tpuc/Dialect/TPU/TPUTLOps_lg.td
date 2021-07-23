@@ -554,7 +554,7 @@ class TPU_TL_LG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    AnyTensor:$table,
     StrAttr:$name,
     I32Attr:$la_input,
     I32Attr:$la_output,
@@ -569,6 +569,59 @@ class TPU_TL_LG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 
 def TPU_TL_LG_INT8_ScaleLutOp : TPU_TL_LG_ScaleLutOp<"tl_lg_int8_scale_lut", "Int8">;
+
+class TPU_TL_LG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL layer norm operator.";
+
+  let description = [{
+    Perform layernorm on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `table`           : required, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : required, the quantize lookup table,only used by BF16 .
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$table,
+    AnyTensor:$mantissa_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$bias,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    I32Attr:$la_table,
+    I32Attr:$la_mantissa_table,
+    I32Attr:$la_scale,
+    I32Attr:$la_bias,
+    I32Attr:$la_working,
+    F32Attr:$eps,
+    DefaultValuedAttr<BoolAttr, "false">:$affine,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TL_LG_BF16_LayerNormOp : TPU_TL_LG_LayerNormOp<"tl_lg_bf16_layernorm", "Bf16">;
 
 class TPU_TL_LG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

@@ -191,4 +191,14 @@ void getLrnParam(Operation * op,
   }
 }
 
+void getLayerNormParam(Operation * op, std::vector<int64_t>&input_shape, std::vector<int> &normalized_shape, int &axis){
+  auto castOp = dyn_cast<tpu::TG_BF16_LayerNormOp>(op);
+  if (castOp == nullptr) {
+    assert(!"Unsupport layernorm op in layergroup.");
+  }
+  arrayAttrToVector(castOp.normalized_shape(), normalized_shape);
+  input_shape = getTensorShape(castOp.input());
+  axis = input_shape.size() - normalized_shape.size();
+}
+
 }

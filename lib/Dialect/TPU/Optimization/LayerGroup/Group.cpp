@@ -597,6 +597,16 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
         h_slice = out_h_slice + crop_offsets[2];
       } else
         h_slice = out_h_slice;
+    } else if (layer_type == IR_LAYERNORM) {
+      h_idx = out_h_idx;
+      h_slice = out_h_slice;
+      std::vector<int64_t> input_shape;
+      std::vector<int> normalized_shape;
+      int axis;
+      getLayerNormParam(im_layer->op(), input_shape, normalized_shape, axis);
+      if (axis != 2 || h_slice != tensor->h()) {
+        return false;
+      }
     } else {
       h_idx = out_h_idx;
       h_slice = out_h_slice;
@@ -808,6 +818,12 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
         w_slice = out_w_slice + crop_offsets[3];
       } else
         w_slice = out_w_slice;
+    } else if (layer_type == IR_LAYERNORM) {
+      w_idx = out_w_idx;
+      w_slice = out_w_slice;
+      if (w_idx != 0 || w_slice != tensor->w()) {
+        return false;
+      }
     } else {
       w_idx = out_w_idx;
       w_slice = out_w_slice;

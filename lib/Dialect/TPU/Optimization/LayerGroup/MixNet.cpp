@@ -280,7 +280,9 @@ void MixNet::add_tl_layer(int layer_id) {
     case IR_SWAPCHANNEL:
       _add_tl_swap_channel_op(mix_op, in_tensors, out_tensors);
      break;
-
+    case IR_LAYERNORM:
+      _add_tl_layernorm_op(mix_op, in_tensors, out_tensors);
+      break;
     default:
       llvm::errs() << "unknown layer type:" << layer_type << "\n";
   }
@@ -2454,4 +2456,98 @@ void MixNet::_add_tl_swap_channel_op(MixOp *mix_op,
     add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
   }
 }
+
+void MixNet::_add_tl_layernorm_op(MixOp *mix_op,
+                                  const std::vector<int> &in_tensors,
+                                  const std::vector<int> &out_tensors) {
+  const ImLayer *im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  Operation *op = im_layer->op();
+  auto castOp = cast<tpu::TG_BF16_LayerNormOp>(op);
+  auto opd0 = op->getOperand(0);
+  auto old_input_type = opd0.getType().cast<RankedTensorType>();
+  int bottom_dim[4];
+  int top_dim[4];
+  net_graph_->get_tl_tensor_dim(in_tensors[0], bottom_dim, is_h_w_split_);
+  net_graph_->get_tl_tensor_dim(out_tensors[0], top_dim, is_h_w_split_);
+
+  std::string name = mix_op->name();
+  uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+  uint32_t la_table = net_graph_->get_tensor_local_offset(in_tensors[1]);
+  uint32_t la_mantissa_table =
+      net_graph_->get_tensor_local_offset(in_tensors[2]);
+  bool affine = false;
+  uint32_t la_scale = 0;
+  uint32_t la_bias = 0;
+  if (in_tensors.size() > 3) {
+    affine = true;
+    la_scale = net_graph_->get_tensor_local_offset(in_tensors[3]);
+    la_bias = net_graph_->get_tensor_local_offset(in_tensors[4]);
+  }
+
+  int imm_t_id = im_layer->imm_tensors[0].get()->id();
+  uint32_t la_working = get_imm_tensor_laddr(imm_t_id);
+
+  Builder builder_(context_);
+  std::vector<NamedAttribute> attrs;
+
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  attrs.push_back(
+      builder_.getNamedAttr("la_input", builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                                        builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(
+      builder_.getNamedAttr("la_table", builder_.getI32IntegerAttr(la_table)));
+  attrs.push_back(builder_.getNamedAttr(
+      "la_mantissa_table", builder_.getI32IntegerAttr(la_mantissa_table)));
+  attrs.push_back(
+      builder_.getNamedAttr("la_scale", builder_.getI32IntegerAttr(la_scale)));
+  attrs.push_back(
+      builder_.getNamedAttr("la_bias", builder_.getI32IntegerAttr(la_bias)));
+  attrs.push_back(builder_.getNamedAttr(
+      "la_working", builder_.getI32IntegerAttr(la_working)));
+  attrs.push_back(
+      builder_.getNamedAttr("affine", builder_.getBoolAttr(affine)));
+  attrs.push_back(builder_.getNamedAttr("eps", castOp.epsAttr()));
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+      {bottom_dim[0], bottom_dim[1], bottom_dim[2], bottom_dim[3]},
+      old_input_type.getElementType());
+
+  RankedTensorType output_type =
+      RankedTensorType::get({top_dim[0], top_dim[1], top_dim[2], top_dim[3]},
+                            old_input_type.getElementType());
+
+  std::vector<Value> operands;
+  Operation *input_op =
+      get_op_from_name(mix_op->bottom_name(0)).getDefiningOp();
+  input_op->getResult(0).setType(input_type);
+  operands.push_back(input_op->getResult(0));
+  Operation *table_op =
+      get_op_from_name(mix_op->bottom_name(1)).getDefiningOp();
+  operands.push_back(table_op->getResult(0));
+  Operation *mantissa_op =
+      get_op_from_name(mix_op->bottom_name(2)).getDefiningOp();
+  operands.push_back(mantissa_op->getResult(0));
+  if (in_tensors.size() > 3) {
+    Operation *scale_op =
+        get_op_from_name(mix_op->bottom_name(3)).getDefiningOp();
+    operands.push_back(scale_op->getResult(0));
+    Operation *bias_op =
+        get_op_from_name(mix_op->bottom_name(4)).getDefiningOp();
+    operands.push_back(bias_op->getResult(0));
+  } else {
+    auto none_op = OpBuilder(get_start_op())
+                       .create<tpu::NoneOp>(builder_.getUnknownLoc(),
+                                            builder_.getNoneType());
+    operands.push_back(none_op.getResult());
+    operands.push_back(none_op.getResult());
+  }
+  auto tl_op =
+      OpBuilder(get_start_op())
+          .create<tpu::TL_LG_BF16_LayerNormOp>(
+              get_start_op()->getLoc(), output_type, ArrayRef<Value>{operands},
+              ArrayRef<NamedAttribute>{attrs});
+  add_opd_to_list(mix_op->name(), tl_op.getResult(), true);
 }
+} // namespace mlir

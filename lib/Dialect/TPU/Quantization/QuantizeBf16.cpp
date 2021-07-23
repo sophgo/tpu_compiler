@@ -78,6 +78,35 @@ static void quantizeBf16WeightOp(Value op, TensorFile *wTF) {
                                           wTF);
 }
 
+static void quantizeBf16LayerNormWeightOp(Value op, TensorFile *wTF) {
+  if (isTensorNone(op)) {
+    return;
+  }
+  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op.getDefiningOp());
+  if (weightOp == nullptr) {
+    return;
+  }
+  auto data = readAndDeleteWeightTensor<float>(op, wTF);
+  auto shape = getTensorShape(op);
+  auto size = getTensorSize(op);
+  int npu_num = MInfo::lane_num;
+  std::vector<bfloat16> data_bf16(size);
+  FloatToBFloat16(data->data(), data_bf16.data(), size);
+  BFloat16ToFloat(data_bf16.data(), data->data(), size);
+  std::vector<float> data_fp32(size * npu_num);
+  for (int i = 0; i < npu_num; i++) {
+    std::copy(data->begin(), data->end(), data_fp32.data() + i * size);
+  }
+  std::vector<int64_t> shape_fp32;
+  if (shape.size() == 2) {
+    shape_fp32 = {1, npu_num, shape[0], shape[1]};
+  } else {
+    shape_fp32 = {1, npu_num, size};
+  }
+  addWeightTensorAndUpdateWeightOp<float>(op, "quant", data_fp32, shape_fp32,
+                                          "BF16", wTF);
+}
+
 //
 // lut
 //
@@ -364,9 +393,9 @@ LogicalResult tpu::LayerNormOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   TensorFile *wTF = getWeightTensorFile(op);
-  quantizeBf16WeightOp(scale(), wTF);
-  quantizeBf16WeightOp(bias(), wTF);
-  insertBf16LutOp(op, "reciprocal_sqrt", "mantissa", 3, 4);
+  quantizeBf16LayerNormWeightOp(scale(), wTF);
+  quantizeBf16LayerNormWeightOp(bias(), wTF);
+  insertBf16LutOp(op, "reciprocal_sqrt", "mantissa", 1, 2);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }

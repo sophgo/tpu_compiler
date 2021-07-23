@@ -13,10 +13,10 @@ LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping)
   auto lnOp = cast<tpu::LayerNormOp>(op);
   // get tensors
   input_data = this->opdTensors[0];
-  scale_data = this->opdTensors[1];
-  bias_data = this->opdTensors[2];
-  lut = this->opdTensors[3];
-  mantissa_lut = this->opdTensors[4];
+  lut = this->opdTensors[1];
+  mantissa_lut = this->opdTensors[2];
+  scale_data = this->opdTensors[3];
+  bias_data = this->opdTensors[4];
   eps = lnOp.eps().convertToFloat();
   arrayAttrToVector(lnOp.normalized_shape(), this->normalized_shape);
   output_data = this->resTensor;

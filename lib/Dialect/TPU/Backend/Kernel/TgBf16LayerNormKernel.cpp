@@ -37,12 +37,27 @@ void cvi_backend_tg_bf16_layernorm_kernel(
   ctx.tdma_load(tl_lut, ga_table);
   ctx.tdma_load(tl_lut_mantissa, ga_mantissa_table);
   lmem_used += 2 * ctx.lmem_tensor_to_size(table_shape, CVK_FMT_BF16, 1);
+  cvk_tl_t *tl_scale = nullptr;
+  cvk_tl_t *tl_bias = nullptr;
+  auto affine_shape = ctx.tl_shape_t4(1, NPU_NUM, h, w);
+  if (affine) {
+    // load scale and bias
+    tl_scale = ctx.lmem_alloc_tensor(affine_shape, CVK_FMT_BF16, 1);
+    tl_bias = ctx.lmem_alloc_tensor(affine_shape, CVK_FMT_BF16, 1);
+    ctx.tdma_load(tl_scale, ga_scale);
+    ctx.tdma_load(tl_bias, ga_bias);
+    lmem_used += 2 * ctx.lmem_tensor_to_size(affine_shape, CVK_FMT_BF16, 1);
+    tl_scale->stride.c = 0;
+    tl_scale->stride.n = 0;
+    tl_bias->stride.c = 0;
+    tl_bias->stride.n = 0;
+  }
+
   int batch_step = std::min(batch_size, MAX_CHANNEL);
-  int blob_num = (affine == true ? 4 : 2);
   while (batch_step > 0) {
     // for input and square
-    uint32_t mem_need = blob_num * ctx.lmem_tensor_to_size(1, batch_step, h, w,
-                                                           CVK_FMT_BF16, 1);
+    uint32_t mem_need =
+        2 * ctx.lmem_tensor_to_size(1, batch_step, h, w, CVK_FMT_BF16, 1);
     // for mean and var
     mem_need +=
         3 * ctx.lmem_tensor_to_size(1, batch_step, 1, 1, CVK_FMT_BF16, 1);
@@ -60,18 +75,7 @@ void cvi_backend_tg_bf16_layernorm_kernel(
         "Tilling LayerNorm failed, src shape:[1,%d,%d,%d]\n", batch_size, h, w);
     assert(0);
   }
-  cvk_tl_t *tl_scale = nullptr;
-  cvk_tl_t *tl_bias = nullptr;
-  auto affine_shape = ctx.tl_shape_t4(1, batch_step, h, w);
-  if (affine) {
-    // load scale and bias
-    tl_scale = ctx.lmem_alloc_tensor(affine_shape, CVK_FMT_BF16, 1);
-    tl_bias = ctx.lmem_alloc_tensor(affine_shape, CVK_FMT_BF16, 1);
-    auto gstride = ctx.tg_default_stride(batch_step, h, w, CVK_FMT_BF16);
-    gstride.c = 0;
-    ctx.tdma_load_stride(tl_scale, ga_scale, gstride);
-    ctx.tdma_load_stride(tl_bias, ga_bias, gstride);
-  }
+
   for (int batch_pos = 0; batch_pos < batch_size; batch_pos += batch_step) {
     int batch = std::min(batch_step, batch_size - batch_pos);
     auto input_shape = ctx.tl_shape_t4(1, batch, h, w);
@@ -176,14 +180,8 @@ void cvi_backend_tg_bf16_layernorm_kernel(
     p9.relu_enable = 0;
     ctx.tiu_mul(&p9);
     if (affine) {
-      if (batch < batch_step) {
-        tl_scale->shape.c = batch;
-        tl_bias->shape.c = batch;
-        tl_scale->stride =
-            ctx.tl_default_stride(tl_scale->shape, CVK_FMT_BF16, 1);
-        tl_bias->stride =
-            ctx.tl_default_stride(tl_bias->shape, CVK_FMT_BF16, 1);
-      }
+      tl_scale->shape.c = batch;
+      tl_bias->shape.c = batch;
       cvk_tiu_mul_param_t p10 = {0};
       p10.res_high = nullptr;
       p10.res_low = tl_input;
@@ -211,8 +209,10 @@ void cvi_backend_tg_bf16_layernorm_kernel(
     ctx.lmem_free_tensor(tl_mean);
     ctx.lmem_free_tensor(tl_input);
   }
-  ctx.lmem_free_tensor(tl_bias);
-  ctx.lmem_free_tensor(tl_scale);
+  if (affine) {
+    ctx.lmem_free_tensor(tl_bias);
+    ctx.lmem_free_tensor(tl_scale);
+  }
   ctx.lmem_free_tensor(tl_lut_mantissa);
   ctx.lmem_free_tensor(tl_lut);
 }

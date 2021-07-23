@@ -817,10 +817,10 @@ class TPU_TG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$scale,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$bias,
     AnyTensor:$table,
     AnyTensor:$mantissa_table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$bias,
     I32ArrayAttr:$normalized_shape,
     F32Attr:$eps,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,

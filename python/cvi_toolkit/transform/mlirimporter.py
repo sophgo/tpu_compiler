@@ -1080,10 +1080,6 @@ class MLIRImporter(object):
             "eps":FloatAttr.get_f32(kargs['eps']),
             "normalized_shape": ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['normal_shape']])
         }
-        none = self.add_none_op()
-        num_input = len(inputOperands)
-        for _ in range(5 - num_input):
-            inputOperands.append(none)
         return self.buildOp(TPU_OpType.LayerNorm.value, inputOperands, [tensor_output_type],
                 name=op_name, quant=self.quant_param, **param)
 

@@ -148,6 +148,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TlCrop.cpp
   Backend/Kernel/TlDeconv.cpp
   Backend/Kernel/TlEltwise.cpp
+  Backend/Kernel/TlLayerNorm.cpp
   Backend/Kernel/TlLeakyRelu.cpp
   Backend/Kernel/TlLrn.cpp
   Backend/Kernel/TlLut.cpp
