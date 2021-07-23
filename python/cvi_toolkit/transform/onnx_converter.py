@@ -2471,7 +2471,7 @@ class OnnxConverter(BaseConverter):
             slope = self.getTensor(onnx_node.inputs[1])
             slope_data = slope.tensor_data
             slope_name = "{}_slope_weight".format(onnx_node.name)
-            slope_shape = slope.shape
+            slope_shape = (1, output_shape[1], 1, 1)
             self.addTensor(slope_name, slope_data, slope_shape)
             slope_op = self.CVI.add_load_file_op(slope_name, slope_shape)
             operands.append(slope_op)

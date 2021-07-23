@@ -160,37 +160,10 @@ void cvi_backend_tl_load_stride(
   tl_data.stride = ctx.tl_default_stride(tl_shape, tl_data.fmt, DoAligned ? 1 : 0);
 
   // Global shape used for stride calculation
-  cvk_tg_stride_t ga_stride =
-      ctx.tg_default_stride(
+  cvk_tg_stride_t ga_stride = ctx.tg_default_stride(
           {(uint32_t)Local_N, (uint32_t)Global_C,
-          (uint32_t)Global_H, (uint32_t)Global_W},
-      from);
-
-  cvk_tg_t ga_data = {0};
-  ga_data.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_src);
-  ga_data.start_address = ga_src;
-  ga_data.fmt = to;
-  ga_data.shape = {tl_data.shape.n, tl_data.shape.c,
-                   tl_data.shape.h, tl_data.shape.w};
-  ga_data.stride = ga_stride;
-
-  if (!DoDecompress) {
-    // normal data
-    cvk_tdma_g2l_tensor_copy_param_t param = {0};
-    param.src = &ga_data;
-    param.dst = &tl_data;
-    ctx.tdma_g2l_tensor_copy(&param);
-
-  } else {
-    // Compressed data
-    cvk_cmpr_tg_t cmpr_ga_data = {0};
-    cmpr_ga_data.t = ga_data;
-
-    cvk_tdma_g2l_tensor_copy_decompressed_param_t param = {0};
-    param.src = &cmpr_ga_data;
-    param.dst = &tl_data;
-    ctx.tdma_g2l_tensor_copy_decompressed(&param);
-  }
+          (uint32_t)Global_H, (uint32_t)Global_W}, from);
+  ctx.tdma_load_stride(&tl_data, ga_src, ga_stride, false, DoDecompress);
 }
 
 void cvi_backend_tl_load(
