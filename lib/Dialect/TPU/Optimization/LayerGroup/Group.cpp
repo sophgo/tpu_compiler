@@ -633,6 +633,10 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
       return false;
     }
 
+    if (tensor->n() / n_slice > 16) {
+      return false;
+    }
+
     tensor->set_nh_slice(n_idx, n_slice, h_idx, h_slice);
     tensor->set_postfix(group_id_, n_loop, h_loop);
 
@@ -837,6 +841,10 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
         << "[Update Tensor Slice][Warning]: "
         << "slice length should >= 1, but "
         << "n_slice is: " << n_slice << ", w_slice is: " << w_slice << "\n";);
+      return false;
+    }
+
+    if (tensor->n() / n_slice > 16) {
       return false;
     }
 
