@@ -309,7 +309,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   else {
     // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
     add_in_tensor(w_ic / g, oc, kh, kw, unit_size,
-                 weight_storage, weightOpName, TENSOR_COEFF);
+                 weight_storage, weightOpName, TENSOR_COEFF_CONV);
   }
 
   // add bias tensor
@@ -322,10 +322,10 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
 
     if (is_dw)
       add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
-                    bias_storage, bias_name, TENSOR_BIAS);
+                    bias_storage, bias_name, TENSOR_COEFF);
     else {
       // if is group conv, bias need to align.
-      tensor_type_t bias_type = (g > 1) ? TENSOR_DEPTHCONV_OPD1 : TENSOR_BIAS;
+      tensor_type_t bias_type = (g > 1) ? TENSOR_DEPTHCONV_OPD1 : TENSOR_COEFF;
       add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
                     bias_storage, bias_name, bias_type);
     }
@@ -337,7 +337,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     int bias_usize = 2;
 
     add_in_tensor(2, oc, 1, 1, bias_usize,
-                  bias_storage, bias_name, TENSOR_BIAS);
+                  bias_storage, bias_name, TENSOR_COEFF);
 
   }
 
@@ -381,7 +381,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   } else {
     // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
     add_in_tensor(w_ic / g, oc, kh, kw, unit_size, weight_storage,
-                  weightOpName, TENSOR_COEFF);
+                  weightOpName, TENSOR_COEFF_CONV);
   }
 
   // add bias tensor
@@ -394,10 +394,10 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
 
     if (is_dw) {
       add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
-                    bias_storage, bias_name, TENSOR_BIAS);
+                    bias_storage, bias_name, TENSOR_COEFF);
     } else {
       // if is group conv, bias need to align.
-      tensor_type_t bias_type = (g > 1) ? TENSOR_DEPTHCONV_OPD1 : TENSOR_BIAS;
+      tensor_type_t bias_type = (g > 1) ? TENSOR_DEPTHCONV_OPD1 : TENSOR_COEFF;
       add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
                     bias_storage, bias_name, bias_type);
     }
@@ -410,10 +410,10 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
 
     if (is_dw)
       add_in_tensor(2, oc, 1, 1, bias_usize,
-                    bias_storage, bias_name, TENSOR_BIAS);
+                    bias_storage, bias_name, TENSOR_COEFF);
     else
       add_in_tensor(g*2, oc/g, 1, 1, bias_usize,
-                    bias_storage, bias_name, TENSOR_BIAS);
+                    bias_storage, bias_name, TENSOR_COEFF);
   }
 
   // add out tensor
@@ -437,7 +437,7 @@ ImInnerproduct::ImInnerproduct(Operation* op) : ImLayer(IR_INNERPRODUCT, op) {
     std::vector<int64_t> shape = opd_type.getShape();
     int bias_usize = getOpResultUnitSize(load_bias);
     std::string storage = getWeightStorage(load_bias);
-    add_in_tensor(2, 0, 0, shape[0], bias_usize, storage, name_ + "_bias", TENSOR_BIAS);
+    add_in_tensor(2, 0, 0, shape[0], bias_usize, storage, name_ + "_bias", TENSOR_COEFF);
   }
   add_out_tensor(op->getResult(0), TENSOR_MATRIX);
 }
@@ -513,30 +513,15 @@ ImConcat::ImConcat(Operation* op) : ImLayer(IR_CONCAT, op, true) {
 ImActivation::ImActivation(Operation* op) : ImLayer(IR_ACTIVATION, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   bool isBF16 = isa<tpu::TG_BF16_LutOp>(op);
-  int table_h = 16;
-  int table_w = 16; // 1880 setting
-  if (isBF16) {
-    // TODO: get chip from `chipname` field
-    table_h = 32;
-    table_w = 8; // 1880v2 setting
-  }
 
   // add y table
-  auto load_y_table = cast<tpu::LoadWeightOp>(op->getOperand(1).getDefiningOp());
-  int usize = getOpResultUnitSize(load_y_table);
-  std::string storage = getWeightStorage(load_y_table);
-  std::string y_table_name = load_y_table.name().str();
-  add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, y_table_name, TENSOR_COEFF_LUT);
+  add_in_tensor(op->getOperand(1), TENSOR_COEFF);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
   // add m_table
   if (isBF16) {
     // FIXME: support other bf16 activation ops
-    auto load_m_table = cast<tpu::LoadWeightOp>(op->getOperand(2).getDefiningOp());
-    int usize = getOpResultUnitSize(load_m_table);
-    std::string storage = getWeightStorage(load_m_table);
-    std::string m_table_name = load_m_table.name().str();
-    add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, m_table_name, TENSOR_COEFF_LUT);
+    add_in_tensor(op->getOperand(2), TENSOR_COEFF);
 
     // add working table
     add_imm_tensor(out_tensors[0], 2, name_ + "_imm");
@@ -606,44 +591,22 @@ ImLrn::ImLrn(Operation *op): ImLayer(IR_LRN, op, true) {
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
   int working_size = 5;
-  int table_h = 16;
-  int table_w = 16;
   if (isa<tpu::TG_BF16_LrnOp>(op)) {
     working_size = 2;
-    table_h = 32;
-    table_w = 8;
   }
 
-  // add sqr weight
-  auto load_sqr = cast<tpu::LoadWeightOp>(op->getOperand(1).getDefiningOp());
-  int usize = getOpResultUnitSize(load_sqr);
-  std::string storage = getWeightStorage(load_sqr);
-  std::string sqr_name = load_sqr.name().str();
-  add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, sqr_name, TENSOR_COEFF_LUT);
+  // add sqr/poer weight
+  add_in_tensor(op->getOperand(1), TENSOR_COEFF);
+  add_in_tensor(op->getOperand(2), TENSOR_COEFF);
 
-  // add power weight
-  auto load_pow = cast<tpu::LoadWeightOp>(op->getOperand(2).getDefiningOp());
-  usize = getOpResultUnitSize(load_pow);
-  storage = getWeightStorage(load_pow);
-  std::string pow_name = load_pow.name().str();
-  add_in_tensor(1, NPU_NUM, table_h, table_w, usize, storage, pow_name, TENSOR_COEFF_LUT);
-
+  // add imm
   add_imm_tensor(in_tensors[0], working_size, name_ + "_imm");
 }
 
 ImScaleLut::ImScaleLut(Operation *op) : ImLayer(IR_SCALE_LUT, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
-
-  // load table
-  auto load_table = cast<tpu::LoadWeightOp>(op->getOperand(1).getDefiningOp());
-  auto table_shape = getTensorShape(op->getOperand(1));
-  int64_t n, c, h, w;
-  getNCHW(table_shape, n, c, h, w);
-  int usize = getOpResultUnitSize(load_table);
-  std::string storage = getWeightStorage(load_table);
-  std::string table_name = load_table.name().str();
-  add_in_tensor(n, c, h, w, usize, storage, table_name, TENSOR_COEFF_LUT);
+  add_in_tensor(op->getOperand(1), TENSOR_COEFF);
 }
 
 ImLayerNorm::ImLayerNorm(Operation *op) : ImLayer(IR_LAYERNORM, op, true) {
@@ -659,13 +622,13 @@ ImLayerNorm::ImLayerNorm(Operation *op) : ImLayer(IR_LAYERNORM, op, true) {
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
   auto castOp = cast<tpu::TG_BF16_LayerNormOp>(op);
   // table and mantissa
-  add_in_tensor(castOp.table(), TENSOR_COEFF_LUT);
-  add_in_tensor(castOp.mantissa_table(), TENSOR_COEFF_LUT);
+  add_in_tensor(castOp.table(), TENSOR_COEFF);
+  add_in_tensor(castOp.mantissa_table(), TENSOR_COEFF);
 
   if (false == isTensorNone(castOp.scale()) &&
       false == isTensorNone(castOp.bias())) {
-    add_in_tensor(castOp.scale(), TENSOR_COEFF_LUT);
-    add_in_tensor(castOp.bias(), TENSOR_COEFF_LUT);
+    add_in_tensor(castOp.scale(), TENSOR_COEFF);
+    add_in_tensor(castOp.bias(), TENSOR_COEFF);
   }
   int normalized_size =
       std::accumulate(normalized_shape.begin(), normalized_shape.end(), 1,
@@ -702,7 +665,7 @@ ImScale::ImScale(Operation *op): ImLayer(IR_SCALE, op, true) {
     std::string bias_storage = getWeightStorage(load_bias);
     int bias_usize = getOpResultUnitSize(load_bias);
     add_in_tensor(input_shape[0], input_shape[1], 1, perchannel_size, bias_usize, bias_storage,
-                  bias_name, TENSOR_BIAS);
+                  bias_name, TENSOR_COEFF);
   }
 }
 

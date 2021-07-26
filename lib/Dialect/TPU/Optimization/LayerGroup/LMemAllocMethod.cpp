@@ -7,8 +7,8 @@ LMemAllocMethod::~LMemAllocMethod() {}
 
 bool LMemAllocMethod::is_tensor_resident_in_lmem(tensor_type type) {
   //tensor_type_t type = net_graph_->get_tensor_type(tid);
-  if (type == TENSOR_COEFF || type == TENSOR_COEFF_NEURON || type == TENSOR_BIAS ||
-      type == TENSOR_COEFF_LUT || type == TENSOR_DEPTHCONV_OPD1 ||
+  if (type == TENSOR_COEFF_CONV || type == TENSOR_COEFF_NEURON ||
+      type == TENSOR_COEFF || type == TENSOR_DEPTHCONV_OPD1 ||
       type == TENSOR_NEURON_AS_COEFF) {
     return true;
   }
@@ -569,7 +569,7 @@ bmerr_t LMemAllocSizeOrder::assign_local_memory(Group *group,
     tensor_rect->end = tensor_rect->start + tensor_rect->size;
     LLVM_DEBUG(llvm::errs() << LOG_TAB_L4 << "[Assign Lmem][stage: " << tensor_rect->first
                  << " ~ " << tensor_rect->last << "]"
-                 << " tensor_id:" << tensor_rect->tid << ", addr:" 
+                 << " tensor_id:" << tensor_rect->tid << ", addr:"
                  << tensor_rect->start << " ~ " << tensor_rect->end
                  << ", size:" << tensor_rect->size << "\n");
     if (LOCAL_MEM_SIZE < static_cast<uint32_t>(tensor_rect->end)) {
@@ -608,7 +608,7 @@ int LMemAllocSizeOrder::figure_out_tensor_real_addr(
     /*
     llvm::errs() << LOG_TAB_L4 << "[Assign Lmem][stage: " << tensor_rect->first
                  << " ~ " << tensor_rect->last << "]"
-                 << " tensor_id:" << tensor_rect->tid << ", addr:" 
+                 << " tensor_id:" << tensor_rect->tid << ", addr:"
                  << tensor_rect->start << " ~ " << tensor_rect->end
                  << ", size:" << tensor_rect->size
                  << "  is_imm:" << key.is_layer_imm << "\n";
@@ -674,7 +674,7 @@ bmerr_t LMemAllocProfileGuided::assign_local_memory(Group *group,
   std::list<std::shared_ptr<TensorRect>> allocated_tensor_list;
   std::list<Line> offset_line_list;
 
-  // sort tensor by width 
+  // sort tensor by width
   for (auto &tensor : tensor_map) {
     auto iter = std::find_if(tensor_list.begin(), tensor_list.end(),
                              [&tensor](std::shared_ptr<TensorRect> &a) {
@@ -798,7 +798,7 @@ int LMemAllocProfileGuided::figure_out_tensor_real_addr(
     /*
     llvm::errs() << LOG_TAB_L4 << "[Assign Lmem][stage: " << tensor_rect->first
                  << " ~ " << tensor_rect->last << "]"
-                 << " tensor_id:" << tensor_rect->tid << ", addr:" 
+                 << " tensor_id:" << tensor_rect->tid << ", addr:"
                  << tensor_rect->start << " ~ " << tensor_rect->end
                  << ", size:" << tensor_rect->size
                  << "  is_imm:" << key.is_layer_imm << "\n";

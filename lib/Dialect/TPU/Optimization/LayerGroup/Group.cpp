@@ -331,8 +331,8 @@ bool Group::validate_nh_slice() {
     const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
 
     for (auto& tensor : im_layer->in_tensors) {
-      if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-          tensor->type() == TENSOR_COEFF_LUT ||
+      if (tensor->type() == TENSOR_COEFF_CONV ||
+          tensor->type() == TENSOR_COEFF ||
           tensor->type() == TENSOR_DEPTHCONV_OPD1) {
         continue;
       }
@@ -371,8 +371,8 @@ bool Group::validate_nw_slice() {
     const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
 
     for (auto& tensor : im_layer->in_tensors) {
-      if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-          tensor->type() == TENSOR_COEFF_LUT ||
+      if (tensor->type() == TENSOR_COEFF_CONV ||
+          tensor->type() == TENSOR_COEFF ||
           tensor->type() == TENSOR_DEPTHCONV_OPD1) {
         continue;
       }
@@ -493,8 +493,7 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
   for (uint32_t i = 0; i < back_tensors.size(); ++i) {
     Tensor* tensor = net_graph_->get_tensor_by_id(back_tensors[i]);
 
-    if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-        tensor->type() == TENSOR_COEFF_LUT ||
+    if (tensor->type() == TENSOR_COEFF_CONV || tensor->type() == TENSOR_COEFF ||
         tensor->type() == TENSOR_DEPTHCONV_OPD1) {
       continue;
     }
@@ -714,8 +713,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
   for (uint32_t i = 0; i < back_tensors.size(); ++i) {
     Tensor* tensor = net_graph_->get_tensor_by_id(back_tensors[i]);
 
-    if (tensor->type() == TENSOR_COEFF || tensor->type() == TENSOR_BIAS ||
-        tensor->type() == TENSOR_COEFF_LUT ||
+    if (tensor->type() == TENSOR_COEFF_CONV || tensor->type() == TENSOR_COEFF ||
         tensor->type() == TENSOR_DEPTHCONV_OPD1) {
       continue;
     }

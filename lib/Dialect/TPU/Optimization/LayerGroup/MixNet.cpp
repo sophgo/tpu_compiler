@@ -1541,25 +1541,19 @@ void MixNet::_add_load_op(int group_idx,
   local_shape[3] = (tensor_dim[3]);
   laddr = net_graph_->get_tensor_local_offset(tensor_id);
 
-  if (tensor_type == TENSOR_COEFF || tensor_type == TENSOR_COEFF_LUT) {
-    if (tensor_type != TENSOR_COEFF_LUT) {
-      // to match mlir requirement for conv weight, shape is
-      // (oc, ic, kh, kw)
-      local_shape[0] = tensor_dim[1];
-      local_shape[1] = tensor_dim[0];
-      local_shape[2] = tensor_dim[2];
-      local_shape[3] = tensor_dim[3];
-    }
-
-    tensor_type_str = "CONV_COEFF";
-    if (tensor_type == TENSOR_COEFF_LUT) {
-      tensor_type_str = "LUT_COEFF";
-    }
+  if (tensor_type == TENSOR_COEFF) {
+    tensor_type_str = "COEFF";
     dtype = COEFF;
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));
-  } else if (tensor_type == TENSOR_BIAS) {
-    tensor_type_str = "BIAS";
+  } else if (tensor_type == TENSOR_COEFF_CONV) {
+    tensor_type_str = "CONV_COEFF";
+    // to match mlir requirement for conv weight, shape is
+    // (oc, ic, kh, kw)
+    local_shape[0] = tensor_dim[1];
+    local_shape[1] = tensor_dim[0];
+    local_shape[2] = tensor_dim[2];
+    local_shape[3] = tensor_dim[3];
     dtype = COEFF;
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));
