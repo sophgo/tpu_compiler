@@ -72,6 +72,19 @@ static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
   }
 }
 
+static void quantizeFromFp32ToBf16(float *src, float *dst, int64_t size) {
+  for (int64_t i = 0; i < size; ++i) {
+      float f32_val = src[i];
+      uint32_t *u32_val = reinterpret_cast<uint32_t *>(&f32_val);
+      uint32_t input = *u32_val;
+      bfloat16 bf_val = (bfloat16)(input >> 16);
+
+      uint16_t *q = reinterpret_cast<uint16_t *>(&dst[i]);
+      q[0] = 0;
+      q[1] = bf_val;
+  }
+}
+
 static void quantizeFromFp32ToInt16(float *src, float *dst, int64_t size,
                                      float scale) {
   for (int64_t i = 0; i < size; ++i) {
@@ -178,8 +191,8 @@ void QuantOpKernel::invoke() {
   } else if (this->from == "BF16" && this->to == "NONE") {
     output_data->assign(input_data->begin(), input_data->end());
   } else if (this->from == "NONE" && this->to == "BF16") {
-    clean16bitmantissa(input_data->data(), output_data->data(),
-                       output_data->size());
+    quantizeFromFp32ToBf16(input_data->data(), output_data->data(),
+                                            output_data->size());
   } else if (this->from == "BF16" && this->to == "INT8") {
     quantizeActivationFromBf16ToInt8(output_data->data(), input_data->data(),
                                      output_data->size(), scale);
