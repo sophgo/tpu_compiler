@@ -208,4 +208,9 @@ def TpucCanonicalizer : Pass<"canonicalize"> {
   let constructor = "mlir::createTpucCanonicalizerPass()";
 }
 
+def DoGraphOpt: FunctionPass<"graph-opt"> {
+  let summary = "optimize graph traversal";
+  let constructor = "mlir::createGraphOptPass()";
+}
+
 #endif // MLIR_TRANSFORMS_PASSES

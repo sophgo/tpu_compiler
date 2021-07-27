@@ -87,6 +87,8 @@ std::unique_ptr<mlir::Pass> createAddTpuPreprocessPass();
 std::unique_ptr<mlir::Pass> createMergeConvConvPoolPass();
 std::unique_ptr<mlir::Pass> createMergePermutePass();
 
+std::unique_ptr<mlir::Pass> createGraphOptPass();
+
 /// Generate the code for registering passes.
 #define GEN_PASS_REGISTRATION
 #include "tpuc/Dialect/TPU/Passes.h.inc"

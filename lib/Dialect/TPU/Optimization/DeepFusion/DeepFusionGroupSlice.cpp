@@ -497,10 +497,16 @@ void DeepFusionGroupSlice::doGroup(FuncOp &fn,
       return;
     }
     if (isFusionOp(opInst, batchSize)) {
-      if (isa<tpu::TG_INT8_EltwiseAddOp>(opInst))
-        assert(canEltwiseFused<tpu::TG_INT8_EltwiseAddOp>(opInst));
-      if (isa<tpu::TG_INT8_EltwiseMulOp>(opInst))
-        assert(canEltwiseFused<tpu::TG_INT8_EltwiseMulOp>(opInst));
+      if (isa<tpu::TG_INT8_EltwiseAddOp>(opInst) &&
+          !canEltwiseFused<tpu::TG_INT8_EltwiseAddOp>(opInst)) {
+        fusionGroup.clear();
+        return;
+      }
+      if (isa<tpu::TG_INT8_EltwiseMulOp>(opInst) &&
+          !canEltwiseFused<tpu::TG_INT8_EltwiseMulOp>(opInst)) {
+        fusionGroup.clear();
+        return;
+      }
 
       fusionGroup.push_back(opInst);
     } else {

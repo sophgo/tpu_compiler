@@ -7,10 +7,13 @@
 
 namespace mlir {
 
+static llvm::cl::OptionCategory clOptionsCategory("Layer Group LocalMem Options");
+
 llvm::cl::opt<bool> PGLmemMethod(
-    "PG-lmem-method",
-    llvm::cl::desc("ProfileGuided-localmem-method"),
-    llvm::cl::init(false));
+    "lmem-method-pg",
+    llvm::cl::desc("local memory alloc method:ProfileGuided"),
+    llvm::cl::init(false),
+    llvm::cl::cat(clOptionsCategory));
 
 LmemManager::LmemManager(NetGraph* net_graph) : net_graph_(net_graph) {
 

@@ -73,6 +73,7 @@ add_llvm_library(MLIRTPU
   Optimization/FuseLeakyRelu.cpp
   Optimization/FullyConnectedTile.cpp
   Optimization/TgOpTile.cpp
+  Optimization/GraphOpt.cpp
   Optimization/DoEarlyStride.cpp
   Optimization/AddTpuPreprocess.cpp
   Optimization/MergeConvConvPool.cpp
