@@ -783,7 +783,28 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
   let hasCanonicalizer = 1;
 }
 
-def TPU_ExpOp : TPU_LutOp<"exp", "Exp">;
+def TPU_ExpOp : TPU_Op<"exp",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = " Exp operator";
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
+    StrAttr:$name,
+    DefaultValuedAttr<F32Attr, "0">:$bias,
+    DefaultValuedAttr<F32Attr, "8">:$max_range,
+    DefaultValuedAttr<F32Attr, "-8">:$min_range,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
       [NoSideEffect,
@@ -2365,6 +2386,8 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
 def TPU_SigmoidOp : TPU_LutOp<"sigmoid", "Sigmoid">;
 
 def TPU_SwishOp : TPU_LutOp<"swish", "Swish">;
+
+def TPU_EluOp: TPU_LutOp<"elu", "Elu">;
 
 def TPU_SliceOp: TPU_Op<"slice",
       [NoSideEffect,

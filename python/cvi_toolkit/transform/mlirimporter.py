@@ -50,6 +50,7 @@ class TPU_OpType(Enum):
     Eltwise_Min = 'tpu.eltwise_min'
     Eltwise_Mul = 'tpu.eltwise_mul'
     Equal = 'tpu.equal'
+    Elu = 'tpu.elu'
     Exp = 'tpu.exp'
     Embedding = 'tpu.embedding'
     FullyConnected = 'tpu.fully_connected'
@@ -882,6 +883,17 @@ class MLIRImporter(object):
         return self._add_op(op_name, inputOperands, output_tensor_shape,
                 TPU_OpType.Equal.value, tg_extra_ops, **kargs)
 
+    def add_elu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        sigmoid_name = StringAttr.get(op_name)
+        none = self.add_none_op()
+        # We assigne 4 reg for sigmoid quant table
+        for _ in range(2):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.Elu.value, inputOperands, [
+            tensor_output_type], name=sigmoid_name, quant=self.quant_param)
 
     def add_exp_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
@@ -890,12 +902,12 @@ class MLIRImporter(object):
         op_name = StringAttr.get(op_name)
         none = self.add_none_op()
 
-        # We assigne 4 reg for lut quant table
+        bias = kargs.get('bias', 0)
         for _ in range(2):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.Exp.value, inputOperands, [
-            tensor_output_type], name=op_name, quant=self.quant_param)
+            tensor_output_type], name=op_name, quant=self.quant_param, bias=FloatAttr.get_f32(bias))
 
     def add_embedding_op(self, op_name, inputOperands, output_shape):
         tensor_output_type = RankedTensorType.get(

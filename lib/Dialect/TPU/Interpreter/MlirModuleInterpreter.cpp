@@ -163,6 +163,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<Conv2DOpKernel>(*op, valueMapping);
     } else if (isa<tpu::EltwiseAddOp>(op)) {
       krnl = std::make_shared<EltwiseAddOpKernel>(*op, valueMapping);
+    } else if (isa<tpu::EluOp>(op)) {
+      krnl = std::make_shared<EluOpKernel>(*op, valueMapping);
     } else if (isa<tpu::QuantOp>(op)) {
       krnl = std::make_shared<QuantOpKernel>(*op, valueMapping);
     } else if (isa<tpu::PoolAvg2DOp>(op) || isa<tpu::PoolMax2DOp>(op)) {

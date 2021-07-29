@@ -253,6 +253,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(exp_kernel_op));
     return;
   }
+  if (isa<tpu::EluOp>(op)) {
+    auto elu_kernel_op = std::make_unique<EluOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(elu_kernel_op));
+    return;
+  }
   if (isa<tpu::FrcnDetectionOp>(op)) {
     auto f_kernel_op =
         std::make_unique<FrcnDetectionOpKernel>(op, valueMapping);

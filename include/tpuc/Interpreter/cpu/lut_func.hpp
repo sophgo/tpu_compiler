@@ -8,13 +8,14 @@
 #define SIGMOID_BF16_LUT_RANGE 12
 #define TANH_BF16_LUT_RANGE 15
 #define EXP_BF16_LUT_RANGE 15
+#define ELU_BF16_LUT_RANGE 15
 #define MISH_BF16_LUT_RANGE 8
 #define SOFTPLUS_BF16_LUT_RANGE 8
 #define SWISH_BF16_LUT_RANGE 12
 
 
 void bf16_gen_base_slope_table(const std::string &name, float *base_table, float *slope_table,
-                               float &range_start, float &range_end);
+                               float &range_start, float &range_end, float extra_param);
 void bf16_lut_slope(const std::string &name, float *input, float *output, int size,
                     const std::vector<float> &base_table,
                     const std::vector<float> &slop_table);

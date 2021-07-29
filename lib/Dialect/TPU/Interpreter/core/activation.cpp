@@ -37,9 +37,8 @@ ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping)
   } else if (datatype == DataType::BF16) {
     y0_bf16_table_op = this->opdTensors[1];
     y0_bf16_slope_table = this->opdTensors[2];
-    bf16_min_range = expOp.min_range().convertToFloat();
-    bf16_max_range = expOp.max_range().convertToFloat();
   }
+  bias = expOp.bias().convertToFloat();
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
@@ -58,7 +57,7 @@ void ExpOpKernel::invoke() {
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = std::exp(input_data->at(i));
+      output_data->at(i) = std::exp(input_data->at(i)) + bias;
     }
   }
 }
@@ -338,15 +337,15 @@ void SigmoidOpKernel::invoke() {
 
 SwishOpKernel::SwishOpKernel(Operation &op, value_map_t &valueMapping)
     : CPUOpKernel(op, valueMapping) {
-  auto sigmoidOp = cast<tpu::SwishOp>(op);
+  auto swishOp = cast<tpu::SwishOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
     slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
     y0_bf16_table_op = this->opdTensors[1];
     y0_bf16_slope_table = this->opdTensors[2];
-    bf16_min_range = sigmoidOp.min_range().convertToFloat();
-    bf16_max_range = sigmoidOp.max_range().convertToFloat();
+    bf16_min_range = swishOp.min_range().convertToFloat();
+    bf16_max_range = swishOp.max_range().convertToFloat();
   }
   // get tensors
   input_data = this->opdTensors[0];
@@ -368,6 +367,42 @@ void SwishOpKernel::invoke() {
     for (size_t i = 0; i < output_size; ++i) {
       auto val = input_data->at(i);
       output_data->at(i) = val / (1 + std::exp(-val));
+    }
+  }
+}
+
+EluOpKernel::EluOpKernel(Operation &op, value_map_t &valueMapping)
+    : CPUOpKernel(op, valueMapping) {
+  auto eluOp = cast<tpu::EluOp>(op);
+  if (datatype == DataType::INT8) {
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
+    bf16_min_range = eluOp.min_range().convertToFloat();
+    bf16_max_range = eluOp.max_range().convertToFloat();
+  }
+  // get tensors
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
+}
+
+void EluOpKernel::invoke() {
+  size_t output_size = output_data->size();
+  if (datatype == DataType::INT8) {
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
+    for (size_t i = 0; i < output_size; ++i) {
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
+    }
+  } else if (datatype == DataType::BF16) {
+    bf16_lut_slope("elu", input_data->data(), output_data->data(), output_size,
+                   *y0_bf16_table_op, *y0_bf16_slope_table);
+  } else {
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
+    for (size_t i = 0; i < output_size; ++i) {
+      auto val = input_data->at(i);
+      output_data->at(i) = (val >= 0) ? val : (std::exp(val) - 1);
     }
   }
 }

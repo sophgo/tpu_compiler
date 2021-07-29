@@ -136,7 +136,7 @@ static void insertBf16LutOp(Operation *op, const std::string &type_name, const s
     bf16_gen_exponent_mantissa_table(type_name, table_bf16.data(), mantissa_bf16.data(), param);
     suffix_mantissa = type_name + "_mantissa_table";
   } else {
-    bf16_gen_base_slope_table(type_name, table_fp32.data(), mantissa_fp32.data(), range_start, range_end);
+    bf16_gen_base_slope_table(type_name, table_fp32.data(), mantissa_fp32.data(), range_start, range_end, param);
     suffix_mantissa = type_name + "_slope_table";
     FloatToBFloat16(table_fp32.data(), table_bf16.data(), table_hw, false);
     FloatToBFloat16(mantissa_fp32.data(), mantissa_bf16.data(), table_hw);
@@ -231,7 +231,11 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   } else if (isa<tpu::TanHOp>(op)) {
     insertBf16LutOp(op, "tanh", "slope", 1, 2);
   } else if (isa<tpu::ExpOp>(op)) {
-    insertBf16LutOp(op, "exp", "slope", 1, 2);
+    auto expOp = cast<tpu::ExpOp>(op);
+    float bias = expOp.bias().convertToFloat();
+    insertBf16LutOp(op, "exp", "slope", 1, 2, bias);
+  } else if (isa<tpu::EluOp>(op)) {
+    insertBf16LutOp(op, "elu", "slope", 1, 2);
   } else if (isa<tpu::MishOp>(op)) {
     insertBf16LutOp(op, "mish", "slope", 1, 2);
   } else if (isa<tpu::SoftPlusOp>(op)) {
@@ -499,6 +503,13 @@ LogicalResult tpu::TanHOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBF16LutOps<tpu::TanHOp>(op);
+}
+
+LogicalResult tpu::EluOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBF16LutOps<tpu::EluOp>(op);
 }
 
 LogicalResult tpu::ExpOp::quantizeBf16() {

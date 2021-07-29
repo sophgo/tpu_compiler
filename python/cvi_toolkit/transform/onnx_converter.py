@@ -156,6 +156,7 @@ class OnnxConverter(BaseConverter):
             "Div": lambda node: self.convert_div_op(node),
             "Dropout": lambda node: self.convert_skip_op(node),
             "Equal": lambda node: self.convert_equal_op(node),
+            "Elu" :lambda node: self.convert_activation_op(node),
             "Exp" :lambda node: self.convert_activation_op(node),
             "Expand": lambda node: self.convert_expand_op(node),
             "Flatten": lambda node: self.convert_flatten_op(node),
@@ -543,6 +544,7 @@ class OnnxConverter(BaseConverter):
                 ln_out.clear()
         self.converted_nodes = [node for node in self.converted_nodes if node]
 
+        # merge matmul + bias
         i = 1
         while i < len(self.converted_nodes):
             node = self.converted_nodes[i]
@@ -576,6 +578,38 @@ class OnnxConverter(BaseConverter):
             self.converted_nodes[i] = None
             self.converted_nodes[i+1] = matmul_node
             i += 1
+        self.converted_nodes = [node for node in self.converted_nodes if node]
+
+        # merge exp + const
+        i = 1
+        while i < len(self.converted_nodes):
+            node = self.converted_nodes[i]
+            if node.op_type != "Exp":
+                i += 1
+                continue
+            if i + 1 >= len(self.converted_nodes):
+                i += 1
+                continue
+            const_node = self.converted_nodes[i+1]
+            if const_node.op_type != "Constant":
+                i += 1
+                continue
+            bias = numpy_helper.to_array(const_node.attrs['value'])
+            add_node = self.converted_nodes[i+2]
+            if add_node.op_type != "Add":
+                i += 1
+                continue
+            info = {}
+            info["name"] = add_node.name
+            info["op_type"] = 'Exp'
+            info["attrs"] = {'bias': bias}
+            info["inputs"] = [node.inputs[0]]
+            info["outputs"] = [add_node.outputs[0]]
+            exp_node = BaseNode(info)
+            self.converted_nodes[i] = None
+            self.converted_nodes[i+1] = None
+            self.converted_nodes[i+2] = exp_node
+            i += 2
         self.converted_nodes = [node for node in self.converted_nodes if node]
 
     def convert_tensor(self):
@@ -669,11 +703,13 @@ class OnnxConverter(BaseConverter):
                 activation_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             elif onnx_node.op_type == "Tanh":
                 activation_op = self.CVI.add_tanh_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            elif onnx_node.op_type == "Elu":
+                activation_op = self.CVI.add_elu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             elif onnx_node.op_type == "Exp":
-                activation_op = self.CVI.add_exp_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                bias = onnx_node.attrs.get('bias', 0)
+                activation_op = self.CVI.add_exp_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, bias=bias)
             elif onnx_node.op_type == "Sqrt":
                 activation_op = self.CVI.add_sqrt_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-
 
             self.addOperand(onnx_node.name, activation_op, output_shape, TensorType.ACTIVATION)
 

@@ -624,9 +624,14 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
       } else if (OpTy::getOperationName() == "tpu.tanh") {
         index = lutInput * threshold_x / 127.0;
         lutOutput = std::tanh(index) * 127.0 / threshold_y;
-      } else if (OpTy::getOperationName() == "tpu.exp") {
+      } else if (OpTy::getOperationName() == "tpu.elu") {
         index = lutInput * threshold_x / 127.0;
-        lutOutput = std::exp(index) * 127.0 / threshold_y;
+        lutOutput = ((index >= 0) ? index : (std::exp(index) - 1)) * 127.0 / threshold_y;
+      } else if (OpTy::getOperationName() == "tpu.exp") {
+        auto expOp = cast<tpu::ExpOp>(op);
+        float bias = expOp.bias().convertToFloat();
+        index = lutInput * threshold_x / 127.0;
+        lutOutput = (std::exp(index) + bias)* 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.mish") {
         index = lutInput * threshold_x / 127.0;
         lutOutput = my_mish_activate(index) * 127.0 / threshold_y;
@@ -1503,6 +1508,13 @@ LogicalResult tpu::TanHOp::quantizeInt8() {
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8LutOps<tpu::TanHOp>(op);
+}
+
+LogicalResult tpu::EluOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8LutOps<tpu::EluOp>(op);
 }
 
 LogicalResult tpu::ExpOp::quantizeInt8() {

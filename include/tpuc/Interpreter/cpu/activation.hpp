@@ -37,8 +37,7 @@ private:
   // bf16
   SyncedData y0_bf16_table_op;
   SyncedData y0_bf16_slope_table;
-  int bf16_min_range;
-  int bf16_max_range;
+  float bias;
 };
 class MishOpKernel : public CPUOpKernel {
 public:
@@ -165,6 +164,29 @@ public:
   static constexpr const char *OpName = "CPUSwishOp";
 
   SwishOpKernel(Operation &op, value_map_t &valueMapping);
+
+  void invoke() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  SyncedData y0_table_op;
+  SyncedData slope_table;
+
+  // bf16
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
+  int bf16_min_range;
+  int bf16_max_range;
+};
+
+class EluOpKernel : public CPUOpKernel {
+public:
+  static constexpr const char *OpName = "CPUEluOp";
+
+  EluOpKernel(Operation &op, value_map_t &valueMapping);
 
   void invoke() override;
 
