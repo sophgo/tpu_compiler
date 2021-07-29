@@ -77,7 +77,8 @@ def mlir_to_cvimodel(quanted_model, cvimodel,
                      dequant_results_to_fp32=True,
                      expose_bf16_inputs=False,
                      compress_weight=True,
-                     append_weight=False):
+                     append_weight=False,
+                     tg_op_divide=False):
     cmd = ["mlir_to_cvimodel.sh",
            "-i", quanted_model, "-o", cvimodel,
            "--dequant-results-to-fp32",
@@ -87,7 +88,9 @@ def mlir_to_cvimodel(quanted_model, cvimodel,
            "--compress-weight",
            str(compress_weight).lower(),
            "--append-weight",
-           str(append_weight).lower()]
+           str(append_weight).lower(),
+           "--tg-op-divide",
+           str(tg_op_divide).lower()]
     logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "mlir_to_cvimodel")

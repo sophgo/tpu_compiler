@@ -12,6 +12,7 @@ function usage() {
   echo -e "\t--compress-weight=true|false (option, default: true)"
   echo -e "\t--append-weight=true|false (option, default: false)"
   echo -e "\t--compress-instruction=true|false (option, default: false)"
+  echo -e "\t--tg-op-divide=true|false (option, default: false)"
 }
 
 SHORT=hi:o:
@@ -20,8 +21,9 @@ LONG1=compress-weight:
 LONG2=append-weight:
 LONG3=compress-instruction:
 LONG4=expose-bf16-inputs:
+LONG5=tg-op-divide:
 
-OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --long $LONG4 --name "$0" -- "$@")
+OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --long $LONG4 --long $LONG5 --name "$0" -- "$@")
 if [ $? != 0 ]; then
   echo "Failed to parse options...."
   exit 1
@@ -60,6 +62,10 @@ while true; do
       ;;
     --compress-instruction )
       compress_instruction="$2"
+      shift 2
+      ;;
+    --tg-op-divide )
+      tg_op_divide="$2"
       shift 2
       ;;
     -- )
@@ -104,6 +110,11 @@ fi
 if [ x"$append_weight" == x ]; then
   append_weight=false
 fi
+tg_op_divide_opt=""
+if [ x"$tg_op_divide" = x"true" ]; then
+  tg_op_divide_opt="--tg-op-divide"
+fi
+
 
 optimized_mlir="__lower_opt.mlir"
 final_mlir="__final.mlir"
@@ -117,6 +128,7 @@ tpuc-opt $mlir_file \
     --eltwise-early-stride \
     --tg-fuse-leakyrelu \
     --conv-ic-alignment \
+    $tg_op_divide_opt \
     --group-ops \
     --dce \
     --deep-fusion-group-slice \

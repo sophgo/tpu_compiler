@@ -86,6 +86,7 @@ std::unique_ptr<mlir::Pass> createReorderOpPass();
 std::unique_ptr<mlir::Pass> createAddTpuPreprocessPass();
 std::unique_ptr<mlir::Pass> createMergeConvConvPoolPass();
 std::unique_ptr<mlir::Pass> createMergePermutePass();
+std::unique_ptr<mlir::Pass> createTgOpDividePass();
 
 std::unique_ptr<mlir::Pass> createGraphOptPass();
 

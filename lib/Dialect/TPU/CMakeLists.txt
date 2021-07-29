@@ -74,6 +74,7 @@ add_llvm_library(MLIRTPU
   Optimization/FullyConnectedTile.cpp
   Optimization/TgOpTile.cpp
   Optimization/GraphOpt.cpp
+  Optimization/TgOpDivide.cpp
   Optimization/DoEarlyStride.cpp
   Optimization/AddTpuPreprocess.cpp
   Optimization/MergeConvConvPool.cpp

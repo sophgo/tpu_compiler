@@ -124,12 +124,12 @@ class DeployTool:
 
     def build_cvimodel(self, cvimodel, dequant_results_to_fp32=True,
                        expose_bf16_inputs=False, compress_weight=True,
-                       append_weight=False):
+                       append_weight=False, tg_op_divide=False):
         IntermediateFile('_', 'lower_opt.mlir', False)
         IntermediateFile('_', 'final.mlir', False)
         ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel,
                                dequant_results_to_fp32, expose_bf16_inputs,
-                               compress_weight, append_weight)
+                               compress_weight, append_weight, tg_op_divide)
         check_return_value(ret == 0, "failed to generate cvimodel")
 
     def validate_cvimodel(self, cvimodel, correctness, excepts):
@@ -187,6 +187,8 @@ if __name__ == '__main__':
                         help="if compress weight while generate cvimodel")
     parser.add_argument("--merge_weight", action='store_true',
                         help="merge weights into one weight binary wight previous generated cvimodel")
+    parser.add_argument("--tg_op_divide", type=str2bool, default=False,
+                        help="if divide tg ops to save gmem")
     parser.add_argument("--image", required=True, help="input image or npz file for inference, "
                        "if has more than one input images, join images with semicolon")
     parser.add_argument("--cvimodel", required=True, help='output cvimodel')
@@ -208,7 +210,7 @@ if __name__ == '__main__':
     # generate cvimodel and validate accuracy
     tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32,
                         args.expose_bf16_inputs, args.compress_weight,
-                        args.merge_weight)
+                        args.merge_weight, args.tg_op_divide)
     tool.validate_cvimodel(args.cvimodel, args.correctness, args.excepts)
 
     if not args.debug:

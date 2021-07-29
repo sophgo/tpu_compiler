@@ -103,6 +103,11 @@ def DoMergeConvConvPoolOp : FunctionPass<"merge-conv-conv-pool"> {
   let constructor = "mlir::createMergeConvConvPoolPass()";
 }
 
+def DoTgOpDivideOp : FunctionPass<"tg-op-divide"> {
+  let summary = "divide tg op pattern";
+  let constructor = "mlir::createTgOpDividePass()";
+}
+
 def DoMergePermuteOp : FunctionPass<"merge-permute"> {
   let summary = "Merge permute pattern";
   let constructor = "mlir::createMergePermutePass()";
