@@ -113,7 +113,7 @@ static void quantizeBf16LayerNormWeightOp(Value op, TensorFile *wTF) {
 
 // insert bf16 table to operands
 static void insertBf16LutOp(Operation *op, const std::string &type_name, const std::string &method,
-                            int tableIndex, int mantissaIndex, float param = 0.0f) {
+                                         int tableIndex, int mantissaIndex, float param0 = 0.0, float param1 = 0.0) {
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
   int npu_num = MInfo::lane_num;
@@ -133,10 +133,12 @@ static void insertBf16LutOp(Operation *op, const std::string &type_name, const s
 
   std::string suffix_mantissa;
   if (method == "mantissa") {
-    bf16_gen_exponent_mantissa_table(type_name, table_bf16.data(), mantissa_bf16.data(), param);
+    bf16_gen_exponent_mantissa_table(type_name, table_bf16.data(), mantissa_bf16.data(),
+                                                           param0, param1);
     suffix_mantissa = type_name + "_mantissa_table";
   } else {
-    bf16_gen_base_slope_table(type_name, table_fp32.data(), mantissa_fp32.data(), range_start, range_end, param);
+    bf16_gen_base_slope_table(type_name, table_fp32.data(), mantissa_fp32.data(),
+                                              range_start, range_end, param0, param1);
     suffix_mantissa = type_name + "_slope_table";
     FloatToBFloat16(table_fp32.data(), table_bf16.data(), table_hw, false);
     FloatToBFloat16(mantissa_fp32.data(), mantissa_bf16.data(), table_hw);
@@ -225,21 +227,28 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
   setOpQuantParamType(op, "LUT_BF16");
 
   if (isa<tpu::SigmoidOp>(op)) {
-    insertBf16LutOp(op, "sigmoid", "slope", 1, 2);
+    auto sigmoidOp = cast<tpu::SigmoidOp>(op);
+    float scale = sigmoidOp.scale().convertToFloat();
+    float bias = sigmoidOp.bias().convertToFloat();
+    insertBf16LutOp(op, "sigmoid", "slope", 1, 2, scale, bias);
   } else if (isa<tpu::SwishOp>(op)) {
     insertBf16LutOp(op, "swish", "slope", 1, 2);
   } else if (isa<tpu::TanHOp>(op)) {
     insertBf16LutOp(op, "tanh", "slope", 1, 2);
   } else if (isa<tpu::ExpOp>(op)) {
     auto expOp = cast<tpu::ExpOp>(op);
+    float scale = expOp.scale().convertToFloat();
     float bias = expOp.bias().convertToFloat();
-    insertBf16LutOp(op, "exp", "slope", 1, 2, bias);
+    insertBf16LutOp(op, "exp", "slope", 1, 2, scale, bias);
   } else if (isa<tpu::EluOp>(op)) {
     insertBf16LutOp(op, "elu", "slope", 1, 2);
   } else if (isa<tpu::MishOp>(op)) {
     insertBf16LutOp(op, "mish", "slope", 1, 2);
   } else if (isa<tpu::SoftPlusOp>(op)) {
-    insertBf16LutOp(op, "softplus", "slope", 1, 2);
+    auto spOp = cast<tpu::SoftPlusOp>(op);
+    float scale = spOp.scale().convertToFloat();
+    float bias = spOp.bias().convertToFloat();
+    insertBf16LutOp(op, "softplus", "slope", 1, 2, scale, bias);
   } else {
     llvm_unreachable("not support now");
   }
@@ -375,7 +384,7 @@ LogicalResult tpu::GruOp::quantizeBf16() {
   TensorFile *wTF = getWeightTensorFile(op);
   quantizeBf16WeightOp(recurrence(), wTF);
   quantizeBf16WeightOp(initial_h(), wTF);
-  insertBf16LutOp(op, "sigmoid", "slope", 4, 5);
+  insertBf16LutOp(op, "sigmoid", "slope", 4, 5, 1.0, 0.0);
   insertBf16LutOp(op, "tanh", "slope", 6, 7);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
@@ -442,7 +451,7 @@ LogicalResult tpu::LstmOp::quantizeBf16() {
   quantizeBf16WeightOp(recurrence(), wTF);
   quantizeBf16WeightOp(initial_h(), wTF);
   quantizeBf16WeightOp(initial_c(), wTF);
-  insertBf16LutOp(op, "sigmoid", "slope", 5, 6);
+  insertBf16LutOp(op, "sigmoid", "slope", 5, 6, 1.0, 0.0);
   insertBf16LutOp(op, "tanh", "slope", 7, 8);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
@@ -524,7 +533,7 @@ LogicalResult tpu::SoftmaxOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
-  insertBf16LutOp(op, "exp", "slope", 1, 2);
+  insertBf16LutOp(op, "exp", "slope", 1, 2, 1.0, 0.0);
   insertBf16LutOp(op, "reciprocal", "mantissa", 3, 4);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();

@@ -38,6 +38,7 @@ ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping)
     y0_bf16_table_op = this->opdTensors[1];
     y0_bf16_slope_table = this->opdTensors[2];
   }
+  scale = expOp.scale().convertToFloat();
   bias = expOp.bias().convertToFloat();
   // get tensors
   input_data = this->opdTensors[0];
@@ -57,7 +58,7 @@ void ExpOpKernel::invoke() {
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = std::exp(input_data->at(i)) + bias;
+      output_data->at(i) = scale * std::exp(input_data->at(i)) + bias;
     }
   }
 }
@@ -309,9 +310,9 @@ SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping)
   } else if (datatype == DataType::BF16) {
     y0_bf16_table_op = this->opdTensors[1];
     y0_bf16_slope_table = this->opdTensors[2];
-    bf16_min_range = sigmoidOp.min_range().convertToFloat();
-    bf16_max_range = sigmoidOp.max_range().convertToFloat();
   }
+  scale = sigmoidOp.scale().convertToFloat();
+  bias = sigmoidOp.bias().convertToFloat();
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
@@ -330,7 +331,7 @@ void SigmoidOpKernel::invoke() {
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = 0.5 * tanh(0.5 * input_data->at(i)) + 0.5;
+      output_data->at(i) = scale / (1 + expf(-1 * input_data->at(i))) + bias;
     }
   }
 }
@@ -416,9 +417,9 @@ SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping)
   } else if (datatype == DataType::BF16) {
     y0_bf16_table_op = this->opdTensors[1];
     y0_bf16_slope_table = this->opdTensors[2];
-    bf16_min_range = spOp.min_range().convertToFloat();
-    bf16_max_range = spOp.max_range().convertToFloat();
   }
+  scale = spOp.scale().convertToFloat();
+  bias = spOp.bias().convertToFloat();
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
@@ -437,7 +438,7 @@ void SoftPlusOpKernel::invoke() {
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) = logf(expf(input_data->at(i)) + 1);
+      output_data->at(i) = scale * logf(expf(input_data->at(i)) + 1) + bias;
     }
   }
 }

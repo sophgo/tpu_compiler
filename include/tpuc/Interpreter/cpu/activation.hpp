@@ -37,6 +37,7 @@ private:
   // bf16
   SyncedData y0_bf16_table_op;
   SyncedData y0_bf16_slope_table;
+  float scale;
   float bias;
 };
 class MishOpKernel : public CPUOpKernel {
@@ -155,8 +156,8 @@ private:
   // bf16
   SyncedData y0_bf16_table_op;
   SyncedData y0_bf16_slope_table;
-  int bf16_min_range;
-  int bf16_max_range;
+  float scale;
+  float bias;
 };
 
 class SwishOpKernel : public CPUOpKernel {
@@ -244,12 +245,11 @@ private:
   SyncedData y0_table_op;
   SyncedData slope_table;
 
-  float threshold;
+  float  scale;
+  float bias;
   // bf16
   SyncedData y0_bf16_table_op;
   SyncedData y0_bf16_slope_table;
-  int bf16_min_range;
-  int bf16_max_range;
 };
 
 class SqrtOpKernel : public CPUOpKernel {

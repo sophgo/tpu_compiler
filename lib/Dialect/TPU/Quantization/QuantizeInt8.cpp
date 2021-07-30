@@ -616,8 +616,11 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
       } else if (OpTy::getOperationName() == "tpu.sqrt") {
         lutOutput = pow(index, 0.5) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.sigmoid") {
+        auto sigmoidOp = cast<tpu::SigmoidOp>(op);
+        float scale = sigmoidOp.scale().convertToFloat();
+        float bias = sigmoidOp.bias().convertToFloat();
         index = -lutInput * threshold_x / 127.0;
-        lutOutput = 1.0 / (1 + std::exp(index)) * 127.0 / threshold_y;
+        lutOutput = (scale / (1 + std::exp(index)) + bias) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.swish") {
         index = lutInput * threshold_x / 127.0;
         lutOutput = index / (1 + std::exp(-index)) * 127.0 / threshold_y;
@@ -629,15 +632,19 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
         lutOutput = ((index >= 0) ? index : (std::exp(index) - 1)) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.exp") {
         auto expOp = cast<tpu::ExpOp>(op);
+        float scale = expOp.scale().convertToFloat();
         float bias = expOp.bias().convertToFloat();
         index = lutInput * threshold_x / 127.0;
-        lutOutput = (std::exp(index) + bias)* 127.0 / threshold_y;
+        lutOutput = (scale * std::exp(index) + bias)* 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.mish") {
         index = lutInput * threshold_x / 127.0;
         lutOutput = my_mish_activate(index) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.softplus") {
+        auto spOp = cast<tpu::SoftPlusOp>(op);
+        float scale = spOp.scale().convertToFloat();
+        float bias = spOp.bias().convertToFloat();
         index = lutInput * threshold_x / 127.0;
-        lutOutput = logf(expf(index) + 1) * 127.0 / threshold_y;
+        lutOutput = (scale * logf(expf(index) + 1) + bias) * 127.0 / threshold_y;
       } else {
         assert(false && "not support now");
       }

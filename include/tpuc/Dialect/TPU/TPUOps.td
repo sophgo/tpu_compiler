@@ -795,6 +795,7 @@ def TPU_ExpOp : TPU_Op<"exp",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
     StrAttr:$name,
+    DefaultValuedAttr<F32Attr, "1">:$scale,
     DefaultValuedAttr<F32Attr, "0">:$bias,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
@@ -2295,32 +2296,7 @@ def TPU_ScaleLutOp: TPU_Op<"scale_lut",
 def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {
 
   let description = [{
-    softplus = lambda x: np.log1p(np.exp(x))
-    which means SmoothReLU
-    threshold values above this revert to a linear function
-
-    Inputs:
-      `inputs`          : required, variadic input tensors.
-      `table`           : optional, the quantize lookup table,which is reused by INT8 and BF16.
-      `table_mantissa`  : optional, the quantize lookup table,only used by BF16 .
-
-    Attributes:
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-      `max_range`       : required, we cut to max_range and outlier saturate it
-      `min_range`       : required, we cut to min_range and outlier saturate it
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+    softplus = lambda x, scale, bias: scale * np.log1p(np.exp(x)) + bias
   }];
 
   let arguments = (
@@ -2330,7 +2306,8 @@ def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
     StrAttr:$name,
-    DefaultValuedAttr<F32Attr, "20.0">:$threshold,
+    DefaultValuedAttr<F32Attr, "1">:$scale,
+    DefaultValuedAttr<F32Attr, "0">:$bias,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<StrAttr>:$chipname
   );
@@ -2383,7 +2360,29 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_SigmoidOp : TPU_LutOp<"sigmoid", "Sigmoid">;
+def TPU_SigmoidOp : TPU_Op<"sigmoid",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = " Exp operator,  scale * sigmoid + bias";
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table_mantissa,
+    StrAttr:$name,
+    DefaultValuedAttr<F32Attr, "1">:$scale,
+    DefaultValuedAttr<F32Attr, "0">:$bias,
+    DefaultValuedAttr<F32Attr, "8">:$max_range,
+    DefaultValuedAttr<F32Attr, "-8">:$min_range,
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    TPU_QuantParamAttr:$quant,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 def TPU_SwishOp : TPU_LutOp<"swish", "Swish">;
 

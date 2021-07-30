@@ -190,6 +190,7 @@ class OnnxConverter(BaseConverter):
             "Shape": lambda node: self.convert_shape_op(node),
             "Sigmoid" :lambda node: self.convert_activation_op(node),
             "Slice": lambda node: self.convert_slice_op(node),
+            "Softplus" :lambda node: self.convert_activation_op(node),
             "Softmax": lambda node: self.convert_softmax_op(node),
             "Split": lambda node: self.convert_split_op(node),
             "Squeeze": lambda node: self.convert_squeeze_op(node),
@@ -580,7 +581,7 @@ class OnnxConverter(BaseConverter):
             i += 1
         self.converted_nodes = [node for node in self.converted_nodes if node]
 
-        # merge exp + const
+        # merge log(exp + add_1) * const => softplus
         i = 1
         while i < len(self.converted_nodes):
             node = self.converted_nodes[i]
@@ -588,6 +589,61 @@ class OnnxConverter(BaseConverter):
                 i += 1
                 continue
             if i + 1 >= len(self.converted_nodes):
+                i += 1
+                continue
+            const_node = self.converted_nodes[i+1]
+            if const_node.op_type != "Constant":
+                i += 1
+                continue
+            bias = numpy_helper.to_array(const_node.attrs['value'])
+            if bias != 1.0:
+                i += 1
+                continue
+            add_node = self.converted_nodes[i+2]
+            if add_node.op_type != "Add":
+                i += 1
+                continue
+
+            log_node = self.converted_nodes[i+3]
+            if log_node.op_type != "Log":
+                i += 1
+                continue
+
+            const_node = self.converted_nodes[i+4]
+            if const_node.op_type != "Constant":
+                i += 1
+                continue
+            scale = numpy_helper.to_array(const_node.attrs['value'])
+
+            mul_node = self.converted_nodes[i+5]
+            if mul_node.op_type != "Mul":
+                i += 1
+                continue
+
+            info = {}
+            info["name"] = mul_node.name
+            info["op_type"] = 'Softplus'
+            info["attrs"] = {'scale': scale}
+            info["inputs"] = [node.inputs[0]]
+            info["outputs"] = [mul_node.outputs[0]]
+            sp_node = BaseNode(info)
+            self.converted_nodes[i] = None
+            self.converted_nodes[i+1] = None
+            self.converted_nodes[i+2] = None
+            self.converted_nodes[i+3] = None
+            self.converted_nodes[i+4] = None
+            self.converted_nodes[i+5] = sp_node
+            i += 5
+        self.converted_nodes = [node for node in self.converted_nodes if node]
+
+        # merge exp + const => exp
+        i = 1
+        while i < len(self.converted_nodes):
+            node = self.converted_nodes[i]
+            if node.op_type != "Exp":
+                i += 1
+                continue
+            if i + 2 >= len(self.converted_nodes):
                 i += 1
                 continue
             const_node = self.converted_nodes[i+1]
@@ -610,6 +666,51 @@ class OnnxConverter(BaseConverter):
             self.converted_nodes[i+1] = None
             self.converted_nodes[i+2] = exp_node
             i += 2
+        self.converted_nodes = [node for node in self.converted_nodes if node]
+
+        # merge  a * sigmoid(x) + b => sigmoid
+        i = 1
+        while i < len(self.converted_nodes):
+            node = self.converted_nodes[i]
+            if node.op_type != "Sigmoid":
+                i += 1
+                continue
+            if i + 4 >= len(self.converted_nodes):
+                i += 1
+                continue
+
+            const_node = self.converted_nodes[i+1]
+            if const_node.op_type != "Constant":
+                i += 1
+                continue
+            scale = numpy_helper.to_array(const_node.attrs['value'])
+            mul_node = self.converted_nodes[i+2]
+            if mul_node.op_type != "Mul":
+                i += 1
+                continue
+
+            const_node = self.converted_nodes[i+3]
+            if const_node.op_type != "Constant":
+                i += 1
+                continue
+            bias = numpy_helper.to_array(const_node.attrs['value'])
+            add_node = self.converted_nodes[i+4]
+            if add_node.op_type != "Add":
+                i += 1
+                continue
+            info = {}
+            info["name"] = add_node.name
+            info["op_type"] = 'Sigmoid'
+            info["attrs"] = {'scale': scale, 'bias': bias}
+            info["inputs"] = [node.inputs[0]]
+            info["outputs"] = [add_node.outputs[0]]
+            sigmoid_node = BaseNode(info)
+            self.converted_nodes[i] = None
+            self.converted_nodes[i+1] = None
+            self.converted_nodes[i+2] = None
+            self.converted_nodes[i+3] = None
+            self.converted_nodes[i+4] = sigmoid_node
+            i += 4
         self.converted_nodes = [node for node in self.converted_nodes if node]
 
     def convert_tensor(self):
@@ -700,16 +801,26 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             if onnx_node.op_type == "Sigmoid":
-                activation_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                scale = onnx_node.attrs.get('scale', 1)
+                bias = onnx_node.attrs.get('bias', 0)
+                activation_op = self.CVI.add_sigmoid_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
+                                                       operands, output_shape, scale=scale, bias=bias)
             elif onnx_node.op_type == "Tanh":
                 activation_op = self.CVI.add_tanh_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             elif onnx_node.op_type == "Elu":
                 activation_op = self.CVI.add_elu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             elif onnx_node.op_type == "Exp":
+                scale = onnx_node.attrs.get('scale', 1)
                 bias = onnx_node.attrs.get('bias', 0)
-                activation_op = self.CVI.add_exp_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, bias=bias)
+                activation_op = self.CVI.add_exp_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
+                                                       operands, output_shape, scale=scale, bias=bias)
             elif onnx_node.op_type == "Sqrt":
                 activation_op = self.CVI.add_sqrt_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            elif onnx_node.op_type == "Softplus":
+                scale = onnx_node.attrs.get('scale', 1)
+                bias = onnx_node.attrs.get('bias', 0)
+                activation_op = self.CVI.add_softplus_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
+                                                       operands, output_shape, scale=scale, bias=bias)
 
             self.addOperand(onnx_node.name, activation_op, output_shape, TensorType.ACTIVATION)
 
@@ -1630,6 +1741,10 @@ class OnnxConverter(BaseConverter):
                 output_shape = input_shape
                 output_shape[2] *= attr['scale_h']
 
+            elif np.prod(tensor_data) == 1:
+                reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, "reshape"), [op0], input_shape)
+                self.addOperand(onnx_node.name, reshape_op, input_shape, TensorType.ACTIVATION)
+                return
             else:
                 # upsample support h/w only
                 # expand dim for upsample handle 4 dim, from highest with 1
@@ -2319,20 +2434,45 @@ class OnnxConverter(BaseConverter):
             weight_name = "{}_mul_weight".format(onnx_node.inputs[0])
             weight_shape = list(weight_data.shape)
             self.addTensor(weight_name, weight_data, weight_shape)
-            bias_data = np.full(channel, 0)
             weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
-            bias_name = "{}_mul_bias".format(onnx_node.inputs[0])
-            bias_shape = list(bias_data.shape)
-            self.addTensor(bias_name, bias_data, bias_shape)
-            bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
             operands.append(op1)
             operands.append(weight_op)
-            operands.append(bias_op)
             output_shape = input_shape1
-            scale_op = self.CVI.add_scale_op("{}_{}".format(
-                onnx_node.name, onnx_node.op_type), operands, output_shape)
-            self.addOperand(onnx_node.name, scale_op,
-                            output_shape, TensorType.ACTIVATION)
+            scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
+
+        elif tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.ACTIVATION:
+            if input_shape1 == input_shape2:
+                weight_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+                weight_name = "{}_mul_weight".format(onnx_node.inputs[1])
+                weight_shape = list(weight_data.shape)
+                self.addTensor(weight_name, weight_data, weight_shape)
+                weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
+                output_shape = input_shape2
+                mul_op = self.CVI.add_eltwise_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op2, weight_op], output_shape)
+                self.addOperand(onnx_node.name, mul_op,  output_shape, TensorType.ACTIVATION)
+            else:
+                # constant
+                # x * constant + 0
+                channel = input_shape2[1]
+                mul_value = self.getTensor(onnx_node.inputs[0]).tensor_data
+
+                if len(mul_value.flatten()) == 1:
+                    weight_data = np.full(channel, mul_value.flatten()[0]) # broadcast via channel
+                elif len(mul_value.flatten()) == channel:
+                    weight_data = mul_value
+                else:
+                    raise RuntimeError("could not broadcast input array from shape {} into shape {}".format(input_shape2, input_shape1))
+
+                weight_name = "{}_mul_weight".format(onnx_node.inputs[1])
+                weight_shape = list(weight_data.shape)
+                self.addTensor(weight_name, weight_data, weight_shape)
+                weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
+                operands.append(op2)
+                operands.append(weight_op)
+                output_shape = input_shape2
+                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                self.addOperand(onnx_node.name, scale_op,  output_shape, TensorType.ACTIVATION)
 
         else:
             if input_shape1 == input_shape2:
@@ -2609,8 +2749,7 @@ class OnnxConverter(BaseConverter):
             output_data = np.reshape(tensor_data, shape_data)
             output_shape = list(output_data.shape)
             self.addTensor(onnx_node.name, output_data, output_shape)
-            self.addOperand(onnx_node.name, None,
-                            output_shape, TensorType.TENSOR)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             raise RuntimeError("Second type must be {}".format(TensorType.TENSOR))
 
@@ -3372,7 +3511,8 @@ class OnnxConverter(BaseConverter):
         else:
             if len(axis_value_list) != 1:
                 raise RuntimeError("now only support one axis")
-            new_shape = self.unsqueeze_shape(input_shape, axis_value_list)
+            tmp_data = np.expand_dims(np.zeros(input_shape), axis=axis_value_list)
+            new_shape = list(tmp_data.shape)
             reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], new_shape)
             self.addOperand(onnx_node.name, reshape_op, new_shape, TensorType.ACTIVATION)
 

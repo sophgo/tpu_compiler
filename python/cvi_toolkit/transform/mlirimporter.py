@@ -90,6 +90,7 @@ class TPU_OpType(Enum):
     ShuffelChannel = 'tpu.shuffle_channel'
     Sigmoid = 'tpu.sigmoid'
     Slice = 'tpu.slice'
+    SoftPlus = 'tpu.softplus'
     Softmax = 'tpu.softmax'
     Sqrt = 'tpu.sqrt'
     SwapChannel = 'tpu.swap_channel'
@@ -902,12 +903,14 @@ class MLIRImporter(object):
         op_name = StringAttr.get(op_name)
         none = self.add_none_op()
 
+        scale = kargs.get('scale', 1.0)
         bias = kargs.get('bias', 0)
         for _ in range(2):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.Exp.value, inputOperands, [
-            tensor_output_type], name=op_name, quant=self.quant_param, bias=FloatAttr.get_f32(bias))
+                                     tensor_output_type], name=op_name, quant=self.quant_param,
+                                     scale=FloatAttr.get_f32(scale), bias=FloatAttr.get_f32(bias))
 
     def add_embedding_op(self, op_name, inputOperands, output_shape):
         tensor_output_type = RankedTensorType.get(
@@ -1503,6 +1506,10 @@ class MLIRImporter(object):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
+        if len(inputOperands) < 3:
+            none = self.add_none_op()
+            inputOperands.append(none)
+
         scale_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Scale.value, inputOperands, [
             tensor_output_type], name=scale_name)
@@ -1525,10 +1532,13 @@ class MLIRImporter(object):
         sigmoid_name = StringAttr.get(op_name)
         none = self.add_none_op()
         # We assigne 4 reg for sigmoid quant table
+        scale = kargs.get('scale', 1.0)
+        bias = kargs.get('bias', 0)
         for _ in range(2):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Sigmoid.value, inputOperands, [
-            tensor_output_type], name=sigmoid_name, quant=self.quant_param)
+                                      tensor_output_type], name=sigmoid_name, quant=self.quant_param,
+                                      scale=FloatAttr.get_f32(scale), bias=FloatAttr.get_f32(bias))
 
     def add_slice_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
@@ -1554,6 +1564,22 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Sqrt.value, inputOperands, [
             tensor_output_type], name=sqrt_name, quant=self.quant_param)
+
+    def add_softplus_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        op_name = StringAttr.get(op_name)
+        none = self.add_none_op()
+
+        scale = kargs.get('scale', 1.0)
+        bias = kargs.get('bias', 0)
+        for _ in range(2):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.SoftPlus.value, inputOperands, [
+            tensor_output_type], name=op_name, quant=self.quant_param,
+            scale=FloatAttr.get_f32(scale), bias=FloatAttr.get_f32(bias))
 
     def add_softmax_op(self, op_name, inputOperands, output_tensor_shape, cpu_mode=False, **kargs):
         tensor_output_type = RankedTensorType.get(

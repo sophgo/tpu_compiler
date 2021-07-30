@@ -17,23 +17,23 @@
 #include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #define DEBUG_TYPE "lut_func"
 
-typedef float (*activate_func)(float, float);
+typedef float (*activate_func)(float, float, float);
 
-static float sigmoid_actf(float x, float p) { return 1 / (1 + expf(-x)); }
-static float tanh_actf(float x, float p) { return tanh(x); }
-static float exp_actf(float x, float p) { return expf(x) + p; }
-static float elu_actf(float x, float p) { return (x >=0) ? x : (expf(x) -1); }
-static float softplus_actf(float x, float p) { return logf(expf(x) + 1); }
-static float swish_actf(float x, float p) { return x / (1 + expf(-x)); }
-static float mish_actf(float x, float p) { return x * tanh(softplus_actf(x, p)); }
+static float sigmoid_actf(float x, float s, float b) { return s / (1 + expf(-x)) + b; }
+static float tanh_actf(float x, float p0, float p1) { return tanh(x); }
+static float exp_actf(float x, float s, float b) { return s * expf(x) + b; }
+static float elu_actf(float x, float p0, float p1) { return (x >=0) ? x : (expf(x) -1); }
+static float softplus_actf(float x, float s, float b) { return s * logf(expf(x) + 1) + b; }
+static float swish_actf(float x, float p0, float p1) { return x / (1 + expf(-x)); }
+static float mish_actf(float x, float p0, float p1) { return x * tanh(softplus_actf(x, 1, 0)); }
 
 
 static inline float BF16(float data) {
   return convert_bf16_fp32(convert_fp32_bf16(data));
 }
 
-static void gen_bf16_base_table(float start, float end, int table_hw,
-                                float *table, activate_func func, float extra_param) {
+static void gen_bf16_base_table(float start, float end, int table_hw, float *table,
+                                                activate_func func, float param0, float param1) {
   int half = table_hw / 2;
   int range = abs(end - start);
   float interval = (float)range / (float)table_hw;
@@ -45,20 +45,20 @@ static void gen_bf16_base_table(float start, float end, int table_hw,
   // Set idx [0 , 127] fp32 and bf16 data
   for (int i = 0; i < half; i++) {
     x_value = offset + i * interval;
-    y_value = func(x_value, extra_param);
+    y_value = func(x_value, param0, param1);
     table[i] = y_value;
   }
 
   // set idx 129 to 255, 2's complment
   for (int i = half, j = 0; i < table_hw; i++, j++) {
     x_value = start + j * interval;
-    y_value = func(x_value, extra_param);
+    y_value = func(x_value, param0, param1);
     table[i] = y_value;
   }
 }
 
-static void gen_bf16_slope_table(float start, float end, int table_hw, float *table,
-                                 float *slope_table, activate_func func, float extra_param) {
+static void gen_bf16_slope_table(float start, float end, int table_hw, float *table,  float *slope_table,
+                                                  activate_func func, float param0, float param1) {
   int half = table_hw / 2;
   float scale = ((float)table_hw) / (end - start);
 
@@ -73,7 +73,7 @@ static void gen_bf16_slope_table(float start, float end, int table_hw, float *ta
     }
   }
   // slope of range end
-  slope_table[half - 1] = (func(3 * end, extra_param) - func(end, extra_param)) / (2 * end * scale);
+  slope_table[half - 1] = (func(3 * end, param0, param1) - func(end, param0, param1)) / (2 * end * scale);
 
   // negtive axis, slope = x(i - 1) - x(i)
   for (int i = table_hw - 1; i > half; i--) {
@@ -86,11 +86,11 @@ static void gen_bf16_slope_table(float start, float end, int table_hw, float *ta
     }
   }
   // slope of range start
-  slope_table[half] = (func(3 * start, extra_param) - func(start, extra_param)) / (std::abs(2 * start) * scale);
+  slope_table[half] = (func(3 * start, param0, param1) - func(start, param0, param1)) / (std::abs(2 * start) * scale);
 }
 
 void bf16_gen_base_slope_table(const std::string &name, float *base_table, float *slope_table,
-                               float &range_start, float &range_end, float extra_param) {
+                               float &range_start, float &range_end, float param0, float param1) {
   activate_func func;
   if (name == "sigmoid") {
     range_start = -1 * SIGMOID_BF16_LUT_RANGE;
@@ -124,8 +124,8 @@ void bf16_gen_base_slope_table(const std::string &name, float *base_table, float
     llvm::errs() << "unsupported lookup table func:" << name << "\n";
     llvm_unreachable("Error");
   }
-  gen_bf16_base_table(range_start, range_end, 256, base_table, func, extra_param);
-  gen_bf16_slope_table(range_start, range_end, 256, base_table, slope_table, func, extra_param);
+  gen_bf16_base_table(range_start, range_end, 256, base_table, func, param0, param1);
+  gen_bf16_slope_table(range_start, range_end, 256, base_table, slope_table, func, param0, param1);
 }
 
 void bf16_lut_slope(const std::string &name, float *input, float *output, int size,
@@ -411,7 +411,8 @@ void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
 }
 
 void bf16_gen_exponent_mantissa_table(const std::string &name, uint16_t *exp_table,
-                                      uint16_t *mantissa_table, float extra_param) {
+                                      uint16_t *mantissa_table, float param0,  float param1) {
+  (void)param1;
   float range_start = -62;
   float range_end = 63;
   int table_hw = 256;
@@ -425,8 +426,8 @@ void bf16_gen_exponent_mantissa_table(const std::string &name, uint16_t *exp_tab
       bf16_gen_reciprocal_sqrt(range_start, table_hw, exp_table);
       bf16_gen_reciprocal_sqrt_mantissa(table_hw, mantissa_table);
   } else if (name == "power") {
-      bf16_gen_power_exp_table(exp_table, extra_param, range_start, table_hw);
-      bf16_gen_power_mantissa_table(mantissa_table, extra_param, table_hw);
+      bf16_gen_power_exp_table(exp_table, param0, range_start, table_hw);
+      bf16_gen_power_mantissa_table(mantissa_table, param0, table_hw);
   } else {
     llvm::errs() << "unsupported lookup table func:" << name << "\n";
     llvm_unreachable("Error");
