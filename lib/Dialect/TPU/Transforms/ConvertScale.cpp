@@ -182,74 +182,91 @@ struct TpuFoldScalePattern : public RewritePattern {
     LLVM_DEBUG(llvm::errs() << "Scale Op: " << op_name << "\n";);
 
     // find scale and bias tensor for both later and former scale_op
-    std::vector<std::unique_ptr<std::vector<float> > > laterWeights(2);
-    for (int i = 0; i < 2; ++i) {
-      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          laterScaleOp.getOperand(i + 1).getDefiningOp());
-      assert(weight_op && "weight op should be exist");
-      auto tensor_name = weight_op.name();
-      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
-                              << tensor_name << "\n";);
-      auto type = weight_op.getResult().getType().cast<TensorType>();
-      laterWeights[i] = wTF->readTensor<float>(tensor_name, type);
-      // delete the tensor from the weight file
-      wTF->deleteTensor<float>(tensor_name);
-    }
-    std::vector<std::unique_ptr<std::vector<float> > > formerWeights(2);
-    for (int i = 0; i < 2; ++i) {
-      auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-          formerScaleOp.getOperand(i + 1).getDefiningOp());
-      assert(weight_op && "weight op should be exist");
-      auto tensor_name = weight_op.name();
-      LLVM_DEBUG(llvm::errs() << "  weight[" << i << "] : "
-                              << tensor_name << "\n";);
-      auto type = weight_op.getResult().getType().cast<TensorType>();
-      formerWeights[i] = wTF->readTensor<float>(tensor_name, type);
-      // delete the tensor from the weight file
-      wTF->deleteTensor<float>(tensor_name);
-    }
+    int oc = 0;
+    std::unique_ptr<std::vector<float>> laterWeight;
+    std::unique_ptr<std::vector<float>> laterBias;
+    do {
+      auto weight_op = dyn_cast_or_null<tpu::LoadWeightOp>(laterScaleOp.getOperand(1).getDefiningOp());
+      auto weight_type = weight_op.getResult().getType().cast<TensorType>();
+      laterWeight = wTF->readTensor<float>(weight_op.name(), weight_type);
+      wTF->deleteTensor<float>(weight_op.name());
+      oc = (int)laterWeight->size();
+      // bias
+      auto bias_op = dyn_cast_or_null<tpu::LoadWeightOp>(laterScaleOp.getOperand(2).getDefiningOp());
+      if (bias_op) {
+        auto bias_type = weight_op.getResult().getType().cast<TensorType>();
+        laterBias = wTF->readTensor<float>(bias_op.name(), bias_type);
+        wTF->deleteTensor<float>(bias_op.name());
+      } else {
+        laterBias = std::make_unique<std::vector<float>>(oc, 0);
+      }
+    } while (0);
 
-    // convert tensors
-    LLVM_DEBUG(
-        llvm::errs() << "  former scale size: "
-                     << formerWeights[0]->size() << "\n"
-                     << "  former bias size: "
-                     << formerWeights[1]->size() << "\n"
-                     << "  later scale size: "
-                     << laterWeights[0]->size() << "\n"
-                     << "  later bias size: "
-                     << laterWeights[1]->size() << "\n";);
-    int oc = (int)formerWeights[0]->size();
+    std::unique_ptr<std::vector<float>> formerWeight;
+    std::unique_ptr<std::vector<float>> formerBias;
+    do {
+      auto weight_op = dyn_cast_or_null<tpu::LoadWeightOp>(formerScaleOp.getOperand(1).getDefiningOp());
+      auto weight_type = weight_op.getResult().getType().cast<TensorType>();
+      formerWeight = wTF->readTensor<float>(weight_op.name(), weight_type);
+      wTF->deleteTensor<float>(weight_op.name());
+      // bias
+      auto bias_op = dyn_cast_or_null<tpu::LoadWeightOp>(formerScaleOp.getOperand(2).getDefiningOp());
+      if (bias_op) {
+        auto bias_type = weight_op.getResult().getType().cast<TensorType>();
+        formerBias = wTF->readTensor<float>(bias_op.name(), bias_type);
+        wTF->deleteTensor<float>(bias_op.name());
+      } else {
+        formerBias = std::make_unique<std::vector<float>>(oc, 0);
+      }
+    } while (0);
+
     std::vector<float> new_scale(oc);
     std::vector<float> new_bias(oc);
 
-    float *former_scale = (float *)formerWeights[0]->data();
-    float *former_bias = (float *)formerWeights[1]->data();
-    float *later_scale = (float *)laterWeights[0]->data();
-    float *later_bias = (float *)laterWeights[1]->data();
+    float *former_scale = (float *)formerWeight->data();
+    float *former_bias = (float *)formerBias->data();
+    float *later_scale = (float *)laterWeight->data();
+    float *later_bias = (float *)laterBias->data();
 
     for (int i = 0; i < oc; ++i) {
       new_scale[i] = former_scale[i] * later_scale[i];
-      new_bias[i] = former_bias[i] * later_scale[i] + later_bias[i];
     }
-    std::vector<std::vector<float> *> newWeights{ &new_scale, &new_bias };
+    bool is_zero_bias = true;
+    for (int i = 0; i < oc; ++i) {
+      new_bias[i] = former_bias[i] * later_scale[i] + later_bias[i];
+      if (new_bias[i] != 0) {
+        is_zero_bias = false;
+      }
+    }
 
     std::vector<Value> newOperands;
     newOperands.push_back(formerScaleOp.getOperand(0));
-    // add new scale and bias ops
-    for (int i = 0; i < 2; ++i) {
-      auto tensor_name = op_name + "_fold_" + std::to_string(i);
-      LLVM_DEBUG(llvm::errs() << "  new_weight[" << i << "] : "
-                              << tensor_name << "\n";);
-      auto type = RankedTensorType::get({oc},
-                                    FloatType::getF32(rewriter.getContext()));
-      wTF->addTensor<float>(tensor_name, newWeights[i], type);
-      std::vector<NamedAttribute> attrs;
-      attrs.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(tensor_name)));
-      auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, type,
-          ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{attrs});
-      newOperands.push_back(new_weight_op);
+
+    auto new_weight_name = op_name + "_fold_w";
+    auto new_weight_type = RankedTensorType::get({oc},
+                                  FloatType::getF32(rewriter.getContext()));
+    wTF->addTensor<float>(new_weight_name, &new_scale, new_weight_type);
+    std::vector<NamedAttribute> new_weight_attrs;
+    new_weight_attrs.push_back(rewriter.getNamedAttr("name",
+                    rewriter.getStringAttr(new_weight_name)));
+    auto new_weight_op = rewriter.create<tpu::LoadWeightOp>(loc, new_weight_type,
+        ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{new_weight_attrs});
+    newOperands.push_back(new_weight_op);
+
+    if (is_zero_bias) {
+      auto noneOp = rewriter.create<tpu::NoneOp>(loc, rewriter.getNoneType());
+      newOperands.push_back(noneOp);
+    } else {
+      auto new_bias_name = op_name + "_fold_b";
+      auto new_bias_type = RankedTensorType::get({oc},
+                               FloatType::getF32(rewriter.getContext()));
+      wTF->addTensor<float>(new_bias_name, &new_bias, new_bias_type);
+      std::vector<NamedAttribute> new_bias_attrs;
+      new_bias_attrs.push_back(rewriter.getNamedAttr("name",
+                      rewriter.getStringAttr(new_bias_name)));
+      auto new_bias_op = rewriter.create<tpu::LoadWeightOp>(loc, new_bias_type,
+          ArrayRef<Value>{wfV}, ArrayRef<NamedAttribute>{new_bias_attrs});
+      newOperands.push_back(new_bias_op);
     }
 
     // replace the later scale with the new scale
