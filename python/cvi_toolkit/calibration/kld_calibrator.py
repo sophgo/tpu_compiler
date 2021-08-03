@@ -342,9 +342,23 @@ class ActivationCalibrator(BaseKldCalibrator):
         thresholds_map = self.calc_thresholds(activations_statistics, hist_bin_nums)
         self._clean_resource()
 
+        # step 6: dump threshold table of default histogram bins
+        with open(output_calibration_table + '.1', 'w') as f:
+            f.write("# genetated time: {}\n".format(datetime.datetime.now()))
+            f.write("# histogram number: {}\n".format(self.histogram_bin_num))
+            f.write("# sample number: {}\n###\n".format(self.input_num))
+            f.write("# op_name    threshold    min    max\n")
+            for op in op_layers:
+                op_name = op['name']
+                threshold = thresholds_map[self.histogram_bin_num][op_name]
+                min_value, max_value, _ = activations_statistics[op_name]
+                f.write("{} {:.5f} {:.5f} {:.5f}\n".format(op_name, threshold,
+                                                         min_value, max_value))
+
+
         # setp 4: tune to get better threshold of each layers.
         self.tuner = SimpleTuner(self.fp32_mlir, thresholds_map, activations_statistics,
-                                 self.images, 15, self.preprocessor)
+                                 self.images, 5, self.preprocessor)
         thresholds = self.tuner.run()
 
         # step 5: dump threshold table after tuning
@@ -359,18 +373,6 @@ class ActivationCalibrator(BaseKldCalibrator):
                 f.write("{} {:.5f} {:.5f} {:.5f}\n".format(op_name, threshold,
                                                            min_value, max_value))
 
-        # step 6: dump threshold table of default histogram bins
-        with open(output_calibration_table + '.1', 'w') as f:
-            f.write("# genetated time: {}\n".format(datetime.datetime.now()))
-            f.write("# histogram number: {}\n".format(self.histogram_bin_num))
-            f.write("# sample number: {}\n###\n".format(self.input_num))
-            f.write("# op_name    threshold    min    max\n")
-            for op in op_layers:
-                op_name = op['name']
-                threshold = thresholds_map[self.histogram_bin_num][op_name]
-                min_value, max_value, _ = activations_statistics[op_name]
-                f.write("{} {:.5f} {:.5f} {:.5f}\n".format(op_name, threshold,
-                                                         min_value, max_value))
 
         # step 7: dump all thresholds to csv files
         with open(output_calibration_table + '.csv', 'w') as f:

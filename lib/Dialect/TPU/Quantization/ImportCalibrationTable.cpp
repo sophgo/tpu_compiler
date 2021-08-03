@@ -30,7 +30,7 @@
 #include "mlir/Pass/Pass.h"
 #include "tpuc/Support/TensorFile.h"
 #include "llvm/Support/raw_ostream.h"
-
+#include "llvm/Support/Format.h"
 #include <sstream>
 #include <fstream>
 #include <regex>
@@ -74,10 +74,15 @@ struct BackwardOverwriteThresholdDefaultPattern : public RewritePattern {
                    << std::to_string(threshold_x) << " to "
                    << std::to_string(threshold_y) << "\n";);
     if (threshold_x < threshold_y * 0.5) {
-      llvm::errs() << "  WARNING: prev threshold is too small to overwrite\n";
-    }
-    if (threshold_x > threshold_y * 2.0) {
-      llvm::errs() << "  WARNING: prev threshold is too large to overwrite\n";
+      llvm::errs() << "WARNING: prev threshold is too smaller, "
+                   << op->getName() << ":" << getOpName(op) << llvm::format("<%f>", threshold_y)
+                   << " => " << formerOp->getName() << ":" << getOpName(formerOp)
+                   << llvm::format("<%f>\n", threshold_x);
+    } else if (threshold_x > threshold_y * 2.0) {
+      llvm::errs() << "WARNING: prev threshold is too large, "
+                   << op->getName() << ":" << getOpName(op) << llvm::format("<%f>", threshold_y)
+                   << " => " << formerOp->getName() << ":" << getOpName(formerOp)
+                   << llvm::format("<%f>\n", threshold_x);
     }
 
     return success();
@@ -86,32 +91,36 @@ struct BackwardOverwriteThresholdDefaultPattern : public RewritePattern {
 
 struct PoolMaskThresholdPattern : public RewritePattern {
   PoolMaskThresholdPattern(MLIRContext *context)
-      : RewritePattern("tpu.eltwise_mul", 1, context) {}
+      : RewritePattern(tpu::PoolMaskOp::getOperationName(), 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
-    auto castOp = cast<tpu::EltwiseMulOp>(op);
-    float threshold_y = getOpThreshold(op);
-    unsigned nInputs = castOp.getNumInputs();
+    auto nextOp = getNextOp(op);
+    if (!nextOp) {
+      return failure();
+    }
+    auto mulOp = dyn_cast<tpu::EltwiseMulOp>(nextOp);
+    if (!mulOp) {
+      return failure();
+    }
+    float threshold_y = getOpThreshold(nextOp);
+    unsigned nInputs = mulOp.getNumInputs();
     if (nInputs != 2) {
       return failure();
     }
 
-    bool match = false;
     float threshold_x;
     for (unsigned i = 0; i < nInputs; ++i) {
-      auto formerOp = castOp.getOperand(i).getDefiningOp();
-      if (llvm::dyn_cast<tpu::PoolMaskOp>(formerOp)) {
-        match = true;
+      auto opd = mulOp.getOperand(i).getDefiningOp();
+      if (dyn_cast<tpu::PoolMaskOp>(opd) ||
+          dyn_cast<tpu::LoadWeightOp>(opd)) {
+        continue;
       } else {
-        threshold_x = getOpThreshold(formerOp);
+        threshold_x = getOpThreshold(opd);
       }
     }
-    if (match == false) {
-      return failure();
-    }
     if (threshold_x != threshold_y) {
-      setOpThreshold(op, threshold_x);
+      setOpThreshold(nextOp, threshold_x);
       return success();
     }
     return failure();

@@ -136,7 +136,8 @@ inline static float MAX_QUANT(int quant_bitwidth){
 ///   where Multiplier is an interger
 double findQScaleForFilter(float max_filter, float threshold_y,
                            float threshold_x, int quant_bitwidth) {
-  assert(threshold_y > 0 && threshold_x > 0);
+  // assert(threshold_y > 0 && threshold_x > 0);
+  assert(threshold_y > 0);
   double qscale = (max_filter * threshold_x) / (MAX_QUANT(quant_bitwidth)* threshold_y);
   return qscale;
 }
@@ -163,6 +164,7 @@ double findQScaleForBiasI32(float max_bias, float threshold_y) {
 #define Tensorflow_QuantizeMultiplier QuantizeMultiplier
 void QuantizeMultiplier(double double_multiplier, int32_t *quantized_multiplier,
                         int *shift) {
+  assert(double_multiplier >= 0);
   if (double_multiplier == 0.) {
     *quantized_multiplier = 0;
     *shift = 0;

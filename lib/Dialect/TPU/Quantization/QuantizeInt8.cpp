@@ -996,6 +996,7 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   auto max_elem = *std::max_element(
       const_opd->begin(), const_opd->end(),
       [](float a, float b) { return (std::abs(a) < std::abs(b)); });
+  max_elem = std::abs(max_elem);
   //
   // determine the qscale
   //
@@ -1092,6 +1093,8 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
                                     [](float a, float b) {
                                       return (std::abs(a) < std::abs(b));
                                     });
+  max_elem = std::abs(max_elem);
+
   std::vector<float> quant_const(const_size, 0);
   for (int i = 0; i < const_size; i++) {
     float float_quant = (*const_opd)[i] * 127.0 / max_elem;
