@@ -361,7 +361,7 @@ class OnnxConverter(BaseConverter):
         expand_dims = 4 - len(org_shape)
 
         if expand_dims == 0:
-            return operands
+            return operands, org_shape
 
         # expand from high dim
         nchw_shape = list(np.full(expand_dims, 1)) + list(org_shape)

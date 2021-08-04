@@ -232,7 +232,9 @@ int8_t findRShiftAndMultiplierFromQScale(double qscale, uint32_t *multiplier,
     if (qscale > max_multiplier) {
       llvm::errs() << "Error: qscale > max_multipiler ( " << qscale << " v.s. "
                    << max_multiplier << " )\n";
-      assert(false);
+      //assert(false);
+      *multiplier = max_multiplier;
+      return 0;
     }
     for (int8_t rshift = 0; rshift < 63; ++rshift) {
       if (((double)qscale * (1ULL << (rshift + 1))) >= (double)max_multiplier) {
