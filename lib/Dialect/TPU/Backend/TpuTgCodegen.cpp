@@ -309,14 +309,11 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
     auto rshift_int8 = this->rshift().getValue();
     rshift = static_cast<int32_t>(rshift_int8);
 
-    llvm::errs() << "broadcast mul rshift: " << rshift;
-
     std::vector<int32_t> multiplier_int32(2);
     arrayAttrToVector(this->m_i8_inputs().getValue(), multiplier_int32);
 
     for (int32_t i = 0; i < 2; i++ ){
       multiplier[i] = static_cast<int32_t>(multiplier_int32[i]);
-      llvm::errs() << "broadcast mul multiplier: " << multiplier[i];
     }
   }
 
