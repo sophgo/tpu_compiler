@@ -397,6 +397,10 @@ LogicalResult tpu::InterpOp::quantizeBf16() {
 
   auto interpOp = cast<tpu::InterpOp>(op);
   llvm::StringRef type = "NONE";
+  if (interpOp.coordinate_transformation_mode() == "nearest") {
+    type = "BF16";
+    setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  }
   interpOp.setOpQuantMode(type);
   return success();
 }

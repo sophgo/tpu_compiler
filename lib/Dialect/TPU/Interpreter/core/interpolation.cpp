@@ -2,9 +2,10 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
+#include "internal.hpp"
 
-static inline float coordinate_transform (
-    float x_resized, float x_scale, float length_resized, bool pytorch) {
+static inline float coordinate_transform(float x_resized, float x_scale,
+                                         float length_resized, bool pytorch) {
   // please refer NativeCpuImplementation.cpp for more details
   if (pytorch) {
     return length_resized > 1 ? ((x_resized + 0.5f) / x_scale - 0.5f) : 0.0f;
@@ -177,6 +178,70 @@ void interp_linear(float *input, float *output, int n, int c, int ih, int iw,
                           output, pytorch);
 }
 
+void interp_neast(float *input, float *output, int n, int c, int ih, int iw,
+                  int oh, int ow) {
+  int nc = n * c;
+  float scale_h = (float)ih / oh;
+  float scale_w = (float)iw / ow;
+#pragma omp parallel for schedule(static, omp_schedule(nc))
+  for (int i = 0; i < nc; i++) {
+    for (int h = 0; h < oh; h++) {
+      for (int w = 0; w < ow; w++) {
+        int o_index = i * oh * ow + h * ow + w;
+        int i_index =
+            i * ih * iw + (int)(h * scale_h) * iw + (int)(w * scale_w);
+        output[o_index] = input[i_index];
+      }
+    }
+  }
+}
+
+static inline float value(float *input, int w, int ih, int iw) {
+  return input[ih * w + iw];
+}
+
+static float value(float *input, int w, float fh, float fw) {
+  int h0 = std::floor(fh);
+  int h1 = std::ceil(fh);
+  int w0 = std::floor(fw);
+  int w1 = std::ceil(fw);
+  if (h0 == fh && w0 == fw) {
+    return value(input, w, h0, w0);
+  }
+  if (h0 == fh) {
+    return value(input, w, h0, w0) * (w1 - fw) +
+           value(input, w, h0, w1) * (fw - w0);
+  }
+  if (w0 == fw) {
+    return value(input, w, h0, w0) * (h1 - fh) +
+           value(input, w, h1, w0) * (fh - h0);
+  }
+  float scale0 = (w1 - fw) * (h1 - fh);
+  float scale1 = (fw - w0) * (h1 - fh);
+  float scale2 = (w1 - fw) * (fh - h0);
+  float scale3 = (fw - w0) * (fh - h0);
+  return value(input, w, h0, w0) * scale0 + value(input, w, h0, w1) * scale1 +
+         value(input, w, h1, w0) * scale2 + value(input, w, h1, w1) * scale3;
+}
+
+void interp_asymmetric(float *input, float *output, int n, int c, int ih,
+                       int iw, int oh, int ow) {
+  int nc = n * c;
+  float scale_h = (float)ih / oh;
+  float scale_w = (float)iw / ow;
+#pragma omp parallel for schedule(static, omp_schedule(nc))
+  for (int i = 0; i < nc; i++) {
+    for (int h = 0; h < oh; h++) {
+      for (int w = 0; w < ow; w++) {
+        int o_index = i * oh * ow + h * ow + w;
+        float fh = std::min(h * scale_h, (float)(ih - 1));
+        float fw = std::min(w * scale_w, (float)(iw - 1));
+        output[o_index] = value(input + i * ih * iw, iw, fh, fw);
+      }
+    }
+  }
+}
+
 namespace mlir {
 
 InterpolationOpKernel::InterpolationOpKernel(Operation &op,
@@ -244,6 +309,11 @@ void InterpolationOpKernel::invoke() {
   } else if (coordinate_transformation_mode == "pytorch_half_pixel") {
     interp_linear(input_data->data(), output_data->data(), in, ic, ih, iw, oh,
                   ow, true);
+  } else if (coordinate_transformation_mode == "nearest") {
+    interp_neast(input_data->data(), output_data->data(), in, ic, ih, iw, oh,
+                 ow);
+  } else if (coordinate_transformation_mode == "asymmetric"){
+    interp_asymmetric(input_data->data(), output_data->data(), in, ic, ih, iw, oh, ow);
   } else {
     llvm_unreachable("coordinate_transformation_model not support");
   }

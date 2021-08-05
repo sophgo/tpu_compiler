@@ -61,6 +61,7 @@ TEST_ONNX_IR = [
     "Sum",
     "Softmax",
     "Tile",
+    "Upsample",
 #    "Transpose",
 ]
 
@@ -167,6 +168,7 @@ class ONNX_IR_TESTER(object):
             "Tile": self.test_Tile,
             "ReduceMean": self.test_ReduceMean,
             "ReduceMax": self.test_ReduceMax,
+            "Upsample": self.test_Upsample,
         }
         self.set_quant_mode()
 
@@ -2614,6 +2616,89 @@ class ONNX_IR_TESTER(object):
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                        input_shape[2], input_shape[3]).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Upsample(self):
+        test_case = 'Upsample'
+        input_shape = [1,512,4,32]
+        output_shape1 = [1,512,8,65]
+        output_shape2 = [1,512,8,64]
+        output_shape3 = [1,512,8,65]
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output1 = helper.make_tensor_value_info(
+            'output1', TensorProto.FLOAT, output_shape1)
+        output2 = helper.make_tensor_value_info(
+            'output2', TensorProto.FLOAT, output_shape2)
+        output3 = helper.make_tensor_value_info(
+            'output3', TensorProto.FLOAT, output_shape3)
+        scale1_node = onnx.helper.make_node(
+                    'Constant',
+                    inputs=[],
+                    outputs=['scale1'],
+                    value=onnx.helper.make_tensor(
+                        name='const_tensor',
+                        data_type=onnx.TensorProto.FLOAT,
+                        dims=[4],
+                        vals=np.array([1.0,1.0,2.0,2.03125]),
+                    ),
+                )
+        scale2_node = onnx.helper.make_node(
+                    'Constant',
+                    inputs=[],
+                    outputs=['scale2'],
+                    value=onnx.helper.make_tensor(
+                        name='const_tensor',
+                        data_type=onnx.TensorProto.FLOAT,
+                        dims=[4],
+                        vals=np.array([1.0,1.0,2.0,2.0]),
+                    ),
+                )
+        scale3_node = onnx.helper.make_node(
+                    'Constant',
+                    inputs=[],
+                    outputs=['scale3'],
+                    value=onnx.helper.make_tensor(
+                        name='const_tensor',
+                        data_type=onnx.TensorProto.FLOAT,
+                        dims=[4],
+                        vals=np.array([1.0,1.0,2.0,2.03125]),
+                    ),
+                )
+        x1_node = helper.make_node(
+            'Neg',
+            ['input'],
+            ['X1'],
+        )
+        us1_node = helper.make_node(
+            'Upsample',
+            ['X1', 'scale1'],
+            ['output1'],
+        )
+        us2_node = helper.make_node(
+            'Upsample',
+            ['X1', 'scale2'],
+            ['output2'],
+        )
+        us3_node = helper.make_node(
+            'Upsample',
+            ['X1', 'scale3'],
+            ['output3'],
+            mode='linear'
+        )
+        graph_def = helper.make_graph(
+            [scale1_node, scale2_node, scale3_node, x1_node, us1_node, us2_node, us3_node],
+            test_case,
+            [input],
+            [output1, output2, output3],
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 9
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
 

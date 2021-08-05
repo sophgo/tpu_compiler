@@ -141,8 +141,11 @@ class TensorCompare():
     correlation_similarity = cosine_similarity
     # measure euclidean similarity
     m = (d1+d2)/2
-    euclidean_similarity = 1 - (self.euclidean_distance(d1.flatten(), d2.flatten()) /
-                                self.square_rooted(m.flatten()))
+    ed = self.euclidean_distance(d1.flatten(), d2.flatten())
+    sr = self.square_rooted(m.flatten())
+    euclidean_similarity = cosine_similarity
+    if sr != 0.0:
+      euclidean_similarity = 1 - ed / sr
 
     sqnr = self.sqnr_similarity(d1, d2)
 

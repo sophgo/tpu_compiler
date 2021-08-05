@@ -202,7 +202,6 @@ class OnnxConverter(BaseConverter):
             "Transpose": lambda node: self.convert_transpose_op(node),
             "Where": lambda node: self.convert_where_op(node),
             "Unsqueeze": lambda node: self.convert_unsqueeze_op(node),
-            "Upsample": lambda node: self.convert_upsample_op(node),
             "YoloDetection": lambda node: self.convert_yolo_detection_op(node)
         }
 
@@ -712,6 +711,22 @@ class OnnxConverter(BaseConverter):
             self.converted_nodes[i+4] = sigmoid_node
             i += 4
         self.converted_nodes = [node for node in self.converted_nodes if node]
+
+        # upsample to resize nearst
+        for i, node in enumerate(self.converted_nodes):
+            if node.op_type == "Upsample":
+                info = {}
+                info["name"] = node.name
+                info["op_type"] = "Resize"
+                mode = node.attrs.get('mode',b'nearest')
+                if mode == b'nearest':
+                    info['attrs'] = {'mode':mode}
+                else:
+                    info['attrs'] = {'mode':mode,'coordinate_transformation_mode':'asymmetric'}
+                info["inputs"] = node.inputs
+                info["outputs"] = node.outputs
+                resize_node = BaseNode(info)
+                self.converted_nodes[i] = resize_node
 
     def convert_tensor(self):
         """convert onnx tensor to OnnxTensor"""
@@ -2768,46 +2783,43 @@ class OnnxConverter(BaseConverter):
             scale_list[count + idx] = distance
         return scale_list
 
-
     def convert_resize_op(self, onnx_node):
         assert(onnx_node.op_type == "Resize")
         mode = onnx_node.attrs.get("mode", "nearest")
 
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         scale_factor = []
-        sizes = 0
-        use_size = False
+        sizes = []
 
         if len(onnx_node.inputs) > 2:
             # onnx opset 11
             scale_factor = self.getTensor(onnx_node.inputs[2]).tensor_data
             if len(scale_factor) == 0:
-                # size
                 sizes = self.getTensor(onnx_node.inputs[3]).tensor_data
-                use_size = True
+                scale_factor = sizes / input_shape
             else:
-                use_size = False
-
+                sizes = input_shape * scale_factor
         else:
             # opset 10
             scale_factor = self.getTensor(onnx_node.inputs[1]).tensor_data
-            use_size = False
+            sizes = input_shape * scale_factor
 
+        if scale_factor[0] != 1.0 or scale_factor[1] != 1.0:
+            raise RuntimeError("Resize only support h/w")
+
+        output_shape = [int(i) for i in sizes]
+        on, oc, oh, ow = output_shape
+        _, ic, ih, iw = input_shape
+        if oh == ih and ow == iw:
+            self.addOperand(onnx_node.name, op, input_shape,
+                            TensorType.ACTIVATION)
+            return
+        scale_h = scale_factor[2]
+        scale_w = scale_factor[3]
         if mode == b'linear':
-            coordinate_transformation_mode = \
-                onnx_node.attrs.get(
-                    "coordinate_transformation_mode", "half_pixel")
-            if not use_size:
-                sizes = input_shape * scale_factor
-            on, oc, oh, ow = sizes
-            _, ic, ih, iw = input_shape
+            coordinate_transformation_mode = onnx_node.attrs.get(
+                "coordinate_transformation_mode", "half_pixel")
 
-            scale_h = oh / ih
-            scale_w = ow / iw
-
-            if scale_h == 1.0 and scale_w == 1.0:
-                self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
-                return
             if ow > 1 and oh > 1 and coordinate_transformation_mode == b"pytorch_half_pixel":
                 coordinate_transformation_mode = b"half_pixel"
 
@@ -2822,10 +2834,13 @@ class OnnxConverter(BaseConverter):
                 output_shape = list(input_shape)
                 for idx, v in enumerate(output_shape):
                     output_shape[idx] =\
-                            int(pads_param['pads'][idx] + v + pads_param['pads'][idx + 4])
+                        int(pads_param['pads'][idx] + v +
+                            pads_param['pads'][idx + 4])
 
-                name = "{}_{}_pad_edge".format(onnx_node.name, onnx_node.op_type)
-                pads_op = self.CVI.add_pad_op(name, [op], output_shape, **pads_param)
+                name = "{}_{}_pad_edge".format(
+                    onnx_node.name, onnx_node.op_type)
+                pads_op = self.CVI.add_pad_op(
+                    name, [op], output_shape, **pads_param)
 
                 # conv to replace with resize
                 input_shape = list(output_shape)
@@ -2840,8 +2855,10 @@ class OnnxConverter(BaseConverter):
                 pad_b = int(scale_h) - pad_t - 2
                 pad_l = int(scale_w/2) - 1
                 pad_r = int(scale_w) - pad_l - 2
-                oh = int(((input_shape[2] - 1) * (ins_h + 1) + 1 + pad_t + pad_b - kh) / stride_h) + 1
-                ow = int(((input_shape[3] - 1) * (ins_w + 1) + 1 + pad_l + pad_r - kw) / stride_w) + 1
+                oh = int(
+                    ((input_shape[2] - 1) * (ins_h + 1) + 1 + pad_t + pad_b - kh) / stride_h) + 1
+                ow = int(
+                    ((input_shape[3] - 1) * (ins_w + 1) + 1 + pad_l + pad_r - kw) / stride_w) + 1
 
                 output_shape = [on, oc, oh, ow]
                 conv_param = {
@@ -2862,22 +2879,27 @@ class OnnxConverter(BaseConverter):
                 }
 
                 # weight_shape = [ic, 1, 1, kh, kw]
-                factor_w = np.array(self.half_pixel_scale(scale_w, pad_l)).reshape(1,kw)
-                factor_h = np.array(self.half_pixel_scale(scale_h, pad_t)).reshape(kh,1)
+                factor_w = np.array(self.half_pixel_scale(
+                    scale_w, pad_l)).reshape(1, kw)
+                factor_h = np.array(self.half_pixel_scale(
+                    scale_h, pad_t)).reshape(kh, 1)
                 factor = np.dot(factor_h, factor_w).reshape(1, 1, 1, kh, kw)
                 conv_tensor_data = np.tile(np.array(factor), (ic, 1, 1, 1, 1))
                 weight_name = "{}_add_weight".format(onnx_node.name)
-                self.addTensor(weight_name, conv_tensor_data, conv_tensor_data.shape)
-                weight_op = self.CVI.add_load_file_op(weight_name, conv_tensor_data.shape)
+                self.addTensor(weight_name, conv_tensor_data,
+                               conv_tensor_data.shape)
+                weight_op = self.CVI.add_load_file_op(
+                    weight_name, conv_tensor_data.shape)
 
                 operands = list()
                 operands.append(pads_op)
                 operands.append(weight_op)
 
                 name = "{}_{}_conv_w".format(onnx_node.name, onnx_node.op_type)
-                output_shape = [int(v) for v in output_shape]
-                conv_op = self.CVI.add_conv_op(name, operands, output_shape, **conv_param)
-                self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
+                conv_op = self.CVI.add_conv_op(
+                    name, operands, output_shape, **conv_param)
+                self.addOperand(onnx_node.name, conv_op,
+                                output_shape, TensorType.ACTIVATION)
                 return
             else:
                 attr = {
@@ -2890,62 +2912,65 @@ class OnnxConverter(BaseConverter):
                     'coordinate_transformation_mode': coordinate_transformation_mode
                 }
 
-                output_shape = [int(i) for i in [on, oc, oh, ow]]
-
                 interp_op = self.CVI.add_interp_op(
                     "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
                 self.addOperand(onnx_node.name, interp_op,
                                 output_shape, TensorType.ACTIVATION)
                 return
 
-        elif mode == b"nearest":
-            operands = [op]
-            ic = input_shape[1]
-            ih = input_shape[2]
-            iw = input_shape[3]
-            on = int(input_shape[0])
-            oc = int(input_shape[1])
-            oh = int(sizes[2]) if use_size else int(
-                input_shape[2] * scale_factor[2])
-            ow = int(sizes[3]) if use_size else int(
-                input_shape[3] * scale_factor[3])
-            group = ic
-            output_shape = [int(on), int(oc), int(oh), int(ow)]
-            if input_shape == output_shape:
-                self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+        elif mode == b'nearest':
+            if scale_h == int(scale_h) and scale_w == int(scale_w):
+                operands = [op]
+                group = ic
+                # use deconv(depthwise)
+                deconv_param = {
+                    'stride_h':  int(scale_h),
+                    'stride_w':  int(scale_w),
+                    'padding': "VALID",
+                    'dilation_h': 1,
+                    'dilation_w': 1,
+                    'padding_t': 0,
+                    'padding_b': 0,
+                    'padding_l': 0,
+                    'padding_r': 0,
+                    'group': ic,
+                    'is_dw': False,
+                    'with_bias': False,
+                    'do_relu': False,
+                    'ins': [],
+                }
+
+                # deconv weight all one
+                weight_shape = [group, int(
+                    oc/group), int(ic/group), int(oh / ih), int(ow / iw)]
+                tensor_data = np.full(weight_shape, 1)
+                weight_name = "{}_add_weight".format(onnx_node.name)
+                self.addTensor(weight_name, tensor_data, tensor_data.shape)
+                weight_op = self.CVI.add_load_file_op(
+                    weight_name, tensor_data.shape)
+                operands.append(weight_op)
+
+                deconv_op = self.CVI.add_deconv_op("{}_{}".format(
+                    onnx_node.name, onnx_node.op_type), operands, output_shape, **deconv_param)
+                self.addOperand(onnx_node.name, deconv_op,
+                                output_shape, TensorType.ACTIVATION)
                 return
-            # use deconv(depthwise)
-            deconv_param = {
-                'stride_h':  int(oh / ih),
-                'stride_w':  int(ow / iw),
-                'padding': "VALID",
-                'dilation_h': 1,
-                'dilation_w': 1,
-                'padding_t': 0,
-                'padding_b': 0,
-                'padding_l': 0,
-                'padding_r': 0,
-                'group': ic,
-                'is_dw': False,
-                'with_bias': False,
-                'do_relu': False,
-                'ins': [],
-            }
+            else:
+                attr = {
+                    'height': oh,
+                    'width':  ow,
+                    'pad_beg': 0,
+                    'pad_end': 0,
+                    'shrink_factor': 0,
+                    'zoom_factor': 0,
+                    'coordinate_transformation_mode': 'nearest'
+                }
 
-            # deconv weight all one
-            weight_shape = [group, int(
-                oc/group), int(ic/group), int(oh / ih), int(ow / iw)]
-            tensor_data = np.full(weight_shape, 1)
-            weight_name = "{}_add_weight".format(onnx_node.name)
-            self.addTensor(weight_name, tensor_data, tensor_data.shape)
-            weight_op = self.CVI.add_load_file_op(
-                weight_name, tensor_data.shape)
-            operands.append(weight_op)
-
-            deconv_op = self.CVI.add_deconv_op("{}_{}".format(
-                onnx_node.name, onnx_node.op_type), operands, output_shape, **deconv_param)
-            self.addOperand(onnx_node.name, deconv_op,
-                            output_shape, TensorType.ACTIVATION)
+                interp_op = self.CVI.add_interp_op(
+                    "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
+                self.addOperand(onnx_node.name, interp_op,
+                                output_shape, TensorType.ACTIVATION)
+                return
 
         else:
             raise RuntimeError("Unsupported mode {}".format(mode))
@@ -2971,28 +2996,35 @@ class OnnxConverter(BaseConverter):
             pass
 
         op, input_shape, tesnor_type = self.getOperand(onnx_node.inputs[0])
+        starts = []
+        ends = []
+        axes = []
         # start
-        _, _, _tesnor_type = self.getOperand(onnx_node.inputs[1])
-        if _tesnor_type != TensorType.TENSOR:
-            raise TypeError(
-                "{} start type be tensor, not find".format(onnx_node.name))
+        if (len(onnx_node.inputs) > 1):
+            _, _, _tesnor_type = self.getOperand(onnx_node.inputs[1])
+            if _tesnor_type != TensorType.TENSOR:
+                raise TypeError(
+                    "{} start type be tensor, not find".format(onnx_node.name))
+            else:
+                starts = self.getTensor(onnx_node.inputs[1]).tensor_data
+            # ends
+            _, _, _tesnor_type = self.getOperand(onnx_node.inputs[2])
+            if _tesnor_type != TensorType.TENSOR:
+                raise TypeError(
+                    "{} end type be tensor, not find".format(onnx_node.name))
+            else:
+                ends = self.getTensor(onnx_node.inputs[2]).tensor_data
+            # axes
+            _, _, _tesnor_type = self.getOperand(onnx_node.inputs[3])
+            if _tesnor_type != TensorType.TENSOR:
+                raise TypeError(
+                    "{} axes type be tensor, not find".format(onnx_node.name))
+            else:
+                axes = self.getTensor(onnx_node.inputs[3]).tensor_data
         else:
-            starts = self.getTensor(onnx_node.inputs[1]).tensor_data
-        # ends
-        _, _, _tesnor_type = self.getOperand(onnx_node.inputs[2])
-        if _tesnor_type != TensorType.TENSOR:
-            raise TypeError(
-                "{} end type be tensor, not find".format(onnx_node.name))
-        else:
-            ends = self.getTensor(onnx_node.inputs[2]).tensor_data
-
-        # axes
-        _, _, _tesnor_type = self.getOperand(onnx_node.inputs[3])
-        if _tesnor_type != TensorType.TENSOR:
-            raise TypeError(
-                "{} axes type be tensor, not find".format(onnx_node.name))
-        else:
-            axes = self.getTensor(onnx_node.inputs[3]).tensor_data
+            starts = onnx_node.attrs.get('starts')
+            ends = onnx_node.attrs.get('ends')
+            axes = onnx_node.attrs.get('axes')
 
         steps = [1]
         assert(len(starts) == len(ends))
@@ -3515,33 +3547,6 @@ class OnnxConverter(BaseConverter):
             new_shape = list(tmp_data.shape)
             reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], new_shape)
             self.addOperand(onnx_node.name, reshape_op, new_shape, TensorType.ACTIVATION)
-
-    def convert_upsample_op(self, onnx_node):
-        assert(onnx_node.op_type == "Upsample")
-        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
-        if tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
-            scale_factor = self.getTensor(onnx_node.inputs[1]).tensor_data
-            if len(scale_factor) != 4:
-                raise RuntimeError("scale_factor length should be 4")
-            if scale_factor[0] != 1 and scale_factor[1] != 1:
-                raise RuntimeError("Not support n,c upsample")
-            if scale_factor[2] != scale_factor[3]:
-                raise RuntimeError("TODO&FIXME:Our IR need to fix it, support w and h upsample")
-
-            operands = list()
-            operands.append(op1)
-            on = int(input_shape1[0])
-            oc = int(input_shape1[1])
-            oh = int(input_shape1[2] * scale_factor[2])
-            ow = int(input_shape1[3] * scale_factor[3])
-            attr={
-                'scale_h': int(scale_factor[2]),
-                'scale_w': int(scale_factor[2])
-            }
-            output_shape = [on, oc, oh, ow]
-            upsample_op = self.CVI.add_upsample_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-            self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
 
     def convert_yolo_detection_op(self, onnx_node):
         assert(onnx_node.op_type == 'YoloDetection')
