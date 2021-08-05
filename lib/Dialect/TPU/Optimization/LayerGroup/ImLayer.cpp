@@ -181,15 +181,7 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImLeakyRelu>(op);
   } else if (isa<tpu::TG_INT8_PadOp>(op) ||
              isa<tpu::TG_BF16_PadOp>(op)) {
-    auto mode = op->getAttr("mode").template cast<::mlir::StringAttr>().getValue().str();
-    if (mode == "edge") {
-      LLVM_DEBUG(llvm::errs()
-          << "Not support pad under 'edge' mode : " << getOpName(op) << "\n";);
-      layer = std::make_shared<ImCommon>(op, false, IR_OTHER);
-    }
-    else {
-      layer = std::make_shared<ImPad>(op);
-    }
+    layer = std::make_shared<ImPad>(op);
   } else if (isa<tpu::TG_INT8_CropOp>(op) ||
              isa<tpu::TG_BF16_CropOp>(op)) {
     layer = std::make_shared<ImCrop>(op);
@@ -288,15 +280,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   int32_t unit_size = getOpResultUnitSize(weightOp);
 
   // get is dilate activation
-  bool is_ins = false;
-  if (isa<tpu::TG_INT8_PC_Conv2DOp>(p)) {
-    auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p);
-    std::vector<int32_t> ins;
-    arrayAttrToVector(op.param().ins(), ins);
-    is_ins = !ins.empty();
-  }
-
-  if (is_ins) {
+  if (ins_h > 0 || ins_w > 0) {
     // ins mode cant slice h/w
     fusible = false;
   }
@@ -689,6 +673,15 @@ ImLeakyRelu::ImLeakyRelu(Operation *op): ImLayer(IR_LEAKY_RELU, op, true) {
 ImPad::ImPad(Operation *op): ImLayer(IR_PAD, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
+  std::string mode;
+  if(auto castOp = llvm::dyn_cast_or_null<tpu::TG_BF16_PadOp>(op)){
+    mode = castOp.mode().str();
+  } else if (auto castOp = llvm::dyn_cast_or_null<tpu::TG_INT8_PadOp>(op)) {
+    mode = castOp.mode().str();
+  }
+  if (mode != "constant") {
+    fusible = false;
+  }
 }
 
 ImCrop::ImCrop(Operation *op) : ImLayer(IR_CROP, op, true) {
