@@ -79,6 +79,17 @@ static OwningModuleRef parseMLIRInput(StringRef inputFilename,
   return OwningModuleRef(parseSourceFile(sourceMgr, context));
 }
 
+static bool name_match(const std::string &a, const std::string &b) {
+  llvm::errs() << "a:" << a << "vs b:" << b << "\n";
+  if (a.size() == b.size()) {
+    return a == b;
+  } else if (a.size() < b.size()) {
+    return a == b.substr(0, a.size());
+  } else {
+    return a.substr(0, b.size()) == b;
+  }
+}
+
 int main(int argc, char **argv) {
   llvm::errs() << argv[0] << " version: " << MLIR_VERSION << "\n";
   llvm::InitLLVM y(argc, argv);
@@ -124,11 +135,11 @@ int main(int argc, char **argv) {
     for (size_t i = 0; i < input_tensors.size(); i++) {
       size_t j = 0;
       for (; j < input_details.size(); j++) {
-        if (names[i] == input_details[j].first) {
+        if (name_match(names[i], input_details[j].first)) {
           break;
         }
       }
-      assert(names[i] == input_details[j].first);
+      assert(j < input_details.size() && "not find target tensor in input npz");
       if (input_tensors[i]->size() != input_details[j].second) {
         llvm::errs() << "input tensor size not same, needed is "
                     << input_details[i].second << ", get "

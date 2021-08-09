@@ -42,7 +42,7 @@ class TensorCompare():
     return
 
   def square_rooted(self, x):
-    return round(sqrt(sum([a*a for a in x])),3)
+    return sqrt(sum([a*a for a in x]))
 
   def cosine_similarity(self, x, y):
     numerator = sum(a*b for a,b in zip(x,y))
@@ -143,9 +143,7 @@ class TensorCompare():
     m = (d1+d2)/2
     ed = self.euclidean_distance(d1.flatten(), d2.flatten())
     sr = self.square_rooted(m.flatten())
-    euclidean_similarity = cosine_similarity
-    if sr != 0.0:
-      euclidean_similarity = 1 - ed / sr
+    euclidean_similarity = 1 - ed / sr
 
     sqnr = self.sqnr_similarity(d1, d2)
 

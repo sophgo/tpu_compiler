@@ -9,7 +9,7 @@ import caffe
 import numpy as np
 from cvi_toolkit.utils.version import declare_toolchain_version
 from cvi_toolkit.utils.log_setting import setup_logger
-from cvi_toolkit.data.preprocess import preprocess
+from cvi_toolkit.data.preprocess import preprocess, supported_pixel_formats
 from cvi_toolkit.utils.mlir_shell import *
 from cvi_toolkit.utils.intermediate_file import IntermediateFile
 from cvi_toolkit.utils.mlir_parser import MlirParser
@@ -32,7 +32,7 @@ class DeployTool:
         self.in_fp32_resize_only_npz = IntermediateFile(prefix, 'in_fp32_resize_only.npz')
         self.all_tensors_interp_npz = IntermediateFile(prefix, 'quantized_tensors_interp.npz', False)
         self.ppa = preprocess()
-        self.ppa.load_config(self.mlir_file, 0)
+        self.input_num = self.ppa.get_input_num(self.mlir_file)
         self.with_preprocess = False
         self.pixel_format = 'BGR_PLANAR'
         self.aligned_input = False
@@ -57,7 +57,6 @@ class DeployTool:
         ret = mlir_quant(self.mlir_file, str(self.quantized_mlir),
                          chip, str(self.quantized_op_info_csv),
                          all_bf16, calib_table, mix_table)
-
         check_return_value(ret == 0, 'quantization failed')
 
         if fuse_preprocess:
@@ -70,31 +69,36 @@ class DeployTool:
     def _is_npz(self, image):
         return True if image.split('.')[-1] == 'npz' else False
 
-    def _prepare_input_npz(self, image):
+    def _prepare_input_npz(self, images):
         batch_size = self._get_batch_size(str(self.quantized_mlir))
         # get all fp32 blobs of fp32 model by tpuc-interpreter
-        if self._is_npz(image):
-            x = np.load(image)
+        if self._is_npz(images[0]):
+            x = np.load(images[0])
             np.savez(str(self.in_fp32_npz), **x)
         else:
-            x = self.ppa.run(image, batch=batch_size)
-            np.savez(str(self.in_fp32_npz), **{'input': x})
-        # get all quantized tensors of quantized model by tpuc-interpeter
-        if self.with_preprocess:
-            # prepare resize only input data
-            config = {
-            'resize_dims': ",".join([str(x) for x in self.ppa.resize_dims]),
-            'keep_aspect_ratio': self.ppa.keep_aspect_ratio,
-            'pixel_format': self.pixel_format,
-            'aligned': self.aligned_input
-            }
-            ppb = preprocess()
-            ppb.config(**config)
-            x = ppb.run(image, batch=batch_size)
-            np.savez(str(self.in_fp32_resize_only_npz), **{'resize_only_data': x})
+            x0 = {}
+            x1 = {}
+            assert(len(images) == self.input_num)
+            for i in range(self.input_num):
+                self.ppa.load_config(self.mlir_file, i)
+                x0[self.ppa.input_name] = self.ppa.run(images[i], batch=batch_size)
+                if self.with_preprocess:
+                    config = {
+                        'resize_dims': ",".join([str(x) for x in self.ppa.resize_dims]),
+                        'keep_aspect_ratio': self.ppa.keep_aspect_ratio,
+                        'pixel_format': self.pixel_format,
+                        'aligned': self.aligned_input
+                    }
+                    ppb = preprocess()
+                    ppb.config(**config)
+                    x1[self.ppa.input_name] = ppb.run(images[i], batch=batch_size)
 
-    def validate_quantized_model(self, tolerance, excepts, image):
-        self._prepare_input_npz(image)
+            np.savez(str(self.in_fp32_npz), **x0)
+            if self.with_preprocess:
+                np.savez(str(self.in_fp32_resize_only_npz), **x1)
+
+    def validate_quantized_model(self, tolerance, excepts, images):
+        self._prepare_input_npz(images)
         blobs_interp_npz = IntermediateFile(self.prefix, 'full_precision_interp.npz', False)
         ret = mlir_inference(self.mlir_file, str(self.in_fp32_npz),
                              None, str(blobs_interp_npz))
@@ -171,7 +175,8 @@ if __name__ == '__main__':
     parser.add_argument("--chip", required=True, choices=['cv183x', 'cv182x'], help="chip platform name")
     parser.add_argument("--fuse_preprocess", action='store_true', default=False,
                         help="add tpu preprocesses (mean/scale/channel_swap) in the front of model")
-    parser.add_argument("--pixel_format", help="pixel format of input frame to the model")
+    parser.add_argument("--pixel_format", choices=supported_pixel_formats, default='BGR_PLANAR',
+                        help="pixel format of input frame to the model")
     parser.add_argument("--aligned_input", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
     parser.add_argument("--dequant_results_to_fp32", type=str2bool, default=True,
@@ -182,7 +187,8 @@ if __name__ == '__main__':
                         help="if compress weight while generate cvimodel")
     parser.add_argument("--merge_weight", action='store_true',
                         help="merge weights into one weight binary wight previous generated cvimodel")
-    parser.add_argument("--image", required=True, help="input image or npz file for inference")
+    parser.add_argument("--image", required=True, help="input image or npz file for inference, "
+                       "if has more than one input images, join images with semicolon")
     parser.add_argument("--cvimodel", required=True, help='output cvimodel')
     parser.add_argument("--debug", action='store_true', help='to keep all intermediate files for debug')
     args = parser.parse_args()
@@ -197,7 +203,7 @@ if __name__ == '__main__':
                   args.fuse_preprocess,
                   args.pixel_format,
                   args.aligned_input)
-    tool.validate_quantized_model(args.tolerance, args.excepts, args.image)
+    tool.validate_quantized_model(args.tolerance, args.excepts, args.image.split(':'))
 
     # generate cvimodel and validate accuracy
     tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32,

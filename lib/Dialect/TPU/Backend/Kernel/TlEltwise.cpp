@@ -431,6 +431,7 @@ void cvi_backend_tl_eltwise(
           p1.a = &input[0];
           p1.b = &input[1];
           p1.layer_id = layer_id;
+          p1.relu_enable = fused_relu;
           ctx.tiu_mul(&p1);
         } else {
           cvk_tiu_mul_qm_param_t p1 = {0};
@@ -440,7 +441,7 @@ void cvi_backend_tl_eltwise(
           p1.b_is_const = 0;
           p1.b = &input[1];
           p1.rshift_bits = rshift;
-          p1.relu_enable = 0;
+          p1.relu_enable = fused_relu;
           p1.layer_id = layer_id;
           p1.multiplier = i32Multiplier;
           ctx.tiu_mul_qm(&p1);

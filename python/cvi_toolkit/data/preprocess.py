@@ -25,7 +25,7 @@ pixel_format_attributes = {
     'BGR_PACKED':    ('bgr', 'nhwc'),
     'GRAYSCALE':     ('bgr', 'nchw'),
     'YUV420_PLANAR': ('bgr', 'nchw'),
-    'RGBA_PLANAR': ('rgba', 'nchw')
+    'RGBA_PLANAR':   ('rgba', 'nchw')
 }
 
 # fix bool bug of argparse
@@ -160,6 +160,7 @@ class preprocess(object):
             self.channel_num = 3
 
         self.data_format = 'nchw' if self.pixel_format.endswith('PLANAR') else 'nhwc'
+        self.input_name = 'input'
 
         _raw_scale = raw_scale
         _mean = np.array([float(s) for s in mean.split(',')], dtype=np.float32)
@@ -218,6 +219,19 @@ class preprocess(object):
                 self.pixel_format, self.aligned)
         logger.info(info_str)
 
+    def get_input_num(self, model_file):
+        with open(model_file, 'r') as f:
+            context = f.read()
+        ctx = mlir.ir.Context()
+        ctx.allow_unregistered_dialects = True
+        m = mlir.ir.Module.parse(context, ctx)
+        body = m.body.operations[0].regions[0].blocks[0]
+        input_ops = []
+        for op in body.operations:
+            if op.operation.name == 'tpu.input':
+                input_ops.append(op)
+        return len(input_ops)
+
     def load_config(self, model_file, idx):
         with open(model_file, 'r') as f:
             context = f.read()
@@ -236,6 +250,7 @@ class preprocess(object):
         attrs = mlir.ir.DictAttr(target.attributes['preprocess'])
         self.net_input_dims = shape[2:]
         self.channel_num = shape[1]
+        self.input_name = mlir.ir.StringAttr(target.attributes['name']).value
         self.pixel_format = mlir.ir.StringAttr(attrs['pixel_format']).value
         self.channel_order = mlir.ir.StringAttr(attrs['channel_order']).value
         self.keep_aspect_ratio = mlir.ir.BoolAttr(attrs['keep_aspect_ratio']).value
