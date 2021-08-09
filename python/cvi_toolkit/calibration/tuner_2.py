@@ -89,7 +89,7 @@ class CalibrationTable:
             for line in self.headers:
                 f.write(line + "\n")
             for k, v in self.thresholds_map.items():
-                f.write("{} {:.5f} {:.5f} {:.5f}\n".format(k, *v))
+                f.write("{} {:.7f} {:.7f} {:.7f}\n".format(k, *v))
 
     def update(self, target_op, new_threshold):
         threshold, _min, _max = self.thresholds_map[target_op]
@@ -101,10 +101,10 @@ class CalibrationTable:
                 f.write(line + "\n")
             for k, v in self.thresholds_map.items():
                 if k == target_op:
-                    f.write("{} {:.5f} {:.5f} {:.5f}\n".format(
+                    f.write("{} {:.7f} {:.7f} {:.7f}\n".format(
                             k, new_threshold, v[1], v[2]))
                 else:
-                    f.write("{} {:.5f} {:.5f} {:.5f}\n".format(k, *v))
+                    f.write("{} {:.7f} {:.7f} {:.7f}\n".format(k, *v))
 
 
 class AutoTuner(object):

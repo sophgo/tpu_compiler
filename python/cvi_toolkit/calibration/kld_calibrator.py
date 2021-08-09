@@ -99,7 +99,7 @@ class ThresholdTable:
                     threshold = new_threshold
                 else:
                     threshold = v
-                f.write("{} {:.5f} {:.5f} {:.5f}\n".format(
+                f.write("{} {:.7f} {:.7f} {:.7f}\n".format(
                         k, threshold, _min, _max))
 
     def update(self, target_op, best_threshold):
@@ -158,6 +158,8 @@ class SimpleTuner:
             minimum_distance = float('inf')
             best_threshold = candidates[0]
             for threshold in candidates:
+                if threshold == 0:
+                    continue
                 self.threshold_table.update_to(tmp_table, op_name, threshold)
                 self.tuner.load(self.fp32_mlir)
                 self.tuner.quantize(tmp_table)
@@ -352,7 +354,7 @@ class ActivationCalibrator(BaseKldCalibrator):
                 op_name = op['name']
                 threshold = thresholds_map[self.histogram_bin_num][op_name]
                 min_value, max_value, _ = activations_statistics[op_name]
-                f.write("{} {:.5f} {:.5f} {:.5f}\n".format(op_name, threshold,
+                f.write("{} {:.7f} {:.7f} {:.7f}\n".format(op_name, threshold,
                                                          min_value, max_value))
 
 
@@ -370,7 +372,7 @@ class ActivationCalibrator(BaseKldCalibrator):
                 op_name = op['name']
                 threshold = thresholds[op_name]
                 min_value, max_value, _ = activations_statistics[op_name]
-                f.write("{} {:.5f} {:.5f} {:.5f}\n".format(op_name, threshold,
+                f.write("{} {:.7f} {:.7f} {:.7f}\n".format(op_name, threshold,
                                                            min_value, max_value))
 
 
@@ -383,11 +385,11 @@ class ActivationCalibrator(BaseKldCalibrator):
                 default_threshold = thresholds_map[self.histogram_bin_num][op_name]
                 best_threshold = thresholds[op_name]
                 min_value, max_value, abs_value = activations_statistics[op_name]
-                f.write("{},{:.5f},{:.5f},{:.5f},{:.5f},{:5f},".format(
+                f.write("{},{:.7f},{:.7f},{:.7f},{:.7f},{:5f},".format(
                         op_name, default_threshold,
                         best_threshold, min_value, max_value, abs_value))
                 _str_thres = []
                 for x in hist_bin_nums:
-                    _str_thres.append('{:.5f}'.format(thresholds_map[x][op_name]))
+                    _str_thres.append('{:.7f}'.format(thresholds_map[x][op_name]))
                 f.write(','.join(_str_thres))
                 f.write('\n')
