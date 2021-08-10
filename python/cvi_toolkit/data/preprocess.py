@@ -156,6 +156,12 @@ class preprocess(object):
         elif self.pixel_format == "YUV420_PLANAR":
             self.channel_num = 3
             self.aligned = True
+        elif self.pixel_format.startswith('RGB'):
+            self.channel_num = 3
+            self.channel_order = 'rgb'
+        elif self.pixel_format.startswith('BGR'):
+            self.channel_num = 3
+            self.channel_order = 'bgr'
         else:
             self.channel_num = 3
 
