@@ -1074,7 +1074,7 @@ Value tpu::EltwiseMulOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("do_relu", do_reluAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
