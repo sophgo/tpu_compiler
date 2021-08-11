@@ -71,9 +71,7 @@ static void quantizeBf16WeightOp(Value op, TensorFile *wTF) {
   auto data = readAndDeleteWeightTensor<float>(op, wTF);
   auto shape = getTensorShape(op);
   auto size = getTensorSize(op);
-  std::vector<bfloat16> data_bf16(size);
-  FloatToBFloat16(data->data(), data_bf16.data(), size);
-  BFloat16ToFloat(data_bf16.data(), data->data(), size);
+  BF16(data->data(), data->data(), size);
   addWeightTensorAndUpdateWeightOp<float>(op, "quant", *data, shape, "BF16",
                                           wTF);
 }
@@ -90,9 +88,7 @@ static void quantizeBf16LayerNormWeightOp(Value op, TensorFile *wTF) {
   auto shape = getTensorShape(op);
   auto size = getTensorSize(op);
   int npu_num = MInfo::lane_num;
-  std::vector<bfloat16> data_bf16(size);
-  FloatToBFloat16(data->data(), data_bf16.data(), size);
-  BFloat16ToFloat(data_bf16.data(), data->data(), size);
+  BF16(data->data(), data->data(), size);
   std::vector<float> data_fp32(size * npu_num);
   for (int i = 0; i < npu_num; i++) {
     std::copy(data->begin(), data->end(), data_fp32.data() + i * size);
@@ -122,43 +118,39 @@ static void insertBf16LutOp(Operation *op, const std::string &type_name, const s
   int table_h = 32;
   int table_w = 8;
   int table_hw = table_h * table_w;
-  int tbl_shape = npu_num * table_hw;
+  int table_shape = npu_num * table_hw;
 
-  std::vector<float> table_fp32(tbl_shape);
-  std::vector<float> mantissa_fp32(tbl_shape);
-  std::vector<bfloat16> table_bf16(table_hw);
-  std::vector<bfloat16> mantissa_bf16(table_hw);
+  std::vector<float> table(table_hw);
+  std::vector<float> mantissa(table_hw);
+  std::vector<float> table_all_lane(table_shape);
+  std::vector<float> mantissa_all_lane(table_shape);
   float range_start = -62;
   float range_end = 63;
 
   std::string suffix_mantissa;
   if (method == "mantissa") {
-    bf16_gen_exponent_mantissa_table(type_name, table_bf16.data(), mantissa_bf16.data(),
-                                                           param0, param1);
+    bf16_gen_exponent_mantissa_table(type_name, table.data(), mantissa.data(),
+                                     param0, param1);
     suffix_mantissa = type_name + "_mantissa_table";
   } else {
-    bf16_gen_base_slope_table(type_name, table_fp32.data(), mantissa_fp32.data(),
-                                              range_start, range_end, param0, param1);
+    bf16_gen_base_slope_table(type_name, table.data(), mantissa.data(),
+                              range_start, range_end, param0, param1);
     suffix_mantissa = type_name + "_slope_table";
-    FloatToBFloat16(table_fp32.data(), table_bf16.data(), table_hw, false);
-    FloatToBFloat16(mantissa_fp32.data(), mantissa_bf16.data(), table_hw);
   }
-  BFloat16ToFloat(table_bf16.data(), table_fp32.data(), table_hw);
-  BFloat16ToFloat(mantissa_bf16.data(), mantissa_fp32.data(), table_hw);
-  for (int i = 1; i < npu_num; i++) {
-    std::copy(table_fp32.data(), table_fp32.data() + table_hw,
-              table_fp32.data() + i * table_hw);
-    std::copy(mantissa_fp32.data(), mantissa_fp32.data() + table_hw,
-              mantissa_fp32.data() + i * table_hw);
+  for (int i = 0; i < npu_num; i++) {
+    std::copy(table.data(), table.data() + table_hw,
+              table_all_lane.data() + i * table_hw);
+    std::copy(mantissa.data(), mantissa.data() + table_hw,
+              mantissa_all_lane.data() + i * table_hw);
   }
 
   // update op
   StringRef storageType = "BF16";
   auto shape = std::vector<int64_t>{1, npu_num, table_h, table_w};
   auto table_op = addWeightTensorAndCreateWeightOp<float>(
-      op, type_name + "_table", table_fp32, shape, storageType, wTF, wfV);
+      op, type_name + "_table", table_all_lane, shape, storageType, wTF, wfV);
   auto table_mantissa_op = addWeightTensorAndCreateWeightOp<float>(
-      op, suffix_mantissa, mantissa_fp32, shape, storageType, wTF, wfV);
+      op, suffix_mantissa, mantissa_all_lane, shape, storageType, wTF, wfV);
 
   auto builder = Builder(op->getContext());
   op->setAttr("min_range", builder.getF32FloatAttr(range_start));
@@ -199,12 +191,8 @@ LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
   }
   assert(filterSize % oc == 0);
 
-  // create new tensors
-  auto filter_bf16 = std::make_unique<std::vector<bfloat16>>(filterSize);
-
   // quantization
-  FloatToBFloat16(filter->data(), filter_bf16->data(), filterSize);
-  BFloat16ToFloat(filter_bf16->data(), filter->data(), filterSize);
+  BF16(filter->data(), filter->data(), filterSize);
 
   // update op
   addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1), "quant",
@@ -284,12 +272,8 @@ LogicalResult quantizeBf16LeakyReluOps(Operation *op) {
   float negative_slope = lreluOp.negative_slope().convertToFloat();
   LLVM_DEBUG(llvm::errs() << "  negative_slope: "
                           << std::to_string(negative_slope) << "\n";);
-  uint16_t bf16_quant_negative_slope;
-  float quant_negative_slope;
-  FloatToBFloat16(&negative_slope, &bf16_quant_negative_slope, 1);
-  BFloat16ToFloat(&bf16_quant_negative_slope, &quant_negative_slope, 1);
-  lreluOp->setAttr("negative_slope",
-                   builder.getF32FloatAttr(quant_negative_slope));
+  negative_slope = BF16(negative_slope);
+  lreluOp->setAttr("negative_slope", builder.getF32FloatAttr(negative_slope));
 
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();

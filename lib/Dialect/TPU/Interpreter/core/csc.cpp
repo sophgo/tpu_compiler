@@ -1,5 +1,4 @@
 #include "tpuc/Interpreter/cpu/csc.hpp"
-#include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "internal.hpp"
@@ -12,7 +11,7 @@ static inline int align_up(int x, int n) {
 }
 
 static inline float UINT8(float data) {
-  return static_cast<float>(convert_fp32_u8(data));
+  return static_cast<float>(F32ToUint8(data, 0));
 }
 
 void yuv420_csc(float *input, float *output, int n, int c, int h, int w,

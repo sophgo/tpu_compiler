@@ -14,8 +14,8 @@ public:
   void invoke() override;
 
 private:
-  double sigmoid_(double data);
-  double tanh_(double data);
+  double sigmoid_(float data);
+  double tanh_(float data);
   void update_addr(bool forward = true);
   void compute(bool forward = true);
 

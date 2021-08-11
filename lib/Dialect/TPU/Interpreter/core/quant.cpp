@@ -10,54 +10,17 @@ llvm::cl::opt<bool>
                 llvm::cl::desc("Quant op inference by tpu instead of cpu"),
                 llvm::cl::init(true));
 
-static inline signed char tpu_float2int8(float v, int mode = 0) {
-
-  int int32 = 0;
-  float fraction, integer;
-  float abs_v = std::abs(v);
-  fraction = std::modf(abs_v, &integer);
-  int32 = (int)integer;
-  if (fraction > 0.5) {
-    int32 = int32 + 1;
-  } else if (fraction == 0.5) {
-    if (int32 & 0x01) {
-      int32 = int32 + 1;
-    }
-  }
-  if (v < 0) {
-    int32 = -int32;
-  }
-  if (int32 > 127) {
-    return 127;
-  }
-  if (int32 < -128) {
-    return -128;
-  }
-  return (signed char)int32;
-}
 // Quantize an Activation tensor into INT8, given threshold
 static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
                                    float scale, int zero_point, bool tpu_mode) {
   if (tpu_mode) {
-    bfloat16 bf_scale, bf_tmp;
-    bf_scale = FloatToBFloat16(scale);
-    scale = BFloat16ToFloat(bf_scale);
+    scale = BF16(scale);
     for (int64_t i = 0; i < size; ++i) {
-      float f_tmp = src[i];
       // remove [17:31] mantissa part
       // align \TgQuantKernel.cpp that we directly use high part
       // rather than convert it
-      FloatToBFloat16(&f_tmp, &bf_tmp, /*size=*/1, /*rounding=*/0);
-
-      f_tmp = BFloat16ToFloat(bf_tmp);
-      f_tmp = f_tmp * scale;
-      // align backend
-      bf_tmp = FloatToBFloat16(f_tmp);
-      f_tmp = BFloat16ToFloat(bf_tmp);
-      f_tmp = f_tmp + zero_point;
-      bf_tmp = FloatToBFloat16(f_tmp);
-      f_tmp = BFloat16ToFloat(bf_tmp);
-      dst[i] = (float)tpu_float2int8(f_tmp, 1);
+      float val = BF16(BF16(BF16(src[i], false) * scale) + zero_point, (zero_point != 0));
+      dst[i] = (float)F32ToInt8(val, 0);
     }
   } else {
     for (int64_t i = 0; i < size; ++i) {
@@ -109,40 +72,31 @@ static void quantizeFromFp32ToUInt16(float *src, float *dst, int64_t size,
 
 /// Dequant an Int8 Activation tensor to Bf16, given threshold
 /// Keep interpreter int8 quant align with TPU
-void dequantizeFromInt8ToBf16(float *src, float *dst, int64_t size, float scale,
+static void dequantizeFromInt8ToBf16(float *src, float *dst, int64_t size, float scale,
                               int zero_point) {
-  bfloat16 bf_scale;
-  bf_scale = FloatToBFloat16(scale);
-  scale = BFloat16ToFloat(bf_scale);
-  bfloat16 bf_zp;
-  bf_zp = FloatToBFloat16(zero_point);
-  zero_point = BFloat16ToFloat(bf_zp);
+  scale = BF16(scale);
+  zero_point = BF16(zero_point);
   for (int64_t i = 0; i < size; ++i) {
-    bfloat16 out = FloatToBFloat16((src[i] + zero_point) * scale);
-    dst[i] = (float)BFloat16ToFloat(out);
+    dst[i] = BF16(BF16(src[i] + zero_point, (zero_point != 0)) * scale);
+  }
+}
+
+static void quantizeFromBf16ToInt8(float *output, float *input, int64_t size,
+                            float scale) {
+  scale = BF16(scale);
+  for (int64_t i = 0; i < size; ++i) {
+    float val = BF16(input[i] * scale);
+    output[i] = (float)F32ToInt8(val, 0);
   }
 }
 
 /// DeQuantize an Activation tensor from INT8, given threshold
-void dequantizeFromInt8ToFp32(float *src, float *dst, int64_t size, float scale,
+static void dequantizeFromInt8ToFp32(float *src, float *dst, int64_t size, float scale,
                               int zero_point, bool tpu_mode) {
   if (tpu_mode) {
-    bfloat16 bf_scale, bf_tmp;
-    bf_scale = FloatToBFloat16(scale);
-    scale = BFloat16ToFloat(bf_scale);
-
+    scale = BF16(scale);
     for (int64_t i = 0; i < size; ++i) {
-      // i8->bf16
-      float fp_tmp = src[i];
-      fp_tmp += zero_point;
-      bf_tmp = FloatToBFloat16(fp_tmp);
-      fp_tmp = BFloat16ToFloat(bf_tmp);
-      // bf16 mul scale
-      fp_tmp *= scale;
-      bf_tmp = FloatToBFloat16(fp_tmp);
-      fp_tmp = BFloat16ToFloat(bf_tmp);
-      // bf16 -> fp32
-      dst[i] = fp_tmp;
+      dst[i] = BF16(BF16(src[i] + zero_point, (zero_point != 0)) * scale);
     }
   } else {
     for (int64_t i = 0; i < size; ++i) {
@@ -194,8 +148,8 @@ void QuantOpKernel::invoke() {
     quantizeFromFp32ToBf16(input_data->data(), output_data->data(),
                                             output_data->size());
   } else if (this->from == "BF16" && this->to == "INT8") {
-    quantizeActivationFromBf16ToInt8(output_data->data(), input_data->data(),
-                                     output_data->size(), scale);
+    quantizeFromBf16ToInt8(output_data->data(), input_data->data(),
+                           output_data->size(), scale);
   } else if (this->from == "NONE" && this->to == "INT16") {
     quantizeFromFp32ToInt16(input_data->data(), output_data->data(),
                              input_data->size(), scale);
@@ -225,26 +179,22 @@ void ReQuantOpKernel::invoke() {
   auto tensor_bf16 =
       std::make_unique<std::vector<bfloat16>>(output_data->size());
 
-  clean16bitmantissa(&scale, &scale, 1);
-  clean16bitmantissa(input_data_asym.data(), output_data->data(),
-                     input_data_asym.size());
+  scale = BF16(scale);
+  BF16(input_data_asym.data(), output_data->data(), input_data_asym.size());
 
   for (size_t i = 0; i < tensor_bf16->size(); i++) {
     output_data->at(i) += (float)input_offset;
   }
-  clean16bitmantissa(output_data->data(), output_data->data(),
-                     output_data->size());
+  BF16(output_data->data(), output_data->data(), output_data->size());
 
   for (size_t i = 0; i < tensor_bf16->size(); i++) {
     output_data->at(i) *= scale;
   }
-  clean16bitmantissa(output_data->data(), output_data->data(),
-                     output_data->size());
+  BF16(output_data->data(), output_data->data(), output_data->size());
   for (size_t i = 0; i < tensor_bf16->size(); i++) {
     output_data->at(i) += (float)output_offset;
   }
-  clean16bitmantissa(output_data->data(), output_data->data(),
-                     output_data->size());
+  BF16(output_data->data(), output_data->data(), output_data->size());
   // round
   for (size_t i = 0; i < tensor_bf16->size(); i++) {
     float sub_part;

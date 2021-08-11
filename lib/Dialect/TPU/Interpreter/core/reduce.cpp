@@ -207,8 +207,7 @@ void ReduceL2OpKernel::invoke() {
           output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
     }
   } else if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
@@ -240,8 +239,7 @@ void ReduceMaxOpKernel::invoke() {
           output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
     }
   } else if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
@@ -275,8 +273,7 @@ void ReduceMeanOpKernel::invoke() {
                      (int)multiplier, (int)rshift);
   } else if (datatype == DataType::BF16) {
     reduce_mean(input_data->data(), output_data->data(), input_shape, axes);
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 

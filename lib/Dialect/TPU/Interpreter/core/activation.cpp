@@ -4,9 +4,6 @@
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
-// FIXME: this head should not be here,
-//  using interpreter own float convert is better
-#include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "internal.hpp"
 
 #include <cmath>
@@ -182,8 +179,7 @@ void LeakyReluOpKernel::invoke() {
     }
   } else if (datatype == DataType::BF16) {
     leaky_relu(input_data->data(), output_data->data(), size, negative_slope);
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
@@ -248,8 +244,7 @@ void PReluOpKernel::invoke() {
       }
     }
   } else if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
@@ -491,8 +486,7 @@ void SquareOpKernel::invoke() {
   if (datatype == DataType::INT8) {
     llvm_unreachable("No int8 sqaure");
   } else if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 

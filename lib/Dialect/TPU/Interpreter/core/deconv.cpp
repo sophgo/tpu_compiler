@@ -188,8 +188,7 @@ void DeConv2DOpKernel::invoke() {
     i8_invoke();
   } else {
     fp32_invoke();
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size(), true);
   }
 }
 

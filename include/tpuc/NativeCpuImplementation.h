@@ -48,14 +48,6 @@ int my_pixelshuffle(float *input, float *output, int in, int ic,
                     int ih, int iw, int on, int oc, int oh, int ow,
                     int upscale_factor, bool dcr_mode=false);
 
-int my_clip(float *input, float *output, int in, int ic,
-                    int ih, int iw, int on, int oc, int oh, int ow,
-                    float min, float max);
-
-int my_div(float *input, float *output, int in, int ic,
-                    int ih, int iw, int on, int oc, int oh, int ow,
-                    float divisor);
-
 int my_upsample(float *input, float *output, int n, int c, int ih, int iw,
                 int scale_h, int scale_w);
 

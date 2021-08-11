@@ -29,16 +29,12 @@ void ClipOpKernel::invoke() {
   for (size_t i = 0; i < output_data->size(); i++) {
     output_data->at(i) = std::max(min, std::min(input_data->at(i), max));
   }
-  if (datatype == DataType::FP32) {
 
-  } else if (datatype == DataType::INT8) {
+  if (datatype == DataType::INT8) {
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
           output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
     }
-  } else {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
   }
 }
 

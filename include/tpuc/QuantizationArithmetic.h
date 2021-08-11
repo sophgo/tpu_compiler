@@ -28,11 +28,6 @@
 namespace mlir {
 
 ///
-/// utils
-///
-float findMaxWeight(float *weight, size_t size);
-
-///
 /// INT8
 ///
 uint32_t findRShiftForFilter(float max_filter,
@@ -74,23 +69,6 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
 
 float applyZeroPointSaturateInt8(float v, int offset);
 
-///
-/// BF16
-///
-//struct bfloat16 {
-//  bfloat16() {}
-//  explicit bfloat16(const uint16_t v) : value(v) {}
-//  uint16_t value;
-//};
-typedef uint16_t bfloat16;
-
-void FloatToBFloat16(const float* src, bfloat16* dst, size_t size,
-    bool rounding = true);
-void BFloat16ToFloat(const bfloat16* src, float* dst, size_t size);
-uint16_t FloatToTpuBfloat16(float fp32);
-
-bfloat16 FloatToBFloat16(float value);
-float BFloat16ToFloat(bfloat16 value);
 //
 // Wrapper APIs
 //
@@ -114,23 +92,11 @@ void quantizeBiasInt8PerLayerMultiplier(float *bias,
     float *rshift_per_layer, float *multiplier_per_layer, double qscale,
     bool qdm);
 
-
 void quantizeWeightInt8Multiplier(float *filter, float *bias,
     int64_t oc, int64_t isz, float threshold_y, float threshold_x,
     float *new_filter, float *new_bias,
-    float *rshift_per_channel, float *multiplier_per_channel, std::vector<float> &filter_threshold, int quant_bitwidth = 8);
-
-void quantizeActivationFromFp32ToInt8(float *output, float *input,
-    int64_t size, float scale, bool tpu_mode=false, int zero_point=0);
-
-void dequantizeActivationFromInt8ToFp32(float *output, float *input,
-    int64_t size, float scale, bool tpu_mode=false, int zero_point=0);
-
-void quantizeActivationFromBf16ToInt8(float *output, float *input,
-    int64_t size, float scale);
-
-void dequantizeActivationFromInt8ToBf16(float *output, float *input,
-    int64_t size, float scale);
+    float *rshift_per_channel, float *multiplier_per_channel,
+    std::vector<float> &filter_threshold, int quant_bitwidth = 8);
 
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,
     int64_t size, uint32_t rshift,int offset=0);
@@ -142,8 +108,19 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
     float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
     int64_t isz, float *rshift_per_channel, float *multiplier_per_channel, int output_offset=0);
 
-void clean16bitmantissa(float *src, float *dst, int size);
-float cut16bitmatissa(float src);
+
+typedef uint16_t bfloat16;
+
+int8_t F32ToInt8(float v, int round_mode);
+uint8_t F32ToUint8(float v, int round_mode);
+
+bfloat16 F32ToBF16(float src, bool rounding = true);
+
+void F32ToBF16(float *src, bfloat16 *dst, size_t size, bool rounding=true);
+
+float BF16(float src, bool rounding = true);
+
+void BF16(float *src, float *dst, size_t size, bool rounding = true);
 
 } // namespace mlir
 

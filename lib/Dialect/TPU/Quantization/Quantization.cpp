@@ -40,7 +40,6 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include <sstream>
 #include <fstream>
-#include <bmkernel/bm1880v2/1880v2_fp_convert.h>
 #include "tpuc/MachineInfo.h"
 #include <regex>
 

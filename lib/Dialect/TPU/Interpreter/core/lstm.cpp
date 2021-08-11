@@ -1,24 +1,23 @@
 #include "tpuc/Interpreter/cpu/lstm.hpp"
 #include "tpuc/Interpreter/cpu/lut_func.hpp"
-#include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 #include "internal.hpp"
 
 namespace mlir {
-double LstmOpKernel::sigmoid_(double data) {
+double LstmOpKernel::sigmoid_(float data) {
   if (datatype == DataType::BF16) {
-    float var = data;
+    float var = BF16(data);
     bf16_lut_slope("sigmoid", &var, &var, 1, *sigmoid_lut, *sigmoid_slope_lut);
     return var;
   } else {
     return 0.5 * tanh(0.5 * data) + 0.5;
   }
 }
-double LstmOpKernel::tanh_(double data) {
+double LstmOpKernel::tanh_(float data) {
   if (datatype == DataType::BF16) {
-    float var = data;
+    float var = BF16(data);
     bf16_lut_slope("tanh", &var, &var, 1, *tanh_lut, *tanh_slope_lut);
     return var;
   } else {
@@ -110,10 +109,10 @@ void LstmOpKernel::compute(bool forward) {
     mkldnn_ip(pre_state_h, r_c, r_bc, gate_c.data(), batch_size, hidden_size,
               hidden_size, false);
     if (datatype == DataType::BF16) {
-      clean16bitmantissa(gate_i.data(), gate_i.data(), gate_i.size());
-      clean16bitmantissa(gate_o.data(), gate_o.data(), gate_o.size());
-      clean16bitmantissa(gate_f.data(), gate_f.data(), gate_f.size());
-      clean16bitmantissa(gate_c.data(), gate_c.data(), gate_c.size());
+      BF16(gate_i.data(), gate_i.data(), gate_i.size());
+      BF16(gate_o.data(), gate_o.data(), gate_o.size());
+      BF16(gate_f.data(), gate_f.data(), gate_f.size());
+      BF16(gate_c.data(), gate_c.data(), gate_c.size());
     }
     for (int batch = 0; batch < batch_size; batch++) {
       float *xi = x + batch * input_size;
@@ -153,8 +152,7 @@ void LstmOpKernel::invoke() {
     compute(false);
   }
   if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 

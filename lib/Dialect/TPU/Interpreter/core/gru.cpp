@@ -1,24 +1,23 @@
 #include "tpuc/Interpreter/cpu/gru.hpp"
 #include "tpuc/Interpreter/cpu/lut_func.hpp"
-#include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 #include "internal.hpp"
 
 namespace mlir {
-double GruOpKernel::sigmoid_(double data) {
+double GruOpKernel::sigmoid_(float data) {
   if (datatype == DataType::BF16) {
-    float var = data;
+    float var = BF16(data);
     bf16_lut_slope("sigmoid", &var, &var, 1, *sigmoid_lut, *sigmoid_slope_lut);
     return var;
   } else {
     return 0.5 * tanh(0.5 * data) + 0.5;
   }
 }
-double GruOpKernel::tanh_(double data) {
+double GruOpKernel::tanh_(float data) {
   if (datatype == DataType::BF16) {
-    float var = data;
+    float var = BF16(data);
     bf16_lut_slope("tanh", &var, &var, 1, *tanh_lut, *tanh_slope_lut);
     return var;
   } else {
@@ -113,12 +112,9 @@ void GruOpKernel::compute(bool forward) {
     mkldnn_ip(prev_hidden_state, r_h, r_bh, hidden_gate.data(), batch_size,
               hidden_size, hidden_size, false);
     if (datatype == DataType::BF16) {
-      clean16bitmantissa(update_gate.data(), update_gate.data(),
-                         update_gate.size());
-      clean16bitmantissa(reset_gate.data(), reset_gate.data(),
-                         reset_gate.size());
-      clean16bitmantissa(hidden_gate.data(), hidden_gate.data(),
-                         hidden_gate.size());
+      BF16(update_gate.data(), update_gate.data(), update_gate.size());
+      BF16(reset_gate.data(), reset_gate.data(), reset_gate.size());
+      BF16(hidden_gate.data(), hidden_gate.data(), hidden_gate.size());
     }
     for (int batch = 0; batch < batch_size; batch++) {
       float *xz = xt + batch * input_size;
@@ -162,8 +158,7 @@ void GruOpKernel::invoke() {
     compute(false);
   }
   if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size(), true);
   }
 }
 

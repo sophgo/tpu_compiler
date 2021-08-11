@@ -224,8 +224,7 @@ void LrnOpKernel::invoke() {
     }
     lrn_main(input_data->data(), scale_data->data(), output_data->data(), n, c,
              h, w);
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 

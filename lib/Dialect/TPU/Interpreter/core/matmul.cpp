@@ -1,5 +1,4 @@
 #include "tpuc/Interpreter/cpu/matmul.hpp"
-#include "bmkernel/bm1880v2/1880v2_fp_convert.h"
 #include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
@@ -78,8 +77,7 @@ void MatMulOpKernel::invoke() {
     }
     break;
   case DataType::BF16:
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
     break;
   default:
     break;

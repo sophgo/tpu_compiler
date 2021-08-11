@@ -20,26 +20,10 @@ void bf16_lut_slope(const std::string &name, float *input, float *output, int si
                     const std::vector<float> &base_table,
                     const std::vector<float> &slop_table);
 
-void bf16_gen_exponent_mantissa_table(const std::string &name, uint16_t *exp_table,
-                                      uint16_t *mantissa_table, float param0, float param1);
-
-
-void bf16_gen_reciprocal(int start, int end, int table_hw, uint16_t *table_data);
-void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw, uint16_t *table_mantissa);
-
-void bf16_gen_sqrt(int start, int table_hw, uint16_t *table_data);
-void bf16_gen_sqrt_mantissa(int table_hw, uint16_t *table_mantissa);
-
-// y = 1/sqrt(x)
-void bf16_gen_reciprocal_sqrt(int start, int table_hw, uint16_t *table_data);
-void bf16_gen_reciprocal_sqrt_mantissa(int table_hw, uint16_t *table_mantissa);
-
-void bf16_gen_power_exp_table(uint16_t *table_data, float beta,
-                              int start, int table_hw);
-void bf16_gen_power_mantissa_table(uint16_t* table_mantissa, float beta,
-                                   int table_hw);
+void bf16_gen_exponent_mantissa_table(const std::string &name, float *exp_table,
+                                      float *mantissa_table, float param0, float param1);
 
 void bf16_lut_mantissa(float *input, float *output, int size,
                        const std::vector<float> &bf16_lut,
                        const std::vector<float> &bf16_mantissa_lut);
-#endif // MLIR_DIALECT_TPU_NATIVE_CPU_IMPLEMENTATION_H_
+#endif

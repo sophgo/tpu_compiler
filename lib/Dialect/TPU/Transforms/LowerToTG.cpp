@@ -3242,7 +3242,7 @@ static LogicalResult lowerWeight(Operation *op, TensorFile *wTF, B &builder,
 
   if (storage == "BF16") {
     std::vector<bfloat16> data_bf16(size);
-    FloatToBFloat16(data->data(), data_bf16.data(), size);
+    F32ToBF16(data->data(), data_bf16.data(), size, false);
     process_weight(data_bf16, shape, type);
     addWeightTensorAndUpdateWeightOp<bfloat16>(weightOp, "lowered", data_bf16,
                                                shape, "BF16", wTF);

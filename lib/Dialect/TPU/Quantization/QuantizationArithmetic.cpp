@@ -511,130 +511,6 @@ int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v, uint32_t rshift,
   }
 }
 
-///
-/// BFLOAT16 support
-/// from tensorflow
-///   tensorflow/tensorflow/core/framework/bfloat16.cc
-///   tensorflow/tensorflow/core/framework/bfloat16.h
-///
-
-// Compact 16-bit encoding of floating point numbers. This representation uses
-// 1 bit for the sign, 8 bits for the exponent and 7 bits for the mantissa.  It
-// is assumed that floats are in IEEE 754 format so the representation is just
-// bits 16-31 of a single precision float.
-//
-// NOTE: The IEEE floating point standard defines a float16 format that
-// is different than this format (it has fewer bits of exponent and more
-// bits of mantissa).  We don't use that format here because conversion
-// to/from 32-bit floats is more complex for that format, and the
-// conversion for this format is very simple.
-//
-// Because of the existing IEEE float16 type, we do not name our representation
-// "float16" but just use "uint16".
-//
-// <-----our 16bits float------->
-// s e e e e e e e e f f f f f f f f f f f f f f f f f f f f f f f
-// <------------------------------float-------------------------->
-// 3 3             2 2             1 1                           0
-// 1 0             3 2             5 4                           0
-//
-//
-// This type only supports conversion back and forth with float.
-//
-// This file must be compilable by nvcc.
-//
-// The type is defined in framework/numeric_types.h.
-
-void FloatToBFloat16(const float *src, bfloat16 *dst, size_t size,
-                     bool rounding) {
-  // const uint16_t* p = reinterpret_cast<const uint16_t*>(src);
-  const uint16_t *p = nullptr;
-  /// if rounding is prefered than trancating
-  /// float_val *= 1.001957f;
-  float *src_round = nullptr;
-  if (rounding) {
-    src_round = (float *)malloc(size * sizeof(float));
-    for (size_t i = 0; i < size; i++) {
-      float value = src[i];
-      uint32_t *u32_val = reinterpret_cast<uint32_t *>(&value);
-      uint32_t lsb = (*u32_val >> 16) & 1;
-      *u32_val += (0x7fff + lsb); // rounding_bias
-      float *ret = reinterpret_cast<float *>(u32_val);
-      src_round[i] = *ret;
-    }
-    p = reinterpret_cast<const uint16_t *>(src_round);
-  } else {
-    p = reinterpret_cast<const uint16_t *>(src);
-  }
-
-  uint16_t *q = reinterpret_cast<uint16_t *>(dst);
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  for (; size != 0; p += 2, q++, size--) {
-    *q = p[0];
-    /* HW behavior */
-    // infinity set to max finite positive value
-    if ((*q & 0x7f80) == 0x7f80) {
-      *q = 0x7f7f;
-    }
-  }
-#else
-  for (; size != 0; p += 2, q++, size--) {
-    *q = p[1];
-    /* HW behavior */
-    // infinity set to max finite positive value
-    if ((*q & 0x7f80) == 0x7f80) {
-      *q = 0x7f7f;
-    }
-  }
-#endif
-  if (rounding) {
-    free(src_round);
-  }
-}
-
-void BFloat16ToFloat(const bfloat16 *src, float *dst, size_t size) {
-  const uint16_t *p = reinterpret_cast<const uint16_t *>(src);
-  uint16_t *q = reinterpret_cast<uint16_t *>(dst);
-#if __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
-  for (; size != 0; p++, q += 2, size--) {
-    q[0] = *p;
-    q[1] = 0;
-  }
-#else
-  for (; size != 0; p++, q += 2, size--) {
-    q[0] = 0;
-    q[1] = *p;
-  }
-#endif
-}
-
-uint16_t FloatToTpuBfloat16(float fp32) {
-  union convert_type_float {
-    float fval;
-    uint16_t bf16[2];
-    uint32_t ival;
-  };
-
-  auto float_isnan = [](float x) -> uint8_t { return x != x; };
-
-  const uint16_t NAN_VALUE = 0x7FC0;
-
-  if (float_isnan(fp32))
-    return NAN_VALUE;
-  convert_type_float convert_val;
-  convert_val.fval = fp32;
-  uint32_t input = convert_val.ival;
-  uint32_t lsb = (input >> 16) & 1;
-  uint32_t rounding_bias = 0x7fff + lsb;
-  input += rounding_bias;
-  convert_val.bf16[1] = (uint16_t)(input >> 16);
-
-  /* HW behavior */
-  if ((convert_val.bf16[1] & 0x7f80) == 0x7f80) {
-    convert_val.bf16[1] = 0x7f7f;
-  }
-  return convert_val.bf16[1];
-}
 
 //
 // Tensors wise API
@@ -914,185 +790,10 @@ void quantizeWeightInt8Multiplier(float *filter, float *bias, int64_t oc,
   }
 }
 
-static inline signed char float2int8(float v, int mode = 0) {
-  if (mode == 1) { // round to zero
-    int int32 = (int)v; //std::round(v);
-    if (int32 > 127)
-      return 127;
-    if (int32 < -128)
-      return -128;
-    return (signed char)int32;
-  } else { // round to nearest even
-    int int32 = 0;
-    float fraction, integer;
-    float abs_v = std::abs(v);
-    fraction = std::modf(abs_v, &integer);
-    int32 = (int)integer;
-    if (fraction > 0.5) {
-      int32 = int32 + 1;
-    } else if (fraction == 0.5) {
-      if (int32 & 0x01) {
-        int32 = int32 + 1;
-      }
-    }
-
-    if (v < 0)
-      int32 = -int32;
-
-    if (int32 > 127)
-      return 127;
-    if (int32 < -128)
-      return -128;
-    return (signed char)int32;
-  }
-}
-
-/// Quantize an Activation tensor into INT8, given threshold
-void quantizeActivationFromFp32ToInt8(float *output, float *input, int64_t size,
-                                      float scale, bool tpu_mode,
-                                      int zero_point) {
-  // float scale = 128.0 / threshold;
-  if (tpu_mode) {
-    bfloat16 bf_scale, bf_tmp, bf_zp;
-    bf_scale = FloatToBFloat16(scale);
-    scale = BFloat16ToFloat(bf_scale);
-    bf_zp = FloatToBFloat16(zero_point);
-    zero_point = FloatToBFloat16(bf_zp);
-    for (int64_t i = 0; i < size; ++i) {
-      // note this is using std::round() rather than floor(v+0.5f)
-      // to compliance with NEON implemention on runtime
-      // output[i] = (float)saturateInt8(input[i] * 128.0 / threshold);
-      float f_tmp = input[i];
-      // remove [17:31] mantissa part
-      // align \TgQuantKernel.cpp that we directly use high part
-      // rather than convert it
-      FloatToBFloat16(&f_tmp, &bf_tmp, /*size=*/1, /*rounding=*/0);
-      f_tmp = BFloat16ToFloat(bf_tmp);
-      f_tmp = f_tmp * scale;
-      // align backend
-      bf_tmp = FloatToBFloat16(f_tmp);
-      f_tmp = BFloat16ToFloat(bf_tmp);
-      f_tmp = f_tmp + zero_point;
-      bf_tmp = FloatToBFloat16(f_tmp);
-      f_tmp = BFloat16ToFloat(bf_tmp);
-      output[i] = (float)float2int8(f_tmp, 0);
-    }
-  } else {
-    for (int64_t i = 0; i < size; ++i) {
-      // float scale = 128.0 / threshold;
-      int val = std::round(input[i] * scale) + zero_point;
-      if (val > 127) {
-        val = 127;
-      } else if (val < -128) {
-        val = -128;
-      }
-      output[i] = (float)val;
-    }
-  }
-}
-
 static inline int omp_schedule(int count) {
   return (count + omp_get_num_threads() - 1) / omp_get_num_threads();
 }
 
-/// DeQuantize an Activation tensor from INT8, given threshold
-void dequantizeActivationFromInt8ToFp32(float *output, float *input,
-                                        int64_t size, float scale,
-                                        bool tpu_mode, int zero_point) {
-  // float scale = threshold / 128.0;
-  if (tpu_mode) {
-    bfloat16 bf_scale, bf_tmp;
-    bf_scale = FloatToBFloat16(scale);
-    scale = BFloat16ToFloat(bf_scale);
-#pragma omp parallel for schedule(static, omp_schedule(size))
-    for (int64_t i = 0; i < size; ++i) {
-      // i8->bf16
-      float fp_tmp = input[i];
-      fp_tmp += zero_point;
-      bf_tmp = FloatToBFloat16(fp_tmp);
-      fp_tmp = BFloat16ToFloat(bf_tmp);
-      // bf16 mul scale
-      fp_tmp *= scale;
-      bf_tmp = FloatToBFloat16(fp_tmp);
-      fp_tmp = BFloat16ToFloat(bf_tmp);
-      // bf16 -> fp32
-      output[i] = fp_tmp;
-    }
-  } else {
-    for (int64_t i = 0; i < size; ++i) {
-      output[i] = (input[i] + zero_point) * scale;
-    }
-  }
-}
-
-static uint8_t float_isnan(const float x) {
-  // return isnan(x);
-  return x != x;
-}
-
-/// HW float to bfloat16
-bfloat16 FloatToBFloat16(float value) {
-  if (float_isnan(value))
-    return 0x7FC0 /*NAN_VALUE*/;
-
-  float f32_val = value;
-  uint32_t *u32_val = reinterpret_cast<uint32_t *>(&f32_val);
-  uint32_t input = *u32_val;
-  uint32_t lsb = (input >> 16) & 1;
-  uint32_t rounding_bias = 0x7fff + lsb;
-  input += rounding_bias;
-  bfloat16 bf_val = (bfloat16)(input >> 16);
-
-  /* HW behavior */
-  if ((bf_val & 0x7f80) == 0x7f80) {
-    bf_val = 0x7f7f;
-  }
-  return bf_val;
-}
-
-float BFloat16ToFloat(bfloat16 value) {
-  float dst = 0;
-  uint16_t *p = reinterpret_cast<uint16_t *>(&value);
-  uint16_t *q = reinterpret_cast<uint16_t *>(&dst);
-
-  q[0] = 0;
-  q[1] = *p;
-
-  return dst;
-}
-
-/// Quantize an Bf16 Activation tensor into INT8, given threshold
-/// Keep interpreter bf16 quant align with TPU
-/// TPU HW round mode support 0: round to nearest even, 1: round to zero
-void quantizeActivationFromBf16ToInt8(float *output, float *input, int64_t size,
-                                      float scale) {
-  bfloat16 bf_scale, bf_tmp;
-  bf_scale = FloatToBFloat16(scale);
-  scale = BFloat16ToFloat(bf_scale);
-#pragma omp parallel for schedule(static, omp_schedule(size))
-  for (int64_t i = 0; i < size; ++i) {
-    // auto bf_input = FloatToBFloat16(input[i]);
-    // auto f_input = BFloat16ToFloat(bf_input);
-    float f_tmp = input[i] * scale;
-    bf_tmp = FloatToBFloat16(f_tmp);
-    f_tmp = BFloat16ToFloat(bf_tmp);
-    output[i] = (float)float2int8(f_tmp, 0);
-  }
-}
-
-/// Dequant an Int8 Activation tensor to Bf16, given threshold
-/// Keep interpreter int8 quant align with TPU
-void dequantizeActivationFromInt8ToBf16(float *output, float *input,
-                                        int64_t size, float scale) {
-  bfloat16 bf_scale;
-  bf_scale = FloatToBFloat16(scale);
-  scale = BFloat16ToFloat(bf_scale);
-#pragma omp parallel for schedule(static, omp_schedule(size))
-  for (int64_t i = 0; i < size; ++i) {
-    bfloat16 out = FloatToBFloat16(input[i] * scale);
-    output[i] = (float)BFloat16ToFloat(out);
-  }
-}
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,
@@ -1143,17 +844,83 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
     }
   }
 }
-void clean16bitmantissa(float *src, float *dst, int size) {
-  auto tensor_bf16 = std::make_unique<std::vector<bfloat16>>(size);
-  FloatToBFloat16(src, tensor_bf16->data(),
-                  size); // with rounding
-  BFloat16ToFloat(tensor_bf16->data(), dst, size);
+
+bfloat16 F32ToBF16(float src, bool rounding) {
+  uint16_t u16_val;
+  if (rounding) {
+    uint32_t u32_val = *((uint32_t *)(&src));
+    uint32_t lsb = (u32_val >> 16) & 1;
+    u32_val += (0x7fff + lsb);
+    u16_val = ((uint16_t *)(&u32_val))[1];
+    /* HW behavior */
+    // infinity set to max finite positive value
+    u16_val = ((u16_val & 0x7f80) == 0x7f80) ?
+              0x7f7f : u16_val;
+  } else {
+    u16_val = ((uint16_t *)(&src))[1];
+  }
+  return u16_val;
 }
 
-float cut16bitmatissa(float src) {
+void F32ToBF16(float *src, bfloat16 *dst, size_t size, bool rounding) {
+  for (size_t i = 0; i < size; i++) {
+    dst[i] = F32ToBF16(src[i], rounding);
+  }
+}
+
+static int32_t F32ToInt(float v, int round_mode) {
+  int32_t i32_val;
+  if (round_mode == 1) { // round to zero
+    i32_val = (int)v;
+  } else { // round to nearest even
+    float fraction, integer;
+    float abs_v = std::abs(v);
+    fraction = std::modf(abs_v, &integer);
+    i32_val = (int)integer;
+    if (fraction > 0.5) {
+      i32_val = i32_val + 1;
+    } else if (fraction == 0.5) {
+      if (i32_val & 0x01) {
+        i32_val = i32_val + 1;
+      }
+    }
+    if (v < 0)
+      i32_val = -i32_val;
+  }
+  return i32_val;
+}
+
+int8_t F32ToInt8(float v, int round_mode) {
+  int32_t i32_val = F32ToInt(v, round_mode);
+  if (i32_val > 127)
+    return 127;
+  if (i32_val < -128)
+    return -128;
+  return (int8_t)i32_val;
+}
+
+uint8_t F32ToUint8(float v, int round_mode) {
+  int32_t i32_val = F32ToInt(v, round_mode);
+  if (i32_val > 255)
+    return 255;
+  if (i32_val < 0)
+    return 0;
+  return (uint8_t)i32_val;
+}
+
+float BF16(float src, bool rounding) {
   float dst = 0;
-  clean16bitmantissa(&src, &dst, 1);
+  uint16_t u16_val = F32ToBF16(src, rounding);
+  uint16_t *p = (uint16_t *)(&dst);
+  p[1] = u16_val;
   return dst;
 }
+
+void BF16(float *src, float *dst, size_t size, bool rounding) {
+  for (size_t i = 0; i < size; i++) {
+    dst[i] = BF16(src[i], rounding);
+  }
+}
+
 
 } // namespace mlir

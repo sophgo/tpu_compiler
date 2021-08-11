@@ -71,10 +71,8 @@ void FullyConnectedOpKernel::invoke() {
                 (uint32_t)multiplier_data->at(i), true);
       }
     }
-  }
-  if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+  } else if (datatype == DataType::BF16) {
+    BF16(output_data->data(), output_data->data(), output_data->size(), true);
   }
 }
 

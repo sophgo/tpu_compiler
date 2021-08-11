@@ -116,8 +116,7 @@ void BroadcastAddOpKernel::invoke() {
     i8_invoke();
   } else {
     fp32_invoke();
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
@@ -192,8 +191,7 @@ void BroadcastMulOpKernel::invoke() {
           output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, true);
     }
   } else if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
@@ -301,8 +299,7 @@ void BroadcastSubOpKernel::invoke() {
     i8_invoke();
   } else {
     fp32_invoke();
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 

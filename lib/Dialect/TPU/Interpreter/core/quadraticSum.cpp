@@ -24,8 +24,7 @@ void QuadraticSumOpKernel::invoke() {
                    output_data->data(), n, c, h, w, c, 1, 1, h, w, h, w, 1, 1,
                    0, 0, 0, 0, c, 0);
   if (datatype == DataType::BF16) {
-    clean16bitmantissa(output_data->data(), output_data->data(),
-                       output_data->size());
+    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 
