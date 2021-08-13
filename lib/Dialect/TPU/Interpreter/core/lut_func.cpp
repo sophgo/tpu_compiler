@@ -220,12 +220,10 @@ static void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw,
   int half = table_hw/2;
 
   int idx = 0;
-  float d;
   for (int i = 0; i < half; i++) {
-    d = 1 + i * 1 / 128.0;
+    float d = 1 + i * 1 / 128.0;
     d = (float) pow(d, -1);
     table_mantissa[128 + idx] = BF16(d);
-    //13=2^3x1.625=(2^2)x(2^1x1.625)
     table_mantissa[idx] = BF16(d);
     idx++;
   }
@@ -266,9 +264,6 @@ static void bf16_gen_sqrt_mantissa(int table_hw, float *table_mantissa) {
     float d = 1 + i * 1 / 128.0;
     d = (float) pow(d, 0.5);
     table_mantissa[128 + idx] = BF16(d);
-
-    d = 2 * (1 + i * 1 / 128.0);
-    d = (double) pow(d, 0.5);
     table_mantissa[idx] = BF16(d);
     idx++;
   }
@@ -304,15 +299,11 @@ static void bf16_gen_reciprocal_sqrt_mantissa(int table_hw, float *table_mantiss
   assert(half == 128);
 
   int idx = 0;
-  double d;
   for (uint32_t i = 0; i < half; i++) {
-    d = 1 + i * 1 / 128.0;
-    d = (double) pow(d, 0.5);
-    table_mantissa[128+idx] = BF16(1.0 / d);
-    d = 2 * (1 + i * 1 / 128.0);
-
-    d = (double) pow(d, 0.5);
-    table_mantissa[idx] = BF16(1.0 / d);
+    float d = 1 + i * 1 / 128.0;
+    d = (float) pow(d, -0.5);
+    table_mantissa[128+idx] = BF16(d);
+    table_mantissa[idx] = BF16(d);
     idx++;
   }
 }
@@ -368,10 +359,6 @@ static void bf16_gen_power_mantissa_table(float *table_mantissa, float beta, int
     float d = 1 + i * 1 / 128.0;
     d = (float)pow(d, (0-beta));
     table_mantissa[128+idx] = BF16(d);
-
-    //13=2^3x1.625=(2^2)x(2^1x1.625)
-    d = 2 * (1 + i * 1 / 128.0);
-    d = (float)pow(d, (0-beta));
     table_mantissa[idx] = BF16(d);
     idx++;
   }

@@ -117,25 +117,15 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
 
     auto type = result.getType().cast<TensorType>();
     std::unique_ptr<std::vector<float>> tensor = nullptr;
-    if (change_weight_table.count(tensor_name)) {
-      tensor = std::make_unique<std::vector<float>>(
-          change_weight_table[tensor_name].begin(),
-          change_weight_table[tensor_name].end());
-      change_weight_table.erase(tensor_name);
+    if (type.getElementType().isF32()) {
+      tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
     } else {
-      if (type.getElementType().isF32()) {
-        tensor = std::move(weightFile_->readTensor<float>(tensor_name, type));
-      } else {
-        llvm_unreachable("only support fp32 weight");
-      }
+      llvm_unreachable("only support fp32 weight");
     }
     std::string weight_name = loadWeightOp.name().str();
     std::vector<float> weight_data(tensor->begin(), tensor->end());
     std::vector<int64_t> weight_shape(type.getShape().begin(),
                                       type.getShape().end());
-
-    weight_data_list[weight_name] = std::make_pair(weight_data, weight_shape);
-
     valueMapping[result] = std::move(tensor);
     return;
   }

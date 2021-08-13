@@ -100,7 +100,6 @@ public:
     oplist.clear();
     input_details.clear();
     output_details.clear();
-    weight_data_list.clear();
   }
 
 private:
@@ -139,10 +138,6 @@ protected:
 
   value_map_t valueMapping;
   op_kernel_list oplist;
-  std::unordered_map<std::string,
-                     std::pair<std::vector<float>, std::vector<int64_t>>>
-      weight_data_list;
-  std::unordered_map<std::string, std::vector<float>> change_weight_table;
   std::mutex invoke_lock;
 };
 

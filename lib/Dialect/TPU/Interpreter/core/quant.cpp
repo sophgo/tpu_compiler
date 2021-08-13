@@ -5,10 +5,6 @@
 
 #include <cmath>
 
-llvm::cl::opt<bool>
-    clUseTPUQuantOp("use-tpu-quant-op",
-                llvm::cl::desc("Quant op inference by tpu instead of cpu"),
-                llvm::cl::init(true));
 
 // Quantize an Activation tensor into INT8, given threshold
 static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
@@ -114,16 +110,11 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping)
   this->from = quantOp.from().str();
   this->to = quantOp.to().str();
   auto prevOp = quantOp.getOperand().getDefiningOp(); // input
-  //this->useTpuQuant = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
   if (isa<tpu::ReshapeOp>(prevOp)) {
     auto pprevOp = cast<tpu::ReshapeOp>(prevOp).getOperand().getDefiningOp();
-    if (isa<tpu::InputOp>(pprevOp)) {
-      this->useTpuQuant = false;
-    } else {
-      this->useTpuQuant = clUseTPUQuantOp;
-    }
+    this->useTpuQuant = isa<tpu::InputOp>(pprevOp) ? false : true;
   } else {
-    this->useTpuQuant = isa<tpu::InputOp>(prevOp) ? false : clUseTPUQuantOp;
+    this->useTpuQuant = isa<tpu::InputOp>(prevOp) ? false : true;
   }
   // get tensors
   input_data = this->opdTensors[0];
