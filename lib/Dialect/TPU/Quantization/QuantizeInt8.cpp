@@ -1400,7 +1400,7 @@ LogicalResult tpu::InterpOp::quantizeInt8() {
   auto interpOp = cast<tpu::InterpOp>(op);
 
   llvm::StringRef type = "NONE";
-  if (interpOp.coordinate_transformation_mode() == "nearest") {
+  if (interpOp.coordinate_transformation_mode().startswith("nearest")) {
     type = "INT8";
     setOpResultType(op->getResult(0),
                     IntegerType::get(op->getContext(), 8, IntegerType::Signed));

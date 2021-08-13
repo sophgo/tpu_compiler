@@ -80,8 +80,6 @@ add_llvm_library(MLIRTPU
   Optimization/MergeConvConvPool.cpp
   Optimization/MergePermute.cpp
   Optimization/DeepFusion/SimpleDeepFusion.cpp
-  Optimization/DeepFusion/ConvertTG2TL_LA.cpp
-  Optimization/DeepFusion/ConvertTL_LA2LW.cpp
   Optimization/DeepFusion/SimpleAnalysis.cpp
   Optimization/DeepFusion/DeepFusionGroupSlice.cpp
   Optimization/DeepFusion/DeepFusionOpt.cpp

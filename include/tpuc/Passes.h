@@ -61,8 +61,6 @@ std::unique_ptr<mlir::Pass> createAssignChipNamePass();
 std::unique_ptr<mlir::Pass> createAddCpuCallPass();
 
 std::unique_ptr<mlir::Pass> createDeepFusionSimple();
-std::unique_ptr<mlir::Pass> createDeepFusionTG2TL_LA();
-std::unique_ptr<mlir::Pass> createDeepFusionTL_LA2LW();
 
 std::unique_ptr<mlir::Pass> createConvertPriorBoxPass();
 

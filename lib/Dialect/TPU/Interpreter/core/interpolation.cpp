@@ -1,8 +1,8 @@
 #include "tpuc/Interpreter/cpu/interpolation.hpp"
+#include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
-#include "internal.hpp"
 
 static inline float coordinate_transform(float x_resized, float x_scale,
                                          float length_resized, bool pytorch) {
@@ -179,17 +179,20 @@ void interp_linear(float *input, float *output, int n, int c, int ih, int iw,
 }
 
 void interp_neast(float *input, float *output, int n, int c, int ih, int iw,
-                  int oh, int ow) {
+                  int oh, int ow, bool half_pixel) {
   int nc = n * c;
-  float scale_h = (float)ih / oh;
-  float scale_w = (float)iw / ow;
+  float scale_h = ((float)ih) / oh;
+  float scale_w = ((float)iw) / ow;
 #pragma omp parallel for schedule(static, omp_schedule(nc))
   for (int i = 0; i < nc; i++) {
     for (int h = 0; h < oh; h++) {
       for (int w = 0; w < ow; w++) {
         int o_index = i * oh * ow + h * ow + w;
-        int i_index =
-            i * ih * iw + (int)(h * scale_h) * iw + (int)(w * scale_w);
+        int h_resized = (int)(half_pixel ? std::ceil((h + 0.5) * scale_h - 1.0)
+                                         : h * scale_h);
+        int w_resized = (int)(half_pixel ? std::ceil((w + 0.5) * scale_w - 1.0)
+                                         : w * scale_w);
+        int i_index = i * ih * iw + h_resized * iw + w_resized;
         output[o_index] = input[i_index];
       }
     }
@@ -309,11 +312,15 @@ void InterpolationOpKernel::invoke() {
   } else if (coordinate_transformation_mode == "pytorch_half_pixel") {
     interp_linear(input_data->data(), output_data->data(), in, ic, ih, iw, oh,
                   ow, true);
+  } else if (coordinate_transformation_mode == "nearest_half_pixel") {
+    interp_neast(input_data->data(), output_data->data(), in, ic, ih, iw, oh,
+                 ow, true);
   } else if (coordinate_transformation_mode == "nearest") {
     interp_neast(input_data->data(), output_data->data(), in, ic, ih, iw, oh,
-                 ow);
-  } else if (coordinate_transformation_mode == "asymmetric"){
-    interp_asymmetric(input_data->data(), output_data->data(), in, ic, ih, iw, oh, ow);
+                 ow, false);
+  } else if (coordinate_transformation_mode == "asymmetric") {
+    interp_asymmetric(input_data->data(), output_data->data(), in, ic, ih, iw,
+                      oh, ow);
   } else {
     llvm_unreachable("coordinate_transformation_model not support");
   }

@@ -49,11 +49,7 @@ TEST_ONNX_IR = [
     "PRelu",
 #    "ReduceMax",
     "ReduceMean",
-    "ResizeNearest",
-    "ResizeLinear",
-    "ResizeLinearDownSample",
-    "ResizePytorch",
-#   "ResizeModel",
+    "Resize",
 #    "Reciprocal",
     "Slice",
     "Slice_3dim", # test slice for 3 dims
@@ -155,11 +151,7 @@ class ONNX_IR_TESTER(object):
             "Reciprocal": self.test_Reciprocal,
             "Pad": self.test_Pad,
             "Relu": self.test_Relu,
-            "ResizeNearest": self.test_ResizeNearest,
-            "ResizeLinear": self.test_ResizeLinear,
-            "ResizeLinearDownSample": self.test_ResizeLinearDownSample,
-            "ResizePytorch": self.test_ResizePytorch,
-            "ResizeModel": self.test_ResizeModel,
+            "Resize": self.test_Resize,
             "Slice": self.test_Slice,
             "Slice_3dim": self.test_Slice_3dim,
             "Sigmoid": self.test_Sigmoid,
@@ -696,18 +688,10 @@ class ONNX_IR_TESTER(object):
 
     def test_DepthToSpace(self):
         test_case = 'DepthToSpace'
-        in_shape = [1, 640, 10, 8]
-        in_shape = [1, 8, 3, 4]
-        in_shape = [1, 32, 3, 4]
-        in_shape = [1, 128, 3, 4]
-        in_shape = [1, 256, 3, 4]
-        in_shape = [1, 256, 4, 4]
-        in_shape = [1, 256, 54, 96]
-        in_shape = [1, 256, 540, 960]
         in_shape = [1, 256, 1080, 1920]
         n, c, h, w = in_shape
         blocksize = 2
-        mode='CRD'
+        # mode='CRD'
         mode='DCR' # default
         out_shape = [n, c // (blocksize*blocksize), h * blocksize, w * blocksize]
         input_data = np.arange(np.prod(in_shape)).reshape(in_shape).astype(np.float32)
@@ -1717,173 +1701,32 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
-    def test_ResizeNearest(self):
-        test_case = "test_ResizeNearest"
-        input_shape = [1, 96, 3, 4]
-        output_shape = [1, 96, 6, 8]
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-
-
-        roi = np.array([], dtype=np.float32)
-        scales = np.array([], dtype=np.float32)
-        sizes = np.array([1, 96, 6, 8], dtype=np.int64)
-
-        roi_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['roi'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=roi.shape,
-                vals=roi.flatten(),
-            ),
-        )
-        scales_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['scales'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=scales.shape,
-                vals=scales.flatten(),
-            ),
-        )
-        sizes_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['sizes'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=sizes.shape,
-                vals=sizes.flatten(),
-            ),
-        )
-        resize_node = helper.make_node(
-            'Resize',
-            inputs=['input', 'roi', 'scales', 'sizes'],
-            outputs=['output'],
-            mode='nearest',
-        )
-
-        graph_def = helper.make_graph(
-            [roi_node_def, scales_node_def, sizes_node_def, resize_node],
-            test_case,
-            [input],
-            [output]
-        )
-
-        model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 11
-        input_data = np.random.rand(input_shape[0], input_shape[1],
-                                    input_shape[2], input_shape[3]).astype(np.float32)
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_ResizeLinearDownSample(self):
-        test_case = "test_ResizeLinearDownSample"
-
-        input_shape = [1, 96, 40, 40]
-        output_shape = [1, 96, 20, 20]
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-
-
-        roi = np.array([], dtype=np.float32)
-        scales = np.array([], dtype=np.float32)
-        sizes = np.array(output_shape, dtype=np.int64)
-
-        roi_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['roi'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=roi.shape,
-                vals=roi.flatten(),
-            ),
-        )
-        scales_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['scales'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=scales.shape,
-                vals=scales.flatten(),
-            ),
-        )
-        sizes_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['sizes'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=sizes.shape,
-                vals=sizes.flatten(),
-            ),
-        )
-        x1_node = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-        add_node = helper.make_node(
-            'Mul',  # node name
-            ['input', 'X1'],  # inputs
-            ['add'],  # outputs
-        )
-        resize_node = helper.make_node(
-            'Resize',
-            inputs=['add', 'roi', 'scales', 'sizes'],
-            outputs=['output'],
-            mode='linear',
-            coordinate_transformation_mode='half_pixel'
-        )
-
-        graph_def = helper.make_graph(
-            [x1_node, add_node, roi_node_def, scales_node_def, sizes_node_def, resize_node],
-            test_case,
-            [input],
-            [output]
-        )
-
-        model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 11
-        input_data = np.random.rand(input_shape[0], input_shape[1],
-                                    input_shape[2], input_shape[3]).astype(np.float32)
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_ResizeLinear(self):
-        # by cpu, with two outputs, scale is not integer
-        test_case = "test_ResizeLinear"
+    def test_Resize(self):
+        test_case = "test_Resize"
         input_shape = [1, 32, 208, 30]
-        output_shape = [1, 2, 416, 48]
+        #linear
+        output_shape1 = [1, 32, 416, 48] # by cpu, scale is not integer
+        output_shape2 = [1, 32, 416, 90] # by npu, scale is integer
+        output_shape3 = [1, 32, 104, 15] # by npu, scale is 0.5
+        #nearest
+        output_shape4 = [1, 32, 416, 60] # by npu, scale is integer
+        output_shape5 = [1, 32, 416, 20] # by cpu
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-        X2 = helper.make_tensor_value_info(
-            'X2', TensorProto.FLOAT, [1, 32, 416, 48])
-
-        sizes = np.array([1, 32, 416, 48], dtype=np.int64)
+        output1 = helper.make_tensor_value_info(
+            'output1', TensorProto.FLOAT, output_shape1)
+        output2 = helper.make_tensor_value_info(
+            'output2', TensorProto.FLOAT, output_shape2)
+        output3 = helper.make_tensor_value_info(
+            'output3', TensorProto.FLOAT, output_shape3)
+        output4 = helper.make_tensor_value_info(
+            'output4', TensorProto.FLOAT, output_shape4)
+        output5 = helper.make_tensor_value_info(
+            'output5', TensorProto.FLOAT, output_shape5)
         roi = np.array([], dtype=np.float32)
         scales = np.array([], dtype=np.float32)
-        roi_node_def = onnx.helper.make_node(
+        roi_def = onnx.helper.make_node(
             'Constant',
             inputs=[],
             outputs=['roi'],
@@ -1894,7 +1737,7 @@ class ONNX_IR_TESTER(object):
                 vals=roi.flatten(),
             ),
         )
-        scales_node_def = onnx.helper.make_node(
+        scales_def = onnx.helper.make_node(
             'Constant',
             inputs=[],
             outputs=['scales'],
@@ -1905,15 +1748,15 @@ class ONNX_IR_TESTER(object):
                 vals=scales.flatten(),
             ),
         )
-        sizes_node_def = onnx.helper.make_node(
+        sizes1_def = onnx.helper.make_node(
             'Constant',
             inputs=[],
-            outputs=['sizes'],
+            outputs=['sizes1'],
             value=onnx.helper.make_tensor(
                 name='const_tensor',
                 data_type=onnx.TensorProto.INT64,
-                dims=sizes.shape,
-                vals=sizes.flatten(),
+                dims=[4],
+                vals=np.array(output_shape1, dtype=np.int64),
             ),
         )
         x1_node = helper.make_node(
@@ -1921,54 +1764,88 @@ class ONNX_IR_TESTER(object):
             ['input'],
             ['X1'],
         )
-        resize_node = helper.make_node(
+        resize1_node = helper.make_node(
             'Resize',
-            inputs=['X1', 'roi', 'scales', 'sizes'],
-            outputs=['X2'],
+            inputs=['X1', 'roi', 'scales', 'sizes1'],
+            outputs=['output1'],
             mode='linear',
             coordinate_transformation_mode='half_pixel'
         )
-        weight_data = np.random.randn(2, 32, 3, 3).astype(np.float32)
-        bias_data = np.random.randn(2).astype(np.float32)
-
-        weight_node_def = onnx.helper.make_node(
+        sizes2_def = onnx.helper.make_node(
             'Constant',
             inputs=[],
-            outputs=['conv_w'],
+            outputs=['sizes2'],
             value=onnx.helper.make_tensor(
                 name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=weight_data.shape,
-                vals=weight_data.flatten(),
+                data_type=onnx.TensorProto.INT64,
+                dims=[4],
+                vals=np.array(output_shape2, dtype=np.int64),
             ),
         )
-        bias_node_def = onnx.helper.make_node(
+        resize2_node = helper.make_node(
+            'Resize',
+            inputs=['X1', 'roi', 'scales', 'sizes2'],
+            outputs=['output2'],
+            mode='linear',
+            coordinate_transformation_mode='pytorch_half_pixel'
+        )
+        sizes3_def = onnx.helper.make_node(
             'Constant',
             inputs=[],
-            outputs=['conv_b'],
+            outputs=['sizes3'],
             value=onnx.helper.make_tensor(
                 name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=bias_data.shape,
-                vals=bias_data.flatten(),
+                data_type=onnx.TensorProto.INT64,
+                dims=[4],
+                vals=np.array(output_shape3, dtype=np.int64),
             ),
         )
-        conv_node_def = onnx.helper.make_node(
-            "Conv",
-            inputs=['X2', 'conv_w', 'conv_b'],
-            outputs=['output'],
-            kernel_shape=[3, 3],
-            pads=[1, 1, 1, 1],
-            strides=[1, 1],
-            dilations=[1, 1],
-            group=1,
+        resize3_node = helper.make_node(
+            'Resize',
+            inputs=['X1', 'roi', 'scales', 'sizes3'],
+            outputs=['output3'],
+            mode='linear',
+            coordinate_transformation_mode='half_pixel'
         )
-
+        sizes4_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['sizes4'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=[4],
+                vals=np.array(output_shape4, dtype=np.int64),
+            ),
+        )
+        resize4_node = helper.make_node(
+            'Resize',
+            inputs=['X1', 'roi', 'scales', 'sizes4'],
+            outputs=['output4'],
+            mode='nearest',
+        )
+        sizes5_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['sizes5'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=[4],
+                vals=np.array(output_shape5, dtype=np.int64),
+            ),
+        )
+        resize5_node = helper.make_node(
+            'Resize',
+            inputs=['X1', 'roi', 'scales', 'sizes5'],
+            outputs=['output5'],
+            mode='nearest',
+        )
         graph_def = helper.make_graph(
-            [x1_node, roi_node_def, scales_node_def, sizes_node_def, resize_node, weight_node_def, bias_node_def, conv_node_def],
+            [x1_node, roi_def, scales_def, sizes1_def, resize1_node, sizes2_def, resize2_node, sizes3_def, resize3_node, sizes4_def, resize4_node, sizes5_def, resize5_node],
             test_case,
             [input],
-            [output, X2]
+            [output1, output2, output3, output4, output5]
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
@@ -1977,289 +1854,6 @@ class ONNX_IR_TESTER(object):
                                     input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_ResizePytorch(self):
-        # by npu, scale is integer
-        test_case = "test_ResizePytorch"
-        input_shape = [1, 32, 24, 12]
-        output_shape = [1, 32, 48, 96]
-        #input_shape = [1, 32, 6, 48]
-        #output_shape = [1, 32, 12, 96]
-        #input_shape = [1, 2, 6, 8]
-        #output_shape = [1, 2, 12, 16]
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-
-        roi = np.array([], dtype=np.float32)
-        scales = np.array([], dtype=np.float32)
-        sizes = np.array(output_shape, dtype=np.int64)
-
-        roi_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['roi'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=roi.shape,
-                vals=roi.flatten(),
-            ),
-        )
-        scales_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['scales'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=scales.shape,
-                vals=scales.flatten(),
-            ),
-        )
-        sizes_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['sizes'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=sizes.shape,
-                vals=sizes.flatten(),
-            ),
-        )
-        x1_node = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-        resize_node = helper.make_node(
-            'Resize',
-            inputs=['X1', 'roi', 'scales', 'sizes'],
-            outputs=['output'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-            #coordinate_transformation_mode='align_corners'
-        )
-
-        graph_def = helper.make_graph(
-            [x1_node, roi_node_def, scales_node_def, sizes_node_def, resize_node],
-            test_case,
-            [input],
-            [output]
-        )
-
-        model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 11
-        input_data = np.random.rand(input_shape[0], input_shape[1],
-                                    input_shape[2], input_shape[3]).astype(np.float32)
-        #input_data = np.arange(np.prod(input_shape)).reshape(input_shape).astype(np.float32)
-        #input_data = np.arange(
-        #        0, 1, 1 / np.prod(input_shape)).flatten()[:np.prod(input_shape)].reshape(input_shape).astype(np.float32)
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-
-
-    def test_ResizeModel(self):
-        test_case = "test_ResizeModel"
-        input_shape = [1, 32, 3, 24]
-        x1_shape = [1, 32, 6, 48]
-        x2_shape = [1, 32, 12, 96]
-        x3_shape = [1, 32, 24, 192]
-        x4_shape = [1, 32, 48, 384]
-        #input_shape = [1, 32, 6, 48]
-        #output_shape = [1, 32, 12, 96]
-        #input_shape = [1, 2, 6, 8]
-        #output_shape = [1, 2, 12, 16]
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        x3_4 = helper.make_tensor_value_info(
-            'X3_4', TensorProto.FLOAT, x3_shape)
-        x4 = helper.make_tensor_value_info(
-            'X4', TensorProto.FLOAT, x4_shape)
-        x32 = helper.make_tensor_value_info(
-            'X32', TensorProto.FLOAT, x3_shape)
-        x3 = helper.make_tensor_value_info(
-            'X3', TensorProto.FLOAT, x3_shape)
-        x2_4 = helper.make_tensor_value_info(
-            'X2_4', TensorProto.FLOAT, x2_shape)
-        roi = np.array([], dtype=np.float32)
-        scales = np.array([], dtype=np.float32)
-        x1_sizes = np.array(x1_shape, dtype=np.int64)
-        x2_sizes = np.array(x2_shape, dtype=np.int64)
-        x3_sizes = np.array(x3_shape, dtype=np.int64)
-        x4_sizes = np.array(x4_shape, dtype=np.int64)
-
-        roi_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['roi'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=roi.shape,
-                vals=roi.flatten(),
-            ),
-        )
-        scales_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['scales'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=scales.shape,
-                vals=scales.flatten(),
-            ),
-        )
-        x1_sizes_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['x1_sizes'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=x1_sizes.shape,
-                vals=x1_sizes.flatten(),
-            ),
-        )
-        x2_sizes_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['x2_sizes'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=x2_sizes.shape,
-                vals=x2_sizes.flatten(),
-            ),
-        )
-        x3_sizes_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['x3_sizes'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=x3_sizes.shape,
-                vals=x3_sizes.flatten(),
-            ),
-        )
-        x4_sizes_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['x4_sizes'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.INT64,
-                dims=x4_sizes.shape,
-                vals=x4_sizes.flatten(),
-            ),
-        )
-        neg_node = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['input_neg'],  # outputs
-        )
-        x1_resize_node = helper.make_node(
-            'Resize',
-            inputs=['input_neg', 'roi', 'scales', 'x1_sizes'],
-            outputs=['X1'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x12_resize_node = helper.make_node(
-            'Resize',
-            inputs=['input_neg', 'roi', 'scales', 'x1_sizes'],
-            outputs=['X12'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x2_resize_node = helper.make_node(
-            'Resize',
-            inputs=['X1', 'roi', 'scales', 'x2_sizes'],
-            outputs=['X2'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x22_resize_node = helper.make_node(
-            'Resize',
-            inputs=['X12', 'roi', 'scales', 'x2_sizes'],
-            outputs=['X22'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x3_resize_node = helper.make_node(
-            'Resize',
-            inputs=['X2', 'roi', 'scales', 'x3_sizes'],
-            outputs=['X3'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x32_resize_node = helper.make_node(
-            'Resize',
-            inputs=['X22', 'roi', 'scales', 'x3_sizes'],
-            outputs=['X32'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x33_resize_node = helper.make_node(
-            'Resize',
-            inputs=['X22', 'roi', 'scales', 'x3_sizes'],
-            outputs=['X33'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x34_resize_node = helper.make_node(
-            'Resize',
-            inputs=['X33', 'roi', 'scales', 'x3_sizes'],
-            outputs=['X34'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x4_resize_node = helper.make_node(
-            'Resize',
-            inputs=['X34', 'roi', 'scales', 'x4_sizes'],
-            outputs=['X4'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x2_4_resize_node = helper.make_node(
-            'Resize',
-            inputs=['input_neg', 'roi', 'scales', 'x2_sizes'],
-            outputs=['X2_4'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        x3_4_resize_node = helper.make_node(
-            'Resize',
-            inputs=['X1', 'roi', 'scales', 'x3_sizes'],
-            outputs=['X3_4'],
-            mode='linear',
-            coordinate_transformation_mode='pytorch_half_pixel'
-        )
-        graph_def = helper.make_graph(
-            [neg_node, roi_node_def, scales_node_def, x1_sizes_node_def, x2_sizes_node_def, x3_sizes_node_def, x4_sizes_node_def, x1_resize_node, x12_resize_node,
-                x2_resize_node, x22_resize_node, x3_resize_node, x32_resize_node, x33_resize_node, x34_resize_node, x4_resize_node, x2_4_resize_node, x3_4_resize_node],
-            test_case,
-            [input],
-            [x3_4, x2_4, x4, x32, x3]
-        )
-
-        model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 11
-        input_data = np.random.rand(input_shape[0], input_shape[1],
-                                    input_shape[2], input_shape[3]).astype(np.float32)
-        #input_data = np.arange(np.prod(input_shape)).reshape(input_shape).astype(np.float32)
-        #input_data = np.arange(
-        #        0, 1, 1 / np.prod(input_shape)).flatten()[:np.prod(input_shape)].reshape(input_shape).astype(np.float32)
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
 
     def test_Slice(self):
         _test_case = 'Slice'
@@ -2727,7 +2321,7 @@ class ONNX_IR_TESTER(object):
                         name='const_tensor',
                         data_type=onnx.TensorProto.FLOAT,
                         dims=[4],
-                        vals=np.array([1.0,1.0,2.0,2.03125]),
+                        vals=np.array([o/i for o,i in zip(output_shape1,input_shape)]),
                     ),
                 )
         scale2_node = onnx.helper.make_node(
@@ -2738,7 +2332,7 @@ class ONNX_IR_TESTER(object):
                         name='const_tensor',
                         data_type=onnx.TensorProto.FLOAT,
                         dims=[4],
-                        vals=np.array([1.0,1.0,2.0,2.0]),
+                        vals=np.array([o/i for o,i in zip(output_shape2,input_shape)]),
                     ),
                 )
         scale3_node = onnx.helper.make_node(
@@ -2749,7 +2343,7 @@ class ONNX_IR_TESTER(object):
                         name='const_tensor',
                         data_type=onnx.TensorProto.FLOAT,
                         dims=[4],
-                        vals=np.array([1.0,1.0,2.0,2.03125]),
+                        vals=np.array([o/i for o,i in zip(output_shape3,input_shape)]),
                     ),
                 )
         x1_node = helper.make_node(

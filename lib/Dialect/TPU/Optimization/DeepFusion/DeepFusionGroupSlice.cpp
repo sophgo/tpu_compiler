@@ -650,6 +650,9 @@ bool DeepFusionGroupSlice::isFusionOp(Operation *opInst, int batchSize) {
   }
   if (isa<tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
     auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(opInst);
+    if (op.input().hasOneUse() == false) {
+      return false;
+    }
     totalPerLane = SimpleConv2DMemoryUsageAnalysis(op, nullptr, batchSize);
 
   } else if (isa<tpu::TG_INT8_EltwiseAddOp>(opInst)) {

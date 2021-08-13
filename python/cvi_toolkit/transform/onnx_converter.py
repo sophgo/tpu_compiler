@@ -719,10 +719,7 @@ class OnnxConverter(BaseConverter):
                 info["name"] = node.name
                 info["op_type"] = "Resize"
                 mode = node.attrs.get('mode',b'nearest')
-                if mode == b'nearest':
-                    info['attrs'] = {'mode':mode}
-                else:
-                    info['attrs'] = {'mode':mode,'coordinate_transformation_mode':'asymmetric'}
+                info['attrs'] = {'mode':mode,'coordinate_transformation_mode':b'asymmetric'}
                 info["inputs"] = node.inputs
                 info["outputs"] = node.outputs
                 resize_node = BaseNode(info)
@@ -2783,6 +2780,171 @@ class OnnxConverter(BaseConverter):
             scale_list[count + idx] = distance
         return scale_list
 
+    # when resize by linear half pixel, with integer scale_h and integer scale_w
+    def resize_to_conv1(self, onnx_node, op, input_shape, output_shape, scale_h, scale_w):
+        # pad edge
+        pads_param = {
+            "pads": [0, 0, 1, 1, 0, 0, 1, 1],
+            "const_val": 0,
+            "pad_mode": 'edge',
+        }
+        pad_shape = list(input_shape)
+        for idx, v in enumerate(pad_shape):
+            pad_shape[idx] = int(
+                pads_param['pads'][idx] + v + pads_param['pads'][idx + 4])
+
+        name = "{}_{}_pad_edge".format(
+            onnx_node.name, onnx_node.op_type)
+        pads_op = self.CVI.add_pad_op(
+            name, [op], pad_shape, **pads_param)
+
+        # conv to replace with resize
+        input_shape = list(pad_shape)
+        ic = input_shape[1]
+        # w-direction
+        ins_h = int(scale_h - 1)
+        ins_w = int(scale_w - 1)
+        stride_h = 1
+        stride_w = 1
+        kh = int(2 * scale_h)
+        kw = int(2 * scale_w)
+        pad_t = int(scale_h/2) - 1
+        pad_b = int(scale_h) - pad_t - 2
+        pad_l = int(scale_w/2) - 1
+        pad_r = int(scale_w) - pad_l - 2
+        conv_param = {
+            'stride_h':  stride_h,
+            'stride_w':  stride_w,
+            'padding': "VALID",
+            'dilation_h': 1,
+            'dilation_w': 1,
+            'padding_t': pad_t,
+            'padding_b': pad_b,
+            'padding_l': pad_l,
+            'padding_r': pad_r,
+            'group': ic,
+            'is_dw': True,
+            'with_bias': False,
+            'do_relu': False,
+            'ins': [ins_w, ins_h],
+        }
+
+        # weight_shape = [ic, 1, 1, kh, kw]
+        factor_w = np.array(self.half_pixel_scale(
+            scale_w, pad_l)).reshape(1, kw)
+        factor_h = np.array(self.half_pixel_scale(
+            scale_h, pad_t)).reshape(kh, 1)
+        factor = np.dot(factor_h, factor_w).reshape(1, 1, 1, kh, kw)
+        conv_tensor_data = np.tile(np.array(factor), (ic, 1, 1, 1, 1))
+        weight_name = "{}_add_weight".format(onnx_node.name)
+        self.addTensor(weight_name, conv_tensor_data,
+                       conv_tensor_data.shape)
+        weight_op = self.CVI.add_load_file_op(
+            weight_name, conv_tensor_data.shape)
+
+        operands = list()
+        operands.append(pads_op)
+        operands.append(weight_op)
+
+        name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+        conv_op = self.CVI.add_conv_op(
+            name, operands, output_shape, **conv_param)
+        self.addOperand(onnx_node.name, conv_op,
+                        output_shape, TensorType.ACTIVATION)
+        return
+
+    # when resize by linear half pixel, with scale_h = 0.5 and scale_w = 0.5
+    def resize_to_conv2(self, onnx_node, op, input_shape, output_shape):
+        kh, kw, sh, sw = 2, 2, 2, 2
+        ic = input_shape[1]
+        conv_param = {
+            'stride_h':  sh,
+            'stride_w':  sw,
+            'padding': "VALID",
+            'dilation_h': 1,
+            'dilation_w': 1,
+            'padding_t': 0,
+            'padding_b': 0,
+            'padding_l': 0,
+            'padding_r': 0,
+            'group': ic,
+            'is_dw': True,
+            'with_bias': False,
+            'do_relu': False,
+            'ins': [0, 0],
+        }
+        filter_shape = [ic, 1, 1, kh, kw]
+        filter_data = np.array([0.25, 0.25, 0.25, 0.25]
+                               * ic, np.float32).reshape(filter_shape)
+        filter_name = "{}_conv_filter".format(onnx_node.name)
+        self.addTensor(filter_name, filter_data, filter_shape)
+        filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
+        operands = list()
+        operands.append(op)
+        operands.append(filter_op)
+
+        name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+        conv_op = self.CVI.add_conv_op(
+            name, operands, output_shape, **conv_param)
+        self.addOperand(onnx_node.name, conv_op,
+                        output_shape, TensorType.ACTIVATION)
+        return
+
+    # when resize by nearest, with integer scale_h and integer scale_w
+    def resize_to_conv3(self, onnx_node, op, input_shape, output_shape, scale_h, scale_w):
+        operands = [op]
+        ic = input_shape[1]
+        # use deconv(depthwise)
+        deconv_param = {
+            'stride_h':  int(scale_h),
+            'stride_w':  int(scale_w),
+            'padding': "VALID",
+            'dilation_h': 1,
+            'dilation_w': 1,
+            'padding_t': 0,
+            'padding_b': 0,
+            'padding_l': 0,
+            'padding_r': 0,
+            'group': ic,
+            'is_dw': False,
+            'with_bias': False,
+            'do_relu': False,
+            'ins': [],
+        }
+
+        # deconv weight all one
+        weight_shape = [ic, 1, 1, int(scale_h), int(scale_w)]
+        tensor_data = np.full(weight_shape, 1, np.float32)
+        weight_name = "{}_add_weight".format(onnx_node.name)
+        self.addTensor(weight_name, tensor_data, tensor_data.shape)
+        weight_op = self.CVI.add_load_file_op(
+            weight_name, tensor_data.shape)
+        operands.append(weight_op)
+
+        deconv_op = self.CVI.add_deconv_op("{}_{}".format(
+            onnx_node.name, onnx_node.op_type), operands, output_shape, **deconv_param)
+        self.addOperand(onnx_node.name, deconv_op,
+                        output_shape, TensorType.ACTIVATION)
+        return
+
+    def resize_to_interp(self, onnx_node, op, output_shape, coordinate_transformation_mode):
+        oh, ow = output_shape[2], output_shape[3]
+        attr = {
+            'height': int(oh),
+            'width': int(ow),
+            'pad_beg': 0,
+            'pad_end': 0,
+            'shrink_factor': 0,
+            'zoom_factor': 0,
+            'coordinate_transformation_mode': coordinate_transformation_mode
+        }
+
+        interp_op = self.CVI.add_interp_op(
+            "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
+        self.addOperand(onnx_node.name, interp_op,
+                        output_shape, TensorType.ACTIVATION)
+        return
+
     def convert_resize_op(self, onnx_node):
         assert(onnx_node.op_type == "Resize")
         mode = onnx_node.attrs.get("mode", "nearest")
@@ -2808,208 +2970,36 @@ class OnnxConverter(BaseConverter):
             raise RuntimeError("Resize only support h/w")
 
         output_shape = [int(i) for i in sizes]
-        on, oc, oh, ow = output_shape
-        _, ic, ih, iw = input_shape
-        if oh == ih and ow == iw:
-            self.addOperand(onnx_node.name, op, input_shape,
-                            TensorType.ACTIVATION)
-            return
         scale_h = scale_factor[2]
         scale_w = scale_factor[3]
-        if mode == b'linear':
-            coordinate_transformation_mode = onnx_node.attrs.get(
+        if scale_h == 1.0 and scale_w == 1.0:
+            self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+            return
+
+        coordinate_transformation_mode = onnx_node.attrs.get(
                 "coordinate_transformation_mode", "half_pixel")
-            if ow > 1 and oh > 1 and coordinate_transformation_mode == b"pytorch_half_pixel":
+        if mode == b'linear':
+            if output_shape[2] > 1 and output_shape[3] > 1 and coordinate_transformation_mode == b"pytorch_half_pixel":
                 coordinate_transformation_mode = b"half_pixel"
             if coordinate_transformation_mode == b"half_pixel":
                 if int(scale_h) == scale_h and int(scale_w) == scale_w:
-                    # pad edge
-                    pads_param = {
-                        "pads": [0, 0, 1, 1, 0, 0, 1, 1],
-                        "const_val": 0,
-                        "pad_mode": 'edge',
-                    }
-                    output_shape = list(input_shape)
-                    for idx, v in enumerate(output_shape):
-                        output_shape[idx] =\
-                            int(pads_param['pads'][idx] + v +
-                                pads_param['pads'][idx + 4])
-
-                    name = "{}_{}_pad_edge".format(
-                        onnx_node.name, onnx_node.op_type)
-                    pads_op = self.CVI.add_pad_op(
-                        name, [op], output_shape, **pads_param)
-
-                    # conv to replace with resize
-                    input_shape = list(output_shape)
-                    # w-direction
-                    ins_h = int(scale_h - 1)
-                    ins_w = int(scale_w - 1)
-                    stride_h = 1
-                    stride_w = 1
-                    kh = int(2 * scale_h)
-                    kw = int(2 * scale_w)
-                    pad_t = int(scale_h/2) - 1
-                    pad_b = int(scale_h) - pad_t - 2
-                    pad_l = int(scale_w/2) - 1
-                    pad_r = int(scale_w) - pad_l - 2
-                    oh = int(
-                        ((input_shape[2] - 1) * (ins_h + 1) + 1 + pad_t + pad_b - kh) / stride_h) + 1
-                    ow = int(
-                        ((input_shape[3] - 1) * (ins_w + 1) + 1 + pad_l + pad_r - kw) / stride_w) + 1
-
-                    output_shape = [on, oc, oh, ow]
-                    conv_param = {
-                        'stride_h':  stride_h,
-                        'stride_w':  stride_w,
-                        'padding': "VALID",
-                        'dilation_h': 1,
-                        'dilation_w': 1,
-                        'padding_t': pad_t,
-                        'padding_b': pad_b,
-                        'padding_l': pad_l,
-                        'padding_r': pad_r,
-                        'group': ic,
-                        'is_dw': True,
-                        'with_bias': False,
-                        'do_relu': False,
-                        'ins': [ins_w, ins_h],
-                    }
-
-                    # weight_shape = [ic, 1, 1, kh, kw]
-                    factor_w = np.array(self.half_pixel_scale(
-                        scale_w, pad_l)).reshape(1, kw)
-                    factor_h = np.array(self.half_pixel_scale(
-                        scale_h, pad_t)).reshape(kh, 1)
-                    factor = np.dot(factor_h, factor_w).reshape(1, 1, 1, kh, kw)
-                    conv_tensor_data = np.tile(np.array(factor), (ic, 1, 1, 1, 1))
-                    weight_name = "{}_add_weight".format(onnx_node.name)
-                    self.addTensor(weight_name, conv_tensor_data,
-                                conv_tensor_data.shape)
-                    weight_op = self.CVI.add_load_file_op(
-                        weight_name, conv_tensor_data.shape)
-
-                    operands = list()
-                    operands.append(pads_op)
-                    operands.append(weight_op)
-
-                    name = "{}_{}_conv_w".format(onnx_node.name, onnx_node.op_type)
-                    conv_op = self.CVI.add_conv_op(
-                        name, operands, output_shape, **conv_param)
-                    self.addOperand(onnx_node.name, conv_op,
-                                    output_shape, TensorType.ACTIVATION)
+                    self.resize_to_conv1(onnx_node, op, input_shape, output_shape, scale_h, scale_w)
                     return
-                elif scale_h == scale_w and scale_h == 0.5:
-                    # donwsample conv to replace with resize
-                    stride_h = int(1 / scale_h)
-                    stride_w = int(1 / scale_w)
-                    kh = stride_h
-                    kw = stride_w
-
-                    conv_param = {
-                        'stride_h':  stride_h,
-                        'stride_w':  stride_w,
-                        'padding': "VALID",
-                        'dilation_h': 1,
-                        'dilation_w': 1,
-                        'padding_t': 0,
-                        'padding_b': 0,
-                        'padding_l': 0,
-                        'padding_r': 0,
-                        'group': ic,
-                        'is_dw': True,
-                        'with_bias': False,
-                        'do_relu': False,
-                        'ins': [0, 0],
-                    }
-
-                    weight_shape = [ic, 1, 1, kh, kw]
-                    factor = [scale_h * scale_w, scale_h * scale_w,
-                            (1 - scale_h) * scale_w, (1 - scale_h) * scale_w]
-                    conv_tensor_data = np.tile(np.array(factor), ic).reshape(weight_shape)
-                    weight_name = "{}_w_add_weight".format(onnx_node.name)
-                    self.addTensor(weight_name, conv_tensor_data, conv_tensor_data.shape)
-                    weight_op = self.CVI.add_load_file_op(weight_name, conv_tensor_data.shape)
-                    operands = list()
-                    operands.append(op)
-                    operands.append(weight_op)
-
-                    name = "{}_{}_conv".format(onnx_node.name, onnx_node.op_type)
-                    conv_op = self.CVI.add_conv_op(name, operands, output_shape, **conv_param)
-                    self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
+                if scale_h == scale_w and scale_h == 0.5:
+                    self.resize_to_conv2(onnx_node, op, input_shape, output_shape)
                     return
-                else:
-                    pass
-            attr = {
-                'height': int(oh),
-                'width': int(ow),
-                'pad_beg': 0,
-                'pad_end': 0,
-                'shrink_factor': 0,
-                'zoom_factor': 0,
-                'coordinate_transformation_mode': coordinate_transformation_mode
-            }
-
-            interp_op = self.CVI.add_interp_op(
-                "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
-            self.addOperand(onnx_node.name, interp_op,
-                            output_shape, TensorType.ACTIVATION)
+            # by cpu
+            self.resize_to_interp(onnx_node, op, output_shape, coordinate_transformation_mode)
             return
-
         elif mode == b'nearest':
             if scale_h == int(scale_h) and scale_w == int(scale_w):
-                operands = [op]
-                group = ic
-                # use deconv(depthwise)
-                deconv_param = {
-                    'stride_h':  int(scale_h),
-                    'stride_w':  int(scale_w),
-                    'padding': "VALID",
-                    'dilation_h': 1,
-                    'dilation_w': 1,
-                    'padding_t': 0,
-                    'padding_b': 0,
-                    'padding_l': 0,
-                    'padding_r': 0,
-                    'group': ic,
-                    'is_dw': False,
-                    'with_bias': False,
-                    'do_relu': False,
-                    'ins': [],
-                }
-
-                # deconv weight all one
-                weight_shape = [group, int(
-                    oc/group), int(ic/group), int(oh / ih), int(ow / iw)]
-                tensor_data = np.full(weight_shape, 1)
-                weight_name = "{}_add_weight".format(onnx_node.name)
-                self.addTensor(weight_name, tensor_data, tensor_data.shape)
-                weight_op = self.CVI.add_load_file_op(
-                    weight_name, tensor_data.shape)
-                operands.append(weight_op)
-
-                deconv_op = self.CVI.add_deconv_op("{}_{}".format(
-                    onnx_node.name, onnx_node.op_type), operands, output_shape, **deconv_param)
-                self.addOperand(onnx_node.name, deconv_op,
-                                output_shape, TensorType.ACTIVATION)
+                self.resize_to_conv3(onnx_node, op, input_shape, output_shape, scale_h, scale_w)
                 return
-            else:
-                attr = {
-                    'height': oh,
-                    'width':  ow,
-                    'pad_beg': 0,
-                    'pad_end': 0,
-                    'shrink_factor': 0,
-                    'zoom_factor': 0,
-                    'coordinate_transformation_mode': 'nearest'
-                }
-
-                interp_op = self.CVI.add_interp_op(
-                    "{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
-                self.addOperand(onnx_node.name, interp_op,
-                                output_shape, TensorType.ACTIVATION)
-                return
-
+            mode = "nearest"
+            if coordinate_transformation_mode != b"asymmetric":
+                mode = "nearest_half_pixel"
+            self.resize_to_interp(onnx_node, op, output_shape, mode)
+            return
         else:
             raise RuntimeError("Unsupported mode {}".format(mode))
 
