@@ -242,12 +242,7 @@ static void bf16_gen_sqrt(int start, int table_hw, float *table_data) {
   // > 0, exp from 0 -62 -61 ..  62  63
   for (int i = 0; i < half; i++) {
     int shift = (start + i);
-    bool is_odd = (shift % 2);
     float exp = shift;
-    if (is_odd) {
-      exp = exp - 1;
-    }
-
     float s = (float)pow(2, 0.5 * exp);
     table_data[idx] = BF16(s);
     idx++;
@@ -282,11 +277,7 @@ static void bf16_gen_reciprocal_sqrt(int start, int table_hw, float *table_data)
   // > 0, exp from 0 -62 -61 ..  62  63
   for (int i = 0; i < half; i++) {
     int shift = (start + i);
-    bool is_odd = (shift % 2);
     float exp = shift;
-    if (is_odd) {
-      exp = exp - 1;
-    }
     float s = (float)pow(2, 0.5 * exp);
     table_data[idx] = BF16(1.0 / s);
     idx++;
@@ -321,12 +312,7 @@ static void bf16_gen_power_exp_table(float *table_data, float beta,
   // > 0, exp from -62 -61 ..  62  63
   for (int i = 0; i < half - 1; i++) {
     int shift = (exp_start + i);
-    bool is_odd = (shift % 2);
     float exp = shift;
-    if (is_odd) {
-      exp = exp - 1;
-    }
-
     double s = (double)(pow(2, (exp*(-beta))));
     table_data[idx] = BF16(s);
     idx++;
@@ -335,16 +321,19 @@ static void bf16_gen_power_exp_table(float *table_data, float beta,
   table_data[idx] = BF16(1); // power(-0)
   idx++;
 
+  bool _signed = false;
+  if ((((int)beta) % 2 == 0) && (beta - (int)beta == 0)) {
+    _signed = true;
+  }
+
   // < 0, exp from 0 -62 -61 ..  62  63
   for (int i = 0; i < half - 1; i++) {
     int shift = (exp_start + i);
-    bool is_odd = (shift % 2);
     float exp = shift;
-    if (is_odd) {
-      exp = exp - 1;
+    float s = -1 * (double)(pow(2, (exp*(-beta))));
+    if (_signed) {
+      s *= -1;
     }
-
-    double s = -1 * (double)(pow(2, (exp*(-beta))));
     table_data[idx] = BF16(s);
     idx++;
   }
@@ -357,7 +346,7 @@ static void bf16_gen_power_mantissa_table(float *table_mantissa, float beta, int
   int idx = 0;
   for (int i = 0; i < half; i++) {
     float d = 1 + i * 1 / 128.0;
-    d = (float)pow(d, (0-beta));
+    d = (float)pow(d, (-beta));
     table_mantissa[128+idx] = BF16(d);
     table_mantissa[idx] = BF16(d);
     idx++;

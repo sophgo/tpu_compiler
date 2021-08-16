@@ -462,6 +462,9 @@ void SqrtOpKernel::invoke() {
     for (size_t i = 0; i < output_size; ++i) {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
+  } else if (datatype == DataType::BF16) {
+    bf16_lut_mantissa(input_data->data(), output_data->data(), input_data->size(),
+                     *y0_bf16_table_op, *y0_bf16_slope_table);
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
