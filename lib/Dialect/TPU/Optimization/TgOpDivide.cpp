@@ -128,6 +128,9 @@ public:
   bool init_op_set(FuncOp &fn) {
     Operation *in_op = nullptr;
     bool multi_input = false;
+    op_data.clear();
+    op_set.clear();
+    max_size = 0;
     fn.walk([&](tpu::InputOp inputOp) {
       if (in_op == nullptr) {
         in_op = inputOp.getOperation();
@@ -174,30 +177,19 @@ public:
     if (max_size <= (int)(NPU_NUM * LOCAL_MEM_SIZE)) {
       return false;
     }
-    if (op_data.size() > 1) {
-      return true;
-    }
-    return false;
-  }
-
-  bool collect(FuncOp fn) {
-    op_data.clear();
-    if (false == init_op_set(fn)) {
+    if (op_data.size() <= 1) {
       return false;
     }
-    llvm::errs() << "============ tg op divide ===========================\n";
-    for (auto &info : op_data) {
-      auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(info.op);
-      llvm::errs() << "op:" << tpuOp.getOpName() << ", size: " << info.max_size
-                   << "\n";
-    }
-
-    auto last_size = getTensorSize(last_op->getResult(0));
-    auto last_shape = getTensorShape(last_op->getResult(0));
-    auto last_h = last_shape[2];
     for (auto &info : op_data) {
       op_set.insert(info.op_set.begin(), info.op_set.end());
     }
+    return true;
+  }
+
+  bool decide_piece(FuncOp fn) {
+    auto last_size = getTensorSize(last_op->getResult(0));
+    auto last_shape = getTensorShape(last_op->getResult(0));
+    uint32_t last_h = last_shape[2];
     num_piece = 1;
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect()->getNamespace() != "tpu" ||
@@ -213,12 +205,17 @@ public:
       }
     });
     num_piece = (max_size + last_size - 1) / last_size;
-    if (last_h < num_piece) {
-      num_piece = last_h;
-    }
+    num_piece = std::min(32u, std::min(num_piece, last_h));
     if (num_piece < 2) {
       return false;
     }
+    llvm::errs() << "============ tg op divide ===========================\n";
+    for (auto &info : op_data) {
+      auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(info.op);
+      llvm::errs() << "op:" << tpuOp.getOpName() << ", size: " << info.max_size
+                   << "\n";
+    }
+    llvm::errs() << "divide to [" << num_piece << "] pieces\n";
     return true;
   }
 
@@ -570,7 +567,10 @@ public:
     MInfo::getChipInfo(fn);
     auto *context = &getContext();
     auto builder = OpBuilder(context);
-    if (collect(fn) == false) {
+    if (init_op_set(fn) == false) {
+      return;
+    }
+    if (decide_piece(fn) == false) {
       return;
     }
     if (do_slice() == false) {
