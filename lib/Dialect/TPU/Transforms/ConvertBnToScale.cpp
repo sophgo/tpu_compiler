@@ -99,13 +99,9 @@ struct TpuBatchNormOpPattern : public RewritePattern {
         LLVM_DEBUG(llvm::errs() << "BN: var too small, i=" << i
                                 << ", v=" << std::to_string(variance[i])
                                 << ", m=" << std::to_string(mean[i]) << "\n";);
-        // set to zero
-        new_scale[i] = 1.0;
-        new_bias[i] = 0.0;
-      } else {
-        new_scale[i] = 1.0 / sqrt(variance[i] + variance_epsilon);
-        new_bias[i] = -1.0 * new_scale[i] * mean[i];
       }
+      new_scale[i] = 1.0 / sqrt(variance[i] + variance_epsilon);
+      new_bias[i] = -1.0 * new_scale[i] * mean[i];
     }
     std::vector<std::vector<float> *> newWeights{ &new_scale, &new_bias };
 
