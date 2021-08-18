@@ -166,6 +166,7 @@ public:
       op_data.push_back(info);
       info.max_size = 0;
       info.op_set.clear();
+      info.op = nullptr;
       next_op = getNextMainOp(next_op, info);
     } while (next_op != nullptr);
     last_op = op_data.back().op;
@@ -367,7 +368,7 @@ public:
     if (!weight_op) {
       return weight;
     }
-    auto name = weight_op.name().str() + "_" + std::to_string(current_idx);
+    auto name = weight_op.name().str() + "_tod_" + std::to_string(current_idx);
     auto type = weight_op.getResult().getType().template cast<TensorType>();
     copy_tensor(weight_op.name(), name, type, wTF);
     if (current_idx == num_piece - 1) {
@@ -426,7 +427,7 @@ public:
         }
       }
       std::string name =
-          cast_op.name().str() + "_add_" + std::to_string(current_idx);
+          cast_op.name().str() + "_tod_" + std::to_string(current_idx);
       for (auto &pair : op->getAttrs()) {
         if (pair.first == "name") {
           attrs.push_back(
@@ -449,7 +450,7 @@ public:
       operands.push_back(filter);
       operands.push_back(pc_info);
       std::string name =
-          cast_op.name().str() + "_conv_" + std::to_string(current_idx);
+          cast_op.name().str() + "_tod_" + std::to_string(current_idx);
 
       auto p = cast_op.paramAttr();
       int pad_t = p.padding_t().getInt();
@@ -502,7 +503,7 @@ public:
     offset[2] = h_start;
     auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
     std::string name =
-        tpuOp.getOpName().str() + "_crop_" + std::to_string(current_idx);
+        tpuOp.getOpName().str() + "_tod_" + std::to_string(current_idx);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name)));
     attrs.push_back(builder.getNamedAttr("crop_shape",
@@ -540,12 +541,15 @@ public:
         }
       }
     }
+#if 0
+    // needn't erase, or will corrupt
     for (auto &op : op_set) {
       op->erase();
     }
     for (auto &op : weight_set) {
       op->erase();
     }
+#endif
   }
 
   void do_process(FuncOp &fn, OpBuilder &builder) {
