@@ -47,19 +47,22 @@ public:
     Operation *op;
     std::set<Operation *> op_set;
     int64_t max_size;
-  } op_info_t;
+  } main_op_t;
 
   typedef struct {
     int out_h_start;
     int out_h;
     int in_h_start;
     int in_h;
+    int num_backward;
     Operation *op; // op after slice;
+
   } h_slice_t;
 
   typedef struct {
     std::vector<h_slice_t> slice;
-  } slice_info_t;
+    int num_uses;
+  } op_info_t;
 
 public:
   explicit TgOpDividePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
@@ -72,7 +75,7 @@ public:
     return false;
   }
 
-  static bool update_box(std::set<Operation *> &op_box, op_info_t &op_info) {
+  static bool update_box(std::set<Operation *> &op_box, main_op_t &main_op) {
     if (op_box.size() == 1) {
       return true;
     }
@@ -95,16 +98,16 @@ public:
         return false;
       }
       op_box.insert(sub_op);
-      op_info.op_set.insert(sub_op);
+      main_op.op_set.insert(sub_op);
       auto size = getTensorSize(sub_op->getResult(0));
-      if (op_info.max_size < size) {
-        op_info.max_size = size;
+      if (main_op.max_size < size) {
+        main_op.max_size = size;
       }
     }
-    return update_box(op_box, op_info);
+    return update_box(op_box, main_op);
   }
 
-  static Operation *getNextMainOp(Operation *op, op_info_t &op_info) {
+  static Operation *getNextMainOp(Operation *op, main_op_t &main_op) {
     std::set<Operation *> op_box;
     for (auto &use : op->getResult(0).getUses()) {
       auto sub_op = use.getOwner();
@@ -112,13 +115,13 @@ public:
         return nullptr;
       }
       op_box.insert(sub_op);
-      op_info.op_set.insert(sub_op);
+      main_op.op_set.insert(sub_op);
       auto size = getTensorSize(sub_op->getResult(0));
-      if (op_info.max_size < size) {
-        op_info.max_size = size;
+      if (main_op.max_size < size) {
+        main_op.max_size = size;
       }
     }
-    bool ret = update_box(op_box, op_info);
+    bool ret = update_box(op_box, main_op);
     if (ret == false) {
       return nullptr;
     }
@@ -153,7 +156,7 @@ public:
     }
     start_op = next_op;
     auto size = getTensorSize(next_op->getResult(0));
-    op_info_t info = {
+    main_op_t info = {
         .op = next_op,
         .op_set = {next_op},
         .max_size = size,
@@ -184,6 +187,14 @@ public:
     for (auto &info : op_data) {
       op_set.insert(info.op_set.begin(), info.op_set.end());
     }
+    for (auto op : op_set) {
+      op_info_t op_info;
+      auto iter = op->getResult(0).use_begin();
+      auto end = op->getResult(0).use_end();
+      for (op_info.num_uses = 0; iter != end; iter++, op_info.num_uses++)
+        ;
+      op_h_map[op] = op_info;
+    }
     return true;
   }
 
@@ -210,13 +221,6 @@ public:
     if (num_piece < 2) {
       return false;
     }
-    llvm::errs() << "============ tg op divide ===========================\n";
-    for (auto &info : op_data) {
-      auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(info.op);
-      llvm::errs() << "op:" << tpuOp.getOpName() << ", size: " << info.max_size
-                   << "\n";
-    }
-    llvm::errs() << "divide to [" << num_piece << "] pieces\n";
     return true;
   }
 
@@ -225,39 +229,33 @@ public:
                        .out_h = h,
                        .in_h_start = h_start,
                        .in_h = h,
+                       .num_backward = 1,
                        .op = nullptr};
     if (op_set.find(op) == op_set.end()) {
       if (getNextOp(op) == start_op) {
-        start_slice.slice.push_back(slice);
+        first_slice.push_back(slice);
         return true;
       }
       return false;
     }
-    auto &current = op_h_map[op].slice;
-    if (current.size() <= current_idx) {
-      current.push_back(slice);
+    auto &op_info = op_h_map[op];
+    if (op_info.slice.size() <= current_idx) {
+      op_info.slice.push_back(slice);
     } else {
-      auto &index = current[current_idx];
+      auto &index = op_info.slice[current_idx];
       if (index.out_h < h) {
         index.out_h = h;
       }
       if (index.out_h_start > h_start) {
         index.out_h_start = h_start;
       }
+      index.num_backward++;
     }
+    auto &index = op_info.slice[current_idx];
     // check all sub ops has backward, then do backward
-    if (op != last_op) {
-      for (auto &use : op->getResult(0).getUses()) {
-        auto sub_op = use.getOwner();
-        if (op_set.find(sub_op) == op_set.end()) {
-          return false;
-        }
-        if (op_h_map[sub_op].slice.size() <= current_idx) {
-          return true;
-        }
-      }
+    if (op != last_op && index.num_backward < op_info.num_uses) {
+      return true;
     }
-    auto &index = current[current_idx];
 
     // do backward
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::TG_INT8_EltwiseAddOp>(op)) {
@@ -311,10 +309,6 @@ public:
     }
     int last_h = shape[2];
     int h_step = (last_h + num_piece - 1) / num_piece;
-    slice_info_t slice_info;
-    for (auto op : op_set) {
-      op_h_map[op] = slice_info;
-    }
     current_idx = 0;
     for (int h_pos = 0; h_pos < last_h; h_pos += h_step, ++current_idx) {
       auto h = std::min(h_step, last_h - h_pos);
@@ -322,7 +316,7 @@ public:
         return false;
       }
     }
-    if (start_slice.slice.size() != num_piece) {
+    if (first_slice.size() != num_piece) {
       return false;
     }
     for (auto &pair : op_h_map) {
@@ -394,7 +388,7 @@ public:
 
     Operation *input_op;
     if (op == start_op) {
-      input_op = start_slice.slice[current_idx].op;
+      input_op = first_slice[current_idx].op;
     } else {
       auto tmp = op->getOperand(0).getDefiningOp();
       input_op = op_h_map[tmp].slice[current_idx].op;
@@ -553,14 +547,21 @@ public:
   }
 
   void do_process(FuncOp &fn, OpBuilder &builder) {
+    llvm::errs() << "============ tg op divide ===========================\n";
+    for (auto &info : op_data) {
+      auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(info.op);
+      llvm::errs() << "op:" << tpuOp.getOpName() << ", size: " << info.max_size
+                   << "\n";
+    }
+    llvm::errs() << "divide to [" << num_piece << "] pieces\n";
     auto input_op = start_op->getOperand(0);
     builder.setInsertionPointAfter(last_op);
     for (uint32_t i = 0; i < num_piece; i++) {
       current_idx = i;
-      auto crop_op = create_crop_op(builder, input_op.getDefiningOp(),
-                                    start_slice.slice[i].out_h_start,
-                                    start_slice.slice[i].out_h);
-      start_slice.slice[i].op = crop_op.getDefiningOp();
+      auto crop_op =
+          create_crop_op(builder, input_op.getDefiningOp(),
+                         first_slice[i].out_h_start, first_slice[i].out_h);
+      first_slice[i].op = crop_op.getDefiningOp();
       forward(builder, start_op);
     }
     concat_all(fn, builder);
@@ -572,12 +573,15 @@ public:
     auto *context = &getContext();
     auto builder = OpBuilder(context);
     if (init_op_set(fn) == false) {
+      llvm::errs() << "tg-op-divide op set failed\n";
       return;
     }
     if (decide_piece(fn) == false) {
+      llvm::errs() << "tg-op-divide piece failed\n";
       return;
     }
     if (do_slice() == false) {
+      llvm::errs() << "tg-op-divide slice failed\n";
       return;
     }
     do_process(fn, builder);
@@ -586,14 +590,14 @@ public:
 private:
   uint32_t num_piece;
   uint32_t current_idx;
-  std::vector<op_info_t> op_data;
-  std::map<Operation *, slice_info_t> op_h_map;
+  std::vector<main_op_t> op_data;
+  std::map<Operation *, op_info_t> op_h_map;
   std::set<Operation *> op_set;
   std::set<Operation *> weight_set;
   std::vector<Operation *> last_uses;
   Operation *start_op;
   Operation *last_op;
-  slice_info_t start_slice;
+  std::vector<h_slice_t> first_slice;
   int64_t max_size;
   llvm::raw_ostream &os;
 };
