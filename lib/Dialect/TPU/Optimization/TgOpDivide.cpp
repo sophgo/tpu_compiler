@@ -36,7 +36,6 @@
 #include <set>
 
 using namespace mlir;
-#define EU_NUM (MInfo::eu_num)
 #define NPU_NUM (MInfo::lane_num)
 #define LOCAL_MEM_SIZE (MInfo::lmem_per_lane)
 
@@ -55,13 +54,15 @@ public:
     int in_h_start;
     int in_h;
     int num_backward;
+    int num_forward;
     Operation *op; // op after slice;
-
   } h_slice_t;
 
   typedef struct {
     std::vector<h_slice_t> slice;
     int num_uses;
+    int num_input;
+    std::vector<int64_t> shape; // output shape
   } op_info_t;
 
 public:
@@ -69,7 +70,8 @@ public:
 
   static bool support(Operation *op) {
     if (isa<tpu::TG_INT8_PC_Conv2DOp>(op) ||
-        isa<tpu::TG_INT8_EltwiseAddOp>(op)) {
+        isa<tpu::TG_INT8_EltwiseAddOp>(op) ||
+        isa<tpu::TG_INT8_PoolMax2DOp>(op)) {
       return true;
     }
     return false;
@@ -107,6 +109,14 @@ public:
     return update_box(op_box, main_op);
   }
 
+  static inline std::string getOpName(Operation *op) {
+    auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
+    return tpuOp.getOpName().str();
+  }
+
+  inline bool start_slice() { return slice_idx == 0; }
+  inline bool end_slice() { return slice_idx == num_slice - 1; }
+
   static Operation *getNextMainOp(Operation *op, main_op_t &main_op) {
     std::set<Operation *> op_box;
     for (auto &use : op->getResult(0).getUses()) {
@@ -128,81 +138,117 @@ public:
     return *op_box.begin();
   }
 
-  bool init_op_set(FuncOp &fn) {
+  bool init_main_op(FuncOp &fn) {
     Operation *in_op = nullptr;
     bool multi_input = false;
-    op_data.clear();
-    op_set.clear();
-    max_size = 0;
     fn.walk([&](tpu::InputOp inputOp) {
       if (in_op == nullptr) {
         in_op = inputOp.getOperation();
-      } else {
+      } else if (!multi_input) {
+        // not support multi inpult
         multi_input = true;
       }
     });
     if (multi_input) {
       return false;
     }
-    auto next_op = getNextOp(in_op);
-    while (next_op != nullptr) {
-      if (support(next_op)) {
-        break;
-      }
+    Operation *next_op = in_op;
+    do {
       next_op = getNextOp(next_op);
-    }
+    } while (next_op != nullptr && false == support(next_op));
     if (next_op == nullptr) {
       return false;
     }
-    start_op = next_op;
+
     auto size = getTensorSize(next_op->getResult(0));
     main_op_t info = {
         .op = next_op,
         .op_set = {next_op},
         .max_size = size,
     };
+    main_ops.clear();
+    max_size = 0;
     do {
-      info.op = next_op;
       if (max_size < info.max_size) {
         max_size = info.max_size;
       }
-      op_data.push_back(info);
+      main_ops.push_back(info);
+      info.op = nullptr;
       info.max_size = 0;
       info.op_set.clear();
-      info.op = nullptr;
       next_op = getNextMainOp(next_op, info);
+      info.op = next_op;
     } while (next_op != nullptr);
-    last_op = op_data.back().op;
-    for (auto &use : last_op->getResult(0).getUses()) {
-      last_uses.push_back(use.getOwner());
-    }
-
     // make sure max_size is really too large
     if (max_size <= (int)(NPU_NUM * LOCAL_MEM_SIZE)) {
       return false;
     }
-    if (op_data.size() <= 1) {
+    if (main_ops.size() < 2) {
       return false;
     }
-    for (auto &info : op_data) {
-      op_set.insert(info.op_set.begin(), info.op_set.end());
+    start_idx = 0;
+    end_idx = main_ops.size() - 1;
+
+    init_last_size(fn);
+    if (false == update_op_set()) {
+      return false;
     }
     for (auto op : op_set) {
       op_info_t op_info;
-      auto iter = op->getResult(0).use_begin();
-      auto end = op->getResult(0).use_end();
-      for (op_info.num_uses = 0; iter != end; iter++, op_info.num_uses++)
-        ;
+      op_info.num_input = 0;
+      op_info.num_uses = 0;
+      op_info.slice.clear();
+      op_info.shape = getTensorShape(op->getResult(0));
+      if (op_info.shape.size() < 3) {
+        return false;
+      }
+      for (auto &use : op->getResult(0).getUses()) {
+        if (op_set.find(use.getOwner()) != op_set.end()) {
+          op_info.num_uses++;
+        }
+      }
+      for (auto input : op->getOperands()) {
+        if (op_set.find(input.getDefiningOp()) != op_set.end()) {
+          op_info.num_input++;
+        }
+      }
       op_h_map[op] = op_info;
     }
     return true;
   }
 
-  bool decide_piece(FuncOp fn) {
-    auto last_size = getTensorSize(last_op->getResult(0));
-    auto last_shape = getTensorShape(last_op->getResult(0));
-    uint32_t last_h = last_shape[2];
-    num_piece = 1;
+  bool update_op_set() {
+    auto start_size = main_ops[start_idx].max_size;
+    if (start_size <= last_size) {
+      while (start_idx < end_idx &&
+             main_ops[start_idx + 1].max_size <= last_size) {
+        start_idx++;
+      }
+    }
+    auto end_size = main_ops[end_idx].max_size;
+    if (end_size <= last_size) {
+      while (start_idx < end_idx &&
+             main_ops[end_idx - 1].max_size <= last_size) {
+        end_idx--;
+      }
+    }
+    if (start_idx >= end_idx) {
+      return false;
+    }
+    op_set.clear();
+    for (int i = start_idx; i <= end_idx; i++) {
+      auto ops = main_ops[i].op_set;
+      op_set.insert(ops.begin(), ops.end());
+    }
+    return true;
+  }
+
+  void init_last_size(FuncOp &fn) {
+    op_set.clear();
+    for (auto &info : main_ops) {
+      op_set.insert(info.op_set.begin(), info.op_set.end());
+    }
+    last_size = getTensorSize(main_ops[end_idx].op->getResult(0));
     fn.walk([&](Operation *op) {
       if (op->getName().getDialect()->getNamespace() != "tpu" ||
           isa<tpu::LoadWeightOp>(op) || isa<tpu::WeightFileOp>(op) ||
@@ -216,12 +262,6 @@ public:
         }
       }
     });
-    num_piece = (max_size + last_size - 1) / last_size;
-    num_piece = std::min(32u, std::min(num_piece, last_h));
-    if (num_piece < 2) {
-      return false;
-    }
-    return true;
   }
 
   bool backward(Operation *op, int h_start, int h) {
@@ -230,30 +270,32 @@ public:
                        .in_h_start = h_start,
                        .in_h = h,
                        .num_backward = 1,
+                       .num_forward = 0,
                        .op = nullptr};
     if (op_set.find(op) == op_set.end()) {
-      if (getNextOp(op) == start_op) {
-        first_slice.push_back(slice);
-        return true;
-      }
-      return false;
+      // input
+      return true;
     }
     auto &op_info = op_h_map[op];
-    if (op_info.slice.size() <= current_idx) {
-      op_info.slice.push_back(slice);
-    } else {
-      auto &index = op_info.slice[current_idx];
-      if (index.out_h < h) {
-        index.out_h = h;
-      }
-      if (index.out_h_start > h_start) {
-        index.out_h_start = h_start;
-      }
-      index.num_backward++;
+    if (op_info.shape[2] < h * 2) {
+      return false;
     }
-    auto &index = op_info.slice[current_idx];
+    bool exist = (op_info.slice.size() > slice_idx);
+    if (!exist) {
+      op_info.slice.push_back(slice);
+    }
+    auto &s = op_info.slice[slice_idx];
+    if (exist) {
+      if (s.out_h < h) {
+        s.out_h = h;
+      }
+      if (s.out_h_start > h_start) {
+        s.out_h_start = h_start;
+      }
+      s.num_backward++;
+    }
     // check all sub ops has backward, then do backward
-    if (op != last_op && index.num_backward < op_info.num_uses) {
+    if (s.num_backward < op_info.num_uses) {
       return true;
     }
 
@@ -262,15 +304,14 @@ public:
       auto do_early_stride = cast_op.do_early_stride();
       auto h_stride = cast_op.early_stride_h();
       if (do_early_stride) {
-        index.in_h_start = index.out_h_start * h_stride;
-        index.in_h = index.out_h * h_stride;
+        s.in_h_start = s.out_h_start * h_stride;
+        s.in_h = s.out_h * h_stride;
       } else {
-        index.in_h_start = index.out_h_start;
-        index.in_h = index.out_h;
+        s.in_h_start = s.out_h_start;
+        s.in_h = s.out_h;
       }
       for (auto input : cast_op.inputs()) {
-        if (false ==
-            backward(input.getDefiningOp(), index.in_h_start, index.in_h)) {
+        if (false == backward(input.getDefiningOp(), s.in_h_start, s.in_h)) {
           return false;
         }
       }
@@ -288,40 +329,83 @@ public:
       if (dh > 1) {
         kh = dh * (kh - 1) + 1;
       }
-      index.in_h_start = (current_idx == 0 ? 0 : index.out_h_start * sh - pt);
-      if (current_idx == 0) {
-        index.in_h = (index.out_h - 1) * sh + kh - pt;
-      } else if (current_idx == num_piece - 1) {
-        index.in_h = ih - index.in_h_start;
+      s.in_h_start = (start_slice() ? 0 : s.out_h_start * sh - pt);
+      s.in_h_start = std::max(s.in_h_start, 0);
+      if (start_slice()) {
+        s.in_h = (s.out_h - 1) * sh + kh - pt;
+      } else if (end_slice()) {
+        s.in_h = ih - s.in_h_start;
       } else {
-        index.in_h = (index.out_h - 1) * sh + kh;
+        s.in_h = (s.out_h - 1) * sh + kh;
       }
-      return backward(cast_op.input().getDefiningOp(), index.in_h_start,
-                      index.in_h);
+      s.in_h = std::min(s.in_h, ih);
+      return backward(cast_op.input().getDefiningOp(), s.in_h_start, s.in_h);
+    }
+    if (auto cast_op = llvm::dyn_cast_or_null<tpu::TG_INT8_PoolMax2DOp>(op)) {
+      int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
+      bool is_global, do_relu, count_include_pad;
+      parsePoolParam(cast_op.param(), cast_op.input(), cast_op.output(), n, c,
+                     ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
+                     is_global, do_relu, count_include_pad);
+      s.in_h_start = (start_slice() ? 0 : s.out_h_start * sh - pt);
+      s.in_h_start = std::max(s.in_h_start, 0);
+      if (start_slice()) {
+        s.in_h = (s.out_h - 1) * sh + kh - pt;
+      } else if (end_slice()) {
+        s.in_h = ih - s.in_h_start;
+      } else {
+        s.in_h = (s.out_h - 1) * sh + kh;
+      }
+      s.in_h = std::min(s.in_h, ih);
+      return backward(cast_op.input().getDefiningOp(), s.in_h_start, s.in_h);
     }
     return false;
   }
 
-  bool do_slice() {
+  bool do_backward() {
+    auto last_op = main_ops[end_idx].op;
     auto shape = getTensorShape(last_op->getResult(0));
-    if (shape.size() < 3) {
+    int last_h = shape[2];
+    num_slice = (max_size + last_size - 1) / last_size;
+    num_slice = std::min(32u, std::min(num_slice, (uint32_t)(last_h / 3)));
+    if (num_slice < 2) {
       return false;
     }
-    int last_h = shape[2];
-    int h_step = (last_h + num_piece - 1) / num_piece;
-    current_idx = 0;
-    for (int h_pos = 0; h_pos < last_h; h_pos += h_step, ++current_idx) {
+    int h_step = (last_h + num_slice - 1) / num_slice;
+    slice_idx = 0;
+    for (int h_pos = 0; h_pos < last_h; h_pos += h_step, ++slice_idx) {
       auto h = std::min(h_step, last_h - h_pos);
       if (false == backward(last_op, h_pos, h)) {
         return false;
       }
     }
-    if (first_slice.size() != num_piece) {
-      return false;
-    }
-    for (auto &pair : op_h_map) {
-      if (pair.second.slice.size() != num_piece) {
+    for (auto &op : op_set) {
+      if (op_h_map[op].slice.size() != num_slice) {
+        // make sure all ops backward
         return false;
+      }
+    }
+    return true;
+  }
+
+  bool do_slice(FuncOp &fn) {
+    while (do_backward() == false) {
+      auto size = main_ops[end_idx].max_size;
+      end_idx--;
+      if (last_size < size) {
+        last_size = size;
+        if (last_size * 2 > max_size) {
+          return false;
+        }
+        if (false == update_op_set()) {
+          return false;
+        }
+      }
+      if (start_idx >= end_idx) {
+        return false;
+      }
+      for (auto &op_info : op_h_map) {
+        op_info.second.slice.clear();
       }
     }
     return true;
@@ -332,7 +416,7 @@ public:
                          TensorType type, TensorFile *wTF) {
     auto tensor = wTF->readTensor<T>(from_name, type);
     wTF->addTensor<T>(to_name, tensor->data(), type);
-    if (current_idx == num_piece - 1) {
+    if (end_slice()) {
       wTF->deleteTensor<T>(from_name);
     }
   }
@@ -362,10 +446,10 @@ public:
     if (!weight_op) {
       return weight;
     }
-    auto name = weight_op.name().str() + "_tod_" + std::to_string(current_idx);
+    auto name = weight_op.name().str() + "_tod_" + std::to_string(slice_idx);
     auto type = weight_op.getResult().getType().template cast<TensorType>();
     copy_tensor(weight_op.name(), name, type, wTF);
-    if (current_idx == num_piece - 1) {
+    if (end_slice()) {
       weight_set.insert(weight.getDefiningOp());
     }
     std::vector<NamedAttribute> attrs;
@@ -382,46 +466,49 @@ public:
                                              ArrayRef<NamedAttribute>{attrs});
   }
 
-  void forward(OpBuilder &builder, Operation *op) {
-    std::vector<Value> operands;
-    std::vector<NamedAttribute> attrs;
-
-    Operation *input_op;
-    if (op == start_op) {
-      input_op = first_slice[current_idx].op;
-    } else {
-      auto tmp = op->getOperand(0).getDefiningOp();
-      input_op = op_h_map[tmp].slice[current_idx].op;
+  Value adjust_input(OpBuilder &builder, Value input, h_slice_t &s) {
+    auto input_op = input.getDefiningOp();
+    auto shape = getTensorShape(input_op->getResult(0));
+    if (op_set.find(input_op) == op_set.end()) {
+      if (shape[2] == s.in_h) {
+        return input;
+      }
+      return create_crop_op(builder, input_op, s.in_h_start, s.in_h);
     }
-    auto &current = op_h_map[op].slice[current_idx];
-    auto input_shape = getTensorShape(op->getResult(0));
-    auto output_shape = input_shape;
-    output_shape[2] = current.out_h;
+    auto &s_in = op_h_map[input_op].slice[slice_idx];
+    if (s.in_h == s_in.out_h && s.in_h_start == s_in.out_h_start) {
+      return s_in.op->getResult(0);
+    }
+    return create_crop_op(builder, s_in.op, s.in_h_start - s_in.out_h_start,
+                          s.in_h);
+  }
+
+  void forward(OpBuilder &builder, Operation *op) {
+    if (op_set.find(op) == op_set.end()) {
+      return;
+    }
+    auto &op_info = op_h_map[op];
+    auto &s = op_info.slice[slice_idx];
+    s.num_forward++;
+    if (s.num_forward < op_info.num_input) {
+      return;
+    }
+
+    auto origin_shape = getTensorShape(op->getResult(0));
+    auto output_shape = origin_shape;
+    output_shape[2] = s.out_h;
     auto type = RankedTensorType::get(
         output_shape,
         op->getResult(0).getType().cast<TensorType>().getElementType());
+    std::vector<Value> operands;
+    std::vector<NamedAttribute> attrs;
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::TG_INT8_EltwiseAddOp>(op)) {
-      // make sure all input ops are ready
       for (auto input : cast_op.inputs()) {
-        auto &slice = op_h_map[input.getDefiningOp()].slice[current_idx];
-        if (slice.op == nullptr) {
-          return;
-        }
-      }
-      for (auto input : cast_op.inputs()) {
-        auto &slice = op_h_map[input.getDefiningOp()].slice[current_idx];
-        if (current.in_h == slice.out_h &&
-            current.in_h_start == slice.out_h_start) {
-          operands.push_back(slice.op->getResult(0));
-        } else {
-          auto crop_op = create_crop_op(builder, slice.op,
-                                        current.in_h_start - slice.out_h_start,
-                                        current.in_h);
-          operands.push_back(crop_op);
-        }
+        auto in = adjust_input(builder, input, s);
+        operands.push_back(in);
       }
       std::string name =
-          cast_op.name().str() + "_tod_" + std::to_string(current_idx);
+          cast_op.name().str() + "_tod_" + std::to_string(slice_idx);
       for (auto &pair : op->getAttrs()) {
         if (pair.first == "name") {
           attrs.push_back(
@@ -431,28 +518,28 @@ public:
               builder.getNamedAttr(pair.first.c_str(), pair.second));
         }
       }
-
       auto newOp = builder.create<tpu::TG_INT8_EltwiseAddOp>(
           op->getLoc(), type, ArrayRef<Value>{operands},
           ArrayRef<NamedAttribute>{attrs});
-      current.op = newOp.getOperation();
+      s.op = newOp.getOperation();
     } else if (auto cast_op =
                    llvm::dyn_cast_or_null<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+      auto in = adjust_input(builder, cast_op.input(), s);
+      operands.push_back(in);
       auto filter = copy_weight(builder, op, cast_op.filter());
       auto pc_info = copy_weight(builder, op, cast_op.pc_info());
-      operands.push_back(input_op->getResult(0));
       operands.push_back(filter);
       operands.push_back(pc_info);
       std::string name =
-          cast_op.name().str() + "_tod_" + std::to_string(current_idx);
+          cast_op.name().str() + "_tod_" + std::to_string(slice_idx);
 
       auto p = cast_op.paramAttr();
       int pad_t = p.padding_t().getInt();
-      if (current_idx != 0) {
+      if (start_slice() == false && origin_shape[2] != s.out_h) {
         pad_t = 0;
       }
       int pad_b = p.padding_b().getInt();
-      if (current_idx != num_piece - 1) {
+      if (end_slice() == false && origin_shape[2] != s.out_h) {
         pad_b = 0;
       }
 
@@ -477,14 +564,50 @@ public:
       auto newOp = builder.create<tpu::TG_INT8_PC_Conv2DOp>(
           op->getLoc(), type, ArrayRef<Value>{operands},
           ArrayRef<NamedAttribute>{attrs});
-      current.op = newOp.getOperation();
-    }
-    if (op == last_op) {
-      return;
+      s.op = newOp.getOperation();
+    } else if (auto cast_op =
+                   llvm::dyn_cast_or_null<tpu::TG_INT8_PoolMax2DOp>(op)) {
+      auto in = adjust_input(builder, cast_op.input(), s);
+      operands.push_back(in);
+      std::string name =
+          cast_op.name().str() + "_tod_" + std::to_string(slice_idx);
+      auto p = cast_op.paramAttr();
+      int pad_t = p.padding_t().getInt();
+      if (start_slice() == false && origin_shape[2] != s.out_h) {
+        pad_t = 0;
+      }
+      int pad_b = p.padding_b().getInt();
+      if (end_slice() == false && origin_shape[2] != s.out_h) {
+        pad_b = 0;
+      }
+      for (auto &pair : op->getAttrs()) {
+        if (pair.first == "name") {
+          attrs.push_back(
+              builder.getNamedAttr("name", builder.getStringAttr(name)));
+        } else if (pair.first == "param") {
+          attrs.push_back(builder.getNamedAttr(
+              "param",
+              tpu::PoolParam::get(
+                  p.kernel_h(), p.kernel_w(), builder.getI32IntegerAttr(pad_t),
+                  builder.getI32IntegerAttr(pad_b), p.padding_l(),
+                  p.padding_r(), p.pad_value(), p.stride_h(), p.stride_w(),
+                  p.do_relu(), p.count_include_pad(), &getContext())));
+        } else {
+          attrs.push_back(
+              builder.getNamedAttr(pair.first.c_str(), pair.second));
+        }
+      }
+      auto newOp = builder.create<tpu::TG_INT8_PoolMax2DOp>(
+          op->getLoc(), type, ArrayRef<Value>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+      s.op = newOp.getOperation();
     }
     for (auto &use : op->getResult(0).getUses()) {
       auto sub_op = use.getOwner();
       forward(builder, sub_op);
+    }
+    if (end_slice()) {
+      op_to_erase.push_back(op);
     }
   }
 
@@ -495,9 +618,7 @@ public:
     crop_shape[2] = h_slice;
     std::vector<int> offset(shape.size(), 0);
     offset[2] = h_start;
-    auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op);
-    std::string name =
-        tpuOp.getOpName().str() + "_tod_" + std::to_string(current_idx);
+    std::string name = getOpName(op) + "_tod_crop_" + std::to_string(slice_idx);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name)));
     attrs.push_back(builder.getNamedAttr("crop_shape",
@@ -517,52 +638,36 @@ public:
   void concat_all(FuncOp &fn, OpBuilder &builder) {
     std::vector<Value> operands;
     std::vector<NamedAttribute> attrs;
+    auto last_op = main_ops[end_idx].op;
     auto &slice = op_h_map[last_op].slice;
     for (auto &s : slice) {
       operands.push_back(s.op->getResult(0));
     }
-    auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(last_op);
-    std::string name = tpuOp.getOpName().str();
+    std::string name = getOpName(last_op);
     attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name)));
     attrs.push_back(builder.getNamedAttr("axis", builder.getI32IntegerAttr(2)));
     auto new_op = builder.create<tpu::TG_INT8_ConcatOp>(
         last_op->getLoc(), last_op->getResult(0).getType(),
         ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
-    for (auto &use : last_uses) {
-      for (uint32_t i = 0; i < use->getNumOperands(); i++) {
-        if (use->getOperand(i).getDefiningOp() == last_op) {
-          use->setOperand(i, new_op);
-        }
-      }
-    }
-#if 0
-    // needn't erase, or will corrupt
-    for (auto &op : op_set) {
+    last_op->replaceAllUsesWith(new_op.getOperation());
+    op_to_erase.insert(op_to_erase.end(), weight_set.begin(), weight_set.end());
+    for (auto &op : op_to_erase) {
       op->erase();
     }
-    for (auto &op : weight_set) {
-      op->erase();
-    }
-#endif
   }
 
   void do_process(FuncOp &fn, OpBuilder &builder) {
     llvm::errs() << "============ tg op divide ===========================\n";
-    for (auto &info : op_data) {
-      auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(info.op);
-      llvm::errs() << "op:" << tpuOp.getOpName() << ", size: " << info.max_size
+    for (int i = start_idx; i <= end_idx; i++) {
+      auto &info = main_ops[i];
+      llvm::errs() << "op:" << getOpName(info.op) << ", size: " << info.max_size
                    << "\n";
     }
-    llvm::errs() << "divide to [" << num_piece << "] pieces\n";
-    auto input_op = start_op->getOperand(0);
-    builder.setInsertionPointAfter(last_op);
-    for (uint32_t i = 0; i < num_piece; i++) {
-      current_idx = i;
-      auto crop_op =
-          create_crop_op(builder, input_op.getDefiningOp(),
-                         first_slice[i].out_h_start, first_slice[i].out_h);
-      first_slice[i].op = crop_op.getDefiningOp();
-      forward(builder, start_op);
+    llvm::errs() << "max_size: " << max_size << ", last_size: " << last_size
+                 << "\ndivide to [" << num_slice << "] pieces\n";
+    builder.setInsertionPointAfter(main_ops[end_idx].op);
+    for (slice_idx = 0; slice_idx < num_slice; slice_idx++) {
+      forward(builder, main_ops[start_idx].op);
     }
     concat_all(fn, builder);
   }
@@ -572,15 +677,11 @@ public:
     MInfo::getChipInfo(fn);
     auto *context = &getContext();
     auto builder = OpBuilder(context);
-    if (init_op_set(fn) == false) {
+    if (init_main_op(fn) == false) {
       llvm::errs() << "tg-op-divide op set failed\n";
       return;
     }
-    if (decide_piece(fn) == false) {
-      llvm::errs() << "tg-op-divide piece failed\n";
-      return;
-    }
-    if (do_slice() == false) {
+    if (do_slice(fn) == false) {
       llvm::errs() << "tg-op-divide slice failed\n";
       return;
     }
@@ -588,17 +689,17 @@ public:
   }
 
 private:
-  uint32_t num_piece;
-  uint32_t current_idx;
-  std::vector<main_op_t> op_data;
+  uint32_t num_slice;
+  uint32_t slice_idx;
+  std::vector<main_op_t> main_ops;
   std::map<Operation *, op_info_t> op_h_map;
   std::set<Operation *> op_set;
   std::set<Operation *> weight_set;
-  std::vector<Operation *> last_uses;
-  Operation *start_op;
-  Operation *last_op;
-  std::vector<h_slice_t> first_slice;
+  std::vector<Operation *> op_to_erase;
+  int start_idx;
+  int end_idx;
   int64_t max_size;
+  int64_t last_size;
   llvm::raw_ostream &os;
 };
 
