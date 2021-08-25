@@ -3,11 +3,11 @@
 # CV183x/CV182x TPU开发指南
 
 >
-> 文档版本: 1.5.0
+> 文档版本: 1.5.1
 >
 > 发布日期: 2021-04-22
 
-© 2020 北京晶视智能科技有限公司
+© 2021 北京晶视智能科技有限公司
 
 本文件所含信息归<u>北京晶视智能科技有限公司</u>所有。
 
@@ -46,37 +46,40 @@
 
 > CVITEK TPU是晶视智能开发的边缘计算SoC平台(CV183x/CV182x)的异构计算引擎。实现了对主流神经网络运算的高效硬件加速，兼顾执行效率和可编程灵活性。计算精度方面同时支持高效的INT8和高动态范围的BF16两种模式，并通过软件平台支持灵活的混合精度配置。
 
+
+
 ## 1.2 工具链介绍
 
 > CVITEK TPU工具链是一个高效，开放，透明，可扩展，模型移植全流程可控的神经网络编译优化开发工具集。
 
+
+
 ## 1.3 软件框架
 
-> TPU软件开发框图如下图所示。
-<img src="assets\\framework.jpg" alt="imagexx" style="zoom: 50%;" />
+TPU软件开发框图如下图所示:
+
+![](assets\framework.jpg)
+
+> 
+
 > 软件框架由Offline工具链和Runtime模型推理库两部分组成。Offline工具链包括模型转换，编译器，量化工具等组件，完成从用户模型导入，变换，量化，优化，到代码生成等步骤，最终组装为cvimodel格式的推理模型文件。Runtime模型推理库加载cvimodel，读取运行时信息进行设置和资源分配，加载权重数据和指令序列，驱动硬件执行其中的指令序列，完成神经网络推理计算任务，输出推理结果数据。Runtime包含完整仿真平台的支持，客户可以先在仿真平台完成模型移植，验证和精度测试，再加载到真实硬件上验证和执行。
+
 
 
 ## 1.4 神经网络编译器
 
 > 神经网络编译器基于MLIR框架开发。编译器完成从一个现有框架模型文件到TPU指令集的转换。具体包括下述几个工具:
 
--   模型转换工具：一组python脚本用于将caffe/pytorch等框架生成的模型转换为以mlir为前端的fp32模型文件，用于后续的量化，优化和指令生成.
+-   `model_transform.py`：用于将caffe/onnx框架生成的模型转换为以mlir为前端的fp32模型文件，用于后续的量化，优化和指令生成。
+-   `model_deploy.py`：用于将fp32 mlir文件转换成cvimodel文件
 
--   mlir-opt：实现多种优化和变换Pass，并实现组合调用。包含如下类别:
-
-> 优化变换，量化变换，Lowering，性能优化，资源优化，分析统计。
-
--   mlir-interpreter：实现基于CPU/TPU的IR推理计算，将输出tensor数据，以及用户指定的全部或部分中间结果tensor数据保存为numpy格式（*.npz）文件。基于interpreter，开发者可以在模型转换的各个环节随时对转换的正确性和精度进行测试，包括量化前和量化后的各个阶段，验证各种优化路径的正确性，比较各量化选项的精度差异，以及详细比对所有中间计算结果的数据。Interpreter支持python
-    binding，开发者可以使用python进行数据预处理，后处理，及数据分析。
-
--   calibration：基于mlir-interpreter实现的量化校准工具，对开发者指定的校准数据集执行推理计算，对每个tensor的数据进行统计，形成模型量化所需的参数。使用python进行数据读取，预处理，后处理和统计分析。
-
--   mlir-translate：用于将mlir文件转化为TPU硬件指令序列，并和模型权重数据，Runtime需要的信息打包为cvimodel
-
+-   `run_calibration.py`：对开发者指定的校准数据集执行推理计算，对每个tensor的数据进行统计，形成模型量化所需的参数。使用python进行数据读取，预处理，后处理和统计分析。
+-   `run_tune.py`：对量化结果进行微调，提高量化精度
+-   `run_mix_precision.py`：通过校准数据集，进行混合量化，得到bf16量化表
 -   仿真库：仿真库不同于mlir-interpreter，仿真库模拟真实TPU硬件的指令执行和运算逻辑。对于INT8量化计算，mlir-interpreter的计算结果与仿真库的计算结果bit-accurate一致。对于浮点类型组合计算，mlir-interpreter会和硬件有一定差异，仿真器则仍然保证结果与硬件的bit-accurate一致性。
-
 -   数据分析工具：一组python工具集，用于对模型移植和编译过程中所产生的数据进行比较，统计，分析和问题定位。支持对转换的各个步骤输出的每层Tensor数据进行多种相似度比对，以确保模型INT8定点以及BF16推理精度达到要求。
+
+
 
 ## 1.5 模型转储cvimodel文件
 
@@ -88,6 +91,8 @@
 
 -   自定义算子：自定义算子目前仅支持采用CPU实现。在cvimodel中，用户自定义算子编译为特定平台的动态链接库并保存在cvimodel模型文件中。
 > 为cv183x平台生成的cvimodel可以运行在1832/1835/1838等cv183x系统芯片上; 为cv182x平台生成的cvimodel可以运行在1821/1822/1826等cv182x系列芯片上.
+
+
 
 ## 1.6 Runtime
 
@@ -105,13 +110,19 @@
 
 -   返回结果数据。
 
+
+
 ### 1.6.1 Python Binding
 
 > Runtime支持Python Binding，方便利用python的数据预处理和后处理代码快速进行模型开发和验证以及离线仿真。
 
+
+
 ### 1.6.2 仿真器
 
 > Runtime除了调用硬件外，还支持以同样的API调用仿真器，进行离线测试和调试。
+
+
 
 ## 1.7 开发环境配置
 
@@ -142,13 +153,13 @@
 > 例如，对于SliceOp，虽然原本含义会有多个Output。但在TPU IR的定义中会对每一个sub tensor生成一个SliceOp，它们的input
 > tensor指向同一个tensor，通过attribute指定offset等参数，但每个SliceOp只有一个输出tensor。
 
-<br>
+
 
 #### 2.1.1.2 Operation支持列表
 
 > 支持的Operation如下表所示**：**
 
-|**操作**              |**Engine**^(1)^      |**Quantization**^(2)^   |**Lowering**^(3)^|
+|**操作**              |**Engine**(1)      |**Quantization**(2)   |**Lowering**(3)|
 |---------------------|---------------|------------------|--------------|
 |BatchNorm             |TPU       |yes                 |yes|
 |BroadcastMul          |TPU             |Yes                |Yes|
@@ -196,13 +207,13 @@
 |Upsample              |TPU             |Yes                |Yes|
 |YoloDetection         |CPU             |No                 |No|
 
-> (1) 来指定当前指令的执行阶段，TPU表示指令在TPU上执行，CPU表示在CPU上执行。
+> (1) Engine：来指定当前指令的执行阶段，TPU表示指令在TPU上执行，CPU表示在CPU上执行。
 
-> (2) Quantization表示是否需要做量化, 在CPU中执行的指令是不需要做量化的。
+> (2) Quantization：表示是否需要做量化, 在CPU中执行的指令是不需要做量化的。
 
-> (3) Lowering表示当前指令需要转化为TPU指令，然后在TPU上执行。
+> (3) Lowering：表示当前指令需要转化为TPU指令，然后在TPU上执行。
 
-<br>
+
 
 #### 2.1.1.3 通用数据结构
 
@@ -215,7 +226,8 @@
   |F32    |DataType，32 bit浮点数据|
   |BF16   |DataType，16 bit BF浮点数据|
   |I64    |DataType，64 bit整型数据|
-  <br>
+
+  
 
 - Tensor类型
 
@@ -225,7 +237,8 @@
   |TensorOfOrNone<DataType>   |以DataType为数据类型的Tensor，None表示空Tensor|
   |AnyTensor                     |以任意DataType为数据类型的Tensor|
   |Variadic Tensor               |一个或多个Tensor|
-  <br>
+
+  
 
 - 基础属性类型
 
@@ -236,7 +249,8 @@
   |I32Attr             | 属性，32 bit整数类型属性|
   |F32Attr             | 属性，32 bit浮点类型属性|
   |BoolAttr            | 属性，布尔属性|
-  <br>
+
+  
 
 - TPU_QuantParamAttr
 
@@ -250,7 +264,7 @@
   |threshold_min  | F32Attr                | 量化最小值（仅限非对称量化）|
   |zero_point     | I32Attr                | 零点值|
 
-  <br>
+  
 
 - TPU_QuantModeAttr
 
@@ -260,7 +274,7 @@
   |INT8  | 量化为INT8|
   |BF16  | 量化为BF16|
 
-  <br>
+  
 
 - TPU_QuantParamTypeAttr
 
@@ -275,7 +289,7 @@
   |LUT_INT8           | 量化变量以INT8 LUT描述|
   |LUT_BF16           | 量化变量以BF16 LUT描述|
 
-  <br>
+  
 
 - TPU_ConvParamAttr
 
@@ -293,7 +307,7 @@
   |ins         | I32ArrayAttr    | 对h， w插入0|
   |pad_value   | I32Attr         | 填充值|
 
-  <br>
+  
 
 - TPU_PoolParamAttr
 
@@ -310,7 +324,7 @@
   |do_relu            | BoolAttr | 是否对结果进行relu操作|
   |count_include_pad  | BoolAttr | 计算时是否包含pad部分|
 
-<br>
+
 
 #### 2.1.1.4 Operation定义
 
@@ -326,7 +340,7 @@
   |variance_epsilon  | F32Attr                 | epsilon          | 属性|
   |name              | StrAttr                 | 名称               | 属性|
 
-  <br>
+  
 
 - BroadcastMul
 
@@ -344,7 +358,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Clip
 
@@ -360,7 +374,7 @@
   |max               | F32Attr                 | 最大值                | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Concat
 
@@ -376,7 +390,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Conv2D
 
@@ -394,7 +408,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Crop
 
@@ -406,6 +420,8 @@
   |crop_offset  | TI32ArrayAttr           | Crop Offset | 属性|
   |quant        | TPU_QuantParamAttr      | Quant参数     | 属性|
   |name         | StrAttr                 | 名称          | 属性|
+
+  
 
 - Custom
 
@@ -420,7 +436,7 @@
   |threshold_overwrite  | StrAttr                 | 直接覆盖threshold     | 属性|
   |name                 | StrAttr                 | 名称                | 属性|
 
-  <br>
+  
 
 - DeConv2D
 
@@ -438,7 +454,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - DetectionOutput
 
@@ -456,7 +472,7 @@
   |confidence_threshold  | F32Attr                 | Confidence Threshold | 属性|
   |name                  | StrAttr                 | 名称                   | 属性|
 
-  <br>
+  
 
 - EltwiseAdd
 
@@ -475,7 +491,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - EltwiseMax
 
@@ -494,7 +510,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - EltwiseMul
 
@@ -513,7 +529,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - FrcnDetection
 
@@ -527,7 +543,7 @@
   |keep_top_k     | I32Attr                 | Keep Top K       | 属性|
   |name           | StrAttr                 | 名称               | 属性|
 
-  <br>
+  
 
 - FullyConnected
 
@@ -545,7 +561,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Gru
 
@@ -565,10 +581,10 @@
   |linear_before_reset  | BoolAttr                | 在reset门之前有一个linear层         | 属性|
   |bidirectional        | BoolAttr                | 是否是bidirectional|
   |name                 | StrAttr                 | 名称                          | 属性|
-
-
-<br>
-
+  
+  
+  
+  
 - LeakyRelu
 
   |参数名称|类型|描述|类别|
@@ -587,7 +603,7 @@
   |quant                 | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name                  | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Lstm
 
@@ -608,7 +624,7 @@
   |bidirectional        | BoolAttr                | 是否是bidirectional    | 属性|
   |name                 | StrAttr                 | 名称                  | 属性|
 
-  <br>
+  
 
 - MatMul
 
@@ -620,7 +636,7 @@
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
-  <br>
+  
 
 - Mish
 
@@ -633,7 +649,7 @@
   |quant           | TPU_QuantParamAttr      | Quant参数     | 属性|
   |name            | StrAttr                 | 名称          | 属性|
 
-  <br>
+  
 
 - Normalize
 
@@ -646,7 +662,7 @@
   |channel_shared  | BoolAttr                | Channel Shared | 属性|
   |name            | StrAttr                 | 名称             | 属性|
 
-  <br>
+  
 
 - Pad
 
@@ -659,7 +675,7 @@
   |quant      | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name       | StrAttr                 | 名称             | 属性|
 
-  <br>
+  
 
 - Permute
 
@@ -671,7 +687,7 @@
   |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name      | StrAttr                 | 名称             | 属性|
 
-  <br>
+  
 
 - PixelShuffle
 
@@ -684,7 +700,7 @@
   |mode            | DefaultValuedAttr       | mode参数， 默认值是CRD        | 属性|
   |name            | StrAttr                 | 名称                     | 属性|
 
-  <br>
+  
 
 - PoolAvg2D
 
@@ -700,7 +716,7 @@
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - PoolMask
 
@@ -713,7 +729,7 @@
   |quant      | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name       | StrAttr                 | 名称             | 属性|
 
-  <br>
+  
 
 - PoolMax2D
 
@@ -725,7 +741,8 @@
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
-  <br>
+  
+
 - Power
 
   |参数名称|类型|描述|类别|
@@ -737,7 +754,7 @@
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
-<br>
+  
 
 - PRelu
   |参数名称|类型|描述|类别|
@@ -756,7 +773,7 @@
   |quant                 | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name                  | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - PriorBox
 
@@ -778,7 +795,7 @@
   |use_default_aspect_ratio  | DefaultValuedAttr       | 是否使用默认宽高比          | 属性|
   |name                      | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Proposal
 
@@ -795,7 +812,7 @@
   |rpn_nms_post_top_n  | I32Attr                 | 保存NMS框数目            | 属性|
   |name                | StrAttr                 | 名称                  | 属性|
 
-  <br>
+  
 
 - ReduceMax
 
@@ -812,7 +829,7 @@
   |keepdims          | DefaultValuedAttr       | 是否保持维度        | 属性|
   |name              | StrAttr                 | 名称            | 属性|
 
-  <br>
+  
 
 - ReduceMean
 
@@ -827,7 +844,7 @@
   |quant_multiplier  | TPU_TensorOfOrNone | Quant乘数       | 属性|
   |keepdims          | DefaultValuedAttr  | 是否保持维度        | 属性|
 
-  <br>
+  
 
 - Relu
 
@@ -839,7 +856,7 @@
   |quant     | TPU_QuantParamAttr      | Quant参数           | 属性|
   |name      | StrAttr                 | 名称                | 属性|
 
-  <br>
+  
 
 - Reorg
 
@@ -851,7 +868,7 @@
   |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name      | StrAttr                 | 名称             | 属性|
 
-  <br>
+  
 
 - RetinaFaceDetection
 
@@ -864,7 +881,7 @@
   |keep_top_k            | I32Attr                 | Keep Top K           | 属性|
   |name                  | StrAttr                 | 名称                   | 属性|
 
-  <br>
+  
 
 - ROIPooling
 
@@ -873,7 +890,7 @@
   |output    | AnyTensor | 输出Tensor   | 输出|
   |input     | AnyTensor | 输入Tensor   | 输入|
 
-  <br>
+  
 
 - Scale
 
@@ -887,7 +904,7 @@
   |quant     | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name      | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - ShuffleChannel
 
@@ -899,7 +916,7 @@
   |quant     | TPU_QuantParamAttr      | Quant参数       | 属性|
   |name      | StrAttr                 | 名称            | 属性|
 
-  <br>
+  
 
 - Sigmoid
 
@@ -912,7 +929,7 @@
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Slice
 
@@ -925,7 +942,7 @@
   |quant     | TPU_QuantParamAttr      | Quant参数              | 属性|
   |name      | StrAttr                 | 名称                   | 属性|
 
-  <br>
+  
 
 - Sqrt
 
@@ -938,7 +955,7 @@
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Softmax
 
@@ -953,7 +970,7 @@
   |axis                       | I32Attr                 | Softmax的维度            | 属性|
   |name                       | StrAttr                 | 名称                    | 属性|
 
-  <br>
+  
 
 - TanH
 
@@ -966,7 +983,7 @@
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
-  <br>
+  
 
 - Tile
 
@@ -982,7 +999,7 @@
   |resp              | OptionalAttr            | 重复次数          | 属性|
   |name              | StrAttr                 | 名称            | 属性|
 
-  <br>
+  
 
 - Upsample
 
@@ -995,9 +1012,9 @@
   |quant     | TPU_QuantParamAttr      | Quant参数       | 属性|
   |name      | StrAttr                 | 名称            | 属性|
 
-  <br>
+  
 
--   YoloDetection
+- YoloDetection
 
   |参数名称|类型|描述|类别|
   |---|---|---|---|
@@ -1014,7 +1031,7 @@
   |yolo_v4_net    | BoolAttr                | Yolo_v4网络        | 属性|
   |name           | StrAttr                 | 名称               | 属性|
 
-<br>
+
 
 #### 2.1.1.5 前端模型导入
 
@@ -1037,7 +1054,7 @@ class MLIRImport:
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
-
+ 	
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -1052,7 +1069,7 @@ def add_input_op(self, name, index):
 | 返回值   | Operation         |
 | name     | 指定input名字     |
 | index    | 指定input输入索引 |
-<br>
+|||
 
 ```python
 def add_weight_fileOp(self, name):
@@ -1064,7 +1081,7 @@ def add_weight_fileOp(self, name):
 | -------- | ----------------- |
 | 返回值   | Operation *       |
 | name     | 指定weight 文件名 |
-<br>
+|||
 ```python
 def add_load_fileOp(self, name, output_tensor_shape,
                     tensor_type=TPU_TensorType.Fp32,
@@ -1116,7 +1133,7 @@ def add_conv_Op(self, op_name, inputOperands,
 | do_relu    | 是否对结果进行relu操作 |
 | ins        | 对h， w插入0           |
 
-<br>
+
 
 ### 2.1.2 cvimodel文件格式参考
 
@@ -1140,7 +1157,7 @@ def add_conv_Op(self, op_name, inputOperands,
 
 > 为输入输出张量和Activation等的统称，张量中包含其名称、Shape、基本数据类型等信息。
 
-<br>
+
 
 #### 2.1.2.1 Cvimodel结构
 
@@ -1148,7 +1165,7 @@ def add_conv_Op(self, op_name, inputOperands,
 >
 >Cvimodel的基本结构如上图所示，分为三段。首段为cvimodel文件的header部分，包含magic字串，版本号，中段的数据字节数、md5值等数据，是解析cvimodel文件的基本信息；中段为Model的结构信息，包含Program、Routines等信息，用于解析网络模型的结构和指令信息；尾段为二进制数据段，包含权重数据，各Program的TPU指令序列，以及存储用户自定义CPU段的so文件。
 
-<br>
+
 
 ### 2.1.2 工具链基本命令
 
@@ -1160,9 +1177,9 @@ def add_conv_Op(self, op_name, inputOperands,
   ```
 -   【作用】
 
-> 将caffe/onnx/模型转换为基于mlir的单精度模型，并做逐层精度比对验证，保证转模型的正确性。
+> 将caffe/onnx模型转换为基于mlir的单精度模型，并做逐层精度比对验证，保证转模型的正确性。
 
--   【选项】
+- 【选项】
 
   参数名称                                描述
   |参数名称|描述|
@@ -1175,19 +1192,23 @@ def add_conv_Op(self, op_name, inputOperands,
   |--resize_keep_aspect_ratio \<bool\> | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br/>如设置为**1**，在resize后高宽不足的部分会填充0 |
   |--net_input_dims \<h,w\>            | 模型的input shape的h与w:  如 **"224,224"** |
   |--channel_num \<h,w\>            | 模型的input shape的c, 默认值为**3** |
-  |--model_channel_order \<order\>     | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
-  |--raw_scale**^(1)^** \<255.0\>      | raw_scale 默认值为**255** |
-  |--mean**^(1)^** \<0,0,0\>           | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
-  |--input_scale**^(1)^** \<1.0\>      | input_scale，默认值为**1.0** |
-  |--std**^(1)^**  \<1,1,1\>           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
+  |--model_channel_order \<order>     | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
+  |--raw_scale  \<255.0>      | raw_scale 默认值为**255** |
+  |--mean \<0,0,0>           | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
+  |--input_scale <1.0>      | input_scale，默认值为**1.0** |
+  |--std  \<1,1,1>           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
   |--batch_size \<num\>                | 指定生成模型的的batch num |
   |--gray \<bool\>                     | 是否输入的图片为灰度图，默认值为false |
-  |--image \<image_file\>              | 用于验证单精度模型转换是否正确的参考输入图片 |
+  |--image \<image_file\>              | 用于验证单精度模型转换是否正确的参考输入图片，也可以指定为npz文件 |
   |--tolerance \<0.99,0.99,0.98\>      | mlir单精度模型与源模型逐层精度对比时所能接受的最小相似度,<br/>相似度包括三项：余弦相似度、相关相似度、欧式距离相似度.<br/>默认值为"0.99,0.99,0.98" |
   |--excepts \<"-"\>                   | 逐层对比时跳过某些层, 多个层可以用逗号隔开, 如:"layer1,layer2",<br/>默认值为"-",即对比所有层 |
   |--mlir \<model_fp32_mlir\>          | 输出mlir单精度模型 |
 
-  > **^注(1)^**  $preprocess = (x * raw\_scale / 255 - mean) *input\_scale / std$
+  预处理过程用公式表达如下（x代表输入)：
+  $$
+  y = \frac{x \times \frac{raw\_scale}{255.0} - mean}{std} \times input\_scale
+  $$
+  
 
 -   【示例】
 
@@ -1211,7 +1232,7 @@ def add_conv_Op(self, op_name, inputOperands,
 
 <br>
 
-#### 2.1.2.2 run-calibration
+#### 2.1.2.2 run_calibration
 
 -   【命令】
 ```sh
@@ -1304,8 +1325,6 @@ run_calibration.py <model file> [option]
 
 - 【选项】
 
-  参数名称                    描述
-
   | 参数名称 | 描述 |
   | --- | --- |
   | --model_name \<name\>                | 指定模型名 |
@@ -1320,13 +1339,14 @@ run_calibration.py <model file> [option]
   | --fuse_preprocess \<bool\>           | 是否加入preprocess op到cvimodel中, 默认值为false |
   | --pixel_format \<format\>            | preprocess所接受的图片输入格式, 可选值为:<br/>  "RGB_PACKED", "BGR_PACKED", "RGB_PLANAR",<br/>"BGR_PLANAR", "YUV420_PLANAR", "GRAYSCALE", "RGBA_PLANAR"等值 |
   | --aligned_input \<bool\>             | preprocess所接受的输入图片是否为对齐格式, 默认值为false |
-  | --dequant_outputs_to_fp32 \<bool\>   | 是否将模型的输出反量化为fp32格式, 默认值为true |
+  | --dequant_outputs_to_fp32 \<bool\>   | 是否将模型的输出反量化为fp32格式, 默认值为true；false时bf16模型产生bf16输出，int8模型产生int8输出 |
+  | --expose_bf16_inputs <bool\> | 对于bf16输入是否不转换成fp32输入，默认false，表示bf16默认转换成fp32输入 |
   | --compress_weight \<bool\>           | 是否对权重进行压缩，默认值为true|
   | --merge_weight                       | 与同一个工作目前中生成的模型共享权重，用于后续合并同一个模型依据不同batch或分辨率生成的cvimodel. 打开此选项时，需要将compress_weight设置为false|
   | --image \<image_file\>               | 用于验证精度的参考输入图片 |
   | --cvimodel \<out_cvimodel\>          | 输出的cvimodel名 |
 
-<br>
+
 
 
 #### 2.1.2.6 model_runner
@@ -1350,7 +1370,6 @@ run_calibration.py <model file> [option]
   | --output \<output_npz_file\>        | 输出模型推理后的结果, 保存为npz文件, 可以透过numpy去读取，可选项 |
   | --reference \<reference_npz_file\>  | 输入参考输出npz文件，此文件由model_deploy.py生成，可选项 |
   | --tolerance  \<cos,cor,euc\>        | 输入模型输出和参考输出精度对比所能接受的最小相似度, 可选项.<br/>相似度包括三项：余弦相似度、相关相似度、欧式距离相似度.|
-<br>
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -1392,7 +1411,7 @@ run_calibration.py <model file> [option]
   ```
 > 在此命令以及后续的命令中会对mlir模型的Activation输出进行三种相似度的比较：cosine similarity、correlation similarity、eulidean similarity以保证各阶段的精度损失在规定的范围内。
 
-<br>
+
 
 ### 2.2.2 Calibration
 
@@ -1468,7 +1487,7 @@ model_deploy.py \
 
 
 
-<br>除此以外，还可以透过以下方式取得更好的精度:
+除此以外，还可以透过以下方式取得更好的精度:
 
 ### 2.2.4 Full-BF16量化
 

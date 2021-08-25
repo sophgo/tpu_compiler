@@ -5,13 +5,13 @@
 
 
 
->文档版本: 1.5.0
+>文档版本: 1.5.1
 >
->发布日期: 2021-01-29
+>发布日期: 2021-08-01
 
 
 
-© 2020 北京晶视智能科技有限公司
+© 2021 北京晶视智能科技有限公司
 
 本文件所含信息归<u>北京晶视智能科技有限公司</u>所有。
 
@@ -44,6 +44,7 @@
 | V0.3.11 | 2020/10/26 | 根据V1.3 SDK修订                               |
 | V1.4.0  | 2020/12/07 | 根据V1.4 SDK修订                               |
 | V1.5.0  | 2021/01/29 | 根据V1.5 SDK修订                               |
+| V1.5.1 | 2021/08/01 | 根据V1.5.1 SDK修订 |
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -72,13 +73,6 @@
 
 本文档包含下述章节，请根据需要参阅相关章节。
 
-* 运行测试
-
-  不需编译，在EVB运行随release提供的sample程序和模型，包括：
-
-  * 执行samples程序
-  * 对测试cvimodel进行正确性和性能测试
-
 * 开发环境配置
 
   使用CVITEK提供的docker，配置编译开发所需的环境
@@ -95,29 +89,25 @@
 
   * Sample-4 : insightface (retinaface + arcface)
 
-* 编译生成cvimodel
-
-  介绍如何通过脚本生成所有sample用和测试用的cvimodel
-
 * 编译移植caffe模型
 
   介绍如何移植一个新的caffe模型，以`mobilenet_v2`为例
 
 * 编译移植pytorch模型
 
-  介绍如何移植一个新的pytorch模型，以`resnet18`为例
+  以pytorch为例，介绍如何将原始模型转换成onnx模型，再进一步转换为cvimodel
 
-* 编译移植tensorflow 2.x模型
+* 精度优化和混合量化
 
-  介绍如何移植一个新的tensorflow 2.x模型，以`mobilenet_v2`为例
-
-* 编译移植tensorflow 1.x模型
-
-  介绍如何移植一个新的tensorflow 1.x模型，以`mobilenet_v1_0.25_224`为例
+  介绍BF16量化和混合量化，提高精度
 
 * 使用TPU进行前处理
 
   介绍如何在cvimodel模型中增加前处理描述，并在运行时使用TPU进行前处理
+  
+* 合并cvimodel模型
+
+  介绍将同一个模型的不同batch合并到一起，以及接口如何调用
 
 
 
@@ -125,17 +115,13 @@
 
 CVITEK Release包含如下组成部分：
 
-| 文件                                                    | 描述                                             |
-| ------------------------------------------------------- | ------------------------------------------------ |
-| cvitek_mlir_ubuntu-18.04.tar.gz                         | cvitek NN工具链软件                              |
-| cvitek_tpu_sdk_[cv182x/cv183x].tar.gz                 | cvitek Runtime SDK，包括交叉编译头文件和库文件   |
-| cvitek_tpu_samples.tar.gz                               | sample程序源代码                                 |
-| cvimodel_samples_[cv182x/cv183x].tar.gz               | sample程序使用的cvimodel模型文件                 |
-| cvimodel_regression_bs1_[cv182x/cv183x].tar.gz | 模型测试cvimodel文件和相应输入输出数据文件       |
-| cvimodel_regression_bs4_[cv182x/cv183x].tar.gz | 模型测试cvimodel文件和相应输入输出数据文件       |
-| docker_cvitek_dev.tar                                   | CVITEK开发Docker镜像文件                         |
-| models.tar.gz                                           | 测试用caffe/onnx原始模型文件包（支持github下载） |
-| dataset.tar.gz                                          | 测试用dataset包（可github下载，参考REAMDE准备）  |
+| 文件                                    | 描述                                           |
+| --------------------------------------- | ---------------------------------------------- |
+| cvitek_mlir_ubuntu-18.04.tar.gz         | cvitek NN工具链软件                            |
+| cvitek_tpu_sdk_[cv182x/cv183x].tar.gz   | cvitek Runtime SDK，包括交叉编译头文件和库文件 |
+| cvitek_tpu_samples.tar.gz               | sample程序源代码                               |
+| cvimodel_samples_[cv182x/cv183x].tar.gz | sample程序使用的cvimodel模型文件               |
+| docker_cvitek_dev.tar                   | CVITEK开发Docker镜像文件                       |
 
 
 
@@ -144,31 +130,124 @@ CVITEK Release包含如下组成部分：
 测试用的原始框架模型文件和dataset可以由下列链接取得，并参考README.md描述进行相应准备。
 
 * <https://github.com/cvitek-mlir/models>
-
 * <https://github.com/cvitek-mlir/dataset>
+
+
+
+#### 1.4 当前支持测试的网络列表
+
+cv183x支持的网络如下：
+
+| Classification                | Detection                  | Misc                     |
+| ----------------------------- | -------------------------- | ------------------------ |
+| resnet50       [BS=1,4]       | retinaface_mnet25 [BS=1,4] | arcface_res50 [BS=1,4]   |
+| resnet18       [BS=1,4]       | retinaface_res50   [BS=1]  | alphapose       [BS=1,4] |
+| mobilenet_v1     [BS=1,4]     | ssd300        [BS=1,4]     | espcn_3x       [BS=1,4]  |
+| mobilenet_v2     [BS=1,4]     | mobilenet_ssd [BS=1,4]     | unet          [BS=1,4]   |
+| squeezenet_v1.1    [BS=1,4]   | yolo_v1_448      [BS=1]    | erfnet         [BS=1]    |
+| shufflenet_v2     [BS=1,4]    | yolo_v2_416      [BS=1]    |                          |
+| googlenet       [BS=1,4]      | yolo_v2_1080     [BS=1]    |                          |
+| inception_v3     [BS=1,4]     | yolo_v3_416      [BS=1,4]  |                          |
+| inception_v4     [BS=1,4]     | yolo_v3_608      [BS=1]    |                          |
+| vgg16         [BS=1,4]        | yolo_v3_tiny     [BS=1]    |                          |
+| densenet_121     [BS=1,4]     | yolo_v3_spp      [BS=1]    |                          |
+| densenet_201     [BS=1,4]     | yolo_v4        [BS=1]      |                          |
+| senet_res50      [BS=1,4]     |                            |                          |
+| resnext50       [BS=1,4]      |                            |                          |
+| res2net50       [BS=1,4]      |                            |                          |
+| ecanet50       [BS=1,4]       |                            |                          |
+| efficientnet_b0    [BS=1,4]   |                            |                          |
+| efficientnet_lite_b0 [BS=1,4] |                            |                          |
+| nasnet_mobile     [BS=1,4]    |                            |                          |
+
+cv182x支持的网络如下：
+
+| Classification                | Detection                  | Misc                     |
+| ----------------------------- | -------------------------- | ------------------------ |
+| resnet50       [BS=1,4]       | retinaface_mnet25 [BS=1,4] | arcface_res50 [BS=1,4]   |
+| resnet18       [BS=1,4]       | retinaface_res50   [BS=1]  | alphapose       [BS=1,4] |
+| mobilenet_v1     [BS=1,4]     | mobilenet_ssd [BS=1,4]     |                          |
+| mobilenet_v2     [BS=1,4]     | yolo_v1_448      [BS=1]    |                          |
+| squeezenet_v1.1    [BS=1,4]   | yolo_v2_416      [BS=1]    |                          |
+| shufflenet_v2     [BS=1,4]    | yolo_v3_416      [BS=1,4]  |                          |
+| googlenet       [BS=1,4]      | yolo_v3_608      [BS=1]    |                          |
+| inception_v3     [BS=1]       | yolo_v3_tiny     [BS=1]    |                          |
+| densenet_121     [BS=1,4]     |                            |                          |
+| densenet_201     [BS=1]       |                            |                          |
+| senet_res50      [BS=1]       |                            |                          |
+| resnext50       [BS=1,4]      |                            |                          |
+| efficientnet_lite_b0 [BS=1,4] |                            |                          |
+| nasnet_mobile     [BS=1]      |                            |                          |
+
+**注：** BS表示batch，[BS=1]表示板子目前至少batch 1，[BS=1,4]表示板子至少支持batch 1和batch 4。
+
+
 
 <div STYLE="page-break-after: always;"></div>
 
-## 2 运行测试
+## 2 开发环境配置
 
-不需编译，在EVB运行release提供的sample预编译程序和模型。
+从docker hub获取（推荐）:
 
-本章需要如下文件：
+```shell
+docker pull cvitek/cvitek_dev:1.5-ubuntu-18.04
+```
+
+或者加载镜像文件：
+
+```shell
+docker load -i docker_cvitek_dev_1.5-ubuntu-18.04.tar
+```
+
+
+
+如果是首次使用docker，可执行下述命令进行安装和配置（Ubuntu系统）
+
+```shell
+sudo apt install docker.io
+systemctl start docker
+systemctl enable docker
+
+sudo groupadd docker
+sudo usermod -aG docker $USER
+newgrp docker (use before reboot)
+```
+
+
+
+取得docker image后，执行下述命令运行docker：
+
+``` shell
+# 这里假设models和dataset分别位于~/data/models和~/data/dataset目录，如有不同请相应调整。
+docker run -itd -v $PWD:/work \
+   -v ~/data/models:/work/models \
+   -v ~/data/dataset:/work/dataset \
+   --name cvitek cvitek/cvitek_dev:1.5-ubuntu-18.04
+docker exec -it cvitek bash
+```
+
+
+
+<div STYLE="page-break-after: always;"></div>
+
+## 3 EVB运行samples程序
+
+请根据chip类型选择使用对应的TPU sdk对samples code做交叉编译，加载至evb上并运行测试。
+
+#### 3.1 运行Samples程序
+
+在EVB运行release提供的sample预编译程序。
+
+需要如下文件：
 
 * cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
 * cvimodel_samples_[cv182x/cv183x].tar.gz
-* cvimodel_regression_bs1_[cv182x/cv183x].tar.gz
-* cvimodel_regression_bs4_[cv182x/cv183x].tar.gz
-
-
-
-#### 2.1 运行sample程序
 
 将根据chip类型选择所需文件加载至EVB的文件系统，于evb上的linux console执行，以cv183x为例：
 
  解压samples使用的model文件（以cvimodel格式交付），并解压TPU_SDK，并进入samples目录，执行测试，过程如下：
 
-``` evb_shell
+``` shell
 # envs
 tar zxf cvimodel_samples_cv183x.tar.gz
 export MODEL_PATH=$PWD/cvimodel_samples
@@ -229,7 +308,7 @@ cd samples
 
 同时提供脚本作为参考，执行效果与直接运行相同，如下：
 
-``` evb_shell
+``` shell
 ./run_classifier.sh
 ./run_detector.sh
 ./run_alphapose.sh
@@ -238,7 +317,7 @@ cd samples
 
 也有使用preprocess（预处理）的脚本作为参考，如下：
 
-``` evb_shell
+``` shell
 ./run_classifier_fused_preprocess.sh
 ./run_detector_fused_preprocess.sh
 ./run_alphapose_fused_preprocess.sh
@@ -247,121 +326,16 @@ cd samples
 
 
 
-#### 2.2 测试cvimodel
+#### 3.2 交叉编译samples程序
 
-在EVB执行脚本regression_models.sh，该脚本对每个网络调用model_runner进行推理运算，比对输出数据是否正确，同时打印运行时间信息。
-
-* 基于PMU数据的Inference性能测试
-
-  Regression模型文件分成bs=1和bs=4两部分，分别执行测试，对所有网络进行正确性和运行效率测试。以cv183x平台为例：
-
-  ``` evb_shell
-  cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
-  export TPU_ROOT=$PWD/cvitek_tpu_sdk
-
-  # For batch_size = 1
-  tar zxf cvimodel_regression_bs1_cv183x.tar.gz
-  MODEL_PATH=$PWD/cvimodel_regression_bs1 $TPU_ROOT/regression_models.sh
-
-  # For batch_size = 4
-  tar zxf cvimodel_regression_bs4_cv183x.tar.gz
-  MODEL_PATH=$PWD/cvimodel_regression_bs4 $TPU_ROOT/regression_models.sh batch
-
-  # Run one model (eg. Resnet50 run once)
-  MODEL_PATH=$PWD/cvimodel_regression_bs1 $TPU_ROOT/regression_models.sh resnet50 1
-  ```
-
-
-
-* 基于系统时钟的端到端性能测试
-
-  计入数据输入，后处理和数据导出时间在内的端到端网络推理时间，以cv183x平台为例：
-
-  ``` evb_shell
-  cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
-  export TPU_ROOT=$PWD/cvitek_tpu_sdk
-  export PATH=$TPU_ROOT/samples/bin:$PATH
-
-  tar zxf cvimodel_regression_bs1_cv183x.tar.gz
-  MODEL_PATH=$PWD/cvimodel_regression_bs1 $TPU_ROOT/regression_models_e2e.sh
-  ```
-
-
-
-#### 2.3 当前支持测试的网络列表
-
-cv183x支持的网络如下：
-
-| Classification                                               | Detection                                                    | Misc                                                         |
-| ------------------------------------------------------------ | ------------------------------------------------------------ | ------------------------------------------------------------ |
-| resnet50       [BS=1,4] <br />resnet18       [BS=1,4]<br />mobilenet_v1     [BS=1,4]<br />mobilenet_v2     [BS=1,4]<br />squeezenet_v1.1    [BS=1,4]<br />shufflenet_v2     [BS=1,4]<br />googlenet       [BS=1,4]<br />inception_v3     [BS=1,4]<br />inception_v4     [BS=1,4]<br />vgg16         [BS=1,4]<br />densenet_121     [BS=1,4]<br />densenet_201     [BS=1,4]<br />senet_res50      [BS=1,4]<br />resnext50       [BS=1,4]<br />res2net50       [BS=1,4]<br />ecanet50       [BS=1,4]<br />efficientnet_b0    [BS=1,4]<br />efficientnet_lite_b0 [BS=1,4]<br />nasnet_mobile     [BS=1,4] | retinaface_mnet25 [BS=1,4]<br />retinaface_res50   [BS=1]<br />ssd300        [BS=1,4]<br />mobilenet_ssd [BS=1,4]<br />yolo_v1_448      [BS=1]<br />yolo_v2_416      [BS=1]<br />yolo_v2_1080     [BS=1]<br />yolo_v3_416      [BS=1,4]<br />yolo_v3_608      [BS=1]<br />yolo_v3_tiny     [BS=1]<br />yolo_v3_spp      [BS=1]<br />yolo_v4        [BS=1] | arcface_res50 [BS=1,4]<br />alphapose       [BS=1,4]<br />espcn_3x       [BS=1,4]<br />unet          [BS=1,4]<br />erfnet         [BS=1] |
-
-cv182x支持的网络如下：
-
-| Classification                                               | Detection                                                    | Misc                                                       |
-| ------------------------------------------------------------ | ------------------------------------------------------------ | ---------------------------------------------------------- |
-| resnet50       [BS=1,4] <br />resnet18       [BS=1,4]<br />mobilenet_v1     [BS=1,4]<br />mobilenet_v2     [BS=1,4]<br />squeezenet_v1.1    [BS=1,4]<br />shufflenet_v2     [BS=1,4]<br />googlenet       [BS=1,4]<br />inception_v3     [BS=1]<br />densenet_121     [BS=1,4]<br />densenet_201     [BS=1]<br />senet_res50      [BS=1]<br />resnext50       [BS=1,4]<br />efficientnet_lite_b0 [BS=1,4]<br />nasnet_mobile     [BS=1] | retinaface_mnet25 [BS=1,4]<br />retinaface_res50   [BS=1]<br />mobilenet_ssd [BS=1,4]<br />yolo_v1_448      [BS=1]<br />yolo_v2_416      [BS=1]<br />yolo_v3_416      [BS=1,4]<br />yolo_v3_608      [BS=1]<br />yolo_v3_tiny     [BS=1]<br /> | arcface_res50 [BS=1,4]<br />alphapose       [BS=1,4]<br /> |
-
-
-
-**注：** BS表示batch，[BS=1]表示板子目前至少batch 1，[BS=1,4]表示板子至少支持batch 1和batch 4。
-
-<div STYLE="page-break-after: always;"></div>
-
-## 3 开发环境配置
-
-从docker hub获取（推荐）:
-
-```
-docker pull cvitek/cvitek_dev:1.4-ubuntu-18.04
-```
-
-或者加载镜像文件：
-
-```
-docker load -i docker_cvitek_dev_1.4-ubuntu-18.04.tar
-```
-
-
-
-如果是首次使用docker，可执行下述命令进行安装和配置（Ubuntu系统）
-
-```
-sudo apt install docker.io
-systemctl start docker
-systemctl enable docker
-
-sudo groupadd docker
-sudo usermod -aG docker $USER
-newgrp docker (use before reboot)
-```
-
-
-
-取得docker image后，执行下述命令运行docker：
-
-```
-# 这里假设models和dataset分别位于~/data/models和~/data/dataset目录，如有不同请相应调整。
-docker run -itd -v $PWD:/work \
-   -v ~/data/models:/work/models \
-   -v ~/data/dataset:/work/dataset \
-   --name cvitek cvitek/cvitek_dev:1.4-ubuntu-18.04
-docker exec -it cvitek bash
-```
-
-<div STYLE="page-break-after: always;"></div>
-
-## 4 编译samples程序
-
-请根据chip类型选择使用对应的TPU sdk对samples code做交叉编译，加载至evb上并运行测试。
+发布包有samples的源代码，按照本节方法在Docker环境下交叉编译samples程序，然后在evb上运行。
 
 本节需要如下文件：
 
 * cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
 * cvitek_tpu_samples.tar.gz
 
-
-#### cv183x平台64位
+###### cv183x平台64位
 
 TPU sdk准备：
 
@@ -391,7 +365,7 @@ cmake -G Ninja \
 cmake --build . --target install
 ```
 
-#### cv182x平台32位
+###### cv182x平台32位
 
 TPU sdk准备：
 
@@ -431,110 +405,27 @@ cmake --build . --target install
 
 <div STYLE="page-break-after: always;"></div>
 
-## 5 编译生成测试用cvimodel
+## 4 编译移植caffe模型
 
-本节需要如下文件：
-
-* cvitek_mlir_ubuntu-18.04.tar.gz
-* models.tar.gz
-* dataset.tar.gz
-
-#### 5.1 调用脚本生成cvimodel
-
-准备TPU仿真开发环境：
-
-```
-tar zxf cvitek_mlir_ubuntu-18.04.tar.gz
-source cvitek_mlir/cvitek_envs.sh
-```
-
- 使用下述脚本命令，快速生成所有测试用的cvimodel文件：
-
-```
-generate_all_cvimodels.sh
-```
-
- 生成regression_out/cvimodel_release目录，cvimodel_samples所包含的模型是此处生成cvimodel_release的子集。
-
-
-
-#### 5.2 运行回归测试生成cvimodel和输入输出数据
-
-使用下述回归测试命令，对模型移植的各步骤结果进行比对和验证。同时也可以选择进行精度测试。
-
- 回归测试结束，除生成所有测试cvimodel文件外，还同时生成各个模型的输入输出测试数据，用于加载至EVB进行模型测试。
-
-
-
-准备TPU仿真开发环境：
-
-```
-tar zxf cvitek_mlir_ubuntu-18.04.tar.gz
-source cvitek_mlir/cvitek_envs.sh
-```
-
-
-
-使用下述命令启动回归测试。测试网络分级为basic和extra以调节测试时间，用户也可以编辑run_regression.sh自行调节列表。
-
-```
-run_regression.sh    # basic  models only  Or
-run_regression.sh -e  # with  extra models
-```
-
-
-
-生成的cvimodel_regression内容与release中cvimodel_regression.tar.gz内容一致，可以加载至EVB进行一致性和性能测试。
-
- 用户也可以单独对其中一个网络进行回归测试，命令如下（以resnet50为例），所支持的网络列表参见2.2节。
-
-```
-regression_generic.sh resnet50
-```
-
-
-
-#### 5.3 测试模型精度
-
-在执行run_regression.sh后，我们可以利用脚本对mlir模型进行精度测试，并与原始模型精度进行比较。命令为：
-
-```
-source cvitek_mlir/cvitek_envs.sh
-cd regression_out
-# accuracy_generic.sh ${NET} ${COUNT}
-# Eg. Imagenet
-accuracy_generic.sh mobilenet_v2 50000 2>&1 | tee mnet_v2_50000.txt
-accuracy_generic.sh resnet50 50000 2>&1 | tee res50_50000.txt
-# Eg. coco
-accuracy_generic.sh yolo_v3_416 5000 2>&1 | tee yolo_v3_416_5000.txt
-accuracy_generic.sh yolo_v3_320 5000 2>&1 | tee yolo_v3_320_5000.txt
-```
-
-**注：** 需要准备imagenet或者coco的数据集，参见1.3节。
-
-<div STYLE="page-break-after: always;"></div>
-
-## 6 编译移植caffe模型
-
-本章以mobilenet_v2为例，介绍如何编译迁移一个caffe模型至CV183x TPU平台运行; 如果需要切换到cv182x平台，可以通过命令行参数--chipname cv182x来指定。
+本章以mobilenet_v2为例，介绍如何编译迁移一个caffe模型至TPU平台运行
 
  本章需要如下文件：
 
 * cvitek_mlir_ubuntu-18.04.tar.gz
-* dataset.tar.gz
 
 #### 步骤 0：加载cvitek_mlir环境
 
 ``` shell
+tar zxf cvitek_mlir_ubuntu-18.04.tar.gz
 source cvitek_mlir/cvitek_envs.sh
 ```
 
 #### 步骤 1：获取caffe模型
 
-从<https://github.com/shicai/MobileNet-Caffe>下载模型，并保存在`models_mobilenet_v2`目录：
+从<https://github.com/shicai/MobileNet-Caffe>下载模型，并保存在`model_mobilenet_v2`目录：
 
 ``` shell
-mkdir models_mobilenet_v2 && cd models_mobilenet_v2
+mkdir model_mobilenet_v2 && cd model_mobilenet_v2
 wget -nc https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2.caffemodel
 wget -nc https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt
 ```
@@ -543,6 +434,7 @@ wget -nc https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deplo
 
 ``` shell
 mkdir workspace && cd workspace
+cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
 ```
 
 #### 步骤 2：模型转换
@@ -552,7 +444,7 @@ mkdir workspace && cd workspace
 | **参数名**          | **说明**                             |
 | ------------------- | ------------------------------------ |
 | image_resize_dims   | 表明图片resize大小，比如256,256      |
-| keep_aspect_ratio   | 在Resize时是否保持长宽比 |
+| keep_aspect_ratio   | 在Resize时是否保持长宽比，默认为false；true时会对不足部分补0；一般建议为false |
 | net_input_dims      | 表明模型输入的大小，比如224,224      |
 | model_channel_order | channel顺序，默认bgr；可以指定为rgb  |
 | raw_scale           | 操作：* raw_scale/255.0，默认为255.0 |
@@ -612,7 +504,6 @@ run_calibration.py \
   mobilenet_v2_fp32.mlir \
   --dataset=$DATASET_PATH/imagenet/img_val_extracted \
   --input_num=1000 \
-  --histogram_bin_num=2048 \
   -o mobilenet_v2_calibration_table
 ```
 
@@ -627,7 +518,7 @@ model_deploy.py \
   --calibration_table mobilenet_v2_calibration_table \
   --chip cv183x \
   --image cat.jpg \
-  --tolerance 0.95,0.94,0.69 \
+  --tolerance 0.94,0.94,0.61 \
   --correctness 0.99,0.99,0.99 \
   --cvimodel mobilenet_v2.cvimodel
 ```
@@ -637,20 +528,32 @@ model_deploy.py \
 - 生成MLIR int8模型, 运行MLIR量化模型的推理, 并与MLIR fp32模型的结果做比较
 - 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR 量化模型做比较
 
-**注：** --tolerance 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度， --correctnetss 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度, --chip 可以选择cv183x和cv182x 默认使用cv183x
+model_deploy.py的相关参数说明如下：
+
+| 参数              | 描述                                                         |
+| ----------------- | ------------------------------------------------------------ |
+| model_name        | 模型名称                                                     |
+| mlir              | mlir文件                                                     |
+| calibration_table | int8量化文件                                                 |
+| chip              | 支持平台，可以为cv183x或cv182x                               |
+| image             | 指定验证文件，可以是图片，也可以是包含输入的npz文件          |
+| tolerance         | 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度 |
+| correctnetss      | 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度  |
+| cvimodel          | 输出文件名                                                   |
 
 <div STYLE="page-break-after: always;"></div>
 
-## 7 编译移植pytorch模型
+## 5 编译移植pytorch模型
 
 本章以resnet18为例，介绍如何编译迁移一个pytorch模型至CV183x TPU平台运行。
 
  本章需要如下文件：
 
 * cvitek_mlir_ubuntu-18.04.tar.gz
-* dataset.tar.gz
 
+除caffe外的框架，如tensorflow/pytorch均可以参考本章节步骤，先转换成onnx，再转换成cvimodel。
 
+如何将模型转换成onnx，可以参考onnx官网: <https://github.com/onnx/tutorials>
 
 #### 步骤 0：加载cvitek_mlir环境
 
@@ -745,17 +648,6 @@ model_transform.py \
 
 得到resnet18_fp32.mlir文件.
 
-其转换过程包括:
-
-- 原始onnx模型的推理, 并将各层结果保存为numpy的npz文件
-
-- 原始onnx模型的导入, 将原始模型转换成MLIR fp32模型
-  - 执行MLIR fp32模型的推理, 将各层输出保存到numpy 的npz文件中
-  - 将onnx模型的推理的结果与MLIR fp32的推理结果对比, 确保转换的MLIR fp32模型正确
-  - 将MLIR fp32模型做优化，作为后续流程的输入
-
-**注：** 上述填入的预处理参数仅仅以信息的形式存放在mlir中，后续转换成cvimodel，也仅以信息的方式存放。对图片的预处理过程需要再外部处理，再传给模型运算。如果需要模型内部对图片进行预处理，请参考12章节：使用TPU做前处理。
-
 #### 步骤 3：Calibration
 
 Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
@@ -766,7 +658,6 @@ run_calibration.py \
   resnet18_fp32.mlir \
   --dataset=$DATASET_PATH/imagenet/img_val_extracted \
   --input_num=1000 \
-  --histogram_bin_num=2048 \
   -o resnet18_calibration_table
 ```
 
@@ -786,559 +677,9 @@ model_deploy.py \
   --cvimodel resnet18.cvimodel
 ```
 
-以上命令同时包含以下几步:
-
-- 生成MLIR int8量化模型, 运行MLIR int8量化模型的推理, 并与MLIR fp32模型的结果做比较
-- 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR int8量化模型结果做比较
-
-**注：** --tolerance 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度， --correctnetss 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度， --chip 可以选择cv183x和cv182x 默认使用cv183x
-
 <div STYLE="page-break-after: always;"></div>
 
-## 8 编译移植tensorflow 2.x模型
-
-TPU工具链对Tensorflow 2.x模型采用直接import方式进行。
-
-本章以`mobilenet_v2`为例，介绍如何编译迁移一个tensorflow 2.x模型至CV183x TPU平台运行。
-
-本章需要如下文件：
-
-* cvitek_mlir.tar.gz
-* dataset.tar.gz
-
-
-
-#### 步骤 0：加载cvitek_mlir环境
-
-``` shell
-source cvitek_mlir/cvitek_envs.sh
-```
-
-#### 步骤 1：获取tensorflow模型
-
-使用tensorflow提供的mobilenet_v2模型，<https://www.tensorflow.org/api_docs/python/tf/keras/applications/MobileNetV2>
-
-使用下列python脚本下载并保存模型：
-
-``` shell
-mkdir model_mobilenet_v2_tf
-cd model_mobilenet_v2_tf
-```
-
-执行python命令：
-
-``` python
-# python
-import tensorflow as tf
-import numpy as np
-import os
-model =  tf.keras.applications.MobileNetV2()
-model.save('mobilenet_v2',  save_format='tf')
-```
-
-得到的模型保存在mobilenet_v2目录，目录结构如下：
-
-``` shell
-tree mobilenet_v2
-# mobilenet_v2/
-# ├── assets
-# ├── saved_model.pb
-# └── variables
-#    ├──  variables.data-00000-of-00001
-#    └── variables.index
-# 2 directories, 3 files
-```
-
-创建workspace：
-
-``` shell
-mkdir workspace && cd workspace
-```
-
-#### 步骤 2：模型转换
-
-取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg：
-
-``` shell
-cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
-```
-
-将tensorflow模型转成mlir文件
-
-``` shell
-model_transform.py \
-  --model_type tensorflow \
-  --model_name mobilenet_v2_tf \
-  --model_def ../mobilenet_v2 \
-  --image ./cat.jpg \
-  --image_resize_dims 256,256 \
-  --keep_aspect_ratio false \
-  --net_input_dims 224,224 \
-  --raw_scale 255.0 \
-  --mean 127.5,127.5,127.5 \
-  --std 127.5,127.5,127.5 \
-  --input_scale 1.0 \
-  --model_channel_order "rgb" \
-  --gray false \
-  --batch_size 1 \
-  --tolerance 0.99,0.99,0.99 \
-  --mlir mobilenet_v2_tf_fp32.mlir
-```
-
-得到`mobilenet_v2_tf_fp32.mlir`文件。
-
-其转换过程包括:
-
-- 原始tensorflow模型的推理, 并将各层的结果保存为numpy的npz文件
-
-- 原始tensorflow模型的导入, 将原始模型转换成MLIR fp32模型
-  - 执行MLIR fp32模型的推理, 将各层输出保存到numpy 的npz文件中
-  - 将tensorflow模型的推理的结果与MLIR fp32的推理结果对比, 确保转换的MLIR fp32模型正确
-  - 将MLIR fp32模型做优化，作为后续流程的输入
-
-**注：** 上述填入的预处理参数仅仅以信息的形式存放在mlir中，后续转换成cvimodel，也仅以信息的方式存放。对图片的预处理过程需要再外部处理，再传给模型运算。如果需要模型内部对图片进行预处理，请参考12章节：使用TPU做前处理。
-
-#### 步骤 3：Calibration
-
-Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
-执行calibration：
-
-``` shell
-run_calibration.py \
-  mobilenet_v2_tf_fp32.mlir \
-  --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-  --input_num=1000 \
-  --histogram_bin_num=2048 \
-  -o mobilenet_v2_tf_calibration_table
-```
-
-  得到`mobilenet_v2_tf_calibration_table`。
-
-#### 步骤 4：模型量化并生成cvimodel
-
-``` shell
-model_deploy.py \
-  --model_name mobilenet_v2_tf \
-  --mlir mobilenet_v2_tf_fp32.mlir \
-  --calibration_table mobilenet_v2_tf_calibration_table \
-  --chip cv183x \
-  --image cat.jpg \
-  --tolerance 0.95,0.94,0.64 \
-  --correctness 0.99,0.99,0.99 \
-  --cvimodel mobilenet_v2_tf.cvimodel
-```
-
-以上命令同时包含以下几步:
-
-- 生成MLIR int8量化模型，运行MLIR int8量化模型的推理, 并与MLIR fp32模型的结果做比较
-- 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR int8量化模型结果做比较
-
-**注：** --tolerance 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度， --correctnetss 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度， --chip 可以选择cv183x和cv182x 默认使用cv183x
-
-<div STYLE="page-break-after: always;"></div>
-
-## 9 编译移植tensorflow 1.x模型
-
-TPU工具链对Tensorflow 1.x模型采用转为onnx模型方式进行。
-
- 本章以`mobilenet_v1_0.25`为例，介绍如何编译迁移一个tensorflow 1.x模型至CV183x TPU平台运行。
-
- 本章需要如下文件：
-
-* cvitek_mlir.tar.gz
-* dataset.tar.gz
-
-
-
-#### 步骤 0：加载cvitek_mlir环境
-
-``` shell
-source cvitek_mlir/cvitek_envs.sh
-```
-
-#### 步骤 1：获取tensorflow模型，并转换为onnx模型
-
-使用tensorflow提供的`mobilenet_v1_0.25_224`模型，参见：
-
-<https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>
-
-下载链接：
-
-<http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_0.25_224.tgz>
-
-首先打开`mobilenet_v1_0.25_224_eval.pbtxt`，找到输出节点名称为`MobilenetV1/Predictions/Reshape_1`，
-使用下列命令转换为onnx模型：
-
-``` shell
-mkdir model_mnet_25 && cd model_mnet_25
-wget -nc \
-http://download.tensorflow.org/models/mobilenet_v1_2018_08_02/mobilenet_v1_0.25_224.tgz
-tar zxf mobilenet_v1_0.25_224.tgz
-pip install tf2onnx
-
-python3 -m tf2onnx.convert --graphdef mobilenet_v1_0.25_224_frozen.pb --output mnet_25.onnx --inputs input:0 --outputs MobilenetV1/Predictions/Reshape_1:0
-```
-
-得到mnet_25.onnx。
-
-但是由于tensorflow模型默认采用NHWC作为输入，转为onnx模型后，仍然是NHWC格式输入，并连接一个transpose节点。在编译前，我们先转换输入格式，并去除这个transpose节点。采用如下python脚本进行：
-
-``` python
-import onnx
-
-model = onnx.load('mnet_25.onnx')
-
-print(model.graph.input[0].type.tensor_type.shape.dim)
-
-model.graph.input[0].type.tensor_type.shape.dim[1].dim_value = 3
-model.graph.input[0].type.tensor_type.shape.dim[2].dim_value = 224
-model.graph.input[0].type.tensor_type.shape.dim[3].dim_value = 224
-
-print(model.graph.input[0].type.tensor_type.shape.dim)
-
-input_name = model.graph.input[0].name
-
-del model.graph.node[0]
-
-model.graph.node[0].input[0] = input_name
-
-onnx.save(model, 'mnet_25_new.onnx')
-```
-
-得到`mnet_25_new.onnx`。
-
-#### 步骤 2：模型转换
-
-创建workspace，取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg
-
-``` shell
-mkdir workspace && cd workspace
-cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
-```
-
-预处理参数如下：
-
-> RAW_SCALE=255
->
-> MODEL_CHANNEL_ORDER="rgb"
->
-> MEAN=127.5,127.5,127.5 # in RGB
->
-> STD=127.5,127.5,127.5
->
-> INPUT_SCALE=1.0
-
-将onnx模型转成mlir文件
-
-``` shell
-model_transform.py \
-  --model_type onnx \
-  --model_name mnet_25 \
-  --model_def ../mnet_25_new.onnx \
-  --image ./cat.jpg \
-  --image_resize_dims 256,256 \
-  --keep_aspect_ratio false \
-  --net_input_dims 224,224 \
-  --raw_scale 255.0 \
-  --mean 127.5,127.5,127.5 \
-  --std 127.5,127.5,127.5 \
-  --input_scale 1.0 \
-  --model_channel_order "rgb" \
-  --gray false \
-  --batch_size 1 \
-  --tolerance 0.99,0.99,0.99 \
-  --mlir mnet_25_fp32.mlir
-```
-
-得到`mnet_25_fp32.mlir`文件.
-
-其转换过程包括:
-
-- 原始tensorflow模型的推理, 并将各层结果保存为numpy的npz文件
-
-- 原始tensorflow模型的导入, 将原始模型转换成MLIR fp32模型
-  - 执行MLIR fp32模型的推理, 将各层输出保存到numpy 的npz文件中
-  - 将caffe模型的推理的结果与MLIR fp32的推理结果对比, 确保转换的MLIR fp32模型正确
-  - 将MLIR fp32模型做优化，作为后续流程的输入
-
-**注：** 上述填入的预处理参数仅仅以信息的形式存放在mlir中，后续转换成cvimodel，也仅以信息的方式存放。对图片的预处理过程需要再外部处理，再传给模型运算。如果需要模型内部对图片进行预处理，请参考12章节：使用TPU做前处理。
-
-#### 步骤 4：Calibration
-
-Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
-执行calibration：
-
-``` shell
-run_calibration.py \
-  mnet_25_fp32.mlir \
-  --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-  --input_num=1000 \
-  --histogram_bin_num=2048 \
-  -o mnet_25_calibration_table
-```
-
-  得到`mnet_25_calibration_table`。
-
-#### 步骤 5：模型量化并生成cvimodel
-
-``` shell
-model_deploy.py \
-  --model_name mnet_25 \
-  --mlir mnet_25_fp32.mlir \
-  --calibration_table mnet_25_calibration_table \
-  --chip cv183x \
-  --image cat.jpg \
-  --tolerance 0.93,0.90,0.62 \
-  --correctness 0.99,0.99,0.99 \
-  --cvimodel mnet_25.cvimodel
-```
-
-以上命令同时包含以下几步:
-
-- 生成MLIR int8量化模型, 运行MLIR int8量化模型的推理, 并与MLIR fp32模型的结果做比较
-- 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR int8量化模型结果做比较
-
-**注：** --tolerance 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度， --correctnetss 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度， --chip 可以选择cv183x和cv182x 默认使用cv183x
-
-
-
-上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度：
-
-``` shell
-# FP32
-eval_classifier.py \
-    --mlir_file=mnet_25_fp32.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --label_file=$REGRESSION_PATH/data/synset_words.txt \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --model_type mlir \
-    --count=50000
-
-# INT8
-eval_classifier.py \
-    --mlir_file=mnet_25_quantized.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --label_file=$REGRESSION_PATH/data/synset_words.txt \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --model_type mlir \
-    --count=50000
-```
-
-<div STYLE="page-break-after: always;"></div>
-
-## 10 编译移植tflite模型
-
-本章以resnet50为例，介绍如何编译迁移一个tflite模型至CV183x TPU平台运行。
-
-本章需要如下文件：
-
-* cvitek_mlir_ubuntu-18.04.tar.gz
-* dataset.tar.gz
-
-
-
-#### 步骤 0：加载cvitek_mlir环境
-
-``` shell
-source cvitek_mlir/cvitek_envs.sh
-```
-
-#### 步骤 1：获取tensorflow模型，并转换为tflite模型
-
-(如直接使用准备好的tflite模型, 这一步可以省略)
-
-创建模型目录：
-
-``` shell
-mkdir resnet50_tflite && cd resnet50_tflite
-```
-
-使用以下python脚本下载tensorflow模型并转换为tflite模型：
-
-``` python
-import os
-import numpy as np
-import tensorflow as tf
-from tensorflow.keras.applications.resnet import preprocess_input
-from tensorflow.keras.preprocessing import image
-
-os.environ['CUDA_VISIBLE_DEVICES'] = ''
-
-data_path = os.environ['DATASET_PATH'] + '/imagenet/img_val_extracted/val/'
-
-def representative_data_gen():
-    class_path = os.path.join(data_path)
-    all_class = os.listdir(class_path)
-    for i in all_class[:100]: # data numbers
-        imgs_name = os.listdir('{}/{}'.format(class_path, i))
-        for img_name in imgs_name:
-            image_path = os.path.join('{}/{}'.format(class_path, i), img_name)
-            img = image.load_img(image_path, target_size=(224, 224))
-            x = image.img_to_array(img)
-            x = np.expand_dims(x, axis=0)
-            x = preprocess_input(x)
-            print(img_name)
-            yield [x]
-            # take one image from each class
-            break
-
-def main():
-    # tf._logging.set_verbosity(tf._logging.INFO)
-    model = tf.keras.applications.ResNet50(
-        weights='imagenet', input_shape=(224, 224, 3))
-    model.save('resnet50_model', save_format='tf')
-    converter = tf.lite.TFLiteConverter.from_saved_model('resnet50_model')
-    tflite_model = converter.convert()
-    open('resnet50.tflite', 'wb').write(tflite_model)
-
-    converter.optimizations = [tf.lite.Optimize.DEFAULT]
-    converter.representative_dataset = representative_data_gen
-
-    tflite_model = converter.convert()
-    open('resnet50_int8_quant.tflite', 'wb').write(tflite_model)
-
-if __name__ == '__main__':
-    main()
-```
-
-得到对应的`resnet50_int8_quant.tflite`模型。
-
-#### 步骤 2：执行tflite推理（Optional）
-
-创建工作目录，并取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg, 并用以下脚本生成输入数据给interpter使用：
-
-``` shell
-mkdir workspace && cd workspace
-cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
-# 进入python后台
-```
-
-执行python命令如下：
-
-``` python
-import tensorflow as tf
-from tensorflow.keras.preprocessing import image
-from tensorflow.keras.applications.resnet import preprocess_input
-import numpy as np
-
-img = image.load_img('cat.jpg', target_size=(224, 224))
-x = image.img_to_array(img)
-x = np.expand_dims(x, axis=0)
-x = preprocess_input(x)
-x = np.ascontiguousarray(np.transpose(x, (0,3,1,2)))
-np.savez('resnet50_in_fp32.npz', input=x)
-```
-
-运行tflite推理：
-
-``` shell
-cvi_model_inference.py \
-    --input_file cat.jpg \
-    --output_file resnet50_out_ref.npz \
-    --model_def ../resnet50_int8_quant.tflite \
-    --net_input_dims 224,224 \
-    --image_resize_dims 256,256 \
-    --model_type=tflite \
-    --raw_scale 255.0 \
-    --mean 103.939,116.779,123.68 \
-    --data_format nhwc \
-    --input_scale 1.0
-```
-
-得到`resnet50_out_ref.npz`。
-
-#### 步骤 3：转换为mlir，进行前端优化
-
-执行转换和前端优化：
-
-``` shell
-cvi_model_convert.py  \
-    --model_path ../resnet50_int8_quant.tflite \
-    --model_name resnet50 \
-    --model_type tflite_int8  \
-    --batch_size 1 \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 103.939,116.779,123.68 \
-    --input_scale 1.0 \
-    --mlir_file_path resnet50_int8.mlir
-
-tpuc-opt resnet50_int8.mlir \
-    --assign-chip-name \
-    --chipname cv183x \
-    --print-tpu-op-info \
-    --tpu-op-info-filename op_info_int8.csv \
-    -o resnet50_int8_opt.mlir
-```
-
-得到`resnet50_int8_opt.mlir`文件。
-
-运行tpuc-interpreter对mlir进行推理，得到逐层数据：
-
-``` shell
-# inference with mlir and input data, dump all tensor
-tpuc-interpreter resnet50_int8_opt.mlir \
-    --tensor-in resnet50_in_fp32.npz \
-    --tensor-out resnet50_out_int8.npz \
-    --dump-all-tensor=resnet50_tensor_all_int8.npz
-```
-
-得到resnet50_out_int8.npz。
-
-#### 步骤 4：生成cvimodel
-
-此模型输入为int8模型, 不须做calibraion。
-
-``` shell
-mlir_to_cvimodel.sh -i resnet50_int8_opt.mlir -o resnet50.cvimodel
-
-model_runner \
-    --input resnet50_in_fp32.npz \
-    --model resnet50.cvimodel \
-    --output out.npz
-
-# check output data
-cvi_npz_tool.py dump out.npz
-cvi_npz_tool.py dump out.npz Identity_int8 5
-# Show Top-K 5
-# (277, 0.5969119)
-# (278, 0.23570427)
-# (356, 0.07378012)
-# (263, 0.036752112)
-# (287, 0.023094626)
-```
-
-测试精度：
-
-``` shell
-# INT8
-eval_classifier.py \
-    --mlir_file=resnet50_int8_opt.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --net_input_dims 224,224 \
-    --model_type=mlir \
-    --raw_scale 255.0 \
-    --mean 103.939,116.779,123.68 \
-    --input_scale 1 \
-    --count=50000
-```
-
-<div STYLE="page-break-after: always;"></div>
-
-## 11  精度优化和混合量化使用指南
+## 6  精度优化和混合量化
 
 CV183X TPU支持INT8和BF16两种量化方法。在模型编译阶段，工具链支持以搜索的方式找到对模型精度最敏感的op，并支持将指定数量的op替换为BF16，从而提高整个网络的精度。
 
@@ -1347,11 +688,8 @@ CV183X TPU支持INT8和BF16两种量化方法。在模型编译阶段，工具�
 本章需要如下文件：
 
 * cvitek_mlir_ubuntu-18.04.tar.gz
-* dataset.tar.gz
 
 #### 步骤 0：获取tensorflow模型，并转换为onnx模型
-
-此处与第9章相同。
 
 使用tensorflow提供的`mobilenet_v1_0.25_224`模型，参见：<https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>
 
@@ -1444,8 +782,7 @@ model_transform.py \
 
 得到`mnet_25_fp32.mlir`文件。
 
-
-#### 步骤 2：测试FP32模型精度（Optional）
+###### 测试FP32模型精度（可选）
 
 使用pymlir python接口测试精度：
 
@@ -1475,7 +812,7 @@ eval_classifier.py \
 
 测试得到FP32模型精度为Top-1 49.2% Top-5 73.5%。
 
-#### 步骤 4：进行INT8量化
+#### 步骤 2：进行INT8量化
 
 进行calibration：
 
@@ -1503,7 +840,7 @@ model_deploy.py \
   --cvimodel mnet_25.cvimodel.npz
 ```
 
-#### 步骤 5：测试INT8模型精度（Optional)
+###### 测试INT8模型精度（可选)
 
 上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度：
 
@@ -1532,7 +869,49 @@ eval_classifier.py \
 
 测试得到INT8模型精度为Top-1 43.2% Top-5 68.3%，比FP32模型精度（Top-1 49.2% Top-5 73.5%）有一定幅度下降。
 
-#### 步骤 6：进行混合量化搜索，并进行混合量化
+#### 步骤3：进行BF16量化
+
+指定参数--all_bf16，可以将fp32 mlir转换成全bf16模型
+
+``` shell
+model_deploy.py \
+  --model_name mnet_25 \
+  --mlir mnet_25_fp32.mlir \
+  --all_bf16 \
+  --chip cv183x \
+  --image cat.jpg \
+  --tolerance 0.99,0.99,0.86 \
+  --correctness 0.99,0.99,0.93 \
+  --cvimodel mnet_25_all_bf16_precision.cvimodel
+```
+
+###### 测试BF16模型精度 （可选)
+
+上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度
+
+``` shell
+eval_classifier.py \
+    --mlir_file=mnet_25_quantized.mlir \
+    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
+    --label_file=$REGRESSION_PATH/data/synset_words.txt \
+    --image_resize_dims 256,256 \
+    --net_input_dims 224,224 \
+    --raw_scale 255.0 \
+    --mean 127.5,127.5,127.5 \
+    --std 127.5,127.5,127.5 \
+    --data_format "nchw" \
+    --model_channel_order "rgb" \
+    --model_type mlir \
+    --count=50000
+
+# Test: [49950/50000]     Time  0.031 ( 0.036)    Loss 6.4377e+00 (6.5711e+00)    Acc@1 100.00 ( 48.49)   Acc@5 100.00 ( 73.06)
+# Test: [50000/50000]     Time  0.033 ( 0.036)    Loss 6.8726e+00 (6.5711e+00)    Acc@1   0.00 ( 48.50)   Acc@5 100.00 ( 73.06)
+# * Acc@1 48.498 Acc@5 73.064
+```
+
+
+
+#### 步骤 4：进行混合量化搜索，并进行混合量化
 
 搜索混合量化表。此模型共有59层，选择多少层进行替换，可以根据对精度的需要，以及测试的精度结果来进行调整。搜索用的数据集数量也可以根据需要调整。
 
@@ -1575,7 +954,7 @@ model_deploy.py \
   --cvimodel mnet_25_mix_precision.cvimodel
 ```
 
-#### 步骤 7：测试混合量化模型精度 (Optional)
+###### 测试混合量化模型精度 (可选)
 
 上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度：
 
@@ -1618,24 +997,7 @@ eval_classifier.py \
 #  * Acc@1 47.782 Acc@5 72.518
 ```
 
-全bf16量化的测量：
-
-``` shell
-model_deploy.py \
-  --model_name mnet_25 \
-  --mlir mnet_25_fp32.mlir \
-  --all_bf16 \
-  --chip cv183x \
-  --image cat.jpg \
-  --tolerance 0.99,0.99,0.86 \
-  --correctness 0.99,0.99,0.94 \
-  --cvimodel mnet_25_all_bf16_precision.cvimodel
-
-# BF16
-# Test: [49950/50000]     Time  0.031 ( 0.036)    Loss 6.4377e+00 (6.5711e+00)    Acc@1 100.00 ( 48.49)   Acc@5 100.00 ( 73.06)
-# Test: [50000/50000]     Time  0.033 ( 0.036)    Loss 6.8726e+00 (6.5711e+00)    Acc@1   0.00 ( 48.50)   Acc@5 100.00 ( 73.06)
-# * Acc@1 48.498 Acc@5 73.064
-```
+#### 各种量化精度测试对比 (可选)
 
 比较6种量化方式的结果（混合量化包含6层，10层和15层三个版本）：
 
@@ -1650,7 +1012,7 @@ model_deploy.py \
 
 <div STYLE="page-break-after: always;"></div>
 
-## 12 使用TPU做前处理
+## 7 使用TPU做前处理
 
 CV183X提供两种硬件资源进行神经网络模型的前处理加速。
 
@@ -1662,7 +1024,7 @@ CV183X提供两种硬件资源进行神经网络模型的前处理加速。
 
 #### 步骤 0-3：与Caffe章节相应步骤相同
 
-假设用户以及按照第6章所述步骤，执行完模型转换并生成calibraiton table后。
+假设用户以及按照第4章所述步骤，执行完模型转换并生成calibraiton table后。
 
 #### 步骤 4：模型量化并生成含TPU预处理的cvimodel
 
@@ -1670,7 +1032,7 @@ CV183X提供两种硬件资源进行神经网络模型的前处理加速。
 
 ``` shell
 source cvitek_mlir/cvitek_envs.sh
-cd models_mobilenet_v2/workspace
+cd model_mobilenet_v2/workspace
 ```
 
 执行以下命令：
@@ -1682,7 +1044,7 @@ model_deploy.py \
   --calibration_table mobilenet_v2_calibration_table \
   --chip cv183x \
   --image cat.jpg \
-  --tolerance 0.96,0.96,0.71 \
+  --tolerance 0.94,0.94,0.61 \
   --fuse_preprocess \
   --pixel_format BGR_PACKED \
   --aligned_input false \
@@ -1716,9 +1078,9 @@ model_deploy.py \
 
 <div STYLE="page-break-after: always;"></div>
 
-## 13 合并cvimodel模型文件
+## 8 合并cvimodel模型文件
 对于同一个模型，可以依据输入的batch size以及分辨率(不同的h和w)分别生成独立的cvimodel文件。不过为了节省外存和运存，可以选择将这些相关的cvimodel文件合并为一个cvimodel文件，共享其权重部分。具体步骤如下：
-#### 步骤 1：
+#### 步骤 1：生成batch 1的cvimodel
 请参考前述章节，新建workspace，通过model_transform.py将mobilenet_v2的caffemodel转换为mlir fp32模型:
 
 ``` shell
@@ -1759,7 +1121,7 @@ model_transform.py \
   --cvimodel mobilenet_v2_bs1.cvimodel
 ```
 
-#### 步骤 2：
+#### 步骤 2：生成batch 4的cvimodel
 同步骤1，在同一个workspace中生成batch为4的mlir fp32文件:
 
 ``` shell
@@ -1799,7 +1161,7 @@ model_transform.py \
   --merge_weight \
   --cvimodel mobilenet_v2_bs4.cvimodel
 ```
-#### 步骤 3
+#### 步骤 3: 合并batch 1和batch 4的cvimodel
 使用cvimodel_tool合并两个cvimodel文件:
 ``` shell
 cvimodel_tool \
@@ -1808,7 +1170,7 @@ cvimodel_tool \
      mobilenet_v2_bs4.cvimodel \
   -o mobilenet_v2_bs1_bs4.cvimodel
 ```
-#### 步骤 4
+#### 步骤 4：runtime接口调用cvimodel
 在运行时可以通过命令：
 ``` shell
 cvimodel -a dump -i mobilenet_v2_bs1_bs4.cvimodel
