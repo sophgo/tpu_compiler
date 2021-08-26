@@ -1696,6 +1696,34 @@ Value tpu::ReciprocalOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::ReflectionPadOp::convertToTG() {
+  Operation *op = this->getOperation();
+  //TensorFile *wTF = getWeightTensorFile(op);
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value> operands;
+  for (int i = 0; i < 3; i++) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("pads", padsAttr()));
+  if (getOpQuant() == "INT8") {
+    // no need to quant
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReflectionPadOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReflectionPadOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::ReluOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4030,6 +4058,7 @@ public:
         DefaultToTGPattern<tpu::ReluOp>,
         DefaultToTGPattern<tpu::ReorgOp>,
         DefaultToTGPattern<tpu::ReverseOp>,
+        DefaultToTGPattern<tpu::ReflectionPadOp>,
         DefaultToTGPattern<tpu::ScaleLutOp>,
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,

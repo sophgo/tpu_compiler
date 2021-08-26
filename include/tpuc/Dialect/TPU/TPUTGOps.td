@@ -1066,6 +1066,49 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_LutOp : TPU_TG_LutOp<"tg_int8_lut", "Int8">;
 def TPU_TG_BF16_LutOp : TPU_TG_LutOp<"tg_bf16_lut", "BF16">;
 
+class TPU_TG_ReflectionPadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "ReflectionPad operator";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `pads`             : required, pad left and right.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$left_select,
+    AnyTensor:$right_select,
+    I32ArrayAttr:$pads,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_ReflectionPadOp : TPU_TG_ReflectionPadOp<"tg_int8_reflect_pad", "Int8">;
+def TPU_TG_BF16_ReflectionPadOp : TPU_TG_ReflectionPadOp<"tg_bf16_reflect_pad", "BF16">;
 
 class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

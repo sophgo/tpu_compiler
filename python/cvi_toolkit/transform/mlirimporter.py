@@ -85,6 +85,7 @@ class TPU_OpType(Enum):
     Reorg = 'tpu.reorg'
     RetinaFaceDetection = 'tpu.retinaface_detection'
     Reverse = 'tpu.reverse'
+    ReflectionPad = 'tpu.reflection_pad'
     ROIPooling = 'tpu.roi_pooling'
     Scale = 'tpu.scale'
     ShuffelChannel = 'tpu.shuffle_channel'
@@ -1122,6 +1123,26 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Mish.value, inputOperands, [
             tensor_output_type], name=mish_name, quant=self.quant_param)
+
+    def add_reflectionpad_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, ** kargs):
+
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        checkKey(kargs, 'pads')
+
+        pads = kargs['pads']
+
+        op_name = StringAttr.get(op_name)
+        none = self.add_none_op()
+        inputOperands.append(none)
+        inputOperands.append(none)
+        param = {
+            "pads": ArrayAttr.get([IntegerAttr.get(self.i32Type, x) for x in kargs['pads']])
+        }
+        return self.buildOp(TPU_OpType.ReflectionPad.value, inputOperands, [
+            tensor_output_type], name=op_name, quant=self.quant_param, **param)
+
 
     def add_pad_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, ** kargs):
         """

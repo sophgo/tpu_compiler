@@ -3817,6 +3817,56 @@ LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ReflectionPadOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int outer_size = std::accumulate(input_shape.begin(), input_shape.end() - 1,
+                                   1, std::multiplies<int64_t>());
+  int working_size = input_shape.back();
+  std::vector<int> pads;
+  arrayAttrToVector(this->pads(), pads);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_left_select = getWeightOpAddress(left_select().getDefiningOp());
+  gaddr_t ga_right_select = getWeightOpAddress(right_select().getDefiningOp());
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_reflectionpad_kernel(
+      *backend_ctx, layer_id, ga_input, ga_output, ga_left_select,
+      ga_right_select, outer_size, working_size, pads, CVK_FMT_I8);
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ReflectionPadOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  int outer_size = std::accumulate(input_shape.begin(), input_shape.end() - 1,
+                                   1, std::multiplies<int64_t>());
+  int working_size = input_shape.back();
+  std::vector<int> pads;
+  arrayAttrToVector(this->pads(), pads);
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_left_select = getWeightOpAddress(left_select().getDefiningOp());
+  gaddr_t ga_right_select = getWeightOpAddress(right_select().getDefiningOp());
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_reflectionpad_kernel(
+      *backend_ctx, layer_id, ga_input, ga_output, ga_left_select,
+      ga_right_select, outer_size, working_size, pads, CVK_FMT_BF16);
+
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_Yuv420CscOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);

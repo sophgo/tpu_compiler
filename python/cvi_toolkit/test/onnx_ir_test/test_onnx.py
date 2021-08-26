@@ -45,6 +45,7 @@ TEST_ONNX_IR = [
     "MatMul",
     "Neg",
     "Pad",
+    "PadReflect",
     "Relu",
     "PRelu",
 #    "ReduceMax",
@@ -150,6 +151,7 @@ class ONNX_IR_TESTER(object):
             "PRelu": self.test_PRelu,
             "Reciprocal": self.test_Reciprocal,
             "Pad": self.test_Pad,
+            "PadReflect": self.test_PadReflect,
             "Relu": self.test_Relu,
             "Resize": self.test_Resize,
             "Slice": self.test_Slice,
@@ -1510,6 +1512,45 @@ class ONNX_IR_TESTER(object):
                         input_shape[2], input_shape[3]).astype(np.float32)
         # avoid divide 0
         input_data[input_data==0] = 1
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_PadReflect(self):
+        test_case = 'PadReflect'
+        input_shape = [1,  80, 100]
+        output_shape = [1, 80, 106] # 6 for concat
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+
+        pad_def = helper.make_node(
+            'Pad',
+            ['X1'],
+            ['output'],
+            mode='reflect',
+            pads=[0,0,3,0,0,3]
+        )
+
+        graph_def = helper.make_graph(
+            [x1_def, pad_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 9
+        onnx.checker.check_model(model_def)
+
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                        input_shape[2]).astype(np.float32)
+
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 

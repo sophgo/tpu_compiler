@@ -2550,6 +2550,46 @@ class OnnxConverter(BaseConverter):
             scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_reflectionpad_op(self, onnx_node):
+        #assert(onnx_node.op_type == "ReflectionPad")
+
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        num_dims = len(input_shape)
+        zeros = [0] * num_dims * 2
+
+        if len(onnx_node.inputs) > 1:
+            # padding data from input
+            _, _, pad_data_type = self.getOperand(onnx_node.inputs[1])
+            if pad_data_type == TensorType.TENSOR:
+                pads = list(self.getTensor(onnx_node.inputs[1]).tensor_data)
+            else:
+                raise RuntimeError(
+                    "not support paddings data with runtime data")
+        else:
+            pads = onnx_node.attrs.get("pads", zeros)
+        if pads == zeros:
+            self.addOperand(onnx_node.name, op, input_shape,
+                            TensorType.ACTIVATION)
+        lpad = pads[num_dims - 1]
+        rpad = pads[num_dims * 2 - 1]
+        pads[num_dims - 1] = 0
+        pads[num_dims*2-1] = 0
+        if pads != zeros:
+            raise RuntimeError("only support last dim to do reflectionpad!")
+
+        # 1d case
+        pads_param = {
+            "pads": [lpad, rpad],
+        }
+        output_shape = list(input_shape)
+        output_shape[-1] = input_shape[-1] + lpad + rpad
+
+        new_op = self.CVI.add_reflectionpad_op("{}_{}".format(
+            onnx_node.name, onnx_node.op_type), [op], output_shape, **pads_param)
+        self.addOperand(onnx_node.name, new_op,
+                        output_shape, TensorType.ACTIVATION)
+
+
     def convert_pad_op(self, onnx_node):
         assert(onnx_node.op_type == "Pad")
 
@@ -2563,7 +2603,7 @@ class OnnxConverter(BaseConverter):
         elif mode == "edge":
             pass
         elif mode == 'reflect':
-            return self.convert_reflectionpad1d_op(onnx_node)
+            return self.convert_reflectionpad_op(onnx_node)
         else:
             raise RuntimeError("Todo support pad op mode {}".format(mode))
 

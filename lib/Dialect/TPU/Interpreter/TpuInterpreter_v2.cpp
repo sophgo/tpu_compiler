@@ -54,6 +54,7 @@
 #include "tpuc/Interpreter/cpu/proposal.hpp"
 #include "tpuc/Interpreter/cpu/quadraticSum.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
+#include "tpuc/Interpreter/cpu/reflectionpad.hpp"
 #include "tpuc/Interpreter/cpu/reduce.hpp"
 #include "tpuc/Interpreter/cpu/reorg.hpp"
 #include "tpuc/Interpreter/cpu/reverse.hpp"
@@ -385,6 +386,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::QuantOp>(op)) {
     auto quant_kernel_op = std::make_unique<QuantOpKernel>(op, valueMapping);
     oplist.push_back(std::move(quant_kernel_op));
+    return;
+  }
+  if (isa<tpu::ReflectionPadOp>(op)) {
+    auto reflection_pad1d_op = std::make_unique<ReflectionPadOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(reflection_pad1d_op));
     return;
   }
   if (isa<tpu::ReduceL2Op>(op)) {

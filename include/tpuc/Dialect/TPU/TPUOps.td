@@ -1986,6 +1986,47 @@ def TPU_ProposalOp: TPU_Op<"proposal",
 
 def TPU_ReciprocalOp : TPU_LutOp<"reciprocal", "Reciprocal">;
 
+def TPU_ReflectionPadOp : TPU_Op<"reflection_pad",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Reflectionpad operator";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `pads`             : required, pad left and right.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpInterpInterface` : support interperter
+      `TpuOpQuantInterface`  : support quantization
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$left_select,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$right_select,
+    I32ArrayAttr:$pads,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ReluOp: TPU_Op<"relu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

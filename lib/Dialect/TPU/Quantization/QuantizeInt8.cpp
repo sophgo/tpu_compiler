@@ -1409,6 +1409,32 @@ LogicalResult tpu::InterpOp::quantizeInt8() {
   return success();
 }
 
+LogicalResult tpu::ReflectionPadOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  std::vector<int> pads;
+  arrayAttrToVector(this->pads(), pads);
+  int pad_idx = 0;
+  for (int K : pads) {
+    std::vector<float> select(K * K, 0.0f);
+    for (int i = 0; i < K; i++) {
+      int last = K - i - 1;
+      select[i * K + last] = 1.0f;
+    }
+    TensorFile *wTF = getWeightTensorFile(op);
+    Value wfV = getWeightFileValue(op);
+    auto shape = std::vector<int64_t>{K, K};
+    auto select_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "_select_" + std::to_string(pad_idx), select, shape, "INT8", wTF,
+        wfV);
+    op->setOperand(pad_idx + 1, select_op);
+    pad_idx++;
+  }
+  setOpResultType(op->getResult(0),IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+  return success();
+}
+
 LogicalResult tpu::LrnOp::quantizeInt8() {
   LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
                << " [" << getOpName() << "]\n";);
