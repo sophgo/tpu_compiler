@@ -8,7 +8,7 @@
 namespace mlir {
 double GruOpKernel::sigmoid_(float data) {
   if (datatype == DataType::BF16) {
-    float var = BF16(data);
+    float var = data;
     bf16_lut_slope("sigmoid", &var, &var, 1, *sigmoid_lut, *sigmoid_slope_lut);
     return var;
   } else {
@@ -17,7 +17,7 @@ double GruOpKernel::sigmoid_(float data) {
 }
 double GruOpKernel::tanh_(float data) {
   if (datatype == DataType::BF16) {
-    float var = BF16(data);
+    float var = data;
     bf16_lut_slope("tanh", &var, &var, 1, *tanh_lut, *tanh_slope_lut);
     return var;
   } else {
@@ -133,14 +133,17 @@ void GruOpKernel::compute(bool forward) {
       }
 #pragma omp parallel for schedule(static, omp_schedule(hidden_size))
       for (int i = 0; i < hidden_size; ++i) {
-        ug[i] = sigmoid_(ug[i] + xz[i]);
-        rg[i] = sigmoid_(rg[i] + xr[i]);
-        hg[i] = tanh_(rg[i] * hg[i] + xh[i]);
-        if (datatype != DataType::BF16) {
-          hidden_state[i] = (1 - ug[i]) * hg[i] + ug[i] * pre_state[i];
-        } else {
+        if (datatype == DataType::BF16) {
+          ug[i] = sigmoid_(BF16(ug[i] + xz[i]));
+          rg[i] = sigmoid_(BF16(rg[i] + xr[i]));
+          hg[i] = tanh_(BF16(BF16(rg[i] * hg[i]) + xh[i]));
           hidden_state[i] = BF16(BF16(BF16(ug[i] * pre_state[i]) + hg[i]) -
                                  BF16(ug[i] * hg[i]));
+        } else {
+          ug[i] = sigmoid_(ug[i] + xz[i]);
+          rg[i] = sigmoid_(rg[i] + xr[i]);
+          hg[i] = tanh_(rg[i] * hg[i] + xh[i]);
+          hidden_state[i] = (1 - ug[i]) * hg[i] + ug[i] * pre_state[i];
         }
       }
     }
@@ -158,7 +161,7 @@ void GruOpKernel::invoke() {
     compute(false);
   }
   if (datatype == DataType::BF16) {
-    BF16(output_data->data(), output_data->data(), output_data->size(), true);
+    BF16(output_data->data(), output_data->data(), output_data->size(), false);
   }
 }
 
