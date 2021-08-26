@@ -14,14 +14,17 @@ class CaffeModel(model_base):
     def load_model(self, model_file, wegiht_file):
         self.net = caffe.Net(model_file, wegiht_file, caffe.TEST)
 
-    def inference(self, input):
+    def inference(self, inputs):
         # reshape to multi-batch blobs
-        in_ = self.net.inputs[0]
-        self.net.blobs[in_].reshape(input.data.shape[0], self.net.blobs[in_].data.shape[1],
-                                    self.net.blobs[in_].data.shape[2], self.net.blobs[in_].data.shape[3])
-
-        out = self.net.forward_all(**{self.net.inputs[0]: input})
-        return out[self.net.outputs[0]]
+        if len(self.net.inputs) == 1:
+            in_ = self.net.inputs[0]
+            self.net.blobs[in_].reshape(inputs.shape[0], self.net.blobs[in_].data.shape[1],
+                                            self.net.blobs[in_].data.shape[2], self.net.blobs[in_].data.shape[3])
+            out = self.net.forward_all(**{self.net.inputs[0]: inputs})
+            return out[self.net.outputs[0]]
+        else:
+            out = self.net.forward_all(**inputs)
+            return out[self.net.outputs[0]]
 
     def get_input_shape(self):
         if not self.net:
@@ -69,7 +72,11 @@ class CaffeModel(model_base):
                 blobs_dict[name] = out[top].copy()
         else:
             top_map = {}
-            out = self.net.forward_all(**{self.net.inputs[0]: input_data})
+            if len(self.net.inputs) == 1:
+                out = self.net.forward_all(**{self.net.inputs[0]: input_data})
+            else:
+                out = self.net.forward_all(**input_data)
+
             for name, layer in self.net.layer_dict.items():
                 msg = "layer : {}\n\ttype = {} \n\ttop -> {} \n\tbottom -> {}".format(
                     name, layer.type, self.net.top_names[name],

@@ -63,6 +63,7 @@ class CaffeConverter(BaseConverter):
             'DetectionOutput': lambda layer: self.convert_detection_output_op(layer),
             'Dropout': lambda layer: self.convert_dropout_op(layer),
             'DummyData': lambda layer: self.convert_dummydata_op(layer),
+            'Embed': lambda layer: self.convert_embed_op(layer),
             'Eltwise': lambda layer: self.convert_eltwise_op(layer),
             'Flatten': lambda layer: self.convert_flatten_op(layer),
             'FrcnDetection': lambda layer: self.convert_frcn_detection_op(layer),
@@ -133,7 +134,8 @@ class CaffeConverter(BaseConverter):
         self.input_shapes = list()
         for i in self.inputs:
             input_shape = list(self.blobs[i].shape)
-            input_shape[0] = self.batch_size
+            if self.batch_size != 0:
+                input_shape[0] = self.batch_size
             self.blobs[i].reshape(*input_shape)
             self.input_shapes.append(input_shape)
 
@@ -143,7 +145,8 @@ class CaffeConverter(BaseConverter):
             o_shape = list(self.blobs[o].shape)
             for layer in self.layers:
                 if layer.name == o and self.layerType(layer) == 'DetectionOutput':
-                    o_shape[0] = self.batch_size
+                    if self.batch_size != 0:
+                        o_shape[0] = self.batch_size
                     o_shape[2] = layer.detection_output_param.keep_top_k
                     break
             self.output_shapes.append(o_shape)
@@ -502,6 +505,20 @@ class CaffeConverter(BaseConverter):
         self.addOperand(layer.top[0], new_op,
                         output_shape, TensorType.ACTIVATION)
 
+    def convert_embed_op(self, layer):
+        assert(self.layerType(layer) == 'Embed')
+        operands = list()
+        input_op,input_shape,_ = self.getOperand(layer.bottom[0])
+        operands.append(input_op)
+        weight_op = self.blob_to_weight_op(layer, 0)
+        operands.append(weight_op)
+        output_shape = list(input_shape)
+        N = layer.embed_param.num_output
+        output_shape.append(N)
+        new_op = self.CVI.add_embedding_op(layer.name, operands, output_shape)
+        self.addOperand(layer.top[0], new_op,
+                        output_shape, TensorType.ACTIVATION)
+
     def convert_eltwise_op(self, layer):
         assert(self.layerType(layer) == 'Eltwise')
         operands = list()
@@ -777,6 +794,13 @@ class CaffeConverter(BaseConverter):
         recurrence_op = self.CVI.add_load_file_op(recurrence_name, r.shape)
         operands.append(recurrence_op)
 
+        if len(layer.bottom) > 1:
+            cont_op, _, _ = self.getOperand(layer.bottom[1])
+            operands.append(self.add_none_op()) # bias
+            operands.append(self.add_none_op()) # h
+            operands.append(self.add_none_op()) # c
+            operands.append(cont_op)
+
         lstm_param = {
             'bidirectional': bool(False),
         }
@@ -837,6 +861,12 @@ class CaffeConverter(BaseConverter):
         self.addTensor(recurrence_name, r, r.shape)
         recurrence_op = self.CVI.add_load_file_op(recurrence_name, r.shape)
         operands.append(recurrence_op)
+        if len(layer.bottom) > 1:
+            cont_op, _, _ = self.getOperand(layer.bottom[1])
+            operands.append(self.add_none_op()) # bias
+            operands.append(self.add_none_op()) # h
+            operands.append(self.add_none_op()) # c
+            operands.append(cont_op)
 
         lstm_param = {
             'bidirectional': bool(False),
@@ -1726,10 +1756,10 @@ class CaffeConverter(BaseConverter):
         # add input op
         for idx, name in enumerate(self.inputs):
             input_shape = list(self.blobs[name].shape)
-            input_shape[0] = self.batch_size
-            data_format = 'nhwc'
-
-            if not self.preprocess_args:
+            if self.batch_size != 0:
+                input_shape[0] = self.batch_size
+            image = (len(input_shape) == 4 and input_shape[1] <=4)
+            if not self.preprocess_args or not image:
                 input_op = self.CVI.add_input_op(name, idx, **{})
             else:
                 preprocess_hint = {

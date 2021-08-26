@@ -46,14 +46,19 @@ class ModelTransformTool(object):
         in_fp32_npz = IntermediateFile(self.model_name, 'in_fp32.npz', False)
         # prepare input tensor
         if self._is_npz(image):
-            inputs = np.load(image)
-            np.savez(str(in_fp32_npz), **inputs)
-            if len(inputs.files) == 1:
+            npz_in = np.load(image)
+            np.savez(str(in_fp32_npz), **npz_in)
+            inputs = None
+            if len(npz_in.files) == 1:
                 inputs = inputs[inputs.files[0]]
+            else:
+                inputs = {}
+                for name in npz_in.files:
+                    inputs[name] = npz_in[name]
         else:
             image = os.path.expanduser(image)
             inputs = self.preprocessor.run(image, batch=self.batch_size)
-            np.savez(str(in_fp32_npz), **{'input': inputs})
+            np.savez(str(in_fp32_npz), **{'input':inputs})
 
         # original model inference to get blobs of all layer
         all_blobs = self._inference_(inputs)
@@ -93,7 +98,7 @@ class CaffeModelTransformTool(ModelTransformTool):
     def _inference_(self, inputs):
         caffemodel = CaffeModel()
         caffemodel.load_model(self.prototxt, self.caffemodel)
-        predictions = caffemodel.inference(inputs)
+        caffemodel.inference(inputs) # just for reshape ?
         return caffemodel.get_all_tensor(inputs, False)
 
     def _transform_(self, mlir_file):
@@ -138,7 +143,7 @@ class OnnxModelTransformTool(ModelTransformTool):
         inodes = ort_session.get_inputs()
         if len(inodes) == 1:
             dtype = np.int64 if inodes[0].type == 'tensor(int64)' \
-                             else np.float32
+                else np.float32
             return {inodes[0].name: inputs.astype(dtype)}
         # inputs is map
         assert(len(inodes) == len(inputs))

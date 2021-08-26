@@ -2522,7 +2522,7 @@ Value tpu::LstmOp::convertToTG() {
 
   std::vector<Value> operands;
   const int nInputs =  op->getNumOperands();
-  //input + recurrence + bias + initial_h + initial_c + 4 tables
+  //input + recurrence + bias + initial_h + initial_c + cont + 4 tables
   for (auto i = 0; i < nInputs; ++i) {
     operands.push_back(op->getOperand(i));
   }

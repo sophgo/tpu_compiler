@@ -6,9 +6,9 @@
  */
 
 #include "TgBf16LstmKernel.hpp"
-#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include "CviBackendContext.h"
 #include "backend/backend_tl_api.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include <cmath>
 #include <iostream>
 #include <llvm/Support/Debug.h>
@@ -133,16 +133,16 @@ void TgLstmKernel::sigmoid(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
   cvi_backend_bf16_tl_lut_slope_method(
       ctx, layer_id, ml_in.start_address, ml_out.start_address,
       ml_buff.start_address, addr_sigmoid, addr_sigmoid_slope,
-      -1 * SIGMOID_BF16_LUT_RANGE, SIGMOID_BF16_LUT_RANGE,
-      ml_in.shape.n, ml_in.shape.c, 1, ml_in.shape.w);
+      -1 * SIGMOID_BF16_LUT_RANGE, SIGMOID_BF16_LUT_RANGE, ml_in.shape.n,
+      ml_in.shape.c, 1, ml_in.shape.w);
 }
 void TgLstmKernel::tanh(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
                         const cvk_ml_t &ml_buff) {
   cvi_backend_bf16_tl_lut_slope_method(
       ctx, layer_id, ml_in.start_address, ml_out.start_address,
       ml_buff.start_address, addr_tanh, addr_tanh_slope,
-      -1 * TANH_BF16_LUT_RANGE, TANH_BF16_LUT_RANGE,
-      ml_in.shape.n, ml_in.shape.c, 1, ml_in.shape.w);
+      -1 * TANH_BF16_LUT_RANGE, TANH_BF16_LUT_RANGE, ml_in.shape.n,
+      ml_in.shape.c, 1, ml_in.shape.w);
 }
 
 void TgLstmKernel::assign_matrix(cvk_ml_t *ml_mem,
@@ -200,7 +200,7 @@ bool TgLstmKernel::need_tiling() {
   if (do_bias) {
     b_size = ctx.lmem_matrix_to_size(b_shape, fmt, 1);
   }
-  uint64_t total_size = lmem_used + 4 * r_size + 4 * b_size + 7 * x_size;
+  uint64_t total_size = lmem_used + 4 * r_size + 4 * b_size + 8 * x_size;
   if (total_size > (uint32_t)LOCAL_MEM_SIZE) {
     return true;
   }
@@ -273,6 +273,10 @@ void TgLstmKernel::tiling() {
       addr_bias = lmem_used;
       lmem_used += b_size;
     }
+    if (with_cont) {
+      addr_cont = lmem_used;
+      lmem_used += x_size;
+    }
     addr_work0 = lmem_used;
     lmem_used += std::max(2 * x_size, x_ps32_size);
     addr_work1 = lmem_used;
@@ -321,10 +325,11 @@ void TgLstmKernel::tiling() {
 }
 
 void TgLstmKernel::compute(int idx, bool forward) {
-  cvk_ml_t ml_work0, ml_work1, ml_xi, ml_xf, ml_xo;
+  cvk_ml_t ml_work0, ml_work1, ml_xi, ml_xf, ml_xo, ml_cont;
   int seq_idx = forward ? idx : (seq_length - 1 - idx);
   int x_offset = seq_idx * batch_size * input_bytes; // load input
   int s_offset = seq_idx * num_dir * x_bytes;        // store output
+  int cont_offset = seq_idx * batch_size * fmt_size;
   int flip = 0, next = 0;
   if (step_num > 1) {
     flip = idx % 2;
@@ -338,15 +343,25 @@ void TgLstmKernel::compute(int idx, bool forward) {
     fill_matrix(&ml_xi, batch_size, tile.h, addr_work2);
     fill_matrix(&ml_xf, batch_size, tile.h, addr_work2);
     fill_matrix(&ml_xo, batch_size, tile.h, addr_work2);
+    if (with_cont) {
+      fill_matrix(&ml_cont, batch_size, tile.h, addr_cont);
+      load_cont(ml_cont, ga_cont + cont_offset);
+    }
     fill_matrix(&ml_work0, batch_size, tile.h, addr_work0);
     fill_matrix(&ml_work1, batch_size, tile.h, addr_work1);
     // gate i
     matrix_recurrence(ml_work0, flip, tile, ga_ri, ga_rbi);
+    if (with_cont) {
+      eltwise_mul(ml_work0, ml_cont);
+    }
     ctx.tdma_load_stride(&ml_work1, ga_xi + x_offset + goffset, x_gstride);
     eltwise_add(ml_work1, ml_work0);
     sigmoid(ml_xi, ml_work1, ml_work0);
     // gate c
     matrix_recurrence(ml_work0, flip, tile, ga_rc, ga_rbc);
+    if (with_cont) {
+      eltwise_mul(ml_work0, ml_cont);
+    }
     ctx.tdma_load_stride(&ml_work1, ga_xc + x_offset + goffset, x_gstride);
     eltwise_add(ml_work1, ml_work0);
     tanh(ml_result, ml_work1, ml_work0);
@@ -354,14 +369,23 @@ void TgLstmKernel::compute(int idx, bool forward) {
     eltwise_mul(ml_result, ml_xi);
     // gate f
     matrix_recurrence(ml_work0, flip, tile, ga_rf, ga_rbf);
+    if (with_cont) {
+      eltwise_mul(ml_work0, ml_cont);
+    }
     ctx.tdma_load_stride(&ml_work1, ga_xf + x_offset + goffset, x_gstride);
     eltwise_add(ml_work1, ml_work0);
     sigmoid(ml_xf, ml_work1, ml_work0);
-    // new Cell = f * pre_cell + i * c
+    if (with_cont) {
+      eltwise_mul(ml_xf, ml_cont);
+    }
+    // new Cell = cont * f * pre_cell + i * c
     eltwise_mul(ml_cell, ml_xf);
     eltwise_add(ml_cell, ml_result);
     // gate o
     matrix_recurrence(ml_work0, flip, tile, ga_ro, ga_rbo);
+    if (with_cont) {
+      eltwise_mul(ml_work0, ml_cont);
+    }
     ctx.tdma_load_stride(&ml_work1, ga_xo + x_offset + goffset, x_gstride);
     eltwise_add(ml_work1, ml_work0);
     sigmoid(ml_xo, ml_work1, ml_work0);
@@ -373,6 +397,17 @@ void TgLstmKernel::compute(int idx, bool forward) {
   }
 }
 
+void TgLstmKernel::load_cont(const cvk_ml_t &ml_cont, gaddr_t cont_addr) {
+  cvk_tl_t tl_cont;
+  matrix_to_tensor(&tl_cont, ml_cont);
+  std::swap(tl_cont.shape.h, tl_cont.shape.w);
+  tl_cont.stride = ctx.tl_default_stride(tl_cont.shape, fmt, 1);
+  cvk_tg_stride_t cont_gstride = {.n = 1, .c = 0, .h = 0, .w = 1};
+  ctx.tdma_load_stride(&tl_cont, cont_addr, cont_gstride);
+  std::swap(tl_cont.shape.h, tl_cont.shape.w);
+  tl_cont.stride = ctx.tl_default_stride(tl_cont.shape, fmt, 1);
+}
+
 void TgLstmKernel::compute_without_tiling(bool forward) {
   auto lmem_used_backup = lmem_used;
   init_gaddr(forward);
@@ -381,8 +416,9 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
   auto b_shape = ctx.ml_default_shape(4 / fmt_size, hidden_size, fmt);
   auto x2_shape = ctx.ml_default_shape(batch_size * 2, hidden_size, fmt);
   // assign lmem
-  cvk_ml_t ml_ri, ml_ro, ml_rf, ml_rc, ml_rbi, ml_rbo, ml_rbf, ml_rbc;
+  cvk_ml_t ml_ri, ml_ro, ml_rf, ml_rc, ml_rbi, ml_rbo, ml_rbf, ml_rbc, ml_cont;
   cvk_ml_t ml_xi, ml_xo, ml_xf, ml_xc, ml_hidden, ml_cell, ml_work0, ml_work1;
+
   assign_matrix(&ml_ri, r_shape);
   assign_matrix(&ml_ro, r_shape);
   assign_matrix(&ml_rf, r_shape);
@@ -399,6 +435,9 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
   assign_matrix(&ml_xc, x_shape);
   assign_matrix(&ml_work0, x2_shape);
   assign_matrix(&ml_work1, x_shape);
+  if (with_cont) {
+    assign_matrix(&ml_cont, x_shape);
+  }
   ml_xf = ml_xi;
   ml_xo = ml_xi;
 
@@ -429,22 +468,37 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
   for (int i = 0; i < seq_length; i++) {
     int seq_idx = forward ? i : (seq_length - i - 1);
     int x_offset = seq_idx * batch_size * input_bytes;
-
+    if (with_cont) {
+      gaddr_t cont_addr = ga_cont + seq_idx * batch_size * fmt_size;
+      load_cont(ml_cont, cont_addr);
+    }
     // f => ml_xf
     ctx.tdma_load_stride(&ml_xf, ga_xf + x_offset, x_gstride);
     matrix_mul(ml_work1, ml_hidden, ml_rf, ml_rbf);
+    if (with_cont) {
+      eltwise_mul(ml_work1, ml_cont);
+    }
     eltwise_add(ml_work1, ml_xf);
     sigmoid(ml_xf, ml_work1, ml_work0);
-    // f * cell_t
+    if (with_cont) {
+      eltwise_mul(ml_xf, ml_cont);
+    }
     eltwise_mul(ml_cell, ml_xf);
+
     // i => ml_xi
     ctx.tdma_load_stride(&ml_xi, ga_xi + x_offset, x_gstride);
     matrix_mul(ml_work1, ml_hidden, ml_ri, ml_rbi);
+    if (with_cont) {
+      eltwise_mul(ml_work1, ml_cont);
+    }
     eltwise_add(ml_work1, ml_xi);
     sigmoid(ml_xi, ml_work1, ml_work0);
     // c => ml_xc
     ctx.tdma_load_stride(&ml_xc, ga_xc + x_offset, x_gstride);
     matrix_mul(ml_work1, ml_hidden, ml_rc, ml_rbc);
+    if (with_cont) {
+      eltwise_mul(ml_work1, ml_cont);
+    }
     eltwise_add(ml_work1, ml_xc);
     tanh(ml_xc, ml_work1, ml_work0);
     // i * c => c
@@ -454,6 +508,9 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
     // o => ml_xo
     ctx.tdma_load_stride(&ml_xo, ga_xo + x_offset, x_gstride);
     matrix_mul(ml_work1, ml_hidden, ml_ro, ml_rbo);
+    if (with_cont) {
+      eltwise_mul(ml_work1, ml_cont);
+    }
     eltwise_add(ml_work1, ml_xo);
     sigmoid(ml_xo, ml_work1, ml_work0);
     // hidden = o * tanh(cell)
@@ -495,19 +552,20 @@ void TgLstmKernel::init_gaddr(bool forward) {
 
 void TgLstmKernel::init(uint32_t layer_id, gaddr_t ga_input,
                         gaddr_t ga_recurrence, gaddr_t ga_bias,
-                        gaddr_t ga_init_h, gaddr_t ga_init_c,
+                        gaddr_t ga_init_h, gaddr_t ga_init_c, gaddr_t ga_cont,
                         gaddr_t ga_sigmoid_lut, gaddr_t ga_sigmoid_slope_lut,
                         gaddr_t ga_tanh_lut, gaddr_t ga_tanh_slope_lut,
                         gaddr_t ga_output, int seq_length, int num_dir,
                         int batch_size, int hidden_size, bool do_bias,
                         bool with_initial_h, bool with_initial_c,
-                        bool bidirectional) {
+                        bool with_cont, bool bidirectional) {
   this->layer_id = layer_id;
   this->ga_input = ga_input;
   this->ga_recurrence = ga_recurrence;
   this->ga_bias = ga_bias;
   this->ga_init_h = ga_init_h;
   this->ga_init_c = ga_init_c;
+  this->ga_cont = ga_cont;
   this->ga_sigmoid_lut = ga_sigmoid_lut;
   this->ga_sigmoid_slope_lut = ga_sigmoid_slope_lut;
   this->ga_tanh_lut = ga_tanh_lut;
@@ -520,6 +578,7 @@ void TgLstmKernel::init(uint32_t layer_id, gaddr_t ga_input,
   this->do_bias = do_bias;
   this->with_initial_h = with_initial_h;
   this->with_initial_c = with_initial_c;
+  this->with_cont = with_cont;
   this->bidirectional = bidirectional;
   this->fmt = CVK_FMT_BF16;
   this->fmt_size = ctx.bytesize_of_fmt(fmt);
@@ -530,6 +589,9 @@ void TgLstmKernel::init(uint32_t layer_id, gaddr_t ga_input,
   this->x_bytes = batch_size * hidden_bytes;
   this->x_gstride.row = input_bytes;
   this->h_gstride.row = hidden_bytes;
+  if (with_cont && bidirectional) {
+    llvm_unreachable("cont not support bidirectional!");
+  }
   init_table();
 }
 
@@ -559,15 +621,16 @@ void TgLstmKernel::schedule() {
 void cvi_backend_tg_bf16_lstm_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_recurrence, gaddr_t ga_bias, gaddr_t ga_initial_h,
-    gaddr_t ga_initial_c, gaddr_t ga_sigmoid_lut, gaddr_t ga_sigmoid_slope_lut,
-    gaddr_t ga_tanh_lut, gaddr_t ga_tanh_slope_lut, gaddr_t ga_output,
-    int seq_len, int num_dir, int batch_size, int hidden_size, bool do_bias,
-    bool with_initial_h, bool with_initial_c, bool is_bidirectional) {
+    gaddr_t ga_initial_c, gaddr_t ga_cont, gaddr_t ga_sigmoid_lut,
+    gaddr_t ga_sigmoid_slope_lut, gaddr_t ga_tanh_lut,
+    gaddr_t ga_tanh_slope_lut, gaddr_t ga_output, int seq_len, int num_dir,
+    int batch_size, int hidden_size, bool do_bias, bool with_initial_h,
+    bool with_initial_c, bool with_cont, bool is_bidirectional) {
   TgLstmKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_recurrence, ga_bias, ga_initial_h,
-              ga_initial_c, ga_sigmoid_lut, ga_sigmoid_slope_lut, ga_tanh_lut,
-              ga_tanh_slope_lut, ga_output, seq_len, num_dir, batch_size,
-              hidden_size, do_bias, with_initial_h, with_initial_c,
-              is_bidirectional);
+              ga_initial_c, ga_cont, ga_sigmoid_lut, ga_sigmoid_slope_lut,
+              ga_tanh_lut, ga_tanh_slope_lut, ga_output, seq_len, num_dir,
+              batch_size, hidden_size, do_bias, with_initial_h, with_initial_c,
+              with_cont, is_bidirectional);
   kernel.schedule();
 }

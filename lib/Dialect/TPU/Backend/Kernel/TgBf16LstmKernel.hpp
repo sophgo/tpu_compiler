@@ -19,10 +19,11 @@ public:
 
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_recurrence,
             gaddr_t ga_bias, gaddr_t ga_initial_h, gaddr_t ga_initial_c,
-            gaddr_t ga_sigmoid_lut, gaddr_t ga_sigmoid_slope_lut,
-            gaddr_t ga_tanh_lut, gaddr_t ga_tanh_slope_lut, gaddr_t ga_output,
-            int seq_length, int num_dir, int batch_size, int hidden_size,
-            bool do_bias, bool with_initial_h, bool with_initial_c,
+            gaddr_t ga_cont, gaddr_t ga_sigmoid_lut,
+            gaddr_t ga_sigmoid_slope_lut, gaddr_t ga_tanh_lut,
+            gaddr_t ga_tanh_slope_lut, gaddr_t ga_output, int seq_length,
+            int num_dir, int batch_size, int hidden_size, bool do_bias,
+            bool with_initial_h, bool with_initial_c, bool with_cont,
             bool bidirectional);
 
   void schedule();
@@ -63,6 +64,7 @@ protected:
                const cvk_ml_t &ml_buff);
   void tanh(const cvk_ml_t &ml_out, const cvk_ml_t &ml_in,
             const cvk_ml_t &ml_buff);
+  void load_cont(const cvk_ml_t &ml_cont, gaddr_t cont_addr);
 
 protected:
   const CviBackendContext &ctx;
@@ -72,6 +74,7 @@ protected:
   gaddr_t ga_bias;
   gaddr_t ga_init_h;
   gaddr_t ga_init_c;
+  gaddr_t ga_cont;
   gaddr_t ga_sigmoid_lut;
   gaddr_t ga_sigmoid_slope_lut;
   gaddr_t ga_tanh_lut;
@@ -79,7 +82,8 @@ protected:
   gaddr_t ga_output;
   // for bidirectional
   gaddr_t ga_store, ga_h0, ga_c0;
-  gaddr_t ga_xi, ga_xf, ga_xc, ga_xo, ga_ri, ga_rf, ga_rc, ga_ro, ga_rbi, ga_rbf, ga_rbc, ga_rbo;
+  gaddr_t ga_xi, ga_xf, ga_xc, ga_xo, ga_ri, ga_rf, ga_rc, ga_ro;
+  gaddr_t ga_rbi, ga_rbf, ga_rbc, ga_rbo;
   int seq_length;
   int batch_size;
   int hidden_size;
@@ -91,6 +95,7 @@ protected:
   bool do_bias;
   bool with_initial_h;
   bool with_initial_c;
+  bool with_cont;
   bool bidirectional;
   cvk_fmt_t fmt;
   int fmt_size;
@@ -109,9 +114,10 @@ protected:
   int step_num;
   std::vector<tiling_t> tiles;         // tilng hidden_size
   std::vector<cvk_ml_t> ml_hiddens[2]; // one for backup
-  std::vector<cvk_ml_t> ml_cells;       // cell state
+  std::vector<cvk_ml_t> ml_cells;      // cell state
   uint32_t addr_recurrence;            // for recurrence
   uint32_t addr_bias;
+  uint32_t addr_cont;  // for cont addr
   uint32_t addr_work0; // for lut buffer and ps32 bias buffer
   uint32_t addr_work1; // for dot(h_t,r) result
   uint32_t addr_work2; // for gate buffer

@@ -439,8 +439,9 @@ LogicalResult tpu::LstmOp::quantizeBf16() {
   quantizeBf16WeightOp(recurrence(), wTF);
   quantizeBf16WeightOp(initial_h(), wTF);
   quantizeBf16WeightOp(initial_c(), wTF);
-  insertBf16LutOp(op, "sigmoid", "slope", 5, 6, 1.0, 0.0);
-  insertBf16LutOp(op, "tanh", "slope", 7, 8);
+  quantizeBf16WeightOp(cont(), wTF);
+  insertBf16LutOp(op, "sigmoid", "slope", 6, 7, 1.0, 0.0);
+  insertBf16LutOp(op, "tanh", "slope", 8, 9);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }

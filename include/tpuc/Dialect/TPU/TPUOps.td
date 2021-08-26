@@ -1281,6 +1281,7 @@ def TPU_LstmOp: TPU_Op<"lstm",
       `bias`            : required, bias vectors for input, output, forget, and cell gates.
       `initial_h`       : required, initial value of the hidden.
       `initial_c`       : required, initial value of the cell.
+      `cont`            : optional, for caffe lstm
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
@@ -1302,6 +1303,7 @@ def TPU_LstmOp: TPU_Op<"lstm",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$initial_h,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$initial_c,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$cont,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$sigmoid_slope_table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_table,

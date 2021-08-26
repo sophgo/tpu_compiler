@@ -2209,9 +2209,24 @@ LogicalResult tpu::TG_INT8_ScaleLutOp::codegen(void *ctx) {
   return success();
 }
 
+static gaddr_t getGlobalAddr(Value v, bool &not_none) {
+  if (isTensorNone(v)) {
+    not_none = false;
+    return GA_INVALID;
+  }
+  not_none = true;
+  auto op = v.getDefiningOp();
+  auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op);
+  if (cast_op) {
+    return getWeightOpAddress(op);
+  } else {
+    return getOpAddress(op);
+  }
+}
+
 LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -2232,22 +2247,10 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   assert(batch_size == batch_size2);
   assert(input_size == num_dir * 3 * hidden_size);
 
-  bool with_bias = (!isTensorNone(bias()));
-  gaddr_t ga_bias = GA_INVALID;
-  if ( with_bias ) {
-    ga_bias =  getWeightOpAddress(bias().getDefiningOp());
-  }
-  bool with_h0 = (!isTensorNone(initial_h()));
-  gaddr_t initial_h_gaddr = GA_INVALID;
-  if (with_h0) {
-    auto h_op = initial_h().getDefiningOp();
-    auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(h_op);
-    if (cast_op) {
-      initial_h_gaddr = getWeightOpAddress(h_op);
-    } else {
-      initial_h_gaddr = getOpAddress(h_op);
-    }
-  }
+  bool with_bias;
+  gaddr_t ga_bias = getGlobalAddr(bias(), with_bias);
+  bool with_h0;
+  gaddr_t initial_h_gaddr = getGlobalAddr(initial_h(), with_h0);
 
   bool is_linear_before_reset = this->linear_before_reset();
   bool is_bidirectional = this->bidirectional();
@@ -2255,35 +2258,43 @@ LogicalResult tpu::TG_BF16_GruOp::codegen(void *ctx) {
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence().getDefiningOp());
-  gaddr_t sigmoid_table_data_lut_gaddr = getWeightOpAddress(sigmoid_table().getDefiningOp());
-  gaddr_t sigmoid_slope_table_data_lut_gaddr = getWeightOpAddress(sigmoid_slope_table().getDefiningOp());
-  gaddr_t tanh_table_data_lut_gaddr = getWeightOpAddress(tanh_table().getDefiningOp());
-  gaddr_t tanh_slope_table_data_lut_gaddr = getWeightOpAddress(tanh_slope_table().getDefiningOp());
+  gaddr_t sigmoid_table_data_lut_gaddr =
+      getWeightOpAddress(sigmoid_table().getDefiningOp());
+  gaddr_t sigmoid_slope_table_data_lut_gaddr =
+      getWeightOpAddress(sigmoid_slope_table().getDefiningOp());
+  gaddr_t tanh_table_data_lut_gaddr =
+      getWeightOpAddress(tanh_table().getDefiningOp());
+  gaddr_t tanh_slope_table_data_lut_gaddr =
+      getWeightOpAddress(tanh_slope_table().getDefiningOp());
   int layer_id = getOpLayerId(op);
 
   LLVM_DEBUG(llvm::errs() << "input_gaddr: " << input_gaddr << "\n"
                           << "recurrence_gaddr: " << recurrence_gaddr << "\n"
                           << "ga_bias: " << ga_bias << "\n"
                           << "initial_h_gaddr: " << initial_h_gaddr << "\n"
-                          << "sigmoid_table_data_lut_gaddr: " << sigmoid_table_data_lut_gaddr << "\n"
-                          << "sigmoid_slope_table_data_lut_gaddr: " << sigmoid_slope_table_data_lut_gaddr << "\n"
-                          << "tanh_table_data_lut_gaddr: " << tanh_table_data_lut_gaddr << "\n"
-                          << "tanh_slope_table_data_lut_gaddr: " << tanh_slope_table_data_lut_gaddr << "\n"
+                          << "sigmoid_table_data_lut_gaddr: "
+                          << sigmoid_table_data_lut_gaddr << "\n"
+                          << "sigmoid_slope_table_data_lut_gaddr: "
+                          << sigmoid_slope_table_data_lut_gaddr << "\n"
+                          << "tanh_table_data_lut_gaddr: "
+                          << tanh_table_data_lut_gaddr << "\n"
+                          << "tanh_slope_table_data_lut_gaddr: "
+                          << tanh_slope_table_data_lut_gaddr << "\n"
                           << "output_gaddr: " << output_gaddr << "\n"
                           << "seq_len: " << seq_len << "\n"
                           << "with_bias: " << with_bias << "\n"
-                          << "is_linear_before_reset: " << is_linear_before_reset << "\n"
+                          << "is_linear_before_reset: "
+                          << is_linear_before_reset << "\n"
                           << "is_bidirectional: " << is_bidirectional << "\n"
                           << "\n";);
 
-  cvi_backend_tg_bf16_gru_kernel(*backend_ctx, layer_id,
-                  input_gaddr, recurrence_gaddr,
-                  ga_bias, initial_h_gaddr,
-                  sigmoid_table_data_lut_gaddr, sigmoid_slope_table_data_lut_gaddr,
-                  tanh_table_data_lut_gaddr, tanh_slope_table_data_lut_gaddr,
-                  output_gaddr,
-                  seq_len, num_dir, batch_size, hidden_size,
-                  with_bias, with_h0, is_linear_before_reset, is_bidirectional, only_last);
+  cvi_backend_tg_bf16_gru_kernel(
+      *backend_ctx, layer_id, input_gaddr, recurrence_gaddr, ga_bias,
+      initial_h_gaddr, sigmoid_table_data_lut_gaddr,
+      sigmoid_slope_table_data_lut_gaddr, tanh_table_data_lut_gaddr,
+      tanh_slope_table_data_lut_gaddr, output_gaddr, seq_len, num_dir,
+      batch_size, hidden_size, with_bias, with_h0, is_linear_before_reset,
+      is_bidirectional, only_last);
   return success();
 }
 
@@ -2346,33 +2357,14 @@ LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
   assert(batch_size == batch_size2);
   assert(input_size == num_dir * 4 * hidden_size);
 
-  bool with_bias = (!isTensorNone(bias()));
-  gaddr_t ga_bias = GA_INVALID;
-  if (with_bias) {
-    ga_bias = getWeightOpAddress(bias().getDefiningOp());
-  }
-  bool with_h0 = (!isTensorNone(initial_h()));
-  gaddr_t initial_h_gaddr = GA_INVALID;
-  if (with_h0) {
-    auto h_op = initial_h().getDefiningOp();
-    auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(h_op);
-    if (cast_op) {
-      initial_h_gaddr = getWeightOpAddress(h_op);
-    } else {
-      initial_h_gaddr = getOpAddress(h_op);
-    }
-  }
-  bool with_c0 = (!isTensorNone(initial_c()));
-  gaddr_t initial_c_gaddr = GA_INVALID;
-  if (with_c0) {
-    auto c_op = initial_c().getDefiningOp();
-    auto cast_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(c_op);
-    if (cast_op) {
-      initial_c_gaddr = getWeightOpAddress(c_op);
-    } else {
-      initial_c_gaddr = getOpAddress(c_op);
-    }
-  }
+  bool with_bias;
+  gaddr_t ga_bias = getGlobalAddr(bias(), with_bias);
+  bool with_h0;
+  gaddr_t initial_h_gaddr = getGlobalAddr(initial_h(), with_h0);
+  bool with_c0;
+  gaddr_t initial_c_gaddr = getGlobalAddr(initial_c(), with_c0);
+  bool with_cont;
+  gaddr_t cont_gaddr = getGlobalAddr(cont(), with_cont);
 
   bool is_bidirectional = this->bidirectional();
   gaddr_t input_gaddr = getPreviousOpAddress(op);
@@ -2390,10 +2382,11 @@ LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
 
   cvi_backend_tg_bf16_lstm_kernel(
       *backend_ctx, layer_id, input_gaddr, recurrence_gaddr, ga_bias,
-      initial_h_gaddr, initial_c_gaddr, sigmoid_table_data_lut_gaddr,
-      sigmoid_slope_table_data_lut_gaddr, tanh_table_data_lut_gaddr,
-      tanh_slope_table_data_lut_gaddr, output_gaddr, seq_len, num_dir,
-      batch_size, hidden_size, with_bias, with_h0, with_c0, is_bidirectional);
+      initial_h_gaddr, initial_c_gaddr, cont_gaddr,
+      sigmoid_table_data_lut_gaddr, sigmoid_slope_table_data_lut_gaddr,
+      tanh_table_data_lut_gaddr, tanh_slope_table_data_lut_gaddr, output_gaddr,
+      seq_len, num_dir, batch_size, hidden_size, with_bias, with_h0, with_c0,
+      with_cont, is_bidirectional);
   return success();
 }
 

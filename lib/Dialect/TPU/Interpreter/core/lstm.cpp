@@ -1,9 +1,9 @@
 #include "tpuc/Interpreter/cpu/lstm.hpp"
-#include "tpuc/Interpreter/cpu/lut_func.hpp"
+#include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include "tpuc/ModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
-#include "internal.hpp"
 
 namespace mlir {
 double LstmOpKernel::sigmoid_(float data) {
@@ -59,10 +59,16 @@ LstmOpKernel::LstmOpKernel(Operation &op, value_map_t &valueMapping)
     initial_c = std::make_shared<std::vector<float>>(
         num_dir * batch_size * hidden_size, 0.0f);
   }
-  sigmoid_lut = this->opdTensors[5];
-  sigmoid_slope_lut = this->opdTensors[6];
-  tanh_lut = this->opdTensors[7];
-  tanh_slope_lut = this->opdTensors[8];
+  conts = this->opdTensors[5];
+  if (conts == nullptr) {
+    conts = std::make_shared<std::vector<float>>(seq_length * batch_size, 1.0f);
+  } else {
+    assert(bidirectional == false);
+  }
+  sigmoid_lut = this->opdTensors[6];
+  sigmoid_slope_lut = this->opdTensors[7];
+  tanh_lut = this->opdTensors[8];
+  tanh_slope_lut = this->opdTensors[9];
   output_data = this->resTensor;
 }
 
@@ -115,6 +121,7 @@ void LstmOpKernel::compute(bool forward) {
       BF16(gate_c.data(), gate_c.data(), gate_c.size());
     }
     for (int batch = 0; batch < batch_size; batch++) {
+      float cont = conts->at(t * batch_size + batch);
       float *xi = x + batch * input_size;
       float *xo = xi + hidden_size;
       float *xf = xo + hidden_size;
@@ -128,16 +135,16 @@ void LstmOpKernel::compute(bool forward) {
           output + (seq_idx * num_dir * batch_size + batch) * hidden_size;
 #pragma omp parallel for schedule(static, omp_schedule(hidden_size))
       for (int i = 0; i < hidden_size; ++i) {
-        gi[i] = sigmoid_(gi[i] + xi[i]);
-        gf[i] = sigmoid_(gf[i] + xf[i]);
-        gc[i] = tanh_(gc[i] + xc[i]);
-        go[i] = sigmoid_(go[i] + xo[i]);
+        gi[i] = sigmoid_(cont * gi[i] + xi[i]);
+        gf[i] = sigmoid_(cont * gf[i] + xf[i]);
+        gc[i] = tanh_(cont * gc[i] + xc[i]);
+        go[i] = sigmoid_(cont * go[i] + xo[i]);
         if (datatype != DataType::BF16) {
-          cell_state[i] = gf[i] * cell_state[i] + gi[i] * gc[i];
+          cell_state[i] = cont * gf[i] * cell_state[i] + gi[i] * gc[i];
           hidden_state[i] = go[i] * tanh_(cell_state[i]);
         } else {
           cell_state[i] =
-              BF16(BF16(gf[i] * cell_state[i]) + BF16(gi[i] * gc[i]));
+              BF16(BF16(cont * gf[i] * cell_state[i]) + BF16(gi[i] * gc[i]));
           hidden_state[i] = BF16(go[i] * tanh_(cell_state[i]));
         }
       }

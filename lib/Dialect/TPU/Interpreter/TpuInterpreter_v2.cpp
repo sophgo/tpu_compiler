@@ -389,8 +389,8 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     return;
   }
   if (isa<tpu::ReflectionPadOp>(op)) {
-    auto reflection_pad1d_op = std::make_unique<ReflectionPadOpKernel>(op, valueMapping);
-    oplist.push_back(std::move(reflection_pad1d_op));
+    auto reflect_op = std::make_unique<ReflectionPadOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(reflect_op));
     return;
   }
   if (isa<tpu::ReduceL2Op>(op)) {

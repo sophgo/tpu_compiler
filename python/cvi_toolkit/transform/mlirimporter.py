@@ -1083,7 +1083,7 @@ class MLIRImporter(object):
         }
         lstm_name = StringAttr.get(op_name)
         none = self.add_none_op()
-        for _ in range(9 - len(inputOperands)):  # add 4 redundant input
+        for _ in range(10 - len(inputOperands)):  # add 4 redundant input
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.LSTM.value, inputOperands, [
             tensor_output_type], name=lstm_name, quant=self.quant_param, **lstm_param)

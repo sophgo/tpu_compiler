@@ -844,14 +844,15 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let description = [{
     Inputs:
       `input`           : required, the input activation memref.
-      `recurrence`       : required, recurrence weight memref for update, reset, and hidden gates.
+      `recurrence`      : required, recurrence weight memref for update, reset, and hidden gates.
       `bias`            : optional, bias vectors memref for update, reset, and hidden gates.
       `initial_h`       : optional, initial value of the hidden.
       `initial_c`       : optional, initial value of the cell.
+      `cont`            : optional, used by caffemodel lstm
       'sigmoid_table'           : required, the sigmoid_table memref.
-      'sigmoid_slope_table'           : required, the sigmoid_slope_table memref.
-      'tanh_table'           : required, the tanh_table memref.
-      'tanh_slope_table'           : required, the tanh_slope_table memref.
+      'sigmoid_slope_table'     : required, the sigmoid_slope_table memref.
+      'tanh_table'              : required, the tanh_table memref.
+      'tanh_slope_table'        : required, the tanh_slope_table memref.
 
 
     Attributes:
@@ -879,6 +880,7 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$bias,
     TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$initial_h,
     TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$initial_c,
+    TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$cont,
     AnyTensor:$sigmoid_table,
     AnyTensor:$sigmoid_slope_table,
     AnyTensor:$tanh_table,

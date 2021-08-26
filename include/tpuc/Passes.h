@@ -58,7 +58,6 @@ std::unique_ptr<mlir::Pass> createAssignWeightAddressPass();
 std::unique_ptr<mlir::Pass> createAssignNeuronAddressPass();
 std::unique_ptr<mlir::Pass> createAssignLayerIdPass();
 std::unique_ptr<mlir::Pass> createAssignChipNamePass();
-std::unique_ptr<mlir::Pass> createAddCpuCallPass();
 
 std::unique_ptr<mlir::Pass> createDeepFusionSimple();
 

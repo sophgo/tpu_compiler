@@ -216,7 +216,7 @@ class OnnxConverter(BaseConverter):
             for i, dim in enumerate(input.type.tensor_type.shape.dim):
                 # batch size
                 # dim is zero, mean mutli batch
-                if i == 0 and dim.dim_value <= 0:
+                if i == 0 and dim.dim_value <= 0 and self.batch_size != 0:
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
@@ -232,7 +232,7 @@ class OnnxConverter(BaseConverter):
             for i, dim in enumerate(output.type.tensor_type.shape.dim):
                 # i == 0 mean batch size
                 # if dim is zero, mean mutli batch
-                if i == 0 and dim.dim_value <= 0:
+                if i == 0 and dim.dim_value <= 0 and self.batch_size != 0:
                     output_shape.append(self.batch_size)
                 else:
                     output_shape.append(dim.dim_value)
@@ -745,12 +745,12 @@ class OnnxConverter(BaseConverter):
             for i, dim in enumerate(input.type.tensor_type.shape.dim):
                 # batch size
                 # dim is zero, mean mutli batch
-                if i == 0 and dim.dim_value <= 0:
+                if i == 0 and dim.dim_value <= 0 and self.batch_size != 0:
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
-
-            if not self.preprocess_args:
+            image = (len(input_shape) == 4 and input_shape[1] <=4)
+            if not self.preprocess_args or not image:
                 input_op = self.CVI.add_input_op(input.name, idx, **{})
             else:
                 preprocess_hint = {

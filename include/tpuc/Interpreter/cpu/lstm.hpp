@@ -26,6 +26,7 @@ private:
   SyncedData bias;
   SyncedData initial_h;
   SyncedData initial_c;
+  SyncedData conts;
   SyncedData sigmoid_lut;
   SyncedData sigmoid_slope_lut;
   SyncedData tanh_lut;
