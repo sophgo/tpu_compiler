@@ -1,6 +1,6 @@
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
@@ -41,8 +41,9 @@ void CropOpKernel::crop(int cur_dim, int *offsets, int *indices) {
   }
 };
 
-CropOpKernel::CropOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+CropOpKernel::CropOpKernel(Operation &op, value_map_t &valueMapping,
+                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto cropOp = cast<tpu::CropOp>(op);
   auto input_type = cropOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

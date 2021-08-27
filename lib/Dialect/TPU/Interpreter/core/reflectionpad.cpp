@@ -1,12 +1,13 @@
 #include "tpuc/Interpreter/cpu/reflectionpad.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
 ReflectionPadOpKernel::ReflectionPadOpKernel(Operation &op,
-                                                 value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                             value_map_t &valueMapping,
+                                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto reflectionpadOp = cast<tpu::ReflectionPadOp>(op);
   auto input_type =
       reflectionpadOp.input().getType().template cast<TensorType>();
@@ -45,5 +46,4 @@ void ReflectionPadOpKernel::invoke() {
   }
 }
 
-void ReflectionPadOpKernel::dump() { OpKernel::dump(); }
 } // namespace mlir

@@ -13,7 +13,8 @@ class DilateOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUDilateOp";
 
-  DilateOpKernel(Operation &op, value_map_t &valueMapping);
+  DilateOpKernel(Operation &op, value_map_t &valueMapping,
+                 weight_map_t &weightMapping);
 
   void invoke() override;
 

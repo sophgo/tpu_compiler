@@ -31,7 +31,7 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/Passes.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/Passes.h"
 
 #include "llvm/ADT/STLExtras.h"
@@ -120,9 +120,10 @@ int main(int argc, char **argv) {
   std::map<std::string, std::vector<int64_t>> shapeMap;
   std::map<std::string, std::vector<float>> allTensorMap;
 
-  auto interpreter_ = std::make_unique<ModuleInterpreter>(module.get());
-  interpreter_->allocate_tensors();
-  auto input_details = interpreter_->get_input_details();
+  auto interpreter_ = std::make_unique<MlirModuleInterpreter>(2);
+  interpreter_->updateWeightMap(module);
+  interpreter_->loadModule(module);
+  auto &input_details = interpreter_->input_details;
   if (input_details.size() != input_tensors.size()) {
     llvm::errs() << "Input number not same, needed is " << input_details.size()
                  << ", get " << input_tensors.size() << "\n";
@@ -130,7 +131,7 @@ int main(int argc, char **argv) {
   }
   if (input_tensors.size() == 1) {
     std::vector<float> data(input_tensors[0]->begin(), input_tensors[0]->end());
-    interpreter_->set_tensor(input_details[0].first, data);
+    interpreter_->setTensor(input_details[0].first, data, 1);
   } else {
     for (size_t i = 0; i < input_tensors.size(); i++) {
       size_t j = 0;
@@ -147,17 +148,17 @@ int main(int argc, char **argv) {
         llvm_unreachable("please check input npz");
       }
       std::vector<float> data(input_tensors[i]->begin(), input_tensors[i]->end());
-      interpreter_->set_tensor(input_details[j].first, data);
+      interpreter_->setTensor(input_details[j].first, data, 1);
     }
   }
-  interpreter_->invoke();
+  interpreter_->invoke(1);
   if (outputTensorFilename != "-") {
     auto outputTensorFile = openOutputTensorFile(outputTensorFilename);
-    auto output_details = interpreter_->get_output_details();
+    auto output_details = interpreter_->output_details;
     for (auto &output_name : output_details) {
-      std::vector<float> output_data = interpreter_->get_tensor(output_name);
-      std::vector<int64_t> shape = interpreter_->get_tensor_shape(output_name);
-      (void)outputTensorFile->addTensor(output_name, output_data.data(), shape);
+      auto output_data = interpreter_->getTensor(output_name, 1);
+      std::vector<int64_t> shape = interpreter_->getTensorShape(output_name);
+      (void)outputTensorFile->addTensor(output_name, output_data->data(), shape);
     }
     outputTensorFile->keep();
   }
@@ -165,11 +166,11 @@ int main(int argc, char **argv) {
   if (dumpAllTensorFilename != "-") {
     // dump all values
     auto allTensorTensorFile = openOutputTensorFile(dumpAllTensorFilename);
-    auto all_tensor_names = interpreter_->get_all_tensor_name();
+    auto all_tensor_names = interpreter_->getAllTensorName();
     for (auto &tensor_name : all_tensor_names) {
-      std::vector<float> output_data = interpreter_->get_tensor(tensor_name);
-      std::vector<int64_t> shape = interpreter_->get_tensor_shape(tensor_name);
-      (void)allTensorTensorFile->addTensor(tensor_name, output_data.data(), shape);
+      auto output_data = interpreter_->getTensor(tensor_name, 1);
+      std::vector<int64_t> shape = interpreter_->getTensorShape(tensor_name);
+      (void)allTensorTensorFile->addTensor(tensor_name, output_data->data(), shape);
     }
     allTensorTensorFile->keep();
   }

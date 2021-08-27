@@ -1,13 +1,14 @@
 #include "tpuc/Interpreter/cpu/tile.hpp"
 #include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
 namespace mlir {
 
-TileOpKernel::TileOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+TileOpKernel::TileOpKernel(Operation &op, value_map_t &valueMapping,
+                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto tileOp = cast<tpu::TileOp>(op);
   auto input_type = tileOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

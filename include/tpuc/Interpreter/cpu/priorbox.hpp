@@ -10,7 +10,8 @@ class PriorBoxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPriorBoxOp";
 
-  PriorBoxOpKernel(Operation &op, value_map_t &valueMapping);
+  PriorBoxOpKernel(Operation &op, value_map_t &valueMapping,
+                   weight_map_t &weightMapping);
 
   void invoke() override;
 

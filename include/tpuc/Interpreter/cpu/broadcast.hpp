@@ -10,7 +10,8 @@ class BroadcastAddOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUBroadcastAddOp";
 
-  BroadcastAddOpKernel(Operation &op, value_map_t &valueMapping);
+  BroadcastAddOpKernel(Operation &op, value_map_t &valueMapping,
+                       weight_map_t &weightMapping);
 
   void invoke() override;
   void fp32_invoke();
@@ -30,7 +31,8 @@ class BroadcastMulOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUBroadcastMulOp";
 
-  BroadcastMulOpKernel(Operation &op, value_map_t &valueMapping);
+  BroadcastMulOpKernel(Operation &op, value_map_t &valueMapping,
+                       weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -49,7 +51,8 @@ class BroadcastSubOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUBroadcastSubOp";
 
-  BroadcastSubOpKernel(Operation &op, value_map_t &valueMapping);
+  BroadcastSubOpKernel(Operation &op, value_map_t &valueMapping,
+                       weight_map_t &weightMapping);
 
   void invoke() override;
   void fp32_invoke();

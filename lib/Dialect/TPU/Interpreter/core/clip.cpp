@@ -1,11 +1,12 @@
 #include "tpuc/Interpreter/cpu/clip.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-ClipOpKernel::ClipOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ClipOpKernel::ClipOpKernel(Operation &op, value_map_t &valueMapping,
+                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto clipOp = cast<tpu::ClipOp>(op);
   auto input_type = clipOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

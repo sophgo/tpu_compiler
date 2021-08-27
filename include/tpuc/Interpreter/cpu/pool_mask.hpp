@@ -8,7 +8,8 @@ class PoolMaskOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPoolMaskOp";
 
-  PoolMaskOpKernel(Operation &op, value_map_t &valueMapping);
+  PoolMaskOpKernel(Operation &op, value_map_t &valueMapping,
+                   weight_map_t &weightMapping);
 
   void invoke() override;
 

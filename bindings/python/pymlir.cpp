@@ -18,7 +18,7 @@
 #include "mlir/Support/FileUtilities.h"
 #include "mlir/Transforms/Passes.h"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/Passes.h"
 #include "tpuc/TPUOperationSupport.h"
 
@@ -35,7 +35,7 @@ using namespace mlir;
 #define OP_TYPE "type"
 #define OP_QUANT "quant"
 
-typedef std::map<std::string, std::vector<float>> tensor_map_t;
+typedef std::map<std::string, std::shared_ptr<std::vector<float>>> tensor_map_t;
 typedef std::map<std::string, std::vector<int64_t>> shape_map_t;
 
 static bool isValidOp(Operation &op) {
@@ -51,7 +51,7 @@ static bool isValidOp(Operation &op) {
 namespace py = pybind11;
 
 template <typename Dtype>
-static py::array getPythonArray(std::vector<Dtype> &vec,
+static py::array getPythonArray(std::vector<Dtype> *vec,
                                 const std::vector<int64_t> &shape) {
   std::vector<unsigned> stride_v(shape.size(), sizeof(Dtype));
   for (int i = shape.size() - 1; i > 0; i--) {
@@ -61,7 +61,7 @@ static py::array getPythonArray(std::vector<Dtype> &vec,
   }
 
   return py::array(
-      py::buffer_info(vec.data(),    /* data as contiguous array  */
+      py::buffer_info(vec->data(),    /* data as contiguous array  */
                       sizeof(Dtype), /* size of one scalar        */
                       py::format_descriptor<Dtype>::format(), /* data type */
                       shape.size(),                           // ndim/
@@ -70,20 +70,15 @@ static py::array getPythonArray(std::vector<Dtype> &vec,
                       ));
 }
 
-template static py::array getPythonArray(std::vector<float> &vec,
-                                         const std::vector<int64_t> &shape);
-template static py::array getPythonArray(std::vector<int64_t> &vec,
-                                         const std::vector<int64_t> &shape);
-
 static py::dict getTensorDict(tensor_map_t &tensorMap, shape_map_t &shapeMap) {
   py::dict py_ret;
   for (auto it = tensorMap.begin(); it != tensorMap.end(); it++) {
     auto op = it->first;
-    auto data = it->second;
+    auto data = it->second.get();
     py::str py_s(op);
 
     assert(shapeMap.end() != shapeMap.find(op));
-    py_ret[py_s] = getPythonArray(data, shapeMap[op]);
+    py_ret[py_s] = getPythonArray(it->second.get(), shapeMap[op]);
   }
 
   return py_ret;
@@ -118,11 +113,11 @@ public:
       interpreter_.reset();
     }
 
-    ModuleInterpreter::setCustomOpPluginFile(pluginFilePath_);
+    // MlirModuleInterpreter::setCustomOpPluginFile(pluginFilePath_);
 
-    interpreter_ = std::make_unique<ModuleInterpreter>(module_.get());
-
-    interpreter_->allocate_tensors();
+    interpreter_ = std::make_unique<MlirModuleInterpreter>();
+    interpreter_->updateWeightMap(module_);
+    interpreter_->loadModule(module_);
     parseMLIRInfo();
   }
 
@@ -173,18 +168,17 @@ public:
   py::dict getAllTensor() {
     tensor_map_t tensorMap_;
     shape_map_t shapeMap_;
-    auto all_tensor_names = interpreter_->get_all_tensor_name();
+    auto all_tensor_names = interpreter_->getAllTensorName();
     for (auto &tensor_name : all_tensor_names) {
-      tensorMap_[tensor_name] = interpreter_->get_tensor(tensor_name);
-      shapeMap_[tensor_name] = interpreter_->get_tensor_shape(tensor_name);
+      tensorMap_[tensor_name] = interpreter_->getTensor(tensor_name, 0);
+      shapeMap_[tensor_name] = interpreter_->getTensorShape(tensor_name);
     }
 
     return getTensorDict(tensorMap_, shapeMap_);
   }
   py::dict get_input_details() {
     py::dict ret;
-    std::vector<std::pair<std::string, size_t>> inputs =
-        interpreter_->get_input_details();
+    auto &inputs = interpreter_->input_details;
     for (auto &i : inputs) {
       ret[i.first.c_str()] = i.second;
     }
@@ -192,7 +186,7 @@ public:
   }
   py::list get_output_details() {
     py::list ret;
-    std::vector<std::string> outputs = interpreter_->get_output_details();
+    auto &outputs = interpreter_->output_details;
     for (auto &i : outputs) {
       ret.append(i);
     }
@@ -207,16 +201,15 @@ public:
       py::array_t<float, py::array::c_style | py::array::forcecast> data) {
     std::vector<float> input_data(data.size());
     std::memcpy(input_data.data(), data.data(), data.size() * sizeof(float));
-    interpreter_->set_tensor(name, input_data);
+    interpreter_->setTensor(name, input_data, 0);
   }
   py::array get_tensor(std::string name) {
-    std::vector<float> tensor = interpreter_->get_tensor(name);
-    std::vector<int64_t> shape = interpreter_->get_tensor_shape(name);
-    return getPythonArray(tensor, shape);
+    auto tensor = interpreter_->getTensor(name, 0);
+    std::vector<int64_t> shape = interpreter_->getTensorShape(name);
+    return getPythonArray(tensor.get(), shape);
   }
-  void invoke(const std::string name) { interpreter_->invoke(name); }
-  void invoke() { interpreter_->invoke(); }
-  void invoke_to(const std::string name) { interpreter_->invoke_to(name); }
+  void invoke() { interpreter_->invoke(0); }
+  void invoke_to(const std::string name) { interpreter_->invokeTo(name, 0); }
 
   // wrap C++ function with NumPy array IO
   py::dict
@@ -234,7 +227,7 @@ public:
 
     size_t input_size = std::accumulate(input_shape.begin(), input_shape.end(),
                                         1, std::multiplies<int64_t>());
-    auto input_details = interpreter_->get_input_details();
+    auto &input_details = interpreter_->input_details;
     size_t all_need_data_size = 0;
     for (auto &i : input_details) {
       all_need_data_size += i.second;
@@ -254,22 +247,22 @@ public:
       std::vector<float> input_data(input_vec.begin() + slice_idx,
                                     input_vec.begin() + slice_idx + i.second);
       slice_idx += i.second;
-      interpreter_->set_tensor(i.first, input_data);
+      interpreter_->setTensor(i.first, input_data, 0);
     }
     assert(slice_idx == input_vec.size());
 
     tensor_map_t results;
     shape_map_t shapeMap_;
     if (!target_op.empty()) {
-      interpreter_->invoke_to(target_op);
-      results[target_op] = interpreter_->get_tensor(target_op);
-      shapeMap_[target_op] = interpreter_->get_tensor_shape(target_op);
+      interpreter_->invokeTo(target_op, 0);
+      results[target_op] = interpreter_->getTensor(target_op, 0);
+      shapeMap_[target_op] = interpreter_->getTensorShape(target_op);
     } else {
-      interpreter_->invoke();
-      auto output_details = interpreter_->get_output_details();
+      interpreter_->invoke(0);
+      auto output_details = interpreter_->output_details;
       for (auto &output_name : output_details) {
-        results[output_name] = interpreter_->get_tensor(output_name);
-        shapeMap_[output_name] = interpreter_->get_tensor_shape(output_name);
+        results[output_name] = interpreter_->getTensor(output_name, 0);
+        shapeMap_[output_name] = interpreter_->getTensorShape(output_name);
       }
     }
     return getTensorDict(results, shapeMap_);
@@ -286,7 +279,7 @@ private:
   // tensor_map_t tensorMap_;
   // shape_map_t shapeMap_;
 
-  std::unique_ptr<ModuleInterpreter> interpreter_;
+  std::unique_ptr<MlirModuleInterpreter> interpreter_;
   std::string pluginFilePath_ = "";
 };
 
@@ -311,8 +304,7 @@ PYBIND11_MODULE(pymlir, m) {
            "run module inference with input array, and return output array")
       .def("dump", &py_module::dump)
       .def("invoke_to", &py_module::invoke_to)
-      .def("invoke", py::overload_cast<>(&py_module::invoke))
-      .def("invoke", py::overload_cast<const std::string>(&py_module::invoke))
+      .def("invoke", &py_module::invoke)
       .def("get_input_details", &py_module::get_input_details)
       .def("get_output_details", &py_module::get_output_details)
       .def_readonly_static("version", &py_module::version);

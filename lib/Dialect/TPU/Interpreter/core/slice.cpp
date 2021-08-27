@@ -1,6 +1,6 @@
 #include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 void slice(float *input, float *output, int axis, int offset,
@@ -25,8 +25,9 @@ void slice(float *input, float *output, int axis, int offset,
   }
 }
 
-SliceOpKernel::SliceOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+SliceOpKernel::SliceOpKernel(Operation &op, value_map_t &valueMapping,
+                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto sliceOp = cast<tpu::SliceOp>(op);
   auto input_type = sliceOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

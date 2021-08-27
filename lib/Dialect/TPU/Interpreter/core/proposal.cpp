@@ -1,6 +1,6 @@
 #include "tpuc/Interpreter/cpu/proposal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 static void _mkanchors(std::vector<float> ctrs, std::vector<float> &anchors) {
   anchors.push_back(ctrs[2] - 0.5 * (ctrs[0] - 1));
@@ -147,8 +147,9 @@ static void anchor_box_nms(std::vector<std::vector<float>> &pred_boxes,
 
 namespace mlir {
 
-ProposalOpKernel::ProposalOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ProposalOpKernel::ProposalOpKernel(Operation &op, value_map_t &valueMapping,
+                                   weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto proposalOp = cast<tpu::ProposalOp>(op);
   this->score_shape = op.getOperand(0).getType().cast<TensorType>().getShape();
   this->bbox_shape = op.getOperand(1).getType().cast<TensorType>().getShape();

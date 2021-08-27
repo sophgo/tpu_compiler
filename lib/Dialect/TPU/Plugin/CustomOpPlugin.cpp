@@ -34,9 +34,9 @@ CustomOp* CustomOpPlugin::loadCustomOp(std::string opName, OpParam &param) {
 
 void CustomOpPlugin::int8Interpret(
     const char *opName, OpParam &param,
-    std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+    std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
     std::vector<std::vector<int64_t>> &operand_shapes,
-    std::shared_ptr<std::vector<float>> &result_tensor,
+    std::shared_ptr<mlir::TensorData> &result_tensor,
     std::vector<int64_t> &result_shape) {
   auto op = loadCustomOp(opName, param);
   assert(op);
@@ -46,9 +46,9 @@ void CustomOpPlugin::int8Interpret(
 
 void CustomOpPlugin::fp32Interpret(
     const char *opName, OpParam &param,
-    std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+    std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
     std::vector<std::vector<int64_t>> &operand_shapes,
-    std::shared_ptr<std::vector<float>> &result_tensor,
+    std::shared_ptr<mlir::TensorData> &result_tensor,
     std::vector<int64_t> &result_shape) {
   auto op = loadCustomOp(opName, param);
   assert(op);
@@ -58,9 +58,9 @@ void CustomOpPlugin::fp32Interpret(
 
 void CustomOpPlugin::bf16Interpret(
     const char *opName, OpParam &param,
-    std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+    std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
     std::vector<std::vector<int64_t>> &operand_shapes,
-    std::shared_ptr<std::vector<float>> &result_tensor,
+    std::shared_ptr<mlir::TensorData> &result_tensor,
     std::vector<int64_t> &result_shape) {
   auto op = loadCustomOp(opName, param);
   assert(op);

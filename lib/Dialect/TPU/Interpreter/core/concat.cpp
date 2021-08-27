@@ -1,12 +1,13 @@
 #include "tpuc/Interpreter/cpu/concat.hpp"
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
 #include "internal.hpp"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping,
+                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto concatOp = cast<tpu::ConcatOp>(op);
   this->axis = concatOp.axis();
   this->input_number = concatOp.getNumInputs();
@@ -72,7 +73,8 @@ void ConcatOpKernel::invoke() {
             continue;
           }
           inputT->at(idx) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              inputT->at(idx), (uint32_t)rshift.at(i), (uint32_t)multiplier.at(i));
+              inputT->at(idx), (uint32_t)rshift.at(i),
+              (uint32_t)multiplier.at(i));
         }
       }
 

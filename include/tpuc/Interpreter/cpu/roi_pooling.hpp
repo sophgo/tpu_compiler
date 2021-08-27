@@ -10,7 +10,8 @@ class ROIPoolingOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUROIPoolingOp";
 
-  ROIPoolingOpKernel(Operation &op, value_map_t &valueMapping);
+  ROIPoolingOpKernel(Operation &op, value_map_t &valueMapping,
+                     weight_map_t &weightMapping);
 
   void invoke() override;
 

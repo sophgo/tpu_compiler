@@ -1,12 +1,12 @@
 #include "tpuc/Interpreter/cpu/roi_pooling.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-ROIPoolingOpKernel::ROIPoolingOpKernel(Operation &op,
-                                       value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ROIPoolingOpKernel::ROIPoolingOpKernel(Operation &op, value_map_t &valueMapping,
+                                       weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto roi_poolingOp = cast<tpu::ROIPoolingOp>(op);
   this->input_shape = op.getOperand(0).getType().cast<TensorType>().getShape();
   this->roi_shape = op.getOperand(1).getType().cast<TensorType>().getShape();

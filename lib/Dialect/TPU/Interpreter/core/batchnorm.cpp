@@ -1,11 +1,12 @@
 #include "tpuc/Interpreter/cpu/batchnorm.hpp"
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
 #include "internal.hpp"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
-BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+BatchNormOpKernel::BatchNormOpKernel(Operation &op, value_map_t &valueMapping,
+                                     weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto bnOp = cast<tpu::BatchNormOp>(op);
   // get tensors
   input_data = this->opdTensors[0];

@@ -3,6 +3,7 @@
 
 #include "mkldnn.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
+#include "tpuc/NativeCpuImplementation.h"
 #include <memory>
 namespace mlir {
 
@@ -10,13 +11,10 @@ class DeConv2DOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUDeConv2DOp";
 
-  DeConv2DOpKernel(Operation &op, value_map_t &valueMapping);
+  DeConv2DOpKernel(Operation &op, value_map_t &valueMapping,
+                   weight_map_t &weightMapping);
 
   void invoke() override;
-
-private:
-  void fp32_invoke();
-  void i8_invoke();
 
 private:
   SyncedData input_data;
@@ -61,11 +59,7 @@ private:
   bool is_asymmetric;
 
   // mkldnn setting
-  mkldnn::engine mkl_eng;
-  mkldnn::stream mkl_stream;
-
-  std::vector<mkldnn::primitive> mkl_net;
-  std::vector<std::unordered_map<int, mkldnn::memory>> mkl_net_args;
+  MKLDeconv deconv;
 
   // int8 param
   bool is_perchannel = false;

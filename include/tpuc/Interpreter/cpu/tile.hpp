@@ -9,7 +9,8 @@ class TileOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUTileOp";
 
-  TileOpKernel(Operation &op, value_map_t &valueMapping);
+  TileOpKernel(Operation &op, value_map_t &valueMapping,
+               weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -19,7 +20,6 @@ private:
   SyncedDataShape input_shape;
   int32_t axis;
   int32_t tiles;
-
 };
 } // namespace mlir
 #endif

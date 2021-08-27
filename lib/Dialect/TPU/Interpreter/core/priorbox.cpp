@@ -2,12 +2,13 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/permute.hpp"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-PriorBoxOpKernel::PriorBoxOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+PriorBoxOpKernel::PriorBoxOpKernel(Operation &op, value_map_t &valueMapping,
+                                   weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto priorboxOp = cast<tpu::PriorBoxOp>(op);
   this->input_shape = op.getOperand(0).getType().cast<TensorType>().getShape();
 

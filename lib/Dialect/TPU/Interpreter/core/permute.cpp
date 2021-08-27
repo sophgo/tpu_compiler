@@ -1,6 +1,6 @@
 #include "tpuc/Interpreter/cpu/permute.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
@@ -31,8 +31,9 @@ void permute(float *src, float *dst, const std::vector<int64_t> &ishape,
   }
 };
 
-PermuteOpKernel::PermuteOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+PermuteOpKernel::PermuteOpKernel(Operation &op, value_map_t &valueMapping,
+                                 weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   parsePermuteParam<tpu::PermuteOp>(&op, shape_4, order_4);
   input_data = this->opdTensors[0];
   output_data = this->resTensor;

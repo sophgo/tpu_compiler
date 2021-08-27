@@ -10,7 +10,8 @@ class PermuteOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPermuteOp";
 
-  PermuteOpKernel(Operation &op, value_map_t &valueMapping);
+  PermuteOpKernel(Operation &op, value_map_t &valueMapping,
+                  weight_map_t &weightMapping);
 
   void invoke() override;
 

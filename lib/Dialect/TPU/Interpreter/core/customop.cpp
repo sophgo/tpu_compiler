@@ -1,16 +1,17 @@
 #include "tpuc/Interpreter/cpu/customop.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-CustomOpKernel::CustomOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+CustomOpKernel::CustomOpKernel(Operation &op, value_map_t &valueMapping,
+                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto customOp = cast<tpu::CustomOp>(op);
   this->operation_name = customOp.operation_name().str();
   convertAttributesToOpParam(customOp.param(), param);
 
-  auto& pluginFile = ModuleInterpreter::getCustomOpPluginFile();
+  auto &pluginFile = MlirModuleInterpreter::getCustomOpPluginFile();
   this->plugin = cvi::CustomOpPlugin::load(pluginFile);
   assert(this->plugin);
 
@@ -26,17 +27,14 @@ CustomOpKernel::CustomOpKernel(Operation &op, value_map_t &valueMapping)
 
 void CustomOpKernel::invoke() {
   if (datatype == DataType::FP32) {
-    plugin->fp32Interpret(
-        operation_name.c_str(), param, inputs_data,
-        inputs_shape, output_data, shape);
+    plugin->fp32Interpret(operation_name.c_str(), param, inputs_data,
+                          inputs_shape, output_data, shape);
   } else if (datatype == DataType::INT8) {
-    plugin->int8Interpret(
-        operation_name.c_str(), param, inputs_data,
-        inputs_shape, output_data, shape);
+    plugin->int8Interpret(operation_name.c_str(), param, inputs_data,
+                          inputs_shape, output_data, shape);
   } else if (datatype == DataType::BF16) {
-    plugin->bf16Interpret(
-        operation_name.c_str(), param, inputs_data,
-        inputs_shape, output_data, shape);
+    plugin->bf16Interpret(operation_name.c_str(), param, inputs_data,
+                          inputs_shape, output_data, shape);
   } else {
     llvm_unreachable("unsupported type");
   }

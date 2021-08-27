@@ -1,11 +1,12 @@
 #include "tpuc/Interpreter/cpu/pool_mask.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-PoolMaskOpKernel::PoolMaskOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+PoolMaskOpKernel::PoolMaskOpKernel(Operation &op, value_map_t &valueMapping,
+                                   weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto pool_maskOp = cast<tpu::PoolMaskOp>(op);
   auto input_type = pool_maskOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

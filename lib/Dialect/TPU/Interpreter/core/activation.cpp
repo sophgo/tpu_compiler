@@ -1,7 +1,7 @@
 #include "tpuc/Interpreter/cpu/activation.hpp"
-#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
 #include "internal.hpp"
@@ -10,8 +10,9 @@
 
 namespace mlir {
 
-AbsOpKernel::AbsOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+AbsOpKernel::AbsOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
@@ -25,8 +26,9 @@ void AbsOpKernel::invoke() {
   }
 }
 
-ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ExpOpKernel::ExpOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto expOp = cast<tpu::ExpOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
@@ -50,8 +52,9 @@ void ExpOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope("exp", input_data->data(), output_data->data(), output_data->size(),
-                   *y0_bf16_table_op, *y0_bf16_slope_table);
+    bf16_lut_slope("exp", input_data->data(), output_data->data(),
+                   output_data->size(), y0_bf16_table_op->data(),
+                   y0_bf16_slope_table->data());
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
@@ -60,8 +63,9 @@ void ExpOpKernel::invoke() {
   }
 }
 
-MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping)
-  : CPUOpKernel(op, valueMapping) {
+MishOpKernel::MishOpKernel(Operation &op, value_map_t &valueMapping,
+                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto mishOp = cast<tpu::MishOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
@@ -88,7 +92,7 @@ void MishOpKernel::invoke() {
     }
   } else if (datatype == DataType::BF16) {
     bf16_lut_slope("mish", input_data->data(), output_data->data(), size,
-                   *y0_bf16_table_op, *y0_bf16_slope_table);
+                   y0_bf16_table_op->data(), y0_bf16_slope_table->data());
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(size))
     for (size_t i = 0; i < output_data->size(); ++i) {
@@ -97,8 +101,9 @@ void MishOpKernel::invoke() {
   }
 }
 
-LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping)
-  : CPUOpKernel(op, valueMapping) {
+LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping,
+                                     weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto leaky_reluOp = cast<tpu::LeakyReluOp>(op);
 
   this->negative_slope = leaky_reluOp.negative_slope().convertToFloat();
@@ -180,8 +185,9 @@ void LeakyReluOpKernel::invoke() {
   }
 }
 
-ReluOpKernel::ReluOpKernel(Operation &op, value_map_t &valueMapping)
-  : CPUOpKernel(op, valueMapping) {
+ReluOpKernel::ReluOpKernel(Operation &op, value_map_t &valueMapping,
+                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
 }
@@ -190,8 +196,9 @@ void ReluOpKernel::invoke() {
   relu(input_data->data(), output_data->data(), output_data->size());
 }
 
-PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping)
-  : CPUOpKernel(op, valueMapping) {
+PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping,
+                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
@@ -245,9 +252,9 @@ void PReluOpKernel::invoke() {
   }
 }
 
-ReciprocalOpKernel::ReciprocalOpKernel(Operation &op,
-                                       value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ReciprocalOpKernel::ReciprocalOpKernel(Operation &op, value_map_t &valueMapping,
+                                       weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
 
   auto rOp = cast<tpu::ReciprocalOp>(op);
   if (datatype == DataType::INT8) {
@@ -280,8 +287,9 @@ void ReciprocalOpKernel::invoke() {
   }
 }
 
-ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping,
+                                 weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   // get tensors
   input_data = this->opdTensors[0];
   this->resTensor.reset();
@@ -290,11 +298,11 @@ ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping)
   valueMapping[op.getResult(0)] = this->resTensor;
 }
 
-void ReshapeOpKernel::invoke() {
-}
+void ReshapeOpKernel::invoke() {}
 
-SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+SigmoidOpKernel::SigmoidOpKernel(Operation &op, value_map_t &valueMapping,
+                                 weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto sigmoidOp = cast<tpu::SigmoidOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
@@ -318,8 +326,9 @@ void SigmoidOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope("sigmoid", input_data->data(), output_data->data(), output_size,
-                   *y0_bf16_table_op, *y0_bf16_slope_table);
+    bf16_lut_slope("sigmoid", input_data->data(), output_data->data(),
+                   output_size, y0_bf16_table_op->data(),
+                   y0_bf16_slope_table->data());
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
@@ -328,8 +337,9 @@ void SigmoidOpKernel::invoke() {
   }
 }
 
-SwishOpKernel::SwishOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+SwishOpKernel::SwishOpKernel(Operation &op, value_map_t &valueMapping,
+                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto swishOp = cast<tpu::SwishOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
@@ -353,8 +363,9 @@ void SwishOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope("swish", input_data->data(), output_data->data(), output_size,
-                   *y0_bf16_table_op, *y0_bf16_slope_table);
+    bf16_lut_slope("swish", input_data->data(), output_data->data(),
+                   output_size, y0_bf16_table_op->data(),
+                   y0_bf16_slope_table->data());
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
@@ -364,8 +375,9 @@ void SwishOpKernel::invoke() {
   }
 }
 
-EluOpKernel::EluOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+EluOpKernel::EluOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto eluOp = cast<tpu::EluOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
@@ -390,7 +402,7 @@ void EluOpKernel::invoke() {
     }
   } else if (datatype == DataType::BF16) {
     bf16_lut_slope("elu", input_data->data(), output_data->data(), output_size,
-                   *y0_bf16_table_op, *y0_bf16_slope_table);
+                   y0_bf16_table_op->data(), y0_bf16_slope_table->data());
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
@@ -400,8 +412,9 @@ void EluOpKernel::invoke() {
   }
 }
 
-SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+SoftPlusOpKernel::SoftPlusOpKernel(Operation &op, value_map_t &valueMapping,
+                                   weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto spOp = cast<tpu::SoftPlusOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
@@ -425,8 +438,9 @@ void SoftPlusOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope("softplus", input_data->data(), output_data->data(), output_data->size(),
-                   *y0_bf16_table_op, *y0_bf16_slope_table);
+    bf16_lut_slope("softplus", input_data->data(), output_data->data(),
+                   output_data->size(), y0_bf16_table_op->data(),
+                   y0_bf16_slope_table->data());
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_data->size(); ++i) {
@@ -435,8 +449,9 @@ void SoftPlusOpKernel::invoke() {
   }
 }
 
-SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping,
+                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto sqrtOp = cast<tpu::SqrtOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
@@ -460,8 +475,9 @@ void SqrtOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_mantissa(input_data->data(), output_data->data(), input_data->size(),
-                     *y0_bf16_table_op, *y0_bf16_slope_table);
+    bf16_lut_mantissa(input_data->data(), output_data->data(),
+                      input_data->size(), y0_bf16_table_op->data(),
+                      y0_bf16_slope_table->data());
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
@@ -470,8 +486,9 @@ void SqrtOpKernel::invoke() {
   }
 }
 
-SquareOpKernel::SquareOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+SquareOpKernel::SquareOpKernel(Operation &op, value_map_t &valueMapping,
+                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
@@ -490,9 +507,9 @@ void SquareOpKernel::invoke() {
   }
 }
 
-
-TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+TanHOpKernel::TanHOpKernel(Operation &op, value_map_t &valueMapping,
+                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto tanhOp = cast<tpu::TanHOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
@@ -516,8 +533,9 @@ void TanHOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope("tanh", input_data->data(), output_data->data(), output_data->size(),
-                   *y0_bf16_table_op, *y0_bf16_slope_table);
+    bf16_lut_slope("tanh", input_data->data(), output_data->data(),
+                   output_data->size(), y0_bf16_table_op->data(),
+                   y0_bf16_slope_table->data());
   } else {
 
 #pragma omp parallel for schedule(static, omp_schedule(output_size))

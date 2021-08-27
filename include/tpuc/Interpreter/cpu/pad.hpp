@@ -11,7 +11,8 @@ class PadOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPadOp";
 
-  PadOpKernel(Operation &op, value_map_t &valueMapping);
+  PadOpKernel(Operation &op, value_map_t &valueMapping,
+              weight_map_t &weightMapping);
 
   void invoke() override;
 

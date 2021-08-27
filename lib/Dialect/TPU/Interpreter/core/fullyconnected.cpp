@@ -1,12 +1,13 @@
 #include "tpuc/Interpreter/cpu/fullyconnected.hpp"
 #include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 namespace mlir {
 FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
-                                               value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                               value_map_t &valueMapping,
+                                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto fcOp = cast<tpu::FullyConnectedOp>(op);
   ltrans = fcOp.input_transpose();
   otrans = fcOp.output_transpose();

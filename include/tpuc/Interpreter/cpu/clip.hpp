@@ -11,7 +11,8 @@ class ClipOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUClipOp";
 
-  ClipOpKernel(Operation &op, value_map_t &valueMapping);
+  ClipOpKernel(Operation &op, value_map_t &valueMapping,
+               weight_map_t &weightMapping);
 
   void invoke() override;
 

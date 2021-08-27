@@ -1,10 +1,11 @@
 #include "tpuc/Interpreter/cpu/embedding.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
-EmbeddingOpKernel::EmbeddingOpKernel(Operation &op, value_map_t &valueMapping)
-  : CPUOpKernel(op, valueMapping) {
+EmbeddingOpKernel::EmbeddingOpKernel(Operation &op, value_map_t &valueMapping,
+                                     weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto embeddingOp = cast<tpu::EmbeddingOp>(op);
   auto input_type = embeddingOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
@@ -35,7 +36,8 @@ void EmbeddingOpKernel::invoke() {
     auto index = (size_t)input[i];
     size_t table_offset = (size_t)index * feature_dim;
     auto out_offset = i * feature_dim;
-    memcpy(output + out_offset, table + table_offset, feature_dim * sizeof(float));
+    memcpy(output + out_offset, table + table_offset,
+           feature_dim * sizeof(float));
   }
 }
 

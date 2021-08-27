@@ -10,7 +10,8 @@ class ScaleOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUScaleOp";
 
-  ScaleOpKernel(Operation &op, value_map_t &valueMapping);
+  ScaleOpKernel(Operation &op, value_map_t &valueMapping,
+                weight_map_t &weightMapping);
 
   void invoke() override;
 

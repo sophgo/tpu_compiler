@@ -11,7 +11,8 @@ class SliceOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSliceOp";
 
-  SliceOpKernel(Operation &op, value_map_t &valueMapping);
+  SliceOpKernel(Operation &op, value_map_t &valueMapping,
+                weight_map_t &weightMapping);
 
   void invoke() override;
 

@@ -8,7 +8,8 @@ class ReverseOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReverseOp";
 
-  ReverseOpKernel(Operation &op, value_map_t &valueMapping);
+  ReverseOpKernel(Operation &op, value_map_t &valueMapping,
+                  weight_map_t &weightMapping);
 
   void invoke() override;
 

@@ -10,7 +10,8 @@ class ProposalOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUProposalOp";
 
-  ProposalOpKernel(Operation &op, value_map_t &valueMapping);
+  ProposalOpKernel(Operation &op, value_map_t &valueMapping,
+                   weight_map_t &weightMapping);
 
   void invoke() override;
 

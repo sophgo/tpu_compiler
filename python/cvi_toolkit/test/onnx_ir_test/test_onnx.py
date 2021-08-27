@@ -206,11 +206,14 @@ class ONNX_IR_TESTER(object):
             for name in mlir_outs:
                 onnx_name = patten.sub("", name)
                 print("Compare mlir[{}] : onnx[{}]".format(name, onnx_name))
-                np.testing.assert_allclose(mlir_outs[name], onnx_outs[onnx_name], rtol=1e-5, atol=1e-01)
+                np.testing.assert_allclose(mlir_outs[name].flatten(),
+                                           onnx_outs[onnx_name].flatten(),
+                                           rtol=1e-5, atol=1e-01)
         else:
             mlir_out = list(mlir_outs.values())[0]
             onnx_out = onnx_outs.popitem()[1]
-            np.testing.assert_allclose(mlir_out, onnx_out, rtol=1e-5, atol=1e-01)
+            np.testing.assert_allclose(mlir_out.flatten(), onnx_out.flatten(),
+                                       rtol=1e-5, atol=1e-01)
 
         mlir_npz = "{}_fp32.npz".format(model_name)
         np.savez(mlir_npz, **fp32_tensors)

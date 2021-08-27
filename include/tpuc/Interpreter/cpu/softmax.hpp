@@ -10,7 +10,8 @@ class SoftmaxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSoftmaxOp";
 
-  SoftmaxOpKernel(Operation &op, value_map_t &valueMapping, bool cpu=false);
+  SoftmaxOpKernel(Operation &op, value_map_t &valueMapping,
+                  weight_map_t &weightMapping, bool cpu = false);
   virtual ~SoftmaxOpKernel() {
     if (max_arr)
       delete[] max_arr;
@@ -22,7 +23,6 @@ public:
   void invoke() override;
 
 private:
-
   void invoke_fp32();
   void invoke_bf16();
 

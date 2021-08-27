@@ -2,9 +2,9 @@
 #define INTERPRETER_CPU_CUSTOMOP_H
 
 #include "mkldnn.hpp"
-#include "tpuc/Interpreter/cpukernel.h"
-#include "tpuc/CustomOpPlugin.h"
 #include "tpuc/CustomOpParam.h"
+#include "tpuc/CustomOpPlugin.h"
+#include "tpuc/Interpreter/cpukernel.h"
 #include <memory>
 namespace mlir {
 
@@ -12,7 +12,8 @@ class CustomOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUCustomOp";
 
-  CustomOpKernel(Operation &op, value_map_t &valueMapping);
+  CustomOpKernel(Operation &op, value_map_t &valueMapping,
+                 weight_map_t &weightMapping);
 
   void invoke() override;
 

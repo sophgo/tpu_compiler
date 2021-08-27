@@ -8,7 +8,8 @@ class UpsampleOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUUpsampleOp";
 
-  UpsampleOpKernel(Operation &op, value_map_t &valueMapping);
+  UpsampleOpKernel(Operation &op, value_map_t &valueMapping,
+                   weight_map_t &weightMapping);
 
   void invoke() override;
 

@@ -1,5 +1,5 @@
 #include "internal.hpp"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
 #include <cmath>

@@ -1,12 +1,13 @@
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
 SwapChannelOpKernel::SwapChannelOpKernel(Operation &op,
-                                         value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                         value_map_t &valueMapping,
+                                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto swapchannelOp = cast<tpu::SwapChannelOp>(op);
   auto input_type = swapchannelOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

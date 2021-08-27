@@ -1,6 +1,6 @@
 #include "tpuc/Interpreter/cpu/lrn.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
 template <typename Dtype>
@@ -163,8 +163,9 @@ void lrn_int8(float *input, float *output, int n, int c, int h, int w,
 }
 
 namespace mlir {
-LrnOpKernel::LrnOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+LrnOpKernel::LrnOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto lrnOp = cast<tpu::LrnOp>(op);
   this->input_shape = getTensorShape(op.getOperand(0));
   if (this->input_shape.size() < 4) {
@@ -197,7 +198,7 @@ void LrnOpKernel::invoke() {
   size_t input_size = n * c * h * w;
   if (datatype == DataType::FP32) {
     if (scale_data == nullptr) {
-      scale_data = std::make_shared<std::vector<float>>(input_size);
+      scale_data = std::make_shared<TensorData>(input_size);
       lrn_one(input_data->data(), scale_data->data(), n, c, h, w, local_size,
               alpha);
 
@@ -210,11 +211,11 @@ void LrnOpKernel::invoke() {
 
   } else if (datatype == DataType::INT8) {
     lrn_int8(input_data->data(), output_data->data(), n, c, h, w, local_size,
-                sqr_lut_data->data(), power_lut_data->data(), sum_rshift,
-                lrn_rshift, quant_data0, quant_data1);
+             sqr_lut_data->data(), power_lut_data->data(), sum_rshift,
+             lrn_rshift, quant_data0, quant_data1);
   } else {
     if (scale_data == nullptr) {
-      scale_data = std::make_shared<std::vector<float>>(input_size);
+      scale_data = std::make_shared<TensorData>(input_size);
       lrn_one(input_data->data(), scale_data->data(), n, c, h, w, local_size,
               alpha);
 
@@ -228,8 +229,9 @@ void LrnOpKernel::invoke() {
   }
 }
 
-LrnOneOpKernel::LrnOneOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+LrnOneOpKernel::LrnOneOpKernel(Operation &op, value_map_t &valueMapping,
+                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto lrnOp = cast<tpu::LrnOneOp>(op);
   this->input_shape = getTensorShape(op.getOperand(0));
   if (this->input_shape.size() < 4) {
@@ -252,8 +254,9 @@ void LrnOneOpKernel::invoke() {
           alpha);
 }
 
-LrnTwoOpKernel::LrnTwoOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+LrnTwoOpKernel::LrnTwoOpKernel(Operation &op, value_map_t &valueMapping,
+                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto lrnOp = cast<tpu::LrnTwoOp>(op);
   this->input_shape = getTensorShape(op.getOperand(0));
   if (this->input_shape.size() < 4) {
@@ -275,8 +278,9 @@ void LrnTwoOpKernel::invoke() {
   lrn_two(input_data->data(), output_data->data(), n, c, h, w, local_size);
 }
 
-LrnThreeOpKernel::LrnThreeOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+LrnThreeOpKernel::LrnThreeOpKernel(Operation &op, value_map_t &valueMapping,
+                                   weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto lrnOp = cast<tpu::LrnThreeOp>(op);
   this->input_shape = getTensorShape(op.getOperand(0));
   if (this->input_shape.size() < 4) {

@@ -1,11 +1,12 @@
 #include "tpuc/Interpreter/cpu/scale_lut.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-ScaleLutOpKernel::ScaleLutOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ScaleLutOpKernel::ScaleLutOpKernel(Operation &op, value_map_t &valueMapping,
+                                   weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   input_data = this->opdTensors[0];
   table = this->opdTensors[1];
   output_data = this->resTensor;

@@ -1,11 +1,12 @@
 #include "tpuc/Interpreter/cpu/reorg.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-ReorgOpKernel::ReorgOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ReorgOpKernel::ReorgOpKernel(Operation &op, value_map_t &valueMapping,
+                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto reorgOp = cast<tpu::ReorgOp>(op);
   auto input_type = reorgOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

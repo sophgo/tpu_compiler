@@ -1,14 +1,15 @@
 #include "tpuc/Interpreter/cpu/layernorm.hpp"
-#include "tpuc/Interpreter/cpu/lut_func.hpp"
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
-#include "tpuc/NativeCpuImplementation.h"
 #include "internal.hpp"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
+#include "tpuc/MlirModuleInterpreter.h"
+#include "tpuc/NativeCpuImplementation.h"
 
 namespace mlir {
 
-LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping,
+                                     weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto lnOp = cast<tpu::LayerNormOp>(op);
   // get tensors
   input_data = this->opdTensors[0];
@@ -74,7 +75,7 @@ void LayerNormOpKernel::normalize_bf16(float *src, float *dst, int size) {
     var += BF16(std::pow(data, 2)) * avg_const;
   }
   var = BF16(BF16(var) + BF16(eps));
-  bf16_lut_mantissa(&var, &var, 1, *lut, *mantissa_lut);
+  bf16_lut_mantissa(&var, &var, 1, lut->data(), mantissa_lut->data());
   for (int i = 0; i < size; i++) {
     data = BF16(src[i] - mean);
     dst[i] = BF16(data * var);

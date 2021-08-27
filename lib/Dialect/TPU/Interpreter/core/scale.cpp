@@ -1,10 +1,11 @@
 #include "tpuc/Interpreter/cpu/scale.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
-ScaleOpKernel::ScaleOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ScaleOpKernel::ScaleOpKernel(Operation &op, value_map_t &valueMapping,
+                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   input_data = this->opdTensors[0];
   scale = this->opdTensors[1];
   bias = this->opdTensors[2];

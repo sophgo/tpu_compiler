@@ -10,7 +10,8 @@ class DetectionOutputOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUDetectionOutputOp";
 
-  DetectionOutputOpKernel(Operation &op, value_map_t &valueMapping);
+  DetectionOutputOpKernel(Operation &op, value_map_t &valueMapping,
+                          weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -38,7 +39,8 @@ class YoloDetectionOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUYoloDetectionOpKernel";
 
-  YoloDetectionOpKernel(Operation &op, value_map_t &valueMapping);
+  YoloDetectionOpKernel(Operation &op, value_map_t &valueMapping,
+                        weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -69,7 +71,8 @@ class FrcnDetectionOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUFrcnDetectionOp";
 
-  FrcnDetectionOpKernel(Operation &op, value_map_t &valueMapping);
+  FrcnDetectionOpKernel(Operation &op, value_map_t &valueMapping,
+                        weight_map_t &weightMapping);
 
   void invoke() override;
 

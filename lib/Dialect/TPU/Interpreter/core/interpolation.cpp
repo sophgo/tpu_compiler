@@ -1,8 +1,9 @@
 #include "tpuc/Interpreter/cpu/interpolation.hpp"
 #include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
+
 
 static inline float coordinate_transform(float x_resized, float x_scale,
                                          float length_resized, bool pytorch) {
@@ -248,8 +249,9 @@ void interp_asymmetric(float *input, float *output, int n, int c, int ih,
 namespace mlir {
 
 InterpolationOpKernel::InterpolationOpKernel(Operation &op,
-                                             value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                             value_map_t &valueMapping,
+                                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto interpolationOp = cast<tpu::InterpOp>(op);
   auto input_type =
       interpolationOp.input().getType().template cast<TensorType>();

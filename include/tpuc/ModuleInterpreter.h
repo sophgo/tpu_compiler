@@ -24,9 +24,9 @@
 #define MLIR_DIALECT_TPU_MODULEINTERPRETER_H_
 
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
-#include "mlir/IR/MLIRContext.h"
 #include "mlir/IR/BuiltinOps.h"
-#include "tpuc/Interpreter/core.h"
+#include "mlir/IR/MLIRContext.h"
+#include "tpuc/Interpreter/cpukernel.h"
 #include "tpuc/MachineInfo.h"
 #include "tpuc/QuantizationArithmetic.h"
 #include "tpuc/Support/TensorFile.h"
@@ -44,8 +44,8 @@
 
 namespace mlir {
 class ModuleOp;
-using value_map_t = DenseMap<Value, std::shared_ptr<std::vector<float>>>;
-using op_kernel_list = std::vector<std::shared_ptr<OpKernel>>;
+
+using op_kernel_list = std::vector<std::shared_ptr<CPUOpKernel>>;
 
 enum class DeviceMode { CPU, GPU };
 // Implementation class for module interpreter.
@@ -57,13 +57,6 @@ public:
       : mlirModule(module), weightFile_(nullptr) {}
   virtual ~ModuleInterpreter() {}
 
-  static std::string &getCustomOpPluginFile() {
-    return customOpPluginFile_;
-  }
-
-  static void setCustomOpPluginFile(std::string &file) {
-    customOpPluginFile_ = file;
-  }
 
   std::vector<std::pair<std::string, size_t>> get_input_details() {
     return input_details;
@@ -76,7 +69,7 @@ public:
   void prepareOperation(Operation &op);
   void invoke();
   void invoke(std::string name);
-  void invoke_to(const std::string& name);
+  void invoke_to(const std::string &name);
 
   bool set_tensor(std::string name, const std::vector<float> &data);
   std::vector<float> get_tensor(std::string name);
@@ -103,14 +96,8 @@ public:
   }
 
 private:
-
   std::vector<Value> getInputsList() { return inputsList; }
   std::vector<Value> getResultsList() { return resultsList; }
-
-  void updateValue(Value v, std::vector<float> &vec) {
-    // deep copy
-    valueMapping[v] = std::make_shared<std::vector<float>>(vec);
-  }
 
   value_map_t getResults() {
     value_map_t results;
@@ -135,8 +122,8 @@ protected:
   std::vector<Value> resultsList;
   std::vector<Value> inputsList;
 
-
   value_map_t valueMapping;
+  weight_map_t weightMapping;
   op_kernel_list oplist;
   std::mutex invoke_lock;
 };

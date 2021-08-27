@@ -1,10 +1,9 @@
 #include "tpuc/Interpreter/cpu/quant.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/QuantizationArithmetic.h"
 
 #include <cmath>
-
 
 // Quantize an Activation tensor into INT8, given threshold
 static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
@@ -15,7 +14,8 @@ static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
       // remove [17:31] mantissa part
       // align \TgQuantKernel.cpp that we directly use high part
       // rather than convert it
-      float val = BF16(BF16(BF16(src[i], false) * scale) + zero_point, (zero_point != 0));
+      float val = BF16(BF16(BF16(src[i], false) * scale) + zero_point,
+                       (zero_point != 0));
       dst[i] = (float)F32ToInt8(val, 0);
     }
   } else {
@@ -33,19 +33,19 @@ static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
 
 static void quantizeFromFp32ToBf16(float *src, float *dst, int64_t size) {
   for (int64_t i = 0; i < size; ++i) {
-      float f32_val = src[i];
-      uint32_t *u32_val = reinterpret_cast<uint32_t *>(&f32_val);
-      uint32_t input = *u32_val;
-      bfloat16 bf_val = (bfloat16)(input >> 16);
+    float f32_val = src[i];
+    uint32_t *u32_val = reinterpret_cast<uint32_t *>(&f32_val);
+    uint32_t input = *u32_val;
+    bfloat16 bf_val = (bfloat16)(input >> 16);
 
-      uint16_t *q = reinterpret_cast<uint16_t *>(&dst[i]);
-      q[0] = 0;
-      q[1] = bf_val;
+    uint16_t *q = reinterpret_cast<uint16_t *>(&dst[i]);
+    q[0] = 0;
+    q[1] = bf_val;
   }
 }
 
 static void quantizeFromFp32ToInt16(float *src, float *dst, int64_t size,
-                                     float scale) {
+                                    float scale) {
   for (int64_t i = 0; i < size; ++i) {
     int val = std::round(src[i] * scale);
     if (val > 32767) {
@@ -68,8 +68,8 @@ static void quantizeFromFp32ToUInt16(float *src, float *dst, int64_t size,
 
 /// Dequant an Int8 Activation tensor to Bf16, given threshold
 /// Keep interpreter int8 quant align with TPU
-static void dequantizeFromInt8ToBf16(float *src, float *dst, int64_t size, float scale,
-                              int zero_point) {
+static void dequantizeFromInt8ToBf16(float *src, float *dst, int64_t size,
+                                     float scale, int zero_point) {
   scale = BF16(scale);
   zero_point = BF16(zero_point);
   for (int64_t i = 0; i < size; ++i) {
@@ -78,7 +78,7 @@ static void dequantizeFromInt8ToBf16(float *src, float *dst, int64_t size, float
 }
 
 static void quantizeFromBf16ToInt8(float *output, float *input, int64_t size,
-                            float scale) {
+                                   float scale) {
   scale = BF16(scale);
   for (int64_t i = 0; i < size; ++i) {
     float val = BF16(input[i] * scale);
@@ -87,8 +87,9 @@ static void quantizeFromBf16ToInt8(float *output, float *input, int64_t size,
 }
 
 /// DeQuantize an Activation tensor from INT8, given threshold
-static void dequantizeFromInt8ToFp32(float *src, float *dst, int64_t size, float scale,
-                              int zero_point, bool tpu_mode) {
+static void dequantizeFromInt8ToFp32(float *src, float *dst, int64_t size,
+                                     float scale, int zero_point,
+                                     bool tpu_mode) {
   if (tpu_mode) {
     scale = BF16(scale);
     for (int64_t i = 0; i < size; ++i) {
@@ -102,8 +103,9 @@ static void dequantizeFromInt8ToFp32(float *src, float *dst, int64_t size, float
 }
 
 namespace mlir {
-QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping,
+                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto quantOp = cast<tpu::QuantOp>(op);
   this->scale = quantOp.scale().convertToFloat();
   this->zero_point = quantOp.zero_point();
@@ -137,13 +139,13 @@ void QuantOpKernel::invoke() {
     output_data->assign(input_data->begin(), input_data->end());
   } else if (this->from == "NONE" && this->to == "BF16") {
     quantizeFromFp32ToBf16(input_data->data(), output_data->data(),
-                                            output_data->size());
+                           output_data->size());
   } else if (this->from == "BF16" && this->to == "INT8") {
     quantizeFromBf16ToInt8(output_data->data(), input_data->data(),
                            output_data->size(), scale);
   } else if (this->from == "NONE" && this->to == "INT16") {
     quantizeFromFp32ToInt16(input_data->data(), output_data->data(),
-                             input_data->size(), scale);
+                            input_data->size(), scale);
   } else if (this->from == "NONE" && this->to == "UINT16") {
     quantizeFromFp32ToUInt16(input_data->data(), output_data->data(),
                              input_data->size(), scale);
@@ -153,8 +155,9 @@ void QuantOpKernel::invoke() {
   }
 }
 
-ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping,
+                                 weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto requantOp = cast<tpu::ReQuantOp>(op);
   this->scale = requantOp.qscale().convertToFloat();
   this->input_offset = (float)-getPreviousOpZeroPoint(&op);

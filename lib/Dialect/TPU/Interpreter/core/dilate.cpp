@@ -1,6 +1,6 @@
 #include "tpuc/Interpreter/cpu/dilate.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
 namespace mlir {
@@ -31,8 +31,9 @@ void dilateActivation(float *input, float *output, int pad_h_t, int pad_h_b,
     }
   }
 }
-DilateOpKernel::DilateOpKernel(Operation &op, value_map_t &valueMapping)
-  : CPUOpKernel(op, valueMapping) {
+DilateOpKernel::DilateOpKernel(Operation &op, value_map_t &valueMapping,
+                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto dilateOp = cast<tpu::DilateOp>(op);
   auto input_type = dilateOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

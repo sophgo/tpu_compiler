@@ -9,7 +9,8 @@ class DepthToSpaceOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUDepthToSpaceOp";
 
-  DepthToSpaceOpKernel(Operation &op, value_map_t &valueMapping);
+  DepthToSpaceOpKernel(Operation &op, value_map_t &valueMapping,
+                       weight_map_t &weightMapping);
 
   void invoke() override;
 

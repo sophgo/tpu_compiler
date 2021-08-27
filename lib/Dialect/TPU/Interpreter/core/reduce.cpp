@@ -1,6 +1,6 @@
 #include "tpuc/Interpreter/cpu/reduce.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 inline int count(std::vector<int64_t> &shape, int start_axis, int end_axis) {
@@ -58,10 +58,10 @@ void reduce_mean_int8(float *input, float *output,
   assert(axes.size() > 0);
   auto input_shape = org_input_shape;
   int size = count(input_shape, 0, input_shape.size());
-  std::vector<int> tmp (size, 0);
-  int* _output = tmp.data();
-  std::vector<int> tmp2 (size, 0);
-  int* _input = tmp2.data();
+  std::vector<int> tmp(size, 0);
+  int *_output = tmp.data();
+  std::vector<int> tmp2(size, 0);
+  int *_input = tmp2.data();
 
   // Convert integer format
   for (int i = 0; i < size; i++)
@@ -76,13 +76,12 @@ void reduce_mean_int8(float *input, float *output,
     int next_inner = inner * input_shape[axis];
     int outer = count(input_shape, 0, axis);
 
-    llvm::errs() << "  [" << i << "] inner " << inner
-                 << ", outer " << outer
-                 << ", axis shape:" << input_shape[axis]
-                 << ", axis " << axis << "\n";
+    llvm::errs() << "  [" << i << "] inner " << inner << ", outer " << outer
+                 << ", axis shape:" << input_shape[axis] << ", axis " << axis
+                 << "\n";
 
     for (int i = 0; i < outer; i++) {
-      std::vector<int> inner_sum (inner, 0);
+      std::vector<int> inner_sum(inner, 0);
       for (int s = 0; s < input_shape[axis]; s++) {
         for (int j = 0; j < inner; j++) {
           inner_sum[j] += _input[i * next_inner + s * inner + j];
@@ -110,7 +109,6 @@ void reduce_mean_int8(float *input, float *output,
     val = std::min(val, 127);
     output[i] = (float)val;
   }
-
 }
 
 void reduce_max(float *input, float *output, std::vector<int64_t> &input_shape,
@@ -139,8 +137,7 @@ void reduce_max(float *input, float *output, std::vector<int64_t> &input_shape,
 //   reduced = np.sqrt(np.sum(
 //               a=np.square(data), axis=axes, keepdims=keepdims == 1))
 void reduce_l2(float *input, float *output,
-                 std::vector<int64_t> &org_input_shape,
-                 std::vector<int> &axes) {
+               std::vector<int64_t> &org_input_shape, std::vector<int> &axes) {
   assert(axes.size() > 0);
   auto input_shape = org_input_shape;
   int size = count(input_shape, 0, input_shape.size());
@@ -180,8 +177,9 @@ void reduce_l2(float *input, float *output,
   std::copy(_output, _output + size, output);
 }
 
-ReduceL2OpKernel::ReduceL2OpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ReduceL2OpKernel::ReduceL2OpKernel(Operation &op, value_map_t &valueMapping,
+                                   weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto reducemaxOp = cast<tpu::ReduceL2Op>(op);
   auto input_type = reducemaxOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
@@ -211,8 +209,9 @@ void ReduceL2OpKernel::invoke() {
   }
 }
 
-ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping,
+                                     weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto reducemaxOp = cast<tpu::ReduceMaxOp>(op);
   auto input_type = reducemaxOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
@@ -243,9 +242,9 @@ void ReduceMaxOpKernel::invoke() {
   }
 }
 
-ReduceMeanOpKernel::ReduceMeanOpKernel(Operation &op,
-                                       value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ReduceMeanOpKernel::ReduceMeanOpKernel(Operation &op, value_map_t &valueMapping,
+                                       weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto reducemeanOp = cast<tpu::ReduceMeanOp>(op);
   auto input_type = reducemeanOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

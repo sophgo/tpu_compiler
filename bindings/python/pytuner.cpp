@@ -38,7 +38,7 @@ using tensor_map_t = std::map<std::string, std::vector<float>>;
 using shape_map_t = std::map<std::string, std::vector<int64_t>>;
 using np_data_t = py::array_t<float, py::array::c_style | py::array::forcecast>;
 
-static py::array genNumpyArray(std::shared_ptr<std::vector<float>> &vec,
+static py::array genNumpyArray(std::shared_ptr<std::vector<float>> vec,
                                const std::vector<int64_t> &shape) {
   std::vector<unsigned> stride_v(shape.size(), sizeof(float));
   for (int i = shape.size() - 1; i > 0; i--) {
@@ -74,7 +74,7 @@ private:
 
 class PyTuner {
 public:
-  PyTuner(int batch);
+  PyTuner(int batch) : batch(batch), interpreter(batch) {}
   ~PyTuner() {}
 
   void load(const std::string &mlir_file);
@@ -99,15 +99,9 @@ private:
   std::unique_ptr<MLIRContext> context;
   OwningModuleRef module_;
   int batch = 0;
-  std::vector<std::unique_ptr<MlirModuleInterpreter>> interpreters;
+  MlirModuleInterpreter interpreter;
   std::string pluginFilePath_ = "";
 };
-
-PyTuner::PyTuner(int batch) : batch(batch) {
-  for (int i = 0;  i < batch; i++) {
-    interpreters.emplace_back(std::make_unique<MlirModuleInterpreter>());
-  }
-}
 
 void PyTuner::load(const std::string &mlir_file) {
   // Timer timer;
@@ -183,14 +177,10 @@ static int omp_schedule(int count) {
 
 void PyTuner::buildInterpreter(std::string &target_op) {
   // Timer timer;
-  MlirModuleInterpreter::updateWeightMap(module_);
+  interpreter.updateWeightMap(module_);
   // timer.stopAndPrint("update weight list");
   // timer.restart();
-
-  #pragma omp parallel for schedule(static, omp_schedule(batch))
-  for (int i = 0; i < batch; i++) {
-    interpreters[i]->loadModule(module_, target_op);
-  }
+  interpreter.loadModule(module_, target_op);
   // timer.stopAndPrint("update kernel list");
 }
 
@@ -228,7 +218,7 @@ py::list PyTuner::getOpInfo() {
 void PyTuner::setData(const std::string &name,
                       np_data_t &array, int bidx) {
   int idx = 0;
-  auto &details = interpreters[bidx]->input_details;
+  auto &details = interpreter.input_details;
   if (!name.empty()) {
     bool found = false;
     for (; idx < (int)details.size(); idx++) {
@@ -252,7 +242,7 @@ void PyTuner::setData(const std::string &name,
   std::vector<float> input_data(array.size());
   std::memcpy(input_data.data(), array.data(),
               array.size() * sizeof(float));
-  interpreters[bidx]->setTensor(details[idx].first, input_data);
+  interpreter.setTensor(details[idx].first, input_data, bidx);
 }
 
 void PyTuner::setData(np_data_t &array, int bidx) {
@@ -260,18 +250,18 @@ void PyTuner::setData(np_data_t &array, int bidx) {
 }
 
 py::array PyTuner::getTensor(std::string &name, int bidx) {
-  std::shared_ptr<std::vector<float>> tensor = interpreters[bidx]->getTensor(name);
-  std::vector<int64_t> shape = interpreters[bidx]->getTensorShape(name);
+  std::shared_ptr<std::vector<float>> tensor = interpreter.getTensor(name, bidx);
+  std::vector<int64_t> shape = interpreter.getTensorShape(name);
   return genNumpyArray(tensor, shape);
 }
 
 std::string PyTuner::getTensorType(std::string &name) {
-  return interpreters[0]->getDataType(name);
+  return interpreter.getDataType(name);
 }
 
 py::list PyTuner::getOutputDetails() {
   py::list list;
-  auto outputs = interpreters[0]->outputDetails();
+  auto outputs = interpreter.outputDetails();
   for (auto &i : outputs) {
     list.append(i);
   }
@@ -280,18 +270,17 @@ py::list PyTuner::getOutputDetails() {
 
 py::dict PyTuner::getAllTensors(int bidx) {
   py::dict dict;
-  for (auto &kv : interpreters[bidx]->activationMapping) {
+  for (auto &kv : interpreter.activationMapping) {
     py::str py_s(kv.first);
-    dict[py_s] = genNumpyArray(kv.second, {(int64_t)kv.second->size()});
+    dict[py_s] = genNumpyArray(kv.second->tensor(bidx),
+                               {(int64_t)kv.second->size()});
   }
   return dict;
 }
 
 void PyTuner::invokeTo(std::string &targetOp) {
   // Timer timer;
-  for (int i = 0; i < batch; i++) {
-    interpreters[i]->invokeTo(targetOp);
-  }
+  interpreter.fastInvokeAllBatch(targetOp, batch);
   // timer.stopAndPrint("invokeTo");
 }
 

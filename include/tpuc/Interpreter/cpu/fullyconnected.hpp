@@ -10,7 +10,8 @@ class FullyConnectedOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUFullyConnectedOp";
 
-  FullyConnectedOpKernel(Operation &op, value_map_t &valueMapping);
+  FullyConnectedOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping);
 
   void invoke() override;
 

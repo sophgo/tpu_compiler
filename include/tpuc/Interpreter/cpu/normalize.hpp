@@ -10,7 +10,8 @@ class NormalizeOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUNormlizeOp";
 
-  NormalizeOpKernel(Operation &op, value_map_t &valueMapping);
+  NormalizeOpKernel(Operation &op, value_map_t &valueMapping,
+                    weight_map_t &weightMapping);
 
   void invoke() override;
 

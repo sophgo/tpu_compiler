@@ -10,7 +10,8 @@ class BatchNormOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUBatchNormOp";
 
-  BatchNormOpKernel(Operation &op, value_map_t &valueMapping);
+  BatchNormOpKernel(Operation &op, value_map_t &valueMapping,
+                    weight_map_t &weightMapping);
 
   void invoke() override;
 

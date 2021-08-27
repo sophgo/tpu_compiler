@@ -8,7 +8,8 @@ class ConcatOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUConcatOp";
 
-  ConcatOpKernel(Operation &op, value_map_t &valueMapping);
+  ConcatOpKernel(Operation &op, value_map_t &valueMapping,
+                 weight_map_t &weightMapping);
 
   void invoke() override;
 

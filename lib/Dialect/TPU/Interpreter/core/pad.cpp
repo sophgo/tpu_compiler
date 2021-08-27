@@ -1,11 +1,11 @@
 #include "tpuc/Interpreter/cpu/pad.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-void pad_edge(float *input, float *output,
-                  std::vector<int64_t> &input_shape, std::vector<int> &pads) {
+void pad_edge(float *input, float *output, std::vector<int64_t> &input_shape,
+              std::vector<int> &pads) {
   int in = input_shape[0];
   int ic = input_shape[1];
   int ih = input_shape[2];
@@ -14,8 +14,8 @@ void pad_edge(float *input, float *output,
   int oc = pads[1] + pads[5] + ic;
   int oh = pads[2] + pads[6] + ih;
   int ow = pads[3] + pads[7] + iw;
-  assert(pads[0] == pads[4] && pads[1] == pads[5] && pads[0] == 0 && pads[1] == 0
-      && "only support hw pad");
+  assert(pads[0] == pads[4] && pads[1] == pads[5] && pads[0] == 0 &&
+         pads[1] == 0 && "only support hw pad");
 
   // comes from https://github.com/BVLC/caffe/pull/6506/files
   for (int n = 0; n < in; ++n) {
@@ -26,7 +26,8 @@ void pad_edge(float *input, float *output,
         int input_offset = ((n * ic + c) * ih + h) * iw;
         int output_offset = ((n * oc + c) * oh + (h + pads[2])) * ow + pads[3];
 
-        memcpy(output + output_offset, input + input_offset, sizeof(float) * iw);
+        memcpy(output + output_offset, input + input_offset,
+               sizeof(float) * iw);
       }
 
       // Left and right. Loop over the rows not in the vertical padding
@@ -34,7 +35,7 @@ void pad_edge(float *input, float *output,
         // Offset to current row start (in padding of this row)
         int off = ((n * oc + c) * oh + h) * ow;
         const float lval = *(output + off + pads[3]),
-              rval = *(output + off + ow - 1 -  pads[7]);
+                    rval = *(output + off + ow - 1 - pads[7]);
 
         // Left
         for (int wdst = 0; wdst < pads[3]; ++wdst) {
@@ -48,9 +49,9 @@ void pad_edge(float *input, float *output,
 
       // Top
       // Beginning of this image's data, including padding
-      float* dstptr = output + ((n * oc + c) * oh) * ow;
+      float *dstptr = output + ((n * oc + c) * oh) * ow;
       // First row not in the vertical padding
-      float* srcptr = dstptr + pads[2] * ow;
+      float *srcptr = dstptr + pads[2] * ow;
       for (int h = 0; h < pads[2]; ++h) {
         std::copy(srcptr, srcptr + ow, dstptr + h * ow);
       }
@@ -61,7 +62,7 @@ void pad_edge(float *input, float *output,
       // Start of first row in bottom padding
       dstptr = srcptr + ow;
       for (int h = 0; h < pads[6]; ++h) {
-        std::copy(srcptr, srcptr + ow, dstptr + h*ow);
+        std::copy(srcptr, srcptr + ow, dstptr + h * ow);
       }
     }
   }
@@ -117,8 +118,9 @@ void pad_constant(float *input, float *output,
   }
 }
 
-PadOpKernel::PadOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+PadOpKernel::PadOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto padOp = cast<tpu::PadOp>(op);
   auto input_type = padOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
@@ -141,10 +143,9 @@ void PadOpKernel::invoke() {
   assert(ow == shape[3]);
   if (this->mode == "edge") {
     pad_edge(input_data->data(), output_data->data(), input_shape, pads);
-  }
-  else {
+  } else {
     pad_constant(input_data->data(), output_data->data(), input_shape, pads,
-        const_val);
+                 const_val);
   }
 }
 

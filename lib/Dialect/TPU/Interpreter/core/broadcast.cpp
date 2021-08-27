@@ -1,13 +1,14 @@
 #include "tpuc/Interpreter/cpu/broadcast.hpp"
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
 #include "internal.hpp"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
 BroadcastAddOpKernel::BroadcastAddOpKernel(Operation &op,
-                                           value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                           value_map_t &valueMapping,
+                                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto broadcastaddOp = cast<tpu::BroadcastAddOp>(op);
 
   auto shape1 = getTensorShape(op.getOperand(0));
@@ -121,8 +122,9 @@ void BroadcastAddOpKernel::invoke() {
 }
 
 BroadcastMulOpKernel::BroadcastMulOpKernel(Operation &op,
-                                           value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                           value_map_t &valueMapping,
+                                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto broadcastmulOp = cast<tpu::BroadcastMulOp>(op);
   do_relu = broadcastmulOp.do_relu();
   int axis = broadcastmulOp.axis();
@@ -196,8 +198,9 @@ void BroadcastMulOpKernel::invoke() {
 }
 
 BroadcastSubOpKernel::BroadcastSubOpKernel(Operation &op,
-                                           value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                           value_map_t &valueMapping,
+                                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto broadcastsubOp = cast<tpu::BroadcastSubOp>(op);
   do_relu = broadcastsubOp.do_relu();
   int axis = broadcastsubOp.axis();

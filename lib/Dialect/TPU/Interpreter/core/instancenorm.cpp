@@ -1,11 +1,12 @@
 #include "tpuc/Interpreter/cpu/instancenorm.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 InstanceNormOpKernel::InstanceNormOpKernel(Operation &op,
-                                           value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                           value_map_t &valueMapping,
+                                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto inOp = cast<tpu::InstanceNormOp>(op);
   // gamma_value * (x - mean_value) / np.sqrt(var_value + epsilon) + beta_value
   // where `mean` and `variance` are computed per instance per channel

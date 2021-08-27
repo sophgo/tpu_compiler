@@ -1,11 +1,12 @@
 #include "tpuc/Interpreter/cpu/reverse.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
-ReverseOpKernel::ReverseOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+ReverseOpKernel::ReverseOpKernel(Operation &op, value_map_t &valueMapping,
+                                 weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto reverseOp = cast<tpu::ReverseOp>(op);
   auto input_type = reverseOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

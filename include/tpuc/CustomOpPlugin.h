@@ -8,6 +8,7 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "tpuc/CustomOpParam.h"
 #include "tpuc/CustomOp.h"
+#include "tpuc/Interpreter/cpukernel.h"
 
 namespace cvi {
 
@@ -16,21 +17,21 @@ using CustomOpCreateFn = CustomOp *(*) (OpParam &);
 class CustomOpPlugin {
 public:
   void int8Interpret(const char *opName, OpParam &param,
-                     std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+                     std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
                      std::vector<std::vector<int64_t>> &operand_shapes,
-                     std::shared_ptr<std::vector<float>> &result_tensor,
+                     std::shared_ptr<mlir::TensorData> &result_tensor,
                      std::vector<int64_t> &result_shape);
 
   void fp32Interpret(const char *opName, OpParam &param,
-                     std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+                     std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
                      std::vector<std::vector<int64_t>> &operand_shapes,
-                     std::shared_ptr<std::vector<float>> &result_tensor,
+                     std::shared_ptr<mlir::TensorData> &result_tensor,
                      std::vector<int64_t> &result_shape);
 
   void bf16Interpret(const char *opName, OpParam &param,
-                     std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+                     std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
                      std::vector<std::vector<int64_t>> &operand_shapes,
-                     std::shared_ptr<std::vector<float>> &result_tensor,
+                     std::shared_ptr<mlir::TensorData> &result_tensor,
                      std::vector<int64_t> &result_shape);
 
   void int8Quant(const char *opName, OpParam &param, OpParam *quant,

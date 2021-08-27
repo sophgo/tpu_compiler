@@ -9,7 +9,8 @@ class AbsOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUAbsOpOp";
 
-  AbsOpKernel(Operation &op, value_map_t &valueMapping);
+  AbsOpKernel(Operation &op, value_map_t &valueMapping,
+              weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -22,7 +23,8 @@ class ExpOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUExpOpOp";
 
-  ExpOpKernel(Operation &op, value_map_t &valueMapping);
+  ExpOpKernel(Operation &op, value_map_t &valueMapping,
+              weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -44,7 +46,8 @@ class MishOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUMishOp";
 
-  MishOpKernel(Operation &op, value_map_t &valueMapping);
+  MishOpKernel(Operation &op, value_map_t &valueMapping,
+               weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -67,7 +70,8 @@ class LeakyReluOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULeakyReluOp";
 
-  LeakyReluOpKernel(Operation &op, value_map_t &valueMapping);
+  LeakyReluOpKernel(Operation &op, value_map_t &valueMapping,
+                    weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -93,7 +97,8 @@ class ReluOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReluOp";
 
-  ReluOpKernel(Operation &op, value_map_t &valueMapping);
+  ReluOpKernel(Operation &op, value_map_t &valueMapping,
+               weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -107,7 +112,8 @@ class PReluOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPReluOp";
 
-  PReluOpKernel(Operation &op, value_map_t &valueMapping);
+  PReluOpKernel(Operation &op, value_map_t &valueMapping,
+                weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -127,7 +133,8 @@ class ReshapeOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReshapeOp";
 
-  ReshapeOpKernel(Operation &op, value_map_t &valueMapping);
+  ReshapeOpKernel(Operation &op, value_map_t &valueMapping,
+                  weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -141,7 +148,8 @@ class SigmoidOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSigmoidOp";
 
-  SigmoidOpKernel(Operation &op, value_map_t &valueMapping);
+  SigmoidOpKernel(Operation &op, value_map_t &valueMapping,
+                  weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -164,7 +172,8 @@ class SwishOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSwishOp";
 
-  SwishOpKernel(Operation &op, value_map_t &valueMapping);
+  SwishOpKernel(Operation &op, value_map_t &valueMapping,
+                weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -187,7 +196,8 @@ class EluOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEluOp";
 
-  EluOpKernel(Operation &op, value_map_t &valueMapping);
+  EluOpKernel(Operation &op, value_map_t &valueMapping,
+              weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -210,7 +220,8 @@ class ReciprocalOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReciprocalOpOp";
 
-  ReciprocalOpKernel(Operation &op, value_map_t &valueMapping);
+  ReciprocalOpKernel(Operation &op, value_map_t &valueMapping,
+                     weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -233,7 +244,8 @@ class SoftPlusOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSoftPlusOpOp";
 
-  SoftPlusOpKernel(Operation &op, value_map_t &valueMapping);
+  SoftPlusOpKernel(Operation &op, value_map_t &valueMapping,
+                   weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -245,7 +257,7 @@ private:
   SyncedData y0_table_op;
   SyncedData slope_table;
 
-  float  scale;
+  float scale;
   float bias;
   // bf16
   SyncedData y0_bf16_table_op;
@@ -256,7 +268,8 @@ class SqrtOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSqrtOpOp";
 
-  SqrtOpKernel(Operation &op, value_map_t &valueMapping);
+  SqrtOpKernel(Operation &op, value_map_t &valueMapping,
+               weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -279,7 +292,8 @@ class SquareOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSquareOpOp";
 
-  SquareOpKernel(Operation &op, value_map_t &valueMapping);
+  SquareOpKernel(Operation &op, value_map_t &valueMapping,
+                 weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -293,7 +307,8 @@ class TanHOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUTanHOpOp";
 
-  TanHOpKernel(Operation &op, value_map_t &valueMapping);
+  TanHOpKernel(Operation &op, value_map_t &valueMapping,
+               weight_map_t &weightMapping);
 
   void invoke() override;
 

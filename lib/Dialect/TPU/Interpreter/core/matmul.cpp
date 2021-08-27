@@ -1,13 +1,14 @@
 #include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
 namespace mlir {
 
-MatMulOpKernel::MatMulOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+MatMulOpKernel::MatMulOpKernel(Operation &op, value_map_t &valueMapping,
+                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto castOp = cast<tpu::MatMulOp>(op);
   this->do_relu = castOp.do_relu();
   l_trans = castOp.left_transpose();

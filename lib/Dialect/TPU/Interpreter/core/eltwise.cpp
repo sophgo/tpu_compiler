@@ -1,12 +1,12 @@
 #include "tpuc/Interpreter/cpu/eltwise.hpp"
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
 #include "internal.hpp"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
-EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
-                                       value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op, value_map_t &valueMapping,
+                                       weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
 
   auto elt_addOp = cast<tpu::EltwiseAddOp>(op);
   const unsigned nInputs = op.getNumOperands() - 4;
@@ -38,7 +38,8 @@ EltwiseAddOpKernel::EltwiseAddOpKernel(Operation &op,
       this->output_offset = getOpZeroPoint(&op);
     }
   }
-  this->opdTensors.erase(this->opdTensors.begin() + nInputs, this->opdTensors.end());
+  this->opdTensors.erase(this->opdTensors.begin() + nInputs,
+                         this->opdTensors.end());
   // get tensors
   inputs_data = this->opdTensors;
   output_data = this->resTensor;
@@ -113,9 +114,9 @@ void EltwiseAddOpKernel::invoke() {
   }
 };
 
-EltwiseMaxOpKernel::EltwiseMaxOpKernel(Operation &op,
-                                       value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+EltwiseMaxOpKernel::EltwiseMaxOpKernel(Operation &op, value_map_t &valueMapping,
+                                       weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
 
   auto elt_addOp = cast<tpu::EltwiseMaxOp>(op);
   const unsigned nInputs = op.getNumOperands() - 4;
@@ -132,7 +133,8 @@ EltwiseMaxOpKernel::EltwiseMaxOpKernel(Operation &op,
                               quant_multiplier->end());
     }
   }
-  this->opdTensors.erase(this->opdTensors.begin() + nInputs, this->opdTensors.end());
+  this->opdTensors.erase(this->opdTensors.begin() + nInputs,
+                         this->opdTensors.end());
   // get tensors
   inputs_data = this->opdTensors;
   output_data = this->resTensor;
@@ -206,9 +208,9 @@ void EltwiseMaxOpKernel::invoke() {
   }
 };
 
-EltwiseMinOpKernel::EltwiseMinOpKernel(Operation &op,
-                                       value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+EltwiseMinOpKernel::EltwiseMinOpKernel(Operation &op, value_map_t &valueMapping,
+                                       weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
 
   auto elt_addOp = cast<tpu::EltwiseMinOp>(op);
   const unsigned nInputs = op.getNumOperands() - 4;
@@ -226,7 +228,8 @@ EltwiseMinOpKernel::EltwiseMinOpKernel(Operation &op,
                               quant_multiplier->end());
     }
   }
-  this->opdTensors.erase(this->opdTensors.begin() + nInputs, this->opdTensors.end());
+  this->opdTensors.erase(this->opdTensors.begin() + nInputs,
+                         this->opdTensors.end());
   // get tensors
   inputs_data = this->opdTensors;
   output_data = this->resTensor;
@@ -300,9 +303,9 @@ void EltwiseMinOpKernel::invoke() {
   }
 };
 
-EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
-                                       value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op, value_map_t &valueMapping,
+                                       weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
 
   auto elt_mulOp = cast<tpu::EltwiseMulOp>(op);
   const unsigned nInputs = op.getNumOperands() - 4;
@@ -325,7 +328,8 @@ EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op,
     }
   }
 
-  this->opdTensors.erase(this->opdTensors.begin() + nInputs, this->opdTensors.end());
+  this->opdTensors.erase(this->opdTensors.begin() + nInputs,
+                         this->opdTensors.end());
   // get tensors
   inputs_data = this->opdTensors;
   output_data = this->resTensor;

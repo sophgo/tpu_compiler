@@ -10,7 +10,8 @@ class InstanceNormOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUInstanceNormOp";
 
-  InstanceNormOpKernel(Operation &op, value_map_t &valueMapping);
+  InstanceNormOpKernel(Operation &op, value_map_t &valueMapping,
+                       weight_map_t &weightMapping);
 
   void invoke() override;
 

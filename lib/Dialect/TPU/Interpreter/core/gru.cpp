@@ -1,15 +1,16 @@
 #include "tpuc/Interpreter/cpu/gru.hpp"
-#include "tpuc/Interpreter/cpu/lut_func.hpp"
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
-#include "tpuc/NativeCpuImplementation.h"
 #include "internal.hpp"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
+#include "tpuc/MlirModuleInterpreter.h"
+#include "tpuc/NativeCpuImplementation.h"
 
 namespace mlir {
 double GruOpKernel::sigmoid_(float data) {
   if (datatype == DataType::BF16) {
     float var = data;
-    bf16_lut_slope("sigmoid", &var, &var, 1, *sigmoid_lut, *sigmoid_slope_lut);
+    bf16_lut_slope("sigmoid", &var, &var, 1, sigmoid_lut->data(),
+                   sigmoid_slope_lut->data());
     return var;
   } else {
     return 0.5 * tanh(0.5 * data) + 0.5;
@@ -18,15 +19,17 @@ double GruOpKernel::sigmoid_(float data) {
 double GruOpKernel::tanh_(float data) {
   if (datatype == DataType::BF16) {
     float var = data;
-    bf16_lut_slope("tanh", &var, &var, 1, *tanh_lut, *tanh_slope_lut);
+    bf16_lut_slope("tanh", &var, &var, 1, tanh_lut->data(),
+                   tanh_slope_lut->data());
     return var;
   } else {
     return tanh(data);
   }
 }
 
-GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto gruOp = cast<tpu::GruOp>(op);
   auto input_type = gruOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
@@ -55,13 +58,12 @@ GruOpKernel::GruOpKernel(Operation &op, value_map_t &valueMapping)
   recurrence = this->opdTensors[1];
   bias = this->opdTensors[2];
   if (bias == nullptr) {
-    bias =
-        std::make_shared<std::vector<float>>(num_dir * 3 * hidden_size, 0.0f);
+    bias = std::make_shared<TensorData>(num_dir * 3 * hidden_size, 0.0f);
   }
   initial_h = this->opdTensors[3];
   if (initial_h == nullptr) {
-    initial_h = std::make_shared<std::vector<float>>(
-        num_dir * batch_size * hidden_size, 0.0f);
+    initial_h =
+        std::make_shared<TensorData>(num_dir * batch_size * hidden_size, 0.0f);
   }
   if (datatype == DataType::BF16) {
     sigmoid_lut = this->opdTensors[4];

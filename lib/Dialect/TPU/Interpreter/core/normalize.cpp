@@ -1,10 +1,11 @@
 #include "tpuc/Interpreter/cpu/normalize.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
-NormalizeOpKernel::NormalizeOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+NormalizeOpKernel::NormalizeOpKernel(Operation &op, value_map_t &valueMapping,
+                                     weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto normOp = cast<tpu::NormalizeOp>(op);
   this->across_spatial = normOp.across_spatial();
   this->channel_shared = normOp.channel_shared();

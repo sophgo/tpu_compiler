@@ -3,6 +3,7 @@
 
 #include "mkldnn.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
+#include "tpuc/NativeCpuImplementation.h"
 
 #include <memory>
 namespace mlir {
@@ -14,20 +15,18 @@ class PoolingOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUPoolingOp";
 
-  PoolingOpKernel(Operation &op, value_map_t &valueMapping);
+  PoolingOpKernel(Operation &op, value_map_t &valueMapping,
+                  weight_map_t &weightMapping);
 
   void invoke() override;
-  void set_i8_avg_mkldnn();
-
-private:
-  void fp32_invoke();
-  void i8_avg_invoke();
 
 private:
   SyncedData input_data;
   SyncedData output_data;
   SyncedDataShape input_shape;
   SyncedDataShape scale_shape;
+  MKLPooling pool;
+  MKLInt8AvgPooling int8_avg_pool;
   // param
   POOL_METHOD pool_method;
   bool is_global;

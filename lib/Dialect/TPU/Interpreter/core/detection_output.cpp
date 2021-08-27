@@ -3,7 +3,7 @@
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/permute.hpp"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 #define GET_INDEX(cell_idx, box_idx_in_cell, data_idx, num_cell, class_num)    \
   (box_idx_in_cell * (class_num + 5) * num_cell + data_idx * num_cell +        \
@@ -308,8 +308,9 @@ static void nms(detections *dets, int num, float nms_threshold) {
 namespace mlir {
 
 DetectionOutputOpKernel::DetectionOutputOpKernel(Operation &op,
-                                                 value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                                 value_map_t &valueMapping,
+                                                 weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto detection_outputOp = cast<tpu::DetectionOutputOp>(op);
 
   auto loc_type =
@@ -543,8 +544,9 @@ void DetectionOutputOpKernel::invoke() {
 }
 
 YoloDetectionOpKernel::YoloDetectionOpKernel(Operation &op,
-                                             value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                             value_map_t &valueMapping,
+                                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto yoOp = cast<tpu::YoloDetectionOp>(op);
   this->net_input_h = yoOp.net_input_h();
   this->net_input_w = yoOp.net_input_w();
@@ -662,8 +664,9 @@ void YoloDetectionOpKernel::invoke() {
 }
 
 FrcnDetectionOpKernel::FrcnDetectionOpKernel(Operation &op,
-                                             value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                             value_map_t &valueMapping,
+                                             weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto frcndOp = cast<tpu::FrcnDetectionOp>(op);
   this->rois_shape = op.getOperand(2).getType().cast<TensorType>().getShape();
   this->class_num = frcndOp.class_num();

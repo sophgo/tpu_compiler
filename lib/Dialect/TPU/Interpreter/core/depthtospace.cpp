@@ -1,7 +1,7 @@
 #include "tpuc/Interpreter/cpu/depthtospace.hpp"
-
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
+
 
 void pixelshuffle(float *input, float *output, int in, int ic, int ih, int iw,
                   int on, int oc, int oh, int ow, int upscale_factor,
@@ -50,8 +50,9 @@ void pixelshuffle(float *input, float *output, int in, int ic, int ih, int iw,
 namespace mlir {
 
 DepthToSpaceOpKernel::DepthToSpaceOpKernel(Operation &op,
-                                           value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                           value_map_t &valueMapping,
+                                           weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto dtsOp = cast<tpu::PixelShuffleOp>(op);
   auto input_type = dtsOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();

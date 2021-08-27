@@ -10,7 +10,8 @@ class QuantOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUQuantOp";
 
-  QuantOpKernel(Operation &op, value_map_t &valueMapping);
+  QuantOpKernel(Operation &op, value_map_t &valueMapping,
+                weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -29,7 +30,8 @@ class ReQuantOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReQuantOp";
 
-  ReQuantOpKernel(Operation &op, value_map_t &valueMapping);
+  ReQuantOpKernel(Operation &op, value_map_t &valueMapping,
+                  weight_map_t &weightMapping);
 
   void invoke() override;
 

@@ -1,15 +1,15 @@
-#include "internal.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
-#include "tpuc/Interpreter/cpu/lut_func.hpp"
+#include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
 namespace mlir {
 
 SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping,
-                                 bool cpu)
-    : CPUOpKernel(op, valueMapping) {
+                                 weight_map_t &weightMapping, bool cpu)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   if (cpu) {
     auto castOp = cast<tpu::SoftmaxCpuOp>(op);
     this->axis = castOp.axis();
@@ -63,7 +63,8 @@ void SoftmaxOpKernel::invoke_fp32() {
     memset(sum_arr, 0, inner_dim * sizeof(float));
     for (int j = 0; j < channel; ++j, c_offset += inner_dim) {
       for (int k = 0; k < inner_dim; k++) {
-        top_data[c_offset + k] = std::exp(bottom_data[c_offset + k] - max_arr[k]);
+        top_data[c_offset + k] =
+            std::exp(bottom_data[c_offset + k] - max_arr[k]);
         sum_arr[k] += top_data[c_offset + k];
       }
     }
@@ -103,7 +104,7 @@ void SoftmaxOpKernel::invoke_bf16() {
 
     // e^x
     bf16_lut_slope("exp", ex_arr, ex_arr, channel * inner_dim,
-                   *exp_table, *exp_slope_table);
+                   exp_table->data(), exp_slope_table->data());
 
     // sum of (e^x)
     float const_val = BF16(BF16(1.0 * channel) / channel);
@@ -121,10 +122,9 @@ void SoftmaxOpKernel::invoke_bf16() {
     }
 
     // 1 / (e ^x)
-    bf16_lut_mantissa(sum_arr, sum_arr, inner_dim,
-                      *reciprocal_table,
-                      *reciprocal_mantissa_table);
-    auto& recip_arr = sum_arr;
+    bf16_lut_mantissa(sum_arr, sum_arr, inner_dim, reciprocal_table->data(),
+                      reciprocal_mantissa_table->data());
+    auto &recip_arr = sum_arr;
 
     c_offset = i * channel * inner_dim;
     for (int j = 0; j < channel; ++j, c_offset += inner_dim) {

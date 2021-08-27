@@ -185,11 +185,13 @@ class SimpleTuner:
                         scale = threshold / 127.0
                         target_activations = target_activations * scale
                     target_fp32_activations = self.ref_fp32_activations[i][op_name]
-                distance += np.linalg.norm(target_fp32_activations.flatten() -
-                                           target_activations.flatten())
-                distance /= len(self.images)
-                # tqdm.write("tuning {}, threshold: {}, distance:{}".format(op_name,
-                #            threshold, distance))
+                    diff = target_fp32_activations.flatten() - target_activations.flatten()
+                    norm_2 = np.linalg.norm(diff)
+                    norm_1 = np.linalg.norm(target_fp32_activations.flatten(), ord=1)
+                    tqdm.write("norm_2 {}, norm_1 {}".format(norm_2, norm_1))
+                    distance += np.linalg.norm(diff) / np.linalg.norm(target_fp32_activations.flatten(), ord=1)
+                tqdm.write("tuning {}, threshold: {}, distance:{}".format(op_name,
+                           threshold, distance))
                 if distance < minimum_distance:
                     best_threshold = threshold
                     minimum_distance = distance

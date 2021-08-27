@@ -1,12 +1,13 @@
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 
 namespace mlir {
 
 ShuffleChannelOpKernel::ShuffleChannelOpKernel(Operation &op,
-                                               value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+                                               value_map_t &valueMapping,
+                                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto shufflechannelOp = cast<tpu::ShuffleChannelOp>(op);
   auto input_type =
       shufflechannelOp.input().getType().template cast<TensorType>();

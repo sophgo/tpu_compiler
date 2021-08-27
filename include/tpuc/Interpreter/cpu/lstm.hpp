@@ -9,7 +9,8 @@ class LstmOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULstmOp";
 
-  LstmOpKernel(Operation &op, value_map_t &valueMapping);
+  LstmOpKernel(Operation &op, value_map_t &valueMapping,
+               weight_map_t &weightMapping);
 
   void invoke() override;
 

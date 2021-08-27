@@ -128,8 +128,7 @@ void bf16_gen_base_slope_table(const std::string &name, float *base_table, float
 }
 
 void bf16_lut_slope(const std::string &name, float *input, float *output, int size,
-                    const std::vector<float> &base_table,
-                    const std::vector<float> &slope_table) {
+                    float *base_table, float *slope_table) {
   float range_start;
   float range_end;
   if (name == "sigmoid") {
@@ -378,8 +377,7 @@ void bf16_gen_exponent_mantissa_table(const std::string &name, float *exp_table,
 }
 
 void bf16_lut_mantissa(float *input, float *output, int size,
-                       const std::vector<float> &bf16_lut,
-                       const std::vector<float> &bf16_mantissa_lut) {
+                       float *exp_table, float *mantissa_table) {
   for (int i = 0; i < size; i++) {
     float val = input[i];
     uint16_t bf16_val = F32ToBF16(val, false);
@@ -393,8 +391,8 @@ void bf16_lut_mantissa(float *input, float *output, int size,
       exponentIndex = floor(log2(-1 * val));
       exponentIndex += 62 + 129; // 62 means start with 2^-62, index from 129
     }
-    float exponent = bf16_lut[exponentIndex];
-    float mantissa = bf16_mantissa_lut[bf16_val & 0xff];
+    float exponent = exp_table[exponentIndex];
+    float mantissa = mantissa_table[bf16_val & 0xff];
     output[i] = BF16(exponent * mantissa);
   }
 }

@@ -3,23 +3,18 @@
 
 #include "mkldnn.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
+#include "tpuc/NativeCpuImplementation.h"
 #include <memory>
 namespace mlir {
-void once_mkldnn_conv(float *input, float *weight, float *bias, float *output,
-                      int n, int ic, int ih, int iw, int oc, int oh, int ow,
-                      int kh, int kw, int sh, int sw, int dh, int dw, int pt,
-                      int pb, int pl, int pr, int g, int pad_value);
+
 class Conv2DOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUConv2DOp";
 
-  Conv2DOpKernel(Operation &op, value_map_t &valueMapping);
+  Conv2DOpKernel(Operation &op, value_map_t &valueMapping,
+                 weight_map_t &weightMapping);
 
   void invoke() override;
-
-private:
-  void fp32_invoke();
-  void i8_invoke();
 
 private:
   SyncedData input_data;
@@ -31,6 +26,7 @@ private:
   SyncedDataShape bias_shape;
 
   SyncedData zero_bias;
+  std::vector<float> tmp_input_data;
   // int8
   std::vector<float> rshift;
   std::vector<float> multiplier;
@@ -64,15 +60,9 @@ private:
   bool do_bias_later = false;
   bool do_relu_later = false;
   bool is_asymmetric;
-  int _ih, _iw;
-  SyncedData _input_data;
 
   // mkldnn setting
-  mkldnn::engine mkl_eng;
-  mkldnn::stream mkl_stream;
-
-  std::vector<mkldnn::primitive> mkl_net;
-  std::vector<std::unordered_map<int, mkldnn::memory>> mkl_net_args;
+  MKLConv conv;
 
   // int8 param
   bool is_perchannel = false;

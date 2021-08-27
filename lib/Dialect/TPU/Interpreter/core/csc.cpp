@@ -1,6 +1,6 @@
 #include "tpuc/Interpreter/cpu/csc.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/ModuleInterpreter.h"
+#include "tpuc/MlirModuleInterpreter.h"
 #include "internal.hpp"
 
 static inline int align_up(int x, int n) {
@@ -74,8 +74,9 @@ void yuv420_csc(float *input, float *output, int n, int c, int h, int w,
 
 namespace mlir {
 
-CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping)
-    : CPUOpKernel(op, valueMapping) {
+CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
   auto cscOp = cast<tpu::CscOp>(op);
 
   auto input_type = cscOp.input().getType().template cast<TensorType>();

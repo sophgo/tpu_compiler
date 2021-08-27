@@ -4,15 +4,17 @@
 #include "tpuc/Interpreter/cpukernel.h"
 
 namespace mlir {
-void embedding(int *index,  float *table, float *output,
-               std::vector<int64_t> &indexShape, std::vector<int64_t> &tableShape,
+void embedding(int *index, float *table, float *output,
+               std::vector<int64_t> &indexShape,
+               std::vector<int64_t> &tableShape,
                std::vector<int64_t> &topShape);
 
 class EmbeddingOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEmbeddingOp";
 
-  EmbeddingOpKernel(Operation &op, value_map_t &valueMapping);
+  EmbeddingOpKernel(Operation &op, value_map_t &valueMapping,
+                    weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -23,7 +25,6 @@ private:
   SyncedDataShape input_shape;
   SyncedDataShape table_shape;
   SyncedDataShape output_shape;
-
 };
 } // namespace mlir
 #endif

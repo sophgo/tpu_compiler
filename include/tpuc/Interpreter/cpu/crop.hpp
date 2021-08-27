@@ -9,7 +9,8 @@ class CropOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUCropOp";
 
-  CropOpKernel(Operation &op, value_map_t &valueMapping);
+  CropOpKernel(Operation &op, value_map_t &valueMapping,
+               weight_map_t &weightMapping);
 
   void invoke() override;
 

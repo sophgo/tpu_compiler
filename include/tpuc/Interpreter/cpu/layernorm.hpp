@@ -9,7 +9,8 @@ namespace mlir {
 class LayerNormOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULayerNormOp";
-  LayerNormOpKernel(Operation &op, value_map_t &valueMapping);
+  LayerNormOpKernel(Operation &op, value_map_t &valueMapping,
+                    weight_map_t &weightMapping);
   void invoke() override;
 
 private:

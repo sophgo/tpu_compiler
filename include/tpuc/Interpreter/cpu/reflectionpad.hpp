@@ -9,10 +9,10 @@ class ReflectionPadOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReflectionPadOp";
 
-  ReflectionPadOpKernel(Operation &op, value_map_t &valueMapping);
+  ReflectionPadOpKernel(Operation &op, value_map_t &valueMapping,
+                        weight_map_t &weightMapping);
 
   void invoke() override;
-  void dump() override;
 
 private:
   SyncedData input_data;

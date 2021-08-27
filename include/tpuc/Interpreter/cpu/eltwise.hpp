@@ -10,7 +10,8 @@ class EltwiseAddOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEltwiseAddOp";
 
-  EltwiseAddOpKernel(Operation &op, value_map_t &valueMapping);
+  EltwiseAddOpKernel(Operation &op, value_map_t &valueMapping,
+                     weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -42,7 +43,8 @@ class EltwiseMaxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEltwiseMaxOp";
 
-  EltwiseMaxOpKernel(Operation &op, value_map_t &valueMapping);
+  EltwiseMaxOpKernel(Operation &op, value_map_t &valueMapping,
+                     weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -69,7 +71,8 @@ class EltwiseMinOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEltwiseMinOp";
 
-  EltwiseMinOpKernel(Operation &op, value_map_t &valueMapping);
+  EltwiseMinOpKernel(Operation &op, value_map_t &valueMapping,
+                     weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -96,7 +99,8 @@ class EltwiseMulOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUEltwiseMulOp";
 
-  EltwiseMulOpKernel(Operation &op, value_map_t &valueMapping);
+  EltwiseMulOpKernel(Operation &op, value_map_t &valueMapping,
+                     weight_map_t &weightMapping);
 
   void invoke() override;
 

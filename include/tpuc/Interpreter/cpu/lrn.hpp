@@ -9,7 +9,8 @@ class LrnOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULrnOp";
 
-  LrnOpKernel(Operation &op, value_map_t &valueMapping);
+  LrnOpKernel(Operation &op, value_map_t &valueMapping,
+              weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -38,7 +39,8 @@ class LrnOneOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULrnOp";
 
-  LrnOneOpKernel(Operation &op, value_map_t &valueMapping);
+  LrnOneOpKernel(Operation &op, value_map_t &valueMapping,
+                 weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -56,7 +58,8 @@ class LrnTwoOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULrnOp";
 
-  LrnTwoOpKernel(Operation &op, value_map_t &valueMapping);
+  LrnTwoOpKernel(Operation &op, value_map_t &valueMapping,
+                 weight_map_t &weightMapping);
 
   void invoke() override;
 
@@ -73,7 +76,8 @@ class LrnThreeOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPULrnOp";
 
-  LrnThreeOpKernel(Operation &op, value_map_t &valueMapping);
+  LrnThreeOpKernel(Operation &op, value_map_t &valueMapping,
+                   weight_map_t &weightMapping);
 
   void invoke() override;
 

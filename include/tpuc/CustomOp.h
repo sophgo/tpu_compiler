@@ -11,6 +11,7 @@
 #include <typeinfo>
 #include <stdint.h>
 #include "tpuc/CustomOpParam.h"
+#include "tpuc/Interpreter/cpukernel.h"
 
 namespace cvi {
 
@@ -20,27 +21,27 @@ public:
   virtual ~CustomOp() {}
 
   virtual void
-  interpretInt8(std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+  interpretInt8(std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
                 std::vector<std::vector<int64_t>> &operand_shapes,
-                std::shared_ptr<std::vector<float>> &result_tensor,
+                std::shared_ptr<mlir::TensorData> &result_tensor,
                 std::vector<int64_t> &result_shape) {
     std::cout << "interpretInt8() isn't implemented.\n";
     assert(0);
   }
 
   virtual void
-  interpretFp32(std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+  interpretFp32(std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
                 std::vector<std::vector<int64_t>> &operand_shapes,
-                std::shared_ptr<std::vector<float>> &result_tensor,
+                std::shared_ptr<mlir::TensorData> &result_tensor,
                 std::vector<int64_t> &result_shape) {
     std::cout << "interpretFp32() isn't implemented.\n";
     assert(0);
   }
 
   virtual void
-  interpretBf16(std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
+  interpretBf16(std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
                 std::vector<std::vector<int64_t>> &operand_shapes,
-                std::shared_ptr<std::vector<float>> &result_tensor,
+                std::shared_ptr<mlir::TensorData> &result_tensor,
                 std::vector<int64_t> &result_shape) {
     std::cout << "interpretBf16() isn't implemented.\n";
     assert(0);

@@ -9,7 +9,8 @@ class InterpolationOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUInterpolationOp";
 
-  InterpolationOpKernel(Operation &op, value_map_t &valueMapping);
+  InterpolationOpKernel(Operation &op, value_map_t &valueMapping,
+                        weight_map_t &weightMapping);
 
   void invoke() override;
 
