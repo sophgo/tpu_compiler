@@ -330,7 +330,7 @@ popd
 mkdir -p $BUILD_PATH/systemc
 pushd $BUILD_PATH/systemc
 cp $PROJECT_ROOT/third_party/systemc-2.3.3/* . -ur
-autoreconf -iv
+PATH=/usr/bin/:$PATH autoreconf -iv
 ./configure CXXFLAGS=-std=c++11
 make -j`nproc`
 make install
