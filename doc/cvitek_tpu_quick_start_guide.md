@@ -44,7 +44,7 @@
 | V0.3.11 | 2020/10/26 | 根据V1.3 SDK修订                               |
 | V1.4.0  | 2020/12/07 | 根据V1.4 SDK修订                               |
 | V1.5.0  | 2021/01/29 | 根据V1.5 SDK修订                               |
-| V1.5.1 | 2021/08/01 | 根据V1.5.1 SDK修订 |
+| V1.5.1 | 2021/08/01  | 根据V1.5.1 SDK修订                             |
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -104,7 +104,7 @@
 * 使用TPU进行前处理
 
   介绍如何在cvimodel模型中增加前处理描述，并在运行时使用TPU进行前处理
-  
+
 * 合并cvimodel模型
 
   介绍将同一个模型的不同batch合并到一起，以及接口如何调用
@@ -123,18 +123,7 @@ CVITEK Release包含如下组成部分：
 | cvimodel_samples_[cv182x/cv183x].tar.gz | sample程序使用的cvimodel模型文件               |
 | docker_cvitek_dev.tar                   | CVITEK开发Docker镜像文件                       |
 
-
-
-#### 1.3 Models 和 Dataset
-
-测试用的原始框架模型文件和dataset可以由下列链接取得，并参考README.md描述进行相应准备。
-
-* <https://github.com/cvitek-mlir/models>
-* <https://github.com/cvitek-mlir/dataset>
-
-
-
-#### 1.4 当前支持测试的网络列表
+#### 1.3 当前支持测试的网络列表
 
 cv183x支持的网络如下：
 
@@ -218,6 +207,12 @@ newgrp docker (use before reboot)
 取得docker image后，执行下述命令运行docker：
 
 ``` shell
+docker run -itd -v $PWD:/work --name cvitek cvitek/cvitek_dev:1.5-ubuntu-18.04
+docker exec -it cvitek bash
+```
+
+如果需要挂载模型和数据集到docker中，可以如下操作：（可选）
+``` shell
 # 这里假设models和dataset分别位于~/data/models和~/data/dataset目录，如有不同请相应调整。
 docker run -itd -v $PWD:/work \
    -v ~/data/models:/work/models \
@@ -225,7 +220,6 @@ docker run -itd -v $PWD:/work \
    --name cvitek cvitek/cvitek_dev:1.5-ubuntu-18.04
 docker exec -it cvitek bash
 ```
-
 
 
 <div STYLE="page-break-after: always;"></div>
@@ -430,11 +424,12 @@ wget -nc https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2.caffe
 wget -nc https://github.com/shicai/MobileNet-Caffe/raw/master/mobilenet_v2_deploy.prototxt
 ```
 
-创建工作目录workspace：
+创建工作目录workspace，拷贝测试图片cat.jpg，和数据集100张图片（来自ILSVRC2012）：
 
 ``` shell
 mkdir workspace && cd workspace
 cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
+cp -rf $MLIR_PATH/tpuc/regression/data/images .
 ```
 
 #### 步骤 2：模型转换
@@ -497,13 +492,13 @@ model_transform.py \
 #### 步骤 3：Calibration
 
 Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
-执行calibration：
+这里用100张图片举例，执行calibration：
 
 ``` shell
 run_calibration.py \
   mobilenet_v2_fp32.mlir \
-  --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-  --input_num=1000 \
+  --dataset=./images \
+  --input_num=100 \
   -o mobilenet_v2_calibration_table
 ```
 
@@ -603,11 +598,12 @@ torch.onnx.export(model,
 
 #### 步骤 2：模型转换
 
-创建工作目录，取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg
+创建工作目录workspace，拷贝测试图片cat.jpg，和数据集100张图片（来自ILSVRC2012）：
 
 ``` shell
 mkdir workspace && cd workspace
 cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
+cp -rf $MLIR_PATH/tpuc/regression/data/images .
 ```
 
 推理前，我们需要了解这个模型的预处理参数，resnet18的预处理如链接描述<https://pytorch.org/hub/pytorch_vision_resnet>：
@@ -651,13 +647,13 @@ model_transform.py \
 #### 步骤 3：Calibration
 
 Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
-执行calibration：
+这里用100张图片举例，执行calibration：
 
 ``` shell
 run_calibration.py \
   resnet18_fp32.mlir \
-  --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-  --input_num=1000 \
+  --dataset=./images \
+  --input_num=100 \
   -o resnet18_calibration_table
 ```
 
@@ -784,6 +780,7 @@ model_transform.py \
 
 ###### 测试FP32模型精度（可选）
 
+数据集来自ILSVRC2012，下载地址： <https://github.com/cvitek-mlir/dataset>
 使用pymlir python接口测试精度：
 
 ``` shell

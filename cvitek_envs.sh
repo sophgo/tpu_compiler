@@ -8,13 +8,7 @@ export MLIR_PATH=$SCRIPT_DIR
 if [[ -z "$MODEL_PATH" ]]; then
   MODEL_PATH=~/data/models
 fi
-if [ ! -e $MODEL_PATH ]; then
-  echo "MODEL_PATH $MODEL_PATH does not exist"
-  echo "  Please export MODEL_PATH='YOUR_MODEL_PATH'"
-  echo "  Or ln -s 'YOUR_MODEL_PATH' ~/data/models"
-  echo "  Please read README.md in each regression dirs on where to download the models"
-  return 1
-fi
+
 export MODEL_PATH=$MODEL_PATH
 
 # set DATASET_PATH
