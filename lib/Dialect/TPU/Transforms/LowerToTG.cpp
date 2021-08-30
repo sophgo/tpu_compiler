@@ -2996,7 +2996,7 @@ static void rotateConvolutionFilter(std::vector<T> &w,
   }
 
   std::vector<T> w_t(w.size());
-  if (kh == 1 || kw == 1) {
+  if (kh == 1 && kw == 1) {
     return;
   } else {
     // for other conv, rotate 180

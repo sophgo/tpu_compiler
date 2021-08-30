@@ -28,6 +28,7 @@ TEST_ONNX_IR = [
 #    "Concat",
     "Conv2d", # Conv with 2d case
     "Conv4Bit", # Conv, filter will quant to 4bit
+    "ConvTranspose1d",
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
     "FullyConnected",
@@ -132,6 +133,7 @@ class ONNX_IR_TESTER(object):
             "Concat": self.test_Concat,
             "Conv2d": self.test_Conv2d,
             "Conv4Bit": self.test_Conv4Bit,
+            "ConvTranspose1d": self.test_ConvTranspose1d,
             "Conv3d": self.test_Conv3d,
             "DepthToSpace": self.test_DepthToSpace,
             "FullyConnected": self.test_FullyConnected,
@@ -642,6 +644,82 @@ class ONNX_IR_TESTER(object):
 
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
         QUANT_BITWIDTH.clear()
+
+    def test_ConvTranspose1d(self):
+        test_case = 'ConvTranspose1d'
+        batch = 1
+        ic = 256
+        oc = 128
+        dilations = [1]
+        group = 1
+        kernel_shape = [10]
+        pads = [3, 3]
+        strides = [5]
+        output_padding = [1]
+        input_shape = [batch,ic,100]
+        input_data = np.random.randn(input_shape[0], input_shape[1], input_shape[2]).astype(np.float32)
+        weight_shape = [ic,oc,kernel_shape[0]]
+        weight_data = np.random.randn(weight_shape[0], weight_shape[1], weight_shape[2]).astype(np.float32)
+        bias_data = np.random.randn(weight_shape[1]).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, list(input_data.shape))
+
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [batch, oc, input_shape[-1] * strides[-1]])
+
+        weight_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['conv_w'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=weight_data.shape,
+                vals=weight_data.flatten(),
+            ),
+        )
+        bias_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['conv_b'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=bias_data.shape,
+                vals=bias_data.flatten(),
+            ),
+        )
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+        node_def = onnx.helper.make_node(
+            "ConvTranspose",
+            inputs=['X1', 'conv_w', 'conv_b'],
+            outputs=['output'],
+            kernel_shape=kernel_shape,
+            pads=pads,
+            strides=strides,
+            dilations=dilations,
+            group=group,
+            output_padding=output_padding,
+        )
+
+        graph_def = helper.make_graph(
+            [weight_node_def, bias_node_def, x1_def, node_def],
+            test_case,
+            [input],
+            [output],
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        onnx.checker.check_model(model_def)
+
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
 
     def test_Conv3d(self):
         test_case = 'Conv3d'

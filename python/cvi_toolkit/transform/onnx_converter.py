@@ -351,6 +351,15 @@ class OnnxConverter(BaseConverter):
             new_shape = shape
         return new_shape
 
+    def get_ndim(self, org_shape, dims):
+        expand_dims = dims - len(org_shape)
+
+        if expand_dims == 0:
+            return org_shape
+
+        # expand from high dim
+        return list(np.full(expand_dims, 1)) + list(org_shape)
+
     def add_reshape(self, to_shape, node_name, node_type, operands):
         src_reshape_op = self.CVI.add_reshape_op(node_name, operands, to_shape)
         self.addOperand(node_name, src_reshape_op, to_shape, TensorType.ACTIVATION)
@@ -1417,7 +1426,8 @@ class OnnxConverter(BaseConverter):
     def convert_conv_transpose_op(self, onnx_node):
         assert(onnx_node.op_type == "ConvTranspose")
 
-        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        op, _shape, _ = self.getOperand(onnx_node.inputs[0])
+        shape = list(_shape)
         operands = list()
         operands.append(op)
         filter_name = onnx_node.inputs[1]
@@ -1430,27 +1440,58 @@ class OnnxConverter(BaseConverter):
             bias_name = onnx_node.inputs[2]
             bias_tensor = self.getTensor(bias_name)
 
+        # reshape to 4dim
+        # for torch.nn.ConvTranspose1d case, just handle w
+        # if input is <1, 384, 234>, it should reshape to <1, 384, 1, 234>
+        op_name = onnx_node.name
+        mlir_name = "{}_{}".format(op_name, onnx_node.op_type)
+
+        is_shape_3 = len(_shape) == 3
+        if is_shape_3:
+            strides = onnx_node.attrs.get("strides", [])
+            if len(strides) != 1:
+                raise RuntimeError("ConvTranspose1d just give one stride")
+            assert(len(filter_shape) == len(_shape))
+            # reshape input
+            n, c, w = _shape
+            shape = [n, c, 1, w]
+            name = "{}_to4".format(onnx_node.name)
+            op = self.add_reshape(shape, name, onnx_node.op_type, [op])[0]
+            operands[0] = op
+
+            # reshape filter
+            n, c, w = filter_shape
+            filter_shape = [n, c, 1, w]
+
+            op_name = onnx_node.name + "_reshape"
+            mlir_name = "{}_{}".format(op_name, onnx_node.op_type)
+
+
         dilations = onnx_node.attrs.get("dilations", [1, 1])
+        # If not present, the dilation defaults to 1 along each spatial axis
+        dilations = self.get_ndim(dilations, 2)
         group = onnx_node.attrs.get("group", 1)
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
+        # If not present, the padding defaults to 0 along start and end of each spatial axis
+        output_padding = onnx_node.attrs.get("output_padding",[0,0,0,0])
         strides = onnx_node.attrs.get("strides",[1,1])
-        pad_method = onnx_node.attrs.get("auto_pad", "NOTSET")
-        output_shape = onnx_node.attrs.get("output_shape", None)
-        if output_shape:
-            total_padding_h = strides[0] * (shape[2] - 1) + (filter_shape[2] - 1) * dilations[0] + 1 - output_shape[0]
-            total_padding_w = strides[1] * (shape[3] - 1) + (filter_shape[3] - 1) * dilations[1] + 1 - output_shape[1]
-            if pad_method == "SAME_UPPER":
-                padding_t = total_padding_h - total_padding_h // 2
-                padding_l = total_padding_w - total_padding_w // 2
-                padding_b = total_padding_h // 2
-                padding_r = total_padding_w  // 2
-                pads = [padding_t, padding_l, padding_b, padding_r]
-            else:
-                padding_t = total_padding_h // 2
-                padding_l = total_padding_w // 2
-                padding_b = total_padding_h - total_padding_h // 2
-                padding_r = total_padding_w - total_padding_w // 2
-                pads = [padding_t, padding_l, padding_b, padding_r]
+        # the stride defaults to 1 along each spatial axis
+        strides = self.get_ndim(strides, 2)
+        auto_pad = onnx_node.attrs.get("auto_pad", None)
+        is_deconv = True
+
+        if is_shape_3 and len(pads) == 2:
+            _pads = np.zeros(4).astype(np.int)
+            # only apply w
+            for idx, _ in enumerate(pads):
+                _pads[2 * idx + 1] = _
+            pads = _pads
+
+        if len(output_padding) < 4:
+            # expand 0 to 4dim
+            expand_dims = 4 - len(output_padding)
+            # expand from high dim
+            output_padding = list(np.full(expand_dims, 0)) + list(output_padding)
 
         conv_param = {
             'stride_h':  strides[0],
@@ -1474,8 +1515,8 @@ class OnnxConverter(BaseConverter):
         on = shape[0]
         assert(ic == filter_shape[0])
         oc = filter_tensor.shape[1] * group # feature map size
-        oh = (ih - 1) * strides[0] - pads[0] - pads[2] + dilations[0] * (filter_shape[2] - 1) + 1
-        ow = (iw - 1) * strides[1] - pads[1] - pads[3] + dilations[1] * (filter_shape[3] - 1) + 1
+        oh = (ih - 1) * strides[0] - pads[0] - pads[2] + dilations[0] * (filter_shape[2] - 1) + 1 + output_padding[-2]
+        ow = (iw - 1) * strides[1] - pads[1] - pads[3] + dilations[1] * (filter_shape[3] - 1) + 1 + output_padding[-1]
 
         if conv_param['group'] != 1:
             g = conv_param['group']
@@ -1484,10 +1525,14 @@ class OnnxConverter(BaseConverter):
             new_shape = [g, int(filter_shape[0]/g), filter_shape[1], kh, kw]
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
         else:
-            filter_tensor = np.ascontiguousarray(np.transpose(filter_tensor.tensor_data, [1, 0, 2, 3]))
-            filter_shape = list(filter_tensor.shape)
-            self.addTensor(filter_name, filter_tensor, filter_shape)
-            filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
+            # onnx weigh layout is <ic, oc, kh, kw> and we transpose it to <oc, ic, kh, kw>
+            weight_tensor_data = filter_tensor.tensor_data.reshape(filter_shape)
+            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor_data, (1,0,2,3)))
+            filter_shape = weight_tensor.shape
+            oc = weight_tensor.shape[0]
+            self.addTensor(filter_tensor.name, weight_tensor, filter_shape)
+            filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
+
         operands.append(filter_op)
 
         if with_bias:
@@ -1495,8 +1540,13 @@ class OnnxConverter(BaseConverter):
             operands.append(bias_op)
 
         output_shape = [on, oc, oh, ow]
-        deconv_op = self.CVI.add_deconv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
-        self.addOperand(onnx_node.name, deconv_op, output_shape, TensorType.ACTIVATION)
+        deconv_op = self.CVI.add_deconv_op(mlir_name, operands, output_shape, **conv_param)
+        self.addOperand(op_name, deconv_op, output_shape, TensorType.ACTIVATION)
+
+        if is_shape_3:
+            # no h
+            output_shape = [on, oc, ow]
+            self.add_reshape(output_shape, onnx_node.name, onnx_node.op_type, [deconv_op])
 
     def convert_conv3d_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
