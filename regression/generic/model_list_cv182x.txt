@@ -56,15 +56,4 @@ gaitset                   N        N        N        Y        N        N
 efficientdet_d0           N        N        N        Y        N        N
 #resnetv2                  Y        N        N        Y        N        N
 
-# tensorflow
-mobilenet_v1_tf           N        N        N        Y        N        N
-mobilenet_v2_tf           N        N        N        Y        N        N
-resnet50_tf               N        N        N        Y        N        N
-vgg16_tf                  N        N        N        Y        N        N
-inception_v3_tf           N        N        N        Y        N        N
-yolo_v3_416_tf            N        N        N        Y        N        N
-
-# TFLite int8
-resnet50_tflite_int8      Y        N        N        Y        N        Y
-#yolo_v3_416_without_detection_tflite_int8      N        N        N        N        N        N
 

@@ -253,10 +253,12 @@ class preprocess(object):
         target = input_ops[idx]
         shape_type = mlir.ir.ShapedType(target.operands[0].type)
         shape = [shape_type.get_dim_size(i) for i in range(shape_type.rank)]
-        attrs = mlir.ir.DictAttr(target.attributes['preprocess'])
         self.net_input_dims = shape[-2:]
         self.channel_num = shape[-3]
         self.input_name = mlir.ir.StringAttr(target.attributes['name']).value
+        if 'preprocess' not in target.attributes:
+            return
+        attrs = mlir.ir.DictAttr(target.attributes['preprocess'])
         self.pixel_format = mlir.ir.StringAttr(attrs['pixel_format']).value
         self.channel_order = mlir.ir.StringAttr(attrs['channel_order']).value
         self.keep_aspect_ratio = mlir.ir.BoolAttr(attrs['keep_aspect_ratio']).value

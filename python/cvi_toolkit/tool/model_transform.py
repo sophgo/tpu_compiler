@@ -38,27 +38,36 @@ class ModelTransformTool(object):
         ret = mlir_opt(str(tmp_mlir_file), str(self.mlir_file), str(self.op_info_csv))
         if ret != 0:
             raise RuntimeError("mlir graph optimize fail")
+        self.ppa = preprocess()
+        self.input_num = self.ppa.get_input_num(str(self.mlir_file))
 
-    def _is_npz(self, image):
+    @staticmethod
+    def _is_npz(image):
         return True if image.split('.')[-1] == 'npz' else False
+
+    @staticmethod
+    def _is_npy(image):
+        return True if image.split('.')[-1] == 'npy' else False
 
     def model_validate(self, image, tolerance, excepts):
         in_fp32_npz = IntermediateFile(self.model_name, 'in_fp32.npz', False)
-        # prepare input tensor
-        if self._is_npz(image):
+        inputs = {}
+        images = image.split(',')
+        if len(images) == 1 and self._is_npz(image):
             npz_in = np.load(image)
             np.savez(str(in_fp32_npz), **npz_in)
-            inputs = None
-            if len(npz_in.files) == 1:
-                inputs = inputs[inputs.files[0]]
-            else:
-                inputs = {}
-                for name in npz_in.files:
-                    inputs[name] = npz_in[name]
+            for name in npz_in.files:
+                inputs[name] = npz_in[name]
         else:
-            image = os.path.expanduser(image)
-            inputs = self.preprocessor.run(image, batch=self.batch_size)
-            np.savez(str(in_fp32_npz), **{'input':inputs})
+            for i in range(self.input_num):
+                file = os.path.expanduser(images[i])
+                self.ppa.load_config(str(self.mlir_file), i)
+                # prepare input tensor
+                if self._is_npy(file):
+                    inputs[self.ppa.input_name] = np.load(file)
+                else:
+                    inputs[self.ppa.input_name] = self.preprocessor.run(file, batch=self.batch_size)
+        np.savez(str(in_fp32_npz), **inputs)
 
         # original model inference to get blobs of all layer
         all_blobs = self._inference_(inputs)
@@ -141,16 +150,6 @@ class OnnxModelTransformTool(ModelTransformTool):
 
     def _fill_inputs(self, ort_session, inputs):
         inodes = ort_session.get_inputs()
-        if len(inodes) == 1:
-            dtype = np.int64 if inodes[0].type == 'tensor(int64)' \
-                else np.float32
-            batch = inputs.shape[0]
-            inodes_shape = [batch] + list(inputs.shape[1:])
-            assert np.prod(inodes_shape) == np.prod(inputs.shape), (
-                "shape prod should be equal")
-            return {inodes[0].name: inputs.astype(dtype).reshape(inodes_shape)}
-        # inputs is map
-        assert(len(inodes) == len(inputs))
         data = {}
         for i in range(len(inodes)):
             name = inodes[i].name
@@ -184,7 +183,8 @@ class TFModelTransformTool(ModelTransformTool):
     def _inference_(self, inputs):
         net = ModelFactory()
         net.load_model("tensorflow", model_file=self.model_def)
-        transposed_inputs = np.transpose(inputs, [0, 2, 3, 1])
+        _,input = inputs.popitem()
+        transposed_inputs = np.transpose(input, [0, 2, 3, 1])
         net.inference(transposed_inputs)
         all_blobs = net.get_all_tensor(transposed_inputs)
         npz_out = {}
@@ -210,7 +210,8 @@ class TFLiteInt8ModelTransformTool(ModelTransformTool):
     def _inference_(self, inputs):
         net = ModelFactory()
         net.load_model("tflite_int8", model_file=self.model_def)
-        transposed_inputs = np.transpose(inputs, [0, 2, 3, 1])
+        _,input = inputs.popitem()
+        transposed_inputs = np.transpose(input, [0, 2, 3, 1])
         net.inference(transposed_inputs)
         all_blobs = net.get_all_tensor(transposed_inputs)
         npz_out = {}

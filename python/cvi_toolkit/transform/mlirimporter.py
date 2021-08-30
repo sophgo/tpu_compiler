@@ -294,8 +294,9 @@ class MLIRImporter(object):
         attributes = {
             "name": StringAttr.get(name),
             "quant": DictAttr.get(quant_param),
-            "preprocess": DictAttr.get(preprocess_param)
         }
+        if len(kargs) > 0:
+            attributes["preprocess"] = DictAttr.get(preprocess_param)
 
         op = Operation.create(TPU_OpType.Input.value,
                               results=[self.tensor_inputs_type[index]],

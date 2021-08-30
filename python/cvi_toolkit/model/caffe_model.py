@@ -18,13 +18,11 @@ class CaffeModel(model_base):
         # reshape to multi-batch blobs
         if len(self.net.inputs) == 1:
             in_ = self.net.inputs[0]
-            self.net.blobs[in_].reshape(inputs.shape[0], self.net.blobs[in_].data.shape[1],
+            input = inputs[in_]
+            self.net.blobs[in_].reshape(input.shape[0], self.net.blobs[in_].data.shape[1],
                                             self.net.blobs[in_].data.shape[2], self.net.blobs[in_].data.shape[3])
-            out = self.net.forward_all(**{self.net.inputs[0]: inputs})
-            return out[self.net.outputs[0]]
-        else:
-            out = self.net.forward_all(**inputs)
-            return out[self.net.outputs[0]]
+        out = self.net.forward_all(**inputs)
+        return out[self.net.outputs[0]]
 
     def get_input_shape(self):
         if not self.net:
@@ -40,8 +38,7 @@ class CaffeModel(model_base):
             return None
         # print("Input Shape : ", input_data.shape)
 
-        blobs_dict = {}
-        blobs_dict['raw_data'] = input_data
+        blobs_dict = input_data
         if get_in_place_tensor:
             in_place_tensors = []
             for name, layer in self.net.layer_dict.items():
@@ -55,7 +52,6 @@ class CaffeModel(model_base):
                     continue
                 assert(len(self.net.top_names[name]) == 1)
                 if layer.type == "Input":
-                    blobs_dict[name] = input_data
                     continue
 
                 top = self.net.top_names[name][0]
@@ -72,10 +68,7 @@ class CaffeModel(model_base):
                 blobs_dict[name] = out[top].copy()
         else:
             top_map = {}
-            if len(self.net.inputs) == 1:
-                out = self.net.forward_all(**{self.net.inputs[0]: input_data})
-            else:
-                out = self.net.forward_all(**input_data)
+            out = self.net.forward_all(**input_data)
 
             for name, layer in self.net.layer_dict.items():
                 msg = "layer : {}\n\ttype = {} \n\ttop -> {} \n\tbottom -> {}".format(
@@ -86,8 +79,6 @@ class CaffeModel(model_base):
                     continue
                 if layer.type == "Slice":
                     continue
-                if layer.type == "Input":
-                    blobs_dict[name] = input_data
                 top_map[self.net.top_names[name][0]] = name
                 if self.net.top_names[name] == self.net.bottom_names[name]:
                     msg = "layer : {} is inplace, {} is overwritten".format(

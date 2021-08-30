@@ -183,137 +183,141 @@ public:
 
     SmallVector<tpu::QuantOp, 4> toErase;
     fn.walk([&](tpu::InputOp inputOp) {
-      // get attributes of input
-      StringRef quantType = "INT8";
-      auto nextOp = getNextOp(inputOp);
-      if (nextOp) {
-        if (auto quantOp = dyn_cast<tpu::QuantOp>(nextOp)) {
-          quantType = quantOp.to();
-          quantOp.replaceAllUsesWith(inputOp.getResult());
-          toErase.push_back(quantOp);
-        }
-      }
-      auto threshold = getOpThreshold(inputOp);
-      auto name = mlir::getOpName(inputOp).str();
-      auto preprocess = inputOp.preprocessAttr();
-      auto pixel_format = clPixelFormat.length() ? clPixelFormat:
-                          preprocess.pixel_format().getValue().str();
-      auto resize_dims = preprocess.resize_dims();
-      auto aligned = clInputAligned.getValue();
-      auto channel_order = preprocess.channel_order().getValue();
-      auto model_shape = getTensorShape(inputOp.getResult());
-      getNCHW(model_shape, n, c, h, w);
-      std::vector<int64_t> dims;
-      for (auto dim : resize_dims.getAsValueRange<IntegerAttr>()) {
-        dims.push_back(dim.getSExtValue());
-      }
-      resize_h = dims[0];
-      resize_w = dims[1];
-
-      auto color = std::get<0>(attributes_map[pixel_format]);
-      auto layout = std::get<1>(attributes_map[pixel_format]);
-      bool swap_channel = (color != channel_order) ? true : false;
-      llvm::errs() << "pixel_format:" << pixel_format
-                   << ", color:" << color
-                   << ", layout:" << layout
-                   << ", swap_channel:" << swap_channel
-                   << ", aligned:" << aligned
-                   << "\n";
-
-      std::vector<Operation *> uses;
-      for (auto &use : inputOp.getResult().getUses()) {
-        auto opd = use.getOwner();
-        uses.push_back(opd);
-      }
-
-      // set the real shape of function's args.
-      std::vector<int64_t> arg_shape {n, c, resize_h, resize_w};
-      std::vector<int64_t> input_shape {n, c, resize_h, resize_w};
-      if (layout == "nhwc") {
-        arg_shape[1] = resize_h;
-        arg_shape[2] = resize_w;
-        arg_shape[3] = c;
-        if (aligned) {
-          input_shape[1] = 1;
-          input_shape[2] = resize_h;
-          input_shape[3] = align_up(resize_w * c, 32);
-        } else {
-          input_shape[1] = resize_h;
-          input_shape[2] = resize_w;
-          input_shape[3] = c;
-        }
-      } else { // "nchw"
-        if (pixel_format == "YUV420_PLANAR") {
-          input_shape[1] = 1;
-          input_shape[2] = 1;
-          input_shape[3] = yuv420_size(1, c, resize_h, resize_w);
-          aligned = true; // currently only support aligned yuv420 input.
-        } else if (aligned) {
-          input_shape[1] = c;
-          input_shape[2] = resize_h;
-          input_shape[3] = align_up(resize_w, 32);
-        }
-      }
-      auto arg_type = this->getTensorType(builder, arg_shape, "UINT8");
-      inputOp.getOperand().setType(arg_type);
-      setOpThreshold(inputOp, 255);
-      setOpQuantParamType(inputOp, "THRESHOLD");
-      setOpQuant(inputOp, "UINT8");
-      argumentTypes.push_back(arg_type);
-
-      // change the shape of inputOp
-      auto input_type = this->getTensorType(builder, input_shape, "UINT8");
-      inputOp->setAttr("name", builder.getStringAttr(name + "_raw"));
-      inputOp->setAttr("preprocess",
-          tpu::PreprocessParam::get(
-              builder.getStringAttr(pixel_format),
-              builder.getBoolAttr(aligned),
-              preprocess.resize_dims(),
-              preprocess.keep_aspect_ratio(),
-              preprocess.channel_order(),
-              builder.getF32ArrayAttr({1.0f, 1.0f, 1.0f}),
-              builder.getF32ArrayAttr({0.0f, 0.0f, 0.0f}),
-              builder.getContext()));
-      inputOp.getResult().setType(input_type);
-
-      mlir::Value currentOp = inputOp.getResult();
-      builder.setInsertionPointAfter(inputOp);
-
-      // do unalign
-      if (aligned) {
-        currentOp = this->insertCscOp(builder, name, currentOp,
-                                      pixel_format, aligned, arg_shape);
-      }
-      // create transpose Op if need
-      if (layout == "nhwc") {
-        currentOp = this->insertTransposeOp(builder, name, currentOp);
-      }
-      // create cropOp
-      if (resize_h != h || resize_w != w) {
-        currentOp = this->insertCropOp(builder, name, currentOp);
-      }
-      // create scale op
-      if (quantType == "INT8") {
-        // scale by lut
-        currentOp = this->insertScaleLutOp(
-            builder, name, currentOp, preprocess, threshold, swap_channel);
-      } else {
-        currentOp = this->insertDequantOp(builder, name, currentOp);
-        currentOp = this->insertScaleOp(builder, name, currentOp, preprocess,
-                                        threshold, swap_channel);
-      }
-
-      if (swap_channel) {
-        currentOp = this->insertSwapAxisOp(builder, name, currentOp, threshold,
-                                           quantType.str());
-      }
-      // update operand of all inputOp's uses
-      for (auto use_op : uses) {
-        for (int i = 0; i < (int)use_op->getNumOperands(); i++) {
-          if (use_op->getOperand(i) == inputOp.getResult()) {
-            use_op->setOperand(i, currentOp);
+      if (inputOp.preprocess().hasValue()) {
+        // get attributes of input
+        StringRef quantType = "INT8";
+        auto nextOp = getNextOp(inputOp);
+        if (nextOp) {
+          if (auto quantOp = dyn_cast<tpu::QuantOp>(nextOp)) {
+            quantType = quantOp.to();
+            quantOp.replaceAllUsesWith(inputOp.getResult());
+            toErase.push_back(quantOp);
           }
         }
+        auto threshold = getOpThreshold(inputOp);
+        auto name = mlir::getOpName(inputOp).str();
+        auto preprocess = inputOp.preprocessAttr();
+        auto pixel_format = clPixelFormat.length() ? clPixelFormat:
+                            preprocess.pixel_format().getValue().str();
+        auto resize_dims = preprocess.resize_dims();
+        auto aligned = clInputAligned.getValue();
+        auto channel_order = preprocess.channel_order().getValue();
+        auto model_shape = getTensorShape(inputOp.getResult());
+        getNCHW(model_shape, n, c, h, w);
+        std::vector<int64_t> dims;
+        for (auto dim : resize_dims.getAsValueRange<IntegerAttr>()) {
+          dims.push_back(dim.getSExtValue());
+        }
+        resize_h = dims[0];
+        resize_w = dims[1];
+
+        auto color = std::get<0>(attributes_map[pixel_format]);
+        auto layout = std::get<1>(attributes_map[pixel_format]);
+        bool swap_channel = (color != channel_order) ? true : false;
+        llvm::errs() << "pixel_format:" << pixel_format
+                    << ", color:" << color
+                    << ", layout:" << layout
+                    << ", swap_channel:" << swap_channel
+                    << ", aligned:" << aligned
+                    << "\n";
+
+        std::vector<Operation *> uses;
+        for (auto &use : inputOp.getResult().getUses()) {
+          auto opd = use.getOwner();
+          uses.push_back(opd);
+        }
+
+        // set the real shape of function's args.
+        std::vector<int64_t> arg_shape {n, c, resize_h, resize_w};
+        std::vector<int64_t> input_shape {n, c, resize_h, resize_w};
+        if (layout == "nhwc") {
+          arg_shape[1] = resize_h;
+          arg_shape[2] = resize_w;
+          arg_shape[3] = c;
+          if (aligned) {
+            input_shape[1] = 1;
+            input_shape[2] = resize_h;
+            input_shape[3] = align_up(resize_w * c, 32);
+          } else {
+            input_shape[1] = resize_h;
+            input_shape[2] = resize_w;
+            input_shape[3] = c;
+          }
+        } else { // "nchw"
+          if (pixel_format == "YUV420_PLANAR") {
+            input_shape[1] = 1;
+            input_shape[2] = 1;
+            input_shape[3] = yuv420_size(1, c, resize_h, resize_w);
+            aligned = true; // currently only support aligned yuv420 input.
+          } else if (aligned) {
+            input_shape[1] = c;
+            input_shape[2] = resize_h;
+            input_shape[3] = align_up(resize_w, 32);
+          }
+        }
+        auto arg_type = this->getTensorType(builder, arg_shape, "UINT8");
+        inputOp.getOperand().setType(arg_type);
+        setOpThreshold(inputOp, 255);
+        setOpQuantParamType(inputOp, "THRESHOLD");
+        setOpQuant(inputOp, "UINT8");
+        argumentTypes.push_back(arg_type);
+
+        // change the shape of inputOp
+        auto input_type = this->getTensorType(builder, input_shape, "UINT8");
+        inputOp->setAttr("name", builder.getStringAttr(name + "_raw"));
+        inputOp->setAttr("preprocess",
+            tpu::PreprocessParam::get(
+                builder.getStringAttr(pixel_format),
+                builder.getBoolAttr(aligned),
+                preprocess.resize_dims(),
+                preprocess.keep_aspect_ratio(),
+                preprocess.channel_order(),
+                builder.getF32ArrayAttr({1.0f, 1.0f, 1.0f}),
+                builder.getF32ArrayAttr({0.0f, 0.0f, 0.0f}),
+                builder.getContext()));
+        inputOp.getResult().setType(input_type);
+
+        mlir::Value currentOp = inputOp.getResult();
+        builder.setInsertionPointAfter(inputOp);
+
+        // do unalign
+        if (aligned) {
+          currentOp = this->insertCscOp(builder, name, currentOp,
+                                        pixel_format, aligned, arg_shape);
+        }
+        // create transpose Op if need
+        if (layout == "nhwc") {
+          currentOp = this->insertTransposeOp(builder, name, currentOp);
+        }
+        // create cropOp
+        if (resize_h != h || resize_w != w) {
+          currentOp = this->insertCropOp(builder, name, currentOp);
+        }
+        // create scale op
+        if (quantType == "INT8") {
+          // scale by lut
+          currentOp = this->insertScaleLutOp(
+              builder, name, currentOp, preprocess, threshold, swap_channel);
+        } else {
+          currentOp = this->insertDequantOp(builder, name, currentOp);
+          currentOp = this->insertScaleOp(builder, name, currentOp, preprocess,
+                                          threshold, swap_channel);
+        }
+
+        if (swap_channel) {
+          currentOp = this->insertSwapAxisOp(builder, name, currentOp, threshold,
+                                            quantType.str());
+        }
+        // update operand of all inputOp's uses
+        for (auto use_op : uses) {
+          for (int i = 0; i < (int)use_op->getNumOperands(); i++) {
+            if (use_op->getOperand(i) == inputOp.getResult()) {
+              use_op->setOperand(i, currentOp);
+            }
+          }
+        }
+      } else {
+        argumentTypes.push_back(inputOp.getType());
       }
     });
 

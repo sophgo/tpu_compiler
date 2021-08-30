@@ -23,18 +23,16 @@ class OnnxModel(model_base):
         self.net = onnxruntime.InferenceSession(model_file)
         self.onnx_model = onnx.load(model_file)
 
-    def inference(self, input):
-        return self._infernece(input)[0]
+    def inference(self, inputs):
+        return self._infernece(inputs)[0]
 
-    def _infernece(self, input, onnx_model=None):
+    def _infernece(self, inputs, onnx_model=None):
         if onnx_model:
             ort_session = onnxruntime.InferenceSession(onnx_model)
             # self.get_shape(ort_session)
-            ort_inputs = {ort_session.get_inputs()[0].name: input}
-            ort_outs = ort_session.run(None, ort_inputs)
+            ort_outs = ort_session.run(None, inputs)
         else:
-            ort_inputs = {self.net.get_inputs()[0].name: input}
-            ort_outs = self.net.run(None, ort_inputs)
+            ort_outs = self.net.run(None, inputs)
         return ort_outs
 
     def get_all_tensor(self, input_data):

@@ -66,13 +66,18 @@ class DeployTool:
         parser = MlirParser(mlir_file)
         return parser.get_batch_size(0)
 
-    def _is_npz(self, image):
+    @staticmethod
+    def _is_npz(image):
         return True if image.split('.')[-1] == 'npz' else False
+
+    @staticmethod
+    def _is_npy(image):
+        return True if image.split('.')[-1] == 'npy' else False
 
     def _prepare_input_npz(self, images):
         batch_size = self._get_batch_size(str(self.quantized_mlir))
         # get all fp32 blobs of fp32 model by tpuc-interpreter
-        if self._is_npz(images[0]):
+        if len(images) == 1 and self._is_npz(images[0]):
             x = np.load(images[0])
             np.savez(str(self.in_fp32_npz), **x)
         else:
@@ -81,6 +86,11 @@ class DeployTool:
             assert(len(images) == self.input_num)
             for i in range(self.input_num):
                 self.ppa.load_config(self.mlir_file, i)
+                if self._is_npy(images[i]):
+                    data = np.load(images[i])
+                    x0[self.ppa.input_name] = data
+                    x1[self.ppa.input_name] = data
+                    continue
                 x0[self.ppa.input_name] = self.ppa.run(images[i], batch=batch_size)
                 if self.with_preprocess:
                     config = {
@@ -205,7 +215,7 @@ if __name__ == '__main__':
                   args.fuse_preprocess,
                   args.pixel_format,
                   args.aligned_input)
-    tool.validate_quantized_model(args.tolerance, args.excepts, args.image.split(':'))
+    tool.validate_quantized_model(args.tolerance, args.excepts, args.image.split(','))
 
     # generate cvimodel and validate accuracy
     tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32,
