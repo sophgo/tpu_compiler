@@ -34,6 +34,7 @@
 #include "tpuc/Interpreter/cpu/quadraticSum.hpp"
 #include "tpuc/Interpreter/cpu/quant.hpp"
 #include "tpuc/Interpreter/cpu/reduce.hpp"
+#include "tpuc/Interpreter/cpu/reflectionpad.hpp"
 #include "tpuc/Interpreter/cpu/reorg.hpp"
 #include "tpuc/Interpreter/cpu/reverse.hpp"
 #include "tpuc/Interpreter/cpu/roi_pooling.hpp"
@@ -279,6 +280,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<ReluOpKernel>(*op, valueMapping);
     } else if (isa<tpu::ReciprocalOp>(op)) {
       krnl = std::make_shared<ReciprocalOpKernel>(*op, valueMapping);
+    } else if (isa<tpu::ReflectionPadOp>(op)) {
+      krnl = std::make_shared<ReflectionPadOpKernel>(*op, valueMapping);
     } else if (isa<tpu::ReorgOp>(op)) {
       krnl = std::make_shared<ReorgOpKernel>(*op, valueMapping);
     } else if (isa<tpu::ReverseOp>(op)) {

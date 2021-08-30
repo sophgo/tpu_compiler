@@ -124,11 +124,8 @@ LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping)
 }
 
 void LeakyReluOpKernel::invoke() {
-  int n = shape[0];
-  int c = shape[1];
-  int h = shape[2];
-  int w = shape[3];
-  int size = n * c * h * w;
+  int size = std::accumulate(std::begin(shape), std::end(shape), 1,
+                         std::multiplies<>());
   if (datatype == DataType::FP32) {
     leaky_relu(input_data->data(), output_data->data(), size, negative_slope);
   } else if (datatype == DataType::INT8) {

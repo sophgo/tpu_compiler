@@ -144,7 +144,11 @@ class OnnxModelTransformTool(ModelTransformTool):
         if len(inodes) == 1:
             dtype = np.int64 if inodes[0].type == 'tensor(int64)' \
                 else np.float32
-            return {inodes[0].name: inputs.astype(dtype)}
+            batch = inputs.shape[0]
+            inodes_shape = [batch] + list(inputs.shape[1:])
+            assert np.prod(inodes_shape) == np.prod(inputs.shape), (
+                "shape prod should be equal")
+            return {inodes[0].name: inputs.astype(dtype).reshape(inodes_shape)}
         # inputs is map
         assert(len(inodes) == len(inputs))
         data = {}

@@ -758,7 +758,8 @@ class OnnxConverter(BaseConverter):
                     input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
-            image = (len(input_shape) == 4 and input_shape[1] <=4)
+            image = (len(input_shape) == 4 and input_shape[1] <=4) or \
+                    (len(input_shape) == 3) # gray
             if not self.preprocess_args or not image:
                 input_op = self.CVI.add_input_op(input.name, idx, **{})
             else:

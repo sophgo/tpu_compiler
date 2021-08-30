@@ -648,8 +648,8 @@ class ONNX_IR_TESTER(object):
     def test_ConvTranspose1d(self):
         test_case = 'ConvTranspose1d'
         batch = 1
-        ic = 256
-        oc = 128
+        ic =192 
+        oc =96 
         dilations = [1]
         group = 1
         kernel_shape = [10]
