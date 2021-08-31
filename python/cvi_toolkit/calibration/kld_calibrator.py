@@ -108,29 +108,41 @@ class ThresholdTable:
     def candidate_thresholds(self, target_op):
         return self.candidate_threshold_map[target_op]
 
+def is_npz(image):
+    return True if image.split('.')[-1] == 'npz' else False
+
+def is_npy(image):
+    return True if image.split('.')[-1] == 'npy' else False
 
 class SimpleTuner:
     def __init__(self, fp32_mlir, thresholds_map, activations_statistics,
-                 images, image_num, preprocessor):
+                 images, image_num, num_inputs, preprocessor):
         image_num = min(len(images), image_num)
         self.images = images[:image_num]
         self.fp32_mlir = fp32_mlir
+        self.num_inputs = num_inputs
         self.threshold_table = ThresholdTable(thresholds_map,
                                              activations_statistics)
         self.tuner = pytuner.tuner(len(self.images))
         self._pre_run(preprocessor)
 
     def _load_data(self, preprocessor):
-        def is_npz(image):
-            return True if image.split('.')[-1] == 'npz' else False
         for i, image in enumerate(self.images):
             if is_npz(image):
                 x = np.load(image)
                 for k, v in x.items():
                     self.tuner.set_data(k, v, i)
             else:
-                x = preprocessor.run(image)
-                self.tuner.set_data(x, i)
+                inputs = image.split(',')
+                inputs = [s.strip() for s in inputs]
+                assert(self.num_inputs == len(inputs))
+                for j in range(self.num_inputs):
+                    preprocessor.load_config(self.fp32_mlir, j)
+                    if is_npy(inputs[j]):
+                        x = np.load(inputs[j])
+                    else:
+                        x = preprocessor.run(inputs[j])
+                    self.tuner.set_data(preprocessor.input_name, x, i)
 
     def _pre_run(self, preprocessor):
         self.tuner.load(self.fp32_mlir)
@@ -192,9 +204,9 @@ class ActivationCalibrator(BaseKldCalibrator):
                  buffer_size, custom_op_plugin=None):
         super().__init__()
         self.images = image_list
-        self.input_num = len(self.images)
+        self.num_samples = len(self.images)
         self.preprocessor = preprocess()
-        self.preprocessor.load_config(mlir_file, 0)
+        self.num_inputs = self.preprocessor.get_input_num(mlir_file)
 
         self.model = pymlir.module()
         if custom_op_plugin:
@@ -216,21 +228,26 @@ class ActivationCalibrator(BaseKldCalibrator):
             size += v.size
         return size * 4
 
-    def _is_npz(self, image):
-        return True if image.split('.')[-1] == 'npz' else False
-
     def _activations_generator(self):
         for image in self.images:
             if image not in self.buffered_activations:
-                if self._is_npz(image):
+                if is_npz(image):
                     x = np.load(image)
                     for k,v in x.items():
                         self.model.set_tensor(k, v)
                     self.model.invoke()
                 else:
-                    x = self.preprocessor.run(image)
-                    self.model.run(x)
-
+                    inputs = image.split(',')
+                    inputs = [s.strip() for s in inputs]
+                    assert(self.num_inputs == len(inputs))
+                    for i in range(self.num_inputs):
+                        self.preprocessor.load_config(self.fp32_mlir, i)
+                        if is_npy(inputs[i]):
+                            x = np.load(inputs[i])
+                        else:
+                            x = self.preprocessor.run(inputs[i])
+                        self.model.set_tensor(self.preprocessor.input_name, x)
+                    self.model.invoke()
                 activations = self.model.get_all_tensor()
                 size = self._activations_size(activations)
                 if size <= self.free_buffer_size:
@@ -249,7 +266,7 @@ class ActivationCalibrator(BaseKldCalibrator):
     def find_min_max_abs(self):
         activations_statistics = dict()
 
-        pbar = tqdm(self.images, total=self.input_num, position=0, leave=True)
+        pbar = tqdm(self.images, total=self.num_samples, position=0, leave=True)
         for image, activations in self._activations_generator():
             pbar.set_description("Find Min Max *{}".format(self.free_buffer_size))
             pbar.update(1)
@@ -284,7 +301,7 @@ class ActivationCalibrator(BaseKldCalibrator):
             histogram_data_map[bin_num] = {}
             histogram_width_map[bin_num] = {}
 
-        pbar = tqdm(self.images, total=self.input_num, position=0, leave=True)
+        pbar = tqdm(self.images, total=self.num_samples, position=0, leave=True)
         for image, activations in self._activations_generator():
             img_name = image.split("/")[-1]
             pbar.set_description("histogram: {}".format(img_name))
@@ -348,7 +365,7 @@ class ActivationCalibrator(BaseKldCalibrator):
         with open(output_calibration_table + '.1', 'w') as f:
             f.write("# genetated time: {}\n".format(datetime.datetime.now()))
             f.write("# histogram number: {}\n".format(self.histogram_bin_num))
-            f.write("# sample number: {}\n###\n".format(self.input_num))
+            f.write("# sample number: {}\n###\n".format(self.num_samples))
             f.write("# op_name    threshold    min    max\n")
             for op in op_layers:
                 op_name = op['name']
@@ -360,13 +377,13 @@ class ActivationCalibrator(BaseKldCalibrator):
 
         # setp 4: tune to get better threshold of each layers.
         self.tuner = SimpleTuner(self.fp32_mlir, thresholds_map, activations_statistics,
-                                 self.images, 5, self.preprocessor)
+                                 self.images,  5, self.num_inputs, self.preprocessor)
         thresholds = self.tuner.run()
 
         # step 5: dump threshold table after tuning
         with open(output_calibration_table, 'w') as f:
             f.write("# genetated time: {}\n".format(datetime.datetime.now()))
-            f.write("# sample number: {}\n###\n".format(self.input_num))
+            f.write("# sample number: {}\n###\n".format(self.num_samples))
             f.write("# op_name    threshold    min    max\n")
             for op in op_layers:
                 op_name = op['name']

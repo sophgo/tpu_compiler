@@ -834,7 +834,7 @@ model_deploy.py \
   --image cat.jpg \
   --tolerance 0.93,0.90,0.62 \
   --correctness 0.99,0.99,0.99 \
-  --cvimodel mnet_25.cvimodel.npz
+  --cvimodel mnet_25.cvimodel
 ```
 
 ###### 测试INT8模型精度（可选)

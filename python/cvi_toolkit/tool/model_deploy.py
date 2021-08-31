@@ -215,7 +215,9 @@ if __name__ == '__main__':
                   args.fuse_preprocess,
                   args.pixel_format,
                   args.aligned_input)
-    tool.validate_quantized_model(args.tolerance, args.excepts, args.image.split(','))
+    images = args.image.split(',')
+    images = [s.strip() for s in images]
+    tool.validate_quantized_model(args.tolerance, args.excepts, images)
 
     # generate cvimodel and validate accuracy
     tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32,

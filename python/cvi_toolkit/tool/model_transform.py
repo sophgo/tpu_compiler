@@ -53,6 +53,7 @@ class ModelTransformTool(object):
         in_fp32_npz = IntermediateFile(self.model_name, 'in_fp32.npz', False)
         inputs = {}
         images = image.split(',')
+        images = [s.strip() for s in images]
         if len(images) == 1 and self._is_npz(image):
             npz_in = np.load(image)
             np.savez(str(in_fp32_npz), **npz_in)
