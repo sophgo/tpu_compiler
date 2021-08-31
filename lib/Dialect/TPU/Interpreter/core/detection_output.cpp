@@ -224,9 +224,13 @@ static void process_feature(detection *det, int *det_idx, float *feature,
       det[idx].score = box_max_score;
       det[idx].cls = box_max_cls;
       idx++;
-      assert(idx <= MAX_DET);
+      if (idx >= MAX_DET) {
+        llvm::errs() << "idx:" << idx << ", MAX_DET:" << MAX_DET << "\n";
+        goto ret;
+      }
     }
   }
+ret:
   *det_idx = idx;
 }
 
