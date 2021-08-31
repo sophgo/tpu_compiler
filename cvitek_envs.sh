@@ -27,6 +27,7 @@ export REGRESSION_PATH=$MLIR_PATH/tpuc/regression
 export PATH=$MLIR_PATH/tpuc/bin:$PATH
 export PATH=$MLIR_PATH/tpuc/python:$PATH
 export PATH=$MLIR_PATH/tpuc/python/cvi_toolkit:$PATH
+export PATH=$MLIR_PATH/tpuc/python/cvi_toolkit/eval:$PATH
 export PATH=$MLIR_PATH/tpuc/python/cvi_toolkit/tool:$PATH
 export PATH=$MLIR_PATH/tpuc/python/cvi_toolkit/performance/performance_viewer:$PATH
 export PATH=$MLIR_PATH/tpuc/regression:$PATH
