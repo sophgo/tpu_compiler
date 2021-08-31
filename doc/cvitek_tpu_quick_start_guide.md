@@ -668,7 +668,7 @@ model_deploy.py \
   --calibration_table resnet18_calibration_table \
   --chip cv183x \
   --image cat.jpg \
-  --tolerance 0.99,0.99,0.87 \
+  --tolerance 0.99,0.99,0.86 \
   --correctness 0.99,0.99,0.99 \
   --cvimodel resnet18.cvimodel
 ```
@@ -1170,7 +1170,7 @@ cvimodel_tool \
 #### 步骤 4：runtime接口调用cvimodel
 在运行时可以通过命令：
 ``` shell
-cvimodel -a dump -i mobilenet_v2_bs1_bs4.cvimodel
+cvimodel_tool -a dump -i mobilenet_v2_bs1_bs4.cvimodel
 ```
 查看bs1和bs4指令的program id，在运行时可以透过如下方式去运行不同的batch指令：
 ``` c++
