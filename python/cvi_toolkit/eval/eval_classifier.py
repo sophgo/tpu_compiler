@@ -181,7 +181,7 @@ if __name__ == '__main__':
     x = np.expand_dims(x, axis=0)
     # run inference
 
-    res = net.inference(x)
+    res = net.inference({'data': x})
     res = np.reshape(res, (res.shape[0], res.shape[1]))
 
     output = torch.from_numpy(res)
