@@ -12,9 +12,12 @@ class MLIRModel(model_base):
         self.net.load(mlirfile)
 
     def inference(self, input):
-        assert(len(input) == 1)
-        name = list(input.keys())[0]
-        return self.net.run(input[name])
+        if type(input) == dict:
+            assert(len(input) == 1)
+            x = input[list(input.keys())[0]]
+        else:
+            x = input
+        return self.net.run(x)
 
     def get_all_tensor(self, input_data=None):
         tensors_dict = self.net.get_all_tensor()
