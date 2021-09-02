@@ -25,6 +25,7 @@ TEST_ONNX_IR = [
     "Add",
     "AddConst",
     "AveragePool",
+    "AveragePool1d",
 #    "Concat",
     "Conv2d", # Conv with 2d case
     "Conv4Bit", # Conv, filter will quant to 4bit
@@ -130,6 +131,7 @@ class ONNX_IR_TESTER(object):
             "Add": self.test_Add,
             "AddConst": self.test_AddConst,
             "AveragePool": self.test_AveragePool,
+            "AveragePool1d": self.test_AveragePool1d,
             "Concat": self.test_Concat,
             "Conv2d": self.test_Conv2d,
             "Conv4Bit": self.test_Conv4Bit,
@@ -496,6 +498,38 @@ class ONNX_IR_TESTER(object):
         input_data = np.random.rand(input_shape[0], input_shape[1],
                                     input_shape[2], input_shape[3]).astype(np.float32)
 
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_AveragePool1d(self):
+        test_case = 'AveragePool1d'
+        input_data = np.random.randn(1, 3, 28).astype(np.float32)
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
+        output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 30])
+
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+
+        node_def = onnx.helper.make_node(
+            "AveragePool",
+            inputs=['X1'],
+            outputs=['output'],
+            kernel_shape=[3],
+            strides=[1],
+            pads=[2, 2],
+            count_include_pad=1
+        )
+        graph_def = helper.make_graph(
+            [x1_def, node_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 

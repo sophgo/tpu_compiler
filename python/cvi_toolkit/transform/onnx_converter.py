@@ -1084,6 +1084,23 @@ class OnnxConverter(BaseConverter):
         count_include_pad = onnx_node.attrs.get('count_include_pad', False)
         if kernel_shape[0] == 1:
             count_include_pad = True
+        onnx_name = onnx_node.name
+
+        is1d = len(input_shape) == 3
+
+        if is1d:
+            # extend w
+            strides = strides + [1]
+            kernel_shape = kernel_shape + [1]
+            pads = [pads[0], 0, pads[1], 0]
+            input_shape = input_shape + [1]
+            onnx_name = f"{onnx_node.name}_reshaped"
+
+            # reshape to n,c,h,1 for friendly with optimizer
+            reshape_input_op = self.CVI.add_reshape_op(
+                    f"{onnx_node.name}_{onnx_node.op_type}_reshape",
+                    [op], input_shape)
+            operands[0] = reshape_input_op
 
         pool_avg_2d_param = {
             'stride_h':  strides[0],
@@ -1101,7 +1118,15 @@ class OnnxConverter(BaseConverter):
         ow = calcPool2DFloor(input_shape[3], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'], pool_avg_2d_param['padding_l'], pool_avg_2d_param['padding_r'])
         output_shape = [int(on), int(oc), oh, ow]
         pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_avg_2d_param)
-        self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.ACTIVATION)
+        self.addOperand(onnx_name, pool_avg_op, output_shape, TensorType.ACTIVATION)
+        if is1d:
+            # reshape back
+            shape = output_shape[:-1]
+            reshape_input_op = self.CVI.add_reshape_op(f"{onnx_node.name}_{onnx_node.op_type}_reshaped",
+                    [pool_avg_op], shape)
+            onnx_name = onnx_node.name
+            self.addOperand(onnx_name, reshape_input_op,
+                    shape, TensorType.ACTIVATION)
 
     def convert_batchnorm_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
