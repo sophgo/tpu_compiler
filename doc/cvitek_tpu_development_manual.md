@@ -60,7 +60,7 @@ TPU软件开发框图如下图所示:
 
 ![](assets\framework.jpg)
 
-> 
+>
 
 > 软件框架由Offline工具链和Runtime模型推理库两部分组成。Offline工具链包括模型转换，编译器，量化工具等组件，完成从用户模型导入，变换，量化，优化，到代码生成等步骤，最终组装为cvimodel格式的推理模型文件。Runtime模型推理库加载cvimodel，读取运行时信息进行设置和资源分配，加载权重数据和指令序列，驱动硬件执行其中的指令序列，完成神经网络推理计算任务，输出推理结果数据。Runtime包含完整仿真平台的支持，客户可以先在仿真平台完成模型移植，验证和精度测试，再加载到真实硬件上验证和执行。
 
@@ -227,7 +227,7 @@ TPU软件开发框图如下图所示:
   |BF16   |DataType，16 bit BF浮点数据|
   |I64    |DataType，64 bit整型数据|
 
-  
+
 
 - Tensor类型
 
@@ -238,7 +238,7 @@ TPU软件开发框图如下图所示:
   |AnyTensor                     |以任意DataType为数据类型的Tensor|
   |Variadic Tensor               |一个或多个Tensor|
 
-  
+
 
 - 基础属性类型
 
@@ -250,7 +250,7 @@ TPU软件开发框图如下图所示:
   |F32Attr             | 属性，32 bit浮点类型属性|
   |BoolAttr            | 属性，布尔属性|
 
-  
+
 
 - TPU_QuantParamAttr
 
@@ -264,7 +264,7 @@ TPU软件开发框图如下图所示:
   |threshold_min  | F32Attr                | 量化最小值（仅限非对称量化）|
   |zero_point     | I32Attr                | 零点值|
 
-  
+
 
 - TPU_QuantModeAttr
 
@@ -274,7 +274,7 @@ TPU软件开发框图如下图所示:
   |INT8  | 量化为INT8|
   |BF16  | 量化为BF16|
 
-  
+
 
 - TPU_QuantParamTypeAttr
 
@@ -289,7 +289,7 @@ TPU软件开发框图如下图所示:
   |LUT_INT8           | 量化变量以INT8 LUT描述|
   |LUT_BF16           | 量化变量以BF16 LUT描述|
 
-  
+
 
 - TPU_ConvParamAttr
 
@@ -307,7 +307,7 @@ TPU软件开发框图如下图所示:
   |ins         | I32ArrayAttr    | 对h， w插入0|
   |pad_value   | I32Attr         | 填充值|
 
-  
+
 
 - TPU_PoolParamAttr
 
@@ -340,7 +340,7 @@ TPU软件开发框图如下图所示:
   |variance_epsilon  | F32Attr                 | epsilon          | 属性|
   |name              | StrAttr                 | 名称               | 属性|
 
-  
+
 
 - BroadcastMul
 
@@ -358,7 +358,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Clip
 
@@ -374,7 +374,7 @@ TPU软件开发框图如下图所示:
   |max               | F32Attr                 | 最大值                | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Concat
 
@@ -390,7 +390,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Conv2D
 
@@ -408,7 +408,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Crop
 
@@ -421,7 +421,7 @@ TPU软件开发框图如下图所示:
   |quant        | TPU_QuantParamAttr      | Quant参数     | 属性|
   |name         | StrAttr                 | 名称          | 属性|
 
-  
+
 
 - Custom
 
@@ -436,7 +436,7 @@ TPU软件开发框图如下图所示:
   |threshold_overwrite  | StrAttr                 | 直接覆盖threshold     | 属性|
   |name                 | StrAttr                 | 名称                | 属性|
 
-  
+
 
 - DeConv2D
 
@@ -454,7 +454,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - DetectionOutput
 
@@ -472,7 +472,7 @@ TPU软件开发框图如下图所示:
   |confidence_threshold  | F32Attr                 | Confidence Threshold | 属性|
   |name                  | StrAttr                 | 名称                   | 属性|
 
-  
+
 
 - EltwiseAdd
 
@@ -491,7 +491,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - EltwiseMax
 
@@ -510,7 +510,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - EltwiseMul
 
@@ -529,7 +529,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - FrcnDetection
 
@@ -543,7 +543,7 @@ TPU软件开发框图如下图所示:
   |keep_top_k     | I32Attr                 | Keep Top K       | 属性|
   |name           | StrAttr                 | 名称               | 属性|
 
-  
+
 
 - FullyConnected
 
@@ -561,7 +561,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Gru
 
@@ -581,10 +581,10 @@ TPU软件开发框图如下图所示:
   |linear_before_reset  | BoolAttr                | 在reset门之前有一个linear层         | 属性|
   |bidirectional        | BoolAttr                | 是否是bidirectional|
   |name                 | StrAttr                 | 名称                          | 属性|
-  
-  
-  
-  
+
+
+
+
 - LeakyRelu
 
   |参数名称|类型|描述|类别|
@@ -603,7 +603,7 @@ TPU软件开发框图如下图所示:
   |quant                 | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name                  | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Lstm
 
@@ -624,7 +624,7 @@ TPU软件开发框图如下图所示:
   |bidirectional        | BoolAttr                | 是否是bidirectional    | 属性|
   |name                 | StrAttr                 | 名称                  | 属性|
 
-  
+
 
 - MatMul
 
@@ -636,7 +636,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
-  
+
 
 - Mish
 
@@ -649,7 +649,7 @@ TPU软件开发框图如下图所示:
   |quant           | TPU_QuantParamAttr      | Quant参数     | 属性|
   |name            | StrAttr                 | 名称          | 属性|
 
-  
+
 
 - Normalize
 
@@ -662,7 +662,7 @@ TPU软件开发框图如下图所示:
   |channel_shared  | BoolAttr                | Channel Shared | 属性|
   |name            | StrAttr                 | 名称             | 属性|
 
-  
+
 
 - Pad
 
@@ -675,7 +675,7 @@ TPU软件开发框图如下图所示:
   |quant      | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name       | StrAttr                 | 名称             | 属性|
 
-  
+
 
 - Permute
 
@@ -687,7 +687,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name      | StrAttr                 | 名称             | 属性|
 
-  
+
 
 - PixelShuffle
 
@@ -700,7 +700,7 @@ TPU软件开发框图如下图所示:
   |mode            | DefaultValuedAttr       | mode参数， 默认值是CRD        | 属性|
   |name            | StrAttr                 | 名称                     | 属性|
 
-  
+
 
 - PoolAvg2D
 
@@ -716,7 +716,7 @@ TPU软件开发框图如下图所示:
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - PoolMask
 
@@ -729,7 +729,7 @@ TPU软件开发框图如下图所示:
   |quant      | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name       | StrAttr                 | 名称             | 属性|
 
-  
+
 
 - PoolMax2D
 
@@ -741,7 +741,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
-  
+
 
 - Power
 
@@ -754,7 +754,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数    | 属性|
   |name      | StrAttr                 | 名称         | 属性|
 
-  
+
 
 - PRelu
   |参数名称|类型|描述|类别|
@@ -773,7 +773,7 @@ TPU软件开发框图如下图所示:
   |quant                 | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name                  | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - PriorBox
 
@@ -795,7 +795,7 @@ TPU软件开发框图如下图所示:
   |use_default_aspect_ratio  | DefaultValuedAttr       | 是否使用默认宽高比          | 属性|
   |name                      | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Proposal
 
@@ -812,7 +812,7 @@ TPU软件开发框图如下图所示:
   |rpn_nms_post_top_n  | I32Attr                 | 保存NMS框数目            | 属性|
   |name                | StrAttr                 | 名称                  | 属性|
 
-  
+
 
 - ReduceMax
 
@@ -829,7 +829,7 @@ TPU软件开发框图如下图所示:
   |keepdims          | DefaultValuedAttr       | 是否保持维度        | 属性|
   |name              | StrAttr                 | 名称            | 属性|
 
-  
+
 
 - ReduceMean
 
@@ -844,7 +844,7 @@ TPU软件开发框图如下图所示:
   |quant_multiplier  | TPU_TensorOfOrNone | Quant乘数       | 属性|
   |keepdims          | DefaultValuedAttr  | 是否保持维度        | 属性|
 
-  
+
 
 - Relu
 
@@ -856,7 +856,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数           | 属性|
   |name      | StrAttr                 | 名称                | 属性|
 
-  
+
 
 - Reorg
 
@@ -868,7 +868,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数        | 属性|
   |name      | StrAttr                 | 名称             | 属性|
 
-  
+
 
 - RetinaFaceDetection
 
@@ -881,7 +881,7 @@ TPU软件开发框图如下图所示:
   |keep_top_k            | I32Attr                 | Keep Top K           | 属性|
   |name                  | StrAttr                 | 名称                   | 属性|
 
-  
+
 
 - ROIPooling
 
@@ -890,7 +890,7 @@ TPU软件开发框图如下图所示:
   |output    | AnyTensor | 输出Tensor   | 输出|
   |input     | AnyTensor | 输入Tensor   | 输入|
 
-  
+
 
 - Scale
 
@@ -904,7 +904,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name      | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - ShuffleChannel
 
@@ -916,7 +916,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数       | 属性|
   |name      | StrAttr                 | 名称            | 属性|
 
-  
+
 
 - Sigmoid
 
@@ -929,7 +929,7 @@ TPU软件开发框图如下图所示:
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Slice
 
@@ -942,7 +942,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数              | 属性|
   |name      | StrAttr                 | 名称                   | 属性|
 
-  
+
 
 - Sqrt
 
@@ -955,7 +955,7 @@ TPU软件开发框图如下图所示:
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Softmax
 
@@ -970,7 +970,7 @@ TPU软件开发框图如下图所示:
   |axis                       | I32Attr                 | Softmax的维度            | 属性|
   |name                       | StrAttr                 | 名称                    | 属性|
 
-  
+
 
 - TanH
 
@@ -983,7 +983,7 @@ TPU软件开发框图如下图所示:
   |quant           | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name            | StrAttr                 | 名称                 | 属性|
 
-  
+
 
 - Tile
 
@@ -999,7 +999,7 @@ TPU软件开发框图如下图所示:
   |resp              | OptionalAttr            | 重复次数          | 属性|
   |name              | StrAttr                 | 名称            | 属性|
 
-  
+
 
 - Upsample
 
@@ -1012,7 +1012,7 @@ TPU软件开发框图如下图所示:
   |quant     | TPU_QuantParamAttr      | Quant参数       | 属性|
   |name      | StrAttr                 | 名称            | 属性|
 
-  
+
 
 - YoloDetection
 
@@ -1054,7 +1054,7 @@ class MLIRImport:
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
- 	
+
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -1208,7 +1208,7 @@ def add_conv_Op(self, op_name, inputOperands,
   $$
   y = \frac{x \times \frac{raw\_scale}{255.0} - mean}{std} \times input\_scale
   $$
-  
+
 
 -   【示例】
 
@@ -1620,6 +1620,7 @@ Mlir Version: tpu_rel_v1.3.4-42-g2bd9f2a54-dirty:20201205
 # 编译此cvimodel所用工具链的版本号
 Cvimodel Version: 1.2.0 # cvimodel的版本号
 Build at 2020-12-05 23:37:09 # cvimodel编译的时间
+CviModel Need ION Memory Size: (5.74 MB) # 模型会使用的ION内存大小
 ```
 
 b. 权重和指令段

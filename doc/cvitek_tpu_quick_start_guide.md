@@ -1101,7 +1101,9 @@ model_transform.py \
   --excepts prob \
   --mlir mobilenet_v2_fp32_bs1.mlir
 ```
-通过run_calibration.py工具对mobilenet_v2_fp32.mlir进行量化校验获得calibration table文件`mobilenet_v2_calibration_table`.
+
+使用第4章节生成的`mobilenet_v2_calibration_table`；如果没有，则通过run_calibration.py工具对mobilenet_v2_fp32.mlir进行量化校验获得calibration table文件.
+
 然后将模型量化并生成cvimodel：
 
 ``` shell
@@ -1148,7 +1150,7 @@ model_transform.py \
  # 关闭--compress_weight选项的同时，打开--merge_weight选项
  model_deploy.py \
   --model_name mobilenet_v2 \
-  --mlir mobilenet_v2_fp32_bs1.mlir \
+  --mlir mobilenet_v2_fp32_bs4.mlir \
   --calibration_table mobilenet_v2_calibration_table \
   --chip cv183x \
   --image cat.jpg \
@@ -1196,3 +1198,14 @@ CVI_NN_CleanupModel(bs1_handle);
 CVI_NN_CleanupModel(bs4_handle);
 
 ```
+
+#### 综述
+
+使用上面的方面，不论是相同模型还是不同模型，均可以进行合并。
+合并的原理是：模型生成过程中，会叠加前面模型的weight（如果相同则共用）。
+基于这一点所以要注意：
+
+1. `--compress_weight`选项要指定为false，因为压缩会导致更多weight差异
+2. 要合并的模型的生成目录必须是同一个，且在合并模型前不要清理任何中间文件
+3. 第一个模型的生成不要用`--merge_weight`，后续模型的生成必须开启该选项
+
