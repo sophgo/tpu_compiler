@@ -88,12 +88,29 @@ def make_test_calibration_table(tensors, table_name):
         for key,value in QUANT_BITWIDTH.items():
             f.write("bitwidth {} {}\n".format(key, value))
 
-def _onnx_inference(input, model_name, input_name="input", input_cb=None):
+def _fill_inputs(ort_session, inputs):
+    inodes = ort_session.get_inputs()
+    if len(inodes) == 1:
+        dtype = np.int64 if inodes[0].type == 'tensor(int64)' \
+            else np.float32
+        return {inodes[0].name: inputs.astype(dtype)}
+    # inputs is map
+    assert(len(inodes) == len(inputs))
+    data = {}
+    for i in range(len(inodes)):
+        name = inodes[i].name
+        dtype = np.int64 if inodes[i].type == 'tensor(int64)' \
+                            else np.float32
+        data[name] = inputs[name].astype(dtype)
+    return data
+
+def _onnx_inference(inputs, model_name, input_name="input", input_cb=None):
     ort_session = onnxruntime.InferenceSession(model_name)
     if callable(input_cb):
         ort_inputs = input_cb(model_name, "onnx", input)
     else:
-        ort_inputs = {input_name: input}
+        ort_inputs = _fill_inputs(ort_session, inputs)
+
     outs = ort_session.run(None, ort_inputs)
     ort_outputs = ort_session.get_outputs()
     outputs = {}
@@ -108,13 +125,20 @@ def onnx_inference(input, model_def, model_name, input_cb = None):
     onnx.save(model_def, model)
     return _onnx_inference(input, model, input_cb=input_cb)
 
-def cvimodel_inference(input, model_name):
+
+def cvimodel_inference(inputs, model_name):
     model = pyruntime.Model(model_name)
     assert(model != None)
-    model_in = model.inputs[0].data
-    assert(model_in.dtype == input.dtype)
-    assert(model_in.size == input.size)
-    model_in[:] = input.reshape(model_in.shape)
+    if isinstance(inputs, dict):
+        for i, input in enumerate(inputs.values()):
+            model_in = model.inputs[i].data
+            assert(model_in.dtype == input.dtype)
+            assert(model_in.size == input.size)
+            model_in[:] = input.reshape(model_in.shape)
+    else:
+        model_in = model.inputs[0].data
+        model_in[:] = inputs.reshape(model_in.shape)
+
     model.forward()
     outputs = {}
     for output in model.outputs:
@@ -188,10 +212,19 @@ class ONNX_IR_TESTER(object):
         gc.collect()
 
         onnx_outs = onnx_inference(input_data, model_def, model_name, input_cb)
-        input_data = input_data.astype(np.float32)
         num_outputs = len(onnx_outs)
-        input_npz = "{}_input_fp32.npz".format(model_name)
-        np.savez(input_npz, input=input_data)
+        if isinstance(input_data, dict):
+            count = 1
+            for i in range(len(input_data)):
+                input_data_npz = input_data['input'+str(count)]
+                input_data_npz = input_data_npz.astype(np.float32)
+                input_npz = "{}_input{}_fp32.npz".format(model_name, count)
+                count += 1
+                np.savez(input_npz, input=input_data_npz)
+        else:
+            input_data = input_data.astype(np.float32)
+            input_npz = "{}_input_fp32.npz".format(model_name)
+            np.savez(input_npz, input=input_data)
          # opt
         fp32_opt_mlir = "{}_opt.mlir".format(model_name)
         fp32_csv = "{}_fp32.csv".format(model_name)
@@ -201,6 +234,7 @@ class ONNX_IR_TESTER(object):
         self.mlir_model.load_model(fp32_opt_mlir)
         mlir_outs = self.mlir_model.inference(input_data)
         fp32_tensors = self.mlir_model.get_all_tensor()
+
         # Test output
         assert(len(mlir_outs) == num_outputs)
         if num_outputs > 1:
@@ -208,14 +242,12 @@ class ONNX_IR_TESTER(object):
             for name in mlir_outs:
                 onnx_name = patten.sub("", name)
                 print("Compare mlir[{}] : onnx[{}]".format(name, onnx_name))
-                np.testing.assert_allclose(mlir_outs[name].flatten(),
-                                           onnx_outs[onnx_name].flatten(),
-                                           rtol=1e-5, atol=1e-01)
+                np.testing.assert_allclose(mlir_outs[name].flatten(), onnx_outs[onnx_name].flatten(), rtol=1e-5, atol=1e-01)
         else:
-            mlir_out = list(mlir_outs.values())[0]
+            if isinstance(mlir_outs, dict):
+                mlir_outs = list(mlir_outs.values())[0]
             onnx_out = onnx_outs.popitem()[1]
-            np.testing.assert_allclose(mlir_out.flatten(), onnx_out.flatten(),
-                                       rtol=1e-5, atol=1e-01)
+            np.testing.assert_allclose(mlir_outs.flatten(), onnx_out.flatten(), rtol=1e-5, atol=1e-01)
 
         mlir_npz = "{}_fp32.npz".format(model_name)
         np.savez(mlir_npz, **fp32_tensors)
@@ -263,13 +295,24 @@ class ONNX_IR_TESTER(object):
 
                 # run cvi_model
                 output_tensor_npz = "{}_all_tensor_int8_cvi.npz".format(model_name)
-                input_i8 = None
-                if 'input_quant_i8' in int8_tensors:
-                    input_i8 = int8_tensors['input_quant_i8'].astype(np.int8)
-                elif 'input_quant_u16' in int8_tensors:
-                    input_i8 = int8_tensors['input_quant_u16'].astype(np.uint16)
 
-                cvi_outs = cvimodel_inference(input_i8, cvimodel)
+                if isinstance(input_data, dict):
+                    count = 1
+                    input_int = {}
+                    for key, value in input_data.items():
+                        if key+'_quant_i8' in int8_tensors:
+                            input_int['input'+str(count)] = int8_tensors[key+'_quant_i8'].astype(np.int8)
+                        elif key+'_quant_u16' in int8_tensors:
+                            input_int['input'+str(count)] = int8_tensors[key+'_quant_u16'].astype(np.int8)
+                        count += 1
+                else:
+                    input_int = None
+                    if 'input_quant_i8' in int8_tensors:
+                        input_int = int8_tensors['input_quant_i8'].astype(np.int8)
+                    elif 'input_quant_u16' in int8_tensors:
+                        input_int = int8_tensors['input_quant_u16'].astyp
+
+                cvi_outs = cvimodel_inference(input_int, cvimodel)
                 assert(len(cvi_outs) == num_outputs)
                 for name in cvi_outs:
                     if name not in int8_tensors:
@@ -316,13 +359,27 @@ class ONNX_IR_TESTER(object):
 
                 # run cvi_model
                 output_tensor_npz = "{}_all_tensor_bf16_cvi.npz".format(model_name)
-                input_bf16 = None
-                if 'input_quant_i16' in bf16_tensors:
-                    input_bf16 = tensors['input'].astype(np.int16)
-                elif 'input_quant_u16' in bf16_tensors:
-                    input_bf16 = tensors['input'].astype(np.uint16)
+                if isinstance(input_data, dict):
+                    input_bf16 = {}
+                    count = 1
+                    for key, value in input_data.items():
+                        if key+'_quant_i16' in bf16_tensors:
+                            input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_i16'].astype(np.int16)
+                        elif key+'_quant_u16' in bf16_tensors:
+                            input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_u16'].astype(np.uint16)
+                        elif key+'_quant_bf16' in bf16_tensors:
+                            input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_bf16']
+                        else:
+                            input_bf16['input'+str(count)] = bf16_tensors['input'+str(count)]
+                        count += 1
                 else:
-                    input_bf16 = tensors['input']
+                    if 'input_quant_i16' in bf16_tensors:
+                        input_bf16 = tensors['input'].astype(np.int16)
+                    elif 'input_quant_u16' in bf16_tensors:
+                        input_bf16 = tensors['input'].astype(np.uint16)
+                    else:
+                        input_bf16 = tensors['input']
+
                 cvi_outs = cvimodel_inference(input_bf16, cvimodel)
                 assert(len(cvi_outs) == num_outputs)
                 for name in cvi_outs:
@@ -756,7 +813,6 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
 
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
 
     def test_Conv3d(self):
         test_case = 'Conv3d'
@@ -1451,13 +1507,14 @@ class ONNX_IR_TESTER(object):
         input_shape = [1, 16, 28, 28]
         output_shape = [1, 16, 28, 28]
 
-        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        input1 = helper.make_tensor_value_info('input1', TensorProto.FLOAT, input_shape)
+        input2 = helper.make_tensor_value_info('input2', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
         reduce_node = helper.make_node(
             'ReduceMax',
-            ['input'],
+            ['input1'],
             ['X1'],
             keepdims=1,
             axes=[1, ],
@@ -1469,23 +1526,30 @@ class ONNX_IR_TESTER(object):
             ['X2'],  # outputs
         )
 
+
         #test only one input
         mul_node = helper.make_node(
             'Mul',  # node name
-            ['input', "X2"],  # inputs
+            ['input2', "X2"],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
             [reduce_node, neg_node, mul_node],
             test_case,
-            [input],
+            [input1, input2],
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
-        input_data = np.random.randn(input_shape[0], input_shape[1],
+        input_data = {}
+        input_data1 = np.random.randn(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
+        input_data2 = np.random.randn(input_shape[0], input_shape[1],
+                        input_shape[2], input_shape[3]).astype(np.float32)
+        input_data['input1'] = input_data1
+        input_data['input2'] = input_data2
+
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
@@ -2252,59 +2316,35 @@ class ONNX_IR_TESTER(object):
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
-        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        input1 = helper.make_tensor_value_info('input1', TensorProto.FLOAT, input_shape)
+        input2 = helper.make_tensor_value_info('input2', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
-
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-
-        x2_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X2'],  # outputs
-        )
-
-        #test only one input
-        x3_def = helper.make_node(
-            'Sum',  # node name
-            ['input'],  # inputs
-            ['X3'],  # outputs
-        )
-
-        s1_def = helper.make_node(
-            'Sum',  # node name
-            ['input', 'X1'],  # inputs
-            ['S1'],  # outputs
-        )
-        s2_def = helper.make_node(
-            'Sum',  # node name
-            ['X2', 'X3'],  # inputs
-            ['S2'],  # outputs
-        )
 
         #test three input
         sum_def = helper.make_node(
             'Sum',  # node name
-            ['S1', 'S2'],  # inputs
+            ['input1', 'input2'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [x1_def, x2_def, x3_def, s1_def, s2_def, sum_def],
+            [sum_def],
             test_case,
-            [input],
+            [input1, input2],
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
-        input_data = np.random.rand(input_shape[0], input_shape[1],
+        input_data = {}
+        input_data1 = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
+        input_data2 = np.random.rand(input_shape[0], input_shape[1],
+                        input_shape[2], input_shape[3]).astype(np.float32)
+        input_data['input1'] = input_data1
+        input_data['input2'] = input_data2
 
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
