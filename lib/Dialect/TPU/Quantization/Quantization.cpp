@@ -527,7 +527,10 @@ public:
       } else {
         std::string line;
         while (std::getline(infile, line)) {
-            clQuantLayer.push_back(line);
+          if (line.back() == '\r') {
+            line.pop_back();
+          }
+          clQuantLayer.push_back(line);
         }
       }
     }
@@ -603,7 +606,7 @@ public:
           if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
             std::string layer_name = mlir::getOpName(op).str();
             if (std::find(clQuantLayer.begin(), clQuantLayer.end(), layer_name) != clQuantLayer.end()) {
-              //llvm::errs() << "set " << layer_name << "as bf16\n";
+              llvm::errs() << "set " << layer_name << "as bf16\n";
               setOpQuant(op, "BF16");
             }
           }

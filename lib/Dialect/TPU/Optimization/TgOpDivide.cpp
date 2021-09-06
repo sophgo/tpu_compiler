@@ -466,10 +466,10 @@ public:
                                              ArrayRef<NamedAttribute>{attrs});
   }
 
-  Value adjust_input(OpBuilder &builder, Value input, h_slice_t &s) {
+  Value adjust_input(OpBuilder &builder, Operation * op, Value input, h_slice_t &s) {
     auto input_op = input.getDefiningOp();
     auto shape = getTensorShape(input_op->getResult(0));
-    if (op_set.find(input_op) == op_set.end()) {
+    if (op_set.find(input_op) == op_set.end() || op == main_ops[start_idx].op) {
       if (shape[2] == s.in_h) {
         return input;
       }
@@ -490,7 +490,7 @@ public:
     auto &op_info = op_h_map[op];
     auto &s = op_info.slice[slice_idx];
     s.num_forward++;
-    if (s.num_forward < op_info.num_input) {
+    if (s.num_forward < op_info.num_input && op != main_ops[start_idx].op) {
       return;
     }
 
@@ -504,7 +504,7 @@ public:
     std::vector<NamedAttribute> attrs;
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::TG_INT8_EltwiseAddOp>(op)) {
       for (auto input : cast_op.inputs()) {
-        auto in = adjust_input(builder, input, s);
+        auto in = adjust_input(builder, op, input, s);
         operands.push_back(in);
       }
       std::string name =
@@ -524,7 +524,7 @@ public:
       s.op = newOp.getOperation();
     } else if (auto cast_op =
                    llvm::dyn_cast_or_null<tpu::TG_INT8_PC_Conv2DOp>(op)) {
-      auto in = adjust_input(builder, cast_op.input(), s);
+      auto in = adjust_input(builder, op, cast_op.input(), s);
       operands.push_back(in);
       auto filter = copy_weight(builder, op, cast_op.filter());
       auto pc_info = copy_weight(builder, op, cast_op.pc_info());
@@ -567,7 +567,7 @@ public:
       s.op = newOp.getOperation();
     } else if (auto cast_op =
                    llvm::dyn_cast_or_null<tpu::TG_INT8_PoolMax2DOp>(op)) {
-      auto in = adjust_input(builder, cast_op.input(), s);
+      auto in = adjust_input(builder, op, cast_op.input(), s);
       operands.push_back(in);
       std::string name =
           cast_op.name().str() + "_tod_" + std::to_string(slice_idx);

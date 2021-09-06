@@ -244,6 +244,9 @@ public:
     std::regex bitwidth_pattern("bitwidth [a-zA-Z0-9.:;@_\\/-]+ \\d+");
     std::regex info_pattern("#.*");
     while (std::getline(infile, line)) {
+      if (line.back() == '\r') {
+        line.pop_back();
+      }
       std::istringstream iss(line);
       std::string name;
       if (std::regex_match(line, old_pattern)) {
