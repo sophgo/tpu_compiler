@@ -223,6 +223,8 @@ LogicalResult quantizeBF16LutOps(Operation *op) {
     insertBf16LutOp(op, "swish", "slope", 1, 2);
   } else if (isa<tpu::TanHOp>(op)) {
     insertBf16LutOp(op, "tanh", "slope", 1, 2);
+  } else if (isa<tpu::LogOp>(op)) {
+    insertBf16LutOp(op, "log", "slope", 1, 2);
   } else if (isa<tpu::ExpOp>(op)) {
     auto expOp = cast<tpu::ExpOp>(op);
     float scale = expOp.scale().convertToFloat();
@@ -415,6 +417,13 @@ LogicalResult tpu::LeakyReluOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBf16LeakyReluOps(op);
+}
+
+LogicalResult tpu::LogOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeBF16LutOps<tpu::LogOp>(op);
 }
 
 LogicalResult tpu::PReluOp::quantizeBf16() {

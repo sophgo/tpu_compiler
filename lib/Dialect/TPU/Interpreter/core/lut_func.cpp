@@ -21,6 +21,7 @@ typedef float (*activate_func)(float, float, float);
 
 static float sigmoid_actf(float x, float s, float b) { return s / (1 + expf(-x)) + b; }
 static float tanh_actf(float x, float p0, float p1) { return tanh(x); }
+static float log_actf(float x, float p0, float p1) { return log(x); }
 static float exp_actf(float x, float s, float b) { return s * expf(x) + b; }
 static float elu_actf(float x, float p0, float p1) { return (x >=0) ? x : (expf(x) -1); }
 static float softplus_actf(float x, float s, float b) { return s * logf(expf(x) + 1) + b; }
@@ -99,6 +100,10 @@ void bf16_gen_base_slope_table(const std::string &name, float *base_table, float
     range_start = -1 * TANH_BF16_LUT_RANGE;
     range_end = TANH_BF16_LUT_RANGE;
     func = tanh_actf;
+  } else if (name == "log") {
+    range_start = -1 * LOG_BF16_LUT_RANGE;
+    range_end = LOG_BF16_LUT_RANGE;
+    func = log_actf;
   } else if (name == "exp") {
     range_start = -1 * EXP_BF16_LUT_RANGE;
     range_end = EXP_BF16_LUT_RANGE;
@@ -124,6 +129,7 @@ void bf16_gen_base_slope_table(const std::string &name, float *base_table, float
     llvm_unreachable("Error");
   }
   gen_bf16_base_table(range_start, range_end, 256, base_table, func, param0, param1);
+
   gen_bf16_slope_table(range_start, range_end, 256, base_table, slope_table, func, param0, param1);
 }
 
@@ -137,6 +143,9 @@ void bf16_lut_slope(const std::string &name, float *input, float *output, int si
   } else if (name == "tanh") {
     range_start = -1 * TANH_BF16_LUT_RANGE;
     range_end = TANH_BF16_LUT_RANGE;
+  } else if (name == "log") {
+    range_start = -1 * LOG_BF16_LUT_RANGE;
+    range_end = LOG_BF16_LUT_RANGE;
   } else if (name == "exp") {
     range_start = -1 * EXP_BF16_LUT_RANGE;
     range_end = EXP_BF16_LUT_RANGE;

@@ -545,4 +545,42 @@ void TanHOpKernel::invoke() {
   }
 }
 
+LogOpKernel::LogOpKernel(Operation &op, value_map_t &valueMapping,
+                         weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
+  auto logOp = cast<tpu::LogOp>(op);
+  if (datatype == DataType::INT8) {
+    y0_table_op = this->opdTensors[1];
+    slope_table = this->opdTensors[2];
+  } else if (datatype == DataType::BF16) {
+    y0_bf16_table_op = this->opdTensors[1];
+    y0_bf16_slope_table = this->opdTensors[2];
+    bf16_min_range = logOp.min_range().convertToFloat();
+    bf16_max_range = logOp.max_range().convertToFloat();
+  }
+  // get tensors
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
+}
+
+void LogOpKernel::invoke() {
+  size_t output_size = output_data->size();
+  if (datatype == DataType::INT8) {
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
+    for (size_t i = 0; i < output_size; ++i) {
+      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
+    }
+  } else if (datatype == DataType::BF16) {
+    bf16_lut_slope("log", input_data->data(), output_data->data(),
+                   output_data->size(), y0_bf16_table_op->data(),
+                   y0_bf16_slope_table->data());
+  } else {
+
+#pragma omp parallel for schedule(static, omp_schedule(output_size))
+    for (size_t i = 0; i < output_size; ++i) {
+      output_data->at(i) = std::log(input_data->at(i));
+    }
+  }
+}
+
 } // namespace mlir

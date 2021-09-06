@@ -326,6 +326,31 @@ private:
   int bf16_min_range;
   int bf16_max_range;
 };
+
+class LogOpKernel : public CPUOpKernel {
+public:
+  static constexpr const char *OpName = "CPULogOpOp";
+
+  LogOpKernel(Operation &op, value_map_t &valueMapping,
+              weight_map_t &weightMapping);
+
+  void invoke() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  SyncedData y0_table_op;
+  SyncedData slope_table;
+
+  // bf16
+  SyncedData y0_bf16_table_op;
+  SyncedData y0_bf16_slope_table;
+  int bf16_min_range;
+  int bf16_max_range;
+};
+
 } // namespace mlir
 
 #endif

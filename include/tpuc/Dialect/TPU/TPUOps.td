@@ -1153,6 +1153,8 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_LogOp : TPU_LutOp<"log", "Log">;
+
 class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     [NoSideEffect,
      DeclareOpInterfaceMethods<TpuOpCommonInterface>,

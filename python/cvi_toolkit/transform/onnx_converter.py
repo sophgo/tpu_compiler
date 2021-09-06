@@ -238,6 +238,7 @@ class OnnxConverter(BaseConverter):
             "Identity": lambda node: self.convert_skip_op(node),
             "InstanceNormalization": lambda node: self.convert_instancenorm_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
+            "Log": lambda node: self.convert_log_op(node),
             "LRN": lambda node: self.convert_lrn_op(node),
             "LSTM": lambda node: self.convert_lstm_op(node),
             "LayerNorm": lambda node: self.convert_layernorm_op(node),
@@ -2189,6 +2190,21 @@ class OnnxConverter(BaseConverter):
             output_shape = input_shape
             leaky_relu_op = self.CVI.add_leaky_relu_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **leaky_relu_param)
             self.addOperand(onnx_node.name, leaky_relu_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_log_op(self, onnx_node):
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        if tensor_type == TensorType.TENSOR:
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            output_data = np.log(tensor_data)
+            output_shape = list(output_data.shape)
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            operands = list()
+            operands.append(op)
+            output_shape = input_shape
+            log_op = self.CVI.add_log_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+            self.addOperand(onnx_node.name, log_op, output_shape, TensorType.ACTIVATION)
 
     def convert_lrn_op(self, onnx_node):
         assert(onnx_node.op_type == "LRN")

@@ -621,6 +621,9 @@ LogicalResult quantizeInt8LutOps(Operation *op) {
         float bias = sigmoidOp.bias().convertToFloat();
         index = -lutInput * threshold_x / 127.0;
         lutOutput = (scale / (1 + std::exp(index)) + bias) * 127.0 / threshold_y;
+      } else if (OpTy::getOperationName() == "tpu.log") {
+        index = lutInput * threshold_x / 127.0;
+        lutOutput = std::log(index) * 127.0 / threshold_y;
       } else if (OpTy::getOperationName() == "tpu.swish") {
         index = lutInput * threshold_x / 127.0;
         lutOutput = index / (1 + std::exp(-index)) * 127.0 / threshold_y;
@@ -1448,6 +1451,13 @@ LogicalResult tpu::LeakyReluOp::quantizeInt8() {
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8LeakyReluOps(op);
+}
+
+LogicalResult tpu::LogOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8LutOps<tpu::LogOp>(op);
 }
 
 LogicalResult tpu::PReluOp::quantizeInt8() {

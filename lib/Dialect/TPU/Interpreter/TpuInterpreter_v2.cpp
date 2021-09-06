@@ -288,6 +288,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(lr_kernel_op));
     return;
   }
+  if (isa<tpu::LogOp>(op)) {
+    auto t_kernel_op = std::make_unique<LogOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(t_kernel_op));
+    return;
+  }
   if (isa<tpu::LrnOp>(op)) {
     auto lrn_kernel_op = std::make_unique<LrnOpKernel>(op, valueMapping, weightMapping);
     oplist.push_back(std::move(lrn_kernel_op));

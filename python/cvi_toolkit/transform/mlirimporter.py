@@ -58,6 +58,7 @@ class TPU_OpType(Enum):
     GRU = 'tpu.gru'
     InstanceNorm = 'tpu.instance_norm'
     LeakyRelu = 'tpu.leaky_relu'
+    Log = 'tpu.log'
     LrnOne = 'tpu.lrn_one'
     LrnTwo = 'tpu.lrn_two'
     LrnThree = 'tpu.lrn_three'
@@ -1058,6 +1059,18 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.LeakyRelu.value, inputOperands, [
             tensor_output_type], name=leaky_relu_name, quant=quant_param, **leaky_relu_param)
+
+    def add_log_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        Log_name = StringAttr.get(op_name)
+        none = self.add_none_op()
+        # We assigne 4 reg for Log quant table
+        for _ in range(2):
+            inputOperands.append(none)
+        return self.buildOp(TPU_OpType.Log.value, inputOperands, [
+            tensor_output_type], name=Log_name, quant=self.quant_param)
 
     def add_lrn_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

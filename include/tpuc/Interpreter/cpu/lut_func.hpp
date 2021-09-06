@@ -12,6 +12,7 @@
 #define MISH_BF16_LUT_RANGE 8
 #define SOFTPLUS_BF16_LUT_RANGE 8
 #define SWISH_BF16_LUT_RANGE 12
+#define LOG_BF16_LUT_RANGE 8
 
 
 void bf16_gen_base_slope_table(const std::string &name, float *base_table, float *slope_table,

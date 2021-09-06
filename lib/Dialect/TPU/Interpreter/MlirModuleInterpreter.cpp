@@ -235,6 +235,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<LayerNormOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::LeakyReluOp>(op)) {
       krnl = std::make_shared<LeakyReluOpKernel>(*op, valueMapping, weightMapping);
+    } else if (isa<tpu::LogOp>(op)) {
+      krnl = std::make_shared<LogOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::LrnOp>(op)) {
       krnl = std::make_shared<LrnOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::LrnOneOp>(op)) {
