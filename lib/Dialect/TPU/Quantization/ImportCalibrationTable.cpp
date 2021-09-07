@@ -237,11 +237,11 @@ public:
     LLVM_DEBUG(llvm::errs() << "Calibration Table File : " << clCalibrationTableFilename << "\n");
     std::ifstream infile(clCalibrationTableFilename);
     std::string line;
-    std::regex old_pattern("[a-zA-Z0-9.:;@_\\/-]+ [-0-9.e]+");
+    std::regex old_pattern("\\S+\\s+[-0-9.e]+");
     std::regex new_pattern(
-        "[a-zA-Z0-9.:;@_\\/-]+ [-0-9.e]+ [-0-9.e]+ [-0-9.e]+");
-    std::regex weight_pattern("weight [a-zA-Z0-9.:;@_\\/-]+ .*");
-    std::regex bitwidth_pattern("bitwidth [a-zA-Z0-9.:;@_\\/-]+ \\d+");
+        "\\S+\\s+[-0-9.e]+\\s+[-0-9.e]+\\s+[-0-9.e]+");
+    std::regex weight_pattern("weight \\S+ .*");
+    std::regex bitwidth_pattern("bitwidth \\S+\\s+\\d+");
     std::regex info_pattern("#.*");
     while (std::getline(infile, line)) {
       if (line.back() == '\r') {
@@ -300,7 +300,10 @@ public:
         setWeightThresholdFromMap(op, weight_threshold_map);
         setWeightBitwidthFromMap(op, weight_bitwidth_map);
       } else if (llvm::dyn_cast<tpu::PoolMaskOp>(op)) {
-        setOpThreshold(op, 127);
+        setOpThreshold(op, 127.0f);
+        setOpQuantParamType(op, "THRESHOLD");
+      } else if (llvm::dyn_cast<tpu::SigmoidOp>(op)) {
+        setOpThreshold(op, 1.0f);
         setOpQuantParamType(op, "THRESHOLD");
       } else if (llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         setThresholdFromMap(op, threshold_map);
