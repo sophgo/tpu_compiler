@@ -244,8 +244,7 @@ class ONNX_IR_TESTER(object):
                 print("Compare mlir[{}] : onnx[{}]".format(name, onnx_name))
                 np.testing.assert_allclose(mlir_outs[name].flatten(), onnx_outs[onnx_name].flatten(), rtol=1e-5, atol=1e-01)
         else:
-            if isinstance(mlir_outs, dict):
-                mlir_outs = list(mlir_outs.values())[0]
+            mlir_outs = list(mlir_outs.values())[0]
             onnx_out = onnx_outs.popitem()[1]
             np.testing.assert_allclose(mlir_outs.flatten(), onnx_out.flatten(), rtol=1e-5, atol=1e-01)
 
@@ -303,14 +302,14 @@ class ONNX_IR_TESTER(object):
                         if key+'_quant_i8' in int8_tensors:
                             input_int['input'+str(count)] = int8_tensors[key+'_quant_i8'].astype(np.int8)
                         elif key+'_quant_u16' in int8_tensors:
-                            input_int['input'+str(count)] = int8_tensors[key+'_quant_u16'].astype(np.int8)
+                            input_int['input'+str(count)] = int8_tensors[key+'_quant_u16'].astype(np.uint16)
                         count += 1
                 else:
                     input_int = None
                     if 'input_quant_i8' in int8_tensors:
                         input_int = int8_tensors['input_quant_i8'].astype(np.int8)
                     elif 'input_quant_u16' in int8_tensors:
-                        input_int = int8_tensors['input_quant_u16'].astyp
+                        input_int = int8_tensors['input_quant_u16'].astype(np.uint16)
 
                 cvi_outs = cvimodel_inference(input_int, cvimodel)
                 assert(len(cvi_outs) == num_outputs)

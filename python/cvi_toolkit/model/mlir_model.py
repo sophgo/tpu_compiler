@@ -16,8 +16,12 @@ class MLIRModel(model_base):
             for k,v in inputs.items():
                 self.net.set_tensor(k, v)
             self.net.invoke()
-            output_tensor = list(self.net.get_all_tensor().values())[-1]
-            return output_tensor
+            all_tensor = self.net.get_all_tensor()
+            output_dit = {}
+            for key, value in all_tensor.items():
+                if key == self.net.get_output_details()[0]:
+                    output_dit[key] = value
+            return output_dit
         elif isinstance(inputs, np.ndarray):
             return self.net.run(inputs)
         else:
