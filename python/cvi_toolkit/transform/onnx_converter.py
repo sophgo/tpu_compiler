@@ -1136,6 +1136,8 @@ class OnnxConverter(BaseConverter):
                 data = data.astype(np.int32)
             elif dtype == "float32":
                 data = data.astype(np.float32)
+            elif dtype == "bool":
+                data = data.astype(np.bool)
             else:
                 raise RuntimeError("{} dtype not support, please add".format(dtype))
             output_data = data
@@ -1155,7 +1157,7 @@ class OnnxConverter(BaseConverter):
         np_tensor =  numpy_helper.to_array(onnx_tensor)
         data_type = onnx_dtype(onnx_tensor.data_type)
 
-        if data_type in [np.float32, np.float64, np.int32, np.int64]:
+        if data_type in [np.float32, np.float64, np.int32, np.int64, np.uint8, np.bool]:
             self.addTensor(onnx_node.name, np_tensor.astype(data_type), list(np_tensor.shape))
             self.addOperand(onnx_node.name, None, list(np_tensor.shape), TensorType.TENSOR)
 
@@ -3501,6 +3503,31 @@ class OnnxConverter(BaseConverter):
 
             self.addTensor(onnx_node.name, tensor_data, list(tensor_data.shape))
             self.addOperand(onnx_node.name, None, list(tensor_data.shape), TensorType.TENSOR)
+        elif tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.ACTIVATION:
+            # op1 MUST be constant and shape = 1 such as masked_fill
+            # len(input_shape1) == 0 come from pytorch masked_fill
+            if np.prod(input_shape1) != 1:
+                assert len(input_shape1) == 0, (
+                        f"current only support masked_fill that x should be const, but x is {input_shape1}"
+                )
+
+            condition_name = onnx_node.inputs[0]
+            condition_tensor = self.getTensor(condition_name)
+            condition_tensor.tensor_data.reshape(condition_tensor.shape)
+            condition_shape = condition_tensor.shape
+            condition_op = self.CVI.add_load_file_op(condition_tensor.name, condition_shape)
+
+            operands = [op2, condition_op]
+            tensor_data1 = self.getTensor(onnx_node.inputs[1]).tensor_data
+            attr = {
+                'fill_constant': np.array(tensor_data1).flatten()[0],
+            }
+            output_shape = input_shape2
+            lower_op = self.CVI.add_where_op(
+                    f"{onnx_node.name}_{onnx_node.op_type}",
+                    operands, output_shape, **attr)
+            self.addOperand(onnx_node.name, lower_op, output_shape,
+                    TensorType.ACTIVATION)
         else:
             raise RuntimeError("not support tensor_type x in activation")
 

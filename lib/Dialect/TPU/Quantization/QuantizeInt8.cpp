@@ -1621,6 +1621,71 @@ LogicalResult tpu::EmbeddingOp::quantizeInt8() {
   return success();
 }
 
+LogicalResult tpu::WhereOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto rewriter = Builder(op->getContext());
+
+  // quant fill_constant
+  assert (isTensorNone(x()) && "only support x as none type(masked_fill case)");
+
+  // mask saved as 0/1 that not convert it
+  condition().getDefiningOp()->setAttr("storage", rewriter.getStringAttr("INT8"));
+
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value wfV = getWeightFileValue(op);
+
+  // get threshold of opd 0
+  float threshold_y = getOpThreshold(op);
+  LLVM_DEBUG(llvm::errs() << " > " << getOpName() << ", threshold_y = "
+      << std::to_string(threshold_y) << "\n";);
+  auto opd0 = op->getOperand(0).getDefiningOp();
+  assert(!isa<tpu::LoadWeightOp>(opd0));
+  float threshold_x = getOpThreshold(opd0);
+
+  // update const
+  int fill_constant = this->fill_constant().convertToFloat() * 127.0 / threshold_y;
+  op->setAttr("fill_constant", rewriter.getF32FloatAttr(fill_constant));
+
+  float qscale = threshold_x / threshold_y;
+
+  // create tensors for rshift and multiplier
+  auto rshift = std::make_unique<std::vector<float> >(1);
+  auto multiplier = std::make_unique<std::vector<float> >(1);
+
+  int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale);
+  rshift->at(0) = (float)rshift_i8;
+  LLVM_DEBUG(llvm::errs() << "  rshift = "
+                          << std::to_string(rshift->at(0)) << "\n");
+  int8_t multiplier_i8 = findMultiplierI8FromQScaleAndRShift(qscale,
+      rshift_i8);
+  multiplier->at(0) = (float)multiplier_i8;
+  LLVM_DEBUG(llvm::errs() << "  multiplier = "
+      << std::to_string(multiplier->at(0)) << "\n");
+  LLVM_DEBUG(llvm::errs() << "  qscale = "
+      << std::to_string(qscale) << "\n");
+
+  // add rshift and multiplier to weight
+  StringRef storageType = "NONE";
+
+  auto shape_rshift = std::vector<int64_t>{1};
+  auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "rshift", *rshift, shape_rshift, storageType,
+      wTF, wfV);
+  op->setOperand(5, rshift_op);
+
+  auto shape_multiplier = std::vector<int64_t>{1};
+  auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "multiplier", *multiplier, shape_multiplier, storageType,
+      wTF, wfV);
+  op->setOperand(6, multiplier_op);
+
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+
+  return success();
+}
+
 /*
 These Ops does not do quantization, need threshold_x == thrshold_y
 */

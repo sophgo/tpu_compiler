@@ -64,6 +64,7 @@ TEST_ONNX_IR = [
     "Sum",
     "Softmax",
     "Tile",
+    "Where",
     "Upsample",
 #    "Transpose",
     "BCastSub", # test broadcast sub
@@ -199,6 +200,7 @@ class ONNX_IR_TESTER(object):
             "ReduceMean": self.test_ReduceMean,
             "ReduceMax": self.test_ReduceMax,
             "Upsample": self.test_Upsample,
+            "Where": self.test_Where,
         }
         self.set_quant_mode()
 
@@ -2615,6 +2617,99 @@ class ONNX_IR_TESTER(object):
         input_data = np.random.rand(input_shape[0], input_shape[1],
                         input_shape[2], input_shape[3]).astype(np.float32)
 
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Where(self):
+        test_case = "Where"
+        const_shape = [1]
+        const_data = np.array([0.5]).astype(np.float32)
+        testbench = [
+            {
+              'input_shape': [1, 3, 4, 4],
+              'condition_shape': [1, 3, 1, 1],
+              'condition_data': np.array([[[[1]]],[[[1]]],[[[0]]]])
+            },
+            {
+              'input_shape': [1, 3, 4],
+              'condition_shape': [1, 3, 1],
+              'condition_data': np.array([[[[1]]],[[[1]]],[[[0]]]])
+            },
+        ]
+
+        idx = 1;
+
+        input_shape = testbench[idx]['input_shape']
+        condition_shape = testbench[idx]['condition_shape']
+        condition_data = testbench[idx]['condition_data']
+
+        real_test = True
+        #real_test = False
+        if real_test:
+            # real case
+            input_shape = [1, 40, 40]
+            output_shape = input_shape
+            condition_shape = [1, 40, 40]
+            condition_data = np.zeros(condition_shape)
+            # select top half
+            #array([[[1., 1., 0., 0.],
+            #        [1., 1., 0., 0.],
+            #        [1., 1., 0., 0.],
+            #        [1., 1., 0., 0.]],
+            condition_data[:,:,:20] = 1
+
+        output_shape = input_shape
+        condition_data = condition_data.astype(np.bool)
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_node = helper.make_node(
+            'Neg',
+            ['input'],
+            ['X1'],
+        )
+
+        condition_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['condition'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.BOOL,
+                dims=condition_shape,
+                vals=condition_data.flatten(),
+            ),
+        )
+
+        masked_fill_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['const'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor_1',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=const_data.shape,
+                vals=const_data,
+            ),
+        )
+        where_node = helper.make_node(
+            'Where',
+            ['condition', 'const', 'X1'],
+            ['output'],
+        )
+
+        graph_def = helper.make_graph(
+            [x1_node, condition_node_def, masked_fill_node_def, where_node],
+            test_case,
+            [input],
+            [output]
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        input_data = np.random.rand(np.prod(input_shape)).reshape(input_shape).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 

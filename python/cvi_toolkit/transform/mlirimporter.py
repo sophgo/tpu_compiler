@@ -100,6 +100,7 @@ class TPU_OpType(Enum):
     Tanh = 'tpu.tanh'
     Tile = 'tpu.tile'
     Upsample = 'tpu.upsample'
+    Where = 'tpu.where'
     YoloDetection = 'tpu.yolo_detection'
     ReduceL2 = 'tpu.reduce_l2'
     ReduceMean = 'tpu.reduce_mean'
@@ -1723,6 +1724,23 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Upsample.value, inputOperands, [
             tensor_output_type], name=upsample_name, quant=self.quant_param, **upsample_param)
+
+    def add_where_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        where_name = StringAttr.get(op_name)
+        where_param = {
+            'fill_constant': FloatAttr.get_f32(kargs["fill_constant"]),
+        }
+
+        none = self.add_none_op()
+        for _ in range(7 - len(inputOperands)):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.Where.value, inputOperands, [
+            tensor_output_type], name=where_name, quant=self.quant_param,
+            **where_param)
 
     def add_reduce_l2_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

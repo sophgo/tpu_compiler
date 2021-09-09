@@ -69,6 +69,7 @@
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
 #include "tpuc/Interpreter/cpu/tile.hpp"
 #include "tpuc/Interpreter/cpu/upsample.hpp"
+#include "tpuc/Interpreter/cpu/where.hpp"
 #include "tpuc/Interpreter/cpu/embedding.hpp"
 #include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
@@ -532,6 +533,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::UpsampleOp>(op)) {
     auto up_kernel_op = std::make_unique<UpsampleOpKernel>(op, valueMapping, weightMapping);
     oplist.push_back(std::move(up_kernel_op));
+    return;
+  }
+  if (isa<tpu::WhereOp>(op)) {
+    auto where_kernel_op = std::make_unique<WhereOpKernel>(op, valueMapping);
+    oplist.push_back(std::move(where_kernel_op));
     return;
   }
   if (isa<tpu::YoloDetectionOp>(op)) {

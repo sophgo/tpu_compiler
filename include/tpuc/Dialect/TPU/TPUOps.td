@@ -3193,6 +3193,47 @@ def TPU_WeightFileOp: TPU_Op<"weight_file",
   let results = (outs AnyMemRef:$output);
 }
 
+def TPU_WhereOp: TPU_Op<"where",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Where operator";
+
+  let description = [{
+    Return elements, either from X or Y, depending on condition (with Numpy-style broadcasting support). Where behaves like numpy.where with three parameters: https://docs.scipy.org/doc/numpy/reference/generated/numpy.where.html
+
+    Inputs:
+      condition (non-differentiable) : B
+          When True (nonzero), yield X, otherwise yield Y
+      X (differentiable) : T
+          values selected at indices where condition is True
+      Y (differentiable) : T
+          values selected at indices where condition is False 
+    Example:
+      condition = np.array([[1, 0], [1, 1]], dtype=bool)
+      x = np.array([[1, 2], [3, 4]], dtype=np.float32)
+      y = np.array([[9, 8], [7, 6]], dtype=np.float32)
+      z = np.where(condition, x, y)  # expected output [[1, 8], [3, 4]]
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$condition,
+    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$x,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<F32Attr, "0">:$fill_constant,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 include "tpuc/Dialect/TPU/TPUSupportOps.td"
 include "tpuc/Dialect/TPU/TPUTGOps.td"
 include "tpuc/Dialect/TPU/TPUTLOps_Simple.td"

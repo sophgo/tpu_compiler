@@ -2345,6 +2345,63 @@ class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_BF16_SquareOp : TPU_TG_SquareOp<"tg_bf16_square", "Bf16">;
 
+def TPU_TG_WhereOp : TPU_Op<"tg_where",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Where operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the input activation memref.
+      `x`              : optional, values selected at indices where condition is True
+      `condition`      : required, When True (nonzero), yield x, otherwise yield input
+
+    Attributes:
+      `input_offset`    : required, input_offset
+      `output_offset`   : required, output_offset
+      `fill_constant`   : as masked_fill in pytorch once x is None
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+    Backend implementation:
+      # notice that operates will dirty input
+      x = copy(input)
+      x = x * 0 # clean
+      x = x + fill_constant # broadcast
+      x = x * condition
+      condition = condition * -1 + 1 # invert 0/1 to 1/0
+      input = input * condition
+      x = x + y
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$condition,
+    TPU_TensorOfOrNone<[I32,I16,I8]>:$x,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I8Attr>:$m_i8,
+    DefaultValuedAttr<F32Attr, "0">:$fill_constant,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 class TPU_TG_QuadraticSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

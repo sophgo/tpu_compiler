@@ -2399,6 +2399,38 @@ Value tpu::UpsampleOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::WhereOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+  operands.push_back(condition());
+  operands.push_back(x());
+
+  NamedAttrList attrs = op->getAttrs();
+  if (getOpQuant() == "INT8") {
+    assert( !isTensorNone(quant_rshift()) );
+    TensorFile *wTF = getWeightTensorFile(op);
+    auto rshift = readWeightTensor<float>(quant_rshift(), wTF);
+    assert(rshift->size() == 1);
+    attrs.push_back(builder.getNamedAttr("rshift",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    assert( !isTensorNone(quant_multiplier()) );
+    auto multiplier = readWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    attrs.push_back(builder.getNamedAttr("m_i8",
+        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(0)))));
+  }
+
+  auto newOp = OpBuilder(op).create<tpu::TG_WhereOp>(op->getLoc(),
+      getResult().getType(), ArrayRef<Value>{operands}, attrs);
+  return newOp.getResult();
+}
+
 Value tpu::ReduceL2Op::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4173,6 +4205,7 @@ public:
         DefaultToTGPattern<tpu::TileOp>,
         DefaultToTGPattern<tpu::StdOp>,
         DefaultToTGPattern<tpu::UpsampleOp>,
+        DefaultToTGPattern<tpu::WhereOp>,
         DefaultToTGPattern<tpu::ReduceL2Op>,
         DefaultToTGPattern<tpu::ReduceMeanOp>,
         DefaultToTGPattern<tpu::ReduceMaxOp>,
