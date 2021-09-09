@@ -102,6 +102,75 @@ function gencvimodel_for_sample() {
   rm -rf tmp
 }
 
+function gen_merged_model() {
+  local name=$1
+  local chip=$2
+  local batch=$3
+  local step=$4
+
+  model_transform.py \
+    --model_type ${MODEL_TYPE} \
+    --model_name ${NET} \
+    --model_def ${mdef} \
+    --model_data ${MODEL_DAT} \
+    --image ${IMAGE_PATH} \
+    --image_resize_dims ${IMAGE_RESIZE_DIMS} \
+    --keep_aspect_ratio ${RESIZE_KEEP_ASPECT_RATIO} \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --raw_scale ${RAW_SCALE} \
+    --mean ${MEAN} \
+    --std ${STD} \
+    --input_scale ${INPUT_SCALE} \
+    --model_channel_order ${MODEL_CHANNEL_ORDER} \
+    --gray ${BGRAY} \
+    --batch_size $batch \
+    --tolerance ${TOLERANCE_FP32} \
+    --excepts ${EXCEPTS} \
+    --mlir ${NET}_fp32.mlir
+
+  cmd="model_deploy.py\
+      --model_name ${NET}\
+      --mlir ${NET}_fp32.mlir\
+      --calibration_table ${CALI_TABLE}\
+      --chip ${chip} \
+      --image ${IMAGE_PATH}\
+      --tolerance ${TOLERANCE_INT8_MULTIPLER}\
+      --correctness 0.99,0.99,0.99\
+      --excepts ${EXCEPTS}\
+      --cvimodel $name" 
+  if [ $step -eq 1 ]; then
+    cmd=${cmd}" --compress_weight false"
+  elif [ $step -eq 2 ]; then
+    cmd=${cmd}" --compress_weight false"
+    cmd=${cmd}" --merge_weight"
+  fi
+  eval $cmd
+}
+
+function gen_merged_cvimodel_for_sample() {
+  local chip=$1
+  local NET=$2
+  local cvimodel=$3
+
+  mkdir -p tmp
+  pushd tmp
+  source $SCRIPT_DIR/regression/generic/generic_models.sh
+  mdef=${MODEL_DEF}
+  if [[ $DO_FUSED_POSTPROCESS = "1" ]]; then
+    mdef=${MODEL_DEF_FUSED_POSTPROCESS}
+  fi
+  gen_merge_model tmp_model_bs1.cvimodel ${chip} 1 1
+  gen_merge_model tmp_model_bs4.cvimodel ${chip} 4 2
+
+  cvimodel_tool \
+  -a merge \
+  -i tmp_model_bs1.cvimodel \
+     tmp_model_bs4.cvimodel \
+  -o ${cvimodel}
+  popd
+  rm -rf tmp
+}
+
 function pack_sampel_cvimodels() {
   local chip=$1
 
@@ -135,6 +204,10 @@ function pack_sampel_cvimodels() {
   gencvimodel_for_sample $chip arcface_res50 \
       $dst/arcface_res50_fused_preprocess.cvimodel \
       1 BGR_PACKED 0
+
+  # gen merged cvimodel
+  gen_merge_cvimodel_for_sample $chip mobilenet_v2 \
+      $dst/mobilenet_v2_bs1_bs4.cvimodel
 
   tar zcvf $dest_dir/cvimodel_samples_${chip}.tar.gz cvimodel_samples
   rm -rf $dst

@@ -182,67 +182,132 @@ cd samples
 ####################################
 # sample-1 : classifier
 ###################################
-./bin/cvi_sample_classifier_mobilenet_v2 \
+./bin/cvi_sample_classifier \
     $MODEL_PATH/mobilenet_v2.cvimodel \
     ./data/cat.jpg \
     ./data/synset_words.txt
+
 # TOP_K[5]:
-#    0.356300, idx 285, n02124075 Egyptian cat
-#    0.062108, idx 287, n02127052 lynx, catamount
-#    0.046420, idx 331, n02326432 hare
-#    0.006048, idx 852, n04409515 tennis ball
-#    0.000788, idx 876, n04493381 tub, vat
+#  0.361328, idx 285, n02124075 Egyptian cat
+#  0.062500, idx 287, n02127052 lynx, catamount
+#  0.045898, idx 331, n02326432 hare
+#  0.006012, idx 852, n04409515 tennis ball
+#  0.001854, idx 332, n02328150 Angora, Angora rabbit
+
 
 ############################################
-# sample-2 : detector
+# sample-2 : classifier fused preprocess
 ############################################
-./bin/cvi_sample_detector_yolo_v3 \
-    $MODEL_PATH/yolo_v3_416_with_detection.cvimodel \
-    ./data/dog.jpg \
-    yolo_v3_out.jpg
+./bin/cvi_sample_classifier_fused_preprocess \
+    $MODEL_PATH/mobilenet_v2_fused_preprocess.cvimodel \
+    ./data/cat.jpg \
+    ./data/synset_words.txt
+
+# TOP_K[5]:
+#  0.361328, idx 285, n02124075 Egyptian cat
+#  0.062500, idx 287, n02127052 lynx, catamount
+#  0.045898, idx 331, n02326432 hare
+#  0.006012, idx 852, n04409515 tennis ball
+#  0.001854, idx 332, n02328150 Angora, Angora rabbit
 
 ############################################
-# sample-3 : alphapose
+# sample-3 : classifier multi batch
 ############################################
-./bin/cvi_sample_alphapose \
-     $MODEL_PATH/yolo_v3_416_with_detection.cvimodel \
-     $MODEL_PATH/alphapose.cvimodel \
-     ./data/pose_demo_2.jpg \
-     alphapose_out.jpg
+./bin/cvi_sample_classifier_multi_batch \
+    $MODEL_PATH/mobilenet_v2_bs1_bs4.cvimodel \
+    ./data/cat.jpg \
+    ./data/synset_words.txt
 
-############################################
-# sample-4 : insightface
-############################################
-./bin/cvi_sample_fd_fr \
-     $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
-     $MODEL_PATH/arcface_res50.cvimodel \
-     ./data/obama1.jpg ./data/obama2.jpg
-# Similarity: 0.735814
-./bin/cvi_sample_fd_fr \
-     $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
-     $MODEL_PATH/arcface_res50.cvimodel \
-     ./data/obama1.jpg ./data/trump1.jpg
-# Similarity: -0.0169034
+# TOP_K[5]:
+#  0.361328, idx 285, n02124075 Egyptian cat
+#  0.062500, idx 287, n02127052 lynx, catamount
+#  0.045898, idx 331, n02326432 hare
+#  0.006012, idx 852, n04409515 tennis ball
+#  0.001854, idx 332, n02328150 Angora, Angora rabbit
+
 ```
 
 At the same time, the script is provided as a reference, and the execution effect is the same as that of direct operation, as follows:
 
 ``` evb_shell
 ./run_classifier.sh
-./run_detector.sh
-./run_alphapose.sh
-./run_insightface.sh
-```
-
-There are also scripts that use preprocessing as a reference, as follows:
-
-``` evb_shell
 ./run_classifier_fused_preprocess.sh
-./run_detector_fused_preprocess.sh
-./run_alphapose_fused_preprocess.sh
-./run_insightface_fused_preprocess.sh
+./run_classifier_multi_batch.sh
 ```
 
+#### There are more samples in the cvitek_tpu_sdk/samples/samples_extra：
+
+```sh
+./bin/cvi_sample_classifier_yuv420 \
+    $MODEL_PATH/mobilenet_v2_int8_yuv420.cvimodel \
+    ./data/cat.jpg \
+    ./data/synset_words.txt
+
+./bin/cvi_sample_detector_yolo_v3 \
+    $MODEL_PATH/yolo_v3_416_with_detection.cvimodel \
+    ./data/dog.jpg \
+    yolo_v3_out.jpg
+
+./bin/cvi_sample_alphapose \
+    $MODEL_PATH/yolo_v3_416_with_detection.cvimodel \
+    $MODEL_PATH/alphapose.cvimodel \
+    ./data/pose_demo_2.jpg \
+    alphapose_out.jpg 
+
+./bin/cvi_sample_alphapose_fused_preprocess \
+    $MODEL_PATH/yolo_v3_416_with_detection.cvimodel \
+    $MODEL_PATH/alphapose_fused_preprocess.cvimodel \
+    ./data/pose_demo_2.jpg \
+    alphapose_out.jpg
+
+./bin/cvi_sample_fd_fr \
+    $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
+    $MODEL_PATH/arcface_res50.cvimodel \
+    ./data/obama1.jpg \
+    ./data/obama2.jpg
+
+# Similarity: 0.747192
+
+./bin/cvi_sample_fd_fr \
+    $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
+    $MODEL_PATH/arcface_res50.cvimodel \
+    ./data/obama1.jpg \
+    ./data/obama3.jpg
+
+# Similarity: 0.800899
+
+./bin/cvi_sample_fd_fr \
+    $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
+    $MODEL_PATH/arcface_res50.cvimodel \
+    ./data/obama2.jpg \
+    ./data/obama3.jpg
+
+# Similarity: 0.795205
+
+./bin/cvi_sample_fd_fr \
+    $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
+    $MODEL_PATH/arcface_res50.cvimodel \
+    ./data/obama1.jpg \
+    ./data/trump1.jpg
+
+# Similarity: -0.013767
+
+./bin/cvi_sample_fd_fr \
+    $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
+    $MODEL_PATH/arcface_res50.cvimodel \
+    ./data/obama1.jpg \
+    ./data/trump2.jpg 
+
+# Similarity: -0.060050
+
+./bin/cvi_sample_fd_fr \
+    $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
+    $MODEL_PATH/arcface_res50.cvimodel \
+    ./data/obama1.jpg \
+    ./data/trump3.jpg
+
+# Similarity: 0.036089
+```
 
 
 #### 2.2 Test cvimodel

@@ -13,6 +13,7 @@ function usage() {
   echo -e "\t--append-weight=true|false (option, default: false)"
   echo -e "\t--compress-instruction=true|false (option, default: false)"
   echo -e "\t--tg-op-divide=true|false (option, default: false)"
+  echo -e "\t--using-dmabuf=true|false (option, default: false)"
 }
 
 SHORT=hi:o:
@@ -68,6 +69,10 @@ while true; do
       tg_op_divide="$2"
       shift 2
       ;;
+    --using-dmabuf )
+      using_dmabuf="$2"
+      shift 2
+      ;;
     -- )
       shift
       break
@@ -114,6 +119,10 @@ tg_op_divide_opt=""
 if [ x"$tg_op_divide" = x"true" ]; then
   tg_op_divide_opt="--tg-op-divide"
 fi
+using_dmabuf_opt=""
+if [ x"$using_dmabuf" == x"true" ]; then
+  using_dmabuf_opt="--using-dmabuf"
+fi
 
 
 optimized_mlir="__lower_opt.mlir"
@@ -155,4 +164,5 @@ tpuc-translate $final_mlir \
     --mlir-to-cvimodel \
     --weight-file _weight.bin \
     ${compress_instruction_opt} \
+    ${using_dmabuf_opt} \
     -o $out_cvimodel
