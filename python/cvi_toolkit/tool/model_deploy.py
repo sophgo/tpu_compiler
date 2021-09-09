@@ -132,13 +132,13 @@ class DeployTool:
         check_return_value(ret == 0, "accuracy validation of quantized model failed")
 
 
-    def build_cvimodel(self, cvimodel, dequant_results_to_fp32=True,
+    def build_cvimodel(self, cvimodel, dequant_results_to_fp32=True, results_type="",
                        expose_bf16_inputs=False, compress_weight=True,
                        append_weight=False, tg_op_divide=False):
         IntermediateFile('_', 'lower_opt.mlir', False)
         IntermediateFile('_', 'final.mlir', False)
         ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel,
-                               dequant_results_to_fp32, expose_bf16_inputs,
+                               dequant_results_to_fp32, results_type, expose_bf16_inputs,
                                compress_weight, append_weight, tg_op_divide)
         check_return_value(ret == 0, "failed to generate cvimodel")
 
@@ -190,7 +190,9 @@ if __name__ == '__main__':
     parser.add_argument("--aligned_input", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
     parser.add_argument("--dequant_results_to_fp32", type=str2bool, default=True,
-                        help="if dequantize results to fp32")
+                        help="if dequantize results to fp32, DEPRECATED, please use results_type")
+    parser.add_argument("--results_type", default="",
+                        help="set results type:int8/bf16/fp32/keep; if set keep, will use last layer type")
     parser.add_argument("--expose_bf16_inputs", type=str2bool, default=False,
                         help="if expose bf16 inputs without quantied from fp32")
     parser.add_argument("--compress_weight", type=str2bool, default=True,
@@ -199,7 +201,7 @@ if __name__ == '__main__':
                         help="merge weights into one weight binary wight previous generated cvimodel")
     parser.add_argument("--tg_op_divide", type=str2bool, default=False,
                         help="if divide tg ops to save gmem")
-    parser.add_argument("--image", required=True, help="input image or npz file for inference, "
+    parser.add_argument("--image", required=True, help="input image/npz/npy file for inference, "
                        "if has more than one input images, join images with semicolon")
     parser.add_argument("--cvimodel", required=True, help='output cvimodel')
     parser.add_argument("--debug", action='store_true', help='to keep all intermediate files for debug')
@@ -220,7 +222,7 @@ if __name__ == '__main__':
     tool.validate_quantized_model(args.tolerance, args.excepts, images)
 
     # generate cvimodel and validate accuracy
-    tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32,
+    tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32, args.results_type,
                         args.expose_bf16_inputs, args.compress_weight,
                         args.merge_weight, args.tg_op_divide)
     tool.validate_cvimodel(args.cvimodel, args.correctness, args.excepts)

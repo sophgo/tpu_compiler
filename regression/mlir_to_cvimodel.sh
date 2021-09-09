@@ -7,7 +7,8 @@ function usage() {
   echo "  $0"
   echo -e "\t-i input_mlir_file (required)"
   echo -e "\t-o output_cvimodel (required)"
-  echo -e "\t--dequant-results-to-fp32=true|false (option, default: true)"
+  echo -e "\t--dequant-results-to-fp32=true|false (DEPRECATED, default: true)"
+  echo -e "\t--results-type=fp32|[fp32/bf16/int8/keep] (option, default: fp32)"
   echo -e "\t--expose-bf16-inputs=true|false (option, default: false)"
   echo -e "\t--compress-weight=true|false (option, default: true)"
   echo -e "\t--append-weight=true|false (option, default: false)"
@@ -18,13 +19,14 @@ function usage() {
 
 SHORT=hi:o:
 LONG0=dequant-results-to-fp32:
-LONG1=compress-weight:
-LONG2=append-weight:
-LONG3=compress-instruction:
-LONG4=expose-bf16-inputs:
-LONG5=tg-op-divide:
+LONG1=results-type:
+LONG2=compress-weight:
+LONG3=append-weight:
+LONG4=compress-instruction:
+LONG5=expose-bf16-inputs:
+LONG6=tg-op-divide:
 
-OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --long $LONG4 --long $LONG5 --name "$0" -- "$@")
+OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --long $LONG4 --long $LONG5 --long $LONG6 --name "$0" -- "$@")
 if [ $? != 0 ]; then
   echo "Failed to parse options...."
   exit 1
@@ -47,6 +49,10 @@ while true; do
       ;;
     --dequant-results-to-fp32 )
       dequant_to_fp32="$2"
+      shift 2
+      ;;
+    --results-type )
+      results_type="$2"
       shift 2
       ;;
     --expose-bf16-inputs )
@@ -92,8 +98,17 @@ if [ x"$out_cvimodel" == x ]; then
   echo "missing option '-o'"
   exit 1
 fi
-if [ x"$dequant_to_fp32" == x ]; then
-  dequant_to_fp32=true
+
+# DEPRECATED
+if [ x"$dequant_to_fp32" == x"true" ]; then
+  results_type="fp32"
+fi
+if [ x"$dequant_to_fp32" == x"false" ]; then
+  results_type="keep"
+fi
+
+if [ x"$results_type" == x ]; then
+  results_type="fp32"
 fi
 if [ x"$expose_bf16_inputs" == x ]; then
   expose_bf16_inputs=false
@@ -131,7 +146,7 @@ final_mlir="__final.mlir"
 set -x
 tpuc-opt $mlir_file \
     --tpu-lower \
-    --dequant-results-to-fp32=$dequant_to_fp32 \
+    --results-type=$results_type \
     --expose-bf16-inputs=$expose_bf16_inputs \
     --reorder-op \
     --eltwise-early-stride \

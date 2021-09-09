@@ -35,7 +35,7 @@ final_mlir="_final_${NET}_quant.mlir"
 
 tpuc-opt ${NET}_quant.mlir\
     --tpu-lower \
-    --dequant-results-to-fp32=1 \
+    --results-tpe "fp32" \
     --reorder-op \
     --conv-ic-alignment \
     --dce \

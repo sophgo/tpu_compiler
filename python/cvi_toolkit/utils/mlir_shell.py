@@ -75,14 +75,13 @@ def mlir_add_preprocess(quanted_mlir, new_mlir, pixel_format, aligned_input=Fals
 
 def mlir_to_cvimodel(quanted_model, cvimodel,
                      dequant_results_to_fp32=True,
+                     results_type="",
                      expose_bf16_inputs=False,
                      compress_weight=True,
                      append_weight=False,
                      tg_op_divide=False):
     cmd = ["mlir_to_cvimodel.sh",
            "-i", quanted_model, "-o", cvimodel,
-           "--dequant-results-to-fp32",
-           str(dequant_results_to_fp32).lower(),
            "--expose-bf16-inputs",
            str(expose_bf16_inputs).lower(),
            "--compress-weight",
@@ -91,6 +90,10 @@ def mlir_to_cvimodel(quanted_model, cvimodel,
            str(append_weight).lower(),
            "--tg-op-divide",
            str(tg_op_divide).lower()]
+    if results_type:
+        cmd.extend(["--results-type",str(results_type).lower()])
+    else:
+        cmd.extend(["--dequant-results-to-fp32", str(dequant_results_to_fp32).lower()])
     logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "mlir_to_cvimodel")

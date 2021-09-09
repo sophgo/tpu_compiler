@@ -43,10 +43,10 @@
 
 #define DEBUG_TYPE "convert_to_tg"
 
-llvm::cl::opt<bool> clDequantResultsToFp32(
-    "dequant-results-to-fp32",
-    llvm::cl::desc("Dequant all outputs of network from int8 to fp32"),
-    llvm::cl::init(true));
+llvm::cl::opt<std::string> clResultsType(
+    "results-type",
+    llvm::cl::desc("set result type: int8/bf16/fp32/keep; if keep, will use last layer type"),
+    llvm::cl::init("fp32"));
 
 llvm::cl::opt<bool> clExposeBf16Inputs(
     "expose-bf16-inputs",
@@ -3798,10 +3798,9 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
   }
 };
 
-template <typename OpTy>
 struct EliminateOutputQuantOpPattern: public RewritePattern {
   EliminateOutputQuantOpPattern(MLIRContext *context)
-      : RewritePattern(OpTy::getOperationName(), 1, context) {}
+      : RewritePattern("tpu.quant", 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
                                 PatternRewriter &rewriter) const override {
@@ -3812,17 +3811,50 @@ struct EliminateOutputQuantOpPattern: public RewritePattern {
     if (!isa<ReturnOp>(nextOp)) {
       return failure();
     }
+    if (clResultsType == "fp32") {
+      return failure();
+    }
     auto fn = op->getParentOfType<FuncOp>();
     assert(fn);
-
-    auto quantOp = cast<OpTy>(op);
-    if (!clDequantResultsToFp32) {
-      // change the returnType of FuncOp
+    auto quantOp = cast<tpu::QuantOp>(op);
+    auto prevOp = quantOp.input().getDefiningOp();
+    auto name = getOpName(prevOp);
+    auto threshold = getOpThreshold(prevOp);
+    bool fixed = false;
+    if (clResultsType == "keep") {
       if ((quantOp.from() == "INT8" && quantOp.to() == "NONE") ||
           (quantOp.from() == "BF16" && quantOp.to() == "NONE")) {
         rewriter.replaceOp(op, {op->getOperand(0)});
+        fixed = true;
       }
-    } else {
+    } else if (clResultsType == "int8") {
+      if (quantOp.from() == "BF16" && quantOp.to() == "NONE" &&
+          quantOp.scale().convertToFloat() == 1.0f) {
+        auto scale = 128 / threshold;
+        std::vector<NamedAttribute> attrs;
+        attrs.push_back(
+            rewriter.getNamedAttr("from", rewriter.getStringAttr("BF16")));
+        attrs.push_back(
+            rewriter.getNamedAttr("to", rewriter.getStringAttr("INT8")));
+        attrs.push_back(
+            rewriter.getNamedAttr("scale", rewriter.getF32FloatAttr(scale)));
+        attrs.push_back(
+            rewriter.getNamedAttr("zero_point", rewriter.getI32IntegerAttr(0)));
+        std::string new_name = name.str() + "_i8";
+        attrs.push_back(
+            rewriter.getNamedAttr("name", rewriter.getStringAttr(new_name)));
+        auto eltType = IntegerType::get(rewriter.getContext(), 8);
+        auto shape = getTensorShape(quantOp);
+        auto type = RankedTensorType::get(shape, eltType);
+        std::vector<Value> operands;
+        operands.push_back(quantOp.input());
+        rewriter.replaceOpWithNewOp<tpu::QuantOp>(
+            op, type, ArrayRef<Value>{operands},
+            ArrayRef<NamedAttribute>{attrs});
+        fixed = true;
+      }
+    }
+    if (fixed == false) {
       return failure();
     }
 
@@ -3959,7 +3991,7 @@ public:
     OwningRewritePatternList patterns;
     patterns.insert<
         EliminateInputQuantOpPattern<tpu::QuantOp>,
-        EliminateOutputQuantOpPattern<tpu::QuantOp>,
+        EliminateOutputQuantOpPattern,
         EliminateOutputReshapeOpPattern<tpu::ReshapeOp>
       >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));

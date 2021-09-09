@@ -137,7 +137,7 @@ function gen_merged_model() {
       --tolerance ${TOLERANCE_INT8_MULTIPLER}\
       --correctness 0.99,0.99,0.99\
       --excepts ${EXCEPTS}\
-      --cvimodel $name" 
+      --cvimodel $name"
   if [ $step -eq 1 ]; then
     cmd=${cmd}" --compress_weight false"
   elif [ $step -eq 2 ]; then
@@ -206,7 +206,7 @@ function pack_sampel_cvimodels() {
       1 BGR_PACKED 0
 
   # gen merged cvimodel
-  gen_merge_cvimodel_for_sample $chip mobilenet_v2 \
+  gen_merged_cvimodel_for_sample $chip mobilenet_v2 \
       $dst/mobilenet_v2_bs1_bs4.cvimodel
 
   tar zcvf $dest_dir/cvimodel_samples_${chip}.tar.gz cvimodel_samples
