@@ -102,7 +102,7 @@ function gencvimodel_for_sample() {
   rm -rf tmp
 }
 
-function gen_merged_model() {
+function gen_model_for_merge() {
   local name=$1
   local chip=$2
   local batch=$3
@@ -159,8 +159,8 @@ function gen_merged_cvimodel_for_sample() {
   if [[ $DO_FUSED_POSTPROCESS = "1" ]]; then
     mdef=${MODEL_DEF_FUSED_POSTPROCESS}
   fi
-  gen_merge_model tmp_model_bs1.cvimodel ${chip} 1 1
-  gen_merge_model tmp_model_bs4.cvimodel ${chip} 4 2
+  gen_model_for_merge tmp_model_bs1.cvimodel ${chip} 1 1
+  gen_model_for_merge tmp_model_bs4.cvimodel ${chip} 4 2
 
   cvimodel_tool \
   -a merge \
