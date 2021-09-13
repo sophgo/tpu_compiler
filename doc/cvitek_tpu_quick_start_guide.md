@@ -79,15 +79,13 @@
 
 * 编译samples程序
 
-  介绍如何交叉编译sample应用程序，调用runtime API完成推理任务。具体包括4个samples：
+  介绍如何交叉编译sample应用程序，调用runtime API完成推理任务。具体包括3个samples：
 
   * Sample-1 : classifier (mobilenet_v2)
 
-  * Sample-2 : detector (yolo_v3)
+  * Sample-2 : classifier fused preprocess (mobilenet_v2)
 
-  * Sample-3 : alphapose (yolo_v3 + fastpose)
-
-  * Sample-4 : insightface (retinaface + arcface)
+  * Sample-3 : classifier multiple batch (mobilenet_v2)
 
 * 编译移植caffe模型
 
@@ -286,7 +284,7 @@ cd samples
 #  0.001854, idx 332, n02328150 Angora, Angora rabbit
 
 ############################################
-# sample-3 : classifier multi batch
+# sample-3 : classifier multiple batch
 ############################################
 ./bin/cvi_sample_classifier_multi_batch \
     $MODEL_PATH/mobilenet_v2_bs1_bs4.cvimodel \

@@ -83,15 +83,13 @@ This document contains the following chapters, please refer to the relevant chap
 
 * Compile the samples program
 
-  Introduce how to cross-compile the sample application and call the runtime API to complete the inference task. Specifically includes 4 samples:
+  Introduce how to cross-compile the sample application and call the runtime API to complete the inference task. Specifically includes 3 samples:
 
   * Sample-1 : classifier (mobilenet_v2)
 
-  * Sample-2 : detector (yolo_v3)
+  * Sample-2 : classifier fused preprocess (mobilenet_v2)
 
-  * Sample-3 : alphapose (yolo_v3 + fastpose)
-
-  * Sample-4 : insightface (retinaface + arcface)
+  * Sample-3 : classifier multiple batch (mobilenet_v2)
 
 * Compile and generate cvimodel
 
@@ -211,7 +209,7 @@ cd samples
 #  0.001854, idx 332, n02328150 Angora, Angora rabbit
 
 ############################################
-# sample-3 : classifier multi batch
+# sample-3 : classifier multiple batch
 ############################################
 ./bin/cvi_sample_classifier_multi_batch \
     $MODEL_PATH/mobilenet_v2_bs1_bs4.cvimodel \
