@@ -3568,7 +3568,14 @@ class OnnxConverter(BaseConverter):
         if tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.ACTIVATION:
             if input_shape0 != input_shape1:
                 # broadcast sub
-                raise RuntimeError("Broadcast sub not support now")
+                if self.is_bcast_support(input_shape0, input_shape1):
+                    name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+                    sub_op = self.CVI.add_broadcast_sub_op(name, [op0, op1],
+                                                            output_shape, axis=1)
+                    self.addOperand(onnx_node.name, sub_op,
+                                    output_shape, TensorType.ACTIVATION)
+                    return
+                raise RuntimeError("Broadcast sub {} {} not support now".format(input_shape0, input_shape1))
             else:
                 # eltwise sub
                 param = {

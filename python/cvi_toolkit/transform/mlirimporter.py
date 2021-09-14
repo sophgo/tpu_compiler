@@ -366,6 +366,18 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.BroadcastAdd.value, inputOperands, [
             tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
 
+    def add_broadcast_sub_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        assert(len(inputOperands) >= 2)
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+
+        broadcast_add_name = StringAttr.get(op_name)
+
+        axis_attr = IntegerAttr.get(self.i32Type, kargs['axis'])
+        inputOperands = self.add_quant_reg(inputOperands)
+        return self.buildOp(TPU_OpType.BroadcastSub.value, inputOperands, [
+            tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
+
     def add_interp_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
@@ -1806,16 +1818,6 @@ class MLIRImporter(object):
             param['axis'] = IntegerAttr.get(self.i32Type, kargs['axis'])
         return self.buildOp(TPU_OpType.QuadraticSum.value, inputOperands, [tensor_output_type],
                             name=name_attr, quant=self.quant_param, **param)
-
-    def add_broadcast_sub_op(self, op_name, inputOperands, output_tensor_shape):
-        tensor_output_type = RankedTensorType.get(
-            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-        none = self.add_none_op()
-        for _ in range(6 - len(inputOperands)):
-            inputOperands.append(none)
-        name_attr = StringAttr.get(op_name)
-        return self.buildOp(TPU_OpType.BroadcastSub.value, inputOperands, [tensor_output_type],
-                            name=name_attr, quant=self.quant_param)
 
     def add_return_op(self, Operands):
         return_op = Operation.create(

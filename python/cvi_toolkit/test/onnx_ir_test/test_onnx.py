@@ -63,6 +63,7 @@ TEST_ONNX_IR = [
     "Tile",
     "Upsample",
 #    "Transpose",
+    "BCastSub", # test broadcast sub
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
@@ -156,6 +157,7 @@ class ONNX_IR_TESTER(object):
             "AddConst": self.test_AddConst,
             "AveragePool": self.test_AveragePool,
             "AveragePool1d": self.test_AveragePool1d,
+            "BCastSub": self.test_BCastSub,
             "Concat": self.test_Concat,
             "Conv2d": self.test_Conv2d,
             "Conv4Bit": self.test_Conv4Bit,
@@ -2312,6 +2314,39 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
+    def test_BCastSub(self):
+        test_case = 'BCastSub'
+        input1_shape = [56, 27]
+        input2_shape = [56, 1]
+        output_shape = [56, 27]
+
+        input1 = helper.make_tensor_value_info('input1', TensorProto.FLOAT, input1_shape)
+        input2 = helper.make_tensor_value_info('input2', TensorProto.FLOAT, input2_shape)
+        output = helper.make_tensor_value_info('output', TensorProto.FLOAT, output_shape)
+
+        sub_def = helper.make_node(
+            'Sub',  # node name
+            ['input1', 'input2'],  # inputs
+            ['output'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [sub_def],
+            test_case,
+            [input1, input2],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+
+        input1_data = np.random.randn(np.prod(input1_shape)).reshape(input1_shape).astype(np.float32)
+        input2_data = np.random.randn(np.prod(input2_shape)).reshape(input2_shape).astype(np.float32)
+        inputs = {
+            "input1":input1_data,
+            "input2":input2_data,
+        }
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(inputs, model_def, test_case)
 
     def test_Sum(self):
         test_case = 'Sum'
