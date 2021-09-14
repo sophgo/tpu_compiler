@@ -1,6 +1,7 @@
 # ONNX Node define:
 # https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
 
+import enum
 from .mlirimporter import MLIRImporter, checkKey
 from .BaseConverter import BaseConverter, TensorType
 from onnx import numpy_helper, mapping
@@ -110,7 +111,75 @@ class OnnxTensor():
         cprint("tensor: {}".format(self.name), 'cyan')
         cprint("    shape: {}".format(self.shape), 'white')
 
+class Redundancy():
+    def __init__(self):
+        # -1: reconstructing op's input; 0,1,2,3...: the idx of eatch redundandent op's input
+        self.op_list = {
+            "Std" :[{"ReduceMean": (-1,)}, {"Shape": (-1,)}, {"Constant": None}, {"Gather": (1,2)}, {"ReduceProd": (3,)},
+                    {"Sub": (-1, 0)}, {"Mul": (5, 5)}, {"ReduceMean": (6,)}, {"Cast": (4,)}, {"Mul": (7, 8)}, {"Constant": None},
+                    {"Sub": (8, 10)}, {"Div": (9, 11)}, {"Sqrt": (12,)},],
+        }
+        # get attr from which redundandent op with specify key
+        self.attr_idxes = {
+            "Std": [(0, ("axes", "dim")), (7, ("keepdims",)), ("default", {"unbiased": True})],
+            }
 
+    def refine(self, converted_nodes):
+        for op_tpye in self.op_list.keys():
+            patten = self.op_list[op_tpye]
+            patten_idx = 0
+            redundancies = []
+            re_op_inp = None
+            for nidx, node in enumerate(converted_nodes):
+                match_success = True
+                # print(node.op_type, list(patten[patten_idx].keys())[0])
+                if node.op_type == list(patten[patten_idx].keys())[0]:
+                    op_input_idxes = list(patten[patten_idx].values())[0]
+                    # for Constant
+                    if op_input_idxes is None:
+                         redundancies.append(nidx)
+                         patten_idx += 1
+                         continue
+
+                    for i in op_input_idxes:
+                        if -1 == i or set(converted_nodes[redundancies[i]].outputs).intersection(set(node.inputs)):
+                            # print("In {}".format(node.op_type, redundancies, op_input_idxes))
+                            redundancies.append(nidx)
+                        else:
+                            match_success = False
+                    _tmp = list(set(redundancies))
+                    _tmp.sort(key=redundancies.index)
+                    redundancies = _tmp
+
+                    patten_idx += 1
+                    if match_success and len(patten) == patten_idx:
+                        # get attr and form op
+                        attrs = {}
+                        attr_idxes = self.attr_idxes[op_tpye]
+                        for i, k in attr_idxes:
+                            if "default" == i:
+                                attrs.update(k)
+                                continue
+                            attrs.update({k[-1]: converted_nodes[redundancies[i]].attrs[k[0]]})
+                        info = {}
+                        info["name"] = node.name
+                        info["op_type"] = op_tpye
+                        info["attrs"] = attrs
+                        info["inputs"] = converted_nodes[redundancies[0]].inputs
+                        info["outputs"] = node.outputs
+                        new_node = BaseNode(info)
+                        for i in redundancies:
+                            converted_nodes[i] = None
+                        converted_nodes[redundancies[-1]] = new_node
+                        # reset wait for another patten
+                        patten_idx = 0
+                        redundancies.clear()
+
+                if not match_success:
+                    patten_idx = 0
+                    redundancies.clear()
+            converted_nodes = [node for node in converted_nodes if node]
+        return converted_nodes
 
 class OnnxConverter(BaseConverter):
     def __init__(self, model_name, onnx_model, mlir_file_path,
@@ -138,6 +207,7 @@ class OnnxConverter(BaseConverter):
         self.CVI = None
         self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.init_importer()
+        self.refine = Redundancy()
 
         self.onnxop_factory = {
             "Abs": lambda node: self.convert_abs_op(node),
@@ -344,7 +414,13 @@ class OnnxConverter(BaseConverter):
     @staticmethod
     def squeeze_shape(shape, axis):
         new_shape = []
-        if len(axis) > 0:
+        if axis == None:
+            for dim in shape:
+                if dim != 1:
+                    new_shape.append(dim)
+            if len(new_shape) == 0:
+                new_shape.append(1)
+        elif len(axis) > 0:
             for i in range(len(shape)):
                 if i not in axis:
                     new_shape.append(shape[i])
@@ -734,6 +810,7 @@ class OnnxConverter(BaseConverter):
                 info["outputs"] = node.outputs
                 resize_node = BaseNode(info)
                 self.converted_nodes[i] = resize_node
+        self.converted_nodes = self.refine.refine(self.converted_nodes)
 
     def convert_tensor(self):
         """convert onnx tensor to OnnxTensor"""
@@ -3453,8 +3530,7 @@ class OnnxConverter(BaseConverter):
         if input_num == 2 :
             axis_value_list = self.getTensor(onnx_node.inputs[1]).tensor_data
         else:
-            checkKey(onnx_node.attrs, 'axes')
-            axis_value_list = onnx_node.attrs['axes']
+            axis_value_list = onnx_node.attrs.get('axes', None)
         if tensor_type == TensorType.ACTIVATION:
             new_shape = self.squeeze_shape(input_shape, axis_value_list)
             reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, new_shape)
@@ -3852,7 +3928,7 @@ class OnnxConverter(BaseConverter):
     def convert_std_op(self, onnx_node):
         assert(onnx_node.op_type == "Std")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-        num_dim = list(input_shape)
+        num_dim = len(input_shape)
         # take input last dimension as default normal_shape
         operands = [op]
         dims = onnx_node.attrs.get('dim')  # dim to do std
@@ -3865,7 +3941,7 @@ class OnnxConverter(BaseConverter):
         for i in range(len(dims)):
             if dims[i] < 0:
                 dims[i] = dims[i] + num_dim
-            if start_dim < dims[i]:
+            if start_dim > dims[i]:
                 start_dim = dims[i]
         for i in range(start_dim, num_dim):
             if i not in dims:

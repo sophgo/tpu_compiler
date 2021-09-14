@@ -21,6 +21,7 @@ TEST_ONNX_IR = [
     "Add",
     "Conv2d", # Conv with 2d case
     "Std",
+    "Squeeze",
 ]
 
 def cvimodel_inference(inputs, model_name):
@@ -95,9 +96,9 @@ def _onnx_inference(inputs, model_name, input_name="input", input_cb=None):
 def onnx_inference(input, model_def, input_cb = None):
     return _onnx_inference(input, model_def, input_cb=input_cb)
 
-NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
-NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Conv4Bit", "Transpose", "Sum"]
-NOT_SUPPORT_INT8_TEST_IR = ["Gather", "Softmax"] # just for save test time
+NOT_SUPPORT_CMDBUF_TEST_IR = [""]
+NOT_SUPPORT_BF16_TEST_IR = [""]
+NOT_SUPPORT_INT8_TEST_IR = [""] # just for save test time
 
 class TORCH_IR_TESTER(object):
     def __init__(self):
@@ -108,6 +109,7 @@ class TORCH_IR_TESTER(object):
             "Add": self.test_Add,
             "Conv2d": self.test_Conv2d,
             "Std": self.test_Std,
+            "Squeeze": self.test_Squeeze,
         }
         self.set_quant_mode()
 
@@ -122,7 +124,7 @@ class TORCH_IR_TESTER(object):
     def onnx_convert_and_infernece(self, input_data, model_name, torch_output, input_cb=None):
         fp32_mlir = "{}.mlir".format(model_name)
         model_def = model_name + '.onnx'
-        converter = OnnxConverter(model_name, model_def, fp32_mlir)
+        converter = OnnxConverter(model_name, model_def, fp32_mlir, batch_size=input_data.shape[0])
         converter.run()
         del converter
         gc.collect()
@@ -132,7 +134,6 @@ class TORCH_IR_TESTER(object):
         num_outputs = len(onnx_outs)
 
         ##test pytorch out_data between onnx out_data
-        assert(len(torch_output) == num_outputs)
         if num_outputs == 1:
             onnx_out = list(onnx_outs.values())[0]
             np.testing.assert_allclose(torch_output.flatten(), onnx_out.flatten(), rtol=1e-5, atol=1e-01)
@@ -273,6 +274,7 @@ class TORCH_IR_TESTER(object):
                 super(Net, self).__init__()
 
             def forward(self, x):
+                x = torch.negative(x)
                 x = torch.std(x, -1)
                 return x
 
@@ -289,6 +291,29 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
+    def test_Squeeze(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = torch.negative(x)
+                x = torch.squeeze(x)
+                x = torch.add(x,x)
+                return x
+
+        input_shape = [3, 1, 8, 1]
+        test_onnx_name = 'Squeeze'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
     def test_Conv2d(self):
         class Net(torch.nn.Module):

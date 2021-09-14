@@ -206,7 +206,10 @@ class ONNX_IR_TESTER(object):
 
     def onnx_convert_and_infernece(self, input_data, model_def, model_name, input_cb=None):
         fp32_mlir = "{}.mlir".format(model_name)
-        self.converter = OnnxConverter(model_name, model_def, fp32_mlir)
+        if type(input_data) != dict:
+            self.converter = OnnxConverter(model_name, model_def, fp32_mlir, batch_size=input_data.shape[0])
+        else:
+            self.converter = OnnxConverter(model_name, model_def, fp32_mlir)
         self.converter.run()
         del self.converter
         gc.collect()
@@ -399,7 +402,7 @@ class ONNX_IR_TESTER(object):
 
         fp32_mlir = "{}.mlir".format(model_name)
 
-        self.converter = OnnxConverter(model_name, onnx_model, fp32_mlir)
+        self.converter = OnnxConverter(model_name, onnx_model, fp32_mlir, batch_size=input_shape[0])
         self.converter.run()
         del self.converter
         gc.collect()
@@ -741,8 +744,8 @@ class ONNX_IR_TESTER(object):
     def test_ConvTranspose1d(self):
         test_case = 'ConvTranspose1d'
         batch = 1
-        ic =192 
-        oc =96 
+        ic =192
+        oc =96
         dilations = [1]
         group = 1
         kernel_shape = [10]
