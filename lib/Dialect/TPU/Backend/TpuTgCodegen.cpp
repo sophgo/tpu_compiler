@@ -3189,6 +3189,35 @@ LogicalResult tpu::TG_BF16_ShuffleChannelOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_StdOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(this->input());
+  auto start_dim = this->start_dim();
+  auto unbiased = this->unbiased();
+
+  int std_size = std::accumulate(input_shape.begin() + start_dim,
+                                 input_shape.end(), 1, std::multiplies<>());
+  int outer_size =
+      std::accumulate(input_shape.begin(), input_shape.begin() + start_dim, 1,
+                      std::multiplies<>());
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t ga_table = getWeightOpAddress(table().getDefiningOp());
+  gaddr_t ga_mantissa_table =
+      getWeightOpAddress(mantissa_table().getDefiningOp());
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_std_kernel(*backend_ctx, layer_id, input_gaddr, ga_table,
+                                 ga_mantissa_table, output_gaddr, outer_size,
+                                 std_size, unbiased);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_SwapChannelOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

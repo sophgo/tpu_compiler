@@ -29,6 +29,7 @@ export PATH=$PROJECT_ROOT/regression:$PATH
 export PATH=$PROJECT_ROOT/regression/generic:$PATH
 export PATH=$PROJECT_ROOT/build/llvm/bin:$PATH
 export PATH=$PROJECT_ROOT/python/cvi_toolkit/test/onnx_ir_test:$PATH
+export PATH=$PROJECT_ROOT/python/cvi_toolkit/test/torch_ir_test:$PATH
 
 export LD_LIBRARY_PATH=$INSTALL_PATH/tpuc/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$INSTALL_PATH/mkldnn/lib:$LD_LIBRARY_PATH

@@ -141,6 +141,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgBf16Pooling3dKernel.cpp
   Backend/Kernel/TgBf16SoftmaxKernel.cpp
   Backend/Kernel/TgBf16SquareKernel.cpp
+  Backend/Kernel/TgBf16StdKernel.cpp
   Backend/Kernel/TgBf16ReduceKernel.cpp
   Backend/Kernel/TgBf16LrnKernel.cpp
   Backend/Kernel/TlConcat.cpp

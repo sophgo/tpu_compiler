@@ -1682,6 +1682,51 @@ class TPU_TG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_INT8_ScaleLutOp : TPU_TG_ScaleLutOp<"tg_int8_scale_lut", "Int8">;
 
+class TPU_TG_StdOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " std operator.";
+
+  let description = [{
+    Perform std on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `table`           : required, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : required, the quantize lookup table,only used by BF16 .
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$table,
+    AnyTensor:$mantissa_table,
+    I32Attr:$start_dim,
+    BoolAttr: $unbiased,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<BoolAttr>:$gaddr_updated,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_BF16_StdOp : TPU_TG_StdOp<"tg_bf16_std", "Bf16">;
+
 class TPU_TG_TileOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

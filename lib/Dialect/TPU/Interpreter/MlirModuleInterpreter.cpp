@@ -45,6 +45,7 @@
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
 #include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
+#include "tpuc/Interpreter/cpu/std.hpp"
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
 #include "tpuc/Interpreter/cpu/tile.hpp"
 #include "tpuc/Interpreter/cpu/upsample.hpp"
@@ -300,6 +301,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<SoftPlusOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::SwapChannelOp>(op)) {
       krnl = std::make_shared<SwapChannelOpKernel>(*op, valueMapping, weightMapping);
+    } else if (isa<tpu::StdOp>(op)) {
+      krnl = std::make_shared<StdOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::TanHOp>(op)) {
       krnl = std::make_shared<TanHOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::TileOp>(op)) {

@@ -401,6 +401,15 @@ LogicalResult tpu::LayerNormOp::quantizeBf16() {
   return success();
 }
 
+LogicalResult tpu::StdOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  insertBf16LutOp(op, "sqrt", "mantissa", 1, 2);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
+}
+
 LogicalResult tpu::LeakyReluOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);

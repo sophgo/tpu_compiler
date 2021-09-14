@@ -2655,6 +2655,31 @@ Value tpu::SquareOp::convertToTG() {
   return newOp.getResult();
 }
 
+Value tpu::StdOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  std::vector<Value> operands;
+  const int nInputs = op->getNumOperands();
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("start_dim", start_dimAttr()));
+  attrs.push_back(builder.getNamedAttr("unbiased", unbiasedAttr()));
+
+  if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_StdOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::QuadraticSumOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4102,6 +4127,7 @@ public:
         DefaultToTGPattern<tpu::EluOp>,
         DefaultToTGPattern<tpu::ExpOp>,
         DefaultToTGPattern<tpu::TileOp>,
+        DefaultToTGPattern<tpu::StdOp>,
         DefaultToTGPattern<tpu::UpsampleOp>,
         DefaultToTGPattern<tpu::ReduceL2Op>,
         DefaultToTGPattern<tpu::ReduceMeanOp>,

@@ -595,6 +595,9 @@ public:
           if (isa<tpu::SquareOp>(op)) {
             setOpQuant(op, "BF16");
           }
+          if (isa<tpu::StdOp>(op)) {
+            setOpQuant(op, "BF16");
+          }
           if (isa<tpu::QuadraticSumOp>(op)) {
             setOpQuant(op, "BF16");
           }

@@ -195,6 +195,7 @@ class OnnxConverter(BaseConverter):
             "Split": lambda node: self.convert_split_op(node),
             "Squeeze": lambda node: self.convert_squeeze_op(node),
             "Sqrt": lambda node: self.convert_sqrt_op(node),
+            "Std": lambda node: self.convert_std_op(node),
             "Sub": lambda node: self.convert_sub_op(node),
             "Sum": lambda node: self.convert_sum_op(node),
             "Tanh": lambda node: self.convert_activation_op(node),
@@ -3847,6 +3848,43 @@ class OnnxConverter(BaseConverter):
         operands.append(op0)
         reduce_mean_op = self.CVI.add_reduce_max_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
         self.addOperand(onnx_node.name, reduce_mean_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_std_op(self, onnx_node):
+        assert(onnx_node.op_type == "Std")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        num_dim = list(input_shape)
+        # take input last dimension as default normal_shape
+        operands = [op]
+        dims = onnx_node.attrs.get('dim')  # dim to do std
+        unbiased = onnx_node.attrs.get('unbiased', True)
+        keepdim = onnx_node.attrs.get('keepdim', False)
+
+        if type(dims) != list:
+            dims = list(dims)
+        start_dim = num_dim
+        for i in range(len(dims)):
+            if dims[i] < 0:
+                dims[i] = dims[i] + num_dim
+            if start_dim < dims[i]:
+                start_dim = dims[i]
+        for i in range(start_dim, num_dim):
+            if i not in dims:
+                raise RuntimeError("std not support dims:{}\n".format(dims))
+
+        attrs = {
+            "start_dim": start_dim,
+            "unbiased": unbiased,
+        }
+        output_shape = list(input_shape)
+        if keepdim:
+            for i in range(start_dim, num_dim):
+                output_shape[i] = 1
+        else:
+            output_shape = input_shape[:start_dim]
+        std_op = self.CVI.add_std_op("{}_{}".format(
+            onnx_node.name, "Std"), operands, output_shape, **attrs)
+        self.addOperand(onnx_node.name, std_op,
+                        output_shape, TensorType.ACTIVATION)
 
     def run(self):
         self.convert_tensor()

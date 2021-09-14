@@ -1646,7 +1646,6 @@ class CaffeConverter(BaseConverter):
         assert(len(input_shape) == 4)
         p = layer.upsample_param
         scale = p.scale
-        assert(scale == 2)
         output_shape = [input_shape[0], input_shape[1],
                         scale * input_shape[2], scale * input_shape[3]]
         if p.HasField('upsample_w'):

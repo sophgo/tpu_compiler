@@ -282,6 +282,12 @@ void cvi_backend_tg_bf16_softmax_kernel(
     gaddr_t ga_output,
     int64_t* shape, int axis, int dimension);
 
+void cvi_backend_tg_bf16_std_kernel(const CviBackendContext &ctx,
+                                    uint32_t layer_id, gaddr_t ga_input,
+                                    gaddr_t ga_table, gaddr_t ga_mantissa_table,
+                                    gaddr_t ga_output, int outer_size,
+                                    int std_size, bool unbiased);
+
 void cvi_backend_tg_bf16_eltwise_add_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,

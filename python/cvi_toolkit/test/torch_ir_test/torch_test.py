@@ -20,6 +20,7 @@ import re
 TEST_ONNX_IR = [
     "Add",
     "Conv2d", # Conv with 2d case
+    "Std",
 ]
 
 def cvimodel_inference(inputs, model_name):
@@ -106,6 +107,7 @@ class TORCH_IR_TESTER(object):
         self.test_function = {
             "Add": self.test_Add,
             "Conv2d": self.test_Conv2d,
+            "Std": self.test_Std,
         }
         self.set_quant_mode()
 
@@ -235,7 +237,7 @@ class TORCH_IR_TESTER(object):
             input_data,
             onnx_name,
             export_params=True,
-            opset_version=10,
+            opset_version=11,
             verbose=True,
             input_names=input_names,
             output_names=output_names,
@@ -264,6 +266,29 @@ class TORCH_IR_TESTER(object):
 
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Std(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = torch.std(x, -1)
+                return x
+
+        input_shape = [1, 3, 8, 8]
+        test_onnx_name = 'Std'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
 
     def test_Conv2d(self):
         class Net(torch.nn.Module):

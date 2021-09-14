@@ -3101,6 +3101,54 @@ def TPU_EmbeddingOp: TPU_Op<"embedding",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_StdOp: TPU_Op<"std",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "std operator";
+
+  let description = [{
+    std operator
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `table`           : required, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : required, the quantize lookup table,only used by BF16 .
+
+    Attributes:
+      `start_dim`       : required, start dim to do std
+      `unbiased`        : required, whether to use Bessel’s correction
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantPerTensorOnly`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$mantissa_table,
+    I32Attr:$start_dim,
+    BoolAttr: $unbiased,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_WeightFileOp: TPU_Op<"weight_file",
       [NoSideEffect]> {
   let summary = "Operator to save weight data";

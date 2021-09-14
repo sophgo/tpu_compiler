@@ -94,6 +94,7 @@ class TPU_OpType(Enum):
     SoftPlus = 'tpu.softplus'
     Softmax = 'tpu.softmax'
     Sqrt = 'tpu.sqrt'
+    Std = 'tpu.std'
     SwapChannel = 'tpu.swap_channel'
     Tanh = 'tpu.tanh'
     Tile = 'tpu.tile'
@@ -1586,6 +1587,22 @@ class MLIRImporter(object):
             inputOperands.append(none)
         return self.buildOp(TPU_OpType.Sqrt.value, inputOperands, [
             tensor_output_type], name=sqrt_name, quant=self.quant_param)
+
+    def add_std_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        param = {
+            'start_dim':  IntegerAttr.get(self.i32Type, kargs['start_dim']),
+            'unbiased':  BoolAttr.get(kargs['unbiased']),
+        }
+        name = StringAttr.get(op_name)
+        none = self.add_none_op()
+        # table
+        for _ in range(2):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.Std.value, inputOperands, [
+            tensor_output_type], name=name, quant=self.quant_param, **param)
 
     def add_softplus_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
