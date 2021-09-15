@@ -1,3 +1,6 @@
+#!/usr/bin/python3
+# -*- coding: utf-8 -*-
+
 import torch.nn as nn
 import torch
 import torchvision.models as models
@@ -243,9 +246,7 @@ class TORCH_IR_TESTER(object):
             opset_version=11,
             verbose=True,
             input_names=input_names,
-            output_names=output_names,
-            dynamic_axes={'input'  : {0 : 'batch_size'},
-                        'output' : {0 : 'batch_size'}})
+            output_names=output_names,)
 
     def test_Add(self):
         class Net(torch.nn.Module):
@@ -276,11 +277,11 @@ class TORCH_IR_TESTER(object):
                 super(Net, self).__init__()
 
             def forward(self, x):
-                x = torch.negative(x)
-                x = torch.std(x, -1)
-                return x
+                mean = x.mean(-1).unsqueeze(-1)
+                std = torch.std(x, -1).unsqueeze(-1)
+                return (x - mean) / (std + 0.0001)
 
-        input_shape = [1, 3, 8, 8]
+        input_shape = [1, 3, 32, 1024]
         test_onnx_name = 'Std'
 
         net = Net()

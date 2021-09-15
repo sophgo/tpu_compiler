@@ -115,44 +115,43 @@ class Redundancy():
     def __init__(self):
         # -1: reconstructing op's input; 0,1,2,3...: the idx of eatch redundandent op's input
         self.op_list = {
-            "Std" :[{"ReduceMean": (-1,)}, {"Shape": (-1,)}, {"Constant": None}, {"Gather": (1,2)}, {"ReduceProd": (3,)},
+            "Std_unbiased" :[{"ReduceMean": (-1,)}, {"Shape": (-1,)}, {"Constant": None}, {"Gather": (1,2)}, {"ReduceProd": (3,)},
                     {"Sub": (-1, 0)}, {"Mul": (5, 5)}, {"ReduceMean": (6,)}, {"Cast": (4,)}, {"Mul": (7, 8)}, {"Constant": None},
                     {"Sub": (8, 10)}, {"Div": (9, 11)}, {"Sqrt": (12,)},],
+            "Std_biased": [{"ReduceMean": (-1,)}, {"Sub": (-1, 0)}, {"Mul": (1, 1)}, {"ReduceMean": (2,)}, {"Sqrt": (3,)},],
         }
-        # get attr from which redundandent op with specify key
+        # get attr from which redundandent op with specify key (op_idx_in_op_list, (org_op_attr, new_op_attr))
         self.attr_idxes = {
-            "Std": [(0, ("axes", "dim")), (7, ("keepdims",)), ("default", {"unbiased": True})],
+            "Std_unbiased": [(0, ("axes", "dim")), (7, ("keepdims",)), ("default", {"unbiased": True})],
+            "Std_biased": [(0, ("axes", "dim")), (3, ("keepdims",)), ("default", {"unbiased": False})],
             }
 
     def refine(self, converted_nodes):
         for op_tpye in self.op_list.keys():
-            patten = self.op_list[op_tpye]
-            patten_idx = 0
+            pattern = self.op_list[op_tpye]
+            pattern_idx = 0
             redundancies = []
             re_op_inp = None
             for nidx, node in enumerate(converted_nodes):
-                match_success = True
-                # print(node.op_type, list(patten[patten_idx].keys())[0])
-                if node.op_type == list(patten[patten_idx].keys())[0]:
-                    op_input_idxes = list(patten[patten_idx].values())[0]
+                match_success = False
+                if node.op_type == list(pattern[pattern_idx].keys())[0]:
+                    op_input_idxes = list(pattern[pattern_idx].values())[0]
                     # for Constant
                     if op_input_idxes is None:
                          redundancies.append(nidx)
-                         patten_idx += 1
+                         pattern_idx += 1
                          continue
 
                     for i in op_input_idxes:
                         if -1 == i or set(converted_nodes[redundancies[i]].outputs).intersection(set(node.inputs)):
-                            # print("In {}".format(node.op_type, redundancies, op_input_idxes))
                             redundancies.append(nidx)
-                        else:
-                            match_success = False
+                            match_success = True
                     _tmp = list(set(redundancies))
                     _tmp.sort(key=redundancies.index)
                     redundancies = _tmp
 
-                    patten_idx += 1
-                    if match_success and len(patten) == patten_idx:
+                    pattern_idx += 1
+                    if match_success and len(pattern) == pattern_idx:
                         # get attr and form op
                         attrs = {}
                         attr_idxes = self.attr_idxes[op_tpye]
@@ -163,7 +162,8 @@ class Redundancy():
                             attrs.update({k[-1]: converted_nodes[redundancies[i]].attrs[k[0]]})
                         info = {}
                         info["name"] = node.name
-                        info["op_type"] = op_tpye
+                        info["op_type"] = op_tpye.split("_")[0]
+
                         info["attrs"] = attrs
                         info["inputs"] = converted_nodes[redundancies[0]].inputs
                         info["outputs"] = node.outputs
@@ -171,12 +171,12 @@ class Redundancy():
                         for i in redundancies:
                             converted_nodes[i] = None
                         converted_nodes[redundancies[-1]] = new_node
-                        # reset wait for another patten
-                        patten_idx = 0
+                        # reset wait for another pattern
+                        pattern_idx = 0
                         redundancies.clear()
 
                 if not match_success:
-                    patten_idx = 0
+                    pattern_idx = 0
                     redundancies.clear()
             converted_nodes = [node for node in converted_nodes if node]
         return converted_nodes
