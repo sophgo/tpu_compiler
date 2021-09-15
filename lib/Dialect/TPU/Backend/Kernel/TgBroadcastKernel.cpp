@@ -5,366 +5,465 @@
  *
  */
 
+#include "TgBroadcastKernel.hpp"
 #include "CviBackendContext.h"
+#include <cmath>
+#include <iostream>
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
-#include <iostream>
-#include <cmath>
 
-// e.g. [4, 3, 28, 28] x [4, 1, 28, 28] => [4, 3, 28, 28]
+#define DEBUG_TYPE "TgBcastKernel"
 
-enum class BroadcastType {
-  BroadcastAdd,
-  BroadcastSub,
-  BroadcastMul,
-};
-
-#define DEBUG_TYPE "TgBroadcastKernel"
-void broadcast_one_to_all_lane(const CviBackendContext &ctx, cvk_tl_t inputBuffer, cvk_fmt_t fmt, uint16_t layer_id) {
-  assert(inputBuffer.shape.h * inputBuffer.shape.w < ((1 << 16 )- 1));//Reg bit field = 16 bit
-  // reshape
-  cvk_tl_t tl_src = {};
-  tl_src.start_address = inputBuffer.start_address;
-  tl_src.fmt = fmt;
-  tl_src.shape = ctx.tl_shape_t4(inputBuffer.shape.n, 1, NPU_NUM, inputBuffer.shape.h * inputBuffer.shape.w);
-  tl_src.stride = ctx.tl_default_stride(tl_src.shape, fmt, /*eu_align=*/1);
-  tl_src.stride.h = 0;
-
-  cvk_tl_t tl_dst = {};
-  tl_dst.start_address = inputBuffer.start_address;
-  tl_dst.fmt = fmt;
-  tl_dst.shape = ctx.tl_shape_t4(inputBuffer.shape.n, NPU_NUM, 1, inputBuffer.shape.h * inputBuffer.shape.w);
-  tl_dst.stride = ctx.tl_default_stride(tl_dst.shape, fmt, /*eu_align=*/1);
-
-  cvk_tdma_l2l_tensor_copy_param_t p = {0};
-  p.src = &tl_src;
-  p.dst = &tl_dst;
-  p.layer_id = layer_id;
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-                  "         L2L Reshape:\n"
-                  "         src addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n"
-                  "         dst addr 0x%lx, shape(%d, %d, %d, %d), stride(%d, %d, %d, %d)\n",
-                  p.src->start_address, p.src->shape.n,
-                  p.src->shape.c, p.src->shape.h, p.src->shape.w, p.src->stride.n,
-                  p.src->stride.c, p.src->stride.h, p.src->stride.w, p.dst->start_address,
-                  p.dst->shape.n, p.dst->shape.c, p.dst->shape.h, p.dst->shape.w,
-                  p.dst->stride.n, p.dst->stride.c, p.dst->stride.h, p.dst->stride.w));
-  ctx.tdma_l2l_tensor_copy(&p);
+void TgBcastKernel::convert_shape(int an, int ac, int ah, int aw, int bn,
+                                  int bc, int bh, int bw) {
+  int num_dims = 4;
+  int a_s[4] = {an, ac, ah, aw};
+  int b_s[4] = {bn, bc, bh, bw};
+  index_bcast = -1;
+  std::vector<int> a_v;
+  std::vector<int> b_v;
+  for (int i = 0; i < num_dims;) {
+    if (a_s[i] == 1 && b_s[i] == 1) {
+      i++;
+      continue;
+    }
+    if (a_s[i] == b_s[i]) {
+      int ins = 1;
+      do {
+        ins *= a_s[i];
+        i++;
+      } while (i < num_dims && a_s[i] == b_s[i]);
+      a_v.push_back(ins);
+      b_v.push_back(ins);
+    }
+    if (i == num_dims) {
+      break;
+    }
+    assert(index_bcast == -1);
+    index_bcast = a_v.size();
+    int a_ins = 1, b_ins = 1;
+    do {
+      assert(b_s[i] == 1);
+      a_ins *= a_s[i];
+      b_ins *= b_s[i];
+      i++;
+    } while (i < num_dims && a_s[i] != b_s[i]);
+    a_v.push_back(a_ins);
+    b_v.push_back(b_ins);
+  }
+  num_dims = a_v.size();
+  assert(num_dims <= 3 && num_dims >= 1);
+  for (int i = 0; i < 4; i++) {
+    shape_a[i] = 1;
+    shape_b[i] = 1;
+  }
+  int h, w;
+  if (num_dims == 1) {
+    shape_a[0] = a_v[0];
+    shape_b[0] = b_v[0];
+    mode = BCAST_ALL;
+  } else if (num_dims == 2) {
+    shape_a[1] = a_v[0];
+    shape_b[1] = b_v[0];
+    if (index_bcast == 0) {
+      ctx.size_to_hw(a_v[1], h, w);
+      shape_a[2] = h;
+      shape_b[2] = h;
+      shape_a[3] = w;
+      shape_b[3] = w;
+      mode = BCAST_C;
+    } else {
+      ctx.size_to_hw(a_v[1], h, w);
+      shape_a[2] = h;
+      shape_a[3] = w;
+      mode = BCAST_HW;
+    }
+  } else {
+    assert(index_bcast == 1);
+    shape_a[0] = a_v[0];
+    shape_b[0] = b_v[0];
+    shape_a[1] = a_v[1];
+    shape_b[1] = b_v[1];
+    ctx.size_to_hw(a_v[2], h, w);
+    shape_a[2] = h;
+    shape_b[2] = h;
+    shape_a[3] = w;
+    shape_b[3] = w;
+    mode = BCAST_C;
+  }
 }
 
-void tg_broadcast_kernel(const CviBackendContext &ctx,
-                          uint32_t layer_id, gaddr_t ga_inputs[],
-                          gaddr_t ga_output, int n, int c, int h,
-                          int w, int bn, int bc, int bh, int bw,
-                          bool do_relu, int32_t rshift, const int32_t *multipliers,
-                          BroadcastType type, cvk_fmt_t fmt) {
-  LLVM_DEBUG(llvm::errs() << llvm::format("a shape:[%d,%d,%d,%d] b shape:[%d,%d,%d,%d], relu:%d, fmt:%d\n",
-                               n, c, h, w, bn, bc, bh, bw, do_relu, fmt););
-  // reshape
-  if (bn == 1) {
-    // e.g. [4,3,28,28] with [1,1,28,28] = [1,12,28,28] with [1,1,28,28]
-    c *= n;
-    n = 1;
-  }
-  if (bh == 1) {
-    // e.g. [1,12,28,28] with [1,1,1,28] = [1, 12*28, 1, 28] with [1,1,1 28]
-    c *= h;
-    h = 1;
-  }
-  // Only support to broadcast in n & c dimension.
-  assert(bn == n);
-  assert(bc == 1);
-  assert(bh == h);
-  assert(bw == w);
+void TgBcastKernel::init(uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
+                         gaddr_t ga_output, int an, int ac, int ah, int aw,
+                         int bn, int bc, int bh, int bw, bool do_relu,
+                         int32_t rshift, const int32_t *multipliers,
+                         bcast_t type, cvk_fmt_t fmt) {
+  this->layer_id = layer_id;
+  this->ga_a = ga_a;
+  this->ga_b = ga_b;
+  this->ga_output = ga_output;
+  this->rshift = rshift;
+  this->multipliers = multipliers;
+  this->do_relu = do_relu;
+  this->type = type;
+  this->fmt = fmt;
+  this->fmt_bytes = ctx.bytesize_of_fmt(fmt);
+  convert_shape(an, ac, ah, aw, bn, bc, bh, bw);
+  num_blobs = (fmt == CVK_FMT_I8 && type != BCAST_MUL) ? 2 : 1;
+}
 
-  uint32_t lmem_required = (uint32_t)LOCAL_MEM_SIZE + 1;
-  int32_t step_n = 1;
-  int32_t step_c = NPU_NUM;
-  int32_t step_h = h;
-  int32_t step_w = w;
+void TgBcastKernel::tile_all() {
+  int *o_s = shape_a;
+  uint32_t lmem_used =
+      ctx.lmem_tensor_to_size(ctx.tl_shape_t4(1, NPU_NUM, 1, 1), fmt, 1);
+  ctx.tiling_packing(tiles, o_s[0], o_s[1], o_s[2], o_s[3], fmt, num_blobs,
+                     lmem_used, CviBackendContext::TilingAll);
+}
 
-  cvk_tl_shape_t shape_a, shape_b;
-
-  uint32_t elt_size = (fmt == CVK_FMT_BF16) ? 2 : 1;
-  // bf16  input0 + input1
-  // int8  input0 + input1 + output_high
-  int blob_num = 1;
-  if (fmt == CVK_FMT_I8 && type != BroadcastType::BroadcastMul) {
-    blob_num = 2;
-  }
-
-  // determin the shape of tile.
-  for (step_w = w; step_w > 0; step_w--) {
-    for (step_h = h; step_h > 0; step_h--) {
-      shape_a = ctx.tl_shape_t4(step_n, step_c, step_h, step_w);
-      shape_b = ctx.tl_shape_t4(step_n, 1, step_h, step_w);
-      lmem_required = ctx.lmem_tensor_to_size(shape_a, fmt, 1) * blob_num +
-                      ctx.lmem_tensor_to_size(shape_b, fmt, 1);
-      if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
-        goto after_loop;
-      }
-    }
-  }
-
-after_loop:
-  if (lmem_required > (uint32_t)LOCAL_MEM_SIZE) {
-    assert(0);
-  }
-
-  LLVM_DEBUG(llvm::errs() << llvm::format("step:[%d,%d,%d,%d],lmem:%d\n", step_n, step_c, step_h,
-                               step_w, (int)lmem_required););
-
-  cvk_tl_t *tl_a = ctx.lmem_alloc_tensor(shape_a, fmt, 1);
-  cvk_tl_t *tl_b = ctx.lmem_alloc_tensor(shape_b, fmt, 1);
-  cvk_tl_t *tl_a_h = nullptr;
-  if (fmt == CVK_FMT_I8 && type != BroadcastType::BroadcastMul) {
-    tl_a_h = ctx.lmem_alloc_tensor(shape_a, fmt, 1);
-    assert(tl_a_h);
-  }
-  assert(tl_a && tl_b);
-
-  for (int pos_h = 0; pos_h < h; pos_h += step_h) {
-    int cur_h = std::min(h - pos_h, step_h);
-    for (int pos_w = 0; pos_w < w; pos_w += step_w) {
-      int cur_w = std::min(w - pos_w, step_w);
-      for (int pos_n = 0; pos_n < n; pos_n += step_n) {
-        int cur_n = std::min(n - pos_n, step_n);
-        shape_b = ctx.tl_shape_t4(cur_n, 1, cur_h, cur_w);
-        // load b to lmem
-        cvk_tl_t operand = {0};
-        uint64_t b_offset = (pos_w + pos_h * bw + pos_n * bh * bw) * elt_size;
-        operand.start_address = tl_b->start_address;
-        operand.shape = shape_b;
-        operand.stride = ctx.tl_default_stride(shape_b, fmt, 1);
-        operand.fmt = fmt;
-        cvk_tg_stride_t stride = ctx.tg_default_stride(bc, bh, bw, fmt);
-        ctx.tdma_load_stride(&operand, ga_inputs[1] + b_offset, stride);
-
-        LLVM_DEBUG(
-            llvm::errs() << llvm::format(
-                "load b, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
-                operand.start_address, shape_b.n, shape_b.c, shape_b.h,
-                shape_b.w, stride.n, stride.c, stride.h, stride.w, b_offset););
-
-        // broadcast b to all lanes
-        broadcast_one_to_all_lane(ctx, operand, fmt, layer_id);
-
-        for (int pos_c = 0; pos_c < c; pos_c += step_c) {
-          int cur_c = std::min(c - pos_c, step_c);
-          shape_b = ctx.tl_shape_t4(cur_n, cur_c, cur_h, cur_w);
-          cvk_tl_t operand_b = {0};
-          operand_b.start_address = tl_b->start_address;
-          operand_b.shape = shape_b;
-          operand_b.stride =
-              ctx.tl_default_stride(shape_b, fmt, /*eu_align=*/1);
-          operand_b.fmt = fmt;
-
-          LLVM_DEBUG(llvm::errs() << llvm::format(
-                         "cur_n:%d, cur_c:%d, cur_h:%d, cur_w:%d\n", cur_n,
-                         cur_c, cur_h, cur_w););
-          cvk_tl_t operand_a, operand_res;
-          shape_a = ctx.tl_shape_t4(cur_n, cur_c, cur_h, cur_w);
-          operand_a.start_address = tl_a->start_address; // start of lmem
-          operand_a.shape = shape_a;
-          operand_a.stride =
-              ctx.tl_default_stride(shape_a, fmt, /*eu_align=*/1);
-          operand_a.fmt = fmt;
-          cvk_tg_stride_t g_stride = ctx.tg_default_stride(c, h, w, fmt);
-          uint64_t a_offset =
-              (pos_n * c * h * w + pos_c * h * w + pos_h * w + pos_w) *
-              elt_size;
-          ctx.tdma_load_stride(&operand_a, ga_inputs[0] + a_offset, g_stride);
-          LLVM_DEBUG(llvm::errs() << llvm::format(
-                         "load a, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, "
-                         "offset:%d\n",
-                         operand_a.start_address, shape_a.n, shape_a.c,
-                         shape_a.h, shape_a.w, g_stride.n, g_stride.c,
-                         g_stride.h, g_stride.w, a_offset););
-
-          operand_res.start_address = tl_a->start_address; // start of lmem
-          operand_res.shape = shape_a;
-          operand_res.stride =
-              ctx.tl_default_stride(shape_a, fmt, /*eu_align=*/1);
-          operand_res.fmt = fmt;
-          if (fmt == CVK_FMT_BF16) {
-            switch (type) {
-            case BroadcastType::BroadcastAdd: {
-              cvk_tiu_add_param_t p = {0};
-              p.res_high = 0;
-              p.res_low = &operand_res;
-              p.a_high = 0;
-              p.a_low = &operand_a;
-              p.b_is_const = 0;
-              p.b.high = 0;
-              p.b.low = &operand_b;
-              p.rshift_bits = 0;
-              p.layer_id = layer_id;
-              p.relu_enable = 0;
-              ctx.tiu_add(&p);
-            } break;
-            case BroadcastType::BroadcastSub: {
-              cvk_tiu_sub_param_t p = {0};
-              p.res_high = 0;
-              p.res_low = &operand_res;
-              p.a_high = 0;
-              p.a_low = &operand_a;
-              p.b_high = 0;
-              p.b_low = &operand_b;
-              p.rshift_bits = 0;
-              p.layer_id = layer_id;
-              ctx.tiu_sub(&p);
-            } break;
-            case BroadcastType::BroadcastMul: {
-              cvk_tiu_mul_param_t p = {0};
-              p.res_high = nullptr;
-              p.res_low = &operand_res;
-              p.a = &operand_a;
-              p.b = &operand_b;
-              p.b_is_const = 0;
-              p.rshift_bits = 0;
-              p.layer_id = layer_id;
-              p.relu_enable = do_relu;
-              ctx.tiu_mul(&p);
-            } break;
-            default:
-              assert(0);
-            }
-          } else if (fmt == CVK_FMT_I8) {
-            switch (type) {
-            case BroadcastType::BroadcastAdd:
-            case BroadcastType::BroadcastSub: {
-              cvk_tl_t operand_res_h;
-              operand_res_h.start_address =
-                  tl_a_h->start_address; // start of lmem
-              operand_res_h.shape = shape_a;
-              operand_res_h.stride =
-                  ctx.tl_default_stride(shape_a, fmt, /*eu_align=*/1);
-              operand_res_h.fmt = fmt;
-              cvk_tiu_mul_param_t p1 = {0};
-              p1.res_high = &operand_res_h;
-              p1.res_low = &operand_res;
-              p1.a = &operand_a;
-              p1.b_const.val = multipliers[0];
-              p1.b_const.is_signed = true;
-              p1.b_is_const = true;
-              p1.rshift_bits = 0;
-              p1.layer_id = layer_id;
-              p1.relu_enable = 0;
-              ctx.tiu_mul(&p1);
-
-              cvk_tiu_mac_param_t p2 = {0};
-              p2.res_high = &operand_res_h;
-              p2.res_low = &operand_res;
-              p2.a = &operand_b;
-              p2.res_is_int8 = true;
-
-              if (type == BroadcastType::BroadcastAdd) {
-                p2.b_const.val = multipliers[1];
-              } else if (type == BroadcastType::BroadcastSub) {
-                p2.b_const.val = -multipliers[1];
-              }
-
-              p2.b_is_const = true;
-              p2.b_const.is_signed = true;
-              p2.lshift_bits = 0;
-              p2.rshift_bits = rshift;
-              p2.layer_id = layer_id;
-              p2.relu_enable = do_relu;
-              ctx.tiu_mac(&p2);
-            } break;
-            case BroadcastType::BroadcastMul: {
-              cvk_tiu_mul_qm_param_t p1 = {0};
-              p1.res_high = nullptr;
-              p1.res_low = &operand_res;
-              p1.a = &operand_a;
-              p1.b_is_const = 0;
-              p1.b = &operand_b;
-              p1.rshift_bits = rshift;
-              p1.relu_enable = do_relu;
-              p1.layer_id = layer_id;
-              p1.multiplier = multipliers[0];
-              ctx.tiu_mul_qm(&p1);
-            } break;
-            default:
-              assert(0);
-            }
+void TgBcastKernel::tile_other() {
+  int *o_s = shape_a;
+  int step_w, step_h, step_c, step_n;
+  int max_c = std::min(o_s[1], MAX_CHANNEL);
+  uint32_t lmem_required = 0;
+  for (step_w = o_s[3]; step_w >= 1; --step_w) {
+    for (step_h = o_s[2]; step_h >= 1; --step_h) {
+      for (step_n = o_s[0]; step_n >= 1; --step_n) {
+        for (step_c = max_c; step_c >= 1;) {
+          auto shape1 = ctx.tl_shape_t4(step_n, step_c, step_h, step_w);
+          auto shape2 =
+              (mode == BCAST_HW
+                   ? ctx.tl_shape_t4(step_n, step_c, 1, 1)
+                   : ctx.tl_shape_t4(step_n, NPU_NUM, step_h, step_w));
+          lmem_required = num_blobs * ctx.lmem_tensor_to_size(shape1, fmt, 1) +
+                          ctx.lmem_tensor_to_size(shape2, fmt, 1);
+          if (lmem_required <= (uint32_t)LOCAL_MEM_SIZE) {
+            goto after_loop;
           }
-          // store result
-          ctx.tdma_store_stride(&operand_res, ga_output + a_offset, g_stride);
-          LLVM_DEBUG(
-              llvm::errs() << llvm::format(
-                  "store, addr:%d, shape<%d,%d,%d,%d:%d,%d,%d,%d>, offset:%d\n",
-                  operand_res.start_address, shape_a.n, shape_a.c, shape_a.h,
-                  shape_a.w, g_stride.n, g_stride.c, g_stride.h, g_stride.w,
-                  a_offset););
+          if (step_c % NPU_NUM) {
+            step_c -= step_c % NPU_NUM;
+          } else {
+            step_c -= NPU_NUM;
+          }
         }
       }
     }
   }
-
-  if (tl_a_h) {
-    ctx.lmem_free_tensor(tl_a_h);
+after_loop:
+  if (lmem_required > (uint32_t)LOCAL_MEM_SIZE) {
+    llvm_unreachable("bcast tiling failed\n");
   }
+  CviBackendContext::tiling_info_t tile;
+  cvk_tg_stride_t src_stride =
+      ctx.tg_default_stride(o_s[1], o_s[2], o_s[3], fmt);
+  for (tile.pos_n = 0; tile.pos_n < o_s[0]; tile.pos_n += step_n) {
+    tile.n = std::min(o_s[0] - tile.pos_n, step_n);
+    for (tile.pos_c = 0; tile.pos_c < o_s[1]; tile.pos_c += step_c) {
+      tile.c = std::min(o_s[1] - tile.pos_c, step_c);
+      for (tile.pos_h = 0; tile.pos_h < o_s[2]; tile.pos_h += step_h) {
+        tile.h = std::min(o_s[2] - tile.pos_h, step_h);
+        for (tile.pos_w = 0; tile.pos_w < o_s[3]; tile.pos_w += step_w) {
+          tile.w = std::min(o_s[3] - tile.pos_w, step_w);
+          tile.offset = tile.pos_w * src_stride.w + tile.pos_h * src_stride.h +
+                        tile.pos_c * src_stride.c + tile.pos_n * src_stride.n;
+          tiles.emplace_back(tile);
+        }
+      }
+    }
+  }
+}
 
+void TgBcastKernel::selectTilePolicy() {
+  switch (mode) {
+  case BCAST_ALL:
+    tile_all();
+    break;
+  case BCAST_HW:
+  case BCAST_C:
+    tile_other();
+    break;
+  }
+}
+
+void TgBcastKernel::schedule() {
+  switch (mode) {
+  case BCAST_ALL:
+    schedule_bcast_all();
+    break;
+  case BCAST_HW:
+    schedule_bcast_hw();
+    break;
+  case BCAST_C:
+    schedule_bcast_c();
+    break;
+  default:
+    assert(0);
+  }
+}
+
+void TgBcastKernel::schedule_bcast_all() {
+  auto b_s = ctx.tl_shape_t4(1, NPU_NUM, 1, 1);
+  auto tl_b = ctx.lmem_alloc_tensor(b_s, fmt, 1);
+  cvk_tg_stride_t b_gstride = {.n = 1, .c = 0, .h = 1, .w = 1};
+  ctx.tdma_load_stride(tl_b, ga_b, b_gstride);
+  for (auto &tile : tiles) {
+    auto a_s = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    auto tl_a = ctx.lmem_alloc_tensor(a_s, fmt, 1);
+    cvk_tl_t *tl_buff = nullptr;
+    if (num_blobs == 2) {
+      tl_buff = ctx.lmem_alloc_tensor(a_s, fmt, 1);
+    }
+    ctx.tdma_load(tl_a, ga_a + tile.offset);
+    cvk_tl_t tl_b_ = *tl_b;
+    tl_b_.shape = a_s;
+    tl_b_.stride = {.n = 0, .c = 0, .h = 0, .w = 0};
+    tiu_compute(tl_a, tl_a, &tl_b_, tl_buff);
+    ctx.tdma_store(tl_a, ga_output + tile.offset);
+    if (tl_buff != nullptr) {
+      ctx.lmem_free_tensor(tl_buff);
+    }
+    ctx.lmem_free_tensor(tl_a);
+  }
   ctx.lmem_free_tensor(tl_b);
-  ctx.lmem_free_tensor(tl_a);
 }
 
-void cvi_backend_tg_int8_broadcast_add_kernel(const CviBackendContext &ctx, uint32_t layer_id,
-                         gaddr_t ga_inputs[], gaddr_t ga_output,
-                         int32_t n, int32_t c, int32_t h, int32_t w,
-                         int32_t bn, int32_t bc, int32_t bh, int32_t bw,
-                         bool do_relu, const int32_t rshift,
-                         const int32_t *multipliers) {
-  tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
-                       n, c, h, w, bn, bc, bh, bw, do_relu, rshift, multipliers, BroadcastType::BroadcastAdd, CVK_FMT_I8);
+void TgBcastKernel::schedule_bcast_hw() {
+  auto &tile = tiles[0];
+  auto b_s = ctx.tl_shape_t4(tile.n, tile.c, 1, 1);
+  auto tl_b = ctx.lmem_alloc_tensor(b_s, fmt, 1);
+  cvk_tg_stride_t b_gstride =
+      ctx.tg_default_stride(shape_b[1], shape_b[2], shape_b[3], fmt);
+  cvk_tg_stride_t a_gstride =
+      ctx.tg_default_stride(shape_a[1], shape_a[2], shape_a[3], fmt);
+  int last_n = -1;
+  int last_c = -1;
+  for (auto &tile : tiles) {
+    auto a_s = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    auto tl_a = ctx.lmem_alloc_tensor(a_s, fmt, 1);
+    cvk_tl_t *tl_buff = nullptr;
+    if (num_blobs == 2) {
+      tl_buff = ctx.lmem_alloc_tensor(a_s, fmt, 1);
+    }
+    ctx.tdma_load_stride(tl_a, ga_a + tile.offset, a_gstride);
+    cvk_tl_t tl_b_ = *tl_b;
+    tl_b_.shape = ctx.tl_shape_t4(tile.n, tile.c, 1, 1);
+    tl_b_.stride = ctx.tl_default_stride(tl_b_.shape, fmt, 1);
+    if (last_n != tile.pos_n || last_c != tile.pos_c) {
+      int offset = tile.pos_c * b_gstride.c + tile.pos_n * b_gstride.n;
+      ctx.tdma_load_stride(&tl_b_, ga_b + offset, b_gstride);
+    }
+    tl_b_.shape = a_s;
+    tl_b_.stride.w = 0;
+    tl_b_.stride.h = 0;
+    tiu_compute(tl_a, tl_a, &tl_b_, tl_buff);
+    ctx.tdma_store_stride(tl_a, ga_output + tile.offset, a_gstride);
+    if (tl_buff != nullptr) {
+      ctx.lmem_free_tensor(tl_buff);
+    }
+    ctx.lmem_free_tensor(tl_a);
+  }
+  ctx.lmem_free_tensor(tl_b);
 }
 
-void cvi_backend_tg_int8_broadcast_sub_kernel(const CviBackendContext &ctx, uint32_t layer_id,
-                         gaddr_t ga_inputs[], gaddr_t ga_output,
-                         int32_t n, int32_t c, int32_t h, int32_t w,
-                         int32_t bn, int32_t bc, int32_t bh, int32_t bw,
-                         bool do_relu, const int32_t rshift,
-                         const int32_t *multipliers) {
-  tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
-                       n, c, h, w, bn, bc, bh, bw, do_relu, rshift, multipliers, BroadcastType::BroadcastSub, CVK_FMT_I8);
+void TgBcastKernel::schedule_bcast_c() {
+  auto &tile = tiles[0];
+  auto b_s = ctx.tl_shape_t4(tile.n, NPU_NUM, tile.h, tile.w);
+  auto tl_b = ctx.lmem_alloc_tensor(b_s, fmt, 1);
+  cvk_tg_stride_t b_gstride =
+      ctx.tg_default_stride(shape_b[1], shape_b[2], shape_b[3], fmt);
+  b_gstride.c = 0;
+  cvk_tg_stride_t a_gstride =
+      ctx.tg_default_stride(shape_a[1], shape_a[2], shape_a[3], fmt);
+  int last_n = -1;
+  int last_h = -1;
+  int last_w = -1;
+  for (auto &tile : tiles) {
+    auto a_s = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    auto tl_a = ctx.lmem_alloc_tensor(a_s, fmt, 1);
+    cvk_tl_t *tl_buff = nullptr;
+    if (num_blobs == 2) {
+      tl_buff = ctx.lmem_alloc_tensor(a_s, fmt, 1);
+    }
+    ctx.tdma_load_stride(tl_a, ga_a + tile.offset, a_gstride);
+    cvk_tl_t tl_b_ = *tl_b;
+    tl_b_.shape = ctx.tl_shape_t4(tile.n, NPU_NUM, tile.h, tile.w);
+    tl_b_.stride = ctx.tl_default_stride(tl_b_.shape, fmt, 1);
+    if (last_n != tile.pos_n || last_h != tile.pos_h || last_w != tile.pos_w) {
+      int offset = tile.pos_w * b_gstride.w + tile.pos_h * b_gstride.h +
+                   tile.pos_n * b_gstride.n;
+      ctx.tdma_load_stride(&tl_b_, ga_b + offset, b_gstride);
+    }
+    tl_b_.shape = a_s;
+    tl_b_.stride.c = 0;
+    tiu_compute(tl_a, tl_a, &tl_b_, tl_buff);
+    ctx.tdma_store_stride(tl_a, ga_output + tile.offset, a_gstride);
+    if (tl_buff != nullptr) {
+      ctx.lmem_free_tensor(tl_buff);
+    }
+    ctx.lmem_free_tensor(tl_a);
+  }
+  ctx.lmem_free_tensor(tl_b);
 }
 
-void cvi_backend_tg_int8_broadcast_mul_kernel(const CviBackendContext &ctx, uint32_t layer_id,
-                         gaddr_t ga_inputs[], gaddr_t ga_output,
-                         int32_t n, int32_t c, int32_t h, int32_t w,
-                         int32_t bn, int32_t bc, int32_t bh, int32_t bw,
-                         bool do_relu, const int32_t rshift,
-                         const int32_t * multipliers) {
-  tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
-                       n, c, h, w, bn, bc, bh, bw, do_relu, rshift, multipliers, BroadcastType::BroadcastMul, CVK_FMT_I8);
+void TgBcastKernel::tiu_compute(cvk_tl_t *tl_result, cvk_tl_t *tl_left,
+                                cvk_tl_t *tl_right, cvk_tl_t *tl_buff) {
+  if (fmt == CVK_FMT_BF16) {
+    switch (type) {
+    case BCAST_ADD: {
+      cvk_tiu_add_param_t p = {0};
+      p.res_high = 0;
+      p.res_low = tl_result;
+      p.a_high = 0;
+      p.a_low = tl_left;
+      p.b_is_const = 0;
+      p.b.high = 0;
+      p.b.low = tl_right;
+      p.rshift_bits = 0;
+      p.layer_id = layer_id;
+      p.relu_enable = do_relu;
+      ctx.tiu_add(&p);
+    } break;
+    case BCAST_MUL: {
+      cvk_tiu_mul_param_t p = {0};
+      p.res_high = nullptr;
+      p.res_low = tl_result;
+      p.a = tl_left;
+      p.b = tl_right;
+      p.b_is_const = 0;
+      p.rshift_bits = 0;
+      p.layer_id = layer_id;
+      p.relu_enable = do_relu;
+      ctx.tiu_mul(&p);
+    } break;
+    case BCAST_SUB: {
+      cvk_tiu_sub_param_t p = {0};
+      p.res_high = 0;
+      p.res_low = tl_result;
+      p.a_high = 0;
+      p.a_low = tl_left;
+      p.b_high = 0;
+      p.b_low = tl_right;
+      p.rshift_bits = 0;
+      p.layer_id = layer_id;
+      ctx.tiu_sub(&p);
+    } break;
+    default:
+      assert(0);
+      break;
+    }
+  } else {
+    switch (type) {
+    case BCAST_ADD:
+    case BCAST_SUB: {
+      cvk_tiu_mul_param_t p1 = {0};
+      p1.res_high = tl_buff;
+      p1.res_low = tl_result;
+      p1.a = tl_left;
+      p1.b_const.val = multipliers[0];
+      p1.b_const.is_signed = true;
+      p1.b_is_const = true;
+      p1.rshift_bits = 0;
+      p1.layer_id = layer_id;
+      p1.relu_enable = 0;
+      ctx.tiu_mul(&p1);
+      cvk_tiu_mac_param_t p2 = {0};
+      p2.res_high = tl_buff;
+      p2.res_low = tl_result;
+      p2.a = tl_right;
+      p2.res_is_int8 = true;
+      p2.b_const.val = (type == BCAST_ADD ? 1 : -1) * multipliers[1];
+      p2.b_is_const = true;
+      p2.b_const.is_signed = true;
+      p2.lshift_bits = 0;
+      p2.rshift_bits = rshift;
+      p2.layer_id = layer_id;
+      p2.relu_enable = do_relu;
+      ctx.tiu_mac(&p2);
+    } break;
+    case BCAST_MUL: {
+      cvk_tiu_mul_qm_param_t p1 = {0};
+      p1.res_high = nullptr;
+      p1.res_low = tl_result;
+      p1.a = tl_left;
+      p1.b_is_const = 0;
+      p1.b = tl_right;
+      p1.rshift_bits = rshift;
+      p1.relu_enable = do_relu;
+      p1.layer_id = layer_id;
+      p1.multiplier = multipliers[0];
+      ctx.tiu_mul_qm(&p1);
+    } break;
+    default:
+      assert(0);
+    }
+  }
 }
 
-void cvi_backend_tg_bf16_broadcast_add_kernel(const CviBackendContext &ctx,
-                                              uint32_t layer_id, gaddr_t ga_inputs[],
-                                              gaddr_t ga_output, int n, int c, int h,
-                                              int w, int bn, int bc, int bh, int bw,
-                                              bool do_relu) {
-  tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
-                        n, c, h, w, bn, bc, bh, bw, do_relu, 0, nullptr, BroadcastType::BroadcastAdd, CVK_FMT_BF16);
+void tg_bcast_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+                     gaddr_t ga_a, gaddr_t ga_b, gaddr_t ga_output, int an,
+                     int ac, int ah, int aw, int bn, int bc, int bh, int bw,
+                     bool do_relu, int32_t rshift, const int32_t *multipliers,
+                     bcast_t type, cvk_fmt_t fmt) {
+  TgBcastKernel kernel(ctx);
+  kernel.init(layer_id, ga_a, ga_b, ga_output, an, ac, ah, aw, bn, bc, bh, bw,
+              do_relu, rshift, multipliers, type, fmt);
+  kernel.selectTilePolicy();
+  kernel.schedule();
 }
 
-void cvi_backend_tg_bf16_broadcast_sub_kernel(const CviBackendContext &ctx,
-                                              uint32_t layer_id, gaddr_t ga_inputs[],
-                                              gaddr_t ga_output, int n, int c, int h,
-                                              int w, int bn, int bc, int bh, int bw,
-                                              bool do_relu) {
-  tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
-                        n, c, h, w, bn, bc, bh, bw, do_relu, 0, nullptr, BroadcastType::BroadcastSub, CVK_FMT_BF16);
+void cvi_backend_tg_int8_bcast_add_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
+    gaddr_t ga_output, int32_t an, int32_t ac, int32_t ah, int32_t aw,
+    int32_t bn, int32_t bc, int32_t bh, int32_t bw, bool do_relu,
+    const int32_t rshift, const int32_t *multipliers) {
+  tg_bcast_kernel(ctx, layer_id, ga_a, ga_b, ga_output, an, ac, ah, aw, bn, bc,
+                  bh, bw, do_relu, rshift, multipliers, BCAST_ADD, CVK_FMT_I8);
 }
 
-void cvi_backend_tg_bf16_broadcast_mul_kernel(const CviBackendContext &ctx,
-                                              uint32_t layer_id, gaddr_t ga_inputs[],
-                                              gaddr_t ga_output, int n, int c, int h,
-                                              int w, int bn, int bc, int bh, int bw,
-                                              bool do_relu) {
-  tg_broadcast_kernel(ctx, layer_id, ga_inputs, ga_output,
-                        n, c, h, w, bn, bc, bh, bw, do_relu, 0, nullptr, BroadcastType::BroadcastMul, CVK_FMT_BF16);
+void cvi_backend_tg_int8_bcast_sub_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
+    gaddr_t ga_output, int32_t an, int32_t ac, int32_t ah, int32_t aw,
+    int32_t bn, int32_t bc, int32_t bh, int32_t bw, bool do_relu,
+    const int32_t rshift, const int32_t *multipliers) {
+  tg_bcast_kernel(ctx, layer_id, ga_a, ga_b, ga_output, an, ac, ah, aw, bn, bc,
+                  bh, bw, do_relu, rshift, multipliers, BCAST_SUB, CVK_FMT_I8);
+}
+
+void cvi_backend_tg_int8_bcast_mul_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
+    gaddr_t ga_output, int32_t an, int32_t ac, int32_t ah, int32_t aw,
+    int32_t bn, int32_t bc, int32_t bh, int32_t bw, bool do_relu,
+    const int32_t rshift, const int32_t *multipliers) {
+  tg_bcast_kernel(ctx, layer_id, ga_a, ga_b, ga_output, an, ac, ah, aw, bn, bc,
+                  bh, bw, do_relu, rshift, multipliers, BCAST_MUL, CVK_FMT_I8);
+}
+
+void cvi_backend_tg_bf16_bcast_add_kernel(const CviBackendContext &ctx,
+                                          uint32_t layer_id, gaddr_t ga_a,
+                                          gaddr_t ga_b, gaddr_t ga_output,
+                                          int an, int ac, int ah, int aw,
+                                          int bn, int bc, int bh, int bw,
+                                          bool do_relu) {
+  tg_bcast_kernel(ctx, layer_id, ga_a, ga_b, ga_output, an, ac, ah, aw, bn, bc,
+                  bh, bw, do_relu, 0, nullptr, BCAST_ADD, CVK_FMT_BF16);
+}
+
+void cvi_backend_tg_bf16_bcast_sub_kernel(const CviBackendContext &ctx,
+                                          uint32_t layer_id, gaddr_t ga_a,
+                                          gaddr_t ga_b, gaddr_t ga_output,
+                                          int an, int ac, int ah, int aw,
+                                          int bn, int bc, int bh, int bw,
+                                          bool do_relu) {
+  tg_bcast_kernel(ctx, layer_id, ga_a, ga_b, ga_output, an, ac, ah, aw, bn, bc,
+                  bh, bw, do_relu, 0, nullptr, BCAST_SUB, CVK_FMT_BF16);
+}
+
+void cvi_backend_tg_bf16_bcast_mul_kernel(const CviBackendContext &ctx,
+                                          uint32_t layer_id, gaddr_t ga_a,
+                                          gaddr_t ga_b, gaddr_t ga_output,
+                                          int n, int c, int h, int w, int bn,
+                                          int bc, int bh, int bw,
+                                          bool do_relu) {
+  tg_bcast_kernel(ctx, layer_id, ga_a, ga_b, ga_output, n, c, h, w, bn, bc, bh,
+                  bw, do_relu, 0, nullptr, BCAST_MUL, CVK_FMT_BF16);
 }

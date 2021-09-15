@@ -80,7 +80,7 @@ cvi_npz_tool.py compare \
     --op_info ${OP_NAME}_op_info_int8.csv \
     --dequant \
     --stats_int8_tensor \
-    --tolerance=0.7,0.7,0.7 -vv
+    --tolerance=0.7,0.7,0.5 -vv
 
 # compare int8 results
 cvi_npz_tool.py compare \

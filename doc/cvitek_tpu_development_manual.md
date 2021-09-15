@@ -353,7 +353,6 @@ TPU软件开发框图如下图所示:
   |quant_zeropoint   | TensorOfOrNone          | 量化zeropoint向量      | 输入(可选)|
   |quant_rshift      | TensorOfOrNone          | 量化rshift向量         | 输入(可选)|
   |quant_multiplier  | TensorOfOrNone          | 量化multiplier向量     | 输入(可选)|
-  |axis              | I32Attr                 | 广播的axis            | 属性|
   |do_relu           | BoolAttr                | 是否对结果执行relu        | 属性|
   |quant             | TPU_QuantParamAttr      | Quant参数            | 属性|
   |name              | StrAttr                 | 名称                 | 属性|

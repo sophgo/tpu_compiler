@@ -144,29 +144,23 @@ void cvi_backend_tg_fixed_reduce_mean_kernel(
     int rshift, int multiplier,
     int axes[], int num_axes);
 
-void cvi_backend_tg_int8_broadcast_add_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t n, int32_t c, int32_t h, int32_t w,
-    int32_t bn, int32_t bc, int32_t bh, int32_t bw,
-    bool do_relu, const int32_t rshift,
-    const int32_t *multipliers);
+void cvi_backend_tg_int8_bcast_add_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
+    gaddr_t ga_output, int32_t an, int32_t ac, int32_t ah, int32_t aw,
+    int32_t bn, int32_t bc, int32_t bh, int32_t bw, bool do_relu,
+    const int32_t rshift, const int32_t *multipliers);
 
-void cvi_backend_tg_int8_broadcast_sub_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t n, int32_t c, int32_t h, int32_t w,
-    int32_t bn, int32_t bc, int32_t bh, int32_t bw,
-    bool do_relu, const int32_t rshift,
-    const int32_t *multipliers);
+void cvi_backend_tg_int8_bcast_sub_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
+    gaddr_t ga_output, int32_t an, int32_t ac, int32_t ah, int32_t aw,
+    int32_t bn, int32_t bc, int32_t bh, int32_t bw, bool do_relu,
+    const int32_t rshift, const int32_t *multipliers);
 
-void cvi_backend_tg_int8_broadcast_mul_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output,
-    int32_t n, int32_t c, int32_t h, int32_t w,
-    int32_t bn, int32_t bc, int32_t bh, int32_t bw,
-    bool do_relu, const int32_t rshift,
-    const int32_t *multipliers);
+void cvi_backend_tg_int8_bcast_mul_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
+    gaddr_t ga_output, int32_t an, int32_t ac, int32_t ah, int32_t aw,
+    int32_t bn, int32_t bc, int32_t bh, int32_t bw, bool do_relu,
+    const int32_t rshift, const int32_t *multipliers);
 
 //////////////// bf16 kernel API /////////////////
 void cvi_backend_tg_bf16_conv_kernel(
@@ -345,20 +339,25 @@ void cvi_backend_tg_eltwise_abs_kernel(const CviBackendContext &ctx,
     const int32_t *multipliers,
     const int32_t *coeffs, cvk_fmt_t fmt);
 
-void cvi_backend_tg_bf16_broadcast_add_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output, int n, int c,
-    int h, int w, int bn, int bc, int bh, int bw, bool do_relu);
+void cvi_backend_tg_bf16_bcast_add_kernel(const CviBackendContext &ctx,
+                                          uint32_t layer_id, gaddr_t ga_a,
+                                          gaddr_t ga_b, gaddr_t ga_output,
+                                          int an, int ac, int ah, int aw,
+                                          int bn, int bc, int bh, int bw,
+                                          bool do_relu);
 
-void cvi_backend_tg_bf16_broadcast_sub_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output, int n, int c,
-    int h, int w, int bn, int bc, int bh, int bw, bool do_relu);
+void cvi_backend_tg_bf16_bcast_sub_kernel(const CviBackendContext &ctx,
+                                          uint32_t layer_id, gaddr_t ga_a,
+                                          gaddr_t ga_b, gaddr_t ga_output,
+                                          int an, int ac, int ah, int aw,
+                                          int bn, int bc, int bh, int bw,
+                                          bool do_relu);
 
-void cvi_backend_tg_bf16_broadcast_mul_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t ga_inputs[], gaddr_t ga_output, int n, int c,
-    int h, int w, int bn, int bc, int bh, int bw, bool do_relu);
+void cvi_backend_tg_bf16_bcast_mul_kernel(const CviBackendContext &ctx,
+                                          uint32_t layer_id, gaddr_t ga_a,
+                                          gaddr_t ga_b, gaddr_t ga_output,
+                                          int n, int c, int h, int w, int bn,
+                                          int bc, int bh, int bw, bool do_relu);
 
 void cvi_backend_tg_bf16_reduce_max_kernel(
     const CviBackendContext& ctx,

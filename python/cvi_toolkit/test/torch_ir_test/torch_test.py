@@ -216,15 +216,16 @@ class TORCH_IR_TESTER(object):
                     if key+'_quant_i8' in int8_tensors:
                         input_int['input'+str(count)] = int8_tensors[key+'_quant_i8'].astype(np.int8)
                     elif key+'_quant_u16' in int8_tensors:
-                        input_int['input'+str(count)] = int8_tensors[key+'_quant_u16'].astype(np.int8)
+                        input_int['input'+str(count)] = int8_tensors[key+'_quant_u16'].astype(np.uint16)
                     count += 1
             else:
                 input_int = None
                 if 'input_quant_i8' in int8_tensors:
                     input_int = int8_tensors['input_quant_i8'].astype(np.int8)
                 elif 'input_quant_u16' in int8_tensors:
-                    input_int = int8_tensors['input_quant_u16'].astyp
-
+                    input_int = int8_tensors['input_quant_u16'].astype(np.uint16)
+                else:
+                    input_int = input_data
             cvi_outs = cvimodel_inference(input_int, cvimodel)
             assert(len(cvi_outs) == num_outputs)
             for name in cvi_outs:
@@ -281,7 +282,7 @@ class TORCH_IR_TESTER(object):
                 std = torch.std(x, -1).unsqueeze(-1)
                 return (x - mean) / (std + 0.0001)
 
-        input_shape = [1, 3, 32, 1024]
+        input_shape = [1, 3, 32, 256]
         test_onnx_name = 'Std'
 
         net = Net()

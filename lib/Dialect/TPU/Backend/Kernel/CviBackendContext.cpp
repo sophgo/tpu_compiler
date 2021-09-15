@@ -573,8 +573,7 @@ void CviBackendContext::tiling_nchw(std::vector<tiling_info_t> &tiling_result,
 after_loop:
   if (lmem_required > lmem_size) {
     llvm::errs() << llvm::format(
-        "Tilling[%d] failed, src shape:(%d,%d,%d,%d), fmt:%d\n", n, c, h, w,
-        fmt);
+        "Tilling failed, src shape:(%d,%d,%d,%d), fmt:%d\n", n, c, h, w, fmt);
     assert(0);
   }
 

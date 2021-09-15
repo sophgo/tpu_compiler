@@ -425,7 +425,6 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `quant_multiplier`: optional,
 
     Attributes:
-      `axis`            : required, the axis the multiply is applying
       `do_relu`         : required, if need to preform relu on result.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
@@ -450,7 +449,6 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
-    DefaultValuedAttr<I32Attr, "1">:$axis,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
@@ -3140,7 +3138,7 @@ def TPU_StdOp: TPU_Op<"std",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$mantissa_table,
     I32Attr:$start_dim,
-    BoolAttr: $unbiased,
+    BoolAttr:$unbiased,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname

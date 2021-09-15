@@ -48,6 +48,7 @@ static bool supportRelu(Operation *op) {
       matchPattern(op, m_Op<tpu::MatMulOp>()) ||
       matchPattern(op, m_Op<tpu::FullyConnectedOp>()) ||
       matchPattern(op, m_Op<tpu::BroadcastMulOp>()) ||
+      matchPattern(op, m_Op<tpu::BroadcastAddOp>()) ||
       matchPattern(op, m_Op<tpu::ConcatOp>()) ||
       matchPattern(op, m_Op<tpu::ScaleOp>()) ||
       matchPattern(op, m_Op<tpu::ConcatOp>())) {
@@ -188,6 +189,11 @@ struct TpuFuseReluPattern : public RewritePattern {
       matmulOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
     }  else if (matchPattern(formerOp, m_Op<tpu::BroadcastMulOp>())) {
       auto bcastOp = cast<tpu::BroadcastMulOp>(formerOp);
+      assert(!bcastOp.do_relu() && "done relu");
+      bcastOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+      bcastOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    } else if (matchPattern(formerOp, m_Op<tpu::BroadcastAddOp>())) {
+      auto bcastOp = cast<tpu::BroadcastAddOp>(formerOp);
       assert(!bcastOp.do_relu() && "done relu");
       bcastOp->setAttr("do_relu", rewriter.getBoolAttr(true));
       bcastOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));

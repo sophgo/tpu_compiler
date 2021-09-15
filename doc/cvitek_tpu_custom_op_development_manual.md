@@ -403,7 +403,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --deep-fusion-group-slice       \
     --deep-fusion-opt               \
     --tg-op-tile                    \
-    --compress-activation           \
     --compress-weight               \
     --assign-weight-address         \
     --tpu-weight-address-align=16   \
@@ -612,7 +611,6 @@ Calibration的过程可以参考前面第一节编写leakyrelu的方式，准备
     --deep-fusion-group-slice  \
     --deep-fusion-opt          \
     --tg-op-tile               \
-    --compress-activation      \
     --compress-weight          \
     --assign-weight-address    \
     --tpu-weight-address-align=16            \
@@ -825,7 +823,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --deep-fusion-group-slice  \
     --deep-fusion-opt          \
     --tg-op-tile               \
-    --compress-activation      \
     --compress-weight          \
     --assign-weight-address    \
     --tpu-weight-address-align=16            \
@@ -979,7 +976,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --deep-fusion-group-slice  \
     --deep-fusion-opt          \
     --tg-op-tile               \
-    --compress-activation      \
     --compress-weight          \
     --assign-weight-address    \
     --tpu-weight-address-align=16            \

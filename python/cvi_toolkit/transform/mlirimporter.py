@@ -349,10 +349,9 @@ class MLIRImporter(object):
 
         broadcast_mul_name = StringAttr.get(op_name)
 
-        axis_attr = IntegerAttr.get(self.i32Type, kargs['axis'])
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.BroadcastMul.value, inputOperands, [
-            tensor_output_type], name=broadcast_mul_name, axis=axis_attr, quant=self.quant_param)
+            tensor_output_type], name=broadcast_mul_name, quant=self.quant_param)
 
     def add_broadcast_add_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
@@ -361,10 +360,9 @@ class MLIRImporter(object):
 
         broadcast_add_name = StringAttr.get(op_name)
 
-        axis_attr = IntegerAttr.get(self.i32Type, kargs['axis'])
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.BroadcastAdd.value, inputOperands, [
-            tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
+            tensor_output_type], name=broadcast_add_name, quant=self.quant_param)
 
     def add_broadcast_sub_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)
@@ -373,10 +371,9 @@ class MLIRImporter(object):
 
         broadcast_add_name = StringAttr.get(op_name)
 
-        axis_attr = IntegerAttr.get(self.i32Type, kargs['axis'])
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.BroadcastSub.value, inputOperands, [
-            tensor_output_type], name=broadcast_add_name, axis=axis_attr, quant=self.quant_param)
+            tensor_output_type], name=broadcast_add_name, quant=self.quant_param)
 
     def add_interp_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

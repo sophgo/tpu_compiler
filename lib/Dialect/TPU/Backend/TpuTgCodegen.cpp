@@ -286,8 +286,8 @@ LogicalResult tpu::TG_BF16_ScaleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n");
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n");
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -312,22 +312,19 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
     std::vector<int32_t> multiplier_int32(2);
     arrayAttrToVector(this->m_i8_inputs().getValue(), multiplier_int32);
 
-    for (int32_t i = 0; i < 2; i++ ){
+    for (int32_t i = 0; i < 2; i++) {
       multiplier[i] = static_cast<int32_t>(multiplier_int32[i]);
     }
   }
 
-  gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_a = getPreviousOpAddress(op, 0);
+  gaddr_t ga_b = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  assert(bc == 1);
 
-  cvi_backend_tg_int8_broadcast_mul_kernel(
-    *backend_ctx, layer_id,
-    ga_inputs, ga_output, n, c,
-    h, w, bn, bc, bh, bw, do_relu, rshift, multiplier);
+  cvi_backend_tg_int8_bcast_mul_kernel(*backend_ctx, layer_id, ga_a, ga_b,
+                                       ga_output, n, c, h, w, bn, bc, bh, bw,
+                                       do_relu, rshift, multiplier);
 
   return success();
 }
@@ -349,23 +346,21 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
 
   bool do_relu = this->do_relu();
 
-  gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_a = getPreviousOpAddress(op, 0);
+  gaddr_t ga_b = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  assert(bc == 1);
 
-  cvi_backend_tg_bf16_broadcast_mul_kernel(*backend_ctx, layer_id, ga_inputs,
-                                           ga_output, n, c, h, w, bn, bc, bh,
-                                           bw, do_relu);
+  cvi_backend_tg_bf16_bcast_mul_kernel(*backend_ctx, layer_id, ga_a, ga_b,
+                                       ga_output, n, c, h, w, bn, bc, bh, bw,
+                                       do_relu);
 
   return success();
 }
 
 LogicalResult tpu::TG_INT8_BroadcastAddOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n");
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n");
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -393,28 +388,26 @@ LogicalResult tpu::TG_INT8_BroadcastAddOp::codegen(void *ctx) {
     std::vector<int32_t> multiplier_int32(2);
     arrayAttrToVector(this->m_i8_inputs().getValue(), multiplier_int32);
 
-    for (int32_t i = 0; i < 2; i++ ){
+    for (int32_t i = 0; i < 2; i++) {
       multiplier[i] = static_cast<int32_t>(multiplier_int32[i]);
       llvm::errs() << "broadcast add multiplier: " << multiplier[i];
     }
   }
 
-  gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_a = getPreviousOpAddress(op, 0);
+  gaddr_t ga_b = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_int8_broadcast_add_kernel(
-    *backend_ctx, layer_id,
-    ga_inputs, ga_output, n, c,
-    h, w, bn, bc, bh, bw, do_relu, rshift, multiplier);
+  cvi_backend_tg_int8_bcast_add_kernel(*backend_ctx, layer_id, ga_a, ga_b,
+                                       ga_output, n, c, h, w, bn, bc, bh, bw,
+                                       do_relu, rshift, multiplier);
   return success();
 }
 
 LogicalResult tpu::TG_BF16_BroadcastAddOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -430,23 +423,21 @@ LogicalResult tpu::TG_BF16_BroadcastAddOp::codegen(void *ctx) {
 
   bool do_relu = this->do_relu();
 
-  gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_a = getPreviousOpAddress(op, 0);
+  gaddr_t ga_b = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_bf16_broadcast_add_kernel(
-    *backend_ctx, layer_id,
-    ga_inputs, ga_output, n, c,
-    h, w, bn, bc, bh, bw, do_relu);
+  cvi_backend_tg_bf16_bcast_add_kernel(*backend_ctx, layer_id, ga_a, ga_b,
+                                       ga_output, n, c, h, w, bn, bc, bh, bw,
+                                       do_relu);
 
   return success();
 }
 
 LogicalResult tpu::TG_INT8_BroadcastSubOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n");
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n");
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -474,28 +465,26 @@ LogicalResult tpu::TG_INT8_BroadcastSubOp::codegen(void *ctx) {
     std::vector<int32_t> multiplier_int32(2);
     arrayAttrToVector(this->m_i8_inputs().getValue(), multiplier_int32);
 
-    for (int32_t i = 0; i < 2; i++ ){
+    for (int32_t i = 0; i < 2; i++) {
       multiplier[i] = static_cast<int32_t>(multiplier_int32[i]);
       llvm::errs() << "broadcast sub multiplier: " << multiplier[i];
     }
   }
 
-  gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_a = getPreviousOpAddress(op, 0);
+  gaddr_t ga_b = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_int8_broadcast_sub_kernel(
-    *backend_ctx, layer_id,
-    ga_inputs, ga_output, n, c,
-    h, w, bn, bc, bh, bw, do_relu, rshift, multiplier);
+  cvi_backend_tg_int8_bcast_sub_kernel(*backend_ctx, layer_id, ga_a, ga_b,
+                                       ga_output, n, c, h, w, bn, bc, bh, bw,
+                                       do_relu, rshift, multiplier);
   return success();
 }
 
 LogicalResult tpu::TG_BF16_BroadcastSubOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n");
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n");
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
@@ -511,16 +500,14 @@ LogicalResult tpu::TG_BF16_BroadcastSubOp::codegen(void *ctx) {
 
   bool do_relu = this->do_relu();
 
-  gaddr_t ga_inputs[2];
-  ga_inputs[0] = getPreviousOpAddress(op, 0);
-  ga_inputs[1] = getPreviousOpAddress(op, 1);
+  gaddr_t ga_a = getPreviousOpAddress(op, 0);
+  gaddr_t ga_b = getPreviousOpAddress(op, 1);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_bf16_broadcast_sub_kernel(
-    *backend_ctx, layer_id,
-    ga_inputs, ga_output, n, c,
-    h, w, bn, bc, bh, bw, do_relu);
+  cvi_backend_tg_bf16_bcast_sub_kernel(*backend_ctx, layer_id, ga_a, ga_b,
+                                       ga_output, n, c, h, w, bn, bc, bh, bw,
+                                       do_relu);
 
   return success();
 }
