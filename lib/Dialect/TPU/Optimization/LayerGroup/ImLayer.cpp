@@ -471,8 +471,19 @@ ImCommon::ImCommon(Operation* op, bool inplace_compute, IR_TYPE type) : ImLayer(
     }
   }
 
+  auto oneResult = op->getNumResults() == 1;
+  auto layer_type = TENSOR_NEURON;
   for (uint32_t i = 0; i < op->getNumResults(); ++i) {
-    add_out_tensor(op->getResult(i), TENSOR_NEURON, getStorage(op->getResult(i)));
+    // if it as scale's rhs, it should consider as TENSOR_NEURON_AS_COEFF
+    auto oneUse = op->getResult(i).hasOneUse();
+    auto *useOp = op->getResult(i).use_begin()->getOwner();
+    auto isScale = (isa<tpu::TG_INT8_ScaleOp>(useOp) ||
+        isa<tpu::TG_BF16_ScaleOp>(useOp));
+    auto isScaleRHSInput = oneResult && oneUse && isScale;
+    if (isScaleRHSInput && op->getResult(i) == useOp->getOperand(1)) {
+      layer_type = TENSOR_NEURON_AS_COEFF;
+    }
+    add_out_tensor(op->getResult(i), layer_type, getStorage(op->getResult(i)));
   }
 }
 

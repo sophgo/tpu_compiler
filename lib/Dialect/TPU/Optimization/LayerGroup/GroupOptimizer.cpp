@@ -382,7 +382,8 @@ void GroupOptimizer::set_input_output_tensor() {
 
     for (auto& tensor : layer->in_tensors) {
       int tid = tensor->id();
-      if (net_graph_->get_tensor_type(tid) == TENSOR_NEURON) {
+      if (net_graph_->get_tensor_type(tid) == TENSOR_NEURON ||
+          net_graph_->get_tensor_type(tid) == TENSOR_NEURON_AS_COEFF) {
         int from_layer = net_graph_->get_tensor_from_layer(tid);
         if (from_layer == -1) {
           mix_net_.set_net_in_tensor(tid);

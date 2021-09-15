@@ -84,7 +84,7 @@ std::set<int> Group::get_group_in_neuron_tensors() {
     for (auto& tensor : layer->in_tensors) {
       int tid = tensor->id();
       tensor_type_t type = tensor->type();
-      if (TENSOR_NEURON != type && TENSOR_MATRIX != type) {
+      if (TENSOR_NEURON_AS_COEFF != type && TENSOR_NEURON != type && TENSOR_MATRIX != type) {
         continue;
       }
 
@@ -611,8 +611,7 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
       h_slice = out_h_slice;
     }
 
-    if (tensor->type() == TENSOR_COEFF_NEURON || tensor->type() == TENSOR_DEPTHCONV_OPD1 ||
-        tensor->type() == TENSOR_NEURON_AS_COEFF) {
+    if (tensor->type() == TENSOR_COEFF_NEURON || tensor->type() == TENSOR_DEPTHCONV_OPD1) { 
       if (tensor->n() == 1) {
         n_idx = 0;
         n_slice = 1;
@@ -827,8 +826,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
       w_slice = out_w_slice;
     }
 
-    if (tensor->type() == TENSOR_COEFF_NEURON || tensor->type() == TENSOR_DEPTHCONV_OPD1 ||
-        tensor->type() == TENSOR_NEURON_AS_COEFF) {
+    if (tensor->type() == TENSOR_COEFF_NEURON || tensor->type() == TENSOR_DEPTHCONV_OPD1) { 
       if (tensor->n() == 1) {
         n_idx = 0;
         n_slice = 1;

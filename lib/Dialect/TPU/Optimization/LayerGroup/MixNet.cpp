@@ -202,7 +202,9 @@ void MixNet::add_tl_layer(int layer_id) {
     Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[i]);
     const std::string& name = in_tensor->name();
     if (in_tensor->type() != TENSOR_NEURON &&
-        in_tensor->type() != TENSOR_MATRIX) {
+        in_tensor->type() != TENSOR_MATRIX &&
+        in_tensor->type() != TENSOR_NEURON_AS_COEFF
+       ) {
       // coeff not do slice, no need postfix
       mix_op->add_bottom_name(name);
     } else {
@@ -1581,7 +1583,17 @@ void MixNet::_add_load_op(int group_idx,
     name = name + postfix_name_;
     laddr = get_tensor_laddr(tensor_id);
 
-    if (tensor_type == TENSOR_NEURON || tensor_type == TENSOR_MATRIX) {
+    if (tensor_type == TENSOR_NEURON_AS_COEFF) {
+      local_shape[0] = tensor_dim[0];
+      local_shape[1] = tensor_dim[1];
+      local_shape[2] = tensor_dim[2];
+      local_shape[3] = tensor_dim[3];
+      // no offset cus as coeff that load at once
+      offset = 0;
+    }
+
+    if (tensor_type == TENSOR_NEURON || tensor_type == TENSOR_MATRIX
+        || tensor_type == TENSOR_NEURON_AS_COEFF) {
       aligned = true;
     } else {
       if (tensor_type != TENSOR_NEURON_AS_COEFF && tensor_type != TENSOR_MATRIX) {
