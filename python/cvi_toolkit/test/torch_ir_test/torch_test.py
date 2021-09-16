@@ -282,7 +282,7 @@ class TORCH_IR_TESTER(object):
                 std = torch.std(x, -1).unsqueeze(-1)
                 return (x - mean) / (std + 0.0001)
 
-        input_shape = [1, 3, 32, 256]
+        input_shape = [1, 3, 32, 1024]
         test_onnx_name = 'Std'
 
         net = Net()

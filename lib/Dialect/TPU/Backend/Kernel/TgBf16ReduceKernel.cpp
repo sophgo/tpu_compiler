@@ -159,38 +159,39 @@ static void cvi_backend_tg_bf16_reduce_mean_hw_kernel(
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w,
     int kh, int kw) {
+  if (kh == 1) {
+    c = n * c * h;
+    n = 1;
+    h = 1;
+  }
   int oh = h / kh;
   int ow = w / kw;
-  cvk_tl_shape_t tl_input_shape = ctx.tl_shape_t4(n, c, h, w);
-  cvk_tl_shape_t tl_output_shape = ctx.tl_shape_t4(n, c, oh, ow);
-
-  int eu_align = 1; // TIU always needs eu-aligned
   cvk_fmt_t fmt = CVK_FMT_BF16;
-  uint32_t neededSize =
-      ctx.lmem_tensor_to_size(tl_input_shape, fmt, eu_align) +
-      ctx.lmem_tensor_to_size(tl_output_shape, fmt, eu_align);
-
-  assert(neededSize <= (uint32_t)LOCAL_MEM_SIZE && "Not support tiling yet");
-
-  // 1. Tensor load, (N, C, H, W)
-  cvk_tl_t *tl_input = ctx.lmem_alloc_tensor(tl_input_shape, fmt, eu_align);
-  cvi_backend_tl_load_stride(ctx,
-                             layer_id,
-                             ga_input,
-                             tl_input->start_address,
-                             n, c, h, w,
-                             c, h, w,
-                             false,       // DoTranspose
-                             eu_align,
-                             true,        // isNeuron
-                             fmt,
-                             fmt
-                             );
-
-  // 2. Mean
-  cvk_tl_t *tl_output =
-      ctx.lmem_alloc_tensor(tl_output_shape, fmt, eu_align);
-  {
+  int step_c = std::min(c, MAX_CHANNEL);
+  while (step_c > 0) {
+    auto shape_in = ctx.tl_shape_t4(n, step_c, h, w);
+    auto shape_out = ctx.tl_shape_t4(n, step_c, oh, ow);
+    uint32_t lmem_need = ctx.lmem_tensor_to_size(shape_in, fmt, 1) +
+                         ctx.lmem_tensor_to_size(shape_out, fmt, 1);
+    if (lmem_need <= (uint32_t)LOCAL_MEM_SIZE) {
+      break;
+    }
+    if (step_c % NPU_NUM == 0) {
+      step_c -= NPU_NUM;
+    } else {
+      step_c -= (step_c % NPU_NUM);
+    }
+  }
+  auto in_gstride = ctx.tg_default_stride(c, h, w, fmt);
+  auto out_gstride = ctx.tg_default_stride(c, oh, ow, fmt);
+  assert(step_c > 0 && "tiling failed");
+  for (int pos_c = 0; pos_c < c; pos_c += step_c) {
+    int cur_c = std::min(step_c, c - pos_c);
+    auto shape_in = ctx.tl_shape_t4(n, cur_c, h, w);
+    auto shape_out = ctx.tl_shape_t4(n, cur_c, oh, ow);
+    auto tl_input = ctx.lmem_alloc_tensor(shape_in, fmt, 1);
+    auto tl_output = ctx.lmem_alloc_tensor(shape_out, fmt, 1);
+    ctx.tdma_load_stride(tl_input, ga_input + pos_c * in_gstride.c, in_gstride);
     cvk_tiu_average_pooling_param_t param = {0};
     param.ofmap = tl_output;
     param.ifmap = tl_input;
@@ -206,26 +207,11 @@ static void cvi_backend_tg_bf16_reduce_mean_hw_kernel(
     param.layer_id = layer_id;
     param.ins_val = 0;
     param.ins_fp = param.avg_pooling_const;
-
     ctx.tiu_average_pooling(&param);
+    ctx.tdma_store_stride(tl_output, ga_output + pos_c * out_gstride.c, out_gstride);
+    ctx.lmem_free_tensor(tl_output);
+    ctx.lmem_free_tensor(tl_input);
   }
-
-  // 3. Tensor store, (N, C, OH, OW)
-  cvi_backend_tl_store_stride(ctx,
-                              layer_id,
-                              ga_output,
-                              tl_output->start_address,
-                              n, c, oh, ow,
-                              c, oh, ow,
-                              false,    // DoTranspose
-                              eu_align, // DoAligned
-                              true,     // isNeuron
-                              fmt,
-                              fmt
-                              );
-
-  ctx.lmem_free_tensor(tl_output);
-  ctx.lmem_free_tensor(tl_input);
 }
 
 void cvi_backend_tg_bf16_reduce_max_kernel(
