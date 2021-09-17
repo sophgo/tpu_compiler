@@ -259,6 +259,9 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes(
   for (int ow_step = max_ow_step; ow_step > 0; --ow_step) {
     int iw_step = std::min((ow_step - 1) * stride_w + kw_extent, input_w);
 
+    if (iw_step > mInfo.MAX_TIU_WIDTH)
+      continue;
+
      if ((stride_w > 1) && ((iw_step + stride_w) > input_w)) {
       // For better DMA transfer efficiency, use whole width.
       //   E.g.
@@ -275,6 +278,9 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes(
         oh_step = 1;
 
       int ih_step = std::min((oh_step - 1) * stride_w + kh_extent, input_h);
+
+      if (ih_step > mInfo.MAX_TIU_HEIGHT)
+        continue;
 
       // Split output channel
       for (int oc_i = 0; oc_i < num_oc_step; ++oc_i) {

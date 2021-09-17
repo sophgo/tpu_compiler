@@ -852,17 +852,17 @@ void Conv::loadBias(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
                        lmBiasDescs[lmIndex]->getEuAlign());
   tl_bias.start_address = lmBiasDescs[lmIndex]->getAddress();
 
-  LLVM_DEBUG(
-      llvm::dbgs() << "\n  [ig=" << ig_pos << "][oc_pos=" << oc_pos
-                   << "] tdma_load_stride:\n"
-                   << "    tl_bias gaddr " << llvm::format_hex(ga_load, 10)
-                   << "(offset=" << llvm::format_hex(ga_offset, 10)
-                   << "), gstride (" << gm_stride.n << ", " << gm_stride.c
-                   << ", " << gm_stride.h << ")\n"
-                   << "    laddr "
-                   << llvm::format_hex(tl_bias.start_address, 10) << ", shape ("
-                   << tl_bias.shape.n << ", " << tl_bias.shape.c << ", "
-                   << tl_bias.shape.h << ", " << tl_bias.shape.w << ")\n\n");
+  // LLVM_DEBUG(
+  //     llvm::dbgs() << "\n  [ig=" << ig_pos << "][oc_pos=" << oc_pos
+  //                  << "] tdma_load_stride:\n"
+  //                  << "    tl_bias gaddr " << llvm::format_hex(ga_load, 10)
+  //                  << "(offset=" << llvm::format_hex(ga_offset, 10)
+  //                  << "), gstride (" << gm_stride.n << ", " << gm_stride.c
+  //                  << ", " << gm_stride.h << ")\n"
+  //                  << "    laddr "
+  //                  << llvm::format_hex(tl_bias.start_address, 10) << ", shape ("
+  //                  << tl_bias.shape.n << ", " << tl_bias.shape.c << ", "
+  //                  << tl_bias.shape.h << ", " << tl_bias.shape.w << ")\n\n");
 
   if (args.tiu_fmt == CVK_FMT_I8)
     ctx.tdma_load_stride(&tl_bias, ga_load, gm_stride);
@@ -919,19 +919,19 @@ void Conv::loadWeight(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
 
   uint8_t intraCmdParal = getTdmaLoadWeightIntraCmdParal(cmdQueueIndex);
 
-  LLVM_DEBUG(
-      llvm::errs() << "  [ig=" << ig_pos << "][oc_pos=" << oc_pos
-                   << "] tdma_load_stride:\n"
-                   << "    loadWeight tl_weight gaddr "
-                   << llvm::format_hex(ts_data.start_address, 10) << "(offset="
-                   << ga_offset << "), gstride (" << ts_data.stride.n << ", "
-                   << ts_data.stride.c << ", " << ts_data.stride.h << ")\n"
-                   << "    laddr "
-                   << llvm::format_hex(tl_load_weight.start_address, 10)
-                   << ", shape (" << tl_load_weight.shape.n << ", "
-                   << tl_load_weight.shape.c << ", " << tl_load_weight.shape.h
-                   << ", " << tl_load_weight.shape.w << ")\n"
-                   << "    intraCmdParal " << (int)intraCmdParal << "\n");
+  // LLVM_DEBUG(
+  //     llvm::errs() << "  [ig=" << ig_pos << "][oc_pos=" << oc_pos
+  //                  << "] tdma_load_stride:\n"
+  //                  << "    loadWeight tl_weight gaddr "
+  //                  << llvm::format_hex(ts_data.start_address, 10) << "(offset="
+  //                  << ga_offset << "), gstride (" << ts_data.stride.n << ", "
+  //                  << ts_data.stride.c << ", " << ts_data.stride.h << ")\n"
+  //                  << "    laddr "
+  //                  << llvm::format_hex(tl_load_weight.start_address, 10)
+  //                  << ", shape (" << tl_load_weight.shape.n << ", "
+  //                  << tl_load_weight.shape.c << ", " << tl_load_weight.shape.h
+  //                  << ", " << tl_load_weight.shape.w << ")\n"
+  //                  << "    intraCmdParal " << (int)intraCmdParal << "\n");
 
   if (!args.do_load_cmpr_wgt) {
     cvk_tdma_g2l_tensor_copy_param_t p1 = {0};
@@ -1051,22 +1051,22 @@ void Conv::getTiledGmPossAndShapesOfInputForTiu(
   // {top, bottom, left, right}
   cur_gm_input_paddings = {ph_top, ph_bot, pw_left, pw_right};
 
-  LLVM_DEBUG(llvm::dbgs() << "\n  [n_pos=" << gmOutputPoss[NGCHW::N]
-                          << "][ig=" << gmOutputPoss[NGCHW::G]
-                          << "][oc_pos=" << gmOutputPoss[NGCHW::C]
-                          << "][oh_pos=" << gmOutputPoss[NGCHW::H]
-                          << "][ow_pos=" << gmOutputPoss[NGCHW::W]
-                          << "][ic_pos=" << icPos
-                          << "] input pos (n=" << cur_gm_input_poss[NGCHW::N]
-                          << ", g=" << cur_gm_input_poss[NGCHW::G]
-                          << ", c=" << cur_gm_input_poss[NGCHW::C]
-                          << ", h=" << cur_gm_input_poss[NGCHW::H]
-                          << ", w=" << cur_gm_input_poss[NGCHW::W]
-                          << "), shapes (n=" << cur_gm_input_shapes[NGCHW::N]
-                          << ", g=" << cur_gm_input_shapes[NGCHW::G] << ", c"
-                          << cur_gm_input_shapes[NGCHW::C]
-                          << ", h=" << cur_gm_input_shapes[NGCHW::H]
-                          << ", w=" << cur_gm_input_shapes[NGCHW::W] << ")\n");
+  // LLVM_DEBUG(llvm::dbgs() << "\n  [n_pos=" << gmOutputPoss[NGCHW::N]
+  //                         << "][ig=" << gmOutputPoss[NGCHW::G]
+  //                         << "][oc_pos=" << gmOutputPoss[NGCHW::C]
+  //                         << "][oh_pos=" << gmOutputPoss[NGCHW::H]
+  //                         << "][ow_pos=" << gmOutputPoss[NGCHW::W]
+  //                         << "][ic_pos=" << icPos
+  //                         << "] input pos (n=" << cur_gm_input_poss[NGCHW::N]
+  //                         << ", g=" << cur_gm_input_poss[NGCHW::G]
+  //                         << ", c=" << cur_gm_input_poss[NGCHW::C]
+  //                         << ", h=" << cur_gm_input_poss[NGCHW::H]
+  //                         << ", w=" << cur_gm_input_poss[NGCHW::W]
+  //                         << "), shapes (n=" << cur_gm_input_shapes[NGCHW::N]
+  //                         << ", g=" << cur_gm_input_shapes[NGCHW::G] << ", c"
+  //                         << cur_gm_input_shapes[NGCHW::C]
+  //                         << ", h=" << cur_gm_input_shapes[NGCHW::H]
+  //                         << ", w=" << cur_gm_input_shapes[NGCHW::W] << ")\n");
 }
 
 // H/W does not support group convolution.
@@ -1150,18 +1150,18 @@ void Conv::adjustStoreForPs32Output(cvk_tl_t *lmOutput, cvk_tg_t *gmOutput,
 void Conv::loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
                                       std::vector<uint32_t> gmInputPoss,
                                       cvk_tl_t *tl_dst, cvk_tg_t *tg_src) {
-  LLVM_DEBUG(
-      llvm::dbgs() << "\n  TDMA G2L decompressed\n"
-                   << "    src " << llvm::format_hex(tg_src->start_address, 10)
-                   << ", shape (" << tg_src->shape.n << ", " << tg_src->shape.c
-                   << ", " << tg_src->shape.h << ", " << tg_src->shape.w
-                   << ")\n"
-                   << "    dst " << llvm::format_hex(tl_dst->start_address, 10)
-                   << ", shape (" << tl_dst->shape.n << ", " << tl_dst->shape.c
-                   << ", " << tl_dst->shape.h << ", " << tl_dst->shape.w
-                   << "), stride (" << tl_dst->stride.n << ", "
-                   << tl_dst->stride.c << ", " << tl_dst->stride.h << ", "
-                   << tl_dst->stride.w << ")\n");
+  // LLVM_DEBUG(
+  //     llvm::dbgs() << "\n  TDMA G2L decompressed\n"
+  //                  << "    src " << llvm::format_hex(tg_src->start_address, 10)
+  //                  << ", shape (" << tg_src->shape.n << ", " << tg_src->shape.c
+  //                  << ", " << tg_src->shape.h << ", " << tg_src->shape.w
+  //                  << ")\n"
+  //                  << "    dst " << llvm::format_hex(tl_dst->start_address, 10)
+  //                  << ", shape (" << tl_dst->shape.n << ", " << tl_dst->shape.c
+  //                  << ", " << tl_dst->shape.h << ", " << tl_dst->shape.w
+  //                  << "), stride (" << tl_dst->stride.n << ", "
+  //                  << tl_dst->stride.c << ", " << tl_dst->stride.h << ", "
+  //                  << tl_dst->stride.w << ")\n");
 
   uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(
       args.input_n, args.input_c, args.input_h, args.input_w,
@@ -1219,22 +1219,22 @@ void Conv::loadInput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
         ctx.tl_default_stride(tl_load.shape, tl_load.fmt, tl_load.eu_align);
   }
 
-  LLVM_DEBUG(llvm::dbgs()
-             << "\n  [n_pos=" << gmOutputPoss[NGCHW::N] << "][ig="
-             << gmOutputPoss[NGCHW::G] << "][oc_pos=" << gmOutputPoss[NGCHW::C]
-             << "][oh_pos=" << gmOutputPoss[NGCHW::H]
-             << "][ow_pos=" << gmOutputPoss[NGCHW::W] << "][ic_pos=" << icPos
-             << "] new tdma_load_stride:\n"
-             << "    tl_ifmap gaddr " << llvm::format_hex(ga_input_load, 10)
-             << "(offset=" << llvm::format_hex(ga_input_offset, 10)
-             << "), gstride (" << cvk_gm_input_stride.n << ", "
-             << cvk_gm_input_stride.c << ", " << cvk_gm_input_stride.h << ")\n"
-             << "    laddr " << llvm::format_hex(tl_load.start_address, 10)
-             << ", shape (" << tl_load.shape.n << ", " << tl_load.shape.c
-             << ", " << tl_load.shape.h << ", " << tl_load.shape.w
-             << "), stride (" << tl_load.stride.n << ", " << tl_load.stride.c
-             << ", " << tl_load.stride.h << ", " << tl_load.stride.w
-             << ")\n\n");
+  // LLVM_DEBUG(llvm::dbgs()
+  //            << "\n  [n_pos=" << gmOutputPoss[NGCHW::N] << "][ig="
+  //            << gmOutputPoss[NGCHW::G] << "][oc_pos=" << gmOutputPoss[NGCHW::C]
+  //            << "][oh_pos=" << gmOutputPoss[NGCHW::H]
+  //            << "][ow_pos=" << gmOutputPoss[NGCHW::W] << "][ic_pos=" << icPos
+  //            << "] new tdma_load_stride:\n"
+  //            << "    tl_ifmap gaddr " << llvm::format_hex(ga_input_load, 10)
+  //            << "(offset=" << llvm::format_hex(ga_input_offset, 10)
+  //            << "), gstride (" << cvk_gm_input_stride.n << ", "
+  //            << cvk_gm_input_stride.c << ", " << cvk_gm_input_stride.h << ")\n"
+  //            << "    laddr " << llvm::format_hex(tl_load.start_address, 10)
+  //            << ", shape (" << tl_load.shape.n << ", " << tl_load.shape.c
+  //            << ", " << tl_load.shape.h << ", " << tl_load.shape.w
+  //            << "), stride (" << tl_load.stride.n << ", " << tl_load.stride.c
+  //            << ", " << tl_load.stride.h << ", " << tl_load.stride.w
+  //            << ")\n\n");
 
   if (gmInputDesc->getCompressed()) {
     // load compressed input
@@ -1692,23 +1692,23 @@ void Conv::compute(std::vector<uint32_t> gmOutputPoss,
 
   uint8_t cmdPreExeMode = getTiuCmdPreExeMode(cmdQueueIndex, icPos);
 
-  LLVM_DEBUG(
-      llvm::dbgs()
-      << "    compute\n"
-      << "      ifmap laddr " << llvm::format_hex(tl_input.start_address, 10)
-      << ", shape (" << tl_input.shape.n << ", " << tl_input.shape.c << ", "
-      << tl_input.shape.h << ", " << tl_input.shape.w << ")\n"
-      << "      weight laddr " << llvm::format_hex(tl_weight.start_address, 10)
-      << ", shape (" << tl_weight.shape.n << ", " << tl_weight.shape.c << ", "
-      << tl_weight.shape.h << ", " << tl_weight.shape.w << ")\n"
-      << "      bias laddr " << llvm::format_hex(tl_bias.start_address, 10)
-      << ", shape (" << tl_bias.shape.n << ", " << tl_bias.shape.c << ", "
-      << tl_bias.shape.h << ", " << tl_bias.shape.w << ")\n"
-      << "      ofmap laddr " << llvm::format_hex(tl_output.start_address, 10)
-      << ", shape (" << tl_output.shape.n << ", " << tl_output.shape.c << ", "
-      << tl_output.shape.h << ", " << tl_output.shape.w << ")"
-      << ", cmdPreExeMode " << (int)cmdPreExeMode << ", ps32mode "
-      << (int)getPs32Mode(icPos) << "\n");
+  // LLVM_DEBUG(
+  //     llvm::dbgs()
+  //     << "    compute\n"
+  //     << "      ifmap laddr " << llvm::format_hex(tl_input.start_address, 10)
+  //     << ", shape (" << tl_input.shape.n << ", " << tl_input.shape.c << ", "
+  //     << tl_input.shape.h << ", " << tl_input.shape.w << ")\n"
+  //     << "      weight laddr " << llvm::format_hex(tl_weight.start_address, 10)
+  //     << ", shape (" << tl_weight.shape.n << ", " << tl_weight.shape.c << ", "
+  //     << tl_weight.shape.h << ", " << tl_weight.shape.w << ")\n"
+  //     << "      bias laddr " << llvm::format_hex(tl_bias.start_address, 10)
+  //     << ", shape (" << tl_bias.shape.n << ", " << tl_bias.shape.c << ", "
+  //     << tl_bias.shape.h << ", " << tl_bias.shape.w << ")\n"
+  //     << "      ofmap laddr " << llvm::format_hex(tl_output.start_address, 10)
+  //     << ", shape (" << tl_output.shape.n << ", " << tl_output.shape.c << ", "
+  //     << tl_output.shape.h << ", " << tl_output.shape.w << ")"
+  //     << ", cmdPreExeMode " << (int)cmdPreExeMode << ", ps32mode "
+  //     << (int)getPs32Mode(icPos) << "\n");
 
   // Use LayerId as trigger point
   uint32_t originalLayerId = args.layer_id;
@@ -1810,16 +1810,16 @@ void Conv::computeScaleLut(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
 //
 void Conv::storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
                                         cvk_tg_t *tg_dst, cvk_tl_t *tl_src) {
-  LLVM_DEBUG(
-      llvm::dbgs() << "\n  TDMA L2G compressed\n"
-                   << "    src " << llvm::format_hex(tl_src->start_address, 10)
-                   << ", shape (" << tl_src->shape.n << ", " << tl_src->shape.c
-                   << ", " << tl_src->shape.h << ", " << tl_src->shape.w
-                   << ")\n"
-                   << "    dst " << llvm::format_hex(tg_dst->start_address, 10)
-                   << ", shape (" << tg_dst->shape.n << ", " << tg_dst->shape.c
-                   << ", " << tg_dst->shape.h << ", " << tg_dst->shape.w
-                   << ")\n");
+  // LLVM_DEBUG(
+  //     llvm::dbgs() << "\n  TDMA L2G compressed\n"
+  //                  << "    src " << llvm::format_hex(tl_src->start_address, 10)
+  //                  << ", shape (" << tl_src->shape.n << ", " << tl_src->shape.c
+  //                  << ", " << tl_src->shape.h << ", " << tl_src->shape.w
+  //                  << ")\n"
+  //                  << "    dst " << llvm::format_hex(tg_dst->start_address, 10)
+  //                  << ", shape (" << tg_dst->shape.n << ", " << tg_dst->shape.c
+  //                  << ", " << tg_dst->shape.h << ", " << tg_dst->shape.w
+  //                  << ")\n");
 
   uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(
       args.input_n, args.output_c, output_height(), output_width(),
@@ -1868,20 +1868,20 @@ void Conv::storeOutput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
       !args.do_leaky_relu)
     intraCmdParal = cmdQueue[cmdQueueIndex]->isIntraCmdParalEnabled() ? 1 : 0;
 
-  LLVM_DEBUG(llvm::dbgs()
-             << "  [n_pos=" << gmOutputPoss[NGCHW::N] << "][ig="
-             << gmOutputPoss[NGCHW::G] << "][oc_pos=" << gmOutputPoss[NGCHW::C]
-             << "][oh_pos=" << gmOutputPoss[NGCHW::H] << "][ow_pos="
-             << gmOutputPoss[NGCHW::W] << "] new tdma_store_stride:\n"
-             << "    tl_ofmap gaddr " << llvm::format_hex(ga_output_store, 10)
-             << "(offset=" << llvm::format_hex(ga_output_offset, 10)
-             << "), gstride (" << cvk_gm_output_stride.n << ", "
-             << cvk_gm_output_stride.c << ", " << cvk_gm_output_stride.h
-             << ")\n"
-             << "    laddr " << llvm::format_hex(tl_output.start_address, 10)
-             << ", shape (" << tl_output.shape.n << ", " << tl_output.shape.c
-             << ", " << tl_output.shape.h << ", " << tl_output.shape.w << ")\n"
-             << "    intraCmdParal " << (int)intraCmdParal << "\n");
+  // LLVM_DEBUG(llvm::dbgs()
+  //            << "  [n_pos=" << gmOutputPoss[NGCHW::N] << "][ig="
+  //            << gmOutputPoss[NGCHW::G] << "][oc_pos=" << gmOutputPoss[NGCHW::C]
+  //            << "][oh_pos=" << gmOutputPoss[NGCHW::H] << "][ow_pos="
+  //            << gmOutputPoss[NGCHW::W] << "] new tdma_store_stride:\n"
+  //            << "    tl_ofmap gaddr " << llvm::format_hex(ga_output_store, 10)
+  //            << "(offset=" << llvm::format_hex(ga_output_offset, 10)
+  //            << "), gstride (" << cvk_gm_output_stride.n << ", "
+  //            << cvk_gm_output_stride.c << ", " << cvk_gm_output_stride.h
+  //            << ")\n"
+  //            << "    laddr " << llvm::format_hex(tl_output.start_address, 10)
+  //            << ", shape (" << tl_output.shape.n << ", " << tl_output.shape.c
+  //            << ", " << tl_output.shape.h << ", " << tl_output.shape.w << ")\n"
+  //            << "    intraCmdParal " << (int)intraCmdParal << "\n");
 
   cvk_tg_t ts_data = {0};
   ts_data.base_reg_index =
@@ -2015,18 +2015,6 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
   assert(static_cast<uint32_t>(oh) == output_height());
   assert(static_cast<uint32_t>(ow) == output_width());
 
-  LLVM_DEBUG(
-      llvm::errs() << llvm::format(
-          "  determineTileSize =>\n"
-          "    layer_id %d\n"
-          "    groups %d, ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n"
-          "    kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n"
-          "    stride (%d, %d), dilation (%d, %d)\n"
-          "    useDoubleBuffer %d\n",
-          args.layer_id, groups, input_n, input_c, input_h, input_w, input_n,
-          oc, oh, ow, kh, kw, pad_top, pad_bottom, pad_left, pad_right,
-          stride_h, stride_w, dilation_h, dilation_w, useDoubleBuffer));
-
   int32_t npu_num = static_cast<int32_t>(NPU_NUM);
   tile_info.n = 1;
   tile_info.oc = ceiling_func(oc, npu_num); // lane parallelism
@@ -2040,7 +2028,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
 
   // Not handle ps32 tiling here.
   if (ic_step < group_input_channels()) {
-    LLVM_DEBUG(llvm::errs() << "  <= determineTileSize fail\n");
+    LLVM_DEBUG(llvm::errs() << "  determineTileSize fail\n");
     return false;
   }
 
@@ -2058,6 +2046,9 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
     int32_t iw_step =
         ceiling_func((ow_step - 1) * stride_w + kw_extent, 1 + insert_width());
     iw_step = std::min(iw_step, iw);
+
+    if (iw_step > MAX_WIDTH)
+      continue;
 
     if ((stride_w > 1) && ((iw_step + stride_w) > iw)) {
       // For better DMA transfer efficiency, use whole width.
@@ -2079,6 +2070,9 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
       int32_t ih_step = ceiling_func((oh_step - 1) * stride_h + kh_extent,
                                      1 + insert_height());
       ih_step = std::min(ih_step, ih);
+
+      if (ih_step > MAX_WIDTH)
+        continue;
 
       // Split oc
       for (int32_t slice_oc = 0; slice_oc < num_oc_step; ++slice_oc) {
@@ -2146,13 +2140,28 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
           tile_info.favor_dma = favor_dma;
 
           if (total_needed <= getLmSizePerLane() && checkDmaPolicy(tile_info)) {
+            uint32_t total_size = ic * ih * iw + oc * ic * kh * kw + oc * oh * ow;
+            uint32_t ut = (total_needed * 100) / LOCAL_MEM_SIZE;
+            bool is_tiled = ((oc != oc_step) || (oh != oh_step)) ? true : false;
+            const char *ut_msg = (ut < 70 && is_tiled && !favor_dma) ? " => NG" : "";
+
+            LLVM_DEBUG(
+                llvm::errs() << llvm::format(
+                    "  Conv::determineTileSize\n    "
+                    "layer_id %d\n    "
+                    "groups %d, ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n    "
+                    "kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n    "
+                    "stride (%d, %d), dilation (%d, %d)\n    "
+                    "useDoubleBuffer %d\n",
+                    args.layer_id, groups, input_n, input_c, input_h, input_w, input_n,
+                    oc, oh, ow, kh, kw, pad_top, pad_bottom, pad_left, pad_right,
+                    stride_h, stride_w, dilation_h, dilation_w, useDoubleBuffer));
             LLVM_DEBUG(llvm::errs() << llvm::format(
-                           "  Conv::determineTileSize\n    "
-                           "Tile (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d"
+                           "    Tile (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d"
                            ", ih_step=%d, iw_step=%d, ic_step=%d)\n    "
                            "inputSize %d, outputSize %d, weightSize %d"
-                           ", biasSize %d, totalSizePerLane %d"
-                           ", totalSize %d/%d(%d)\n    "
+                           ", biasSize %d, totalSizePerLane %d/%d"
+                           ", totalSize %d/%d(%d), %d/%d(%d)%s\n    "
                            "ifmap shape (%d, %d, %d, %d)\n    "
                            "weight shape (%d, %d, %d, %d)\n    "
                            "ofmap shape (%d, %d, %d, %d)\n    "
@@ -2161,13 +2170,17 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
                            ic_step, ifmap_size * bufferMultiplier,
                            ofmap_size * bufferMultiplier,
                            weight_size * bufferMultiplier,
-                           coeff_oc_step_size * bufferMultiplier, total_needed,
+                           coeff_oc_step_size * bufferMultiplier,
+                           total_needed, LOCAL_MEM_SIZE,
                            total_needed * NPU_NUM, LOCAL_MEM_SIZE * NPU_NUM,
-                           (total_needed * 100) / LOCAL_MEM_SIZE, n_step,
+                           (total_needed * 100) / LOCAL_MEM_SIZE,
+                           total_needed, total_size,
+                           (total_needed * 100) / total_size,
+                           ut_msg,
+                           n_step,
                            ic_step, ih_step, iw_step, oc_step, ic_step, kh, kw,
                            n_step, oc_step, oh_step, ow_step, useDoubleBuffer,
                            favor_dma));
-            LLVM_DEBUG(llvm::errs() << "  <= determineTileSize succeed\n");
             return true;
           }
 
@@ -2178,7 +2191,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
 
   tile_info = {0};
 
-  LLVM_DEBUG(llvm::errs() << "  <= determineTileSize fail\n");
+  LLVM_DEBUG(llvm::errs() << "  determineTileSize fail\n");
 
   return false;
 }
@@ -2522,14 +2535,14 @@ void Conv::generateCmd() {
 void Conv::convReuseWeight() {
   LLVM_DEBUG(
       llvm::errs() << llvm::format(
-          "convReuseWeight =>\n"
-          "  groups %d, ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n"
-          "  kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n"
-          "  stride (%d, %d), dilation (%d, %d)\n"
-          "  do_bias %d, do_chl_quan %d\n"
-          "  Slices (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d, ih_step=%d"
-          ", iw_step=%d, ic_step=%d)\n"
-          "  store_cmpr_act %d, load_cmpr_act %d\n",
+          "  convReuseWeight\n    "
+          "groups %d, ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n    "
+          "kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n    "
+          "stride (%d, %d), dilation (%d, %d)\n    "
+          "do_bias %d, do_chl_quan %d\n    "
+          "Tile (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d, ih_step=%d"
+          ", iw_step=%d, ic_step=%d)\n    "
+          "store_cmpr_act %d, load_cmpr_act %d\n",
           args.groups, args.input_n, args.input_c, args.input_h, args.input_w,
           args.input_n, args.output_c, output_height(), output_width(), args.kh,
           args.kw, args.pad_top, args.pad_bottom, args.pad_left, args.pad_right,
@@ -2614,8 +2627,6 @@ void Conv::convReuseWeight() {
     uint32_t flip_back = 1 - flip;
     enqueueStoreOutputCmd(gmOutputPoss[flip_back], flip_back);
   } // for (int group_i = 0; group_i < groups; ++groups)
-
-  LLVM_DEBUG(llvm::errs() << "<= convReuseWeight\n");
 }
 
 //
@@ -2626,14 +2637,14 @@ void Conv::convReuseWeight() {
 void Conv::convReuseActivation() {
   LLVM_DEBUG(
       llvm::errs() << llvm::format(
-          "convReuseActivation =>\n"
-          "  groups %d, ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n"
-          "  kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n"
-          "  stride (%d, %d), dilation (%d, %d)\n"
-          "  do_bias %d, do_chl_quan %d\n"
-          "  Slices (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d, ih_step=%d"
-          ", iw_step=%d, ic_step=%d)\n"
-          "  store_cmpr_act %d, load_cmpr_act %d\n",
+          "  convReuseActivation\n    "
+          "groups %d, ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n    "
+          "kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n    "
+          "stride (%d, %d), dilation (%d, %d)\n    "
+          "do_bias %d, do_chl_quan %d\n    "
+          "Tile (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d, ih_step=%d"
+          ", iw_step=%d, ic_step=%d)\n    "
+          "store_cmpr_act %d, load_cmpr_act %d\n",
           args.groups, args.input_n, args.input_c, args.input_h, args.input_w,
           args.input_n, args.output_c, output_height(), output_width(), args.kh,
           args.kw, args.pad_top, args.pad_bottom, args.pad_left, args.pad_right,
@@ -2726,8 +2737,6 @@ void Conv::convReuseActivation() {
     enqueueStoreOutputCmd(gmOutputPoss[coeff_flip_back], coeff_flip_back);
 
   } // for (int group_i = 0; group_i < groups; ++groups)
-
-  LLVM_DEBUG(llvm::errs() << "<= convReuseActivation\n");
 }
 
 // Split n, oh, ow, oc.
@@ -2771,16 +2780,6 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
   assert(static_cast<uint32_t>(kw_extent) == dilated_kernel_width());
   assert(static_cast<uint32_t>(oh) == output_height());
   assert(static_cast<uint32_t>(ow) == output_width());
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-                 "determineDwTileSize =>\n"
-                 "  ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n"
-                 "  kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n"
-                 "  ins_h %d, ins_w %d "
-                 "  stride (%d, %d), dilation (%d, %d)\n",
-                 input_n, input_c, input_h, input_w, input_n, oc, oh, ow, kh,
-                 kw, pad_top, pad_bottom, pad_left, pad_right, insert_height(),
-                 insert_width(), stride_h, stride_w, dilation_h, dilation_w));
 
   int32_t npu_num = static_cast<int32_t>(NPU_NUM);
   tile_info.n = 1;
@@ -2883,13 +2882,25 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
           if (total_needed <= getLmSizePerLane() && checkDmaPolicy(tile_info)) {
             tile_info.n_step = n_step;
 
+            uint32_t total_size = ic * ih * iw + oc * ic * kh * kw + oc * oh * ow;
+            uint32_t ut = (total_needed * 100) / LOCAL_MEM_SIZE;
+            bool is_tiled = ((oc != oc_step) || (oh != oh_step)) ? true : false;
+            const char *ut_msg = (ut < 70 && is_tiled && !favor_dma) ? " => NG(dw)" : "";
+
             LLVM_DEBUG(llvm::errs() << llvm::format(
-                           "  Conv::determineDwTileSize\n    "
-                           "Tile (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d"
+                          "  determineDwTileSize\n    "
+                          "ifmap (%d, %d, %d, %d), ofmap(%d, %d, %d, %d)\n    "
+                          "kernel (%d, %d), pad (top=%d, bot=%d, left=%d, right=%d)\n    "
+                          "ins_h %d, ins_w %d, stride (%d, %d), dilation (%d, %d)\n",
+                          input_n, input_c, input_h, input_w, input_n, oc, oh, ow, kh,
+                          kw, pad_top, pad_bottom, pad_left, pad_right, insert_height(),
+                          insert_width(), stride_h, stride_w, dilation_h, dilation_w));
+            LLVM_DEBUG(llvm::errs() << llvm::format(
+                           "    Tile (n_step=%d, oc_step=%d, oh_step=%d, ow_step=%d"
                            ", ih_step=%d, iw_step=%d, ic_step=%d)\n    "
                            "inputSize %d, outputSize %d, weightSize %d"
-                           ", biasSize %d, totalSizePerLane %d"
-                           ", totalSize %d/%d(%d)\n    "
+                           ", biasSize %d, totalSizePerLane %d/%d"
+                           ", totalSize %d/%d(%d), %d/%d(%d)%s\n    "
                            "tiled ifmap shape (%d, %d, %d, %d)\n    "
                            "tiled weight shape (%d, %d, %d, %d)\n    "
                            "tiled ofmap shape (%d, %d, %d, %d)\n    "
@@ -2898,23 +2909,23 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
                            ic_step, ifmap_size * bufferMultiplier,
                            ofmap_size * bufferMultiplier,
                            weight_size * bufferMultiplier,
-                           coeff_oc_step_size * bufferMultiplier, total_needed,
+                           coeff_oc_step_size * bufferMultiplier,
+                           total_needed, LOCAL_MEM_SIZE,
                            total_needed * NPU_NUM, LOCAL_MEM_SIZE * NPU_NUM,
-                           (total_needed * 100) / LOCAL_MEM_SIZE, n_step,
+                           (total_needed * 100) / LOCAL_MEM_SIZE,
+                           total_needed, total_size,
+                           (total_needed * 100) / total_size,
+                           ut_msg,
+                           n_step,
                            oc_step, ih_step, iw_step, oc_step, ic_step, kh, kw,
                            n_step, oc_step, oh_step, ow_step, use_double_buffer,
                            favor_dma));
-            LLVM_DEBUG(llvm::errs() << "<= determineDwTileSize succeed"
-                                    << "\n");
             return true;
           }
         } // for (int32_t slice_oc = 0; slice_oc < num_oc_step; ++slice_oc)
       }   // for (tile_info.n = 1; tile_info.n < n; ++tile_info.n)
     }     // for (tile_info.h = 1; tile_info.h <= oh; ++tile_info.h)
   }       // for (tile_info.w = 1; tile_info.w <= ow; ++tile_info.ow)
-
-  LLVM_DEBUG(llvm::errs() << "<= determineDwTileSize fail"
-                          << "\n";);
 
   tile_info = {0};
 
