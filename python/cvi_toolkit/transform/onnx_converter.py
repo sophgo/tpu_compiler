@@ -355,7 +355,7 @@ class OnnxConverter(BaseConverter):
         if sub == 0:
             return False
         for a, b in zip(lshape, rshape):
-            if a != b and (sub > 0 and b != 1) or (sub < 0 and a != 1):
+            if a != b and ((sub > 0 and b != 1) or (sub < 0 and a != 1)):
                 return False
         return True
 
@@ -3478,10 +3478,9 @@ class OnnxConverter(BaseConverter):
         assert(input_num == 2)
         op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
-
+        output_shape = max(input_shape0, input_shape1)
         if tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.ACTIVATION:
             name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-            output_shape = max(input_shape0, input_shape1)
             if self.is_same_shape(input_shape0, input_shape1):
                 sub_op = self.CVI.add_eltwise_sub_op(name, [op0, op1], output_shape)
                 self.addOperand(onnx_node.name, sub_op, output_shape, TensorType.ACTIVATION)
