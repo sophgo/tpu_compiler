@@ -18,9 +18,9 @@ public:
 protected:
   std::vector<SyncedData> inputs_data;
   SyncedData output_data;
-  int n0, c0, h0, w0;
-  int n1, c1, h1, w1;
-  int on, oc, oh, ow;
+  int64_t n0, c0, h0, w0;
+  int64_t n1, c1, h1, w1;
+  int64_t on, oc, oh, ow;
 
   // param
   bool do_relu;

@@ -67,6 +67,30 @@ void getNCHW(std::vector<int64_t> &shape,
   }
 }
 
+void getNCHW_bcast(std::vector<int64_t> &shape,
+    int64_t &n, int64_t &c, int64_t &h, int64_t &w) {
+  int num_dims = shape.size();
+  n = 1;
+  c = 1;
+  h = 1;
+  w = 1;
+  if (num_dims > 0) {
+    w = shape[num_dims-1];
+  }
+  if (num_dims > 1) {
+    h = shape[num_dims-2];
+  }
+  if (num_dims > 2) {
+    c = shape[num_dims -3];
+  }
+  if (num_dims > 3) {
+    n = shape[num_dims -4];
+  }
+  for (int i = 4; i < num_dims; i++) {
+    n *= shape[i];
+  }
+}
+
 void getNCDHW(std::vector<int64_t> &shape,
     int64_t &n, int64_t &c, int64_t &d, int64_t &h, int64_t &w) {
   if(shape.size() == 5) {

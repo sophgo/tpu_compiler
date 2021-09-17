@@ -294,11 +294,11 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
 
   int64_t n, c, h, w;
   std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
-  getNCHW(shape, n, c, h, w);
+  getNCHW_bcast(shape, n, c, h, w);
 
   int64_t bn, bc, bh, bw;
   std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
-  getNCHW(bshape, bn, bc, bh, bw);
+  getNCHW_bcast(bshape, bn, bc, bh, bw);
 
   bool do_relu = this->do_relu();
 
@@ -338,11 +338,11 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
 
   int64_t n, c, h, w;
   std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
-  getNCHW(shape, n, c, h, w);
+  getNCHW_bcast(shape, n, c, h, w);
 
   int64_t bn, bc, bh, bw;
   std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
-  getNCHW(bshape, bn, bc, bh, bw);
+  getNCHW_bcast(bshape, bn, bc, bh, bw);
 
   bool do_relu = this->do_relu();
 
@@ -368,11 +368,11 @@ LogicalResult tpu::TG_INT8_BroadcastAddOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   std::vector<int64_t> shape;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  getNCHW_bcast(shape, n, c, h, w);
 
   int64_t bn, bc, bh, bw;
   getTensorShapeAndSize(op->getOperand(1), shape, input_size);
-  getNCHW(shape, bn, bc, bh, bw);
+  getNCHW_bcast(shape, bn, bc, bh, bw);
 
   bool do_relu = this->do_relu();
 
@@ -415,11 +415,11 @@ LogicalResult tpu::TG_BF16_BroadcastAddOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   std::vector<int64_t> shape;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  getNCHW_bcast(shape, n, c, h, w);
 
   int64_t bn, bc, bh, bw;
   getTensorShapeAndSize(op->getOperand(1), shape, input_size);
-  getNCHW(shape, bn, bc, bh, bw);
+  getNCHW_bcast(shape, bn, bc, bh, bw);
 
   bool do_relu = this->do_relu();
 
@@ -445,11 +445,11 @@ LogicalResult tpu::TG_INT8_BroadcastSubOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   std::vector<int64_t> shape;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  getNCHW_bcast(shape, n, c, h, w);
 
   int64_t bn, bc, bh, bw;
   getTensorShapeAndSize(op->getOperand(1), shape, input_size);
-  getNCHW(shape, bn, bc, bh, bw);
+  getNCHW_bcast(shape, bn, bc, bh, bw);
 
   bool do_relu = this->do_relu();
 
@@ -492,11 +492,11 @@ LogicalResult tpu::TG_BF16_BroadcastSubOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
   std::vector<int64_t> shape;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  getNCHW_bcast(shape, n, c, h, w);
 
   int64_t bn, bc, bh, bw;
   getTensorShapeAndSize(op->getOperand(1), shape, input_size);
-  getNCHW(shape, bn, bc, bh, bw);
+  getNCHW_bcast(shape, bn, bc, bh, bw);
 
   bool do_relu = this->do_relu();
 
@@ -3634,8 +3634,8 @@ LogicalResult tpu::TG_BF16_PadOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_ReduceMeanOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -3643,6 +3643,8 @@ LogicalResult tpu::TG_INT8_ReduceMeanOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   std::vector<int64_t> input_shape = getTensorShape(input());
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
 
   int rshift = 0;
   if (this->rshift().hasValue())
@@ -3663,19 +3665,9 @@ LogicalResult tpu::TG_INT8_ReduceMeanOp::codegen(void *ctx) {
       axes[i] = axes_array[i];
   }
 
-  cvi_backend_tg_fixed_reduce_mean_kernel(*backend_ctx,
-                                          layer_id,
-                                          ga_input,
-                                          ga_output,
-                                          (int)input_shape[0],
-                                          (int)input_shape[1],
-                                          (int)input_shape[2],
-                                          (int)input_shape[3],
-                                          rshift,
-                                          multiplier,
-                                          axes,
-                                          num_axes
-                                          );
+  cvi_backend_tg_fixed_reduce_mean_kernel(*backend_ctx, layer_id, ga_input,
+                                          ga_output, n, c, h, w, rshift,
+                                          multiplier, axes, num_axes);
 
   delete[] axes;
 
@@ -3683,8 +3675,8 @@ LogicalResult tpu::TG_INT8_ReduceMeanOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -3692,6 +3684,8 @@ LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   std::vector<int64_t> input_shape = getTensorShape(input());
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
 
   int num_axes = 0;
   int *axes = nullptr;
@@ -3707,25 +3701,13 @@ LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
   if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
     // Replace with tdma global memory copy via TG permute
     std::vector<int64_t> output_shape = getTensorShape(output());
+    getNCHW(output_shape, n, c, h, w);
     cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, ga_input, ga_output,
-                                  (uint32_t)output_shape[0], // input_n
-                                  (uint32_t)output_shape[1], // input_c
-                                  (uint32_t)output_shape[2], // input_h
-                                  (uint32_t)output_shape[3], // input_w
-                                  0, 1, 2, 3,                // order
-                                  CVK_FMT_I8);
+                                  n, c, h, w, 0, 1, 2, 3, CVK_FMT_I8);
   } else {
-    cvi_backend_tg_fixed_reduce_max_kernel(*backend_ctx,
-                                          layer_id,
-                                          ga_input,
-                                          ga_output,
-                                          (int)input_shape[0],
-                                          (int)input_shape[1],
-                                          (int)input_shape[2],
-                                          (int)input_shape[3],
-                                          axes,
-                                          num_axes
-                                          );
+    cvi_backend_tg_fixed_reduce_max_kernel(*backend_ctx, layer_id, ga_input,
+                                           ga_output, n, c, h, w, axes,
+                                           num_axes);
   }
 
   delete[] axes;
@@ -3734,8 +3716,8 @@ LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_BF16_ReduceMeanOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -3743,7 +3725,8 @@ LogicalResult tpu::TG_BF16_ReduceMeanOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   std::vector<int64_t> input_shape = getTensorShape(input());
-
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
   int num_axes = 0;
   int *axes = nullptr;
   if (this->axes().hasValue()) {
@@ -3755,17 +3738,8 @@ LogicalResult tpu::TG_BF16_ReduceMeanOp::codegen(void *ctx) {
       axes[i] = axes_array[i];
   }
 
-  cvi_backend_tg_bf16_reduce_mean_kernel(*backend_ctx,
-                                         layer_id,
-                                         ga_input,
-                                         ga_output,
-                                         (int)input_shape[0],
-                                         (int)input_shape[1],
-                                         (int)input_shape[2],
-                                         (int)input_shape[3],
-                                         axes,
-                                         num_axes
-                                         );
+  cvi_backend_tg_bf16_reduce_mean_kernel(*backend_ctx, layer_id, ga_input,
+                                         ga_output, n, c, h, w, axes, num_axes);
 
   delete[] axes;
 
@@ -3773,8 +3747,8 @@ LogicalResult tpu::TG_BF16_ReduceMeanOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -3782,7 +3756,8 @@ LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   std::vector<int64_t> input_shape = getTensorShape(input());
-
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
   int num_axes = 0;
   int *axes = nullptr;
   if (this->axes().hasValue()) {
@@ -3797,28 +3772,13 @@ LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
   if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
     // Replace with tdma global memory copy via TG permute
     std::vector<int64_t> output_shape = getTensorShape(output());
+    getNCHW(output_shape, n, c, h, w);
     cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, ga_input, ga_output,
-                                  (uint32_t)output_shape[0], // input_n
-                                  (uint32_t)output_shape[1], // input_c
-                                  (uint32_t)output_shape[2], // input_h
-                                  (uint32_t)output_shape[3], // input_w
-                                  0,                         // order_n
-                                  1,                         // order_c
-                                  2,                         // order_h
-                                  3,                         // order_w
-                                  CVK_FMT_BF16);
+                                  n, c, h, w, 0, 1, 2, 3, CVK_FMT_BF16);
   } else {
-    cvi_backend_tg_bf16_reduce_max_kernel(*backend_ctx,
-                                          layer_id,
-                                          ga_input,
-                                          ga_output,
-                                          (int)input_shape[0],
-                                          (int)input_shape[1],
-                                          (int)input_shape[2],
-                                          (int)input_shape[3],
-                                          axes,
-                                          num_axes
-                                          );
+    cvi_backend_tg_bf16_reduce_max_kernel(*backend_ctx, layer_id, ga_input,
+                                          ga_output, n, c, h, w, axes,
+                                          num_axes);
   }
 
   delete[] axes;
