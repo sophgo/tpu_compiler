@@ -26,7 +26,6 @@ logger = setup_logger('root')
 
 log_flag = logger.level <= logging.DEBUG
 
-
 onnx_attr_translator = {
     "axis": lambda x: int(x),
     "axes": lambda x: [int(a) for a in x],
@@ -1229,12 +1228,15 @@ class OnnxConverter(BaseConverter):
         if len(onnx_node.inputs) == 1:
             # convert concat op to reshape op if has only one input
             op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
-            self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+            if tensor_type == TensorType.TENSOR:
+                self.addTensor(onnx_node.name, self.getTensor(onnx_node.inputs[0]).tensor_data, input_shape)
+                self.addOperand(onnx_node.name, None, input_shape, TensorType.TENSOR)
+            else:
+                self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
             return
 
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
-
         axis = onnx_node.attrs['axis']
         if axis < 0:
             axis += len(input_shape1)
@@ -1787,7 +1789,7 @@ class OnnxConverter(BaseConverter):
         input_shape0 = list(input_shape)
         operands = list()
         expand_dims = 0
-        if tensor_type1 == TensorType.TENSOR:
+        if tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
             operands = list()
             operands.append(op0)
             tensor_data = self.getTensor(onnx_node.inputs[1]).tensor_data
@@ -1941,7 +1943,12 @@ class OnnxConverter(BaseConverter):
                     onnx_node.name, onnx_node.op_type), [upsample_op], org_shape)
                 self.addOperand(onnx_node.name, reshape_back_op,
                                 org_shape, TensorType.ACTIVATION)
-
+        elif tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR:
+            if np.prod(input_shape0) == 1:
+                #  following the broadcast rule
+                tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+                self.addTensor(onnx_node.name, tensor_data, list(tensor_data.shape))
+                self.addOperand(onnx_node.name, None, list(tensor_data.shape), TensorType.TENSOR)
         else:
             raise RuntimeError("not implement yet")
 
