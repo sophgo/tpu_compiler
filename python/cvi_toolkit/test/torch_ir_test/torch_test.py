@@ -26,6 +26,7 @@ TEST_ONNX_IR = [
     "Std",
     "Squeeze",
     "Linear",
+    "Zeros",
 ]
 
 def cvimodel_inference(inputs, model_name):
@@ -115,6 +116,7 @@ class TORCH_IR_TESTER(object):
             "Linear": self.test_Linear,
             "Std": self.test_Std,
             "Squeeze": self.test_Squeeze,
+            "Zeros": self.test_Zeros
         }
         self.set_quant_mode()
 
@@ -269,6 +271,25 @@ class TORCH_IR_TESTER(object):
         # Use the exporter from  torch to convert to onnx
         self.pytorch_transform_onnx(net, input_data, test_onnx_name)
 
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Zeros(self):
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self,x):
+                y = torch.zeros(x.size(0))
+                return torch.add(x, y)
+
+        input_shape = [1, 16]
+        test_onnx_name = "Zeros"
+
+        net = Net()
+        input_data = torch.ones(*input_shape)
+        torch_output_data = net(input_data)
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
