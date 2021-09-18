@@ -102,16 +102,16 @@ run_accuracy_all_parallel()
   fi
 }
 
-run_onnx_ir_test()
+run_ir_test()
 {
   # IR test
   local err=0
-  onnx_ir_test.sh  > onnx_all_ir\.log | true
+  ir_test.sh  > all_ir\.log | true
   if [ "${PIPESTATUS[0]}" -ne "0" ]; then
-    echo "onnx all ir test FAILED" >> verdict.log
+    echo "all ir test FAILED" >> verdict.log
     return 1
   else
-    echo "onnx all ir test PASSED" >> verdict.log
+    echo "all ir test PASSED" >> verdict.log
   fi
 
   return $err
@@ -132,7 +132,7 @@ usage()
 run_extra=0
 bs=1
 run_accuracy=0
-run_onnx_test=1
+run_ir_test=1
 
 while getopts "n:b:a:f:e" opt
 do
@@ -236,8 +236,8 @@ if [ $run_accuracy -ne 0 ]; then
   fi
 fi
 # run onnx ir test
-if [ $run_onnx_test -ne 0 ]; then
-  run_onnx_ir_test
+if [ $run_ir_test -ne 0 ]; then
+  run_ir_test
   if [ "$?" -ne 0 ]; then
     ERR=1
   fi

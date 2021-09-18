@@ -20,13 +20,14 @@ import sys
 import gc
 import re
 
-TEST_ONNX_IR = [
+TEST_TORCH_IR = [
     "Add",
     "Conv2d", # Conv with 2d case
+    "LayerNorm",
+    "Linear",
     "Std",
     "Squeeze",
-    "Linear",
-    "Zeros",
+    "Size",
 ]
 
 def cvimodel_inference(inputs, model_name):
@@ -112,11 +113,12 @@ class TORCH_IR_TESTER(object):
 
         self.test_function = {
             "Add": self.test_Add,
-            "Conv2d": self.test_Conv2d,
+            "LayerNorm": self.test_LayerNorm,
             "Linear": self.test_Linear,
+            "Conv2d": self.test_Conv2d,
             "Std": self.test_Std,
             "Squeeze": self.test_Squeeze,
-            "Zeros": self.test_Zeros
+            "Size": self.test_Size,
         }
         self.set_quant_mode()
 
@@ -178,7 +180,7 @@ class TORCH_IR_TESTER(object):
         if quant_mode == "int8":
             for i in NOT_SUPPORT_INT8_TEST_IR:
                 if i == model_name:
-                    print("{} not support bf16 test!".format(model_name))
+                    print("{} not support int8 test!".format(model_name))
             table_name = "{}_cali_table".format(model_name)
             # gen cali table
             make_test_calibration_table(tensors, table_name)
@@ -265,7 +267,7 @@ class TORCH_IR_TESTER(object):
         test_onnx_name = 'Add'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -274,20 +276,20 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_Zeros(self):
+    def test_Size(self):
         class Net(nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
 
             def forward(self,x):
-                y = torch.zeros(x.size(0))
+                y = torch.ones(x.size(1))
                 return torch.add(x, y)
 
-        input_shape = [1, 16]
-        test_onnx_name = "Zeros"
+        input_shape = [10, 16]
+        test_onnx_name = "Size"
 
         net = Net()
-        input_data = torch.ones(*input_shape)
+        input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
         self.pytorch_transform_onnx(net, input_data, test_onnx_name)
         torch_output_data = torch_output_data.data.numpy()
@@ -307,7 +309,7 @@ class TORCH_IR_TESTER(object):
         test_onnx_name = 'Std'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -331,7 +333,7 @@ class TORCH_IR_TESTER(object):
         test_onnx_name = 'Squeeze'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -363,6 +365,29 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
+    def test_LayerNorm(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.layer_norm = nn.LayerNorm(50)
+
+            def forward(self, x):
+                x = self.layer_norm(x)
+                return x
+
+        input_shape = [3, 24, 50]
+        test_onnx_name = 'LayerNorm'
+
+        net = Net()
+        input_data = torch.randn(input_shape)
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
     def test_Conv2d(self):
         class Net(torch.nn.Module):
             def __init__(self):
@@ -377,11 +402,10 @@ class TORCH_IR_TESTER(object):
                 x = self.conv_test(x)
                 return x
 
-        batch_size = 1
+        input_shape = [1, 3, 27, 27]
         test_onnx_name = 'Conv2d'
         ##torch needn't weight and bias
-        input_data_np = np.random.randn(batch_size, 3, 27, 27).astype(np.float32)
-        input_data = torch.from_numpy(input_data_np).float()
+        input_data = torch.randn(input_shape)
         net = Net()
         torch_output_data = net(input_data)
 
@@ -394,44 +418,37 @@ if __name__ == "__main__":
     os.makedirs("torch_test", exist_ok=True)
     os.chdir("torch_test")
     tester = TORCH_IR_TESTER()
-    if len(sys.argv) >= 3:
-        input_shape = sys.argv[1].split(",")
-        if len(sys.argv) >= 4:
-            tester.test_model(input_shape, sys.argv[2], sys.argv[3])
-        else:
-            tester.test_model(input_shape, sys.argv[2])
-        exit(0)
-    elif len(sys.argv) == 2:
+    if len(sys.argv) == 2:
         tester.test_function.get(sys.argv[1])()
         exit(0)
     elif len(sys.argv) == 1:
         pass_list_i8 = list()
         pass_list_bf16 = list()
 
-        for i in TEST_ONNX_IR:
+        for i in TEST_TORCH_IR:
             if i not in NOT_SUPPORT_INT8_TEST_IR:
                 tester.test_function.get(i)()
                 pass_list_i8.append(i)
                 print("TEST {} Finish".format(i))
 
-        for i in TEST_ONNX_IR:
-            if i not in NOT_SUPPORT_BF16_TEST_IR:
-                tester.set_quant_mode(mode="bf16")
-                tester.test_function.get(i)()
-                pass_list_bf16.append(i)
-
+        # for i in TEST_TORCH_IR:
+        #     if i not in NOT_SUPPORT_BF16_TEST_IR:
+        #         tester.set_quant_mode(mode="bf16")
+        #         tester.test_function.get(i)()
+        #         pass_list_bf16.append(i)
+        print("Torch test result:")
         print("INT8 {} PASS {}".format("="*4, "="*4))
         for i in pass_list_i8:
             if i not in NOT_SUPPORT_INT8_TEST_IR:
                 print("\t {}".format(i))
 
-        print("BF16 {} PASS {}".format("="*4, "="*4))
-        for i in pass_list_bf16:
-            if i not in NOT_SUPPORT_BF16_TEST_IR:
-                print("\t {}".format(i))
+        # print("BF16 {} PASS {}".format("="*4, "="*4))
+        # for i in pass_list_bf16:
+        #     if i not in NOT_SUPPORT_BF16_TEST_IR:
+        #         print("\t {}".format(i))
 
     else:
-        print("Usage: exe.py [input_shape] [model]")
+        print("Usage: test_torch.py ir_name")
         exit(-1)
 
 

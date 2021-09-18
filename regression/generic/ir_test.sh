@@ -8,5 +8,9 @@ rm -rf onnx_test
 
 test_onnx.py
 
+rm -rf torch_test
+
+test_torch.py
+
 # VERDICT
 echo $0 PASSED

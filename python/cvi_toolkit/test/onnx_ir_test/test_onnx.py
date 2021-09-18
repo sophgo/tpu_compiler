@@ -66,9 +66,9 @@ TEST_ONNX_IR = [
     "BCastSub", # test broadcast sub
 ]
 
-NOT_SUPPORT_CMDBUF_TEST_IR = ["DepthToSpace"]
-NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Conv4Bit", "Transpose", "Sum"]
-NOT_SUPPORT_INT8_TEST_IR = ["Gather", "Softmax"] # just for save test time
+NOT_SUPPORT_CMDBUF_TEST_IR = [""]
+NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Conv4Bit", "Transpose", "Sum", "DepthToSpace"]
+NOT_SUPPORT_INT8_TEST_IR = ["Softmax"] # just for save test time
 
 QUANT_BITWIDTH = {}
 
@@ -865,7 +865,7 @@ class ONNX_IR_TESTER(object):
 
     def test_DepthToSpace(self):
         test_case = 'DepthToSpace'
-        in_shape = [1, 256, 1080, 1920]
+        in_shape = [1, 32, 108, 192]
         n, c, h, w = in_shape
         blocksize = 2
         # mode='CRD'
@@ -2836,7 +2836,7 @@ if __name__ == "__main__":
                 tester.set_quant_mode(mode="bf16")
                 tester.test_function.get(i)()
                 pass_list_bf16.append(i)
-
+        print("Onnx test result:")
         print("INT8 {} PASS {}".format("="*4, "="*4))
         for i in pass_list_i8:
             if i not in NOT_SUPPORT_INT8_TEST_IR:
