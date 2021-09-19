@@ -1486,15 +1486,16 @@ class CaffeConverter(BaseConverter):
         num_dims = len(input_shape)
         assert(num_dims == 4 or num_dims == 2)
         if len(layer.bottom) == 2:
-            # add broadcast mul
-            op1, _, _ = self.getOperand(layer.bottom[1])
+            # add broadcast mul, compitable with onnx broadcast
+            op1, input_shape2, _ = self.getOperand(layer.bottom[1])
+            if len(input_shape2) < num_dims:
+                input_shape2.extend([1]*(num_dims-len(input_shape2)))
+                op1 = self.CVI.add_reshape_op(
+                    layer.bottom[1]+"_reshape", [op1], input_shape2)
             operands.append(op1)
-            param = {
-                'axis': 1
-            }
             output_shape = input_shape
             new_op = self.CVI.add_broadcast_mul_op(
-                layer.name, operands, output_shape, **param)
+                layer.name, operands, output_shape)
             self.addOperand(layer.top[0], new_op, output_shape,
                             TensorType.ACTIVATION)
         else:
