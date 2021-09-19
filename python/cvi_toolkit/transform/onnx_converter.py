@@ -2468,7 +2468,6 @@ class OnnxConverter(BaseConverter):
             onnx_node.inputs[0], onnx_node.inputs[1] = onnx_node.inputs[1], onnx_node.inputs[0]
             self.convert_mul_op(onnx_node)
             return
-        operands = list()
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
             tensor_data1 = self.getTensor(onnx_node.inputs[0]).tensor_data
             tensor_data2 = self.getTensor(onnx_node.inputs[1]).tensor_data
@@ -2492,10 +2491,8 @@ class OnnxConverter(BaseConverter):
                 weight_shape = list(weight_data.shape)
                 self.addTensor(weight_name, weight_data, weight_shape)
                 weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
-                operands.append(op1)
-                operands.append(weight_op)
                 output_shape = input_shape1
-                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, weight_op], output_shape)
                 self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
                 return
             output_shape = self.bcast_shape(input_shape1, input_shape2)
@@ -3465,7 +3462,7 @@ class OnnxConverter(BaseConverter):
                 bias_shape = list(bias_data.shape)
                 self.addTensor(bias_name, bias_data, bias_shape)
                 bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
-                output_shape = input_shape1
+                output_shape = input_shape0
                 scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0, weight_op, bias_op], output_shape)
                 self.addOperand(onnx_node.name, scale_op,
                                 output_shape, TensorType.ACTIVATION)
