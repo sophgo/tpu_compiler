@@ -54,7 +54,7 @@ TEST_ONNX_IR = [
     "ReduceMean",
     "Resize",
 #    "Reciprocal",
-    "Slice",
+#    "Slice",
     "Slice_3dim", # test slice for 3 dims
     "Sigmoid",
     "Sub",
@@ -184,7 +184,6 @@ class ONNX_IR_TESTER(object):
             "PadReflect": self.test_PadReflect,
             "Relu": self.test_Relu,
             "Resize": self.test_Resize,
-            "Slice": self.test_Slice,
             "Slice_3dim": self.test_Slice_3dim,
             "Sigmoid": self.test_Sigmoid,
             "Sub": self.test_Sub,
@@ -2078,88 +2077,6 @@ class ONNX_IR_TESTER(object):
                                     input_shape[2], input_shape[3]).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_Slice(self):
-        _test_case = 'Slice'
-        testbench_path = os.path.join(script_path,
-            "./testbenchs/slice.yaml")
-        with open(testbench_path, "r") as stream:
-            testbenchs = yaml.load(stream)
-            for _t in testbenchs:
-                t = testbenchs[_t]
-                input_shape = [int(i) for i in t['input_shape'].split(",")]
-                test_case = _test_case + _t
-
-                x = np.random.randn(np.prod(input_shape)).reshape(input_shape).astype(np.float32)
-                y = x[0:3, 0:33, 0:15, 0:5]
-                output_shape = y.shape
-                starts = np.array([0, 0, 0, 0], dtype=np.int64)
-                ends = np.array(y.shape, dtype=np.int64)
-                axes = np.array([0, 1, 2, 3], dtype=np.int64)
-                input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
-                output = helper.make_tensor_value_info(
-                    'output', TensorProto.FLOAT, output_shape)
-                print("input", input_shape, "output", output_shape)
-
-                #neg_node = helper.make_node(
-                #    'Neg',  # node name
-                #    ['input'],  # inputs
-                #    ['input_neg'],  # outputs
-                #)
-                start_node = onnx.helper.make_node(
-                    'Constant',
-                    inputs=[],
-                    outputs=['starts'],
-                    value=onnx.helper.make_tensor(
-                        name='const_tensor',
-                        data_type=onnx.TensorProto.INT64,
-                        dims=starts.shape,
-                        vals=starts.flatten().astype(int),
-                    ),
-                )
-                ends_node = onnx.helper.make_node(
-                    'Constant',
-                    inputs=[],
-                    outputs=['ends'],
-                    value=onnx.helper.make_tensor(
-                        name='const_tensor',
-                        data_type=onnx.TensorProto.INT64,
-                        dims=ends.shape,
-                        vals=ends.flatten().astype(int),
-                    ),
-                )
-                axes_node = onnx.helper.make_node(
-                    'Constant',
-                    inputs=[],
-                    outputs=['axes'],
-                    value=onnx.helper.make_tensor(
-                        name='const_tensor',
-                        data_type=onnx.TensorProto.INT64,
-                        dims=axes.shape,
-                        vals=axes.flatten().astype(int),
-                    ),
-                )
-                node_def = helper.make_node(
-                    'Slice',  # node name
-                    ['input', 'starts', 'ends', 'axes'],  # inputs
-                    ['output'],  # outputs
-                )
-
-                graph_def = helper.make_graph(
-                    #[neg_node, start_node, ends_node, axes_node, node_def],
-                    [start_node, ends_node, axes_node, node_def],
-                    test_case,
-                    [input],
-                    [output],
-                )
-                model_def = helper.make_model(graph_def, producer_name=test_case)
-                model_def.opset_import[0].version = 11
-
-                input_data = np.random.rand(input_shape[0], input_shape[1],
-                                input_shape[2], input_shape[3]).astype(np.float32)
-
-                onnx.checker.check_model(model_def)
-                self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Slice_3dim(self):
         test_case = 'Slice_3dim'
