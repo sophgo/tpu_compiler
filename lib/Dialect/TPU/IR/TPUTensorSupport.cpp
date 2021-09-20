@@ -35,14 +35,38 @@ void getTensorShapeAndSize(Value value, std::vector<int64_t> &shape,
   size = getTensorSize(value);
 }
 
-void getNCHW(std::vector<int64_t> &shape,
-    int64_t &n, int64_t &c, int64_t &h, int64_t &w) {
-  if(shape.size() == 5 && shape[0] == 1) {
+static void getNCHW_align_right(std::vector<int64_t> &shape, int64_t &n,
+                                int64_t &c, int64_t &h, int64_t &w) {
+  int num_dims = shape.size();
+  n = 1;
+  c = 1;
+  h = 1;
+  w = 1;
+  if (num_dims > 0) {
+    w = shape[num_dims - 1];
+  }
+  if (num_dims > 1) {
+    h = shape[num_dims - 2];
+  }
+  if (num_dims > 2) {
+    c = shape[num_dims - 3];
+  }
+  if (num_dims > 3) {
+    n = shape[num_dims - 4];
+  }
+  for (int i = 4; i < num_dims; i++) {
+    n *= shape[i];
+  }
+}
+
+static void getNCHW_align_left(std::vector<int64_t> &shape, int64_t &n,
+                               int64_t &c, int64_t &h, int64_t &w) {
+  if (shape.size() == 5 && shape[0] == 1) {
     n = shape[1];
     c = shape[2];
     h = shape[3];
     w = shape[4];
-  } else if(shape.size() == 4) {
+  } else if (shape.size() == 4) {
     n = shape[0];
     c = shape[1];
     h = shape[2];
@@ -67,27 +91,12 @@ void getNCHW(std::vector<int64_t> &shape,
   }
 }
 
-void getNCHW_bcast(std::vector<int64_t> &shape,
-    int64_t &n, int64_t &c, int64_t &h, int64_t &w) {
-  int num_dims = shape.size();
-  n = 1;
-  c = 1;
-  h = 1;
-  w = 1;
-  if (num_dims > 0) {
-    w = shape[num_dims-1];
-  }
-  if (num_dims > 1) {
-    h = shape[num_dims-2];
-  }
-  if (num_dims > 2) {
-    c = shape[num_dims -3];
-  }
-  if (num_dims > 3) {
-    n = shape[num_dims -4];
-  }
-  for (int i = 4; i < num_dims; i++) {
-    n *= shape[i];
+void getNCHW(std::vector<int64_t> &shape, int64_t &n, int64_t &c, int64_t &h,
+             int64_t &w, bool align_right) {
+  if (align_right) {
+    getNCHW_align_right(shape, n, c, h, w);
+  } else {
+    getNCHW_align_left(shape, n, c, h, w);
   }
 }
 

@@ -39,11 +39,9 @@ std::vector<int64_t> getTensorShape(Value value);
 void getTensorShapeAndSize(Value value, std::vector<int64_t> &shape,
                            int64_t &size);
 void getNCHW(std::vector<int64_t> &shape, int64_t &n, int64_t &c, int64_t &h,
-             int64_t &w);
+             int64_t &w, bool align_right=false);
 void getNCDHW(std::vector<int64_t> &shape,
               int64_t &n, int64_t &c, int64_t &d, int64_t &h, int64_t &w);
-void getNCHW_bcast(std::vector<int64_t> &shape,
-              int64_t &n, int64_t &c, int64_t &h, int64_t &w);
 std::vector<std::vector<int64_t>> getOperandShapes(Operation *op);
 
 /******************************************************************************

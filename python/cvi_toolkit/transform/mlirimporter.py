@@ -348,10 +348,15 @@ class MLIRImporter(object):
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         broadcast_mul_name = StringAttr.get(op_name)
+        attrs = {}
+        if 'align_right' in kargs:
+            attrs['align_right'] = BoolAttr.get(kargs['align_right'])
+        else:
+            attrs['align_right'] = BoolAttr.get(True)
 
         inputOperands = self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.BroadcastMul.value, inputOperands, [
-            tensor_output_type], name=broadcast_mul_name, quant=self.quant_param)
+            tensor_output_type], name=broadcast_mul_name, quant=self.quant_param, **attrs)
 
     def add_broadcast_add_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) >= 2)

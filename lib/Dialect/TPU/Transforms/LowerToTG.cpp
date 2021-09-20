@@ -181,21 +181,75 @@ Value tpu::BroadcastMulOp::convertToTG() {
   auto builder = Builder(op->getContext());
   TensorFile *wTF = getWeightTensorFile(op);
   assert(wTF);
+
+  bool align = align_right();
   int64_t n, c, h, w, bn, bc, bh, bw;
   auto shape = getTensorShape(op->getOperand(0));
-  getNCHW(shape, n, c, h, w);
+  getNCHW(shape, n, c, h, w, align);
   auto bshape = getTensorShape(op->getOperand(1));
-  getNCHW(bshape, bn, bc, bh, bw);
+  getNCHW(bshape, bn, bc, bh, bw, align);
 
+  if ((bn == n || bn == 1) && bc == c && bh == 1 && bw == 1) {
+    // convert to scale op
+    std::vector<Value> operands;
+    operands.push_back(input());
+    operands.push_back(multiplier());
+    // This is a little tricky, as there is no bias() operand to reuse
+    // we reuse the quant_rshift() to carry the packed per-channel info
+    operands.push_back(quant_rshift());
+
+    std::vector<NamedAttribute> attrs;
+    // only do_relu is useful for now
+    attrs.push_back(builder.getNamedAttr(
+        "param",
+        tpu::ConvParam::get(
+            builder.getI32IntegerAttr(1), builder.getI32IntegerAttr(1),
+            builder.getStringAttr("VALID"), builder.getI32IntegerAttr(1),
+            builder.getI32IntegerAttr(1),
+            builder.getI32IntegerAttr(0), // pd_t
+            builder.getI32IntegerAttr(0), // pd_b
+            builder.getI32IntegerAttr(0), // pd_l
+            builder.getI32IntegerAttr(0), // pd_r
+            builder.getI32IntegerAttr(1),
+            builder.getBoolAttr(true),                      // is_dw
+            builder.getBoolAttr(false),                     // with_bias
+            builder.getBoolAttr(this->do_relu()),           // do_relu
+            builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
+            builder.getI32IntegerAttr(0),                   // pad_value
+            builder.getContext())));
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    if (getOpQuant() == "INT8") {
+      // somehow, existing backend implementation is using per-channel mode
+      // to do a per-tensor operation. which means, it needs to copy 1 rshift
+      // value to a oc sized vector, so does the 1 multiplier value, then pack
+      // these two tensors into one as if this is a per-channel multiplier mode
+      // convolution.
+      // TODO: the right way maybe doing a `REAL` per-channel multiplier mode
+      // convolution. to put the scale tensor as multiplier rather than filter
+      // and the multiplier is by nature per-channel.
+      assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
+      assert(!isTensorNone(quant_rshift()));
+      auto newOp = OpBuilder(op).create<tpu::TG_INT8_ScaleOp>(
+          op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+      return newOp.getResult();
+    } else if (getOpQuant() == "BF16") {
+      assert(isTensorNone(quant_rshift()));
+      auto newOp = OpBuilder(op).create<tpu::TG_BF16_ScaleOp>(
+          op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+          ArrayRef<NamedAttribute>{attrs});
+      return newOp.getResult();
+    }
+    llvm_unreachable("unsupported type");
+  }
   std::vector<Value> operands;
   operands.push_back(op->getOperand(0));
   operands.push_back(op->getOperand(1));
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(
-      builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
-
+  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
+  attrs.push_back(builder.getNamedAttr("align_right", builder.getBoolAttr(align)));
   if (getOpQuant() == "INT8") {
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
@@ -238,7 +292,7 @@ Value tpu::BroadcastAddOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
-
+  attrs.push_back(builder.getNamedAttr("align_right", builder.getBoolAttr(align_right())));
   if (getOpQuant() == "INT8") {
     int8_t rshift_i8 = 0;
     std::vector<int32_t> m_i8_inputs(nInputs, 1);
@@ -292,7 +346,7 @@ Value tpu::BroadcastSubOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
-
+  attrs.push_back(builder.getNamedAttr("align_right", builder.getBoolAttr(align_right())));
   if (getOpQuant() == "INT8") {
     int8_t rshift_i8 = 0;
     std::vector<int32_t> m_i8_inputs(nInputs, 1);
@@ -2878,6 +2932,80 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
 // TODO: the right way maybe doing a `REAL` per-channel multiplier mode
 // convolution. to put the scale tensor as multiplier rather than filter
 // and the multiplier is by nature per-channel.
+struct PackWeightBroadcastMulOpPattern : public RewritePattern {
+  PackWeightBroadcastMulOpPattern(MLIRContext *context)
+      : RewritePattern(tpu::BroadcastMulOp::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::BroadcastMulOp>(op);
+
+    // Only int8 need pack
+    if (getOpQuant(op) == "BF16") {
+      LLVM_DEBUG(llvm::errs()<< "Pack Weight for BroadcastMul ONLY apply INT8 we skip it\n";);
+      return failure();
+    }
+    bool align = castOp.align_right();
+    int64_t n, c, h, w, bn, bc, bh, bw;
+    auto shape = getTensorShape(op->getOperand(0));
+    getNCHW(shape, n, c, h, w, align);
+    auto bshape = getTensorShape(op->getOperand(1));
+    getNCHW(bshape, bn, bc, bh, bw, align);
+    if ((bn == 1 || bn == n) && c == bc && bh == 1 && bw == 1) {
+
+    } else {
+      return failure();
+    }
+
+    // after quantizeInt8, the quantparam is "RSHIFT_AND_M_I32"
+    auto rshiftOp =
+        cast<tpu::LoadWeightOp>(castOp.quant_rshift().getDefiningOp());
+    if (rshiftOp.lowered()) {
+      // packed already
+      return failure();
+    }
+    assert(getOpQuantParamType(op) == "RSHIFT_AND_M_I32");
+    assert(!isTensorNone(castOp.quant_rshift()));
+    assert(!isTensorNone(castOp.quant_multiplier()));
+    LLVM_DEBUG(llvm::errs() << "Pack Weight for BroadcastMul: " << getOpName(op)
+                            << "\n";);
+    TensorFile *wTF = getWeightTensorFile(op);
+
+    // get param
+    int64_t oc = getTensorSize(castOp.multiplier());
+
+    // get tensor
+    std::unique_ptr<std::vector<float>> pc_info = nullptr;
+    auto rshift = readAndDeleteWeightTensor<float>(castOp.quant_rshift(), wTF);
+    auto multiplier =
+        readAndDeleteWeightTensor<float>(castOp.quant_multiplier(), wTF);
+
+    // expand
+    auto rshift_perchannel =
+        std::make_unique<std::vector<float>>(oc, rshift->at(0));
+    auto multiplier_perchannel =
+        std::make_unique<std::vector<float>>(oc, multiplier->at(0));
+
+    // pack the weights
+    std::vector<int64_t> packedShape;
+    auto packed = packWeight(nullptr, rshift_perchannel.get(),
+                             multiplier_perchannel.get(), oc, packedShape);
+
+    // this is tricky, as where is no bias() to reuse, use quant_rshift()
+    // instead store to the packed per_channel operand in "UINT8"
+    addWeightTensorAndUpdateWeightOp<uint8_t>(
+        castOp.quant_rshift(), "pack", *packed, packedShape, "UINT8", wTF);
+    rshiftOp->setAttr("lowered", rewriter.getBoolAttr(true));
+
+    // erase quant_multiplier tensor
+    auto NoneOp = OpBuilder(op).create<tpu::NoneOp>(rewriter.getUnknownLoc(),
+                                                    rewriter.getNoneType());
+    castOp.setOperand(5, NoneOp);
+
+    setOpQuantParamType(op, "RSHIFT_AND_M_I32");
+    return success();
+  }
+};
 
 template <typename T>
 static void rotateConvolutionFilter(std::vector<T> &w,
@@ -3911,7 +4039,8 @@ public:
     patterns.clear();
     patterns.insert<
         PackWeightConv2DOpPattern<tpu::Conv2DOp>,
-        PackWeightConv2DOpPattern<tpu::DeConv2DOp>
+        PackWeightConv2DOpPattern<tpu::DeConv2DOp>,
+        PackWeightBroadcastMulOpPattern
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 

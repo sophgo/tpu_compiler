@@ -591,6 +591,7 @@ class TPU_TG_BroadcastOp<string mnemonic, string opQuant, string opType> : TPU_O
     OptionalAttr<I8Attr>:$m_i8_output,
     OptionalAttr<I32Attr>:$m_i32_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    DefaultValuedAttr<BoolAttr, "true">:$align_right,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,

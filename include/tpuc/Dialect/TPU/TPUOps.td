@@ -426,6 +426,7 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
     Attributes:
       `do_relu`         : required, if need to preform relu on result.
+      `align_right`     : required, [3,1,3]x[3]=> if true, [3,1,3]x[1,1,3]; else [3, 1, 1]
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `chipname`        : optional, chipname.
@@ -450,6 +451,7 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    DefaultValuedAttr<BoolAttr, "true">:$align_right,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname

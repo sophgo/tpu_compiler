@@ -12,18 +12,23 @@ BroadcastOpKernel::BroadcastOpKernel(Operation &op, value_map_t &valueMapping,
 
   auto input_shape0 = getTensorShape(op.getOperand(0));
   auto input_shape1 = getTensorShape(op.getOperand(1));
-  getNCHW_bcast(input_shape0, n0,c0,h0,w0);
-  getNCHW_bcast(input_shape1, n1,c1,h1,w1);
+  bool align_right = true;
+  if (op.hasAttr("align_right")) {
+    align_right = op.getAttr("align_right").cast<BoolAttr>().getValue();
+  }
+
+  getNCHW(input_shape0, n0, c0, h0, w0, align_right);
+  getNCHW(input_shape1, n1, c1, h1, w1, align_right);
 
   do_relu = false;
   if (op.hasAttr("do_relu")) {
     do_relu = op.getAttr("do_relu").cast<BoolAttr>().getValue();
   }
 
-  on = std::max(n0,n1);
-  oc = std::max(c0,c1);
-  oh = std::max(h0,h1);
-  ow = std::max(w0,w1);
+  on = std::max(n0, n1);
+  oc = std::max(c0, c1);
+  oh = std::max(h0, h1);
+  ow = std::max(w0, w1);
 
   if (datatype == DataType::INT8) {
     auto quant_rshift = this->opdTensors[4];

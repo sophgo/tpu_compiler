@@ -291,14 +291,14 @@ LogicalResult tpu::TG_INT8_BroadcastMulOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
+  bool align_right = this->align_right();
   int64_t n, c, h, w;
   std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
-  getNCHW_bcast(shape, n, c, h, w);
+  getNCHW(shape, n, c, h, w, align_right);
 
   int64_t bn, bc, bh, bw;
   std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
-  getNCHW_bcast(bshape, bn, bc, bh, bw);
+  getNCHW(bshape, bn, bc, bh, bw, align_right);
 
   bool do_relu = this->do_relu();
 
@@ -335,14 +335,14 @@ LogicalResult tpu::TG_BF16_BroadcastMulOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
+  bool align_right = this->align_right();
   int64_t n, c, h, w;
   std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
-  getNCHW_bcast(shape, n, c, h, w);
+  getNCHW(shape, n, c, h, w, align_right);
 
   int64_t bn, bc, bh, bw;
   std::vector<int64_t> bshape = getTensorShape(op->getOperand(1));
-  getNCHW_bcast(bshape, bn, bc, bh, bw);
+  getNCHW(bshape, bn, bc, bh, bw, align_right);
 
   bool do_relu = this->do_relu();
 
@@ -364,15 +364,15 @@ LogicalResult tpu::TG_INT8_BroadcastAddOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
+  bool align_right = this->align_right();
   int64_t input_size, n, c, h, w;
   std::vector<int64_t> shape;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW_bcast(shape, n, c, h, w);
+  getNCHW(shape, n, c, h, w, align_right);
 
   int64_t bn, bc, bh, bw;
   getTensorShapeAndSize(op->getOperand(1), shape, input_size);
-  getNCHW_bcast(shape, bn, bc, bh, bw);
+  getNCHW(shape, bn, bc, bh, bw, align_right);
 
   bool do_relu = this->do_relu();
 
@@ -411,15 +411,15 @@ LogicalResult tpu::TG_BF16_BroadcastAddOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
+  bool align_right = this->align_right();
   int64_t input_size, n, c, h, w;
   std::vector<int64_t> shape;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW_bcast(shape, n, c, h, w);
+  getNCHW(shape, n, c, h, w, align_right);
 
   int64_t bn, bc, bh, bw;
   getTensorShapeAndSize(op->getOperand(1), shape, input_size);
-  getNCHW_bcast(shape, bn, bc, bh, bw);
+  getNCHW(shape, bn, bc, bh, bw, align_right);
 
   bool do_relu = this->do_relu();
 
@@ -441,15 +441,15 @@ LogicalResult tpu::TG_INT8_BroadcastSubOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
+  bool align_right = this->align_right();
   int64_t input_size, n, c, h, w;
   std::vector<int64_t> shape;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW_bcast(shape, n, c, h, w);
+  getNCHW(shape, n, c, h, w, align_right);
 
   int64_t bn, bc, bh, bw;
   getTensorShapeAndSize(op->getOperand(1), shape, input_size);
-  getNCHW_bcast(shape, bn, bc, bh, bw);
+  getNCHW(shape, bn, bc, bh, bw, align_right);
 
   bool do_relu = this->do_relu();
 
@@ -488,15 +488,15 @@ LogicalResult tpu::TG_BF16_BroadcastSubOp::codegen(void *ctx) {
 
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-
+  bool align_right = this->align_right();
   int64_t input_size, n, c, h, w;
   std::vector<int64_t> shape;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW_bcast(shape, n, c, h, w);
+  getNCHW(shape, n, c, h, w, align_right);
 
   int64_t bn, bc, bh, bw;
   getTensorShapeAndSize(op->getOperand(1), shape, input_size);
-  getNCHW_bcast(shape, bn, bc, bh, bw);
+  getNCHW(shape, bn, bc, bh, bw, align_right);
 
   bool do_relu = this->do_relu();
 
