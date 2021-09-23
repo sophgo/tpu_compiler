@@ -37,6 +37,15 @@ def mlir_opt(mlirfile, opt_mlirfile, op_info_csv):
     checkReturnValue(ret, "tpuc-opt")
     return ret.returncode
 
+def mlir_pseudo_weight(mlirfile, opt_mlirfile):
+    ret = subprocess.run(["tpuc-opt",
+                          "--gen-pseudo-weight-npz",
+                          mlirfile,
+                          "-o", opt_mlirfile
+                         ], **std_output_flag)
+    checkReturnValue(ret, "tpuc-opt")
+    return ret.returncode
+
 def mlir_quant(fp32_model, quanted_model, chip_name, op_order_csv,
                all_bf16=False, calib_table=None, mix_table=None):
     cmd = ["tpuc-opt",
