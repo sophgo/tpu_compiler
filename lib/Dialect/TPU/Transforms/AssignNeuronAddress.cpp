@@ -299,7 +299,7 @@ updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
           (!isa<tpu::GenericCpuOp>(nextOp) &&
            !isa<tpu::ReshapeOp>(nextOp))) {
         chosenOps.push_back(op);
-        liveRange[op] = {getOpLine(op), 0xFFFFFFFF};
+        liveRange[op] = {0, 0xFFFFFFFF};
         updateOperandsLiveRange(op, endPosition);
       }
     } else if (isa<tpu::GenericCpuOp>(op) ||
