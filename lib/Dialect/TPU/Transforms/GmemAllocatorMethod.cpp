@@ -693,9 +693,9 @@ int64_t GmemAllocOpSizeOrder::assignGaddr(std::vector<Operation *> &ops,
     int64_t best_offset = -1;
     int64_t smallest_gap = std::numeric_limits<int64_t>::max();
     for (auto &allocated_op_addr : allocated_op_list) {
-      int32_t max_first_op = std::max(op_addr->first_op, allocated_op_addr->first_op);
-      int32_t min_last_op = std::min(op_addr->end_op, allocated_op_addr->end_op);
-      if (max_first_op < min_last_op) {
+      uint32_t max_first_pos = std::max(op_addr->first_pos, allocated_op_addr->first_pos);
+      uint32_t min_last_pos = std::min(op_addr->end_pos, allocated_op_addr->end_pos);
+      if (max_first_pos < min_last_pos) {
         int64_t gap = allocated_op_addr->start - prev_offset;
         if (gap >= op_addr->size && gap < smallest_gap) {
           smallest_gap = gap;

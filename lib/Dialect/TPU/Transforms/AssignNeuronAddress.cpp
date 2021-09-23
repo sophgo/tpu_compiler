@@ -263,6 +263,9 @@ updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
     for (uint32_t i = 0; i < op->getNumOperands(); i++) {
       auto opd = op->getOperand(i).getDefiningOp();
       if (liveRange.find(opd) != liveRange.end()) {
+        if (isa<tpu::InputOp>(opd) && liveRange[opd][1] == 0xFFFFFFFF) {
+          continue;
+        }
         if (liveRange[opd][1] == 0xFFFFFFFF || liveRange[opd][1] < endPosition) {
           liveRange[opd][1] = endPosition;
         }

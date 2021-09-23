@@ -126,14 +126,14 @@ public:
     int64_t start = 0;
     int64_t end = 0;
     uint32_t size = 0;
-    int32_t first_op = 0;
-    int32_t end_op = 0;
+    uint32_t first_pos = 0;
+    uint32_t end_pos = 0;
 
-    OpAddr(Operation *_op, uint32_t _size, int32_t _first_op, int32_t _end_op) {
+    OpAddr(Operation *_op, uint32_t _size, uint32_t _first_pos, uint32_t _end_pos) {
       op = _op;
       size = _size;
-      first_op = _first_op;
-      end_op = _end_op;
+      first_pos = _first_pos;
+      end_pos = _end_pos;
     }
   };
   typedef std::list<std::shared_ptr<OpAddr>> LineSet;
