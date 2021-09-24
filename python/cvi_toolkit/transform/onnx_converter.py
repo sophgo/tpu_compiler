@@ -351,6 +351,7 @@ class OnnxConverter(BaseConverter):
         return False
 
     # support like: [3, 1, 2] + [3, 2, 2] ; [2, 3] + [3, 2, 3]
+    # only support one direction bcast
     def bcast_shape(self, lshape, rshape):
         if len(rshape) > len(lshape):
             lshape, rshape = rshape, lshape
@@ -1735,170 +1736,51 @@ class OnnxConverter(BaseConverter):
     def convert_expand_op(self, onnx_node):
         assert(onnx_node.op_type == "Expand")
         op0, input_shape, tensor_type0 = self.getOperand(onnx_node.inputs[0])
-        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
-        input_shape0 = list(input_shape)
-        operands = list()
-        expand_dims = 0
+        _, _, tensor_type1 = self.getOperand(onnx_node.inputs[1])
         if tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
-            operands = list()
-            operands.append(op0)
             tensor_data = self.getTensor(onnx_node.inputs[1]).tensor_data
-            org_shape = list(tensor_data)
-            expand_shape = None
-            if len(tensor_data) == 6 and tensor_data[4] == input_shape0[4]:
-                assert(input_shape0[3::2] == [1, 1])
-                assert(np.any(tensor_data[:3] - input_shape0[:3]) == False)
-                # input shape like 1, 128, 13, 1, 13, 1
-                # new shape like 1. 128.  13.   2.  13.   2
-                # input chould reshape (1*128*13, 1, 13, 1) -> (1*128*13, 1, 13, 1)
-                # and seperate w-expand than h expand
-                # 1. (1*128*13, 1, 13, 1) -> (1*128*13, 1, 13, 2)
-                # 2. reshape from (1*128*13, 1, 13, 2) to (1*128*13, 1, 1, 13 * 2)
-                # 3. (1*128*13, 1, 1, 13 * 2) -> (1*128*13, 1, 2, 13 * 2)
-
-                # reshape input
-                input_shape = [int(np.prod(tensor_data[:3]))] + input_shape0[3:]
-                reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, "reshape"),
-                    operands, input_shape)
-
-                self.addOperand(onnx_node.name, reshape_op, input_shape, TensorType.ACTIVATION)
-
-                operands = list()
-                operands.append(reshape_op)
-
-                attr={
-                    'scale_h': 1,
-                    'scale_w': int(tensor_data[5])
+            new_shape = list(tensor_data)
+            zeros0 = np.zeros(input_shape)
+            zeros1 = np.zeros(new_shape)
+            zeros = zeros0 + zeros1
+            output_shape = list(zeros.shape)
+            num_dims = len(output_shape)
+            if len(input_shape) != num_dims:
+                input_shape2 = [1] * (num_dims - len(input_shape)) + input_shape
+                name2 = "{}_reshape".format(onnx_node.inputs[0])
+                op0 = self.CVI.add_reshape_op(name2, [op0], input_shape2)
+                input_shape = list(input_shape2)
+            first = 0
+            if num_dims > 4:
+                first = num_dims - 4
+                assert(len(input_shape) == len(output_shape))
+                assert(input_shape[:num_dims - 3] == output_shape[:num_dims - 3])
+            last_shape = list(input_shape)
+            last_op = op0
+            for dim in range(first, num_dims):
+                if input_shape[dim] == output_shape[dim]:
+                    continue
+                attr = {
+                    'axis': dim - first,
+                    'tiles': output_shape[dim]
                 }
-                output_shape = input_shape
-                output_shape[3] *= attr['scale_w']
-                # 1, extend w
-                upsample_op = self.CVI.add_upsample_op("{}_{}_w".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-                self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
-                # 2, reshape (h,w) to (1, hw)
-                input_shape = output_shape[:2] + [1, np.prod(output_shape[2:])]
-                reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, "reshape_w"),
-                    [upsample_op], input_shape)
-
-                self.addOperand(onnx_node.name, reshape_op, input_shape, TensorType.ACTIVATION)
-
-                # 3, extend h
-                operands = list()
-                operands.append(reshape_op)
-
-                attr={
-                    'scale_h': int(tensor_data[3]),
-                    'scale_w': 1
-                }
-                output_shape = input_shape
-                output_shape[2] *= attr['scale_h']
-
-            elif np.prod(tensor_data) == 1:
-                reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, "reshape"), [op0], input_shape)
-                self.addOperand(onnx_node.name, reshape_op, input_shape, TensorType.ACTIVATION)
-                return
-            else:
-                # upsample support h/w only
-                # expand dim for upsample handle 4 dim, from highest with 1
-                # 4 means nchw
-                expand_dims = 4 - len(tensor_data)
-
-                tensor_data = list(np.full(expand_dims, 1)) + list(tensor_data)
-
-                output_shape = list(tensor_data)
-
-                if np.prod(input_shape0) == 1:
-                   # 1x1 case, we could broad case to c
-                   size = int(np.prod(tensor_data))
-                   reshape_c = gcd(np.prod(size), 32)
-                   reshape_w = gcd(size // reshape_c, 16)
-                   reshape_h = (size // reshape_c) // reshape_w
-
-                   # reshape to 4 dim
-                   operands, _expand_shape = self.add_extend_4dim(input_shape0,
-                           onnx_node.name, onnx_node.op_type, operands)
-
-                   # duplicate c, 1x1x1x1->1x1x1x32->1x32x1x1
-                   name  = "{}_{}_to_c".format(onnx_node.name, onnx_node.op_type)
-
-                   conv_param = {
-                       'stride_h':  1,
-                       'stride_w':  1,
-                       'padding': "SAME",
-                       'dilation_h': 1,
-                       'dilation_w': 1,
-                       'padding_t': 0,
-                       'padding_b': 0,
-                       'padding_l': 0,
-                       'padding_r': 0,
-                       'group': 1,
-                       'is_dw': False,
-                       'with_bias': False,
-                       'do_relu': False,
-                       'ins': [],
-                   }
-
-                   on = 1
-                   oc = reshape_c
-                   oh = 1
-                   ow = 1
-
-                   filter_name = "{}_filter".format(name)
-                   filter_shape = [oc, 1, 1, 1]
-
-                   tensor_data = np.full(np.prod(filter_shape), 1) # broadcast via channel
-                   self.addTensor(filter_name, tensor_data, filter_shape)
-                   filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
-                   operands.append(filter_op)
-
-                   output_shape = [on, oc, oh, ow]
-                   conv_op = self.CVI.add_conv_op(name, operands, output_shape, **conv_param)
-                   self.addOperand(name, conv_op, output_shape, TensorType.ACTIVATION)
-
-                   operands = list()
-                   operands.append(conv_op)
-
-                   # expanded
-                   output_shape = [1, reshape_c, reshape_h, reshape_w]
-                   expand_shape = [1, reshape_c, 1, 1]
-
-                attr={
-                    'scale_h': int(output_shape[2]),
-                    'scale_w': int(output_shape[3])
-                }
-            upsample_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-
-            is_expand_output = expand_dims and org_shape != output_shape
-
-            if is_expand_output:
-                # need squeeze back for expand
-                upsample_name = "{}_{}".format(onnx_node.name, "4dim")
-
-            if expand_dims:
-                # mlir keep dim = 4, reshape only
-                name  = "{}_{}_to_4_dim".format(onnx_node.name, onnx_node.op_type)
-                # for mlir
-                if not expand_shape:
-                    expand_shape = list(np.full(expand_dims, 1)) + list(input_shape0)
-                src_reshape_op = self.CVI.add_reshape_op(name, operands, expand_shape)
-                self.addOperand(onnx_node.name, src_reshape_op, expand_shape, TensorType.ACTIVATION)
-                operands = [src_reshape_op]
-
-            upsample_op = self.CVI.add_upsample_op(upsample_name, operands, output_shape, **attr)
-            self.addOperand(onnx_node.name, upsample_op, output_shape, TensorType.ACTIVATION)
-
-            if is_expand_output:
-                # need squeeze back for expand
-                reshape_back_op = self.CVI.add_reshape_op("{}_{}".format(
-                    onnx_node.name, onnx_node.op_type), [upsample_op], org_shape)
-                self.addOperand(onnx_node.name, reshape_back_op,
-                                org_shape, TensorType.ACTIVATION)
+                last_shape[dim] = output_shape[dim]
+                if last_shape == output_shape:
+                    last_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+                else:
+                    last_name = "{}_tile_{}".format(onnx_node.name, dim)
+                last_op = self.CVI.add_tile_op(last_name, [last_op], last_shape, **attr)
+            self.addOperand(onnx_node.name, last_op, last_shape, TensorType.ACTIVATION)
+            return
         elif tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR:
-            if np.prod(input_shape0) == 1:
-                #  following the broadcast rule
-                tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
-                self.addTensor(onnx_node.name, tensor_data, list(tensor_data.shape))
-                self.addOperand(onnx_node.name, None, list(tensor_data.shape), TensorType.TENSOR)
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            shape_data = self.getTensor(onnx_node.inputs[1]).tensor_data
+            new_shape = list(shape_data)
+            zeros = np.zeros(new_shape, dtype = tensor_data.dtype)
+            output_data = tensor_data + zeros
+            self.addTensor(onnx_node.name, output_data, list(output_data.shape))
+            self.addOperand(onnx_node.name, None, list(output_data.shape), TensorType.TENSOR)
+            return
         else:
             raise RuntimeError("not implement yet")
 

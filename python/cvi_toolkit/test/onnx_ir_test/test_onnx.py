@@ -32,6 +32,8 @@ TEST_ONNX_IR = [
     "ConvTranspose1d",
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
+    "Expand",
+    "Expand2",
     "FullyConnected",
     "GroupFC", # test Group FC
     "Gather",
@@ -130,17 +132,16 @@ def onnx_inference(input, model_def, model_name, input_cb = None):
 
 def cvimodel_inference(inputs, model_name):
     model = pyruntime.Model(model_name)
-    assert(model != None)
-    if isinstance(inputs, dict):
-        for i, input in enumerate(inputs.values()):
-            model_in = model.inputs[i].data
-            assert(model_in.dtype == input.dtype)
-            assert(model_in.size == input.size)
-            model_in[:] = input.reshape(model_in.shape)
-    else:
-        model_in = model.inputs[0].data
-        model_in[:] = inputs.reshape(model_in.shape)
-
+    for i in model.inputs:
+        name = i.name
+        data = inputs[name]
+        if name.endswith('_quant_i8'):
+            data = data.astype(np.int8)
+        elif name.endswith('_quant_u16'):
+            data= data.astype(np.uint16)
+        elif name.endswith('_quant_i16'):
+            data = data.astype(np.int16)
+        i.data[:] = data.reshape(i.data.shape)
     model.forward()
     outputs = {}
     for output in model.outputs:
@@ -165,6 +166,8 @@ class ONNX_IR_TESTER(object):
             "ConvTranspose1d": self.test_ConvTranspose1d,
             "Conv3d": self.test_Conv3d,
             "DepthToSpace": self.test_DepthToSpace,
+            "Expand": self.test_Expand,
+            "Expand2": self.test_Expand2,
             "FullyConnected": self.test_FullyConnected,
             "GroupFC": self.test_GroupFC,
             "Gather": self.test_Gather,
@@ -300,24 +303,7 @@ class ONNX_IR_TESTER(object):
 
                 # run cvi_model
                 output_tensor_npz = "{}_all_tensor_int8_cvi.npz".format(model_name)
-
-                if isinstance(input_data, dict):
-                    count = 1
-                    input_int = {}
-                    for key, value in input_data.items():
-                        if key+'_quant_i8' in int8_tensors:
-                            input_int['input'+str(count)] = int8_tensors[key+'_quant_i8'].astype(np.int8)
-                        elif key+'_quant_u16' in int8_tensors:
-                            input_int['input'+str(count)] = int8_tensors[key+'_quant_u16'].astype(np.uint16)
-                        count += 1
-                else:
-                    input_int = None
-                    if 'input_quant_i8' in int8_tensors:
-                        input_int = int8_tensors['input_quant_i8'].astype(np.int8)
-                    elif 'input_quant_u16' in int8_tensors:
-                        input_int = int8_tensors['input_quant_u16'].astype(np.uint16)
-
-                cvi_outs = cvimodel_inference(input_int, cvimodel)
+                cvi_outs = cvimodel_inference(int8_tensors, cvimodel)
                 assert(len(cvi_outs) == num_outputs)
                 for name in cvi_outs:
                     if name not in int8_tensors:
@@ -364,28 +350,7 @@ class ONNX_IR_TESTER(object):
 
                 # run cvi_model
                 output_tensor_npz = "{}_all_tensor_bf16_cvi.npz".format(model_name)
-                if isinstance(input_data, dict):
-                    input_bf16 = {}
-                    count = 1
-                    for key, value in input_data.items():
-                        if key+'_quant_i16' in bf16_tensors:
-                            input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_i16'].astype(np.int16)
-                        elif key+'_quant_u16' in bf16_tensors:
-                            input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_u16'].astype(np.uint16)
-                        elif key+'_quant_bf16' in bf16_tensors:
-                            input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_bf16']
-                        else:
-                            input_bf16['input'+str(count)] = bf16_tensors['input'+str(count)]
-                        count += 1
-                else:
-                    if 'input_quant_i16' in bf16_tensors:
-                        input_bf16 = tensors['input'].astype(np.int16)
-                    elif 'input_quant_u16' in bf16_tensors:
-                        input_bf16 = tensors['input'].astype(np.uint16)
-                    else:
-                        input_bf16 = tensors['input']
-
-                cvi_outs = cvimodel_inference(input_bf16, cvimodel)
+                cvi_outs = cvimodel_inference(bf16_tensors, cvimodel)
                 assert(len(cvi_outs) == num_outputs)
                 for name in cvi_outs:
                     if name not in bf16_tensors:
@@ -895,6 +860,90 @@ class ONNX_IR_TESTER(object):
         model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Expand(self):
+        test_case = 'Expand'
+        input_shape = [1, 128, 13, 1, 13, 1]
+        output_shape = [1, 128, 13, 2, 13, 2]
+        input_data = np.random.randn(np.prod(input_shape)).reshape(input_shape).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        shape_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['new_shape'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=[len(output_shape)],
+                vals=np.array(output_shape, dtype=np.int64),
+            ),
+        )
+
+        expand_node = helper.make_node(
+            'Expand',  # node name
+            ['input','new_shape'],  # inputs
+            ['output'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [shape_def, expand_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Expand2(self):
+        test_case = 'Expand2'
+        input_shape = [1, 16]
+        output_shape = [1, 16, 16]
+        input_data = np.random.randn(np.prod(input_shape)).reshape(input_shape).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        shape_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['new_shape'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=[len(output_shape)],
+                vals=np.array(output_shape, dtype=np.int64),
+            ),
+        )
+        neg_node = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+        expand_node = helper.make_node(
+            'Expand',  # node name
+            ['X1','new_shape'],  # inputs
+            ['output'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [shape_def, neg_node, expand_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Gather(self):
