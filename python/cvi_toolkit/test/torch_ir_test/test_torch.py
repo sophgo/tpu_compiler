@@ -4,6 +4,8 @@
 import torch.nn as nn
 import torch
 import torchvision.models as models
+import torch.nn.functional as F
+from torch.distributions import Normal
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.model.mlir_model import MLIRModel
 from cvi_toolkit.utils.mlir_shell import mlir_quant, \
@@ -21,13 +23,26 @@ import gc
 import re
 
 TEST_TORCH_IR = [
-    "Add",
     "Conv2d", # Conv with 2d case
-    "LayerNorm",
-    "Linear",
+    "Conv1d", # Conv with 1d case
+    "ConvTranspose1d",
     "Std",
     "Squeeze",
+    "Linear",
+    # "Mulit_attention_self", ## Low accuracy
+    # "Mulit_attention_api",  ## now not support
+    "Norm",
+    "Activation",
+    # "PReLU",    ## Segmentation fault
+    # "Hardsigmoid", ## now nonx not support
+    "Cat_Chunk",
+    "Math", ## sum, prod, log, min, max not support
+    "Repeat",   ## repeat_interleave nonx not support
+    # "Dropout", ## Dropout not support
+    "LSTM",
+    "GRU",
     "Size",
+    "LayerNorm",
 ]
 
 def cvimodel_inference(inputs, model_name):
@@ -103,8 +118,8 @@ def onnx_inference(input, model_def, input_cb = None):
     return _onnx_inference(input, model_def, input_cb=input_cb)
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
-NOT_SUPPORT_BF16_TEST_IR = [""]
-NOT_SUPPORT_INT8_TEST_IR = [""] # just for save test time
+NOT_SUPPORT_BF16_TEST_IR = []
+NOT_SUPPORT_INT8_TEST_IR = [] # just for save test time
 
 class TORCH_IR_TESTER(object):
     def __init__(self):
@@ -112,13 +127,27 @@ class TORCH_IR_TESTER(object):
         self.cvi_model_test = True
 
         self.test_function = {
-            "Add": self.test_Add,
             "LayerNorm": self.test_LayerNorm,
+            "Conv2d": self.test_Conv2d,
+            "Conv1d": self.test_Conv1d,
+            "ConvTranspose1d": self.test_ConvTranspose1d,
             "Linear": self.test_Linear,
             "Conv2d": self.test_Conv2d,
             "Std": self.test_Std,
             "Squeeze": self.test_Squeeze,
             "Size": self.test_Size,
+            "Mulit_attention_self": self.test_Mulit_attention_self,
+            "Mulit_attention_api": self.test_Mulit_attention_api,
+            "Norm": self.test_Norm,
+            "Activation": self.test_Activation,
+            "PReLU": self.test_PReLU,
+            "Hardsigmoid": self.test_Hardsigmoid,
+            "Cat_Chunk": self.test_Cat_Chunk,
+            "Math": self.test_Math,
+            "Repeat": self.test_Repeat,
+            "Dropout": self.test_Dropout,
+            "LSTM": self.test_LSTM,
+            "GRU": self.test_GRU,
         }
         self.set_quant_mode()
 
@@ -153,11 +182,11 @@ class TORCH_IR_TESTER(object):
         fp32_opt_mlir = "{}_opt.mlir".format(model_name)
         fp32_csv = "{}_fp32.csv".format(model_name)
         mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
-        mlir_model = None
-        mlir_model = MLIRModel()
-        mlir_model.load_model(fp32_opt_mlir)
-        mlir_outs = mlir_model.inference(input_data)
-        fp32_tensors = mlir_model.get_all_tensor()
+        self.mlir_model = None
+        self.mlir_model = MLIRModel()
+        self.mlir_model.load_model(fp32_opt_mlir)
+        mlir_outs = self.mlir_model.inference(input_data)
+        fp32_tensors = self.mlir_model.get_all_tensor()
 
         assert(len(mlir_outs) == num_outputs)
         if num_outputs > 1:
@@ -175,9 +204,8 @@ class TORCH_IR_TESTER(object):
         mlir_npz = "{}_fp32.npz".format(model_name)
         np.savez(mlir_npz, **fp32_tensors)
 
-        quant_mode = "int8"
-        tensors = mlir_model.get_all_tensor()
-        if quant_mode == "int8":
+        tensors = self.mlir_model.get_all_tensor()
+        if self.quant_mode == "int8":
             for i in NOT_SUPPORT_INT8_TEST_IR:
                 if i == model_name:
                     print("{} not support int8 test!".format(model_name))
@@ -194,17 +222,16 @@ class TORCH_IR_TESTER(object):
             if ret < 0: raise RuntimeError("tpu_quant failed")
 
             # get mlir output
-            del mlir_model
-            mlir_model = MLIRModel()
-            mlir_model.load_model(quant_mlir)
-            mlir_int8_outs = mlir_model.inference(input_data)
+            del self.mlir_model
+            self.mlir_model = MLIRModel()
+            self.mlir_model.load_model(quant_mlir)
+            mlir_int8_outs = self.mlir_model.inference(input_data)
             assert(len(mlir_int8_outs) == num_outputs)
-            int8_tensors = mlir_model.get_all_tensor()
+            int8_tensors = self.mlir_model.get_all_tensor()
             ref_npz = "{}_all_tensor_int8_mlir.npz".format(model_name)
             np.savez(ref_npz, **int8_tensors)
             npz_compare([ref_npz, mlir_npz,  "--tolerance",
                             "0.6,0.6,0.6", "--dequant", "--op_info", int8_csv])
-
             # gen cvimodel
             cvimodel = "{}_int8.cvimodel".format(model_name)
             ret = mlir_to_cvimodel(quant_mlir, cvimodel)
@@ -238,12 +265,88 @@ class TORCH_IR_TESTER(object):
             np.savez(output_tensor_npz, **cvi_outs)
             npz_compare([output_tensor_npz, ref_npz,
                             "--tolerance", "0.99,0.99,0.9"])
+        elif self.quant_mode == "bf16":
+            for i in NOT_SUPPORT_BF16_TEST_IR:
+                if i == model_name:
+                    print("{} not support bf16 test!".format(model_name))
+                    return
+            # opt
+            fp32_opt_mlir = "{}_opt_bf16.mlir".format(model_name)
+            fp32_csv = "{}_fp32.csv".format(model_name)
+            mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
 
-    def pytorch_transform_onnx(self, model, input_data, test_onnx_name):
+            bf16_csv = "{}_bf16.csv".format(model_name)
+
+            # quant
+            quant_mlir = "{}_quant_bf16.mlir".format(model_name)
+            chip = get_chip_name()
+            ret = mlir_quant(fp32_opt_mlir, quant_mlir, chip,
+                            bf16_csv, all_bf16=True)
+            if ret < 0: raise RuntimeError("tpu_quant failed")
+
+            # get mlir output
+            del self.mlir_model
+            self.mlir_model = MLIRModel()
+            self.mlir_model.load_model(quant_mlir)
+            mlir_bf16_outs = self.mlir_model.inference(input_data)
+            assert(len(mlir_bf16_outs) == num_outputs)
+            bf16_tensors = self.mlir_model.get_all_tensor()
+            ref_npz = "{}_all_tensor_bf16_mlir.npz".format(model_name)
+            np.savez(ref_npz, **bf16_tensors)
+            npz_compare([ref_npz, mlir_npz,  "--tolerance",
+                        "0.8,0.8,0.8", "--dequant", "--op_info", bf16_csv])
+
+            # gen cvimodel
+            cvimodel = "{}_bf16.cvimodel".format(model_name)
+            ret = mlir_to_cvimodel(quant_mlir, cvimodel)
+            if ret < 0: raise RuntimeError("gen_cvimodel failed")
+
+            # run cvi_model
+            output_tensor_npz = "{}_all_tensor_bf16_cvi.npz".format(model_name)
+            if isinstance(input_data, dict):
+                input_bf16 = {}
+                count = 0
+                for key, value in input_data.items():
+                    if key+'_quant_i16' in bf16_tensors:
+                        input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_i16'].astype(np.int16)
+                    elif key+'_quant_u16' in bf16_tensors:
+                        input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_u16'].astype(np.uint16)
+                    elif key+'_quant_bf16' in bf16_tensors:
+                        input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_bf16']
+                    else:
+                        input_bf16['input'+str(count)] = bf16_tensors['input'+str(count)]
+                    count += 1
+            else:
+                if 'input_quant_i16' in bf16_tensors:
+                    input_bf16 = tensors['input'].astype(np.int16)
+                elif 'input_quant_u16' in bf16_tensors:
+                    input_bf16 = tensors['input'].astype(np.uint16)
+                else:
+                    input_bf16 = tensors['input']
+
+            cvi_outs = cvimodel_inference(input_bf16, cvimodel)
+            assert(len(cvi_outs) == num_outputs)
+            for name in cvi_outs:
+                if name not in bf16_tensors:
+                    raise RuntimeError("cvimodel output name not correct")
+            np.savez(output_tensor_npz, **cvi_outs)
+            npz_compare([output_tensor_npz, ref_npz, "--op_info", bf16_csv, "--tolerance", "0.9,0.9,0.9", "-vv"])
+
+        del self.mlir_model
+
+
+    def pytorch_transform_onnx(self, model, input_data, test_onnx_name, dynamic_axes_confirm=True):
         # Create some sample  input in the shape this model expects
-        input_names = ['input']
         output_names = ['output']
         onnx_name = test_onnx_name+'.onnx'
+        dynamic_axes_attr = {'input'  : {0 : 'batch_size'}, 'output' : {0 : 'batch_size'}} if dynamic_axes_confirm else None
+
+        if type(input_data) == dict:
+            input_data = (input_data['input'], input_data['input1'], input_data['input2'])
+            input_names = ['input', 'input1', 'input2']
+        else:
+            input_names = ['input']
+
         torch.onnx.export(model,
             input_data,
             onnx_name,
@@ -251,27 +354,193 @@ class TORCH_IR_TESTER(object):
             opset_version=11,
             verbose=True,
             input_names=input_names,
-            output_names=output_names,)
+            output_names=output_names,
+            dynamic_axes=dynamic_axes_attr)
 
-    def test_Add(self):
+    def test_LSTM(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.predict = torch.nn.Linear(1, 1)
+                self.rnn = nn.LSTM(
+                    input_size=6,
+                    hidden_size=5,
+                    num_layers=1,
+                    batch_first=True,
+                )
+                self.embedding_layer = torch.nn.Embedding(20, 6)
 
             def forward(self, x):
+                x = self.embedding_layer(x)
+                x = x.transpose_(1,0)
+                r_out, (h_n, h_c) = self.rnn(x)
+                return r_out
+
+        test_onnx_name = 'LSTM'
+        batch_size = 3
+        seq_length = 4
+        vocab_size=20
+        input_data = np.random.uniform(0, 19, size=(batch_size, seq_length))
+        input_data = torch.from_numpy(input_data).long()
+
+        net = Net()
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_GRU(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.gru = nn.GRU(input_size=5, hidden_size=50, batch_first=True)
+                self.embedding_layer = torch.nn.Embedding(3, 5)
+
+            def forward(self, x):
+                x = self.embedding_layer(x) ##shape: [1, 3 ,5]
+                out, hidden = self.gru(x)
+                return out
+
+        test_onnx_name = 'GRU'
+        input_data = torch.LongTensor([[0, 1, 2]]) ##shape: [1, 3]
+
+        net = Net()
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Repeat(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = x.repeat(3, 4)
+                # x = x.repeat_interleave(4, 0)
                 x = torch.add(x, x)
                 return x
 
-        input_shape = [1, 3, 8, 8]
-        test_onnx_name = 'Add'
+        input_shape = [4, 1]
+        test_onnx_name = 'Repeat'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Squeeze(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = torch.negative(x)
+                x = torch.squeeze(x)
+                x = torch.add(x,x)
+                return x
+
+        input_shape = [3, 2, 8, 1]
+        test_onnx_name = 'Squeeze'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Dropout(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.dropout = nn.Dropout(p=0.5)
+
+            def forward(self, x):
+                x = torch.negative(x)
+                x = F.dropout(x, p=0.5, training=self.training)
+                x = self.dropout(x)
+                x = torch.add(x, x)
+                return x
+
+        input_shape = [4, 5]
+        test_onnx_name = 'Repeat'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1])
+        print(input_data, '1111')
+        # normal = Normal(input_data, 5)
+        # print(normal, '2222')
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Math(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = torch.exp(x)
+                x = torch.add(x, x)
+                x = torch.min(x, x+1)
+                x = torch.max(x, x+1)
+                # x = torch.prod(x)
+                # x = torch.sum(x)
+                return x
+
+        input_shape = [1, 1, 2, 3]
+        test_onnx_name = 'Math'
+
+        net = Net()
+        input_data = torch.zeros(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Cat_Chunk(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.div_num = 2
+
+            def forward(self, x):
+                y = torch.negative(x)*2
+                x = torch.cat((x, y), 1)
+                x = torch.chunk(x, self.div_num, dim=1)
+                x = torch.negative(x[0])
+                return x
+
+        input_shape = [1, 1, 2, 3]
+        test_onnx_name = 'Cat_Chunk'
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
 
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
@@ -318,15 +587,105 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_Squeeze(self):
+    def test_Mulit_attention_api(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.embedding_layer = torch.nn.Embedding(3, 6)
+                self.multihead_attn = nn.MultiheadAttention(6, 2)
+
+            def forward(self, x):
+                x = self.embedding_layer(x) ##shape: [1, 3, 6]
+                attn_output, attn_output_weights = self.multihead_attn(x, x, x)
+                return attn_output
+
+        test_onnx_name = 'Mulit_attention_api'
+        input_data = torch.LongTensor([[0, 1, 2]]) ##shape: [1, 3]
+
+        net = Net()
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Mulit_attention_self(self):
+        class SelfAttention(nn.Module):
+            def __init__(self, hid_dim, n_heads, dropout, device):
+                super().__init__()
+
+                self.hid_dim = hid_dim
+                self.n_heads = n_heads
+
+                assert hid_dim % n_heads == 0
+
+                self.w_q = nn.Linear(hid_dim, hid_dim)
+                self.w_k = nn.Linear(hid_dim, hid_dim)
+                self.w_v = nn.Linear(hid_dim, hid_dim)
+
+                self.fc = nn.Linear(hid_dim, hid_dim)
+                self.do = nn.Dropout(dropout)
+                self.scale = torch.sqrt(torch.FloatTensor([hid_dim // n_heads])).to(device)
+
+            def forward(self, query, key, value, mask=None):
+                bsz = query.shape[0]
+
+                Q = self.w_q(query)
+                K = self.w_k(key)
+                V = self.w_v(value)
+
+                Q = Q.view(bsz, -1, self.n_heads, self.hid_dim //
+                        self.n_heads).permute(0, 2, 1, 3)
+                K = K.view(bsz, -1, self.n_heads, self.hid_dim //
+                        self.n_heads).permute(0, 2, 1, 3)
+                V = V.view(bsz, -1, self.n_heads, self.hid_dim //
+                        self.n_heads).permute(0, 2, 1, 3)
+
+                energy = torch.matmul(Q, K.permute(0, 1, 3, 2)) / self.scale
+                if mask is not None:
+                    energy = energy.masked_fill(mask == 0, -1e10)
+                attention = self.do(torch.softmax(energy, dim=-1))
+                x = torch.matmul(attention, V)
+                x = x.permute(0, 2, 1, 3).contiguous()
+                x = x.view(bsz, -1, self.n_heads * (self.hid_dim // self.n_heads))
+                x = self.fc(x)
+                return x
+
+        test_onnx_name = 'Mulit_attention_self'
+        embed_dim = 2
+        num_heads = 2
+        batch_size = 3
+        input_shape = [num_heads, batch_size, embed_dim]
+        query = torch.randn(input_shape[0], input_shape[1], input_shape[2])
+        key = torch.randn(input_shape[0], input_shape[1], input_shape[2])
+        value = torch.randn(input_shape[0], input_shape[1], input_shape[2])
+        input_data = {}
+        input_data['input'] = query
+        input_data['input1'] = key
+        input_data['input2'] = value
+
+        dropout = 0.2  # the dropout value
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+        multihead_net = SelfAttention(embed_dim, num_heads, dropout, device)
+        torch_output_data = multihead_net(input_data['input'], input_data['input1'], input_data['input2'])
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(multihead_net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Norm(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
 
             def forward(self, x):
                 x = torch.negative(x)
-                x = torch.squeeze(x)
-                x = torch.add(x,x)
+                x = torch.norm(x, p=2, dim=1, keepdim=True)
                 return x
 
         input_shape = [3, 1, 8, 1]
@@ -349,7 +708,10 @@ class TORCH_IR_TESTER(object):
                 self.linear = nn.Linear(10,20,bias=False)
 
             def forward(self, x):
-                x = self.linear(x)
+                x = torch.negative(x)
+                x = torch.transpose(x, 1, 2)
+                x = torch.squeeze(x)
+                x = torch.add(x,x)
                 return x
 
         input_shape = [3, 24, 10]
@@ -372,6 +734,7 @@ class TORCH_IR_TESTER(object):
                 self.layer_norm = nn.LayerNorm(50)
 
             def forward(self, x):
+                # normal = Normal(x, 5)
                 x = self.layer_norm(x)
                 return x
 
@@ -385,6 +748,138 @@ class TORCH_IR_TESTER(object):
         # Use the exporter from  torch to convert to onnx
         self.pytorch_transform_onnx(net, input_data, test_onnx_name)
 
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Hardsigmoid(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.linear = nn.Linear(10, 20, bias=False)
+                self.Hardsigmoid = torch.nn.Hardsigmoid()
+
+            def forward(self, x):
+                ##Hardsigmoid
+                x = self.linear(x)
+                x = self.Hardsigmoid(x)
+                return x
+
+        test_onnx_name = 'Hardsigmoid'
+        input_data = torch.randn(3, 6, 10).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_PReLU(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.linear = nn.Linear(10, 20, bias=False)
+                self.PReLU = torch.nn.PReLU(6)
+
+            def forward(self, x):
+                ##PReLU
+                x = self.linear(x)
+                x = self.PReLU(x)
+                return x
+
+        test_onnx_name = 'PReLU'
+        input_data = torch.randn(3, 6, 10).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Activation(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.linear = nn.Linear(10, 20, bias=False)
+                self.linear_return = nn.Linear(20, 10, bias=False)
+
+            def forward(self, x):
+                #tanh
+                x = self.linear(x)
+                x = torch.tanh(x)
+                ##sigmoid
+                x = self.linear_return(x)
+                x = torch.sigmoid(x)
+                ##relu
+                x = self.linear(x)
+                x = torch.relu(x)
+                ##leaky_relu
+                x = self.linear_return(x)
+                x = F.leaky_relu(x)
+                ##elu
+                x = self.linear(x)
+                x = F.elu(x)
+                return x
+
+        test_onnx_name = 'Activation'
+        input_data = torch.randn(3, 6, 10).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_ConvTranspose1d(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.dconv1 = nn.ConvTranspose1d(4, 6, kernel_size=3, stride=2, padding=1, output_padding=1)
+
+            def forward(self, x):
+                x = torch.negative(x)
+                x = torch.squeeze(x, 3)
+                x = self.dconv1(x)
+                return x
+
+        batch_size = 3
+        test_onnx_name = 'ConvTranspose1d'
+
+        input_data = torch.randn(batch_size, 4, 2, 1).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Conv1d(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv_test = nn.Conv1d(in_channels=3,
+                            out_channels=2,
+                            kernel_size=3,
+                            stride=2,
+                            padding=1)
+
+            def forward(self, x):
+                x = torch.negative(x) ##tensor size [3, 3, 5]
+                x = self.conv_test(x) ##tensor size [3, 2, 5]
+                x = F.avg_pool1d(x, kernel_size=2)
+                return x
+
+        batch_size = 3
+        test_onnx_name = 'Conv1d'
+        input_data = torch.randn(batch_size, 3, 5).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
@@ -431,21 +926,21 @@ if __name__ == "__main__":
                 pass_list_i8.append(i)
                 print("TEST {} Finish".format(i))
 
-        # for i in TEST_TORCH_IR:
-        #     if i not in NOT_SUPPORT_BF16_TEST_IR:
-        #         tester.set_quant_mode(mode="bf16")
-        #         tester.test_function.get(i)()
-        #         pass_list_bf16.append(i)
+        for i in TEST_TORCH_IR:
+            if i not in NOT_SUPPORT_BF16_TEST_IR:
+                tester.set_quant_mode(mode="bf16")
+                tester.test_function.get(i)()
+                pass_list_bf16.append(i)
         print("Torch test result:")
         print("INT8 {} PASS {}".format("="*4, "="*4))
         for i in pass_list_i8:
             if i not in NOT_SUPPORT_INT8_TEST_IR:
                 print("\t {}".format(i))
 
-        # print("BF16 {} PASS {}".format("="*4, "="*4))
-        # for i in pass_list_bf16:
-        #     if i not in NOT_SUPPORT_BF16_TEST_IR:
-        #         print("\t {}".format(i))
+        print("BF16 {} PASS {}".format("="*4, "="*4))
+        for i in pass_list_bf16:
+            if i not in NOT_SUPPORT_BF16_TEST_IR:
+                print("\t {}".format(i))
 
     else:
         print("Usage: test_torch.py ir_name")
