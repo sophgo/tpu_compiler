@@ -1,4 +1,5 @@
 #include "Tensor.hpp"
+#include "tpuc/TPUTensorSupport.h"
 #include <memory>
 
 namespace mlir {
@@ -72,44 +73,21 @@ std::shared_ptr<Tensor> Tensor::register_tensor(
   return tensor;
 }
 
-std::shared_ptr<Tensor> Tensor::register_tensor(
-                                ShapedType *s_type, const std::string& name,
-                                tensor_type_t type, int layer_id,
-                                std::string storage) {
-  int n = 0, c = 0, h = 1, w = 1;
+std::shared_ptr<Tensor>
+Tensor::register_tensor(ShapedType *s_type, const std::string &name,
+                        tensor_type_t type, int layer_id, std::string storage) {
   std::vector<int64_t> shape = s_type->getShape();
-  switch (s_type->getRank()) {
-    case 5:
-      n = shape[0];
-      c = shape[1] * shape[2];
-      h = shape[3];
-      w = shape[4];
-      break;
-    case 4:
-      w = shape[3];
-      h = shape[2];
-      c = shape[1];
-      n = shape[0];
-      break;
-    case 3:
-      h = shape[2];
-      c = shape[1];
-      n = shape[0];
-      break;
-    case 2:
-      c = shape[1];
-      n = shape[0];
-      break;
-    case 1:
-      n = shape[0];
-      break;
-    default:
-      llvm::errs() << "Shape's dim size " << s_type->getRank() << " is unsupported.\n";
-      assert(0);
+  int64_t n, c, h, w;
+  int num_dims = shape.size();
+  if (num_dims == 5) {
+    n = shape[0];
+    c = shape[1] * shape[2];
+    h = shape[3];
+    w = shape[4];
+  } else {
+    getNCHW(shape, n, c, h, w);
   }
-
-  int unit_size = s_type->getElementTypeBitWidth()/8;
-
+  int unit_size = s_type->getElementTypeBitWidth() / 8;
   return register_tensor(n, c, h, w, unit_size, storage, name, type, layer_id);
 }
 

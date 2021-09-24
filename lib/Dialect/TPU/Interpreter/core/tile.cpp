@@ -10,16 +10,19 @@ TileOpKernel::TileOpKernel(Operation &op, value_map_t &valueMapping,
                            weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
   auto tileOp = cast<tpu::TileOp>(op);
-  auto input_type = tileOp.input().getType().template cast<TensorType>();
-  this->input_shape = input_type.getShape();
+  auto shape_ = getTensorShape(tileOp.input());
+  int64_t n, c, h, w;
+  getNCHW(shape_, n, c, h, w);
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
   axis = tileOp.axis();
   tiles = tileOp.tiles();
+  input_shape = {n, c, h, w};
 }
 
 void TileOpKernel::invoke() {
+
   int outer_count =
       std::accumulate(input_shape.begin(), input_shape.begin() + axis, 1,
                       std::multiplies<int>());

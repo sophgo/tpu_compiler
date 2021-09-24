@@ -38,10 +38,7 @@ void getTensorShapeAndSize(Value value, std::vector<int64_t> &shape,
 static void getNCHW_align_right(std::vector<int64_t> &shape, int64_t &n,
                                 int64_t &c, int64_t &h, int64_t &w) {
   int num_dims = shape.size();
-  n = 1;
-  c = 1;
-  h = 1;
-  w = 1;
+  n = 1, c = 1, h = 1, w = 1;
   if (num_dims > 0) {
     w = shape[num_dims - 1];
   }
@@ -61,31 +58,23 @@ static void getNCHW_align_right(std::vector<int64_t> &shape, int64_t &n,
 
 static void getNCHW_align_left(std::vector<int64_t> &shape, int64_t &n,
                                int64_t &c, int64_t &h, int64_t &w) {
-  if (shape.size() == 5 && shape[0] == 1) {
-    n = shape[1];
-    c = shape[2];
-    h = shape[3];
-    w = shape[4];
-  } else if (shape.size() == 4) {
-    n = shape[0];
-    c = shape[1];
-    h = shape[2];
-    w = shape[3];
-  } else if (shape.size() == 3) {
-    n = shape[0];
-    c = shape[1];
-    h = shape[2];
-    w = 1;
+  int num_dims = shape.size();
+  n = 1, c = 1, h = 1, w = 1;
+  if (num_dims >= 4) {
+    n = std::accumulate(shape.begin(), shape.begin() + num_dims - 3, 1,
+                        std::multiplies<int64_t>());
+    c = shape[num_dims - 3];
+    h = shape[num_dims - 2];
+    w = shape[num_dims - 1];
+  } else if (num_dims == 3) {
+    n = shape[num_dims - 3];
+    c = shape[num_dims - 2];
+    h = shape[num_dims - 1];
   } else if (shape.size() == 2) {
-    n = shape[0];
-    c = shape[1];
-    h = 1;
-    w = 1;
+    n = shape[num_dims - 2];
+    c = shape[num_dims - 1];
   } else if (shape.size() == 1) {
-    n = shape[0];
-    c = 1;
-    h = 1;
-    w = 1;
+    n = shape[num_dims - 1];
   } else {
     llvm_unreachable("unsupported shape size");
   }

@@ -27,7 +27,7 @@ class MLIRModel(model_base):
         else:
             return None
 
-    def get_all_tensor(self, input_data=None):
+    def get_all_tensor(self):
         tensors_dict = self.net.get_all_tensor()
         return tensors_dict
 
