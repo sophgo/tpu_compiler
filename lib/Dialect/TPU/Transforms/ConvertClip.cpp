@@ -61,6 +61,12 @@ struct TpuConvertClipToRelu6Pattern : public RewritePattern {
       return failure();
     }
 
+    if (isa<tpu::Conv2DOp>(formerOp)){
+      auto cast_op = cast<tpu::Conv2DOp>(formerOp);
+      if(cast_op.param().do_relu().getValue() == true)
+        return failure();
+    }
+
     auto loc = op->getLoc();
 
     auto layer_name = mlir::getOpName(clipOp).str();
@@ -82,6 +88,7 @@ struct TpuConvertClipToRelu6Pattern : public RewritePattern {
     std::vector<Value> operands;
     auto NoneOp = rewriter.create<tpu::NoneOp>(
         rewriter.getUnknownLoc(), rewriter.getNoneType());
+
     operands.push_back(reluOp.getResult());
     operands.push_back(NoneOp.getResult()); // quant_scale
     operands.push_back(NoneOp.getResult()); // quant_zeropoint
