@@ -80,6 +80,8 @@ class DeployTool:
         if len(images) == 1 and self._is_npz(images[0]):
             x = np.load(images[0])
             np.savez(str(self.in_fp32_npz), **x)
+            if self.with_preprocess:
+                np.savez(str(self.in_fp32_resize_only_npz), **x)
         else:
             x0 = {}
             x1 = {}

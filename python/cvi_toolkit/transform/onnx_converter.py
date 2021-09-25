@@ -1740,8 +1740,8 @@ class OnnxConverter(BaseConverter):
         op0, input_shape, tensor_type0 = self.getOperand(onnx_node.inputs[0])
         _, _, tensor_type1 = self.getOperand(onnx_node.inputs[1])
         if tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
-            tensor_data = self.getTensor(onnx_node.inputs[1]).tensor_data
-            new_shape = list(tensor_data)
+            shape_data = self.getTensor(onnx_node.inputs[1]).tensor_data
+            new_shape = [int(d) for d in shape_data]
             zeros0 = np.zeros(input_shape)
             zeros1 = np.zeros(new_shape)
             zeros = zeros0 + zeros1
@@ -1777,7 +1777,7 @@ class OnnxConverter(BaseConverter):
         elif tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR:
             tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
             shape_data = self.getTensor(onnx_node.inputs[1]).tensor_data
-            new_shape = list(shape_data)
+            new_shape = [int(d) for d in shape_data]
             zeros = np.zeros(new_shape, dtype = tensor_data.dtype)
             output_data = tensor_data + zeros
             self.addTensor(onnx_node.name, output_data, list(output_data.shape))
@@ -2704,10 +2704,6 @@ class OnnxConverter(BaseConverter):
 
             output_shape = [int(x) for x in output_shape]
 
-            if len(output_shape) ==6:
-                # Pixel Shuffle
-                self.addOperand(onnx_node.name, op1, output_shape, TensorType.ACTIVATION)
-                return
             if np.prod(input_shape1) != np.prod(output_shape):
                 logger.info(self.CVI.print_module())
                 raise RuntimeError("can not reshape {} v.s. {}".format(input_shape1, output_shape))
@@ -3458,33 +3454,14 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
-            if transpose_perm == [0, 1, 4, 2, 5, 3]:
-                # pixel shuffle
-                if input_shape[2] != input_shape[3]:
-                    raise ValueError("Pixel Shuffle Scale factor not same {} v.s.{}".format(input_shape[2], input_shape[3]))
-
-                upscale_factor = input_shape[2]
-                on = input_shape[0]
-                oc = input_shape[1]
-                oh = upscale_factor * input_shape[4]
-                ow = upscale_factor * input_shape[5]
-                output_shape = [on, oc, oh, ow]
-                operands = [op]
-                attr={
-                    'upscale_factor': upscale_factor,
-                    'mode': "CRD"
-                }
-                pixel_shuffle_op = self.CVI.add_pixelshuffle_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-                self.addOperand(onnx_node.name, pixel_shuffle_op, output_shape, TensorType.ACTIVATION)
-            else:
-                output_shape = list(input_shape)
-                for i in range(len(transpose_perm)):
-                    output_shape[i] = input_shape[transpose_perm[i]]
-                attr = {
-                    'order': transpose_perm,
-                }
-                permute_op = self.CVI.add_permute_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
-                self.addOperand(onnx_node.name, permute_op, output_shape, TensorType.ACTIVATION)
+            output_shape = list(input_shape)
+            for i in range(len(transpose_perm)):
+                output_shape[i] = input_shape[transpose_perm[i]]
+            attr = {
+                'order': transpose_perm,
+            }
+            permute_op = self.CVI.add_permute_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **attr)
+            self.addOperand(onnx_node.name, permute_op, output_shape, TensorType.ACTIVATION)
 
     def convert_where_op(self, onnx_node):
         assert(onnx_node.op_type == "Where")
