@@ -32,6 +32,7 @@ TEST_TORCH_IR = [
     # "Mulit_attention_self", ## Low accuracy
     # "Mulit_attention_api",  ## now not support
     "Norm",
+    "masked_fill",
     "Activation",
     # "PReLU",    ## Segmentation fault
     # "Hardsigmoid", ## now nonx not support
@@ -136,6 +137,7 @@ class TORCH_IR_TESTER(object):
             "Std": self.test_Std,
             "Squeeze": self.test_Squeeze,
             "Size": self.test_Size,
+            "masked_fill": self.test_masked_fill,
             "Mulit_attention_self": self.test_Mulit_attention_self,
             "Mulit_attention_api": self.test_Mulit_attention_api,
             "Norm": self.test_Norm,
@@ -564,6 +566,26 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
+    def test_masked_fill(self):
+        class Net(nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.mask = torch.ByteTensor([[[1],[1],[0]],[[0],[1],[1]]])
+
+            def forward(self,x):
+                y = x.masked_fill(self.mask, value=torch.tensor(1.0))
+                return y
+
+        input_shape = [2,3,4]
+        test_onnx_name = "masked_fill"
+
+        net = Net()
+        input_data = torch.randn(input_shape)
+        torch_output_data = net(input_data)
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
     def test_Std(self):
         class Net(torch.nn.Module):
             def __init__(self):
@@ -914,6 +936,8 @@ if __name__ == "__main__":
     os.chdir("torch_test")
     tester = TORCH_IR_TESTER()
     if len(sys.argv) == 2:
+        tester.test_function.get(sys.argv[1])()
+        tester.set_quant_mode(mode="bf16")
         tester.test_function.get(sys.argv[1])()
         exit(0)
     elif len(sys.argv) == 1:

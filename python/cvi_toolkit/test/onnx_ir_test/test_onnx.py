@@ -2918,6 +2918,8 @@ if __name__ == "__main__":
         exit(0)
     elif len(sys.argv) == 2:
         tester.test_function.get(sys.argv[1])()
+        tester.set_quant_mode(mode="bf16")
+        tester.test_function.get(sys.argv[1])()
         exit(0)
     elif len(sys.argv) == 1:
         pass_list_i8 = list()
