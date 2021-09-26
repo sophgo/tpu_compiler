@@ -53,7 +53,7 @@ TEST_ONNX_IR = [
     "PadReflect",
     "Relu",
     "PRelu",
-#    "ReduceMax",
+    "ReduceMax",
     "ReduceMean",
     "Resize",
 #    "Reciprocal",
@@ -1973,8 +1973,8 @@ class ONNX_IR_TESTER(object):
 
     def test_ReduceMax(self):
         test_case = "ReduceMax"
-        input_shape = [1, 128, 4, 4]
-        output_shape = [1, 1, 4, 4]
+        input_shape = [1, 32, 64, 16]
+        output_shape = [1, 32, 64]
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, input_shape)
@@ -1991,8 +1991,8 @@ class ONNX_IR_TESTER(object):
             'ReduceMax',
             ['X1'],
             ['output'],
-            keepdims=1,
-            axes=[1, ],
+            keepdims=0,
+            axes=[3, ],
         )
 
         graph_def = helper.make_graph(
@@ -2637,7 +2637,7 @@ class ONNX_IR_TESTER(object):
             },
         ]
 
-        idx = 1;
+        idx = 1
 
         input_shape = testbench[idx]['input_shape']
         condition_shape = testbench[idx]['condition_shape']

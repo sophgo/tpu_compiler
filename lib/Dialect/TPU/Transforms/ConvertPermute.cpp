@@ -63,7 +63,7 @@ struct TpuPermuteToPixelShufflePattern : public RewritePattern {
     if (!reshape_before) {
       return failure();
     }
-    auto nextOp = getNextOp(permuteOp);
+    auto nextOp = getNextOp(op);
     if (!nextOp) {
       return failure();
     }
@@ -97,8 +97,8 @@ struct TpuPermuteToPixelShufflePattern : public RewritePattern {
     rewriter.replaceOpWithNewOp<tpu::PixelShuffleOp>(
         reshape_after, reshape_after.getResult().getType(),
         ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
-    permuteOp.erase();
-    reshape_before.erase();
+    rewriter.eraseOp(op);
+    rewriter.eraseOp(reshape_before.output().getDefiningOp());
     return success();
   }
 };
