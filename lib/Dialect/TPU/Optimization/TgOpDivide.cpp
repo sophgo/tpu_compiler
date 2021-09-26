@@ -621,10 +621,7 @@ public:
     std::string name = getOpName(op) + "_tod_crop_" + std::to_string(slice_idx);
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name)));
-    attrs.push_back(builder.getNamedAttr("crop_shape",
-                                         builder.getI32ArrayAttr(crop_shape)));
-    attrs.push_back(
-        builder.getNamedAttr("crop_offset", builder.getI32ArrayAttr(offset)));
+    attrs.push_back(builder.getNamedAttr("crop_offset", builder.getI32ArrayAttr(offset)));
     std::vector<Value> operands;
     operands.push_back(op->getResult(0));
     shape[2] = h_slice;

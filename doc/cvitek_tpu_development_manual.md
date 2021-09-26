@@ -415,8 +415,8 @@ TPU软件开发框图如下图所示:
   |---|---|---|---|
   |output       | AnyTensor               | 输出Tensor    | 输出|
   |input        | AnyTensor               | 输入Tensor    | 输入|
-  |crop_shape   | I32ArrayAttr            | Crop Shape  | 属性|
-  |crop_offset  | TI32ArrayAttr           | Crop Offset | 属性|
+  |crop_offset  | I32ArrayAttr            | Crop Offset  | 属性|
+  |steps        | I32ArrayAttr            | 步进          | 属性|
   |quant        | TPU_QuantParamAttr      | Quant参数     | 属性|
   |name         | StrAttr                 | 名称          | 属性|
 

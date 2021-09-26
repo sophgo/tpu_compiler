@@ -2165,9 +2165,9 @@ void MixNet::_add_tl_crop_op(MixOp * mix_op,
 
   std::vector<int32_t> crop_offsets;
   if (auto crop_op = dyn_cast<tpu::TG_INT8_CropOp>(op))
-    arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+    arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
   else if(auto crop_op = dyn_cast<tpu::TG_BF16_CropOp>(op))
-    arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+    arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
 
   int bottom_dim[4];
   int top_dim[4];

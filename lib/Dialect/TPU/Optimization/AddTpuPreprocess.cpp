@@ -426,18 +426,13 @@ private:
     int start_h = resize_h / 2 - h / 2;
     int start_w = resize_w / 2 - w / 2;
     std::vector<int> crop_offset {0, 0, start_h, start_w};
-    std::vector<int> crop_shape {(int)n, (int)c, (int)h, (int)w};
-
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name",
         builder.getStringAttr(name_)));
     attrs.push_back(builder.getNamedAttr("quant",
         getDefaultQuantParam(builder)));
-    attrs.push_back(builder.getNamedAttr("crop_shape",
-        builder.getI32ArrayAttr(crop_shape)));
     attrs.push_back(builder.getNamedAttr("crop_offset",
         builder.getI32ArrayAttr(crop_offset)));
-
     auto type = this->getTensorType(builder, {n, c, h, w}, "UINT8");
     auto newOp = builder.create<tpu::CropOp>(
         opd.getLoc(), type, ArrayRef<Value>{opd},

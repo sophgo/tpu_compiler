@@ -1704,7 +1704,7 @@ LogicalResult tpu::TL_LG_INT8_CropOp::codegen(void *ctx) {
   // parse param
   int layer_id = getOpLayerId(op);
   std::vector<int32_t> crop_offsets;
-  arrayAttrToVector(this->crop_offsets().getValue(), crop_offsets);
+  arrayAttrToVector(this->crop_offsets(), crop_offsets);
 
   cvi_backend_tl_crop(*backend_ctx, layer_id, input_shape.data(),
                       output_shape.data(), la_input, la_output,
@@ -1732,7 +1732,7 @@ LogicalResult tpu::TL_LG_BF16_CropOp::codegen(void *ctx) {
   // parse param
   int layer_id = mlir::getOpLayerId(op);
   std::vector<int32_t> crop_offsets;
-  arrayAttrToVector(this->crop_offsets().getValue(), crop_offsets);
+  arrayAttrToVector(this->crop_offsets(), crop_offsets);
 
   cvi_backend_tl_bf16_crop(*backend_ctx, layer_id, input_shape.data(),
                            output_shape.data(), la_input, la_output,

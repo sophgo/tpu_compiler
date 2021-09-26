@@ -99,15 +99,29 @@ void ImLayer::add_imm_tensor(const std::shared_ptr<Tensor> associcate,
   imm_tensors.push_back(tensor);
 }
 
-static bool is_channel_align(Operation *op) {
+static bool is_crop_fusible(Operation *op) {
   // ONLY shift channel offset align NPU_NUM
   std::vector<int32_t> crop_offsets;
+  std::vector<int32_t> steps;
   if (auto crop_op = dyn_cast<tpu::TG_INT8_CropOp>(op)) {
-    arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+    arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
+    if (crop_op.steps().hasValue()) {
+      arrayAttrToVector(crop_op.steps().getValue(), steps);
+    }
   } else if (auto crop_op = dyn_cast<tpu::TG_BF16_CropOp>(op)) {
-    arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+    arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
+    if (crop_op.steps().hasValue()) {
+      arrayAttrToVector(crop_op.steps().getValue(), steps);
+    }
   } else {
     llvm_unreachable("unsupported op");
+  }
+  if (steps.size() < 4) {
+    return false;
+  }
+  int total_steps = std::accumulate(steps.begin(),steps.end(), 1, std::multiplies<int32_t>());
+  if (total_steps > 1) {
+    return false;
   }
   if (crop_offsets.size() < 4) {
     return false;
@@ -698,9 +712,7 @@ ImPad::ImPad(Operation *op): ImLayer(IR_PAD, op, true) {
 ImCrop::ImCrop(Operation *op) : ImLayer(IR_CROP, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
-  if (false == is_channel_align(op)) {
-    fusible = false;
-  }
+  fusible = is_crop_fusible(op);
 }
 
 ImRelu::ImRelu(Operation *op): ImLayer(IR_RELU, op, true) {

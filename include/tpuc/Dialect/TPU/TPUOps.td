@@ -563,7 +563,6 @@ def TPU_CropOp: TPU_Op<"crop",
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `crop_shape`      : required, crop shape.
       `crop_offset`     : required, crop offset.
       `chipname`        : optional, chipname.
 
@@ -583,8 +582,8 @@ def TPU_CropOp: TPU_Op<"crop",
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<I32ArrayAttr>:$crop_shape,
-    OptionalAttr<I32ArrayAttr>:$crop_offset,
+    I32ArrayAttr:$crop_offset,
+    OptionalAttr<I32ArrayAttr>:$steps,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
@@ -3209,7 +3208,7 @@ def TPU_WhereOp: TPU_Op<"where",
       X (differentiable) : T
           values selected at indices where condition is True
       Y (differentiable) : T
-          values selected at indices where condition is False 
+          values selected at indices where condition is False
     Example:
       condition = np.array([[1, 0], [1, 1]], dtype=bool)
       x = np.array([[1, 2], [3, 4]], dtype=np.float32)

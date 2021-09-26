@@ -2986,193 +2986,65 @@ class OnnxConverter(BaseConverter):
         starts = []
         ends = []
         axes = []
+        num_input = len(onnx_node.inputs)
         # start
-        if (len(onnx_node.inputs) > 1):
-            _, _, _tesnor_type = self.getOperand(onnx_node.inputs[1])
-            if _tesnor_type != TensorType.TENSOR:
-                raise TypeError(
-                    "{} start type be tensor, not find".format(onnx_node.name))
+        if num_input > 1:
+            starts = self.getTensor(onnx_node.inputs[1]).tensor_data
+            ends = self.getTensor(onnx_node.inputs[2]).tensor_data
+            axes = self.getTensor(onnx_node.inputs[3]).tensor_data
+            # step
+            if num_input > 4:
+                steps = self.getTensor(onnx_node.inputs[4]).tensor_data
+                steps = [int(s) for s in steps]
             else:
-                starts = self.getTensor(onnx_node.inputs[1]).tensor_data
-            # ends
-            _, _, _tesnor_type = self.getOperand(onnx_node.inputs[2])
-            if _tesnor_type != TensorType.TENSOR:
-                raise TypeError(
-                    "{} end type be tensor, not find".format(onnx_node.name))
-            else:
-                ends = self.getTensor(onnx_node.inputs[2]).tensor_data
-            # axes
-            _, _, _tesnor_type = self.getOperand(onnx_node.inputs[3])
-            if _tesnor_type != TensorType.TENSOR:
-                raise TypeError(
-                    "{} axes type be tensor, not find".format(onnx_node.name))
-            else:
-                axes = self.getTensor(onnx_node.inputs[3]).tensor_data
+                steps = [1] * len(axes)
         else:
             starts = onnx_node.attrs.get('starts')
             ends = onnx_node.attrs.get('ends')
             axes = onnx_node.attrs.get('axes')
+            steps = [1] * len(axes)
 
-        steps = [1]
         assert(len(starts) == len(ends))
         assert(len(axes) == len(ends))
 
-        if len(onnx_node.inputs) == 5:
-            # steps
-            _, _, _tesnor_type = self.getOperand(onnx_node.inputs[4])
-            if _tesnor_type != TensorType.TENSOR:
-                raise RuntimeError(
-                    "{} steps type be tensor, not find".format(onnx_node.name))
-            else:
-                steps = self.getTensor(onnx_node.inputs[4]).tensor_data
-                assert(len(steps) == 1)  # steps only has one value
-                if steps[0] > 1 and (len(axes) == 1 and axes[0] < 2):
-                    raise RuntimeError("not support step > 1 and slice step with n/c")
-
-                if steps[0] == -1:
-                    tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
-                    output_data = tensor_data[starts[0]:ends[0]:steps[0]]
-                    output_shape = list(output_data.shape)
-                    self.addTensor(onnx_node.name, output_data, output_shape)
-                    self.addOperand(onnx_node.name, None,
-                                    output_shape, TensorType.TENSOR)
-                elif steps[0] > 1:
-                    # step eq as stride, leverage scale with stride
-                    # only apply h/w, yolov5 case that step = [2] with axis = [2]
-                    if len(ends) == 1 and ends[0] != np.iinfo(np.int64).max:
-                        raise RuntimeError("not support end not set to max(np.iinfo(np.int64).max")
-                    assert(tesnor_type != TensorType.TENSOR)
-                    crop_shape = input_shape.copy()
-
-
-                    _op = op
-                    if starts[0] != 0:
-                        # add slice to shift it
-                        crop_offset = input_shape.copy()
-                        idx = 0
-                        for j in range(len(crop_shape)):
-                            if j in axes:
-                                ends[idx] = input_shape[j] if ends[idx] > input_shape[j] else ends[idx]
-                                crop_shape[j] = ends[idx] - starts[idx]
-                                crop_offset[j] = starts[idx]
-                                idx += 1
-                            else:
-                                crop_shape[j] = input_shape[j]
-                                crop_offset[j] = 0
-
-                        crop_shape = [int(x) for x in crop_shape]
-                        crop_offset = [int(x) for x in crop_offset]
-                        crop_param = {
-                            "crop_offset": list(crop_offset),
-                            "crop_shape": list(crop_shape),
-                        }
-
-                        output_shape = crop_shape
-                        crop_op = self.CVI.add_crop_op("{}_shift_{}".format(
-                            onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
-                        self.addOperand(onnx_node.name, crop_op,
-                                        output_shape, TensorType.ACTIVATION)
-                        _op = crop_op
-
-
-                    crop_shape = input_shape.copy()
-
-                    # lowering to scale with stride
-                    on = crop_shape[0]
-                    oc = crop_shape[1]
-                    oc = crop_shape[1]
-                    ic = oc
-
-                    strides = [1, 1]
-                    # 2 means rescale 4 dim index from 0,1,2,3 to only hw:0,1
-                    strides[2 - axes[0]] = steps[0]
-
-                    oh = calcPool2DFloor(crop_shape[2], 1, strides[0], 0, 0)
-                    ow = calcPool2DFloor(crop_shape[3], 1, strides[1], 0, 0)
-
-                    output_shape = [int(on), int(oc), int(oh), int(ow)]
-
-                    conv_param = {
-                        'stride_h':  strides[0],
-                        'stride_w':  strides[1],
-                        'padding': "VALID",
-                        'dilation_h': 1,
-                        'dilation_w': 1,
-                        'padding_t': 0,
-                        'padding_b': 0,
-                        'padding_l': 0,
-                        'padding_r': 0,
-                        'group': ic,
-                        'is_dw': True,
-                        'with_bias': False,
-                        'do_relu': False,
-                        'ins': [],
-                    }
-
-
-                    weight_shape = [ic, 1, 1, 1, 1]
-                    conv_tensor_data = np.full(weight_shape, 1)
-                    weight_name = "{}_add_weight".format(onnx_node.name)
-                    self.addTensor(weight_name, conv_tensor_data, conv_tensor_data.shape)
-                    weight_op = self.CVI.add_load_file_op(weight_name, conv_tensor_data.shape)
-
-                    operands = list()
-                    operands.append(_op)
-                    operands.append(weight_op)
-
-                    conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
-
-                    self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
-
-                    return
-
+        num_dims = len(input_shape)
         if tesnor_type == TensorType.TENSOR:
             tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
-            if len(axes) > 1:
-                raise RuntimeError("Todo: Slice not support axes > 1 case")
-            else:
-                if steps[0] == -1:
-                    output_data = tensor_data[starts[0]:ends[0]:steps[0]]
-                else:
-                    # slice
-                    axis = int(axes[0])
-                    start = int(starts[0])
-                    end = ends[0] if ends[0] < np.iinfo(
-                        np.int64).max else len(tensor_data) - 1
-                    end = int(end)
-                    output_data = tensor_data.take(
-                        indices=range(start, end), axis=axis)
-                output_shape = list(output_data.shape)
-                self.addTensor(onnx_node.name, output_data, output_shape)
-                self.addOperand(onnx_node.name, None,
-                                output_shape, TensorType.TENSOR)
+            for start, end, axis, step in zip(starts, ends, axes, steps):
+                if axis < 0:
+                    axis = axis + num_dims
+                s = slice(start, end, step)
+                tensor_data = tensor_data[(slice(None),)*axis + (s,)]
+            output_shape = list(tensor_data.shape)
+            self.addTensor(onnx_node.name, tensor_data, output_shape)
+            self.addOperand(onnx_node.name, None,
+                            output_shape, TensorType.TENSOR)
             return
         else:
-            crop_shape = input_shape.copy()
-            crop_offset = input_shape.copy()
-            idx = 0
-            for j in range(len(crop_shape)):
-                if j in axes:
-                    ends[idx] = input_shape[j] if ends[idx] > input_shape[j] else ends[idx]
-                    crop_shape[j] = ends[idx] - starts[idx]
-                    crop_offset[j] = starts[idx]
-                    idx += 1
-                else:
-                    crop_shape[j] = input_shape[j]
-                    crop_offset[j] = 0
-
-            crop_shape = [int(x) for x in crop_shape]
-            crop_offset = [int(x) for x in crop_offset]
+            crop_shape = list(input_shape)
+            crop_offset = [0] * num_dims
+            step_shape = [1] * num_dims
+            for start, end, axis, step in zip(starts, ends, axes, steps):
+                assert(step > 0)
+                if axis < 0:
+                    axis = axis + num_dims
+                if end < 0:
+                    end = end + input_shape[axis]
+                if end > input_shape[axis]:
+                    end = input_shape[axis]
+                crop_shape[axis] = int(end - start + step - 1) // step
+                crop_offset[axis] = int(start)
+                step_shape[axis] = step
             crop_param = {
                 "crop_offset": list(crop_offset),
-                "crop_shape": list(crop_shape),
+                "steps": list(step_shape)
             }
-
             output_shape = list(crop_shape)
             crop_op = self.CVI.add_crop_op("{}_{}".format(
                 onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
             self.addOperand(onnx_node.name, crop_op,
                             output_shape, TensorType.ACTIVATION)
+            return
 
     def convert_softmax_op(self, onnx_node):
         assert(onnx_node.op_type == "Softmax")

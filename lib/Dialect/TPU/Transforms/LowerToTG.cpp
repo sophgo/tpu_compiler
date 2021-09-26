@@ -720,8 +720,10 @@ Value tpu::CropOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("crop_shape", crop_shapeAttr()));
   attrs.push_back(builder.getNamedAttr("crop_offset", crop_offsetAttr()));
+  if (steps().hasValue()) {
+    attrs.push_back(builder.getNamedAttr("steps", stepsAttr()));
+  }
 
   if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
     // create op
@@ -1933,10 +1935,7 @@ Value tpu::CscOp::convertToTG() {
     getNCHW(output_shape, on, oc, oh, ow);
 
     int unaligned_w = (int)(oc * oh * ow / (c * h));
-    std::vector<int> crop_shape{(int)n, (int)c, (int)h, unaligned_w};
     std::vector<int> crop_offset{0, 0, 0, 0};
-    attrs.push_back(
-        builder.getNamedAttr("crop_shape", builder.getI32ArrayAttr(crop_shape)));
     attrs.push_back(
         builder.getNamedAttr("crop_offset", builder.getI32ArrayAttr(crop_offset)));
     auto elementType = getResult().getType().cast<TensorType>().getElementType();

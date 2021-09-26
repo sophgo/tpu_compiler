@@ -110,16 +110,9 @@ struct TpuUpsampleMaskPattern : public RewritePattern {
       attrs.clear();
       operands.clear();
       name = op_name;
-      std::vector<int> crop_shape;
-      for (auto &dim : output_shape) {
-        crop_shape.push_back(dim);
-      }
       std::vector<int> crop_offset(4, 0);
       attrs.push_back(
           rewriter.getNamedAttr("name", rewriter.getStringAttr(name)));
-      attrs.push_back(rewriter.getNamedAttr(
-          "crop_shape",
-          rewriter.getI32ArrayAttr(ArrayRef<int32_t>({crop_shape}))));
       attrs.push_back(rewriter.getNamedAttr(
           "crop_offset",
           rewriter.getI32ArrayAttr(ArrayRef<int32_t>({crop_offset}))));

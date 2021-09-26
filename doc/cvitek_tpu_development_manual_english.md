@@ -394,8 +394,8 @@ It is recommended to use docker. For details, please refer to Chapter 3 "develop
   |---|---|---|---|
   |output       | AnyTensor               | output Tensor | Output |
   |input        | AnyTensor               | input Tensor | Input |
-  |crop_shape   | I32ArrayAttr            | Crop Shape  | Attribute |
   |crop_offset  | TI32ArrayAttr           | Crop Offset | Attribute |
+  |steps        | I32ArrayAttr            | Steps       | Attribute |
   |quant        | TPU_QuantParamAttr      | Quant parameter | Attribute |
   |name         | StrAttr                 | operation name | Attribute |
 

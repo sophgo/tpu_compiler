@@ -59,6 +59,7 @@ TEST_ONNX_IR = [
 #    "Reciprocal",
 #    "Slice",
     "Slice_3dim", # test slice for 3 dims
+    "Slice_step", # test slice with step
     "Sigmoid",
     "Sub",
     "Sum",
@@ -191,6 +192,7 @@ class ONNX_IR_TESTER(object):
             "Relu": self.test_Relu,
             "Resize": self.test_Resize,
             "Slice_3dim": self.test_Slice_3dim,
+            "Slice_step": self.test_Slice_step,
             "Sigmoid": self.test_Sigmoid,
             "Sub": self.test_Sub,
             "Sum": self.test_Sum,
@@ -2238,6 +2240,84 @@ class ONNX_IR_TESTER(object):
         graph_def = helper.make_graph(
             #[neg_node, start_node, ends_node, axes_node, node_def],
             [start_node, ends_node, axes_node, slice_def, filter_def, fc_node],
+            test_case,
+            [input],
+            [output],
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(x, model_def, test_case)
+
+    def test_Slice_step(self):
+        test_case = 'Slice_step'
+        input_shape = [1, 30, 64, 240]
+        output_shape = [1, 10, 32, 60]
+        x = np.random.randn(np.prod(input_shape)).reshape(
+            input_shape).astype(np.float32)
+
+        starts = np.array([0, 0, 0, 0], dtype=np.int64)
+        ends = np.array(input_shape, dtype=np.int64)
+        steps = np.array([1, 3, 2, 4], dtype=np.int64)
+        axes = np.array([0, 1, 2, 3], dtype=np.int64)
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+        start_node = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['starts'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=starts.shape,
+                vals=starts.flatten().astype(int),
+            ),
+        )
+        ends_node = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['ends'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=ends.shape,
+                vals=ends.flatten().astype(int),
+            ),
+        )
+        axes_node = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['axes'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=axes.shape,
+                vals=axes.flatten().astype(int),
+            ),
+        )
+        steps_node = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['steps'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=steps.shape,
+                vals=steps.flatten().astype(int),
+            ),
+        )
+        slice_def = helper.make_node(
+            'Slice',  # node name
+            ['input', 'starts', 'ends', 'axes', 'steps'],  # inputs
+            ['output'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [start_node, ends_node, axes_node, steps_node, slice_def],
             test_case,
             [input],
             [output],

@@ -686,27 +686,24 @@ class MLIRImporter(object):
         """
             args:
                 crop_offset: List[int, int, int, int]
-                crop_shape : List[int, int, int, int]
         """
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
         checkKey(kargs, 'crop_offset')
-        checkKey(kargs, 'crop_shape')
 
         crop_offset = kargs['crop_offset']
-        crop_shape = kargs['crop_shape']
         checkType(crop_offset, list)
-        checkType(crop_shape, list)
-
-        crop_name = StringAttr.get(op_name)
-        crop_offset_attr = ArrayAttr.get(
+        param = {}
+        param['crop_offset'] = ArrayAttr.get(
             [IntegerAttr.get(self.i32Type, x) for x in crop_offset])
-        crop_shape_attr = ArrayAttr.get(
-            [IntegerAttr.get(self.i32Type, x) for x in crop_shape])
-
+        if 'steps' in kargs:
+            steps = kargs['steps']
+            param['steps'] = ArrayAttr.get(
+                [IntegerAttr.get(self.i32Type, x) for x in steps])
+        crop_name = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Crop.value, inputOperands, [
-            tensor_output_type], name=crop_name, crop_offset=crop_offset_attr, quant=self.quant_param, crop_shape=crop_shape_attr)
+            tensor_output_type], name=crop_name, quant=self.quant_param, **param)
 
     def add_detection_output_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

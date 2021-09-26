@@ -582,10 +582,10 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
       std::vector<int32_t> crop_offsets;
       if (isa<tpu::TG_INT8_CropOp>(im_layer->op())) {
         auto crop_op = cast<tpu::TG_INT8_CropOp>(im_layer->op());
-        arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+        arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
       } else if(isa<tpu::TG_BF16_CropOp>(im_layer->op())) {
         auto crop_op = cast<tpu::TG_BF16_CropOp>(im_layer->op());
-        arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+        arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
       }
       if (crop_offsets.size() != 4) {
         return false;
@@ -611,7 +611,7 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
       h_slice = out_h_slice;
     }
 
-    if (tensor->type() == TENSOR_COEFF_NEURON || tensor->type() == TENSOR_DEPTHCONV_OPD1) { 
+    if (tensor->type() == TENSOR_COEFF_NEURON || tensor->type() == TENSOR_DEPTHCONV_OPD1) {
       if (tensor->n() == 1) {
         n_idx = 0;
         n_slice = 1;
@@ -801,10 +801,10 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
       std::vector<int32_t> crop_offsets;
       if (isa<tpu::TG_INT8_CropOp>(im_layer->op())) {
         auto crop_op = cast<tpu::TG_INT8_CropOp>(im_layer->op());
-        arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+        arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
       } else if(isa<tpu::TG_BF16_CropOp>(im_layer->op())) {
         auto crop_op = cast<tpu::TG_BF16_CropOp>(im_layer->op());
-        arrayAttrToVector(crop_op.crop_offset().getValue(), crop_offsets);
+        arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
       }
       if (crop_offsets.size() < 4) {
         return false;
@@ -826,7 +826,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
       w_slice = out_w_slice;
     }
 
-    if (tensor->type() == TENSOR_COEFF_NEURON || tensor->type() == TENSOR_DEPTHCONV_OPD1) { 
+    if (tensor->type() == TENSOR_COEFF_NEURON || tensor->type() == TENSOR_DEPTHCONV_OPD1) {
       if (tensor->n() == 1) {
         n_idx = 0;
         n_slice = 1;

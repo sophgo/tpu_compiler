@@ -19,17 +19,17 @@
 //
 //===----------------------------------------------------------------------===//
 
-#include "tpuc/Dialect/TPU/TPUDialect.h"
-#include "tpuc/TPUOperationSupport.h"
-#include "tpuc/Passes.h"
 #include "mlir/IR/BlockAndValueMapping.h"
 #include "mlir/IR/Builders.h"
 #include "mlir/IR/BuiltinTypes.h"
-#include "mlir/IR/PatternMatch.h"
 #include "mlir/IR/Matchers.h"
 #include "mlir/IR/Operation.h"
+#include "mlir/IR/PatternMatch.h"
 #include "mlir/Pass/Pass.h"
+#include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Passes.h"
 #include "tpuc/Support/TensorFile.h"
+#include "tpuc/TPUOperationSupport.h"
 #include "llvm/Support/raw_ostream.h"
 
 #define DEBUG_TYPE "fuse_pad"
@@ -42,48 +42,61 @@ struct TpuMergeCropPattern : public RewritePattern {
       : RewritePattern("tpu.crop", 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
 
     auto crop0Op = dyn_cast<tpu::CropOp>(op);
-    if (!op->getResult(0).hasOneUse())
+    auto nextOp = getNextOp(op);
+    if (nextOp == nullptr) {
       return failure();
-
-    for (auto &use : op->getResult(0).getUses()) {
-      auto useOp = use.getOwner();
-      if (auto crop1Op = dyn_cast<tpu::CropOp>(useOp)) {
-        std::vector<int> crop0Offset;
-        std::vector<int> crop1Offset;
-        std::vector<NamedAttribute> attrs;
-        std::vector<Value> operands;
-        SmallVector<Attribute, 4> mergeOffsetAttr;
-
-        operands.push_back(op->getOperand(0));
-        arrayAttrToVector(crop0Op.crop_offset().getValue(), crop0Offset);
-        arrayAttrToVector(crop1Op.crop_offset().getValue(), crop1Offset);
-
-        for (unsigned int i = 0; i < crop0Offset.size(); i++) {
-          auto cropOffset = crop0Offset[i] + crop1Offset[i];
-          auto cropOffsetAttr = rewriter.getI32IntegerAttr(cropOffset);
-          mergeOffsetAttr.push_back(cropOffsetAttr);
-        }
-
-        attrs.push_back(rewriter.getNamedAttr("name", crop1Op.nameAttr()));
-        attrs.push_back(rewriter.getNamedAttr("crop_shape",
-                                              crop1Op.crop_shapeAttr()));
-        attrs.push_back(rewriter.getNamedAttr("crop_offset",
-                                      rewriter.getArrayAttr(mergeOffsetAttr)));
-        attrs.push_back(rewriter.getNamedAttr("quant",
-                                              crop1Op.quantAttr()));
-
-        auto mergeCropOp = rewriter.create<tpu::CropOp>(op->getLoc(),
-                    crop1Op.getResult().getType(), ArrayRef<Value>{operands},
-                    ArrayRef<NamedAttribute>{attrs});
-
-        rewriter.replaceOp(crop1Op, {mergeCropOp.getResult()});
-        return success();
-      } else
-        return failure();
     }
+    auto crop1Op = dyn_cast<tpu::CropOp>(nextOp);
+    if (crop1Op == nullptr) {
+      return failure();
+    }
+    std::vector<int> crop0Offset;
+    std::vector<int> crop1Offset;
+    std::vector<NamedAttribute> attrs;
+    std::vector<Value> operands;
+    SmallVector<Attribute, 4> mergeOffsetAttr;
+
+    operands.push_back(op->getOperand(0));
+    arrayAttrToVector(crop0Op.crop_offset(), crop0Offset);
+    arrayAttrToVector(crop1Op.crop_offset(), crop1Offset);
+    if (crop0Op.steps().hasValue()) {
+      std::vector<int> steps;
+      arrayAttrToVector(crop0Op.steps().getValue(), steps);
+      int total = std::accumulate(steps.begin(), steps.end(), 1,
+                                  std::multiplies<int32_t>());
+      if (total != 1) {
+        return failure();
+      }
+    }
+    if (crop1Op.steps().hasValue()) {
+      std::vector<int> steps;
+      arrayAttrToVector(crop1Op.steps().getValue(), steps);
+      int total = std::accumulate(steps.begin(), steps.end(), 1,
+                                  std::multiplies<int32_t>());
+      if (total != 1) {
+        return failure();
+      }
+    }
+
+    for (unsigned int i = 0; i < crop0Offset.size(); i++) {
+      auto cropOffset = crop0Offset[i] + crop1Offset[i];
+      auto cropOffsetAttr = rewriter.getI32IntegerAttr(cropOffset);
+      mergeOffsetAttr.push_back(cropOffsetAttr);
+    }
+
+    attrs.push_back(rewriter.getNamedAttr("name", crop1Op.nameAttr()));
+    attrs.push_back(rewriter.getNamedAttr(
+        "crop_offset", rewriter.getArrayAttr(mergeOffsetAttr)));
+    attrs.push_back(rewriter.getNamedAttr("quant", crop1Op.quantAttr()));
+
+    auto mergeCropOp = rewriter.create<tpu::CropOp>(
+        op->getLoc(), crop1Op.getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+
+    rewriter.replaceOp(crop1Op, {mergeCropOp.getResult()});
     return success();
   }
 };
@@ -111,20 +124,15 @@ struct TpuFusePadPattern : public RewritePattern {
     pr += pad_w_end;
 
     // rewrite pad
-    poolOp->setAttr("param",
-           tpu::PoolParam::get(
-                poolOp.param().kernel_h(),
-                poolOp.param().kernel_w(),
-                rewriter.getI32IntegerAttr(pt),
-                rewriter.getI32IntegerAttr(pb),
-                rewriter.getI32IntegerAttr(pl),
-                rewriter.getI32IntegerAttr(pr),
-                rewriter.getI32IntegerAttr(pad_value),
-                poolOp.param().stride_h(),
-                poolOp.param().stride_w(),
-                poolOp.param().do_relu(),
-                rewriter.getBoolAttr(true),
-                rewriter.getContext()));
+    poolOp->setAttr(
+        "param",
+        tpu::PoolParam::get(
+            poolOp.param().kernel_h(), poolOp.param().kernel_w(),
+            rewriter.getI32IntegerAttr(pt), rewriter.getI32IntegerAttr(pb),
+            rewriter.getI32IntegerAttr(pl), rewriter.getI32IntegerAttr(pr),
+            rewriter.getI32IntegerAttr(pad_value), poolOp.param().stride_h(),
+            poolOp.param().stride_w(), poolOp.param().do_relu(),
+            rewriter.getBoolAttr(true), rewriter.getContext()));
   }
 
   template <class T>
@@ -146,24 +154,17 @@ struct TpuFusePadPattern : public RewritePattern {
     pr += pad_w_end;
 
     // rewrite pad
-    convOp->setAttr("param",
-           tpu::ConvParam::get(
-                convOp.param().stride_h(),
-                convOp.param().stride_w(),
-                convOp.param().padding(),
-                convOp.param().dilation_h(),
-                convOp.param().dilation_w(),
-                rewriter.getI32IntegerAttr(pt),
-                rewriter.getI32IntegerAttr(pb),
-                rewriter.getI32IntegerAttr(pl),
-                rewriter.getI32IntegerAttr(pr),
-                convOp.param().group(),
-                convOp.param().is_dw(),
-                convOp.param().with_bias(),
-                convOp.param().do_relu(),
-                convOp.param().ins(),
-                rewriter.getI32IntegerAttr(pad_value),
-                rewriter.getContext()));
+    convOp->setAttr(
+        "param",
+        tpu::ConvParam::get(
+            convOp.param().stride_h(), convOp.param().stride_w(),
+            convOp.param().padding(), convOp.param().dilation_h(),
+            convOp.param().dilation_w(), rewriter.getI32IntegerAttr(pt),
+            rewriter.getI32IntegerAttr(pb), rewriter.getI32IntegerAttr(pl),
+            rewriter.getI32IntegerAttr(pr), convOp.param().group(),
+            convOp.param().is_dw(), convOp.param().with_bias(),
+            convOp.param().do_relu(), convOp.param().ins(),
+            rewriter.getI32IntegerAttr(pad_value), rewriter.getContext()));
   }
 
   template <class T>
@@ -184,10 +185,10 @@ struct TpuFusePadPattern : public RewritePattern {
   }
 
   LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
+                                PatternRewriter &rewriter) const override {
     auto padOp = cast<tpu::PadOp>(op);
     LLVM_DEBUG(llvm::errs() << padOp.getOperationName() << ":"
-                            << getOpName(padOp)<< "\n";);
+                            << getOpName(padOp) << "\n";);
 
     std::vector<int32_t> pads;
     int const_val = padOp.const_val().convertToFloat();
@@ -202,8 +203,8 @@ struct TpuFusePadPattern : public RewritePattern {
       return failure();
     }
 
-    if (pad_n_begin != 0 || pad_n_end != 0 ||
-        pad_c_begin != 0 || pad_c_end != 0)
+    if (pad_n_begin != 0 || pad_n_end != 0 || pad_c_begin != 0 ||
+        pad_c_end != 0)
       return failure();
 
     const int PAD_H_MAX = 15;
@@ -223,17 +224,14 @@ struct TpuFusePadPattern : public RewritePattern {
           return failure();
         else
           continue;
-      }
-      else if (auto poolOp = dyn_cast<tpu::PoolMax2DOp>(useOp)) {
+      } else if (auto poolOp = dyn_cast<tpu::PoolMax2DOp>(useOp)) {
         if (!noPaddingPool<tpu::PoolMax2DOp>(poolOp))
           return failure();
         else
           continue;
-      }
-      else if (llvm::isa<tpu::Conv2DOp>(useOp)) {
+      } else if (llvm::isa<tpu::Conv2DOp>(useOp)) {
         continue;
-      }
-      else if (llvm::isa<tpu::DeConv2DOp>(useOp)) {
+      } else if (llvm::isa<tpu::DeConv2DOp>(useOp)) {
         continue;
       } else {
         return failure();
@@ -252,20 +250,20 @@ struct TpuFusePadPattern : public RewritePattern {
       } else if (llvm::isa<tpu::Conv2DOp>(useOp)) {
         auto convOp = dyn_cast<tpu::Conv2DOp>(useOp);
         updateConvParam<tpu::Conv2DOp>(convOp, rewriter, pads, const_val);
-      } else if(llvm::isa<tpu::DeConv2DOp>(useOp)) {
+      } else if (llvm::isa<tpu::DeConv2DOp>(useOp)) {
         auto deconvOp = dyn_cast<tpu::DeConv2DOp>(useOp);
         updateConvParam<tpu::DeConv2DOp>(deconvOp, rewriter, pads, const_val);
       } else {
         assert("unsupported fused op");
       }
     }
-    LLVM_DEBUG(llvm::errs() << "fused pad op: " << getOpName(op)
-                            << " to op:" << getOpName(op->getOperand(0).getDefiningOp()) << "\n";);
+    LLVM_DEBUG(llvm::errs()
+                   << "fused pad op: " << getOpName(op) << " to op:"
+                   << getOpName(op->getOperand(0).getDefiningOp()) << "\n";);
     rewriter.replaceOp(op, {op->getOperand(0)});
     return success();
   }
 };
-
 
 class FusePadPass : public mlir::PassWrapper<FusePadPass, FunctionPass> {
 public:
@@ -277,9 +275,7 @@ public:
     auto *context = &getContext();
 
     patterns.clear();
-    patterns.insert<TpuFusePadPattern,
-                    TpuMergeCropPattern
-                   >(context);
+    patterns.insert<TpuFusePadPattern, TpuMergeCropPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 
@@ -290,15 +286,13 @@ private:
 } // namespace
 
 void tpu::PadOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
-                                              MLIRContext *context) {
-  results.insert<
-      TpuFusePadPattern>(context);
+                                             MLIRContext *context) {
+  results.insert<TpuFusePadPattern>(context);
 }
 
 void tpu::CropOp::getCanonicalizationPatterns(OwningRewritePatternList &results,
                                               MLIRContext *context) {
-  results.insert<
-      TpuMergeCropPattern>(context);
+  results.insert<TpuMergeCropPattern>(context);
 }
 
 std::unique_ptr<mlir::Pass> mlir::createFusePadPass() {

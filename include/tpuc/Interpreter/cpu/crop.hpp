@@ -20,9 +20,11 @@ private:
   SyncedData input_data;
   SyncedData output_data;
   SyncedDataShape input_shape;
+  SyncedDataShape output_shape;
 
   // param
   std::vector<int> crop_offset;
+  std::vector<int> steps;
 };
 } // namespace mlir
 #endif

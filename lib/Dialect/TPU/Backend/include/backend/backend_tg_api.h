@@ -74,7 +74,7 @@ void cvi_backend_tg_fixed_prelu_kernel(
 void cvi_backend_tg_crop_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input_dim,
-    int *output_dim, int *offsets, cvk_fmt_t fmt);
+    int *output_dim, int *offsets, int *steps, cvk_fmt_t fmt);
 
 void cvi_backend_tg_fixed_dilate_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

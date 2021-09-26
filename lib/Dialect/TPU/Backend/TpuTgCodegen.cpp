@@ -616,6 +616,7 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
   std::vector<int> i_s;
   std::vector<int> o_s;
   std::vector<int> offsets;
+  std::vector<int> steps_;
 
   i_s.assign(input_shape.begin(), input_shape.end());
   for (uint32_t i = i_s.size(); i < 4; i++) {
@@ -625,13 +626,19 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
   for (uint32_t i = o_s.size(); i < 4; i++) {
     o_s.push_back(1);
   }
-  arrayAttrToVector(this->crop_offset().getValue(), offsets);
+  arrayAttrToVector(this->crop_offset(), offsets);
   for (uint32_t i = offsets.size(); i < 4; i++) {
     offsets.push_back(0);
   }
+  if (steps().hasValue()){
+    arrayAttrToVector(this->steps().getValue(), steps_);
+  }
+  for (uint32_t i = steps_.size(); i < 4; i++) {
+    steps_.push_back(1);
+  }
 
   cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
-                             i_s.data(), o_s.data(), offsets.data(),
+                             i_s.data(), o_s.data(), offsets.data(), steps_.data(),
                              CVK_FMT_I8);
 
   return success();
@@ -653,6 +660,7 @@ LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
   std::vector<int> i_s;
   std::vector<int> o_s;
   std::vector<int> offsets;
+  std::vector<int> steps_;
 
   i_s.assign(input_shape.begin(), input_shape.end());
   for (uint32_t i = i_s.size(); i < 4; i++) {
@@ -662,13 +670,18 @@ LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
   for (uint32_t i = o_s.size(); i < 4; i++) {
     o_s.push_back(1);
   }
-  arrayAttrToVector(this->crop_offset().getValue(), offsets);
+  arrayAttrToVector(this->crop_offset(), offsets);
   for (uint32_t i = offsets.size(); i < 4; i++) {
     offsets.push_back(0);
   }
-
+  if (steps().hasValue()){
+    arrayAttrToVector(this->steps().getValue(), steps_);
+  }
+  for (uint32_t i = steps_.size(); i < 4; i++) {
+    steps_.push_back(1);
+  }
   cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
-                             i_s.data(), o_s.data(), offsets.data(),
+                             i_s.data(), o_s.data(), offsets.data(), steps_.data(),
                              CVK_FMT_BF16);
 
   return success();
@@ -3587,8 +3600,8 @@ LogicalResult tpu::TG_WhereOp::codegen(void *ctx) {
       "input / condition shape should be Equal");
   // copy from where.cpp
 #define RANKS (4)
-  std::vector<uint32_t> input_shape(RANKS, 1); 
-  std::vector<uint32_t> condition_shape(RANKS, 1); 
+  std::vector<uint32_t> input_shape(RANKS, 1);
+  std::vector<uint32_t> condition_shape(RANKS, 1);
   // extend to 4 dims
   int shift_dim = RANKS - _input_shape.size();
   for (int i = 0; i < (int)input_shape.size(); i++) {

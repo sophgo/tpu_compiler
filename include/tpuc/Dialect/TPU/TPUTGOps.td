@@ -349,8 +349,8 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`          : required, the activation memref.
 
     Attributes:
-      `crop_shape`      : required, crop shape(saved as I32ArrayAttr).
       `crop_offset`     : required, crop offset(saved as I32ArrayAttr).
+      `steps`           : optional, steps (saved as I32ArrayAttr).
       `region`          : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -371,8 +371,8 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<I32ArrayAttr>:$crop_shape,
-    OptionalAttr<I32ArrayAttr>:$crop_offset,
+    I32ArrayAttr:$crop_offset,
+    OptionalAttr<I32ArrayAttr>:$steps,
     DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,

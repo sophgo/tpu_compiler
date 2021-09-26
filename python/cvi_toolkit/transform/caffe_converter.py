@@ -452,7 +452,6 @@ class CaffeConverter(BaseConverter):
         operands.append(op)
         param = {
             'crop_offset': crop_offset,
-            'crop_shape': crop_shape
         }
         new_op = self.CVI.add_crop_op(
             layer.name, operands, output_shape, **param)
