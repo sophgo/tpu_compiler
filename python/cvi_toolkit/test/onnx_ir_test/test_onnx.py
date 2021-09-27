@@ -2727,16 +2727,16 @@ class ONNX_IR_TESTER(object):
         #real_test = False
         if real_test:
             # real case
-            input_shape = [1, 40, 40]
+            input_shape = [1, 40, 224]
             output_shape = input_shape
-            condition_shape = [1, 40, 40]
+            condition_shape = [1, 40, 224]
             condition_data = np.zeros(condition_shape)
             # select top half
             #array([[[1., 1., 0., 0.],
             #        [1., 1., 0., 0.],
             #        [1., 1., 0., 0.],
             #        [1., 1., 0., 0.]],
-            condition_data[:,:,:20] = 1
+            condition_data[:,:,:100] = 1
 
         output_shape = input_shape
         condition_data = condition_data.astype(np.bool)

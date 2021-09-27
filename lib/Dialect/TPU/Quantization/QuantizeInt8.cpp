@@ -1005,6 +1005,9 @@ LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   //
   float qscale = 0;
   bool need_quant = checkFloatNeedQuant(*const_opd);
+  if ((threshold_x / threshold_y) >= 1.0) {
+    need_quant = true;
+  }
   if (need_quant) {
     qscale = max_elem * threshold_x / threshold_y / 127.0;
   } else {

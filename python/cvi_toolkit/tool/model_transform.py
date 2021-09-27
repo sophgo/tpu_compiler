@@ -154,8 +154,11 @@ class OnnxModelTransformTool(ModelTransformTool):
         data = {}
         for i in range(len(inodes)):
             name = inodes[i].name
-            dtype = np.int64 if inodes[i].type == 'tensor(int64)' \
-                             else np.float32
+            dtype = np.float32
+            if inodes[i].type == 'tensor(int64)':
+                dtype = np.int64
+            elif inodes[i].type == 'tensor(bool)':
+                dtype = np.bool
             data[name] = inputs[name].astype(dtype)
         return data
 

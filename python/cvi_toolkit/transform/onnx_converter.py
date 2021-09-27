@@ -2431,7 +2431,7 @@ class OnnxConverter(BaseConverter):
         # y = x * (-1) + 0
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         if tensor_type == TensorType.TENSOR:
-            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data.astype(np.float32)
             output_data = np.negative(tensor_data)
             output_shape = list(output_data.shape)
             self.addTensor(onnx_node.name, output_data, output_shape)
@@ -2995,7 +2995,6 @@ class OnnxConverter(BaseConverter):
             # step
             if num_input > 4:
                 steps = self.getTensor(onnx_node.inputs[4]).tensor_data
-                steps = [int(s) for s in steps]
             else:
                 steps = [1] * len(axes)
         else:
@@ -3025,6 +3024,7 @@ class OnnxConverter(BaseConverter):
             crop_offset = [0] * num_dims
             step_shape = [1] * num_dims
             for start, end, axis, step in zip(starts, ends, axes, steps):
+                start, end, axis, step = int(start), int(end), int(axis), int(step)
                 assert(step > 0)
                 if axis < 0:
                     axis = axis + num_dims
@@ -3032,8 +3032,8 @@ class OnnxConverter(BaseConverter):
                     end = end + input_shape[axis]
                 if end > input_shape[axis]:
                     end = input_shape[axis]
-                crop_shape[axis] = int(end - start + step - 1) // step
-                crop_offset[axis] = int(start)
+                crop_shape[axis] = (end - start + step - 1) // step
+                crop_offset[axis] = start
                 step_shape[axis] = step
             crop_param = {
                 "crop_offset": list(crop_offset),
@@ -3309,7 +3309,7 @@ class OnnxConverter(BaseConverter):
             last_name = onnx_node.name
             if i != last_i:
                 last_name += "_{}".format(i)
-            last_shape[i] = last_shape[i] * tile_data[i]
+            last_shape[i] = int(last_shape[i] * tile_data[i])
             last_op = self.CVI.add_tile_op("{}_{}".format(last_name, onnx_node.op_type), [last_op], last_shape, **attr)
         self.addOperand(last_name, last_op, last_shape, TensorType.ACTIVATION)
 
@@ -3337,49 +3337,63 @@ class OnnxConverter(BaseConverter):
 
     def convert_where_op(self, onnx_node):
         assert(onnx_node.op_type == "Where")
-
-        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
-        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
-        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[2])
+        condition, x, y = onnx_node.inputs[0], onnx_node.inputs[1], onnx_node.inputs[2]
+        _, _, tensor_type0 = self.getOperand(condition)  # condition
+        _, _, tensor_type1 = self.getOperand(x)  # x
+        _, _, tensor_type2 = self.getOperand(y)  # y
 
         if tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR and \
-            tensor_type2 == TensorType.TENSOR:
+                tensor_type2 == TensorType.TENSOR:
             # both are weight, do it offline
-            tensor_data0 = self.getTensor(onnx_node.inputs[0]).tensor_data
-            tensor_data1 = self.getTensor(onnx_node.inputs[1]).tensor_data
-            tensor_data2 = self.getTensor(onnx_node.inputs[2]).tensor_data
+            tensor_data0 = self.getTensor(condition).tensor_data
+            tensor_data1 = self.getTensor(x).tensor_data
+            tensor_data2 = self.getTensor(y).tensor_data
             tensor_data = np.where(tensor_data0, tensor_data1, tensor_data2)
 
-            self.addTensor(onnx_node.name, tensor_data, list(tensor_data.shape))
-            self.addOperand(onnx_node.name, None, list(tensor_data.shape), TensorType.TENSOR)
-        elif tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.ACTIVATION:
-            # op1 MUST be constant and shape = 1 such as masked_fill
-            # len(input_shape1) == 0 come from pytorch masked_fill
-            if np.prod(input_shape1) != 1:
-                assert len(input_shape1) == 0, (
-                        f"current only support masked_fill that x should be const, but x is {input_shape1}"
-                )
-
-            condition_name = onnx_node.inputs[0]
-            condition_tensor = self.getTensor(condition_name)
-            condition_tensor.tensor_data.reshape(condition_tensor.shape)
-            condition_shape = condition_tensor.shape
-            condition_op = self.CVI.add_load_file_op(condition_tensor.name, condition_shape)
-
-            operands = [op2, condition_op]
-            tensor_data1 = self.getTensor(onnx_node.inputs[1]).tensor_data
-            attr = {
-                'fill_constant': np.array(tensor_data1).flatten()[0],
-            }
-            output_shape = input_shape2
-            lower_op = self.CVI.add_where_op(
-                    f"{onnx_node.name}_{onnx_node.op_type}",
-                    operands, output_shape, **attr)
-            self.addOperand(onnx_node.name, lower_op, output_shape,
-                    TensorType.ACTIVATION)
+            self.addTensor(onnx_node.name, tensor_data,
+                           list(tensor_data.shape))
+            self.addOperand(onnx_node.name, None, list(
+                tensor_data.shape), TensorType.TENSOR)
+            return
         else:
-            raise RuntimeError("not support tensor_type x in activation")
 
+            # condition * x
+            x_condition = "{}_{}_mul".format(condition, x)
+            mul_node = onnx.helper.make_node('Mul',
+                                             inputs=[condition,x],
+                                             outputs=[x_condition])
+            mul_node = OnnxNode(mul_node)
+            self.convert_mul_op(mul_node)
+            # neg_condition = condition * (-1) + 1
+            neg_condition = condition + "_neg"
+            neg_node = onnx.helper.make_node('Neg',
+                                             inputs=[condition],
+                                             outputs=[neg_condition])
+            neg_node = OnnxNode(neg_node)
+            self.convert_neg_op(neg_node)
+            condition2 = neg_condition + "_c2"
+            one_name = neg_condition + "_one"
+            one_data = np.ones([1], dtype=np.float32)
+            self.addTensor(one_name, one_data, list(one_data.shape))
+            self.addOperand(one_name, None, list(one_data.shape), TensorType.TENSOR)
+            add_node = onnx.helper.make_node('Add',
+                                             inputs=[neg_condition, one_name],
+                                             outputs=[condition2])
+            add_node = OnnxNode(add_node)
+            self.convert_add_op(add_node)
+            # neg_condition * y
+            y_condition = y + "_condition"
+            mul_y_node = onnx.helper.make_node('Mul',
+                                               inputs=[y, condition2],
+                                               outputs=[y_condition])
+            mul_y_node = OnnxNode(mul_y_node)
+            self.convert_mul_op(mul_y_node)
+            # merge
+            end_node = onnx.helper.make_node('Add',
+                                             inputs=[y_condition, x_condition],
+                                             outputs=[onnx_node.name])
+            end_node = OnnxNode(end_node)
+            self.convert_add_op(end_node)
 
     def convert_unsqueeze_op(self, onnx_node):
         """Unsqueeze """

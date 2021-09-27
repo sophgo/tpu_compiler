@@ -1625,7 +1625,7 @@ class CaffeConverter(BaseConverter):
         axis = layer.tile_param.axis
         tiles = layer.tile_param.tiles
         output_shape = input_shape
-        output_shape[axis] = output_shape[axis] * tiles
+        output_shape[axis] = int(output_shape[axis] * tiles)
         param = {
             'axis': axis,
             'tiles': tiles
