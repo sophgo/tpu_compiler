@@ -25,6 +25,7 @@
 | V1.4.0 | 2020/12/04 | 更新文档结构         |
 | V1.5.0 | 2021/01/29 | 根据工具链1.5修改     |
 | V1.5.1 | 2021/04/22 | 根据工具链1.5.1修改   |
+| V1.5.2 | 2021/09/20 | 添加onnx/caffe算子支持列表 |
 <div STYLE="page-break-after: always;"></div>
 # 法律声明
 
@@ -157,36 +158,40 @@ TPU软件开发框图如下图所示:
 
 #### 2.1.1.2 Operation支持列表
 
-> 支持的Operation如下表所示**：**
+> 支持的基础Operation如下表所示**：**
 
 |**操作**              |**Engine**(1)      |**Quantization**(2)   |**Lowering**(3)|
 |---------------------|---------------|------------------|--------------|
-|BatchNorm             |TPU       |yes                 |yes|
+|BatchNorm             |TPU           |yes                 |yes|
 |BroadcastMul          |TPU             |Yes                |Yes|
 |Clip                  |TPU             |Yes                |Yes|
-|Concat                |TPU   |Yes                |Yes|
+|Concat                |TPU             |Yes                |Yes|
 |Conv2D                |TPU             |Yes                |Yes|
 |Crop                  |TPU             |Yes                |Yes|
 |Custom                |CPU             |Yes                |No|
 |DeConv2D              |TPU             |Yes                |Yes|
 |DetectionOutput       |CPU             |No                 |No|
+|EmbeddingOp           |CPU             |Yes                |No|
 |EltwiseAdd            |TPU             |Yes                |Yes|
 |EltwiseMax            |TPU             |Yes                |Yes|
 |EltwiseMul            |TPU             |Yes                |Yes|
 |FrcnDetection         |CPU             |No                 |No|
 |FullyConnected        |TPU             |Yes                |Yes|
 |Gru                   |TPU             |Yes                |Yes|
+|InstanceNorm          |CPU             |No                 |No|
+|Interp                |TPU             |Yes                |Yes|
+|LayerNorm             |TPU             |Yes                |Yes|
 |LeakyRelu             |TPU             |Yes                |Yes|
 |Lstm                  |TPU             |Yes                |Yes|
+|MatMul                |TPU             |Yes                |Yes|
 |Mish                  |TPU             |Yes                |Yes|
-|Normalize             |TPU       |No                 |No|
+|Normalize             |TPU             |No                 |No|
 |Pad                   |TPU             |Yes                |Yes|
 |Permute               |TPU             |Yes                |Yes|
 |PixelShuffle          |TPU             |Yes                |Yes|
 |PoolAvg2D             |TPU             |Yes                |Yes|
-|PoolMask              |TPU       |No                 |No|
+|PoolMask              |TPU             |No                 |No|
 |PoolMax2D             |TPU             |Yes                |Yes|
-|PoolMask              |TPU             |Yes                |Yes|
 |Power                 |TPU             |Yes                |Yes|
 |PRelu                 |TPU             |Yes                |Yes|
 |PriorBox              |CPU             |No                 |No|
@@ -198,10 +203,12 @@ TPU软件开发框图如下图所示:
 |RetinaFaceDetection   |CPU             |No                 |No|
 |ROIPooling            |CPU             |Yes                |No|
 |Scale                 |TPU             |No                 |No|
+|ShuffleChannel        |TPU             |Yes                |Yes|
 |Sigmoid               |TPU             |Yes                |Yes|
-|Slice                 |TPU       |Yes                |Yes|
+|Slice                 |TPU             |Yes                |Yes|
 |Sqrt                  |TPU             |Yes                |Yes|
 |Softmax               |TPU             |Yes                |Yes|
+|Std                   |TPU             |Yes                |Yes|
 |TanH                  |TPU             |Yes                |Yes|
 |Tile                  |TPU             |Yes                |Yes|
 |Upsample              |TPU             |Yes                |Yes|
@@ -215,7 +222,84 @@ TPU软件开发框图如下图所示:
 
 
 
-#### 2.1.1.3 通用数据结构
+#### 2.1.1.3 CAFFE算子支持列表
+
+| 算子                  | Engine |  算子                | Engine
+| -------------------- | ------ | -------------------- | ---- |
+| BatchNorm            | TPU    | PReLU                | TPU  |
+| BN                   | TPU    | PriorBox             | TPU  |
+| Concat               | TPU    | Proposal             | CPU  |
+| Convolution          | TPU    | ReLU                 | TPU  |
+| ConvolutionDepthwise | TPU    | ReLU6                | TPU  |
+| Crop                 | TPU    | Reorg                | TPU  |
+| Deconvolution        | TPU    | Reshape              | None |
+| DetectionOutput      | CPU    | Reverse              | TPU  |
+| Dropout              | None   | RetinaFaceDetection  | CPU  |
+| DummyData            | None   | ROIPooling           | CPU  |
+| Embed                | CPU    | Scale                | TPU  |
+| Eltwise              | TPU    | ShuffleChannel       | TPU  |
+| Flatten              | None   | Sigmoid              | TPU  |
+| FrcnDetection        | CPU    | Slice                | TPU  |
+| InnerProduct         | TPU    | Softmax              | TPU  |
+| Input                | None   | Split                | TPU  |
+| Interp               | TPU    | TanH                 | TPU  |
+| LRN                  | TPU    | Tile                 | TPU  |
+| LSTM                 | TPU    | Upsample             | TPU  |
+| MatMul               | TPU    | YoloDetection        | CPU  |
+| Mish                 | TPU    |                      |      |
+| Normalize            | TPU    |                      |      |
+| Padding              | TPU    |                      |      |
+| Permute              | TPU    |                      |      |
+| Pooling              | TPU    |                      |      |
+| Power                | TPU    |                      |      |
+|                      |        |                      |      |
+
+> (1) None: 表示该OP会转换处理
+
+#### 2.1.1.4 ONNX算子支持列表
+
+| 算子                   | Engine | 算子                  | Engine |
+| --------------------- | ------ | --------------------- | ------ |
+| Abs                   | TPU    | Min                   | TPU    |
+| Add                   | TPU    | Mul                   | TPU    |
+| ArgMax                | CPU    | Neg                   | TPU    |
+| AveragePool           | TPU    | Pad                   | TPU    |
+| BatchNormalization    | TPU    | PRelu                 | TPU    |
+| Cast                  | TPU    | Pow                   | TPU    |
+| Concat                | TPU    | Reciprocal            | TPU    |
+| Conv                  | TPU    | Relu                  | TPU    |
+| ConvTranspose         | TPU    | Reshape               | None   |
+| Clip                  | TPU    | Resize                | TPU    |
+| Constant              | TPU    | ReduceL2              | CPU    |
+| ConstantOfShape       | TPU    | ReduceMean            | TPU    |
+| DepthToSpace          | TPU    | ReduceMax             | TPU    |
+| Div                   | TPU    | Shape                 | None   |
+| Dropout               | None   | Sigmoid               | TPU    |
+| Equal                 | None   | Slice                 | TPU    |
+| Elu                   | TPU    | Softplus              | TPU    |
+| Exp                   | TPU    | Softmax               | TPU    |
+| Expand                | TPU    | Split                 | TPU    |
+| Flatten               | TPU    | Squeeze               | TPU    |
+| Gather                | CPU    | Sqrt                  | TPU    |
+| Gemm                  | TPU    | Std                   | TPU    |
+| GlobalAveragePool     | TPU    | Sub                   | TPU    |
+| GlobalMaxPool         | TPU    | Sum                   | TPU    |
+| GRU                   | TPU    | Tanh                  | TPU    |
+| HardSigmoid           | TPU    | Tile                  | TPU    |
+| Identity              | None   | Transpose             | TPU    |
+| InstanceNormalization | CPU    | Where                 | TPU    |
+| LeakyRelu             | TPU    | Unsqueeze             | TPU    |
+| Log                   | TPU    | YoloDetection         | CPU    |
+| LRN                   | TPU    |                       |        |
+| LSTM                  | TPU    |                       |        |
+| LayerNorm             | TPU    |                       |        |
+| MatMul                | TPU    |                       |        |
+| MaxPool               | TPU    |                       |        |
+| Max                   | TPU    |                       |        |
+|                       |        |                       |        |
+
+
+#### 2.1.1.5 通用数据结构
 
 - 基础数据类型
 
@@ -326,7 +410,7 @@ TPU软件开发框图如下图所示:
 
 
 
-#### 2.1.1.4 Operation定义
+#### 2.1.1.6 Operation定义
 
 - BatchNorm
 
@@ -1032,7 +1116,7 @@ TPU软件开发框图如下图所示:
 
 
 
-#### 2.1.1.5 前端模型导入
+#### 2.1.1.7 前端模型导入
 
 > 工具链提供了python接口用于导入前端框架的IR到mlir模型中，所有的high level operation都定义在mlirimporter.py中，可以方便的构建mlir graph
 
@@ -1131,7 +1215,6 @@ def add_conv_Op(self, op_name, inputOperands,
 | with_bias  | 是否有bias             |
 | do_relu    | 是否对结果进行relu操作 |
 | ins        | 对h， w插入0           |
-
 
 
 ### 2.1.2 cvimodel文件格式参考

@@ -29,10 +29,10 @@ TEST_TORCH_IR = [
     "Std",
     "Squeeze",
     "Linear",
-    # "Mulit_attention_self", ## Low accuracy
+    #"Mulit_attention_self", ## Low accuracy
     # "Mulit_attention_api",  ## now not support
     "Norm",
-    # "masked_fill", ## not support tensor_type x in activation
+    "masked_fill",
     "Activation",
     # "PReLU",    ## Segmentation fault
     # "Hardsigmoid", ## now nonx not support
@@ -47,19 +47,22 @@ TEST_TORCH_IR = [
     "Mul_Add",
 ]
 
+NOT_SUPPORT_CMDBUF_TEST_IR = [""]
+NOT_SUPPORT_BF16_TEST_IR = []
+NOT_SUPPORT_INT8_TEST_IR = [''] # just for save test time
+
 def cvimodel_inference(inputs, model_name):
     model = pyruntime.Model(model_name)
-    assert(model != None)
-    if isinstance(inputs, dict):
-        for i, input in enumerate(inputs.values()):
-            model_in = model.inputs[i].data
-            assert(model_in.dtype == input.dtype)
-            assert(model_in.size == input.size)
-            model_in[:] = input.reshape(model_in.shape)
-    else:
-        model_in = model.inputs[0].data
-        model_in[:] = inputs.reshape(model_in.shape)
-
+    for i in model.inputs:
+        name = i.name
+        data = inputs[name]
+        if name.endswith('_quant_i8'):
+            data = data.astype(np.int8)
+        elif name.endswith('_quant_u16'):
+            data= data.astype(np.uint16)
+        elif name.endswith('_quant_i16'):
+            data = data.astype(np.int16)
+        i.data[:] = data.reshape(i.data.shape)
     model.forward()
     outputs = {}
     for output in model.outputs:
@@ -118,10 +121,6 @@ def _onnx_inference(inputs, model_name, input_name="input", input_cb=None):
 
 def onnx_inference(input, model_def, input_cb = None):
     return _onnx_inference(input, model_def, input_cb=input_cb)
-
-NOT_SUPPORT_CMDBUF_TEST_IR = [""]
-NOT_SUPPORT_BF16_TEST_IR = []
-NOT_SUPPORT_INT8_TEST_IR = [] # just for save test time
 
 class TORCH_IR_TESTER(object):
     def __init__(self):
@@ -243,7 +242,7 @@ class TORCH_IR_TESTER(object):
             ref_npz = "{}_all_tensor_int8_mlir.npz".format(model_name)
             np.savez(ref_npz, **int8_tensors)
             npz_compare([ref_npz, mlir_npz,  "--tolerance",
-                            "0.6,0.6,0.6", "--dequant", "--op_info", int8_csv])
+                            "0.6,0.6,0.5", "--dequant", "--op_info", int8_csv])
             # gen cvimodel
             cvimodel = "{}_int8.cvimodel".format(model_name)
             ret = mlir_to_cvimodel(quant_mlir, cvimodel)
@@ -252,24 +251,7 @@ class TORCH_IR_TESTER(object):
             # run cvi_model
             output_tensor_npz = "{}_all_tensor_int8_cvi.npz".format(model_name)
 
-            if isinstance(input_data, dict):
-                count = 0
-                input_int = {}
-                for key, value in input_data.items():
-                    if key+'_quant_i8' in int8_tensors:
-                        input_int['input'+str(count)] = int8_tensors[key+'_quant_i8'].astype(np.int8)
-                    elif key+'_quant_u16' in int8_tensors:
-                        input_int['input'+str(count)] = int8_tensors[key+'_quant_u16'].astype(np.uint16)
-                    count += 1
-            else:
-                input_int = None
-                if 'input_quant_i8' in int8_tensors:
-                    input_int = int8_tensors['input_quant_i8'].astype(np.int8)
-                elif 'input_quant_u16' in int8_tensors:
-                    input_int = int8_tensors['input_quant_u16'].astype(np.uint16)
-                else:
-                    input_int = input_data
-            cvi_outs = cvimodel_inference(input_int, cvimodel)
+            cvi_outs = cvimodel_inference(int8_tensors, cvimodel)
             assert(len(cvi_outs) == num_outputs)
             for name in cvi_outs:
                 if name not in int8_tensors:
@@ -315,28 +297,7 @@ class TORCH_IR_TESTER(object):
 
             # run cvi_model
             output_tensor_npz = "{}_all_tensor_bf16_cvi.npz".format(model_name)
-            if isinstance(input_data, dict):
-                input_bf16 = {}
-                count = 0
-                for key, value in input_data.items():
-                    if key+'_quant_i16' in bf16_tensors:
-                        input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_i16'].astype(np.int16)
-                    elif key+'_quant_u16' in bf16_tensors:
-                        input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_u16'].astype(np.uint16)
-                    elif key+'_quant_bf16' in bf16_tensors:
-                        input_bf16['input'+str(count)] = bf16_tensors[key+'_quant_bf16']
-                    else:
-                        input_bf16['input'+str(count)] = bf16_tensors['input'+str(count)]
-                    count += 1
-            else:
-                if 'input_quant_i16' in bf16_tensors:
-                    input_bf16 = tensors['input'].astype(np.int16)
-                elif 'input_quant_u16' in bf16_tensors:
-                    input_bf16 = tensors['input'].astype(np.uint16)
-                else:
-                    input_bf16 = tensors['input']
-
-            cvi_outs = cvimodel_inference(input_bf16, cvimodel)
+            cvi_outs = cvimodel_inference(bf16_tensors, cvimodel)
             assert(len(cvi_outs) == num_outputs)
             for name in cvi_outs:
                 if name not in bf16_tensors:
@@ -567,7 +528,7 @@ class TORCH_IR_TESTER(object):
                 x = torch.negative(x[0])
                 return x
 
-        input_shape = [1, 1, 2, 3]
+        input_shape = [1, 3, 20, 30]
         test_onnx_name = 'Cat_Chunk'
 
         net = Net()

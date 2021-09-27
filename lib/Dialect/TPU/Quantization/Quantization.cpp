@@ -85,12 +85,6 @@ static llvm::cl::opt<bool> clQuantMixBroadcastMul(
     llvm::cl::init(false),
     llvm::cl::cat(clOptionsCategory));
 
-static llvm::cl::opt<bool> clQuantMixEltwiseMul(
-    "quant-int8-mix-bf16-eltwisemul",
-    llvm::cl::desc("Enable bf16 mix-presion on EltwiseMul Ops"),
-    llvm::cl::init(false),
-    llvm::cl::cat(clOptionsCategory));
-
 static llvm::cl::opt<bool> clQuantMixSoftmax(
     "quant-bf16-softmax",
     llvm::cl::desc("Enable bf16 Softmax Ops"),
@@ -577,8 +571,17 @@ public:
           if (clQuantMixBroadcastMul && isa<tpu::BroadcastMulOp>(op)) {
             setOpQuant(op, "BF16");
           }
-          if (clQuantMixEltwiseMul && isa<tpu::EltwiseMulOp>(op)) {
-            setOpQuant(op, "BF16");
+          if (auto castOp = dyn_cast_or_null<tpu::EltwiseMulOp>(op)) {
+            bool ConstOpd = false;
+            for (auto input:castOp.inputs()) {
+              if (isa<tpu::LoadWeightOp>(input.getDefiningOp())) {
+                ConstOpd = true;
+                break;
+              }
+            }
+            if (ConstOpd) {
+              setOpQuant(op, "BF16");
+            }
           }
           if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
             setOpQuant(op, "BF16");
