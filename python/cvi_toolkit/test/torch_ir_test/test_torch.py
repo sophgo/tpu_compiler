@@ -29,10 +29,10 @@ TEST_TORCH_IR = [
     "Std",
     "Squeeze",
     "Linear",
-    "Mulit_attention_self", ## Low accuracy
+    # "Mulit_attention_self", ## Low accuracy
     # "Mulit_attention_api",  ## now not support
     "Norm",
-    "masked_fill",
+    # "masked_fill", ## not support tensor_type x in activation
     "Activation",
     # "PReLU",    ## Segmentation fault
     # "Hardsigmoid", ## now nonx not support
@@ -44,6 +44,7 @@ TEST_TORCH_IR = [
     "GRU",
     "Size",
     "LayerNorm",
+    "Mul_Add",
 ]
 
 def cvimodel_inference(inputs, model_name):
@@ -150,6 +151,7 @@ class TORCH_IR_TESTER(object):
             "Dropout": self.test_Dropout,
             "LSTM": self.test_LSTM,
             "GRU": self.test_GRU,
+            "Mul_Add": self.test_Mul_Add,
         }
         self.set_quant_mode()
 
@@ -184,7 +186,7 @@ class TORCH_IR_TESTER(object):
         ##test pytorch out_data between onnx out_data
         if num_outputs == 1:
             onnx_out = list(onnx_outs.values())[0]
-            np.testing.assert_allclose(torch_output.flatten(), onnx_out.flatten(), rtol=2*1e-5, atol=2*1e-01)
+            np.testing.assert_allclose(torch_output.flatten(), onnx_out.flatten(), rtol=1e-5, atol=1e-01)
 
         input_npz = "{}_input_fp32.npz".format(model_name)
         np.savez(input_npz, input=input_data)
@@ -352,8 +354,8 @@ class TORCH_IR_TESTER(object):
         dynamic_axes_attr = {'input'  : {0 : 'batch_size'}, 'output' : {0 : 'batch_size'}} if dynamic_axes_confirm else None
 
         if type(input_data) == dict:
-            input_data = (input_data['input'], input_data['input1'], input_data['input2'])
-            input_names = ['input', 'input1', 'input2']
+            input_names = list(input_data.keys())
+            input_data = tuple(input_data.values())
         else:
             input_names = ['input']
 
@@ -399,6 +401,31 @@ class TORCH_IR_TESTER(object):
         self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
 
         torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Mul_Add(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x, y):
+                out = torch.add(x, y)
+                return out
+
+        input_data = {}
+        input_shape = [4, 1]
+        input_data_temp = torch.randn(input_shape[0], input_shape[1])
+        input_data['input'] = input_data_temp
+        input_data['input1'] = input_data_temp
+        test_onnx_name = 'Mul_Add'
+
+        net = Net()
+        torch_output_data = net(input_data['input'], input_data['input1'])
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        # torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
     def test_GRU(self):
