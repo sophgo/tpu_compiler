@@ -3795,6 +3795,47 @@ LogicalResult tpu::TG_INT8_ReduceMaxOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ReduceMinOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  std::vector<int64_t> input_shape = getTensorShape(input());
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+
+  int num_axes = 0;
+  int *axes = nullptr;
+  if (this->axes().hasValue()) {
+    std::vector<int32_t> axes_array;
+    arrayAttrToVector(this->axes().getValue(), axes_array);
+    num_axes = axes_array.size();
+    axes = new int[num_axes];
+    for (unsigned i = 0; i < axes_array.size(); ++i)
+      axes[i] = axes_array[i];
+  }
+
+  if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
+    // Replace with tdma global memory copy via TG permute
+    std::vector<int64_t> output_shape = getTensorShape(output());
+    getNCHW(output_shape, n, c, h, w);
+    cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, ga_input, ga_output,
+                                  n, c, h, w, 0, 1, 2, 3, CVK_FMT_I8);
+  } else {
+    cvi_backend_tg_fixed_reduce_min_kernel(*backend_ctx, layer_id, ga_input,
+                                           ga_output, n, c, h, w, axes,
+                                           num_axes);
+  }
+
+  delete[] axes;
+
+  return success();
+}
+
 LogicalResult tpu::TG_BF16_ReduceMeanOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -3857,6 +3898,46 @@ LogicalResult tpu::TG_BF16_ReduceMaxOp::codegen(void *ctx) {
                                   n, c, h, w, 0, 1, 2, 3, CVK_FMT_BF16);
   } else {
     cvi_backend_tg_bf16_reduce_max_kernel(*backend_ctx, layer_id, ga_input,
+                                          ga_output, n, c, h, w, axes,
+                                          num_axes);
+  }
+
+  delete[] axes;
+
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ReduceMinOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  gaddr_t ga_input = getPreviousOpAddress(op);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  std::vector<int64_t> input_shape = getTensorShape(input());
+  int64_t n, c, h, w;
+  getNCHW(input_shape, n, c, h, w);
+  int num_axes = 0;
+  int *axes = nullptr;
+  if (this->axes().hasValue()) {
+    std::vector<int32_t> axes_array;
+    arrayAttrToVector(this->axes().getValue(), axes_array);
+    num_axes = axes_array.size();
+    axes = new int[num_axes];
+    for (unsigned i = 0; i < axes_array.size(); ++i)
+      axes[i] = axes_array[i];
+  }
+
+  if (num_axes == 1 && input_shape.size() == 5 && input_shape[axes[0]] == 1) {
+    // Replace with tdma global memory copy via TG permute
+    std::vector<int64_t> output_shape = getTensorShape(output());
+    getNCHW(output_shape, n, c, h, w);
+    cvi_backend_tg_permute_kernel(*backend_ctx, layer_id, ga_input, ga_output,
+                                  n, c, h, w, 0, 1, 2, 3, CVK_FMT_BF16);
+  } else {
+    cvi_backend_tg_bf16_reduce_min_kernel(*backend_ctx, layer_id, ga_input,
                                           ga_output, n, c, h, w, axes,
                                           num_axes);
   }

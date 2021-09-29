@@ -2303,6 +2303,53 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_ReduceMaxOp : TPU_TG_ReduceMaxOp<"tg_int8_reduce_max", "Int8">;
 def TPU_TG_BF16_ReduceMaxOp : TPU_TG_ReduceMaxOp<"tg_bf16_reduce_max", "Bf16">;
 
+class TPU_TG_ReduceMinOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Reduce max operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+      `region`          : required, the memory region to reside in, could be
+                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
+                          (backend does not support `INPUT`, `OUTPUT` for now)
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `axes`            : along which axis to do reduce
+      `name`            : required, name for comparing, or debug.
+      `chipname`        : optional, chipname.
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I8Attr>:$m_i8,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    OptionalAttr<I32ArrayAttr>:$axes,
+    StrAttr:$name,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_ReduceMinOp : TPU_TG_ReduceMinOp<"tg_int8_reduce_min", "Int8">;
+def TPU_TG_BF16_ReduceMinOp : TPU_TG_ReduceMinOp<"tg_bf16_reduce_min", "Bf16">;
+
 class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

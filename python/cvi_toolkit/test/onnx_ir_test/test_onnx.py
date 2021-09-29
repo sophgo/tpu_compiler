@@ -69,6 +69,7 @@ TEST_ONNX_IR = [
     "Upsample",
 #    "Transpose",
     "BCastSub", # test broadcast sub
+    "ReduceMin",
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
@@ -201,6 +202,7 @@ class ONNX_IR_TESTER(object):
             "Tile": self.test_Tile,
             "ReduceMean": self.test_ReduceMean,
             "ReduceMax": self.test_ReduceMax,
+            "ReduceMin": self.test_ReduceMin,
             "Upsample": self.test_Upsample,
             "Where": self.test_Where,
         }
@@ -1937,8 +1939,8 @@ class ONNX_IR_TESTER(object):
 
     def test_ReduceMean(self):
         test_case = "ReduceMean"
-        input_shape = [1, 3, 4, 128]
-        output_shape = [1, 3, 4, 1]
+        input_shape = [1, 4, 16, 64]
+        output_shape = [1, 4, 16]
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, input_shape)
@@ -1955,7 +1957,7 @@ class ONNX_IR_TESTER(object):
             'ReduceMean',
             ['X1'],
             ['output'],
-            keepdims=1,
+            keepdims=0,
             axes=[3, ],
         )
 
@@ -1975,8 +1977,8 @@ class ONNX_IR_TESTER(object):
 
     def test_ReduceMax(self):
         test_case = "ReduceMax"
-        input_shape = [1, 32, 64, 16]
-        output_shape = [1, 32, 64]
+        input_shape = [1, 4, 16, 64]
+        output_shape = [1, 4, 16]
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, input_shape)
@@ -1991,6 +1993,47 @@ class ONNX_IR_TESTER(object):
 
         reduce_node = helper.make_node(
             'ReduceMax',
+            ['X1'],
+            ['output'],
+            keepdims=0,
+            axes=[3, ],
+        )
+
+        graph_def = helper.make_graph(
+            [x1_node, reduce_node],
+            test_case,
+            [input],
+            [output]
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        input_data = np.random.rand(input_shape[0], input_shape[1],
+                                    input_shape[2], input_shape[3]).astype(np.float32)
+        input_data = input_data.reshape(tuple(input_shape))
+        indices = np.argmax(input_data, axis=1)
+        input_data[:, indices] += 0.1
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_ReduceMin(self):
+        test_case = "ReduceMin"
+        input_shape = [1, 4, 16, 64]
+        output_shape = [1, 4, 16]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        x1_node = helper.make_node(
+            'Neg',
+            ['input'],
+            ['X1'],
+        )
+
+        reduce_node = helper.make_node(
+            'ReduceMin',
             ['X1'],
             ['output'],
             keepdims=0,
