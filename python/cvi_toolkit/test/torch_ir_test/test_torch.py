@@ -1,21 +1,22 @@
 #!/usr/bin/python3
 # -*- coding: utf-8 -*-
 
-import torch.nn as nn
-import torch
-import torchvision.models as models
-import torch.nn.functional as F
-from torch.distributions import Normal
-from cvi_toolkit.transform.onnx_converter import OnnxConverter
 from cvi_toolkit.model.mlir_model import MLIRModel
 from cvi_toolkit.utils.mlir_shell import mlir_quant, \
      mlir_opt, mlir_to_cvimodel, run_cvimodel
 from cvi_toolkit.numpy_helper import npz_compare
+from cvi_toolkit.transform.onnx_converter import OnnxConverter
+from cvi_toolkit.numpy_helper.npz_compare import fp32_to_bf16
 import onnx
 from onnx import helper
 from onnx import TensorProto
 import onnxruntime
 import pyruntime
+import torch
+import torch.nn as nn
+import torchvision.models as models
+import torch.nn.functional as F
+from torch.distributions import Normal
 import numpy as np
 import os
 import sys
