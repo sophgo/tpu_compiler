@@ -174,19 +174,17 @@ cv182x支持的网络如下：
 
 ## 2 开发环境配置
 
-从docker hub获取（推荐）:
-
-```shell
-docker pull cvitek/cvitek_dev:1.5-ubuntu-18.04
-```
-
-或者加载镜像文件：
+加载镜像文件：
 
 ```shell
 docker load -i docker_cvitek_dev_1.5-ubuntu-18.04.tar
 ```
 
+或者从docker hub获取:
 
+```shell
+docker pull cvitek/cvitek_dev:1.5-ubuntu-18.04
+```
 
 如果是首次使用docker，可执行下述命令进行安装和配置（Ubuntu系统）
 
@@ -325,7 +323,7 @@ cd samples
     $MODEL_PATH/yolo_v3_416_with_detection.cvimodel \
     $MODEL_PATH/alphapose.cvimodel \
     ./data/pose_demo_2.jpg \
-    alphapose_out.jpg 
+    alphapose_out.jpg
 
 ./bin/cvi_sample_alphapose_fused_preprocess \
     $MODEL_PATH/yolo_v3_416_with_detection.cvimodel \
@@ -369,7 +367,7 @@ cd samples
     $MODEL_PATH/retinaface_mnet25_600_with_detection.cvimodel \
     $MODEL_PATH/arcface_res50.cvimodel \
     ./data/obama1.jpg \
-    ./data/trump2.jpg 
+    ./data/trump2.jpg
 
 # Similarity: -0.060050
 
@@ -392,7 +390,9 @@ cd samples
 * cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
 * cvitek_tpu_samples.tar.gz
 
-###### cv183x平台64位
+###### 64位平台
+
+> 如cv183x 64位平台
 
 TPU sdk准备：
 
@@ -422,7 +422,9 @@ cmake -G Ninja \
 cmake --build . --target install
 ```
 
-###### cv182x平台32位
+###### 32位平台
+
+> 如cv182x平台32位，或cv183x平台32位
 
 TPU sdk准备：
 
@@ -437,9 +439,9 @@ cd ..
 更新32位系统库（只需一次）：
 
 ``` shell
-sudo dpkg --add-architecture i386
-sudo apt-get update
-sudo apt-get install libc6:i386 libncurses5:i386 libstdc++6:i386
+dpkg --add-architecture i386
+apt-get update
+apt-get install libc6:i386 libncurses5:i386 libstdc++6:i386
 ```
 
 编译samples，安装至install_samples目录：
