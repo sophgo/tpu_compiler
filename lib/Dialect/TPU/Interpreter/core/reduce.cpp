@@ -134,6 +134,29 @@ void reduce_max(float *input, float *output, std::vector<int64_t> &input_shape,
   }
 }
 
+void reduce_min(float *input, float *output, std::vector<int64_t> &input_shape,
+                std::vector<int> &axes) {
+  assert(axes.size() > 0);
+  int axis = axes[0];
+  // only support one axis, if has two axis, should be continous
+  int total = count(input_shape, 0, input_shape.size());
+  int n = count(input_shape, 0, axis);
+  int c = input_shape[axis];
+  int hw = total / (n * c);
+
+  for (int nidx = 0; nidx < n; nidx++) {
+    for (int inner_idx = 0; inner_idx < hw; inner_idx++) {
+      for (int cidx = 0; cidx < c; cidx++) {
+        float tmp = input[nidx * c * hw + cidx * hw + inner_idx];
+        if (cidx == 0)
+          output[nidx * hw + inner_idx] = tmp;
+        output[nidx * hw + inner_idx] =
+            std::min(tmp, output[nidx * hw + inner_idx]);
+      }
+    }
+  }
+}
+
 //   reduced = np.sqrt(np.sum(
 //               a=np.square(data), axis=axes, keepdims=keepdims == 1))
 void reduce_l2(float *input, float *output,
@@ -232,6 +255,39 @@ ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping,
 
 void ReduceMaxOpKernel::invoke() {
   reduce_max(input_data->data(), output_data->data(), input_shape, axes);
+  if (datatype == DataType::INT8) {
+    for (size_t i = 0; i < output_data->size(); ++i) {
+      output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+          output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
+    }
+  } else if (datatype == DataType::BF16) {
+    BF16(output_data->data(), output_data->data(), output_data->size());
+  }
+}
+
+ReduceMinOpKernel::ReduceMinOpKernel(Operation &op, value_map_t &valueMapping,
+                                     weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
+  auto reduceminOp = cast<tpu::ReduceMinOp>(op);
+  auto input_type = reduceminOp.input().getType().template cast<TensorType>();
+  this->input_shape = input_type.getShape();
+  arrayAttrToVector(reduceminOp.axes().getValue(), this->axes);
+
+  if (datatype == DataType::INT8) {
+    auto quant_rshift = this->opdTensors[3];
+    auto quant_multiplier = this->opdTensors[4];
+    assert(quant_rshift);
+    assert(quant_multiplier);
+    this->rshift = quant_rshift->at(0);
+    this->multiplier = quant_multiplier->at(0);
+  }
+  // get tensors
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
+}
+
+void ReduceMinOpKernel::invoke() {
+  reduce_min(input_data->data(), output_data->data(), input_shape, axes);
   if (datatype == DataType::INT8) {
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(

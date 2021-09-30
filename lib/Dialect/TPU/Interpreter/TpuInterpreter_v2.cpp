@@ -410,6 +410,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(r_kernel_op));
     return;
   }
+  if (isa<tpu::ReduceMinOp>(op)) {
+    auto r_kernel_op = std::make_unique<ReduceMinOpKernel>(op, valueMapping, weightMapping);
+    oplist.push_back(std::move(r_kernel_op));
+    return;
+  }
   if (isa<tpu::ReduceMeanOp>(op)) {
     auto r_kernel_op = std::make_unique<ReduceMeanOpKernel>(op, valueMapping, weightMapping);
     oplist.push_back(std::move(r_kernel_op));

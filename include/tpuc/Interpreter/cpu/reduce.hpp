@@ -29,6 +29,28 @@ private:
   int multiplier;
 };
 
+class ReduceMinOpKernel : public CPUOpKernel {
+public:
+  static constexpr const char *OpName = "CPUReduceMinOp";
+
+  ReduceMinOpKernel(Operation &op, value_map_t &valueMapping,
+                    weight_map_t &weightMapping);
+
+  void invoke() override;
+
+private:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedDataShape input_shape;
+
+  // param
+  std::vector<int> axes;
+
+  // int8
+  int rshift;
+  int multiplier;
+};
+
 class ReduceMaxOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUReduceMaxOp";

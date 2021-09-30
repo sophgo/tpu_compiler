@@ -182,6 +182,61 @@ struct TpuReshapeReduceMaxPattern : public RewritePattern {
   }
 };
 
+struct TpuReshapeReduceMinPattern : public RewritePattern {
+  TpuReshapeReduceMinPattern(MLIRContext *context)
+      : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+
+    auto outputShapes = getTensorShape(op->getResult(0));
+    auto inputShapes = getTensorShape(op->getOperand(0));
+
+    if (outputShapes.size() != 5)
+      return failure();
+
+    if (std::distance(op->getResult(0).use_begin(),
+                      op->getResult(0).use_end()) != 1) {
+      return failure();
+    }
+
+    Operation *nextOp = nullptr;
+    std::vector<int32_t> axes_array;
+    for (auto &use : op->getResult(0).getUses()) {
+      if (auto tpuOp = llvm::dyn_cast<tpu::ReduceMinOp>(use.getOwner())) {
+        nextOp = tpuOp.getOperation();
+        if (tpuOp.axes().hasValue()) {
+          arrayAttrToVector(tpuOp.axes().getValue(), axes_array);
+        }
+        break;
+      } else {
+        return failure();
+      }
+    }
+
+    if (axes_array.size() != 1)
+      return failure();
+
+    if (outputShapes[axes_array[0]] != 1)
+      return failure();
+
+    LLVM_DEBUG(llvm::dbgs()
+      << "ReshapeReduceMinPattern: " << getOpName(op)
+      << ", layer ID " << getOpLayerId(op)
+      << ", inputs " << inputShapes.size()
+      << ", outputs " << outputShapes.size()
+      << ", remove " << getOpName(op)
+      << ", " << getOpName(nextOp) << "\n");
+
+    nextOp->getResult(0).replaceAllUsesWith(nextOp->getOperand(0));
+    op->getResult(0).replaceAllUsesWith(op->getOperand(0));
+    rewriter.eraseOp(op);
+    rewriter.eraseOp(nextOp);
+
+    return success();
+  }
+};
+
 // reshape: 1x32x32x32 -> 1x1x32x32x32
 //   reshape: 1x1x32x32x32 -> 1x32x32x32
 //   reduce_max: 1x1x32x32x32 -> 1x32x32x32
@@ -252,6 +307,76 @@ struct TpuDReshapeReduceMaxPattern : public RewritePattern {
   }
 };
 
+// reshape: 1x32x32x32 -> 1x1x32x32x32
+//   reshape: 1x1x32x32x32 -> 1x32x32x32
+//   reduce_max: 1x1x32x32x32 -> 1x32x32x32
+struct TpuDReshapeReduceMinPattern : public RewritePattern {
+  TpuDReshapeReduceMinPattern(MLIRContext *context)
+      : RewritePattern(tpu::ReshapeOp::getOperationName(), 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                     PatternRewriter &rewriter) const override {
+
+    auto outputShapes = getTensorShape(op->getResult(0));
+    auto inputShapes = getTensorShape(op->getOperand(0));
+
+    if (outputShapes.size() != 5)
+      return failure();
+
+    if (std::distance(op->getResult(0).use_begin(),
+                      op->getResult(0).use_end()) != 2) {
+      return failure();
+    }
+
+    Operation *nextOp = nullptr, *nextOp2 = nullptr;
+    std::vector<int64_t> nextShapes;
+    std::vector<int32_t> axes_array;
+    for (auto &use : op->getResult(0).getUses()) {
+      if (auto tpuOp = llvm::dyn_cast<tpu::ReduceMinOp>(use.getOwner())) {
+        nextOp = tpuOp.getOperation();
+        if (tpuOp.axes().hasValue())
+          arrayAttrToVector(tpuOp.axes().getValue(), axes_array);
+        break;
+      } else if (auto tpuOp = llvm::dyn_cast<tpu::ReshapeOp>(use.getOwner())) {
+        nextOp2 = tpuOp.getOperation();
+        nextShapes = getTensorShape(nextOp2->getResult(0));
+      } else
+        return failure();
+    }
+
+    if (axes_array.size() != 1)
+      return failure();
+
+    if (inputShapes.size() != nextShapes.size())
+      return failure();
+
+    for (unsigned i = 0; i < inputShapes.size(); ++i)
+      if (inputShapes[i] != nextShapes[i])
+        return failure();
+
+    if (outputShapes[axes_array[0]] != 1)
+      return failure();
+
+    LLVM_DEBUG(llvm::dbgs()
+      << "DReshapeReduceMinxPattern: " << getOpName(op)
+      << ", layer ID " << getOpLayerId(op)
+      << ", inputs " << inputShapes.size()
+      << ", outputs " << outputShapes.size()
+      << ", remove " << getOpName(op)
+      << ", " << getOpName(nextOp)
+      << ", " << getOpName(nextOp2) << "\n");
+
+    nextOp2->getResult(0).replaceAllUsesWith(nextOp2->getOperand(0));
+    nextOp->getResult(0).replaceAllUsesWith(nextOp->getOperand(0));
+    op->getResult(0).replaceAllUsesWith(op->getOperand(0));
+    rewriter.eraseOp(op);
+    rewriter.eraseOp(nextOp);
+    rewriter.eraseOp(nextOp2);
+
+    return success();
+  }
+};
+
 class FuseReshapePass : public mlir::PassWrapper<FuseReshapePass, FunctionPass> {
 public:
   explicit FuseReshapePass() {}
@@ -261,6 +386,8 @@ public:
     patterns.insert<TpuRemoveIdentityReshapePattern>(&getContext());
     patterns.insert<TpuReshapeReduceMaxPattern>(&getContext());
     patterns.insert<TpuDReshapeReduceMaxPattern>(&getContext());
+    patterns.insert<TpuReshapeReduceMinPattern>(&getContext());
+    patterns.insert<TpuDReshapeReduceMinPattern>(&getContext());
     patterns.insert<FoldSiblingReshapePattern>(&getContext());
     patterns.insert<FoldReshapePattern>(&getContext());
     applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
@@ -276,6 +403,8 @@ void tpu::ReshapeOp::getCanonicalizationPatterns(
     TpuRemoveIdentityReshapePattern,
     TpuReshapeReduceMaxPattern,
     TpuDReshapeReduceMaxPattern,
+    TpuReshapeReduceMinPattern,
+    TpuDReshapeReduceMinPattern,
     FoldSiblingReshapePattern,
     FoldReshapePattern
   >(context);

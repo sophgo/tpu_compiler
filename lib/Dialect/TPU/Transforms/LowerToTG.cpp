@@ -2554,6 +2554,48 @@ Value tpu::ReduceMaxOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::ReduceMinOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("axes", axesAttr()));
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+
+  if (getOpQuant() == "INT8") {
+    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
+
+    assert( !isTensorNone(quant_rshift()) );
+    TensorFile *wTF = getWeightTensorFile(op);
+    auto rshift = readWeightTensor<float>(quant_rshift(), wTF);
+    assert(rshift->size() == 1);
+    attrs.push_back(builder.getNamedAttr("rshift",
+        builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
+
+    assert( !isTensorNone(quant_multiplier()) );
+    auto multiplier = readWeightTensor<float>(quant_multiplier(), wTF);
+    assert(multiplier->size() == 1);
+    attrs.push_back(builder.getNamedAttr("m_i8",
+        builder.getI8IntegerAttr(static_cast<int8_t>(multiplier->at(0)))));
+
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ReduceMinOp>(op->getLoc(),
+        getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReduceMinOp>(op->getLoc(),
+        getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::GruOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4208,6 +4250,7 @@ public:
         DefaultToTGPattern<tpu::ReduceL2Op>,
         DefaultToTGPattern<tpu::ReduceMeanOp>,
         DefaultToTGPattern<tpu::ReduceMaxOp>,
+        DefaultToTGPattern<tpu::ReduceMinOp>,
         DefaultToTGPattern<tpu::GruOp>,
         DefaultToTGPattern<tpu::LstmOp>,
         DefaultToTGPattern<tpu::SoftmaxOp>,

@@ -2989,6 +2989,52 @@ def TPU_ReduceL2Op: TPU_Op<"reduce_l2",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_ReduceMinOp: TPU_Op<"reduce_min",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "ReduceMin operator";
+
+  let description = [{
+    Perform ReduceMin on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `axes`            : along which axis to do reduce
+      `keepdims`        : whether to keep the reduce dim
+      `const_val`       : A scalar value to be used if the mode
+                          chosen is `constant` (by default it is 0).
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    OptionalAttr<I32ArrayAttr>:$axes,
+    DefaultValuedAttr<BoolAttr, "false">:$keepdims,
+    OptionalAttr<StrAttr>:$chipname
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
