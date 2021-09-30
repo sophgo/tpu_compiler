@@ -680,7 +680,7 @@ class OnnxConverter(BaseConverter):
                 i += 1
                 continue
             bias = numpy_helper.to_array(const_node.attrs['value'])
-            if bias != 1.0:
+            if np.prod(bias.shape) <= 1 and bias != 1.0:
                 i += 1
                 continue
             add_node = self.converted_nodes[i+2]
