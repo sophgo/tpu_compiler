@@ -2988,16 +2988,13 @@ class OnnxConverter(BaseConverter):
         ends = []
         axes = []
         num_input = len(onnx_node.inputs)
+        num_dims = len(input_shape)
         # start
         if num_input > 1:
             starts = self.getTensor(onnx_node.inputs[1]).tensor_data
             ends = self.getTensor(onnx_node.inputs[2]).tensor_data
-            axes = self.getTensor(onnx_node.inputs[3]).tensor_data
-            # step
-            if num_input > 4:
-                steps = self.getTensor(onnx_node.inputs[4]).tensor_data
-            else:
-                steps = [1] * len(axes)
+            axes = self.getTensor(onnx_node.inputs[3]).tensor_data if num_input > 3 else list(np.arange(num_dims))
+            steps = self.getTensor(onnx_node.inputs[4]).tensor_data if num_input > 4 else [1] * len(axes)
         else:
             starts = onnx_node.attrs.get('starts')
             ends = onnx_node.attrs.get('ends')
@@ -3007,10 +3004,10 @@ class OnnxConverter(BaseConverter):
         assert(len(starts) == len(ends))
         assert(len(axes) == len(ends))
 
-        num_dims = len(input_shape)
         if tesnor_type == TensorType.TENSOR:
             tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
             for start, end, axis, step in zip(starts, ends, axes, steps):
+                start, end, axis, step = int(start), int(end), int(axis), int(step)
                 if axis < 0:
                     axis = axis + num_dims
                 s = slice(start, end, step)
