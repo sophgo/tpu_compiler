@@ -15,6 +15,7 @@ function usage() {
   echo -e "\t--compress-instruction=true|false (option, default: false)"
   echo -e "\t--tg-op-divide=true|false (option, default: false)"
   echo -e "\t--using-dmabuf=true|false (option, default: false)"
+  echo -e "\t--model-version=version (option, default: latest, such as 1.2"
 }
 
 SHORT=hi:o:
@@ -25,8 +26,9 @@ LONG3=append-weight:
 LONG4=compress-instruction:
 LONG5=expose-bf16-inputs:
 LONG6=tg-op-divide:
+LONG7=model-version:
 
-OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --long $LONG4 --long $LONG5 --long $LONG6 --name "$0" -- "$@")
+OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --long $LONG4 --long $LONG5 --long $LONG6 --long $LONG7 --name "$0" -- "$@")
 if [ $? != 0 ]; then
   echo "Failed to parse options...."
   exit 1
@@ -73,6 +75,10 @@ while true; do
       ;;
     --tg-op-divide )
       tg_op_divide="$2"
+      shift 2
+      ;;
+    --model-version )
+      model_version="$2"
       shift 2
       ;;
     --using-dmabuf )
@@ -139,6 +145,7 @@ if [ x"$using_dmabuf" == x"true" ]; then
   using_dmabuf_opt="--using-dmabuf"
 fi
 
+version_opt="--model-version $model_version"
 
 optimized_mlir="__lower_opt.mlir"
 final_mlir="__final.mlir"
@@ -177,6 +184,7 @@ tpuc-opt $optimized_mlir \
 tpuc-translate $final_mlir \
     --mlir-to-cvimodel \
     --weight-file _weight.bin \
+    ${version_opt} \
     ${compress_instruction_opt} \
     ${using_dmabuf_opt} \
     -o $out_cvimodel

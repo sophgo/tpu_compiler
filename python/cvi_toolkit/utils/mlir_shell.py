@@ -88,7 +88,8 @@ def mlir_to_cvimodel(quanted_model, cvimodel,
                      expose_bf16_inputs=False,
                      compress_weight=True,
                      append_weight=False,
-                     tg_op_divide=False):
+                     tg_op_divide=False,
+                     model_version="latest"):
     cmd = ["mlir_to_cvimodel.sh",
            "-i", quanted_model, "-o", cvimodel,
            "--expose-bf16-inputs",
@@ -98,7 +99,9 @@ def mlir_to_cvimodel(quanted_model, cvimodel,
            "--append-weight",
            str(append_weight).lower(),
            "--tg-op-divide",
-           str(tg_op_divide).lower()]
+           str(tg_op_divide).lower(),
+           "--model-version",
+           str(model_version).lower()]
     if results_type:
         cmd.extend(["--results-type",str(results_type).lower()])
     else:

@@ -69,6 +69,40 @@ static llvm::cl::opt<bool>
     clUsingDmabuf("using-dmabuf", llvm::cl::desc("using dmabuf"),
                   llvm::cl::init(false));
 
+static llvm::cl::opt<std::string>
+    clModelVersion("model-version", llvm::cl::desc("cvimodel version"), llvm::cl::init("latest"));
+
+#define VERSION(V0,V1,V2) (uint32_t)((V0) << 24 | (V1) << 16 | (V2) << 8)
+
+
+// v1.4.0
+// 1) add scale/mean/pixel_format/align in Tensor
+// 2) add data_format in PreProcessHints
+// 3) add dmabuf in TpuRoutine
+// 4) add compress/decompress_size in Section
+// 5) add mlir_version in Model
+// 6) rename preprocess_hits to preprocess_hints
+#define V_1_4_0 VERSION(1,4,0)
+
+static uint32_t get_version(uint8_t &majorVersion, uint8_t &minorVersion,
+                            uint8_t &subMinorVersion) {
+  if (clModelVersion.empty() || clModelVersion == "latest") {
+    majorVersion = MajorVersion_value;
+    minorVersion = MinorVersion_value;
+    subMinorVersion = SubMinorVersion_value;
+  } else {
+    uint32_t v0 = 0, v1 = 0, v2 = 0;
+    int pick = sscanf(clModelVersion.c_str(), "%u.%u.%u", &v0, &v1, &v2);
+    if (pick < 2) {
+      llvm_unreachable("version set error");
+    }
+    majorVersion = v0;
+    minorVersion = v1;
+    subMinorVersion = v2;
+  }
+  uint32_t version = VERSION(majorVersion, minorVersion, subMinorVersion);
+  return version;
+}
 
 typedef struct {
   char magic[8];
@@ -371,10 +405,13 @@ CviTpuRoutine::CviTpuRoutine(flatbuffers::FlatBufferBuilder &fbb, FuncOp &fn,
     : CviRoutine(fbb, true) {
 
   name = fnName;
+  uint8_t v0, v1, v2;
+  version_ = get_version(v0, v1, v2);
 
   fn.walk([&](Operation *op) {
-    if (op->getName().getDialect()->getNamespace() != "tpu" || llvm::isa<tpu::InputOp>(op) ||
-        llvm::isa<tpu::WeightFileOp>(op) || llvm::isa<ReturnOp>(op)) {
+    if (op->getName().getDialect()->getNamespace() != "tpu" ||
+        llvm::isa<tpu::InputOp>(op) || llvm::isa<tpu::WeightFileOp>(op) ||
+        llvm::isa<ReturnOp>(op)) {
     } else if (op->getAttr("fn")) {
       auto belong = op->getAttr("fn").cast<StringAttr>().getValue();
       if (name == belong) {
@@ -418,7 +455,7 @@ void CviTpuRoutine::codeGen() {
 
   cvi_backend_submit(backend_ctx);
   cvi_backend_get_cmdbuf(backend_ctx, cmdbuf);
-  if (clUsingDmabuf) {
+  if (clUsingDmabuf && version_ >= V_1_4_0) {
     cvi_backend_dmabuf_convert(backend_ctx, dmabuf);
   }
   cvi_backend_delete_context(backend_ctx);
@@ -428,7 +465,7 @@ flatbuffers::Offset<Routine> CviTpuRoutine::build() {
   FBStringVector fbInputs, fbOutputs;
   buildInputsOutputs(fbb_, inputs, outputs, fbInputs, fbOutputs);
   auto fbName = fbb_.CreateString(name);
-  if (clUsingDmabuf) {
+  if (clUsingDmabuf && version_ >= V_1_4_0) {
     auto fbRoutine = CreateTpuRoutine(fbb_, 0, fbName);
     return CreateRoutine(fbb_, RoutineType_TPU, fbInputs, fbOutputs, fbRoutine,
                          0);
@@ -440,6 +477,7 @@ flatbuffers::Offset<Routine> CviTpuRoutine::build() {
 }
 
 CviModelBuilder::CviModelBuilder(ModuleOp &module) : fbb_(1024) {
+  version_ = get_version(majorVersion_, minorVersion_, subMinorVersion_);
   std::vector<std::string> subFuncNames;
   for (auto fn : module.getOps<FuncOp>()) {
     if (fn.getName() == "tpu_func") {
@@ -552,7 +590,7 @@ void CviModelBuilder::parseModule() {
           tensor->setInt8AsymQuantInfo(qscaleMap[name], zpMap[name]);
         }
       }
-      if (castOp.preprocessAttr()) {
+      if (castOp.preprocessAttr() && version_ >= V_1_4_0) {
         auto preprocess = castOp.preprocessAttr();
         for (auto s : preprocess.scale().getAsValueRange<FloatAttr>()) {
           tensor->scale.push_back(s.convertToFloat());
@@ -647,7 +685,7 @@ FBSection CviModelBuilder::buildSection(std::string name, cvi::model::SectionTyp
 
   // if need compress data
   do {
-    if (!clCompressCmdbuf || !size) {
+    if (!clCompressCmdbuf || !size || version_ < V_1_4_0) {
       break;
     } else if (type != SectionType_CMDBUF &&
                type != SectionType_DMABUF) {
@@ -695,7 +733,7 @@ FBSectionVector CviModelBuilder::buildSections() {
   for (auto rt : routines_) {
     if (rt->isTpuRoutine) {
       auto tpuRt = (CviTpuRoutine *)rt;
-      if (clUsingDmabuf) {
+      if (clUsingDmabuf && version_ >= V_1_4_0) {
         auto dmabufSec =
             buildSection(tpuRt->name, SectionType_DMABUF, tpuRt->dmabuf);
         sectionVec.push_back(dmabufSec);
@@ -746,8 +784,7 @@ FBSectionVector CviModelBuilder::buildSections() {
 }
 
 FBModel CviModelBuilder::build() {
-  Version modelVersion =
-      Version(MajorVersion_value, MinorVersion_value, SubMinorVersion_value);
+  Version modelVersion = Version(majorVersion_, minorVersion_, subMinorVersion_);
   auto fbModelName = fbb_.CreateString(modelName_);
   auto fbBuildTime = fbb_.CreateString(getStrOfCurrentTime());
   auto fbTarget = fbb_.CreateString(clRunChipType);
@@ -851,8 +888,8 @@ void CviModelBuilder::storeModel(llvm::raw_ostream &output) {
   memset(header.chip, 0, sizeof(header.chip));
   strncpy(header.chip, clRunChipType.c_str(), clRunChipType.length());
   header.body_size = fbb_.GetSize();
-  header.major = MajorVersion_value; // defined in cvimodel.fbs
-  header.minor = MinorVersion_value; // defined in cvimodel.fbs
+  header.major = majorVersion_; // defined in cvimodel.fbs
+  header.minor = minorVersion_; // defined in cvimodel.fbs
 
   output.write(reinterpret_cast<char *>(&header), sizeof(CviModelHeader));
   output.write(reinterpret_cast<char *>(modelData.data()), modelData.size());

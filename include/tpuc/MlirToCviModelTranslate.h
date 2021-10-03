@@ -115,6 +115,7 @@ public:
 
 protected:
   flatbuffers::FlatBufferBuilder &fbb_;
+  uint32_t version_;
 };
 
 class CviCpuRoutine : public CviRoutine {
@@ -163,6 +164,10 @@ private:
   int64_t privateGmemSize_ = 0;
   int64_t sharedGmemSize_ = 0;
   int batchNum_ = 0;
+  uint32_t version_;
+  uint8_t majorVersion_;
+  uint8_t minorVersion_;
+  uint8_t subMinorVersion_;
 
   void addRoutine(std::string funcName);
   void parseModule();

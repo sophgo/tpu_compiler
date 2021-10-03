@@ -136,12 +136,14 @@ class DeployTool:
 
     def build_cvimodel(self, cvimodel, dequant_results_to_fp32=True, results_type="",
                        expose_bf16_inputs=False, compress_weight=True,
-                       append_weight=False, tg_op_divide=False):
+                       append_weight=False, tg_op_divide=False, model_version=""):
         IntermediateFile('_', 'lower_opt.mlir', False)
         IntermediateFile('_', 'final.mlir', False)
+        if model_version == "":
+            model_version = "latest"
         ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel,
                                dequant_results_to_fp32, results_type, expose_bf16_inputs,
-                               compress_weight, append_weight, tg_op_divide)
+                               compress_weight, append_weight, tg_op_divide, model_version)
         check_return_value(ret == 0, "failed to generate cvimodel")
 
     def validate_cvimodel(self, cvimodel, correctness, excepts):
@@ -203,6 +205,8 @@ if __name__ == '__main__':
                         help="merge weights into one weight binary wight previous generated cvimodel")
     parser.add_argument("--tg_op_divide", type=str2bool, default=False,
                         help="if divide tg ops to save gmem")
+    parser.add_argument("--model_version", default="latest",
+                        help="if need old version cvimodel, set the verion, such as 1.2")
     parser.add_argument("--image", required=True, help="input image/npz/npy file for inference, "
                        "if has more than one input images, join images with semicolon")
     parser.add_argument("--cvimodel", required=True, help='output cvimodel')
@@ -226,7 +230,7 @@ if __name__ == '__main__':
     # generate cvimodel and validate accuracy
     tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32, args.results_type,
                         args.expose_bf16_inputs, args.compress_weight,
-                        args.merge_weight, args.tg_op_divide)
+                        args.merge_weight, args.tg_op_divide, args.model_version)
     tool.validate_cvimodel(args.cvimodel, args.correctness, args.excepts)
 
     if not args.debug:
