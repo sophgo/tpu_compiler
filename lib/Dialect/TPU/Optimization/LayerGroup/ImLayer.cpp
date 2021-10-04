@@ -116,9 +116,6 @@ static bool is_crop_fusible(Operation *op) {
   } else {
     llvm_unreachable("unsupported op");
   }
-  if (steps.size() < 4) {
-    return false;
-  }
   int total_steps = std::accumulate(steps.begin(),steps.end(), 1, std::multiplies<int32_t>());
   if (total_steps > 1) {
     return false;
