@@ -144,8 +144,10 @@ using_dmabuf_opt=""
 if [ x"$using_dmabuf" == x"true" ]; then
   using_dmabuf_opt="--using-dmabuf"
 fi
-
-version_opt="--model-version $model_version"
+version_opt=""
+if [ x"$model_version" != x ]; then
+  version_opt="--model-version $model_version"
+fi
 
 optimized_mlir="__lower_opt.mlir"
 final_mlir="__final.mlir"

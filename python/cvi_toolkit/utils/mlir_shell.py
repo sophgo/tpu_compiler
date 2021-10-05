@@ -99,9 +99,9 @@ def mlir_to_cvimodel(quanted_model, cvimodel,
            "--append-weight",
            str(append_weight).lower(),
            "--tg-op-divide",
-           str(tg_op_divide).lower(),
-           "--model-version",
-           str(model_version).lower()]
+           str(tg_op_divide).lower()]
+    if model_version:
+        cmd.extend(["--model-version",str(model_version).lower()])
     if results_type:
         cmd.extend(["--results-type",str(results_type).lower()])
     else:
