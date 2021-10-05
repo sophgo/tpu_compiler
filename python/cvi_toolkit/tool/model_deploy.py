@@ -109,11 +109,11 @@ class DeployTool:
             if self.with_preprocess:
                 np.savez(str(self.in_fp32_resize_only_npz), **x1)
 
-    def validate_quantized_model(self, tolerance, excepts, images):
+    def validate_quantized_model(self, tolerance, excepts, images, custom_op_plugin):
         self._prepare_input_npz(images)
         blobs_interp_npz = IntermediateFile(self.prefix, 'full_precision_interp.npz', False)
         ret = mlir_inference(self.mlir_file, str(self.in_fp32_npz),
-                             None, str(blobs_interp_npz))
+                             None, str(blobs_interp_npz), custom_op_plugin)
         check_return_value(ret == 0, "inference of fp32 model failed")
 
         # get all quantized tensors of quantized model by tpuc-interpeter
@@ -122,7 +122,7 @@ class DeployTool:
             in_fp32_npz = self.in_fp32_resize_only_npz
 
         ret = mlir_inference(str(self.quantized_mlir), str(in_fp32_npz), None,
-                             str(self.all_tensors_interp_npz))
+                             str(self.all_tensors_interp_npz), custom_op_plugin)
         check_return_value(ret == 0, "inference of quantized model failed")
 
         # compare fp32 blobs and quantized tensors with tolerance similarity
@@ -136,14 +136,14 @@ class DeployTool:
 
     def build_cvimodel(self, cvimodel, dequant_results_to_fp32=True, results_type="",
                        expose_bf16_inputs=False, compress_weight=True,
-                       append_weight=False, tg_op_divide=False, model_version=""):
+                       append_weight=False, tg_op_divide=False, model_version="", custom_op_plugin=""):
         IntermediateFile('_', 'lower_opt.mlir', False)
         IntermediateFile('_', 'final.mlir', False)
         if model_version == "":
             model_version = "latest"
         ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel,
                                dequant_results_to_fp32, results_type, expose_bf16_inputs,
-                               compress_weight, append_weight, tg_op_divide, model_version)
+                               compress_weight, append_weight, tg_op_divide, model_version, custom_op_plugin)
         check_return_value(ret == 0, "failed to generate cvimodel")
 
     def validate_cvimodel(self, cvimodel, correctness, excepts):
@@ -207,6 +207,8 @@ if __name__ == '__main__':
                         help="if divide tg ops to save gmem")
     parser.add_argument("--model_version", default="latest",
                         help="if need old version cvimodel, set the verion, such as 1.2")
+    parser.add_argument("--custom_op_plugin", default="",
+                        help="custom op plugin so file path")
     parser.add_argument("--image", required=True, help="input image/npz/npy file for inference, "
                        "if has more than one input images, join images with semicolon")
     parser.add_argument("--cvimodel", required=True, help='output cvimodel')
@@ -225,12 +227,12 @@ if __name__ == '__main__':
                   args.aligned_input)
     images = args.image.split(',')
     images = [s.strip() for s in images]
-    tool.validate_quantized_model(args.tolerance, args.excepts, images)
+    tool.validate_quantized_model(args.tolerance, args.excepts, images, args.custom_op_plugin)
 
     # generate cvimodel and validate accuracy
     tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32, args.results_type,
                         args.expose_bf16_inputs, args.compress_weight,
-                        args.merge_weight, args.tg_op_divide, args.model_version)
+                        args.merge_weight, args.tg_op_divide, args.model_version, args.custom_op_plugin)
     tool.validate_cvimodel(args.cvimodel, args.correctness, args.excepts)
 
     if not args.debug:

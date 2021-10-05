@@ -15,7 +15,8 @@ function usage() {
   echo -e "\t--compress-instruction=true|false (option, default: false)"
   echo -e "\t--tg-op-divide=true|false (option, default: false)"
   echo -e "\t--using-dmabuf=true|false (option, default: false)"
-  echo -e "\t--model-version=version (option, default: latest, such as 1.2"
+  echo -e "\t--model-version=version (option, default: latest, such as 1.2)"
+  echo -e "\t--custom-op-plugin=plugin.so (option, if has custom op, set plugin so filepath)"
 }
 
 SHORT=hi:o:
@@ -27,8 +28,20 @@ LONG4=compress-instruction:
 LONG5=expose-bf16-inputs:
 LONG6=tg-op-divide:
 LONG7=model-version:
+LONG8=custom-op-plugin:
 
-OPTS=$(getopt --options $SHORT --long $LONG0 --long $LONG1 --long $LONG2 --long $LONG3 --long $LONG4 --long $LONG5 --long $LONG6 --long $LONG7 --name "$0" -- "$@")
+OPTS=$(getopt --options $SHORT \
+              --long $LONG0 \
+              --long $LONG1 \
+              --long $LONG2 \
+              --long $LONG3 \
+              --long $LONG4 \
+              --long $LONG5 \
+              --long $LONG6 \
+              --long $LONG7 \
+              --long $LONG8 \
+              --name "$0" -- "$@")
+
 if [ $? != 0 ]; then
   echo "Failed to parse options...."
   exit 1
@@ -79,6 +92,10 @@ while true; do
       ;;
     --model-version )
       model_version="$2"
+      shift 2
+      ;;
+    --custom-op-plugin )
+      custom_op_plugin="$2"
       shift 2
       ;;
     --using-dmabuf )
@@ -148,6 +165,10 @@ version_opt=""
 if [ x"$model_version" != x ]; then
   version_opt="--model-version $model_version"
 fi
+plugin_opt=""
+if [ x"$custom_op_plugin" != x ]; then
+  version_opt="--custom-op-plugin $custom_op_plugin"
+fi
 
 optimized_mlir="__lower_opt.mlir"
 final_mlir="__final.mlir"
@@ -187,6 +208,7 @@ tpuc-translate $final_mlir \
     --mlir-to-cvimodel \
     --weight-file _weight.bin \
     ${version_opt} \
+    ${plugin_opt} \
     ${compress_instruction_opt} \
     ${using_dmabuf_opt} \
     -o $out_cvimodel

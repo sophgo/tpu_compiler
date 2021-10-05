@@ -89,7 +89,8 @@ def mlir_to_cvimodel(quanted_model, cvimodel,
                      compress_weight=True,
                      append_weight=False,
                      tg_op_divide=False,
-                     model_version="latest"):
+                     model_version="latest",
+                     custom_op_plugin=""):
     cmd = ["mlir_to_cvimodel.sh",
            "-i", quanted_model, "-o", cvimodel,
            "--expose-bf16-inputs",
@@ -102,6 +103,8 @@ def mlir_to_cvimodel(quanted_model, cvimodel,
            str(tg_op_divide).lower()]
     if model_version:
         cmd.extend(["--model-version",str(model_version).lower()])
+    if custom_op_plugin:
+        cmd.extend(["--custom-op-plugin",custom_op_plugin])
     if results_type:
         cmd.extend(["--results-type",str(results_type).lower()])
     else:
@@ -124,13 +127,15 @@ def run_cvimodel(input_file, cvi_model, output_tensor, all_tensors=True):
     checkReturnValue(ret, "model_runner")
     return ret.returncode
 
-def mlir_inference(mlir_model, input_npz, out_npz, all_tensor_npz):
+def mlir_inference(mlir_model, input_npz, out_npz, all_tensor_npz, custom_op_plugin=""):
     cmd = [
         "tpuc-interpreter", mlir_model,
         "--tensor-in", input_npz,
         "--dump-all-tensor", all_tensor_npz]
     if out_npz:
         cmd.extend(["--tensor-out", out_npz])
+    if custom_op_plugin:
+        cmd.extend(["--custom-op-plugin", custom_op_plugin])
     logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "tpuc interpreter")
