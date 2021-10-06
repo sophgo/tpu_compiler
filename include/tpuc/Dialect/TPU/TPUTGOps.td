@@ -2087,10 +2087,12 @@ class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins Variadic<TPU_TensorOfOrNone<[F32, BF16, AnyInteger]>>:$inputs,
-    StrAttr:$name,
     StrAttr:$operation_name,
     DictionaryAttr:$param,
+    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
     OptionalAttr<StrAttr>:$chipname
   );
 

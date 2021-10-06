@@ -510,7 +510,6 @@ public:
 
     auto fn = getFunction();
     auto *context = &getContext();
-    auto builder = Builder(context);
 
     // read mix precision from file, seperated by \n
     if (false == clQuantLayerByFile.empty()) {
@@ -586,6 +585,9 @@ public:
           if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
             setOpQuant(op, "BF16");
           }
+          if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == true) {
+            setOpQuant(op, "BF16");
+          }
           if (isa<tpu::LayerNormOp>(op)) {
             setOpQuant(op, "BF16");
           }
@@ -647,10 +649,14 @@ public:
           || isa<tpu::ROIPoolingOp>(op)
           || isa<tpu::SoftmaxCpuOp>(op)) {
         // pass
-      } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
+      } else if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == false) {
         assert(getOpQuant(op) == "BF16");
         setOpResultType(op->getResult(0), FloatType::getF32(op->getContext()));
-      } else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
+      }
+#if 0
+// custom op use default quantbf16 now
+      else if (auto castOp = llvm::dyn_cast<tpu::CustomOp>(op)) {
+        auto builder = Builder(context);
         if (getOpQuant(op) != "NONE") {
           cvi::OpParam param, quant;
           auto operation_name = castOp.operation_name().str();
@@ -672,7 +678,9 @@ public:
           castOp->setAttr("param", DictionaryAttr::get(context, newParam));
           castOp->setAttr("quant", DictionaryAttr::get(context, newQuant));
         }
-      } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
+      }
+#endif
+      else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         if (getOpQuant(op) == "INT8" || getOpQuant(op) == "UINT8") {
           auto ret = quantOp.quantizeInt8();
           assert(!failed(ret));
