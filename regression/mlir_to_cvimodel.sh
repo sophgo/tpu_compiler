@@ -167,7 +167,7 @@ if [ x"$model_version" != x ]; then
 fi
 plugin_opt=""
 if [ x"$custom_op_plugin" != x ]; then
-  version_opt="--custom-op-plugin $custom_op_plugin"
+  plugin_opt="--custom-op-plugin $custom_op_plugin"
 fi
 
 optimized_mlir="__lower_opt.mlir"
