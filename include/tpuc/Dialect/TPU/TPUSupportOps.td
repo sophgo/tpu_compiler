@@ -56,8 +56,7 @@ def TPU_QuantOp: TPU_Op<"quant",
     DefaultValuedAttr<F32Attr, "1">:$scale,
     DefaultValuedAttr<I32Attr, "0">:$zero_point,
     StrAttr:$name,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -84,8 +83,7 @@ def TPU_ReQuantOp: TPU_Op<"requant",
     ins AnyTensor:$input,
     DefaultValuedAttr<F32Attr, "0">:$qscale,
     DefaultValuedAttr<I32Attr, "0">:$zero_point,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -112,7 +110,7 @@ def TPU_ReshapeOp: TPU_Op<"reshape",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -131,8 +129,7 @@ def TPU_ReshapeOp: TPU_Op<"reshape",
 
   let arguments = (
     ins AnyTensor:$input,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);

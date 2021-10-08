@@ -579,22 +579,6 @@ LogicalResult tpu::ReflectionPadOp::quantizeBf16() {
   return success();
 }
 
-LogicalResult tpu::WhereOp::quantizeBf16() {
-  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  assert(getOpQuant() == "BF16");
-  assert (isTensorNone(x()) && "only support x as none type(masked_fill case)");
-
-  // mask saved as 0/1 that not convert it
-  condition().getDefiningOp()->setAttr("storage", builder.getStringAttr("BF16"));
-
-  op->setAttr("fill_constant",
-          builder.getF32FloatAttr(BF16(fill_constant().convertToFloat())));
-  return success();
-}
-
 //
 // quantization bypass
 //

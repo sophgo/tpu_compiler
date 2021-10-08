@@ -132,7 +132,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgYuv420Kernel.cpp
   Backend/Kernel/TgTileKernel.cpp
   Backend/Kernel/TgUpsampleKernel.cpp
-  Backend/Kernel/TgWhereKernel.cpp
   Backend/Kernel/TgFixedReduceKernel.cpp
   Backend/Kernel/TgBf16Conv3dKernel.cpp
   Backend/Kernel/TgBf16GruKernel.cpp

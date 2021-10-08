@@ -64,7 +64,7 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
                           and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -88,8 +88,7 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     TPU_ConvParamAttr:$param,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -131,7 +130,7 @@ class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
                           and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -155,8 +154,7 @@ class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     TPU_Conv3dParamAttr:$param,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -190,7 +188,7 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `do_relu`         : required, if need to preform relu on result.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -216,8 +214,7 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<F32ArrayAttr>:$coeff,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -250,7 +247,7 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `max_range`       : required, we cut to max_range and outlier saturate it
       `min_range`       : required, we cut to min_range and outlier saturate it
       `layer_id`        : optional, id for profiling.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -272,8 +269,7 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -300,7 +296,7 @@ def TPU_AbsOp: TPU_Op<"abs",
       `maximum`         : optional, the maximum value for Abs when present.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -318,8 +314,7 @@ def TPU_AbsOp: TPU_Op<"abs",
   let arguments = (
     ins AnyTensor:$input,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -341,7 +336,7 @@ def TPU_ArgMaxOp: TPU_Op<"argmax",
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
       `axis`            : required, axis in which to compute the arg indices
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -351,8 +346,7 @@ def TPU_ArgMaxOp: TPU_Op<"argmax",
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -379,7 +373,7 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
       `variance_epsilon`: required, eps for variance.
       `name`            : required, name for calibration, comparing, or debug.
       `frozon`          : optional, pspnet BN layer used
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -398,8 +392,7 @@ def TPU_BatchNormOp: TPU_Op<"batch_norm",
     AnyTensor:$scale,
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -429,7 +422,7 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
       `align_right`     : required, [3,1,3]x[3]=> if true, [3,1,3]x[1,1,3]; else [3, 1, 1]
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -453,8 +446,7 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<BoolAttr, "true">:$align_right,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -488,7 +480,7 @@ def TPU_ConcatOp: TPU_Op<"concat",
       `axis`            : required, the axis the concat is applying
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -511,8 +503,7 @@ def TPU_ConcatOp: TPU_Op<"concat",
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -564,7 +555,7 @@ def TPU_CropOp: TPU_Op<"crop",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
       `crop_offset`     : required, crop offset.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -585,8 +576,7 @@ def TPU_CropOp: TPU_Op<"crop",
     I32ArrayAttr:$crop_offset,
     OptionalAttr<I32ArrayAttr>:$steps,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
   let results = (outs AnyTensor:$output);
   let hasCanonicalizer = 1;
@@ -618,8 +608,7 @@ def TPU_CscOp: TPU_Op<"csc",
     StrAttr:$pixel_format,
     TPU_QuantParamAttr:$quant,
     BoolAttr:$aligned,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
   let results = (outs AnyTensor:$output);
 }
@@ -646,7 +635,7 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -670,8 +659,7 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
     TPU_DetectionOutput_Code_typeAttr:$code_type,
     I32Attr:$keep_top_k,
     F32Attr:$confidence_threshold,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -695,7 +683,7 @@ def TPU_DilateOp: TPU_Op<"dilate",
       `name`            : required, name for calibration, comparing, or debug.
       `fill_constant`   : required, fill the dilated value
       `ins`             : required, ins[0] means ins_w, ins[1] means ins_h
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -712,8 +700,7 @@ def TPU_DilateOp: TPU_Op<"dilate",
     DefaultValuedAttr<I32Attr, "0">:$fill_constant,
     OptionalAttr<I32ArrayAttr>:$ins,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -748,7 +735,7 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
       `do_relu`         : required, if need to preform relu on result.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -774,8 +761,7 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
     DefaultValuedAttr<BoolAttr, "false">:$output_transpose,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -799,8 +785,7 @@ def TPU_ExpOp : TPU_Op<"exp",
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -822,7 +807,7 @@ def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
       `nms_threshold`   : required, nms threshold.
       `keep_topk`       : required, keep top k.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -839,8 +824,7 @@ def TPU_FrcnDetectionOp : TPU_Op<"frcn_detection",
     F32Attr:$obj_threshold,
     F32Attr:$nms_threshold,
     I32Attr:$keep_topk,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -864,7 +848,7 @@ def TPU_GruOp: TPU_Op<"gru",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -888,8 +872,7 @@ def TPU_GruOp: TPU_Op<"gru",
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
-    DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$bidirectional
   );
 
   let results = (outs AnyTensor:$output);
@@ -911,7 +894,7 @@ def TPU_InputOp: TPU_Op<"input",
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
 
-      `chipname`        : optional, chipname.
+
   }];
 
   let arguments = (
@@ -919,8 +902,7 @@ def TPU_InputOp: TPU_Op<"input",
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
     OptionalAttr<TPU_PreprocessParamAttr>:$preprocess,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -953,7 +935,7 @@ def TPU_InterpOp: TPU_Op<"interp",
       `pad_beg`         : optional, padding twice in h/w
       `pad_end`         : optional, padding twice in h/w
       `coordinate_transformation_mode`: optional, This attribute describes how to transform the coordinate in the resized tensor to the coordinate in the original tensor.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -983,8 +965,7 @@ def TPU_InterpOp: TPU_Op<"interp",
     DefaultValuedAttr<I32Attr, "0">:$zoom_factor,
     DefaultValuedAttr<I32Attr, "0">:$pad_beg,
     DefaultValuedAttr<I32Attr, "0">:$pad_end,
-    DefaultValuedAttr<StrAttr, "align_corners">:$coordinate_transformation_mode,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<StrAttr, "align_corners">:$coordinate_transformation_mode
   );
 
   let results = (outs AnyTensor:$output);
@@ -1011,7 +992,7 @@ def TPU_InstanceNormOp: TPU_Op<"instance_norm",
     Attributes:
       `variance_epsilon`: required, eps for variance.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1028,8 +1009,7 @@ def TPU_InstanceNormOp: TPU_Op<"instance_norm",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     StrAttr:$name,
     DefaultValuedAttr<F32Attr, "1.0e-5">:$variance_epsilon,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -1055,7 +1035,7 @@ def TPU_LayerNormOp: TPU_Op<"layer_norm",
       `eps`             : optional, default: 1e-5
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1078,8 +1058,7 @@ def TPU_LayerNormOp: TPU_Op<"layer_norm",
     I32ArrayAttr:$normalized_shape,
     DefaultValuedAttr<F32Attr, "1.0e-5">:$eps,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1119,7 +1098,7 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
       `negative_slope`  : required, the negative_slope.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1145,8 +1124,7 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_multiplier,
     F32Attr:$negative_slope,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1174,7 +1152,7 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       `k`               : optional, k.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1188,8 +1166,7 @@ class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     DefaultValuedAttr<F32Attr, "0.75">:$beta,
     DefaultValuedAttr<F32Attr, "1.0">:$k,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1227,7 +1204,7 @@ def TPU_LrnOp: TPU_Op<"lrn",
       `quant_data1`     : optional, auto generate
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1258,8 +1235,7 @@ def TPU_LrnOp: TPU_Op<"lrn",
     I32Attr:$quant_data0,
     I32Attr:$quant_data1,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1286,7 +1262,7 @@ def TPU_LstmOp: TPU_Op<"lstm",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor with hidden and cell.
@@ -1311,8 +1287,7 @@ def TPU_LstmOp: TPU_Op<"lstm",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_slope_table,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$bidirectional
   );
 
   let results = (outs AnyTensor:$output);
@@ -1333,7 +1308,7 @@ def TPU_MatMulOp : TPU_Op<"matmul",
       `do_relu`         : required, if need to preform relu on result.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1358,8 +1333,7 @@ def TPU_MatMulOp : TPU_Op<"matmul",
     DefaultValuedAttr<BoolAttr, "false">:$output_transpose,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1384,7 +1358,7 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
       `across_spatial`  : required, normalize cross channel or not.
       `channel_shared`  : required, scale cross channel or not.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1401,8 +1375,7 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
     AnyTensor:$scale,
     DefaultValuedAttr<BoolAttr, "true">:$across_spatial,
     DefaultValuedAttr<BoolAttr, "true">:$channel_shared,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1427,7 +1400,7 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
       `name`            : required, name for calibration, comparing, or debug.
       `max_range`       : required, we cut to max_range and outlier saturate it
       `min_range`       : required, we cut to min_range and outlier saturate it
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1448,8 +1421,7 @@ def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
     StrAttr:$name,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -1471,7 +1443,7 @@ def TPU_PermuteOp: TPU_Op<"permute",
 
     Attributes:
       `order`    : required, The new order of the axes of data.
-      `chipname`  : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1487,8 +1459,7 @@ def TPU_PermuteOp: TPU_Op<"permute",
     ins AnyTensor:$input,
     I32ArrayAttr:$order,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1513,7 +1484,7 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
     Attributes:
       `upscale_factor`: optional, upscale factor.
       `mode`: optional, string, Use CRD for column-row-depth order, DCR for depth-column-row order re-arrangement.
-      `chipname`  : optional, chipname.
+
 
 
     Result:
@@ -1531,8 +1502,7 @@ def TPU_PixelShuffleOp: TPU_Op<"pixelshuffle",
     I32Attr:$upscale_factor,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<StrAttr, "CRD">:$mode,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<StrAttr, "CRD">:$mode
   );
 
   let results = (outs AnyTensor:$output);
@@ -1556,7 +1526,7 @@ def TPU_ClipOp: TPU_Op<"clip",
     Attributes:
       `max`: optional, Minimum value, under which element is replaced by min. It must be a scalar(tensor of empty shape).
       `min`: optional, Maximum value, above which element is replaced by max. It must be a scalar(tensor of empty shape).
-      `chipname`  : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1577,8 +1547,7 @@ def TPU_ClipOp: TPU_Op<"clip",
     DefaultValuedAttr<F32Attr, "-999">:$min,
     DefaultValuedAttr<F32Attr, "999">:$max,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1609,7 +1578,7 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
                           filter size, stride, padding, and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1631,8 +1600,7 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1656,7 +1624,7 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
                           filter size, stride, padding, and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1676,8 +1644,7 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
     ins AnyTensor:$input,
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1701,7 +1668,7 @@ def TPU_PoolMax3DOp : TPU_Op<"pool_max_3d",
                           filter size, stride, padding, and do_relu.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1721,8 +1688,7 @@ def TPU_PoolMax3DOp : TPU_Op<"pool_max_3d",
     ins AnyTensor:$input,
     TPU_Pool3dParamAttr:$param,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1747,7 +1713,7 @@ def TPU_CustomOp : TPU_Op<"custom_op",
       `name`            : required, name for calibration, comparing, or debug.
       `do_quant`         : required, quantize to int8/bf16 or not.
       `threshold_overwrite` : required, overwrite threshold backward/forward or not.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1762,8 +1728,7 @@ def TPU_CustomOp : TPU_Op<"custom_op",
     DefaultValuedAttr<BoolAttr, "false">:$tpu,
     DefaultValuedAttr<BoolAttr, "false">:$do_quant,
     DefaultValuedAttr<StrAttr, "none">:$threshold_overwrite,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -1788,7 +1753,7 @@ def TPU_PowerOp: TPU_Op<"power",
       `shift`           : required
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1810,8 +1775,7 @@ def TPU_PowerOp: TPU_Op<"power",
     DefaultValuedAttr<F32Attr, "1.0">:$scale,
     DefaultValuedAttr<F32Attr, "0.0">:$shift,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1852,7 +1816,7 @@ def TPU_PReluOp : TPU_Op<"prelu",
     Attributes:
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1878,8 +1842,7 @@ def TPU_PReluOp : TPU_Op<"prelu",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_neg_multiplier,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1910,7 +1873,7 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1934,8 +1897,7 @@ def TPU_PriorBoxOp: TPU_Op<"priorbox",
     DefaultValuedAttr<F32Attr, "0.5">:$offset,
     I32Attr:$num_priors,
     DefaultValuedAttr<BoolAttr, "true">:$use_default_aspect_ratio,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1954,7 +1916,7 @@ def TPU_ProposalOp: TPU_Op<"proposal",
 
     Attributes:
       `name`                  : required, name for calibration, comparing, or debug.
-      `chipname`              : optional, chipname.
+
       `net_input_h`           : required, net input height
       `net_input_w`           : required, net input width
       `feat_stride`           : required, anchor box stride size
@@ -1980,8 +1942,7 @@ def TPU_ProposalOp: TPU_Op<"proposal",
     F32Attr:$rpn_obj_threshold,
     F32Attr:$rpn_nms_threshold,
     I32Attr:$rpn_nms_post_top_n,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2004,7 +1965,7 @@ def TPU_ReflectionPadOp : TPU_Op<"reflection_pad",
       `pads`             : required, pad left and right.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2023,8 +1984,7 @@ def TPU_ReflectionPadOp : TPU_Op<"reflection_pad",
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$right_select,
     I32ArrayAttr:$pads,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2050,7 +2010,7 @@ def TPU_ReluOp: TPU_Op<"relu",
       `maximum`         : optional, the maximum value for ReluM when present.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2069,8 +2029,7 @@ def TPU_ReluOp: TPU_Op<"relu",
     ins AnyTensor:$input,
     OptionalAttr<F32Attr>:$maximum,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2096,7 +2055,7 @@ def TPU_ReorgOp : TPU_Op<"reorg",
       `stride`          : required, channel / height / width stride.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2116,8 +2075,7 @@ def TPU_ReorgOp : TPU_Op<"reorg",
     ins AnyTensor:$input,
     I32Attr:$stride,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2140,7 +2098,7 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
       `quant`           : required, a QuantParam struct attributes.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2158,8 +2116,7 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
     F32Attr:$nms_threshold,
     F32Attr:$confidence_threshold,
     I32Attr:$keep_topk,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2183,7 +2140,7 @@ def TPU_ReverseOp: TPU_Op<"reverse",
       `axis`           : required, witch axis to reverse
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2203,8 +2160,7 @@ def TPU_ReverseOp: TPU_Op<"reverse",
     ins AnyTensor:$input,
     I32Attr:$axis,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2229,7 +2185,7 @@ def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
       `spatial_scale`   : required, spatial_scale
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2246,8 +2202,7 @@ def TPU_ROIPoolingOp : TPU_Op<"roi_pooling",
     I32Attr:$pooled_w,
     F32Attr:$spatial_scale,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2269,7 +2224,7 @@ def TPU_ScaleOp: TPU_Op<"scale",
     Attributes:
       `do_relu`         : required, if need to preform relu on result.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2286,8 +2241,7 @@ def TPU_ScaleOp: TPU_Op<"scale",
     AnyTensor:$scale,
     TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$bias,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2312,7 +2266,7 @@ def TPU_ScaleLutOp: TPU_Op<"scale_lut",
     Attributes:
       `channel_order`   : optional, channel swap order, bgr as default
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2330,8 +2284,7 @@ def TPU_ScaleLutOp: TPU_Op<"scale_lut",
     F32ArrayAttr:$scale,
     F32ArrayAttr:$bias,
     StrAttr:$name,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -2352,8 +2305,7 @@ def TPU_SoftPlusOp : TPU_LutOp<"softplus", "SoftPlus"> {
     StrAttr:$name,
     DefaultValuedAttr<F32Attr, "1">:$scale,
     DefaultValuedAttr<F32Attr, "0">:$bias,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -2377,7 +2329,7 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
       `group`           : required, channel group.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2397,8 +2349,7 @@ def TPU_ShuffleChannelOp: TPU_Op<"shuffle_channel",
     ins AnyTensor:$input,
     I32Attr:$group,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2421,8 +2372,7 @@ def TPU_SigmoidOp : TPU_Op<"sigmoid",
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
     DefaultValuedAttr<I32Attr, "-1">:$layer_id,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -2453,7 +2403,7 @@ def TPU_SliceOp: TPU_Op<"slice",
       `quant`           : required, a QuantParam struct attributes, to carrying
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2474,8 +2424,7 @@ def TPU_SliceOp: TPU_Op<"slice",
     DefaultValuedAttr<I32Attr, "1">:$axis,
     I32Attr:$offset,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2501,7 +2450,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     Attributes:
       `axis`            : optional, the axis for softmax to perform.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2522,8 +2471,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$reciprocal_mantissa_table,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     StrAttr:$name,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -2548,7 +2496,7 @@ def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
     Attributes:
       `axis`            : optional, the axis for softmax to perform.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2565,8 +2513,7 @@ def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     StrAttr:$name,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -2589,7 +2536,7 @@ def TPU_SquareOp: TPU_Op<"square",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2605,8 +2552,7 @@ def TPU_SquareOp: TPU_Op<"square",
   let arguments = (
     ins AnyTensor:$input,
     StrAttr:$name,
-    TPU_QuantParamAttr:$quant,
-    OptionalAttr<StrAttr>:$chipname
+    TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
@@ -2627,7 +2573,7 @@ def TPU_QuadraticSumOp: TPU_Op<"quadratic_sum",
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2645,8 +2591,7 @@ def TPU_QuadraticSumOp: TPU_Op<"quadratic_sum",
     StrAttr:$name,
     TPU_QuantParamAttr:$quant,
     OptionalAttr<BoolAttr>:$high_precision,
-    DefaultValuedAttr<I32Attr, "1">:$axis,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<I32Attr, "1">:$axis
   );
 
   let results = (outs AnyTensor:$output);
@@ -2670,7 +2615,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
       `channel_order`   : required, channel swap order
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2690,8 +2635,7 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
     ins AnyTensor:$input,
     I32ArrayAttr:$channel_order,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2730,7 +2674,7 @@ def TPU_TileOp: TPU_Op<"tile",
       `quant`           : required, a QuantParam struct attributes, to carrying
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2751,8 +2695,7 @@ def TPU_TileOp: TPU_Op<"tile",
     I32Attr:$axis,
     I32Attr:$tiles,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2777,7 +2720,7 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
       `quant`           : required, a QuantParam struct attributes, to carrying
                           threshold, although the quantization is bypassed.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2799,8 +2742,7 @@ def TPU_UpsampleOp: TPU_Op<"upsample",
     I32Attr:$scale_h,
     I32Attr:$scale_w,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2820,7 +2762,7 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
 
     Attributes:
       `name`                    : required, name for calibration, comparing, or debug.
-      `chipname`                : optional, chipname.
+
       `net_input_h`             : required, net input h
       `net_input_w`             : required, net input w
       `nms_threshold`           : required, nms threshold
@@ -2847,8 +2789,7 @@ def TPU_YoloDetectionOp : TPU_Op<"yolo_detection",
     DefaultValuedAttr<BoolAttr, "false">:$yolo_v4,
     DefaultValuedAttr<I32Attr, "80">:$class_num,
     DefaultValuedAttr<StrAttr, "">:$anchors,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2874,7 +2815,7 @@ def TPU_PadOp: TPU_Op<"pad",
       `const_val`       : A scalar value to be used if the mode
                           chosen is `constant` (by default it is 0).
       `mode`            : optional, Supported modes: `constant`(default), `reflect`, `edge`
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2892,8 +2833,7 @@ def TPU_PadOp: TPU_Op<"pad",
     StrAttr:$name,
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
-    DefaultValuedAttr<StrAttr, "constant">:$mode,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<StrAttr, "constant">:$mode
   );
 
   let results = (outs AnyTensor:$output);
@@ -2916,7 +2856,7 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
     Attributes:
       `scale`           : required, scale for upsampling.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2932,8 +2872,7 @@ def TPU_PoolMaskOp: TPU_Op<"pool_mask",
     ins AnyTensor:$input,
     I32Attr:$scale,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2982,8 +2921,7 @@ def TPU_ReduceL2Op: TPU_Op<"reduce_l2",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     OptionalAttr<I32ArrayAttr>:$axes,
-    DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$keepdims
   );
 
   let results = (outs AnyTensor:$output);
@@ -3028,8 +2966,7 @@ def TPU_ReduceMinOp: TPU_Op<"reduce_min",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     OptionalAttr<I32ArrayAttr>:$axes,
-    DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$keepdims
   );
 
   let results = (outs AnyTensor:$output);
@@ -3074,8 +3011,7 @@ def TPU_ReduceMaxOp: TPU_Op<"reduce_max",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     OptionalAttr<I32ArrayAttr>:$axes,
-    DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$keepdims
   );
 
   let results = (outs AnyTensor:$output);
@@ -3120,8 +3056,7 @@ def TPU_ReduceMeanOp: TPU_Op<"reduce_mean",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
-    DefaultValuedAttr<BoolAttr, "false">:$keepdims,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$keepdims
   );
 
   let results = (outs AnyTensor:$output);
@@ -3141,8 +3076,7 @@ def TPU_EmbeddingOp: TPU_Op<"embedding",
     ins AnyTensor:$input,
     AnyTensor:$table,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -3168,7 +3102,7 @@ def TPU_StdOp: TPU_Op<"std",
       `unbiased`        : required, whether to use Bessel’s correction
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -3189,8 +3123,7 @@ def TPU_StdOp: TPU_Op<"std",
     I32Attr:$start_dim,
     BoolAttr:$unbiased,
     TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -3236,47 +3169,6 @@ def TPU_WeightFileOp: TPU_Op<"weight_file",
   }];
 
   let results = (outs AnyMemRef:$output);
-}
-
-def TPU_WhereOp: TPU_Op<"where",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Where operator";
-
-  let description = [{
-    Return elements, either from X or Y, depending on condition (with Numpy-style broadcasting support). Where behaves like numpy.where with three parameters: https://docs.scipy.org/doc/numpy/reference/generated/numpy.where.html
-
-    Inputs:
-      condition (non-differentiable) : B
-          When True (nonzero), yield X, otherwise yield Y
-      X (differentiable) : T
-          values selected at indices where condition is True
-      Y (differentiable) : T
-          values selected at indices where condition is False
-    Example:
-      condition = np.array([[1, 0], [1, 1]], dtype=bool)
-      x = np.array([[1, 2], [3, 4]], dtype=np.float32)
-      y = np.array([[9, 8], [7, 6]], dtype=np.float32)
-      z = np.where(condition, x, y)  # expected output [[1, 8], [3, 4]]
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$condition,
-    TPU_TensorOfOrNone<[F32, BF16, I16, I8]>:$x,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
-    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
-    DefaultValuedAttr<F32Attr, "0">:$fill_constant,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
 }
 
 include "tpuc/Dialect/TPU/TPUSupportOps.td"

@@ -85,7 +85,7 @@ class TPU_TL_LG_AbsOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -104,8 +104,7 @@ class TPU_TL_LG_AbsOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     BoolAttr:$align,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -148,8 +147,7 @@ class TPU_TL_LG_Conv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_neg,
     DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
     OptionalAttr<BoolAttr>:$compressed_weight,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -189,8 +187,7 @@ class TPU_TL_LG_DeConv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<I32Attr, "0">:$pad_right_w,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -218,7 +215,6 @@ class TPU_TL_LG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_
     OptionalAttr<I32ArrayAttr>:$la_input,
     I32Attr:$la_working,
     I32Attr:$la_output,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
@@ -226,8 +222,7 @@ class TPU_TL_LG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_
     DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
     OptionalAttr<F32ArrayAttr>:$coeff,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -257,8 +252,7 @@ class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_O
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -296,8 +290,7 @@ class TPU_TL_LG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$la_working,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -335,8 +328,7 @@ class TPU_TL_LG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -368,8 +360,7 @@ def TPU_TL_LG_QuantOp : TPU_Op<"tl_lg_quant",
     DefaultValuedAttr<BoolAttr, "false">:$bExtraInput,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -396,8 +387,7 @@ class TPU_TL_LG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<I64Attr>:$gaddr,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -427,8 +417,7 @@ def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<TPU_ActCmprParamAttr>:$compr_act_param,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<TPU_ActCmprParamAttr>:$compr_act_param
   );
 
   let results = (outs AnyTensor:$output);
@@ -456,8 +445,7 @@ def TPU_TL_LG_LoadCoeffOp : TPU_Op<"tl_lg_load_coeff",
     OptionalAttr<BoolAttr>:$compressed_weight,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -483,8 +471,7 @@ def TPU_TL_LG_StoreOp : TPU_Op<"tl_lg_store",
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     OptionalAttr<BoolAttr>:$store_compr_act,
-    OptionalAttr<TPU_ActCmprParamAttr>:$compr_act_param,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<TPU_ActCmprParamAttr>:$compr_act_param
   );
 
   let results = (outs AnyTensor:$output);
@@ -504,8 +491,7 @@ def TPU_TL_LG_JoinOp : TPU_Op<"tl_lg_join",
     OptionalAttr<I64Attr>:$gaddr,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -532,8 +518,7 @@ class TPU_TL_LG_ScaleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -560,8 +545,7 @@ class TPU_TL_LG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$la_table,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -585,7 +569,7 @@ class TPU_TL_LG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -614,8 +598,7 @@ class TPU_TL_LG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$affine,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -641,8 +624,7 @@ class TPU_TL_LG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -672,8 +654,7 @@ class TPU_TL_LG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -703,8 +684,7 @@ class TPU_TL_LG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -731,8 +711,7 @@ def TPU_TL_LG_CopyOp : TPU_Op<"tl_lg_copy",
     BoolAttr:$align,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -754,7 +733,7 @@ class TPU_TL_LG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           chosen is `constant` (by default it is 0).
       `mode`            : optional, Supported modes: `constant`(default), `reflect`, `edge`
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -776,8 +755,7 @@ class TPU_TL_LG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     BoolAttr:$align,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -799,7 +777,7 @@ class TPU_TL_LG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `crop_offsets`    : required, crop offset(saved as I32ArrayAttr).
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -820,8 +798,7 @@ class TPU_TL_LG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     BoolAttr:$align,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -841,7 +818,7 @@ class TPU_TL_LG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -860,8 +837,7 @@ class TPU_TL_LG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     BoolAttr:$align,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -884,7 +860,7 @@ class TPU_TL_LG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `offset`          : required, the offset the output is sliced within the
                           input, along the specified axis.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -905,8 +881,7 @@ class TPU_TL_LG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     BoolAttr:$align,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -926,7 +901,7 @@ class TPU_TL_LG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 
     Attributes:
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
       `channel_order`   : optional, channel swap order
 
     Result:
@@ -946,8 +921,7 @@ class TPU_TL_LG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     I32ArrayAttr:$channel_order,
     OptionalAttr<I64Attr>:$gaddr,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);

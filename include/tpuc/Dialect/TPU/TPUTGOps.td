@@ -45,11 +45,8 @@ class TPU_TG_AbsOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -62,11 +59,9 @@ class TPU_TG_AbsOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -88,11 +83,8 @@ class TPU_TG_ArgMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -105,11 +97,9 @@ class TPU_TG_ArgMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -132,14 +122,11 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `rshift`          : optional, rshift for inputs.
       `m_i8_inputs`     : optional, multipliers for inputs. one int8 value for
                           each input (saved as I32ArrayAttr)
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -156,11 +143,9 @@ class TPU_TG_ConcatOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I32ArrayAttr>:$m_i8_inputs,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     I32Attr:$axis,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -182,7 +167,7 @@ def TPU_TG_ConcatNOp: TPU_Op<"tg_concat_n",
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -196,8 +181,7 @@ def TPU_TG_ConcatNOp: TPU_Op<"tg_concat_n",
   let arguments = (
     ins Variadic<AnyTensor>:$inputs,
     OptionalAttr<I64Attr>:$gaddr,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -220,14 +204,11 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `param`           : required, a ConvParam struct attributes, carrying
                           stride, padding, dilation, group, is_dw, with_bias,
                           and do_relu.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -244,7 +225,6 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[I32,I16,I8]>:$pc_info,
     OptionalAttr<I8Attr>:$pt_rshift,
     TPU_ConvParamAttr:$param,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
@@ -260,8 +240,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<TPU_ConvTileParamAttr>:$tile_param,
     OptionalAttr<BoolAttr>:$compressed_weight,
     OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,
-    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param
   );
 
   let results = (outs AnyTensor:$output);
@@ -293,14 +272,12 @@ class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `param`           : required, a ConvParam struct attributes, carrying
                           stride, padding, dilation, group, is_dw, with_bias,
                           and do_relu.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -317,7 +294,6 @@ class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[I32,I16,I8]>:$pc_info,
     OptionalAttr<I8Attr>:$pt_rshift,
     TPU_Conv3dParamAttr:$param,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
@@ -330,8 +306,7 @@ class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,
-    OptionalAttr<TPU_ConvTileParamAttr>:$tile_param,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<TPU_ConvTileParamAttr>:$tile_param
   );
 
   let results = (outs AnyTensor:$output);
@@ -351,14 +326,12 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `crop_offset`     : required, crop offset(saved as I32ArrayAttr).
       `steps`           : optional, steps (saved as I32ArrayAttr).
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -373,11 +346,9 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     I32ArrayAttr:$crop_offset,
     OptionalAttr<I32ArrayAttr>:$steps,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -399,14 +370,12 @@ class TPU_TG_DilateOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `fill_constant`   : required, fill the dilated value
       `ins`             : required, ins[0] means ins_w, ins[1] means ins_h
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -421,11 +390,9 @@ class TPU_TG_DilateOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "0">:$fill_constant,
     OptionalAttr<I32ArrayAttr>:$ins,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -447,11 +414,9 @@ class TPU_TG_EmbeddingOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -465,11 +430,9 @@ class TPU_TG_EmbeddingOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$table,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -494,16 +457,14 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
       `m_i8_output`     : optional, multiplier for output.
       `m_i32_output`    : optional, multiplier for output, .
       `do_relu`         : required, if need to preform relu on result.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `input_offset`    : optional, inputs offset
       `output_offset`   : optional, output offset
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -524,7 +485,6 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     DefaultValuedAttr<BoolAttr, "false">:$do_early_stride,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I32ArrayAttr>:$input_offset,
     OptionalAttr<I32Attr>:$output_offset,
     OptionalAttr<I64Attr>:$gaddr,
@@ -534,8 +494,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<BoolAttr>:$store_compr_act,
     OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,
-    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param
   );
 
   let results = (outs AnyTensor:$output);
@@ -566,14 +525,12 @@ class TPU_TG_BroadcastOp<string mnemonic, string opQuant, string opType> : TPU_O
       `m_i8_output`     : optional, multiplier for output.
       `m_i32_output`    : optional, multiplier for output, .
       `do_relu`         : required, if need to preform relu on result.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -592,13 +549,11 @@ class TPU_TG_BroadcastOp<string mnemonic, string opQuant, string opType> : TPU_O
     OptionalAttr<I32Attr>:$m_i32_output,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<BoolAttr, "true">:$align_right,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<BoolAttr>:$store_compr_act,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<BoolAttr>:$store_compr_act
   );
 
   let results = (outs AnyTensor:$output);
@@ -623,14 +578,12 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     Attributes:
       `do_relu`         : required, whether to do relu on result.
       `rshift`          : optional, rshift for positive, an int8 value.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -650,14 +603,12 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     OptionalAttr<I32ArrayAttr>:$rshift,
     OptionalAttr<I32ArrayAttr>:$multiplier,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<TPU_FcTileParamAttr>:$tile_param,
     OptionalAttr<BoolAttr>:$compressed_weight,
     OptionalAttr<I32ArrayAttr>:$compr_weight_poss,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -678,9 +629,7 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `m_i8_pos`        : optional, multiplier for positive, an int8 value.
       `rshift_neg`      : required, rshift for negative, an int8 value.
       `m_i8_neg`        : required, multiplier for negative, an int8 value.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
@@ -691,7 +640,7 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `zoom_factor`     : optional, enlarge h/w to larger one, leverage deconv
       `pad_beg`         : optional, padding twice in h/w
       `pad_end`         : optional, padding twice in h/w
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -708,7 +657,6 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
@@ -717,8 +665,7 @@ class TPU_TG_InterpOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<I32Attr, "0">:$shrink_factor,
     DefaultValuedAttr<I32Attr, "0">:$zoom_factor,
     DefaultValuedAttr<I32Attr, "0">:$pad_beg,
-    DefaultValuedAttr<I32Attr, "0">:$pad_end,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<I32Attr, "0">:$pad_end
   );
 
   let results = (outs AnyTensor:$output);
@@ -747,14 +694,12 @@ class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -776,11 +721,9 @@ class TPU_TG_GruOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     AnyTensor:$tanh_slope_table,
     DefaultValuedAttr<BoolAttr, "true">:$linear_before_reset,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -805,7 +748,7 @@ class TPU_TG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -824,12 +767,9 @@ class TPU_TG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$bias,
     I32ArrayAttr:$normalized_shape,
     F32Attr:$eps,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<BoolAttr>:$gaddr_updated,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -857,14 +797,12 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -887,11 +825,9 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     AnyTensor:$tanh_table,
     AnyTensor:$tanh_slope_table,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -915,16 +851,14 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `m_i8_pos`        : optional, multiplier for positive, an int8 value.
       `rshift_neg`      : required, rshift for negative, an int8 value.
       `m_i8_neg`        : required, multiplier for negative, an int8 value.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `input_offset`    : optional, in asymmetric, add input_offset to input tensor before do leaky relu.
       `output_offset`    : optional, in asymmetric, add output_offset at final.
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -944,11 +878,9 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_neg,
     OptionalAttr<I32Attr>:$input_offset,
     OptionalAttr<I32Attr>:$output_offset,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -974,14 +906,12 @@ class TPU_TG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `lrn_rshift`      : required, lrn right shift width
       `quant_data0`     : required, quantilization x [0]
       `quant_data1`     : required, quantilization x [1]
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1001,13 +931,11 @@ class TPU_TG_LrnOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     I32Attr:$lrn_rshift,
     I32Attr:$quant_data0,
     I32Attr:$quant_data1,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     DefaultValuedAttr<F32Attr, "1.0">:$alpha,
     DefaultValuedAttr<F32Attr, "1.0">:$k,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1028,9 +956,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `table_mantissa` : optional, for bf16 mantissa table
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
@@ -1038,7 +964,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `method`          : optional(bf16 required)lookup table method, mantissa or slope
       `max_range`       : reauired, we cut to max_range and outlier saturate it
       `min_range`       : reauired, we cut to min_range and outlier saturate it
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1053,15 +979,13 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     AnyTensor:$table,
     TPU_TensorOfOrNone<[I32, F32, BF16, I16, I8]>:$table_mantissa,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$method,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<I32Attr, "-1">:$layer_id
   );
 
   let results = (outs AnyTensor:$output);
@@ -1083,7 +1007,7 @@ class TPU_TG_ReflectionPadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `pads`             : required, pad left and right.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1101,11 +1025,9 @@ class TPU_TG_ReflectionPadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     AnyTensor:$left_select,
     AnyTensor:$right_select,
     I32ArrayAttr:$pads,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1125,14 +1047,12 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `order`          : required, The new order of the axes of data.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1146,11 +1066,9 @@ class TPU_TG_PermuteOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     I32ArrayAttr:$order,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1173,14 +1091,12 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
       `m_i8`            : optional, multiplier for output.
       `param`           : required, a PoolParam struct attributes, carrying
                           filter size, stride, padding, and do_relu.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1196,7 +1112,6 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     OptionalAttr<I8Attr>:$rshift,
     OptionalAttr<I8Attr>:$m_i8,
     TPU_PoolParamAttr:$param,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<TPU_PoolTileParamAttr>:$tile_param,
@@ -1204,8 +1119,7 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     OptionalAttr<BoolAttr>:$store_compr_act,
     OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,
     OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1230,14 +1144,12 @@ class TPU_TG_Pool3DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
       `m_i8`            : optional, multiplier for output.
       `param`           : required, a PoolParam struct attributes, carrying
                           filter size, stride, padding, and do_relu.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1253,11 +1165,9 @@ class TPU_TG_Pool3DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     OptionalAttr<I8Attr>:$rshift,
     OptionalAttr<I8Attr>:$m_i8,
     TPU_Pool3dParamAttr:$param,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1281,14 +1191,12 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `name`            : required, name for comparing, or debug.
       `rshift_pos`     : optional, rshift for positive, an int8 value.
       `m_i8_pos`       : optional, multiplier for positive, an int8 value.
       `rshift_neg`     : required, rshift for negative, an int8 value.
-      `chipname`       : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1302,14 +1210,12 @@ class TPU_TG_PReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$negative_slope,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I8Attr>:$rshift_pos,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1329,14 +1235,12 @@ class TPU_TG_PoolMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `table`          : required, the lookup table
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1350,11 +1254,9 @@ class TPU_TG_PoolMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     I32Attr:$scale,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1385,7 +1287,7 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1402,13 +1304,11 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
     TPU_QuantModeAttr:$to,
     F32Attr:$scale,
     OptionalAttr<I32Attr>:$zero_point,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1431,7 +1331,7 @@ def TPU_TG_ReQuantOp : TPU_Op<"tg_requant",
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1447,11 +1347,9 @@ def TPU_TG_ReQuantOp : TPU_Op<"tg_requant",
     OptionalAttr<F32Attr>:$qscale,
     OptionalAttr<I32Attr>:$input_offset,
     OptionalAttr<I32Attr>:$output_offset,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1471,11 +1369,9 @@ class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1488,11 +1384,9 @@ class TPU_TG_ReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1513,15 +1407,13 @@ class TPU_TG_ReorgOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `stride`          : required, channel / height /width stride.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1535,11 +1427,9 @@ class TPU_TG_ReorgOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     I32Attr:$stride,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1559,15 +1449,13 @@ class TPU_TG_ReverseOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `axis`           : required, reverse dim
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1581,11 +1469,9 @@ class TPU_TG_ReverseOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     I32Attr:$axis,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1605,15 +1491,13 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
 
     Attributes:
       `group`           : required, channel group of shuffle.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1627,11 +1511,9 @@ class TPU_TG_ShuffleChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
   let arguments = (
     ins AnyTensor:$input,
     I32Attr:$group,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1651,14 +1533,12 @@ class TPU_TG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `table`          : required, the lookup table
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1672,11 +1552,9 @@ class TPU_TG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$table,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1699,7 +1577,7 @@ class TPU_TG_StdOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1716,12 +1594,9 @@ class TPU_TG_StdOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     AnyTensor:$mantissa_table,
     I32Attr:$start_dim,
     BoolAttr:$unbiased,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<BoolAttr>:$gaddr_updated,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1745,7 +1620,7 @@ class TPU_TG_TileOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1760,11 +1635,9 @@ class TPU_TG_TileOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     I32Attr:$axis,
     I32Attr:$tiles,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1784,15 +1657,13 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `upscale_factor`  : required, indicate for upsample upscale_factor.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1806,12 +1677,10 @@ class TPU_TG_PixelShuffleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     I32Attr:$upscale_factor,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     DefaultValuedAttr<StrAttr, "CRD">:$mode,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1832,15 +1701,11 @@ class TPU_TG_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `max`: optional, Minimum value, under which element is replaced by min. It must be a scalar(tensor of empty shape).
       `min`: optional, Maximum value, above which element is replaced by max. It must be a scalar(tensor of empty shape).
-
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1855,11 +1720,9 @@ class TPU_TG_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     DefaultValuedAttr<F32Attr, "999">:$min,
     DefaultValuedAttr<F32Attr, "-999">:$max,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1884,15 +1747,13 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `axis`            : required, the axis to slice.
       `offset`          : required, the offset the output is sliced within the
                           input, along the specified axis.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1907,14 +1768,11 @@ class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     DefaultValuedAttr<I32Attr, "1">:$axis,
     I32Attr:$offset,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<BoolAttr>:$gaddr_updated,
     OptionalAttr<BoolAttr>:$load_compr_act,
     OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1941,7 +1799,7 @@ class TPU_TG_SoftmaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `axis`            : optional, the axis for softmax to perform.
       `name`            : required, name for calibration, comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -1959,12 +1817,9 @@ class TPU_TG_SoftmaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     AnyTensor:$reciprocal_table,
     AnyTensor:$reciprocal_mantissa_table,
     DefaultValuedAttr<I32Attr, "1">:$axis,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<BoolAttr>:$gaddr_updated,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1983,15 +1838,13 @@ class TPU_TG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2005,11 +1858,9 @@ class TPU_TG_SwapChannelOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     I32ArrayAttr:$channel_order,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2030,14 +1881,11 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `scale`           : required, scale for upsampling.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2052,11 +1900,9 @@ class TPU_TG_UpsampleOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     I32Attr:$scale_h,
     I32Attr:$scale_w,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2079,7 +1925,7 @@ class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `param`           : required
       `name`            : required
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2089,11 +1935,9 @@ class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins Variadic<TPU_TensorOfOrNone<[F32, BF16, AnyInteger]>>:$inputs,
     StrAttr:$operation_name,
     DictionaryAttr:$param,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2115,7 +1959,7 @@ def TPU_GenericCpuOp : TPU_Op<"generic_cpu_op",
     Attributes:
       `param`           : required
       `name`            : required
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2127,8 +1971,7 @@ def TPU_GenericCpuOp : TPU_Op<"generic_cpu_op",
     StrAttr:$name,
     StrAttr:$operation_name,
     DictionaryAttr:$param,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<StrAttr>:$chipname
+    OptionalAttr<I64Attr>:$gaddr
   );
 
   let results = (outs AnyTensor:$output);
@@ -2151,8 +1994,7 @@ def TPU_TG_CallOp : TPU_Op <"tg_call",
     OptionalAttr<I64Attr>:$gaddr,
     StrAttr:$name,
     FlatSymbolRefAttr:$callee,
-    Variadic<AnyType>:$arguments,
-    OptionalAttr<StrAttr>:$chipname
+    Variadic<AnyType>:$arguments
     );
   let parser = [{ return ::parse$cppClass(parser, result); }];
   let printer = [{ return ::print(p, *this); }];
@@ -2171,9 +2013,7 @@ class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Attributes:
       `scale`           : required, scale for upsampling.
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
@@ -2183,7 +2023,7 @@ class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
                           chosen is `constant` (by default it is 0).
       `mode`            : optional, Supported modes: `constant`(default), `reflect`, `edge`
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2196,14 +2036,12 @@ class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<I32ArrayAttr>:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
     DefaultValuedAttr<StrAttr, "constant">:$mode,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2222,15 +2060,13 @@ class TPU_TG_ReduceMeanOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `axes`            : along which axis to do reduce
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2245,12 +2081,10 @@ class TPU_TG_ReduceMeanOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     OptionalAttr<I8Attr>:$rshift,
     OptionalAttr<I8Attr>:$m_i8,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<I32ArrayAttr>:$axes,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2269,15 +2103,13 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `axes`            : along which axis to do reduce
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2292,12 +2124,10 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     OptionalAttr<I8Attr>:$rshift,
     OptionalAttr<I8Attr>:$m_i8,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<I32ArrayAttr>:$axes,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2316,15 +2146,13 @@ class TPU_TG_ReduceMinOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `axes`            : along which axis to do reduce
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2339,12 +2167,10 @@ class TPU_TG_ReduceMinOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     OptionalAttr<I8Attr>:$rshift,
     OptionalAttr<I8Attr>:$m_i8,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<I32ArrayAttr>:$axes,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2363,14 +2189,12 @@ class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2383,73 +2207,14 @@ class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
 }
 def TPU_TG_BF16_SquareOp : TPU_TG_SquareOp<"tg_bf16_square", "Bf16">;
-
-def TPU_TG_WhereOp : TPU_Op<"tg_where",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " Where operator.";
-
-  let description = [{
-    Inputs:
-      `input`          : required, the input activation memref.
-      `x`              : optional, values selected at indices where condition is True
-      `condition`      : required, When True (nonzero), yield x, otherwise yield input
-
-    Attributes:
-      `input_offset`    : required, input_offset
-      `output_offset`   : required, output_offset
-      `fill_constant`   : as masked_fill in pytorch once x is None
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `buffer_reused`   : optional, whether buffer is reused.
-      `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-    Backend implementation:
-      # notice that operates will dirty input
-      x = copy(input)
-      x = x * 0 # clean
-      x = x + fill_constant # broadcast
-      x = x * condition
-      condition = condition * -1 + 1 # invert 0/1 to 1/0
-      input = input * condition
-      x = x + y
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$condition,
-    TPU_TensorOfOrNone<[I32,I16,I8]>:$x,
-    OptionalAttr<I8Attr>:$rshift,
-    OptionalAttr<I8Attr>:$m_i8,
-    DefaultValuedAttr<F32Attr, "0">:$fill_constant,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
-  );
-
-  let results = (outs AnyTensor:$output);
-}
 
 class TPU_TG_QuadraticSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
@@ -2462,14 +2227,12 @@ class TPU_TG_QuadraticSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2482,13 +2245,11 @@ class TPU_TG_QuadraticSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<BoolAttr>:$high_precision,
     StrAttr:$name,
-    DefaultValuedAttr<I32Attr, "1">:$axis,
-    OptionalAttr<StrAttr>:$chipname
+    DefaultValuedAttr<I32Attr, "1">:$axis
   );
 
   let results = (outs AnyTensor:$output);
@@ -2506,14 +2267,12 @@ class TPU_TG_MatMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2528,15 +2287,13 @@ class TPU_TG_MatMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins Variadic<AnyTensor>:$inputs,
     OptionalAttr<I8Attr>:$rshift,
     OptionalAttr<I32Attr>:$multiplier,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     DefaultValuedAttr<BoolAttr, "false">:$left_transpose,
     DefaultValuedAttr<BoolAttr, "false">:$right_transpose,
     DefaultValuedAttr<BoolAttr, "false">:$output_transpose,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2555,15 +2312,13 @@ class TPU_TG_Yuv420CscOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
 
     Attributes:
-      `region`          : required, the memory region to reside in, could be
-                          one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
-                          (backend does not support `INPUT`, `OUTPUT` for now)
+
       `gaddr`           : optional, address in global memory, normally the
                                      offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
-      `chipname`        : optional, chipname.
+
 
     Result:
       `output`          : result tensor.
@@ -2577,11 +2332,9 @@ class TPU_TG_Yuv420CscOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     OptionalAttr<I32ArrayAttr>:$channel_order,
-    DefaultValuedAttr<TPU_MemRegionAttr, "ACTIVATION">:$region,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -2603,8 +2356,7 @@ class TPU_TG_MergeConvConvPoolOp<string mnemonic, string opQuant> : TPU_Op<mnemo
     TPU_ConvParamAttr:$param_1,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<StrAttr>:$chipname
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);

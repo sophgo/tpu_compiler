@@ -49,7 +49,6 @@
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
 #include "tpuc/Interpreter/cpu/tile.hpp"
 #include "tpuc/Interpreter/cpu/upsample.hpp"
-#include "tpuc/Interpreter/cpu/where.hpp"
 #include "tpuc/Interpreter/cpu/embedding.hpp"
 #include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
@@ -314,8 +313,6 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<TileOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::UpsampleOp>(op)) {
       krnl = std::make_shared<UpsampleOpKernel>(*op, valueMapping, weightMapping);
-    } else if (isa<tpu::WhereOp>(op)) {
-      krnl = std::make_shared<WhereOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::YoloDetectionOp>(op)) {
       krnl = std::make_shared<YoloDetectionOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::EmbeddingOp>(op)) {

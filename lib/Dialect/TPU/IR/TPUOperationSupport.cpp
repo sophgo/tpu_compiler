@@ -169,25 +169,6 @@ int getOpLayerId(Operation *op) {
   }
 }
 
-LogicalResult setChipName(Operation *op, llvm::StringRef chipname) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
-    return tpuOp.setChipName(chipname);
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
-
-llvm::StringRef getChipName(Operation *op) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
-    return tpuOp.getChipName();
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
 llvm::StringRef getOpQuant(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuant();
