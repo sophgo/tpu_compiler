@@ -3730,13 +3730,7 @@ struct LowerCustomOpPattern : public RewritePattern {
                                   op->getOperands().end());
 
     if (castOp.tpu()) {
-      if (castOp.getOpQuant() == "INT8") {
-        auto newOp = OpBuilder(op).create<tpu::TG_INT8_GenericTpuOp>(
-            op->getLoc(), castOp.getResult().getType(), ArrayRef<Value>{operands},
-            ArrayRef<NamedAttribute>{attrs});
-        auto result = newOp.getResult();
-        rewriter.replaceOp(op, {result});
-      } else if (castOp.getOpQuant() == "BF16") {
+      if (castOp.getOpQuant() == "BF16") {
         auto newOp = OpBuilder(op).create<tpu::TG_BF16_GenericTpuOp>(
             op->getLoc(), castOp.getResult().getType(), ArrayRef<Value>{operands},
             ArrayRef<NamedAttribute>{attrs});

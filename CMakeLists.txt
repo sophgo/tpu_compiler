@@ -75,3 +75,7 @@ add_subdirectory(python)
 
 install(FILES cvitek_envs.sh
   DESTINATION ../)
+
+install(FILES include/tpuc/CustomOp.h
+              include/tpuc/CustomOpParam.h
+        DESTINATION include/tpuc)

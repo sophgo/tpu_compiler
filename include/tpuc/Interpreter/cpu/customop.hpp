@@ -22,9 +22,9 @@ private:
   void i8_invoke();
 
 private:
-  std::vector<SyncedData> inputs_data;
-  SyncedData output_data;
-  std::vector<SyncedDataShape> inputs_shape;
+  std::vector<std::shared_ptr<std::vector<float>>> inputs_data;
+  std::shared_ptr<std::vector<float>> output_data;
+  std::vector<std::vector<int64_t>> inputs_shape;
 
   std::string operation_name;
   cvi::OpParam param;

@@ -14,30 +14,25 @@ CustomOpKernel::CustomOpKernel(Operation &op, value_map_t &valueMapping,
   auto &pluginFile = MlirModuleInterpreter::getCustomOpPluginFile();
   this->plugin = cvi::CustomOpPlugin::load(pluginFile);
   assert(this->plugin);
-
-  // get tensors
   inputs_data.resize(this->opdTensors.size());
   inputs_shape.resize(this->opdTensors.size());
   for (size_t i = 0; i < this->opdTensors.size(); i++) {
-    inputs_data[i] = this->opdTensors[i];
     inputs_shape[i] = getTensorShape(op.getOperand(i));
   }
-  output_data = this->resTensor;
 }
 
 void CustomOpKernel::invoke() {
-  if (datatype == DataType::FP32) {
-    plugin->fp32Interpret(operation_name.c_str(), param, inputs_data,
-                          inputs_shape, output_data, shape);
-  } else if (datatype == DataType::INT8) {
-    plugin->int8Interpret(operation_name.c_str(), param, inputs_data,
-                          inputs_shape, output_data, shape);
-  } else if (datatype == DataType::BF16) {
-    plugin->bf16Interpret(operation_name.c_str(), param, inputs_data,
-                          inputs_shape, output_data, shape);
-  } else {
-    llvm_unreachable("unsupported type");
+  for (size_t i = 0; i < this->opdTensors.size(); i++) {
+    inputs_data[i] = std::make_shared<std::vector<float>>(
+        opdTensors[i]->begin(), opdTensors[i]->end());
   }
+  output_data = std::make_shared<std::vector<float>>(resTensor->size());
+  plugin->fp32Interpret(operation_name.c_str(), param, inputs_data,
+                        inputs_shape, output_data, shape);
+  if (datatype == DataType::BF16) {
+    BF16(output_data->data(), output_data->data(), output_data->size());
+  }
+  std::copy(output_data->begin(), output_data->end(), resTensor->begin());
 }
 
 } // namespace mlir

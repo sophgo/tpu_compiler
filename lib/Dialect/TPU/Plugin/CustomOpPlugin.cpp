@@ -32,23 +32,11 @@ CustomOp* CustomOpPlugin::loadCustomOp(std::string opName, OpParam &param) {
   return customOps[opName](param);
 }
 
-void CustomOpPlugin::int8Interpret(
-    const char *opName, OpParam &param,
-    std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
-    std::vector<std::vector<int64_t>> &operand_shapes,
-    std::shared_ptr<mlir::TensorData> &result_tensor,
-    std::vector<int64_t> &result_shape) {
-  auto op = loadCustomOp(opName, param);
-  assert(op);
-  op->interpretInt8(operand_tensors, operand_shapes, result_tensor, result_shape);
-  delete op;
-}
-
 void CustomOpPlugin::fp32Interpret(
     const char *opName, OpParam &param,
-    std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
+    std::vector<std::shared_ptr<std::vector<float>>> &operand_tensors,
     std::vector<std::vector<int64_t>> &operand_shapes,
-    std::shared_ptr<mlir::TensorData> &result_tensor,
+    std::shared_ptr<std::vector<float>> &result_tensor,
     std::vector<int64_t> &result_shape) {
   auto op = loadCustomOp(opName, param);
   assert(op);
@@ -56,45 +44,10 @@ void CustomOpPlugin::fp32Interpret(
   delete op;
 }
 
-void CustomOpPlugin::bf16Interpret(
-    const char *opName, OpParam &param,
-    std::vector<std::shared_ptr<mlir::TensorData>> &operand_tensors,
-    std::vector<std::vector<int64_t>> &operand_shapes,
-    std::shared_ptr<mlir::TensorData> &result_tensor,
-    std::vector<int64_t> &result_shape) {
+void CustomOpPlugin::bf16Quant(const char *opName, OpParam &param, OpParam *quant) {
   auto op = loadCustomOp(opName, param);
   assert(op);
-  op->interpretBf16(operand_tensors, operand_shapes, result_tensor, result_shape);
-  delete op;
-}
-
-void CustomOpPlugin::int8Quant(const char *opName, OpParam &param, OpParam *quant,
-                               float prev_threshold) {
-  auto op = loadCustomOp(opName, param);
-  assert(op);
-  op->setQuantParam(quant, prev_threshold);
-  op->quantizeInt8();
-  delete op;
-}
-
-void CustomOpPlugin::bf16Quant(const char *opName, OpParam &param, OpParam *quant,
-                               float prev_threshold) {
-  auto op = loadCustomOp(opName, param);
-  assert(op);
-  op->setQuantParam(quant, prev_threshold);
   op->quantizeBf16();
-  delete op;
-}
-
-void CustomOpPlugin::int8CodeGen(const char *opName, OpParam &param, void *ctx,
-                                 std::vector<std::vector<int64_t>> &operand_shapes,
-                                 std::vector<uint64_t> &operand_gaddrs,
-                                 std::vector<int64_t> &result_shape,
-                                 uint64_t result_gaddr, int layer_id) {
-  auto op = loadCustomOp(opName, param);
-  assert(op);
-  op->codeGenInt8(ctx, operand_shapes, operand_gaddrs, result_shape,
-                result_gaddr, layer_id);
   delete op;
 }
 

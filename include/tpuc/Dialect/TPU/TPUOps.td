@@ -3174,8 +3174,6 @@ def TPU_WeightFileOp: TPU_Op<"weight_file",
 include "tpuc/Dialect/TPU/TPUSupportOps.td"
 include "tpuc/Dialect/TPU/TPUTGOps.td"
 include "tpuc/Dialect/TPU/TPUTLOps_Simple.td"
-// include "tpuc/Dialect/TPU/TPUTGOps_MemRef.td"
-// include "tpuc/Dialect/TPU/TPUTLOps_Simple_MemRef.td"
 include "tpuc/Dialect/TPU/TPUTLOps_lg.td"
 
 #endif // TPU_OPS

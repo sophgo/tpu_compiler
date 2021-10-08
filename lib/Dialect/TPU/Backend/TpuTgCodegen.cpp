@@ -1900,32 +1900,6 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_INT8_GenericTpuOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-  int layer_id = getOpLayerId(op);
-  auto op_name = operation_name().str();
-  auto operandShapes = getOperandShapes(op);
-  auto resultShape = getTensorShape(getResult());
-
-  std::vector<uint64_t> operandGaddrs;
-  for (auto operand : op->getOperands()) {
-    auto addr = getOpAddress(operand.getDefiningOp());
-    operandGaddrs.push_back(addr);
-  }
-  cvi::OpParam param;
-  convertAttributesToOpParam(this->param(), param);
-
-  cvi::CustomOpPlugin *plugin = cvi::CustomOpPlugin::load();
-  assert(plugin);
-  plugin->int8CodeGen(op_name.c_str(), param, cvi_backend_get_cvk_ctx(*backend_ctx),
-                      operandShapes, operandGaddrs, resultShape,
-                      getOpAddress(op), layer_id);
-  return success();
-}
-
 LogicalResult tpu::TG_BF16_GenericTpuOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

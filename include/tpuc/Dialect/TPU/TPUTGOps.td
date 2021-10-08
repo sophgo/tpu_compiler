@@ -1914,7 +1914,7 @@ class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " LeakyRelu operator.";
+  let summary = "TG " # opQuant # " Generic TPU operator.";
 
   let description = [{
     Generic Tpu Op.
@@ -1942,7 +1942,6 @@ class TPU_TG_GenericTpuOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_GenericTpuOp : TPU_TG_GenericTpuOp<"tg_int8_generic_tpu_op", "Int8">;
 def TPU_TG_BF16_GenericTpuOp : TPU_TG_GenericTpuOp<"tg_bf16_generic_tpu_op", "Bf16">;
 
 def TPU_GenericCpuOp : TPU_Op<"generic_cpu_op",

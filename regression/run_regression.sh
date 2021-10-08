@@ -117,6 +117,20 @@ run_ir_test()
   return $err
 }
 
+run_sample_test()
+{
+  local err=0
+  sample_test.sh > sample_test\.log | true
+  if [ "${PIPESTATUS[0]}" -ne "0" ]; then
+    echo "sample test FAILED" >> verdict.log
+    return 1
+  else
+    echo "sample test PASSED" >> verdict.log
+  fi
+  return $err
+
+}
+
 usage()
 {
    echo ""
@@ -133,6 +147,7 @@ run_extra=0
 bs=1
 run_accuracy=0
 run_ir_test=1
+run_sample_test=1
 
 while getopts "n:b:a:f:e" opt
 do
@@ -235,6 +250,17 @@ if [ $run_accuracy -ne 0 ]; then
     ERR=1
   fi
 fi
+
+# run sample test, only use 183x now
+if [ ${SET_CHIP_NAME} = "cv183x" ]; then
+  if [ $run_sample_test -ne 0 ]; then
+    run_sample_test
+    if [ "$?" -ne 0 ]; then
+      ERR=1
+    fi
+  fi
+fi
+
 # run onnx ir test
 if [ $run_ir_test -ne 0 ]; then
   run_ir_test
