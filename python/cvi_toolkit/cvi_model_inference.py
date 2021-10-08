@@ -65,9 +65,9 @@ def main(argv):
              )
 
     preprocessor = preprocess()
-    if args.model_type == 'tensorflow' or \
-       args.model_type == "tflite_int8":
-        args.data_format = 'nhwc'
+    # if args.model_type == 'tensorflow' or \
+    #    args.model_type == "tflite_int8":
+    #     args.data_format = 'nhwc'
     preprocessor.config(**vars(args))
 
     input=None

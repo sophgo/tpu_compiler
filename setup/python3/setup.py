@@ -59,7 +59,7 @@ packages.extend(setuptools.find_packages(where='./third_party/caffe/python'))
 packages.extend(setuptools.find_packages(where='./third_party/flatbuffers/python'))
 
 # tflite
-packages.extend(['tflite'])
+# packages.extend(['tflite'])
 setuptools.setup(
     name='CVI_toolkit',
     version=get_git_revision_short_hash(),
@@ -72,7 +72,7 @@ setuptools.setup(
         '': 'python',
         'caffe': 'third_party/caffe/python/caffe',
         'flatbuffers': 'third_party/flatbuffers/python/flatbuffers',
-        'tflite':'{}/python/tflite'.format(mlir_install_path),
+        # 'tflite':'{}/python/tflite'.format(mlir_install_path),
     },
     package_data ={
         'caffe': ["*.so"]

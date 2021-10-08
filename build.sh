@@ -265,9 +265,9 @@ cmake -G Ninja \
     $PROJECT_ROOT
 cmake --build . --target install
 # TFLite flatbuffer Schema
-${INSTALL_PATH}/flatbuffers/bin/flatc \
-    -o $TPU_PYTHON_PATH --python \
-    $PROJECT_ROOT/python/tflite_schema/schema.fbs
+# ${INSTALL_PATH}/flatbuffers/bin/flatc \
+#     -o $TPU_PYTHON_PATH --python \
+#     $PROJECT_ROOT/python/tflite_schema/schema.fbs
 popd
 
 # build opencv

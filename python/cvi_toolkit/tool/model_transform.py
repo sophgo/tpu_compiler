@@ -10,8 +10,8 @@ from cvi_toolkit.utils.log_setting import setup_logger
 from cvi_toolkit.model import CaffeModel
 from cvi_toolkit.model.ModelFactory import ModelFactory
 from cvi_toolkit.transform.onnx_converter import OnnxConverter
-from cvi_toolkit.transform.tflite_converter_int8 import TFLiteConverter as TFLiteInt8Converter
-from cvi_toolkit.transform.tensorflow_converter import TFConverter
+# from cvi_toolkit.transform.tflite_converter_int8 import TFLiteConverter as TFLiteInt8Converter
+# from cvi_toolkit.transform.tensorflow_converter import TFConverter
 from cvi_toolkit.transform.caffe_converter import CaffeConverter
 from cvi_toolkit.data.preprocess import get_preprocess_parser, preprocess
 from cvi_toolkit.utils.mlir_shell import *
@@ -179,58 +179,58 @@ class OnnxModelTransformTool(ModelTransformTool):
         cvt.run()
 
 
-class TFModelTransformTool(ModelTransformTool):
-    def __init__(self, model_name, model_def, batch_size, preprocessor):
-        super().__init__(model_name, batch_size, preprocessor)
-        self.model_def = model_def
+# class TFModelTransformTool(ModelTransformTool):
+#     def __init__(self, model_name, model_def, batch_size, preprocessor):
+#         super().__init__(model_name, batch_size, preprocessor)
+#         self.model_def = model_def
 
-    def _inference_(self, inputs):
-        net = ModelFactory()
-        net.load_model("tensorflow", model_file=self.model_def)
-        _,input = inputs.popitem()
-        transposed_inputs = np.transpose(input, [0, 2, 3, 1])
-        net.inference(transposed_inputs)
-        all_blobs = net.get_all_tensor(transposed_inputs)
-        npz_out = {}
-        for k, v in all_blobs.items():
-            if len(v.shape) != 4:
-                npz_out[k] = v
-            else:
-                npz_out[k] = np.ascontiguousarray(np.transpose(v, (0, 3, 1, 2)))
-        return npz_out
+#     def _inference_(self, inputs):
+#         net = ModelFactory()
+#         net.load_model("tensorflow", model_file=self.model_def)
+#         _,input = inputs.popitem()
+#         transposed_inputs = np.transpose(input, [0, 2, 3, 1])
+#         net.inference(transposed_inputs)
+#         all_blobs = net.get_all_tensor(transposed_inputs)
+#         npz_out = {}
+#         for k, v in all_blobs.items():
+#             if len(v.shape) != 4:
+#                 npz_out[k] = v
+#             else:
+#                 npz_out[k] = np.ascontiguousarray(np.transpose(v, (0, 3, 1, 2)))
+#         return npz_out
 
-    def _transform_(self, mlir_file):
-        cvt = TFConverter(self.model_name, self.model_def, mlir_file,
-                          batch_size=self.batch_size,
-                          preprocess_args=self.preprocess_args)
-        cvt.run()
+#     def _transform_(self, mlir_file):
+#         cvt = TFConverter(self.model_name, self.model_def, mlir_file,
+#                           batch_size=self.batch_size,
+#                           preprocess_args=self.preprocess_args)
+#         cvt.run()
 
 
-class TFLiteInt8ModelTransformTool(ModelTransformTool):
-    def __init__(self, model_name, model_def, batch_size, preprocessor):
-        super().__init__(model_name, batch_size, preprocessor)
-        self.model_def = model_def
+# class TFLiteInt8ModelTransformTool(ModelTransformTool):
+#     def __init__(self, model_name, model_def, batch_size, preprocessor):
+#         super().__init__(model_name, batch_size, preprocessor)
+#         self.model_def = model_def
 
-    def _inference_(self, inputs):
-        net = ModelFactory()
-        net.load_model("tflite_int8", model_file=self.model_def)
-        _,input = inputs.popitem()
-        transposed_inputs = np.transpose(input, [0, 2, 3, 1])
-        net.inference(transposed_inputs)
-        all_blobs = net.get_all_tensor(transposed_inputs)
-        npz_out = {}
-        for k, v in all_blobs.items():
-            if len(v.shape) != 4:
-                npz_out[k] = v
-            else:
-                npz_out[k] = np.ascontiguousarray(np.transpose(v, (0, 3, 1, 2)))
-        return npz_out
+#     def _inference_(self, inputs):
+#         net = ModelFactory()
+#         net.load_model("tflite_int8", model_file=self.model_def)
+#         _,input = inputs.popitem()
+#         transposed_inputs = np.transpose(input, [0, 2, 3, 1])
+#         net.inference(transposed_inputs)
+#         all_blobs = net.get_all_tensor(transposed_inputs)
+#         npz_out = {}
+#         for k, v in all_blobs.items():
+#             if len(v.shape) != 4:
+#                 npz_out[k] = v
+#             else:
+#                 npz_out[k] = np.ascontiguousarray(np.transpose(v, (0, 3, 1, 2)))
+#         return npz_out
 
-    def _transform_(self, mlir_file):
-        assert(self.batch_size == 1)
-        cvt = TFLiteInt8Converter(self.model_name, self.model_def, mlir_file,
-                                  preprocess_args=self.preprocess_args)
-        cvt.run()
+#     def _transform_(self, mlir_file):
+#         assert(self.batch_size == 1)
+#         cvt = TFLiteInt8Converter(self.model_name, self.model_def, mlir_file,
+#                                   preprocess_args=self.preprocess_args)
+#         cvt.run()
 
 def get_model_transform(args):
     preprocessor = preprocess()
