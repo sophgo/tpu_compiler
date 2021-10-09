@@ -215,15 +215,13 @@ PReluOpKernel::PReluOpKernel(Operation &op, value_map_t &valueMapping,
 }
 
 void PReluOpKernel::invoke() {
-  int n = shape[0];
-  int c = shape[1];
-  int h = shape[2];
-  int w = shape[3];
+  int64_t n,c,h,w;
+  getNCHW(shape, n, c, h, w);
   int size = n * c * h * w;
+  int planner = w * h;
   for (int batch = 0; batch < n; ++batch) {
     for (int channel = 0; channel < c; ++channel) {
       int index = batch * c * w * h + channel * w * h;
-      int planner = w * h;
 #pragma omp parallel for schedule(static, omp_schedule(planner))
       for (int i = 0; i < planner; ++i) {
         if (input_data->at(index + i) > 0) {
