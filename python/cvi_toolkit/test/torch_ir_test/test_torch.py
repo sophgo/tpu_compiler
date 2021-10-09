@@ -35,8 +35,8 @@ TEST_TORCH_IR = [
     "Norm",
     "masked_fill",
     "Activation",
-    # "PReLU",    ## Segmentation fault
-    # "Hardsigmoid", ## now nonx not support
+    "PReLU",    ## Segmentation fault
+    #"Hardsigmoid", ## now nonx not support, need update torch version
     "Cat_Chunk",
     "Math", ## sum, prod, log, min, max not support
     "Repeat",   ## repeat_interleave nonx not support
@@ -706,7 +706,7 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 1, 8, 1]
-        test_onnx_name = 'Squeeze'
+        test_onnx_name = 'Norm'
 
         net = Net()
         input_data = torch.randn(input_shape)
