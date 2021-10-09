@@ -224,7 +224,8 @@ static void cvi_backend_tg_fixed_reduce_min_hw_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w,
-    int kh, int kw) {
+    int kh, int kw, int rshift,
+    int multiplier) {
   if (kh == 1) {
     c = n * c * h;
     n = 1;
@@ -302,9 +303,9 @@ static void cvi_backend_tg_fixed_reduce_min_hw_kernel(
       p_out.res_low = tl_output;
       p_out.a = tl_output;
       p_out.b_is_const = 1;
-      p_out.b_const.val = mul_const;
+      p_out.b_const.val = mul_const * multiplier;
       p_out.b_const.is_signed = 1;
-      p_out.rshift_bits = shift_bits;
+      p_out.rshift_bits = rshift;
       p_out.relu_enable = relu_enable;
       ctx.tiu_mul(&p_out);
     }
@@ -411,6 +412,7 @@ void cvi_backend_tg_fixed_reduce_min_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w,
+    int rshift, int multiplier,
     int axes[], int num_axes) {
   if (axes[0] == 1) {
     // along C axis
@@ -435,7 +437,9 @@ void cvi_backend_tg_fixed_reduce_min_kernel(
                                               h,
                                               w,
                                               kh,
-                                              kw);
+                                              kw,
+                                              rshift,
+                                              multiplier);
   }
 }
 

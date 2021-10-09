@@ -24,9 +24,11 @@ import gc
 import re
 
 TEST_TORCH_IR = [
+    "Conv3d", # Conv with 2d case
     "Conv2d", # Conv with 2d case
     "Conv1d", # Conv with 1d case
     "ConvTranspose1d",
+    # "ConvTranspose2d",
     "Std",
     "Squeeze",
     "Linear",
@@ -36,19 +38,23 @@ TEST_TORCH_IR = [
     "masked_fill",
     "Activation",
     "Cat_Chunk",
-    "Math", ## sum, prod, log, min, max not support
+    "Log",
+    "Math", ## sum, prod not support
     "Repeat",   ## repeat_interleave nonx not support
     # "Dropout", ## Dropout not support
     "LSTM",
     "GRU",
     "Size",
     "LayerNorm",
-    "Mul_Add",
+    "Expand",
+    "Max_Min",
+    "Mul_Input_Add",
+    # "Customer_Net",
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
-NOT_SUPPORT_BF16_TEST_IR = []
-NOT_SUPPORT_INT8_TEST_IR = [''] # just for save test time
+NOT_SUPPORT_BF16_TEST_IR = [""]
+NOT_SUPPORT_INT8_TEST_IR = ["Customer_Net"] # just for save test time
 
 def cvimodel_inference(inputs, model_name):
     model = pyruntime.Model(model_name)
@@ -128,9 +134,10 @@ class TORCH_IR_TESTER(object):
 
         self.test_function = {
             "LayerNorm": self.test_LayerNorm,
-            "Conv2d": self.test_Conv2d,
+            "Conv3d": self.test_Conv3d,
             "Conv1d": self.test_Conv1d,
             "ConvTranspose1d": self.test_ConvTranspose1d,
+            # "ConvTranspose2d": self.test_ConvTranspose2d,
             "Linear": self.test_Linear,
             "Conv2d": self.test_Conv2d,
             "Std": self.test_Std,
@@ -147,7 +154,11 @@ class TORCH_IR_TESTER(object):
             "Dropout": self.test_Dropout,
             "LSTM": self.test_LSTM,
             "GRU": self.test_GRU,
-            "Mul_Add": self.test_Mul_Add,
+            "Mul_Input_Add": self.test_Mul_Input_Add,
+            "Log": self.test_Log,
+            "Expand": self.test_Expand,
+            "Max_Min": self.test_Max_Min,
+            "Customer_Net": self.test_Customer_Net,
         }
         self.set_quant_mode()
 
@@ -348,7 +359,6 @@ class TORCH_IR_TESTER(object):
         test_onnx_name = 'LSTM'
         batch_size = 3
         seq_length = 4
-        vocab_size=20
         input_data = np.random.uniform(0, 19, size=(batch_size, seq_length))
         input_data = torch.from_numpy(input_data).long()
 
@@ -361,7 +371,7 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_Mul_Add(self):
+    def test_Mul_Input_Add(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
@@ -371,7 +381,7 @@ class TORCH_IR_TESTER(object):
                 return out
 
         input_data = {}
-        input_shape = [4, 1]
+        input_shape = [100, 100]
         input_data_temp = torch.randn(input_shape[0], input_shape[1])
         input_data['input'] = input_data_temp
         input_data['input1'] = input_data_temp
@@ -386,22 +396,164 @@ class TORCH_IR_TESTER(object):
         # torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
+    def test_Log(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = torch.negative(x)
+                x = torch.log(x)
+                return x
+
+        input_shape = [1, 3, 100, 100]
+        test_onnx_name = 'Log'
+
+        net = Net()
+        input_data = torch.clamp(torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3]), -10.0, -8.0)
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
     def test_GRU(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
+                self.embedding_layer = torch.nn.Embedding(20, 5)
                 self.gru = nn.GRU(input_size=5, hidden_size=50, batch_first=True)
-                self.embedding_layer = torch.nn.Embedding(3, 5)
 
             def forward(self, x):
-                x = self.embedding_layer(x) ##shape: [1, 3 ,5]
+                x = self.embedding_layer(x)
                 out, hidden = self.gru(x)
                 return out
 
         test_onnx_name = 'GRU'
-        input_data = torch.LongTensor([[0, 1, 2]]) ##shape: [1, 3]
+
+        batch_size = 50
+        seq_length = 100
+        input_data = np.random.uniform(0, 19, size=(batch_size, seq_length))
+        input_data = torch.from_numpy(input_data).long()
 
         net = Net()
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Expand(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = torch.negative(x)
+                x = x.expand(3, 4, 100, 100)
+                return x
+
+        input_shape = [3, 1, 100, 100]
+        test_onnx_name = 'Expand'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Customer_Net(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv1d = nn.Conv1d(in_channels=80, out_channels=128, kernel_size=1)
+                self.LeakyReLU = nn.LeakyReLU(negative_slope=0.01,inplace=False)
+                self.conv_pose1d = nn.ConvTranspose1d(128, 64, kernel_size=10, stride=8, padding=1)
+
+                self.conv1d_new1 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new2 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new3 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new4 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new5 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new6 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new7 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new8 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new9 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new10 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new11 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new12 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new13 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new14 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new15 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new16 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new17 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new18 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new19 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new20 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.conv1d_new21 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
+                self.con1d_test_list = [self.conv1d_new1, self.conv1d_new2, self.conv1d_new3, self.conv1d_new4, self.conv1d_new5,
+                                   self.conv1d_new6, self.conv1d_new7, self.conv1d_new8, self.conv1d_new9, self.conv1d_new10,
+                                   self.conv1d_new11, self.conv1d_new12, self.conv1d_new13, self.conv1d_new14, self.conv1d_new15,
+                                   self.conv1d_new16, self.conv1d_new17, self.conv1d_new18, self.conv1d_new19, self.conv1d_new20,
+                                   self.conv1d_new21,]
+
+            def forward(self, x):
+                ##conv and convtranpose
+                x = self.conv1d(x)
+                x = self.LeakyReLU(x)
+                x = torch.negative(x)
+                x = self.conv_pose1d(x)
+                x = self.LeakyReLU(x)
+
+                # add func 1layer
+                for i in range(0, 20, 2):
+                    x = self.con1d_test_list[i](x)
+                    x1 = self.LeakyReLU(x)
+                    x = self.con1d_test_list[i+1](x)
+                    x2 = self.LeakyReLU(x)
+                    x = torch.add(x1, x2)
+                    x = self.LeakyReLU(x)
+
+                #last
+                x = self.con1d_test_list[-1](x)
+                return x
+
+        test_onnx_name = 'Customer_Net'
+        net = Net()
+        input_shape = [1, 80, 100]
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Max_Min(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                max_x, e = torch.max(x, dim=3, keepdim=True)
+                min_x, e = torch.min(x, dim=3, keepdim=True)
+                x = torch.add(max_x, min_x)
+                return x
+
+        input_shape = [3, 1, 100, 100]
+        test_onnx_name = 'Max_Min'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -416,12 +568,11 @@ class TORCH_IR_TESTER(object):
                 super(Net, self).__init__()
 
             def forward(self, x):
-                x = x.repeat(3, 4)
-                # x = x.repeat_interleave(4, 0)
-                x = torch.add(x, x)
+                x = x.repeat(2, 6)
+                # x = torch.repeat_interleave(x, repeats=4, dim=1)
                 return x
 
-        input_shape = [4, 1]
+        input_shape = [1, 3, 100, 100]
         test_onnx_name = 'Repeat'
 
         net = Net()
@@ -445,7 +596,7 @@ class TORCH_IR_TESTER(object):
                 x = torch.add(x,x)
                 return x
 
-        input_shape = [3, 2, 8, 1]
+        input_shape = [3, 2, 256, 256]
         test_onnx_name = 'Squeeze'
 
         net = Net()
@@ -465,18 +616,14 @@ class TORCH_IR_TESTER(object):
                 self.dropout = nn.Dropout(p=0.5)
 
             def forward(self, x):
-                x = torch.negative(x)
-                x = F.dropout(x, p=0.5, training=self.training)
                 x = self.dropout(x)
-                x = torch.add(x, x)
                 return x
 
-        input_shape = [4, 5]
+        input_shape = [1, 3, 100, 100]
         test_onnx_name = 'Repeat'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1])
-        # normal = Normal(input_data, 5)
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -499,11 +646,11 @@ class TORCH_IR_TESTER(object):
                 # x = torch.sum(x)
                 return x
 
-        input_shape = [1, 1, 2, 3]
+        input_shape = [1, 4, 100, 100]
         test_onnx_name = 'Math'
 
         net = Net()
-        input_data = torch.zeros(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -525,7 +672,7 @@ class TORCH_IR_TESTER(object):
                 x = torch.negative(x[0])
                 return x
 
-        input_shape = [1, 3, 20, 30]
+        input_shape = [1, 3, 100, 100]
         test_onnx_name = 'Cat_Chunk'
 
         net = Net()
@@ -547,7 +694,7 @@ class TORCH_IR_TESTER(object):
                 y = torch.ones(x.size(1))
                 return torch.add(x, y)
 
-        input_shape = [10, 16]
+        input_shape = [100, 256]
         test_onnx_name = "Size"
 
         net = Net()
@@ -567,7 +714,7 @@ class TORCH_IR_TESTER(object):
                 y = x.masked_fill(self.mask, value=torch.tensor(1.0))
                 return y
 
-        input_shape = [2,3,4]
+        input_shape = [2, 3, 100]
         test_onnx_name = "masked_fill"
 
         net = Net()
@@ -587,7 +734,7 @@ class TORCH_IR_TESTER(object):
                 std = torch.std(x, -1).unsqueeze(-1)
                 return (x - mean) / (std + 0.0001)
 
-        input_shape = [1, 3, 32, 1024]
+        input_shape = [1, 3, 100, 100]
         test_onnx_name = 'Std'
 
         net = Net()
@@ -613,7 +760,9 @@ class TORCH_IR_TESTER(object):
                 return attn_output
 
         test_onnx_name = 'Mulit_attention_api'
-        input_data = torch.LongTensor([[0, 1, 2]]) ##shape: [1, 3]
+        input_shape = [1, 3]
+        input_data = torch.randn(input_shape)
+        input_data1 = torch.LongTensor([[0, 1, 2]]) ##shape: [1, 3]
 
         net = Net()
         torch_output_data = net(input_data)
@@ -701,7 +850,7 @@ class TORCH_IR_TESTER(object):
                 x = torch.norm(x, p=2, dim=1, keepdim=True)
                 return x
 
-        input_shape = [3, 1, 8, 1]
+        input_shape = [3, 1, 100, 100]
         test_onnx_name = 'Norm'
 
         net = Net()
@@ -727,7 +876,7 @@ class TORCH_IR_TESTER(object):
                 x = torch.add(x,x)
                 return x
 
-        input_shape = [3, 24, 10]
+        input_shape = [3, 100, 100]
         test_onnx_name = 'Linear'
 
         net = Net()
@@ -747,7 +896,6 @@ class TORCH_IR_TESTER(object):
                 self.layer_norm = nn.LayerNorm([24, 50])
 
             def forward(self, x):
-                # normal = Normal(x, 5)
                 x = self.layer_norm(x)
                 return x
 
@@ -768,8 +916,8 @@ class TORCH_IR_TESTER(object):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.linear = nn.Linear(10, 20, bias=False)
-                self.linear_return = nn.Linear(20, 10, bias=False)
+                self.linear = nn.Linear(100, 200, bias=False)
+                self.linear_return = nn.Linear(200, 100, bias=False)
                 self.softplus = nn.Softplus()
                 self.hardsigmoid = nn.Hardsigmoid()
                 self.prelu = nn.PReLU()
@@ -802,7 +950,7 @@ class TORCH_IR_TESTER(object):
                 return x
 
         test_onnx_name = 'Activation'
-        input_data = torch.randn(3, 6, 10).float()
+        input_data = torch.randn(3, 100, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
@@ -815,7 +963,7 @@ class TORCH_IR_TESTER(object):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.dconv1 = nn.ConvTranspose1d(4, 6, kernel_size=3, stride=2, padding=1, output_padding=1)
+                self.dconv1 = nn.ConvTranspose1d(40, 6, kernel_size=3, stride=2, padding=1, output_padding=1)
 
             def forward(self, x):
                 x = torch.negative(x)
@@ -826,7 +974,7 @@ class TORCH_IR_TESTER(object):
         batch_size = 3
         test_onnx_name = 'ConvTranspose1d'
 
-        input_data = torch.randn(batch_size, 4, 2, 1).float()
+        input_data = torch.randn(batch_size, 40, 20, 1).float()
         net = Net()
         torch_output_data = net(input_data)
 
@@ -839,21 +987,21 @@ class TORCH_IR_TESTER(object):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.conv_test = nn.Conv1d(in_channels=3,
+                self.conv_test = nn.Conv1d(in_channels=30,
                             out_channels=2,
                             kernel_size=3,
                             stride=2,
                             padding=1)
 
             def forward(self, x):
-                x = torch.negative(x) ##tensor size [3, 3, 5]
-                x = self.conv_test(x) ##tensor size [3, 2, 5]
+                x = torch.negative(x) ##tensor size [3, 30, 50]
+                x = self.conv_test(x) ##tensor size [3, 2, 50]
                 x = F.avg_pool1d(x, kernel_size=2)
                 return x
 
         batch_size = 3
         test_onnx_name = 'Conv1d'
-        input_data = torch.randn(batch_size, 3, 5).float()
+        input_data = torch.randn(batch_size, 30, 50).float()
         net = Net()
         torch_output_data = net(input_data)
 
@@ -876,8 +1024,30 @@ class TORCH_IR_TESTER(object):
                 x = self.conv_test(x)
                 return x
 
-        input_shape = [1, 3, 27, 27]
+        input_shape = [1, 3, 100, 100]
         test_onnx_name = 'Conv2d'
+        ##torch needn't weight and bias
+        input_data = torch.randn(input_shape)
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)\
+
+    def test_Conv3d(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv_test = nn.Conv3d(3, 3, (3, 7, 7), stride=1, padding=0)
+
+            def forward(self, x):
+                x = self.conv_test(x)
+                return x
+
+        input_shape = [1, 3, 30, 100, 100]
+        test_onnx_name = 'Conv3d'
         ##torch needn't weight and bias
         input_data = torch.randn(input_shape)
         net = Net()

@@ -840,7 +840,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
       int64_t size = 1;
       for (auto dim : axes) {
         assert(static_cast<unsigned>(dim) < inputShapes.size() &&
-               "Expect valid axis");
+                "Expect valid axis");
         size *= inputShapes[dim];
       }
 

@@ -3715,6 +3715,14 @@ LogicalResult tpu::TG_INT8_ReduceMinOp::codegen(void *ctx) {
   int64_t n, c, h, w;
   getNCHW(input_shape, n, c, h, w);
 
+  int rshift = 0;
+  if (this->rshift().hasValue())
+    rshift = this->rshift().getValue();
+
+  int multiplier = 1;
+  if (this->m_i8().hasValue())
+    multiplier = this->m_i8().getValue();
+
   int num_axes = 0;
   int *axes = nullptr;
   if (this->axes().hasValue()) {
@@ -3734,7 +3742,8 @@ LogicalResult tpu::TG_INT8_ReduceMinOp::codegen(void *ctx) {
                                   n, c, h, w, 0, 1, 2, 3, CVK_FMT_I8);
   } else {
     cvi_backend_tg_fixed_reduce_min_kernel(*backend_ctx, layer_id, ga_input,
-                                           ga_output, n, c, h, w, axes,
+                                           ga_output, n, c, h, w, rshift,
+                                           multiplier, axes,
                                            num_axes);
   }
 

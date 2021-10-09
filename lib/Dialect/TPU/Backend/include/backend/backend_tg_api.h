@@ -141,6 +141,7 @@ void cvi_backend_tg_fixed_reduce_min_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w,
+    int rshift, int multiplier,
     int axes[], int num_axes);
 
 void cvi_backend_tg_fixed_reduce_mean_kernel(
