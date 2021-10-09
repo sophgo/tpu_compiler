@@ -221,11 +221,9 @@ docker exec -it cvitek bash
 
 <div STYLE="page-break-after: always;"></div>
 
-## 3 EVB运行samples程序
+## 3 运行samples程序
 
-请根据chip类型选择使用对应的TPU sdk对samples code做交叉编译，加载至evb上并运行测试。
-
-#### 3.1 运行Samples程序
+#### 3.1 EVB运行Samples程序
 
 在EVB运行release提供的sample预编译程序。
 
@@ -236,7 +234,7 @@ docker exec -it cvitek bash
 
 将根据chip类型选择所需文件加载至EVB的文件系统，于evb上的linux console执行，以cv183x为例：
 
- 解压samples使用的model文件（以cvimodel格式交付），并解压TPU_SDK，并进入samples目录，执行测试，过程如下：
+解压samples使用的model文件（以cvimodel格式交付），并解压TPU_SDK，并进入samples目录，执行测试，过程如下：
 
 ``` shell
 # envs
@@ -307,7 +305,7 @@ cd samples
 ./run_classifier_multi_batch.sh
 ```
 
-#### 在cvitek_tpu_sdk/samples/samples_extra目录下有更多的samples，可供参考：
+**在cvitek_tpu_sdk/samples/samples_extra目录下有更多的samples，可供参考：**
 
 ```sh
 ./bin/cvi_sample_classifier_yuv420 \
@@ -381,7 +379,6 @@ cd samples
 # Similarity: 0.036089
 ```
 
-
 #### 3.2 交叉编译samples程序
 
 发布包有samples的源代码，按照本节方法在Docker环境下交叉编译samples程序，然后在evb上运行。
@@ -391,7 +388,7 @@ cd samples
 * cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
 * cvitek_tpu_samples.tar.gz
 
-###### 64位平台
+**64位平台**
 
 > 如cv183x 64位平台
 
@@ -423,7 +420,7 @@ cmake -G Ninja \
 cmake --build . --target install
 ```
 
-###### 32位平台
+**32位平台**
 
 > 如cv182x平台32位，或cv183x平台32位
 
@@ -462,6 +459,55 @@ cmake -G Ninja \
     ..
 cmake --build . --target install
 ```
+
+#### 3.3 编译docker环境下运行的samples程序
+
+需要如下文件：
+
+* cvitek_mlir_ubuntu-18.04.tar.gz
+* cvimodel_samples_[cv182x/cv183x].tar.gz
+* cvitek_tpu_samples.tar.gz
+
+TPU sdk准备：
+
+``` shell
+tar zxf cvitek_mlir_ubuntu-18.04.tar.gz
+source cvitek_mlir/cvitek_envs.sh
+```
+
+编译samples，安装至install_samples目录：
+
+``` shell
+tar zxf cvitek_tpu_samples.tar.gz
+cd cvitek_tpu_samples
+mkdir build
+cd build
+cmake -G Ninja \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3 \
+    -DTPU_SDK_PATH=$MLIR_PATH/tpuc \
+    -DCNPY_PATH=$MLIR_PATH/cnpy \
+    -DOPENCV_PATH=$MLIR_PATH/opencv \
+    -DCMAKE_INSTALL_PREFIX=../install_samples \
+    ..
+cmake --build . --target install
+```
+
+运行samples程序：
+
+``` shell
+# envs
+tar zxf cvimodel_samples_cv183x.tar.gz
+export MODEL_PATH=$PWD/cvimodel_samples
+source cvitek_mlir/cvitek_envs.sh
+
+# get cvimodel info
+cd samples
+./bin/cvi_sample_model_info $MODEL_PATH/mobilenet_v2.cvimodel
+```
+
+**其他samples运行命令参照EVB运行命令**
+
 
 <div STYLE="page-break-after: always;"></div>
 
