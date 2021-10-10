@@ -35,8 +35,6 @@ TEST_TORCH_IR = [
     "Norm",
     "masked_fill",
     "Activation",
-    "PReLU",    ## Segmentation fault
-    #"Hardsigmoid", ## now nonx not support, need update torch version
     "Cat_Chunk",
     "Math", ## sum, prod, log, min, max not support
     "Repeat",   ## repeat_interleave nonx not support
@@ -143,8 +141,6 @@ class TORCH_IR_TESTER(object):
             "Mulit_attention_api": self.test_Mulit_attention_api,
             "Norm": self.test_Norm,
             "Activation": self.test_Activation,
-            "PReLU": self.test_PReLU,
-            "Hardsigmoid": self.test_Hardsigmoid,
             "Cat_Chunk": self.test_Cat_Chunk,
             "Math": self.test_Math,
             "Repeat": self.test_Repeat,
@@ -768,58 +764,15 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_Hardsigmoid(self):
-        class Net(torch.nn.Module):
-            def __init__(self):
-                super(Net, self).__init__()
-                self.linear = nn.Linear(10, 20, bias=False)
-                self.Hardsigmoid = torch.nn.Hardsigmoid()
-
-            def forward(self, x):
-                ##Hardsigmoid
-                x = self.linear(x)
-                x = self.Hardsigmoid(x)
-                return x
-
-        test_onnx_name = 'Hardsigmoid'
-        input_data = torch.randn(3, 6, 10).float()
-        net = Net()
-        torch_output_data = net(input_data)
-
-        #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
-        torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
-
-    def test_PReLU(self):
-        class Net(torch.nn.Module):
-            def __init__(self):
-                super(Net, self).__init__()
-                self.linear = nn.Linear(10, 20, bias=False)
-                self.PReLU = torch.nn.PReLU(6)
-
-            def forward(self, x):
-                ##PReLU
-                x = self.linear(x)
-                x = self.PReLU(x)
-                return x
-
-        test_onnx_name = 'PReLU'
-        input_data = torch.randn(3, 6, 10).float()
-        net = Net()
-        torch_output_data = net(input_data)
-
-        #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
-        torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
-
     def test_Activation(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
                 self.linear = nn.Linear(10, 20, bias=False)
                 self.linear_return = nn.Linear(20, 10, bias=False)
+                self.softplus = nn.Softplus()
+                self.hardsigmoid = nn.Hardsigmoid()
+                self.prelu = nn.PReLU()
 
             def forward(self, x):
                 #tanh
@@ -837,6 +790,15 @@ class TORCH_IR_TESTER(object):
                 ##elu
                 x = self.linear(x)
                 x = F.elu(x)
+                ##softplus
+                x = self.linear_return(x)
+                x = self.prelu(x)
+                ##hardsigmoid
+                x = self.linear(x)
+                x = self.hardsigmoid(x)
+                ##prelu
+                x = self.linear_return(x)
+                x = self.softplus(x)
                 return x
 
         test_onnx_name = 'Activation'

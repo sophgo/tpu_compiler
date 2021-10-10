@@ -2609,8 +2609,12 @@ class OnnxConverter(BaseConverter):
         elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             slope = self.getTensor(onnx_node.inputs[1])
             slope_data = slope.tensor_data
-            slope_name = "{}_slope_weight".format(onnx_node.name)
-            slope_shape = (1, output_shape[1], 1, 1)
+            slope_name = onnx_node.inputs[1]
+            c = output_shape[1] if len(output_shape) > 1 else 1
+            slope_shape = (1, c, 1, 1)
+            if len(slope_data) == 1 and c > 1:
+                zeros = np.zeros(slope_shape, dtype=slope_data.dtype)
+                slope_data = slope_data + zeros
             self.addTensor(slope_name, slope_data, slope_shape)
             slope_op = self.CVI.add_load_file_op(slope_name, slope_shape)
             operands.append(slope_op)
