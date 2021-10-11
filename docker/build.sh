@@ -2,12 +2,17 @@
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 
-source $DIR/docker.env
+UBUNTU=18.04
+VERSION=1.7
+
+BASE_REPO=cvitek/cvitek_dev:${VERSION}-ubuntu-${UBUNTU}
+TARGET_REPO=cvitek_mlir-${UBUNTU}-for-jenkins:${VERSION}
 
 CMD="
 docker build \
-    -t $REPO/$IMAGE:$TAG_BASE \
-    -f $DIR/Dockerfile_ubuntu-${BASE_IMAGE_VERSION} \
+    --build-arg BASE_REPO=${BASE_REPO}
+    -t ${TARGET_REPO} \
+    -f $DIR/Dockerfile \
     .
 "
 
