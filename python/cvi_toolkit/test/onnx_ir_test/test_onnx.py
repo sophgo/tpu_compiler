@@ -65,7 +65,7 @@ TEST_ONNX_IR = [
     "Sum",
     "Softmax",
     "Tile",
-    "Where",
+   "Where",
     "Upsample",
 #    "Transpose",
     "BCastSub", # test broadcast sub

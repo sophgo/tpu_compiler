@@ -309,7 +309,7 @@ class TORCH_IR_TESTER(object):
         del self.mlir_model
 
 
-    def pytorch_transform_onnx(self, model, input_data, test_onnx_name, dynamic_axes_confirm=True):
+    def pytorch_transform_onnx(self, model, input_data, test_onnx_name, dynamic_axes_confirm=False):
         # Create some sample  input in the shape this model expects
         output_names = ['output']
         onnx_name = test_onnx_name+'.onnx'
@@ -748,7 +748,7 @@ class TORCH_IR_TESTER(object):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.layer_norm = nn.LayerNorm(50)
+                self.layer_norm = nn.LayerNorm([24, 50])
 
             def forward(self, x):
                 # normal = Normal(x, 5)

@@ -1,9 +1,11 @@
 # ONNX Node define:
 # https://github.com/onnx/onnx/blob/master/onnx/onnx.proto
 
+from ast import dump
 import enum
 from .mlirimporter import MLIRImporter, checkKey
 from .BaseConverter import BaseConverter, TensorType
+from .onnx_optimizer import onnx_opt
 from onnx import numpy_helper, mapping
 from termcolor import colored, cprint
 from math import floor, ceil
@@ -186,6 +188,8 @@ class OnnxConverter(BaseConverter):
         super().__init__()
         if isinstance(onnx_model, str):
             onnx_model = onnx.load(onnx_model)
+        # opt onnx model
+        onnx_model = onnx_opt(onnx_model, dump=False)
         self.batch_size = batch_size
         self.model_name = model_name
         self.input_nodes = onnx_model.graph.input
@@ -3100,7 +3104,11 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "LayerNorm")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         # take input last dimension as default normal_shape
-        normal_shape = [input_shape[-1]]
+        eps = onnx_node.attrs.get('eps', 1e-5)
+        axes = onnx_node.attrs.get('axes', None)
+        normal_shape = onnx_node.attrs.get("normal_shape", None)
+        if normal_shape is None and axes is not None:
+            normal_shape = [input_shape[axis] for axis in axes]
         operands = [op]
         noneOp = self.add_none_op()
         operands.append(noneOp)  # table
