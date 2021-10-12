@@ -3,6 +3,7 @@
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
+#include <iostream>
 
 #define DEBUG_TYPE "TgBf16ReduceKernel"
 
@@ -368,6 +369,66 @@ static void cvi_backend_tg_bf16_reduce_mean_hw_kernel(
   }
 }
 
+static void cvi_backend_tg_bf16_reduce_sum_hw_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w,
+    int kh, int kw) {
+  if (kh == 1) {
+    c = n * c * h;
+    n = 1;
+    h = 1;
+  }
+  int oh = h / kh;
+  int ow = w / kw;
+  cvk_fmt_t fmt = CVK_FMT_BF16;
+  int step_c = std::min(c, MAX_CHANNEL);
+  while (step_c > 0) {
+    auto shape_in = ctx.tl_shape_t4(n, step_c, h, w);
+    auto shape_out = ctx.tl_shape_t4(n, step_c, oh, ow);
+    uint32_t lmem_need = ctx.lmem_tensor_to_size(shape_in, fmt, 1) +
+                         ctx.lmem_tensor_to_size(shape_out, fmt, 1);
+    if (lmem_need <= (uint32_t)LOCAL_MEM_SIZE) {
+      break;
+    }
+    if (step_c % NPU_NUM == 0) {
+      step_c -= NPU_NUM;
+    } else {
+      step_c -= (step_c % NPU_NUM);
+    }
+  }
+  auto in_gstride = ctx.tg_default_stride(c, h, w, fmt);
+  auto out_gstride = ctx.tg_default_stride(c, oh, ow, fmt);
+  assert(step_c > 0 && "tiling failed");
+  for (int pos_c = 0; pos_c < c; pos_c += step_c) {
+    int cur_c = std::min(step_c, c - pos_c);
+    auto shape_in = ctx.tl_shape_t4(n, cur_c, h, w);
+    auto shape_out = ctx.tl_shape_t4(n, cur_c, oh, ow);
+    auto tl_input = ctx.lmem_alloc_tensor(shape_in, fmt, 1);
+    auto tl_output = ctx.lmem_alloc_tensor(shape_out, fmt, 1);
+    ctx.tdma_load_stride(tl_input, ga_input + pos_c * in_gstride.c, in_gstride);
+    cvk_tiu_average_pooling_param_t param = {0};
+    param.ofmap = tl_output;
+    param.ifmap = tl_input;
+    param.kh = kh;
+    param.kw = kw;
+    param.pad_top = 0;
+    param.pad_bottom = 0;
+    param.pad_left = 0;
+    param.pad_right = 0;
+    param.stride_h = 1;
+    param.stride_w = 1;
+    param.avg_pooling_const = ctx.convert_fp32_to_bf16(w);
+    param.layer_id = layer_id;
+    param.ins_val = 0;
+    param.ins_fp = param.avg_pooling_const;
+    ctx.tiu_average_pooling(&param);
+    ctx.tdma_store_stride(tl_output, ga_output + pos_c * out_gstride.c, out_gstride);
+    ctx.lmem_free_tensor(tl_output);
+    ctx.lmem_free_tensor(tl_input);
+  }
+}
+
 void cvi_backend_tg_bf16_reduce_max_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
@@ -460,6 +521,46 @@ void cvi_backend_tg_bf16_reduce_mean_kernel(
   }
 
   cvi_backend_tg_bf16_reduce_mean_hw_kernel(ctx,
+                                            layer_id,
+                                            ga_input,
+                                            ga_output,
+                                            n,
+                                            c,
+                                            h,
+                                            w,
+                                            kh,
+                                            kw);
+
+}
+
+void cvi_backend_tg_bf16_reduce_sum_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w,
+    int axes[], int num_axes) {
+  int kh = h;
+  int kw = w;
+  if (num_axes == 2) {
+    if (axes[0] == 2 && axes[1] == 3) {
+      // along H and W axis
+      kh = h;
+      kw = w;
+    } else {
+      assert(0 && "Not support axis for reducesum yet");
+    }
+  } else if (num_axes == 1) {
+    if (axes[0] == 2 || axes[0] == 3) {
+      // along H or W axis
+      kh = (axes[0] == 2) ? h : 1;
+      kw = (axes[0] == 3) ? w : 1;
+    } else {
+      assert(0 && "Not support axis for reducesum yet");
+    }
+  } else {
+    assert(0 && "Not support axis for reducesum yet");
+  }
+
+  cvi_backend_tg_bf16_reduce_sum_hw_kernel(ctx,
                                             layer_id,
                                             ga_input,
                                             ga_output,

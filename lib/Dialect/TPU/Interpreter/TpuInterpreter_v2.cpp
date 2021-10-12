@@ -414,6 +414,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(r_kernel_op));
     return;
   }
+  if (isa<tpu::ReduceSumOp>(op)) {
+    auto r_kernel_op = std::make_unique<ReduceSumOpKernel>(op, valueMapping, weightMapping);
+    oplist.push_back(std::move(r_kernel_op));
+    return;
+  }
   if (isa<tpu::ReduceMeanOp>(op)) {
     auto r_kernel_op = std::make_unique<ReduceMeanOpKernel>(op, valueMapping, weightMapping);
     oplist.push_back(std::move(r_kernel_op));

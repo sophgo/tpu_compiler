@@ -49,6 +49,7 @@ TEST_TORCH_IR = [
     "Expand",
     "Max_Min",
     "Mul_Input_Add",
+    "Sum",
     # "Customer_Net",
 ]
 
@@ -159,6 +160,7 @@ class TORCH_IR_TESTER(object):
             "Expand": self.test_Expand,
             "Max_Min": self.test_Max_Min,
             "Customer_Net": self.test_Customer_Net,
+            "Sum": self.test_Sum,
         }
         self.set_quant_mode()
 
@@ -681,6 +683,28 @@ class TORCH_IR_TESTER(object):
 
         # Use the exporter from  torch to convert to onnx
         self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Sum(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = torch.sum(x, 3)
+                return x
+
+        input_shape = [1, 3, 8, 8]
+        test_onnx_name = 'Sum'
+
+        net = Net()
+        input_data = torch.randn(input_shape)
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
 
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)

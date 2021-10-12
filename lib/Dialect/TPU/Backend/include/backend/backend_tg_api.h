@@ -151,6 +151,13 @@ void cvi_backend_tg_fixed_reduce_mean_kernel(
     int rshift, int multiplier,
     int axes[], int num_axes);
 
+void cvi_backend_tg_fixed_reduce_sum_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w,
+    int rshift, int multiplier,
+    int axes[], int num_axes);
+
 void cvi_backend_tg_int8_bcast_add_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
     gaddr_t ga_output, int32_t an, int32_t ac, int32_t ah, int32_t aw,
@@ -379,6 +386,12 @@ void cvi_backend_tg_bf16_reduce_min_kernel(
     int axes[], int num_axes);
 
 void cvi_backend_tg_bf16_reduce_mean_kernel(
+    const CviBackendContext& ctx,
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
+    int n, int c, int h, int w,
+    int axes[], int num_axes);
+
+void cvi_backend_tg_bf16_reduce_sum_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w,

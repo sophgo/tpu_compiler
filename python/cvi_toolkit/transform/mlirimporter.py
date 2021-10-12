@@ -106,6 +106,7 @@ class TPU_OpType(Enum):
     ReduceMean = 'tpu.reduce_mean'
     ReduceMax = 'tpu.reduce_max'
     ReduceMin = 'tpu.reduce_min'
+    ReduceSum = 'tpu.reduce_sum'
     MatMul = 'tpu.matmul'
     BroadcastSub = 'tpu.broadcast_sub'
     Square = 'tpu.square'
@@ -1809,6 +1810,24 @@ class MLIRImporter(object):
             inputOperands.append(none)
 
         return self.buildOp(TPU_OpType.ReduceMin.value, inputOperands, [
+            tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
+
+    def add_reduce_sum_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        checkKey(kargs, 'axes')
+
+        reduce_name = StringAttr.get(op_name)
+        axes = ArrayAttr.get([IntegerAttr.get(self.i32Type, x)
+                              for x in kargs['axes']])
+        reduce_param = {
+            'axes': axes
+        }
+        none = self.add_none_op()
+        for _ in range(5 - len(inputOperands)):
+            inputOperands.append(none)
+
+        return self.buildOp(TPU_OpType.ReduceSum.value, inputOperands, [
             tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
 
     def add_yolo_detection_op(self, op_name, inputOperands, output_tensor_shape, **kargs):

@@ -761,6 +761,7 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
              && OpTy::getOperationName() != "tpu.eltwise_add"
              && OpTy::getOperationName() != "tpu.reduce_mean"
              && OpTy::getOperationName() != "tpu.reduce_min"
+             && OpTy::getOperationName() != "tpu.reduce_sum"
              && OpTy::getOperationName() != "tpu.reduce_max") {
     // leave quant_rshift and quant_multiplier as NoneOp to indicate bypass
     LLVM_DEBUG(llvm::errs() << " < " << getOpName(op)
@@ -1591,6 +1592,13 @@ LogicalResult tpu::ReduceMinOp::quantizeInt8() {
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeInt8RescaleNoWeightOps<tpu::ReduceMinOp>(op);
+}
+
+LogicalResult tpu::ReduceSumOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8RescaleNoWeightOps<tpu::ReduceSumOp>(op);
 }
 
 LogicalResult tpu::ArgMaxOp::quantizeInt8() {
