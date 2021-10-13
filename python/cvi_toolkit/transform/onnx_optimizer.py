@@ -263,7 +263,10 @@ class OnnxOpt(object):
         inputs = {}
         for key, shape in input_shapes.items():
             if shape[0] == 0 or shape[0] == -1:
-                shape [0] = self.batch_size
+                if self.batch_size > 0:
+                    shape [0] = self.batch_size
+                else:
+                    shape[0] = 1
             if not np.all(np.array(shape) > 0):
                 raise RuntimeError("The shape of input '{}' has dynamic size '{}', "
                                    "please determine the input size when export "
