@@ -245,7 +245,8 @@ class Form_Deform(object):
         # fixed_point(self.constant_folding)
 
 class OnnxOpt(object):
-    def __init__(self, model):
+    def __init__(self, model, batch_size):
+        self.batch_size = batch_size
         self.model = copy.deepcopy(model)
         onnx.checker.check_model(self.model)
         self.const_tensors = []
@@ -262,7 +263,7 @@ class OnnxOpt(object):
         inputs = {}
         for key, shape in input_shapes.items():
             if shape[0] == 0 or shape[0] == -1:
-                shape [0] = 1
+                shape [0] = self.batch_size
             if not np.all(np.array(shape) > 0):
                 raise RuntimeError("The shape of input '{}' has dynamic size '{}', "
                                    "please determine the input size when export "
@@ -455,8 +456,8 @@ class OnnxOpt(object):
             dump_model(self.model, "constant_opt.onnx")
         return self.model
 
-def onnx_opt(model, dump=False):
-    constant_opt = OnnxOpt(model)
+def onnx_opt(model, batch_size, dump=False):
+    constant_opt = OnnxOpt(model, batch_size)
     model = constant_opt.run(dump)
     fdef = Form_Deform(model.graph.node)
     # define pattern. ("input", 0) refer to current node's input

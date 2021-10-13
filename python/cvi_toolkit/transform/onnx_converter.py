@@ -189,7 +189,7 @@ class OnnxConverter(BaseConverter):
         if isinstance(onnx_model, str):
             onnx_model = onnx.load(onnx_model)
         # opt onnx model
-        onnx_model = onnx_opt(onnx_model, dump=False)
+        onnx_model = onnx_opt(onnx_model, batch_size, dump=False)
         self.batch_size = batch_size
         self.model_name = model_name
         self.input_nodes = onnx_model.graph.input
