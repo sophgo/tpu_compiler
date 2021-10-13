@@ -1833,10 +1833,11 @@ class OnnxConverter(BaseConverter):
             indices = self.getTensor(onnx_node.inputs[1]).tensor_data
             if indices.size == 1:
                 offset = indices.flatten()[0]
+                if offset < 0:
+                    offset = input_shape1[axis] + offset
                 attr = {"axis": axis, "offset": offset}
                 tmp = np.take(np.ones(input_shape1), np.array([offset]), axis=axis)
                 output_shape = list(tmp.shape)
-                print("out:", output_shape)
                 slice_op_ = self.CVI.add_slice_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [op1], output_shape, **attr)
                 self.addOperand(onnx_node.outputs[0], slice_op_, output_shape, TensorType.ACTIVATION)
             else:

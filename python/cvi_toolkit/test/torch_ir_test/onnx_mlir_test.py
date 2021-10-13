@@ -95,7 +95,7 @@ class ModelTest(object):
             if 1 == input.type.tensor_type.elem_type:    # 1 for np.float32
                 self.input_data[input.name] = np.random.randn(*input_shape).astype(np.float32)
             elif 7 == input.type.tensor_type.elem_type:  # 7 for np.int64 / torch.long
-                self.input_data[input.name] = np.random.randint(0, size=input_shape, dtype=np.int64)
+                self.input_data[input.name] = np.random.randint(0, 3, input_shape).astype(np.int64)
             elif 9 == input.type.tensor_type.elem_type:  # 9 for boolean
                 self.input_data[input.name] = np.random.randint(0, 2, input_shape).astype(np.float32)
             else:
