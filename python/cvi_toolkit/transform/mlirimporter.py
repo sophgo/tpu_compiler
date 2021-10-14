@@ -111,6 +111,7 @@ class TPU_OpType(Enum):
     BroadcastSub = 'tpu.broadcast_sub'
     Square = 'tpu.square'
     QuadraticSum = 'tpu.quadratic_sum'
+    ZeroMask = 'tpu.zero_mask'
 
 
 def checkKey(dict, key):
@@ -1874,6 +1875,18 @@ class MLIRImporter(object):
         name_attr = StringAttr.get(op_name)
         return self.buildOp(TPU_OpType.Square.value, inputOperands, [tensor_output_type],
                             name=name_attr, quant=self.quant_param)
+
+    def add_zero_mask_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        param = {}
+        if 'positive' in kargs:
+            param['positive'] = BoolAttr.get(kargs['positive'])
+        else:
+            param['positive'] = BoolAttr.get(False)
+        name_attr = StringAttr.get(op_name)
+        return self.buildOp(TPU_OpType.ZeroMask.value, inputOperands, [tensor_output_type],
+                            name=name_attr, quant=self.quant_param, **param)
 
     def add_quadratic_sum_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

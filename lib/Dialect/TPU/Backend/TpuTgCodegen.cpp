@@ -4008,6 +4008,44 @@ LogicalResult tpu::TG_INT8_Yuv420CscOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_ZeroMaskOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto shape = getTensorShape(input());
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  cvi_backend_zero_mask_kernel(*backend_ctx, layer_id, input_gaddr,
+                               output_gaddr, n, c, h, w, positive(),
+                               CVK_FMT_I8);
+  return success();
+}
+
+LogicalResult tpu::TG_BF16_ZeroMaskOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto shape = getTensorShape(input());
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+  cvi_backend_zero_mask_kernel(*backend_ctx, layer_id, input_gaddr,
+                               output_gaddr, n, c, h, w, positive(),
+                               CVK_FMT_BF16);
+  return success();
+}
+
 LogicalResult tpu::TG_CallOp::codegen(void *ctx) {
   return success();
 }

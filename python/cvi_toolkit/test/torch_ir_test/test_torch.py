@@ -63,7 +63,7 @@ TEST_TORCH_IR = [
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
 NOT_SUPPORT_BF16_TEST_IR = [""]
-NOT_SUPPORT_INT8_TEST_IR = ["Customer_Net"] # just for save test time
+NOT_SUPPORT_INT8_TEST_IR = ["Customer_Net","masked_fill"] # just for save test time
 
 def cvimodel_inference(inputs, model_name):
     model = pyruntime.Model(model_name)
@@ -877,17 +877,18 @@ class TORCH_IR_TESTER(object):
         class Net(nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.mask = torch.ByteTensor([[[1],[1],[0]],[[0],[1],[1]]])
 
             def forward(self,x):
-                y = x.masked_fill(self.mask, value=torch.tensor(1.0))
-                return y
+                y = x.masked_fill(x==0, value=torch.tensor(-50.0))
+                z = x.masked_fill(x!=0, value=torch.tensor(1.0))
+                return y + z
 
         input_shape = [2, 3, 100]
         test_onnx_name = "masked_fill"
 
         net = Net()
-        input_data = torch.randn(input_shape)
+        input_data = torch.randint(0, 1000, input_shape)
+        input_data[:,:,70:] = 0
         torch_output_data = net(input_data)
         self.pytorch_transform_onnx(net, input_data, test_onnx_name)
         torch_output_data = torch_output_data.data.numpy()
@@ -1375,9 +1376,13 @@ if __name__ == "__main__":
     os.chdir("torch_test")
     tester = TORCH_IR_TESTER()
     if len(sys.argv) == 2:
-        tester.test_function.get(sys.argv[1])()
-        tester.set_quant_mode(mode="bf16")
-        tester.test_function.get(sys.argv[1])()
+        name = sys.argv[1]
+        if name not in NOT_SUPPORT_INT8_TEST_IR:
+            tester.set_quant_mode(mode="int8")
+            tester.test_function.get(name)()
+        if name not in NOT_SUPPORT_BF16_TEST_IR:
+            tester.set_quant_mode(mode="bf16")
+            tester.test_function.get(name)()
         exit(0)
     elif len(sys.argv) == 1:
         pass_list_i8 = list()

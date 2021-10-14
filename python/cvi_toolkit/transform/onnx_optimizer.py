@@ -463,6 +463,10 @@ def onnx_opt(model, batch_size, dump=False):
     constant_opt = OnnxOpt(model, batch_size)
     model = constant_opt.run(dump)
     fdef = Form_Deform(model.graph.node)
+    eq_not_op0 = PesudoNode("Equal", [("input", 0), ("input", 1)])
+    eq_not_op1 = PesudoNode("Not", [(eq_not_op0.output, 0),])
+    eq_not_op = PesudoNode("Equal", [("input", 0), ("input", 1)], default={"not": True})
+    eq_not = FoldUnfoldInfo([eq_not_op0, eq_not_op1], [eq_not_op])
     # define pattern. ("input", 0) refer to current node's input
     std_ub_op0 = PesudoNode("ReduceMean", [("input", 0),], attr_key_map=[("axes", "dim"),])
     std_ub_op1 = PesudoNode("Sub", [("input", 0), (std_ub_op0.output, 0)])
@@ -529,7 +533,7 @@ def onnx_opt(model, batch_size, dump=False):
                                     layernorm_op3, layernorm_op4, layernorm_op5,
                                     layernorm_op6, layernorm_op7, layernorm_op8], [layernorm_op])
 
-    fdef.run([std_ub, std, where, layernorm_aff, layernorm])
+    fdef.run([eq_not, std_ub, std, where, layernorm_aff, layernorm])
     if dump:
         dump_model(model, "final_opt.onnx")
     return model

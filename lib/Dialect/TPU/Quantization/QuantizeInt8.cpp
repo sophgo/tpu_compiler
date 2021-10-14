@@ -1259,6 +1259,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::SoftmaxOp>(op)
       || isa<tpu::LayerNormOp>(op)
       || isa<tpu::StdOp>(op)
+      || isa<tpu::ZeroMaskOp>(op)
       || isa<tpu::SoftmaxCpuOp>(op)
       || isa<tpu::CscOp>(op)
       || isa<tpu::GruOp>(op)
@@ -1681,6 +1682,7 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::SquareOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::StdOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::TileOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::UpsampleOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ZeroMaskOp)
 
 /*
 This Ops does not support quantizie

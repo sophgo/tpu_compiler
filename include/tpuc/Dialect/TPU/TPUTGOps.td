@@ -2402,4 +2402,26 @@ class TPU_TG_MergeConvConvPoolOp<string mnemonic, string opQuant> : TPU_Op<mnemo
 }
 def TPU_TG_INT8_MergeConvConvPoolOp : TPU_TG_MergeConvConvPoolOp<"tg_merge_conv_conv_pool", "Fuse conv-conv-pool">;
 
+class TPU_TG_ZeroMaskOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # "zero_mask";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    BoolAttr: $positive,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_ZeroMaskOp : TPU_TG_ZeroMaskOp<"tg_int8_zero_mask", "Int8">;
+def TPU_TG_BF16_ZeroMaskOp : TPU_TG_ZeroMaskOp<"tg_bf16_zero_mask", "Bf16">;
+
 #endif // TPU_TG_OPS

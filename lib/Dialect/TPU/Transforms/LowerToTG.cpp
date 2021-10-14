@@ -2867,6 +2867,33 @@ Value tpu::MatMulOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::ZeroMaskOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("positive", positiveAttr()));
+
+  if (getOpQuant() == "INT8") {
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_ZeroMaskOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ZeroMaskOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 template<typename OpTy>
 struct DefaultToTGPattern : public RewritePattern {
   DefaultToTGPattern(MLIRContext *context)
@@ -4262,7 +4289,8 @@ public:
         DefaultToTGPattern<tpu::SquareOp>,
         DefaultToTGPattern<tpu::QuadraticSumOp>,
         DefaultToTGPattern<tpu::CscOp>,
-        DefaultToTGPattern<tpu::MatMulOp>
+        DefaultToTGPattern<tpu::MatMulOp>,
+        DefaultToTGPattern<tpu::ZeroMaskOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
     LLVM_DEBUG(llvm::errs() << "Done lower: " << "]\n");

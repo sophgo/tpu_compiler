@@ -305,6 +305,9 @@ public:
       } else if (llvm::dyn_cast<tpu::SigmoidOp>(op)) {
         setOpThreshold(op, 1.0f);
         setOpQuantParamType(op, "THRESHOLD");
+      } else if (llvm::dyn_cast<tpu::ZeroMaskOp>(op)) {
+        setOpThreshold(op, 1.0f);
+        setOpQuantParamType(op, "THRESHOLD");
       } else if (llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
         setThresholdFromMap(op, threshold_map);
       } else {

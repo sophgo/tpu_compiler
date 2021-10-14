@@ -51,6 +51,7 @@
 #include "tpuc/Interpreter/cpu/upsample.hpp"
 #include "tpuc/Interpreter/cpu/embedding.hpp"
 #include "tpuc/Interpreter/cpu/matmul.hpp"
+#include "tpuc/Interpreter/cpu/zero_mask.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
 
 #include "tpuc/MlirModuleInterpreter.h"
@@ -319,6 +320,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<YoloDetectionOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::EmbeddingOp>(op)) {
       krnl = std::make_shared<EmbeddingOpKernel>(*op, valueMapping, weightMapping);
+    } else if (isa<tpu::ZeroMaskOp>(op)) {
+      krnl = std::make_shared<ZeroMaskOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::RetinaFaceDetectionOp>(op)) {
       llvm::errs() << "no support " << op->getName().getStringRef()
                   << " op in interpreter_v2\n";

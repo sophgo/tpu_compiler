@@ -3175,6 +3175,30 @@ def TPU_StdOp: TPU_Op<"std",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_ZeroMaskOp: TPU_Op<"zero_mask",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "zero_mask";
+
+  let description = [{
+    for example:
+    2 3 4 5 0 1 0
+    if positive == ture, => 1 1 1 1 0 1 0
+    if positive == false, => 0 0 0 0 1 0 1
+  }];
+
+  let arguments = (
+    ins AnyTensor: $input,
+    BoolAttr: $positive,
+    TPU_QuantParamAttr: $quant,
+    StrAttr: $name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_WeightFileOp: TPU_Op<"weight_file",
       [NoSideEffect]> {
   let summary = "Operator to save weight data";
