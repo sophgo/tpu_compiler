@@ -36,7 +36,7 @@ TEST_TORCH_IR = [
     # "Mulit_attention_api",  ## now not support
     "Norm",
     "masked_fill",
-    "Activation",
+    #"Activation",
     "Cat_Chunk",
     "Log",
     "Math", ## sum, prod not support
@@ -917,37 +917,38 @@ class TORCH_IR_TESTER(object):
             def __init__(self):
                 super(Net, self).__init__()
                 self.linear = nn.Linear(100, 200, bias=False)
-                self.linear_return = nn.Linear(200, 100, bias=False)
                 self.softplus = nn.Softplus()
                 self.hardsigmoid = nn.Hardsigmoid()
                 self.prelu = nn.PReLU()
 
-            def forward(self, x):
+            def forward(self, input):
                 #tanh
-                x = self.linear(x)
-                x = torch.tanh(x)
+                x = self.linear(input)
+                y0 = torch.tanh(x)
                 ##sigmoid
-                x = self.linear_return(x)
-                x = torch.sigmoid(x)
+                x = self.linear(input)
+                y1 = torch.sigmoid(x)
                 ##relu
-                x = self.linear(x)
-                x = torch.relu(x)
+                x = self.linear(input)
+                y2 = torch.relu(x)
                 ##leaky_relu
-                x = self.linear_return(x)
-                x = F.leaky_relu(x)
+                x = self.linear(input)
+                y3 = F.leaky_relu(x)
                 ##elu
-                x = self.linear(x)
-                x = F.elu(x)
+                x = self.linear(input)
+                y4 = F.elu(x)
                 ##softplus
-                x = self.linear_return(x)
-                x = self.prelu(x)
+                x = self.linear(input)
+                y5 = self.prelu(x)
                 ##hardsigmoid
-                x = self.linear(x)
-                x = self.hardsigmoid(x)
+                x = self.linear(input)
+                y6 = self.hardsigmoid(x)
                 ##prelu
-                x = self.linear_return(x)
-                x = self.softplus(x)
-                return x
+                x = self.linear(input)
+                y7 = self.softplus(x)
+                ##concat
+                y = torch.cat((y0, y1, y2, y3, y4, y5, y6, y7), 2)
+                return y
 
         test_onnx_name = 'Activation'
         input_data = torch.randn(3, 100, 100).float()
