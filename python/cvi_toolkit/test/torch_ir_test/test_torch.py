@@ -24,11 +24,13 @@ import gc
 import re
 
 TEST_TORCH_IR = [
-    "Conv3d", # Conv with 2d case
-    "Conv2d", # Conv with 2d case
-    "Conv1d", # Conv with 1d case
-    "ConvTranspose1d",
-    # "ConvTranspose2d",
+    "Conv", # sunpport Conv with 3d, 2d, 1d case
+    "ConvTranspose",
+    "MaxPool", ## Maxpool_1d and Max_Un_Pool2d not support
+    "AvgPool",
+    "ReflectionPad", ## ReflectionPad_2d not support
+    "ZeroPad2d",
+    "ConstantPad",
     "Std",
     "Squeeze",
     "Linear",
@@ -36,7 +38,8 @@ TEST_TORCH_IR = [
     # "Mulit_attention_api",  ## now not support
     "Norm",
     "masked_fill",
-    #"Activation",
+    "Activation",
+    "Batch_Norm", ## Batch_norm_1d and Instance_Norm_1d will fail, but Batch_norm_2d and Instance_Norm_2d easily will fail
     "Cat_Chunk",
     "Log",
     "Math", ## sum, prod not support
@@ -48,9 +51,14 @@ TEST_TORCH_IR = [
     "LayerNorm",
     "Expand",
     "Max_Min",
-    "Mul_Input_Add",
     "Sum",
+    # "Bilinear", ## Bilinear not support
     # "Customer_Net",
+    # "Unfold",
+    "Identity",
+    "Upsample",
+    # "ChannelShuffle", ## ChannelShuffle not support
+    "Flatten", ## Unflatten not support
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
@@ -135,12 +143,14 @@ class TORCH_IR_TESTER(object):
 
         self.test_function = {
             "LayerNorm": self.test_LayerNorm,
-            "Conv3d": self.test_Conv3d,
-            "Conv1d": self.test_Conv1d,
-            "ConvTranspose1d": self.test_ConvTranspose1d,
-            # "ConvTranspose2d": self.test_ConvTranspose2d,
+            "Conv": self.test_Conv,
+            "ConvTranspose": self.test_ConvTranspose,
+            "MaxPool": self.test_MaxPool,
+            "AvgPool": self.test_AvgPool,
+            "ReflectionPad": self.test_ReflectionPad,
+            "ZeroPad2d": self.test_ZeroPad2d,
+            "ConstantPad": self.test_ConstantPad,
             "Linear": self.test_Linear,
-            "Conv2d": self.test_Conv2d,
             "Std": self.test_Std,
             "Squeeze": self.test_Squeeze,
             "Size": self.test_Size,
@@ -149,18 +159,24 @@ class TORCH_IR_TESTER(object):
             "Mulit_attention_api": self.test_Mulit_attention_api,
             "Norm": self.test_Norm,
             "Activation": self.test_Activation,
+            "Batch_Norm": self.test_Batch_Norm,
             "Cat_Chunk": self.test_Cat_Chunk,
             "Math": self.test_Math,
             "Repeat": self.test_Repeat,
             "Dropout": self.test_Dropout,
             "LSTM": self.test_LSTM,
             "GRU": self.test_GRU,
-            "Mul_Input_Add": self.test_Mul_Input_Add,
+            "Bilinear": self.test_Bilinear,
             "Log": self.test_Log,
             "Expand": self.test_Expand,
             "Max_Min": self.test_Max_Min,
             "Customer_Net": self.test_Customer_Net,
             "Sum": self.test_Sum,
+            "Unfold": self.test_Unfold,
+            "Identity": self.test_Identity,
+            "Upsample": self.test_Upsample,
+            "ChannelShuffle": self.test_ChannelShuffle,
+            "Flatten": self.test_Flatten,
         }
         self.set_quant_mode()
 
@@ -373,29 +389,28 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_Mul_Input_Add(self):
+    def test_Bilinear(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
+                self.Bilinear = nn.Bilinear(20, 30, 40)
 
             def forward(self, x, y):
-                out = torch.add(x, y)
+                ## input_shape = (100, 20), (100, 30)
+                out = self.Bilinear(x, y) ## output_shape = (100, 40)
                 return out
 
         input_data = {}
-        input_shape = [100, 100]
-        input_data_temp = torch.randn(input_shape[0], input_shape[1])
-        input_data['input'] = input_data_temp
-        input_data['input1'] = input_data_temp
-        test_onnx_name = 'Mul_Add'
+        input_shape = [100, 20, 30]
+        input_data['input'] = torch.randn(input_shape[0], input_shape[1])
+        input_data['input1'] = torch.randn(input_shape[0], input_shape[2])
+        test_onnx_name = 'Bilinear'
 
         net = Net()
         torch_output_data = net(input_data['input'], input_data['input1'])
 
         # Use the exporter from  torch to convert to onnx
         self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
-
-        # torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
     def test_Log(self):
@@ -461,6 +476,136 @@ class TORCH_IR_TESTER(object):
 
         input_shape = [3, 1, 100, 100]
         test_onnx_name = 'Expand'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    # Unfold + matmul + fold = Conv2d
+    def test_Unfold(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.unfold = torch.nn.Unfold(kernel_size=(2, 2), stride=2)
+                self.fold = torch.nn.Fold(output_size=(4, 4), kernel_size=(2, 2), stride=2)
+
+            def forward(self, x):
+                ##shape (N, C*Kn, L)
+                ##Kn = C*kernel_size[0]*kernel_size[1]
+                ##L = ((h + 2*padding - dilation*(kernel-1))/stride + 1) * (w + 2*padding - dilation*(kernel-1))/stride + 1
+                x = self.unfold(x)
+                x = self.fold(x)
+                return x
+
+        input_shape = [1, 2, 4, 4]
+        test_onnx_name = 'Unfold'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Flatten(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.Unflatten = nn.Unflatten(1, torch.Size([2, 5, 5]))
+
+            def forward(self, x):
+                x = torch.flatten(x, start_dim=1, end_dim=3)
+                # x = self.Unflatten(x)
+                return x
+
+        input_shape = [4, 1, 5, 10]
+        test_onnx_name = 'Flatten'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_ChannelShuffle(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.channel_shuffle = nn.ChannelShuffle(2)
+
+            def forward(self, x):
+                x = self.channel_shuffle(x)
+                return x
+
+        input_shape = [1, 4, 100, 100]
+        test_onnx_name = 'ChannelShuffle'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Upsample(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                ## input_shape = (n, c*r*r, h, w) --> (n, c, r*w, r*h)
+                self.PixelShuffle = nn.PixelShuffle(3)
+                self.Upsample_nearest = nn.Upsample(scale_factor=2, mode='nearest')
+                self.Upsample_nearest_new = nn.UpsamplingNearest2d(scale_factor=2)
+                self.Upsample_bilinear = nn.Upsample(scale_factor=2, mode='bilinear')
+                self.Upsample_bilinear_new = nn.UpsamplingBilinear2d(scale_factor=2)
+
+            def forward(self, x):
+                x = self.PixelShuffle(x)
+                x = self.Upsample_nearest_new(x)
+                x = self.Upsample_bilinear_new(x)
+                return x
+
+        input_shape = [1, 9, 100, 100]
+        test_onnx_name = 'Upsample'
+
+        net = Net()
+        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+
+    def test_Identity(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.Identity = nn.Identity(54, unused_argument1=0.1, unused_argument2=False)
+
+            def forward(self, x):
+                x = self.Identity(x)
+                return x
+
+        input_shape = [1, 3, 100, 100]
+        test_onnx_name = 'Identity'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
@@ -622,7 +767,7 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 3, 100, 100]
-        test_onnx_name = 'Repeat'
+        test_onnx_name = 'Dropout'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
@@ -696,7 +841,7 @@ class TORCH_IR_TESTER(object):
                 x = torch.sum(x, 3)
                 return x
 
-        input_shape = [1, 3, 8, 8]
+        input_shape = [2, 3, 8, 8]
         test_onnx_name = 'Sum'
 
         net = Net()
@@ -944,20 +1089,24 @@ class TORCH_IR_TESTER(object):
                 self.softplus = nn.Softplus()
                 self.hardsigmoid = nn.Hardsigmoid()
                 self.prelu = nn.PReLU()
+                self.ReLU6 = nn.ReLU6(inplace=True)
+                self.mish = nn.Mish()
+                self.Softmax = nn.Softmax(dim=1)
+                self.Softmax_2d = nn.Softmax2d()
 
             def forward(self, input):
                 #tanh
                 x = self.linear(input)
                 y0 = torch.tanh(x)
-                ##sigmoid
-                x = self.linear(input)
-                y1 = torch.sigmoid(x)
                 ##relu
                 x = self.linear(input)
                 y2 = torch.relu(x)
-                ##leaky_relu
+                ##sigmoid
                 x = self.linear(input)
-                y3 = F.leaky_relu(x)
+                y1 = torch.sigmoid(x)
+                ##leaky_relu
+                # x = self.linear(input)
+                # y3 = F.leaky_relu(x)
                 ##elu
                 x = self.linear(input)
                 y4 = F.elu(x)
@@ -970,9 +1119,23 @@ class TORCH_IR_TESTER(object):
                 ##prelu
                 x = self.linear(input)
                 y7 = self.softplus(x)
+                ##relu6
+                x = self.linear(input)
+                y8 = self.ReLU6(x)
+                ##mish
+                x = self.linear(input)
+                y9 = self.mish(x)
+                ##Softmax
+                x = self.linear(input)
+                y10 = self.Softmax(x)
                 ##concat
-                y = torch.cat((y0, y1, y2, y3, y4, y5, y6, y7), 2)
+                y = torch.cat((y0, y1, y2, y4, y5, y6, y7, y8, y9, y10), 0)
+                ##Softmax_2d
+                x = self.linear(input)
+                x = x.unsqueeze(dim=1)
+                y2 = self.Softmax_2d(x)
                 return y
+
 
         test_onnx_name = 'Activation'
         input_data = torch.randn(3, 100, 100).float()
@@ -984,22 +1147,26 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_ConvTranspose1d(self):
+    def test_Batch_Norm(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.dconv1 = nn.ConvTranspose1d(40, 6, kernel_size=3, stride=2, padding=1, output_padding=1)
+                self.BatchNorm2d = nn.BatchNorm2d(30, affine=False)
+                # self.BatchNorm1d = nn.BatchNorm1d(30, affine=False)
+                self.GroupNorm = nn.GroupNorm(3, 30)
+                # self.InstanceNorm2d = nn.InstanceNorm2d(30, affine=False)
+                # self.InstanceNorm1d = nn.InstanceNorm1d(30, affine=False)
 
             def forward(self, x):
-                x = torch.negative(x)
-                x = torch.squeeze(x, 3)
-                x = self.dconv1(x)
+                x = self.BatchNorm2d(x)
+                x = self.GroupNorm(x)
+                # x = self.InstanceNorm2d(x)
                 return x
 
         batch_size = 3
-        test_onnx_name = 'ConvTranspose1d'
+        test_onnx_name = 'Batch_Norm'
 
-        input_data = torch.randn(batch_size, 40, 20, 1).float()
+        input_data = torch.randn(batch_size, 30, 100, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
@@ -1008,71 +1175,191 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_Conv1d(self):
+    def test_ConvTranspose(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.conv_test = nn.Conv1d(in_channels=30,
-                            out_channels=2,
-                            kernel_size=3,
-                            stride=2,
-                            padding=1)
+                self.dconv_2d = nn.ConvTranspose2d(40, 50, kernel_size=3, stride=2, padding=1, output_padding=0)
+                self.dconv_1d = nn.ConvTranspose1d(50, 6, kernel_size=3, stride=2, padding=1, output_padding=0)
 
             def forward(self, x):
-                x = torch.negative(x) ##tensor size [3, 30, 50]
-                x = self.conv_test(x) ##tensor size [3, 2, 50]
+                ## output_shape = (input-1)*stride - 2*padding + kernel_size + output_padding
+                x = torch.negative(x) ## input shape (3, 40, 1, 30)
+                x = self.dconv_2d(x) ## output shape (3, 50, 1, 59)
+                x = torch.squeeze(x, 2) ## output shape (3, 50, 59)
+                x = self.dconv_1d(x) ## output shape (3, 6, 118)
+                return x
+
+        batch_size = 3
+        test_onnx_name = 'ConvTranspose'
+
+        input_data = torch.randn(batch_size, 40, 1, 30).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_MaxPool(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                ## kersize = 3, stride = 2
+                self.max_pool1d = nn.MaxPool1d(3, stride=2)
+                self.max_pool2d = nn.MaxPool2d(2, stride=2, return_indices=True )
+                self.max_unpool2d = nn.MaxUnpool2d(2, stride=2)
+
+            def forward(self, x):
+                ## output_shape = (h/w + kernel_size -1) / 2
+                # x = x.squeeze(dim=1)
+                # x = self.max_pool1d(x) ## output shape (3, 3, 49)
+                output, indices = self.max_pool2d(x) ## output shape (3, 3, 49, 49)
+                # x = self.max_unpool2d(output, indices)
+                return x
+
+        batch_size = 3
+        test_onnx_name = 'MaxPool'
+
+        input_data = torch.randn(batch_size, 3, 100, 100).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_AvgPool(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.avgpool2d = nn.AvgPool2d(3, stride=2)
+
+            def forward(self, x):
+                ## output_shape = (hw - kernel_size) / stride + 1
+                x = self.avgpool2d(x) ## output shape (3, 40, 14, 14)
+                x = x.squeeze(dim=2)
+                ## output_shape = (hw - kernel_size) / kernel_size + 1
                 x = F.avg_pool1d(x, kernel_size=2)
                 return x
 
         batch_size = 3
-        test_onnx_name = 'Conv1d'
-        input_data = torch.randn(batch_size, 30, 50).float()
+        test_onnx_name = 'AvgPool'
+
+        input_data = torch.randn(batch_size, 40, 3, 30).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_Conv2d(self):
+    def test_ReflectionPad(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.conv_test = nn.Conv2d(in_channels=3,
-                            out_channels=3,
-                            kernel_size=3,
-                            stride=1,
-                            padding=1)
+                self.ReflectionPad1d = nn.ReflectionPad1d(2)
+                self.ReflectionPad2d = nn.ReflectionPad2d(2)
 
             def forward(self, x):
-                x = self.conv_test(x)
+                x = torch.negative(x)
+                x = self.ReflectionPad1d(x)
+                # x = x.unsqueeze(dim=1)
+                # x = self.ReflectionPad2d(x)
                 return x
 
-        input_shape = [1, 3, 100, 100]
-        test_onnx_name = 'Conv2d'
-        ##torch needn't weight and bias
-        input_data = torch.randn(input_shape)
+        batch_size = 3
+        test_onnx_name = 'ReflectionPad'
+
+        input_data = torch.randn(batch_size, 100, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)\
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
 
-    def test_Conv3d(self):
+    def test_ZeroPad2d(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.conv_test = nn.Conv3d(3, 3, (3, 7, 7), stride=1, padding=0)
+                ## left:3 right:4 up:4 down:6 postion pad zero
+                self.ZeroPad2d = nn.ZeroPad2d(padding=(3, 4, 5, 6))
 
             def forward(self, x):
-                x = self.conv_test(x)
+                x = torch.negative(x)
+                ##input shape = (3, 100, 100)
+                x = self.ZeroPad2d(x) ##output shape = (3, 111, 107)
+                return x
+
+        batch_size = 3
+        test_onnx_name = 'ZeroPad2d'
+
+        input_data = torch.randn(batch_size, 3, 100, 100).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_ConstantPad(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.ConstantPad2d = nn.ConstantPad2d(padding=(1, 1, 1, 1), value=0.01)
+                self.ConstantPad1d = nn.ConstantPad1d(2, 0.01)
+
+            def forward(self, x):
+                x = torch.negative(x)
+                x = self.ConstantPad1d(x)
+                x = x.unsqueeze(dim=1)
+                x = self.ConstantPad2d(x)
+                return x
+
+        batch_size = 3
+        test_onnx_name = 'ConstantPad'
+
+        input_data = torch.randn(batch_size, 1, 3).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_Conv(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv_test_3d = nn.Conv3d(3, 1, (3, 7, 7), stride=1, padding=0)
+                # conv_test_2d : (input + 2*padding - (kernel_size-1) -1) / stride + 1
+                self.conv_test_2d = nn.Conv2d(in_channels=28, out_channels=1, kernel_size=3, stride=1, padding=1)
+                self.LazyConv2d = torch.nn.LazyConv2d(1, 3, padding=1)
+                self.conv_test_1d = nn.Conv1d(in_channels=94, out_channels=10, kernel_size=3, stride=2, padding=1)
+
+            def forward(self, x):
+                ## 3d_conv for 5 dim
+                x = self.conv_test_3d(x)
+                ## squeeze from 5 dim to 4 dim
+                x = x.squeeze(dim=1)
+                ## 2d_conv for 4 dim
+                x = self.conv_test_2d(x)
+                x = self.LazyConv2d(x)
+                ## squeeze from 4 dim to 3 dim
+                x = x.squeeze(dim=1)
+                ## 1d_conv for 3 dim
+                x = self.conv_test_1d(x)
                 return x
 
         input_shape = [1, 3, 30, 100, 100]
-        test_onnx_name = 'Conv3d'
+        test_onnx_name = 'Conv'
         ##torch needn't weight and bias
         input_data = torch.randn(input_shape)
         net = Net()
