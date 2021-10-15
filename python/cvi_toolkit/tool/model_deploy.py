@@ -188,7 +188,7 @@ if __name__ == '__main__':
     parser.add_argument("--tolerance", required=True, help="tolerance")
     parser.add_argument("--excepts", default='-', help="excepts")
     parser.add_argument("--correctness", default='0.99,0.99,0.98', help="correctness")
-    parser.add_argument("--chip", required=True, choices=['cv183x', 'cv182x'], help="chip platform name")
+    parser.add_argument("--chip", required=True, choices=['cv183x', 'cv182x', 'mars'], help="chip platform name")
     parser.add_argument("--fuse_preprocess", action='store_true', default=False,
                         help="add tpu preprocesses (mean/scale/channel_swap) in the front of model")
     parser.add_argument("--pixel_format", choices=supported_pixel_formats, default='BGR_PLANAR',

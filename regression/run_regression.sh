@@ -180,6 +180,8 @@ net_list_accuracy_extra=()
 if [ -z $model_list_file ]; then
   if [ ${SET_CHIP_NAME} = "cv183x" ]; then
     model_list_file=$SCRIPT_DIR/generic/model_list.txt
+  elif [ ${SET_CHIP_NAME} = "mars" ]; then
+    model_list_file=$SCRIPT_DIR/generic/model_list_mars.txt
   else
     model_list_file=$SCRIPT_DIR/generic/model_list_cv182x.txt
   fi
