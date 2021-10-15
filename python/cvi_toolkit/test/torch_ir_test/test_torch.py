@@ -51,7 +51,7 @@ TEST_TORCH_IR = [
     "LayerNorm",
     "Expand",
     "Max_Min",
-    "Sum",
+    # "Sum",
     # "Bilinear", ## Bilinear not support
     # "Customer_Net",
     # "Unfold",
