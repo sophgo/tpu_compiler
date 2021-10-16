@@ -105,22 +105,13 @@ def get_preprocess_parser(existed_parser=None):
 
 class preprocess(object):
     def __init__(self):
-        self.runchip = os.environ.get('SET_CHIP_NAME', None)
-        if str(self.runchip).endswith('183x'):
-            self.VPSS_W_ALIGN = 32
-            self.VPSS_Y_ALIGN = 64
-            self.VPSS_CHANNEL_ALIGN = 4096
-        else:
-            self.VPSS_W_ALIGN = 64
-            self.VPSS_Y_ALIGN = 128
-            self.VPSS_CHANNEL_ALIGN = 64
         pass
 
     def config(self, net_input_dims=None,
                resize_dims=None, crop_method='center', keep_aspect_ratio=False,
                raw_scale=255.0, mean='0,0,0,0', std='1,1,1,1', input_scale=1.0,
                channel_order='bgr', pixel_format=None, data_format='nchw',
-               aligned=False, gray=False, channel_num=3, **ignored):
+               aligned=False, gray=False, channel_num=3, chip="", **ignored):
         if not net_input_dims and not resize_dims:
             raise RuntimeError("net_input_dims or resize_dims should be set")
 
@@ -173,6 +164,15 @@ class preprocess(object):
             self.channel_order = 'bgr'
         else:
             self.channel_num = 3
+
+        if str(chip).lower().endswith('183x'):
+            self.VPSS_W_ALIGN = 32
+            self.VPSS_Y_ALIGN = 64
+            self.VPSS_CHANNEL_ALIGN = 4096
+        else:
+            self.VPSS_W_ALIGN = 64
+            self.VPSS_Y_ALIGN = 128
+            self.VPSS_CHANNEL_ALIGN = 64
 
         self.data_format = 'nchw' if self.pixel_format.endswith('PLANAR') else 'nhwc'
         self.input_name = 'input'
@@ -247,7 +247,7 @@ class preprocess(object):
                 input_ops.append(op)
         return len(input_ops)
 
-    def load_config(self, model_file, idx):
+    def load_config(self, model_file, idx, chip=""):
         with open(model_file, 'r') as f:
             context = f.read()
         ctx = mlir.ir.Context()
@@ -283,10 +283,17 @@ class preprocess(object):
         self.aligned = False
         if self.pixel_format == "YUV420_PLANAR":
             self.aligned = True
+        if str(chip).lower().endswith('183x'):
+            self.VPSS_W_ALIGN = 32
+            self.VPSS_Y_ALIGN = 64
+            self.VPSS_CHANNEL_ALIGN = 4096
+        else:
+            self.VPSS_W_ALIGN = 64
+            self.VPSS_Y_ALIGN = 128
+            self.VPSS_CHANNEL_ALIGN = 64
         self.data_format = pixel_format_attributes[self.pixel_format][1]
 
         format_str = "\n  Preprocess args : \n" + \
-               "\tchip                  : {}\n" + \
                "\tnet_input_dims        : {}\n" + \
                "\tresize_dims           : {}\n" + \
                "\tcrop_method           : {}\n" + \
@@ -300,7 +307,7 @@ class preprocess(object):
                "\tpixel_format          : {}\n" + \
                "\taligned               : {}\n"
         logger.info(format_str.format(
-                self.runchip, self.net_input_dims, self.resize_dims, self.crop_method,
+                self.net_input_dims, self.resize_dims, self.crop_method,
                 self.keep_aspect_ratio, self.channel_order, self.channel_num,
                 list(self.perchannel_scale.flatten()),
                 list(self.perchannel_mean.flatten()),

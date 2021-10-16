@@ -54,6 +54,7 @@ class DeployTool:
                  fuse_preprocess, pixel_format, aligned_input):
         if not all_bf16 and mix_table:
             self.mix_precision = True
+        self.chip = chip
         ret = mlir_quant(self.mlir_file, str(self.quantized_mlir),
                          chip, str(self.quantized_op_info_csv),
                          all_bf16, calib_table, mix_table)
@@ -87,7 +88,7 @@ class DeployTool:
             x1 = {}
             assert(len(images) == self.input_num)
             for i in range(self.input_num):
-                self.ppa.load_config(self.mlir_file, i)
+                self.ppa.load_config(self.mlir_file, i, self.chip)
                 if self._is_npy(images[i]):
                     data = np.load(images[i])
                     x0[self.ppa.input_name] = data
@@ -99,7 +100,8 @@ class DeployTool:
                         'resize_dims': ",".join([str(x) for x in self.ppa.resize_dims]),
                         'keep_aspect_ratio': self.ppa.keep_aspect_ratio,
                         'pixel_format': self.pixel_format,
-                        'aligned': self.aligned_input
+                        'aligned': self.aligned_input,
+                        'chip': self.chip,
                     }
                     ppb = preprocess()
                     ppb.config(**config)
