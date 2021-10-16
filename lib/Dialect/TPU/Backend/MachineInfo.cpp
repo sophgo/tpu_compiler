@@ -79,7 +79,7 @@ void MInfo::getChipInfo(std::string chipName) {
 
 void MInfo::getChipInfo(FuncOp fn) {
   // get chipname form function attributes.
-  std::string chipname = "cx183x";
+  std::string chipname = "cv183x";
   if (fn->getAttr("chipname")) {
     chipname = fn->getAttr("chipname").cast<StringAttr>().getValue().str();
   }

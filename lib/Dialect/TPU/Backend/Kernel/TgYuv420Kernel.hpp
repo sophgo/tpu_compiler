@@ -19,7 +19,7 @@ public:
 
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output, int n,
             int c, int h, int w, const std::vector<int> &order,
-            int channel_align, int w_align, cvk_fmt_t fmt);
+            int channel_align, int y_align, int w_align, cvk_fmt_t fmt);
 
   void selectTilePolicy();
   void schedule();

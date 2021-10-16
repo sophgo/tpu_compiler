@@ -15,6 +15,9 @@ public:
   void invoke() override;
 
 private:
+  void yuv420_csc(float *input, float *output, int n, int c, int h, int w,
+                std::vector<int> &order, int quant_type);
+private:
   SyncedData input_data;
   SyncedData output_data;
   SyncedDataShape input_shape;
@@ -22,6 +25,7 @@ private:
   // param
   std::string pixel_format;
   int aligned;
+  int y_align, w_align, channel_align;
 };
 } // namespace mlir
 #endif

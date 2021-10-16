@@ -67,11 +67,12 @@
 
 namespace mlir {
 
-
+std::string MlirModuleInterpreter::chipname = "cv183x";
 void MlirModuleInterpreter::loadModule(OwningModuleRef &module_op, std::string target_op) {
   for (auto func : module_op->getOps<FuncOp>()) {
     MInfo Machineinfo;
     if (func->getAttr("chipname")) {
+      chipname = func->getAttr("chipname").cast<StringAttr>().getValue().str();
       Machineinfo.getChipInfo(func);
     }
     updateKernelList(func, target_op);

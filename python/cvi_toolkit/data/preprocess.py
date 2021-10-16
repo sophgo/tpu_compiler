@@ -105,6 +105,15 @@ def get_preprocess_parser(existed_parser=None):
 
 class preprocess(object):
     def __init__(self):
+        self.runchip = os.environ.get('SET_CHIP_NAME', None)
+        if str(self.runchip).endswith('183x'):
+            self.VPSS_W_ALIGN = 32
+            self.VPSS_Y_ALIGN = 64
+            self.VPSS_CHANNEL_ALIGN = 4096
+        else:
+            self.VPSS_W_ALIGN = 64
+            self.VPSS_Y_ALIGN = 128
+            self.VPSS_CHANNEL_ALIGN = 64
         pass
 
     def config(self, net_input_dims=None,
@@ -277,6 +286,7 @@ class preprocess(object):
         self.data_format = pixel_format_attributes[self.pixel_format][1]
 
         format_str = "\n  Preprocess args : \n" + \
+               "\tchip                  : {}\n" + \
                "\tnet_input_dims        : {}\n" + \
                "\tresize_dims           : {}\n" + \
                "\tcrop_method           : {}\n" + \
@@ -290,7 +300,7 @@ class preprocess(object):
                "\tpixel_format          : {}\n" + \
                "\taligned               : {}\n"
         logger.info(format_str.format(
-                self.net_input_dims, self.resize_dims, self.crop_method,
+                self.runchip, self.net_input_dims, self.resize_dims, self.crop_method,
                 self.keep_aspect_ratio, self.channel_order, self.channel_num,
                 list(self.perchannel_scale.flatten()),
                 list(self.perchannel_mean.flatten()),
@@ -341,12 +351,12 @@ class preprocess(object):
         # every 4 y has one u,v
         # vpss format, w align is 32, channel align is 4096
         h, w, c = input.shape
-        y_w_aligned = self.align_up(w, 32)
-        uv_w_aligned = self.align_up(int(w/2), 32)
+        y_w_aligned = self.align_up(w, self.VPSS_Y_ALIGN)
+        uv_w_aligned = self.align_up(int(w/2), self.VPSS_W_ALIGN)
         y_offset = 0
-        u_offset = self.align_up(y_offset + h * y_w_aligned, 4096)
-        v_offset = self.align_up(u_offset + int(h/2) * uv_w_aligned, 4096)
-        total_size = self.align_up(v_offset + int(h/2) * uv_w_aligned, 4096)
+        u_offset = self.align_up(y_offset + h * y_w_aligned, self.VPSS_CHANNEL_ALIGN)
+        v_offset = self.align_up(u_offset + int(h/2) * uv_w_aligned, self.VPSS_CHANNEL_ALIGN)
+        total_size = self.align_up(v_offset + int(h/2) * uv_w_aligned, self.VPSS_CHANNEL_ALIGN)
         yuv420 = np.zeros(int(total_size), np.uint8)
         for h_idx in range(h):
             for w_idx in range(w):
@@ -413,7 +423,7 @@ class preprocess(object):
         h, w, c = x.shape
         w = w * c
         x = np.reshape(x, (1, h, w))
-        x_tmp = np.zeros((1, h, self.align_up(w, 32)), x.dtype)
+        x_tmp = np.zeros((1, h, self.align_up(w, self.VPSS_W_ALIGN)), x.dtype)
         x_tmp[:, :, : w] = x
         return x_tmp
 
@@ -421,7 +431,7 @@ class preprocess(object):
         if not aligned:
             return x
         c, h, w = x.shape
-        x_tmp = np.zeros((c, h, self.align_up(w, 32)), x.dtype)
+        x_tmp = np.zeros((c, h, self.align_up(w, self.VPSS_W_ALIGN)), x.dtype)
         x_tmp[:, :, :w] = x
         return x_tmp
 

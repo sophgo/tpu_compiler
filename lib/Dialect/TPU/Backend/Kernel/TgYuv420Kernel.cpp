@@ -37,7 +37,7 @@
 void TgYuv420Kernel::init(uint32_t layer_id, gaddr_t ga_input,
                           gaddr_t ga_output, int n, int c, int h, int w,
                           const std::vector<int> &order, int channel_align,
-                          int w_align, cvk_fmt_t fmt) {
+                          int y_align, int w_align, cvk_fmt_t fmt) {
   assert(c == 3 && "rgb channel must be 3");
   // convert to output shape
   this->layer_id = layer_id;
@@ -64,7 +64,7 @@ void TgYuv420Kernel::init(uint32_t layer_id, gaddr_t ga_input,
     fmt = CVK_FMT_U8;
   }
   assert(fmt == CVK_FMT_U8);
-  y_w_aligned = align_up(w, w_align);
+  y_w_aligned = align_up(w, y_align);
   uv_w_aligned = align_up(w / 2, w_align);
   int y_offset = 0;
   int u_offset = align_up(y_offset + y_w_aligned * h, channel_align);
@@ -466,9 +466,19 @@ void cvi_backend_tg_yuv420_csc_kernel(const CviBackendContext &ctx,
                                       int w, const std::vector<int> &order,
                                       cvk_fmt_t fmt) {
   TgYuv420Kernel kernel(ctx);
+  int y_align, w_align, channel_align;
+  if (CHIP_VERSION >= 1830) {
+    w_align = 32;
+    y_align = 64;
+    channel_align = 4096;
+  } else {
+    w_align = 64;
+    y_align = 128;
+    channel_align = 64;
+  }
   // yuv channel align is 4KB, w_align is 32B
-  kernel.init(layer_id, ga_input, ga_output, n, c, h, w, order, 0x1000, 0x20,
-              fmt);
+  kernel.init(layer_id, ga_input, ga_output, n, c, h, w, order, channel_align,
+              y_align, w_align, fmt);
   kernel.selectTilePolicy();
   kernel.schedule();
 }

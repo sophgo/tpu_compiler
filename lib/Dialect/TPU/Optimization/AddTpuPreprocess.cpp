@@ -181,6 +181,20 @@ public:
       {"RGBA_PLANAR", {"rgba", "nchw"}}
     };
 
+    std::string chipname = "cv183x";
+    if (fn->getAttr("chipname")) {
+      chipname = fn->getAttr("chipname").cast<StringAttr>().getValue().str();
+    }
+    if (chipname == "cv183x") {
+      w_align = 32;
+      y_align = 64;
+      channel_align = 4096;
+    } else {
+      w_align = 64;
+      y_align = 128;
+      channel_align = 64;
+    }
+
     SmallVector<tpu::QuantOp, 4> toErase;
     fn.walk([&](tpu::InputOp inputOp) {
       if (inputOp.preprocess().hasValue()) {
@@ -237,7 +251,7 @@ public:
           if (aligned) {
             input_shape[1] = 1;
             input_shape[2] = resize_h;
-            input_shape[3] = align_up(resize_w * c, 32);
+            input_shape[3] = align_up(resize_w * c, this->w_align);
           } else {
             input_shape[1] = resize_h;
             input_shape[2] = resize_w;
@@ -343,6 +357,7 @@ private:
   int64_t n, c, h, w;
   int64_t resize_h;
   int64_t resize_w;
+  int w_align, y_align, channel_align;
 
 private:
   inline int align_up(int x, int n) {
@@ -351,11 +366,11 @@ private:
 
   int yuv420_size(int n, int c, int h, int w) {
     assert(c == 3);
-    int y_w_aligned = align_up(w, 32);
-    int uv_w_aligned = align_up(w / 2, 32);
-    int u = align_up(h * y_w_aligned, 0x1000);
-    int v = align_up(u + h / 2 * uv_w_aligned, 0x1000);
-    int n_stride = align_up(v + h / 2 * uv_w_aligned, 0x1000);
+    int y_w_aligned = align_up(w, this->y_align);
+    int uv_w_aligned = align_up(w / 2, this->w_align);
+    int u = align_up(h * y_w_aligned, this->channel_align);
+    int v = align_up(u + h / 2 * uv_w_aligned, this->channel_align);
+    int n_stride = align_up(v + h / 2 * uv_w_aligned, this->channel_align);
     return n * n_stride;
   }
 

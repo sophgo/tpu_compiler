@@ -15,7 +15,7 @@ namespace mlir {
 
 void TiuCycle::setup_hw_config() {
     FuncOp * fn = net_graph_->getFn();
-    std::string chipname = "cx1835";
+    std::string chipname = "cv183x";
     if ((*fn)->getAttr("chipname")) {
       chipname = (*fn)->getAttr("chipname").cast<StringAttr>().getValue().str();
     }

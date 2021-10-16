@@ -26,6 +26,7 @@
 #define EU_NUM ctx.cvi_chip_info_context(CVI_CHIP_EU_NUM)
 #define LOCAL_MEM_SIZE ctx.cvi_chip_info_context(CVI_CHIP_LMEM_SIZE)
 #define LOCAL_MEM_BANKS ctx.cvi_chip_info_context(CVI_CHIP_LMEM_BANK)
+#define CHIP_VERSION ctx.cvi_chip_info_context(CVI_CHIP_VERSION)
 
 class CviBackendContext {
 public:

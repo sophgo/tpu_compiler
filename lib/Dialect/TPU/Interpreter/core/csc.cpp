@@ -1,7 +1,7 @@
 #include "tpuc/Interpreter/cpu/csc.hpp"
+#include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
 #include "tpuc/MlirModuleInterpreter.h"
-#include "internal.hpp"
 
 static inline int align_up(int x, int n) {
   if (n == 0 || n == 1) {
@@ -13,15 +13,16 @@ static inline int align_up(int x, int n) {
 static inline float UINT8(float data) {
   return static_cast<float>(F32ToUint8(data, 0));
 }
+namespace mlir {
 
-void yuv420_csc(float *input, float *output, int n, int c, int h, int w,
-                std::vector<int> &order, int quant_type) {
-  int y_w_aligned = align_up(w, 32);
-  int uv_w_aligned = align_up(w / 2, 32);
+void CscOpKernel::yuv420_csc(float *input, float *output, int n, int c, int h,
+                             int w, std::vector<int> &order, int quant_type) {
+  int y_w_aligned = align_up(w, y_align);
+  int uv_w_aligned = align_up(w / 2, w_align);
   int y_offset = 0;
-  int u_offset = align_up(h * y_w_aligned, 0x1000);
-  int v_offset = align_up(u_offset + h / 2 * uv_w_aligned, 0x1000);
-  int n_stride = align_up(v_offset + h / 2 * uv_w_aligned, 0x1000);
+  int u_offset = align_up(h * y_w_aligned, channel_align);
+  int v_offset = align_up(u_offset + h / 2 * uv_w_aligned, channel_align);
+  int n_stride = align_up(v_offset + h / 2 * uv_w_aligned, channel_align);
   for (int idx_n = 0; idx_n < n; idx_n++) {
     for (int idx_h = 0; idx_h < h; idx_h++) {
       for (int idx_w = 0; idx_w < w; idx_w++) {
@@ -72,8 +73,6 @@ void yuv420_csc(float *input, float *output, int n, int c, int h, int w,
   }
 }
 
-namespace mlir {
-
 CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping,
                          weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
@@ -86,6 +85,15 @@ CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping,
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
+  if (MlirModuleInterpreter::chipname == "cv183x") {
+    w_align = 32;
+    y_align = 64;
+    channel_align = 4096;
+  } else {
+    w_align = 64;
+    y_align = 128;
+    channel_align = 64;
+  }
 }
 
 void CscOpKernel::invoke() {

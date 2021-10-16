@@ -74,6 +74,7 @@ public:
   static weight_map_t weightMapping;
   activations_map_t activationMapping;
   value_map_t valueMapping;
+  static std::string chipname;
 
 private:
   kernel_map_t kernel_map_;
