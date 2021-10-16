@@ -114,9 +114,21 @@ static void insertQuantOp(Operation *op) {
   }
 
   StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
-  if (isa<tpu::EmbeddingOp>(op)) {
-    curr_quant = "UINT16";
+  if (isa<tpu::ZeroMaskOp>(op)) {
+    auto input = op->getOperand(0);
+    for (auto &use : input.getUses()) {
+      auto useOp = use.getOwner();
+      if (isa<tpu::QuantOp>(useOp)) {
+        op->setOperand(0, useOp->getResult(0));
+        return;
+      }
+      if (isa<tpu::EmbeddingOp>(useOp)) {
+        curr_quant = "UINT16";
+        break;
+      }
+    }
   }
+
   for (unsigned i = 0; i < op->getNumOperands(); i++) {
     auto prev_op = op->getOperand(i).getDefiningOp();
     assert(prev_op);
@@ -124,6 +136,9 @@ static void insertQuantOp(Operation *op) {
         || isa<tpu::LoadWeightOp>(prev_op)
         || isa<tpu::NoneOp>(prev_op)) {
       continue;
+    }
+    if (isa<tpu::EmbeddingOp>(op)) {
+      curr_quant = (i == 0 ? "UINT16" : "BF16");
     }
 
     StringRef prev_quant;

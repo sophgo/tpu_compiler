@@ -4015,6 +4015,8 @@ LogicalResult tpu::TG_INT8_ZeroMaskOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   auto shape = getTensorShape(input());
+  auto type = input().getType().cast<TensorType>().getElementType();
+  assert(type.getIntOrFloatBitWidth() == 16);
   int64_t n, c, h, w;
   getNCHW(shape, n, c, h, w);
 
@@ -4023,7 +4025,7 @@ LogicalResult tpu::TG_INT8_ZeroMaskOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   cvi_backend_zero_mask_kernel(*backend_ctx, layer_id, input_gaddr,
                                output_gaddr, n, c, h, w, positive(),
-                               CVK_FMT_I8);
+                               CVK_FMT_U8);
   return success();
 }
 

@@ -186,6 +186,11 @@ public:
     cvk_ctx_->ops->tiu_xor_int16(cvk_ctx_, param);
   }
 
+  // 182x and mars support, 183x not support
+  void tiu_ge(const cvk_tiu_ge_param_t *param) const {
+    cvk_ctx_->ops->tiu_ge(cvk_ctx_, param);
+  }
+
   void tiu_copy(const cvk_tiu_copy_param_t *param) const {
     cvk_ctx_->ops->tiu_copy(cvk_ctx_, param);
   }
