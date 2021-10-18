@@ -230,7 +230,7 @@ class MLIRImporter(object):
 
     def get_input_type(self, input_op):
         _type = str(input_op.type)
-        _type = _type.split('x')[-1].split('>')[0]
+        _type = _type.split('<')[-1].split('x')[-1].split('>')[0]
         if _type == "f32":
             return self.f32Type
         elif _type == "i8":

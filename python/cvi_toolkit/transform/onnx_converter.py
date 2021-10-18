@@ -1880,6 +1880,21 @@ class OnnxConverter(BaseConverter):
             output_shape.append(embedding_dim)
             embedding_op = self.CVI.add_embedding_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, embedding_op, output_shape, TensorType.ACTIVATION)
+        elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.ACTIVATION:
+            # for transform decode's index op
+            if (len(input_shape2) == 0 and axis == 1) and (len(input_shape1) == 3 and input_shape1[0] == 1):
+                operands = list()
+                idx_shape = [1, 1]
+                embedding_dim = input_shape1[-1]
+                output_shape = [1, embedding_dim]
+                reshape_input_op = self.CVI.add_reshape_op("reshape_{}_{}_input".format(
+                    onnx_node.name, onnx_node.op_type), [op2], idx_shape)
+                operands.append(reshape_input_op)
+                reshape_embdding = self.CVI.add_reshape_op("reshape_{}_{}_embedding".format(
+                    onnx_node.name, onnx_node.op_type), [op1], input_shape1[1:])
+                operands.append(reshape_embdding)
+                embedding_op = self.CVI.add_embedding_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                self.addOperand(onnx_node.name, embedding_op, output_shape, TensorType.ACTIVATION)
         else:
             raise("TODO: Our Ir not support gather function")
 

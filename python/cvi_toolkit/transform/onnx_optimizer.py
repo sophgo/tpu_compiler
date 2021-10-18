@@ -262,7 +262,7 @@ class OnnxOpt(object):
     def generate_specific_rand_input(self, input_shapes):
         inputs = {}
         for key, shape in input_shapes.items():
-            if shape[0] == 0 or shape[0] == -1:
+            if len(shape) > 0 and (shape[0] == 0 or shape[0] == -1):
                 if self.batch_size > 0:
                     shape [0] = self.batch_size
                 else:
@@ -273,10 +273,12 @@ class OnnxOpt(object):
                                    "onnx".format(key, shape))
             elem_type = self.get_elem_type(key)
             elem_type = self.get_np_type_from_elem_type(elem_type)
-            if elem_type == np.bool:
+            if elem_type == np.bool :  # for mask
                 inputs.update({key: np.random.randint(0, 2, shape, dtype=elem_type)})
             # elif elem_type == np.int64:
             #     inputs.update({key: np.random.randint(0, 10, size=shape, dtype=elem_type)})
+            elif len(shape) == 0: # for idx
+                inputs.update({key: np.array(0, dtype=elem_type)})
             else:
                 inputs.update({key: np.random.rand(*shape).astype(elem_type)})
         return inputs
@@ -463,11 +465,12 @@ def onnx_opt(model, batch_size, dump=False):
     constant_opt = OnnxOpt(model, batch_size)
     model = constant_opt.run(dump)
     fdef = Form_Deform(model.graph.node)
+    # define pattern. ("input", 0) refer to current node's input
     eq_not_op0 = PesudoNode("Equal", [("input", 0), ("input", 1)])
     eq_not_op1 = PesudoNode("Not", [(eq_not_op0.output, 0),])
     eq_not_op = PesudoNode("Equal", [("input", 0), ("input", 1)], default={"not": True})
     eq_not = FoldUnfoldInfo([eq_not_op0, eq_not_op1], [eq_not_op])
-    # define pattern. ("input", 0) refer to current node's input
+
     std_ub_op0 = PesudoNode("ReduceMean", [("input", 0),], attr_key_map=[("axes", "dim"),])
     std_ub_op1 = PesudoNode("Sub", [("input", 0), (std_ub_op0.output, 0)])
     std_ub_op2 = PesudoNode("Mul", [(std_ub_op1.output, 0), (std_ub_op1.output, 0)])
