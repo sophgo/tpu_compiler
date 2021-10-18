@@ -19,6 +19,8 @@ public:
       delete[] sum_arr;
     if (ex_arr)
       delete[] ex_arr;
+    if (sub_arr)
+      delete[] sub_arr;
   }
   void invoke() override;
 
@@ -36,10 +38,12 @@ private:
   int channel;
   int outer_dim;
   int inner_dim;
+  bool do_log;
 
   float *max_arr = nullptr;
   float *sum_arr = nullptr;
   float *ex_arr = nullptr;
+  float *sub_arr = nullptr;
 
   // param
   int axis;

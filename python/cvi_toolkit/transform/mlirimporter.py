@@ -1656,6 +1656,10 @@ class MLIRImporter(object):
         softmax_param = {
             'axis':  IntegerAttr.get(self.i32Type, kargs['axis'])
         }
+        if 'do_log' in kargs:
+            softmax_param['do_log'] =  BoolAttr.get(kargs['do_log'])
+        else:
+            softmax_param['do_log'] =  BoolAttr.get(False)
         none = self.add_none_op()
         if cpu_mode:
             op_name = TPU_OpType.Softmax.value + "_cpu"

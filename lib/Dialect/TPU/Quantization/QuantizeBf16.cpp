@@ -541,7 +541,11 @@ LogicalResult tpu::SoftmaxOp::quantizeBf16() {
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
   insertBf16LutOp(op, "exp", "slope", 1, 2, 1.0, 0.0);
-  insertBf16LutOp(op, "reciprocal", "mantissa", 3, 4);
+  if (do_log() == false) {
+    insertBf16LutOp(op, "reciprocal", "mantissa", 3, 4);
+  } else {
+    insertBf16LutOp(op, "log", "slope", 3, 4);
+  }
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }

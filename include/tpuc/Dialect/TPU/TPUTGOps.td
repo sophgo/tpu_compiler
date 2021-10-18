@@ -1817,6 +1817,7 @@ class TPU_TG_SoftmaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     AnyTensor:$reciprocal_table,
     AnyTensor:$reciprocal_mantissa_table,
     DefaultValuedAttr<I32Attr, "1">:$axis,
+    DefaultValuedAttr<BoolAttr, "false">:$do_log,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name

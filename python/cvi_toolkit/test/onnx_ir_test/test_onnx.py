@@ -179,6 +179,7 @@ class ONNX_IR_TESTER(object):
             "GRUh": self.test_GRUh,
             "LeakyRelu": self.test_LeakyRelu,
             "Log": self.test_Log,
+            "LogSoftmax": self.test_LogSoftmax,
             "LRN": self.test_LRN,
             "LSTM": self.test_LSTM,
             "Max": self.test_Max,
@@ -1383,6 +1384,41 @@ class ONNX_IR_TESTER(object):
         model_def.opset_import[0].version = 11
         input_data = np.clip(np.random.randn(input_shape[0], input_shape[1],
                                              input_shape[2], input_shape[3]).astype(np.float32) * -10.0, -8, -0.5)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_LogSoftmax(self):
+        test_case = "LogSoftmax"
+        input_shape = [1, 100, 72]
+        x1_def = helper.make_node(
+            'Neg',  # node name
+            ['input'],  # inputs
+            ['X1'],  # outputs
+        )
+        node_def = helper.make_node(
+            "LogSoftmax",  # node name
+            ['X1'],  # inputs
+            ['output'],  # outputs
+            axis = 2,
+        )
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, input_shape)
+        # Create the graph (GraphProto)
+        graph_def = helper.make_graph(
+            [x1_def, node_def],
+            test_case,
+            [input],
+            [output],
+        )
+
+        # Create the model (ModelProto)
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        input_data = np.random.randn(input_shape[0],input_shape[1],input_shape[2]).astype(np.float32)
 
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)

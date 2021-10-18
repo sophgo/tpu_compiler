@@ -288,7 +288,7 @@ void cvi_backend_tg_bf16_softmax_kernel(
     gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
     gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,
     gaddr_t ga_output,
-    int64_t* shape, int axis, int dimension);
+    int64_t* shape, int axis, int dimension, bool do_log = false);
 
 void cvi_backend_tg_bf16_std_kernel(const CviBackendContext &ctx,
                                     uint32_t layer_id, gaddr_t ga_input,

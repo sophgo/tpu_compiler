@@ -2381,6 +2381,7 @@ LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   int axis = this->axis();
+  bool do_log = this->do_log();
 
   std::vector<int64_t> shape = getTensorShape(op->getOperand(0));
   int dimension = shape.size();
@@ -2413,7 +2414,7 @@ LogicalResult tpu::TG_BF16_SoftmaxOp::codegen(void *ctx) {
       *backend_ctx, layer_id, input_gaddr, exponential_table_data_lut_gaddr,
       exponential_slope_table_data_lut_gaddr, reciprocal_table_data_lut_gaddr,
       reciprocal_mantissa_table_data_lut_gaddr, output_gaddr, shape.data(),
-      axis, dimension);
+      axis, dimension, do_log);
   return success();
 }
 

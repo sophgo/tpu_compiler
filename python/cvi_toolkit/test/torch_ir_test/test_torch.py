@@ -56,6 +56,7 @@ TEST_TORCH_IR = [
     # "Customer_Net",
     # "Unfold",
     #"LogSigmoid", #some times fail
+    "LogSoftmax",
     "Identity",
     "Upsample",
     # "ChannelShuffle", ## ChannelShuffle not support
@@ -170,6 +171,7 @@ class TORCH_IR_TESTER(object):
             "Bilinear": self.test_Bilinear,
             "Log": self.test_Log,
             "LogSigmoid": self.test_LogSigmoid,
+            "LogSoftmax": self.test_LogSoftmax,
             "Expand": self.test_Expand,
             "Max_Min": self.test_Max_Min,
             "Customer_Net": self.test_Customer_Net,
@@ -452,6 +454,31 @@ class TORCH_IR_TESTER(object):
 
         input_shape = [3, 100, 100]
         test_onnx_name = 'LogSigmoid'
+
+        net = Net()
+        input_data = torch.randn(input_shape)
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+
+    def test_LogSoftmax(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.linear = nn.Linear(32, 72, bias=False)
+                self.act = nn.LogSoftmax(dim = 2)
+
+            def forward(self, x):
+                x = self.linear(x)
+                x = self.act(x)
+                return x
+
+        input_shape = [3, 100, 32]
+        test_onnx_name = 'LogSoftmax'
 
         net = Net()
         input_data = torch.randn(input_shape)

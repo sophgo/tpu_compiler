@@ -2445,7 +2445,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
       `exponential_table`           : optional, the exponential table.
       `exponential_slope_table`           : optional, the exponential slope table.
       `reciprocal_table`           : optional, the reciprocal table.
-      `reciprocal_mantissa_table`           : optional, the reciprocal mantissa table.
+      `reciprocal_mantissa_table`  : optional, the reciprocal mantissa table.
 
     Attributes:
       `axis`            : optional, the axis for softmax to perform.
@@ -2470,6 +2470,7 @@ def TPU_SoftmaxOp: TPU_Op<"softmax",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$reciprocal_table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$reciprocal_mantissa_table,
     DefaultValuedAttr<I32Attr, "1">:$axis,
+    DefaultValuedAttr<BoolAttr, "false">:$do_log,
     StrAttr:$name,
     TPU_QuantParamAttr:$quant
   );

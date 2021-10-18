@@ -22,7 +22,7 @@ public:
             gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
             gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,
             gaddr_t ga_output,
-            int64_t* shape, int axis, int dimension);
+            int64_t* shape, int axis, int dimension, bool do_log);
   void selectTilePolicy();
   void schedule();
 
@@ -106,7 +106,15 @@ protected:
    * @param tl_work Working space
 	 */
   void reciprocal(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work);
-  
+
+  /**
+	 * @brief Get log value
+	 * @param tl_in Input tensor
+   * @param tl_out Output tensor
+   * @param tl_work Working space
+	 */
+  void log(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work);
+
   /**
 	 * @brief Broadcast one data to all lane in the same address
 	 * @param tl_in input broadcasted data address
@@ -151,7 +159,8 @@ protected:
   gaddr_t ga_reciprocal_table_data_lut;
   gaddr_t ga_reciprocal_table_mantissa_data_lut;
   gaddr_t ga_output;
-  int axis; 
+  int axis;
+  bool do_log;
   int dimension;
   int outer_size;
   int inner_size;

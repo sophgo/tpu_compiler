@@ -243,6 +243,7 @@ class OnnxConverter(BaseConverter):
             "InstanceNormalization": lambda node: self.convert_instancenorm_op(node),
             "LeakyRelu": lambda node: self.convert_leaky_relu_op(node),
             "Log": lambda node: self.convert_log_op(node),
+            "LogSoftmax": lambda node: self.convert_logsoftmax_op(node),
             "LRN": lambda node: self.convert_lrn_op(node),
             "LSTM": lambda node: self.convert_lstm_op(node),
             "LayerNorm": lambda node: self.convert_layernorm_op(node),
@@ -2117,6 +2118,28 @@ class OnnxConverter(BaseConverter):
             log_op = self.CVI.add_log_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
             self.addOperand(onnx_node.name, log_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_logsoftmax_op(self, onnx_node):
+        assert(onnx_node.op_type == "LogSoftmax")
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        output_shape = list(input_shape)
+        axis = onnx_node.attrs.get('axis', -1)
+        if axis < 0:
+            axis += len(input_shape)
+
+        if tensor_type == TensorType.TENSOR:
+            data = self.getTensor(onnx_node.inputs[0]).tensor_data
+            data_new = data - np.max(data, axis=axis, keepdims=True)
+            output_data = data_new - np.log(np.sum(np.exp(data_new), axis=axis))
+            self.addTensor(onnx_node.name, output_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+        else:
+            softmax_param = {
+                'axis': axis,
+                'do_log' : True,
+            }
+            new_op = self.CVI.add_softmax_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **softmax_param)
+            self.addOperand(onnx_node.name, new_op, output_shape, TensorType.ACTIVATION)
+
     def convert_lrn_op(self, onnx_node):
         assert(onnx_node.op_type == "LRN")
         alpha = onnx_node.attrs.get('alpha', 0.0001)
@@ -3081,18 +3104,20 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Softmax")
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         output_shape = input_shape
+        axis = onnx_node.attrs.get('axis', -1)
+        if axis < 0:
+            axis += len(input_shape)
 
         if tensor_type == TensorType.TENSOR:
             data = self.getTensor(onnx_node.inputs[0]).tensor_data
-            output_data = np.exp(data) / np.sum(np.exp(data), axis=(len(input_shape) - 1))
+            data_new = data - np.max(data, axis=axis, keepdims=True)
+            output_data = np.exp(data_new) / np.sum(np.exp(data_new), axis=axis)
             output_shape = list(output_shape.shape)
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             operands = [op]
-            axis = onnx_node.attrs.get('axis', -1)
-            if axis < 0:
-                axis += len(input_shape)
+
             softmax_param = {
                 'axis': axis,
             }

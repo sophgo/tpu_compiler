@@ -2699,6 +2699,7 @@ Value tpu::SoftmaxOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(builder.getNamedAttr("axis", axisAttr()));
+  attrs.push_back(builder.getNamedAttr("do_log", do_logAttr()));
 
   if (getOpQuant() == "INT8") {
     assert(getOpQuantParamType() == "NONE");

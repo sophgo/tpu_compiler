@@ -13,9 +13,11 @@ SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping,
   if (cpu) {
     auto castOp = cast<tpu::SoftmaxCpuOp>(op);
     this->axis = castOp.axis();
+    this->do_log = false;
   } else {
     auto castOp = cast<tpu::SoftmaxOp>(op);
     this->axis = castOp.axis();
+    this->do_log = castOp.do_log();
   }
   assert(this->axis >= 0);
   // get tensors
@@ -41,6 +43,7 @@ SoftmaxOpKernel::SoftmaxOpKernel(Operation &op, value_map_t &valueMapping,
   max_arr = new float[inner_dim];
   sum_arr = new float[inner_dim];
   ex_arr = new float[channel * inner_dim];
+  sub_arr = new float[channel * inner_dim];
 }
 
 void SoftmaxOpKernel::invoke_fp32() {
@@ -63,8 +66,8 @@ void SoftmaxOpKernel::invoke_fp32() {
     memset(sum_arr, 0, inner_dim * sizeof(float));
     for (int j = 0; j < channel; ++j, c_offset += inner_dim) {
       for (int k = 0; k < inner_dim; k++) {
-        top_data[c_offset + k] =
-            std::exp(bottom_data[c_offset + k] - max_arr[k]);
+        sub_arr[j * inner_dim + k] = bottom_data[c_offset + k] - max_arr[k];
+        top_data[c_offset + k] = std::exp(sub_arr[j * inner_dim + k]);
         sum_arr[k] += top_data[c_offset + k];
       }
     }
@@ -72,7 +75,11 @@ void SoftmaxOpKernel::invoke_fp32() {
     c_offset = i * channel * inner_dim;
     for (int j = 0; j < channel; ++j, c_offset += inner_dim) {
       for (int k = 0; k < inner_dim; k++) {
-        top_data[c_offset + k] /= sum_arr[k];
+        if (do_log == false) {
+          top_data[c_offset + k] /= sum_arr[k];
+        } else {
+          top_data[c_offset + k] = sub_arr[j * inner_dim + k] - std::log(sum_arr[k]);
+        }
       }
     }
   }
@@ -98,12 +105,12 @@ void SoftmaxOpKernel::invoke_bf16() {
     for (int j = 0; j < channel; ++j, c_offset += inner_dim) {
       for (int k = 0; k < inner_dim; k++) {
         auto idx = j * inner_dim + k;
-        ex_arr[idx] = BF16(bottom_data[c_offset + k] - max_arr[k]);
+        sub_arr[idx] = BF16(bottom_data[c_offset + k] - max_arr[k]);
       }
     }
 
     // e^x
-    bf16_lut_slope("exp", ex_arr, ex_arr, channel * inner_dim,
+    bf16_lut_slope("exp", sub_arr, ex_arr, channel * inner_dim,
                    exp_table->data(), exp_slope_table->data());
 
     // sum of (e^x)
@@ -120,17 +127,24 @@ void SoftmaxOpKernel::invoke_bf16() {
     for (int k = 0; k < inner_dim; k++) {
       sum_arr[k] = BF16(sum_arr[k]);
     }
-
-    // 1 / (e ^x)
-    bf16_lut_mantissa(sum_arr, sum_arr, inner_dim, reciprocal_table->data(),
-                      reciprocal_mantissa_table->data());
-    auto &recip_arr = sum_arr;
+    if (do_log == false) {
+      // 1 / (e ^x)
+      bf16_lut_mantissa(sum_arr, sum_arr, inner_dim, reciprocal_table->data(),
+                        reciprocal_mantissa_table->data());
+    } else {
+      bf16_lut_slope("log", sum_arr, sum_arr, inner_dim, reciprocal_table->data(),
+                        reciprocal_mantissa_table->data());
+    }
 
     c_offset = i * channel * inner_dim;
     for (int j = 0; j < channel; ++j, c_offset += inner_dim) {
       for (int k = 0; k < inner_dim; k++) {
         auto idx = j * inner_dim + k;
-        top_data[c_offset + k] = BF16(ex_arr[idx] * recip_arr[k]);
+        if (do_log == false) {
+          top_data[c_offset + k] = BF16(ex_arr[idx] * sum_arr[k]);
+        } else {
+          top_data[c_offset + k] = BF16(sub_arr[idx] - sum_arr[k]);
+        }
       }
     }
   }

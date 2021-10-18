@@ -227,18 +227,26 @@ void TgSoftmaxKernel::softmaxLargeSizeHandler() {
             ctx.lmem_alloc_tensor(lut_result_shape, fmt, eu_align);
         ASSERT(tl_lut_reciprocal_result);
         //Lut reciprocal value
-        reciprocal(&tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        if (do_log == false) {
+            reciprocal(&tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        } else {
+            log(&tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        }
         // Broadcast reciprocal value  (n, 1, 1, 1) -> (n, NPU_NUM, 1, 1)
         broadcast_one_data_to_all_lane(tl_lut_reciprocal_result, tl_maxValueBroadcasted);
 
         //ans = exp(input - maxInput) *  reciprocal value
-        every_input_operate_one_specific_data(tl_lut_result, tl_maxValueBroadcasted, Mul, false);
+        if (do_log == false) {
+            every_input_operate_one_specific_data(tl_lut_result, tl_maxValueBroadcasted, Mul, false);
+        } else {
+            every_input_operate_one_specific_data(&tl_input, tl_maxValueBroadcasted, Sub, false);
+        }
 
         //Store to dram
         {
             cvk_ml_t tl_golden = {0};
             tl_golden.fmt = fmt;
-            tl_golden.start_address = tl_lut_result->start_address;
+            tl_golden.start_address = (do_log == false ? tl_lut_result->start_address : tl_input.start_address);
             tl_golden.shape = {
                 (uint32_t)workingOutputSize,
                 (uint32_t)NPU_NUM,
@@ -477,19 +485,27 @@ void TgSoftmaxKernel::bf16_softmax_kernel_2d_parallel_inner_size() {
         cvk_tl_t *tl_lut_reciprocal_result =
             ctx.lmem_alloc_tensor(lut_result_shape, fmt, eu_align);
         ASSERT(tl_lut_reciprocal_result);
-        //Lut reciprocal value
-        reciprocal(&tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        if (do_log == false) {
+            //Lut reciprocal value
+            reciprocal(&tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        } else {
+            log(&tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        }
 
         // Broadcast reciprocal value  (n, 1, 1, 1) -> (n, NPU_NUM, 1, 1)
         broadcast_one_data_to_all_lane(tl_lut_reciprocal_result, tl_maxValueBroadcasted);
 
         //ans = exp(input - maxInput) *  reciprocal value
-        every_input_operate_one_specific_data(tl_lut_result, tl_maxValueBroadcasted, Mul, false);
+        if (do_log == false) {
+            every_input_operate_one_specific_data(tl_lut_result, tl_maxValueBroadcasted, Mul, false);
+        } else {
+            every_input_operate_one_specific_data(tl_parallel_input, tl_maxValueBroadcasted, Sub, false);
+        }
         //Store to dram
         {
             cvk_ml_t tl_golden = {0};
             tl_golden.fmt = fmt;
-            tl_golden.start_address = tl_lut_result->start_address;
+            tl_golden.start_address = (do_log == false ? tl_lut_result->start_address : tl_parallel_input->start_address);
             tl_golden.shape = {
                 (uint32_t)workingOutputSize,
                 (uint32_t)parallelC,
@@ -623,14 +639,14 @@ void TgSoftmaxKernel::bf16_softmax_kernel_2d_parallel_outer_size() {
                 ASSERT(tl_accValue);
 
                 cvk_tl_t tl_currentInput;
-                tl_currentInput = *tl_input;
+                tl_currentInput = *tl_parallel_input;
 
                 const int stepSize = MAX_WIDTH / 16 * 16; //Align 16B
                 int innerSizeStep = ceiling_func(inner_size, stepSize);
                 for(int innerStepTimes = 0; innerStepTimes < innerSizeStep; innerStepTimes++) {
                     int inner_pos = innerStepTimes * stepSize;
                     unsigned int workingInnerSize = std::min(inner_size - inner_pos, (int)stepSize);
-                    tl_currentInput.start_address = tl_input->start_address + inner_pos;
+                    tl_currentInput.start_address = tl_parallel_input->start_address + inner_pos;
                     tl_currentInput.shape = ctx.tl_shape_t4(1, workingOutputSize, 1, workingInnerSize);
 
                     accumulate_per_lane_value(&tl_currentInput, tl_maxValue);
@@ -675,11 +691,19 @@ void TgSoftmaxKernel::bf16_softmax_kernel_2d_parallel_outer_size() {
         cvk_tl_t *tl_lut_reciprocal_result =
             ctx.lmem_alloc_tensor(lut_reciprocal_result_shape, fmt, eu_align);
         ASSERT(tl_lut_reciprocal_result);
-        //Lut reciprocal value
-        reciprocal(tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        if (do_log == false) {
+            //Lut reciprocal value
+            reciprocal(tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        } else {
+            log(tl_maxValue, tl_lut_reciprocal_result, tl_lut_working);
+        }
 
         //ans = exp(input - maxInput) *  reciprocal value
-        every_input_operate_one_specific_data(tl_lut_result, tl_lut_reciprocal_result, Mul, true);
+        if (do_log == false) {
+            every_input_operate_one_specific_data(tl_lut_result, tl_lut_reciprocal_result, Mul, true);
+        } else {
+            every_input_operate_one_specific_data(tl_input, tl_lut_reciprocal_result, Sub, true);
+        }
         //Store to dram
         {
             //store
@@ -687,7 +711,11 @@ void TgSoftmaxKernel::bf16_softmax_kernel_2d_parallel_outer_size() {
             gaddr_t outputAddr = ga_output + outer_pos * inner_size * sizeof(uint16_t);
             cvk_tg_stride_t ofmap_gstride = ctx.tg_default_stride({1, (uint32_t)workingOutputSize, 1, (uint32_t)inner_size}, fmt);
             // // original shape
-            ctx.tdma_store_stride(tl_lut_result, outputAddr, ofmap_gstride);
+            if (do_log == false) {
+                ctx.tdma_store_stride(tl_lut_result, outputAddr, ofmap_gstride);
+            } else {
+                ctx.tdma_store_stride(tl_input, outputAddr, ofmap_gstride);
+            }
         }
         ctx.lmem_free_tensor(tl_lut_reciprocal_result);
         ctx.lmem_free_tensor(tl_lut_working);
@@ -794,11 +822,8 @@ void TgSoftmaxKernel::bf16_softmax_kernel_4d() {
       accumulate_per_lane_value(tl_lut, tl_max);
 
       // Lut reciprocal value
-      reciprocal(tl_max, tl_reciprocal, tl_working);
-
-      // ans = exp(input - maxInput) *  reciprocal value
-      // Every c multiply its reciprocal value
-      {
+      if (do_log == false) {
+        reciprocal(tl_max, tl_reciprocal, tl_working);
         cvk_tl_t tl_bcast = *tl_reciprocal;
         tl_bcast.shape.w = tl_lut->shape.w;
         tl_bcast.stride.w = 0;
@@ -813,6 +838,22 @@ void TgSoftmaxKernel::bf16_softmax_kernel_4d() {
         p.layer_id = layer_id;
         p.relu_enable = false;
         ctx.tiu_mul(&p);
+      } else {
+        log(tl_max, tl_reciprocal, tl_working);
+        cvk_tl_t tl_bcast = *tl_reciprocal;
+        tl_bcast.shape.w = tl_lut->shape.w;
+        tl_bcast.stride.w = 0;
+
+        cvk_tiu_sub_param_t p = {0};
+        p.res_high = 0;
+        p.res_low = tl_lut;
+        p.a_high = 0;
+        p.a_low = tl_trans;
+        p.b_high = 0;
+        p.b_low = &tl_bcast;
+        p.rshift_bits = 0;
+        p.layer_id = layer_id;
+        ctx.tiu_sub(&p);
       }
 
       {
@@ -1045,12 +1086,22 @@ void TgSoftmaxKernel::reciprocal(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl
         tl_in->shape.n, tl_in->shape.c, tl_in->shape.h, tl_in->shape.w);
 }
 
+void TgSoftmaxKernel::log(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work) {
+    cvi_backend_bf16_tl_lut_slope_method(
+        ctx, layer_id, tl_in->start_address,
+        tl_out->start_address, tl_work->start_address,
+        tl_reciprocal_table_answer->start_address,
+        tl_reciprocal_mantissa_table_answer->start_address,
+        -1 * LOG_BF16_LUT_RANGE, LOG_BF16_LUT_RANGE,
+        tl_in->shape.n, tl_in->shape.c, tl_in->shape.h, tl_in->shape.w);
+}
+
 void TgSoftmaxKernel::init(uint32_t layer_id,
           gaddr_t ga_input,
           gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
           gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,
           gaddr_t ga_output,
-          int64_t* shape, int axis, int dimension) {
+          int64_t* shape, int axis, int dimension, bool do_log) {
     this->layer_id = layer_id;
     this->ga_input = ga_input;
     this->ga_exponential_table_data_lut = ga_exponential_table_data_lut;
@@ -1059,6 +1110,7 @@ void TgSoftmaxKernel::init(uint32_t layer_id,
     this->ga_reciprocal_table_mantissa_data_lut = ga_reciprocal_table_mantissa_data_lut;
     this->ga_output = ga_output;
     this->axis = axis;
+    this->do_log = do_log;
     this->dimension = dimension;
     this->fmt = CVK_FMT_BF16;
     this->fmt_size = ctx.bytesize_of_fmt(fmt);
@@ -1108,7 +1160,7 @@ void cvi_backend_tg_bf16_softmax_kernel(
                 gaddr_t ga_exponential_table_data_lut, gaddr_t ga_exponential_slope_table_data_lut,
                 gaddr_t ga_reciprocal_table_data_lut, gaddr_t ga_reciprocal_table_mantissa_data_lut,
                 gaddr_t ga_output,
-                int64_t* shape, int axis, int dimension) {
+                int64_t* shape, int axis, int dimension, bool do_log) {
 
   TgSoftmaxKernel kernel(ctx);
   kernel.init(layer_id,
@@ -1116,7 +1168,7 @@ void cvi_backend_tg_bf16_softmax_kernel(
               ga_exponential_table_data_lut, ga_exponential_slope_table_data_lut,
               ga_reciprocal_table_data_lut, ga_reciprocal_table_mantissa_data_lut,
               ga_output,
-              shape, axis, dimension);
+              shape, axis, dimension, do_log);
 
   kernel.schedule();
 }
