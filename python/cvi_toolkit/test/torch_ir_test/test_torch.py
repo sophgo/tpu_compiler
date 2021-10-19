@@ -51,7 +51,7 @@ TEST_TORCH_IR = [
     "LayerNorm",
     "Expand",
     "Max_Min",
-    # "Sum",
+    "Sum",
     # "Bilinear", ## Bilinear not support
     # "Customer_Net",
     # "Unfold", ##Unfold not support
@@ -892,7 +892,7 @@ class TORCH_IR_TESTER(object):
                 x = torch.sum(x, 3)
                 return x
 
-        input_shape = [2, 3, 8, 8]
+        input_shape = [1, 3, 8, 8]
         test_onnx_name = 'Sum'
 
         net = Net()

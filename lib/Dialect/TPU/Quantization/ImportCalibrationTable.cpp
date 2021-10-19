@@ -349,7 +349,6 @@ public:
         ForwardOverwriteThresholdDefaultPattern<tpu::ReorgOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::ReverseOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::ReduceMaxOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::ReduceSumOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::SliceOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::ShuffleChannelOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::SwapChannelOp>,
