@@ -41,11 +41,13 @@ protected:
   cvk_fmt_t fmt;
   int n, c, h, w;
   bool positive;
+  int blob_num;
 
   cvk_tl_t tl_ifmap;
   cvk_tl_t tl_ofmap;
+  cvk_tl_t tl_buffer;
   cvk_tg_stride_t gstride;
-  cvk_tl_t *tl_mem[4];
+  cvk_tl_t *tl_mem[5];
   std::vector<CviBackendContext::tiling_info_t> tiles;
 };
 
