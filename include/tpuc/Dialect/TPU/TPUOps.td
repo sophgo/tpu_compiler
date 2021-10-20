@@ -598,6 +598,9 @@ def TPU_CscOp: TPU_Op<"csc",
     Attributes:
       `pixel_format`    : required, pixel format type.
       `name`            : required, name for calibration, comparing, or debug.
+      `y_align`         : width alignment of channel y.
+      `w_align`         : width alignment of channel uv.
+      `channel_align`   : alignment of channel.
 
     Result:
       `output`          : result tensor.
@@ -608,6 +611,9 @@ def TPU_CscOp: TPU_Op<"csc",
     StrAttr:$pixel_format,
     TPU_QuantParamAttr:$quant,
     BoolAttr:$aligned,
+    I32Attr:$y_align,
+    I32Attr:$w_align,
+    I32Attr:$channel_align,
     StrAttr:$name
   );
   let results = (outs AnyTensor:$output);

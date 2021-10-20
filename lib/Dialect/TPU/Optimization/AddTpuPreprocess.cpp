@@ -178,21 +178,14 @@ public:
       {"BGR_PACKED",    {"bgr", "nhwc"}},
       {"GRAYSCALE",     {"bgr", "nchw"}},
       {"YUV420_PLANAR", {"bgr", "nchw"}},
+      {"YUV_NV21",      {"bgr", "nchw"}},
+      {"YUV_NV12",      {"bgr", "nchw"}},
       {"RGBA_PLANAR", {"rgba", "nchw"}}
     };
 
     std::string chipname = "cv183x";
     if (fn->getAttr("chipname")) {
       chipname = fn->getAttr("chipname").cast<StringAttr>().getValue().str();
-    }
-    if (chipname == "cv183x") {
-      w_align = 32;
-      y_align = 64;
-      channel_align = 4096;
-    } else {
-      w_align = 64;
-      y_align = 128;
-      channel_align = 64;
     }
 
     SmallVector<tpu::QuantOp, 4> toErase;
@@ -217,6 +210,9 @@ public:
         auto aligned = clInputAligned.getValue();
         auto channel_order = preprocess.channel_order().getValue();
         auto model_shape = getTensorShape(inputOp.getResult());
+
+        setPixelAlign(chipname, pixel_format);
+
         getNCHW(model_shape, n, c, h, w);
         std::vector<int64_t> dims;
         for (auto dim : resize_dims.getAsValueRange<IntegerAttr>()) {
@@ -258,11 +254,11 @@ public:
             input_shape[3] = c;
           }
         } else { // "nchw"
-          if (pixel_format == "YUV420_PLANAR") {
+          if (std::string::npos != pixel_format.find("YUV")) {
             input_shape[1] = 1;
             input_shape[2] = 1;
-            input_shape[3] = yuv420_size(1, c, resize_h, resize_w);
-            aligned = true; // currently only support aligned yuv420 input.
+            input_shape[3] = yuv_size(1, c, resize_h, resize_w, pixel_format);
+            aligned = true; 
           } else if (aligned) {
             input_shape[1] = c;
             input_shape[2] = resize_h;
@@ -297,7 +293,8 @@ public:
         // do unalign
         if (aligned) {
           currentOp = this->insertCscOp(builder, name, currentOp,
-                                        pixel_format, aligned, arg_shape);
+                                        pixel_format, aligned, arg_shape,
+                                        y_align, w_align, channel_align);
         }
         // create transpose Op if need
         if (layout == "nhwc") {
@@ -364,14 +361,45 @@ private:
     return ((x + n - 1) / n) * n;
   }
 
-  int yuv420_size(int n, int c, int h, int w) {
-    assert(c == 3);
-    int y_w_aligned = align_up(w, this->y_align);
-    int uv_w_aligned = align_up(w / 2, this->w_align);
-    int u = align_up(h * y_w_aligned, this->channel_align);
-    int v = align_up(u + h / 2 * uv_w_aligned, this->channel_align);
-    int n_stride = align_up(v + h / 2 * uv_w_aligned, this->channel_align);
-    return n * n_stride;
+  void setPixelAlign(std::string &chip_name, std::string &pixel_format) {
+    if ("cv183x" == chip_name) {
+      y_align = 32;
+      w_align = 32;
+      channel_align = 0x1000;
+      if ("YUV420_PLANAR" == pixel_format) {
+        y_align = w_align * 2;
+      }
+    } else {
+      y_align = 64;
+      w_align = 64;
+      channel_align = 64;
+      if ("YUV420_PLANAR" == pixel_format) {
+        y_align = w_align * 2;
+      }
+    }
+  }
+
+  int yuv_size(int n, int c, int h, int w, std::string &pixel_format) {
+    if ("YUV420_PLANAR" == pixel_format) {
+      assert(c == 3);
+      int y_w_aligned = align_up(w, this->y_align);
+      int uv_w_aligned = align_up(w / 2, this->w_align);
+      int u = align_up(h * y_w_aligned, this->channel_align);
+      int v = align_up(u + h / 2 * uv_w_aligned, this->channel_align);
+      int n_stride = align_up(v + h / 2 * uv_w_aligned, this->channel_align);
+      return n * n_stride;
+    } else if ("YUV_NV21" == pixel_format || "YUV_NV12" == pixel_format) {
+      assert(c == 3);
+      int y_w_aligned = align_up(w, this->y_align);
+      int uv_w_aligned = align_up(w, this->w_align);
+      int uv = align_up(h * y_w_aligned, this->channel_align);
+      int n_stride = align_up(uv + h / 2 * uv_w_aligned, this->channel_align);
+      return n * n_stride;
+
+    } else {
+      assert(0 && "unsupported yuv pixel format");
+      return 0;
+    }
   }
 
   RankedTensorType getTensorType(OpBuilder &builder, const std::vector<int64_t> &shape,
@@ -391,7 +419,8 @@ private:
 
   Value insertCscOp(OpBuilder &builder, std::string &name, Value opd,
                     std::string &pixel_format, bool aligned,
-                    std::vector<int64_t> &shape) {
+                    std::vector<int64_t> &shape, int32_t y_align,
+                    int32_t w_align, int32_t channel_align) {
     std::string name_ = name + "_preprocess_csc";
     std::vector<NamedAttribute> attrs;
     attrs.push_back(builder.getNamedAttr("name",
@@ -402,6 +431,12 @@ private:
         builder.getBoolAttr(aligned)));
     attrs.push_back(builder.getNamedAttr("quant",
         getDefaultQuantParam(builder)));
+    attrs.push_back(builder.getNamedAttr("y_align",
+        builder.getI32IntegerAttr(y_align)));
+    attrs.push_back(builder.getNamedAttr("w_align",
+        builder.getI32IntegerAttr(w_align)));
+    attrs.push_back(builder.getNamedAttr("channel_align",
+        builder.getI32IntegerAttr(channel_align)));
 
     auto type = this->getTensorType(builder, shape, "UINT8");
     auto newOp = builder.create<tpu::CscOp>(

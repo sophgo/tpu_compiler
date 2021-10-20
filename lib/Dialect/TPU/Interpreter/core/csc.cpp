@@ -73,6 +73,68 @@ void CscOpKernel::yuv420_csc(float *input, float *output, int n, int c, int h,
   }
 }
 
+void CscOpKernel::yuv_nv_csc(float *input, float *output, int n, int c, int h,
+                             int w, std::vector<int> &order, int quant_type, int pixel_type) {
+  int y_w_aligned = align_up(w, y_align);
+  int uv_w_aligned = align_up(w, w_align);
+  int y_offset = 0;
+  int uv_offset = align_up(h * y_w_aligned, channel_align);
+  int n_stride = align_up(uv_offset + h / 2 * uv_w_aligned, channel_align);
+  for (int idx_n = 0; idx_n < n; idx_n++) {
+    for (int idx_h = 0; idx_h < h; idx_h++) {
+      for (int idx_w = 0; idx_w < w; idx_w++) {
+        int y_idx = y_offset + idx_n * n_stride + idx_h * y_w_aligned + idx_w;
+        int u_idx = 0;
+        int v_idx = 0;
+        if (pixel_type == 1)  { // nv12
+          u_idx = uv_offset + idx_n * n_stride + idx_h / 2 * uv_w_aligned + idx_w / 2 * 2;
+          v_idx = uv_offset + idx_n * n_stride + idx_h / 2 * uv_w_aligned + idx_w / 2 * 2 + 1;
+        } else {  //nv21
+          u_idx = uv_offset + idx_n * n_stride + idx_h / 2 * uv_w_aligned + idx_w / 2 * 2 + 1;
+          v_idx = uv_offset + idx_n * n_stride + idx_h / 2 * uv_w_aligned + idx_w / 2 * 2;
+        }
+        float y = input[y_idx];
+        float u = input[u_idx];
+        float v = input[v_idx];
+        float r, g, b;
+        if (quant_type == 0) {
+          y = 1.164 * (y - 16.0f);
+          u -= 128;
+          v -= 128;
+          // float:
+          r = y + 1.596 * v;
+          g = y - 0.813 * v - 0.391 * u;
+          b = y + 2.018 * u;
+        } else {
+          // u8 or bf16
+
+          y = (float)(uint8_t)y;
+          u = (float)(uint8_t)u;
+          v = (float)(uint8_t)v;
+
+          y = BF16(BF16(1.164) * (y - 16.0f));
+          u -= 128.0f;
+          v -= 128.0f;
+          r = BF16(y + BF16(1.596f) * v);
+          g = BF16(BF16(y + BF16(-0.813f) * v) + BF16(-0.391f) * u);
+          b = BF16(y + BF16(2.018f) * u);
+        }
+        r = UINT8(r);
+        g = UINT8(g);
+        b = UINT8(b);
+
+        float color[3] = {b, g, r};
+        int c0_idx = idx_n * 3 * h * w + idx_h * w + idx_w;
+        int c1_idx = c0_idx + h * w;
+        int c2_idx = c1_idx + h * w;
+        output[c0_idx] = color[order[0]];
+        output[c1_idx] = color[order[1]];
+        output[c2_idx] = color[order[2]];
+      }
+    }
+  }
+}
+
 CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping,
                          weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
@@ -85,15 +147,9 @@ CscOpKernel::CscOpKernel(Operation &op, value_map_t &valueMapping,
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
-  if (MlirModuleInterpreter::chipname == "cv183x") {
-    w_align = 32;
-    y_align = 64;
-    channel_align = 4096;
-  } else {
-    w_align = 64;
-    y_align = 128;
-    channel_align = 64;
-  }
+  w_align = cscOp.w_align();
+  y_align = cscOp.y_align();
+  channel_align = cscOp.channel_align();
 }
 
 void CscOpKernel::invoke() {
@@ -112,6 +168,14 @@ void CscOpKernel::invoke() {
     std::vector<int> orders{0, 1, 2};
     yuv420_csc(input_data->data(), output_data->data(), on, oc, oh, ow, orders,
                datatype == DataType::FP32 ? 0 : 1);
+  } else if (pixel_format == "YUV_NV12") {
+    std::vector<int> orders{0, 1, 2};
+    yuv_nv_csc(input_data->data(), output_data->data(), on, oc, oh, ow, orders,
+               datatype == DataType::FP32 ? 0 : 1, 1);
+  } else if (pixel_format == "YUV_NV21") {
+    std::vector<int> orders{0, 1, 2};
+    yuv_nv_csc(input_data->data(), output_data->data(), on, oc, oh, ow, orders,
+               datatype == DataType::FP32 ? 0 : 1, 2);
   } else if (aligned) {
     // do crop to make data unaligned
     std::vector<int64_t> crop_shape(input_shape.begin(), input_shape.end());

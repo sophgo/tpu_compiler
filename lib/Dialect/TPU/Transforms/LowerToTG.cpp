@@ -1917,8 +1917,23 @@ Value tpu::CscOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
+  int yuv_type = -1;
   if (pixel_format == "YUV420_PLANAR") {
+    yuv_type = 1;
+  } else if (pixel_format == "YUV_NV12") {
+    yuv_type = 2;
+  } else if (pixel_format == "YUV_NV21") {
+    yuv_type = 3;
+  } else {
+    yuv_type = -1;
+  }
+  if (yuv_type > 0) {
     assert(getOpQuant() == "INT8" || getOpQuant() == "UINT8");
+    attrs.push_back(builder.getNamedAttr("y_align", y_alignAttr()));
+    attrs.push_back(builder.getNamedAttr("w_align", w_alignAttr()));
+    attrs.push_back(builder.getNamedAttr("channel_align", channel_alignAttr()));
+    attrs.push_back(
+        builder.getNamedAttr("pixel_type", builder.getI32IntegerAttr(yuv_type)));
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_Yuv420CscOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
