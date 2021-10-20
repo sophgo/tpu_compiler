@@ -171,7 +171,6 @@ LogicalResult tpu::TL_LG_BF16_AbsOp::codegen(void *ctx) {
       layer_id, /*u32 layer_id,*/
       la_input,
       la_output,
-      -1 /*la_working*/,
       n, c, h, w, nInputs,
       op_code,
       0 /*use_default_coeff*/,
@@ -492,7 +491,6 @@ LogicalResult tpu::TL_LG_BF16_EltwiseAddOp::codegen(void *ctx) {
   arrayAttrToVector(this->coeff().getValue(), coeffs);
 
   laddr_t la_output = this->la_output();
-  laddr_t la_working = this->la_working();
 
   bool do_early_stride = this->do_early_stride();
   int32_t early_stride_h = this->early_stride_h();
@@ -508,7 +506,6 @@ LogicalResult tpu::TL_LG_BF16_EltwiseAddOp::codegen(void *ctx) {
                               layer_id, /*u32 layer_id,*/
                               la_input,
                               la_output,
-                              la_working,
                               n, c, h, w, nInputs,
                               op_code,
                               true, /*use_default_coeff,*/
@@ -601,7 +598,6 @@ LogicalResult tpu::TL_LG_BF16_EltwiseMulOp::codegen(void *ctx) {
   }
 
   laddr_t la_output = this->la_output();
-  laddr_t la_working = this->la_working();
 
   // op code PROD = 0; SUM = 1; MAX = 2;
   int op_code = 0;
@@ -611,7 +607,6 @@ LogicalResult tpu::TL_LG_BF16_EltwiseMulOp::codegen(void *ctx) {
                               layer_id, /*u32 layer_id,*/
                               la_input,
                               la_output,
-                              la_working,
                               n, c, h, w, nInputs,
                               op_code,
                               true, /*use_default_coeff,*/
@@ -1526,6 +1521,7 @@ LogicalResult tpu::TL_LG_BF16_LeakyReluOp::codegen(void *ctx) {
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
+  laddr_t la_working = this->la_working();
   int layer_id = mlir::getOpLayerId(op);
 
   cvi_backend_bf16_tl_leaky_relu(
@@ -1533,6 +1529,7 @@ LogicalResult tpu::TL_LG_BF16_LeakyReluOp::codegen(void *ctx) {
       layer_id, //layer_id,
       la_input,
       la_output,
+      la_working,
       n,
       c,
       h,
