@@ -193,7 +193,7 @@ void cvi_backend_tl_eltwise(
 
 void cvi_backend_bf16_tl_eltwise(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t *la_input, laddr_t la_output, laddr_t la_working,
+    laddr_t *la_input, laddr_t la_output,
     int input_n, int input_c, int input_h, int input_w,
     int input_size, int op,
     bool use_default_coeff,
@@ -401,7 +401,7 @@ void cvi_backend_tl_leaky_relu(
 
 void cvi_backend_bf16_tl_leaky_relu(
     const CviBackendContext &ctx,uint32_t layer_id,
-    laddr_t input_laddr, laddr_t output_laddr,
+    laddr_t input_laddr, laddr_t output_laddr, laddr_t work_addr,
     int input_n, int input_c,
     int input_h, int input_w,
     float neg_slope);

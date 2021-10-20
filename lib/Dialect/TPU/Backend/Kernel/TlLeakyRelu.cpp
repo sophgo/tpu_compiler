@@ -127,28 +127,25 @@ void cvi_backend_tl_leaky_relu(
 
 void cvi_backend_bf16_tl_leaky_relu(
       const CviBackendContext &ctx,uint32_t layer_id,
-      laddr_t input_laddr, laddr_t output_laddr,
+      laddr_t input_laddr, laddr_t output_laddr, laddr_t work_laddr,
       int input_n, int input_c,
       int input_h, int input_w,
       float neg_slope) {
 
   // input
   cvk_tl_shape_t tl_shape = ctx.tl_shape_t4(input_n,input_c,input_h,input_w);
-  cvk_tl_t tl_input;
-  tl_input.start_address = input_laddr;
-  tl_input.fmt = CVK_FMT_BF16;
-  tl_input.shape = tl_shape;
-  tl_input.stride = ctx.tl_default_stride(tl_shape, CVK_FMT_BF16, 1);
+  cvk_tl_t tl_input, tl_output, tl_working;
+  ctx.lmem_init_tensor(&tl_input, tl_shape, CVK_FMT_BF16, 1);
+  ctx.lmem_init_tensor(&tl_output, tl_shape, CVK_FMT_BF16, 1);
+  ctx.lmem_init_tensor(&tl_working, tl_shape, CVK_FMT_BF16, 1);
 
-  cvk_tl_t tl_output;
+  tl_input.start_address = input_laddr;
   tl_output.start_address = output_laddr;
-  tl_output.fmt = CVK_FMT_BF16;
-  tl_output.shape = tl_shape;
-  tl_output.stride = ctx.tl_default_stride(tl_shape, CVK_FMT_BF16, 1);
+  tl_working.start_address = work_laddr;
 
   // 0. relu = relu(bottom)
   cvk_tiu_max_param_t p13 = {0};
-  p13.max = &tl_output;
+  p13.max = &tl_working;
   p13.a = &tl_input;
   p13.b_is_const = 1;
   p13.b_const.is_signed = 1;
@@ -158,7 +155,7 @@ void cvi_backend_bf16_tl_leaky_relu(
 
   // 1. neg = neg(0, botom)
   cvk_tiu_min_param_t p7 = {0};
-  p7.min = &tl_input;
+  p7.min = &tl_output;
   p7.a = &tl_input;
   p7.b_is_const = 1;
   p7.b_const.val = 0;
@@ -169,8 +166,8 @@ void cvi_backend_bf16_tl_leaky_relu(
   // 3. neg (n,c,h,w) = (neg(n,c,h,w) * slope)
   cvk_tiu_mul_param_t p8 = {0};
   p8.res_high = nullptr;
-  p8.res_low = &tl_input;
-  p8.a = &tl_input;
+  p8.res_low = &tl_output;
+  p8.a = &tl_output;
   p8.b_const.val = ctx.convert_fp32_to_bf16(neg_slope);
   p8.b_const.is_signed = true;
   p8.b_is_const = 1;
@@ -184,7 +181,7 @@ void cvi_backend_bf16_tl_leaky_relu(
   p9.res_high = nullptr;
   p9.res_low = &tl_output;
   p9.a_high = nullptr;
-  p9.a_low = &tl_input;
+  p9.a_low = &tl_working;
   p9.b_is_const = false;
   p9.b.high = nullptr;
   p9.b.low = &tl_output;

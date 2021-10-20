@@ -458,9 +458,9 @@ ImEltwise::ImEltwise(Operation* op) : ImLayer(IR_ELTWISE, op, true) {
 
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 
-  if (isa<tpu::TG_INT8_EltwiseAddOp>(op) ||
-      isa<tpu::TG_BF16_EltwiseAddOp>(op))
+  if (isa<tpu::TG_INT8_EltwiseAddOp>(op)) {
     add_imm_tensor(out_tensors[0], 1, name_ + "_imm");
+  }
 }
 
 
@@ -690,6 +690,9 @@ ImUpsample::ImUpsample(Operation *op): ImLayer(IR_UPSAMPLE, op, true) {
 ImLeakyRelu::ImLeakyRelu(Operation *op): ImLayer(IR_LEAKY_RELU, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
+  if (isa<tpu::TG_BF16_LeakyReluOp>(op)) {
+    add_imm_tensor(in_tensors[0], 1, name_ + "_imm");
+  }
 }
 
 ImPad::ImPad(Operation *op): ImLayer(IR_PAD, op, true) {

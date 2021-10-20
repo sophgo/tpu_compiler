@@ -583,7 +583,7 @@ void cvi_backend_tl_eltwise(
 
 void cvi_backend_bf16_tl_eltwise(
     const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t *la_input, laddr_t la_output, laddr_t la_working,
+    laddr_t *la_input, laddr_t la_output,
     int input_n, int input_c, int input_h, int input_w,
     int input_size, int op,
     bool use_default_coeff,
@@ -666,25 +666,10 @@ void cvi_backend_bf16_tl_eltwise(
         break;
       }
       case 1: {  // sum
-        cvk_tl_t working;
-        working.start_address = la_working + (ic_pos / NPU_NUM) * top_stride.c;
-        working.fmt = CVK_FMT_BF16;
-        working.shape = shape;
-        working.stride = top_stride;
-
-        cvk_tl_t *res_high = &working;
-        cvk_tl_t *res_low = &output;
-        bool out_is_higher_addr = false;
-        if (la_output > la_working) {
-          out_is_higher_addr = true;
-          res_high = &output;
-          res_low = &working;
-        }
-
         if (use_default_coeff) {
           cvk_tiu_mul_param_t p = {0};
-          p.res_high = res_high;
-          p.res_low = res_low;
+          p.res_high = nullptr;
+          p.res_low = &output;
           p.a = &input[0];
           p.b_const.val = ctx.convert_fp32_to_bf16(coeffs[0]);
           p.b_const.is_signed = true;
@@ -694,15 +679,16 @@ void cvi_backend_bf16_tl_eltwise(
           p.relu_enable = 0;
           ctx.tiu_mul(&p);
 
-          for (int i = 1; i < input_size - 1; ++i) {
+          for (int i = 1; i < input_size; ++i) {
+            bool relu = (i == input_size-1 ? fused_relu : false);
             input[1].start_address = la_input[i] + (ic_pos / NPU_NUM) * bottom_stride.c;;
             input[1].fmt = CVK_FMT_BF16;
             input[1].shape = shape;
             input[1].stride = bottom_stride;  // EU-aligned
 
             cvk_tiu_mac_param_t p3 = {0};
-            p3.res_high = res_high;
-            p3.res_low = res_low;
+            p3.res_high = nullptr;
+            p3.res_low = &output;
             p3.a = &input[1];
             p3.res_is_int8 = false;
             p3.b_const.val = ctx.convert_fp32_to_bf16(coeffs[i]);
@@ -711,35 +697,8 @@ void cvi_backend_bf16_tl_eltwise(
             p3.lshift_bits = 0;
             p3.rshift_bits = 0;
             p3.layer_id = layer_id;
-            p3.relu_enable = 0;
+            p3.relu_enable = relu;
             ctx.tiu_mac(&p3);
-          }
-          input[1].start_address = la_input[input_size - 1] + (ic_pos / NPU_NUM) * bottom_stride.c;
-          input[1].fmt = CVK_FMT_BF16;
-          input[1].shape = shape;
-          input[1].stride = bottom_stride;  // EU-aligned
-
-          cvk_tiu_mac_param_t p3 = {0};
-          p3.res_high = res_high;
-          p3.res_low = res_low;
-          p3.a = &input[1];
-          p3.res_is_int8 = false;
-          p3.b_const.val = ctx.convert_fp32_to_bf16(coeffs[input_size - 1]);
-          p3.b_is_const = 1;
-          p3.b_const.is_signed = true;
-          p3.lshift_bits = 0;
-          p3.rshift_bits = 0;
-          p3.layer_id = layer_id;
-          p3.relu_enable = fused_relu;
-          ctx.tiu_mac(&p3);
-
-          if (out_is_higher_addr) {
-            ctx.parallel_disable();
-            cvk_tdma_l2l_tensor_copy_param_t p10 = {0};
-            p10.dst = &output;
-            p10.src = res_low;
-            p10.layer_id = layer_id;
-            ctx.tdma_l2l_tensor_copy(&p10);
           }
         } else {
           // Not support

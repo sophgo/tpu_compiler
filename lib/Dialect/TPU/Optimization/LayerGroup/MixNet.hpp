@@ -88,7 +88,8 @@ class MixNet {
 
   void _add_tl_eltwise_add_op(MixOp* mix_op,
                               const std::vector<int>& in_tensors,
-                              const std::vector<int>& out_tensors);
+                              const std::vector<int>& out_tensors,
+                              bool need_work);
 
   void _add_tl_eltwise_mul_op(MixOp* mix_op,
                               const std::vector<int>& in_tensors,

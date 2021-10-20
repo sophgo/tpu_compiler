@@ -743,9 +743,10 @@ void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
                                 const std::vector<int>& out_tensors) {
   int id = mix_op->get_layer_id();
   const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
-  if (isa<tpu::TG_INT8_EltwiseAddOp>(im_layer->op()) ||
-      isa<tpu::TG_BF16_EltwiseAddOp>(im_layer->op())) {
-    _add_tl_eltwise_add_op(mix_op, in_tensors, out_tensors);
+  if (isa<tpu::TG_INT8_EltwiseAddOp>(im_layer->op())){
+    _add_tl_eltwise_add_op(mix_op, in_tensors, out_tensors, true);
+  } else if(isa<tpu::TG_BF16_EltwiseAddOp>(im_layer->op())) {
+    _add_tl_eltwise_add_op(mix_op, in_tensors, out_tensors, false);
   } else if (isa<tpu::TG_INT8_EltwiseMulOp>(im_layer->op()) ||
              isa<tpu::TG_BF16_EltwiseMulOp>(im_layer->op())) {
     _add_tl_eltwise_mul_op(mix_op, in_tensors, out_tensors);
@@ -755,7 +756,7 @@ void MixNet::_add_tl_eltwise_op(MixOp* mix_op,
 
 void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
                                 const std::vector<int>& in_tensors,
-                                const std::vector<int>& out_tensors) {
+                                const std::vector<int>& out_tensors, bool need_work) {
   const ImLayer* im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
   Operation *op = im_layer->op();
   auto old_input_type =
@@ -771,8 +772,10 @@ void MixNet::_add_tl_eltwise_add_op(MixOp* mix_op,
   std::vector<int32_t> la_input;
   net_graph_->get_tl_tensor_dim(in_tensors[0], bottom_dim, false);
 
-  int imm_t_id = im_layer->imm_tensors[0].get()->id();
-  working_laddr = get_imm_tensor_laddr(imm_t_id);
+  if (need_work) {
+    int imm_t_id = im_layer->imm_tensors[0].get()->id();
+    working_laddr = get_imm_tensor_laddr(imm_t_id);
+  }
 
   assert(nInputs == 2);
   // input0, input1
@@ -1297,7 +1300,7 @@ void MixNet::_add_tl_quant_op(MixOp *mix_op,
     if (from == "BF16" && to == "INT8") {
       if (im_layer->imm_tensors.size()) {
         int imm_t_id = im_layer->imm_tensors[0].get()->id();
-        la_working = get_imm_tensor_laddr(imm_t_id);;
+        la_working = get_imm_tensor_laddr(imm_t_id);
         bExtraInput = true;
       }
     }
@@ -1809,6 +1812,11 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
   std::string name = mix_op->name();
   uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
   uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+  uint32_t la_working = 0;
+  if (isa<tpu::TG_BF16_LeakyReluOp>(op)) {
+    int imm_t_id = im_layer->imm_tensors[0].get()->id();
+    la_working = get_imm_tensor_laddr(imm_t_id);;
+  }
 
   attrs.push_back(builder_.getNamedAttr("name",
                            builder_.getStringAttr(name)));
@@ -1816,6 +1824,8 @@ void MixNet::_add_tl_leaky_relu_op(MixOp * mix_op,
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
                            builder_.getI32IntegerAttr(la_output)));
+  attrs.push_back(builder_.getNamedAttr("la_working",
+                           builder_.getI32IntegerAttr(la_working)));
 
   add_leaky_attrs(builder_, op, attrs);
 
