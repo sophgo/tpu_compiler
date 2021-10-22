@@ -2358,6 +2358,10 @@ class TPU_TG_Yuv420CscOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `buffer_reused`   : optional, whether buffer is reused.
 
       `name`            : required, name for comparing, or debug.
+      `y_align`         : width alignment of channel y.
+      `w_align`         : width alignment of channel uv.
+      `channel_align`   : alignment of channel.
+      `pixel_type`      : required, 1--i420 2--nv12 3--nv21 
 
 
     Result:
@@ -2374,6 +2378,10 @@ class TPU_TG_Yuv420CscOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I32ArrayAttr>:$channel_order,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    DefaultValuedAttr<I32Attr, "1">:$pixel_type,
+    DefaultValuedAttr<I32Attr, "64">:$y_align,
+    DefaultValuedAttr<I32Attr, "64">:$w_align,
+    DefaultValuedAttr<I32Attr, "64">:$channel_align,
     StrAttr:$name
   );
 

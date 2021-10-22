@@ -4005,7 +4005,8 @@ LogicalResult tpu::TG_INT8_Yuv420CscOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   cvi_backend_tg_yuv420_csc_kernel(*backend_ctx, layer_id, input_gaddr,
                                    output_gaddr, n, c, h, w, order,
-                                   CVK_FMT_U8);
+                                   CVK_FMT_U8, this->pixel_type(), this->y_align(), this->w_align(),
+                                   this->channel_align());
   return success();
 }
 

@@ -520,7 +520,9 @@ void cvi_backend_tg_yuv420_csc_kernel(const CviBackendContext &ctx,
                                       uint32_t layer_id, gaddr_t ga_input,
                                       gaddr_t ga_output, int n, int c, int h,
                                       int w, const std::vector<int> &order,
-                                      cvk_fmt_t fmt);
+                                      cvk_fmt_t fmt, int32_t pixel_type, 
+                                      int32_t y_algin, int32_t w_align,
+                                      int32_t channel_align);
 
 void cvi_backend_zero_mask_kernel(const CviBackendContext &ctx,
                                   uint32_t layer_id, gaddr_t ga_input,

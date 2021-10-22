@@ -4,8 +4,14 @@ import numpy as np
 import cv2
 import argparse
 import mlir
+from enum import Enum
 from cvi_toolkit.utils.log_setting import setup_logger
 logger = setup_logger('root', log_level="INFO")
+
+class YuvType(Enum):
+  YUV420_PLANAR = 1
+  YUV_NV12 = 2
+  YUV_NV21 = 3
 
 supported_pixel_formats = [
     'RGB_PLANAR',
@@ -14,6 +20,8 @@ supported_pixel_formats = [
     'BGR_PACKED',
     'GRAYSCALE',
     'YUV420_PLANAR',
+    'YUV_NV21',
+    'YUV_NV12',
     'RGBA_PLANAR',
     None
 ]
@@ -25,6 +33,8 @@ pixel_format_attributes = {
     'BGR_PACKED':    ('bgr', 'nhwc'),
     'GRAYSCALE':     ('bgr', 'nchw'),
     'YUV420_PLANAR': ('bgr', 'nchw'),
+    'YUV_NV12':      ('bgr', 'nchw'),
+    'YUV_NV21':      ('bgr', 'nchw'),
     'RGBA_PLANAR':   ('rgba', 'nchw')
 }
 
@@ -153,7 +163,7 @@ class preprocess(object):
             self.channel_num = 4
         elif self.pixel_format == "GRAYSCALE":
             self.channel_num = 1
-        elif self.pixel_format == "YUV420_PLANAR":
+        elif self.pixel_format == "YUV420_PLANAR" or self.pixel_format == "YUV_NV12" or self.pixel_format == "YUV_NV21":
             self.channel_num = 3
             self.aligned = True
         elif self.pixel_format.startswith('RGB'):
@@ -167,12 +177,16 @@ class preprocess(object):
 
         if str(chip).lower().endswith('183x'):
             self.VPSS_W_ALIGN = 32
-            self.VPSS_Y_ALIGN = 64
+            self.VPSS_Y_ALIGN = 32
             self.VPSS_CHANNEL_ALIGN = 4096
+            if self.pixel_format == "YUV420_PLANAR":
+              self.VPSS_Y_ALIGN = self.VPSS_W_ALIGN * 2
         else:
             self.VPSS_W_ALIGN = 64
-            self.VPSS_Y_ALIGN = 128
+            self.VPSS_Y_ALIGN = 64
             self.VPSS_CHANNEL_ALIGN = 64
+            if self.pixel_format == "YUV420_PLANAR":
+              self.VPSS_Y_ALIGN = self.VPSS_W_ALIGN * 2
 
         self.data_format = 'nchw' if self.pixel_format.endswith('PLANAR') else 'nhwc'
         self.input_name = 'input'
@@ -281,16 +295,20 @@ class preprocess(object):
         self.perchannel_scale = self.perchannel_scale[:,np.newaxis, np.newaxis]
         self.crop_method = 'center'
         self.aligned = False
-        if self.pixel_format == "YUV420_PLANAR":
+        if self.pixel_format == "YUV420_PLANAR" or self.pixel_format == "YUV_NV12" or self.pixel_format == "YUV_NV21" :
             self.aligned = True
         if str(chip).lower().endswith('183x'):
             self.VPSS_W_ALIGN = 32
-            self.VPSS_Y_ALIGN = 64
+            self.VPSS_Y_ALIGN = 32
             self.VPSS_CHANNEL_ALIGN = 4096
+            if self.pixel_format == "YUV420_PLANAR":
+              self.VPSS_Y_ALIGN = self.VPSS_W_ALIGN * 2
         else:
             self.VPSS_W_ALIGN = 64
-            self.VPSS_Y_ALIGN = 128
+            self.VPSS_Y_ALIGN = 64
             self.VPSS_CHANNEL_ALIGN = 64
+            if self.pixel_format == "YUV420_PLANAR":
+              self.VPSS_Y_ALIGN = self.VPSS_W_ALIGN * 2
         self.data_format = pixel_format_attributes[self.pixel_format][1]
 
         format_str = "\n  Preprocess args : \n" + \
@@ -354,15 +372,21 @@ class preprocess(object):
     # Y = 0.2569 * R + 0.5044 * G + 0.0979 * B + 16
     # U = -0.1483 * R - 0.2911 * G + 0.4394 * B + 128
     # V = 0.4394 * R - 0.3679 * G - 0.0715 * B + 128
-    def rgb2yuv420(self, input):
+    def rgb2yuv420(self, input, pixel_type):
         # every 4 y has one u,v
         # vpss format, w align is 32, channel align is 4096
         h, w, c = input.shape
         y_w_aligned = self.align_up(w, self.VPSS_Y_ALIGN)
-        uv_w_aligned = self.align_up(int(w/2), self.VPSS_W_ALIGN)
         y_offset = 0
-        u_offset = self.align_up(y_offset + h * y_w_aligned, self.VPSS_CHANNEL_ALIGN)
-        v_offset = self.align_up(u_offset + int(h/2) * uv_w_aligned, self.VPSS_CHANNEL_ALIGN)
+        if pixel_type == YuvType.YUV420_PLANAR:
+          uv_w_aligned = self.align_up(int(w/2), self.VPSS_W_ALIGN)
+          u_offset = self.align_up(y_offset + h * y_w_aligned, self.VPSS_CHANNEL_ALIGN)
+          v_offset = self.align_up(u_offset + int(h/2) * uv_w_aligned, self.VPSS_CHANNEL_ALIGN)
+        else :
+          uv_w_aligned = self.align_up(w, self.VPSS_W_ALIGN)
+          u_offset = self.align_up(y_offset + h * y_w_aligned, self.VPSS_CHANNEL_ALIGN)
+          v_offset = u_offset
+          
         total_size = self.align_up(v_offset + int(h/2) * uv_w_aligned, self.VPSS_CHANNEL_ALIGN)
         yuv420 = np.zeros(int(total_size), np.uint8)
         for h_idx in range(h):
@@ -376,10 +400,18 @@ class preprocess(object):
                 v = max(min(v, 255), 0)
                 yuv420[y_offset + h_idx * y_w_aligned + w_idx] = y
                 if (h_idx % 2 == 0 and w_idx % 2 == 0):
-                    u_idx = int(u_offset + h_idx/2 * uv_w_aligned + w_idx / 2)
-                    v_idx = int(v_offset + h_idx/2 * uv_w_aligned + w_idx / 2)
-                    yuv420[u_idx] = u
-                    yuv420[v_idx] = v
+                  if pixel_type == YuvType.YUV420_PLANAR:
+                    u_idx = int(u_offset + int(h_idx/2) * uv_w_aligned + int(w_idx / 2))
+                    v_idx = int(v_offset + int(h_idx/2) * uv_w_aligned + int(w_idx / 2))
+                  elif pixel_type == YuvType.YUV_NV12:
+                    u_idx = int(u_offset + int(h_idx/2) * uv_w_aligned + int(w_idx / 2) * 2)
+                    v_idx = int(v_offset + int(h_idx/2) * uv_w_aligned + int(w_idx / 2) * 2 + 1)
+                  else :
+                    u_idx = int(u_offset + int(h_idx/2) * uv_w_aligned + int(w_idx / 2) * 2 + 1)
+                    v_idx = int(v_offset + int(h_idx/2) * uv_w_aligned + int(w_idx / 2) * 2)
+                    
+                  yuv420[u_idx] = u
+                  yuv420[v_idx] = v
         return yuv420.reshape(int(total_size), 1, 1)
 
     def __load_image_and_resize(self, input):
@@ -461,12 +493,19 @@ class preprocess(object):
             x = x * self.perchannel_scale - self.perchannel_mean
             x = self.align_planar_frame(x, self.aligned)
             x = np.expand_dims(x, axis=0)
-        elif self.pixel_format == 'YUV420_PLANAR':
+        elif self.pixel_format == 'YUV420_PLANAR' or self.pixel_format == 'YUV_NV12' or self.pixel_format == "YUV_NV21":
             # swap to 'rgb'
+            pixel_type = YuvType.YUV420_PLANAR; 
+            if self.pixel_format == 'YUV420_PLANAR':
+              pixel_type = YuvType.YUV420_PLANAR
+            elif self.pixel_format == 'YUV_NV12':
+              pixel_type = YuvType.YUV_NV12
+            else:
+              pixel_type = YuvType.YUV_NV21
             x = x[[2, 1, 0], :, :]
             x = x * self.perchannel_scale - self.perchannel_mean
             x = np.transpose(x, (1, 2, 0))
-            x = self.rgb2yuv420(x)
+            x = self.rgb2yuv420(x, pixel_type)
             x = x.astype(np.float32)
             assert(batch == 1)
         elif self.pixel_format == 'RGBA_PLANAR':
