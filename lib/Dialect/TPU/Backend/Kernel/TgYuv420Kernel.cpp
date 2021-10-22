@@ -7,13 +7,17 @@
 
 #include "TgYuv420Kernel.hpp"
 
+// yuv_type 1--yuv420_planar  2--yuv_nv12  3--yuv_nv21
+
+// yuv420_planar
 // data from vpss, y = h * w, u = h/2 * w/2, v = h/2 * w/2.
 // format example:
 //     y y y y y y y y
 //     y y y y y y y y
 //     u u u u
 //     v v v v
-// w aligned by 32 bytes, channel aligned by 4K bytes
+// 183x y aligned by 64 bytes, w aligned by 32 bytes, channel aligned by 4K bytes
+// 182x y aligned by 128 bytes, w aligned by 64 bytes, channel aligned by 64 bytes
 
 // YUV => RGB :
 //     R = 1.164(Y - 16) + 1.596(V - 128)
@@ -34,6 +38,61 @@
 // h/2 sliced by NPU_NUM, and put on each lane
 //
 
+// yuv_nv12
+// data from vpss, y = h * w, uv = h/2 * w
+// format example:
+//     y y y y y y y y
+//     y y y y y y y y
+//     u v u v u v u v
+// 183x y aligned by 32 bytes, w aligned by 32 bytes, channel aligned by 4K bytes
+// 182x y aligned by 64 bytes, w aligned by 64 bytes, channel aligned by 64 bytes
+
+// YUV => RGB :
+//     R = 1.164(Y - 16) + 1.596(V - 128)
+//     G = 1.164(Y - 16) - 0.813(V - 128) - 0.391(U - 128)
+//     B = 1.164(Y - 16)                  + 2.018(U - 128)
+//
+
+// tiling policy :
+//   y  = [n, h/2, 2, w]
+//   uv  = [n, h/2, 1, w]
+//   uv_cache = [n, h/2, 1, w/2]
+//   4u = [n, h/2, 2, w], upsample from u
+//   4v = [n, h/2, 2, w], upsample from v
+//   b  = [n, h/2, 2, w]
+//   g  = [n, h/2, 2, w]
+//   r  = [n, h/2, 2, w]
+//
+// h/2 sliced by NPU_NUM, and put on each lane
+//
+
+// yuv_nv21
+// data from vpss, y = h * w, uv = h/2 * w
+// format example:
+//     y y y y y y y y
+//     y y y y y y y y
+//     v u v u v u v u
+// 183x y aligned by 32 bytes, w aligned by 32 bytes, channel aligned by 4K bytes
+// 182x y aligned by 64 bytes, w aligned by 64 bytes, channel aligned by 64 bytes
+
+// YUV => RGB :
+//     R = 1.164(Y - 16) + 1.596(V - 128)
+//     G = 1.164(Y - 16) - 0.813(V - 128) - 0.391(U - 128)
+//     B = 1.164(Y - 16)                  + 2.018(U - 128)
+//
+
+// tiling policy :
+//   y  = [n, h/2, 2, w]
+//   uv  = [n, h/2, 1, w]
+//   uv_cache = [n, h/2, 1, w/2]
+//   4u = [n, h/2, 2, w], upsample from u
+//   4v = [n, h/2, 2, w], upsample from v
+//   b  = [n, h/2, 2, w]
+//   g  = [n, h/2, 2, w]
+//   r  = [n, h/2, 2, w]
+//
+// h/2 sliced by NPU_NUM, and put on each lane
+//
 void TgYuv420Kernel::init(uint32_t layer_id, gaddr_t ga_input,
                           gaddr_t ga_output, int n, int c, int h, int w,
                           const std::vector<int> &order, int32_t pixel_type,
@@ -48,7 +107,7 @@ void TgYuv420Kernel::init(uint32_t layer_id, gaddr_t ga_input,
   this->c = c;
   this->h = h;
   this->w = w;
-  this->yuv_type = pixel_type;
+  this->yuv_type = pixel_type;  // 1--i420  2--nv12  3--nv21
   if (order.empty()) {
     this->order.push_back(0);
     this->order.push_back(1);
@@ -327,7 +386,7 @@ void TgYuv420Kernel::compute(int32_t step_idx) {
   }
 
   if (yuv_type != 1) {
-    // copy u or v to uc cache mem
+    // copy u or v to uv cache mem
     tl_uv.shape.w /= 2;
     tl_uv.stride.w *= 2;
     tl_uv.start_address += 2;

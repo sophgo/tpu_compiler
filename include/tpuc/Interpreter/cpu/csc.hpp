@@ -7,6 +7,13 @@ namespace mlir {
 
 class CscOpKernel : public CPUOpKernel {
 public:
+  enum YuvType {
+    YUV_UNKNOWN = 0,
+    YUV420_PLANAR = 1,
+    YUV_NV12 = 2,
+    YUV_NV21 = 3
+  };
+
   static constexpr const char *OpName = "CPUCscOp";
 
   CscOpKernel(Operation &op, value_map_t &valueMapping,
@@ -15,10 +22,8 @@ public:
   void invoke() override;
 
 private:
-  void yuv420_csc(float *input, float *output, int n, int c, int h, int w,
-                std::vector<int> &order, int quant_type);
-  void yuv_nv_csc(float *input, float *output, int n, int c, int h, int w,
-                  std::vector<int> &order, int quant_type, int pixel_type);
+  void yuv_csc(float *input, float *output, int n, int c, int h, int w,
+                  std::vector<int> &order, int quant_type, YuvType pixel_type);
   private:
     SyncedData input_data;
     SyncedData output_data;
