@@ -2296,6 +2296,46 @@ class TPU_TG_QuadraticSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_BF16_QuadraticSumOp : TPU_TG_QuadraticSumOp<"tg_bf16_quadratic_sum", "Bf16">;
 
+class TPU_TG_ConvFcOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " Matrix Multipy by Conv operator.";
+
+  let description = [{
+    Inputs:
+      `input`           : required, the input activation memref.
+
+    Attributes:
+
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    DefaultValuedAttr<F32Attr, "1.0f">: $qscale,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_BF16_ConvFcOp : TPU_TG_ConvFcOp<"tg_bf16_convfc", "Bf16">;
+
 class TPU_TG_MatMulOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -2361,7 +2401,7 @@ class TPU_TG_Yuv420CscOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `y_align`         : width alignment of channel y.
       `w_align`         : width alignment of channel uv.
       `channel_align`   : alignment of channel.
-      `pixel_type`      : required, 1--i420 2--nv12 3--nv21 
+      `pixel_type`      : required, 1--i420 2--nv12 3--nv21
 
 
     Result:

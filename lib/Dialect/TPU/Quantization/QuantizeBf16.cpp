@@ -48,6 +48,11 @@ using namespace mlir;
 
 namespace mlir {
 
+inline static float INT8(float data) {
+  data = std::floor(data + 0.5);
+  return std::max(std::min(data, 127.0f), -128.0f);
+}
+
 ///
 /// bypass Ops quantization method
 ///
@@ -74,6 +79,30 @@ static void quantizeBf16WeightOp(Value op, TensorFile *wTF) {
   BF16(data->data(), data->data(), size);
   addWeightTensorAndUpdateWeightOp<float>(op, "quant", *data, shape, "BF16",
                                           wTF);
+}
+
+static void quantizeBf16ConvFcOp(Operation *op, TensorFile *wTF) {
+  auto castOp = cast<tpu::ConvFcOp>(op);
+  int64_t tableSize;
+  std::vector<int64_t> tableShape;
+  getTensorShapeAndSize(castOp.filter(), tableShape, tableSize);
+  auto table = readAndDeleteWeightTensor<float>(castOp.filter(), wTF);
+  // create new tensors
+  auto new_table = std::make_unique<std::vector<float> >(tableSize);
+  float max = *std::max_element(table->begin(), table->end());
+  float min = *std::min_element(table->begin(), table->end());
+  float threshold_y = std::max(std::abs(max), std::abs(min));
+  float scale = 127.0 / threshold_y;
+  auto src_ptr = table->data();
+  auto dst_ptr = new_table->data();
+  for (int i = 0; i < tableSize; i++) {
+    dst_ptr[i] = INT8(src_ptr[i] * scale);
+  }
+  addWeightTensorAndUpdateWeightOp<float>(castOp.filter(),
+      "quant", *new_table, tableShape, "INT8", wTF);
+  float qscale = threshold_y / 127.0;
+  auto builder = Builder(op->getContext());
+  castOp->setAttr("qscale", builder.getF32FloatAttr(qscale));
 }
 
 static void quantizeBf16LayerNormWeightOp(Value op, TensorFile *wTF) {
@@ -310,6 +339,16 @@ LogicalResult tpu::Conv3DOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   return quantizeBf16ConvOps<tpu::Conv3DOp>(op, 3);
+}
+
+LogicalResult tpu::ConvFcOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  TensorFile *wTF = getWeightTensorFile(op);
+  quantizeBf16ConvFcOp(op, wTF);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::EmbeddingOp::quantizeBf16() {

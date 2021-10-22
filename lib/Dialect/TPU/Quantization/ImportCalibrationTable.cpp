@@ -298,7 +298,6 @@ public:
       LLVM_DEBUG(llvm::errs() << op->getName() << "\n";);
       if (isa<tpu::LoadWeightOp>(op)) {
         setWeightThresholdFromMap(op, weight_threshold_map);
-        setWeightBitwidthFromMap(op, weight_bitwidth_map);
       } else if (llvm::dyn_cast<tpu::PoolMaskOp>(op)) {
         setOpThreshold(op, 127.0f);
         setOpQuantParamType(op, "THRESHOLD");
@@ -410,23 +409,6 @@ private:
                    << std::to_string(threshold) << "\n";);
     }
     return ret;
-  }
-
-  LogicalResult setWeightBitwidthFromMap(
-      Operation *op,
-      std::unordered_map<std::string, int> &bitwidth_map) {
-    auto weightOp = llvm::dyn_cast<tpu::LoadWeightOp>(op);
-    auto builder = Builder(op->getContext());
-    std::string op_name = weightOp.name().str();
-    if (!bitwidth_map.count(op_name)) {
-      return failure();
-    }
-    int bitwidth = bitwidth_map[op_name];
-    if (bitwidth > 32) {
-      llvm_unreachable((op_name + " quant_bitwidth too large").c_str());
-    }
-    weightOp->setAttr("quant_bitwidth", builder.getI32IntegerAttr(bitwidth));
-    return success();
   }
 
   LogicalResult setWeightThresholdFromMap(

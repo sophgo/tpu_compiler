@@ -94,14 +94,11 @@ def get_chip_name():
     return runchip
 
 def make_test_calibration_table(tensors, table_name):
-    QUANT_BITWIDTH = {}
     # simple calibration table
     with open(table_name, 'w') as f:
         for name in tensors:
             t = 1.1 * max(np.abs(tensors[name].flatten())) + 0.01
             f.write("{} {}\n".format(name, t))
-        for key,value in QUANT_BITWIDTH.items():
-            f.write("bitwidth {} {}\n".format(key, value))
 
 def _fill_inputs(ort_session, inputs):
     inodes = ort_session.get_inputs()

@@ -582,6 +582,46 @@ def TPU_CropOp: TPU_Op<"crop",
   let hasCanonicalizer = 1;
 }
 
+def TPU_ConvFcOp : TPU_Op<"convfc",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "Matrix multiply by conv operator";
+
+  let description = [{
+    Inputs:
+      `inputs`          : required, input tensors.
+
+    Attributes:
+      `do_relu`         : required, if need to preform relu on result.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TPU_QuantSupportPerChannel`
+      `TPU_QuantSupportAsymmetric`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$filter,
+    DefaultValuedAttr<F32Attr, "1.0f">:$qscale,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_CscOp: TPU_Op<"csc",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

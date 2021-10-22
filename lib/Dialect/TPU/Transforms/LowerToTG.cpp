@@ -704,6 +704,29 @@ Value tpu::Conv3DOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::ConvFcOp::convertToTG() {
+  llvm::errs() << "lowerToTG: " << getOperationName() << " [" << getOpName()
+               << "]\n";
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+  operands.push_back(filter());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("qscale", qscaleAttr()));
+
+  if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_ConvFcOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::CropOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -4250,6 +4273,7 @@ public:
         DefaultToTGPattern<tpu::ConcatOp>,
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::Conv3DOp>,
+        DefaultToTGPattern<tpu::ConvFcOp>,
         DefaultToTGPattern<tpu::CropOp>,
         DefaultToTGPattern<tpu::DeConv2DOp>,
         DefaultToTGPattern<tpu::DilateOp>,

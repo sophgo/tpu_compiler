@@ -606,6 +606,9 @@ public:
           if (isa<tpu::LayerNormOp>(op)) {
             setOpQuant(op, "BF16");
           }
+          if (isa<tpu::ConvFcOp>(op)) {
+            setOpQuant(op, "BF16");
+          }
           if (isa<tpu::GruOp>(op)) {
             setOpQuant(op, "BF16");
           }

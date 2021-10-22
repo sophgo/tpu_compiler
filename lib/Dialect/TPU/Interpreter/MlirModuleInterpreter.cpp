@@ -8,6 +8,7 @@
 #include "tpuc/Interpreter/cpu/concat.hpp"
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Interpreter/cpu/conv3d.hpp"
+#include "tpuc/Interpreter/cpu/convfc.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/csc.hpp"
 #include "tpuc/Interpreter/cpu/customop.hpp"
@@ -187,6 +188,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<SliceOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ConcatOp>(op)) {
       krnl = std::make_shared<ConcatOpKernel>(*op, valueMapping, weightMapping);
+    } else if (isa<tpu::ConvFcOp>(op)) {
+      krnl = std::make_shared<ConvFcOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::DeConv2DOp>(op)) {
       krnl = std::make_shared<DeConv2DOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::AbsOp>(op)) {

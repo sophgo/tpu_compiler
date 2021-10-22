@@ -28,7 +28,6 @@ TEST_ONNX_IR = [
     "AveragePool1d",
 #    "Concat",
     "Conv2d", # Conv with 2d case
-    "Conv4Bit", # Conv, filter will quant to 4bit
     "ConvTranspose1d",
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
@@ -73,10 +72,8 @@ TEST_ONNX_IR = [
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
-NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Conv4Bit", "Transpose", "Sum", "DepthToSpace"]
+NOT_SUPPORT_BF16_TEST_IR = ["Relu", "LRN", "Max", "Min", "PRelu", "Reciprocal", "Transpose", "Sum", "DepthToSpace"]
 NOT_SUPPORT_INT8_TEST_IR = ["Softmax"] # just for save test time
-
-QUANT_BITWIDTH = {}
 
 def get_chip_name():
     runchip = os.environ.get('SET_CHIP_NAME', None)
@@ -92,8 +89,6 @@ def make_test_calibration_table(tensors, table_name):
         for name in tensors:
             t = 1.1 * max(np.abs(tensors[name].flatten())) + 0.01
             f.write("{} {}\n".format(name, t))
-        for key,value in QUANT_BITWIDTH.items():
-            f.write("bitwidth {} {}\n".format(key, value))
 
 def _fill_inputs(ort_session, inputs):
     inodes = ort_session.get_inputs()
@@ -165,7 +160,6 @@ class ONNX_IR_TESTER(object):
             "BCastSub": self.test_BCastSub,
             "Concat": self.test_Concat,
             "Conv2d": self.test_Conv2d,
-            "Conv4Bit": self.test_Conv4Bit,
             "ConvTranspose1d": self.test_ConvTranspose1d,
             "Conv3d": self.test_Conv3d,
             "DepthToSpace": self.test_DepthToSpace,
@@ -656,65 +650,6 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
 
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_Conv4Bit(self):
-        test_case = 'Conv4Bit'
-        input_data = np.random.randn(4, 3, 5, 5).astype(np.float32)
-        weight_data = np.random.randn(3, 3, 3, 3).astype(np.float32)
-        bias_data = np.random.randn(3).astype(np.float32)
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, list(input_data.shape))
-
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, [4, 3, 5, 5])
-
-        weight_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['conv_w'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=weight_data.shape,
-                vals=weight_data.flatten(),
-            ),
-        )
-        QUANT_BITWIDTH['conv_w'] = 4
-        bias_node_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['conv_b'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=bias_data.shape,
-                vals=bias_data.flatten(),
-            ),
-        )
-        node_def = onnx.helper.make_node(
-            "Conv",
-            inputs=['input', 'conv_w', 'conv_b'],
-            outputs=['output'],
-            kernel_shape=[3, 3],
-            pads=[1, 1, 1, 1],
-            strides=[1, 1],
-            dilations=[1, 1],
-            group=1,
-        )
-        graph_def = helper.make_graph(
-            [weight_node_def, bias_node_def, node_def],
-            test_case,
-            [input],
-            [output],
-        )
-
-        model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 11
-        onnx.checker.check_model(model_def)
-
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-        QUANT_BITWIDTH.clear()
 
     def test_ConvTranspose1d(self):
         test_case = 'ConvTranspose1d'

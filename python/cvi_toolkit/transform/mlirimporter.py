@@ -38,6 +38,7 @@ class TPU_OpType(Enum):
     Concat = 'tpu.concat'
     Conv2d = 'tpu.conv_2d'
     Conv3d = 'tpu.conv_3d'
+    ConvFc = 'tpu.convfc'
     Crop = 'tpu.crop'
     Csc = 'tpu.csc'
     Clip = 'tpu.clip'
@@ -971,6 +972,15 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.FullyConnected.value, inputOperands, [
             tensor_output_type], name=fully_connected_name, quant=quant_param)
+
+    def add_convfc_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, **kargs):
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        if len(inputOperands) != 2:
+            raise ArithmeticError("input operand must great than 2")
+        new_name = StringAttr.get(op_name)
+        return self.buildOp(TPU_OpType.ConvFc.value, inputOperands, [
+            tensor_output_type], name=new_name, quant=self.quant_param)
 
     def add_frcn_detection_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

@@ -84,7 +84,6 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   }
   assert(filterSize % oc == 0);
   int64_t isz = filterSize / oc;
-  int bitwidth = filterOp.quant_bitwidth();
 
   // get bias tensor
   std::unique_ptr<std::vector<float> > bias = nullptr;
@@ -150,7 +149,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
         filter->data(), bias ? bias->data() : nullptr, oc, isz, threshold_y,
         threshold_x, new_filter->data(), bias ? new_bias->data() : nullptr,
         rshift_per_channel->data(), multiplier_per_channel->data(),
-        filter_threshold, bitwidth);
+        filter_threshold);
 
   } else {
     assert(0);
@@ -1258,6 +1257,7 @@ LogicalResult quantizeInt8BypassOps(Operation *op) {
       || isa<tpu::ROIPoolingOp>(op)
       || isa<tpu::SoftmaxOp>(op)
       || isa<tpu::LayerNormOp>(op)
+      || isa<tpu::ConvFcOp>(op)
       || isa<tpu::StdOp>(op)
       || isa<tpu::ZeroMaskOp>(op)
       || isa<tpu::SoftmaxCpuOp>(op)
@@ -1626,7 +1626,9 @@ LogicalResult tpu::EmbeddingOp::quantizeInt8() {
   getTensorShapeAndSize(op->getOperand(1), tableShape, tableSize);
   // create new tensors
   auto new_table = std::make_unique<std::vector<float> >(tableSize);
-  float threshold_y = getOpThreshold(op);
+  float max = *std::max_element(table->begin(), table->end());
+  float min = *std::min_element(table->begin(), table->end());
+  float threshold_y = std::max(std::abs(max), std::abs(min));
   float scale = 127.0 / threshold_y;
   auto src_ptr = table->data();
   auto dst_ptr = new_table->data();
@@ -1655,6 +1657,7 @@ DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::AbsOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CropOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CscOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::CustomOp)
+DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::ConvFcOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::DilateOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::GruOp)
 DECLARE_QUANTIZE_INT8_BYPASS_METHOD(tpu::InputOp)

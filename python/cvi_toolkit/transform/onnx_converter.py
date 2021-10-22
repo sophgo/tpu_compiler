@@ -2293,6 +2293,14 @@ class OnnxConverter(BaseConverter):
         lstm_op = self.CVI.add_lstm_op(name, operands, output_shape, **lstm_param)
         self.addOperand(out0, lstm_op, output_shape, TensorType.ACTIVATION)
 
+    @staticmethod
+    def is_convfc(operands, lhs_shape, rhs_shape):
+        if len(operands) != 2:
+            return False
+        # TODO(charle.hu): should modify later
+        if list(lhs_shape) != [1, 288] or list(rhs_shape) != [16002, 288]:
+            return False
+        return True
 
     def convert_matmul_op(self, onnx_node):
         assert(onnx_node.op_type == "MatMul")
@@ -2326,8 +2334,11 @@ class OnnxConverter(BaseConverter):
                 bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], bias_tensor.shape)
                 operands.append(bias_op)
 
-            fc_op = self.CVI.add_fully_connected_op(fc_name, operands, output_shape)
-            self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
+            if self.is_convfc(operands, lhs_shape, rhs_shape):
+                new_op = self.CVI.add_convfc_op(fc_name, operands, output_shape)
+            else:
+                new_op = self.CVI.add_fully_connected_op(fc_name, operands, output_shape)
+            self.addOperand(onnx_node.name, new_op, output_shape, TensorType.ACTIVATION)
         else:
             matmul_op = self.CVI.add_matmul_op(fc_name, [lhs_op, rhs_op], output_shape)
             self.addOperand(onnx_node.name, matmul_op, output_shape, TensorType.ACTIVATION)

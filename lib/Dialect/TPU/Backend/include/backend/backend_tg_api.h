@@ -373,6 +373,11 @@ void cvi_backend_tg_bf16_bcast_mul_kernel(const CviBackendContext &ctx,
                                           int n, int c, int h, int w, int bn,
                                           int bc, int bh, int bw, bool do_relu);
 
+void cvi_backend_tg_bf16_convfc_kernel(const CviBackendContext &ctx,
+                                       uint32_t layer_id, gaddr_t ga_left,
+                                       gaddr_t ga_right, gaddr_t ga_output,
+                                       int M, int K, int N, float qscale=0.0f);
+
 void cvi_backend_tg_bf16_reduce_max_kernel(
     const CviBackendContext& ctx,
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
@@ -520,7 +525,7 @@ void cvi_backend_tg_yuv420_csc_kernel(const CviBackendContext &ctx,
                                       uint32_t layer_id, gaddr_t ga_input,
                                       gaddr_t ga_output, int n, int c, int h,
                                       int w, const std::vector<int> &order,
-                                      cvk_fmt_t fmt, int32_t pixel_type, 
+                                      cvk_fmt_t fmt, int32_t pixel_type,
                                       int32_t y_algin, int32_t w_align,
                                       int32_t channel_align);
 

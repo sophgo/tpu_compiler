@@ -2546,6 +2546,29 @@ LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_ConvFcOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto shape0 = getTensorShape(this->input());
+  auto shape1 = getTensorShape(this->filter());
+  int M = shape0[0];
+  int K = shape0[1];
+  int N = shape1[0];
+  assert(shape1[1] == K);
+  gaddr_t ga_input = getOpAddress(input().getDefiningOp());
+  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_convfc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
+                                    ga_output, M, K, N, qscale().convertToFloat());
+
+  return success();
+}
+
 LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
