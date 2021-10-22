@@ -39,7 +39,7 @@ TEST_TORCH_IR = [
     "Norm",
     "masked_fill",
     "Activation",
-    "Batch_Norm", ## Batch_norm_1d and Instance_Norm_1d will fail, but Batch_norm_2d and Instance_Norm_2d easily will fail
+    "Batch_Norm", ##Batch_norm_2d and Instance_Norm_2d easily will fail
     "Cat_Chunk",
     "Log",
     "Math", ## sum, prod not support
@@ -54,7 +54,7 @@ TEST_TORCH_IR = [
     # "Sum",
     # "Bilinear", ## Bilinear not support
     # "Customer_Net",
-    # "Unfold",
+    # "Unfold", ##Unfold not support
     #"LogSigmoid", #some times fail
     "LogSoftmax",
     "Identity",
@@ -1206,22 +1206,27 @@ class TORCH_IR_TESTER(object):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.BatchNorm2d = nn.BatchNorm2d(30, affine=False)
-                # self.BatchNorm1d = nn.BatchNorm1d(30, affine=False)
+                ##BatchNorm1d need channel_size as 1, , greater than 1 will fail
+                self.BatchNorm2d = nn.BatchNorm2d(1, affine=False)
+                self.BatchNorm1d = nn.BatchNorm1d(1, affine=False)
                 self.GroupNorm = nn.GroupNorm(3, 30)
-                # self.InstanceNorm2d = nn.InstanceNorm2d(30, affine=False)
-                # self.InstanceNorm1d = nn.InstanceNorm1d(30, affine=False)
+                ##InstanceNorm2d and InstanceNorm1d need batch_size as 1 and w/h greater than 100 will sucess
+                self.InstanceNorm2d = nn.InstanceNorm2d(1, affine=False)
+                self.InstanceNorm1d = nn.InstanceNorm1d(1, affine=False)
 
             def forward(self, x):
-                x = self.BatchNorm2d(x)
-                x = self.GroupNorm(x)
-                # x = self.InstanceNorm2d(x)
+                # x = self.BatchNorm2d(x)
+                # x = torch.negative(x)
+                # x = self.BatchNorm1d(x)
+                # x = self.GroupNorm(x)
+                x = self.InstanceNorm2d(x)
+                # x = self.InstanceNorm1d(x)
                 return x
 
-        batch_size = 3
+        batch_size = 1
         test_onnx_name = 'Batch_Norm'
 
-        input_data = torch.randn(batch_size, 30, 100, 100).float()
+        input_data = torch.randn(batch_size, 1, 100, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
@@ -1262,22 +1267,22 @@ class TORCH_IR_TESTER(object):
             def __init__(self):
                 super(Net, self).__init__()
                 ## kersize = 3, stride = 2
-                self.max_pool1d = nn.MaxPool1d(3, stride=2)
+                self.max_pool1d = nn.MaxPool1d(2, stride=2)
                 self.max_pool2d = nn.MaxPool2d(2, stride=2, return_indices=True )
                 self.max_unpool2d = nn.MaxUnpool2d(2, stride=2)
 
             def forward(self, x):
-                ## output_shape = (h/w + kernel_size -1) / 2
-                # x = x.squeeze(dim=1)
-                # x = self.max_pool1d(x) ## output shape (3, 3, 49)
-                output, indices = self.max_pool2d(x) ## output shape (3, 3, 49, 49)
+                ## output_shape = (h/w + kernel_size -1 - 1) / 2
+                output, indices = self.max_pool2d(x) ## output shape (3, 3, 50, 50)
+                x = torch.negative(x)
+                x = self.max_pool1d(x) ## output shape (3, 3, 50)
                 # x = self.max_unpool2d(output, indices)
                 return x
 
         batch_size = 3
         test_onnx_name = 'MaxPool'
 
-        input_data = torch.randn(batch_size, 3, 100, 100).float()
+        input_data = torch.randn(batch_size, 3, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 

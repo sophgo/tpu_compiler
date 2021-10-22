@@ -1099,9 +1099,63 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_name, reshape_input_op,
                     shape, TensorType.ACTIVATION)
 
+    def convert_batchnorm1d_op(self, onnx_node):
+        assert(onnx_node.op_type == "BatchNormalization")
+        operands = list()
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        shape = input_shape[:]
+
+        # we fuse batchnorm and scale at here
+        gamma_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+        beta_value = self.getTensor(onnx_node.inputs[2]).tensor_data
+        mean_value = self.getTensor(onnx_node.inputs[3]).tensor_data
+        var_value = self.getTensor(onnx_node.inputs[4]).tensor_data
+
+        # convert conv1d to conv2d
+        ## 0:input reshape
+        if len(shape) == 3:
+            shape.insert(3, 1)
+            reshape_input_op = self.CVI.add_reshape_op("{}_{}_input".format(
+                    onnx_node.name, onnx_node.op_type), [op], shape)
+            operands.append(reshape_input_op)
+
+        ## 1:scale_name
+        scale_name = "{}_0".format(onnx_node.name)
+        epsilon = onnx_node.attrs.get('epsilon', 0)
+        scale_value = ((1.0 / np.sqrt(
+                    var_value + epsilon)) * gamma_value)
+
+        scale_op = self.CVI.add_load_file_op(scale_name, self.getTensor(onnx_node.inputs[1]).shape)
+        # add new weight tensor
+        self.addTensor(scale_name, scale_value, self.getTensor(onnx_node.inputs[1]).shape)
+
+        ## 2:offset_name
+        offset_name =  "{}_1".format(onnx_node.name)
+        offset_value = (-mean_value * scale_value) + beta_value
+        offset_op = self.CVI.add_load_file_op(offset_name, self.getTensor(onnx_node.inputs[1]).shape)
+        # add new bias tensor
+        self.addTensor(offset_name, offset_value, self.getTensor(onnx_node.inputs[1]).shape)
+
+        ##input_op,  scale_op, offset_op
+        operands.append(scale_op)
+        operands.append(offset_op)
+
+        ## scaleop op
+        output_shape = shape
+        scaleop = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+        ## reshape_back op
+        new_output_shape = [shape[0], shape[1], shape[2]]
+        reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
+                    onnx_node.name, onnx_node.op_type), [scaleop], new_output_shape)
+        self.addOperand(onnx_node.name, reshape_back_op, new_output_shape, TensorType.ACTIVATION)
+
+
     def convert_batchnorm_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        if len(input_shape) == 3:
+            return self.convert_batchnorm1d_op(onnx_node)
+
         operands = list()
         operands.append(op)
         epsilon = onnx_node.attrs.get('epsilon', 0)
@@ -2332,8 +2386,50 @@ class OnnxConverter(BaseConverter):
             matmul_op = self.CVI.add_matmul_op(fc_name, [lhs_op, rhs_op], output_shape)
             self.addOperand(onnx_node.name, matmul_op, output_shape, TensorType.ACTIVATION)
 
+    def convert_maxpool_1d_op(self, onnx_node):
+        assert(onnx_node.op_type == "MaxPool")
+        pads = onnx_node.attrs.get("pads",[0,0,0,0])
+        strides = onnx_node.attrs.get("strides",[1,1])
+
+        conv_param = {
+            'stride_h': 1,
+            'stride_w': strides[0],
+            'kernel_h': 1,
+            'kernel_w': onnx_node.attrs['kernel_shape'][0],
+            'padding_t': 0,
+            'padding_l': pads[0],
+            'padding_b': 0,
+            'padding_r': pads[1],
+            'do_relu': False,
+        }
+
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        shape = input_shape[:]
+        if len(shape) == 3:
+            shape.insert(2,1)
+            reshape_input_op = self.CVI.add_reshape_op("{}_{}_input".format(
+                    onnx_node.name, onnx_node.op_type), [op], shape)
+            op = reshape_input_op
+        operands = list()
+        operands.append(op)
+
+        on = input_shape[0]
+        oc = input_shape[1]
+        oh = 1
+        ow = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], strides[0], pads[0], pads[1])
+        output_shape = [int(on), int(oc), int(oh), int(ow)]
+        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
+        new_output_shape = [on, oc, ow]
+        reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
+                    onnx_node.name, onnx_node.op_type), [pool_max_op], new_output_shape)
+        self.addOperand(onnx_node.name, reshape_back_op, output_shape, TensorType.ACTIVATION)
+
     def convert_maxpool_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        if len(input_shape) == 3:
+            return self.convert_maxpool_1d_op(onnx_node)
+
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
         strides = onnx_node.attrs.get("strides",[1,1])
 
@@ -2349,7 +2445,6 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
         }
 
-        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
         on = input_shape[0]
@@ -3150,14 +3245,42 @@ class OnnxConverter(BaseConverter):
         else:
             self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
 
+    def convert_instancenorm1d_op(self, onnx_node):
+        assert(onnx_node.op_type == "InstanceNormalization")
+        operands = list()
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        shape = input_shape[:]
+        epsilon = onnx_node.attrs.get('epsilon', 1e-5)
+
+        # convert conv1d to conv2d
+        if len(shape) == 3:
+            shape.insert(3, 1)
+            reshape_input_op = self.CVI.add_reshape_op("{}_{}_input".format(
+                    onnx_node.name, onnx_node.op_type), [op], shape)
+            operands.append(reshape_input_op)
+
+        scale_op = self.CVI.add_load_file_op(onnx_node.inputs[1], self.getTensor(onnx_node.inputs[1]).shape)
+        bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], self.getTensor(onnx_node.inputs[2]).shape)
+
+        operands.append(scale_op)
+        operands.append(bias_op)
+
+        output_shape = shape
+        instancenorm_op = self.CVI.add_instancenorm_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, variance_epsilon=epsilon)
+        ## reshape_back op
+        new_output_shape = input_shape
+        reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
+                    onnx_node.name, onnx_node.op_type), [instancenorm_op], new_output_shape)
+        self.addOperand(onnx_node.name, reshape_back_op, new_output_shape, TensorType.ACTIVATION)
+
     def convert_instancenorm_op(self, onnx_node):
         assert(onnx_node.op_type == "InstanceNormalization")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = [op]
         epsilon = onnx_node.attrs.get('epsilon', 1e-5)
 
-        # scale_value = self.getTensor(onnx_node.inputs[1]).tensor_data
-        # bias_value = self.getTensor(onnx_node.inputs[2]).tensor_data
+        if len(input_shape) == 3:
+            return self.convert_instancenorm1d_op(onnx_node)
 
         scale_op = self.CVI.add_load_file_op(onnx_node.inputs[1], self.getTensor(onnx_node.inputs[1]).shape)
         bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], self.getTensor(onnx_node.inputs[2]).shape)
