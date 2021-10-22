@@ -129,15 +129,16 @@ void TgYuv420Kernel::init(uint32_t layer_id, gaddr_t ga_input,
   int y_offset = 0;
   int u_offset = 0;
   int v_offset = 0;
-  BLOB_NUM = 14;
   if (this->yuv_type == 1) {
     uv_w_aligned = align_up(w / 2, w_align);
     u_offset = align_up(y_offset + y_w_aligned * h, channel_align);
     v_offset = align_up(u_offset + uv_w_aligned * h / 2, channel_align);
+    BLOB_NUM = 14;
   } else {
     uv_w_aligned = align_up(w, w_align);
     u_offset = align_up(y_offset + y_w_aligned * h, channel_align);
     v_offset = u_offset;
+    BLOB_NUM = 12;
   }
   n_stride = align_up(v_offset + uv_w_aligned * h / 2, channel_align);
   ga_y = ga_input + y_offset;
@@ -184,12 +185,8 @@ void TgYuv420Kernel::allocLmem() {
     }
   } else {
     uv_shape = ctx.tl_shape_t4(step_n, step_c, step_h / 2, step_w);
-    for (uint32_t i = 10; i < 12; i++) {
+    for (uint32_t i = 10; i < BLOB_NUM; i++) {
       tl_mem[i] = ctx.lmem_alloc_tensor(uv_shape, CVK_FMT_BF16, 1);
-    }
-    auto uv_cache_shape = ctx.tl_shape_t4(step_n, step_c, step_h / 2, step_w / 2);
-    for (uint32_t i = 12; i < BLOB_NUM; i++) {
-      tl_mem[i] = ctx.lmem_alloc_tensor(uv_cache_shape, CVK_FMT_BF16, 1);
     }
   }
 }
@@ -208,12 +205,11 @@ void TgYuv420Kernel::selectTilePolicy() {
   int max_w = std::min(w, MAX_WIDTH);
   for (step_w = max_w; step_w > 0; step_w -= 2) {
     for (step_n = n; step_n > 0; --step_n) {
-      cvk_tl_shape_t uv_shape, uv_cache_shape;
+      cvk_tl_shape_t uv_shape;
       if (yuv_type == 1) {
         uv_shape = ctx.tl_shape_t4(step_n, step_c, step_h / 2, step_w / 2);
       } else {
         uv_shape = ctx.tl_shape_t4(step_n, step_c, step_h / 2, step_w);
-        uv_cache_shape = ctx.tl_shape_t4(step_n, step_c, step_h / 2, step_w / 2);
       }
       auto y_shape = ctx.tl_shape_t4(step_n, step_c, step_h, step_w);
       // u,v
@@ -222,7 +218,6 @@ void TgYuv420Kernel::selectTilePolicy() {
         uv_need = 4 * ctx.lmem_tensor_to_size(uv_shape, CVK_FMT_BF16, 1);
       } else {
         uv_need = 2 * ctx.lmem_tensor_to_size(uv_shape, CVK_FMT_BF16, 1);
-        uv_need += 2 * ctx.lmem_tensor_to_size(uv_cache_shape, CVK_FMT_BF16, 1);
       }
       // 4u,4v, (y,r,g,b * 2)
       uint32_t y_need = 10 * ctx.lmem_tensor_to_size(y_shape, CVK_FMT_BF16, 1);
@@ -256,29 +251,20 @@ void TgYuv420Kernel::refresh(int32_t step_idx) {
   auto &tile = tiles[step_idx];
   auto y_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
   auto y_stride = ctx.tl_default_stride(y_shape, CVK_FMT_BF16, 1);
-  cvk_tl_shape_t uv_shape, uv_cache_shape;
-  int uv_cache_mem_begin_idx = 0;
+  cvk_tl_shape_t uv_shape;
   if (yuv_type == 1) {
     uv_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h / 2, tile.w / 2);
-    uv_cache_mem_begin_idx = BLOB_NUM;
   } else {
     uv_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h / 2, tile.w);
-    uv_cache_shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h / 2, tile.w / 2);
-    uv_cache_mem_begin_idx = BLOB_NUM - 2;
   }
   auto uv_stride = ctx.tl_default_stride(uv_shape, CVK_FMT_BF16, 1);
-  auto uv_cache_stride = ctx.tl_default_stride(uv_cache_shape, CVK_FMT_BF16, 1);
   for (int i = 0; i < 10; i++) {
     tl_mem[i]->shape = y_shape;
     tl_mem[i]->stride = y_stride;
   }
-  for (int i = 10; i < uv_cache_mem_begin_idx; i++) {
+  for (uint32_t i = 10; i < BLOB_NUM; i++) {
     tl_mem[i]->shape = uv_shape;
     tl_mem[i]->stride = uv_stride;
-  }
-  for (uint32_t i = uv_cache_mem_begin_idx; i < BLOB_NUM; i++) {
-    tl_mem[i]->shape = uv_cache_shape;
-    tl_mem[i]->stride = uv_cache_stride;
   }
   tl_y = *tl_mem[0 + (step_idx % 2)];
   tl_r = *tl_mem[2 + (step_idx % 2)];
@@ -291,7 +277,6 @@ void TgYuv420Kernel::refresh(int32_t step_idx) {
     tl_v = *tl_mem[12 + (step_idx % 2)];
   } else {
     tl_uv = *tl_mem[10 + (step_idx % 2)];
-    tl_uv_cache = *tl_mem[12 + (step_idx % 2)];
   }
   tl_kernel = *tl_mem_kernel;
   if (tile.c != NPU_NUM) {
@@ -375,35 +360,38 @@ void TgYuv420Kernel::store(int32_t step_idx) {
 void TgYuv420Kernel::compute(int32_t step_idx) {
   refresh(step_idx);
   // u -= 128, v-=128, y = (y - 16) * 1.164
-  if (yuv_type == 2) {
-    tl_u = tl_uv;
-    tl_u.shape.w /= 2;
-    tl_v = tl_uv_cache;
-  }  else if (yuv_type == 3) {
-    tl_v = tl_uv;
-    tl_v.shape.w /= 2;
-    tl_u = tl_uv_cache;
-  }
-
   if (yuv_type != 1) {
-    // copy u or v to uv cache mem
-    tl_uv.shape.w /= 2;
-    tl_uv.stride.w *= 2;
-    tl_uv.start_address += 2;
+    tl_u = tl_r;
+    tl_u.shape = tl_uv.shape;
+    tl_u.shape.w /= 2;
+    tl_v = tl_g;
+    tl_v.shape = tl_uv.shape;
+    tl_v.shape.w /= 2;
+
+    auto tl_u_src = tl_uv;
+    tl_u_src.shape.w /= 2;
+    tl_u_src.stride.w *= 2;
+    if (yuv_type == 3) { // nv21
+      tl_u_src.start_address += 2;
+    }
+    auto tl_v_src = tl_uv;
+    tl_v_src.shape.w /= 2;
+    tl_v_src.stride.w *= 2;
+    if (yuv_type == 2) { // nv21
+      tl_v_src.start_address += 2;
+    }
+
+    // Separate u from uv
     cvk_tiu_copy_param_t p = {0};
-    p.dst = &tl_uv_cache;
-    p.src = &tl_uv;
+    p.dst = &tl_u;
+    p.src = &tl_u_src;
     p.layer_id = layer_id;
     ctx.tiu_copy(&p);
 
-    // Make the arrangement close
-    auto tl_uv_src = tl_uv;
-    tl_uv_src.start_address -= 2;
-    auto tl_uv_dst = tl_uv_src;
-    tl_uv_dst.stride.w /= 2;
+    // Separate v from uv
     p = {0};
-    p.dst = &tl_uv_dst;
-    p.src = &tl_uv_src;
+    p.dst = &tl_v;
+    p.src = &tl_v_src;
     p.layer_id = layer_id;
     ctx.tiu_copy(&p);
   }
