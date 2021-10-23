@@ -130,7 +130,6 @@ void TgConvFcKernel::refresh(int32_t step_idx) {
 void TgConvFcKernel::load(int32_t step_idx) {
   auto &tile = tiles[step_idx];
   refresh(step_idx);
-  ctx.tdma_load(&tl_ifmap, ga_input + tile.offset);
 
   cvk_tg_t src = {0};
   src.start_address = ga_filter + tile.offset / 2;
