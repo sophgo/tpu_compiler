@@ -99,6 +99,7 @@ protected:
   bool bidirectional;
   cvk_fmt_t fmt;
   int fmt_size;
+  uint32_t num_recurrence;
 
   // for lmem addr alloc
   cvk_tl_shape_t table_shape;

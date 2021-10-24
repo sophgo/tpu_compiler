@@ -200,11 +200,14 @@ bool TgLstmKernel::need_tiling() {
   if (do_bias) {
     b_size = ctx.lmem_matrix_to_size(b_shape, fmt, 1);
   }
-  uint64_t total_size = lmem_used + 4 * r_size + 4 * b_size + 8 * x_size;
-  if (total_size > (uint32_t)LOCAL_MEM_SIZE) {
-    return true;
+  uint64_t total_size = lmem_used + 4 * b_size + 8 * x_size;
+  for (num_recurrence = 4; num_recurrence > 0; num_recurrence--) {
+    if (total_size + num_recurrence * r_size <= (uint32_t)LOCAL_MEM_SIZE) {
+      return false;
+    }
   }
-  return false;
+
+  return true;
 }
 
 uint8_t TgLstmKernel::ps32_mode(int step_idx) {
@@ -290,11 +293,7 @@ void TgLstmKernel::tiling() {
       auto h_shape = ctx.ml_default_shape(batch_size, h, fmt);
       hstate_size += ctx.lmem_matrix_to_size(h_shape, fmt, 1);
     }
-    uint32_t cstate_size = hstate_size;
-    if (step_size != hidden_size) { // need backup hiddens
-      hstate_size *= 2;
-    }
-    if (lmem_used + hstate_size + cstate_size <= (uint32_t)LOCAL_MEM_SIZE) {
+    if (lmem_used + 3 * hstate_size <= (uint32_t)LOCAL_MEM_SIZE) {
       break;
     }
   }
@@ -314,10 +313,8 @@ void TgLstmKernel::tiling() {
     auto h_shape = ctx.ml_default_shape(batch_size, tile.h, fmt);
     assign_matrix(&ml_hidden, h_shape);
     ml_hiddens[0].emplace_back(ml_hidden);
-    if (step_num > 1) {
-      assign_matrix(&ml_hidden, h_shape);
-      ml_hiddens[1].emplace_back(ml_hidden);
-    }
+    assign_matrix(&ml_hidden, h_shape);
+    ml_hiddens[1].emplace_back(ml_hidden);
     cvk_ml_t ml_cell;
     assign_matrix(&ml_cell, h_shape);
     ml_cells.emplace_back(ml_cell);
@@ -330,11 +327,8 @@ void TgLstmKernel::compute(int idx, bool forward) {
   int x_offset = seq_idx * batch_size * input_bytes; // load input
   int s_offset = seq_idx * num_dir * x_bytes;        // store output
   int cont_offset = seq_idx * batch_size * fmt_size;
-  int flip = 0, next = 0;
-  if (step_num > 1) {
-    flip = idx % 2;
-    next = 1 - flip;
-  }
+  int flip = idx % 2;
+  int next = 1 - flip;
   for (int step = 0; step < step_num; step++) {
     auto &tile = tiles[step];
     auto &ml_cell = ml_cells[step];
@@ -416,13 +410,15 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
   auto b_shape = ctx.ml_default_shape(4 / fmt_size, hidden_size, fmt);
   auto x2_shape = ctx.ml_default_shape(batch_size * 2, hidden_size, fmt);
   // assign lmem
-  cvk_ml_t ml_ri, ml_ro, ml_rf, ml_rc, ml_rbi, ml_rbo, ml_rbf, ml_rbc, ml_cont;
+  cvk_ml_t ml_r[4], ml_rbi, ml_rbo, ml_rbf, ml_rbc, ml_cont;
   cvk_ml_t ml_xi, ml_xo, ml_xf, ml_xc, ml_hidden, ml_cell, ml_work0, ml_work1;
-
-  assign_matrix(&ml_ri, r_shape);
-  assign_matrix(&ml_ro, r_shape);
-  assign_matrix(&ml_rf, r_shape);
-  assign_matrix(&ml_rc, r_shape);
+  uint32_t r_idx;
+  for (r_idx = 0; r_idx < num_recurrence; r_idx++) {
+    assign_matrix(&ml_r[r_idx], r_shape);
+  }
+  for (; r_idx < 4; r_idx++) {
+    ml_r[r_idx] = ml_r[num_recurrence - 1];
+  }
   if (do_bias) {
     assign_matrix(&ml_rbi, b_shape);
     assign_matrix(&ml_rbo, b_shape);
@@ -442,10 +438,15 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
   ml_xo = ml_xi;
 
   // load recurrence and bias
-  ctx.tdma_load(&ml_ri, ga_ri);
-  ctx.tdma_load(&ml_rf, ga_rf);
-  ctx.tdma_load(&ml_rc, ga_rc);
-  ctx.tdma_load(&ml_ro, ga_ro);
+  uint64_t ga_r[4] = {ga_rf, ga_ri, ga_rc, ga_ro};
+
+  for (r_idx = 0; r_idx < num_recurrence - 1; r_idx++) {
+    ctx.tdma_load(&ml_r[r_idx], ga_r[r_idx]);
+  }
+  if (num_recurrence == 4) {
+    ctx.tdma_load(&ml_r[r_idx], ga_r[r_idx]);
+  }
+
   if (do_bias) {
     ctx.tdma_load(&ml_rbi, ga_rbi);
     ctx.tdma_load(&ml_rbf, ga_rbf);
@@ -474,7 +475,10 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
     }
     // f => ml_xf
     ctx.tdma_load_stride(&ml_xf, ga_xf + x_offset, x_gstride);
-    matrix_mul(ml_work1, ml_hidden, ml_rf, ml_rbf);
+    if (num_recurrence < 2) {
+      ctx.tdma_load(&ml_r[0], ga_r[0]);
+    }
+    matrix_mul(ml_work1, ml_hidden, ml_r[0], ml_rbf);
     if (with_cont) {
       eltwise_mul(ml_work1, ml_cont);
     }
@@ -487,7 +491,10 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
 
     // i => ml_xi
     ctx.tdma_load_stride(&ml_xi, ga_xi + x_offset, x_gstride);
-    matrix_mul(ml_work1, ml_hidden, ml_ri, ml_rbi);
+    if (num_recurrence < 3) {
+      ctx.tdma_load(&ml_r[1], ga_r[1]);
+    }
+    matrix_mul(ml_work1, ml_hidden, ml_r[1], ml_rbi);
     if (with_cont) {
       eltwise_mul(ml_work1, ml_cont);
     }
@@ -495,7 +502,10 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
     sigmoid(ml_xi, ml_work1, ml_work0);
     // c => ml_xc
     ctx.tdma_load_stride(&ml_xc, ga_xc + x_offset, x_gstride);
-    matrix_mul(ml_work1, ml_hidden, ml_rc, ml_rbc);
+    if (num_recurrence != 4) {
+      ctx.tdma_load(&ml_r[2], ga_r[2]);
+    }
+    matrix_mul(ml_work1, ml_hidden, ml_r[2], ml_rbc);
     if (with_cont) {
       eltwise_mul(ml_work1, ml_cont);
     }
@@ -507,7 +517,10 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
     eltwise_add(ml_cell, ml_xc);
     // o => ml_xo
     ctx.tdma_load_stride(&ml_xo, ga_xo + x_offset, x_gstride);
-    matrix_mul(ml_work1, ml_hidden, ml_ro, ml_rbo);
+    if (num_recurrence != 4) {
+      ctx.tdma_load(&ml_r[3], ga_r[3]);
+    }
+    matrix_mul(ml_work1, ml_hidden, ml_r[3], ml_rbo);
     if (with_cont) {
       eltwise_mul(ml_work1, ml_cont);
     }

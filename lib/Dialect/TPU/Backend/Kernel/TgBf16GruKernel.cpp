@@ -237,10 +237,7 @@ void TgGruKernel::tiling() {
       auto h_shape = ctx.ml_default_shape(batch_size, h, fmt);
       state_size += ctx.lmem_matrix_to_size(h_shape, fmt, 1);
     }
-    if (step_size != hidden_size) { // need backup hiddens
-      state_size *= 2;
-    }
-    if (lmem_used + state_size <= (uint32_t)LOCAL_MEM_SIZE) {
+    if (lmem_used + 2 * state_size <= (uint32_t)LOCAL_MEM_SIZE) {
       break;
     }
   }
@@ -260,10 +257,8 @@ void TgGruKernel::tiling() {
     auto h_shape = ctx.ml_default_shape(batch_size, tile.h, fmt);
     assign_matrix(&ml_hidden, h_shape);
     ml_hiddens[0].emplace_back(ml_hidden);
-    if (step_num > 1) {
-      assign_matrix(&ml_hidden, h_shape);
-      ml_hiddens[1].emplace_back(ml_hidden);
-    }
+    assign_matrix(&ml_hidden, h_shape);
+    ml_hiddens[1].emplace_back(ml_hidden);
   }
 }
 
@@ -315,11 +310,8 @@ void TgGruKernel::compute(int idx, bool forward) {
   int seq_idx = forward ? idx : (seq_length - 1 - idx);
   int x_offset = seq_idx * batch_size * input_bytes; // load input
   int s_offset = seq_idx * num_dir * x_bytes;        // store output
-  int flip = 0, next = 0;
-  if (step_num > 1) {
-    flip = idx % 2;
-    next = 1 - flip;
-  }
+  int  flip = idx % 2;
+  int  next = 1 - flip;
   for (int step = 0; step < step_num; step++) {
     auto &tile = tiles[step];
     auto &ml_hidden = ml_hiddens[flip][step];
