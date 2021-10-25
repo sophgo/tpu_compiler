@@ -373,10 +373,10 @@ void cvi_backend_tg_bf16_bcast_mul_kernel(const CviBackendContext &ctx,
                                           int n, int c, int h, int w, int bn,
                                           int bc, int bh, int bw, bool do_relu);
 
-void cvi_backend_tg_bf16_convfc_kernel(const CviBackendContext &ctx,
-                                       uint32_t layer_id, gaddr_t ga_left,
-                                       gaddr_t ga_right, gaddr_t ga_output,
-                                       int M, int K, int N, float qscale=0.0f);
+void cvi_backend_tg_bf16_convfc_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_left,
+    gaddr_t ga_right, gaddr_t ga_output, int M, int K, int N,
+    bool do_quant = false, gaddr_t ga_scale = 0, gaddr_t ga_zeropoint = 0);
 
 void cvi_backend_tg_bf16_reduce_max_kernel(
     const CviBackendContext& ctx,
@@ -461,6 +461,11 @@ void cvi_backend_tg_requant_kernel(const CviBackendContext &ctx,
                                    gaddr_t top_gaddr, int input_n, int input_c,
                                    int input_h, int input_w, int input_offset,
                                    int output_offset, float scale);
+
+void cvi_backend_tg_dequant_kernel(const CviBackendContext &ctx,
+                                   uint32_t layer_id, gaddr_t ga_input,
+                                   gaddr_t ga_scale, gaddr_t ga_zeropoint,gaddr_t ga_output,
+                                   int axis, int n, int c, int h, int w);
 
 void cvi_backend_tg_reverse_kernel(const CviBackendContext &ctx,
                                    uint32_t layer_id, gaddr_t ga_input,

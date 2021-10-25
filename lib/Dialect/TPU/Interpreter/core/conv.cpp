@@ -28,12 +28,10 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping,
     } else {
       this->is_perchannel = true;
       this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
-      if (getOpQuantParamType(&op) == "RSHIFT_AND_M_I32") {
-        assert(quant_multiplier);
-        this->use_multiplier = true;
-        this->multiplier.assign(quant_multiplier->begin(),
-                                quant_multiplier->end());
-      }
+      assert(quant_multiplier);
+      this->use_multiplier = true;
+      this->multiplier.assign(quant_multiplier->begin(),
+                              quant_multiplier->end());
     }
   }
 

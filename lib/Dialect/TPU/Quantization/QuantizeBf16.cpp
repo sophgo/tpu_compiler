@@ -66,11 +66,7 @@ LogicalResult quantizeBf16BypassOps(Operation *op) {
 // weight fp32->bf16->fp32
 //
 static void quantizeBf16WeightOp(Value op, TensorFile *wTF) {
-  if (isTensorNone(op)) {
-    return;
-  }
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op.getDefiningOp());
-  if (weightOp == nullptr) {
+  if (isa<tpu::LoadWeightOp>(op.getDefiningOp()) == false) {
     return;
   }
   auto data = readAndDeleteWeightTensor<float>(op, wTF);
@@ -81,36 +77,79 @@ static void quantizeBf16WeightOp(Value op, TensorFile *wTF) {
                                           wTF);
 }
 
-static void quantizeBf16ConvFcOp(Operation *op, TensorFile *wTF) {
-  auto castOp = cast<tpu::ConvFcOp>(op);
-  int64_t tableSize;
-  std::vector<int64_t> tableShape;
-  getTensorShapeAndSize(castOp.filter(), tableShape, tableSize);
-  auto table = readAndDeleteWeightTensor<float>(castOp.filter(), wTF);
-  // create new tensors
-  auto new_table = std::make_unique<std::vector<float> >(tableSize);
-  float max = *std::max_element(table->begin(), table->end());
-  float min = *std::min_element(table->begin(), table->end());
-  float threshold_y = std::max(std::abs(max), std::abs(min));
-  float scale = 127.0 / threshold_y;
-  auto src_ptr = table->data();
-  auto dst_ptr = new_table->data();
-  for (int i = 0; i < tableSize; i++) {
-    dst_ptr[i] = INT8(src_ptr[i] * scale);
+static void quantizeWeightInt8Op(Operation *op, Value v, TensorFile *wTF,
+                                 int axis, int scale_index,
+                                 int zeropoint_index) {
+  if (isa<tpu::LoadWeightOp>(v.getDefiningOp()) == false) {
+    llvm_unreachable("must be weight op");
   }
-  addWeightTensorAndUpdateWeightOp<float>(castOp.filter(),
-      "quant", *new_table, tableShape, "INT8", wTF);
-  float qscale = threshold_y / 127.0;
-  auto builder = Builder(op->getContext());
-  castOp->setAttr("qscale", builder.getF32FloatAttr(qscale));
+  int64_t size;
+  std::vector<int64_t> shape;
+  getTensorShapeAndSize(v, shape, size);
+  int num_dims = shape.size();
+  if (axis < 0) {
+    axis += num_dims;
+  }
+  assert(axis < num_dims);
+  auto weight = readAndDeleteWeightTensor<float>(v, wTF);
+  auto new_weight = std::make_unique<std::vector<float>>(size);
+  auto K = shape[axis];
+  auto inner_size = std::accumulate(shape.begin() + axis + 1, shape.end(), 1,
+                                    std::multiplies<int64_t>());
+  auto outer_size = std::accumulate(shape.begin(), shape.begin() + axis, 1,
+                                    std::multiplies<int64_t>());
+  auto quant_scale = std::make_unique<std::vector<float>>(K);
+  auto quant_zeropoint = std::make_unique<std::vector<float>>(K);
+  float max, min, scale, zeropoint;
+  for (int k = 0; k < K; k++) {
+    max = weight->at(k * inner_size);
+    min = weight->at(k * inner_size);
+    for (int o = 0; o < outer_size; o++) {
+      for (int i = 0; i < inner_size; i++) {
+        float data = weight->at(o * K * inner_size + k * inner_size + i);
+        if (data > max) {
+          max = data;
+        }
+        if (data < min) {
+          min = data;
+        }
+      }
+    }
+    if (max == min) {
+      for (int o = 0; o < outer_size; o++) {
+        for (int i = 0; i < inner_size; i++) {
+          new_weight->at(o * K * inner_size + k * inner_size + i) = INT8(1.0f);
+        }
+      }
+      quant_scale->at(k) = BF16(max);
+      quant_zeropoint->at(k) = BF16(0.0f);
+    } else {
+      zeropoint = (max + min) / 2;
+      scale = 127.0 / (max - zeropoint);
+      for (int o = 0; o < outer_size; o++) {
+        for (int i = 0; i < inner_size; i++) {
+          int index = o * K * inner_size + k * inner_size + i;
+          new_weight->at(index) = INT8((weight->at(index) - zeropoint) * scale);
+        }
+      }
+      quant_scale->at(k) = BF16((max - zeropoint) / 127.0f);
+      quant_zeropoint->at(k) = BF16(zeropoint);
+    }
+  }
+  addWeightTensorAndUpdateWeightOp<float>(v, "quant", *new_weight, shape,
+                                          "INT8", wTF);
+  Value wfV = getWeightFileValue(op);
+  std::vector<int64_t> qshape(1, K);
+  auto scale_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "quant_scale", *quant_scale, qshape, "BF16", wTF, wfV);
+  auto zeropoint_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "quant_zeropoint", *quant_zeropoint, qshape, "BF16", wTF, wfV);
+  op->setOperand(scale_index, scale_op);
+  op->setOperand(zeropoint_index, zeropoint_op);
 }
 
 static void quantizeBf16LayerNormWeightOp(Value op, TensorFile *wTF) {
-  if (isTensorNone(op)) {
-    return;
-  }
-  auto weightOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op.getDefiningOp());
-  if (weightOp == nullptr) {
+  if (isa<tpu::LoadWeightOp>(op.getDefiningOp()) == false) {
     return;
   }
   auto data = readAndDeleteWeightTensor<float>(op, wTF);
@@ -346,7 +385,16 @@ LogicalResult tpu::ConvFcOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   TensorFile *wTF = getWeightTensorFile(op);
-  quantizeBf16ConvFcOp(op, wTF);
+  if (getOpQuantParamType() == "WEIGHT_INT8") {
+    if (isa<tpu::LoadWeightOp>(filter().getDefiningOp())) {
+      quantizeWeightInt8Op(op, filter(), wTF, -1, 2, 3);
+    } else {
+      StringRef type = "NONE";
+      setOpQuantParamType(type);
+    }
+  } else {
+    quantizeBf16WeightOp(filter(), wTF);
+  }
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -357,7 +405,16 @@ LogicalResult tpu::EmbeddingOp::quantizeBf16() {
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
   TensorFile *wTF = getWeightTensorFile(op);
-  quantizeBf16WeightOp(table(), wTF);
+  if (getOpQuantParamType() == "WEIGHT_INT8") {
+    if (isa<tpu::LoadWeightOp>(table().getDefiningOp())) {
+      quantizeWeightInt8Op(op, table(), wTF, -1, 2, 3);
+    } else {
+      StringRef type = "NONE";
+      setOpQuantParamType(type);
+    }
+  } else {
+    quantizeBf16WeightOp(table(), wTF);
+  }
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }

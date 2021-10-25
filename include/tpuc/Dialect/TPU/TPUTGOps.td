@@ -1314,6 +1314,30 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_TG_DequantOp: TPU_Op<"tg_dequant",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "Quantization/Dequantization operator";
+
+  let description = [{
+    From INT8 to BF16,
+    output = input * quant_scale + quant_zeropoint
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$quant_scale,
+    AnyTensor:$quant_zeropoint,
+    I32Attr:$axis,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_TG_ReQuantOp : TPU_Op<"tg_requant",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -2326,7 +2350,8 @@ class TPU_TG_ConvFcOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    DefaultValuedAttr<F32Attr, "1.0f">: $qscale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name

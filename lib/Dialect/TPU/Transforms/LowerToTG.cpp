@@ -227,7 +227,6 @@ Value tpu::BroadcastMulOp::convertToTG() {
       // TODO: the right way maybe doing a `REAL` per-channel multiplier mode
       // convolution. to put the scale tensor as multiplier rather than filter
       // and the multiplier is by nature per-channel.
-      assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
       assert(!isTensorNone(quant_rshift()));
       auto newOp = OpBuilder(op).create<tpu::TG_INT8_ScaleOp>(
           op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
@@ -438,8 +437,6 @@ Value tpu::ConcatOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
     std::vector<int32_t> m_i8_inputs_array(nInputs);
@@ -575,26 +572,10 @@ Value tpu::Conv2DOp::convertToTG() {
               builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {
-    if (isOpQuantPerchannel()) {
-      // per-channel, rshift and mulitplier are in weight .bin
-      assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
-      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_Conv2DOp>(op->getLoc(),
-          getResult().getType(), ArrayRef<Value>{operands},
-          ArrayRef<NamedAttribute>{attrs});
-     return newOp.getResult();
-    } else {
-      // per-tensor, rshift only mode
-      assert(getOpQuantParamType() == "RSHIFT_ONLY");
-      assert( !isTensorNone(quant_rshift()) );
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
-      assert(rshift->size() == 1);
-      attrs.push_back(builder.getNamedAttr("pt_rshift",
-          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PT_Conv2DOp>(op->getLoc(),
-          getResult().getType(), ArrayRef<Value>{operands},
-          ArrayRef<NamedAttribute>{attrs});
-      return newOp.getResult();
-    }
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_Conv2DOp>(op->getLoc(),
+        getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_Conv2DOp>(op->getLoc(),
         getResult().getType(), ArrayRef<Value>{operands},
@@ -713,10 +694,11 @@ Value tpu::ConvFcOp::convertToTG() {
   std::vector<Value> operands;
   operands.push_back(input());
   operands.push_back(filter());
+  operands.push_back(quant_scale());
+  operands.push_back(quant_zeropoint());
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr("qscale", qscaleAttr()));
 
   if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_ConvFcOp>(
@@ -781,26 +763,10 @@ Value tpu::DeConv2DOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("param", paramAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {
-    if (isOpQuantPerchannel()) {
-      // per-channel, rshift and mulitplier are in weight .bin
-      assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
-      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_DeConv2DOp>(
-          op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-          ArrayRef<NamedAttribute>{attrs});
-     return newOp.getResult();
-    } else {
-      // per-tensor, rshift only mode
-      assert(getOpQuantParamType() == "RSHIFT_ONLY");
-      assert( !isTensorNone(quant_rshift()) );
-      auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
-      assert(rshift->size() == 1);
-      attrs.push_back(builder.getNamedAttr("pt_rshift",
-          builder.getI8IntegerAttr(static_cast<int8_t>(rshift->at(0)))));
-      auto newOp = OpBuilder(op).create<tpu::TG_INT8_PT_DeConv2DOp>(
-          op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-          ArrayRef<NamedAttribute>{attrs});
-      return newOp.getResult();
-    }
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_DeConv2DOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_DeConv2DOp>(op->getLoc(),
         getResult().getType(), ArrayRef<Value>{operands},
@@ -843,34 +809,48 @@ Value tpu::DilateOp::convertToTG() {
 }
 
 Value tpu::EmbeddingOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto castOp = cast<tpu::EmbeddingOp>(op);
   auto builder = Builder(op->getContext());
 
-  if (getOpQuant() == "BF16" || getOpQuant() == "INT8") {
-    std::vector<NamedAttribute> param;
-    for (auto &attr : castOp->getAttrs()) {
-      if (attr.first == "name" || attr.first == "gaddr" ||
-          attr.first == "quant") {
-        continue;
-      }
-      param.push_back(attr);
-    }
-    auto paramAttr = builder.getDictionaryAttr(param);
-    auto operationAttr = builder.getStringAttr(getOperationName());
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-    attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
-    attrs.push_back(builder.getNamedAttr("param", paramAttr));
+  std::vector<NamedAttribute> param; // no param need to pass
+  auto paramAttr = builder.getDictionaryAttr(param);
+  auto operationAttr = builder.getStringAttr(getOperationName());
+  std::vector<NamedAttribute> attrs;
+
+  attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
+  attrs.push_back(builder.getNamedAttr("param", paramAttr));
+  auto type = castOp.getResult().getType();
+  if (getOpQuant() == "BF16" && getOpQuantParamType() == "WEIGHT_INT8") {
+    std::string name_i8 = name().str() + "_i8";
+    attrs.push_back(
+        builder.getNamedAttr("name", builder.getStringAttr(name_i8)));
+    auto eltType = IntegerType::get(builder.getContext(), 8);
+    auto shape = type.cast<TensorType>().getShape();
+    auto type_i8 = RankedTensorType::get(shape, eltType);
     auto cpuOp = OpBuilder(op).create<tpu::GenericCpuOp>(
-        op->getLoc(), castOp.getResult().getType(),
-        ArrayRef<Value>{{input(), table()}},
+        op->getLoc(), type_i8, ArrayRef<Value>{{input(), table()}},
+        ArrayRef<NamedAttribute>{attrs});
+
+    std::vector<NamedAttribute> attrs2;
+    attrs2.push_back(builder.getNamedAttr("name", nameAttr()));
+    int axis = shape.size() - 1;
+    attrs2.push_back(
+        builder.getNamedAttr("axis", builder.getI32IntegerAttr(axis)));
+    auto dequantOp = OpBuilder(op).create<tpu::TG_DequantOp>(
+        op->getLoc(), type,
+        ArrayRef<Value>{{cpuOp.getResult(), quant_scale(), quant_zeropoint()}},
+        ArrayRef<NamedAttribute>{attrs2});
+    return dequantOp.getResult();
+  } else {
+    attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+    auto cpuOp = OpBuilder(op).create<tpu::GenericCpuOp>(
+        op->getLoc(), type, ArrayRef<Value>{{input(), table()}},
         ArrayRef<NamedAttribute>{attrs});
     return cpuOp.getResult();
   }
-  llvm_unreachable("unsupported type");
 }
 
 Value tpu::EltwiseAddOp::convertToTG() {
@@ -901,9 +881,6 @@ Value tpu::EltwiseAddOp::convertToTG() {
   }
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-    // ADD
-    // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     assert(rshift->size() == 1);
     int rshift_i8 = static_cast<int8_t>(rshift->at(0));
@@ -987,9 +964,6 @@ Value tpu::EltwiseMaxOp::convertToTG() {
       // the quant is bypassed (threshold for input and output are the same)
       // do nothing
     } else {
-      assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-      // MAX
-      // rshift
       auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
       attrs.push_back(builder.getNamedAttr("rshift",
@@ -1050,9 +1024,6 @@ Value tpu::EltwiseMinOp::convertToTG() {
       // the quant is bypassed (threshold for input and output are the same)
       // do nothing
     } else {
-      assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-      // MIN
-      // rshift
       auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
       assert(rshift->size() == 1);
       attrs.push_back(builder.getNamedAttr("rshift",
@@ -1101,7 +1072,6 @@ Value tpu::EltwiseMulOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
     // MUL
     // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
@@ -1311,8 +1281,6 @@ Value tpu::LeakyReluOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("negative_slope", negative_slopeAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-
     auto rshift_pos     = readAndDeleteWeightTensor<float>(
                               quant_pos_rshift(), wTF);
     auto multiplier_pos = readAndDeleteWeightTensor<float>(
@@ -1506,8 +1474,6 @@ Value tpu::PoolAvg2DOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-
     assert( !isTensorNone(quant_rshift()) );
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     assert(rshift->size() == 1);
@@ -2089,7 +2055,6 @@ Value tpu::ClipOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_ClipOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
@@ -2490,8 +2455,6 @@ Value tpu::ReduceMeanOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-
     assert( !isTensorNone(quant_rshift()) );
     TensorFile *wTF = getWeightTensorFile(op);
     auto rshift = readWeightTensor<float>(quant_rshift(), wTF);
@@ -2532,8 +2495,6 @@ Value tpu::ReduceMaxOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-
     assert( !isTensorNone(quant_rshift()) );
     TensorFile *wTF = getWeightTensorFile(op);
     auto rshift = readWeightTensor<float>(quant_rshift(), wTF);
@@ -2574,8 +2535,6 @@ Value tpu::ReduceMinOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-
     assert( !isTensorNone(quant_rshift()) );
     TensorFile *wTF = getWeightTensorFile(op);
     auto rshift = readWeightTensor<float>(quant_rshift(), wTF);
@@ -2616,8 +2575,6 @@ Value tpu::ReduceSumOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I8");
-
     assert( !isTensorNone(quant_rshift()) );
     TensorFile *wTF = getWeightTensorFile(op);
     auto rshift = readWeightTensor<float>(quant_rshift(), wTF);
@@ -2880,7 +2837,6 @@ Value tpu::MatMulOp::convertToTG() {
   attrs.push_back(
       builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
   if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "RSHIFT_AND_M_I32");
     // rshift
     auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
     assert(rshift->size() == 1);
@@ -3043,8 +2999,7 @@ struct PackWeightConv2DOpPattern : public RewritePattern {
   LogicalResult matchAndRewrite(Operation *op,
       PatternRewriter &rewriter) const override {
     auto convOp = cast<OpTy>(op);
-    if (getOpQuant(op) != "INT8" || !isOpQuantPerchannel(op)
-        || getOpQuantParamType(op) != "RSHIFT_AND_M_I32") {
+    if (getOpQuant(op) != "INT8") {
       // for perchannel multiplier mode only
       return failure();
     }
@@ -3143,7 +3098,6 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
       return failure();
     }
 
-    // after quantizeInt8, the quantparam is "RSHIFT_AND_M_I32"
     auto rshiftOp =
         cast<tpu::LoadWeightOp>(castOp.quant_rshift().getDefiningOp());
     if (rshiftOp.lowered()) {
@@ -4256,7 +4210,6 @@ public:
         LowerCpuOpDefaultPattern<tpu::ROIPoolingOp>,
         LowerCpuOpDefaultPattern<tpu::YoloDetectionOp>,
         LowerCpuOpDefaultPattern<tpu::SoftmaxCpuOp>,
-        LowerCpuOpDefaultPattern<tpu::EmbeddingOp>,
         LowerCustomOpPattern<tpu::CustomOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
@@ -4282,6 +4235,7 @@ public:
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMinOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,
+        DefaultToTGPattern<tpu::EmbeddingOp>,
         DefaultToTGPattern<tpu::FullyConnectedOp>,
         DefaultToTGPattern<tpu::InterpOp>,
         DefaultToTGPattern<tpu::InstanceNormOp>,

@@ -56,7 +56,8 @@ inline static float INT8(float data) {
 template<typename OpTy>
 LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   assert(getOpQuant(op) == "INT8");
-
+  setOpQuantPerchannel(op, true);
+  setOpQuantParamType(op, "RSHIFT_AND_M_I32");
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
   auto convOp = cast<OpTy>(op);
@@ -131,29 +132,12 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
                << ", threshold_x = " << std::to_string(threshold_x) << "\n";);
 
   // quantization
-  if (!isOpQuantPerchannel(op)) {
-    assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
-    quantizeWeightInt8PerLayer(filter->data(), bias ? bias->data() : nullptr,
-                               oc, isz, threshold_y, threshold_x,
-                               new_filter->data(), bias ? new_bias->data() : nullptr,
-                               rshift_per_layer->data());
-
-  } else if (getOpQuantParamType(op) == "RSHIFT_ONLY") {
-    quantizeWeightInt8PerChannel(filter->data(), bias ? bias->data() : nullptr,
-                               oc, isz, threshold_y, threshold_x,
-                               new_filter->data(), bias ? new_bias->data() : nullptr,
-                               rshift_per_channel->data());
-
-  } else if (getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
-    quantizeWeightInt8Multiplier(
+  quantizeWeightInt8Multiplier(
         filter->data(), bias ? bias->data() : nullptr, oc, isz, threshold_y,
         threshold_x, new_filter->data(), bias ? new_bias->data() : nullptr,
         rshift_per_channel->data(), multiplier_per_channel->data(),
         filter_threshold);
 
-  } else {
-    assert(0);
-  }
   std::string quant_value = std::to_string(threshold_y) + "_quant";
   // update op
   addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
@@ -166,35 +150,17 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   }
 
   // add rshift and multiplier (if present) to weight
-  if (!isOpQuantPerchannel(op)) {
-    assert(getOpQuantParamType(op) == "RSHIFT_ONLY");
-    auto shape = std::vector<int64_t>{1};
-    StringRef storageType = "NONE";
-    auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "rshift", *rshift_per_layer, shape, storageType,
-        wTF, wfV);
-    convOp.setOperand(5, rshift_op);
-  } else if (getOpQuantParamType(op) == "RSHIFT_ONLY") {
-    auto shape = std::vector<int64_t>{oc};
-    StringRef storageType = "UINT32";
-    auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "rshift", *rshift_per_channel, shape, storageType,
-        wTF, wfV);
-    convOp.setOperand(5, rshift_op);
-  } else if (getOpQuantParamType(op) == "RSHIFT_AND_M_I32") {
-    auto shape = std::vector<int64_t>{oc};
-    StringRef storageType = "UINT32";
-    auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "rshift", *rshift_per_channel, shape, storageType,
-        wTF, wfV);
-    convOp.setOperand(5, rshift_op);
-    auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
-        op, "multiplier", *multiplier_per_channel, shape, storageType,
-        wTF, wfV);
-    convOp.setOperand(6, multiplier_op);
-  } else {
-    assert(0);
-  }
+  auto shape = std::vector<int64_t>{oc};
+  StringRef storageType = "UINT32";
+  auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "rshift", *rshift_per_channel, shape, storageType,
+      wTF, wfV);
+  convOp.setOperand(5, rshift_op);
+  auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "multiplier", *multiplier_per_channel, shape, storageType,
+      wTF, wfV);
+  convOp.setOperand(6, multiplier_op);
+
   setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
 
   return success();
@@ -386,9 +352,7 @@ LogicalResult quantizeInt8LrnOps(Operation *op) {
 ///
 LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
   setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -716,9 +680,7 @@ LogicalResult quantizeInt8ScaleLutOps(Operation *op) {
 template<typename OpTy>
 LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
   setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -906,9 +868,8 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
 
 LogicalResult quantizeInt8ConcatOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
+
   setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -1067,9 +1028,7 @@ template<typename OpTy>
 LogicalResult quantizeInt8AddConstOps(Operation *op) {
   // duplicate from quantizeInt8MultiplyConstOps
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
   setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -1167,9 +1126,7 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
 template<typename OpTy>
 LogicalResult quantizeInt8MultiplyOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
   setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
   setOpQuantParamType(op, "RSHIFT_AND_M_I32");
 
   TensorFile *wTF = getWeightTensorFile(op);

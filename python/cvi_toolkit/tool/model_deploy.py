@@ -36,7 +36,6 @@ class DeployTool:
         self.with_preprocess = False
         self.pixel_format = 'BGR_PLANAR'
         self.aligned_input = False
-        self.mix_precision = False
 
     def fuse_preprocess(self, pixel_format, aligned_input):
         fuse_preprocess_mlir = IntermediateFile(self.prefix, 'quantized_fuse_preprocess.mlir')
@@ -51,13 +50,11 @@ class DeployTool:
         self.aligned_input = aligned_input
 
     def quantize(self, calib_table, mix_table, all_bf16, chip,
-                 fuse_preprocess, pixel_format, aligned_input):
-        if not all_bf16 and mix_table:
-            self.mix_precision = True
+                 fuse_preprocess, pixel_format, aligned_input, quantize=""):
         self.chip = chip
         ret = mlir_quant(self.mlir_file, str(self.quantized_mlir),
                          chip, str(self.quantized_op_info_csv),
-                         all_bf16, calib_table, mix_table)
+                         all_bf16, calib_table, mix_table, quantize)
         check_return_value(ret == 0, 'quantization failed')
 
         if fuse_preprocess:
@@ -166,7 +163,7 @@ class DeployTool:
                                  tolerance=correctness,
                                  excepts=excepts,
                                  show_detail=True,
-                                 mix_precision=True) #self.mix_precision)
+                                 mix_precision=True)
         check_return_value(ret == 0, "accuracy validation of cvimodel failed")
 
     def cleanup(self):
@@ -183,8 +180,10 @@ if __name__ == '__main__':
     parser.add_argument("--model_name", required=True, help="model_name")
     parser.add_argument("--mlir", required=True, help="optimized mlir fp32 model")
     parser.add_argument("--calibration_table", help="calibration table for int8 quantization")
-    parser.add_argument("--mix_precision_table", help="table of OPs that quantized to bf16")
-    parser.add_argument("--all_bf16", action='store_true', help="quantize all OPs to bf16")
+    parser.add_argument("--mix_precision_table", help="table of OPs that quantized to specific mode")
+    parser.add_argument("--all_bf16", action='store_true', help="DEPRECATED, please use quantize")
+    parser.add_argument("--quantize", default="",
+                        help="set qauntization type: BF16/INT8/WEIGHT_INT8")
     parser.add_argument("--tolerance", required=True, help="tolerance")
     parser.add_argument("--excepts", default='-', help="excepts")
     parser.add_argument("--correctness", default='0.99,0.99,0.98', help="correctness")
@@ -196,7 +195,7 @@ if __name__ == '__main__':
     parser.add_argument("--aligned_input", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
     parser.add_argument("--dequant_results_to_fp32", type=str2bool, default=True,
-                        help="if dequantize results to fp32, DEPRECATED, please use results_type")
+                        help="DEPRECATED, please use results_type")
     parser.add_argument("--results_type", default="",
                         help="set results type:int8/bf16/fp32/keep; if set keep, will use last layer type")
     parser.add_argument("--expose_bf16_inputs", type=str2bool, default=False,
@@ -226,7 +225,8 @@ if __name__ == '__main__':
                   args.chip,
                   args.fuse_preprocess,
                   args.pixel_format,
-                  args.aligned_input)
+                  args.aligned_input,
+                  args.quantize)
     images = args.image.split(',')
     images = [s.strip() for s in images]
     tool.validate_quantized_model(args.tolerance, args.excepts, images, args.custom_op_plugin)

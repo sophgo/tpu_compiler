@@ -17,7 +17,8 @@
 
 void TgConvFcKernel::init(uint32_t layer_id, gaddr_t ga_input,
                           gaddr_t ga_filter, gaddr_t ga_output, int M, int K,
-                          int N, float qscale) {
+                          int N, bool do_quant, gaddr_t ga_scale,
+                          gaddr_t ga_zeropoint) {
   this->layer_id = layer_id;
   this->K = K;
   this->M = M;
@@ -25,7 +26,9 @@ void TgConvFcKernel::init(uint32_t layer_id, gaddr_t ga_input,
   this->ga_input = ga_input;
   this->ga_filter = ga_filter;
   this->ga_output = ga_output;
-  this->qscale = qscale;
+  this->do_quant = do_quant;
+  this->ga_scale = ga_scale;
+  this->ga_zeropoint = ga_zeropoint;
   this->fmt = CVK_FMT_BF16;
   this->fmt_size = ctx.bytesize_of_fmt(fmt);
   ctx.set_layer_id(layer_id);
@@ -36,12 +39,16 @@ void TgConvFcKernel::selectTilePolicy() {
   int stepH = maxH;
   auto input_shape = ctx.tl_shape_t4(1, NPU_NUM, 1, K);
   auto input_size = ctx.lmem_tensor_to_size(input_shape, fmt, 1);
+  auto lmem_used = input_size;
+  if (do_quant) { // need quant_scale + quant_zeropoint
+    lmem_used += 2 * input_size;
+  }
   while (stepH > 0) {
     auto filter_shape = ctx.tl_shape_t4(1, NPU_NUM, stepH, K);
     auto output_shape = ctx.tl_shape_t4(1, NPU_NUM, stepH, 1);
     auto filter_size = ctx.lmem_tensor_to_size(filter_shape, fmt, 1);
     auto output_size = ctx.lmem_tensor_to_size(output_shape, fmt, 1);
-    auto lmem_need = input_size + 2 * (filter_size + output_size);
+    auto lmem_need = lmem_used + 2 * filter_size + 2 * output_size;
     if (lmem_need <= (uint32_t)LOCAL_MEM_SIZE) {
       break;
     }
@@ -102,14 +109,23 @@ void TgConvFcKernel::allocLmem() {
   tl_mem[3] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
   // input
   tl_mem[4] = ctx.lmem_alloc_tensor(input_shape, fmt, 1);
+  if (do_quant) {
+    tl_mem[5] = ctx.lmem_alloc_tensor(input_shape, fmt, 1);
+    tl_mem[6] = ctx.lmem_alloc_tensor(input_shape, fmt, 1);
+  }
   // load input here
   auto input_gstride = ctx.tg_default_stride(NPU_NUM, 1, K, fmt);
   input_gstride.c = 0;
   ctx.tdma_load_stride(tl_mem[4], ga_input, input_gstride);
+  if (do_quant) {
+    ctx.tdma_load_stride(tl_mem[5], ga_scale, input_gstride);
+    ctx.tdma_load_stride(tl_mem[6], ga_zeropoint, input_gstride);
+  }
 }
 
 void TgConvFcKernel::deallocLmem() {
-  for (int i = 4; i >= 0; i--) {
+  int blob_num = do_quant ? 7 : 5;
+  for (int i = blob_num - 1; i >= 0; i--) {
     ctx.lmem_free_tensor(tl_mem[i]);
   }
 }
@@ -125,25 +141,39 @@ void TgConvFcKernel::refresh(int32_t step_idx) {
   tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, fmt, 1);
   tl_kernel.shape = ctx.tl_shape_t4(1, tile.c, 1, K);
   tl_kernel.stride = ctx.tl_default_stride(tl_kernel.shape, fmt, 1);
+  if (do_quant) {
+    tl_scale = *tl_mem[5];
+    tl_zeropoint = *tl_mem[6];
+    auto shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    auto stride = ctx.tl_default_stride(shape, fmt, 1);
+    stride.h = 0; // broadcast h
+    tl_scale.shape = shape;
+    tl_scale.stride = stride;
+    tl_zeropoint.shape = shape;
+    tl_zeropoint.stride = stride;
+  }
 }
 
 void TgConvFcKernel::load(int32_t step_idx) {
   auto &tile = tiles[step_idx];
   refresh(step_idx);
+  if (do_quant) {
+    cvk_tg_t src = {0};
+    src.start_address = ga_filter + tile.offset / 2;
+    src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
+    src.int8_rnd_mode = 0;
+    src.fmt = CVK_FMT_I8;
+    src.shape = ctx.tg_shape_t4(tile.n, tile.c, tile.h, tile.w);
+    src.stride = ctx.tg_default_stride(src.shape, src.fmt);
 
-  cvk_tg_t src = {0};
-  src.start_address = ga_filter + tile.offset / 2;
-  src.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(src.start_address);
-  src.int8_rnd_mode = 0;
-  src.fmt = CVK_FMT_I8;
-  src.shape = ctx.tg_shape_t4(tile.n, tile.c, tile.h, tile.w);
-  src.stride = ctx.tg_default_stride(src.shape, src.fmt);
-
-  cvk_tdma_g2l_tensor_copy_param_t p = {0};
-  p.src = &src;
-  p.dst = &tl_ifmap;
-  p.layer_id = layer_id;
-  ctx.tdma_g2l_tensor_copy(&p);
+    cvk_tdma_g2l_tensor_copy_param_t p = {0};
+    p.src = &src;
+    p.dst = &tl_ifmap;
+    p.layer_id = layer_id;
+    ctx.tdma_g2l_tensor_copy(&p);
+  } else {
+    ctx.tdma_load(&tl_ifmap, ga_filter + tile.offset);
+  }
 }
 
 void TgConvFcKernel::store(int32_t step_idx) {
@@ -154,18 +184,30 @@ void TgConvFcKernel::store(int32_t step_idx) {
 
 void TgConvFcKernel::compute(int32_t step_idx) {
   refresh(step_idx);
-  if (qscale != 1.0) {
-    cvk_tiu_mul_param_t p1 = {0};
+  if (do_quant) {
+    cvk_tiu_mul_param_t p = {0};
+    p.res_high = nullptr;
+    p.res_low = &tl_ifmap;
+    p.a = &tl_ifmap;
+    p.b_is_const = 0;
+    p.b = &tl_scale;
+    p.rshift_bits = 0;
+    p.layer_id = layer_id;
+    p.relu_enable = 0;
+    ctx.tiu_mul(&p);
+
+    cvk_tiu_add_param_t p1 = {0};
     p1.res_high = nullptr;
     p1.res_low = &tl_ifmap;
-    p1.a = &tl_ifmap;
-    p1.b_const.val = ctx.convert_fp32_to_bf16(qscale);
-    p1.b_const.is_signed = 1;
-    p1.b_is_const = 1;
+    p1.a_high = nullptr;
+    p1.a_low = &tl_ifmap;
+    p1.b_is_const = false;
+    p1.b.high = nullptr;
+    p1.b.low = &tl_zeropoint;
     p1.rshift_bits = 0;
     p1.layer_id = layer_id;
     p1.relu_enable = 0;
-    ctx.tiu_mul(&p1);
+    ctx.tiu_add(&p1);
   }
   cvk_tiu_depthwise_pt_convolution_param_t p2 = {0};
   p2.ofmap = &tl_ofmap;
@@ -214,10 +256,11 @@ void TgConvFcKernel::schedule() {
 void cvi_backend_tg_bf16_convfc_kernel(const CviBackendContext &ctx,
                                        uint32_t layer_id, gaddr_t ga_input,
                                        gaddr_t ga_filter, gaddr_t ga_output,
-                                       int M, int K, int N,
-                                       float qscale) {
+                                       int M, int K, int N, bool do_quant,
+                                       gaddr_t ga_scale, gaddr_t ga_zeropoint) {
   TgConvFcKernel kernel(ctx);
-  kernel.init(layer_id, ga_input, ga_filter, ga_output, M, K, N, qscale);
+  kernel.init(layer_id, ga_input, ga_filter, ga_output, M, K, N, do_quant,
+              ga_scale, ga_zeropoint);
   kernel.selectTilePolicy();
   kernel.schedule();
 }

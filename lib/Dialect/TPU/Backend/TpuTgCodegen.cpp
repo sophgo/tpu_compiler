@@ -2562,9 +2562,17 @@ LogicalResult tpu::TG_BF16_ConvFcOp::codegen(void *ctx) {
   gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-
-  cvi_backend_tg_bf16_convfc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
-                                    ga_output, M, K, N, qscale().convertToFloat());
+  if (isTensorNone(quant_scale())) {
+    cvi_backend_tg_bf16_convfc_kernel(*backend_ctx, layer_id, ga_input,
+                                      ga_filter, ga_output, M, K, N);
+  } else {
+    gaddr_t ga_scale = getWeightOpAddress(quant_scale().getDefiningOp());
+    gaddr_t ga_zeropoint =
+        getWeightOpAddress(quant_zeropoint().getDefiningOp());
+    cvi_backend_tg_bf16_convfc_kernel(*backend_ctx, layer_id, ga_input,
+                                      ga_filter, ga_output, M, K, N, true,
+                                      ga_scale, ga_zeropoint);
+  }
 
   return success();
 }
@@ -3015,6 +3023,26 @@ LogicalResult tpu::TG_ReQuantOp::codegen(void *ctx) {
   cvi_backend_tg_requant_kernel(*backend_ctx, layer_id, ga_input,
                               ga_output, n, c, h, w, input_offset,
                               output_offset, scale);
+
+  return success();
+}
+
+LogicalResult tpu::TG_DequantOp::codegen(void *ctx) {
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  int layer_id = getOpLayerId(op);
+  auto shape = getTensorShape(this->getResult());
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+  int axis = this->axis();
+  gaddr_t ga_input = getOpAddress(input().getDefiningOp());
+  gaddr_t ga_scale = getWeightOpAddress(quant_scale().getDefiningOp());
+  gaddr_t ga_zeropoint = getWeightOpAddress(quant_zeropoint().getDefiningOp());
+  gaddr_t ga_output = getOpAddress(op);
+  //  int8 to bf16
+  cvi_backend_tg_dequant_kernel(*backend_ctx, layer_id, ga_input, ga_scale,
+                                ga_zeropoint, ga_output, axis, n, c, h, w);
 
   return success();
 }

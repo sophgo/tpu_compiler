@@ -219,6 +219,9 @@ int8_t findRShiftAndMultiplierFromQScale(double qscale, uint32_t *multiplier,
     // this ensures if qscale is 0, both multiplier and shift will be 0
     int32_t quantized_multiplier = 0;
     int lshift = 0;
+    if (qscale >= 1) {
+      qscale = 0.999999;
+    }
     Tensorflow_QuantizeMultiplier(qscale, &quantized_multiplier, &lshift);
     *multiplier = quantized_multiplier;
     int rshift = -lshift;

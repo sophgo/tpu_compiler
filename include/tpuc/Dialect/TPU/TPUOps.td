@@ -614,7 +614,8 @@ def TPU_ConvFcOp : TPU_Op<"convfc",
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$filter,
-    DefaultValuedAttr<F32Attr, "1.0f">:$qscale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name
   );
@@ -3168,6 +3169,8 @@ def TPU_EmbeddingOp: TPU_Op<"embedding",
   let arguments = (
     ins AnyTensor:$input,
     AnyTensor:$table,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name
   );

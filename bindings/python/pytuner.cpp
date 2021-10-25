@@ -143,7 +143,7 @@ void PyTuner::quantize(const std::string &calib_table, const std::string &mix_ta
     "tpuc-opt",
     "--chipname", "cv183x",
     "--calibration-table", calib_table.c_str(),
-    "--quant-int8-mix-bf16-layers-from-file",
+    "--quant-mix-layers-file",
     mix_table.c_str()
   };
 

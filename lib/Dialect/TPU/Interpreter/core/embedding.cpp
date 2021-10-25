@@ -18,7 +18,15 @@ EmbeddingOpKernel::EmbeddingOpKernel(Operation &op, value_map_t &valueMapping,
   // get tensors
   input_data = this->opdTensors[0];
   table_data = this->opdTensors[1];
+  scale_data = this->opdTensors[2];
+  zeropoint_data = this->opdTensors[3];
   output_data = this->resTensor;
+  weight_int8 = false;
+  if (datatype == DataType::BF16) {
+    if (getOpQuantParamType(&op) == "WEIGHT_INT8") {
+      weight_int8 = true;
+    }
+  }
 }
 
 void EmbeddingOpKernel::invoke() {
@@ -28,16 +36,21 @@ void EmbeddingOpKernel::invoke() {
 
   auto feature_dim = table_shape.back();
   assert(output_shape.back() == feature_dim && "must be the same feature dim");
-  size_t count = 1;
-  for (auto s : input_shape) {
-    count *= s;
-  }
-  for (size_t i = 0; i < count; i++) {
+  int64_t count = std::accumulate(input_shape.begin(), input_shape.end(), 1,
+                                  std::multiplies<int64_t>());
+  for (int64_t i = 0; i < count; i++) {
     auto index = (size_t)input[i];
     size_t table_offset = (size_t)index * feature_dim;
     auto out_offset = i * feature_dim;
-    memcpy(output + out_offset, table + table_offset,
-           feature_dim * sizeof(float));
+    if (weight_int8 == false) {
+      memcpy(output + out_offset, table + table_offset,
+             feature_dim * sizeof(float));
+    } else {
+      for (int64_t j = 0; j < feature_dim; j++) {
+        output[out_offset + j] =
+            BF16(BF16(table[table_offset + j] * scale_data->at(j)) + zeropoint_data->at(j));
+      }
+    }
   }
 }
 

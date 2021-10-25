@@ -21,10 +21,13 @@ public:
 private:
   SyncedData input_data;
   SyncedData table_data;
+  SyncedData scale_data;
+  SyncedData zeropoint_data;
   SyncedData output_data;
   SyncedDataShape input_shape;
   SyncedDataShape table_shape;
   SyncedDataShape output_shape;
+  bool weight_int8;
 };
 } // namespace mlir
 #endif

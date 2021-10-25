@@ -42,6 +42,7 @@
 #include <fstream>
 #include "tpuc/MachineInfo.h"
 #include <regex>
+#include <cctype>
 
 #define DEBUG_TYPE "quantization"
 
@@ -49,40 +50,10 @@ using namespace mlir;
 
 static llvm::cl::OptionCategory clOptionsCategory("TPU quantization options");
 
-static llvm::cl::opt<bool> clQuantInt8PerTensor(
-    "quant-int8-per-tensor",
-    llvm::cl::desc("Disable per channel for convolution quantization"),
-    llvm::cl::init(false),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<bool> clQuantInt8RshiftOnly(
-    "quant-int8-rshift-only",
-    llvm::cl::desc("Disable multipler for convolution quantization"),
-    llvm::cl::init(false),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<bool> clQuantBf16(
-    "quant-full-bf16",
-    llvm::cl::desc("Quant to bf16 for all TPU ops"),
-    llvm::cl::init(false),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<bool> clQuantMixTable(
-    "quant-int8-mix-bf16-table",
-    llvm::cl::desc("Enable bf16 mix-presion from a table specifying mode for each TPU Op"),
-    llvm::cl::init(false),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<bool> clQuantMixSigmoid(
-    "quant-int8-mix-bf16-sigmoid",
-    llvm::cl::desc("Enable bf16 mix-presion on sigmoid Ops"),
-    llvm::cl::init(false),
-    llvm::cl::cat(clOptionsCategory));
-
-static llvm::cl::opt<bool> clQuantMixBroadcastMul(
-    "quant-int8-mix-bf16-broadcastmul",
-    llvm::cl::desc("Enable bf16 mix-presion on BroadcastMul Ops"),
-    llvm::cl::init(false),
+static llvm::cl::opt<std::string> clQuantMode(
+    "quant-mode",
+    llvm::cl::desc("Quant mode for all TPU ops:BF16/INT8/WEIGHT_INT8"),
+    llvm::cl::init("int8"),
     llvm::cl::cat(clOptionsCategory));
 
 static llvm::cl::opt<bool> clQuantMixSoftmax(
@@ -91,16 +62,35 @@ static llvm::cl::opt<bool> clQuantMixSoftmax(
     llvm::cl::init(true),
     llvm::cl::cat(clOptionsCategory));
 
-static llvm::cl::list<std::string> clQuantLayer(
-    "quant-int8-mix-bf16-layers",
-    llvm::cl::desc("Enable bf16 mix-presion on specify layer"),
-    llvm::cl::ZeroOrMore,
-    llvm::cl::cat(clOptionsCategory));
-
 static llvm::cl::opt<std::string> clQuantLayerByFile(
-    "quant-int8-mix-bf16-layers-from-file",
+    "quant-mix-layers-file",
     llvm::cl::desc("Enable bf16 mix-presion on specify layers by file"),
     llvm::cl::cat(clOptionsCategory));
+
+typedef enum {
+  QUANT_INT8,
+  QUANT_BF16,
+  QUANT_WEIGHT_INT8,
+  QUANT_UNKNOWN,
+} quant_mode_t;
+
+static quant_mode_t qmode(const std::string &mode) {
+  std::string tmp;
+  std::transform(mode.begin(), mode.end(), tmp.begin(), toupper);
+  if (tmp == "INT8") {
+    return QUANT_INT8;
+  }
+  if (tmp == "BF16") {
+    return QUANT_BF16;
+  }
+  if (tmp == "WEIGHT_INT8") {
+    return QUANT_WEIGHT_INT8;
+  }
+  return QUANT_UNKNOWN;
+}
+
+static std::map<std::string, quant_mode_t> gQuantLayers;
+static quant_mode_t gDefaultQuant = QUANT_BF16;
 
 static inline bool is_fix8b(const StringRef &quant) {
   return quant == "INT8" || quant == "UINT8";
@@ -514,6 +504,147 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
   }
 };
 
+static void init_quant_layers() {
+  gQuantLayers.clear();
+  if (clQuantLayerByFile.empty()) {
+    return;
+  }
+  std::regex pattern0("\\S+\\s+\\S+");
+  std::regex pattern1("\\S+");
+  std::regex info_pattern("#.*");
+  std::ifstream infile(clQuantLayerByFile);
+  std::string line;
+  while (std::getline(infile, line)) {
+    if (line.back() == '\r') {
+      line.pop_back();
+    }
+    std::istringstream iss(line);
+    std::string name;
+    std::string mode;
+    if (std::regex_match(line, info_pattern)) {
+      LLVM_DEBUG(llvm::errs() << "\n  infomation  " << line << "\n");
+      continue;
+    }
+    if (std::regex_match(line, pattern0)) {
+      std::vector<float> weight_threshold;
+      iss.ignore(256, ' ');
+      iss >> name;
+      iss >> mode;
+      auto m = qmode(mode);
+      if (m == QUANT_UNKNOWN) {
+        llvm::errs() << "Error, mix quant file [" << line << "]\n";
+        assert(false);
+      }
+      gQuantLayers[name] = m;
+      continue;
+    }
+    if (std::regex_match(line, pattern1)) {
+      gQuantLayers[name] = QUANT_BF16;
+      continue;
+    }
+    if (std::regex_match(line, info_pattern)) {
+      continue;
+    }
+    llvm::errs() << "Error, mix quant file [" << line << "]\n";
+    assert(false);
+  }
+}
+
+static bool quant_no_need(Operation *op) {
+  auto quantOp = llvm::dyn_cast_or_null<tpu::TpuOpQuantInterface>(op);
+  if (!quantOp) {
+    return true;
+  }
+  if (op->getName().getDialect()->getNamespace() != "tpu" ||
+      isa<tpu::ReshapeOp>(op) || isa<tpu::ReduceL2Op>(op) ||
+      isa<tpu::InputOp>(op) || isa<tpu::InstanceNormOp>(op) ||
+      isa<tpu::ROIPoolingOp>(op) || isa<tpu::SoftmaxCpuOp>(op)) {
+    return true;
+  } else if (isa<tpu::CustomOp>(op) && !cast<tpu::CustomOp>(op).do_quant()) {
+    return true;
+  } else if ((!clQuantMixSoftmax) && isa<tpu::SoftmaxOp>(op)) {
+    return true;
+  }
+  return false;
+}
+
+static void quant_for_special(Operation *op) {
+  if (getOpQuant(op) == "BF16") {
+    // no op only use INT8
+    return;
+  }
+  if (auto castOp = dyn_cast_or_null<tpu::EltwiseMulOp>(op)) {
+    bool ConstOpd = false;
+    for (auto input : castOp.inputs()) {
+      if (isa<tpu::LoadWeightOp>(input.getDefiningOp())) {
+        ConstOpd = true;
+        break;
+      }
+    }
+    if (!ConstOpd) {
+      return;
+    }
+  } else if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
+  } else if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == true) {
+  } else if (isa<tpu::LayerNormOp>(op) || isa<tpu::ConvFcOp>(op) ||
+             isa<tpu::GruOp>(op) || isa<tpu::LstmOp>(op) ||
+             isa<tpu::SquareOp>(op) || isa<tpu::StdOp>(op) ||
+             isa<tpu::QuadraticSumOp>(op) || isa<tpu::Conv3DOp>(op)) {
+  } else {
+    return;
+  }
+  setOpQuant(op, "BF16");
+  setOpQuantParamType(op, "WEIGHT_INT8");
+}
+
+static void quant_by_layers(Operation *op) {
+  auto tpuOp = llvm::dyn_cast_or_null<tpu::TpuOpCommonInterface>(op);
+  if (!tpuOp) {
+    return;
+  }
+  std::string op_name = tpuOp.getOpName().str();
+
+  if (gQuantLayers.end() == gQuantLayers.find(op_name)) {
+    return;
+  }
+  auto qmode = gQuantLayers[op_name];
+  if (qmode == gDefaultQuant) {
+    return;
+  }
+  switch (qmode) {
+  case QUANT_INT8:
+    setOpQuant(op, "INT8");
+    break;
+  case QUANT_BF16:
+    setOpQuant(op, "BF16");
+    break;
+  case QUANT_WEIGHT_INT8:
+    setOpQuant(op, "BF16");
+    setOpQuantParamType(op, "WEIGHT_INT8");
+    break;
+  default:
+    llvm_unreachable("unknown mode");
+  }
+}
+
+static void quant_by_default(Operation *op) {
+  switch (gDefaultQuant) {
+  case QUANT_INT8:
+    setOpQuant(op, "INT8");
+    break;
+  case QUANT_BF16:
+    setOpQuant(op, "BF16");
+    break;
+  case QUANT_WEIGHT_INT8:
+    setOpQuant(op, "BF16");
+    setOpQuantParamType(op, "WEIGHT_INT8");
+    break;
+  default:
+    llvm_unreachable("unknown mode");
+    break;
+  }
+}
+
 class TpuQuantPass : public mlir::PassWrapper<TpuQuantPass, FunctionPass> {
 
 public:
@@ -527,118 +658,25 @@ public:
     auto *context = &getContext();
 
     // read mix precision from file, seperated by \n
-    if (false == clQuantLayerByFile.empty()) {
-      std::ifstream infile(clQuantLayerByFile);
-      if (!infile) {
-        llvm::errs() << "Error, can't open file:" << clQuantLayerByFile << "\n";
-        assert(false);
-      } else {
-        std::string line;
-        while (std::getline(infile, line)) {
-          if (line.back() == '\r') {
-            line.pop_back();
-          }
-          clQuantLayer.push_back(line);
-        }
-      }
+    init_quant_layers();
+    if (clQuantMode == "INT8") {
+      gDefaultQuant = QUANT_INT8;
+    } else if(clQuantMode == "BF16") {
+      gDefaultQuant = QUANT_BF16;
+    } else if (clQuantMode == "WEIGHT_INT8") {
+      gDefaultQuant = QUANT_WEIGHT_INT8;
+    } else {
+      llvm::errs() << "Error, unknown default quant mode [" << clQuantMode << "]\n";
+      assert(false);
     }
 
     // mark quant mode
     fn.walk([&](Operation *op) {
-      if (op->getName().getDialect()->getNamespace() != "tpu"
-          || isa<tpu::ReshapeOp>(op)
-          || isa<tpu::ReduceL2Op>(op)
-          || isa<tpu::InputOp>(op)
-          || isa<tpu::InstanceNormOp>(op)
-          || isa<tpu::ROIPoolingOp>(op)
-          || isa<tpu::SoftmaxCpuOp>(op)) {
-        // continue
-      } else if (isa<tpu::CustomOp>(op) &&
-                 !cast<tpu::CustomOp>(op).do_quant()) {
-        // continue
-      } else if ((!clQuantMixSoftmax) && isa<tpu::SoftmaxOp>(op)) {
-        // continue
-      } else if (auto quantOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-        if (clQuantMixTable) {
-          //setOpQuant(op, quant_mix_table[getOpName(op)]);
-          assert(false);
-        } else if (!clQuantBf16) {
-          setOpQuant(op, "INT8");
-          if (isa<tpu::Conv2DOp>(op) || isa<tpu::DeConv2DOp>(op)) {
-            if (clQuantInt8PerTensor) {
-              setOpQuantPerchannel(op, false);
-              setOpQuantParamType(op, "RSHIFT_ONLY");
-            } else {
-              setOpQuantPerchannel(op, true);
-              if (clQuantInt8RshiftOnly) {
-                setOpQuantParamType(op, "RSHIFT_ONLY");
-              } else {
-                setOpQuantParamType(op, "RSHIFT_AND_M_I32");
-              }
-            }
-          }
-
-          // mix-bf16 options
-          if (clQuantMixSigmoid && isa<tpu::SigmoidOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (clQuantMixBroadcastMul && isa<tpu::BroadcastMulOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (auto castOp = dyn_cast_or_null<tpu::EltwiseMulOp>(op)) {
-            bool ConstOpd = false;
-            for (auto input:castOp.inputs()) {
-              if (isa<tpu::LoadWeightOp>(input.getDefiningOp())) {
-                ConstOpd = true;
-                break;
-              }
-            }
-            if (ConstOpd) {
-              setOpQuant(op, "BF16");
-            }
-          }
-          if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == true) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::LayerNormOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::ConvFcOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::GruOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::LstmOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::SquareOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::StdOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::QuadraticSumOp>(op)) {
-            setOpQuant(op, "BF16");
-          }
-          if (isa<tpu::Conv3DOp>(op)) {
-            // TODO: support int8
-            setOpQuant(op, "BF16");
-          }
-
-          if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpCommonInterface>(op)) {
-            std::string layer_name = mlir::getOpName(op).str();
-            if (std::find(clQuantLayer.begin(), clQuantLayer.end(), layer_name) != clQuantLayer.end()) {
-              llvm::errs() << "set " << layer_name << "as bf16\n";
-              setOpQuant(op, "BF16");
-            }
-          }
-        } else {
-          setOpQuant(op, "BF16");
-        }
+      if (quant_no_need(op)) {
+      } else {
+        quant_by_default(op);
+        quant_by_layers(op);
+        quant_for_special(op);
       }
     });
 
@@ -705,8 +743,6 @@ public:
         } else if (getOpQuant(op) == "BF16") {
           auto ret = quantOp.quantizeBf16();
           assert(!failed(ret));
-        } else if (isa<tpu::SoftmaxOp>(op)) {
-          //do nothing
         } else {
           llvm::errs() << "assert:" << op->getName() << "\n";
           assert(false);

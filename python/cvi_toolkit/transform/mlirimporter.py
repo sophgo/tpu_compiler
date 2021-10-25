@@ -937,7 +937,9 @@ class MLIRImporter(object):
             tuple(output_shape), self.f32Type)
 
         op_name = StringAttr.get(op_name)
-
+        none = self.add_none_op()
+        inputOperands.append(none)
+        inputOperands.append(none)
         return self.buildOp(TPU_OpType.Embedding.value, inputOperands, [tensor_output_type],
                             name=op_name, quant=self.quant_param)
 
@@ -979,6 +981,9 @@ class MLIRImporter(object):
         if len(inputOperands) != 2:
             raise ArithmeticError("input operand must great than 2")
         new_name = StringAttr.get(op_name)
+        none = self.add_none_op()
+        inputOperands.append(none)
+        inputOperands.append(none)
         return self.buildOp(TPU_OpType.ConvFc.value, inputOperands, [
             tensor_output_type], name=new_name, quant=self.quant_param)
 

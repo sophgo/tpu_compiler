@@ -47,21 +47,20 @@ def mlir_pseudo_weight(mlirfile, opt_mlirfile):
     return ret.returncode
 
 def mlir_quant(fp32_model, quanted_model, chip_name, op_order_csv,
-               all_bf16=False, calib_table=None, mix_table=None):
+               all_bf16=False, calib_table=None, mix_table=None, quantize=""):
     cmd = ["tpuc-opt",
            "--assign-chip-name",
            "--chipname", chip_name]
-    if all_bf16:
-        cmd.extend(["--tpu-quant", "--quant-full-bf16"])
-    else:
-        assert(calib_table)
+    if calib_table:
         cmd.extend(["--import-calibration-table",
-                    "--calibration-table", calib_table,
-                    "--tpu-quant"])
-        if mix_table and mix_table != '-':
-            cmd.extend(['--quant-int8-mix-bf16-layers-from-file', mix_table])
-
-    cmd.extend(["--print-tpu-op-info",
+                    "--calibration-table", calib_table])
+    cmd.extend(["--tpu-quant"])
+    if mix_table and mix_table != '-':
+        cmd.extend(["--quant-mix-layers-file", mix_table])
+    if not quantize:
+        quantize = "bf16" if all_bf16 else "int8"
+    cmd.extend(["--quant-mode", str(quantize).upper(),
+                "--print-tpu-op-info",
                 "--tpu-op-info-filename", op_order_csv,
                 fp32_model, "-o", quanted_model])
     logger.debug(" ".join(cmd))
