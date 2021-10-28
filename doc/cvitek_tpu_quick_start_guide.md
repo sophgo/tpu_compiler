@@ -546,18 +546,27 @@ cp -rf $MLIR_PATH/tpuc/regression/data/images .
 
 #### 步骤 2：模型转换
 
-使用`model_transform.py`将模型转换成mlir文件，其中有预处理参数如下：
+使用`model_transform.py`将模型转换成mlir文件，其中可支持预处理参数如下：
 
-| **参数名**          | **说明**                             |
-| ------------------- | ------------------------------------ |
-| image_resize_dims   | 表明图片resize大小，比如256,256      |
-| keep_aspect_ratio   | 在Resize时是否保持长宽比，默认为false；true时会对不足部分补0；一般建议为false |
-| net_input_dims      | 表明模型输入的大小，比如224,224      |
-| model_channel_order | channel顺序，默认bgr；可以指定为rgb  |
-| raw_scale           | 操作：* raw_scale/255.0，默认为255.0 |
-| mean                | 操作：- mean，默认为0.0,0.0,0.0      |
-| std                 | 操作：/std，默认为1.0,1.0,1.0        |
-| input_scale         | 操作：* input_scale，默认为1.0       |
+| **参数名**           | **说明**                                      |
+| ------------------- | ---------------------------------------------  |
+| net_input_dims      | 表明模型输入的大小，比如224,224 |
+| resize_dims         | 改变图片宽高的大小，默认与网络输入维度一样  |
+| channel_num         | 通道的数量，默认为3 |
+| keep_aspect_ratio   | 在Resize时是否保持长宽比，默认为false；设置true时会对不足部分补0 |
+| crop_method         | 可支持中心和右侧裁剪，默认为center中心裁剪  |
+| raw_scale           | 原始输入图像数据旋转，默认为255.0 |
+| mean                | Per_Channel图像的均值，默认为0.0,0.0,0.0  |
+| std                 | Per_Channel图像的标准值，默认为1.0,1.0,1.0  |
+| input_scale         | 支持多输入特征旋转，默认为1.0 |
+| channel_order       | 支持bgr，rgb，rgba多种通道的顺序，默认为bgr |
+| pixel_format        | 支持模型的输出格式，默认为None  |
+| aligned             | 支持图像格式是否为对齐，默认为Flase  |
+| data_format         | 支持nchw和nhwc数据格式，默认为nchw  |
+| gray                | 支持灰度格式，默认为Flase |
+| model_channel_order | 与channel_order参数功能一致 |
+| image_resize_dims   | 与resize_dims参数功能一致 |
+
 
 预处理过程用公式表达如下（x代表输入)：
 $$
@@ -637,16 +646,30 @@ model_deploy.py \
 
 model_deploy.py的相关参数说明如下：
 
-| 参数              | 描述                                                         |
-| ----------------- | ------------------------------------------------------------ |
-| model_name        | 模型名称                                                     |
-| mlir              | mlir文件                                                     |
-| calibration_table | int8量化文件                                                 |
-| chip              | 支持平台，可以为cv183x或cv182x                               |
-| image             | 指定验证文件，可以是图片，也可以是包含输入的npz文件          |
-| tolerance         | 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度 |
-| correctnetss      | 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度  |
-| cvimodel          | 输出文件名                                                   |
+| 参数                    | 描述                                                            |
+| model_name              | 模型名称                                                        |
+| mlir                    | mlir文件                                                        |
+| calibration_table       | int8量化文件                                                    |
+| mix_precision_table     | bf16量化文件                                                    |
+| all_bf16                | 量化为bf16                                                      |
+| tolerance               | 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度   |
+| excepts                 | 支持data,prob等参数，默认为-                                      |
+| correctnetss            | 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度          |
+| chip                    | 支持平台，可以为cv183x或cv182x                                    |
+| fuse_preprocess         | 增加预处理参数在模型推理之前                                       |
+| pixel_format            | 像素格式，默认为BGR_PLANAR                                        |
+| aligned_input           | 支持输入帧是否宽高对齐，默认为flase                                |
+| dequant_results_to_fp32 | 输出结果为fp32类型                                                |
+| results_type            | 支持int8/bf16/fp32多种输出类型，若参数为keep，使用最后一层输出类型   |
+| expose_bf16_inputs      | 支持bf16输入                                                     |
+| compress_weight         | 支持生成cvimodel时，对weight文件压缩                               |
+| merge_weight            | 支持生成cvimodel之前，将weight文件合成到weight bin文件中            |
+| tg_op_divide            | 支持保存tensor到内存中，默认为false                                 |
+| model_version           | 支持选择模型的版本，默认为latest                                    |
+| custom_op_plugin        | 支持客户的so文件                                                   |
+| image                   | 表示输入图片的路径                                                 |
+| cvimodel                | 表示输出的cvimodel文件                                            |
+| debug                   | 调试选项，保存所有的临时文件进行调试                                |
 
 <div STYLE="page-break-after: always;"></div>
 

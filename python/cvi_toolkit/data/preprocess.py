@@ -79,7 +79,7 @@ def add_preprocess_parser(parser):
     parser.add_argument("--keep_aspect_ratio", type=str2bool, default=False,
                         help="Resize image by keeping same ratio, any areas which" +
                              "are not taken are filled with 0")
-    parser.add_argument("--crop_method", choices=['center', 'centor', 'right'], default='center')
+    parser.add_argument("--crop_method", choices=['center', 'right'], default='center')
     parser.add_argument("--raw_scale", type=float, default=255.0,
                         help="Multiply raw input image data by this scale.")
     parser.add_argument("--mean", default='0,0,0,0', help="Per Channel image mean values")
