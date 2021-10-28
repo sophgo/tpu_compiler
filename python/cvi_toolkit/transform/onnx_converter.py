@@ -3308,7 +3308,7 @@ class OnnxConverter(BaseConverter):
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         # take input last dimension as default normal_shape
         eps = onnx_node.attrs.get('eps', 1e-5)
-        axes = onnx_node.attrs.get('axes', None)
+        axes = onnx_node.attrs.get('axes', [-1])
         normal_shape = onnx_node.attrs.get("normal_shape", None)
         if normal_shape is None and axes is not None:
             normal_shape = [input_shape[axis] for axis in axes]

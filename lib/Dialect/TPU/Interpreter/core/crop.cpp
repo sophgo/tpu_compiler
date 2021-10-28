@@ -73,7 +73,7 @@ void CropOpKernel::invoke() {
       steps.push_back(1);
       input_shape.push_back(1);
       output_shape.push_back(1);
-      crop_offset.push_back(1);
+      crop_offset.push_back(0);
     }
     int n = output_shape[0];
     int c = output_shape[1];
