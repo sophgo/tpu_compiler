@@ -59,14 +59,10 @@ private:
   bool is_deconv = false;
   bool do_bias_later = false;
   bool do_relu_later = false;
-  bool is_asymmetric;
 
   // mkldnn setting
   MKLConv conv;
 
-  // int8 param
-  bool is_perchannel = false;
-  bool use_multiplier = false;
 };
 } // namespace mlir
 

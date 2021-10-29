@@ -14,23 +14,15 @@ DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping,
                  castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, no_use0,
                  no_use1, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
                  do_relu, pad_value);
-  is_asymmetric = isOpQuantAsymmetric(&op);
   // int8 init
   if (datatype == DataType::INT8) {
     auto quant_rshift = this->opdTensors[5];
     auto quant_multiplier = this->opdTensors[6];
     assert(quant_rshift);
-    if (!isOpQuantPerchannel(&op)) {
-      this->is_perchannel = false;
-      this->rshift.push_back(quant_rshift->at(0));
-    } else {
-      this->is_perchannel = true;
-      this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
-      assert(quant_multiplier);
-      this->use_multiplier = true;
-      this->multiplier.assign(quant_multiplier->begin(),
-                              quant_multiplier->end());
-    }
+    this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
+    assert(quant_multiplier);
+    this->multiplier.assign(quant_multiplier->begin(),
+                            quant_multiplier->end());
   }
   auto input_type = castOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
@@ -51,7 +43,7 @@ DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping,
   if (!with_bias) {
     bias_data = zero_bias;
     bias = zero_bias->data();
-  } else if (use_multiplier) {
+  } else if (datatype == DataType::INT8) {
     bias = zero_bias->data();
   } else {
     bias = bias_data->data();
@@ -72,26 +64,10 @@ void DeConv2DOpKernel::invoke() {
     }
     BF16(output_data->data(), output_data->data(), output_data->size(), true);
   } else {
-    if (is_perchannel) {
-      if (use_multiplier) {
-        quantizeActivationInt8PerChannelMultiplierAndRShift(
+    quantizeActivationInt8PerChannelMultiplierAndRShift(
             output_data->data(), output_data->data(), bias_data->data(),
             do_relu, n, oc, oh * ow, rshift.data(), multiplier.data());
-      } else {
-        if (do_relu) {
-          relu(output_data->data(), output_data->data(), output_data->size());
-        }
-        quantizeActivationInt8PerChannelRShift(output_data->data(),
-                                               output_data->data(), n, oc,
-                                               oh * ow, rshift.data());
-      }
-    } else {
-      if (do_relu) {
-        relu(output_data->data(), output_data->data(), output_data->size());
-      }
-      quantizeActivationInt8PerLayerRshift(
-          output_data->data(), output_data->data(), size, rshift.at(0));
-    }
+
   }
 }
 

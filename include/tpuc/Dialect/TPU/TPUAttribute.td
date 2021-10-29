@@ -160,11 +160,8 @@ def TPU_DetectionOutput_Code_typeAttr : StrEnumAttr<"DetectionOutput Code type",
 def TPU_QuantParamAttr : StructAttr<"QuantParam", TPU_Dialect, [
     StructFieldAttr<"mode", TPU_QuantModeAttr>,
     StructFieldAttr<"param_type", TPU_QuantParamTypeAttr>,
-    StructFieldAttr<"is_perchannel", BoolAttr>,
-    StructFieldAttr<"is_asymmetric", BoolAttr>,
     StructFieldAttr<"threshold_max", F32Attr>,
-    StructFieldAttr<"threshold_min", F32Attr>,
-    StructFieldAttr<"zero_point", I32Attr>]> {
+    StructFieldAttr<"threshold_min", F32Attr>]> {
   let summary = "Structure of quantization parameters";
 }
 

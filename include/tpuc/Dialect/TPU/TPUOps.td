@@ -71,8 +71,6 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
@@ -137,8 +135,6 @@ class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
@@ -429,8 +425,6 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
@@ -604,8 +598,6 @@ def TPU_ConvFcOp : TPU_Op<"convfc",
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
@@ -689,8 +681,6 @@ def TPU_DetectionOutputOp : TPU_Op<"detectionoutput",
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
@@ -789,8 +779,6 @@ def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
@@ -1362,8 +1350,6 @@ def TPU_MatMulOp : TPU_Op<"matmul",
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpQuantInterface`  : support quantization
       `TpuOpLowerInterface`  : support lower to TPU TG Ops
@@ -2152,8 +2138,6 @@ def TPU_RetinaFaceDetectionOp : TPU_Op<"retinaface_detection",
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportPerChannel`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpQuantInterface`  : support quantization
   }];

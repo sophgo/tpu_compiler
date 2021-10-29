@@ -198,7 +198,6 @@ Conv3DOpKernel::Conv3DOpKernel(Operation &op, value_map_t &valueMapping,
                    kh, kw, sd, sh, sw, pd0, pd1, pt, pb, pl, pr, dd, dh, dw,
                    is_dw, with_bias, do_relu);
 
-  is_asymmetric = isOpQuantAsymmetric(&op);
   arrayAttrToVector(castOp.param().ins(), ins);
 
   // int8 init
@@ -206,17 +205,11 @@ Conv3DOpKernel::Conv3DOpKernel(Operation &op, value_map_t &valueMapping,
     auto quant_rshift = this->opdTensors[5];
     auto quant_multiplier = this->opdTensors[6];
     assert(quant_rshift);
-    if (!isOpQuantPerchannel(&op)) {
-      this->is_perchannel = false;
-      this->rshift.push_back(quant_rshift->at(0));
-    } else {
-      this->is_perchannel = true;
-      this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
-      assert(quant_multiplier);
-      this->use_multiplier = true;
-      this->multiplier.assign(quant_multiplier->begin(),
-                              quant_multiplier->end());
-    }
+    this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
+    assert(quant_multiplier);
+    this->multiplier.assign(quant_multiplier->begin(),
+                            quant_multiplier->end());
+
   }
 
   auto input_type = castOp.input().getType().template cast<TensorType>();
@@ -256,53 +249,16 @@ void Conv3DOpKernel::fp32_invoke() {
 void Conv3DOpKernel::i8_invoke() {
   // mkldnn not support non zero padding
   // we handle it.
-  if (pad_value != 0 && is_asymmetric) {
-    llvm_unreachable("not support asymmetric");
-
-    if (is_perchannel) {
-      if (use_multiplier) {
-        quantizeActivationInt8PerChannelMultiplierAndRShift(
-            output_data->data(), output_data->data(), bias_data->data(), false,
-            n, oc, oh * ow, rshift.data(), multiplier.data());
-      } else {
-        quantizeActivationInt8PerChannelRShift(output_data->data(),
-                                               output_data->data(), n, oc,
-                                               oh * ow, rshift.data());
-      }
-    } else {
-      quantizeActivationInt8PerLayerRshift(output_data->data(),
-                                           output_data->data(),
-                                           output_data->size(), rshift.at(0));
-    }
-    return;
-  }
 
   float *_bias = with_bias ? bias_data->data() : NULL;
   _conv3d_float_ref(input_data->data(), filter_data->data(), _bias,
                     output_data->data(), n, ic, id, ih, iw, oc, od, oh, ow, kd,
                     kh, kw, sd, sh, sw, dd, dh, dw, pd0, pt, pb, pd1, pl, pr);
 
-  if (is_perchannel) {
-    if (use_multiplier) {
-      quantizeActivationInt8PerChannelMultiplierAndRShift(
+  quantizeActivationInt8PerChannelMultiplierAndRShift(
           output_data->data(), output_data->data(), bias_data->data(), do_relu,
           n, oc, oh * ow, rshift.data(), multiplier.data());
-    } else {
-      if (do_relu && !is_asymmetric) {
-        relu(output_data->data(), output_data->data(), output_data->size());
-      }
-      quantizeActivationInt8PerChannelRShift(output_data->data(),
-                                             output_data->data(), n, oc,
-                                             oh * ow, rshift.data());
-    }
-  } else {
-    if (do_relu && !is_asymmetric) {
-      relu(output_data->data(), output_data->data(), output_data->size());
-    }
-    quantizeActivationInt8PerLayerRshift(output_data->data(),
-                                         output_data->data(),
-                                         output_data->size(), rshift.at(0));
-  }
+
 };
 
 void Conv3DOpKernel::invoke() {

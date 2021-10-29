@@ -56,7 +56,6 @@ inline static float INT8(float data) {
 template<typename OpTy>
 LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
   assert(getOpQuant(op) == "INT8");
-  setOpQuantPerchannel(op, true);
   setOpQuantParamType(op, "RSHIFT_AND_M_I32");
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
@@ -144,7 +143,7 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
       quant_value, *new_filter, filterShape, "INT8", wTF);
   if (bias) {
     // for per_channel quant, bias store as INT32, per layer use INT16
-    StringRef storageType = isOpQuantPerchannel(op) ? "INT32" : "INT16";
+    StringRef storageType = "INT32";
     addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(2),
         quant_value, *new_bias, biasShape, storageType, wTF);
   }
@@ -171,9 +170,6 @@ LogicalResult quantizeInt8ConvOps(Operation *op, int spatial_dims) {
 ///
 LogicalResult quantizeInt8FullyConnectedOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
-  setOpQuantPerchannel(op, false);
-  // support rshift-only only for now
   setOpQuantParamType(op, "RSHIFT_AND_M_I32");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -352,7 +348,6 @@ LogicalResult quantizeInt8LrnOps(Operation *op) {
 ///
 LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  setOpQuantPerchannel(op, false);
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -438,9 +433,6 @@ LogicalResult quantizeInt8LeakyReluOps(Operation *op) {
 ///
 LogicalResult quantizeInt8PReluOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
-  setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -539,9 +531,6 @@ LogicalResult quantizeInt8PReluOps(Operation *op) {
 template <typename OpTy>
 LogicalResult quantizeInt8LutOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
-  setOpQuantPerchannel(op, false);
-  // use LUT
   setOpQuantParamType(op, "LUT_INT8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -680,7 +669,6 @@ LogicalResult quantizeInt8ScaleLutOps(Operation *op) {
 template<typename OpTy>
 LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  setOpQuantPerchannel(op, false);
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -868,8 +856,6 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
 
 LogicalResult quantizeInt8ConcatOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-
-  setOpQuantPerchannel(op, false);
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -923,9 +909,6 @@ static bool checkFloatNeedQuant(const std::vector<T> &data_v) {
 template <typename OpTy>
 LogicalResult quantizeInt8MultiplyConstOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  // support per-tensor only for now
-  setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
   setOpQuantParamType(op, "RSHIFT_AND_M_I32");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -1028,7 +1011,6 @@ template<typename OpTy>
 LogicalResult quantizeInt8AddConstOps(Operation *op) {
   // duplicate from quantizeInt8MultiplyConstOps
   assert(getOpQuant(op) == "INT8");
-  setOpQuantPerchannel(op, false);
   setOpQuantParamType(op, "RSHIFT_AND_M_I8");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -1126,7 +1108,6 @@ LogicalResult quantizeInt8AddConstOps(Operation *op) {
 template<typename OpTy>
 LogicalResult quantizeInt8MultiplyOps(Operation *op) {
   assert(getOpQuant(op) == "INT8");
-  setOpQuantPerchannel(op, false);
   setOpQuantParamType(op, "RSHIFT_AND_M_I32");
 
   TensorFile *wTF = getWeightTensorFile(op);
@@ -1200,9 +1181,6 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
 ///
 LogicalResult quantizeInt8BypassOps(Operation *op) {
   assert(getOpQuant(op) == "INT8" || getOpQuant(op) == "UINT8");
-  // support per-tensor only for now
-  setOpQuantPerchannel(op, false);
-  // use rshift and INT8 multiplier
   setOpQuantParamType(op, "NONE");
 
   bool skip_checking = false;

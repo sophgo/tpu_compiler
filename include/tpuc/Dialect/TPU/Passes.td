@@ -138,11 +138,6 @@ def DoAssignNeuronAddress : FunctionPass<"assign-neuron-address"> {
   let constructor = "mlir::createAssignNeuronAddressPass()";
 }
 
-def DoFuseAsymmetricZeroPoint : FunctionPass<"fuse-asymmetric-zero-point"> {
-  let summary = "Fuse asymmetric zero point";
-  let constructor = "mlir::createFuseAsymmetricZeroPointPass()";
-}
-
 def DoDecomposeNormalize : FunctionPass<"normalize-decompose"> {
   let summary = "Decompose Normalize to ltwise(prod)+conv2D+sqrt+";
   let constructor = "mlir::createDecomposeNormalizePass()";

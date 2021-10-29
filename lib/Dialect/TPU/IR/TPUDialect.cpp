@@ -201,7 +201,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(SoftPlusOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(ZeroMaskOp)
 // TPU Support Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(QuantOp)
-DECLARE_ALL_COMMON_INTERFACE_METHODS(ReQuantOp)
 // TPU TG Ops
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_AbsOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_AbsOp)
@@ -286,7 +285,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_UpsampleOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_UpsampleOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_CallOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_QuantOp)
-DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_ReQuantOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_DequantOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_INT8_PadOp)
 DECLARE_ALL_COMMON_INTERFACE_METHODS(TG_BF16_PadOp)
@@ -391,11 +389,8 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SwapChannelOp)
           tpu::QuantParam::get( \
               Builder(getOperation()->getContext()).getStringAttr(mode), \
               quant().param_type(), \
-              quant().is_perchannel(), \
-              quant().is_asymmetric(), \
               quant().threshold_max(), \
               quant().threshold_min(), \
-              quant().zero_point(), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -409,47 +404,8 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SwapChannelOp)
           tpu::QuantParam::get( \
               quant().mode(), \
               Builder(getOperation()->getContext()).getStringAttr(type), \
-              quant().is_perchannel(), \
-              quant().is_asymmetric(), \
               quant().threshold_max(), \
               quant().threshold_min(), \
-              quant().zero_point(), \
-              getOperation()->getContext())); \
-      return success(); \
-    }
-
-// quant().is_perchannel()
-#define DECLARE_GET_OP_QUANT_IS_PERCHANNEL_METHOD(OP) \
-    bool OP::isOpQuantPerchannel() {return quant().is_perchannel().getValue();}
-#define DECLARE_SET_OP_QUANT_IS_PERCHANNEL_METHOD(OP) \
-    LogicalResult OP::setOpQuantPerchannel(bool flag) { \
-      (*this)->setAttr("quant", \
-          tpu::QuantParam::get( \
-              quant().mode(), \
-              quant().param_type(), \
-              Builder(getOperation()->getContext()).getBoolAttr(flag), \
-              quant().is_asymmetric(), \
-              quant().threshold_max(), \
-              quant().threshold_min(), \
-              quant().zero_point(), \
-              getOperation()->getContext())); \
-      return success(); \
-    }
-
-// quant().is_asymmetric()
-#define DECLARE_GET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
-    bool OP::isOpQuantAsymmetric() {return quant().is_asymmetric().getValue();}
-#define DECLARE_SET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
-    LogicalResult OP::setOpQuantAsymmetric(bool flag) { \
-      (*this)->setAttr("quant", \
-          tpu::QuantParam::get( \
-              quant().mode(), \
-              quant().param_type(), \
-              quant().is_perchannel(), \
-              Builder(getOperation()->getContext()).getBoolAttr(flag), \
-              quant().threshold_max(), \
-              quant().threshold_min(), \
-              quant().zero_point(), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -461,37 +417,16 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SwapChannelOp)
     }
 #define DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP) \
     LogicalResult OP::setOpQuantThreshold(float threshold) { \
-      assert( !quant().is_asymmetric().getValue() ); \
       (*this)->setAttr("quant", \
           tpu::QuantParam::get( \
               quant().mode(), \
               quant().param_type(), \
-              quant().is_perchannel(), \
-              quant().is_asymmetric(), \
               Builder(getOperation()->getContext()).getF32FloatAttr(threshold), \
               quant().threshold_min(), \
-              quant().zero_point(), \
               getOperation()->getContext())); \
       return success(); \
     }
 
-// quant().zero_point()
-#define DECLARE_GET_OP_QUANT_ZERO_POINT_METHOD(OP) \
-    int OP::getOpQuantZeroPoint() {return quant().zero_point().getInt();}
-#define DECLARE_SET_OP_QUANT_ZERO_POINT_METHOD(OP) \
-    LogicalResult OP::setOpQuantZeroPoint(int zero_point) { \
-      (*this)->setAttr("quant", \
-          tpu::QuantParam::get( \
-              quant().mode(), \
-              quant().param_type(), \
-              quant().is_perchannel(), \
-              quant().is_asymmetric(), \
-              quant().threshold_max(), \
-              quant().threshold_min(), \
-              Builder(getOperation()->getContext()).getI32IntegerAttr(zero_point), \
-              getOperation()->getContext())); \
-      return success(); \
-    }
 
 // declare quant methods
 #define DECLARE_ALL_QUANT_INTERFACE_METHODS(OP) \
@@ -499,14 +434,8 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SwapChannelOp)
     DECLARE_SET_OP_QUANT_MODE_METHOD(OP) \
     DECLARE_GET_OP_QUANT_PARAM_TYPE_METHOD(OP) \
     DECLARE_SET_OP_QUANT_PARAM_TYPE_METHOD(OP) \
-    DECLARE_GET_OP_QUANT_IS_PERCHANNEL_METHOD(OP) \
-    DECLARE_SET_OP_QUANT_IS_PERCHANNEL_METHOD(OP) \
-    DECLARE_GET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
-    DECLARE_SET_OP_QUANT_IS_ASYMMETRIC_METHOD(OP) \
     DECLARE_GET_OP_QUANT_THRESHOLD_METHOD(OP) \
-    DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP) \
-    DECLARE_GET_OP_QUANT_ZERO_POINT_METHOD(OP) \
-    DECLARE_SET_OP_QUANT_ZERO_POINT_METHOD(OP)
+    DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP)
 
 
 
@@ -771,7 +700,6 @@ DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_UpsampleOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_UpsampleOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_CallOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_QuantOp)
-DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_ReQuantOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_DequantOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_INT8_PadOp)
 DECLARE_ALL_CODEGEN_INTERFACE_METHODS(TG_BF16_PadOp)
@@ -905,25 +833,6 @@ LogicalResult ReshapeOp::setOpQuantParamType(StringRef &type) {
   return mlir::setOpQuantParamType(prev_op, type);
 }
 
-bool ReshapeOp::isOpQuantPerchannel() {
-  auto prev_op = this->getOperand().getDefiningOp();
-  return mlir::isOpQuantPerchannel(prev_op);
-}
-LogicalResult ReshapeOp::setOpQuantPerchannel(bool flag) {
-  auto prev_op = this->getOperand().getDefiningOp();
-  return mlir::setOpQuantPerchannel(prev_op, flag);
-}
-
-bool ReshapeOp::isOpQuantAsymmetric() {
-  auto prev_op = this->getOperand().getDefiningOp();
-  return mlir::isOpQuantAsymmetric(prev_op);
-}
-
-LogicalResult ReshapeOp::setOpQuantAsymmetric(bool flag) {
-  auto prev_op = this->getOperand().getDefiningOp();
-  return mlir::setOpQuantAsymmetric(prev_op, flag);
-}
-
 float ReshapeOp::getOpQuantThreshold() {
   auto prev_op = this->getOperand().getDefiningOp();
   return mlir::getOpThreshold(prev_op);
@@ -932,16 +841,6 @@ float ReshapeOp::getOpQuantThreshold() {
 LogicalResult ReshapeOp::setOpQuantThreshold(float threshold) {
   auto prev_op = this->getOperand().getDefiningOp();
   return mlir::setOpThreshold(prev_op, threshold);
-}
-
-int ReshapeOp::getOpQuantZeroPoint() {
-  auto prev_op = this->getOperand().getDefiningOp();
-  return mlir::getOpZeroPoint(prev_op);
-}
-
-LogicalResult ReshapeOp::setOpQuantZeroPoint(int zp) {
-  assert(false);
-  return failure();
 }
 
 LogicalResult ReshapeOp::setBufferReused(bool flag) {

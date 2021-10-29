@@ -461,8 +461,6 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
-      `input_offset`    : optional, inputs offset
-      `output_offset`   : optional, output offset
       `name`            : required, name for comparing, or debug.
 
 
@@ -485,8 +483,6 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     DefaultValuedAttr<BoolAttr, "false">:$do_early_stride,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_h,
     DefaultValuedAttr<I32Attr, "1">:$early_stride_w,
-    OptionalAttr<I32ArrayAttr>:$input_offset,
-    OptionalAttr<I32Attr>:$output_offset,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
@@ -851,9 +847,6 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `m_i8_pos`        : optional, multiplier for positive, an int8 value.
       `rshift_neg`      : required, rshift for negative, an int8 value.
       `m_i8_neg`        : required, multiplier for negative, an int8 value.
-
-      `input_offset`    : optional, in asymmetric, add input_offset to input tensor before do leaky relu.
-      `output_offset`    : optional, in asymmetric, add output_offset at final.
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
@@ -876,8 +869,6 @@ class TPU_TG_LeakyReluOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
-    OptionalAttr<I32Attr>:$input_offset,
-    OptionalAttr<I32Attr>:$output_offset,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name
@@ -1014,7 +1005,6 @@ class TPU_TG_ReflectionPadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
     Interfaces or Traits:
       `NoSideEffect`
-      `TPU_QuantSupportAsymmetric`
       `TpuOpCommonInterface` : support common TPU Op interface
       `TpuOpInterpInterface` : support interperter
       `TpuOpQuantInterface`  : support quantization
@@ -1279,7 +1269,6 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
       `to`             : required, the destination type that quantize/dequantize to.
       `threshold`      : optional, scale = threshold/128.0 (from int8) or 128/threshold.0 (to int8);
                          if none, scale = 1.0
-      `zero_point`         : optional, offset, asymmetric zero_point
       `region`         : required, the memory region to reside in, could be
                           one of `INPUT`, `OUTPUT`, `ACTIVATION` or `WEIGHT`.
                           (backend does not support `INPUT`, `OUTPUT` for now)
@@ -1303,7 +1292,6 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
     TPU_QuantModeAttr:$from,
     TPU_QuantModeAttr:$to,
     F32Attr:$scale,
-    OptionalAttr<I32Attr>:$zero_point,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     OptionalAttr<BoolAttr>:$load_compr_act,
@@ -1330,47 +1318,6 @@ def TPU_TG_DequantOp: TPU_Op<"tg_dequant",
     AnyTensor:$quant_scale,
     AnyTensor:$quant_zeropoint,
     I32Attr:$axis,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-def TPU_TG_ReQuantOp : TPU_Op<"tg_requant",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " ReQuant operator.";
-
-  let description = [{
-    Inputs:
-      `input`          : required, the input activation memref.
-
-    Attributes:
-      `input_offset`   : required, input_offset
-      `output_offset`  : required, output_offset
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `buffer_reused`   : optional, whether buffer is reused.
-      `name`            : required, name for comparing, or debug.
-
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<F32Attr>:$qscale,
-    OptionalAttr<I32Attr>:$input_offset,
-    OptionalAttr<I32Attr>:$output_offset,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name

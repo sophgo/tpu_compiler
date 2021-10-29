@@ -27,11 +27,6 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping,
   }
 
   this->input_shape = getTensorShape(op.getOperand(0));
-  this->is_asymmetric = isOpQuantAsymmetric(&op);
-  if (!is_asymmetric && pad_value != 0) {
-    llvm::errs() << "pad value:" << pad_value << "\n";
-    llvm_unreachable("symmetric pad is zero");
-  }
 
   auto input_value = op.getOperand(0);
   auto result = op.getResult(0);

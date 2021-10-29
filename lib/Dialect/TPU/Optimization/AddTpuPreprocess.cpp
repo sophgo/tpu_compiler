@@ -258,7 +258,7 @@ public:
             input_shape[1] = 1;
             input_shape[2] = 1;
             input_shape[3] = yuv_size(1, c, resize_h, resize_w, pixel_format);
-            aligned = true; 
+            aligned = true;
           } else if (aligned) {
             input_shape[1] = c;
             input_shape[2] = resize_h;
@@ -685,8 +685,6 @@ private:
         builder.getStringAttr("BF16")));
     attrs.push_back(builder.getNamedAttr("scale",
         builder.getF32FloatAttr(1.0)));
-    attrs.push_back(builder.getNamedAttr("zero_point",
-        builder.getI32IntegerAttr(0)));
 
     auto type = this->getTensorType(builder, {n, c, h, w}, "BF16");
     auto quantOp = builder.create<tpu::QuantOp>(opd.getLoc(), type,

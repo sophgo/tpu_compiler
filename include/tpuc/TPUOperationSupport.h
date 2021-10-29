@@ -49,19 +49,9 @@ LogicalResult setOpQuant(Operation *op, llvm::StringRef mode);
 llvm::StringRef getOpQuantParamType(Operation *op);
 LogicalResult setOpQuantParamType(Operation *op, llvm::StringRef type);
 
-bool isOpQuantPerchannel(Operation *op);
-LogicalResult setOpQuantPerchannel(Operation *op, bool flag);
-
-bool isOpQuantAsymmetric(Operation *op);
-LogicalResult setOpQuantAsymmetric(Operation *op, bool flag);
-
 float getOpThreshold(Operation *op);
 LogicalResult setOpThreshold(Operation *op, float threshold);
 float getPreviousOpThreshold(Operation *op, uint index = 0);
-
-int getOpZeroPoint(Operation *op);
-LogicalResult setOpZeroPoint(Operation *op, int zero_point);
-int getPreviousOpZeroPoint(Operation *op, uint index = 0);
 
 uint64_t getOpAddress(Operation *op);
 LogicalResult setOpAddress(Operation *op, uint64_t gaddr);

@@ -67,7 +67,6 @@ private:
   bool do_bias_later = false;
   bool do_relu_later = false;
   std::vector<int32_t> ins;
-  bool is_asymmetric;
 
   // mkldnn setting
   mkldnn::engine mkl_eng;
@@ -76,9 +75,6 @@ private:
   std::vector<mkldnn::primitive> mkl_net;
   std::vector<std::unordered_map<int, mkldnn::memory>> mkl_net_args;
 
-  // int8 param
-  bool is_perchannel = false;
-  bool use_multiplier = false;
 };
 
 } // namespace mlir

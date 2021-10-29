@@ -13,7 +13,6 @@ void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_ou
                            int32_t w, bool do_relu, bool do_early_stride,
                            int32_t stride_h, int32_t stride_w, int32_t rshift,
                            const int32_t *multipliers, const int32_t *coeffs,
-                           int32_t *inputs_offset, int32_t output_offset,
                            int32_t store_cmpr_act, int32_t load_cmpr_act,
                            int32_t store_cmpr_act_c_step, int32_t load_cmpr_act_c_step) {
   this->layer_id = layer_id;
@@ -34,13 +33,6 @@ void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_ou
   this->coeffs_float = nullptr;
   this->fmt = CVK_FMT_I8;
   this->elementSize = this->fmt == CVK_FMT_I8 ? 1 : 2;
-
-  this->inputs_offset = inputs_offset;
-  this->output_offset = output_offset;
-  if (this->output_offset) {
-    this->is_asymmetric = true;
-    assert(do_relu == false); // asymmetric no need fused relu
-  }
 
   this->store_cmpr_act = store_cmpr_act;
   this->load_cmpr_act = load_cmpr_act;
@@ -93,21 +85,9 @@ void TgEltwiseKernel::allocLmem(cvk_tl_shape_t &input_shape,
   }
   assert(tl_input[0] && tl_input[1]);
   assert(tl_output[0] && tl_output[1]);
-
-  if (is_asymmetric) {
-    tl_output_h[1] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
-    tl_working[0] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
-    tl_working[1] = ctx.lmem_alloc_tensor(output_shape, fmt, 1);
-    assert(tl_output_h[1] && tl_working[0] && tl_working[1]);
-  }
 }
 
 void TgEltwiseKernel::deallocLmem() {
-  if (is_asymmetric) {
-    ctx.lmem_free_tensor(tl_working[1]);
-    ctx.lmem_free_tensor(tl_working[0]);
-    ctx.lmem_free_tensor(tl_output_h[1]);
-  }
   if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
     // no allocate output
     ctx.lmem_free_tensor(tl_input[1]);
@@ -138,13 +118,6 @@ void TgEltwiseKernel::doTileForNormalCase() {
 
   if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
     block_num = 2; // 2 for ping pong buffer and reuse activation
-  }
-
-  if (this->is_asymmetric) {
-    // In asymmetric
-    // we need more space
-    // one output_h, one working_high, one working_low
-    block_num += 3;
   }
 
   uint32_t remain = n * c * h * w;
@@ -250,13 +223,6 @@ void TgEltwiseKernel::doTileForCompressCase() {
 
   if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
     block_num = 2; // 2 for ping pong buffer and reuse activation
-  }
-
-  if (this->is_asymmetric) {
-    // In asymmetric
-    // we need more space
-    // one output_h, one working_high, one working_low
-    block_num += 3;
   }
 
   uint32_t remain = n * c * h * w * elementSize;
@@ -582,145 +548,6 @@ void TgInt8EltwiseAddKernel::symmetric_compute(const int opd_idx,
   }
 }
 
-// In Asymmetric Add,
-// Qy = Sx/Sy(Qx1-Zx1) + Sx/Sy(Qx2-Zx2) + Zy
-// we make Sx/Sy = 2^rshift * multiplier(8bit)
-
-// output = [((Qx1+offset1) * multiplier1 + ((Qx2 + offset1) * multiplier2)...]
-// >> rshift) + output_offset
-
-void TgInt8EltwiseAddKernel::asymmetric_compute(const int opd_idx,
-                                                cvk_tl_t &input,
-                                                cvk_tl_t &output,
-                                                cvk_tl_t &output_high,
-                                                bool last_step) {
-
-  ctx.tiu_zeros(layer_id, tl_working[0]);
-  ctx.tiu_zeros(layer_id, tl_working[1]);
-  // make input from int8 to int16, use mac
-  // put tmp result to tl_working space
-  cvk_tiu_mac_param_t p = {0};
-  p.res_high = tl_working[1];
-  p.res_low = tl_working[0];
-  p.a = &input;
-  p.res_is_int8 = false;
-  p.b_const.val = 1;
-  p.b_is_const = 1;
-  p.b_const.is_signed = true;
-  p.lshift_bits = 0;
-  p.rshift_bits = 0;
-  p.layer_id = layer_id;
-  p.relu_enable = 0;
-  ctx.tiu_mac(&p);
-
-  // add input offset, and replace tl_working
-  // (Qx-Zx) 16bit
-  cvk_tiu_add_param_t p1 = {0};
-  p1.res_high = tl_working[1];
-  p1.res_low = tl_working[0];
-  p1.a_high = tl_working[1];
-  p1.a_low = tl_working[0];
-  p1.b_is_const = 1;
-  p1.b_const.val = inputs_offset[opd_idx];
-  p1.b_const.is_signed = 1;
-  p1.rshift_bits = 0;
-  p1.layer_id = layer_id;
-  p1.relu_enable = 0;
-  ctx.tiu_add(&p1);
-
-  // This step:
-  //    Sx/Sy(Qx1-Zx1)
-  // we already make Sx/Sy = 2^rshift * multiplier(8bit)
-  // rshift will be done at final, here we do
-  // (Qx-Zx) * multiplier, beacause of (Qx-Zx) is 16bit
-  // we mul high 8bit first, get Qx'_high
-  cvk_tiu_mul_param_t p2 = {0};
-  p2.res_high = nullptr;
-  p2.res_low = tl_working[1];
-  p2.a = tl_working[1];
-  p2.b_is_const = 1;
-  p2.b_const.is_signed = 1;
-  p2.b_const.val = multipliers[opd_idx];
-  p2.rshift_bits = 0;
-  p2.layer_id = layer_id;
-  p2.relu_enable = 0;
-  ctx.tiu_mul(&p2);
-
-  // refresh input
-  ctx.tiu_zeros(layer_id, &input);
-
-  // then we do mac with low 8bit
-  // and add Qx'_high with put in res_high( high 8bit)
-  // (Qx_low) * multiplier + (Qx'_high << 8) = (Qx-Zx) * multiplier
-  cvk_fmt_t input_fmt = tl_working[0]->fmt;
-  tl_working[0]->fmt = CVK_FMT_U8;
-  p.res_high = tl_working[1];
-  p.res_low = &input;
-  p.a = tl_working[0];
-  p.res_is_int8 = false;
-  p.b_const.val = multipliers[opd_idx];
-  p.b_is_const = 1;
-  p.b_const.is_signed = true;
-  p.lshift_bits = 0;
-  p.rshift_bits = 0;
-  p.layer_id = layer_id;
-  p.relu_enable = 0;
-  ctx.tiu_mac(&p);
-
-  tl_working[0]->fmt = input_fmt;
-
-  // final we get ((Qx-Zx) * multiplier)(16bit)
-  // add to output space
-  p1.res_high = &output_high;
-  p1.res_low = &output;
-  p1.a_high = tl_working[1];
-  p1.a_low = &input;
-  p1.b.high = &output_high;
-  p1.b.low = &output;
-  p1.b_is_const = 0;
-  p1.rshift_bits = 0;
-  if (last_step) {
-    // we make Sx/Sy = 2^rshift * multiplier(8bit)
-    // and rshift do at final step
-    p1.rshift_bits = rshift;
-  }
-  ctx.tiu_add(&p1);
-
-  if (last_step) {
-    // sub offset, fill 1 in tensor
-    // dirty input
-    {
-      // cleanup to 0
-      ctx.tiu_zeros(layer_id, &input);
-      // clear to 1 for a*1 + c
-      cvk_tiu_add_param_t p9 = {0};
-      p9.res_high = tl_working[0];
-      p9.res_low = &input;
-      p9.a_high = tl_working[0];
-      p9.a_low = &input;
-      p9.b_const.val = 1;
-      p9.b_is_const = 1;
-      p9.rshift_bits = 0;
-      p9.relu_enable = 0;
-      ctx.tiu_add(&p9);
-    }
-
-    // leverage 'p.res_is_int8'
-    p.res_high = &output_high;
-    p.res_low = &output;
-    p.a = &input;
-    p.b_is_const = 1;
-    p.b_const.val = output_offset;
-    p.layer_id = layer_id;
-    p.res_is_int8 = true;
-    p.lshift_bits = 0;
-    p.rshift_bits = 0;
-    p.relu_enable = do_relu;
-    ctx.tiu_mac(&p);
-    output_flip = 1 - output_flip;
-  }
-}
-
 void TgInt8EltwiseAddKernel::compute(int32_t step_idx) {
   int tile_idx = step_idx / operand_num;
   int opd_idx = step_idx % operand_num;
@@ -750,12 +577,6 @@ void TgInt8EltwiseAddKernel::compute(int32_t step_idx) {
   output_high.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
   output_high.fmt = CVK_FMT_I8;
 
-  if (is_asymmetric) {
-    output_high.start_address = tl_output_h[output_flip]->start_address;
-    tl_working[0]->shape = tl_working[1]->shape = output_high.shape;
-    tl_working[0]->stride = tl_working[1]->stride = output_high.stride;
-    tl_working[0]->fmt = tl_working[1]->fmt = output_high.fmt;
-  }
 
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "compute[%d], flip[%d, %d], input<%d,%d,%d,%d:"
@@ -767,17 +588,7 @@ void TgInt8EltwiseAddKernel::compute(int32_t step_idx) {
                  output.shape.h, output.shape.w, output.stride.n, output.stride.c,
                  output.stride.h, output.stride.w,
                  input.start_address, output.start_address));
-
-  if (is_asymmetric) {
-    bool is_last = !(opd_idx == 0 || opd_idx != operand_num - 1);
-    if (opd_idx == 0) {
-      ctx.tiu_zeros(layer_id, &output_high);
-      ctx.tiu_zeros(layer_id, &output);
-    }
-    asymmetric_compute(opd_idx, input, output, output_high, is_last);
-  } else {
-    symmetric_compute(opd_idx, input, output, output_high);
-  }
+  symmetric_compute(opd_idx, input, output, output_high);
 }
 
 void TgInt8EltwiseMaxKernel::compute(int32_t step_idx) {
@@ -1487,14 +1298,12 @@ void cvi_backend_tg_fixed_eltwise_add_kernel(
     gaddr_t ga_output, int32_t operand_num, int32_t n, int32_t c, int32_t h, int32_t w,
     bool do_relu, bool do_early_stride, int32_t stride_h, int32_t stride_w,
     int32_t rshift, const int32_t *multipliers, const int32_t *coeffs,
-    int32_t *inputs_offset, int32_t output_offset,
     int32_t store_cmpr_act, int32_t load_cmpr_act,
     int32_t store_cmpr_act_c_step, int32_t load_cmpr_act_c_step) {
 
   TgInt8EltwiseAddKernel kernel(ctx);
   kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
               do_early_stride, stride_h, stride_w, rshift, multipliers, coeffs,
-              inputs_offset, output_offset,
               store_cmpr_act, load_cmpr_act,
               store_cmpr_act_c_step, load_cmpr_act_c_step);
 

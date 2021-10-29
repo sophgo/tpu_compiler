@@ -38,8 +38,6 @@ public:
     int32_t stride_w, int32_t rshift,
     const int32_t *multipliers,
     const int32_t *coeffs,
-    int32_t *inputs_offset = nullptr,
-    int32_t output_offset = 0,
     int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
     int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
 
@@ -82,9 +80,6 @@ protected:
   cvk_tl_t *tl_output[2];
   cvk_tl_t *tl_output_h[2];
 
-  // low/high working space to do asymmetric quant
-  cvk_tl_t *tl_working[2];
-
   int32_t operand_num;
   int32_t n;
   int32_t c;
@@ -94,14 +89,11 @@ protected:
   int32_t stride_h;
   int32_t stride_w;
   int32_t rshift;
-  int32_t output_offset;
   const int32_t *multipliers;
   const int32_t *coeffs;
-  int32_t *inputs_offset;
   const float *coeffs_float;
   int32_t layer_id;
   bool do_relu;
-  bool is_asymmetric = false;
   cvk_fmt_t fmt;
   uint32_t elementSize;
 
@@ -128,11 +120,6 @@ private:
                             cvk_tl_t &input,
                             cvk_tl_t &output,
                             cvk_tl_t &output_high);
-  void asymmetric_compute(const int opd_idx,
-                            cvk_tl_t &input,
-                            cvk_tl_t &output,
-                            cvk_tl_t &output_high,
-                            bool last_step);
 };
 
 class TgInt8EltwiseMaxKernel : public TgEltwiseKernel {

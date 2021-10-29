@@ -42,7 +42,6 @@ std::unique_ptr<mlir::Pass> createConvertScaleToDWConvPass();
 std::unique_ptr<mlir::Pass> createConvertSwishToReluPass();
 std::unique_ptr<mlir::Pass> createFuseSigmoidEltMulToSwishPass();
 std::unique_ptr<mlir::Pass> createConvertClipToRelu6Pass();
-std::unique_ptr<mlir::Pass> createFuseAsymmetricZeroPointPass();
 std::unique_ptr<mlir::Pass> createFuseReluPass();
 std::unique_ptr<mlir::Pass> createFusePadPass();
 std::unique_ptr<mlir::Pass> createFuseEltwisePass();

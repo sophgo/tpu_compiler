@@ -46,7 +46,6 @@ def TPU_QuantOp: TPU_Op<"quant",
       Dequantize a activation tensor from int8 back to float.
       x = (Q(x) - zero_point) * threshold / 128
 
-    zero_point is zero when symmetric quantization
   }];
 
   let arguments = (
@@ -54,36 +53,8 @@ def TPU_QuantOp: TPU_Op<"quant",
     TPU_QuantModeAttr:$from,
     TPU_QuantModeAttr:$to,
     DefaultValuedAttr<F32Attr, "1">:$scale,
-    DefaultValuedAttr<I32Attr, "0">:$zero_point,
     StrAttr:$name,
     OptionalAttr<I64Attr>:$gaddr
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
-
-def TPU_ReQuantOp: TPU_Op<"requant",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Requantization operator";
-
-  let description = [{
-    Perform requant among asymmteric mode.
-
-    - From `INT8` to `INT8`
-      Qy = scale * (Qx + input_offset) + output_offset
-
-
-    zero_point is zero when symmetric quantization
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    DefaultValuedAttr<F32Attr, "0">:$qscale,
-    DefaultValuedAttr<I32Attr, "0">:$zero_point,
-    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -118,7 +89,6 @@ def TPU_ReshapeOp: TPU_Op<"reshape",
     Interfaces or Traits:
       `NoSideEffect`
       `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
       `TPU_QuantSameInputResultScale` : input and result share same threshold
                                         or scale (bypassed).
       `TpuOpCommonInterface` : support common TPU Op interface

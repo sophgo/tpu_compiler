@@ -58,14 +58,13 @@ int32_t quantizeBiasRShiftAndMultiplier(float w,
                                         uint32_t rshift, uint32_t multiplier,
                                         bool qdm = false);
 
-int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift, int offset=0);
+int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift);
 int8_t applyMultiplierAndRShiftAndSaturateInt8(float v, uint32_t rshift,
                                                uint32_t multiplier,
-                                               bool qdm = false,
-                                               int offset=0);
+                                               bool qdm = false);
 int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v,
                                                uint32_t rshift, uint32_t multiplier,
-                                               bool qdm = false,int offset=0);
+                                               bool qdm = false);
 
 float applyZeroPointSaturateInt8(float v, int offset);
 
@@ -106,7 +105,7 @@ void quantizeActivationInt8PerChannelRShift(float *output, float *input,
 
 void quantizeActivationInt8PerChannelMultiplierAndRShift(
     float *output, float *input, float *bias, bool do_relu, int64_t on, int64_t oc,
-    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel, int output_offset=0);
+    int64_t isz, float *rshift_per_channel, float *multiplier_per_channel);
 
 
 typedef uint16_t bfloat16;

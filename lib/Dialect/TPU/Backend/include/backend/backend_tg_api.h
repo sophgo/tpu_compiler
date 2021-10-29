@@ -59,11 +59,10 @@ void cvi_backend_tg_fixed_avg_pooling_kernel(
     bool do_relu, int rshift, int multiplier, bool ceil_mode);
 
 void cvi_backend_tg_fixed_leakyrelu_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    uint64_t input_gaddr, uint64_t output_gaddr,
-    int input_n, int input_c, int input_h,
-    int input_w, int GT_right_shift_width, int LE_right_shift_width, int GT_scale, int LE_scale,
-    int input_offset, int output_offset);
+    const CviBackendContext &ctx, uint32_t layer_id, uint64_t input_gaddr,
+    uint64_t output_gaddr, int input_n, int input_c, int input_h, int input_w,
+    int GT_right_shift_width, int LE_right_shift_width, int GT_scale,
+    int LE_scale);
 
 void cvi_backend_tg_fixed_prelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -99,8 +98,6 @@ void cvi_backend_tg_fixed_eltwise_add_kernel(
     int32_t stride_h, int32_t stride_w, int32_t rshift,
     const int32_t *multipliers,
     const int32_t *coeffs,
-    int32_t *inputs_offset = nullptr,
-    int32_t output_offset = 0,
     int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
     int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
 
@@ -455,12 +452,6 @@ void cvi_backend_tg_quant_kernel(
     int input_n, int input_c, int input_h, int input_w,
     float const_scale = 1.0, int offset=0,
     int load_cmpr_act = 0, int load_cmpr_act_c_step = 0);
-
-void cvi_backend_tg_requant_kernel(const CviBackendContext &ctx,
-                                   uint32_t layer_id, gaddr_t bottom_gaddr,
-                                   gaddr_t top_gaddr, int input_n, int input_c,
-                                   int input_h, int input_w, int input_offset,
-                                   int output_offset, float scale);
 
 void cvi_backend_tg_dequant_kernel(const CviBackendContext &ctx,
                                    uint32_t layer_id, gaddr_t ga_input,

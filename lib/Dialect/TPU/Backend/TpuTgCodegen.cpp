@@ -1348,16 +1348,6 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
     }
   }
 
-  //Asymmetric
-  int output_offset = 0;
-  std::vector<int32_t> inputs_offset;
-
-  if (this->output_offset().hasValue() && this->input_offset().hasValue()) {
-    output_offset = this->output_offset().getValue();
-    arrayAttrToVector(this->input_offset().getValue(), inputs_offset);
-    assert(inputs_offset.size() == op->getNumOperands());
-  }
-
   std::vector<int>coeffs(input_number, 1);
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
@@ -1391,7 +1381,6 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       do_quant_rescale ? rshift_int : 0,
       do_quant_rescale ? m_int : nullptr,
       coeffs.data(),
-      inputs_offset.data(), output_offset,
       store_cmpr_act, load_cmpr_act,
       store_cmpr_act_c_step, load_cmpr_act_c_step);
 
@@ -1971,12 +1960,6 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
-  int output_offset = 0;
-  int input_offset = 0;
-  if (this->output_offset().hasValue() && this->input_offset().hasValue()) {
-    output_offset = this->output_offset().getValue();
-    input_offset = this->input_offset().getValue();
-  }
 
   cvi_backend_tg_fixed_leakyrelu_kernel(
     *backend_ctx,         // ctx
@@ -1990,9 +1973,7 @@ LogicalResult tpu::TG_INT8_LeakyReluOp::codegen(void *ctx) {
     pos_rshift,           // GT_right_shift_width
     neg_rshift,           // LE_right_shift_width
     pos_m_i8,             // GT_scale
-    neg_m_i8,              // LE_scale
-    input_offset,                    // input_offset
-    output_offset                    // output_offset
+    neg_m_i8              // LE_scale
   );
 
   return success();
@@ -2980,9 +2961,6 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
   cvk_fmt_t to = get_fmt(this->to().str());
   float scale = this->scale().convertToFloat();
   int offset = 0;
-  if(this->zero_point().hasValue()){
-    offset = this->zero_point().getValue();
-  }
 
   int load_cmpr_act = this->load_compr_act().hasValue() ?
                       this->load_compr_act().getValue() : 0;
@@ -2998,31 +2976,6 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
   cvi_backend_tg_quant_kernel(*backend_ctx, layer_id, from, to, ga_input,
                               ga_output, n, c, h, w, scale, offset,
                               load_cmpr_act, load_cmpr_act_c_step);
-
-  return success();
-}
-
-LogicalResult tpu::TG_ReQuantOp::codegen(void *ctx) {
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int layer_id = getOpLayerId(op);
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-  float scale = this->qscale().getValue().convertToFloat();
-  int input_offset = this->input_offset().getValue();
-  int output_offset = this->output_offset().getValue();
-
-
-  //  quant to int8
-  cvi_backend_tg_requant_kernel(*backend_ctx, layer_id, ga_input,
-                              ga_output, n, c, h, w, input_offset,
-                              output_offset, scale);
 
   return success();
 }

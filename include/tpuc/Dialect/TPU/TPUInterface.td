@@ -74,26 +74,6 @@ def TpuOpQuantInterface : OpInterface<"TpuOpQuantInterface"> {
       "LogicalResult", "setOpQuantParamType", (ins "StringRef &":$quantParamType)
     >,
     InterfaceMethod<[{
-        Return if is_perchannel.
-      }],
-      "bool", "isOpQuantPerchannel"
-    >,
-    InterfaceMethod<[{
-        Set quant as perchannel.
-      }],
-      "LogicalResult", "setOpQuantPerchannel", (ins "bool ":$is_perchannel)
-    >,
-    InterfaceMethod<[{
-        Return if is_asymmetric.
-      }],
-      "bool", "isOpQuantAsymmetric"
-    >,
-    InterfaceMethod<[{
-        Set quant as asymmetric.
-      }],
-      "LogicalResult", "setOpQuantAsymmetric", (ins "bool ":$is_asymmetric)
-    >,
-    InterfaceMethod<[{
         Return threshold for symmetric quant.
       }],
       "float", "getOpQuantThreshold"
@@ -103,26 +83,6 @@ def TpuOpQuantInterface : OpInterface<"TpuOpQuantInterface"> {
       }],
       "LogicalResult", "setOpQuantThreshold", (ins "float ":$threshold)
     >,
-    InterfaceMethod<[{
-        Return zero_point for asymmetric quant.
-      }],
-      "int", "getOpQuantZeroPoint"
-    >,
-    InterfaceMethod<[{
-        set zero_point for asymmetric quant.
-      }],
-      "LogicalResult", "setOpQuantZeroPoint", (ins "int ":$zero_point)
-    >,
-    //InterfaceMethod<[{
-    //    Return threshold_max and threshold_min for asymmetric quant.
-    //  }],
-    //  "void", "getOpQuantThresholdRange", (ins "float ":$threshold_max, "float ":$threshold_min)
-    //>,
-    //InterfaceMethod<[{
-    //    Set threshold_max and threshold_min for asymmetric quant.
-    //  }],
-    //  "LogicalResult", "setOpQuantThresholdRange", (ins "float &":$threshold_max, "float &":$threshold_min)
-    //>,
     InterfaceMethod<[{
         Quantize Int8.
       }],
@@ -267,20 +227,5 @@ def TpuTLOpCodegenInterface : OpInterface<"TpuTLOpCodegenInterface"> {
 class TPU_QuantBypass :
   CPred<"$_op.quant().param_type().getValue() == \"NONE\"">;
 
-class TPU_QuantPerTensorOnly :
-  CPred<"$_op.quant().is_perchannel().getValue() == false">;
-
-class TPU_QuantSupportPerChannel<int m> : Or<[
-  CPred<"$_op.quant().is_perchannel().getValue() == false">,
-  CPred<"$_op.quant().is_perchannel().getValue() == true">
-  ]>;
-
-class TPU_QuantSymmetricOnly :
-  CPred<"$_op.quant().is_asymmetric().getValue() == false">;
-
-class TPU_QuantSupportAsymmetric<int m> : Or<[
-  CPred<"$_op.quant().is_asymmetric().getValue() == false">,
-  CPred<"$_op.quant().is_asymmetric().getValue() == true">
-  ]>;
 
 #endif // TPU_INTERFACE

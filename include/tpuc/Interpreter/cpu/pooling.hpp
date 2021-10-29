@@ -52,8 +52,6 @@ private:
   float rshift;
   float multiplier;
   SyncedData filter_data;
-  SyncedData zero_bias;
-  bool is_asymmetric = false;
 
   // mkldnn setting
   mkldnn::engine mkl_eng;

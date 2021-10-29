@@ -447,13 +447,8 @@ int32_t quantizeBiasRShiftAndMultiplier(float w, float threshold_y,
 }
 
 /// Simulate HW behavior, after accumuation, do rshift and saturate
-int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift, int offset) {
-  return saturateInt8((v / (1 << rshift)) + offset);
-}
-
-/// Simulate HW behavior, after accumuation, do rshift and saturate
-float applyZeroPointSaturateInt8(float v, int offset) {
-  return (float)saturateInt8(v + offset);
+int8_t applyRShiftAndSaturateInt8(float v, uint32_t rshift) {
+  return saturateInt8((v / (1 << rshift)));
 }
 
 // USE_GOOGLE_GEMMLOWP_QDM
@@ -490,27 +485,25 @@ static inline s32 SaturatingRoundingDoublingHighMul(s32 a, s32 b) {
 ///   use GOOGLE GEMMLOWP QDM multiply and shift
 ///   during multiply, a factor of (1 << 31) has been devided
 int8_t applyMultiplierAndRShiftAndSaturateInt8(float v, uint32_t rshift,
-                                               uint32_t multiplier, bool qdm,
-                                               int offset) {
+                                               uint32_t multiplier, bool qdm) {
   if (qdm) {
     int32_t q = RoundingDivideByPOT(
         SaturatingRoundingDoublingHighMul((int32_t)v, (int32_t)multiplier),
         rshift);
-    return saturateInt8((float)(q + offset));
+    return saturateInt8((float)(q));
   } else {
-    return saturateInt8((float)(((v * multiplier)) / (1 << rshift) + offset));
+    return saturateInt8((float)(((v * multiplier)) / (1 << rshift)));
   }
 }
 
 int8_t applyMultiplierAndRShiftAndSaturateInt8(int32_t v, uint32_t rshift,
-                                               uint32_t multiplier, bool qdm,
-                                               int offset) {
+                                               uint32_t multiplier, bool qdm) {
   if (qdm) {
     int32_t q = RoundingDivideByPOT(
         SaturatingRoundingDoublingHighMul(v, (int32_t)multiplier), rshift);
-    return saturateInt8((float)(q + offset));
+    return saturateInt8((float)(q));
   } else {
-    return saturateInt8((float)(((v * multiplier)) / (1 << rshift) + offset));
+    return saturateInt8((float)(((v * multiplier)) / (1 << rshift)));
   }
 }
 
@@ -800,24 +793,22 @@ static inline int omp_schedule(int count) {
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerLayerRshift(float *output, float *input,
-                                          int64_t size, uint32_t rshift,
-                                          int offset) {
+                                          int64_t size, uint32_t rshift) {
 #pragma omp parallel for schedule(static, omp_schedule(size))
   for (int64_t i = 0; i < size; ++i) {
-    output[i] = (float)applyRShiftAndSaturateInt8(input[i], rshift, offset);
+    output[i] = (float)applyRShiftAndSaturateInt8(input[i], rshift);
   }
 }
 
 /// Quantize an Activation tensor, given per channel mulitplier and rshift
 void quantizeActivationInt8PerChannelRShift(float *output, float *input,
                                             int64_t on, int64_t oc, int64_t isz,
-                                            float *rshift_per_channel,
-                                            int offset) {
+                                            float *rshift_per_channel) {
   for (int64_t n = 0; n < on; ++n) {
     for (int64_t i = 0; i < oc; ++i) {
       for (int64_t j = 0; j < isz; ++j) {
         output[n * oc * isz + i * isz + j] = (float)applyRShiftAndSaturateInt8(
-            input[n * oc * isz + i * isz + j], rshift_per_channel[i], offset);
+            input[n * oc * isz + i * isz + j], rshift_per_channel[i]);
       }
     }
   }
@@ -827,7 +818,7 @@ void quantizeActivationInt8PerChannelRShift(float *output, float *input,
 void quantizeActivationInt8PerChannelMultiplierAndRShift(
     float *output, float *input, float *bias, bool do_relu, int64_t on,
     int64_t oc, int64_t isz, float *rshift_per_channel,
-    float *multiplier_per_channel, int output_offset) {
+    float *multiplier_per_channel) {
 #pragma omp parallel for collapse(3)
   for (int64_t n = 0; n < on; ++n) {
     for (int64_t i = 0; i < oc; ++i) {
@@ -838,7 +829,7 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
         }
         v = applyMultiplierAndRShiftAndSaturateInt8(v, rshift_per_channel[i],
                                                     multiplier_per_channel[i],
-                                                    true, output_offset);
+                                                    true);
         if (do_relu && (v < 0)) {
           v = 0;
         }

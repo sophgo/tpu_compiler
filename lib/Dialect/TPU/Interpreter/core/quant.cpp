@@ -108,7 +108,7 @@ QuantOpKernel::QuantOpKernel(Operation &op, value_map_t &valueMapping,
     : CPUOpKernel(op, valueMapping, weightMapping) {
   auto quantOp = cast<tpu::QuantOp>(op);
   this->scale = quantOp.scale().convertToFloat();
-  this->zero_point = quantOp.zero_point();
+  this->zero_point = 0;
   this->from = quantOp.from().str();
   this->to = quantOp.to().str();
   auto prevOp = quantOp.getOperand().getDefiningOp(); // input
@@ -152,54 +152,6 @@ void QuantOpKernel::invoke() {
   } else {
     dump();
     llvm_unreachable("TODO");
-  }
-}
-
-ReQuantOpKernel::ReQuantOpKernel(Operation &op, value_map_t &valueMapping,
-                                 weight_map_t &weightMapping)
-    : CPUOpKernel(op, valueMapping, weightMapping) {
-  auto requantOp = cast<tpu::ReQuantOp>(op);
-  this->scale = requantOp.qscale().convertToFloat();
-  this->input_offset = (float)-getPreviousOpZeroPoint(&op);
-  this->output_offset = (float)getOpZeroPoint(&op);
-  // get tensors
-  input_data = this->opdTensors[0];
-  output_data = this->resTensor;
-}
-
-void ReQuantOpKernel::invoke() {
-  std::vector<float> input_data_asym(input_data->begin(), input_data->end());
-  // convert fp32 to bf16
-  auto tensor_bf16 =
-      std::make_unique<std::vector<bfloat16>>(output_data->size());
-
-  scale = BF16(scale);
-  BF16(input_data_asym.data(), output_data->data(), input_data_asym.size());
-
-  for (size_t i = 0; i < tensor_bf16->size(); i++) {
-    output_data->at(i) += (float)input_offset;
-  }
-  BF16(output_data->data(), output_data->data(), output_data->size());
-
-  for (size_t i = 0; i < tensor_bf16->size(); i++) {
-    output_data->at(i) *= scale;
-  }
-  BF16(output_data->data(), output_data->data(), output_data->size());
-  for (size_t i = 0; i < tensor_bf16->size(); i++) {
-    output_data->at(i) += (float)output_offset;
-  }
-  BF16(output_data->data(), output_data->data(), output_data->size());
-  // round
-  for (size_t i = 0; i < tensor_bf16->size(); i++) {
-    float sub_part;
-    float int_part;
-    sub_part = std::modf(output_data->at(i), &int_part);
-    // subpart 0.5
-    if (std::abs(std::abs(sub_part) - 0.5f) < 0.001) {
-      output_data->at(i) = std::round(output_data->at(i) / 2) * 2;
-    } else if (std::abs(sub_part) > 0.0f) {
-      output_data->at(i) = std::nearbyint(output_data->at(i));
-    }
   }
 }
 

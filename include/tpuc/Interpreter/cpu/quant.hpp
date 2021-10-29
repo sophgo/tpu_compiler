@@ -26,23 +26,6 @@ private:
   bool useTpuQuant;
 };
 
-class ReQuantOpKernel : public CPUOpKernel {
-public:
-  static constexpr const char *OpName = "CPUReQuantOp";
-
-  ReQuantOpKernel(Operation &op, value_map_t &valueMapping,
-                  weight_map_t &weightMapping);
-
-  void invoke() override;
-
-private:
-  SyncedData input_data;
-  SyncedData output_data;
-  SyncedDataShape input_shape;
-  float input_offset;
-  float output_offset;
-  float scale;
-};
 } // namespace mlir
 
 #endif

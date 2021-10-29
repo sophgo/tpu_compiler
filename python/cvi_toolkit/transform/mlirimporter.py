@@ -177,13 +177,10 @@ class MLIRImporter(object):
             self.f32Type = F32Type.get()
 
             quant_param = {
-                'is_asymmetric': BoolAttr.get(False),
-                'is_perchannel': BoolAttr.get(False),
                 'mode': StringAttr.get("NONE"),
                 'param_type': StringAttr.get("NONE"),
                 'threshold_max': FloatAttr.get_f32(0),
                 'threshold_min': FloatAttr.get_f32(0),
-                'zero_point': IntegerAttr.get(self.i32Type, 0),
             }
             self.quant_param = DictAttr.get(quant_param)
             self.input_type = input_type
@@ -195,36 +192,27 @@ class MLIRImporter(object):
         self.loc.__exit__(None, None, None)
         self.ctx.__exit__(None, None, None)
 
-    def _create_int8_quant_attr(self, is_asymmetric=False, is_perchannel=False, mode=TPU_MODE.INT8.value,
-                                param_type="NONE", threshold_max=0, threshold_min=0, zero_point=0):
+    def _create_int8_quant_attr(self, mode=TPU_MODE.INT8.value,
+                                param_type="NONE", threshold_max=0, threshold_min=0):
         quant_param = {
-            'is_asymmetric': BoolAttr.get(is_asymmetric),
-            'is_perchannel': BoolAttr.get(is_perchannel),
             'mode': StringAttr.get(mode),
             'param_type':  StringAttr.get(param_type),
             'threshold_max': FloatAttr.get_f32(threshold_max),
             'threshold_min': FloatAttr.get_f32(threshold_min),
-            'zero_point': IntegerAttr.get(self.i32Type, zero_point)
         }
         return quant_param
 
     def check_int8_param(self, **kargs):
-        checkKey(kargs, 'is_asymmetric')
-        checkKey(kargs, 'is_perchannel')
         checkKey(kargs, 'param_type')
         checkKey(kargs, 'threshold_max')
         checkKey(kargs, 'threshold_min')
-        checkKey(kargs, 'zero_point')
 
     def create_int8_quant_attr(self, **kargs):
         self.check_int8_param(**kargs)
         param = self._create_int8_quant_attr(
-            is_asymmetric=kargs['is_asymmetric'],
-            is_perchannel=kargs['is_perchannel'],
             param_type=kargs['param_type'],
             threshold_max=kargs['threshold_max'],
             threshold_min=kargs['threshold_min'],
-            zero_point=kargs['zero_point']
         )
 
         return DictAttr.get(param)
@@ -289,13 +277,10 @@ class MLIRImporter(object):
         }
 
         quant_param = {
-            'is_asymmetric': BoolAttr.get(False),
-            'is_perchannel': BoolAttr.get(False),
             'mode': StringAttr.get("NONE"),
             'param_type': StringAttr.get("NONE"),
             'threshold_max': FloatAttr.get_f32(0),
             'threshold_min': FloatAttr.get_f32(0),
-            'zero_point': IntegerAttr.get(self.i32Type, 0),
         }
 
         attributes = {
@@ -1443,7 +1428,7 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Proposal.value, inputOperands, [
             tensor_output_type], name=proposal_name, quant=self.quant_param, **attr_dict)
 
-    def add_quant_op(self, op_name, inputOperands, output_tensor_shape, from_type, to_type, zero_point=0, **kargs):
+    def add_quant_op(self, op_name, inputOperands, output_tensor_shape, from_type, to_type, **kargs):
         if to_type == "NONE":
             tensor_output_type = RankedTensorType.get(
                 tuple(output_tensor_shape), self.f32Type)
@@ -1459,28 +1444,8 @@ class MLIRImporter(object):
             'from': StringAttr.get(from_type),
             'to': StringAttr.get(to_type),
             'scale': FloatAttr.get_f32(kargs['scale']),
-            'zero_point':  IntegerAttr.get(self.i32Type, zero_point),
         }
         return self.buildOp(TPU_OpType.Quant.value, inputOperands, [
-            tensor_output_type], name=quant_name, **attr_dict)
-
-    def add_requant_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.INT8.value, **kargs):
-        if mode != TPU_MODE.INT8.value:
-            raise RuntimeError("Only support asymmetric mode")
-        # Only in i8 case
-        tensor_output_type = RankedTensorType.get(
-            tuple(output_tensor_shape), self.i8Type)
-
-        checkKey(kargs, 'zero_point')
-        checkKey(kargs, 'qscale')
-        zero_point = kargs['zero_point']
-        qscale = kargs['qscale']
-        quant_name = StringAttr.get(op_name)
-        attr_dict = {
-            'zero_point': IntegerAttr.get(self.i32Type, zero_point),
-            'qscale': FloatAttr.get_f32(qscale)
-        }
-        return self.buildOp(TPU_OpType.ReQuant.value, inputOperands, [
             tensor_output_type], name=quant_name, **attr_dict)
 
     def add_reciprocal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):

@@ -214,46 +214,6 @@ LogicalResult setOpQuantParamType(Operation *op, llvm::StringRef type) {
   }
 }
 
-bool isOpQuantPerchannel(Operation *op) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    return tpuOp.isOpQuantPerchannel();
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
-
-LogicalResult setOpQuantPerchannel(Operation *op, bool flag) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    return tpuOp.setOpQuantPerchannel(flag);
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
-
-bool isOpQuantAsymmetric(Operation *op) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    return tpuOp.isOpQuantAsymmetric();
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
-
-LogicalResult setOpQuantAsymmetric(Operation *op, bool flag) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    return tpuOp.setOpQuantAsymmetric(flag);
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
-
 float getOpThreshold(Operation *op) {
   if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
     return tpuOp.getOpQuantThreshold();
@@ -272,40 +232,6 @@ LogicalResult setOpThreshold(Operation *op, float threshold) {
                            op->getName().getStringRef().str() + "\n";
     llvm_unreachable(errorMsg.c_str());
   }
-}
-
-LogicalResult setOpZeroPoint(Operation *op, int zero_point) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    return tpuOp.setOpQuantZeroPoint(zero_point);
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
-
-int getOpZeroPoint(Operation *op) {
-  if (auto tpuOp = llvm::dyn_cast<tpu::TpuOpQuantInterface>(op)) {
-    return tpuOp.getOpQuantZeroPoint();
-  } else if(auto quantOp = llvm::dyn_cast<tpu::QuantOp>(op)) {
-    return quantOp.zero_point();
-  } else if (auto quantOp = llvm::dyn_cast<tpu::ReQuantOp>(op)) {
-    return quantOp.zero_point();
-  } else {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-}
-
-int getPreviousOpZeroPoint(Operation *op, uint index = 0) {
-  if (op->getNumOperands() < (index + 1)) {
-    std::string errorMsg = std::string(__func__) + " failed, Op " +
-                           op->getName().getStringRef().str() + "\n";
-    llvm_unreachable(errorMsg.c_str());
-  }
-  auto formerOp = op->getOperand(index).getDefiningOp();
-  return getOpZeroPoint(formerOp);
 }
 
 float getPreviousOpThreshold(Operation *op, uint index = 0) {
@@ -413,11 +339,8 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
   return tpu::QuantParam::get(
       builder.getStringAttr("NONE"),
       builder.getStringAttr("NONE"),
-      builder.getBoolAttr(false),
-      builder.getBoolAttr(false),
       builder.getF32FloatAttr(0.0),
       builder.getF32FloatAttr(0.0),
-      builder.getI32IntegerAttr(0),
       builder.getContext());
 }
 

@@ -457,11 +457,6 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(r_kernel_op));
     return;
   }
-  if (isa<tpu::ReQuantOp>(op)) {
-    auto r_kernel_op = std::make_unique<ReQuantOpKernel>(op, valueMapping, weightMapping);
-    oplist.push_back(std::move(r_kernel_op));
-    return;
-  }
   if (isa<tpu::ROIPoolingOp>(op)) {
     auto r_kernel_op = std::make_unique<ROIPoolingOpKernel>(op, valueMapping, weightMapping);
     oplist.push_back(std::move(r_kernel_op));

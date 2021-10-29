@@ -73,12 +73,6 @@ public:
     this->qscale = qscale;
   }
 
-  void setInt8AsymQuantInfo(float qscale, int zero_point) {
-    this->quant_type = QuantType_INT8_ASYM;
-    this->qscale = qscale;
-    this->zero_point = zero_point;
-  }
-
   std::string name;
   size_t shape[4] = {1, 1, 1, 1};
   size_t stride[4] = {0, 0, 0, 0};
@@ -88,7 +82,6 @@ public:
   int dsize;
 
   QuantType quant_type = QuantType_NONE;
-  int zero_point = 0;
   float qscale = 0.0f;
   std::vector<float> scale;
   std::vector<float> mean;

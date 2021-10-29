@@ -277,8 +277,6 @@ LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
 template <typename OpTy>
 LogicalResult quantizeBF16LutOps(Operation *op) {
   assert(getOpQuant(op) == "BF16");
-  // support per-tensor only for now
-  setOpQuantPerchannel(op, false);
   // use LUT
   setOpQuantParamType(op, "LUT_BF16");
 

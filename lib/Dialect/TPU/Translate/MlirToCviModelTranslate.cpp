@@ -507,8 +507,7 @@ void CviModelBuilder::addRoutine(std::string funcName) {
   routines_.push_back(rt);
 }
 
-static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap,
-                            std::map<std::string, int> &zpMap) {
+static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap) {
   auto tableName = fn->getAttr("qscale_table").cast<StringAttr>().getValue().str();
   std::ifstream infile(tableName);
 
@@ -524,7 +523,6 @@ static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap,
         break;
       }
       qscaleMap[name] = qscale;
-      zpMap[name] = zero_point;
     } else {
       llvm::errs() << line;
       llvm::errs() << "\n  => not match required format\n";
@@ -536,8 +534,7 @@ static void loadQScaleTable(FuncOp &fn, std::map<std::string, float> &qscaleMap,
 void CviModelBuilder::parseModule() {
 
   std::map<std::string, float> qscaleMap;
-  std::map<std::string, int> zpMap;
-  loadQScaleTable(mainFunc_, qscaleMap, zpMap);
+  loadQScaleTable(mainFunc_, qscaleMap);
   getFnInputsOutputs(mainFunc_, inputs_, outputs_);
 
   mainFunc_.walk([&](Operation *op) {
@@ -584,11 +581,7 @@ void CviModelBuilder::parseModule() {
                        op->getAttr("gaddr").cast<IntegerAttr>().getInt() : -1;
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
       if (qscaleMap.find(name) != qscaleMap.end()) {
-        if (zpMap[name] == 0){
-          tensor->setInt8SymQuantInfo(qscaleMap[name]);
-        } else {
-          tensor->setInt8AsymQuantInfo(qscaleMap[name], zpMap[name]);
-        }
+        tensor->setInt8SymQuantInfo(qscaleMap[name]);
       }
       if (castOp.preprocessAttr() && version_ >= V_1_4_0) {
         auto preprocess = castOp.preprocessAttr();
@@ -610,11 +603,7 @@ void CviModelBuilder::parseModule() {
       auto tensor = std::make_shared<CviTensor>(name, type, offset, false);
 
       if (qscaleMap.find(name) != qscaleMap.end()) {
-        if (zpMap[name] == 0){
-          tensor->setInt8SymQuantInfo(qscaleMap[name]);
-        } else {
-          tensor->setInt8AsymQuantInfo(qscaleMap[name], zpMap[name]);
-        }
+        tensor->setInt8SymQuantInfo(qscaleMap[name]);
       }
 
       if (!batchNum_) {
@@ -832,8 +821,7 @@ FBTensorVector CviModelBuilder::buildNeuronMap() {
     }
     auto fbShapeVec = fbb_.CreateVector(shape);
     auto fbShape = CreateShape(fbb_, fbShapeVec);
-    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type, 0, 0,
-                                   tensor->zero_point, tensor->qscale);
+    auto fbQuant = CreateQuantInfo(fbb_, tensor->quant_type, 0, 0, 0, tensor->qscale);
     auto fbTensor = CreateTensorDirect(
         fbb_, 0, tensor->name.c_str(), tensor->offset, tensor->dtype,
         fbShape, 0, fbQuant, tensor->overwritten,

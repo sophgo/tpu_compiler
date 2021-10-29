@@ -107,11 +107,6 @@ LeakyReluOpKernel::LeakyReluOpKernel(Operation &op, value_map_t &valueMapping,
   auto leaky_reluOp = cast<tpu::LeakyReluOp>(op);
 
   this->negative_slope = leaky_reluOp.negative_slope().convertToFloat();
-  this->is_asymmetric = isOpQuantAsymmetric(&op);
-  if (is_asymmetric) {
-    this->input_offset = -getPreviousOpZeroPoint(&op);
-    this->output_offset = getOpZeroPoint(&op);
-  }
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
@@ -134,49 +129,21 @@ void LeakyReluOpKernel::invoke() {
   if (datatype == DataType::FP32) {
     leaky_relu(input_data->data(), output_data->data(), size, negative_slope);
   } else if (datatype == DataType::INT8) {
-    if (is_asymmetric) {
-      // use copy to change input point,
-      // in case that modify original pointer
-      std::vector<float> input_copy(input_data->begin(), input_data->end());
-      size_t copy_size = input_copy.size();
-#pragma omp parallel for schedule(static, omp_schedule(copy_size))
-      for (size_t i = 0; i < copy_size; i++) {
-        input_copy.at(i) += input_offset;
-      }
-      bool do_pos_scale = (multiplier_postive->at(0) != 0.0) ? true : false;
-#pragma omp parallel for schedule(static, omp_schedule(size))
-      for (int i = 0; i < size; ++i) {
-        if (input_copy.at(i) > 0) {
-          if (do_pos_scale) {
-            output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-                input_copy.at(i), (uint32_t)rshift_postive->at(0),
-                multiplier_postive->at(0), false, output_offset);
-          } else {
-            output_data->at(i) = input_copy.at(i);
-          }
-        } else {
-          output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              input_copy.at(i), (uint32_t)rshift_negative->at(0),
-              multiplier_negative->at(0), false, output_offset);
-        }
-      }
-    } else {
-      bool do_pos_scale = (multiplier_postive->at(0) != 0.0) ? true : false;
+    bool do_pos_scale = (multiplier_postive->at(0) != 0.0) ? true : false;
 
-      for (int i = 0; i < size; ++i) {
-        if (input_data->at(i) > 0) {
-          if (do_pos_scale) {
-            output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-                input_data->at(i), (uint32_t)rshift_postive->at(0),
-                multiplier_postive->at(0), false);
-          } else {
-            output_data->at(i) = input_data->at(i);
-          }
-        } else {
+    for (int i = 0; i < size; ++i) {
+      if (input_data->at(i) > 0) {
+        if (do_pos_scale) {
           output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-              input_data->at(i), (uint32_t)rshift_negative->at(0),
-              multiplier_negative->at(0), false);
+              input_data->at(i), (uint32_t)rshift_postive->at(0),
+              multiplier_postive->at(0), false);
+        } else {
+          output_data->at(i) = input_data->at(i);
         }
+      } else {
+        output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
+            input_data->at(i), (uint32_t)rshift_negative->at(0),
+            multiplier_negative->at(0), false);
       }
     }
   } else if (datatype == DataType::BF16) {

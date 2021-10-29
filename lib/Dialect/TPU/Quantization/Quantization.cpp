@@ -163,19 +163,16 @@ static void insertQuantOp(Operation *op) {
 
     // insert quant if prev and curr have different quant mode
     float scale = 1.0f;
-    int zero_point =0;
     std::string name;
     if (curr_quant == "INT8" || curr_quant == "UINT8") {
       // FP32|BF16 => INT8|UINT8
       int max_val = (curr_quant == "INT8") ? 128 : 256;
       scale = max_val / getOpThreshold(prev_op);
-      zero_point = getOpZeroPoint(prev_op);
       name = prev_name.str() + "_quant_i8";
     } else if (prev_quant == "INT8" || prev_quant == "UINT8") {
       // INT8/UINT8 ==> FP32|BF16
       int max_val = (prev_quant == "INT8") ? 128 : 256;
       scale = getOpThreshold(prev_op) / max_val;
-      zero_point = getOpZeroPoint(prev_op);
       if (curr_quant == "BF16") {
         name = prev_name.str() + "_dequant_bf16";
       } else {
@@ -218,8 +215,6 @@ static void insertQuantOp(Operation *op) {
         builder.getStringAttr(curr_quant)));
     attrs.push_back(builder.getNamedAttr("scale",
         builder.getF32FloatAttr(scale)));
-    attrs.push_back(builder.getNamedAttr("zero_point",
-        builder.getI32IntegerAttr(zero_point)));
     attrs.push_back(builder.getNamedAttr("name",
         builder.getStringAttr(name)));
 
@@ -237,9 +232,6 @@ static void insertQuantOp(Operation *op) {
         ArrayRef<Value>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
 
     op->setOperand(i, quantOp.getResult());
-    LLVM_DEBUG(llvm::errs() << "  opd " << i << ", " << name << ", "
-                << prev_quant << " => " << curr_quant <<  " scale: "
-                << scale << " zero_point: " << zero_point << "\n";);
   }
 }
 
@@ -588,7 +580,7 @@ static void quant_for_special(Operation *op) {
   } else if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == true) {
   } else if (isa<tpu::LayerNormOp>(op) || isa<tpu::ConvFcOp>(op) ||
              isa<tpu::GruOp>(op) || isa<tpu::LstmOp>(op) ||
-             isa<tpu::SquareOp>(op) || isa<tpu::StdOp>(op) ||
+             isa<tpu::SquareOp>(op) || isa<tpu::StdOp>(op) || isa<tpu::EmbeddingOp>(op) ||
              isa<tpu::QuadraticSumOp>(op) || isa<tpu::Conv3DOp>(op)) {
   } else {
     return;

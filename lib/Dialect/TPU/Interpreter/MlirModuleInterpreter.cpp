@@ -296,8 +296,6 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<ReorgOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ReverseOp>(op)) {
       krnl = std::make_shared<ReverseOpKernel>(*op, valueMapping, weightMapping);
-    } else if (isa<tpu::ReQuantOp>(op)) {
-      krnl = std::make_shared<ReQuantOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ROIPoolingOp>(op)) {
       krnl = std::make_shared<ROIPoolingOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::SqrtOp>(op)) {

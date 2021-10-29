@@ -29,10 +29,6 @@ private:
   std::vector<float> multiplier;
 
   bool do_quant;
-  // asymmetric
-  bool is_asymmetric;
-  std::vector<float> inputs_offset;
-  int output_offset = 0;
 
   // param
   bool do_relu;
@@ -117,10 +113,6 @@ private:
   std::vector<float> rshift;
   std::vector<float> multiplier;
   bool do_quant;
-  // asymmetric
-  bool is_asymmetric = false;
-  std::vector<float> inputs_offset;
-  int output_offset = 0;
   // param
   bool do_relu;
 };

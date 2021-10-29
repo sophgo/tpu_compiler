@@ -33,7 +33,6 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertNormalize.cpp
   Transforms/ConvertSwish.cpp
   Transforms/ConvertPermute.cpp
-  Transforms/FuseAsymmetricZeroPointShift.cpp
   Transforms/FuseRelu.cpp
   Transforms/FusePad.cpp
   Transforms/FuseReshape.cpp
@@ -108,7 +107,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/TgQuantKernel.cpp
-  Backend/Kernel/TgReQuantKernel.cpp
   Backend/Kernel/TgDequantKernel.cpp
   Backend/Kernel/TgArgMaxKernel.cpp
   Backend/Kernel/TgConcatKernel.cpp

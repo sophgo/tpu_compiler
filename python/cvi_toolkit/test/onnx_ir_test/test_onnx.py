@@ -271,7 +271,7 @@ class ONNX_IR_TESTER(object):
             if self.quant_mode == "int8":
                 for i in NOT_SUPPORT_INT8_TEST_IR:
                     if i == model_name:
-                        print("{} not support bf16 test!".format(model_name))
+                        print("{} not support int8 test!".format(model_name))
                         return
                 table_name = "{}_cali_table".format(model_name)
                 # gen cali table

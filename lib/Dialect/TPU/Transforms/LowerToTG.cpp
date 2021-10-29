@@ -892,19 +892,6 @@ Value tpu::EltwiseAddOp::convertToTG() {
       m_i8_inputs[i] = static_cast<int32_t>(multiplier->at(i));
     }
 
-    bool is_asymmetric = isOpQuantAsymmetric();
-    if (is_asymmetric) {
-      const unsigned nInputs = op->getNumOperands() - 4;
-      std::vector<int> input_offset(nInputs, 0);
-      for (size_t i = 0; i < nInputs; ++i) {
-        input_offset.at(i) = -getPreviousOpZeroPoint(op, i);
-      }
-      attrs.push_back(builder.getNamedAttr(
-          "input_offset",
-          builder.getI32ArrayAttr(ArrayRef<int32_t>({input_offset}))));
-      attrs.push_back(builder.getNamedAttr(
-          "output_offset", builder.getI32IntegerAttr(getOpZeroPoint(op))));
-    }
     attrs.push_back(
         builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
     attrs.push_back(builder.getNamedAttr(
@@ -1305,14 +1292,7 @@ Value tpu::LeakyReluOp::convertToTG() {
         builder.getI8IntegerAttr(static_cast<int8_t>(rshift_neg->at(0)))));
     attrs.push_back(builder.getNamedAttr("m_i8_neg",
         builder.getI8IntegerAttr(static_cast<int8_t>(multiplier_neg->at(0)))));
-    bool is_asymmetric = isOpQuantAsymmetric();
-    if (is_asymmetric) {
-      attrs.push_back(builder.getNamedAttr(
-          "input_offset",
-          builder.getI32IntegerAttr(-getPreviousOpZeroPoint(op))));
-      attrs.push_back(builder.getNamedAttr(
-          "output_offset", builder.getI32IntegerAttr(getOpZeroPoint(op))));
-    }
+
     // create op
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_LeakyReluOp>(op->getLoc(),
         getResult().getType(), ArrayRef<Value>{operands},
@@ -1636,7 +1616,6 @@ Value tpu::QuantOp::convertToTG() {
     param.push_back(builder.getNamedAttr("from", fromAttr()));
     param.push_back(builder.getNamedAttr("to", toAttr()));
     param.push_back(builder.getNamedAttr("scale", scaleAttr()));
-    param.push_back(builder.getNamedAttr("zero_point", zero_pointAttr()));
     auto paramAttr = builder.getDictionaryAttr(param);
     auto operationAttr = builder.getStringAttr(getOperationName());
     std::vector<NamedAttribute> attrs;
@@ -1653,38 +1632,11 @@ Value tpu::QuantOp::convertToTG() {
     attrs.push_back(builder.getNamedAttr("from", fromAttr()));
     attrs.push_back(builder.getNamedAttr("to", toAttr()));
     attrs.push_back(builder.getNamedAttr("scale", scaleAttr()));
-    attrs.push_back(builder.getNamedAttr("zero_point", zero_pointAttr()));
     auto newOp = OpBuilder(op).create<tpu::TG_QuantOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-}
-
-Value tpu::ReQuantOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  std::vector<Value> operands;
-  std::vector<NamedAttribute> attrs;
-  operands.push_back(input());
-
-  int input_offset = -getPreviousOpZeroPoint(op);
-  int output_offset = getOpZeroPoint(op);
-
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  attrs.push_back(builder.getNamedAttr(
-      "input_offset", builder.getI32IntegerAttr(input_offset)));
-  attrs.push_back(builder.getNamedAttr(
-      "output_offset", builder.getI32IntegerAttr(output_offset)));
-  attrs.push_back(
-      builder.getNamedAttr("qscale", qscaleAttr()));
-
-  auto newOp = OpBuilder(op).create<tpu::TG_ReQuantOp>(
-      op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-      ArrayRef<NamedAttribute>{attrs});
-  return newOp.getResult();
 }
 
 Value tpu::ReciprocalOp::convertToTG() {
@@ -3898,7 +3850,6 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
         updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_i8");
         setOpThreshold(prevOp, (quantOp.to() == "INT8" ? 128 : 256) /
                                 quantOp.scale().convertToFloat());
-        setOpZeroPoint(prevOp, (int)quantOp.zero_point());
         rewriter.replaceOp(op, {op->getOperand(0)});
       } else if (quantOp.from() == "NONE" &&
                  (quantOp.to() == "UINT16" || quantOp.to() == "INT16")) {
@@ -3915,7 +3866,6 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
           updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_i16");
         }
         setOpThreshold(prevOp, 1.0);
-        setOpZeroPoint(prevOp, 0);
         rewriter.replaceOp(op, {op->getOperand(0)});
       } else if (quantOp.from() == "NONE" && quantOp.to() == "BF16" &&
                  clExposeBf16Inputs) {
@@ -3925,7 +3875,6 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
         setOpResultType(op->getOperand(0), FloatType::getBF16(op->getContext()));
         updateInputOpNameIfNeeded(rewriter, prevOp, "_quant_bf16");
         setOpThreshold(prevOp, 1.0);
-        setOpZeroPoint(prevOp, 0);
         rewriter.replaceOp(op, {op->getOperand(0)});
       }
 
@@ -4003,8 +3952,6 @@ struct EliminateOutputQuantOpPattern: public RewritePattern {
             rewriter.getNamedAttr("to", rewriter.getStringAttr("INT8")));
         attrs.push_back(
             rewriter.getNamedAttr("scale", rewriter.getF32FloatAttr(scale)));
-        attrs.push_back(
-            rewriter.getNamedAttr("zero_point", rewriter.getI32IntegerAttr(0)));
         std::string new_name = name.str() + "_i8";
         attrs.push_back(
             rewriter.getNamedAttr("name", rewriter.getStringAttr(new_name)));
@@ -4125,7 +4072,7 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
       }
       char qscale_str[64] = {0};
       sprintf(qscale_str, "%.12f", qscale);
-      zero_point = castOp.quant().zero_point().getInt();
+      zero_point = 0;
       os << castOp.name() << " " << qscale_str << " "<< zero_point << "\n";
     } else if (auto castOp = llvm::dyn_cast<ReturnOp>(op)) {
       for (int i = 0; i < (int)op->getNumOperands(); i++) {
@@ -4252,7 +4199,6 @@ public:
         DefaultToTGPattern<tpu::PoolMaskOp>,
         DefaultToTGPattern<tpu::PReluOp>,
         DefaultToTGPattern<tpu::QuantOp>,
-        DefaultToTGPattern<tpu::ReQuantOp>,
         DefaultToTGPattern<tpu::ReluOp>,
         DefaultToTGPattern<tpu::ReorgOp>,
         DefaultToTGPattern<tpu::ReverseOp>,
