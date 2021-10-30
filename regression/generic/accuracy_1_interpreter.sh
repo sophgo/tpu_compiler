@@ -47,62 +47,6 @@ if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
   fi
 fi
 
-if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
-  echo "Eval int8_per_tensor with interpreter"
-  tpuc-opt ${NET}_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table ${CALI_TABLE} \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
-    --tpu-quant \
-    --quant-int8-per-tensor \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_int8.csv \
-    -o ${NET}_quant_int8_per_tensor.mlir
-
-  $EVAL_FUNC \
-    --mlir_file=${NET}_quant_int8_per_tensor.mlir \
-    --label_file=$LABEL_FILE \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --net_input_dims $NET_INPUT_DIMS \
-    --image_resize_dims $IMAGE_RESIZE_DIMS \
-    --raw_scale $RAW_SCALE \
-    --mean $MEAN \
-    --std $STD \
-    --input_scale $INPUT_SCALE \
-    --model_type mlir \
-    --model_channel_order $MODEL_CHANNEL_ORDER \
-    --count=$1
-fi
-
-if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
-  echo "Eval int8_rshift_only with interpreter"
-  tpuc-opt ${NET}_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table ${CALI_TABLE} \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
-    --tpu-quant \
-    --quant-int8-rshift-only \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_int8.csv \
-    -o ${NET}_quant_int8_rshift_only.mlir
-
-  $EVAL_FUNC \
-    --mlir_file=${NET}_quant_int8_rshift_only.mlir \
-    --label_file=$LABEL_FILE \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --net_input_dims $NET_INPUT_DIMS \
-    --image_resize_dims $IMAGE_RESIZE_DIMS \
-    --raw_scale $RAW_SCALE \
-    --mean $MEAN \
-    --std $STD \
-    --input_scale $INPUT_SCALE \
-    --model_type mlir \
-    --model_channel_order $MODEL_CHANNEL_ORDER \
-    --count=$1
-fi
-
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   echo "Eval int8_multiplier with interpreter"
   tpuc-opt ${NET}_fp32.mlir \

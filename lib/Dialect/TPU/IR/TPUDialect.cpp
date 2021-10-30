@@ -389,8 +389,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SwapChannelOp)
           tpu::QuantParam::get( \
               Builder(getOperation()->getContext()).getStringAttr(mode), \
               quant().param_type(), \
-              quant().threshold_max(), \
-              quant().threshold_min(), \
+              quant().threshold(), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -404,8 +403,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SwapChannelOp)
           tpu::QuantParam::get( \
               quant().mode(), \
               Builder(getOperation()->getContext()).getStringAttr(type), \
-              quant().threshold_max(), \
-              quant().threshold_min(), \
+              quant().threshold(), \
               getOperation()->getContext())); \
       return success(); \
     }
@@ -413,7 +411,7 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SwapChannelOp)
 // quant().threshold()
 #define DECLARE_GET_OP_QUANT_THRESHOLD_METHOD(OP) \
     float OP::getOpQuantThreshold() { \
-      return quant().threshold_max().getValue().convertToFloat(); \
+      return quant().threshold().getValue().convertToFloat(); \
     }
 #define DECLARE_SET_OP_QUANT_THRESHOLD_METHOD(OP) \
     LogicalResult OP::setOpQuantThreshold(float threshold) { \
@@ -422,7 +420,6 @@ DECLARE_ALL_COMMON_INTERFACE_METHODS(TL_LG_BF16_SwapChannelOp)
               quant().mode(), \
               quant().param_type(), \
               Builder(getOperation()->getContext()).getF32FloatAttr(threshold), \
-              quant().threshold_min(), \
               getOperation()->getContext())); \
       return success(); \
     }

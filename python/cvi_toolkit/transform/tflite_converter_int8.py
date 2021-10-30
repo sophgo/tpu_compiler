@@ -433,7 +433,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': False,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I8",
-            'threshold_max': threshold,
+            'threshold': threshold,
             'threshold_min': 0,
             'zero_point': output_offset,
         }
@@ -576,7 +576,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': True,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I32",
-            'threshold_max': threshold_y,
+            'threshold': threshold_y,
             'threshold_min': 0,
             'zero_point': output_offset,
         }
@@ -808,7 +808,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': True,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I32",
-            'threshold_max': 0,
+            'threshold': 0,
             'threshold_min': 0,
             'zero_point': output_offset
         }
@@ -856,7 +856,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': False,
             'mode': TPU_MODE.INT8,
             'param_type': "NONE",
-            'threshold_max': 0,
+            'threshold': 0,
             'threshold_min': 0,
             'zero_point': output_offset,
         }
@@ -1092,7 +1092,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': True,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I32",
-            'threshold_max': 0,
+            'threshold': 0,
             'threshold_min': 0,
             'zero_point': output_offset
         }
@@ -1209,7 +1209,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': False,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I32",
-            'threshold_max': 0,
+            'threshold': 0,
             'threshold_min': 0,
             'zero_point': output_offset,
         }
@@ -1262,7 +1262,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': False,
             'mode': TPU_MODE.INT8,
             'param_type': "NONE",
-            'threshold_max': 0,
+            'threshold': 0,
             'threshold_min': 0,
             'zero_point': zero_point_y,
         }
@@ -1376,7 +1376,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': True,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I32",
-            'threshold_max': 0,
+            'threshold': 0,
             'threshold_min': 0,
             'zero_point': output_offset,
         }
@@ -1460,7 +1460,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': False,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I8",
-            'threshold_max': 0,
+            'threshold': 0,
             'threshold_min': 0,
             'zero_point': output_offset,
         }
@@ -1519,7 +1519,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': False,
             'mode': TPU_MODE.INT8,
             'param_type': "NONE",
-            'threshold_max': threshold_y,
+            'threshold': threshold_y,
             'threshold_min': 0,
             'zero_point': output_offset
         }
@@ -1719,7 +1719,7 @@ class TFLiteConverter(BaseConverter):
             'is_perchannel': True,
             'mode': TPU_MODE.INT8,
             'param_type': "RSHIFT_AND_M_I32",
-            'threshold_max': threshold,
+            'threshold': threshold,
             'threshold_min': 0,
             'zero_point': output_offset,
         }

@@ -53,34 +53,6 @@ else
     --count=$1
 fi
 
-if [ $DO_QUANT_INT8_PER_TENSOR -eq 1 ]; then
-  $EVAL_FUNC \
-      --model=${NET}_quant_int8_per_tensor.mlir \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --obj_threshold 0.005 \
-      --nms_threshold 0.45 \
-      --dataset=$DATASET_PATH/coco/val2017 \
-      --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
-      --result_json=result_416.json \
-      --spp_net=$SPP_NET \
-      --tiny=$TINY \
-      --count=$1
-fi
-
-if [ $DO_QUANT_INT8_RFHIFT_ONLY -eq 1 ]; then
-  $EVAL_FUNC \
-      --model=${NET}_quant_int8_rshift_only.mlir \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --obj_threshold 0.005 \
-      --nms_threshold 0.45 \
-      --dataset=$DATASET_PATH/coco/val2017 \
-      --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
-      --result_json=result_416.json \
-      --spp_net=$SPP_NET \
-      --tiny=$TINY \
-      --count=$1
-fi
-
 if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
   if [ $DO_ACCURACY_FUSED_PREPROCESS -eq 1 ]; then
     echo "$0 DO_ACCURACY_FUSED_PREPROCESS under refactor yet, exit"

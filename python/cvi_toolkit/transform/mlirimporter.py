@@ -179,8 +179,7 @@ class MLIRImporter(object):
             quant_param = {
                 'mode': StringAttr.get("NONE"),
                 'param_type': StringAttr.get("NONE"),
-                'threshold_max': FloatAttr.get_f32(0),
-                'threshold_min': FloatAttr.get_f32(0),
+                'threshold': FloatAttr.get_f32(0),
             }
             self.quant_param = DictAttr.get(quant_param)
             self.input_type = input_type
@@ -193,26 +192,23 @@ class MLIRImporter(object):
         self.ctx.__exit__(None, None, None)
 
     def _create_int8_quant_attr(self, mode=TPU_MODE.INT8.value,
-                                param_type="NONE", threshold_max=0, threshold_min=0):
+                                param_type="NONE", threshold=0):
         quant_param = {
             'mode': StringAttr.get(mode),
             'param_type':  StringAttr.get(param_type),
-            'threshold_max': FloatAttr.get_f32(threshold_max),
-            'threshold_min': FloatAttr.get_f32(threshold_min),
+            'threshold': FloatAttr.get_f32(threshold),
         }
         return quant_param
 
     def check_int8_param(self, **kargs):
         checkKey(kargs, 'param_type')
-        checkKey(kargs, 'threshold_max')
-        checkKey(kargs, 'threshold_min')
+        checkKey(kargs, 'threshold')
 
     def create_int8_quant_attr(self, **kargs):
         self.check_int8_param(**kargs)
         param = self._create_int8_quant_attr(
             param_type=kargs['param_type'],
-            threshold_max=kargs['threshold_max'],
-            threshold_min=kargs['threshold_min'],
+            threshold=kargs['threshold'],
         )
 
         return DictAttr.get(param)
@@ -279,8 +275,7 @@ class MLIRImporter(object):
         quant_param = {
             'mode': StringAttr.get("NONE"),
             'param_type': StringAttr.get("NONE"),
-            'threshold_max': FloatAttr.get_f32(0),
-            'threshold_min': FloatAttr.get_f32(0),
+            'threshold': FloatAttr.get_f32(0),
         }
 
         attributes = {

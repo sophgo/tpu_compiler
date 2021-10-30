@@ -4063,7 +4063,7 @@ static void storeQscaleTableToFile(FuncOp fn, MLIRContext *ctx) {
     if (auto castOp = llvm::dyn_cast<tpu::InputOp>(op)) {
       qscale = 1.0f;
       float threshold =
-          (float)castOp.quant().threshold_max().getValue().convertToFloat();
+          (float)castOp.quant().threshold().getValue().convertToFloat();
       if (threshold != 0) {
         auto elementType = castOp.getResult().getType().template
                         cast<TensorType>().getElementType();

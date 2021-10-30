@@ -340,7 +340,6 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
       builder.getStringAttr("NONE"),
       builder.getStringAttr("NONE"),
       builder.getF32FloatAttr(0.0),
-      builder.getF32FloatAttr(0.0),
       builder.getContext());
 }
 
