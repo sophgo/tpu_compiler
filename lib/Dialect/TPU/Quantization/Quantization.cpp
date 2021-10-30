@@ -53,7 +53,7 @@ static llvm::cl::OptionCategory clOptionsCategory("TPU quantization options");
 static llvm::cl::opt<std::string> clQuantMode(
     "quant-mode",
     llvm::cl::desc("Quant mode for all TPU ops:BF16/INT8/WEIGHT_INT8"),
-    llvm::cl::init("int8"),
+    llvm::cl::init("INT8"),
     llvm::cl::cat(clOptionsCategory));
 
 static llvm::cl::opt<bool> clQuantMixSoftmax(
