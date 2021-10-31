@@ -299,11 +299,12 @@ class Mlir2Graph:
 if __name__ == '__main__':
     declare_toolchain_version()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image", required=True, help="input image for inference")
+    parser.add_argument("--image", required=True, help="input image/npz/npy file for inference, "
+                       "if has more than one input images, join images with semicolon")
     parser.add_argument("--model_def", help="model definition file.")
     parser.add_argument("--model_data", help="caffemodel, only for caffe model")
     parser.add_argument("--model_name", help="model name")
-    parser.add_argument("--model_type", choices=['caffe', 'onnx', 'tensorflow'], help="model_type")
+    parser.add_argument("--model_type", choices=['caffe', 'onnx'], help="model_type")
     parser.add_argument("--batch_size", type=int, default=0, help="batch size, if set 0, will use batch size in model")
     parser.add_argument("--tolerance", default='0.99,0.99,0.98',
                         help="minimum similarity tolerance to model transform")

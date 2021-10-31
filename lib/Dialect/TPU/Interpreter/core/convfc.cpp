@@ -19,16 +19,16 @@ ConvFcOpKernel::ConvFcOpKernel(Operation &op, value_map_t &valueMapping,
   N = shape[1];
   auto input_shape = getTensorShape(castOp.input());
   K = input_shape[1];
-  weight_int8 = false;
+  activation_bf16 = false;
   if (datatype == DataType::BF16) {
-    if (getOpQuantParamType(&op) == "WEIGHT_INT8") {
-      weight_int8 = true;
+    if (getOpQuantParamType(&op) == "ACTIVATION_BF16") {
+      activation_bf16 = true;
     }
   }
 }
 
 void ConvFcOpKernel::invoke() {
-  if (weight_int8) {
+  if (activation_bf16) {
     int filter_size = filter_data->size();
     std::vector<float> new_filter(filter_size);
     for (int i = 0; i < filter_size; i++) {

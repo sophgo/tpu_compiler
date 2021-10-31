@@ -9,8 +9,15 @@
 #include "llvm/ADT/TypeSwitch.h"
 #include "llvm/Support/raw_ostream.h"
 #include <numeric>
+#include <cctype>
 
 namespace mlir {
+
+std::string toupper(std::string str) {
+  std::transform(str.begin(), str.end(), str.begin(),
+                 [](unsigned char ch) { return std::toupper(ch); });
+  return std::move(str);
+}
 
 void convertAttributesToOpParam(const DictionaryAttr &attrs, cvi::OpParam &param) {
   auto getBoolValue = [](const Attribute& attr) {

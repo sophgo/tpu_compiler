@@ -303,9 +303,9 @@ cp -rf $MLIR_PATH/tpuc/regression/data/images .
 | keep_aspect_ratio   | 在Resize时是否保持长宽比，默认为false；设置true时会对不足部分补0 |
 | crop_method         | 可支持中心和右侧裁剪，默认为center中心裁剪  |
 | raw_scale           | 原始输入图像数据旋转，默认为255.0 |
-| mean                | Per_Channel图像的均值，默认为0.0,0.0,0.0  |
-| std                 | Per_Channel图像的标准值，默认为1.0,1.0,1.0  |
-| input_scale         | 支持多输入特征旋转，默认为1.0 |
+| mean                | 图像每个通道的均值，默认为0.0,0.0,0.0  |
+| std                 | 图像每个通道的标准值，默认为1.0,1.0,1.0  |
+| input_scale         | 图像的每个像素比值，默认为1.0 |
 | model_channel_order | 支持bgr，rgb，rgba多种通道的顺序，默认为bgr |
 | pixel_format        | 支持模型的输出格式，默认为None  |
 | aligned             | 支持图像格式是否为对齐，默认为Flase  |
@@ -387,26 +387,24 @@ model_deploy.py的相关参数说明如下：
 | -------------------     | ----------------------------------------------------------------|
 | model_name              | 模型名称                                                         |
 | mlir                    | mlir文件                                                        |
-| calibration_table       | int8量化文件                                                    |
-| mix_precision_table     | 混精度bf16量化文件                                               |
-| all_bf16                | 量化为bf16                                                      |
-| tolerance               | 表示 MLIR int8 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度   |
+| calibration_table       | 指定calibration文件路径                                          |
+| mix_precision_table     | 指定混精度文件路径                                                |
+| quantize                | 指定默认量化方式，BF16/ACTIVATION_BF16/INT8                       |
+| tolerance               | 表示 MLIR 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度          |
 | excepts                 | 支持data,prob等参数，默认为-                                      |
 | correctnetss            | 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度          |
 | chip                    | 支持平台，可以为cv183x或cv182x                                    |
 | fuse_preprocess         | 增加预处理参数在模型推理之前                                       |
 | pixel_format            | 像素格式，默认为BGR_PLANAR                                        |
 | aligned_input           | 支持输入帧是否宽高对齐，默认为flase                                |
-| dequant_results_to_fp32 | 输出结果为fp32类型                                                |
-| results_type            | 支持int8/bf16/fp32多种输出类型，若参数为keep，使用最后一层输出类型   |
-| expose_bf16_inputs      | 支持bf16输入                                                     |
-| compress_weight         | 支持生成cvimodel时，对weight文件压缩                               |
+| inputs_type             | 指定输入类型(AUTO/FP32/INT8/BF16，如果是AUTO，当第一层是INT8时用INT8，BF16时用FP32 |
+| outputs_type            | 指定输出类型(AUTO/FP32/INT8/BF16，如果是AUTO，当最后层是INT8时用INT8，BF16时用FP32   |
 | merge_weight            | 支持生成cvimodel之前，将weight文件合成到weight bin文件中            |
-| tg_op_divide            | 支持保存tensor到内存中，默认为false                                 |
+| tg_op_divide            | 支持对op进行切分，减少ION内存的使用但性能会下降，默认为false            |
 | model_version           | 支持选择模型的版本，默认为latest                                    |
-| custom_op_plugin        | 支持客户的so文件                                                   |
-| image                   | 表示输入图片的路径                                                 |
-| cvimodel                | 表示输出的cvimodel文件                                            |
+| custom_op_plugin        | 支持用户自定义op的动态库文件                                        |
+| image                   | 用于测试的输入文件，可以是图片、npz、npy，如果有多个输入，用,隔开         |
+| cvimodel                | 表示输出的cvimodel文件名                                         |
 | debug                   | 调试选项，保存所有的临时文件进行调试                                |
 
 模型根据calibration_tabel进行全int8量化，并且生成cvimodel,执行如下shell:

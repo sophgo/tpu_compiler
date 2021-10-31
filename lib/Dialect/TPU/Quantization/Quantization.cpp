@@ -42,7 +42,6 @@
 #include <fstream>
 #include "tpuc/MachineInfo.h"
 #include <regex>
-#include <cctype>
 
 #define DEBUG_TYPE "quantization"
 
@@ -52,7 +51,7 @@ static llvm::cl::OptionCategory clOptionsCategory("TPU quantization options");
 
 static llvm::cl::opt<std::string> clQuantMode(
     "quant-mode",
-    llvm::cl::desc("Quant mode for all TPU ops:BF16/INT8/WEIGHT_INT8"),
+    llvm::cl::desc("Quant mode for all TPU ops:BF16/INT8/ACTIVATION_BF16"),
     llvm::cl::init("INT8"),
     llvm::cl::cat(clOptionsCategory));
 
@@ -70,15 +69,9 @@ static llvm::cl::opt<std::string> clQuantLayerByFile(
 typedef enum {
   QUANT_INT8,
   QUANT_BF16,
-  QUANT_WEIGHT_INT8,
+  QUANT_ACTIVATION_BF16,
   QUANT_UNKNOWN,
 } quant_mode_t;
-
-std::string toupper(std::string str) {
-  std::transform(str.begin(), str.end(), str.begin(),
-                 [](unsigned char ch) { return toupper(ch); });
-  return std::move(str);
-}
 
 static quant_mode_t qmode(const std::string &mode) {
   std::string tmp = toupper(mode);
@@ -88,8 +81,8 @@ static quant_mode_t qmode(const std::string &mode) {
   if (tmp == "BF16") {
     return QUANT_BF16;
   }
-  if (tmp == "WEIGHT_INT8") {
-    return QUANT_WEIGHT_INT8;
+  if (tmp == "ACTIVATION_BF16") {
+    return QUANT_ACTIVATION_BF16;
   }
   llvm::errs() << "Error, unknown quant mode: " << mode << "\n";
   assert(false);
@@ -588,7 +581,7 @@ static void quant_for_special(Operation *op) {
     return;
   }
   setOpQuant(op, "BF16");
-  setOpQuantParamType(op, "WEIGHT_INT8");
+  setOpQuantParamType(op, "ACTIVATION_BF16");
 }
 
 static void quant_by_layers(Operation *op) {
@@ -612,9 +605,9 @@ static void quant_by_layers(Operation *op) {
   case QUANT_BF16:
     setOpQuant(op, "BF16");
     break;
-  case QUANT_WEIGHT_INT8:
+  case QUANT_ACTIVATION_BF16:
     setOpQuant(op, "BF16");
-    setOpQuantParamType(op, "WEIGHT_INT8");
+    setOpQuantParamType(op, "ACTIVATION_BF16");
     break;
   default:
     llvm_unreachable("unknown mode");
@@ -629,9 +622,9 @@ static void quant_by_default(Operation *op) {
   case QUANT_BF16:
     setOpQuant(op, "BF16");
     break;
-  case QUANT_WEIGHT_INT8:
+  case QUANT_ACTIVATION_BF16:
     setOpQuant(op, "BF16");
-    setOpQuantParamType(op, "WEIGHT_INT8");
+    setOpQuantParamType(op, "ACTIVATION_BF16");
     break;
   default:
     llvm_unreachable("unknown mode");

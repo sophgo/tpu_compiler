@@ -20,7 +20,7 @@ private:
   SyncedData quant_scale;
   SyncedData quant_zeropoint;
   int M, K, N;
-  bool weight_int8;
+  bool activation_bf16;
 };
 } // namespace mlir
 

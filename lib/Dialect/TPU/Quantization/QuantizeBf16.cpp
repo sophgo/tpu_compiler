@@ -125,14 +125,14 @@ static void quantizeWeightInt8Op(Operation *op, Value v, TensorFile *wTF,
       quant_zeropoint->at(k) = BF16(0.0f);
     } else {
       zeropoint = (max + min) / 2;
-      scale = 127.0 / (max - zeropoint);
+      scale = 128.0 / (max - zeropoint);
       for (int o = 0; o < outer_size; o++) {
         for (int i = 0; i < inner_size; i++) {
           int index = o * K * inner_size + k * inner_size + i;
           new_weight->at(index) = INT8((weight->at(index) - zeropoint) * scale);
         }
       }
-      quant_scale->at(k) = BF16((max - zeropoint) / 127.0f);
+      quant_scale->at(k) = BF16((max - zeropoint) / 128.0f);
       quant_zeropoint->at(k) = BF16(zeropoint);
     }
   }
@@ -383,7 +383,7 @@ LogicalResult tpu::ConvFcOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   TensorFile *wTF = getWeightTensorFile(op);
-  if (getOpQuantParamType() == "WEIGHT_INT8") {
+  if (getOpQuantParamType() == "ACTIVATION_BF16") {
     if (isa<tpu::LoadWeightOp>(filter().getDefiningOp())) {
       quantizeWeightInt8Op(op, filter(), wTF, -1, 2, 3);
     } else {
@@ -403,7 +403,7 @@ LogicalResult tpu::EmbeddingOp::quantizeBf16() {
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
   TensorFile *wTF = getWeightTensorFile(op);
-  if (getOpQuantParamType() == "WEIGHT_INT8") {
+  if (getOpQuantParamType() == "ACTIVATION_BF16") {
     if (isa<tpu::LoadWeightOp>(table().getDefiningOp())) {
       quantizeWeightInt8Op(op, table(), wTF, -1, 2, 3);
     } else {

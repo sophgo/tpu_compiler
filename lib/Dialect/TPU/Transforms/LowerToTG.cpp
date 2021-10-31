@@ -43,15 +43,15 @@
 
 #define DEBUG_TYPE "convert_to_tg"
 
-llvm::cl::opt<std::string> clResultsType(
-    "results-type",
-    llvm::cl::desc("set result type: int8/bf16/fp32/keep; if keep, will use last layer type"),
-    llvm::cl::init("fp32"));
+llvm::cl::opt<std::string> clInputsType(
+    "inputs-type",
+    llvm::cl::desc("set result type: AUTO/FP32/INT8/BF16; if AUTO, use INT8 if first layer is INT8, FP32 if BF16"),
+    llvm::cl::init("AUTO"));
 
-llvm::cl::opt<bool> clExposeBf16Inputs(
-    "expose-bf16-inputs",
-    llvm::cl::desc("expose bf16 inputs without quantied from fp32"),
-    llvm::cl::init(false));
+llvm::cl::opt<std::string> clOutputsType(
+    "outputs-type",
+    llvm::cl::desc("set result type: AUTO/FP32/INT8/BF16; if AUTO, use INT8 if last layer is INT8, FP32 if BF16"),
+    llvm::cl::init("FP32"));
 
 namespace mlir {
 
@@ -823,7 +823,7 @@ Value tpu::EmbeddingOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
   attrs.push_back(builder.getNamedAttr("param", paramAttr));
   auto type = castOp.getResult().getType();
-  if (getOpQuant() == "BF16" && getOpQuantParamType() == "WEIGHT_INT8") {
+  if (getOpQuant() == "BF16" && getOpQuantParamType() == "ACTIVATION_BF16") {
     std::string name_i8 = name().str() + "_i8";
     attrs.push_back(
         builder.getNamedAttr("name", builder.getStringAttr(name_i8)));
@@ -3823,6 +3823,7 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
       return type.getElementType();
     };
     auto fn = op->getParentOfType<FuncOp>();
+    auto inputs_type = toupper(clInputsType);
     assert(fn);
     // change the argType of FuncOp
     if (isa<tpu::InputOp>(prevOp) ||
@@ -3838,7 +3839,7 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
         setOpResultType(prevOp->getResult(0), FloatType::getBF16(op->getContext()));
         setOpResultType(op->getOperand(0), FloatType::getBF16(op->getContext()));
         quantOp->setAttr("from", rewriter.getStringAttr("BF16"));
-      } else if (quantOp.from() == "NONE" &&
+      } else if ((inputs_type == "AUTO" || inputs_type == "INT8") && quantOp.from() == "NONE" &&
                  (quantOp.to() == "INT8" || quantOp.to() == "UINT8")) {
         // remove quantOp and change argType
         // and inputOp's type to int8
@@ -3868,7 +3869,7 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
         setOpThreshold(prevOp, 1.0);
         rewriter.replaceOp(op, {op->getOperand(0)});
       } else if (quantOp.from() == "NONE" && quantOp.to() == "BF16" &&
-                 clExposeBf16Inputs) {
+                 inputs_type == "BF16") {
         auto argument = prevOp->getOperand(0);
         setOpResultType(argument, FloatType::getBF16(op->getContext()));
         setOpResultType(prevOp->getResult(0), FloatType::getBF16(op->getContext()));
@@ -3925,7 +3926,8 @@ struct EliminateOutputQuantOpPattern: public RewritePattern {
     if (!isa<ReturnOp>(nextOp)) {
       return failure();
     }
-    if (clResultsType == "fp32") {
+    auto outputs_type = toupper(clOutputsType);
+    if (outputs_type == "FP32") {
       return failure();
     }
     auto fn = op->getParentOfType<FuncOp>();
@@ -3935,13 +3937,12 @@ struct EliminateOutputQuantOpPattern: public RewritePattern {
     auto name = getOpName(prevOp);
     auto threshold = getOpThreshold(prevOp);
     bool fixed = false;
-    if (clResultsType == "keep") {
-      if ((quantOp.from() == "INT8" && quantOp.to() == "NONE") ||
-          (quantOp.from() == "BF16" && quantOp.to() == "NONE")) {
+    if (outputs_type == "AUTO") {
+      if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
         rewriter.replaceOp(op, {op->getOperand(0)});
         fixed = true;
       }
-    } else if (clResultsType == "int8") {
+    } else if (outputs_type == "INT8") {
       if (quantOp.from() == "BF16" && quantOp.to() == "NONE" &&
           quantOp.scale().convertToFloat() == 1.0f) {
         auto scale = 128 / threshold;
@@ -3963,6 +3964,14 @@ struct EliminateOutputQuantOpPattern: public RewritePattern {
         rewriter.replaceOpWithNewOp<tpu::QuantOp>(
             op, type, ArrayRef<Value>{operands},
             ArrayRef<NamedAttribute>{attrs});
+        fixed = true;
+      } else if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
+        rewriter.replaceOp(op, {op->getOperand(0)});
+        fixed = true;
+      }
+    } else if (outputs_type == "BF16") {
+      if (quantOp.from() == "BF16" && quantOp.to() == "NONE") {
+        rewriter.replaceOp(op, {op->getOperand(0)});
         fixed = true;
       }
     }

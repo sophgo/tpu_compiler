@@ -21,10 +21,10 @@ EmbeddingOpKernel::EmbeddingOpKernel(Operation &op, value_map_t &valueMapping,
   scale_data = this->opdTensors[2];
   zeropoint_data = this->opdTensors[3];
   output_data = this->resTensor;
-  weight_int8 = false;
+  activation_bf16 = false;
   if (datatype == DataType::BF16) {
-    if (getOpQuantParamType(&op) == "WEIGHT_INT8") {
-      weight_int8 = true;
+    if (getOpQuantParamType(&op) == "ACTIVATION_BF16") {
+      activation_bf16 = true;
     }
   }
 }
@@ -42,7 +42,7 @@ void EmbeddingOpKernel::invoke() {
     auto index = (size_t)input[i];
     size_t table_offset = (size_t)index * feature_dim;
     auto out_offset = i * feature_dim;
-    if (weight_int8 == false) {
+    if (activation_bf16 == false) {
       memcpy(output + out_offset, table + table_offset,
              feature_dim * sizeof(float));
     } else {

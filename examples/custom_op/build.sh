@@ -33,7 +33,7 @@ $DIR/model/mymodel.py \
 model_deploy.py \
     --model_name fake \
     --mlir fake.mlir \
-    --all_bf16 \
+    --quantize BF16 \
     --chip cv183x \
     --image input.npz \
     --tolerance 0.9,0.9,0.7 \

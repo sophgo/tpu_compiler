@@ -82,32 +82,23 @@ def mlir_add_preprocess(quanted_mlir, new_mlir, pixel_format, aligned_input=Fals
     return ret.returncode
 
 def mlir_to_cvimodel(quanted_model, cvimodel,
-                     dequant_results_to_fp32=True,
-                     results_type="",
-                     expose_bf16_inputs=False,
-                     compress_weight=True,
+                     inputs_type="AUTO",
+                     outputs_type="FP32",
                      append_weight=False,
                      tg_op_divide=False,
                      model_version="latest",
                      custom_op_plugin=""):
     cmd = ["mlir_to_cvimodel.sh",
            "-i", quanted_model, "-o", cvimodel,
-           "--expose-bf16-inputs",
-           str(expose_bf16_inputs).lower(),
-           "--compress-weight",
-           str(compress_weight).lower(),
-           "--append-weight",
-           str(append_weight).lower(),
-           "--tg-op-divide",
-           str(tg_op_divide).lower()]
+           "--inputs-type",str(inputs_type).upper(),
+           "--outputs-type",str(outputs_type).upper(),
+           "--append-weight", str(append_weight).lower(),
+           "--tg-op-divide", str(tg_op_divide).lower()]
     if model_version:
         cmd.extend(["--model-version",str(model_version).lower()])
     if custom_op_plugin:
         cmd.extend(["--custom-op-plugin",custom_op_plugin])
-    if results_type:
-        cmd.extend(["--results-type",str(results_type).lower()])
-    else:
-        cmd.extend(["--dequant-results-to-fp32", str(dequant_results_to_fp32).lower()])
+
     logger.info(" ".join(cmd))
     ret = subprocess.run(cmd)
     checkReturnValue(ret, "mlir_to_cvimodel")

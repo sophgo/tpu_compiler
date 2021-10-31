@@ -134,16 +134,11 @@ function gen_model_for_merge() {
       --calibration_table ${CALI_TABLE}\
       --chip ${chip} \
       --image ${IMAGE_PATH}\
+      --merge_weight \
       --tolerance ${TOLERANCE_INT8_MULTIPLER}\
       --correctness 0.99,0.99,0.99\
       --excepts ${EXCEPTS}\
       --cvimodel $name"
-  if [ $step -eq 1 ]; then
-    cmd=${cmd}" --compress_weight false"
-  elif [ $step -eq 2 ]; then
-    cmd=${cmd}" --compress_weight false"
-    cmd=${cmd}" --merge_weight"
-  fi
   eval $cmd
 }
 

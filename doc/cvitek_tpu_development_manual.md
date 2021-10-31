@@ -1425,7 +1425,6 @@ run_calibration.py <model file> [option]
   | --aligned_input \<bool\>             | preprocess所接受的输入图片是否为对齐格式, 默认值为false |
   | --dequant_outputs_to_fp32 \<bool\>   | 是否将模型的输出反量化为fp32格式, 默认值为true；false时bf16模型产生bf16输出，int8模型产生int8输出 |
   | --expose_bf16_inputs <bool\> | 对于bf16输入是否不转换成fp32输入，默认false，表示bf16默认转换成fp32输入 |
-  | --compress_weight \<bool\>           | 是否对权重进行压缩，默认值为true|
   | --merge_weight                       | 与同一个工作目前中生成的模型共享权重，用于后续合并同一个模型依据不同batch或分辨率生成的cvimodel. 打开此选项时，需要将compress_weight设置为false|
   | --image \<image_file\>               | 用于验证精度的参考输入图片 |
   | --cvimodel \<out_cvimodel\>          | 输出的cvimodel名 |

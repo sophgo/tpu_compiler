@@ -63,6 +63,8 @@ Operation* getNextOp(Operation *op);
 
 void setOpResultType(Value value, Type eltType);
 
+std::string toupper(std::string str);
+
 LogicalResult setOpBufferReused(Operation *op, bool flag);
 
 tpu::QuantParam getDefaultQuantParam(Builder &builder);

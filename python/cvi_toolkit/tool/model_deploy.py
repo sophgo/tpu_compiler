@@ -132,19 +132,15 @@ class DeployTool:
                                  excepts=excepts)
         check_return_value(ret == 0, "accuracy validation of quantized model failed")
 
-
-    def build_cvimodel(self, cvimodel, dequant_results_to_fp32=True, results_type="",
-                       expose_bf16_inputs=False, compress_weight=True,
-                       append_weight=False, tg_op_divide=False, model_version="", custom_op_plugin=""):
+    def build_cvimodel(self, cvimodel, inputs_type="AUTO", outputs_type="FP32",
+                       append_weight=False, tg_op_divide=False,
+                       model_version="", custom_op_plugin=""):
         IntermediateFile('_', 'lower_opt.mlir', False)
         IntermediateFile('_', 'final.mlir', False)
         if model_version == "":
             model_version = "latest"
-        if append_weight:
-            compress_weight=False
-        ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel,
-                               dequant_results_to_fp32, results_type, expose_bf16_inputs,
-                               compress_weight, append_weight, tg_op_divide, model_version, custom_op_plugin)
+        ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel, inputs_type,
+                               outputs_type, append_weight, tg_op_divide, model_version, custom_op_plugin)
         check_return_value(ret == 0, "failed to generate cvimodel")
 
     def validate_cvimodel(self, cvimodel, correctness, excepts):
@@ -176,6 +172,10 @@ class DeployTool:
 def str2bool(v):
     return v.lower() in ("yes", "true", "1")
 
+def deprecated_option(cond, msg):
+    if cond:
+        raise RuntimeError(msg)
+
 if __name__ == '__main__':
     declare_toolchain_version()
     parser = argparse.ArgumentParser()
@@ -183,9 +183,7 @@ if __name__ == '__main__':
     parser.add_argument("--mlir", required=True, help="optimized mlir fp32 model")
     parser.add_argument("--calibration_table", help="calibration table for int8 quantization")
     parser.add_argument("--mix_precision_table", help="table of OPs that quantized to specific mode")
-    parser.add_argument("--all_bf16", action='store_true', help="DEPRECATED, please use quantize")
-    parser.add_argument("--quantize", default="",
-                        help="set qauntization type: BF16/INT8/WEIGHT_INT8")
+    parser.add_argument("--quantize", default='', help="set qauntization type: BF16/INT8/ACTIVATION_BF16")
     parser.add_argument("--tolerance", required=True, help="tolerance")
     parser.add_argument("--excepts", default='-', help="excepts")
     parser.add_argument("--correctness", default='0.99,0.99,0.98', help="correctness")
@@ -196,14 +194,10 @@ if __name__ == '__main__':
                         help="pixel format of input frame to the model")
     parser.add_argument("--aligned_input", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
-    parser.add_argument("--dequant_results_to_fp32", type=str2bool, default=True,
-                        help="DEPRECATED, please use results_type")
-    parser.add_argument("--results_type", default="",
-                        help="set results type:int8/bf16/fp32/keep; if set keep, will use last layer type")
-    parser.add_argument("--expose_bf16_inputs", type=str2bool, default=False,
-                        help="if expose bf16 inputs without quantied from fp32")
-    parser.add_argument("--compress_weight", type=str2bool, default=True,
-                        help="if compress weight while generate cvimodel")
+    parser.add_argument("--inputs_type", default="AUTO",
+                        help="set inputs type:AUTO/FP32/INT8/BF16; if AUTO, use INT8 if input layer is INT8, use FP32 if BF16")
+    parser.add_argument("--outputs_type", default="FP32",
+                        help="set outputs type:AUTO/FP32/INT8/BF16; if AUTO, use INT8 if output layer is INT8, use FP32 if BF16")
     parser.add_argument("--merge_weight", action='store_true',
                         help="merge weights into one weight binary wight previous generated cvimodel")
     parser.add_argument("--tg_op_divide", type=str2bool, default=False,
@@ -216,7 +210,18 @@ if __name__ == '__main__':
                        "if has more than one input images, join images with semicolon")
     parser.add_argument("--cvimodel", required=True, help='output cvimodel')
     parser.add_argument("--debug", action='store_true', help='to keep all intermediate files for debug')
+    #### DEPRECATED
+    parser.add_argument("--all_bf16", action='store_true', help="DEPRECATED, please use --quantize BF16")
+    parser.add_argument("--dequant_results_to_fp32", action='store_true', help="DEPRECATED, please use --outputs_type FP32")
+    parser.add_argument("--expose_bf16_inputs", action='store_true', help="DEPRECATED, please use --inputs_type BF16")
+    parser.add_argument("--compress_weight", action='store_true', help="DEPRECATED, no need any more")
     args = parser.parse_args()
+
+    ##check options DEPRECATED
+    deprecated_option(args.dequant_results_to_fp32, "DEPRECATED, please use --outputs_type FP32")
+    deprecated_option(args.expose_bf16_inputs, "DEPRECATED, please use --inputs_type BF16")
+    deprecated_option(args.compress_weight, "DEPRECATED, no need any more")
+    #deprecated_option(args.all_bf16, "DEPRECATED, please use --quantize BF16")
 
     prefix = args.model_name
     tool = DeployTool(args.mlir, prefix)
@@ -234,8 +239,7 @@ if __name__ == '__main__':
     tool.validate_quantized_model(args.tolerance, args.excepts, images, args.custom_op_plugin)
 
     # generate cvimodel and validate accuracy
-    tool.build_cvimodel(args.cvimodel, args.dequant_results_to_fp32, args.results_type,
-                        args.expose_bf16_inputs, args.compress_weight,
+    tool.build_cvimodel(args.cvimodel, args.inputs_type, args.outputs_type,
                         args.merge_weight, args.tg_op_divide, args.model_version, args.custom_op_plugin)
     tool.validate_cvimodel(args.cvimodel, args.correctness, args.excepts)
 
