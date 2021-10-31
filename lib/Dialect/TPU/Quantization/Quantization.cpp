@@ -74,9 +74,14 @@ typedef enum {
   QUANT_UNKNOWN,
 } quant_mode_t;
 
+std::string toupper(std::string str) {
+  std::transform(str.begin(), str.end(), str.begin(),
+                 [](unsigned char ch) { return toupper(ch); });
+  return std::move(str);
+}
+
 static quant_mode_t qmode(const std::string &mode) {
-  std::string tmp;
-  std::transform(mode.begin(), mode.end(), tmp.begin(), toupper);
+  std::string tmp = toupper(mode);
   if (tmp == "INT8") {
     return QUANT_INT8;
   }
@@ -86,6 +91,8 @@ static quant_mode_t qmode(const std::string &mode) {
   if (tmp == "WEIGHT_INT8") {
     return QUANT_WEIGHT_INT8;
   }
+  llvm::errs() << "Error, unknown quant mode: " << mode << "\n";
+  assert(false);
   return QUANT_UNKNOWN;
 }
 
@@ -522,12 +529,7 @@ static void init_quant_layers() {
       iss.ignore(256, ' ');
       iss >> name;
       iss >> mode;
-      auto m = qmode(mode);
-      if (m == QUANT_UNKNOWN) {
-        llvm::errs() << "Error, mix quant file [" << line << "]\n";
-        assert(false);
-      }
-      gQuantLayers[name] = m;
+      gQuantLayers[name] = qmode(mode);
       continue;
     }
     if (std::regex_match(line, pattern1)) {
@@ -651,16 +653,7 @@ public:
 
     // read mix precision from file, seperated by \n
     init_quant_layers();
-    if (clQuantMode == "INT8") {
-      gDefaultQuant = QUANT_INT8;
-    } else if(clQuantMode == "BF16") {
-      gDefaultQuant = QUANT_BF16;
-    } else if (clQuantMode == "WEIGHT_INT8") {
-      gDefaultQuant = QUANT_WEIGHT_INT8;
-    } else {
-      llvm::errs() << "Error, unknown default quant mode [" << clQuantMode << "]\n";
-      assert(false);
-    }
+    gDefaultQuant = qmode(clQuantMode);
 
     // mark quant mode
     fn.walk([&](Operation *op) {

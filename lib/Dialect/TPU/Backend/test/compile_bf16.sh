@@ -42,7 +42,7 @@ tpuc-interpreter ${OP_NAME}_tmp.mlir \
 tpuc-opt \
      --assign-chip-name \
      --chipname $SET_CHIP_NAME \
-     --tpu-quant --quant-full-bf16 \
+     --tpu-quant --quant-mode BF16 \
      --quant-bf16-softmax \
      --print-tpu-op-info \
      --tpu-op-info-filename ${OP_NAME}_op_info_bf16.csv \
