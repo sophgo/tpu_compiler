@@ -135,7 +135,7 @@ opt_cali="--import-calibration-table --calibration-table $cali_table"
 
 tpu_quant_full_bf16=""
 if [ $do_quant_full_bf16 = "1" ]; then
-  tpu_quant_full_bf16="--quant-full-bf16  "
+  tpu_quant_full_bf16="--quant-mode BF16  "
   opt_mlir="${name}_bf16.mlir"
   opt_opt_info="op_info_bf16.csv"
   opt_cali=
