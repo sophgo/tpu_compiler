@@ -67,6 +67,9 @@ class ModelTransformTool(object):
                 if self._is_npy(file):
                     inputs[self.ppa.input_name] = np.load(file)
                 else:
+                    if len(self.preprocessor.net_input_dims) == 0:
+                        self.preprocessor.net_input_dims = self.ppa.net_input_dims
+                        self.preprocessor.resize_dims = self.ppa.net_input_dims
                     inputs[self.ppa.input_name] = self.preprocessor.run(file, batch=self.batch_size)
         np.savez(str(in_fp32_npz), **inputs)
 
@@ -301,7 +304,7 @@ if __name__ == '__main__':
     parser.add_argument("--model_data", help="caffemodel, only for caffe model")
     parser.add_argument("--model_name", help="model name")
     parser.add_argument("--model_type", choices=['caffe', 'onnx', 'tensorflow'], help="model_type")
-    parser.add_argument("--batch_size", type=int, default=1, help="batch size")
+    parser.add_argument("--batch_size", type=int, default=0, help="batch size, if set 0, will use batch size in model")
     parser.add_argument("--tolerance", default='0.99,0.99,0.98',
                         help="minimum similarity tolerance to model transform")
     parser.add_argument("--excepts", default='-', help="excepts")

@@ -168,21 +168,17 @@ cv182x支持的网络如下：
 <div STYLE="page-break-after: always;"></div>
 
 ## 2 开发环境配置
-新旧docker版本说明
-* 旧docker版本为docker_cvitek_dev_1.5-ubuntu-18.04.tar \
-新docker版本为docker_cvitek_dev_1.7-ubuntu-18.04.tar \
-以下统一使用旧docker版本来配置开发环境
 
 加载镜像文件：
 
 ```shell
-docker load -i docker_cvitek_dev_1.5-ubuntu-18.04.tar
+docker load -i docker_cvitek_dev_1.7-ubuntu-18.04.tar
 ```
 
 或者从docker hub获取:
 
 ```shell
-docker pull cvitek/cvitek_dev:1.5-ubuntu-18.04
+docker pull cvitek/cvitek_dev:1.7-ubuntu-18.04
 ```
 
 如果是首次使用docker，可执行下述命令进行安装和配置（Ubuntu系统）
@@ -1102,7 +1098,7 @@ model_transform.py \
 然后将模型量化并生成cvimodel：
 
 ``` shell
- # 权重压缩会导致生成的cvimodel中的权重文件产生差异，为了最大限度的共享权重，需要将`--compress_weight`选项关闭
+ # 加上--merge_weight 参数
  model_deploy.py \
   --model_name mobilenet_v2 \
   --mlir mobilenet_v2_fp32_bs1.mlir \
@@ -1111,7 +1107,7 @@ model_transform.py \
   --image cat.jpg \
   --tolerance 0.95,0.94,0.69 \
   --correctness 0.99,0.99,0.99 \
-  --compress_weight false \
+  --merge_weight  \
   --cvimodel mobilenet_v2_bs1.cvimodel
 ```
 
@@ -1142,7 +1138,7 @@ model_transform.py \
 使用`mobilenet_v2_calibration_table`文件将模型量化并生成cvimodel：
 
 ``` shell
- # 关闭--compress_weight选项的同时，打开--merge_weight选项
+ # 打开--merge_weight选项
  model_deploy.py \
   --model_name mobilenet_v2 \
   --mlir mobilenet_v2_fp32_bs4.mlir \
@@ -1151,7 +1147,6 @@ model_transform.py \
   --image cat.jpg \
   --tolerance 0.95,0.94,0.69 \
   --correctness 0.99,0.99,0.99 \
-  --compress_weight false \
   --merge_weight \
   --cvimodel mobilenet_v2_bs4.cvimodel
 ```
@@ -1198,11 +1193,11 @@ CVI_NN_CleanupModel(bs4_handle);
 
 使用上面的方面，不论是相同模型还是不同模型，均可以进行合并。
 合并的原理是：模型生成过程中，会叠加前面模型的weight（如果相同则共用）。
-基于这一点所以要注意：
+主要步骤在于：
 
-1. `--compress_weight`选项要指定为false，因为压缩会导致更多weight差异
+1. 用`model_deploy.py`生成模型时，加上`--merge_weight`参数
 2. 要合并的模型的生成目录必须是同一个，且在合并模型前不要清理任何中间文件
-3. 第一个模型的生成不要用`--merge_weight`，后续模型的生成必须开启该选项
+3. 用 `cvimodel_tool -a merge`将多个cvimodel合并
 
 
 <div STYLE="page-break-after: always;"></div>
@@ -1420,7 +1415,7 @@ source ./envs_tpu_sdk.sh
 cd ..
 ```
 
-更新32位系统库（只需一次）：
+如果docker版本低于1.7，则需要更新32位系统库（只需一次）：
 
 ``` shell
 dpkg --add-architecture i386

@@ -122,8 +122,6 @@ class preprocess(object):
                raw_scale=255.0, mean='0,0,0,0', std='1,1,1,1', input_scale=1.0,
                channel_order='bgr', pixel_format=None, data_format='nchw',
                aligned=False, gray=False, channel_num=3, chip="", **ignored):
-        if not net_input_dims and not resize_dims:
-            raise RuntimeError("net_input_dims or resize_dims should be set")
 
         if net_input_dims:
             self.net_input_dims = [int(s) for s in net_input_dims.split(',')]
@@ -134,6 +132,9 @@ class preprocess(object):
             if not net_input_dims:
                 self.net_input_dims = self.resize_dims
             self.resize_dims = [max(x,y) for (x,y) in zip(self.resize_dims, self.net_input_dims)]
+        if not net_input_dims and not resize_dims:
+            self.net_input_dims=[]
+            self.resize_dims=[]
 
         self.crop_method = crop_method
         self.keep_aspect_ratio = keep_aspect_ratio
@@ -276,17 +277,21 @@ class preprocess(object):
         target = input_ops[idx]
         shape_type = mlir.ir.ShapedType(target.operands[0].type)
         shape = [shape_type.get_dim_size(i) for i in range(shape_type.rank)]
+        self.net_input_dims = []
         if len(shape) >= 3:
             self.net_input_dims = shape[-2:]
             self.channel_num = shape[-3]
         self.input_name = mlir.ir.StringAttr(target.attributes['name']).value
         if 'preprocess' not in target.attributes:
+            self.resize_dims = self.net_input_dims
             return
         attrs = mlir.ir.DictAttr(target.attributes['preprocess'])
         self.pixel_format = mlir.ir.StringAttr(attrs['pixel_format']).value
         self.channel_order = mlir.ir.StringAttr(attrs['channel_order']).value
         self.keep_aspect_ratio = mlir.ir.BoolAttr(attrs['keep_aspect_ratio']).value
         self.resize_dims = [mlir.ir.IntegerAttr(x).value for x in mlir.ir.ArrayAttr(attrs['resize_dims'])]
+        if len(self.resize_dims) == 0:
+            self.resize_dims = self.net_input_dims
         self.perchannel_mean = np.array([mlir.ir.FloatAttr(x).value for x \
                                          in mlir.ir.ArrayAttr(attrs['mean'])]).astype(np.float32)
         self.perchannel_mean = self.perchannel_mean[:,np.newaxis, np.newaxis]
@@ -344,11 +349,13 @@ class preprocess(object):
         }
 
     def __get_center_crop_offset(self):
-        h, w = self.resize_dims
-        crop_h, crop_w = self.net_input_dims
-        start_h = (h // 2) -(crop_h // 2)
-        start_w = (w // 2) - (crop_w // 2)
-        return [0, 0, start_h, start_w]
+        if len(self.resize_dims) == 2:
+            h, w = self.resize_dims
+            crop_h, crop_w = self.net_input_dims
+            start_h = (h // 2) -(crop_h // 2)
+            start_w = (w // 2) - (crop_w // 2)
+            return [0, 0, start_h, start_w]
+        return []
 
     def __right_crop(self, img, crop_dim):
         ih, iw = img.shape[1:]
@@ -386,7 +393,7 @@ class preprocess(object):
           uv_w_aligned = self.align_up(w, self.VPSS_W_ALIGN)
           u_offset = self.align_up(y_offset + h * y_w_aligned, self.VPSS_CHANNEL_ALIGN)
           v_offset = u_offset
-          
+
         total_size = self.align_up(v_offset + int(h/2) * uv_w_aligned, self.VPSS_CHANNEL_ALIGN)
         yuv420 = np.zeros(int(total_size), np.uint8)
         for h_idx in range(h):
@@ -409,7 +416,7 @@ class preprocess(object):
                   else :
                     u_idx = int(u_offset + int(h_idx/2) * uv_w_aligned + int(w_idx / 2) * 2 + 1)
                     v_idx = int(v_offset + int(h_idx/2) * uv_w_aligned + int(w_idx / 2) * 2)
-                    
+
                   yuv420[u_idx] = u
                   yuv420[v_idx] = v
         return yuv420.reshape(int(total_size), 1, 1)
@@ -495,7 +502,7 @@ class preprocess(object):
             x = np.expand_dims(x, axis=0)
         elif self.pixel_format == 'YUV420_PLANAR' or self.pixel_format == 'YUV_NV12' or self.pixel_format == "YUV_NV21":
             # swap to 'rgb'
-            pixel_type = YuvType.YUV420_PLANAR; 
+            pixel_type = YuvType.YUV420_PLANAR
             if self.pixel_format == 'YUV420_PLANAR':
               pixel_type = YuvType.YUV420_PLANAR
             elif self.pixel_format == 'YUV_NV12':

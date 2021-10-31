@@ -218,8 +218,13 @@ public:
         for (auto dim : resize_dims.getAsValueRange<IntegerAttr>()) {
           dims.push_back(dim.getSExtValue());
         }
-        resize_h = dims[0];
-        resize_w = dims[1];
+        if (dims.size() == 2) {
+          resize_h = dims[0];
+          resize_w = dims[1];
+        } else {
+          resize_h = h;
+          resize_w = w;
+        }
 
         auto color = std::get<0>(attributes_map[pixel_format]);
         auto layout = std::get<1>(attributes_map[pixel_format]);

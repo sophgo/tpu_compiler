@@ -140,6 +140,8 @@ class DeployTool:
         IntermediateFile('_', 'final.mlir', False)
         if model_version == "":
             model_version = "latest"
+        if append_weight:
+            compress_weight=False
         ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel,
                                dequant_results_to_fp32, results_type, expose_bf16_inputs,
                                compress_weight, append_weight, tg_op_divide, model_version, custom_op_plugin)

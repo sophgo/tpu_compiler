@@ -322,11 +322,13 @@ public:
     }
   }
 
-  static void loadAddressMapping(std::string &mapFileName,
+  static bool loadAddressMapping(std::string &mapFileName,
                                  std::map<std::string, uint64_t> &addrMapping) {
     auto stream = std::make_unique<std::fstream>(mapFileName.c_str(),
                                                  std::fstream::in);
-    checkIfFileGood(mapFileName, stream);
+    if (!stream->is_open()) {
+      return false;
+    }
 
     char buf[512];
     while (!stream->eof()) {
@@ -343,6 +345,7 @@ public:
       auto addr = std::stol(pos, nullptr, 16);
       addrMapping[md5] = addr;
     }
+    return true;
   }
 
   void runOnFunction() override {
@@ -355,8 +358,9 @@ public:
     std::map<std::string, uint64_t> addrMapping;
 
     if (clAppendWeight) {
-      loadAddressMapping(clWeightMapFilename, addrMapping);
-      flags = flags | std::fstream::app;
+      if (loadAddressMapping(clWeightMapFilename, addrMapping)) {
+        flags = flags | std::fstream::app;
+      }
     }
     auto weightBinFile = std::make_unique<std::fstream>(
                             clWeightBinFilename.c_str(),
