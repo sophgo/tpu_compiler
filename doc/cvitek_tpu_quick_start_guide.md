@@ -224,13 +224,13 @@ docker exec -it cvitek bash
 
 如何将模型转换成onnx，可以参考onnx官网: <https://github.com/onnx/tutorials>
 
-### 步骤 3.0：加载cvitek_mlir环境
+#### 步骤 3.0：加载cvitek_mlir环境
 
 ``` shell
 source cvitek_mlir/cvitek_envs.sh
 ```
 
-### 步骤 3.1：获取pytorch模型并转换为onnx
+#### 步骤 3.1：获取pytorch模型并转换为onnx
 
 使用torchvision提供的resnet18模型<https://github.com/pytorch/vision/blob/master/torchvision/models/resnet.py>
 
@@ -270,7 +270,7 @@ torch.onnx.export(model,
 
 得到`resnet18.onnx`。
 
-### 步骤 3.2：模型转换
+#### 步骤 3.2：onnx模型转换为fp32 mlir形式
 
 创建工作目录workspace，拷贝测试图片cat.jpg，和数据集100张图片（来自ILSVRC2012）：
 
@@ -352,10 +352,7 @@ model_transform.py \
 
 **注：** 上述填入的预处理参数仅仅以信息的形式存放在mlir中，后续转换成cvimodel，也仅以信息的方式存放。对图片的预处理过程需要再外部处理，再传给模型运算。如果需要模型内部对图片进行预处理，请参考12章节：使用TPU做前处理。
 
-### 步骤 3.3：模型全bf16量化并生成cvimodel
-#### 3.3.1 Quantization for bf16
-
-将fp32 mlir量化为全bf16，并生成cvimodel，执行如下shell：
+#### 步骤 3.3：fp32 mlir模型全bf16量化并生成cvimodel
 
 ``` shell
 model_deploy.py \
@@ -368,11 +365,9 @@ model_deploy.py \
   --correctness 0.99,0.99,0.93 \
   --cvimodel resnet18_bf16.cvimodel
 ```
+#### 步骤 3.4：fp32 mlir模型全int8量化并生成cvimodel
 
-### 步骤 4：模型全int8量化并生成cvimodel
-#### 3.4.1 Calibration
-
-Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。\
+1. Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。\
 这里用100张图片举例，执行calibration,执行如下shell：
 
 ``` shell
@@ -384,7 +379,7 @@ run_calibration.py \
 ```
 得到`resnet18_calibration_table`。
 
-#### 3.4.2 Quantization for int8 and transform to cvimodel
+2. Quantization for int8 and transform to cvimodel
 
 model_deploy.py的相关参数说明如下：
 
@@ -433,9 +428,9 @@ model_deploy.py \
 - 生成MLIR int8模型, 运行MLIR量化模型的推理, 并与MLIR fp32模型的结果做比较
 - 生成cvimodel, 并调用仿真器运行推理结果, 将结果与MLIR 量化模型做比较
 
-### 步骤 3.5：开发板中测试bf16和int8模型
+#### 步骤 3.5：开发板中测试bf16和int8模型
 
-#### 3.5.1 配置开发板的TPU sdk环境
+1. 配置开发板的TPU sdk环境
 
 需要cvitek提供的TPU sdk包：
 * cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
@@ -452,7 +447,7 @@ source ./envs_tpu_sdk.sh
 cd ..
 ```
 
-#### 3.5.2 测试仿真环境与真实硬件的输出结果
+2. 测试仿真环境与真实硬件的输出结果
 
 需要步骤三或步骤四生成的调试文件：
 
@@ -480,14 +475,14 @@ model_runner \
 
 * cvitek_mlir_ubuntu-18.04.tar.gz
 
-### 步骤 4.0：加载cvitek_mlir环境
+#### 步骤 4.0：加载cvitek_mlir环境
 
 ``` shell
 tar zxf cvitek_mlir_ubuntu-18.04.tar.gz
 source cvitek_mlir/cvitek_envs.sh
 ```
 
-### 步骤 4.1：获取caffe模型
+#### 步骤 4.1：获取caffe模型
 
 从<https://github.com/shicai/MobileNet-Caffe>下载模型，并保存在`model_mobilenet_v2`目录：
 
@@ -505,7 +500,7 @@ cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
 cp -rf $MLIR_PATH/tpuc/regression/data/images .
 ```
 
-### 步骤 4.2：模型转换
+#### 步骤 4.2：caffe模型转换为fp32 mlir形式
 
 使用`model_transform.py`将模型转换成mlir文件，其中可支持预处理参数如下：
 
@@ -535,10 +530,7 @@ model_transform.py \
 
 得到`mobilenet_v2_fp32.mlir`文件.
 
-### 步骤 4.3：模型全bf16量化并生成cvimodel
-#### 4.3.1 Quantization for bf16
-
-将fp32 mlir量化为全bf16，并生成cvimodel，执行如下shell：
+#### 步骤 4.3：fp32 mlir模型全bf16量化并生成cvimodel
 
 ``` shell
 model_deploy.py \
@@ -553,8 +545,8 @@ model_deploy.py \
 ```
 
 
-### 步骤 4.4：模型全int8量化并生成cvimodel
-#### 4.4.1 Calibration
+#### 步骤 4.4：fp32 mlir模型全int8量化并生成cvimodel
+1. Calibration
 
 Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
 这里用100张图片举例，执行calibration：
@@ -569,7 +561,7 @@ run_calibration.py \
 
   得到`mobilenet_v2_calibration_table`。
 
-#### 4.4.2 Quantization for int8 and transform to cvimodel
+2. Quantization for int8 and transform to cvimodel
 
 模型根据calibration_tabel进行全int8量化，并且生成cvimodel,执行如下shell:
 
@@ -585,9 +577,9 @@ model_deploy.py \
   --cvimodel mobilenet_v2_int8.cvimodel
 ```
 
-### 步骤 4.5：开发板中测试bf16和int8模型
+#### 步骤 4.5：开发板中测试bf16和int8模型
 
-#### 4.5.1 配置开发板的TPU sdk环境
+1. 配置开发板的TPU sdk环境
 
 需要cvitek提供的TPU sdk包：
 * cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
@@ -604,7 +596,7 @@ source ./envs_tpu_sdk.sh
 cd ..
 ```
 
-#### 4.5.2 测试仿真环境与真实硬件的输出结果
+2. 测试仿真环境与真实硬件的输出结果
 
 需要步骤三或步骤四生成的调试文件：
 
@@ -634,7 +626,7 @@ CV183X TPU支持INT8和BF16两种量化方法。在模型编译阶段，工具�
 
 * cvitek_mlir_ubuntu-18.04.tar.gz
 
-### 步骤 5.0：获取tensorflow模型，并转换为onnx模型
+#### 步骤 5.0：获取tensorflow模型，并转换为onnx模型
 
 使用tensorflow提供的`mobilenet_v1_0.25_224`模型，参见：<https://github.com/tensorflow/models/blob/master/research/slim/nets/mobilenet_v1.md>
 
@@ -682,7 +674,7 @@ onnx.save(model, 'mnet_25_new.onnx')
 
 得到`mnet_25_new.onnx`。
 
-### 步骤 5.1：模型转换
+#### 步骤 5.1：模型转换
 
 取得一张测试用图片，本示例使用cvitek_mlir包含的cat.jpg：
 
@@ -758,7 +750,7 @@ eval_classifier.py \
 
 测试得到FP32模型精度为Top-1 49.2% Top-5 73.5%。
 
-### 步骤 5.2：进行INT8量化
+#### 步骤 5.2：进行INT8量化
 
 进行calibration：
 
@@ -815,7 +807,7 @@ eval_classifier.py \
 
 测试得到INT8模型精度为Top-1 43.2% Top-5 68.3%，比FP32模型精度（Top-1 49.2% Top-5 73.5%）有一定幅度下降。
 
-### 步骤 5.3：进行BF16量化
+#### 步骤 5.3：进行BF16量化
 
 指定参数--all_bf16，可以将fp32 mlir转换成全bf16模型
 
@@ -857,7 +849,7 @@ eval_classifier.py \
 
 
 
-### 步骤 5.4：进行混合量化搜索，并进行混合量化
+#### 步骤 5.4：进行混合量化搜索，并进行混合量化
 
 搜索混合量化表。此模型共有59层，选择多少层进行替换，可以根据对精度的需要，以及测试的精度结果来进行调整。搜索用的数据集数量也可以根据需要调整。
 
@@ -943,7 +935,7 @@ eval_classifier.py \
 #  * Acc@1 47.782 Acc@5 72.518
 ```
 
-### 各种量化精度测试对比 (可选)
+#### 各种量化精度测试对比 (可选)
 
 比较6种量化方式的结果（混合量化包含6层，10层和15层三个版本）：
 
@@ -968,13 +960,13 @@ CV183X提供两种硬件资源进行神经网络模型的前处理加速。
 
 客户可以基于系统优化需要，灵活选择使用哪个引擎进行预处理。使用VPSS进行预处理的详细使用方法请参阅《CV18xx 媒体软件开发参考》，本文档不做介绍。本章介绍使用TPU做前处理的具体步骤。本章以Caffe模型编译为例，按照第6章的步骤稍做修改，生成支持前处理的cvimodel。以`mobilenet_v2`为例。
 
-### 步骤 6.0-6.2：与Caffe章节相应步骤相同
+#### 步骤 6.0-6.2：与Caffe章节相应步骤相同
 
 假设用户以及按照第4章步骤4.0到步骤4.2执行完模型转换后, \
 并且跳过步骤4.3全量化为bf16模型，到步骤4.4量化为int8模型, \
 执行第四章的步骤4.4.1生成calibraiton table后。
 
-### 步骤 6.3：模型量化并生成含TPU预处理的cvimodel
+#### 步骤 6.3：模型量化并生成含TPU预处理的cvimodel
 
 首先，加载cvitek_mlir环境：
 
@@ -1023,9 +1015,9 @@ model_deploy.py \
 - 执行MLIR int8推理 与 MLIR fp32 推理结果的比较, 验证MLIR int8 带前处理模型的正确性
 - 生成带前处理的 cvimodel, 以及调用仿真器执行推理, 将结果与 MLIR int8 带前处理的模型的推理结果做比较
 
-### 步骤 6.4：开发板中测试带前处理的模型
+#### 步骤 6.4：开发板中测试带前处理的模型
 
-#### 6.4.1 配置开发板的TPU sdk环境
+1. 配置开发板的TPU sdk环境
 
 需要cvitek提供的TPU sdk包：
 * cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
@@ -1042,7 +1034,7 @@ source ./envs_tpu_sdk.sh
 cd ..
 ```
 
-#### 6.4.2 测试仿真环境与真实硬件的输出结果
+2. 测试仿真环境与真实硬件的输出结果
 
 需要之前步骤生成的调试文件：
 
@@ -1068,7 +1060,7 @@ model_runner \
 
 ## 7 合并cvimodel模型文件
 对于同一个模型，可以依据输入的batch size以及分辨率(不同的h和w)分别生成独立的cvimodel文件。不过为了节省外存和运存，可以选择将这些相关的cvimodel文件合并为一个cvimodel文件，共享其权重部分。具体步骤如下：
-### 步骤 7.1：生成batch 1的cvimodel
+#### 步骤 7.0：生成batch 1的cvimodel
 请参考前述章节，新建workspace，通过model_transform.py将mobilenet_v2的caffemodel转换为mlir fp32模型:
 
 ``` shell
@@ -1111,7 +1103,7 @@ model_transform.py \
   --cvimodel mobilenet_v2_bs1.cvimodel
 ```
 
-### 步骤 7.2：生成batch 4的cvimodel
+#### 步骤 7.1：生成batch 4的cvimodel
 同步骤1，在同一个workspace中生成batch为4的mlir fp32文件:
 
 ``` shell
@@ -1150,7 +1142,7 @@ model_transform.py \
   --merge_weight \
   --cvimodel mobilenet_v2_bs4.cvimodel
 ```
-### 步骤 7.3: 合并batch 1和batch 4的cvimodel
+#### 步骤 7.2: 合并batch 1和batch 4的cvimodel
 使用cvimodel_tool合并两个cvimodel文件:
 ``` shell
 cvimodel_tool \
@@ -1159,7 +1151,7 @@ cvimodel_tool \
      mobilenet_v2_bs4.cvimodel \
   -o mobilenet_v2_bs1_bs4.cvimodel
 ```
-### 步骤 7.4：runtime接口调用cvimodel
+#### 步骤 7.3：runtime接口调用cvimodel
 在运行时可以通过命令：
 ``` shell
 cvimodel_tool -a dump -i mobilenet_v2_bs1_bs4.cvimodel
@@ -1204,7 +1196,7 @@ CVI_NN_CleanupModel(bs4_handle);
 
 ## 8 运行samples程序
 
-### 8.1 EVB运行Samples程序
+#### 8.0 EVB运行Samples程序
 
 在EVB运行release提供的sample预编译程序。
 
@@ -1360,7 +1352,7 @@ cd samples
 # Similarity: 0.036089
 ```
 
-### 8.2 交叉编译samples程序
+#### 8.1 交叉编译samples程序
 
 发布包有samples的源代码，按照本节方法在Docker环境下交叉编译samples程序，然后在evb上运行。
 
@@ -1441,7 +1433,7 @@ cmake -G Ninja \
 cmake --build . --target install
 ```
 
-### 8.3 编译docker环境下运行的samples程序
+#### 8.2 编译docker环境下运行的samples程序
 
 需要如下文件：
 
