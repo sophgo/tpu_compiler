@@ -2431,10 +2431,8 @@ LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   auto shape = getTensorShape(op->getOperand(0));
-  int n = shape[0];
-  int c = shape[1];
-  int h = shape[2];
-  int w = shape[3];
+  int64_t n,c,h,w;
+  getNCHW(shape, n, c, h, w);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -3296,11 +3294,7 @@ LogicalResult tpu::TG_INT8_PixelShuffleOp::codegen(void *ctx) {
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  // tranform from pytorch define
-  n = shape[0];
-  c = shape[1];
-  h = shape[2];
-  w = shape[3];
+  getNCHW(shape, n, c, h, w);
   uint32_t upscale_factor = this->upscale_factor();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
@@ -3324,11 +3318,7 @@ LogicalResult tpu::TG_BF16_PixelShuffleOp::codegen(void *ctx) {
   std::vector<int64_t> shape;
   int64_t input_size, n, c, h, w;
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  // tranform from pytorch define
-  n = shape[0];
-  c = shape[1];
-  h = shape[2];
-  w = shape[3];
+  getNCHW(shape, n, c, h, w);
   uint32_t upscale_factor = this->upscale_factor();
 
   gaddr_t input_gaddr = getPreviousOpAddress(op);
@@ -3349,8 +3339,8 @@ LogicalResult tpu::TG_INT8_ClipOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " [" << getOpName()
-               << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
@@ -3358,12 +3348,7 @@ LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
   int64_t input_size, n, c, h, w;
 
   getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-
-  // tranform from pytorch define
-  n = shape[0];
-  c = shape[1];
-  h = shape[2];
-  w = shape[3];
+  getNCHW(shape, n, c, h, w);
 
   float min = this->min().convertToFloat();
   float max = this->max().convertToFloat();
@@ -3372,54 +3357,15 @@ LogicalResult tpu::TG_BF16_ClipOp::codegen(void *ctx) {
   gaddr_t output_gaddr = getOpAddress(op);
 
   int layer_id = getOpLayerId(op);
-  bool do_relu = false;
   float coeffs[2];
   gaddr_t ga_inputs[1];
   ga_inputs[0] = input_gaddr;
 
-  // leverage min/max op rather than clip
-  // FIXME: using EltwiseMaxOp/EltwiseMinOp
-
-  // op definition refer to \TgFixedEltwiseKernel.cpp
-  if (0) {
-    coeffs[0] = {max};
-    cvi_backend_tg_bf16_eltwise_max_kernel(
-        *backend_ctx,
-        layer_id,     // layer_id
-        ga_inputs,    // gaddr_t ga_input[]
-        output_gaddr,    // gaddr_t ga_output
-        1,            // int input_size
-        n, c, h, w,
-        do_relu,      // bool do_relu
-        false, 0, 0,
-        coeffs);
-
-    coeffs[0] = {min};
-    cvi_backend_tg_bf16_eltwise_min_kernel(
-        *backend_ctx,
-        layer_id,     // layer_id
-        ga_inputs,    // gaddr_t ga_input[]
-        output_gaddr,    // gaddr_t ga_output
-        1,            // int input_size
-        n, c, h, w,
-        do_relu,      // bool do_relu
-        false, 0, 0,
-        coeffs);
-  }
-  else {
-    coeffs[0] = {max};
-    coeffs[1] = {min};
-    cvi_backend_tg_bf16_eltwise_min_max_kernel(
-        *backend_ctx,
-        layer_id,     // layer_id
-        ga_inputs,    // gaddr_t ga_input[]
-        output_gaddr,    // gaddr_t ga_output
-        1,            // int input_size
-        n, c, h, w,
-        do_relu,      // bool do_relu
-        false, 0, 0,
-        coeffs);
-  }
+  coeffs[0] = {max};
+  coeffs[1] = {min};
+  cvi_backend_tg_bf16_eltwise_min_max_kernel(*backend_ctx, layer_id, ga_inputs,
+                                             output_gaddr, 1, n, c, h, w,
+                                             false, false, 0, 0, coeffs);
 
   return success();
 }
