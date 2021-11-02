@@ -34,16 +34,25 @@ LstmOpKernel::LstmOpKernel(Operation &op, value_map_t &valueMapping,
   auto input_type = lstmOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
   assert(shape.size() == 4);
-  seq_length = shape[0];
+  seq_length = input_shape[0];
   num_dir = shape[1];
   batch_size = shape[2];
   hidden_size = shape[3];
-  assert(input_shape[0] == seq_length);
 
   assert(input_shape.size() == 3);
   assert(input_shape[1] == batch_size);
   input_size = input_shape[2];
   bidirectional = lstmOp.bidirectional();
+  final_c = lstmOp.final_c();
+  final_h = lstmOp.final_h();
+  int extra = 0;
+  if (final_h) {
+    extra++;
+  }
+  if (final_c) {
+    extra++;
+  }
+  assert(shape[0] == seq_length + extra);
   // get tensors
   input_data = this->opdTensors[0];
   recurrence = this->opdTensors[1];
@@ -152,6 +161,14 @@ void LstmOpKernel::compute(bool forward) {
       }
     }
     pre_state_h = output + seq_idx * num_dir * batch_size * hidden_size;
+  }
+  float *last = output + seq_length * num_dir * batch_size * hidden_size;
+  if (final_h) {
+    memcpy(last, pre_state_h, batch_size * hidden_size * sizeof(float));
+    last += num_dir * batch_size * hidden_size;
+  }
+  if (final_c) {
+    memcpy(last, pre_state_c, batch_size * hidden_size * sizeof(float));
   }
 }
 

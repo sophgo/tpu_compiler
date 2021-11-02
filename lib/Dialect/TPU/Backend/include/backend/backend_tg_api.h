@@ -277,7 +277,7 @@ void cvi_backend_tg_bf16_lstm_kernel(
     gaddr_t ga_tanh_slope_table_data_lut, gaddr_t ga_output, int seq_len,
     int num_dir, int batch_size, int hidden_size, bool do_bias,
     bool with_initial_h, bool with_initial_c, bool with_cont,
-    bool is_bidirectional);
+    bool is_bidirectional, bool with_final_h, bool with_final_c);
 
 void cvi_backend_tg_bf16_softmax_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

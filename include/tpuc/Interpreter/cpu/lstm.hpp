@@ -41,6 +41,8 @@ private:
   int input_size;
   int num_dir;
   bool bidirectional;
+  bool final_h;
+  bool final_c;
 
   // addr
   float *r_i;

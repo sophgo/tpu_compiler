@@ -1420,7 +1420,10 @@ class ONNX_IR_TESTER(object):
 
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, [seq_length, num_dir, batch_size, hidden_size])
-
+        Y_h = helper.make_tensor_value_info(
+            'Y_h', TensorProto.FLOAT, [num_dir, batch_size, hidden_size])
+        Y_c = helper.make_tensor_value_info(
+            'Y_c', TensorProto.FLOAT, [num_dir, batch_size, hidden_size])
         w_node_def = onnx.helper.make_node(
             'Constant',
             inputs=[],
@@ -1479,7 +1482,7 @@ class ONNX_IR_TESTER(object):
         node_def = onnx.helper.make_node(
             "LSTM",
             inputs=['input', 'w', 'r', 'b', '', 'h0','c0'],
-            outputs=['output','',''],
+            outputs=['output','Y_h','Y_c'],
             direction=direction,
             hidden_size=hidden_size,
         )
@@ -1487,7 +1490,7 @@ class ONNX_IR_TESTER(object):
             [w_node_def, r_node_def, b_node_def, h0_node_def, c0_node_def, node_def],
             test_case,
             [input],
-            [output],
+            [output, Y_h, Y_c],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11

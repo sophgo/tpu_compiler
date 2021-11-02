@@ -277,9 +277,9 @@ static void bf16_gen_reciprocal_sqrt(int start, int table_hw, float *table_data)
   uint64_t idx = 0;
   assert(half == 128);
 
-  // prepare channel 0
-  float s = 0.0;
-  table_data[idx] = BF16(s);
+  uint32_t max_bf16_val = 0x7F7F0000;
+  float max_bf16 = BF16(*((float *)(&max_bf16_val)), false);
+  table_data[idx] = max_bf16;
   idx++;
 
   // > 0, exp from 0 -62 -61 ..  62  63

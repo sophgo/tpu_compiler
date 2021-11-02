@@ -2333,19 +2333,51 @@ class OnnxConverter(BaseConverter):
                 operands.append(init_op)
         else:
             operands.append(noneOp)
-
-        out0 = onnx_node.outputs[0] # all
-        out1 = onnx_node.outputs[1] # h last
-        out2 = onnx_node.outputs[2] # c last
+        out0 = onnx_node.outputs[0]  # all
+        out1 = onnx_node.outputs[1]  # h last
+        out2 = onnx_node.outputs[2]  # c last
         need0 = len(out0) > 0 and self.check_need(out0)
         need1 = len(out1) > 0 and self.check_need(out1)
         need2 = len(out2) > 0 and self.check_need(out2)
-        if need1 or need2 or not need0:
-            raise RuntimeError("LSTM only support first output currently.")
-        output_shape = [seq_length, num_dir, batch_size, hidden_size]
-        name = "{}_{}".format(out0, onnx_node.op_type)
-        lstm_op = self.CVI.add_lstm_op(name, operands, output_shape, **lstm_param)
-        self.addOperand(out0, lstm_op, output_shape, TensorType.ACTIVATION)
+        name0 = "{}_{}".format(out0, onnx_node.op_type)
+        name1 = "{}_{}".format(out1, onnx_node.op_type)
+        name2 = "{}_{}".format(out2, onnx_node.op_type)
+        shape0 = [seq_length, num_dir, batch_size, hidden_size]
+        shape1 = [1, num_dir, batch_size, hidden_size]
+        rshape1 = [num_dir, batch_size, hidden_size]
+        shape2 = [1, num_dir, batch_size, hidden_size]
+        rshape2 = [num_dir, batch_size, hidden_size]
+        if need1 or need2:
+            extra = 2 if need1 and need2 else 1
+            output_shape = [seq_length + extra, num_dir, batch_size, hidden_size]
+            name = "{}_{}_{}_{}".format(out0, out1, out2, onnx_node.op_type)
+            lstm_param['final_h'] = True if need1 else False
+            lstm_param['final_c'] = True if need2 else False
+            lstm_op = self.CVI.add_lstm_op(name, operands, output_shape, **lstm_param)
+            if need0:
+                attr0 = {"axis": 0, "offset": 0}
+                slice0_op = self.CVI.add_slice_op(name0, [lstm_op], shape0, **attr0)
+                self.addOperand(out0, slice0_op, shape0, TensorType.ACTIVATION)
+            offset = seq_length
+            if need1:
+                attr1 = {"axis": 0, "offset": offset}
+                slice1_op = self.CVI.add_slice_op(name1 + "_4dim", [lstm_op], shape1, **attr1)
+                final_h_op = self.CVI.add_reshape_op(name1, [slice1_op], rshape1)
+                self.addOperand(out1, final_h_op, rshape1, TensorType.ACTIVATION)
+                offset = offset + 1
+            if need2:
+                attr2 = {"axis": 0, "offset": offset}
+                slice2_op = self.CVI.add_slice_op(name2 + "_4dim", [lstm_op], shape2, **attr2)
+                final_c_op = self.CVI.add_reshape_op(name2, [slice2_op], rshape2)
+                self.addOperand(out2, final_c_op, rshape2, TensorType.ACTIVATION)
+            return
+        else:
+            output_shape = [seq_length, num_dir, batch_size, hidden_size]
+            name = "{}_{}".format(out0, onnx_node.op_type)
+            lstm_op = self.CVI.add_lstm_op(
+                name, operands, output_shape, **lstm_param)
+            self.addOperand(out0, lstm_op, output_shape, TensorType.ACTIVATION)
+            return
 
     @staticmethod
     def is_convfc(operands, lhs_shape, rhs_shape):

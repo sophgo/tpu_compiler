@@ -24,7 +24,7 @@ public:
             gaddr_t ga_tanh_slope_lut, gaddr_t ga_output, int seq_length,
             int num_dir, int batch_size, int hidden_size, bool do_bias,
             bool with_initial_h, bool with_initial_c, bool with_cont,
-            bool bidirectional);
+            bool bidirectional, bool with_final_h, bool with_final_c);
 
   void schedule();
 
@@ -97,6 +97,8 @@ protected:
   bool with_initial_c;
   bool with_cont;
   bool bidirectional;
+  bool with_final_h;
+  bool with_final_c;
   cvk_fmt_t fmt;
   int fmt_size;
   uint32_t num_recurrence;

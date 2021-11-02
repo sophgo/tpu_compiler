@@ -1294,6 +1294,8 @@ def TPU_LstmOp: TPU_Op<"lstm",
       `initial_h`       : required, initial value of the hidden.
       `initial_c`       : required, initial value of the cell.
       `cont`            : optional, for caffe lstm
+      `final_h`         : optional, output final cell h
+      `final_c`         : optional, output final cell c
 
     Attributes:
       `name`            : required, name for calibration, comparing, or debug.
@@ -1322,7 +1324,9 @@ def TPU_LstmOp: TPU_Op<"lstm",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$tanh_slope_table,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    DefaultValuedAttr<BoolAttr, "false">:$bidirectional
+    DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
+    DefaultValuedAttr<BoolAttr, "false">:$final_h,
+    DefaultValuedAttr<BoolAttr, "false">:$final_c
   );
 
   let results = (outs AnyTensor:$output);

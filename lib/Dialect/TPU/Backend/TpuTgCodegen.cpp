@@ -2300,6 +2300,10 @@ LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
+  bool is_bidirectional = this->bidirectional();
+  bool with_final_h = this->final_h();
+  bool with_final_c = this->final_c();
+
   std::vector<int64_t> shape;
   int64_t size, seq_len, batch_size, input_size, garbage;
   getTensorShapeAndSize(op->getOperand(0), shape, size);
@@ -2308,7 +2312,14 @@ LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
   getTensorShapeAndSize(this->getResult(), shape, size);
   assert(shape.size() == 4);
   getNCHW(shape, seq_len2, num_dir, batch_size2, hidden_size);
-  assert(seq_len == seq_len2);
+  int extra = 0;
+  if (with_final_c) {
+    extra++;
+  }
+  if (with_final_h) {
+    extra++;
+  }
+  assert(seq_len + extra == seq_len2);
   assert(batch_size == batch_size2);
   assert(input_size == num_dir * 4 * hidden_size);
 
@@ -2321,7 +2332,6 @@ LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
   bool with_cont;
   gaddr_t cont_gaddr = getGlobalAddr(cont(), with_cont);
 
-  bool is_bidirectional = this->bidirectional();
   gaddr_t input_gaddr = getPreviousOpAddress(op);
   gaddr_t output_gaddr = getOpAddress(op);
   gaddr_t recurrence_gaddr = getWeightOpAddress(recurrence().getDefiningOp());
@@ -2341,7 +2351,7 @@ LogicalResult tpu::TG_BF16_LstmOp::codegen(void *ctx) {
       sigmoid_table_data_lut_gaddr, sigmoid_slope_table_data_lut_gaddr,
       tanh_table_data_lut_gaddr, tanh_slope_table_data_lut_gaddr, output_gaddr,
       seq_len, num_dir, batch_size, hidden_size, with_bias, with_h0, with_c0,
-      with_cont, is_bidirectional);
+      with_cont, is_bidirectional, with_final_h, with_final_c);
   return success();
 }
 

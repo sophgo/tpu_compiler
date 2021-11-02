@@ -821,6 +821,8 @@ class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     AnyTensor:$tanh_table,
     AnyTensor:$tanh_slope_table,
     DefaultValuedAttr<BoolAttr, "false">:$bidirectional,
+    DefaultValuedAttr<BoolAttr, "false">:$final_h,
+    DefaultValuedAttr<BoolAttr, "false">:$final_c,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name

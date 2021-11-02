@@ -2595,6 +2595,8 @@ Value tpu::LstmOp::convertToTG() {
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("bidirectional", bidirectionalAttr()));
+  attrs.push_back(builder.getNamedAttr("final_h", final_hAttr()));
+  attrs.push_back(builder.getNamedAttr("final_c", final_cAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   if (getOpQuant() == "BF16") {

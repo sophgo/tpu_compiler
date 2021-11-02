@@ -388,6 +388,16 @@ void TgLstmKernel::compute(int idx, bool forward) {
     tanh(ml_result, ml_cell, ml_work0);
     eltwise_mul(ml_result, ml_xo);
     ctx.tdma_store_stride(&ml_result, ga_store + s_offset + goffset, h_gstride);
+    if (idx == seq_length - 1) {
+      auto ga_final = ga_store + seq_length * num_dir * x_bytes + goffset;
+      if (with_final_h) {
+        ctx.tdma_store_stride(&ml_result, ga_final, h_gstride);
+        ga_final += num_dir * x_bytes;
+      }
+      if (with_final_c) {
+        ctx.tdma_store_stride(&ml_cell, ga_final, h_gstride);
+      }
+    }
   }
 }
 
@@ -532,6 +542,16 @@ void TgLstmKernel::compute_without_tiling(bool forward) {
 
     int s_offset = seq_idx * num_dir * x_bytes;
     ctx.tdma_store_stride(&ml_hidden, ga_store + s_offset, h_gstride);
+    if (i == seq_length - 1) {
+      auto ga_final = ga_store + seq_length * num_dir * x_bytes;
+      if (with_final_h) {
+        ctx.tdma_store_stride(&ml_hidden, ga_final, h_gstride);
+        ga_final += num_dir * x_bytes;
+      }
+      if (with_final_c) {
+        ctx.tdma_store_stride(&ml_cell, ga_final, h_gstride);
+      }
+    }
   }
   lmem_used = lmem_used_backup;
 }
@@ -571,7 +591,8 @@ void TgLstmKernel::init(uint32_t layer_id, gaddr_t ga_input,
                         gaddr_t ga_output, int seq_length, int num_dir,
                         int batch_size, int hidden_size, bool do_bias,
                         bool with_initial_h, bool with_initial_c,
-                        bool with_cont, bool bidirectional) {
+                        bool with_cont, bool bidirectional, bool with_final_h,
+                        bool with_final_c) {
   this->layer_id = layer_id;
   this->ga_input = ga_input;
   this->ga_recurrence = ga_recurrence;
@@ -593,6 +614,8 @@ void TgLstmKernel::init(uint32_t layer_id, gaddr_t ga_input,
   this->with_initial_c = with_initial_c;
   this->with_cont = with_cont;
   this->bidirectional = bidirectional;
+  this->with_final_h = with_final_h;
+  this->with_final_c = with_final_c;
   this->fmt = CVK_FMT_BF16;
   this->fmt_size = ctx.bytesize_of_fmt(fmt);
   this->lmem_used = 0;
@@ -638,12 +661,13 @@ void cvi_backend_tg_bf16_lstm_kernel(
     gaddr_t ga_sigmoid_slope_lut, gaddr_t ga_tanh_lut,
     gaddr_t ga_tanh_slope_lut, gaddr_t ga_output, int seq_len, int num_dir,
     int batch_size, int hidden_size, bool do_bias, bool with_initial_h,
-    bool with_initial_c, bool with_cont, bool is_bidirectional) {
+    bool with_initial_c, bool with_cont, bool is_bidirectional,
+    bool with_final_h, bool with_final_c) {
   TgLstmKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_recurrence, ga_bias, ga_initial_h,
               ga_initial_c, ga_cont, ga_sigmoid_lut, ga_sigmoid_slope_lut,
               ga_tanh_lut, ga_tanh_slope_lut, ga_output, seq_len, num_dir,
               batch_size, hidden_size, do_bias, with_initial_h, with_initial_c,
-              with_cont, is_bidirectional);
+              with_cont, is_bidirectional, with_final_h, with_final_c);
   kernel.schedule();
 }

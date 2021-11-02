@@ -1103,8 +1103,13 @@ class MLIRImporter(object):
     def add_lstm_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        final_h = False if 'final_h' not in kargs else kargs['final_h']
+        final_c = False if 'final_c' not in kargs else kargs['final_c']
+
         lstm_param = {
-            'bidirectional': BoolAttr.get(kargs['bidirectional'])
+            'bidirectional': BoolAttr.get(kargs['bidirectional']),
+            'final_h':  BoolAttr.get(final_h),
+            'final_c': BoolAttr.get(final_c)
         }
         lstm_name = StringAttr.get(op_name)
         none = self.add_none_op()
