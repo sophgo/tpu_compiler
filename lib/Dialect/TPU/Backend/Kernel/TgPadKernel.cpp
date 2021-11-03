@@ -171,29 +171,29 @@ static void cvi_backend_tg_pad_kernel_edge(const CviBackendContext& ctx,
   ctx.lmem_free_tensor(tl_ifmap);
 }
 
-void cvi_backend_tg_pad_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n,
-    int input_c, int input_h, int input_w, int *pads, float const_val,
-    const char* mode, cvk_fmt_t fmt) {
+void cvi_backend_tg_pad_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+                               gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n,
+                               int input_c, int input_h, int input_w, int *pads,
+                               float const_val, const char *mode,
+                               cvk_fmt_t fmt) {
 
   ctx.set_layer_id(layer_id);
 
   if (!strcmp(mode, "edge")) {
-    return cvi_backend_tg_pad_kernel_edge(ctx,
-        layer_id, ga_ifmap, ga_ofmap, input_n,
-        input_c, input_h, input_w, pads, fmt);
+    return cvi_backend_tg_pad_kernel_edge(ctx, layer_id, ga_ifmap, ga_ofmap,
+                                          input_n, input_c, input_h, input_w,
+                                          pads, fmt);
   }
-
-  cvk_tg_shape_t src_shape;
-  src_shape.n = input_n;
-  src_shape.c = input_c;
-  src_shape.h = input_h;
-  src_shape.w = input_w;
-  int usize = (fmt == CVK_FMT_I8) ? 1 : 2;
-
-  cvk_tg_stride_t src_gstride;
-  src_gstride = ctx.tg_default_stride(src_shape, fmt);
+  int fmt_size = ctx.bytesize_of_fmt(fmt);
+  if (input_w * fmt_size >= 0x10000 && input_h == 1 && pads[2] == 0 &&
+      pads[6] == 0) {
+    input_h = input_w;
+    input_w = 1;
+    pads[2] = pads[3];
+    pads[3] = 0;
+    pads[6] = pads[7];
+    pads[7] = 0;
+  }
 
   cvk_tg_shape_t dst_shape;
   dst_shape.n = pads[0] + pads[4] + input_n;
@@ -201,8 +201,10 @@ void cvi_backend_tg_pad_kernel(
   dst_shape.h = pads[2] + pads[6] + input_h;
   dst_shape.w = pads[3] + pads[7] + input_w;
 
-  cvk_tg_stride_t dst_gstride;
-  dst_gstride = ctx.tg_default_stride(dst_shape, fmt);
+  auto dst_gstride = ctx.tg_default_stride(dst_shape, fmt);
+
+  auto src_shape = ctx.tg_shape_t4(input_n, input_c, input_h, input_w);
+  auto src_gstride = ctx.tg_default_stride(src_shape, fmt);
 
   cvk_tg_t dst;
   dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_ofmap);
@@ -226,7 +228,7 @@ void cvi_backend_tg_pad_kernel(
   ctx.tdma_l2g_tensor_fill_constant(&p0);
 
   auto src_gaddr = ga_ifmap;
-  auto dst_gaddr = ga_ofmap + (dst_shape.w * pads[2] + pads[3]) * usize;
+  auto dst_gaddr = ga_ofmap + (dst_shape.w * pads[2] + pads[3]) * fmt_size;
   ctx.tdma_g2g_tensor_copy(src_gaddr, src_shape, src_gstride, fmt, dst_gaddr,
                            src_shape, dst_gstride, fmt);
 }
