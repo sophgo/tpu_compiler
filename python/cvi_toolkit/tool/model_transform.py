@@ -299,7 +299,7 @@ class Mlir2Graph:
 if __name__ == '__main__':
     declare_toolchain_version()
     parser = argparse.ArgumentParser()
-    parser.add_argument("--image", required=True, help="input image/npz/npy file for inference, "
+    parser.add_argument("--image", default=None, help="input image/npz/npy file for inference, "
                        "if has more than one input images, join images with semicolon")
     parser.add_argument("--model_def", help="model definition file.")
     parser.add_argument("--model_data", help="caffemodel, only for caffe model")
@@ -316,7 +316,8 @@ if __name__ == '__main__':
 
     tool = get_model_transform(args)
     tool.model_transform(args.mlir)
-    tool.model_validate(args.image, args.tolerance, args.excepts)
+    if args.image:
+        tool.model_validate(args.image, args.tolerance, args.excepts)
     if args.graph:
         Mlir2Graph(args.mlir)
     tool.cleanup()

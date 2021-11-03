@@ -206,7 +206,7 @@ if __name__ == '__main__':
                         help="if need old version cvimodel, set the verion, such as 1.2")
     parser.add_argument("--custom_op_plugin", default="",
                         help="custom op plugin so file path")
-    parser.add_argument("--image", required=True, help="input image/npz/npy file for inference, "
+    parser.add_argument("--image", default=None, help="input image/npz/npy file for inference, "
                        "if has more than one input images, join images with semicolon")
     parser.add_argument("--cvimodel", required=True, help='output cvimodel')
     parser.add_argument("--debug", action='store_true', help='to keep all intermediate files for debug')
@@ -234,14 +234,16 @@ if __name__ == '__main__':
                   args.pixel_format,
                   args.aligned_input,
                   args.quantize)
-    images = args.image.split(',')
-    images = [s.strip() for s in images]
-    tool.validate_quantized_model(args.tolerance, args.excepts, images, args.custom_op_plugin)
+    if args.image:
+        images = args.image.split(',')
+        images = [s.strip() for s in images]
+        tool.validate_quantized_model(args.tolerance, args.excepts, images, args.custom_op_plugin)
 
     # generate cvimodel and validate accuracy
     tool.build_cvimodel(args.cvimodel, args.inputs_type, args.outputs_type,
                         args.merge_weight, args.tg_op_divide, args.model_version, args.custom_op_plugin)
-    tool.validate_cvimodel(args.cvimodel, args.correctness, args.excepts)
+    if args.image:
+        tool.validate_cvimodel(args.cvimodel, args.correctness, args.excepts)
 
     if not args.debug:
         tool.cleanup()
