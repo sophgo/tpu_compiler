@@ -28,7 +28,16 @@ float findMaxWeight(float *weight, int64_t size) {
 ///   then saturate to INT8
 uint32_t findRShiftForFilter(float max_filter, float threshold_y,
                              float threshold_x) {
-  assert(threshold_y > 0 && threshold_x > 0);
+  if (threshold_x <= 0) {
+    llvm::errs() << "WARNING: findRShiftForFilter threshold_y = " << threshold_x
+                 << "\n";
+    threshold_x = 0.00001;
+  }
+  if (threshold_y <= 0) {
+    llvm::errs() << "WARNING: findRShiftForFilter threshold_y = " << threshold_y
+                 << "\n";
+    threshold_y = 0.00001;
+  }
   float a = max_filter * threshold_x / threshold_y;
   if (a > 127) {
     LLVM_DEBUG(llvm::errs()
@@ -66,7 +75,11 @@ uint32_t findRShiftForFilter(float max_filter, float threshold_y,
 ///   apply rshift (i.e. divide by (1 << rshift))
 ///   then saturate to INT16
 uint32_t findRShiftForBiasI16(float max_bias, float threshold_y) {
-  assert(threshold_y > 0);
+  if (threshold_y <= 0) {
+    llvm::errs() << "WARNING: findRShiftForBiasI16 threshold_y = " << threshold_y
+                 << "\n";
+    threshold_y = 0.00001;
+  }
   float a = max_bias * 128.0 / threshold_y;
   if (a > 32767) {
     LLVM_DEBUG(llvm::errs()
@@ -94,7 +107,11 @@ uint32_t findRShiftForBiasI16(float max_bias, float threshold_y) {
 ///   apply rshift (i.e. divide by (1 << rshift))
 ///   then saturate to INT32
 uint32_t findRShiftForBiasI32(float max_bias, float threshold_y) {
-  assert(threshold_y > 0);
+  if (threshold_y <= 0) {
+    llvm::errs() << "WARNING: findRShiftForBiasI16 threshold_y = " << threshold_y
+                 << "\n";
+    threshold_y = 0.00001;
+  }
   float a = max_bias * 128.0 / threshold_y;
   if (a > 0x7fffffff) {
     LLVM_DEBUG(llvm::errs()
@@ -137,7 +154,10 @@ inline static float MAX_QUANT(int quant_bitwidth){
 double findQScaleForFilter(float max_filter, float threshold_y,
                            float threshold_x, int quant_bitwidth) {
   // assert(threshold_y > 0 && threshold_x > 0);
-  assert(threshold_y > 0);
+  if(threshold_y <= 0) {
+    llvm::errs() << "WARNING: findQScaleForFilter threshold_y = " << threshold_y << "\n";
+    threshold_y = 0.00001;
+  }
   double qscale = (max_filter * threshold_x) / (MAX_QUANT(quant_bitwidth)* threshold_y);
   return qscale;
 }
@@ -152,7 +172,10 @@ double findQScaleForFilter(float max_filter, float threshold_y,
 ///   => QScale = Multiplier / (1 << RShift)
 ///   where Multiplier is an interger
 double findQScaleForBiasI32(float max_bias, float threshold_y) {
-  assert(threshold_y > 0);
+  if (threshold_y <= 0) {
+    llvm::errs() << "WARNING: findQScaleForBiasI32 threshold_y = " << threshold_y << "\n";
+    threshold_y = 0.00001;
+  }
   // 0x7fffffff * 0.99 to workaround precision issue
   double qscale = (max_bias * 127.0f) / (0x7fffffff * 0.99 * threshold_y);
   return qscale;

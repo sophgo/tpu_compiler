@@ -44,6 +44,7 @@ do_fused_preprocess="0"
 do_crop="0"
 do_tpu_softmax="0"
 chip_ver="cv183x"
+outputs_type="FP32"
 do_quant_full_bf16="0"
 pixel_format="BGR_PACKED"
 
@@ -70,6 +71,7 @@ do
     g ) do_tpu_softmax="$OPTARG" ;;
     n ) do_quant_full_bf16="$OPTARG" ;;
     e ) pixel_format="$OPTARG" ;;
+    x ) outputs_type="INT8" ;;
     u ) usage ;;
   esac
 done
@@ -167,4 +169,5 @@ fi
 
 ${DIR}/mlir_to_cvimodel.sh \
     -i $opt_mlir \
-    -o $output
+    -o $output \
+    --outputs-type=$outputs_type

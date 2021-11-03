@@ -21,10 +21,6 @@ if [ -z $EVAL_SCRIPT ]; then
     $DIR/accuracy_0_caffe.sh $2
   elif [ $MODEL_TYPE = "onnx" ]; then
     $DIR/accuracy_0_onnx.sh $2
-  elif [ $MODEL_TYPE = "tensorflow" ]; then
-    $DIR/accuracy_0_tensorflow.sh $2
-  elif [ $MODEL_TYPE = "tflite_int8" ]; then
-    echo "Int8 no need fp32 eval, pass"
   else
     echo "Invalid MODEL_TYPE $MODEL_TYPE"
     exit 1

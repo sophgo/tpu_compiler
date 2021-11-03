@@ -245,12 +245,12 @@ def get_model_transform(args):
     elif args.model_type == 'onnx':
         tool = OnnxModelTransformTool(args.model_name, args.model_def,
                                       args.batch_size, preprocessor)
-    elif args.model_type == 'tensorflow':
-        tool = TFModelTransformTool(args.model_name, args.model_def,
-                                    args.batch_size, preprocessor)
-    else: # tflite_int8
-        tool = TFLiteInt8ModelTransformTool(args.model_name, args.model_def,
-                                            args.batch_size, preprocessor)
+    # elif args.model_type == 'tensorflow':
+    #     tool = TFModelTransformTool(args.model_name, args.model_def,
+    #                                 args.batch_size, preprocessor)
+    # else: # tflite_int8
+    #     tool = TFLiteInt8ModelTransformTool(args.model_name, args.model_def,
+    #                                         args.batch_size, preprocessor)
     return tool
 
 
