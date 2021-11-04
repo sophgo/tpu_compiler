@@ -62,14 +62,10 @@ LstmOpKernel::LstmOpKernel(Operation &op, value_map_t &valueMapping,
   }
   initial_h = this->opdTensors[3];
   if (initial_h == nullptr) {
-    initial_h =
-        std::make_shared<TensorData>(num_dir * batch_size * hidden_size, 0.0f);
+    initial_h = std::make_shared<TensorData>(num_dir * batch_size * hidden_size, 0.0f);
   }
-  initial_c = this->opdTensors[4];
-  if (initial_c == nullptr) {
-    initial_c =
-        std::make_shared<TensorData>(num_dir * batch_size * hidden_size, 0.0f);
-  }
+  initial_c =
+      std::make_shared<TensorData>(num_dir * batch_size * hidden_size, 0.0f);
   conts = this->opdTensors[5];
   if (conts == nullptr) {
     conts = std::make_shared<TensorData>(seq_length * batch_size, 1.0f);
@@ -173,6 +169,10 @@ void LstmOpKernel::compute(bool forward) {
 }
 
 void LstmOpKernel::invoke() {
+  auto initial_c_ = this->opdTensors[4];
+  if (initial_c_ != nullptr) {
+    memcpy(initial_c->data(), initial_c_->data(), initial_c->size() * sizeof(float));
+  }
   compute();
   if (bidirectional) {
     compute(false);
