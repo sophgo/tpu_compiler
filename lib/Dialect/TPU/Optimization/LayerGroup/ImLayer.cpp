@@ -250,6 +250,8 @@ static std::string getWeightStorage(Operation *p) {
   return op.storage().str();
 }
 
+#define MAX_TIU_NUM (4095 - 32)
+
 ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
@@ -260,8 +262,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   getConvParam(p, n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                dh, dw, is_dw, with_bias, do_relu, do_ic_align, fuse_leaky,
                pad_value);
-
-  if (ic > 4095) {
+  if (ic > MAX_TIU_NUM || iw > MAX_TIU_NUM || ih > MAX_TIU_NUM) {
     // hw limitation: ic should be smaller than 4096, otherwise
     // we need to split ic and output fp32 patial sum tensor,
     // which occupies too much memory. it has no benefit to
