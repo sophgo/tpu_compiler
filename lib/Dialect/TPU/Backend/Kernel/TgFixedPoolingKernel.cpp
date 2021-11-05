@@ -99,6 +99,9 @@ void TgInt8PoolingKernel::doTileForNormalCase() {
         if (step_iw > w) {
           step_iw = w;
         }
+        if (step_iw > MAX_WIDTH || step_ih > MAX_HEIGHT) {
+          continue;
+        }
         cvk_tl_shape_t input_shape = ctx.tl_shape_t4(1, step_c, step_ih, step_iw);
         cvk_tl_shape_t output_shape = ctx.tl_shape_t4(1, step_c, step_oh, step_ow);
         auto total_lmem = 2 * (ctx.lmem_tensor_to_size(input_shape, CVK_FMT_I8, 1) +

@@ -31,6 +31,8 @@
 
 namespace mlir {
 
+#define MAX_TIU_NUM (4095 - 32)
+
 typedef enum {
   IR_ABS = 0,
   IR_CONVOLUTION,

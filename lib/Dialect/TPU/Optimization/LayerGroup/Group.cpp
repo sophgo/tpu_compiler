@@ -507,6 +507,9 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
     } else if (layer_type == IR_CONVOLUTION || layer_type == IR_POOLING) {
       h_idx = out_h_idx * sh - pt;
       h_slice = (out_h_slice - 1) * sh + kh;
+      if (h_slice > MAX_TIU_NUM) {
+        return false;
+      }
     } else if (layer_type == IR_DECONVOLUTION) {
       int bottom_h = tensor->h();
       int height_insert0 = (bottom_h - 1) * sh + 1;
@@ -526,6 +529,9 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
       }
       h_idx = (if_insert_h_t + sh - 1) / sh;
       h_slice = (if_insert_h_b + sh - 1) / sh - h_idx;
+      if (h_slice > MAX_TIU_NUM) {
+        return false;
+      }
     } else if (layer_type == IR_UPSAMPLE) {
       int size_h = 1;
       int size_w = 1;
