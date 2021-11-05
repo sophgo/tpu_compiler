@@ -42,7 +42,8 @@ TEST_ONNX_IR = [
     "LeakyRelu",
     "Log",
     "LRN",
-    "LSTM",
+    "LSTM",  #h c as weight
+    "LSTM2", #h c as input
     "Max",
     "Min",
     "Mul",
@@ -176,6 +177,7 @@ class ONNX_IR_TESTER(object):
             "LogSoftmax": self.test_LogSoftmax,
             "LRN": self.test_LRN,
             "LSTM": self.test_LSTM,
+            "LSTM2": self.test_LSTM2,
             "Max": self.test_Max,
             "Min": self.test_Min,
             "Mul": self.test_Mul,
@@ -223,19 +225,15 @@ class ONNX_IR_TESTER(object):
 
         onnx_outs = onnx_inference(input_data, model_def, model_name, input_cb)
         num_outputs = len(onnx_outs)
+        input_npz = "{}_in_fp32.npz".format(model_name)
         if isinstance(input_data, dict):
-            count = 1
-            for i in range(len(input_data)):
-                input_data_npz = input_data['input'+str(count)]
-                input_data_npz = input_data_npz.astype(np.float32)
-                input_npz = "{}_input{}_fp32.npz".format(model_name, count)
-                count += 1
-                np.savez(input_npz, input=input_data_npz)
+            for name in input_data:
+                input_data[name] = input_data[name].astype(np.float32)
+            np.savez(input_npz, **input_data)
         else:
             input_data = input_data.astype(np.float32)
-            input_npz = "{}_input_fp32.npz".format(model_name)
             np.savez(input_npz, input=input_data)
-         # opt
+        # opt
         fp32_opt_mlir = "{}_opt.mlir".format(model_name)
         fp32_csv = "{}_fp32.csv".format(model_name)
         mlir_opt(fp32_mlir, fp32_opt_mlir, fp32_csv)
@@ -244,7 +242,6 @@ class ONNX_IR_TESTER(object):
         self.mlir_model.load_model(fp32_opt_mlir)
         mlir_outs = self.mlir_model.inference(input_data)
         fp32_tensors = self.mlir_model.get_all_tensor()
-
         # Test output
         assert(len(mlir_outs) == num_outputs)
         if num_outputs > 1:
@@ -1496,6 +1493,89 @@ class ONNX_IR_TESTER(object):
         model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_LSTM2(self):
+        test_case = 'LSTM2'
+        seq_length = 75
+        batch_size = 2
+        num_dir = 2
+        input_size = 128
+        hidden_size = 64
+        direction = 'forward' if num_dir == 1 else 'bidirectional'
+        input_data = np.random.rand(
+            seq_length, batch_size, input_size).astype(np.float32)
+        h0_data = np.random.rand(num_dir, batch_size, hidden_size).astype(np.float32)
+        c0_data = np.random.rand(num_dir, batch_size, hidden_size).astype(np.float32)
+        w_data = np.random.rand(
+            num_dir, 4*hidden_size, input_size).astype(np.float32)
+        r_data = np.random.rand(
+            num_dir, 4*hidden_size, hidden_size).astype(np.float32)
+        b_data = np.random.rand(num_dir, 8*hidden_size).astype(np.float32)
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
+        h0 = helper.make_tensor_value_info('h0', TensorProto.FLOAT, list(h0_data.shape))
+        c0 = helper.make_tensor_value_info('c0', TensorProto.FLOAT, list(c0_data.shape))
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, [seq_length, num_dir, batch_size, hidden_size])
+        Y_h = helper.make_tensor_value_info(
+            'Y_h', TensorProto.FLOAT, [num_dir, batch_size, hidden_size])
+        Y_c = helper.make_tensor_value_info(
+            'Y_c', TensorProto.FLOAT, [num_dir, batch_size, hidden_size])
+        w_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['w'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=w_data.shape,
+                vals=w_data.flatten(),
+            ),
+        )
+        r_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['r'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=r_data.shape,
+                vals=r_data.flatten(),
+            ),
+        )
+        b_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['b'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=b_data.shape,
+                vals=b_data.flatten(),
+            ),
+        )
+        node_def = onnx.helper.make_node(
+            "LSTM",
+            inputs=['input', 'w', 'r', 'b', '', 'h0','c0'],
+            outputs=['output','Y_h','Y_c'],
+            direction=direction,
+            hidden_size=hidden_size,
+        )
+        graph_def = helper.make_graph(
+            [w_node_def, r_node_def, b_node_def, node_def],
+            test_case,
+            [input, h0, c0],
+            [output, Y_h, Y_c],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        onnx.checker.check_model(model_def)
+        inputs = {
+            "input":input_data,
+            "h0":h0_data,
+            "c0":c0_data,
+        }
+        self.onnx_convert_and_infernece(inputs, model_def, test_case)
 
     def test_Max(self):
         test_case = 'Max'
