@@ -189,33 +189,36 @@ class TORCH_IR_TESTER(object):
         else:
             raise RuntimeError("Not support quant mode {}".format(mode))
 
-    def onnx_convert_and_infernece(self, input_data, model_name, torch_output, input_cb=None):
+    def onnx_convert_and_infernece(self, inputs, model_name, torch_output):
         fp32_mlir = "{}.mlir".format(model_name)
         model_def = model_name + '.onnx'
-        if isinstance(input_data, dict):
-            batch_size = input_data['input'].shape[0]
-        else:
-            batch_size = input_data.shape[0]
-        converter = OnnxConverter(model_name, model_def, fp32_mlir, batch_size=batch_size)
+        converter = OnnxConverter(model_name, model_def, fp32_mlir, batch_size=0)
         converter.run()
         del converter
         gc.collect()
-
-        if isinstance(input_data, dict):
-            for key, value in input_data.items():
-                input_data[key] = value.data.numpy().astype(np.float32)
+        input_npz = "{}_in_fp32.npz".format(model_name)
+        if isinstance(inputs, tuple):
+            input_data = {}
+            for i in range(len(inputs)):
+                key = "in_{}".format(i)
+                input_data[key] = inputs[i].data.numpy().astype(np.float32)
+            np.savez(input_npz, **input_data)
         else:
-            input_data = input_data.data.numpy().astype(np.float32)
-        onnx_outs = onnx_inference(input_data, model_def, input_cb)
+            input_data = inputs.data.numpy().astype(np.float32)
+            np.savez(input_npz, input=input_data)
+        onnx_outs = onnx_inference(input_data, model_def)
         num_outputs = len(onnx_outs)
 
         ##test pytorch out_data between onnx out_data
         if num_outputs == 1:
             onnx_out = list(onnx_outs.values())[0]
             np.testing.assert_allclose(torch_output.flatten(), onnx_out.flatten(), rtol=1e-5, atol=1e-01)
-
-        input_npz = "{}_input_fp32.npz".format(model_name)
-        np.savez(input_npz, input=input_data)
+        else:
+            assert(len(torch_output) == num_outputs)
+            keys = list(onnx_outs)
+            for i in range(num_outputs):
+                print("==> Torch vs Onnx, at[{}]".format(i))
+                np.testing.assert_allclose(torch_output[i].data.numpy().flatten(), onnx_outs[keys[i]].flatten(), rtol=1e-5, atol=1e-01)
 
         fp32_opt_mlir = "{}_opt.mlir".format(model_name)
         fp32_csv = "{}_fp32.csv".format(model_name)
@@ -238,6 +241,7 @@ class TORCH_IR_TESTER(object):
                 mlir_outs = list(mlir_outs.values())[0]
             onnx_out = onnx_outs.popitem()[1]
             np.testing.assert_allclose(mlir_outs.flatten(), onnx_out.flatten(), rtol=1e-5, atol=1e-01)
+        print("Compare Torch and Onnx success")
 
         mlir_npz = "{}_fp32.npz".format(model_name)
         np.savez(mlir_npz, **fp32_tensors)
@@ -335,60 +339,42 @@ class TORCH_IR_TESTER(object):
         del self.mlir_model
 
 
-    def pytorch_transform_onnx(self, model, input_data, test_onnx_name, dynamic_axes_confirm=False):
-        # Create some sample  input in the shape this model expects
-        output_names = ['output']
-        onnx_name = test_onnx_name+'.onnx'
-        dynamic_axes_attr = {'input'  : {0 : 'batch_size'}, 'output' : {0 : 'batch_size'}} if dynamic_axes_confirm else None
-
-        if type(input_data) == dict:
-            input_names = list(input_data.keys())
-            input_data = tuple(input_data.values())
+    def pytorch_transform_onnx(self, model, inputs, test_name):
+        in_names = []
+        if isinstance(inputs, tuple):
+            for i in range(len(inputs)):
+                in_names.append("in_{}".format(i))
         else:
-            input_names = ['input']
-
+            in_names = ["in_0"]
         torch.onnx.export(model,
-            input_data,
-            onnx_name,
-            export_params=True,
-            opset_version=11,
-            verbose=True,
-            input_names=input_names,
-            output_names=output_names,
-            dynamic_axes=dynamic_axes_attr)
+                          inputs,
+                          test_name + ".onnx",
+                          export_params=True,
+                          opset_version=11,
+                          verbose=True,
+                          input_names=in_names)
 
     def test_LSTM(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.rnn = nn.LSTM(
-                    input_size=6,
-                    hidden_size=5,
-                    num_layers=1,
-                    batch_first=True,
-                )
-                self.embedding_layer = torch.nn.Embedding(20, 6)
+                self.rnn = nn.LSTM(input_size=100, hidden_size=128, bidirectional=True)
 
-            def forward(self, x):
-                x = self.embedding_layer(x)
-                x = x.transpose_(1,0)
-                r_out, (h_n, h_c) = self.rnn(x)
-                return r_out
+            def forward(self, x, h_0, c_0):
+                Y,(Y_h, Y_c) = self.rnn(x, (h_0, c_0))
+                return Y,Y_h,Y_c
 
-        test_onnx_name = 'LSTM'
-        batch_size = 3
-        seq_length = 4
-        input_data = np.random.uniform(0, 19, size=(batch_size, seq_length))
-        input_data = torch.from_numpy(input_data).long()
-
+        test_name = 'LSTM'
+        input = torch.randn(81, 1, 100)
+        h_0 = torch.randn(2, 1, 128)
+        c_0 = torch.randn(2,1,128)
         net = Net()
-        torch_output_data = net(input_data)
+        outputs = net(input, h_0, c_0)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
-
-        torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        inputs = (input, h_0, c_0)
+        self.pytorch_transform_onnx(net, inputs, test_name)
+        self.onnx_convert_and_infernece(inputs, test_name, outputs)
 
     def test_Bilinear(self):
         class Net(torch.nn.Module):
@@ -405,14 +391,14 @@ class TORCH_IR_TESTER(object):
         input_shape = [100, 20, 30]
         input_data['input'] = torch.randn(input_shape[0], input_shape[1])
         input_data['input1'] = torch.randn(input_shape[0], input_shape[2])
-        test_onnx_name = 'Bilinear'
+        test_name = 'Bilinear'
 
         net = Net()
         torch_output_data = net(input_data['input'], input_data['input1'])
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.pytorch_transform_onnx(net, input_data, test_name)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Log(self):
         class Net(torch.nn.Module):
@@ -425,17 +411,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 3, 100, 100]
-        test_onnx_name = 'Log'
+        test_name = 'Log'
 
         net = Net()
         input_data = torch.clamp(torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3]), -10.0, -8.0)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_LogSigmoid(self):
         class Net(torch.nn.Module):
@@ -450,17 +436,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 100, 100]
-        test_onnx_name = 'LogSigmoid'
+        test_name = 'LogSigmoid'
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_LogSoftmax(self):
         class Net(torch.nn.Module):
@@ -475,17 +461,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 100, 32]
-        test_onnx_name = 'LogSoftmax'
+        test_name = 'LogSoftmax'
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_GRU(self):
         class Net(torch.nn.Module):
@@ -499,7 +485,7 @@ class TORCH_IR_TESTER(object):
                 out, hidden = self.gru(x)
                 return out
 
-        test_onnx_name = 'GRU'
+        test_name = 'GRU'
 
         batch_size = 50
         seq_length = 100
@@ -510,10 +496,10 @@ class TORCH_IR_TESTER(object):
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Expand(self):
         class Net(torch.nn.Module):
@@ -526,17 +512,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 1, 100, 100]
-        test_onnx_name = 'Expand'
+        test_name = 'Expand'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     # Unfold + matmul + fold = Conv2d
     def test_Unfold(self):
@@ -555,17 +541,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 2, 4, 4]
-        test_onnx_name = 'Unfold'
+        test_name = 'Unfold'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Flatten(self):
         class Net(torch.nn.Module):
@@ -579,17 +565,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [4, 1, 5, 10]
-        test_onnx_name = 'Flatten'
+        test_name = 'Flatten'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_ChannelShuffle(self):
         class Net(torch.nn.Module):
@@ -602,17 +588,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 4, 100, 100]
-        test_onnx_name = 'ChannelShuffle'
+        test_name = 'ChannelShuffle'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Upsample(self):
         class Net(torch.nn.Module):
@@ -632,17 +618,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 9, 100, 100]
-        test_onnx_name = 'Upsample'
+        test_name = 'Upsample'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
 
     def test_Identity(self):
@@ -656,17 +642,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 3, 100, 100]
-        test_onnx_name = 'Identity'
+        test_name = 'Identity'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Customer_Net(self):
         class Net(torch.nn.Module):
@@ -724,17 +710,17 @@ class TORCH_IR_TESTER(object):
                 x = self.con1d_test_list[-1](x)
                 return x
 
-        test_onnx_name = 'Customer_Net'
+        test_name = 'Customer_Net'
         net = Net()
         input_shape = [1, 80, 100]
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Max_Min(self):
         class Net(torch.nn.Module):
@@ -748,17 +734,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 1, 100, 100]
-        test_onnx_name = 'Max_Min'
+        test_name = 'Max_Min'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Repeat(self):
         class Net(torch.nn.Module):
@@ -771,17 +757,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 3, 100, 100]
-        test_onnx_name = 'Repeat'
+        test_name = 'Repeat'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Squeeze(self):
         class Net(torch.nn.Module):
@@ -795,17 +781,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 2, 256, 256]
-        test_onnx_name = 'Squeeze'
+        test_name = 'Squeeze'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Dropout(self):
         class Net(torch.nn.Module):
@@ -818,17 +804,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 3, 100, 100]
-        test_onnx_name = 'Dropout'
+        test_name = 'Dropout'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Math(self):
         class Net(torch.nn.Module):
@@ -845,17 +831,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 4, 100, 100]
-        test_onnx_name = 'Math'
+        test_name = 'Math'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Cat_Chunk(self):
         class Net(torch.nn.Module):
@@ -871,17 +857,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 3, 100, 100]
-        test_onnx_name = 'Cat_Chunk'
+        test_name = 'Cat_Chunk'
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Sum(self):
         class Net(torch.nn.Module):
@@ -893,17 +879,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 3, 8, 8]
-        test_onnx_name = 'Sum'
+        test_name = 'Sum'
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Size(self):
         class Net(nn.Module):
@@ -915,14 +901,14 @@ class TORCH_IR_TESTER(object):
                 return torch.add(x, y)
 
         input_shape = [100, 256]
-        test_onnx_name = "Size"
+        test_name = "Size"
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_masked_fill(self):
         class Net(nn.Module):
@@ -935,15 +921,15 @@ class TORCH_IR_TESTER(object):
                 return y + z
 
         input_shape = [2, 3, 100]
-        test_onnx_name = "masked_fill"
+        test_name = "masked_fill"
 
         net = Net()
         input_data = torch.randint(0, 1000, input_shape)
         input_data[:,:,70:] = 0
         torch_output_data = net(input_data)
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Std(self):
         class Net(torch.nn.Module):
@@ -956,17 +942,17 @@ class TORCH_IR_TESTER(object):
                 return (x - mean) / (std + 0.0001)
 
         input_shape = [1, 3, 100, 100]
-        test_onnx_name = 'Std'
+        test_name = 'Std'
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Mulit_attention_api(self):
         class Net(torch.nn.Module):
@@ -980,7 +966,7 @@ class TORCH_IR_TESTER(object):
                 attn_output, attn_output_weights = self.multihead_attn(x, x, x)
                 return attn_output
 
-        test_onnx_name = 'Mulit_attention_api'
+        test_name = 'Mulit_attention_api'
         input_shape = [1, 3]
         input_data = torch.randn(input_shape)
         input_data1 = torch.LongTensor([[0, 1, 2]]) ##shape: [1, 3]
@@ -989,10 +975,10 @@ class TORCH_IR_TESTER(object):
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Mulit_attention_self(self):
         class SelfAttention(nn.Module):
@@ -1036,7 +1022,7 @@ class TORCH_IR_TESTER(object):
                 x = self.fc(x)
                 return x
 
-        test_onnx_name = 'Mulit_attention_self'
+        test_name = 'Mulit_attention_self'
         embed_dim = 2
         num_heads = 2
         batch_size = 3
@@ -1056,10 +1042,10 @@ class TORCH_IR_TESTER(object):
         torch_output_data = multihead_net(input_data['input'], input_data['input1'], input_data['input2'])
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(multihead_net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(multihead_net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Norm(self):
         class Net(torch.nn.Module):
@@ -1072,17 +1058,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 1, 100, 100]
-        test_onnx_name = 'Norm'
+        test_name = 'Norm'
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Linear(self):
         class Net(torch.nn.Module):
@@ -1098,17 +1084,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 100, 100]
-        test_onnx_name = 'Linear'
+        test_name = 'Linear'
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2])
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_LayerNorm(self):
         class Net(torch.nn.Module):
@@ -1121,17 +1107,17 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [3, 24, 50]
-        test_onnx_name = 'LayerNorm'
+        test_name = 'LayerNorm'
 
         net = Net()
         input_data = torch.randn(input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Activation(self):
         class Net(torch.nn.Module):
@@ -1189,15 +1175,15 @@ class TORCH_IR_TESTER(object):
                 return y
 
 
-        test_onnx_name = 'Activation'
+        test_name = 'Activation'
         input_data = torch.randn(3, 100, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Batch_Norm(self):
         class Net(torch.nn.Module):
@@ -1221,16 +1207,16 @@ class TORCH_IR_TESTER(object):
                 return x
 
         batch_size = 1
-        test_onnx_name = 'Batch_Norm'
+        test_name = 'Batch_Norm'
 
         input_data = torch.randn(batch_size, 1, 100, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_ConvTranspose(self):
         class Net(torch.nn.Module):
@@ -1248,16 +1234,16 @@ class TORCH_IR_TESTER(object):
                 return x
 
         batch_size = 3
-        test_onnx_name = 'ConvTranspose'
+        test_name = 'ConvTranspose'
 
         input_data = torch.randn(batch_size, 40, 1, 30).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_MaxPool(self):
         class Net(torch.nn.Module):
@@ -1277,16 +1263,16 @@ class TORCH_IR_TESTER(object):
                 return x
 
         batch_size = 3
-        test_onnx_name = 'MaxPool'
+        test_name = 'MaxPool'
 
         input_data = torch.randn(batch_size, 3, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_AvgPool(self):
         class Net(torch.nn.Module):
@@ -1303,16 +1289,16 @@ class TORCH_IR_TESTER(object):
                 return x
 
         batch_size = 3
-        test_onnx_name = 'AvgPool'
+        test_name = 'AvgPool'
 
         input_data = torch.randn(batch_size, 40, 3, 30).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_ReflectionPad(self):
         class Net(torch.nn.Module):
@@ -1329,16 +1315,16 @@ class TORCH_IR_TESTER(object):
                 return x
 
         batch_size = 3
-        test_onnx_name = 'ReflectionPad'
+        test_name = 'ReflectionPad'
 
         input_data = torch.randn(batch_size, 100, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_ZeroPad2d(self):
         class Net(torch.nn.Module):
@@ -1354,16 +1340,16 @@ class TORCH_IR_TESTER(object):
                 return x
 
         batch_size = 3
-        test_onnx_name = 'ZeroPad2d'
+        test_name = 'ZeroPad2d'
 
         input_data = torch.randn(batch_size, 3, 100, 100).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_ConstantPad(self):
         class Net(torch.nn.Module):
@@ -1380,16 +1366,16 @@ class TORCH_IR_TESTER(object):
                 return x
 
         batch_size = 3
-        test_onnx_name = 'ConstantPad'
+        test_name = 'ConstantPad'
 
         input_data = torch.randn(batch_size, 1, 3).float()
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name, False)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
     def test_Conv(self):
         class Net(torch.nn.Module):
@@ -1416,16 +1402,16 @@ class TORCH_IR_TESTER(object):
                 return x
 
         input_shape = [1, 3, 30, 100, 100]
-        test_onnx_name = 'Conv'
+        test_name = 'Conv'
         ##torch needn't weight and bias
         input_data = torch.randn(input_shape)
         net = Net()
         torch_output_data = net(input_data)
 
         #Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_onnx_name)
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_onnx_name, torch_output_data)
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
 if __name__ == "__main__":
     os.makedirs("torch_test", exist_ok=True)
@@ -1469,5 +1455,3 @@ if __name__ == "__main__":
     else:
         print("Usage: test_torch.py ir_name")
         exit(-1)
-
-
