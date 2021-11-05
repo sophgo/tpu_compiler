@@ -2280,6 +2280,9 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
       iw_step = std::min(iw_step + stride_w - 1, iw);
       tile_info.iw_step = iw_step;
     }
+    if (iw_step > MAX_WIDTH) {
+      continue;
+    }
 
     // Split oh
     // for (tile_info.h = 1; tile_info.h <= oh; ++tile_info.h) {
@@ -2290,6 +2293,9 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
 
       // int32_t oh_step = ceiling_func(oh, tile_info.h);
       int32_t ih_step = std::min((oh_step - 1) * stride_h + kh_extent, ih);
+      if (ih_step > MAX_HEIGHT) {
+        continue;
+      }
 
       // We may need to put EU-alignment info in one place
       cvk_tl_shape_t coeff_shape_i16 = ctx.tl_shape_t4(2, oc_step, 1, 1);
@@ -2807,6 +2813,9 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
     int iw_step =
         ceiling_func((ow_step - 1) * stride_w + kw_extent, 1 + insert_width());
     iw_step = std::min(iw_step, iw);
+    if (iw_step > MAX_WIDTH) {
+      continue;
+    }
 
     // Split oh
     for (tile_info.h = 1; tile_info.h <= oh; ++tile_info.h) {
@@ -2818,6 +2827,9 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
         int ih_step = ceiling_func((oh_step - 1) * stride_h + kh_extent,
                                    1 + insert_height());
         ih_step = std::min(ih_step, ih);
+        if (ih_step > MAX_HEIGHT) {
+          continue;
+        }
 
         // Split oc
         for (int32_t slice_oc = 0; slice_oc < num_oc_step; ++slice_oc) {
