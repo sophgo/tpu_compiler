@@ -19,7 +19,7 @@ class MLIRModel(model_base):
             all_tensor = self.net.get_all_tensor()
             output_dit = {}
             for key, value in all_tensor.items():
-                if key == self.net.get_output_details()[0]:
+                if key in self.net.get_output_details():
                     output_dit[key] = value
             return output_dit
         elif isinstance(inputs, np.ndarray):
