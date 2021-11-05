@@ -975,6 +975,12 @@ public:
   uint32_t padding_right() { return args.pad_right; }
 
   int pad_value() { return args.pad_value; }
+  int w_after_ins_pad(int w) {
+    return (w - 1) * (1 + args.insert_w) + 1 + args.pad_left + args.pad_right;
+  }
+  int h_after_ins_pad(int h) {
+    return (h - 1) * (1 + args.insert_h) + 1 + args.pad_bottom + args.pad_top;
+  }
 
   uint32_t subsampling_height() {
     assert(args.stride_h >= 1);

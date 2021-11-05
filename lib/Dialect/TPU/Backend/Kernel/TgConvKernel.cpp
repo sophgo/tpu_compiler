@@ -2047,9 +2047,6 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
         ceiling_func((ow_step - 1) * stride_w + kw_extent, 1 + insert_width());
     iw_step = std::min(iw_step, iw);
 
-    if (iw_step > MAX_WIDTH)
-      continue;
-
     if ((stride_w > 1) && ((iw_step + stride_w) > iw)) {
       // For better DMA transfer efficiency, use whole width.
       //   E.g.
@@ -2058,6 +2055,10 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
       //     input (27, 27) needed, but (27, 28) is better
       iw_step = std::min(iw_step + stride_w - 1, iw);
       tile_info.iw_step = iw_step;
+    }
+
+    if (w_after_ins_pad(iw_step) > MAX_WIDTH) {
+      continue;
     }
 
     // Split oh
@@ -2071,7 +2072,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
                                      1 + insert_height());
       ih_step = std::min(ih_step, ih);
 
-      if (ih_step > MAX_WIDTH)
+      if (h_after_ins_pad(ih_step) > MAX_HEIGHT)
         continue;
 
       // Split oc
@@ -2280,7 +2281,7 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
       iw_step = std::min(iw_step + stride_w - 1, iw);
       tile_info.iw_step = iw_step;
     }
-    if (iw_step > MAX_WIDTH) {
+    if (w_after_ins_pad(iw_step) > MAX_WIDTH) {
       continue;
     }
 
@@ -2293,7 +2294,7 @@ bool Conv::determinePs32TileSize(bool useDoubleBuffer) {
 
       // int32_t oh_step = ceiling_func(oh, tile_info.h);
       int32_t ih_step = std::min((oh_step - 1) * stride_h + kh_extent, ih);
-      if (ih_step > MAX_HEIGHT) {
+      if (h_after_ins_pad(ih_step) > MAX_HEIGHT) {
         continue;
       }
 
@@ -2813,7 +2814,7 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
     int iw_step =
         ceiling_func((ow_step - 1) * stride_w + kw_extent, 1 + insert_width());
     iw_step = std::min(iw_step, iw);
-    if (iw_step > MAX_WIDTH) {
+    if (w_after_ins_pad(iw_step) > MAX_WIDTH || ow_step > MAX_WIDTH) {
       continue;
     }
 
@@ -2827,7 +2828,7 @@ bool Conv::determineDwTileSize(bool useDoubleBuffer, bool favor_dma) {
         int ih_step = ceiling_func((oh_step - 1) * stride_h + kh_extent,
                                    1 + insert_height());
         ih_step = std::min(ih_step, ih);
-        if (ih_step > MAX_HEIGHT) {
+        if (h_after_ins_pad(ih_step) > MAX_HEIGHT || oh_step > MAX_HEIGHT) {
           continue;
         }
 
@@ -3036,7 +3037,8 @@ bool Conv::canNoTile() {
   // Hardware limit
   if ((group_input_channels() > MAX_TIU_CHL) ||
       (group_output_channels() > MAX_TIU_CHL) ||
-      (input_height() > MAX_HEIGHT) || (input_width() > MAX_WIDTH))
+      (input_height() > MAX_HEIGHT) || (input_width() > MAX_WIDTH)
+      || (output_width() > MAX_WIDTH) || (output_height() > MAX_HEIGHT))
     return false;
 
   int input_n = args.input_n;
