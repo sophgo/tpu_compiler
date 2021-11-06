@@ -327,7 +327,7 @@ public:
     do_ic_alignment = tpuOp.do_ic_alignment().hasValue()
                          ? tpuOp.do_ic_alignment().getValue() : false;
 
-    if (llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(tpuOp.getOperation()))
+    if (llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(tpuOp.getOperation()))
       do_chl_quan = true;
 
     do_leaky_relu = tpuOp.do_leaky_relu();
@@ -348,6 +348,10 @@ public:
     // Already configured
     if (tpuOp.tile_param().hasValue())
       return failure();
+
+    if (false == isTensorNone(tpuOp.quant_scale())) {
+      return failure();
+    }
 
     LLVM_DEBUG(llvm::dbgs()
         << "convertConvTilePattern: layer ID "
@@ -392,15 +396,14 @@ void ConvTilePass::runOnFunction() {
   assert(MInfo::version && "refer to set-chip");
 
   getFunction().walk([&](Operation *op) {
-    if (auto tpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+    if (auto tpuOp = dyn_cast<tpu::TG_INT8_Conv2DOp>(op)) {
       tpuOp->removeAttr("tile_param");
     }
   });
 
   OwningRewritePatternList patterns;
   patterns.insert<
-      convertConvTilePattern<tpu::TG_INT8_PC_Conv2DOp>,
-      convertConvTilePattern<tpu::TG_INT8_PT_Conv2DOp>,
+      convertConvTilePattern<tpu::TG_INT8_Conv2DOp>,
       convertConvTilePattern<tpu::TG_BF16_Conv2DOp>
       >(&getContext(), Machineinfo);
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
@@ -409,8 +412,7 @@ void ConvTilePass::runOnFunction() {
 void PopulateConvTilePatterns(
     MLIRContext *context, OwningRewritePatternList *patterns, MInfo &mInfo) {
   patterns->insert<
-      convertConvTilePattern<tpu::TG_INT8_PC_Conv2DOp>,
-      convertConvTilePattern<tpu::TG_INT8_PT_Conv2DOp>,
+      convertConvTilePattern<tpu::TG_INT8_Conv2DOp>,
       convertConvTilePattern<tpu::TG_BF16_Conv2DOp>
       >(context, mInfo);
 }

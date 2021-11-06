@@ -28,8 +28,11 @@ private:
   SyncedData zero_bias;
   std::vector<float> tmp_input_data;
   // int8
-  std::vector<float> rshift;
-  std::vector<float> multiplier;
+  SyncedData quant_rshift;
+  SyncedData quant_multiplier;
+  // bf16
+  SyncedData quant_scale;
+  SyncedData quant_zeropoint;
 
   // param
   bool is_dw;
@@ -59,6 +62,7 @@ private:
   bool is_deconv = false;
   bool do_bias_later = false;
   bool do_relu_later = false;
+  bool activation_bf16 = false;
 
   // mkldnn setting
   MKLConv conv;

@@ -44,7 +44,7 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
   bool is_dw, with_bias, do_relu;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw,
       pad_value;
-  bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
+  bool is_deconv = isa<tpu::TG_INT8_DeConv2DOp>(op.getOperation());
   parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(), n,
                  ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt,
                  pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
@@ -116,11 +116,11 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
 }
 
 template
-uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_PC_Conv2DOp &op,
+uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_Conv2DOp &op,
     struct SimpleMemoryUsageAnalysis_details *details = nullptr,
     int batch_size = -1);
 template
-uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_PC_DeConv2DOp &op,
+uint64_t SimpleConv2DMemoryUsageAnalysis(tpu::TG_INT8_DeConv2DOp &op,
     struct SimpleMemoryUsageAnalysis_details *details = nullptr,
     int batch_size = -1);
 template

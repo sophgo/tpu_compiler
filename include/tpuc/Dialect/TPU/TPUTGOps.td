@@ -223,6 +223,8 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     AnyTensor:$filter,
     TPU_TensorOfOrNone<[I32,I16,I8]>:$pc_info,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     OptionalAttr<I8Attr>:$pt_rshift,
     TPU_ConvParamAttr:$param,
     OptionalAttr<I64Attr>:$gaddr,
@@ -245,11 +247,9 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_PT_Conv2DOp : TPU_TG_ConvOp<"tg_int8_pt_conv_2d", "Int8 Per-Tensor">;
-def TPU_TG_INT8_PC_Conv2DOp : TPU_TG_ConvOp<"tg_int8_pc_conv_2d", "Int8 Per-Channel">;
+def TPU_TG_INT8_Conv2DOp : TPU_TG_ConvOp<"tg_int8_pc_conv_2d", "Int8 Per-Channel">;
 def TPU_TG_BF16_Conv2DOp : TPU_TG_ConvOp<"tg_bf16_conv_2d", "Bf16">;
-def TPU_TG_INT8_PT_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pt_deconv_2d", "Int8 Per-Tensor">;
-def TPU_TG_INT8_PC_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pc_deconv_2d", "Int8 Per-Channel">;
+def TPU_TG_INT8_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pc_deconv_2d", "Int8 Per-Channel">;
 def TPU_TG_BF16_DeConv2DOp : TPU_TG_ConvOp<"tg_bf16_deconv_2d", "Bf16">;
 def TPU_TG_INT8_ScaleOp : TPU_TG_ConvOp<"tg_int8_scale", "Int8">;
 def TPU_TG_BF16_ScaleOp : TPU_TG_ConvOp<"tg_bf16_scale", "Bf16">;

@@ -1401,7 +1401,7 @@ class TORCH_IR_TESTER(object):
                 x = self.conv_test_1d(x)
                 return x
 
-        input_shape = [1, 3, 30, 100, 100]
+        input_shape = [1, 3, 30, 100, 10]
         test_name = 'Conv'
         ##torch needn't weight and bias
         input_data = torch.randn(input_shape)

@@ -132,9 +132,7 @@ public:
 
     patterns.insert<
         MoveConvStrideToEltwiseOpPattern<tpu::TG_INT8_EltwiseAddOp,
-                                         tpu::TG_INT8_PC_Conv2DOp>,
-        MoveConvStrideToEltwiseOpPattern<tpu::TG_INT8_EltwiseAddOp,
-                                         tpu::TG_INT8_PT_Conv2DOp>,
+                                         tpu::TG_INT8_Conv2DOp>,
         MoveConvStrideToEltwiseOpPattern<tpu::TG_BF16_EltwiseAddOp,
                                          tpu::TG_BF16_Conv2DOp>
       >(context);

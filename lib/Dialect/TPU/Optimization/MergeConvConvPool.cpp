@@ -44,7 +44,7 @@ struct MergeConvConvPoolOpPattern : public RewritePattern {
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   int32_t calcFilterAndBiasSize(Operation *op) const {
-    auto conv_ = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op);
+    auto conv_ = dyn_cast<tpu::TG_INT8_Conv2DOp>(op);
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw;
     int pt, pb, pl, pr, dh, dw, pad_value;
@@ -75,7 +75,7 @@ struct MergeConvConvPoolOpPattern : public RewritePattern {
     ops.push_back(op);
     llvm::errs() << "here 2\n";
     auto nextOp = getNextOp(op);
-    if (!dyn_cast_or_null<tpu::TG_INT8_PC_Conv2DOp>(nextOp)) {
+    if (!dyn_cast_or_null<tpu::TG_INT8_Conv2DOp>(nextOp)) {
       return failure();
     }
     llvm::errs() << "here 3\n";
@@ -93,7 +93,7 @@ struct MergeConvConvPoolOpPattern : public RewritePattern {
 
     int32_t pin_lmem_size = 0;
     for (auto op_ : ops) {
-      if (isa<tpu::TG_INT8_PC_Conv2DOp>(op_)) {
+      if (isa<tpu::TG_INT8_Conv2DOp>(op_)) {
         pin_lmem_size += calcFilterAndBiasSize(op_);
         llvm::errs() << "pin_lmem_size:" << pin_lmem_size << "\n";
       }
@@ -137,7 +137,7 @@ struct MergeConvConvPoolOpPattern : public RewritePattern {
               llvm::errs() << "poolmax cur oh:" << cur_oh << " ow:" << cur_ow << " ih:"
                            << cur_ih << " iw: " << cur_iw << "\n"
                            << " ifmap:" << ifmap << " ofmap:" << ofmap << "\n";
-            } else if (auto conv_ = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op_)) {
+            } else if (auto conv_ = dyn_cast<tpu::TG_INT8_Conv2DOp>(op_)) {
               Conv2DParamParser p(conv_);
               if (p.dh > 1) {
                 p.kh = p.dh * (p.kh - 1) + 1;
@@ -171,8 +171,8 @@ struct MergeConvConvPoolOpPattern : public RewritePattern {
     return failure();
   success:
     llvm::errs() << "find matched pattern\n";
-    auto conv_0_ = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(ops[0]);
-    auto conv_1_ = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(ops[1]);
+    auto conv_0_ = dyn_cast<tpu::TG_INT8_Conv2DOp>(ops[0]);
+    auto conv_1_ = dyn_cast<tpu::TG_INT8_Conv2DOp>(ops[1]);
     auto pool_ = dyn_cast<tpu::TG_INT8_PoolMax2DOp>(ops[2]);
     std::vector<Value> operands;
     operands.push_back(conv_0_.getOperand(0));
@@ -209,7 +209,7 @@ public:
     auto *context = &getContext();
     patterns.clear();
     patterns.insert<
-        MergeConvConvPoolOpPattern<tpu::TG_INT8_PC_Conv2DOp>
+        MergeConvConvPoolOpPattern<tpu::TG_INT8_Conv2DOp>
       >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }

@@ -515,8 +515,8 @@ void GroupOptimizer::build_fn(MLIRContext * context) {
 
   OwningRewritePatternList patterns_pack;
   patterns_pack.insert<
-      LGLoweringPattern<tpu::TG_INT8_PC_Conv2DOp>,
-      LGLoweringPattern<tpu::TG_INT8_PC_DeConv2DOp>,
+      LGLoweringPattern<tpu::TG_INT8_Conv2DOp>,
+      LGLoweringPattern<tpu::TG_INT8_DeConv2DOp>,
       LGLoweringPattern<tpu::TG_INT8_EltwiseAddOp>,
       LGLoweringPattern<tpu::TG_INT8_EltwiseMulOp>,
       LGLoweringPattern<tpu::TG_INT8_EltwiseMaxOp>,

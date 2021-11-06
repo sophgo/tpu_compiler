@@ -69,10 +69,6 @@ public:
 
   uint32_t getLayerId() { return layerId_; }
 
-  void setMemRegion(uint32_t mem_region) { memRegion_ = mem_region; }
-
-  uint32_t getMemRegion() { return memRegion_; }
-
   // Calculate offset using current positions
   uint64_t getCurrentOffset(std::vector<uint32_t> cur_poss) {
     assert(cur_poss.size() == shapes_.size() &&
@@ -104,7 +100,6 @@ public:
 
   uint64_t address_ = {0};
   uint32_t layerId_ = {0};
-  uint32_t memRegion_ = {0};
 
   // TDMA load needs to enable decompression if true.
   // TDMA store needs to enable compression if true.
@@ -288,10 +283,12 @@ class CmdDescriptor {
 public:
   enum CmdTypeEnum {
     LoadBiasCmdType,
+    LoadQuantCmdType,
     LoadInputCmdType,
     LoadWeightCmdType,
     LoadScaleLutTblCmdType,
     ComputCmdType,
+    ComputeQuantCmdType,
     ComputeScaleLutCmdType,
     StoreOutputCmdType,
     ParallelCmdType
@@ -419,6 +416,7 @@ public:
     // Double buffer
     for (uint32_t i = 0; i < 2; ++i) {
       lmBiasAccessStates_.push_back(UnknownState);
+      lmQuantAccessStates_.push_back(UnknownState);
       lmWeightAccessStates_.push_back(UnknownState);
       lmInputAccessStates_.push_back(UnknownState);
       lmOutputAccessStates_.push_back(UnknownState);
@@ -442,14 +440,16 @@ public:
 
   struct CmdLmState {
     CmdLmState(CmdDescriptor::CmdTypeEnum cmdType,
-               std::vector<AccessState> biass, std::vector<AccessState> weights,
+               std::vector<AccessState> biass, std::vector<AccessState> quants,
+               std::vector<AccessState> weights,
                std::vector<AccessState> inputs,
                std::vector<AccessState> outputs)
-        : cmdType_(cmdType), biass_(biass), weights_(weights), inputs_(inputs),
-          outputs_(outputs) {}
+        : cmdType_(cmdType), biass_(biass), quants_(quants), weights_(weights),
+          inputs_(inputs), outputs_(outputs) {}
 
     CmdDescriptor::CmdTypeEnum cmdType_;
     std::vector<AccessState> biass_;
+    std::vector<AccessState> quants_;
     std::vector<AccessState> weights_;
     std::vector<AccessState> inputs_;
     std::vector<AccessState> outputs_;
@@ -479,6 +479,7 @@ private:
   const std::vector<std::unique_ptr<CmdDescriptor>> &cmdQueue;
 
   std::vector<AccessState> lmBiasAccessStates_;
+  std::vector<AccessState> lmQuantAccessStates_;
   std::vector<AccessState> lmWeightAccessStates_;
   std::vector<AccessState> lmInputAccessStates_;
   std::vector<AccessState> lmOutputAccessStates_;
@@ -662,6 +663,8 @@ struct Conv_ARGS {
   gaddr_t ga_ofmap;
   gaddr_t ga_weight;
   gaddr_t ga_bias;
+  gaddr_t ga_scale;
+  gaddr_t ga_zeropoint;
   int input_n;
   int input_c;
   int input_h;
@@ -682,6 +685,7 @@ struct Conv_ARGS {
   uint8_t stride_w;
   bool do_bias;
   bool do_activation;
+  bool do_quant;
   float *activation_arg;
   int activation_gt_scale;
   int activation_gt_rshift;
@@ -793,6 +797,7 @@ public:
   void initializeGlobalMemOutput();
   void initializeGlobalMemWeight();
   void initializeGlobalBias();
+  void initializeGlobalQuant();
   void initializeGlobalScaleLut();
   void initializeGlobalMem();
 
@@ -818,6 +823,8 @@ public:
   void deallocateLocalMemOfFusedActivation();
   void allocateLocalMemOfPreProcess();
   void deallocateLocalMemOfPreProcess();
+  void allocateLocalMemOfQuant();
+  void deallocateLocalMemOfQuant();
   void allocateAllLocalMem();
   void deallocateAllLocalMem();
 
@@ -850,6 +857,11 @@ public:
   getTiledLmShapesOfBiasForTiu(std::vector<uint32_t> gmOutputPoss);
 
   std::vector<uint32_t>
+  getTiledGmShapesOfQuantForTdmaLoad(std::vector<uint32_t> gmOutputPoss);
+  std::vector<uint32_t>
+  getTiledLmShapesOfQuantForTiu(std::vector<uint32_t> gmOutputPoss);
+
+  std::vector<uint32_t>
   getTiledGmShapesOfOutputForTiu(std::vector<uint32_t> gmOutputPoss);
 
   void fillConstantLmInput(cvk_tl_t *lmLoad,
@@ -860,9 +872,10 @@ public:
   void adjustComputeForPs32Output(cvk_tl_t *lmOutput);
   void adjustStoreForPs32Output(cvk_tl_t *lmOutput, cvk_tg_t *gmOutput,
                                 uint64_t ga_offset);
-
   void loadBias(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
                 uint32_t cmdQueueIndex);
+  void loadQuant(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
+                    uint32_t cmdQueueIndex);
   void loadWeight(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
                   uint32_t cmdQueueIndex, uint32_t icPos = 0);
   void loadInput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
@@ -893,6 +906,8 @@ public:
                uint32_t icPos = 0);
   void computeScaleLut(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
                        uint32_t cmdQueueIndex, uint32_t icPos = 0);
+  void computeQuant(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
+                    uint32_t cmdQueueIndex, uint32_t icPos = 0);
   void storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
                                     cvk_tg_t *dst, cvk_tl_t *src);
   void storeOutput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
@@ -915,6 +930,7 @@ public:
                            uint32_t icPos);
   void enqueueStoreOutputCmd(std::vector<uint32_t> poss, uint32_t index);
   void enqueueLoadBiasCmd(std::vector<uint32_t> poss, uint32_t index);
+  void enqueueLoadQuantCmd(std::vector<uint32_t> poss, uint32_t index);
   void enqueueLoadWeightCmd(std::vector<uint32_t> poss, uint32_t index);
   void enqueueLoadWeightCmd(std::vector<uint32_t> poss, uint32_t index,
                             uint32_t icPos);
@@ -926,6 +942,8 @@ public:
   void enqueueComputeScaleLutCmd(std::vector<uint32_t> poss, uint32_t index);
   void enqueueComputeScaleLutCmd(std::vector<uint32_t> poss, uint32_t index,
                                  uint32_t icPos);
+  void enqueueComputeQuantCmd(std::vector<uint32_t> poss, uint32_t index,
+                              uint32_t icPos = 0);
   void enqueueDisParallelCmd();
   void enqueueEnParallelCmd();
 
@@ -1055,6 +1073,7 @@ private:
   std::unique_ptr<GlobalMemoryDescriptor> gmOutputDesc;
   std::unique_ptr<GlobalMemoryDescriptor> gmWeightDesc;
   std::unique_ptr<GlobalMemoryDescriptor> gmBiasDesc;
+  std::unique_ptr<GlobalMemoryDescriptor> gmQuantDesc[2]; // quant_scale + quant_zeropoint
   std::unique_ptr<GlobalMemoryDescriptor> gmScaleLutDesc;
 
   // Local memory descriptor
@@ -1062,6 +1081,7 @@ private:
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmOutputDescs;
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmWeightDescs;
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmBiasDescs;
+  std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmQuantDescs;
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmFusedActDescs;
   std::vector<std::unique_ptr<LocalMemoryDescriptor>> lmPreProcessDescs;
 

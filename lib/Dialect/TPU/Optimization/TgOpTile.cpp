@@ -52,7 +52,7 @@ struct TgOpTilePass : public mlir::PassWrapper<TgOpTilePass, FunctionPass> {
     assert(MInfo::version && "refer to set-chip");
 
     getFunction().walk([&](Operation *op) {
-      if (auto tpuOp = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+      if (auto tpuOp = dyn_cast<tpu::TG_INT8_Conv2DOp>(op)) {
         tpuOp->removeAttr("tile_param");
       } else if (auto tpuOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op)) {
         tpuOp->removeAttr("tile_step");

@@ -116,8 +116,8 @@ size_t Graph::get_op_size(Operation *op) {
 
 bool Graph::check_fusible(Operation *op) {
   if (isa<tpu::TG_INT8_AbsOp>(op) || isa<tpu::TG_BF16_AbsOp>(op) ||
-      isa<tpu::TG_INT8_PC_Conv2DOp>(op) || isa<tpu::TG_BF16_Conv2DOp>(op) ||
-      isa<tpu::TG_INT8_PC_DeConv2DOp>(op) || isa<tpu::TG_BF16_DeConv2DOp>(op) ||
+      isa<tpu::TG_INT8_Conv2DOp>(op) || isa<tpu::TG_BF16_Conv2DOp>(op) ||
+      isa<tpu::TG_INT8_DeConv2DOp>(op) || isa<tpu::TG_BF16_DeConv2DOp>(op) ||
       isa<tpu::TG_INT8_EltwiseAddOp>(op) ||
       isa<tpu::TG_INT8_EltwiseMulOp>(op) ||
       isa<tpu::TG_BF16_EltwiseAddOp>(op) ||

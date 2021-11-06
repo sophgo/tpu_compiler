@@ -69,7 +69,7 @@ public:
   explicit TgOpDividePass(llvm::raw_ostream &os = llvm::errs()) : os(os) {}
 
   static bool support(Operation *op) {
-    if (isa<tpu::TG_INT8_PC_Conv2DOp>(op) ||
+    if (isa<tpu::TG_INT8_Conv2DOp>(op) ||
         isa<tpu::TG_INT8_EltwiseAddOp>(op) ||
         isa<tpu::TG_INT8_PoolMax2DOp>(op)) {
       return true;
@@ -317,7 +317,7 @@ public:
       }
       return true;
     }
-    if (auto cast_op = llvm::dyn_cast_or_null<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+    if (auto cast_op = llvm::dyn_cast_or_null<tpu::TG_INT8_Conv2DOp>(op)) {
       bool is_dw, with_bias, do_relu;
       int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
       int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
@@ -523,7 +523,7 @@ public:
           ArrayRef<NamedAttribute>{attrs});
       s.op = newOp.getOperation();
     } else if (auto cast_op =
-                   llvm::dyn_cast_or_null<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+                   llvm::dyn_cast_or_null<tpu::TG_INT8_Conv2DOp>(op)) {
       auto in = adjust_input(builder, op, cast_op.input(), s);
       operands.push_back(in);
       auto filter = copy_weight(builder, op, cast_op.filter());
@@ -561,7 +561,7 @@ public:
               builder.getNamedAttr(pair.first.c_str(), pair.second));
         }
       }
-      auto newOp = builder.create<tpu::TG_INT8_PC_Conv2DOp>(
+      auto newOp = builder.create<tpu::TG_INT8_Conv2DOp>(
           op->getLoc(), type, ArrayRef<Value>{operands},
           ArrayRef<NamedAttribute>{attrs});
       s.op = newOp.getOperation();

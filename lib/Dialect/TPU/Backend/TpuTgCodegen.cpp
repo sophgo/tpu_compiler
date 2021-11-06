@@ -687,99 +687,7 @@ LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TG_INT8_PT_Conv2DOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  bool is_dw, with_bias, do_relu;
-  int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
-  parseConvParam(param(), false, input(), output(), filter(), n, ic, ih, iw, oc,
-                 oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                 with_bias, do_relu, pad_value);
-
-  gaddr_t ga_input = getPreviousOpAddress(op);
-  gaddr_t ga_output = getOpAddress(op);
-  gaddr_t ga_filter = getWeightOpAddress(filter().getDefiningOp());
-  gaddr_t ga_bias = GA_INVALID;
-  if ( with_bias ) {
-    assert(!isTensorNone(pc_info()));
-    ga_bias =  getWeightOpAddress(pc_info().getDefiningOp());
-  }
-  assert(pt_rshift().hasValue());
-  int8_t rshift = pt_rshift().getValue();
-  int layer_id = getOpLayerId(op);
-  bool do_ic_alignment = this->do_ic_alignment().hasValue()
-                         ? this->do_ic_alignment().getValue() : false;
-
-  // check if fused with a leakyrelu
-  int fused_leakyrelu_pos_rshift = 0;
-  int fused_leakyrelu_pos_m_i8 = 0;
-  int fused_leakyrelu_neg_rshift = 0;
-  int fused_leakyrelu_neg_m_i8 = 0;
-  float fused_negative_slope = 0.0f;
-  if (this->do_leaky_relu()) {
-    int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
-    float negativeSlope;
-    parseLeakyReluParam<tpu::TG_INT8_PT_Conv2DOp>(op, pos_rshift, pos_m_i8,
-                          neg_rshift, neg_m_i8, negativeSlope);
-    assert(neg_m_i8);
-
-    // TODO: fix the type in backend API
-    fused_leakyrelu_pos_rshift = static_cast<int>(pos_rshift);
-    fused_leakyrelu_pos_m_i8   = static_cast<int>(pos_m_i8);
-    fused_leakyrelu_neg_rshift = static_cast<int>(neg_rshift);
-    fused_leakyrelu_neg_m_i8   = static_cast<int>(neg_m_i8);
-    fused_negative_slope       = negativeSlope;
-    do_relu = true;
-
-    LLVM_DEBUG(llvm::errs() << "  fused leaky relu, pos ("
-        << fused_leakyrelu_pos_m_i8 << ", " << fused_leakyrelu_pos_rshift
-        << "), neg ("
-        << fused_leakyrelu_neg_m_i8 << ", " << fused_leakyrelu_neg_rshift
-        << ")\n";);
-  }
-
-  cvi_backend_tg_fixed_conv_kernel(
-      *backend_ctx,
-      layer_id, // layer_id,
-      ga_input,  // input_data_gaddr,
-      ga_output, // output_data_gaddr,
-      ga_filter, // weight_data_gaddr,
-      ga_bias,   // bias_data_gaddr,
-      n, ic, ih, iw,
-      g, // group,
-      oc,
-      kh, kw,
-      dh, dw,
-      pt, pb, pl, pr, // pad (t, b, l, r)
-      ins_h, ins_w, //ins_h, ins_w
-      sh, sw,
-      with_bias, // bias_term,
-      do_relu ? 1 : 0, // do_activation,
-      do_relu ? & fused_negative_slope : nullptr,   // activation_arg,
-      fused_leakyrelu_pos_m_i8,           // activation_gt_scale,
-      fused_leakyrelu_pos_rshift,         // activation_gt_rshift,
-      fused_leakyrelu_neg_m_i8,           // activation_le_scale,
-      fused_leakyrelu_neg_rshift,         // activation_le_rshift,
-      (int)rshift, // right_shift_width,
-      false,     // do_chl_quan
-      do_ic_alignment,
-      0,         // store_cmpr_act
-      0,         // load_cmpr_act
-      false,     // do_cmpr_wgt
-      0,         // store_cmpr_act_c_step
-      0,         // load_cmpr_act_c_step
-      0,         // store_cmpr_act_h_step
-      0,         // load_cmpr_act_h_step
-      pad_value  // pad_value
-      );
-
-  return success();
-}
-
-LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
+LogicalResult tpu::TG_INT8_Conv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -810,7 +718,7 @@ LogicalResult tpu::TG_INT8_PC_Conv2DOp::codegen(void *ctx) {
   if (this->do_leaky_relu()) {
       int8_t pos_rshift, pos_m_i8, neg_rshift, neg_m_i8;
       float negativeSlope;
-      parseLeakyReluParam<tpu::TG_INT8_PC_Conv2DOp>(
+      parseLeakyReluParam<tpu::TG_INT8_Conv2DOp>(
           op, pos_rshift, pos_m_i8, neg_rshift, neg_m_i8, negativeSlope);
       assert(neg_m_i8);
 
@@ -919,6 +827,14 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
     ga_bias =  getWeightOpAddress(pc_info().getDefiningOp());
   }
   int layer_id = getOpLayerId(op);
+  bool do_quant = false;
+  gaddr_t ga_scale = GA_INVALID;
+  gaddr_t ga_zeropoint = GA_INVALID;
+  if (isTensorNone(quant_scale()) == false) {
+    ga_scale = getWeightOpAddress(quant_scale().getDefiningOp());
+    ga_zeropoint = getWeightOpAddress(quant_zeropoint().getDefiningOp());
+    do_quant = true;
+  }
 
   int store_cmpr_act = this->store_compr_act().hasValue() ?
                        this->store_compr_act().getValue() : 0;
@@ -970,23 +886,16 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
       store_cmpr_act_c_step,
       load_cmpr_act_c_step,
       store_cmpr_act_h_step,
-      load_cmpr_act_h_step
+      load_cmpr_act_h_step,
+      do_quant,
+      ga_scale,
+      ga_zeropoint
       );
 
   return success();
 }
 
-LogicalResult tpu::TG_INT8_PT_DeConv2DOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  //CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  //Operation *op = this->getOperation();
-
-  std::string errorMsg = "unsupported tg op " + getOpName().str();
-  llvm_unreachable(errorMsg.c_str());
-}
-
-LogicalResult tpu::TG_INT8_PC_DeConv2DOp::codegen(void *ctx) {
+LogicalResult tpu::TG_INT8_DeConv2DOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
@@ -2149,7 +2058,7 @@ LogicalResult tpu::TG_INT8_ScaleLutOp::codegen(void *ctx) {
   // if (op->getResult(0).hasOneUse()) {
   //   for (auto &use : op->getResult(0).getUses()) {
   //     auto useOp = use.getOwner();
-  //     if (llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
+  //     if (llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
   //       LLVM_DEBUG(llvm::dbgs() << "  fused to conv\n";);
   //       return success();
   //     }

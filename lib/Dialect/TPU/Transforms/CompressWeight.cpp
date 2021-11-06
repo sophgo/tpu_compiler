@@ -542,7 +542,7 @@ void CompressWeightPass::runOnFunction() {
   // Remove compressed weight attributes first.
   getFunction().walk([&](Operation *op) {
     llvm::TypeSwitch<Operation *>(op)
-        .Case<tpu::TG_INT8_PC_Conv2DOp, tpu::TG_INT8_PT_Conv2DOp,
+        .Case<tpu::TG_INT8_Conv2DOp,
               tpu::TG_BF16_Conv2DOp, tpu::TL_LW_Conv2DOp,
               tpu::TL_LG_INT8_Conv2DOp, tpu::TL_LG_BF16_Conv2DOp,
               tpu::TL_LG_LoadCoeffOp, tpu::LoadWeightOp>(
@@ -557,8 +557,7 @@ void CompressWeightPass::runOnFunction() {
   // Compress convolution weight
   OwningRewritePatternList patterns;
   patterns.insert<
-      TgConvCompressedWeightPattern<tpu::TG_INT8_PC_Conv2DOp, int8_t>,
-      TgConvCompressedWeightPattern<tpu::TG_INT8_PT_Conv2DOp, int8_t>,
+      TgConvCompressedWeightPattern<tpu::TG_INT8_Conv2DOp, int8_t>,
       TgConvCompressedWeightPattern<tpu::TG_BF16_Conv2DOp, uint16_t>,
       TlLgConvCompressedWightPattern<tpu::TL_LW_Conv2DOp, int8_t>,
       TlLgConvCompressedWightPattern<tpu::TL_LG_INT8_Conv2DOp, int8_t>,

@@ -197,6 +197,8 @@ Value tpu::BroadcastMulOp::convertToTG() {
     // This is a little tricky, as there is no bias() operand to reuse
     // we reuse the quant_rshift() to carry the packed per-channel info
     operands.push_back(quant_rshift());
+    operands.push_back(quant_scale());
+    operands.push_back(quant_zeropoint());
 
     std::vector<NamedAttribute> attrs;
     // only do_relu is useful for now
@@ -550,6 +552,8 @@ Value tpu::Conv2DOp::convertToTG() {
   }
   operands.push_back(filter());
   operands.push_back(bias());
+  operands.push_back(quant_scale());
+  operands.push_back(quant_zeropoint());
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("param",
@@ -572,7 +576,7 @@ Value tpu::Conv2DOp::convertToTG() {
               builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_Conv2DOp>(op->getLoc(),
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_Conv2DOp>(op->getLoc(),
         getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -758,12 +762,14 @@ Value tpu::DeConv2DOp::convertToTG() {
   operands.push_back(input());
   operands.push_back(filter());
   operands.push_back(bias());
+  operands.push_back(quant_scale());
+  operands.push_back(quant_zeropoint());
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("param", paramAttr()));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_PC_DeConv2DOp>(
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_DeConv2DOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
