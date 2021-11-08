@@ -518,14 +518,13 @@ static void init_quant_layers() {
       continue;
     }
     if (std::regex_match(line, pattern0)) {
-      std::vector<float> weight_threshold;
-      iss.ignore(256, ' ');
       iss >> name;
       iss >> mode;
       gQuantLayers[name] = qmode(mode);
       continue;
     }
     if (std::regex_match(line, pattern1)) {
+      iss >> name;
       gQuantLayers[name] = QUANT_BF16;
       continue;
     }
