@@ -228,6 +228,7 @@ class OnnxConverter(BaseConverter):
             "DepthToSpace": lambda node: self.convert_depth_to_space_op(node),
             "Div": lambda node: self.convert_div_op(node),
             "Dropout": lambda node: self.convert_skip_op(node),
+            "Einsum": lambda node: self.convert_einsum_op(node),
             "Equal": lambda node: self.convert_equal_op(node),
             "Elu" :lambda node: self.convert_activation_op(node),
             "Exp" :lambda node: self.convert_activation_op(node),
@@ -483,10 +484,8 @@ class OnnxConverter(BaseConverter):
                 preNodes.update({node.outputs[0]: i})
             elif node.op_type == "Div" and node.inputs[1] in preNodes.keys() \
                  and node.inputs[0] in preNodes.keys() \
-                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant":                                 \
+                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant":                                                                 \
                 # swap input and output (notice name eq outputs[0])
-
-
                 mul_idx = preNodes[node.inputs[0]]
                 mul = self.converted_nodes[mul_idx]
                 node.inputs[0] = mul.inputs[1]
@@ -1778,6 +1777,25 @@ class OnnxConverter(BaseConverter):
                 self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
                 return
         raise RuntimeError("div not support, shape1 {}, shape2 {}".format(input_shape1, input_shape2))
+
+    def convert_einsum_op(self, onnx_node):
+        assert (onnx_node.op_type == "Einsum")
+        equation = onnx_node.attrs['equation']
+        if equation == b"bfnd,ndh->bfh":
+            op0, shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
+            op1, shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
+            op0_shape = [shape0[0] * shape0[1], shape0[2] * shape0[3]]
+            op0_reshape = self.CVI.add_reshape_op(onnx_node.inputs[0] + "_Reshape", [op0], op0_shape)
+            op1_shape = [shape1[0] * shape1[1], shape1[2]]
+            op1_reshape = self.CVI.add_reshape_op(onnx_node.inputs[1] + "_Reshape", [op1], op1_shape)
+            matmul_shape = [shape0[0] * shape0[1], shape1[2]]
+            matmul_op = self.CVI.add_matmul_op("{}_Matmul".format(onnx_node.name), [op0_reshape, op1_reshape], matmul_shape)
+            output_shape = [shape0[0], shape0[1], shape1[2]]
+            output_reshape = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [matmul_op],
+                                                     output_shape)
+            self.addOperand(onnx_node.name, output_reshape, output_shape, TensorType.ACTIVATION)
+            return
+        raise RuntimeError("Einsum {}, {} not support now".format(onnx_node.name, equation))
 
     def convert_equal_op(self, onnx_node):
         assert(onnx_node.op_type == "Equal")

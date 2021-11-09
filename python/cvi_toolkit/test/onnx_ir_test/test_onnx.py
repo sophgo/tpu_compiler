@@ -31,6 +31,7 @@ TEST_ONNX_IR = [
     "ConvTranspose1d",
     # "Conv3d", # Conv with 3d case
     "DepthToSpace",
+    "Einsum",
     "Expand",
     "Expand2",
     "FullyConnected",
@@ -164,6 +165,7 @@ class ONNX_IR_TESTER(object):
             "ConvTranspose1d": self.test_ConvTranspose1d,
             "Conv3d": self.test_Conv3d,
             "DepthToSpace": self.test_DepthToSpace,
+            "Einsum": self.test_Einsum,
             "Expand": self.test_Expand,
             "Expand2": self.test_Expand2,
             "FullyConnected": self.test_FullyConnected,
@@ -799,6 +801,52 @@ class ONNX_IR_TESTER(object):
         model_def.opset_import[0].version = 11
         onnx.checker.check_model(model_def)
 
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Einsum(self):
+        # mul(1x16x28x28, 1x1x28x28) => 1x16x28x28
+        test_case = 'Einsum'
+        input0_shape = [1, 26, 12, 26]
+        input1_shape = [12, 26, 312]
+        output_shape = [1, 26, 312]
+
+        input0 = helper.make_tensor_value_info('input0', TensorProto.FLOAT, input0_shape)
+        input1 = helper.make_tensor_value_info('input1', TensorProto.FLOAT, input1_shape)
+        output = helper.make_tensor_value_info('output', TensorProto.FLOAT, output_shape)
+
+        neg0_node = helper.make_node(
+            'Neg',  # node name
+            ['input0'],  # inputs
+            ['X0'],  # outputs
+        )
+        neg1_node = helper.make_node(
+            'Neg',  # node name
+            ['input1'],  # inputs
+            ['X1'],  # outputs
+        )
+        #test only one input
+        einsum_node = helper.make_node(
+            'Einsum',  # node name
+            ['X0', "X1"],  # inputs
+            ['output'],  # outputs
+            equation='bfnd,ndh->bfh',
+        )
+
+        graph_def = helper.make_graph(
+            [neg0_node, neg1_node, einsum_node],
+            test_case,
+            [input0, input1],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 13
+        input_data = {}
+        input_data0 = np.random.randn(input0_shape[0], input0_shape[1], input0_shape[2], input0_shape[3]).astype(np.float32)
+        input_data1 = np.random.randn(input1_shape[0], input1_shape[1], input1_shape[2]).astype(np.float32)
+        input_data['input0'] = input_data0
+        input_data['input1'] = input_data1
+
+        onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
     def test_Expand(self):
