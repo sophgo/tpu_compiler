@@ -139,9 +139,9 @@ class Redundancy():
                     op_input_idxes = list(pattern[pattern_idx].values())[0]
                     # for Constant
                     if op_input_idxes is None:
-                         redundancies.append(nidx)
-                         pattern_idx += 1
-                         continue
+                        redundancies.append(nidx)
+                        pattern_idx += 1
+                        continue
 
                     for i in op_input_idxes:
                         if -1 == i or set(converted_nodes[redundancies[i]].outputs).intersection(set(node.inputs)):
@@ -483,8 +483,10 @@ class OnnxConverter(BaseConverter):
                 preNodes.update({node.outputs[0]: i})
             elif node.op_type == "Div" and node.inputs[1] in preNodes.keys() \
                  and node.inputs[0] in preNodes.keys() \
-                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant": \
+                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant":                                 \
                 # swap input and output (notice name eq outputs[0])
+
+
                 mul_idx = preNodes[node.inputs[0]]
                 mul = self.converted_nodes[mul_idx]
                 node.inputs[0] = mul.inputs[1]
@@ -1404,16 +1406,16 @@ class OnnxConverter(BaseConverter):
                 padding_r = padding_along_w - padding_l
                 pads = [padding_t, padding_l, padding_b, padding_r]
             elif pad_method == "SAME_LOWER":
-                 # the extra padding is added at the beginning for SAME_LOWER.
-                 padding_along_h = get_TF_SAME_Padding(
-                     shape[2], filter_shape[2], strides[0])
-                 padding_along_w = get_TF_SAME_Padding(
-                     shape[3], filter_shape[3], strides[1])
-                 padding_b = padding_along_h // 2
-                 padding_r = padding_along_w // 2
-                 padding_t = padding_along_h - padding_b
-                 padding_l = padding_along_w - padding_r
-                 pads = [padding_t, padding_l, padding_b, padding_r]
+                # the extra padding is added at the beginning for SAME_LOWER.
+                padding_along_h = get_TF_SAME_Padding(
+                    shape[2], filter_shape[2], strides[0])
+                padding_along_w = get_TF_SAME_Padding(
+                    shape[3], filter_shape[3], strides[1])
+                padding_b = padding_along_h // 2
+                padding_r = padding_along_w // 2
+                padding_t = padding_along_h - padding_b
+                padding_l = padding_along_w - padding_r
+                pads = [padding_t, padding_l, padding_b, padding_r]
             elif pad_method == "VALID":
                 pass
             elif pad_method == "NOTSET":
@@ -2763,11 +2765,11 @@ class OnnxConverter(BaseConverter):
         if input_type == TensorType.TENSOR :
             input_data = self.getTensor(onnx_node.inputs[0]).tensor_data
             if mode == b'constant':
-              output_data = np.pad(input_data, np_pads, 'constant', constant_values=constant_value)
+                output_data = np.pad(input_data, np_pads, 'constant', constant_values=constant_value)
             elif mode == b'reflect':
-              output_data = np.pad(input_data, np_pads, 'reflect')
+                output_data = np.pad(input_data, np_pads, 'reflect')
             else:
-              output_data = np.pad(input_data, np_pads, 'edge')
+                output_data = np.pad(input_data, np_pads, 'edge')
             self.addTensor(onnx_node.name, output_data, list(output_shape))
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
@@ -3450,33 +3452,47 @@ class OnnxConverter(BaseConverter):
                 return
             output_shape = self.bcast_shape(input_shape0, input_shape1)
             if output_shape != None:
-                assert(np.prod(input_shape0) > np.prod(input_shape1)) # support later
-                sub_op = self.CVI.add_broadcast_sub_op(name, [op0, op1], output_shape)
-                self.addOperand(onnx_node.name, sub_op, output_shape, TensorType.ACTIVATION)
+                if np.prod(input_shape0) > np.prod(input_shape1): # support later
+                    sub_op = self.CVI.add_broadcast_sub_op(name, [op0, op1], output_shape)
+                    self.addOperand(onnx_node.name, sub_op, output_shape, TensorType.ACTIVATION)
+                    return
+                sub_name = "{}_SubNegative".format(onnx_node.name)
+                sub_op = self.CVI.add_broadcast_sub_op(sub_name, [op1, op0], output_shape)
+                tensor_data = np.full(output_shape[1], -1) # broadcast via channel
+                weight_name = "{}_add_weight".format(onnx_node.name)
+                self.addTensor(weight_name, tensor_data, tensor_data.shape)
+                op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
+                scale_op = self.CVI.add_scale_op(name, [sub_op, op2], output_shape)
+                self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
                 return
-        elif tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
+        elif tensor_type0 == TensorType.ACTIVATION or tensor_type1 == TensorType.ACTIVATION:
+            if tensor_type1 == TensorType.ACTIVATION:
+                need_neg = True
+                input_shape0, input_shape1 = input_shape1, input_shape0
+                op0, op1 = op1, op0
+                onnx_node.inputs[1], onnx_node.inputs[0] = onnx_node.inputs[0], onnx_node.inputs[1]
             if np.prod(input_shape1) == 1:
                 # constant
                 # x * 1 + (-1) * constant
                 constant_data = self.getTensor(onnx_node.inputs[1]).tensor_data
-                weight_data = np.full(input_shape0[1], 1)
+                VAR = -1 if need_neg else 1
+                weight_data = np.full(input_shape0[1], VAR)
                 weight_name = "{}_add_weight".format(onnx_node.name)
                 weight_shape = list(weight_data.shape)
                 self.addTensor(weight_name, weight_data, weight_shape)
-                weight_op = self.CVI.add_load_file_op(
-                    weight_name, weight_shape)
+                weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
 
-                bias_data = np.full(input_shape0[1], -1 * constant_data.flatten()[0])
+                bias_data = np.full(input_shape0[1], (-VAR) * constant_data.flatten()[0])
                 bias_name = "{}_add_bias".format(onnx_node.name)
                 bias_shape = list(bias_data.shape)
                 self.addTensor(bias_name, bias_data, bias_shape)
                 bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
                 output_shape = input_shape0
-                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0, weight_op, bias_op], output_shape)
-                self.addOperand(onnx_node.name, scale_op,
-                                output_shape, TensorType.ACTIVATION)
+                name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0, weight_op, bias_op],
+                                                 output_shape)
+                self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
                 return
-
         elif tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR:
             tensor_data0 = self.getTensor(onnx_node.inputs[0]).tensor_data
             tensor_data1 = self.getTensor(onnx_node.inputs[1]).tensor_data
@@ -3486,7 +3502,7 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
             return
-        raise RuntimeError("Sub {} {} not support now".format(input_shape0, input_shape1))
+        raise RuntimeError("Sub {}: {} {} not support now".format(onnx_node.name, input_shape0, input_shape1))
 
     def convert_sum_op(self, onnx_node):
         assert(onnx_node.op_type == "Sum")
