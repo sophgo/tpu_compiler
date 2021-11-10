@@ -61,6 +61,9 @@ TEST_TORCH_IR = [
     "Upsample",
     # "ChannelShuffle", ## ChannelShuffle not support
     "Flatten", ## Unflatten not support
+    "AdaptiveAvgPool2d",  #  input_size % output_size == 0
+    "SiLU",
+
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
@@ -178,6 +181,8 @@ class TORCH_IR_TESTER(object):
             "Upsample": self.test_Upsample,
             "ChannelShuffle": self.test_ChannelShuffle,
             "Flatten": self.test_Flatten,
+            "AdaptiveAvgPool2d": self.test_AdaptiveAvgPool2d,
+            "SiLU": self.test_SiLU,
         }
         self.set_quant_mode()
 
@@ -569,6 +574,51 @@ class TORCH_IR_TESTER(object):
 
         net = Net()
         input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_name)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
+    def test_AdaptiveAvgPool2d(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.AdptAvp = nn.AdaptiveAvgPool2d((4, 4))
+
+            def forward(self, input):
+                return self.AdptAvp(input)
+
+        input_shape = [1, 32, 20, 20]
+        test_name = 'AdaptiveAvgPool2d'
+
+        net = Net()
+        input_data = torch.randn(*input_shape)
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_name)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
+    def test_SiLU(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.SiLU = nn.SiLU()
+
+            def forward(self, input):
+                x = torch.negative(input)
+                return  self.SiLU(x)
+
+        input_shape = [1, 32, 20, 20]
+        test_name = 'SiLU'
+
+        net = Net()
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
