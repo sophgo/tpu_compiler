@@ -292,7 +292,7 @@ void MixNet::add_tl_layer(int layer_id) {
 
 static void add_fused_leaky_attrs(Builder &builder, Operation * op,
                              std::vector<NamedAttribute> & attrs) {
-  if (auto conv_op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+  if (auto conv_op = dyn_cast<tpu::TG_INT8_Conv2DOp>(op)) {
     if (conv_op.negative_slope().hasValue())
       attrs.push_back(builder.getNamedAttr("negative_slope",
                       conv_op.negative_slopeAttr()));
@@ -400,7 +400,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   int sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   bool do_ic_align = false;
   bool do_leaky_relu = false;
-  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(op);
+  bool bInt8ConvOp = isa<tpu::TG_INT8_Conv2DOp>(op);
 
   getConvParam(op, n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw,
                pt, pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, do_ic_align,
@@ -516,7 +516,7 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   }
 
   // build tl_conv operation
-  if (isa<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+  if (isa<tpu::TG_INT8_Conv2DOp>(op)) {
     auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_Conv2DOp>(
                         get_start_op()->getLoc(), output_type,
                         ArrayRef<Value>{operands},
@@ -542,7 +542,7 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   int sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   bool do_ic_align = false;
   bool do_leaky_relu = false;
-  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(op);
+  bool bInt8ConvOp = isa<tpu::TG_INT8_DeConv2DOp>(op);
 
   getConvParam(op, n, ic, ih, iw, oc, oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr,
                dh, dw, is_dw, with_bias, do_relu, do_ic_align, do_leaky_relu,
@@ -722,7 +722,7 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   }
 
   // build tl_deconv operation
-  if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op)) {
+  if (isa<tpu::TG_INT8_DeConv2DOp>(op)) {
     auto tl_op = OpBuilder(get_start_op()).create<tpu::TL_LG_INT8_DeConv2DOp>(
                         get_start_op()->getLoc(), output_type,
                         ArrayRef<Value>{operands},

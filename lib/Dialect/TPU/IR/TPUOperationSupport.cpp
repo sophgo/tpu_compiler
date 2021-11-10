@@ -763,10 +763,7 @@ void parseLeakyReluParam(Operation *op,
   negative_slope = lreluOp.negative_slope().getValue().convertToFloat();
 }
 
-template void parseLeakyReluParam<tpu::TG_INT8_PT_Conv2DOp>(
-    Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
-    int8_t &neg_rshift, int8_t &neg_m_i8, float &negative_slope);
-template void parseLeakyReluParam<tpu::TG_INT8_PC_Conv2DOp>(
+template void parseLeakyReluParam<tpu::TG_INT8_Conv2DOp>(
     Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
     int8_t &neg_rshift, int8_t &neg_m_i8, float &negative_slope);
 template void parseLeakyReluParam<tpu::TG_INT8_LeakyReluOp>(
@@ -795,7 +792,7 @@ bool isBf16Tensor(Value val) {
 int64_t getTotalCompressedActivationSize(Operation *op) {
   int64_t cmrSize =
       llvm::TypeSwitch<Operation *, int64_t>(op)
-          .Case<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp,
+          .Case<tpu::TG_INT8_Conv2DOp,
                 tpu::TG_BF16_Conv2DOp, tpu::TG_INT8_EltwiseAddOp,
                 tpu::TG_BF16_EltwiseAddOp, tpu::TG_INT8_PoolMax2DOp>(
               [&](auto tpuOp) {

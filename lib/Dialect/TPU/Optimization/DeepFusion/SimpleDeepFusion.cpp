@@ -60,9 +60,9 @@ public:
         llvm::errs() << "Chain: size = " << (*it)->size() << "\n";
         for (auto v = (*it)->begin(); v != (*it)->end(); ++v) {
           auto opInst = (*v).getDefiningOp();
-          if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
+          if (auto op = dyn_cast<mlir::tpu::TG_INT8_Conv2DOp>(opInst)) {
             llvm::errs() << "  " << op.name() << "\n";
-          } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PC_DeConv2DOp>(opInst)) {
+          } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_DeConv2DOp>(opInst)) {
             llvm::errs() << "  " << op.name() << "\n";
           } else if (auto op = dyn_cast<mlir::tpu::TG_INT8_PoolAvg2DOp>(opInst)) {
             llvm::errs() << "  " << op.name() << "\n";
@@ -144,10 +144,10 @@ public:
     os <<"\n";
     stats = new DeepFusionSimpleStats();
     func.walk([&](mlir::Operation *opInst) {
-      if (auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
-        analyzeConv2DOpParam<tpu::TG_INT8_PC_Conv2DOp>(op, os);
-      } else if (auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(opInst)) {
-        analyzeConv2DOpParam<tpu::TG_INT8_PC_DeConv2DOp>(op, os);
+      if (auto op = dyn_cast<tpu::TG_INT8_Conv2DOp>(opInst)) {
+        analyzeConv2DOpParam<tpu::TG_INT8_Conv2DOp>(op, os);
+      } else if (auto op = dyn_cast<tpu::TG_INT8_DeConv2DOp>(opInst)) {
+        analyzeConv2DOpParam<tpu::TG_INT8_DeConv2DOp>(op, os);
       } else if (auto op = dyn_cast<tpu::TG_INT8_PoolAvg2DOp>(opInst)) {
         analyzePool2DOpParam<tpu::TG_INT8_PoolAvg2DOp>(op, os, true);
       } else if (auto op = dyn_cast<tpu::TG_INT8_PoolMax2DOp>(opInst)) {
@@ -180,7 +180,7 @@ private:
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw,
         pad_value;
-    bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(op.getOperation());
+    bool is_deconv = isa<tpu::TG_INT8_DeConv2DOp>(op.getOperation());
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);

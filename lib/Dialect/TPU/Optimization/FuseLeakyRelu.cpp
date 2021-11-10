@@ -77,8 +77,7 @@ public:
     OwningRewritePatternList patterns;
     auto *context = &getContext();
     patterns.insert<
-        TpuTgFusePattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_INT8_PT_Conv2DOp>,
-        TpuTgFusePattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_INT8_PC_Conv2DOp>
+        TpuTgFusePattern<tpu::TG_INT8_LeakyReluOp, tpu::TG_INT8_Conv2DOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }

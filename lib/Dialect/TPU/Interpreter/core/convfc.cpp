@@ -23,26 +23,20 @@ ConvFcOpKernel::ConvFcOpKernel(Operation &op, value_map_t &valueMapping,
   if (datatype == DataType::BF16) {
     if (getOpQuantParamType(&op) == "ACTIVATION_BF16") {
       activation_bf16 = true;
+      int filter_size = filter_data->size();
+      for (int i = 0; i < filter_size; i++) {
+        filter_data->at(i) =
+            BF16(BF16(filter_data->at(i) * quant_scale->at(i % K) +
+                      quant_zeropoint->at(i % K)));
+      }
     }
   }
 }
 
 void ConvFcOpKernel::invoke() {
-  if (activation_bf16) {
-    int filter_size = filter_data->size();
-    std::vector<float> new_filter(filter_size);
-    for (int i = 0; i < filter_size; i++) {
-      new_filter[i] = BF16(BF16(filter_data->at(i) * quant_scale->at(i % K) +
-                                quant_zeropoint->at(i % K)));
-    }
-    int ret = mkldnn_ip(input_data->data(), new_filter.data(), nullptr,
-                        output_data->data(), M, K, N, false);
-    assert(ret == 0);
-  } else {
-    int ret = mkldnn_ip(input_data->data(), filter_data->data(), nullptr,
-                        output_data->data(), M, K, N, false);
-    assert(ret == 0);
-  }
+  int ret = mkldnn_ip(input_data->data(), filter_data->data(), nullptr,
+                      output_data->data(), M, K, N, false);
+  assert(ret == 0);
   if (DataType::BF16 == datatype) {
     BF16(output_data->data(), output_data->data(), output_data->size(), true);
   }

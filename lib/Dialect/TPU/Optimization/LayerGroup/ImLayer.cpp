@@ -132,10 +132,10 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   if (isa<tpu::TG_INT8_AbsOp>(op) ||
       isa<tpu::TG_BF16_AbsOp>(op)) {
     layer = std::make_shared<ImAbs>(op);
-  } else if (isa<tpu::TG_INT8_PC_Conv2DOp>(op) ||
+  } else if (isa<tpu::TG_INT8_Conv2DOp>(op) ||
              isa<tpu::TG_BF16_Conv2DOp>(op)) {
     layer = std::make_shared<ImConv>(op);
-  } else if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op) ||
+  } else if (isa<tpu::TG_INT8_DeConv2DOp>(op) ||
              isa<tpu::TG_BF16_DeConv2DOp>(op)) {
     layer = std::make_shared<ImDeconv>(op);
   } else if (isa<tpu::TG_INT8_EltwiseAddOp>(op) ||
@@ -256,7 +256,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   int sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   bool do_ic_align = false;
   bool fuse_leaky = false;
-  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_Conv2DOp>(p);
+  bool bInt8ConvOp = isa<tpu::TG_INT8_Conv2DOp>(p);
   getConvParam(p, n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                dh, dw, is_dw, with_bias, do_relu, do_ic_align, fuse_leaky,
                pad_value);
@@ -274,6 +274,11 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
     // but skip the oc/g>32 cases.
     if (oc/g > (int)NPU_NUM)
       fusible = false;
+  }
+
+  if (false == bInt8ConvOp && false == isTensorNone(p->getOperand(3))) {
+    // TODO(charle.hu): layergroup support ACTIVATION_BF16)
+    fusible = false;
   }
 
   int w_ic = ic;
@@ -348,7 +353,7 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   int sh, sw, pt, pb, pl, pr, dh, dw;
   int pad_value, no_use0, no_use1;
   bool do_ic_align, do_leaky_relu;
-  bool bInt8ConvOp = isa<tpu::TG_INT8_PC_DeConv2DOp>(p);
+  bool bInt8ConvOp = isa<tpu::TG_INT8_DeConv2DOp>(p);
   getConvParam(p, n, ic, ih, iw, oc, oh, ow,
                  g, kh, kw, no_use0, no_use1, sh, sw,
                  pt, pb, pl, pr, dh, dw,

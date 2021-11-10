@@ -59,8 +59,7 @@ struct CmprStat {
 };
 
 static bool isTgConvOp(Operation *op) {
-  if (llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(op) ||
-      llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op) ||
+  if (llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(op) ||
       llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(op))
     return true;
   return false;
@@ -156,7 +155,7 @@ bool isValidCompressTgConvParam(OpTy convOp) {
 bool isSmallDmaOverHead(Operation *op) {
   int64_t oc_step = 1;
   bool status = llvm::TypeSwitch<Operation *, bool>(op)
-                    .Case<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp,
+                    .Case<tpu::TG_INT8_Conv2DOp,
                           tpu::TG_BF16_Conv2DOp>([&](auto convOp) {
                       if (isValidCompressTgConvParam(convOp)) {
                         oc_step =
@@ -190,7 +189,7 @@ static bool isValidCompressTgConvOp(Operation *op) {
   // tg dw-conv not integrated with tg conv
   int ow_step = 0;
   bool status = llvm::TypeSwitch<Operation *, bool>(op)
-                    .Case<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp,
+                    .Case<tpu::TG_INT8_Conv2DOp,
                           tpu::TG_BF16_Conv2DOp>([&](auto convOp) {
                       if (isValidCompressTgConvParam(convOp)) {
                         ow_step =
@@ -229,7 +228,7 @@ static bool isValidDecompressTgConvOp(Operation *op) {
   int dataTypeSize = 1;
   int iw_step = 0;
   bool status = llvm::TypeSwitch<Operation *, bool>(op)
-                    .Case<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp,
+                    .Case<tpu::TG_INT8_Conv2DOp,
                           tpu::TG_BF16_Conv2DOp>([&](auto convOp) {
                       if (isValidCompressTgConvParam(convOp)) {
                         iw_step =
@@ -328,7 +327,7 @@ static bool isValidDecompressTgPoolOp(Operation *op) {
 
 static void showOpCmprStatus(Operation *op) {
   llvm::TypeSwitch<Operation *>(op)
-      .Case<tpu::TG_INT8_PC_Conv2DOp, tpu::TG_BF16_Conv2DOp,
+      .Case<tpu::TG_INT8_Conv2DOp, tpu::TG_BF16_Conv2DOp,
             tpu::TG_INT8_EltwiseAddOp, tpu::TG_BF16_EltwiseAddOp,
             tpu::TG_INT8_PoolMax2DOp>([&](auto tpuOp) {
         if (tpuOp.store_compr_act().hasValue())
@@ -437,7 +436,7 @@ public:
 static bool getStoreCompressActParam(Operation *op, int &n, int &c, int &h,
                                      int64_t &step, int64_t &total) {
   bool status = llvm::TypeSwitch<Operation *, bool>(op)
-                    .Case<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp,
+                    .Case<tpu::TG_INT8_Conv2DOp,
                           tpu::TG_BF16_Conv2DOp, tpu::TG_INT8_EltwiseAddOp,
                           tpu::TG_BF16_EltwiseAddOp, tpu::TG_INT8_PoolMax2DOp>(
                         [&](auto tpuOp) {
@@ -458,7 +457,7 @@ static bool getLoadCompressActParam(Operation *op, int &n, int &c, int &h,
                                     int64_t &step, int64_t &total) {
   bool status =
       llvm::TypeSwitch<Operation *, bool>(op)
-          .Case<tpu::TG_INT8_PT_Conv2DOp, tpu::TG_INT8_PC_Conv2DOp,
+          .Case<tpu::TG_INT8_Conv2DOp,
                 tpu::TG_BF16_Conv2DOp, tpu::TG_INT8_EltwiseAddOp,
                 tpu::TG_BF16_EltwiseAddOp, tpu::TG_INT8_PoolMax2DOp,
                 tpu::TL_LW_Conv2DOp>([&](auto tpuOp) {
@@ -748,7 +747,7 @@ static bool isValidLoadCompressActForTlLgJoin(Operation *op, int h_step) {
       // valid layer group tiu op
     } else if (llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
       // supported deep fusion op
-    } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
+    } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
       std::vector<int64_t> inputShapes = getTensorShape(op->getOperand(0));
       if (inputShapes[2] != h_step) {
         return false;
@@ -762,7 +761,7 @@ static bool isValidLoadCompressActForTlLgJoin(Operation *op, int h_step) {
       for (auto &nextUse : useOp->getResult(0).getUses()) {
         auto nextUseOp = nextUse.getOwner();
         if (!llvm::dyn_cast<tpu::TG_QuantOp>(nextUseOp) &&
-            !llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(nextUseOp))
+            !llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(nextUseOp))
           return false;
       }
     } else {
@@ -853,7 +852,7 @@ public:
       else if (llvm::dyn_cast<tpu::TG_INT8_SliceOp>(useOp)) {
         shapes = getTensorShape(useOp->getResult(0));
         canOcTiled = true;
-      } else if (llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
+      } else if (llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
         shapes = getTensorShape(useOp->getOperand(0));
         canOcTiled = true;
       } else
@@ -953,7 +952,7 @@ public:
                 Builder(op->getContext()).getI64IntegerAttr(step_size),
                 Builder(op->getContext()).getI64IntegerAttr(total_size),
                 rewriter.getContext()));
-      } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
+      } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(op)) {
         std::vector<int64_t> inputShapes = getTensorShape(op->getOperand(0));
 
         assert(((inputShapes[2] == oh_step) || (oh_step == 1)) &&
@@ -985,7 +984,7 @@ public:
 
         for (auto &use : op->getResult(0).getUses()) {
           auto useOp = use.getOwner();
-          if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
+          if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
             tpuOp->setAttr("load_compr_act",
                            Builder(tpuOp.getContext()).getBoolAttr(true));
             tpuOp->setAttr(
@@ -1319,11 +1318,8 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
     for (auto operand : op->getOperands()) {
       auto opdOp = operand.getDefiningOp();
 
-      if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(opdOp)) {
-        assertTgOpStoreCompressedAct<tpu::TG_INT8_PC_Conv2DOp>(opdTpuOp);
-      } else if (auto opdTpuOp =
-                     llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(opdOp)) {
-        assertTgOpStoreCompressedAct<tpu::TG_INT8_PT_Conv2DOp>(opdTpuOp);
+      if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(opdOp)) {
+        assertTgOpStoreCompressedAct<tpu::TG_INT8_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(opdOp)) {
         assertTgOpStoreCompressedAct<tpu::TG_BF16_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp =
@@ -1345,11 +1341,8 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
     for (auto operand : op->getOperands()) {
       auto opdOp = operand.getDefiningOp();
 
-      if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(opdOp)) {
-        assertTgOpStorePlainAct<tpu::TG_INT8_PC_Conv2DOp>(opdTpuOp);
-      } else if (auto opdTpuOp =
-                     llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(opdOp)) {
-        assertTgOpStorePlainAct<tpu::TG_INT8_PT_Conv2DOp>(opdTpuOp);
+      if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(opdOp)) {
+        assertTgOpStorePlainAct<tpu::TG_INT8_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(opdOp)) {
         assertTgOpStorePlainAct<tpu::TG_BF16_Conv2DOp>(opdTpuOp);
       } else if (auto opdTpuOp =
@@ -1370,11 +1363,8 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
 
     for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
-      if (auto useTpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
-        assertTgOpLoadCompressedAct<tpu::TG_INT8_PC_Conv2DOp>(useTpuOp);
-      } else if (auto useTpuOp =
-                     llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(useOp)) {
-        assertTgOpLoadCompressedAct<tpu::TG_INT8_PT_Conv2DOp>(useTpuOp);
+      if (auto useTpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
+        assertTgOpLoadCompressedAct<tpu::TG_INT8_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(useOp)) {
         assertTgOpLoadCompressedAct<tpu::TG_BF16_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp =
@@ -1403,11 +1393,8 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
 
     for (auto &use : op->getResult(0).getUses()) {
       auto useOp = use.getOwner();
-      if (auto useTpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(useOp)) {
-        assertTgOpLoadPlainAct<tpu::TG_INT8_PC_Conv2DOp>(useTpuOp);
-      } else if (auto useTpuOp =
-                     llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(useOp)) {
-        assertTgOpLoadPlainAct<tpu::TG_INT8_PT_Conv2DOp>(useTpuOp);
+      if (auto useTpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
+        assertTgOpLoadPlainAct<tpu::TG_INT8_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(useOp)) {
         assertTgOpLoadPlainAct<tpu::TG_BF16_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp =
@@ -1492,10 +1479,8 @@ void CompressActivationPass::checkTgEltAddOpStatus(OpTy tpuOp) {
 
 void CompressActivationPass::addOpToCmprMaps() {
   getFunction().walk([&](Operation *op) {
-    if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
-      addTgConvOpToCmprMap<tpu::TG_INT8_PC_Conv2DOp>(tpuOp);
-    } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(op)) {
-      addTgConvOpToCmprMap<tpu::TG_INT8_PT_Conv2DOp>(tpuOp);
+    if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(op)) {
+      addTgConvOpToCmprMap<tpu::TG_INT8_Conv2DOp>(tpuOp);
     } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(op)) {
       addTgConvOpToCmprMap<tpu::TG_BF16_Conv2DOp>(tpuOp);
     } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(op)) {
@@ -1727,10 +1712,8 @@ void CompressActivationPass::analyze() {
 
 void CompressActivationPass::checkTgOpCompressStats() {
   getFunction().walk([&](Operation *op) {
-    if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(op)) {
-      checkTgOpStatus<tpu::TG_INT8_PC_Conv2DOp>(tpuOp);
-    } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PT_Conv2DOp>(op)) {
-      checkTgOpStatus<tpu::TG_INT8_PT_Conv2DOp>(tpuOp);
+    if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(op)) {
+      checkTgOpStatus<tpu::TG_INT8_Conv2DOp>(tpuOp);
     } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_BF16_Conv2DOp>(op)) {
       checkTgOpStatus<tpu::TG_BF16_Conv2DOp>(tpuOp);
     } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_EltwiseAddOp>(op)) {
@@ -1755,8 +1738,7 @@ void CompressActivationPass::runOnFunction() {
   analyze();
 
   // Determine whether the operation can store compressed activation.
-  patterns.insert<TgCompressActPattern<tpu::TG_INT8_PT_Conv2DOp>,
-                  TgCompressActPattern<tpu::TG_INT8_PC_Conv2DOp>,
+  patterns.insert<TgCompressActPattern<tpu::TG_INT8_Conv2DOp>,
                   TgCompressActPattern<tpu::TG_INT8_EltwiseAddOp>,
                   TgCompressActPattern<tpu::TG_INT8_PoolMax2DOp>,
                   TgCompressActPattern<tpu::TG_BF16_Conv2DOp>,
@@ -1766,8 +1748,7 @@ void CompressActivationPass::runOnFunction() {
 
   // Determine whether the operation can load compressed activation.
   patterns.clear();
-  patterns.insert<TgDecompressActPattern<tpu::TG_INT8_PT_Conv2DOp>,
-                  TgDecompressActPattern<tpu::TG_INT8_PC_Conv2DOp>,
+  patterns.insert<TgDecompressActPattern<tpu::TG_INT8_Conv2DOp>,
                   TgDecompressActPattern<tpu::TG_INT8_EltwiseAddOp>,
                   TgDecompressActPattern<tpu::TG_INT8_PoolMax2DOp>,
                   TgDecompressActPattern<tpu::TG_BF16_Conv2DOp>,

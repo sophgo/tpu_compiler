@@ -317,7 +317,7 @@ bool Group::check_if_pattern_support() {
     for (auto id : layers_) {
       const ImLayer* im_layer = net_graph_->get_layer_by_id(id);
       Operation * op = im_layer->op();
-      if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op) ||
+      if (isa<tpu::TG_INT8_DeConv2DOp>(op) ||
           isa<tpu::TG_BF16_DeConv2DOp>(op)) {
         return BM_ERR_FAILURE;
       }

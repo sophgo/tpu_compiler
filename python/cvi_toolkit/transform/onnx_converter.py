@@ -1928,7 +1928,7 @@ class OnnxConverter(BaseConverter):
         elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             indices = self.getTensor(onnx_node.inputs[1]).tensor_data
             if indices.size == 1:
-                offset = indices.flatten()[0]
+                offset = int(indices.flatten()[0])
                 if offset < 0:
                     offset = input_shape1[axis] + offset
                 attr = {"axis": axis, "offset": offset}

@@ -136,8 +136,7 @@ public:
 
     patterns.clear();
 
-    patterns.insert<TpuRefactorOddIcConvPattern<tpu::TG_INT8_PC_Conv2DOp>,
-                    TpuRefactorOddIcConvPattern<tpu::TG_INT8_PT_Conv2DOp>>(context);
+    patterns.insert<TpuRefactorOddIcConvPattern<tpu::TG_INT8_Conv2DOp>>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
   }
 

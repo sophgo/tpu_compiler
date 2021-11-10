@@ -16,16 +16,10 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping,
                  castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h,
                  ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
                  do_relu, pad_value);
-  // int8 init
-  if (datatype == DataType::INT8) {
-    auto quant_rshift = this->opdTensors[5];
-    auto quant_multiplier = this->opdTensors[6];
-    assert(quant_rshift);
-    this->rshift.assign(quant_rshift->begin(), quant_rshift->end());
-    assert(quant_multiplier);
-    this->multiplier.assign(quant_multiplier->begin(),
-                            quant_multiplier->end());
-  }
+  this->quant_scale = this->opdTensors[3];
+  this->quant_zeropoint = this->opdTensors[4];
+  this->quant_rshift = this->opdTensors[5];
+  this->quant_multiplier = this->opdTensors[6];
 
   auto input_type = castOp.input().getType().template cast<TensorType>();
   this->input_shape = input_type.getShape();
@@ -40,6 +34,21 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping,
   bias_data = this->opdTensors[2];
   output_data = this->resTensor;
   zero_bias = std::make_shared<TensorData>(oc, 0.0f);
+  if (datatype == DataType::BF16) {
+    if (getOpQuantParamType(&op) == "ACTIVATION_BF16") {
+      activation_bf16 = true;
+      int quant_size = quant_scale->size();
+      int inner_size = (ic / g) * kh * kw;
+      int filter_size = filter_data->size();
+      assert(filter_size == inner_size * quant_size);
+      for(int i = 0;i < filter_size; i++) {
+        int q_idx = i / inner_size;
+        auto scale = quant_scale->at(q_idx);
+        auto zeropoint = quant_zeropoint->at(q_idx);
+        filter_data->at(i) = BF16(BF16(filter_data->at(i) * scale) + zeropoint);
+      }
+    }
+  }
 
   // set mkldnn
   // in int8 case, bias will be add after mkldnn conv
@@ -89,7 +98,7 @@ void Conv2DOpKernel::invoke() {
   } else {
     quantizeActivationInt8PerChannelMultiplierAndRShift(
             output_data->data(), output_data->data(), bias_data->data(), do_relu,
-            n, oc, oh * ow, rshift.data(), multiplier.data());
+            n, oc, oh * ow, quant_rshift->data(), quant_multiplier->data());
   }
 }
 

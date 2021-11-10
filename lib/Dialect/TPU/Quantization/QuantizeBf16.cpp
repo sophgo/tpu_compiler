@@ -77,6 +77,57 @@ static void quantizeBf16WeightOp(Value op, TensorFile *wTF) {
                                           wTF);
 }
 
+static void quantizeWeightInt8(const std::vector<float> &weight_fp32,
+                               int64_t outer_size, int64_t axis_size,
+                               int64_t inner_size,
+                               std::vector<float> &weight_int8,
+                               std::vector<float> &quant_scale,
+                               std::vector<float> &quant_zeropoint) {
+  int64_t size = weight_fp32.size();
+  assert(size == outer_size * inner_size * axis_size);
+  weight_int8.resize(size);
+  quant_scale.resize(axis_size);
+  quant_zeropoint.resize(axis_size);
+  float max, min, scale, zeropoint;
+  for (int k = 0; k < axis_size; k++) {
+    max = weight_fp32[k * inner_size];
+    min = weight_fp32[k * inner_size];
+    for (int o = 0; o < outer_size; o++) {
+      for (int i = 0; i < inner_size; i++) {
+        int index = o * axis_size * inner_size + k * inner_size + i;
+        float data = weight_fp32[index];
+        if (data > max) {
+          max = data;
+        }
+        if (data < min) {
+          min = data;
+        }
+      }
+    }
+    if (max == min) {
+      for (int o = 0; o < outer_size; o++) {
+        for (int i = 0; i < inner_size; i++) {
+          int index = o * axis_size * inner_size + k * inner_size + i;
+          weight_int8[index] = INT8(1.0f);
+        }
+      }
+      quant_scale[k] = BF16(max);
+      quant_zeropoint[k] = BF16(0.0f);
+    } else {
+      zeropoint = (max + min) / 2;
+      scale = 128.0 / (max - zeropoint);
+      for (int o = 0; o < outer_size; o++) {
+        for (int i = 0; i < inner_size; i++) {
+          int index = o * axis_size * inner_size + k * inner_size + i;
+          weight_int8[index] = INT8((weight_fp32[index] - zeropoint) * scale);
+        }
+      }
+      quant_scale[k] = BF16((max - zeropoint) / 128.0f);
+      quant_zeropoint[k] = BF16(zeropoint);
+    }
+  }
+}
+
 static void quantizeWeightInt8Op(Operation *op, Value v, TensorFile *wTF,
                                  int axis, int scale_index,
                                  int zeropoint_index) {
@@ -92,54 +143,20 @@ static void quantizeWeightInt8Op(Operation *op, Value v, TensorFile *wTF,
   }
   assert(axis < num_dims);
   auto weight = readAndDeleteWeightTensor<float>(v, wTF);
-  auto new_weight = std::make_unique<std::vector<float>>(size);
-  auto K = shape[axis];
+  auto new_weight = std::make_unique<std::vector<float>>();
+  auto axis_size = shape[axis];
   auto inner_size = std::accumulate(shape.begin() + axis + 1, shape.end(), 1,
                                     std::multiplies<int64_t>());
   auto outer_size = std::accumulate(shape.begin(), shape.begin() + axis, 1,
                                     std::multiplies<int64_t>());
-  auto quant_scale = std::make_unique<std::vector<float>>(K);
-  auto quant_zeropoint = std::make_unique<std::vector<float>>(K);
-  float max, min, scale, zeropoint;
-  for (int k = 0; k < K; k++) {
-    max = weight->at(k * inner_size);
-    min = weight->at(k * inner_size);
-    for (int o = 0; o < outer_size; o++) {
-      for (int i = 0; i < inner_size; i++) {
-        float data = weight->at(o * K * inner_size + k * inner_size + i);
-        if (data > max) {
-          max = data;
-        }
-        if (data < min) {
-          min = data;
-        }
-      }
-    }
-    if (max == min) {
-      for (int o = 0; o < outer_size; o++) {
-        for (int i = 0; i < inner_size; i++) {
-          new_weight->at(o * K * inner_size + k * inner_size + i) = INT8(1.0f);
-        }
-      }
-      quant_scale->at(k) = BF16(max);
-      quant_zeropoint->at(k) = BF16(0.0f);
-    } else {
-      zeropoint = (max + min) / 2;
-      scale = 128.0 / (max - zeropoint);
-      for (int o = 0; o < outer_size; o++) {
-        for (int i = 0; i < inner_size; i++) {
-          int index = o * K * inner_size + k * inner_size + i;
-          new_weight->at(index) = INT8((weight->at(index) - zeropoint) * scale);
-        }
-      }
-      quant_scale->at(k) = BF16((max - zeropoint) / 128.0f);
-      quant_zeropoint->at(k) = BF16(zeropoint);
-    }
-  }
+  auto quant_scale = std::make_unique<std::vector<float>>();
+  auto quant_zeropoint = std::make_unique<std::vector<float>>();
+  quantizeWeightInt8(*weight, outer_size, axis_size, inner_size, *new_weight,
+                     *quant_scale, *quant_zeropoint);
   addWeightTensorAndUpdateWeightOp<float>(v, "quant", *new_weight, shape,
                                           "INT8", wTF);
   Value wfV = getWeightFileValue(op);
-  std::vector<int64_t> qshape(1, K);
+  std::vector<int64_t> qshape(1, axis_size);
   auto scale_op = addWeightTensorAndCreateWeightOp<float>(
       op, "quant_scale", *quant_scale, qshape, "BF16", wTF, wfV);
   auto zeropoint_op = addWeightTensorAndCreateWeightOp<float>(
@@ -233,6 +250,7 @@ static void insertBf16LutOp(Operation *op, const std::string &type_name, const s
 template <typename OpTy>
 LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
   assert(getOpQuant(op) == "BF16");
+  bool is_activation_bf16 = (getOpQuantParamType(op) == "ACTIVATION_BF16");
 
   auto convOp = cast<OpTy>(op);
   TensorFile *wTF = getWeightTensorFile(op);
@@ -246,25 +264,49 @@ LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
 
   // get oc and isz
   int64_t oc = 0;
-  if (filterShape.size() == 4) {
+  int num_dims = filterShape.size();
+  if (num_dims == 4) {
     oc = filterShape[0];
-  } else if (filterShape.size() == 5 && spatial_dims == 2) {
+  } else if (num_dims == 5 && spatial_dims == 2) {
     // g, oc/g, ic/g, kh, kw
     oc = filterShape[0] * filterShape[1];
-  } else if (filterShape.size() == 5 && spatial_dims == 3) {
+  } else if (num_dims == 5 && spatial_dims == 3) {
     // oc, ic, kd, kh, kw
     oc = filterShape[0];
   } else {
     assert(0);
   }
   assert(filterSize % oc == 0);
+  int64_t inner_size = filterSize/oc;
+  if (is_activation_bf16) {
+    if (inner_size < 8 || spatial_dims > 2) {
+      // no need to do weight int8
+      setOpQuantParamType(op, "NONE");
+      is_activation_bf16 = false;
+    }
+  }
 
-  // quantization
-  BF16(filter->data(), filter->data(), filterSize);
-
-  // update op
-  addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1), "quant",
-                                          *filter, filterShape, "BF16", wTF);
+  if (!is_activation_bf16) {
+    BF16(filter->data(), filter->data(), filterSize);
+    addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1), "quant",
+                                            *filter, filterShape, "BF16", wTF);
+  } else {
+    std::vector<float> weight_int8;
+    std::vector<float> quant_scale;
+    std::vector<float> quant_zeropoint;
+    quantizeWeightInt8(*filter, 1, oc, inner_size,
+                       weight_int8, quant_scale, quant_zeropoint);
+    Value wfV = getWeightFileValue(op);
+    std::vector<int64_t> qshape(1, oc);
+    auto scale_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "quant_scale", quant_scale, qshape, "BF16", wTF, wfV);
+    auto zeropoint_op = addWeightTensorAndCreateWeightOp<float>(
+        op, "quant_zeropoint", quant_zeropoint, qshape, "BF16", wTF, wfV);
+    addWeightTensorAndUpdateWeightOp<float>(
+        convOp.filter(), "quant", weight_int8, filterShape, "INT8", wTF);
+    op->setOperand(3, scale_op);
+    op->setOperand(4, zeropoint_op);
+  }
 
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
@@ -387,8 +429,7 @@ LogicalResult tpu::ConvFcOp::quantizeBf16() {
     if (isa<tpu::LoadWeightOp>(filter().getDefiningOp())) {
       quantizeWeightInt8Op(op, filter(), wTF, -1, 2, 3);
     } else {
-      StringRef type = "NONE";
-      setOpQuantParamType(type);
+      mlir::setOpQuantParamType(op, "NONE");
     }
   } else {
     quantizeBf16WeightOp(filter(), wTF);
@@ -407,8 +448,7 @@ LogicalResult tpu::EmbeddingOp::quantizeBf16() {
     if (isa<tpu::LoadWeightOp>(table().getDefiningOp())) {
       quantizeWeightInt8Op(op, table(), wTF, -1, 2, 3);
     } else {
-      StringRef type = "NONE";
-      setOpQuantParamType(type);
+      mlir::setOpQuantParamType(op, "NONE");
     }
   } else {
     quantizeBf16WeightOp(table(), wTF);

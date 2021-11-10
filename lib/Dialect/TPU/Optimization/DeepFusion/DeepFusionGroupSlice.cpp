@@ -551,12 +551,12 @@ int DeepFusionGroupSlice::computeCost(
                   subGroupOutOps.end())
       reducedLmem += MInfo::getSizePerLane(n, c, h, w, true);
 
-    if (isa<tpu::TG_INT8_PC_Conv2DOp>(*iter)) {
-      auto convOp = cast<tpu::TG_INT8_PC_Conv2DOp>(*iter);
+    if (isa<tpu::TG_INT8_Conv2DOp>(*iter)) {
+      auto convOp = cast<tpu::TG_INT8_Conv2DOp>(*iter);
       bool is_dw, with_bias, do_relu;
       int n, ic, ih, iw, oc, oh, ow, g;
       int kh, kw, sh, sw, ins_h, ins_w, pt, pb, pl, pr, dh, dw, pad_value;
-      bool is_deconv = isa<tpu::TG_INT8_PC_DeConv2DOp>(convOp.getOperation());
+      bool is_deconv = isa<tpu::TG_INT8_DeConv2DOp>(convOp.getOperation());
       parseConvParam(convOp.param(), is_deconv, convOp.input(), convOp.output(),
                      convOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw,
                      ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
@@ -648,8 +648,8 @@ bool DeepFusionGroupSlice::isFusionOp(Operation *opInst, int batchSize) {
     if (shape.size() != 4)
       return false;
   }
-  if (isa<tpu::TG_INT8_PC_Conv2DOp>(opInst)) {
-    auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(opInst);
+  if (isa<tpu::TG_INT8_Conv2DOp>(opInst)) {
+    auto op = cast<tpu::TG_INT8_Conv2DOp>(opInst);
     if (op.input().hasOneUse() == false) {
       return false;
     }
@@ -761,7 +761,7 @@ void DeepFusionGroupSlice::insertSliceOp(
 void DeepFusionGroupSlice::genTLOp(Operation *srcOp,
                                   std::vector<Value> opds,
                                   Operation *&dstOp, int loopIdx, int curN) {
-  if (isa<tpu::TG_INT8_PC_Conv2DOp>(srcOp)) {
+  if (isa<tpu::TG_INT8_Conv2DOp>(srcOp)) {
     genTLConvOp(srcOp, opds, dstOp, loopIdx, curN);
   } else if (isa<tpu::TG_INT8_EltwiseAddOp>(srcOp)) {
     genTLEltwiseOp<tpu::TG_INT8_EltwiseAddOp, tpu::TL_EltwiseAddOp>(srcOp, opds, dstOp, loopIdx, curN);
@@ -955,7 +955,7 @@ void DeepFusionGroupSlice::genTLConvOp(Operation *srcOp,
                                       int loopIdx, int curN) {
   Builder builder(context_);
   bool bSlice = (curN == batchSize_) ? false : true;
-  auto op = cast<tpu::TG_INT8_PC_Conv2DOp>(srcOp);
+  auto op = cast<tpu::TG_INT8_Conv2DOp>(srcOp);
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
   shape = getTensorShape(srcOp->getResult(0));

@@ -142,7 +142,7 @@ public:
         auto output = op->getResult(0);
         auto param = op->getAttr("param").cast<tpu::ConvParam>();
         bool is_deconv = false;
-        if (isa<tpu::TG_INT8_PC_DeConv2DOp>(op) ||
+        if (isa<tpu::TG_INT8_DeConv2DOp>(op) ||
             isa<tpu::TG_BF16_DeConv2DOp>(op) ||
             isa<tpu::DeConv2DOp>(op)) {
             is_deconv = true;

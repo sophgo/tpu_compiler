@@ -13,7 +13,7 @@ void getConvParam(Operation *p,
                   bool &do_ic_align,
                   bool &do_leaky_relu,
                   int &pad_value) {
-  if (auto op = dyn_cast<tpu::TG_INT8_PC_Conv2DOp>(p)) {
+  if (auto op = dyn_cast<tpu::TG_INT8_Conv2DOp>(p)) {
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
@@ -29,7 +29,7 @@ void getConvParam(Operation *p,
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();
-  } else if (auto op = dyn_cast<tpu::TG_INT8_PC_DeConv2DOp>(p)) {
+  } else if (auto op = dyn_cast<tpu::TG_INT8_DeConv2DOp>(p)) {
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
