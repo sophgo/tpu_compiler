@@ -989,13 +989,12 @@ class OnnxConverter(BaseConverter):
                 self.addOperand(onnx_node.name, scale_op, input_shape0, TensorType.ACTIVATION)
                 return
             else:
-                weight_name = onnx_node.inputs[1]
+                weight_name = "{}_{}_add_weight".format(onnx_node.inputs[0], onnx_node.inputs[1])
                 weight_data = self.getTensor(onnx_node.inputs[1]).tensor_data
                 output_shape = self.bcast_shape(input_shape0, input_shape1)
                 if output_shape == input_shape0:
                     weight = np.zeros(output_shape, dtype=np.float32)
                     weight_data = weight + weight_data
-                    weight_name = weight_name + "_broadcast"
                     input_shape1 = output_shape
                 if input_shape0 == input_shape1:
                     self.addTensor(weight_name, weight_data, input_shape1)
@@ -1799,7 +1798,7 @@ class OnnxConverter(BaseConverter):
             elif tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
                 op0_shape = [shape0[0], shape0[1], shape0[2] * shape0[3]]
                 op0_reshape = self.CVI.add_reshape_op(onnx_node.inputs[0] + "_Reshape", [op0], op0_shape)
-                weight_name = "{}_add_weight".format(onnx_node.name)
+                weight_name = "{}_{}_einsum".format(onnx_node.inputs[0], onnx_node.inputs[1])
                 weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
                 weight_tensor = weight_tensor.reshape([shape1[0] * shape1[1], shape1[2]])
                 weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, [1, 0]))
@@ -2003,8 +2002,8 @@ class OnnxConverter(BaseConverter):
             weight_shape.reverse()
             weight_tensor_data = weight_tensor.tensor_data
             weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor_data, (1, 0)))
+            weight_name = "{}_{}_filter".format(onnx_node.inputs[0], onnx_node.inputs[1])
             self.addTensor(weight_name, weight_tensor, weight_shape)
-
         weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
         operands.append(weight_op)
 
@@ -2436,7 +2435,7 @@ class OnnxConverter(BaseConverter):
         # rhs is weight
         if rhs_type == TensorType.TENSOR:
             operands = list()
-            weight_name = "{}_add_weight".format(onnx_node.name)
+            weight_name = "{}_{}_filter".format(onnx_node.inputs[0], onnx_node.inputs[1])
             weight_tensor = self.getTensor(onnx_node.inputs[1]).tensor_data
             weight_tensor_shape = weight_tensor.shape
             order = [i for i in range(len(weight_tensor_shape))]
@@ -2451,7 +2450,9 @@ class OnnxConverter(BaseConverter):
 
             if len(onnx_node.inputs) == 3:
                 bias_tensor = self.getTensor(onnx_node.inputs[2]).tensor_data
-                bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], bias_tensor.shape)
+                bias_name = "{}_{}_bias".format(onnx_node.inputs[0], onnx_node.inputs[1])
+                self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
+                bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
                 operands.append(bias_op)
 
             if self.is_convfc(operands, lhs_shape, rhs_shape):
