@@ -3499,6 +3499,7 @@ class OnnxConverter(BaseConverter):
                 self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
                 return
         elif tensor_type0 == TensorType.ACTIVATION or tensor_type1 == TensorType.ACTIVATION:
+            need_neg = False
             if tensor_type1 == TensorType.ACTIVATION:
                 need_neg = True
                 input_shape0, input_shape1 = input_shape1, input_shape0
