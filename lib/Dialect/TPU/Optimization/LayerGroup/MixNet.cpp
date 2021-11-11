@@ -201,10 +201,7 @@ void MixNet::add_tl_layer(int layer_id) {
   for (uint32_t i = 0; i < in_tensors.size(); i++) {
     Tensor* in_tensor = net_graph_->get_tensor_by_id(in_tensors[i]);
     const std::string& name = in_tensor->name();
-    if (in_tensor->type() != TENSOR_NEURON &&
-        in_tensor->type() != TENSOR_MATRIX &&
-        in_tensor->type() != TENSOR_NEURON_AS_COEFF
-       ) {
+    if (in_tensor->type() != TENSOR_NEURON) {
       // coeff not do slice, no need postfix
       mix_op->add_bottom_name(name);
     } else {
@@ -1562,9 +1559,9 @@ void MixNet::_add_load_op(int group_idx,
     dtype = COEFF;
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));
-  } else if (tensor_type == TENSOR_DEPTHCONV_OPD1) {
+  } else if (tensor_type == TENSOR_COEFF_DWCONV) {
     aligned = true;
-    tensor_type_str = "CONV_DEPTH_OPD1";
+    tensor_type_str = "DWCONV_COEFF";
     dtype = COEFF;
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));
@@ -1585,24 +1582,7 @@ void MixNet::_add_load_op(int group_idx,
     src_opd = get_op_from_name(name);
     name = name + postfix_name_;
     laddr = get_tensor_laddr(tensor_id);
-
-    if (tensor_type == TENSOR_NEURON_AS_COEFF) {
-      local_shape[0] = tensor_dim[0];
-      local_shape[1] = tensor_dim[1];
-      local_shape[2] = tensor_dim[2];
-      local_shape[3] = tensor_dim[3];
-      // no offset cus as coeff that load at once
-      offset = 0;
-    }
-
-    if (tensor_type == TENSOR_NEURON || tensor_type == TENSOR_MATRIX
-        || tensor_type == TENSOR_NEURON_AS_COEFF) {
-      aligned = true;
-    } else {
-      if (tensor_type != TENSOR_NEURON_AS_COEFF && tensor_type != TENSOR_MATRIX) {
-        dtype = COEFF;
-      }
-    }
+    aligned = true;
     net_graph_->set_tensor_local_offest(tensor_id, laddr);
     tensor_type_str = "NEURON";
     attrs.push_back(builder_.getNamedAttr("offset", builder_.getI64IntegerAttr(offset)));

@@ -69,16 +69,16 @@ class ModelTest(object):
                 raise RuntimeError("{} opt failed".format(self.model_path))
 
         if "bf16" == quant_mode:
-            deploy_cmd = ['model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--all_bf16',
+            deploy_cmd = ['model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--quantize','BF16',
                           '--chip', self.chip_type, '--image', self.input_path, '--tolerance', '0.99,0.99,0.87',
-                          '--correctness', '0.99,0.99,0.95', '--cvimodel', self.cvimodel]
+                          '--correctness', '0.99,0.99,0.95', '--debug', '--cvimodel', self.cvimodel]
         elif "int8" == quant_mode:
             # simple cali and convert to cvimodel
             table_file = IntermediateFile(self.model_name, 'calibration_table', True)
             self.__make_test_calibration_table__(str(table_file))
             deploy_cmd = ['model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--calibration_table',
                           str(table_file), '--chip', self.chip_type, '--image',self. input_path, '--tolerance',
-                          '0.10,0.10,0.1', '--correctness', '0.99,0.99,0.93', '--cvimodel', self.cvimodel]
+                          '0.10,0.10,0.1', '--correctness', '0.99,0.99,0.93', '--debug','--cvimodel', self.cvimodel]
         else:
             raise ValueError("Now just support bf16/int8")
         subprocess.run(deploy_cmd)
@@ -106,7 +106,7 @@ class ModelTest(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_def", help="model definition file.")
-    parser.add_argument("--qmode", choices=['bf16', 'int8'], help="quant mode")
+    parser.add_argument("--qmode", choices=['bf16', 'int8'], default="bf16", help="quant mode")
     parser.add_argument("--batch_size", type=int, default=1, help="batch size")
     parser.add_argument("--chip_type", type=str, default="cv182x", help="chip type")
     parser.add_argument("--tmp_dir", type=str, default="tmp", help="tmp folder")

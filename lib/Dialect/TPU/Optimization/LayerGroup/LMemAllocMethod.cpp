@@ -6,10 +6,9 @@ LMemAllocMethod::LMemAllocMethod() {}
 LMemAllocMethod::~LMemAllocMethod() {}
 
 bool LMemAllocMethod::is_tensor_resident_in_lmem(tensor_type type) {
-  //tensor_type_t type = net_graph_->get_tensor_type(tid);
-  if (type == TENSOR_COEFF_CONV || type == TENSOR_COEFF_NEURON ||
-      type == TENSOR_COEFF || type == TENSOR_DEPTHCONV_OPD1 ||
-      type == TENSOR_NEURON_AS_COEFF) {
+  // tensor_type_t type = net_graph_->get_tensor_type(tid);
+  if (type == TENSOR_COEFF_CONV || type == TENSOR_COEFF ||
+      type == TENSOR_COEFF_DWCONV) {
     return true;
   }
   return false;

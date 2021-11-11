@@ -74,7 +74,7 @@ int TdmaCycle::init(const TENSOR_STEP& step) {
     local_shape[1] = tensor_dim[1];
     local_shape[2] = tensor_dim[3] * tensor_dim[2];
     local_shape[3] = tensor_dim[0];
-  } else if (tensor_type == TENSOR_DEPTHCONV_OPD1) {
+  } else if (tensor_type == TENSOR_COEFF_DWCONV) {
     aligned = (true);
   } else {
     int n_slice = tensor->n_slice;
@@ -89,7 +89,7 @@ int TdmaCycle::init(const TENSOR_STEP& step) {
     local_shape[2] = (h_slice);
     local_shape[3] = (tensor_dim[3]);
 
-    if (tensor_type == TENSOR_NEURON || tensor_type == TENSOR_NEURON_AS_COEFF) {
+    if (tensor_type == TENSOR_NEURON) {
       aligned = (true);
     }
   }

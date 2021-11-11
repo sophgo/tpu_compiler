@@ -132,11 +132,6 @@ class ImPooling : public ImLayer {
   explicit ImPooling(Operation *op);
 };
 
-class ImInnerproduct : public ImLayer {
- public:
-  explicit ImInnerproduct(Operation *op);
-};
-
 class ImEltwise : public ImLayer {
  public:
   explicit ImEltwise(Operation *op);
@@ -265,11 +260,6 @@ class ImCommon : public ImLayer {
 class ImQuant : public ImLayer {
  public:
   explicit ImQuant(Operation *op);
-};
-
-class ImMatMul : public ImLayer {
-  public:
-   explicit ImMatMul(Operation *op);
 };
 
 }

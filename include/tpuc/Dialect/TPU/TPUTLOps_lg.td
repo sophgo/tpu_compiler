@@ -63,13 +63,11 @@ def TPU_LSDirAttr:StrEnumAttr<
 def TPU_TENSOR_NEURON : StrEnumAttrCase<"NEURON">;
 def TPU_TENSOR_COEFF : StrEnumAttrCase<"COEFF">;
 def TPU_TENSOR_COEFF_CONV : StrEnumAttrCase<"CONV_COEFF">;
-def TPU_TENSOR_DEPTH : StrEnumAttrCase<"CONV_DEPTH_OPD1">;
-def TPU_TENSOR_MATRIX : StrEnumAttrCase<"MATRIX">;
-def TPU_TENSOR_NEURON_AS_COEFF : StrEnumAttrCase<"NEURON_AS_COEFF">;
+def TPU_TENSOR_COEFF_DWCONV : StrEnumAttrCase<"DWCONV_COEFF">;
 
 def TPU_TensorTypeAttr:StrEnumAttr<
     "TPU_TensorTypeAttr", "Tensor type for load/store", [
-      TPU_TENSOR_NEURON, TPU_TENSOR_COEFF, TPU_TENSOR_COEFF_CONV,  TPU_TENSOR_DEPTH, TPU_TENSOR_MATRIX, TPU_TENSOR_NEURON_AS_COEFF
+      TPU_TENSOR_NEURON, TPU_TENSOR_COEFF, TPU_TENSOR_COEFF_CONV,  TPU_TENSOR_COEFF_DWCONV
     ]>;
 //===----------------------------------------------------------------------===//
 // TL op definitions.

@@ -139,8 +139,8 @@ uint32_t Tensor::lmem_size() {
     w = 1;
   }
 
-  if (type_ == TENSOR_IMM || type_ == TENSOR_NEURON || type_ == TENSOR_NEURON_AS_COEFF || type_ == TENSOR_MATRIX ||
-      type_ == TENSOR_DEPTHCONV_OPD1) {
+  if (type_ == TENSOR_IMM || type_ == TENSOR_NEURON||
+      type_ == TENSOR_COEFF_DWCONV) {
     return n * ceiling_func(c, NPU_NUM) * ALIGN(h * w, EU_NUM) * unit_size_;
   } else {
     return n * ceiling_func(c, NPU_NUM) * h * w * unit_size_;
