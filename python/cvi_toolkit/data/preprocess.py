@@ -473,13 +473,26 @@ class preprocess(object):
         x_tmp[:, :, : w] = x
         return x_tmp
 
-    def align_planar_frame(self, x, aligned):
+    def align_gray_frame(self, x, aligned):
         if not aligned:
             return x
         c, h, w = x.shape
         x_tmp = np.zeros((c, h, self.align_up(w, self.VPSS_W_ALIGN)), x.dtype)
         x_tmp[:, :, :w] = x
         return x_tmp
+
+    def align_planar_frame(self, x, aligned):
+        if not aligned:
+          return x
+        c, h, w = x.shape
+        align_w_size = self.align_up(w, self.VPSS_W_ALIGN)
+        align_c_size = self.align_up(align_w_size * h, self.VPSS_CHANNEL_ALIGN)
+        x_tmp1 = np.zeros((c, h, align_w_size), x.dtype)
+        x_tmp1[:, :, :w] = x
+        x_tmp1 = np.reshape(x_tmp1, (c, 1, h * align_w_size))
+        x_tmp2 = np.zeros((c, 1, align_c_size), x.dtype)
+        x_tmp2[:, :, : h * align_w_size] = x_tmp1
+        return x_tmp2
 
     def run(self, input, batch=1):
         # load and resize image, the output image is chw format.
@@ -498,7 +511,7 @@ class preprocess(object):
             self.perchannel_mean = self.perchannel_mean[:1]
             self.perchannel_scale = self.perchannel_scale[:1]
             x = x * self.perchannel_scale - self.perchannel_mean
-            x = self.align_planar_frame(x, self.aligned)
+            x = self.align_gray_frame(x, self.aligned)
             x = np.expand_dims(x, axis=0)
         elif self.pixel_format == 'YUV420_PLANAR' or self.pixel_format == 'YUV_NV12' or self.pixel_format == "YUV_NV21":
             # swap to 'rgb'
@@ -515,21 +528,24 @@ class preprocess(object):
             x = self.rgb2yuv420(x, pixel_type)
             x = x.astype(np.float32)
             assert(batch == 1)
-        elif self.pixel_format == 'RGBA_PLANAR':
+        elif self.pixel_format == 'RGBA_PLANAR' or self.pixel_format == 'RGB_PLANAR' or self.pixel_format == 'BGR_PLANAR':
+            if self.channel_order == 'rgb':
+                x = x[[2, 1, 0], :, :]
             x = x * self.perchannel_scale - self.perchannel_mean
+            x = self.align_planar_frame(x, self.aligned)
             x = np.expand_dims(x, axis=0)
-        else:  # RGB_PLANAR|PACKED or  BGR_PLANAR|PACKED
+        elif self.pixel_format == 'RGB_PACKED' or self.pixel_format == 'BGR_PACKED':  # RGB_PACKED or  BGR_PACKED
             if self.channel_order == "rgb":
                 x = x[[2, 1, 0], :, :]
                 x = x * self.perchannel_scale - self.perchannel_mean
             else:
                 x = x * self.perchannel_scale - self.perchannel_mean
-            if self.data_format == 'nhwc':
-                x = np.transpose(x, (1, 2, 0))
-                x = self.align_packed_frame(x, self.aligned)
-            else:
-                x = self.align_planar_frame(x, self.aligned)
+            x = np.transpose(x, (1, 2, 0))
+            x = self.align_packed_frame(x, self.aligned)
             x = np.expand_dims(x, axis=0)
+        else:
+            logger.info("unsupported pixel format");
+            assert(0)
 
         if batch > 1:
             x = np.repeat(x, batch, axis=0)

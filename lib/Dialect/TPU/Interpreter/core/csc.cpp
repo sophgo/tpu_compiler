@@ -135,13 +135,26 @@ void CscOpKernel::invoke() {
     yuv_csc(input_data->data(), output_data->data(), on, oc, oh, ow, orders,
                datatype == DataType::FP32 ? 0 : 1, YUV_NV21);
   } else if (aligned) {
-    // do crop to make data unaligned
-    std::vector<int64_t> crop_shape(input_shape.begin(), input_shape.end());
-    crop_shape[3] = (int)(oc * oh * ow / (ic * ih));
-    std::vector<int> crop_offset{0, 0, 0, 0};
-    std::vector<int> indices(4, 0);
-    crop(input_data->data(), output_data->data(), input_shape.data(),
-         crop_shape.data(), 0, crop_offset.data(), indices.data());
+    if (pixel_format == "RGB_PLANAR" || pixel_format == "BGR_PLANAR" ||
+        pixel_format == "RGBA_PLANAR") {
+      // do stride copy to make data unaligned
+      std::vector<int> indices(4, 0);
+      int iw = align_up(shape[3], w_align);
+      int ic_stride = align_up(iw * shape[2], channel_align);
+      int in_stride = ic_stride * ic; 
+      std::vector<int32_t> input_stride = {in_stride, ic_stride, iw, 1};
+      std::vector<int32_t> output_stride = {ow * oh * oc, ow * oh, ow, 1};
+      stride_copy(input_data->data(), output_data->data(), shape.data(), input_stride.data(),
+           output_stride.data(), 0, indices.data());
+    } else {
+      // do crop to make data unaligned
+      std::vector<int64_t> crop_shape(input_shape.begin(), input_shape.end());
+      crop_shape[3] = (int)(oc * oh * ow / (ic * ih));
+      std::vector<int> crop_offset{0, 0, 0, 0};
+      std::vector<int> indices(4, 0);
+      crop(input_data->data(), output_data->data(), input_shape.data(),
+           crop_shape.data(), 0, crop_offset.data(), indices.data());
+    }
   } else {
     output_data->assign(input_data->begin(), input_data->end());
   }

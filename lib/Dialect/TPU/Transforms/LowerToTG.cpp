@@ -1850,6 +1850,13 @@ Value tpu::SwapChannelOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+static inline int align_up(int x, int n) {
+  if (n == 0 || n == 1) {
+    return x;
+  }
+  return ((x + n - 1) / n) * n;
+}
+
 Value tpu::CscOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -1864,17 +1871,20 @@ Value tpu::CscOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
 
   int yuv_type = -1;
+  bool need_stride_copy = false;
   if (pixel_format == "YUV420_PLANAR") {
     yuv_type = 1;
   } else if (pixel_format == "YUV_NV12") {
     yuv_type = 2;
   } else if (pixel_format == "YUV_NV21") {
     yuv_type = 3;
-  } else {
-    yuv_type = -1;
+  } else if (pixel_format == "RGB_PLANAR" || pixel_format == "BGR_PLANAR" ||
+             pixel_format == "RGBA_PLANAR") {
+    need_stride_copy = true;
   }
+
+  assert(getOpQuant() == "INT8" || getOpQuant() == "UINT8");
   if (yuv_type > 0) {
-    assert(getOpQuant() == "INT8" || getOpQuant() == "UINT8");
     attrs.push_back(builder.getNamedAttr("y_align", y_alignAttr()));
     attrs.push_back(builder.getNamedAttr("w_align", w_alignAttr()));
     attrs.push_back(builder.getNamedAttr("channel_align", channel_alignAttr()));
@@ -1884,8 +1894,37 @@ Value tpu::CscOp::convertToTG() {
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
+  } else if (need_stride_copy) {
+    std::vector<int64_t> input_shape;
+    std::vector<int64_t> output_shape;
+    int64_t input_size, n, c, h, w;
+    int64_t output_size, on, oc, oh, ow;
+    getTensorShapeAndSize(op->getOperand(0), input_shape, input_size);
+    getTensorShapeAndSize(op->getResult(0), output_shape, output_size);
+    getNCHW(input_shape, n, c, h, w);
+    getNCHW(output_shape, on, oc, oh, ow);
+
+    std::vector<int> i_stride(4, 0);
+    std::vector<int> o_stride(4, 0);
+    i_stride[3] = 1;
+    i_stride[2] = align_up(ow, w_alignAttr().getInt());
+    i_stride[1] = align_up(i_stride[2] * oh, channel_alignAttr().getInt());
+    i_stride[0] = i_stride[1] * c;
+
+    o_stride[3] = 1;
+    o_stride[2] = ow;
+    o_stride[1] = o_stride[2] * oh;
+    o_stride[0] = i_stride[1] * oc;
+
+    attrs.push_back(
+        builder.getNamedAttr("input_stride", builder.getI32ArrayAttr(i_stride)));
+    attrs.push_back(
+        builder.getNamedAttr("output_stride", builder.getI32ArrayAttr(o_stride)));
+    auto newOp = OpBuilder(op).create<tpu::TG_StrideCopyOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
   } else {
-    assert(getOpQuant() == "INT8" || getOpQuant() == "UINT8");
     std::vector<int64_t> input_shape;
     std::vector<int64_t> output_shape;
     int64_t input_size, n, c, h, w;

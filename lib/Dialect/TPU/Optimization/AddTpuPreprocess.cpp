@@ -265,9 +265,16 @@ public:
             input_shape[3] = yuv_size(1, c, resize_h, resize_w, pixel_format);
             aligned = true;
           } else if (aligned) {
-            input_shape[1] = c;
-            input_shape[2] = resize_h;
-            input_shape[3] = align_up(resize_w, 32);
+            if (pixel_format == "RGB_PLANAR" || pixel_format == "BGR_PLANAR" || pixel_format == "RGBA_PLANAR") {
+              // TODO if align rule changed, need modify csc.cpp
+              input_shape[1] = c;
+              input_shape[2] = 1;
+              input_shape[3] = align_up(resize_h * align_up(resize_w, this->w_align), this->channel_align);
+            } else {
+              input_shape[1] = c;
+              input_shape[2] = resize_h;
+              input_shape[3] = align_up(resize_w, this->w_align);
+            }
           }
         }
         auto arg_type = this->getTensorType(builder, arg_shape, "UINT8");

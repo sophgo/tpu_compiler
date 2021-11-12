@@ -3298,6 +3298,26 @@ LogicalResult tpu::ReshapeOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_StrideCopyOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  gaddr_t input_gaddr = getPreviousOpAddress(op);
+  gaddr_t output_gaddr = getOpAddress(op);
+  std::vector<int64_t> out_shape = getTensorShape(this->getResult());
+
+  // prepare data
+  std::vector<int32_t> i_stride;
+  std::vector<int32_t> o_stride;
+  arrayAttrToVector(this->input_stride(), i_stride);
+  arrayAttrToVector(this->output_stride(), o_stride);
+
+  cvi_backend_tg_stride_copy_kernel(*backend_ctx, input_gaddr,
+                       output_gaddr, out_shape, i_stride, o_stride, CVK_FMT_I8);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

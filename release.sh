@@ -194,11 +194,17 @@ function pack_sampel_cvimodels() {
   gencvimodel_for_sample $chip retinaface_mnet25_600 \
       $dst/retinaface_mnet25_600_fused_preprocess_with_detection.cvimodel \
       1 BGR_PACKED 0
+  gencvimodel_for_sample $chip retinaface_mnet25_600 \
+      $dst/retinaface_mnet25_600_fused_preprocess_aligned_input.cvimodel \
+      1 RGB_PLANAR 1
   gencvimodel_for_sample $chip arcface_res50 \
       $dst/arcface_res50.cvimodel 0
   gencvimodel_for_sample $chip arcface_res50 \
       $dst/arcface_res50_fused_preprocess.cvimodel \
       1 BGR_PACKED 0
+  gencvimodel_for_sample $chip arcface_res50 \
+      $dst/arcface_res50_fused_preprocess_aligned_input.cvimodel \
+      1 RGB_PLANAR 1
 
   # gen merged cvimodel
   gen_merged_cvimodel_for_sample $chip mobilenet_v2 \

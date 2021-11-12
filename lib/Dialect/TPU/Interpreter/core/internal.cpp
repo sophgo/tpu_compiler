@@ -61,4 +61,28 @@ void crop(float *input, float *output, long int *input_shape,
   }
 };
 
+inline int copy_offset(const int *indices, int32_t * stride) {
+  int offset = 0;
+  for (int i = 0; i < 4; ++i) {
+    offset += indices[i] * stride[i];
+  }
+  return offset;
+}
+
+void stride_copy(float *input, float *output, long int *shape,
+                 int32_t *input_stride, int32_t *output_stride, int cur_dim,
+                 int *indices) {
+  if (cur_dim + 1 < 4) {
+    for (int i = 0; i < shape[cur_dim]; ++i) {
+      indices[cur_dim] = i;
+      stride_copy(input, output, shape, input_stride, output_stride,
+                  cur_dim + 1, indices);
+    }
+  } else {
+    indices[cur_dim] = 0;
+    std::memcpy(output + copy_offset(indices, output_stride),
+                input + copy_offset(indices, input_stride),
+                sizeof(float) * shape[cur_dim]);
+  }
+}
 } // namespace mlir

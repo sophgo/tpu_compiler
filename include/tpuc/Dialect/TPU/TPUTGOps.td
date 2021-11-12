@@ -356,6 +356,45 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_CropOp : TPU_TG_CropOp<"tg_int8_crop", "Int8">;
 def TPU_TG_BF16_CropOp : TPU_TG_CropOp<"tg_bf16_crop", "Bf16">;
 
+def TPU_TG_StrideCopyOp : TPU_Op<"tg_stride_copy",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " stride copy operator.";
+
+  let description = [{
+    Inputs:
+      `input`          : required, the activation memref.
+
+    Attributes:
+      `input_stride`    : required, input data stride(saved as I32ArrayAttr).
+      `output_stride`   : required, output data stride(saved as I32ArrayAttr).
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    I32ArrayAttr:$input_stride,
+    I32ArrayAttr:$output_stride,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
 
 class TPU_TG_DilateOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
