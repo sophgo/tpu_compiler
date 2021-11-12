@@ -400,8 +400,7 @@ void net_timestep::generate_hold_coeff_tensor() {
       int tensor_id = tensor_load_store[i][j].first;
       tensor_type_t tensor_type = net_graph_->get_tensor_type(tensor_id);
 
-      if (tensor_type == TENSOR_COEFF_CONV || tensor_type == TENSOR_COEFF ||
-          tensor_type == TENSOR_COEFF_DWCONV) {
+      if (tensor_type == TENSOR_COEFF_CONV || tensor_type == TENSOR_COEFF) {
         hold_coeff_tensor[tensor_id] = i;
 
       }
@@ -419,8 +418,7 @@ bool net_timestep::is_tensor_hold_in_memory(int tensor_id) {
 }
 
 bool net_timestep::is_tensor_weight(tensor_type_t tensor_type) {
-  if (tensor_type == TENSOR_COEFF_CONV || tensor_type == TENSOR_COEFF ||
-      tensor_type == TENSOR_COEFF_DWCONV) {
+  if (tensor_type == TENSOR_COEFF_CONV || tensor_type == TENSOR_COEFF) {
     return true;
   } else {
     return false;

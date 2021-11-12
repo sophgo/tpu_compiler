@@ -1521,16 +1521,16 @@ void MixNet::_add_load_op(int group_idx,
   int tensor_dim[4];
   int local_shape[4];
   uint64_t laddr = 0;
-  bool aligned = false;
   bool transpose = false;
   int32_t offset = 0;
-  std::string tensor_type_str = "CONV_COEFF";
+  std::string tensor_type_str = "COEFF_CONV";
   int dtype = NEURON;
   std::string name;
   std::vector<NamedAttribute> attrs;
   Builder builder_(context_);
 
   const tensor_type_t tensor_type = net_graph_->get_tensor_type(tensor_id);
+  bool aligned = net_graph_->get_tensor_aligned(tensor_id);
   Tensor* tensor = net_graph_->get_tensor_by_id(tensor_id);
   std::string storage = tensor->storage();
   net_graph_->get_tensor_dim(tensor_id, tensor_dim);
@@ -1549,19 +1549,13 @@ void MixNet::_add_load_op(int group_idx,
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));
   } else if (tensor_type == TENSOR_COEFF_CONV) {
-    tensor_type_str = "CONV_COEFF";
+    tensor_type_str = "COEFF_CONV";
     // to match mlir requirement for conv weight, shape is
     // (oc, ic, kh, kw)
     local_shape[0] = tensor_dim[1];
     local_shape[1] = tensor_dim[0];
     local_shape[2] = tensor_dim[2];
     local_shape[3] = tensor_dim[3];
-    dtype = COEFF;
-    attrs.push_back(builder_.getNamedAttr("storage",
-                                          builder_.getStringAttr(storage)));
-  } else if (tensor_type == TENSOR_COEFF_DWCONV) {
-    aligned = true;
-    tensor_type_str = "DWCONV_COEFF";
     dtype = COEFF;
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));
@@ -1582,7 +1576,6 @@ void MixNet::_add_load_op(int group_idx,
     src_opd = get_op_from_name(name);
     name = name + postfix_name_;
     laddr = get_tensor_laddr(tensor_id);
-    aligned = true;
     net_graph_->set_tensor_local_offest(tensor_id, laddr);
     tensor_type_str = "NEURON";
     attrs.push_back(builder_.getNamedAttr("offset", builder_.getI64IntegerAttr(offset)));

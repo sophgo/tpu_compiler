@@ -7,8 +7,7 @@ LMemAllocMethod::~LMemAllocMethod() {}
 
 bool LMemAllocMethod::is_tensor_resident_in_lmem(tensor_type type) {
   // tensor_type_t type = net_graph_->get_tensor_type(tid);
-  if (type == TENSOR_COEFF_CONV || type == TENSOR_COEFF ||
-      type == TENSOR_COEFF_DWCONV) {
+  if (type == TENSOR_COEFF_CONV || type == TENSOR_COEFF) {
     return true;
   }
   return false;

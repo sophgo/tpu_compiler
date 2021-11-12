@@ -45,6 +45,7 @@ class NetGraph {
   const std::vector<int>& get_out_tensors_of_layer(int layer_id);
 
   int get_tensor_nums(int tensor_id);
+  bool get_tensor_aligned(int tensor_id);
   int get_tensor_channels(int tensor_id);
   int get_tensor_height(int tensor_id);
   int get_tensor_width(int tensor_id);

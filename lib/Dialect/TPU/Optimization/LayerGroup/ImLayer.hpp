@@ -86,13 +86,13 @@ class ImLayer {
   const std::string &type_name() const { return type_name_; }
 
   void add_in_tensor(int n, int c, int h, int w, int unit_size, std::string& storage, const std::string &name,
-                     tensor_type_t type);
+                     tensor_type_t type, bool eu_align = true);
 
-  void add_in_tensor(ShapedType* shape, const std::string &name, tensor_type_t type);
+  void add_in_tensor(ShapedType* shape, const std::string &name, tensor_type_t type, bool eu_align = true);
 
-  void add_in_tensor(Value op, tensor_type_t type);
+  void add_in_tensor(Value op, tensor_type_t type, bool eu_align = true);
 
-  void add_out_tensor(Value op, tensor_type_t type, std::string storage = "INT8");
+  void add_out_tensor(Value op, tensor_type_t type, std::string storage = "INT8", bool eu_align = true);
 
   void add_imm_tensor(const std::shared_ptr<Tensor> associcate, int count, const std::string &name);
   // // clear temp_data if has.

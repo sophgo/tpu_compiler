@@ -59,11 +59,11 @@ int TdmaCycle::get_cycle(const TENSOR_STEP& step) {
 
 int TdmaCycle::init(const TENSOR_STEP& step) {
   transpose = false;
-  aligned = false;
+
   tensor_id = step.first;
   tensor = net_graph_->get_tensor_by_id(tensor_id);
-
-  const tensor_type_t tensor_type = net_graph_->get_tensor_type(tensor_id);
+  aligned = tensor->eu_align();
+  auto tensor_type = tensor->type();
 
   net_graph_->get_tensor_dim(tensor_id, tensor_dim);
   memcpy(&local_shape, &tensor_dim, sizeof(int) * 4);
@@ -74,8 +74,6 @@ int TdmaCycle::init(const TENSOR_STEP& step) {
     local_shape[1] = tensor_dim[1];
     local_shape[2] = tensor_dim[3] * tensor_dim[2];
     local_shape[3] = tensor_dim[0];
-  } else if (tensor_type == TENSOR_COEFF_DWCONV) {
-    aligned = (true);
   } else {
     int n_slice = tensor->n_slice;
     int h_idx = tensor->h_idx;
@@ -88,10 +86,6 @@ int TdmaCycle::init(const TENSOR_STEP& step) {
     local_shape[1] = (tensor_dim[1]);
     local_shape[2] = (h_slice);
     local_shape[3] = (tensor_dim[3]);
-
-    if (tensor_type == TENSOR_NEURON) {
-      aligned = (true);
-    }
   }
   return 0;
 }

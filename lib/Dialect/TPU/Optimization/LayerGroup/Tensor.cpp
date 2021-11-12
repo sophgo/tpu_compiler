@@ -6,7 +6,7 @@ namespace mlir {
 
 Tensor::Tensor(int id, int n, int c, int h, int w,
                int unit_size, const std::string& name,
-               tensor_type_t type, int layer_id)
+               tensor_type_t type, int layer_id, bool eu_align)
     : laddr(0),
       n_idx(-1),
       n_slice(-1),
@@ -19,7 +19,8 @@ Tensor::Tensor(int id, int n, int c, int h, int w,
       unit_size_(unit_size),
       type_(type),
       name_(name),
-      layer_id_(layer_id) {
+      layer_id_(layer_id),
+      eu_align_(eu_align) {
   dims_[0] = n;
   dims_[1] = c;
   dims_[2] = h;
@@ -30,7 +31,7 @@ Tensor::Tensor(int id, int n, int c, int h, int w,
 
 Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size,
                std::string& storage, const std::string& name,
-               tensor_type_t type, int layer_id)
+               tensor_type_t type, int layer_id, bool eu_align)
     : laddr(0),
       n_idx(-1),
       n_slice(-1),
@@ -44,7 +45,8 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size,
       type_(type),
       name_(name),
       storage_(storage),
-      layer_id_(layer_id) {
+      layer_id_(layer_id),
+      eu_align_(eu_align) {
   dims_[0] = n;
   dims_[1] = c;
   dims_[2] = h;
@@ -55,7 +57,7 @@ Tensor::Tensor(int id, int n, int c, int h, int w, int unit_size,
 
 std::shared_ptr<Tensor> Tensor::register_tensor(
         int n, int c, int h, int w, int unit_size, std::string & storage,
-        const std::string& name, tensor_type_t type, int layer_id) {
+        const std::string& name, tensor_type_t type, int layer_id, bool eu_align) {
   int id;
   std::shared_ptr<Tensor> tensor;
   auto iter = map_name_to_id_.find(name);
@@ -66,7 +68,7 @@ std::shared_ptr<Tensor> Tensor::register_tensor(
     id = max_tensor_id++;
     map_name_to_id_[name] = id;
     tensor = std::make_shared<Tensor>(id, n, c, h, w, unit_size,
-                                      storage, name, type, layer_id);
+                                      storage, name, type, layer_id, eu_align);
     map_id_to_tensor[id] = tensor;
   }
 
@@ -75,7 +77,7 @@ std::shared_ptr<Tensor> Tensor::register_tensor(
 
 std::shared_ptr<Tensor>
 Tensor::register_tensor(ShapedType *s_type, const std::string &name,
-                        tensor_type_t type, int layer_id, std::string storage) {
+                        tensor_type_t type, int layer_id, bool eu_align, std::string storage) {
   std::vector<int64_t> shape = s_type->getShape();
   int64_t n, c, h, w;
   int num_dims = shape.size();
@@ -88,7 +90,7 @@ Tensor::register_tensor(ShapedType *s_type, const std::string &name,
     getNCHW(shape, n, c, h, w);
   }
   int unit_size = s_type->getElementTypeBitWidth() / 8;
-  return register_tensor(n, c, h, w, unit_size, storage, name, type, layer_id);
+  return register_tensor(n, c, h, w, unit_size, storage, name, type, layer_id, eu_align);
 }
 
 std::shared_ptr<Tensor> Tensor::register_imm_tensor(const std::shared_ptr<Tensor> associate, int count,
@@ -139,8 +141,7 @@ uint32_t Tensor::lmem_size() {
     w = 1;
   }
 
-  if (type_ == TENSOR_IMM || type_ == TENSOR_NEURON||
-      type_ == TENSOR_COEFF_DWCONV) {
+  if (eu_align_) {
     return n * ceiling_func(c, NPU_NUM) * ALIGN(h * w, EU_NUM) * unit_size_;
   } else {
     return n * ceiling_func(c, NPU_NUM) * h * w * unit_size_;

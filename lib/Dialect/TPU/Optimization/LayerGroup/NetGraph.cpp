@@ -111,6 +111,11 @@ tensor_type_t NetGraph::get_tensor_type(int tensor_id) {
   return iter->second.get()->type();
 }
 
+bool NetGraph::get_tensor_aligned(int tensor_id) {
+  auto iter = Tensor::map_id_to_tensor.find(tensor_id);
+  return iter->second.get()->eu_align();
+}
+
 int NetGraph::get_tensor_nums(int tensor_id) {
   auto iter = Tensor::map_id_to_tensor.find(tensor_id);
   return iter->second.get()->n();

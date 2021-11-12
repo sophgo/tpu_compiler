@@ -1036,7 +1036,7 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
   getNCHW(shape, n, c, h, w);
 
   // load coeff as shape (1, oc, kh * kw, ic/g)
-  if (this->tensor_type() == "CONV_COEFF") {
+  if (this->tensor_type() == "COEFF_CONV") {
     n = 1;
     c = r_n;
     h = r_h * r_w;

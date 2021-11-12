@@ -332,8 +332,7 @@ bool Group::validate_nh_slice() {
 
     for (auto& tensor : im_layer->in_tensors) {
       if (tensor->type() == TENSOR_COEFF_CONV ||
-          tensor->type() == TENSOR_COEFF ||
-          tensor->type() == TENSOR_COEFF_DWCONV) {
+          tensor->type() == TENSOR_COEFF) {
         continue;
       }
 
@@ -372,8 +371,7 @@ bool Group::validate_nw_slice() {
 
     for (auto& tensor : im_layer->in_tensors) {
       if (tensor->type() == TENSOR_COEFF_CONV ||
-          tensor->type() == TENSOR_COEFF ||
-          tensor->type() == TENSOR_COEFF_DWCONV) {
+          tensor->type() == TENSOR_COEFF) {
         continue;
       }
 
@@ -493,8 +491,7 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
   for (uint32_t i = 0; i < back_tensors.size(); ++i) {
     Tensor* tensor = net_graph_->get_tensor_by_id(back_tensors[i]);
 
-    if (tensor->type() == TENSOR_COEFF_CONV || tensor->type() == TENSOR_COEFF ||
-        tensor->type() == TENSOR_COEFF_DWCONV) {
+    if (tensor->type() == TENSOR_COEFF_CONV || tensor->type() == TENSOR_COEFF) {
       continue;
     }
 
@@ -617,7 +614,7 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
       h_slice = out_h_slice;
     }
 
-    if (tensor->type() == TENSOR_COEFF_DWCONV) {
+    if (tensor->type() == TENSOR_COEFF && tensor->eu_align() == true) {
       if (tensor->n() == 1) {
         n_idx = 0;
         n_slice = 1;
@@ -718,8 +715,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
   for (uint32_t i = 0; i < back_tensors.size(); ++i) {
     Tensor* tensor = net_graph_->get_tensor_by_id(back_tensors[i]);
 
-    if (tensor->type() == TENSOR_COEFF_CONV || tensor->type() == TENSOR_COEFF ||
-        tensor->type() == TENSOR_COEFF_DWCONV) {
+    if (tensor->type() == TENSOR_COEFF_CONV || tensor->type() == TENSOR_COEFF) {
       continue;
     }
 
@@ -832,7 +828,7 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
       w_slice = out_w_slice;
     }
 
-    if (tensor->type() == TENSOR_COEFF_DWCONV) {
+    if (tensor->type() == TENSOR_COEFF && tensor->eu_align()) {
       if (tensor->n() == 1) {
         n_idx = 0;
         n_slice = 1;
