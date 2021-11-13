@@ -83,6 +83,8 @@ struct TpuFuseReluPattern : public RewritePattern {
       // set do_relu
       convOp->setAttr("param",
           tpu::ConvParam::get(
+              convOp.param().kernel_h(),
+              convOp.param().kernel_w(),
               convOp.param().stride_h(),
               convOp.param().stride_w(),
               convOp.param().padding(),
@@ -111,6 +113,9 @@ struct TpuFuseReluPattern : public RewritePattern {
       // set do_relu
       convOp->setAttr("param",
           tpu::Conv3dParam::get(
+              convOp.param().kernel_d(),
+              convOp.param().kernel_h(),
+              convOp.param().kernel_w(),
               convOp.param().stride_d(),
               convOp.param().stride_h(),
               convOp.param().stride_w(),
@@ -142,6 +147,8 @@ struct TpuFuseReluPattern : public RewritePattern {
       // set do_relu
       deconvOp->setAttr("param",
           tpu::ConvParam::get(
+              deconvOp.param().kernel_h(),
+              deconvOp.param().kernel_w(),
               deconvOp.param().stride_h(),
               deconvOp.param().stride_w(),
               deconvOp.param().padding(),

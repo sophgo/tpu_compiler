@@ -295,41 +295,38 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   }
 
   std::string weight_storage = getWeightStorage(weightOp);
+  bool weight_align = is_dw;
   if (is_dw) {
-    add_in_tensor(1, oc, kh, kw, unit_size,
-                  weight_storage, weightOpName, TENSOR_COEFF);
-  }
-  else {
+    add_in_tensor(1, oc, kh, kw, unit_size, weight_storage, weightOpName,
+                  TENSOR_COEFF, weight_align);
+  } else {
     // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
-    add_in_tensor(w_ic / g, oc, kh, kw, unit_size,
-                 weight_storage, weightOpName, TENSOR_COEFF_CONV, false);
+    add_in_tensor(1, oc, kh * kw, w_ic / g, unit_size, weight_storage,
+                  weightOpName, TENSOR_COEFF, weight_align);
   }
 
   // add bias tensor
+  bool bias_align = false;
   if (bInt8ConvOp) {
     int perchannel_size = with_bias ? 9 : 5;
     auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
     std::string bias_storage = getWeightStorage(load_bias);
     int bias_usize = getOpResultUnitSize(load_bias);
-
-    if (is_dw)
-      add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
-                    bias_storage, bias_name, TENSOR_COEFF, false);
-    else {
+    if (g > 1 && false == is_dw) {
       // if is group conv, bias need to align.
-      add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
-                    bias_storage, bias_name, TENSOR_COEFF, g > 1);
+      bias_align = true;
     }
-  } else if (!bInt8ConvOp && with_bias) {
+    add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
+                    bias_storage, bias_name, TENSOR_COEFF, bias_align);
+  } else if (with_bias) {
     // bf16 with bias
     auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
     std::string bias_storage = "UINT16";
     int bias_usize = 2;
-
     add_in_tensor(2, oc, 1, 1, bias_usize,
-                  bias_storage, bias_name, TENSOR_COEFF, false);
+                  bias_storage, bias_name, TENSOR_COEFF, bias_align);
 
   }
 
@@ -374,33 +371,31 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
   std::string weightOpName = weightOp.name().str();
   int32_t unit_size = getOpResultUnitSize(weightOp);
   std::string weight_storage = getWeightStorage(weightOp);
-
+  bool weight_align = is_dw;
   if (is_dw) {
     add_in_tensor(1, oc, kh, kw, unit_size, weight_storage,
-                  weightOpName, TENSOR_COEFF);
+                  weightOpName, TENSOR_COEFF, weight_align);
   } else {
     // tensor shape in local memory should be (1, oc, kh*kw, ic/g)
-    add_in_tensor(w_ic / g, oc, kh, kw, unit_size, weight_storage,
-                  weightOpName, TENSOR_COEFF_CONV, false);
+    add_in_tensor(1, oc, kh*kw, w_ic / g, unit_size, weight_storage,
+                  weightOpName, TENSOR_COEFF, weight_align);
   }
 
   // add bias tensor
+  bool bias_align = false;
   if (bInt8ConvOp) {
     int perchannel_size = with_bias ? 9 : 5;
     auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
     std::string bias_storage = getWeightStorage(load_bias);
     int bias_usize = getOpResultUnitSize(load_bias);
-
-    if (is_dw) {
-      add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
-                    bias_storage, bias_name, TENSOR_COEFF, false);
-    } else {
+    if (g > 1 && false == is_dw) {
       // if is group conv, bias need to align.
-      add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
-                    bias_storage, bias_name, TENSOR_COEFF, g > 1);
+      bias_align = true;
     }
-  } else if(!bInt8ConvOp && with_bias) {
+    add_in_tensor(1, oc, 1, perchannel_size, bias_usize,
+                    bias_storage, bias_name, TENSOR_COEFF, bias_align);
+  } else if(with_bias) {
     // bf16 with bias
     auto load_bias = cast<tpu::LoadWeightOp>(p->getOperand(2).getDefiningOp());
     std::string bias_name = load_bias.name().str();
@@ -409,10 +404,10 @@ ImDeconv::ImDeconv(Operation* p) : ImLayer(IR_DECONVOLUTION, p, true) {
 
     if (is_dw)
       add_in_tensor(2, oc, 1, 1, bias_usize,
-                    bias_storage, bias_name, TENSOR_COEFF, false);
+                    bias_storage, bias_name, TENSOR_COEFF, bias_align);
     else
       add_in_tensor(g*2, oc/g, 1, 1, bias_usize,
-                    bias_storage, bias_name, TENSOR_COEFF, false);
+                    bias_storage, bias_name, TENSOR_COEFF, bias_align);
   }
 
   // add out tensor

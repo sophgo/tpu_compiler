@@ -355,6 +355,8 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
     int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
     int &kh, int &kw, int &ins_h, int &ins_w, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu, int &pad_value) {
+  kh = p.kernel_h().getInt();
+  kw = p.kernel_w().getInt();
   dh = p.dilation_h().getInt();
   dw = p.dilation_w().getInt();
   sh = p.stride_h().getInt();
@@ -363,6 +365,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   pb = p.padding_b().getInt();
   pl = p.padding_l().getInt();
   pr = p.padding_r().getInt();
+  is_dw = p.is_dw().getValue();
   auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
@@ -398,45 +401,12 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   } else{
     llvm_unreachable("unsupported shape size");
   }
-  kh = f_s[f_s.size() - 2];
-  kw = f_s[f_s.size() - 1];
-
   std::vector<int32_t> ins;
   arrayAttrToVector(p.ins(), ins);
   ins.resize(2, 0);
   ins_h = ins[1];
   ins_w = ins[0];
-
   g = p.group().getInt();
-  if (g != 1 || f_s.size() == 5) {
-    if (g == oc && g == ic) {
-      is_dw = true;
-    } else {
-      is_dw = false;
-    }
-    // f_s is in (g, oc/g, ic/g, kh, kw)
-    if(f_s.size() == 5) {
-      assert(g == f_s[0]);
-      assert(oc/g == f_s[1]);
-      assert(ic/g == f_s[2]);
-    } else if (f_s.size() == 4) {
-      // tl_layer has filter size of 4
-      if (is_dw) {
-        // (1, oc, kh, kw)
-        assert(ic/g == 1);
-        assert(oc == f_s[1]);
-      } else {
-        // (oc, ic/g, kh, kw)
-        assert(oc == f_s[0]);
-        assert(ic/g == f_s[1]);
-      }
-    }
-  } else {
-    assert(f_s.size() == 4);
-    assert(oc == f_s[0]);
-    assert(ic == f_s[1] || (ic % 2 != 0));
-    is_dw = false;
-  }
   do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
   pad_value= p.pad_value().getInt();
@@ -451,6 +421,9 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
     int &dd, int &dh, int &dw,
     bool &is_dw, bool &with_bias, bool &do_relu) {
+  kd = p.kernel_d().getInt();
+  kh = p.kernel_h().getInt();
+  kw = p.kernel_w().getInt();
   dd = p.dilation_d().getInt();
   dh = p.dilation_h().getInt();
   dw = p.dilation_w().getInt();
@@ -463,6 +436,7 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
   pb = p.padding_b().getInt();
   pl = p.padding_l().getInt();
   pr = p.padding_r().getInt();
+  is_dw = p.is_dw().getValue();
   auto input_type = input.getType().template cast<TensorType>();
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
@@ -484,41 +458,8 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
   } else{
     llvm_unreachable("unsupported shape size");
   }
-  kd = f_s[f_s.size() - 3];
-  kh = f_s[f_s.size() - 2];
-  kw = f_s[f_s.size() - 1];
 
   g = p.group().getInt();
-  if (g != 1 || f_s.size() == 5) {
-    if (g == oc && g == ic) {
-      is_dw = true;
-    } else {
-      is_dw = false;
-    }
-
-    // f_s is in (g, oc/g, ic/g, kd, kh, kw)
-    if(f_s.size() == 6) {
-      assert(g == f_s[0]);
-      assert(oc/g == f_s[1]);
-      assert(ic/g == f_s[2]);
-    } else if (f_s.size() == 5) {
-      // tl_layer has filter size of 5
-      if (is_dw) {
-        // (1, oc, kd, kh, kw)
-        assert(ic/g == 1);
-        assert(oc == f_s[1]);
-      } else {
-        // (oc, ic/g, kd, kh, kw)
-        assert(oc == f_s[0]);
-        assert(ic/g == f_s[1]);
-      }
-    }
-  } else {
-    assert(f_s.size() == 5);
-    assert(oc == f_s[0]);
-    assert(ic == f_s[1] || (ic % 2 != 0));
-    is_dw = false;
-  }
   do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
 }

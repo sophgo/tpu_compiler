@@ -51,11 +51,8 @@ struct MoveConvStrideToEltwiseOpPattern : public RewritePattern {
     for (auto &use : op->getResult(0).getUses()) {
       nextOp = use.getOwner();
       if (auto convOp = dyn_cast<NextConvTy>(nextOp)) {
-        auto filter_type =
-            convOp.filter().getType().template cast<TensorType>();
-        std::vector<int64_t> f_s(filter_type.getShape());
-        int kh = f_s[f_s.size() - 2];
-        int kw = f_s[f_s.size() - 1];
+        int kh = convOp.param().kernel_h().getInt();
+        int kw = convOp.param().kernel_w().getInt();
         int sh = convOp.param().stride_h().getInt();
         int sw = convOp.param().stride_w().getInt();
         if (strideH == 0 || strideW == 0) {
@@ -92,6 +89,7 @@ struct MoveConvStrideToEltwiseOpPattern : public RewritePattern {
       auto convOp = dyn_cast<NextConvTy>(nextOp);
       convOp->setAttr("param",
                      tpu::ConvParam::get(
+                         convOp.param().kernel_h(), convOp.param().kernel_w(),
                          rewriter.getI32IntegerAttr(1), // stride_h,
                          rewriter.getI32IntegerAttr(1), // stride_w,
                          convOp.param().padding(), convOp.param().dilation_h(),

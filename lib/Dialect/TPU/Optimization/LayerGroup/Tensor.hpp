@@ -9,7 +9,6 @@ namespace mlir {
 typedef enum tensor_type {
   TENSOR_NEURON = 0,
   TENSOR_COEFF,
-  TENSOR_COEFF_CONV,
   TENSOR_IMM,  // intermediate buf for IR compute
 } tensor_type_t;
 

@@ -1030,21 +1030,9 @@ LogicalResult tpu::TL_LG_LoadCoeffOp::codegen(void *ctx) {
 
   std::vector<int64_t> shape;
   int64_t n, c, h, w;
-  int64_t r_n, r_c, r_h, r_w;
   shape = getTensorShape(op->getResult(0));
-  getNCHW(shape, r_n, r_c, r_h, r_w);
   getNCHW(shape, n, c, h, w);
 
-  // load coeff as shape (1, oc, kh * kw, ic/g)
-  if (this->tensor_type() == "COEFF_CONV") {
-    n = 1;
-    c = r_n;
-    h = r_h * r_w;
-    w = r_c;
-    LLVM_DEBUG(llvm::errs()
-      << "conv coeff load shape(nchw): ( " << n << " ,"
-      << c << " ," << h << ", " << w << ")\n";);
-  }
 
   int local_n = n;
   int local_c = c;

@@ -201,23 +201,22 @@ struct TpuUpsampleOpPattern : public RewritePattern {
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", upsampleOp.nameAttr()));
     attrs.push_back(rewriter.getNamedAttr(
-        "param", tpu::ConvParam::get(rewriter.getI32IntegerAttr(stride[0]),
-                                     rewriter.getI32IntegerAttr(stride[1]),
-                                     rewriter.getStringAttr("VALID"),
-                                     rewriter.getI32IntegerAttr(dilation[0]),
-                                     rewriter.getI32IntegerAttr(dilation[1]),
-                                     rewriter.getI32IntegerAttr(padding[0]),
-                                     rewriter.getI32IntegerAttr(padding[0]),
-                                     rewriter.getI32IntegerAttr(padding[1]),
-                                     rewriter.getI32IntegerAttr(padding[1]),
-                                     rewriter.getI32IntegerAttr(g),
-                                     rewriter.getBoolAttr(is_dw),
-                                     rewriter.getBoolAttr(with_bias),
-                                     rewriter.getBoolAttr(false),
-                                     rewriter.getI32ArrayAttr(ArrayRef<int32_t>(
-                                         {})), // [0]ins_w/[1]ins_h
-                                     rewriter.getI32IntegerAttr(0), // pad_value
-                                     rewriter.getContext())));
+        "param",
+        tpu::ConvParam::get(
+            rewriter.getI32IntegerAttr(h), rewriter.getI32IntegerAttr(w),
+            rewriter.getI32IntegerAttr(stride[0]),
+            rewriter.getI32IntegerAttr(stride[1]),
+            rewriter.getStringAttr("VALID"),
+            rewriter.getI32IntegerAttr(dilation[0]),
+            rewriter.getI32IntegerAttr(dilation[1]),
+            rewriter.getI32IntegerAttr(padding[0]),
+            rewriter.getI32IntegerAttr(padding[0]),
+            rewriter.getI32IntegerAttr(padding[1]),
+            rewriter.getI32IntegerAttr(padding[1]),
+            rewriter.getI32IntegerAttr(g), rewriter.getBoolAttr(is_dw),
+            rewriter.getBoolAttr(with_bias), rewriter.getBoolAttr(false),
+            rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})),
+            rewriter.getI32IntegerAttr(0), rewriter.getContext())));
     attrs.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     rewriter.replaceOpWithNewOp<tpu::DeConv2DOp>(

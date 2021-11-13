@@ -69,11 +69,6 @@ int TdmaCycle::init(const TENSOR_STEP& step) {
   memcpy(&local_shape, &tensor_dim, sizeof(int) * 4);
 
   if (tensor_type == TENSOR_COEFF) {
-  } else if (tensor_type == TENSOR_COEFF_CONV) {
-    local_shape[0] = 1;
-    local_shape[1] = tensor_dim[1];
-    local_shape[2] = tensor_dim[3] * tensor_dim[2];
-    local_shape[3] = tensor_dim[0];
   } else {
     int n_slice = tensor->n_slice;
     int h_idx = tensor->h_idx;

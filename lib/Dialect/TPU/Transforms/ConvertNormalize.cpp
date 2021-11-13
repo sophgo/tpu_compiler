@@ -190,6 +190,8 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
                          rewriter.getStringAttr(op_name+"_conv")));
     attrs_conv.push_back(rewriter.getNamedAttr("param",
     tpu::ConvParam::get(
+        rewriter.getI32IntegerAttr(1),
+        rewriter.getI32IntegerAttr(1),
         rewriter.getI32IntegerAttr(stride[0]),
         rewriter.getI32IntegerAttr(stride[1]),
         rewriter.getStringAttr("VALID"),

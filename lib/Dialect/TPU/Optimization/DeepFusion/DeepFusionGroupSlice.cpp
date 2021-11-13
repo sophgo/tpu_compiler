@@ -1053,6 +1053,8 @@ void DeepFusionGroupSlice::genTLScaleOp(Operation *srcOp,
     tpu::ConvParam::get(
         builder.getI32IntegerAttr(1),
         builder.getI32IntegerAttr(1),
+        builder.getI32IntegerAttr(1),
+        builder.getI32IntegerAttr(1),
         builder.getStringAttr("VALID"),
         builder.getI32IntegerAttr(1),
         builder.getI32IntegerAttr(1),

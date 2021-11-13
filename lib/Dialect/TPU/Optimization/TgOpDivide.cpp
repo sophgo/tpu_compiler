@@ -550,7 +550,7 @@ public:
         } else if (pair.first == "param") {
           attrs.push_back(builder.getNamedAttr(
               "param",
-              tpu::ConvParam::get(
+              tpu::ConvParam::get(p.kernel_h(), p.kernel_w(),
                   p.stride_h(), p.stride_w(), p.padding(), p.dilation_h(),
                   p.dilation_w(), builder.getI32IntegerAttr(pad_t),
                   builder.getI32IntegerAttr(pad_b), p.padding_l(),

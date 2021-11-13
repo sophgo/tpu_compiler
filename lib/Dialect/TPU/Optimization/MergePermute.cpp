@@ -229,6 +229,8 @@ struct MergeConvPadReluPattern : public RewritePattern {
                   convOp.nameAttr()));
     attrs.push_back(rewriter.getNamedAttr("param",
     tpu::ConvParam::get(
+        rewriter.getI32IntegerAttr(kh),
+        rewriter.getI32IntegerAttr(kw),
         rewriter.getI32IntegerAttr(sh),
         rewriter.getI32IntegerAttr(sw),
         rewriter.getStringAttr("VALID"),
@@ -292,6 +294,8 @@ struct MergeConvReluPattern : public RewritePattern {
     // set relu for conv
     convOp->setAttr("param",
           tpu::ConvParam::get(
+              convOp.param().kernel_h(),
+              convOp.param().kernel_w(),
               convOp.param().stride_h(),
               convOp.param().stride_w(),
               convOp.param().padding(),
@@ -440,6 +444,8 @@ struct SwitchConvPadHWPattern : public RewritePattern {
     // switch h/w and dilation_h/w
     attrs_1.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(
+              conv_0.param().kernel_w(),
+              conv_0.param().kernel_h(),
               conv_0.param().stride_w(),
               conv_0.param().stride_h(),
               conv_0.param().padding(),
@@ -522,6 +528,8 @@ struct SwitchConvPadHWPattern : public RewritePattern {
                   conv_1.nameAttr()));
     attrs_3.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(
+              conv_1.param().kernel_h(),
+              conv_1.param().kernel_w(),
               conv_1.param().stride_h(),
               conv_1.param().stride_w(),
               conv_1.param().padding(),
@@ -568,6 +576,8 @@ struct SwitchConvPadHWPattern : public RewritePattern {
                   conv_2.nameAttr()));
     attrs_4.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(
+              conv_2.param().kernel_w(),
+              conv_2.param().kernel_h(),
               conv_2.param().stride_w(),
               conv_2.param().stride_h(),
               conv_2.param().padding(),
@@ -649,6 +659,8 @@ struct SwitchConvPadHWPattern : public RewritePattern {
                   conv_3.nameAttr()));
     attrs_6.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(
+              conv_3.param().kernel_h(),
+              conv_3.param().kernel_w(),
               conv_3.param().stride_h(),
               conv_3.param().stride_w(),
               conv_3.param().padding(),
@@ -757,6 +769,8 @@ struct SwitchConv2DHWPattern : public RewritePattern {
     // switch h/w and dilation_h/w
     conv_attrs.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(
+              conv_op.param().kernel_w(),
+              conv_op.param().kernel_h(),
               conv_op.param().stride_w(),
               conv_op.param().stride_h(),
               conv_op.param().padding(),
@@ -963,6 +977,8 @@ struct ExtendGroupConvShapePattern : public RewritePattern {
     // switch h/w and dilation_h/w
     conv_attrs.push_back(rewriter.getNamedAttr("param",
         tpu::ConvParam::get(
+              conv_op.param().kernel_h(),
+              conv_op.param().kernel_w(),
               conv_op.param().stride_h(),
               conv_op.param().stride_w(),
               conv_op.param().padding(),

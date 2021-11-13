@@ -394,6 +394,8 @@ class CaffeConverter(BaseConverter):
 
         output_shape = [n, oc, ofmap[0], ofmap[1]]
         conv_param = {
+            'kernel_h': kernel[0],
+            'kernel_w': kernel[1],
             'dilation_h': dilation[0],
             'dilation_w': dilation[1],
             'stride_h': stride[0],

@@ -168,6 +168,8 @@ def TPU_QuantParamAttr : StructAttr<"QuantParam", TPU_Dialect, [
 // Conv dimension parameters structure.
 //===----------------------------------------------------------------------===//
 def TPU_ConvParamAttr : StructAttr<"ConvParam", TPU_Dialect, [
+    StructFieldAttr<"kernel_h", I32Attr>,
+    StructFieldAttr<"kernel_w", I32Attr>,
     StructFieldAttr<"stride_h", I32Attr>,
     StructFieldAttr<"stride_w", I32Attr>,
     StructFieldAttr<"padding", TPU_PaddingAttr>,
@@ -190,6 +192,9 @@ def TPU_ConvParamAttr : StructAttr<"ConvParam", TPU_Dialect, [
 // Conv3d dimension parameters structure.
 //===----------------------------------------------------------------------===//
 def TPU_Conv3dParamAttr : StructAttr<"Conv3dParam", TPU_Dialect, [
+    StructFieldAttr<"kernel_d", I32Attr>,
+    StructFieldAttr<"kernel_h", I32Attr>,
+    StructFieldAttr<"kernel_w", I32Attr>,
     StructFieldAttr<"stride_d", I32Attr>,
     StructFieldAttr<"stride_h", I32Attr>,
     StructFieldAttr<"stride_w", I32Attr>,

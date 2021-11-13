@@ -490,6 +490,8 @@ class MLIRImporter(object):
         # get_input_type
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        checkKey(kargs, 'kernel_h')
+        checkKey(kargs, 'kernel_w')
         checkKey(kargs, 'dilation_h')
         checkKey(kargs, 'dilation_w')
         checkKey(kargs, 'stride_h')
@@ -507,6 +509,8 @@ class MLIRImporter(object):
 
         conv_name = StringAttr.get(op_name)
         conv_param = {
+            'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
+            'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
             'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
             'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
             'padding': StringAttr.get(kargs['padding']),
@@ -563,6 +567,9 @@ class MLIRImporter(object):
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         conv_name = StringAttr.get(op_name)
         conv3d_param = {
+            'kernel_d':  IntegerAttr.get(self.i32Type, kargs['kernel_d']),
+            'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
+            'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
             'stride_d':  IntegerAttr.get(self.i32Type, kargs['stride_d']),
             'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
             'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
@@ -724,6 +731,8 @@ class MLIRImporter(object):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
+        checkKey(kargs, 'kernel_h')
+        checkKey(kargs, 'kernel_w')
         checkKey(kargs, 'dilation_h')
         checkKey(kargs, 'dilation_w')
         checkKey(kargs, 'stride_h')
@@ -741,6 +750,8 @@ class MLIRImporter(object):
 
         deconv_name = StringAttr.get(op_name)
         deconv_param = {
+            'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
+            'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
             'stride_h':  IntegerAttr.get(self.i32Type, kargs['stride_h']),
             'stride_w':  IntegerAttr.get(self.i32Type, kargs['stride_w']),
             'padding': StringAttr.get(kargs['padding']),

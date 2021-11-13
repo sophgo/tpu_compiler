@@ -471,6 +471,8 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     //convOp.param()->setAttr("with_bias", rewriter.getBoolAttr(true));
     convOp->setAttr("param",
         tpu::ConvParam::get(
+            convOp.param().kernel_h(),
+            convOp.param().kernel_w(),
             convOp.param().stride_h(),
             convOp.param().stride_w(),
             convOp.param().padding(),
@@ -591,6 +593,8 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
           tpu::ConvParam::get(
               rewriter.getI32IntegerAttr(1),
               rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
               rewriter.getStringAttr("VALID"),
               rewriter.getI32IntegerAttr(1),
               rewriter.getI32IntegerAttr(1),
@@ -614,6 +618,9 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
     } else {
       attrs.push_back(rewriter.getNamedAttr("param",
           tpu::Conv3dParam::get(
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
+              rewriter.getI32IntegerAttr(1),
               rewriter.getI32IntegerAttr(1),
               rewriter.getI32IntegerAttr(1),
               rewriter.getI32IntegerAttr(1),

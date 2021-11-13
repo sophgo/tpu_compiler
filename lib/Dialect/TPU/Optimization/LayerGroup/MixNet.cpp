@@ -461,6 +461,8 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
   auto param = op->getAttr("param").template cast<tpu::ConvParam>();
   attrs.push_back(builder_.getNamedAttr("param",
     tpu::ConvParam::get(
+      builder_.getI32IntegerAttr(kh),
+      builder_.getI32IntegerAttr(kw),
       builder_.getI32IntegerAttr(sh),
       builder_.getI32IntegerAttr(sw),
       builder_.getStringAttr("VALID"),
@@ -649,6 +651,8 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
   attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(mix_op->name())));
   attrs.push_back(builder_.getNamedAttr("param",
     tpu::ConvParam::get(
+      builder_.getI32IntegerAttr(kh),
+      builder_.getI32IntegerAttr(kw),
       builder_.getI32IntegerAttr(sh),
       builder_.getI32IntegerAttr(sw),
       builder_.getStringAttr("VALID"),
@@ -1523,7 +1527,7 @@ void MixNet::_add_load_op(int group_idx,
   uint64_t laddr = 0;
   bool transpose = false;
   int32_t offset = 0;
-  std::string tensor_type_str = "COEFF_CONV";
+  std::string tensor_type_str = "COEFF";
   int dtype = NEURON;
   std::string name;
   std::vector<NamedAttribute> attrs;
@@ -1545,17 +1549,6 @@ void MixNet::_add_load_op(int group_idx,
 
   if (tensor_type == TENSOR_COEFF) {
     tensor_type_str = "COEFF";
-    dtype = COEFF;
-    attrs.push_back(builder_.getNamedAttr("storage",
-                                          builder_.getStringAttr(storage)));
-  } else if (tensor_type == TENSOR_COEFF_CONV) {
-    tensor_type_str = "COEFF_CONV";
-    // to match mlir requirement for conv weight, shape is
-    // (oc, ic, kh, kw)
-    local_shape[0] = tensor_dim[1];
-    local_shape[1] = tensor_dim[0];
-    local_shape[2] = tensor_dim[2];
-    local_shape[3] = tensor_dim[3];
     dtype = COEFF;
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));

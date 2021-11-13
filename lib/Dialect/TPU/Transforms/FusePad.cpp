@@ -157,6 +157,7 @@ struct TpuFusePadPattern : public RewritePattern {
     convOp->setAttr(
         "param",
         tpu::ConvParam::get(
+            convOp.param().kernel_h(), convOp.param().kernel_w(),
             convOp.param().stride_h(), convOp.param().stride_w(),
             convOp.param().padding(), convOp.param().dilation_h(),
             convOp.param().dilation_w(), rewriter.getI32IntegerAttr(pt),

@@ -303,6 +303,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
               rewriter.getStringAttr(op_name)));
         attrs.push_back(rewriter.getNamedAttr("param",
               tpu::ConvParam::get(
+                rewriter.getI32IntegerAttr(shrink_factor),
+                rewriter.getI32IntegerAttr(shrink_factor),
                 rewriter.getI32IntegerAttr(stride_h),
                 rewriter.getI32IntegerAttr(stride_w),
                 rewriter.getStringAttr("VALID"), // convOp.param().padding
@@ -503,7 +505,10 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
         std::vector<NamedAttribute> {
           std::vector<NamedAttribute> attrs;
           attrs.push_back(rewriter.getNamedAttr("param",
-                tpu::ConvParam::get(rewriter.getI32IntegerAttr(stride[0]),
+                tpu::ConvParam::get(
+                  rewriter.getI32IntegerAttr(kernel[0]),
+                  rewriter.getI32IntegerAttr(kernel[1]),
+                  rewriter.getI32IntegerAttr(stride[0]),
                   rewriter.getI32IntegerAttr(stride[1]),
                   rewriter.getStringAttr("VALID"),
                   rewriter.getI32IntegerAttr(dilation[0]),

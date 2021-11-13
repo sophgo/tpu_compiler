@@ -206,6 +206,7 @@ Value tpu::BroadcastMulOp::convertToTG() {
         "param",
         tpu::ConvParam::get(
             builder.getI32IntegerAttr(1), builder.getI32IntegerAttr(1),
+            builder.getI32IntegerAttr(1), builder.getI32IntegerAttr(1),
             builder.getStringAttr("VALID"), builder.getI32IntegerAttr(1),
             builder.getI32IntegerAttr(1),
             builder.getI32IntegerAttr(0), // pd_t
@@ -556,24 +557,16 @@ Value tpu::Conv2DOp::convertToTG() {
   operands.push_back(quant_zeropoint());
 
   std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("param",
-          tpu::ConvParam::get(
-              param().stride_h(),
-              param().stride_w(),
-              param().padding(),
-              param().dilation_h(),
-              param().dilation_w(),
-              builder.getI32IntegerAttr(pad_t),
-              builder.getI32IntegerAttr(pad_b),
-              builder.getI32IntegerAttr(pad_l),
-              builder.getI32IntegerAttr(pad_r),
-              param().group(),
-              param().is_dw(),
-              param().with_bias(),
-              param().do_relu(),
-              param().ins(),
-              param().pad_value(),
-              builder.getContext())));
+  attrs.push_back(builder.getNamedAttr(
+      "param",
+      tpu::ConvParam::get(
+          param().kernel_h(), param().kernel_w(), param().stride_h(),
+          param().stride_w(), param().padding(), param().dilation_h(),
+          param().dilation_w(), builder.getI32IntegerAttr(pad_t),
+          builder.getI32IntegerAttr(pad_b), builder.getI32IntegerAttr(pad_l),
+          builder.getI32IntegerAttr(pad_r), param().group(), param().is_dw(),
+          param().with_bias(), param().do_relu(), param().ins(),
+          param().pad_value(), builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_Conv2DOp>(op->getLoc(),
@@ -659,6 +652,9 @@ Value tpu::Conv3DOp::convertToTG() {
   std::vector<NamedAttribute> attrs;
   attrs.push_back(builder.getNamedAttr("param",
           tpu::Conv3dParam::get(
+              param().kernel_d(),
+              param().kernel_h(),
+              param().kernel_w(),
               param().stride_d(),
               param().stride_h(),
               param().stride_w(),

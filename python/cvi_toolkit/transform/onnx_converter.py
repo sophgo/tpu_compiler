@@ -1307,7 +1307,11 @@ class OnnxConverter(BaseConverter):
         group = onnx_node.attrs.get("group", 1)
         pads = onnx_node.attrs.get("pads",[0,0])
         strides = onnx_node.attrs.get("strides",[1])
+        kw = onnx_node.attrs['kernel_shape'][0]
+        with_bias = len(onnx_node.inputs) > 2
         conv_param = {
+            'kernel_h': 1,
+            'kernel_w': kw,
             'stride_h':  1,
             'stride_w':  strides[0],
             'padding': "SAME" if pads[0] > 0 else "VALID",
@@ -1319,7 +1323,7 @@ class OnnxConverter(BaseConverter):
             'padding_r': pads[1],
             'group': group,
             'is_dw': False,
-            'with_bias': len(onnx_node.inputs) > 2,
+            'with_bias': with_bias,
             'do_relu': False,
             'ins': [],
         }
@@ -1339,13 +1343,13 @@ class OnnxConverter(BaseConverter):
             filter_tensor.shape.insert(2, 1)
             filter_tensor.tensor_data.reshape(filter_tensor.shape)
         filter_shape = filter_tensor.shape
-        with_bias = False
+
         on = shape[0]
         oc = filter_shape[0] # feature map size
         oh = 1
         ow = calcConv2DSpatial(
             shape[3],
-            onnx_node.attrs['kernel_shape'][0],
+            kw,
             strides[0],
             conv_param['padding_l'],
             conv_param['padding_r'],
@@ -1353,7 +1357,7 @@ class OnnxConverter(BaseConverter):
         )
         filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
         operands.append(filter_op)
-        if len(onnx_node.inputs) == 3:
+        if with_bias:
             bias_name = onnx_node.inputs[2]
             bias_tensor = self.getTensor(bias_name)
             bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
@@ -1368,10 +1372,13 @@ class OnnxConverter(BaseConverter):
 
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
-        if len(onnx_node.attrs['kernel_shape']) == 1:
+        kernel_shape = onnx_node.attrs['kernel_shape']
+        if len(kernel_shape) == 1:
             return self.convert_conv1d_op(onnx_node)
-        if len(onnx_node.attrs['kernel_shape']) == 3:
+        if len(kernel_shape) == 3:
             return self.convert_conv3d_op(onnx_node)
+        assert(len(kernel_shape) == 2)
+        kh , kw = kernel_shape
 
         op, shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
@@ -1421,6 +1428,8 @@ class OnnxConverter(BaseConverter):
             else:
                 raise RuntimeError("Not support conv {} pad method".format(pad_method))
         conv_param = {
+            'kernel_h': kh,
+            'kernel_w': kw,
             'stride_h':  strides[0],
             'stride_w':  strides[1],
             'padding': "SAME" if pads[0] > 0 else "VALID",
@@ -1432,7 +1441,7 @@ class OnnxConverter(BaseConverter):
             'padding_r': pads[3],
             'group': group,
             'is_dw': False,
-            'with_bias': len(onnx_node.inputs) > 2,
+            'with_bias': with_bias,
             'do_relu': False,
             'ins': [],
         }
@@ -1441,7 +1450,7 @@ class OnnxConverter(BaseConverter):
         oc = filter_tensor.shape[0] # feature map size
         oh = calcConv2DSpatial(
             shape[2],
-            onnx_node.attrs['kernel_shape'][0],
+            kh,
             strides[0],
             conv_param['padding_t'],
             conv_param['padding_b'],
@@ -1449,7 +1458,7 @@ class OnnxConverter(BaseConverter):
         )
         ow = calcConv2DSpatial(
             shape[3],
-            onnx_node.attrs['kernel_shape'][1],
+            kw,
             strides[1],
             conv_param['padding_l'],
             conv_param['padding_r'],
@@ -1460,11 +1469,9 @@ class OnnxConverter(BaseConverter):
             # filter shape s is in (g, oc/g, ic/g, kh, kw)
             g = conv_param['group']
             ic = shape[1]
-            kh = onnx_node.attrs['kernel_shape'][0]
-            kw = onnx_node.attrs['kernel_shape'][1]
             new_shape = [g, int(oc/g), int(ic/g), kh, kw]
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
-            if g == oc:
+            if g == oc and ic == oc:
                 conv_param['is_dw'] = True
 
         else:
@@ -1548,8 +1555,11 @@ class OnnxConverter(BaseConverter):
             expand_dims = 4 - len(output_padding)
             # expand from high dim
             output_padding = list(np.full(expand_dims, 0)) + list(output_padding)
-
+        kh = filter_shape[-2]
+        kw = filter_shape[-1]
         conv_param = {
+            'kernel_h': kh,
+            'kernel_w': kw,
             'stride_h':  strides[0],
             'stride_w':  strides[1],
             'padding': "VALID",
@@ -1576,8 +1586,6 @@ class OnnxConverter(BaseConverter):
 
         if conv_param['group'] != 1:
             g = conv_param['group']
-            kh = onnx_node.attrs['kernel_shape'][0]
-            kw = onnx_node.attrs['kernel_shape'][1]
             new_shape = [g, int(filter_shape[0]/g), filter_shape[1], kh, kw]
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
         else:
@@ -1652,6 +1660,9 @@ class OnnxConverter(BaseConverter):
 
         on, ic, id, ih, iw = shape
         oc, ic, kd, kh, kw = filter_tensor.shape
+        conv3d_param['kernel_d'] = kd
+        conv3d_param['kernel_h'] = kh
+        conv3d_param['kernel_w'] = kw
         od = floor((id + 2 * pads[0] - dilations[0] * (kd - 1) - 1) / strides[0] + 1)
         oh = floor((ih + 2 * pads[1] - dilations[1] * (kh - 1) - 1) / strides[1] + 1)
         ow = floor((iw + 2 * pads[2] - dilations[2] * (kw - 1) - 1) / strides[2] + 1)
@@ -3017,6 +3028,8 @@ class OnnxConverter(BaseConverter):
         pad_l = int(scale_w/2) - 1
         pad_r = int(scale_w) - pad_l - 2
         conv_param = {
+            'kernel_h':  kh,
+            'kernel_w':  kw,
             'stride_h':  stride_h,
             'stride_w':  stride_w,
             'padding': "VALID",
@@ -3062,6 +3075,8 @@ class OnnxConverter(BaseConverter):
         kh, kw, sh, sw = 2, 2, 2, 2
         ic = input_shape[1]
         conv_param = {
+            'kernel_h': kh,
+            'kernel_w': kw,
             'stride_h':  sh,
             'stride_w':  sw,
             'padding': "VALID",
@@ -3100,6 +3115,8 @@ class OnnxConverter(BaseConverter):
         ic = input_shape[1]
         # use deconv(depthwise)
         deconv_param = {
+            'kernel_h':  int(scale_h),
+            'kernel_w':  int(scale_w),
             'stride_h':  int(scale_h),
             'stride_w':  int(scale_w),
             'padding': "VALID",
