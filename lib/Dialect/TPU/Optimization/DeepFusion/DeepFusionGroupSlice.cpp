@@ -671,11 +671,12 @@ bool DeepFusionGroupSlice::isFusionOp(Operation *opInst, int batchSize) {
     auto op = cast<tpu::TG_INT8_PoolAvg2DOp>(opInst);
     totalPerLane = SimpleIOMemoryUsageAnalysis(op, nullptr,batchSize);
 
-  } else if (isa<tpu::TG_INT8_ScaleOp>(opInst)) {
-    auto op = cast<tpu::TG_INT8_ScaleOp>(opInst);
-    totalPerLane = SimpleScaleMemoryUsageAnalysis(op,
-                                                         nullptr, batchSize);
-  } else if (isa<tpu::TG_INT8_PixelShuffleOp>(opInst)) {
+  }
+  // else if (isa<tpu::TG_INT8_ScaleOp>(opInst)) {
+  //   auto op = cast<tpu::TG_INT8_ScaleOp>(opInst);
+  //   totalPerLane = SimpleScaleMemoryUsageAnalysis(op,nullptr, batchSize);
+  // }
+  else if (isa<tpu::TG_INT8_PixelShuffleOp>(opInst)) {
     auto op = cast<tpu::TG_INT8_PixelShuffleOp>(opInst);
     totalPerLane = SimplePixelShuffleMemoryUsageAnalysis(op,
                                                          nullptr, batchSize);

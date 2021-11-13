@@ -247,9 +247,9 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_Conv2DOp : TPU_TG_ConvOp<"tg_int8_pc_conv_2d", "Int8 Per-Channel">;
+def TPU_TG_INT8_Conv2DOp : TPU_TG_ConvOp<"tg_int8_conv_2d", "Int8">;
 def TPU_TG_BF16_Conv2DOp : TPU_TG_ConvOp<"tg_bf16_conv_2d", "Bf16">;
-def TPU_TG_INT8_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_pc_deconv_2d", "Int8 Per-Channel">;
+def TPU_TG_INT8_DeConv2DOp : TPU_TG_ConvOp<"tg_int8_deconv_2d", "Int8">;
 def TPU_TG_BF16_DeConv2DOp : TPU_TG_ConvOp<"tg_bf16_deconv_2d", "Bf16">;
 def TPU_TG_INT8_ScaleOp : TPU_TG_ConvOp<"tg_int8_scale", "Int8">;
 def TPU_TG_BF16_ScaleOp : TPU_TG_ConvOp<"tg_bf16_scale", "Bf16">;
