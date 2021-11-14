@@ -418,10 +418,13 @@ Value tpu::ConcatOp::convertToTG() {
   bool only_merge = !relu; // just merge input data
   const unsigned nInputs = this->getNumInputs();
   std::vector<Value> operands;
-  for (unsigned i = 0; i < nInputs; ++i) {
-    operands.push_back(op->getOperand(i));
+  for (auto input : inputs()) {
+    operands.push_back(input);
     if (only_merge == true) {
-      if (is_fused_op(op->getOperand(i).getDefiningOp())) {
+      if (is_fused_op(input.getDefiningOp())) {
+        only_merge = false;
+      }
+      if (isa<tpu::LoadWeightOp>(input.getDefiningOp())) {
         only_merge = false;
       }
     }

@@ -1244,62 +1244,41 @@ class OnnxConverter(BaseConverter):
 
     def convert_concat_op(self, onnx_node):
         assert(onnx_node.op_type == "Concat")
-        if len(onnx_node.inputs) == 1:
-            # convert concat op to reshape op if has only one input
-            op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
-            if tensor_type == TensorType.TENSOR:
-                self.addTensor(onnx_node.name, self.getTensor(onnx_node.inputs[0]).tensor_data, input_shape)
-                self.addOperand(onnx_node.name, None, input_shape, TensorType.TENSOR)
-            else:
-                self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
-            return
-
-        op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
-        op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
+        _, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        output_shape = list(input_shape)
+        num_dims = len(input_shape)
+        operands = list()
         axis = onnx_node.attrs['axis']
         if axis < 0:
-            axis += len(input_shape1)
-        assert(axis >=0 and axis < len(input_shape1))
-        if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.TENSOR:
-            max_dims = 0
-            for i in onnx_node.inputs:
-                data = self.getTensor(i).tensor_data
-                max_dims = len(data.shape) if len(data.shape) > max_dims else max_dims
-            arrays = list()
-            for i in onnx_node.inputs:
-                data = self.getTensor(i).tensor_data
-                if len(data.shape) != max_dims:
-                    data = np.expand_dims(data, axis)
-                arrays.append(data)
-            n_t = np.concatenate(arrays, axis=axis)
-            self.addTensor(onnx_node.name, n_t, list(n_t.shape))
-            self.addOperand(onnx_node.name, None, list(n_t.shape), TensorType.TENSOR)
-        else:
-            operands = list()
-            in_shapes = list()
-
-            for i in onnx_node.inputs:
-                op, input_shape, tensor_type = self.getOperand(i)
-                if tensor_type != TensorType.ACTIVATION:
-                    raise RuntimeError("Tensor can not concat with activation")
-
-                in_shapes.append(input_shape)
-                operands.append(op)
-            output_shape = list()
-
-            for idx, op_shape in enumerate(in_shapes):
-                if idx == 0:
-                    # copy rather than referece
-                    output_shape = list(op_shape)
+            axis += num_dims
+        output_shape[axis] = 0
+        const_data = None
+        for input in onnx_node.inputs:
+            op, shape, type = self.getOperand(input)
+            output_shape[axis] += shape[axis]
+            if type == TensorType.TENSOR:
+                data = self.getTensor(input).tensor_data
+                if const_data is not None:
+                    const_data = np.concatenate((const_data, data), axis=axis)
                 else:
-                    for dim, value in enumerate(op_shape):
-                        if dim == axis:
-                            output_shape[dim] += value
-                        elif output_shape[dim] != value:
-                            raise ValueError("axis is {}, {} v.s {} shape can not be concat".format(axis, output_shape, op_shape))
+                    const_data = data
+                continue
+            else:
+                operands.append(op)
+            continue
+        if len(operands) == 0:
+            # only tensors
+            self.addTensor(onnx_node.name, const_data, output_shape)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
+            return
+        if const_data is not None:
+            const_name = "{}_const_data".format(onnx_node.name)
+            self.addTensor(const_name, const_data, const_data.shape)
+            const_op = self.CVI.add_load_file_op(const_name, const_data.shape)
+            operands.append(const_op)
 
-            concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
-            self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
+        concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
+        self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
 
     def convert_conv1d_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")

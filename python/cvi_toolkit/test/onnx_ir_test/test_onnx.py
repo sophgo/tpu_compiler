@@ -26,7 +26,7 @@ TEST_ONNX_IR = [
     "AddConst",
     "AveragePool",
     "AveragePool1d",
-#    "Concat",
+    "Concat",
     "Conv2d", # Conv with 2d case
     "ConvTranspose1d",
     # "Conv3d", # Conv with 3d case
@@ -2958,195 +2958,53 @@ class ONNX_IR_TESTER(object):
 
     def test_Concat(self):
         test_case = 'Concat'
-        # first MUST be 4 dim for connect conv that avoid weight check
-        class testbench(object):
-            def __init__(self, inputs_shape, output_shape, axis, reshape_input_0=[]):
-                self.inputs_shape = inputs_shape
-                self.output_shape = output_shape
-                self.axis = axis
-                self.reshape_input_0 = reshape_input_0
+        input_shape = [1, 192, 256]
+        x_shape = [1, 192, 16]
+        output_shape = [1, 192, 288]
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info('output', TensorProto.FLOAT, output_shape)
+        x1_data = np.random.randn(*x_shape).astype(np.float32)
+        x1_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['X1'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=x_shape,
+                vals=x1_data.flatten(),
+            ),
+        )
+        x2_data = np.random.randn(*x_shape).astype(np.float32)
+        x2_node_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['X2'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=x_shape,
+                vals=x2_data.flatten(),
+            ),
+        )
+        concat_node = helper.make_node(
+            'Concat',
+            ['input', 'X1', 'X2'],
+            ['output'],
+            axis = -1,
+        )
+        graph_def = helper.make_graph(
+            [x1_node_def, x2_node_def, concat_node],
+            test_case,
+            [input],
+            [output]
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        input_data = np.random.rand(*input_shape).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
-            def gen_model_def(self, test_case):
-                tensor_value_infos = []
-                reshaped_value_infos = []
-
-                inputs_shape = list(self.inputs_shape)
-
-                is_not_4d = len(inputs_shape[0]) != 4
-                concat_first_intput = 'X1'
-
-                # need to reshape for conv
-                if is_not_4d:
-                    inputs_shape[0] = self.reshape_input_0
-
-                for idx, shape in enumerate(inputs_shape):
-                    tensor_value_infos.append(
-                        helper.make_tensor_value_info('input_{}'.format(idx), TensorProto.FLOAT, shape))
-                output = helper.make_tensor_value_info(
-                        'output', TensorProto.FLOAT, self.output_shape)
-
-                # conv ONLY accept 4d
-                input_def_0 = helper.make_node(
-                    'Neg',  # node name
-                    [ 'input_0'],
-                    ['X1'],  # outputs
-                )
-
-                if is_not_4d:
-                    concat_first_intput = 'input_0_reshape_4_3_shaped'
-
-                    # prepare reshape second input
-                    const = np.array(self.inputs_shape[0], dtype=np.int64)
-                    input_0_reshape_4_3_shape_const = helper.make_node(
-                        'Constant',
-                        inputs=[],
-                        outputs=['input_0_reshape_4_3_shape'],
-                        value=onnx.helper.make_tensor(
-                            name='const_tensor',
-                            data_type=onnx.TensorProto.INT64,
-                            dims=const.shape,
-                            vals=const.flatten().astype(int),
-                        ),
-                    )
-
-                    # narrow down from 4d to 3d for concat
-                    input_def_0_reshape4_3 = helper.make_node(
-                        'Reshape',
-                        [ 'X1', 'input_0_reshape_4_3_shape'],
-                        [ concat_first_intput ],
-                    )
-                    reshaped_value_infos = [input_0_reshape_4_3_shape_const, input_def_0_reshape4_3]
-
-                mlir_inputs = ['input_{}'.format(idx) for idx, v in enumerate(self.inputs_shape)]
-                test_node_def = helper.make_node(
-                    'Concat',  # node name
-                    inputs=[concat_first_intput] + mlir_inputs[1:],  # inputs
-                    axis=self.axis,
-                    outputs=['output'],  # outputs
-                )
-
-                graph_def = helper.make_graph(
-                    [input_def_0] + reshaped_value_infos + [test_node_def],
-                    test_case,
-                    tensor_value_infos,
-                    [output],
-                )
-
-                model_def = helper.make_model(graph_def, producer_name=test_case)
-                model_def.opset_import[0].version = 11
-                return model_def
-
-            def gen_inputs(self):
-                # random data
-                inputs = [np.random.rand(*_input).astype(np.float32) for _input in self.inputs_shape]
-                #inputs = [np.arange(np.prod(_input)).reshape(_input).astype(np.float32) for _input in self.inputs_shape]
-                # concat with 1d for mlir inference
-                # https://stackoverflow.com/questions/13730468/from-nd-to-1d-arrays
-                input_concated = np.concatenate([v.reshape(-1) for v in inputs])
-
-                return inputs, input_concated
-
-            # closure input_data
-            @staticmethod
-            def input_cb(input_data, reshape_input_0):
-                def _input_cb(model_name, phase, input):
-                    if phase == 'onnx':
-                        input_data[0] = input_data[0].reshape(reshape_input_0)
-                        return {'input_{}'.format(_idx): _input for _idx, _input in enumerate(input_data)}
-                    elif phase == 'cvimodel':
-                        cvimodel_inputs = {}
-                        for _idx, _input in enumerate(input_data):
-                            key = 'input_{}'.format(_idx)
-                            cvimodel_inputs[key] = input[key]
-                        return cvimodel_inputs
-                    elif phase == 'batch':
-                        return 1 # TODO: support batch concat
-
-                return _input_cb
-
-        testbenchs = {
-            # need to assign `--batch-num`
-            #'dim2_axis0': {
-            #    'inputs_shape':[[1, 3072],[1, 3072]],
-            #    'output_shape':[2, 3072],
-            #    'axis': 0,
-            #    'reshape_input_0': [1, 192, 16, 1] # for conv once dim != 4
-            #},
-            #'dim4_axis0': {
-            #    'inputs_shape':[[1, 20, 30, 40], [6, 20, 30, 40]],
-            #    'output_shape':[7, 20, 30, 40],
-            #    'axis': 0,
-            #},
-            #'dim3_axis0': {
-            #    'inputs_shape':[[1, 3072, 1],[1, 3072, 1]],
-            #    'output_shape':[2, 3072, 1],
-            #    'axis': 0,
-            #    'reshape_input_0': [1, 192, 16, 1] # for conv once dim != 4
-            #},
-            'dim3_axis1_small': {
-                'inputs_shape':[[1, 3072, 1],[1, 680, 1]],
-                'output_shape':[1, 3752, 1],
-                'axis': 1,
-                'reshape_input_0': [1, 192, 16, 1] # for conv once dim != 4
-            },
-            # FIXME: wait backend merged
-            #'dim3_axis2': {
-            #    'inputs_shape':[[1, 3072, 1],[1, 3072, 11]],
-            #    'output_shape':[1, 3072, 12],
-            #    'axis': 2,
-            #    'reshape_input_0': [1, 192, 16, 1] # for conv once dim != 4
-            #},
-            # FIXME: need to fix getOpGroupInputsOutputs for keep inputs order
-            #'dim3_axis1': {
-            #    'inputs_shape':[[1, 30720, 1],[1, 7680, 1],[1, 1920, 1],[1, 480, 1],[1, 120, 1]],
-            #    'output_shape':[1, 40920, 1],
-            #    'axis': 1,
-            #    'reshape_input_0': [1, 1024, 30, 1] # for conv once dim != 4
-            #},
-            'dim4_axis1': {
-                'inputs_shape':[[1, 21, 31, 4], [1, 11, 31, 4]],
-                'output_shape':[1, 32, 31, 4],
-                'axis': 1,
-            },
-            # FIXME: wait backend merged
-            #'dim4_axis2': {
-            #    'inputs_shape':[[1, 21, 31, 4], [1, 21, 61, 4]],
-            #    'output_shape':[1, 21, 92, 4],
-            #    'axis': 2,
-            #},
-            #'dim4_axis3': {
-            #    'inputs_shape':[[1, 21, 31, 4], [1, 21, 31, 14]],
-            #    'output_shape':[1, 21, 31, 18],
-            #    'axis': 3,
-            #},
-            'dim2_axis1': {
-                'inputs_shape':[[1, 400], [1, 200]],
-                'output_shape':[1, 600],
-                'axis': 1,
-                'reshape_input_0': [1, 20, 10, 2] # for conv once dim != 4
-            },
-        }
-
-        for test_case, setting in testbenchs.items():
-            # init testcase
-            test_case = "Concat_" + test_case
-            inputs_shape = setting['inputs_shape']
-            output_shape = setting['output_shape']
-            axis = setting['axis']
-            if 'reshape_input_0' in setting:
-                reshape_input_0 = setting['reshape_input_0']
-            else:
-                reshape_input_0 = inputs_shape[0]
-
-            # emit test
-            tb = testbench(inputs_shape, output_shape, axis, reshape_input_0)
-            model_def = tb.gen_model_def(test_case)
-            input_data, input_concated = tb.gen_inputs()
-            input_cb = tb.input_cb(input_data, reshape_input_0)
-
-            onnx.checker.check_model(model_def)
-
-            self.onnx_convert_and_infernece(input_concated, model_def, test_case, input_cb)
 
 if __name__ == "__main__":
     os.makedirs("onnx_test", exist_ok=True)

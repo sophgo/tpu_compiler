@@ -466,7 +466,6 @@ class MLIRImporter(object):
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         checkKey(kargs, 'axis')
         concat_name = StringAttr.get(op_name)
-        none = self.add_none_op()
         if mode == TPU_MODE.INT8:
             quant_param = self.create_int8_quant_attr(**kargs)
             inputOperands = self.add_quant_reg(inputOperands)

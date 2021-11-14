@@ -406,6 +406,18 @@ LogicalResult tpu::Conv2DOp::quantizeBf16() {
   return quantizeBf16ConvOps<tpu::Conv2DOp>(op, 2);
 }
 
+LogicalResult tpu::ConcatOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  TensorFile *wTF = getWeightTensorFile(op);
+  for (auto input:inputs()) {
+    quantizeBf16WeightOp(input, wTF);
+  }
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
+}
+
 LogicalResult tpu::DeConv2DOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -732,7 +744,6 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::AbsOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastMulOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastAddOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastSubOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ConcatOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ClipOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CropOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CscOp)

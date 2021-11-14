@@ -556,22 +556,26 @@ static bool quant_no_need(Operation *op) {
   return false;
 }
 
+template <typename T>
+static bool has_const(Operation *op) {
+  auto cast_op = dyn_cast_or_null<T>(op);
+  if (cast_op == nullptr) {
+    return false;
+  }
+  for (auto input : cast_op.inputs()) {
+    if (isa<tpu::LoadWeightOp>(input.getDefiningOp())) {
+      return true;
+    }
+  }
+  return false;
+}
+
 static void quant_for_special(Operation *op) {
   if (getOpQuant(op) == "BF16") {
     // no op only use INT8
     return;
   }
-  if (auto castOp = dyn_cast_or_null<tpu::EltwiseMulOp>(op)) {
-    bool ConstOpd = false;
-    for (auto input : castOp.inputs()) {
-      if (isa<tpu::LoadWeightOp>(input.getDefiningOp())) {
-        ConstOpd = true;
-        break;
-      }
-    }
-    if (!ConstOpd) {
-      return;
-    }
+  if (has_const<tpu::EltwiseMulOp>(op) || has_const<tpu::ConcatOp>(op)) {
   } else if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
   } else if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == true) {
   } else if (isa<tpu::LayerNormOp>(op) || isa<tpu::ConvFcOp>(op) ||
