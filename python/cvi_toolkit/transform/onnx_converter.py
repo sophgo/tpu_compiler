@@ -1588,6 +1588,8 @@ class OnnxConverter(BaseConverter):
             g = conv_param['group']
             new_shape = [g, int(filter_shape[0]/g), filter_shape[1], kh, kw]
             filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
+            if g == oc and ic == oc:
+                conv_param['is_dw'] = True
         else:
             # onnx weigh layout is <ic, oc, kh, kw> and we transpose it to <oc, ic, kh, kw>
             weight_tensor_data = filter_tensor.tensor_data.reshape(filter_shape)
@@ -3127,7 +3129,7 @@ class OnnxConverter(BaseConverter):
             'padding_l': 0,
             'padding_r': 0,
             'group': ic,
-            'is_dw': False,
+            'is_dw': True,
             'with_bias': False,
             'do_relu': False,
             'ins': [],

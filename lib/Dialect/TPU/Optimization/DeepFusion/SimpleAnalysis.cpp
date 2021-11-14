@@ -45,7 +45,7 @@ uint64_t SimpleConv2DMemoryUsageAnalysis(OpTy &op,
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw,
       pad_value;
   bool is_deconv = isa<tpu::TG_INT8_DeConv2DOp>(op.getOperation());
-  parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(), n,
+  parseConvParam(op.param(), is_deconv, op.input(), op.output(), n,
                  ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt,
                  pb, pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_value);
 

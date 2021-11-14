@@ -11,7 +11,7 @@ DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping,
   auto castOp = cast<tpu::DeConv2DOp>(op);
   int no_use0, no_use1;
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
-                 castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, no_use0,
+                 n, ic, ih, iw, oc, oh, ow, g, kh, kw, no_use0,
                  no_use1, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
                  do_relu, pad_value);
   // int8 init

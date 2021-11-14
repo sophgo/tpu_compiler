@@ -322,7 +322,7 @@ public:
       int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
       int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
       parseConvParam(cast_op.param(), false, cast_op.input(), cast_op.output(),
-                     cast_op.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw,
+                     n, ic, ih, iw, oc, oh, ow, g, kh, kw,
                      ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                      with_bias, do_relu, pad_value);
 

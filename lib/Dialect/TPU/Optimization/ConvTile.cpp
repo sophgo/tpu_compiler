@@ -318,7 +318,7 @@ public:
   ConvolutionModel(OpTy tpuOp, const MInfo &mInfo)
       : ConvolutionBaseModel {tpuOp.getOperation(), mInfo} {
     parseConvParam(tpuOp.param(), false, tpuOp.input(), tpuOp.output(),
-                   tpuOp.filter(), input_n, input_c, input_h, input_w, output_c,
+                   input_n, input_c, input_h, input_w, output_c,
                    output_h, output_w, groups, kh, kw, insert_h, insert_w,
                    stride_h, stride_w, pad_top, pad_bottom, pad_left, pad_right,
                    dilation_h, dilation_w, is_dw, with_bias, do_relu,

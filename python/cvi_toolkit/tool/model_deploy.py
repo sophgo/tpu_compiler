@@ -136,7 +136,7 @@ class DeployTool:
                        append_weight=False, tg_op_divide=False,
                        model_version="", custom_op_plugin=""):
         IntermediateFile('_', 'lower_opt.mlir', False)
-        IntermediateFile('_', 'final.mlir', False)
+        IntermediateFile('_', 'final.mlir', True)
         if model_version == "":
             model_version = "latest"
         ret = mlir_to_cvimodel(str(self.quantized_mlir), cvimodel, inputs_type,

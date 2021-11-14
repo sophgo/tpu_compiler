@@ -350,11 +350,12 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
       builder.getContext());
 }
 
-void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
-    Value input, Value output, Value filter,
-    int &n, int &ic, int &ih, int &iw, int &oc, int &oh, int &ow, int &g,
-    int &kh, int &kw, int &ins_h, int &ins_w, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &dh, int &dw,
-    bool &is_dw, bool &with_bias, bool &do_relu, int &pad_value) {
+void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
+                    Value output, int &n, int &ic, int &ih, int &iw, int &oc,
+                    int &oh, int &ow, int &g, int &kh, int &kw, int &ins_h,
+                    int &ins_w, int &sh, int &sw, int &pt, int &pb, int &pl,
+                    int &pr, int &dh, int &dw, bool &is_dw, bool &with_bias,
+                    bool &do_relu, int &pad_value) {
   kh = p.kernel_h().getInt();
   kw = p.kernel_w().getInt();
   dh = p.dilation_h().getInt();
@@ -370,8 +371,6 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = filter.getType().template cast<TensorType>();
-  std::vector<int64_t> f_s(filter_type.getShape());
 
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
   if(i_s.size() == 4){
@@ -413,7 +412,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv,
 }
 
 void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
-    Value input, Value output, Value filter,
+    Value input, Value output,
     int &n, int &ic, int &id, int &ih, int &iw,
     int &oc, int &od, int &oh, int &ow, int &g,
     int &kd, int &kh, int &kw,
@@ -441,8 +440,6 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
   std::vector<int64_t> i_s(input_type.getShape());
   auto output_type = output.getType().template cast<TensorType>();
   std::vector<int64_t> o_s(output_type.getShape());
-  auto filter_type = filter.getType().template cast<TensorType>();
-  std::vector<int64_t> f_s(filter_type.getShape());
 
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
   if (i_s.size() == 5) {

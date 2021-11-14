@@ -55,7 +55,7 @@ struct TpuTL_LA_Conv2DOpPattern : public RewritePattern {
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw,
         pad_value;
-    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(), n,
+    parseConvParam(op.param(), false, op.input(), op.output(), n,
                    ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
 
@@ -158,7 +158,7 @@ struct TpuTL_LW_Conv2DOp_AssignLAddrPattern : public RewritePattern {
     bool is_dw, with_bias, do_relu;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw,
         pad_value;
-    parseConvParam(op.param(), false, op.input(), op.output(), op.filter(), n,
+    parseConvParam(op.param(), false, op.input(), op.output(), n,
                    ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
 

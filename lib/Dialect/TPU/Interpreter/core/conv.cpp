@@ -13,7 +13,7 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping,
     : CPUOpKernel(op, valueMapping, weightMapping) {
   auto castOp = cast<tpu::Conv2DOp>(op);
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
-                 castOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h,
+                 n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h,
                  ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
                  do_relu, pad_value);
   this->quant_scale = this->opdTensors[3];

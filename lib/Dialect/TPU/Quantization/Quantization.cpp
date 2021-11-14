@@ -475,8 +475,8 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
     // rewrite pad
     convOp->setAttr("param",
            tpu::ConvParam::get(
-                convOp.param().kernel_h(),
-                convOp.param().kernel_w(),
+                rewriter.getI32IntegerAttr(k_ext_h),
+                rewriter.getI32IntegerAttr(k_ext_w),
                 convOp.param().stride_h(),
                 convOp.param().stride_w(),
                 convOp.param().padding(),

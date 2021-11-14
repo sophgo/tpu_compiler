@@ -558,7 +558,7 @@ int DeepFusionGroupSlice::computeCost(
       int kh, kw, sh, sw, ins_h, ins_w, pt, pb, pl, pr, dh, dw, pad_value;
       bool is_deconv = isa<tpu::TG_INT8_DeConv2DOp>(convOp.getOperation());
       parseConvParam(convOp.param(), is_deconv, convOp.input(), convOp.output(),
-                     convOp.filter(), n, ic, ih, iw, oc, oh, ow, g, kh, kw,
+                     n, ic, ih, iw, oc, oh, ow, g, kh, kw,
                      ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
                      with_bias, do_relu, pad_value);
       addedLmem += MInfo::getSizePerLane(1, oc, kh * kw, ic / g, false);

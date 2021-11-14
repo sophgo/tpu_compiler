@@ -15,7 +15,7 @@ void getConvParam(Operation *p,
                   int &pad_value) {
   if (auto op = dyn_cast<tpu::TG_INT8_Conv2DOp>(p)) {
     bool is_deconv = false;
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
+    parseConvParam(op.param(), is_deconv, op.input(), op.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
@@ -23,7 +23,7 @@ void getConvParam(Operation *p,
     do_leaky_relu = op.do_leaky_relu();
   } else if (auto op = dyn_cast<tpu::TG_BF16_Conv2DOp>(p)) {
     bool is_deconv = false;
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
+    parseConvParam(op.param(), is_deconv, op.input(), op.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
@@ -31,7 +31,7 @@ void getConvParam(Operation *p,
     do_leaky_relu = op.do_leaky_relu();
   } else if (auto op = dyn_cast<tpu::TG_INT8_DeConv2DOp>(p)) {
     bool is_deconv = true;
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
+    parseConvParam(op.param(), is_deconv, op.input(), op.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
@@ -39,7 +39,7 @@ void getConvParam(Operation *p,
     do_leaky_relu = op.do_leaky_relu();
   }else if (auto op = dyn_cast<tpu::TG_BF16_DeConv2DOp>(p)) {
     bool is_deconv = true;
-    parseConvParam(op.param(), is_deconv, op.input(), op.output(), op.filter(),
+    parseConvParam(op.param(), is_deconv, op.input(), op.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
                    dh, dw, is_dw, with_bias, do_relu, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?

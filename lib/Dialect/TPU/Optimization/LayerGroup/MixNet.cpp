@@ -1527,8 +1527,6 @@ void MixNet::_add_load_op(int group_idx,
   uint64_t laddr = 0;
   bool transpose = false;
   int32_t offset = 0;
-  std::string tensor_type_str = "COEFF";
-  int dtype = NEURON;
   std::string name;
   std::vector<NamedAttribute> attrs;
   Builder builder_(context_);
@@ -1548,8 +1546,6 @@ void MixNet::_add_load_op(int group_idx,
   laddr = net_graph_->get_tensor_local_offset(tensor_id);
 
   if (tensor_type == TENSOR_COEFF) {
-    tensor_type_str = "COEFF";
-    dtype = COEFF;
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));
   } else {
@@ -1570,7 +1566,6 @@ void MixNet::_add_load_op(int group_idx,
     name = name + postfix_name_;
     laddr = get_tensor_laddr(tensor_id);
     net_graph_->set_tensor_local_offest(tensor_id, laddr);
-    tensor_type_str = "NEURON";
     attrs.push_back(builder_.getNamedAttr("offset", builder_.getI64IntegerAttr(offset)));
   }
 
@@ -1579,7 +1574,6 @@ void MixNet::_add_load_op(int group_idx,
   attrs.push_back(builder_.getNamedAttr("laddr", builder_.getI64IntegerAttr(laddr)));
   attrs.push_back(builder_.getNamedAttr("align", builder_.getBoolAttr(aligned)));
   attrs.push_back(builder_.getNamedAttr("transpose", builder_.getBoolAttr(transpose)));
-  attrs.push_back(builder_.getNamedAttr("tensor_type", builder_.getStringAttr(tensor_type_str)));
 
   // setup input operation
   std::vector<Value> operands;
@@ -1591,7 +1585,7 @@ void MixNet::_add_load_op(int group_idx,
 
 
   // build tl_load operation
-  if (dtype == COEFF) {
+  if (tensor_type == TENSOR_COEFF) {
     auto op = OpBuilder(get_start_op()).create<tpu::TL_LG_LoadCoeffOp>(get_start_op()->getLoc(),
             output_type, ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
     add_opd_to_list(name, op.getResult(), true);

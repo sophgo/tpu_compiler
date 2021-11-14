@@ -194,7 +194,7 @@ Conv3DOpKernel::Conv3DOpKernel(Operation &op, value_map_t &valueMapping,
     : CPUOpKernel(op, valueMapping, weightMapping) {
   auto castOp = cast<tpu::Conv3DOp>(op);
   parseConv3dParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
-                   castOp.filter(), n, ic, id, ih, iw, oc, od, oh, ow, g, kd,
+                   n, ic, id, ih, iw, oc, od, oh, ow, g, kd,
                    kh, kw, sd, sh, sw, pd0, pd1, pt, pb, pl, pr, dd, dh, dw,
                    is_dw, with_bias, do_relu);
 

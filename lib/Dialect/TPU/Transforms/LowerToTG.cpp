@@ -3139,6 +3139,7 @@ static void rotateConvolutionFilter(std::vector<T> &w,
   w.assign(w_t.begin(), w_t.end());
 }
 
+// shape[oc, ic, kh, kw] => [oc, kh, kw, ic]
 template <typename T>
 static void transposeConvolutionFilter(std::vector<T> &w,
                                        const std::vector<int64_t> &s) {

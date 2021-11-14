@@ -303,8 +303,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
               rewriter.getStringAttr(op_name)));
         attrs.push_back(rewriter.getNamedAttr("param",
               tpu::ConvParam::get(
-                rewriter.getI32IntegerAttr(shrink_factor),
-                rewriter.getI32IntegerAttr(shrink_factor),
+                rewriter.getI32IntegerAttr(filter_shape[2]),
+                rewriter.getI32IntegerAttr(filter_shape[3]),
                 rewriter.getI32IntegerAttr(stride_h),
                 rewriter.getI32IntegerAttr(stride_w),
                 rewriter.getStringAttr("VALID"), // convOp.param().padding
@@ -668,7 +668,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
             operands.push_back(NoneOp.getResult()); // quant_zeropoint
             operands.push_back(NoneOp.getResult()); // quant_rshift
             operands.push_back(NoneOp.getResult()); // quant_multiplier
-
+            kernel[0] = kh;
+            kernel[1] = kw;
             std::vector<NamedAttribute> attrs =
               createConvAttr(kernel, stride, dilation, padding, g, is_dw, with_bias, ins);
             attrs.push_back(rewriter.getNamedAttr("name",
@@ -745,6 +746,8 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
 
 
           // prepare attr
+          kernel[0] = kh;
+          kernel[1] = kw;
           std::vector<NamedAttribute> attrs =
             createConvAttr(kernel, stride, dilation, padding, g, is_dw, with_bias, ins);
 
