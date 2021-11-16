@@ -1987,7 +1987,7 @@ class OnnxConverter(BaseConverter):
         weight_name = onnx_node.inputs[1]
         weight_tensor = self.getTensor(weight_name)
         weight_shape = weight_tensor.shape
-        if onnx_node.attrs.get('transA', 1) == 0 and onnx_node.attrs.get('transB', 1) == 0:
+        if onnx_node.attrs.get('transA', 0) == 0 and onnx_node.attrs.get('transB', 0) == 0:
             # mlir require second is transposed
             print("transpose b for mlir require", onnx_node.attrs, type(weight_shape))
             assert(len(weight_shape) == 2 and "shape should be 2 dim")
