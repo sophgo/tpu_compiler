@@ -170,6 +170,8 @@ tpuc-opt $mlir_file \
     $tg_op_divide_opt \
     --group-ops \
     --dce \
+    --deep-fusion-group-slice \
+    --deep-fusion-opt \
     -o $optimized_mlir
 
 tpuc-opt $optimized_mlir \
