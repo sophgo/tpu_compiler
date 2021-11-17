@@ -615,7 +615,7 @@ ImAbs::ImAbs(Operation *op): ImLayer(IR_ABS, op, true) {
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
-ImScale::ImScale(Operation *op): ImLayer(IR_SCALE, op, true) {
+ImScale::ImScale(Operation *op): ImLayer(IR_SCALE, op, false) {
   auto input_type = op->getOperand(0).getType().dyn_cast<TensorType>();
   bool isInt8Op = isa<tpu::TG_INT8_ScaleOp>(op);
   auto input_shape = input_type.getShape();

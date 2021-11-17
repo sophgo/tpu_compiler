@@ -612,6 +612,9 @@ void DeepFusionGroupSlice::doSlice(std::vector<Operation *> &group) {
       auto groupOp = group[j];
       std::vector<Value> opds;
       for (auto opd : groupOp->getOperands()) {
+        if (isTensorNone(opd)) {
+          continue;
+        }
         if (isa<tpu::LoadWeightOp>(opd.getDefiningOp()))
           continue;
         auto op = opsMap.find(opd.getDefiningOp());
@@ -670,13 +673,10 @@ bool DeepFusionGroupSlice::isFusionOp(Operation *opInst, int batchSize) {
   } else if (isa<tpu::TG_INT8_PoolAvg2DOp>(opInst)) {
     auto op = cast<tpu::TG_INT8_PoolAvg2DOp>(opInst);
     totalPerLane = SimpleIOMemoryUsageAnalysis(op, nullptr,batchSize);
-
-  }
-  // else if (isa<tpu::TG_INT8_ScaleOp>(opInst)) {
-  //   auto op = cast<tpu::TG_INT8_ScaleOp>(opInst);
-  //   totalPerLane = SimpleScaleMemoryUsageAnalysis(op,nullptr, batchSize);
-  // }
-  else if (isa<tpu::TG_INT8_PixelShuffleOp>(opInst)) {
+  } else if (isa<tpu::TG_INT8_ScaleOp>(opInst)) {
+    auto op = cast<tpu::TG_INT8_ScaleOp>(opInst);
+    totalPerLane = SimpleScaleMemoryUsageAnalysis(op,nullptr, batchSize);
+  } else if (isa<tpu::TG_INT8_PixelShuffleOp>(opInst)) {
     auto op = cast<tpu::TG_INT8_PixelShuffleOp>(opInst);
     totalPerLane = SimplePixelShuffleMemoryUsageAnalysis(op,
                                                          nullptr, batchSize);
@@ -701,6 +701,9 @@ void DeepFusionGroupSlice::findInOutOps(std::vector<Operation *> group,
   std::vector<Operation *> outOps;
   for (auto op : group) {
     for (auto opd : op->getOperands()) {
+      if (isTensorNone(opd)) {
+        continue;
+      }
       if (isa<tpu::LoadWeightOp>(opd.getDefiningOp()))
         continue;
       auto iter = std::find(inOps.begin(), inOps.end(), opd.getDefiningOp());
