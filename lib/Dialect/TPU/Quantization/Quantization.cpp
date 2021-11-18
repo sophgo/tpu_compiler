@@ -98,12 +98,20 @@ static inline bool is_fix8b(const StringRef &quant) {
 
 static void insertQuantOp(Operation *op) {
   auto builder = OpBuilder(op);
-
+  StringRef curr_quant;
   if (isa<tpu::ReshapeOp>(op)) {
-    return;
+    if (!isa<tpu::InputOp>(op->getOperand(0).getDefiningOp())) {
+      return;
+    }
+    auto nextOp = getNextOp(op);
+    if (nextOp == nullptr || isa<tpu::ReshapeOp>(nextOp)) {
+      return;
+    }
+    curr_quant = isa<ReturnOp>(nextOp) ? "NONE" : getOpQuant(nextOp);
+  } else {
+    curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
   }
 
-  StringRef curr_quant = isa<ReturnOp>(op) ? "NONE" : getOpQuant(op);
   if (isa<tpu::ZeroMaskOp>(op)) {
     auto input = op->getOperand(0);
     for (auto &use : input.getUses()) {
@@ -125,6 +133,10 @@ static void insertQuantOp(Operation *op) {
     if (isa<tpu::QuantOp>(prev_op)
         || isa<tpu::LoadWeightOp>(prev_op)
         || isa<tpu::NoneOp>(prev_op)) {
+      continue;
+    }
+    if (isa<tpu::ReshapeOp>(prev_op) &&
+        isa<tpu::QuantOp>(prev_op->getOperand(0).getDefiningOp())) {
       continue;
     }
     if (isa<tpu::EmbeddingOp>(op)) {
@@ -232,6 +244,10 @@ static void insertQuantOp(Operation *op) {
         ArrayRef<Value>{op->getOperand(i)}, ArrayRef<NamedAttribute>{attrs});
 
     op->setOperand(i, quantOp.getResult());
+    if (auto shape_op = dyn_cast_or_null<tpu::ReshapeOp>(op)) {
+      std::string name = shape_op.name().str();
+      shape_op->setAttr("name", builder.getStringAttr(name + "_quant"));
+    }
   }
 }
 
