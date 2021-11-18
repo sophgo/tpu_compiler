@@ -355,6 +355,7 @@ if [ "$1" = "RELEASE" ]; then
   rm -f $INSTALL_PATH/tpuc/regression_models.sh
   rm -f $INSTALL_PATH/tpuc/regression_models_e2e.sh
   rm -f $INSTALL_PATH/tpuc/regression_models_fused_preprocess.sh
+  rm -f $INSTALL_PATH/tpuc/include/cvikernel/cvk_vlc_compress.h
   # rm all test prgram
   rm -f $INSTALL_PATH/tpuc/bin/test_*
   rm -f $INSTALL_PATH/tpuc/bin/sample_*
