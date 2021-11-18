@@ -279,11 +279,12 @@ LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
   assert(filterSize % oc == 0);
   int64_t inner_size = filterSize/oc;
   if (is_activation_bf16) {
-    if (inner_size < 8 || spatial_dims > 2) {
+    // TODO(charle.hu): not good for conv
+    //if (inner_size < 8 || spatial_dims > 2) {
       // no need to do weight int8
       setOpQuantParamType(op, "NONE");
       is_activation_bf16 = false;
-    }
+    //}
   }
 
   if (!is_activation_bf16) {
