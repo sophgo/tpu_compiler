@@ -528,8 +528,12 @@ public:
       operands.push_back(in);
       auto filter = copy_weight(builder, op, cast_op.filter());
       auto pc_info = copy_weight(builder, op, cast_op.pc_info());
+      auto quant_scale = copy_weight(builder, op, cast_op.quant_scale());
+      auto quant_zeropoint = copy_weight(builder, op, cast_op.quant_zeropoint());
       operands.push_back(filter);
       operands.push_back(pc_info);
+      operands.push_back(quant_scale);
+      operands.push_back(quant_zeropoint);
       std::string name =
           cast_op.name().str() + "_tod_" + std::to_string(slice_idx);
 

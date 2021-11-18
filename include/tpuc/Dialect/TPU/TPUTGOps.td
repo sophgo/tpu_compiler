@@ -198,6 +198,8 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `input`           : required, the input activation memref.
       `filter`          : required, the filter weight memref.
       `pc_info`         : required, the perchannel weight memref.
+      `quant scale`     : required, .
+      `quant zeropoint` : required, .
 
     Attributes:
       `pt_rshift`       : optional, rshift for per-tensor mode.
