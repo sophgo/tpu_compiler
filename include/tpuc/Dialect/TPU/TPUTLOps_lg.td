@@ -60,13 +60,6 @@ def TPU_LSDirAttr:StrEnumAttr<
       TPU_LS_S2TSM, TPU_LS_L2TSM, TPU_LS_TSM2S, TPU_LS_TSM2L
     ]>;
 
-def TPU_TENSOR_NEURON : StrEnumAttrCase<"NEURON">;
-def TPU_TENSOR_COEFF : StrEnumAttrCase<"COEFF">;
-
-def TPU_TensorTypeAttr:StrEnumAttr<
-    "TPU_TensorTypeAttr", "Tensor type for load/store", [
-      TPU_TENSOR_NEURON, TPU_TENSOR_COEFF
-    ]>;
 //===----------------------------------------------------------------------===//
 // TL op definitions.
 //===----------------------------------------------------------------------===//
