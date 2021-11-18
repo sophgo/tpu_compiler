@@ -18,6 +18,8 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   input_data = this->opdTensors[0];
   filter_data = this->opdTensors[1];
   bias_data = this->opdTensors[2];
+  quant_scale = this->opdTensors[3];
+  quant_zeropoint = this->opdTensors[4];
   output_data = this->resTensor;
 
   this->do_relu = fcOp.do_relu();
@@ -25,6 +27,16 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   if (datatype == DataType::INT8) {
     rshift_data = this->opdTensors[5];
     multiplier_data = this->opdTensors[6];
+  }
+  if (datatype == DataType::BF16) {
+    if (getOpQuantParamType(&op) == "ACTIVATION_BF16") {
+      int filter_size = filter_data->size();
+      for (int i = 0; i < filter_size; i++) {
+        filter_data->at(i) =
+            BF16(BF16(filter_data->at(i) * quant_scale->at(i / k) +
+                      quant_zeropoint->at(i / k)));
+      }
+    }
   }
 } // namespace mlir
 

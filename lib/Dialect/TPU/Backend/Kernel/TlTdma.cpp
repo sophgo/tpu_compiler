@@ -484,11 +484,13 @@ void cvi_backend_ml_load_stride(const CviBackendContext &ctx, uint32_t layer_id,
     cvk_tdma_g2l_matrix_copy_param_t param = {0};
     param.src = &mg_src;
     param.dst = &ml_dst;
+    param.layer_id = layer_id;
     ctx.tdma_g2l_matrix_copy(&param);
   } else if (!DoDecompress) {
     cvk_tdma_g2l_matrix_copy_row_col_transposed_param_t param = {0};
     param.src = &mg_src;
     param.dst = &ml_dst;
+    param.layer_id = layer_id;
     ctx.tdma_g2l_matrix_copy_row_col_transposed(&param);
   } else {
     cvk_cmpr_mg_t cmpr_mg_src = {0};
@@ -497,6 +499,7 @@ void cvi_backend_ml_load_stride(const CviBackendContext &ctx, uint32_t layer_id,
     cvk_tdma_g2l_matrix_copy_decompressed_param_t param = {0};
     param.src = &cmpr_mg_src;
     param.dst = &ml_dst;
+    param.layer_id = layer_id;
     ctx.tdma_g2l_matrix_copy_decompressed(&param);
   }
 }

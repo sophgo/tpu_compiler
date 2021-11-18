@@ -504,7 +504,17 @@ LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
   TensorFile *wTF = getWeightTensorFile(op);
-  quantizeBf16WeightOp(filter(), wTF);
+
+  if (getOpQuantParamType() == "ACTIVATION_BF16") {
+    if (isa<tpu::LoadWeightOp>(filter().getDefiningOp())) {
+      // [N, K], axis = N
+      quantizeWeightInt8Op(op, filter(), wTF, -2, 3, 4);
+    } else {
+      mlir::setOpQuantParamType(op, "NONE");
+    }
+  } else {
+    quantizeBf16WeightOp(filter(), wTF);
+  }
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }

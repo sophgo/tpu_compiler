@@ -326,6 +326,10 @@ public:
     if (fcOp.compressed_weight().hasValue())
       return failure();
 
+    if (!isTensorNone(fcOp.quant_scale())) {
+      return failure();
+    }
+
     std::vector<int32_t> tileValues;
     arrayAttrToVector(fcOp.tile_param().getValue().tile_step(), tileValues);
 

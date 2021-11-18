@@ -22,6 +22,8 @@ private:
   SyncedData output_data;
   SyncedData rshift_data;
   SyncedData multiplier_data;
+  SyncedData quant_scale;
+  SyncedData quant_zeropoint;
   SyncedDataShape input_shape;
   SyncedDataShape filter_shape;
   SyncedDataShape bias_shape;
