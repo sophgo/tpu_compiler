@@ -3388,11 +3388,15 @@ class OnnxConverter(BaseConverter):
         }
         num_input = len(onnx_node.inputs)
         if num_input == 3:
-            weight = self.getTensor(onnx_node.inputs[1])
-            weight_op = self.CVI.add_load_file_op(onnx_node.inputs[1], weight.shape)
+            weight = self.getTensor(onnx_node.inputs[1]).tensor_data
+            weight_name = "{}_layernorm_weight".format(onnx_node.name)
+            self.addTensor(weight_name, weight, weight.shape)
+            weight_op = self.CVI.add_load_file_op(weight_name, weight.shape)
             operands.append(weight_op)
-            bias = self.getTensor(onnx_node.inputs[2])
-            bias_op = self.CVI.add_load_file_op(onnx_node.inputs[2], bias.shape)
+            bias = self.getTensor(onnx_node.inputs[2]).tensor_data
+            bias_name = "{}_layernorm_bias".format(onnx_node.name)
+            self.addTensor(bias_name, bias, bias.shape)
+            bias_op = self.CVI.add_load_file_op(bias_name, bias.shape)
             operands.append(bias_op)
         elif num_input == 1:
             operands.append(noneOp)
