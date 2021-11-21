@@ -828,7 +828,7 @@ Value tpu::EmbeddingOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
   attrs.push_back(builder.getNamedAttr("param", paramAttr));
   auto type = castOp.getResult().getType();
-  if (getOpQuant() == "BF16" && getOpQuantParamType() == "ACTIVATION_BF16") {
+  if (getOpQuant() == "BF16" && getOpQuantParamType() == "MIX_BF16") {
     std::string name_i8 = name().str() + "_i8";
     attrs.push_back(
         builder.getNamedAttr("name", builder.getStringAttr(name_i8)));

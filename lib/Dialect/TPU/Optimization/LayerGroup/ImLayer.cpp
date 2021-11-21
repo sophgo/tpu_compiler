@@ -271,7 +271,7 @@ ImConv::ImConv(Operation* p) : ImLayer(IR_CONVOLUTION, p, true) {
   }
 
   if (false == bInt8ConvOp && false == isTensorNone(p->getOperand(3))) {
-    // TODO(charle.hu): layergroup support ACTIVATION_BF16)
+    // TODO(charle.hu): layergroup support MIX_BF16)
     fusible = false;
   }
 

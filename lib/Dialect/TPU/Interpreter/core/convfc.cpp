@@ -19,10 +19,10 @@ ConvFcOpKernel::ConvFcOpKernel(Operation &op, value_map_t &valueMapping,
   N = shape[1];
   auto input_shape = getTensorShape(castOp.input());
   K = input_shape[1];
-  activation_bf16 = false;
+  mix_bf16 = false;
   if (datatype == DataType::BF16) {
-    if (getOpQuantParamType(&op) == "ACTIVATION_BF16") {
-      activation_bf16 = true;
+    if (getOpQuantParamType(&op) == "MIX_BF16") {
+      mix_bf16 = true;
       int filter_size = filter_data->size();
       for (int i = 0; i < filter_size; i++) {
         filter_data->at(i) =

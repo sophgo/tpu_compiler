@@ -62,7 +62,7 @@ private:
   bool is_deconv = false;
   bool do_bias_later = false;
   bool do_relu_later = false;
-  bool activation_bf16 = false;
+  bool mix_bf16 = false;
 
   // mkldnn setting
   MKLConv conv;

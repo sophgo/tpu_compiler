@@ -48,7 +48,7 @@ def TPU_QuantParam_SCALE            : StrEnumAttrCase<"SCALE">;
 def TPU_QuantParam_RSHIFT_ONLY      : StrEnumAttrCase<"RSHIFT_ONLY">;
 def TPU_QuantParam_RSHIFT_AND_M_I32 : StrEnumAttrCase<"RSHIFT_AND_M_I32">;
 def TPU_QuantParam_RSHIFT_AND_M_I8  : StrEnumAttrCase<"RSHIFT_AND_M_I8">;
-def TPU_QuantParam_ACTIVATION_BF16  : StrEnumAttrCase<"ACTIVATION_BF16">;
+def TPU_QuantParam_MIX_BF16         : StrEnumAttrCase<"MIX_BF16">;
 def TPU_QuantParam_LUT_INT8         : StrEnumAttrCase<"LUT_INT8">;
 def TPU_QuantParam_LUT_BF16         : StrEnumAttrCase<"LUT_BF16">;
 
@@ -58,7 +58,7 @@ def TPU_QuantParamTypeAttr : StrEnumAttr<
       TPU_QuantParam_SCALE, TPU_QuantParam_RSHIFT_ONLY,
       TPU_QuantParam_RSHIFT_AND_M_I32, TPU_QuantParam_RSHIFT_AND_M_I8,
       TPU_QuantParam_LUT_INT8, TPU_QuantParam_LUT_BF16,
-      TPU_QuantParam_ACTIVATION_BF16
+      TPU_QuantParam_MIX_BF16
     ]>;
 
 //===----------------------------------------------------------------------===//

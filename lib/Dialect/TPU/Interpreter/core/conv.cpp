@@ -35,8 +35,8 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping,
   output_data = this->resTensor;
   zero_bias = std::make_shared<TensorData>(oc, 0.0f);
   if (datatype == DataType::BF16) {
-    if (getOpQuantParamType(&op) == "ACTIVATION_BF16") {
-      activation_bf16 = true;
+    if (getOpQuantParamType(&op) == "MIX_BF16") {
+      mix_bf16 = true;
       int quant_size = quant_scale->size();
       int inner_size = (ic / g) * kh * kw;
       int filter_size = filter_data->size();

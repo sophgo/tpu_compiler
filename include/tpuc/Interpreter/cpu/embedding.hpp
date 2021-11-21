@@ -27,7 +27,7 @@ private:
   SyncedDataShape input_shape;
   SyncedDataShape table_shape;
   SyncedDataShape output_shape;
-  bool activation_bf16;
+  bool mix_bf16;
 };
 } // namespace mlir
 #endif

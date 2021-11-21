@@ -29,7 +29,7 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
     multiplier_data = this->opdTensors[6];
   }
   if (datatype == DataType::BF16) {
-    if (getOpQuantParamType(&op) == "ACTIVATION_BF16") {
+    if (getOpQuantParamType(&op) == "MIX_BF16") {
       int filter_size = filter_data->size();
       for (int i = 0; i < filter_size; i++) {
         filter_data->at(i) =

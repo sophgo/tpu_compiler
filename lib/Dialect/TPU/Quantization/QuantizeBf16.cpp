@@ -250,7 +250,7 @@ static void insertBf16LutOp(Operation *op, const std::string &type_name, const s
 template <typename OpTy>
 LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
   assert(getOpQuant(op) == "BF16");
-  bool is_activation_bf16 = (getOpQuantParamType(op) == "ACTIVATION_BF16");
+  bool is_mix_bf16 = (getOpQuantParamType(op) == "MIX_BF16");
 
   auto convOp = cast<OpTy>(op);
   TensorFile *wTF = getWeightTensorFile(op);
@@ -278,16 +278,16 @@ LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
   }
   assert(filterSize % oc == 0);
   int64_t inner_size = filterSize/oc;
-  if (is_activation_bf16) {
+  if (is_mix_bf16) {
     // TODO(charle.hu): not good for conv
     //if (inner_size < 8 || spatial_dims > 2) {
       // no need to do weight int8
       setOpQuantParamType(op, "NONE");
-      is_activation_bf16 = false;
+      is_mix_bf16 = false;
     //}
   }
 
-  if (!is_activation_bf16) {
+  if (!is_mix_bf16) {
     BF16(filter->data(), filter->data(), filterSize);
     addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1), "quant",
                                             *filter, filterShape, "BF16", wTF);
@@ -438,7 +438,7 @@ LogicalResult tpu::ConvFcOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   TensorFile *wTF = getWeightTensorFile(op);
-  if (getOpQuantParamType() == "ACTIVATION_BF16") {
+  if (getOpQuantParamType() == "MIX_BF16") {
     if (isa<tpu::LoadWeightOp>(filter().getDefiningOp())) {
       quantizeWeightInt8Op(op, filter(), wTF, -1, 2, 3);
     } else {
@@ -457,7 +457,7 @@ LogicalResult tpu::EmbeddingOp::quantizeBf16() {
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
   TensorFile *wTF = getWeightTensorFile(op);
-  if (getOpQuantParamType() == "ACTIVATION_BF16") {
+  if (getOpQuantParamType() == "MIX_BF16") {
     if (isa<tpu::LoadWeightOp>(table().getDefiningOp())) {
       quantizeWeightInt8Op(op, table(), wTF, -1, 2, 3);
     } else {
@@ -505,7 +505,7 @@ LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
   assert(getOpQuant() == "BF16");
   TensorFile *wTF = getWeightTensorFile(op);
 
-  if (getOpQuantParamType() == "ACTIVATION_BF16") {
+  if (getOpQuantParamType() == "MIX_BF16") {
     if (isa<tpu::LoadWeightOp>(filter().getDefiningOp())) {
       // [N, K], axis = N
       quantizeWeightInt8Op(op, filter(), wTF, -2, 3, 4);

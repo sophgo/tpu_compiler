@@ -183,7 +183,7 @@ if __name__ == '__main__':
     parser.add_argument("--mlir", required=True, help="optimized mlir fp32 model")
     parser.add_argument("--calibration_table", help="calibration table for int8 quantization")
     parser.add_argument("--mix_precision_table", help="table of OPs that quantized to specific mode")
-    parser.add_argument("--quantize", default='', help="set qauntization type: BF16/INT8/ACTIVATION_BF16")
+    parser.add_argument("--quantize", default='', help="set qauntization type: BF16/INT8/MIX_BF16")
     parser.add_argument("--tolerance", required=True, help="tolerance")
     parser.add_argument("--excepts", default='-', help="excepts")
     parser.add_argument("--correctness", default='0.99,0.99,0.98', help="correctness")

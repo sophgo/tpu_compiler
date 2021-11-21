@@ -397,7 +397,7 @@ model_deploy.py的相关参数说明如下：
 | model_name              | 模型名称                                                         |
 | mlir                    | mlir文件                                                        |
 | calibration_table       | 指定calibration文件路径                                          |
-| quantize                | 指定默认量化方式，BF16/ACTIVATION_BF16/INT8                       |
+| quantize                | 指定默认量化方式，BF16/MIX_BF16/INT8                       |
 | tolerance               | 表示 MLIR 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度          |
 | excepts                 | 指定需要排除比较的层的名称，默认为-                        |
 | correctnetss            | 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度          |
@@ -918,7 +918,7 @@ eval_classifier.py \
 
 **规则一：** quantize参数可以指定默认的量化方式
 
-目前支持三种量化方式，BF16、INT8、ACTIVATION_BF16。其中ACTIVATION_BF16方式，精度和性能都介于BF16与INT8之间。
+目前支持三种量化方式，BF16、INT8、MIX_BF16。其中MIX_BF16方式，精度和性能都介于BF16与INT8之间。
 
 **规则二：**mix_precision_table指定特定量化方式，优先级高于quantize
 
