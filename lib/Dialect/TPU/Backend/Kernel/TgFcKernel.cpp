@@ -104,7 +104,7 @@ TgFcKernel::lmem_size_t TgFcKernel::get_lmem_size() const {
     size.blob_R = 2;
     size.blob_B = 2;
     size.blob_Y = 2;
-    size.blob_Q = 4;
+    size.blob_Q = (slice_n() > 1 ? 4: 2);
     break;
   case FC_PARALLEL:
     size.blob_L = (slice_k() > 1 ? 2 : 1);
@@ -277,16 +277,11 @@ tiling_parallel_exit:
 bool TgFcKernel::try_tiling_no_parallel() {
   mode = FC_NO_PARALLEL;
   // try parallel first
-  for (tile_M = maxM; tile_M > 0; tile_M--) {
-    for (tile_K = maxK; tile_K > 0; tile_K--) {
-      for (tile_N = maxN; tile_N > 0;) {
+  for (tile_K = maxK; tile_K > 0; tile_K--) {
+    for (tile_N = maxN; tile_N > 0; tile_N--) {
+      for (tile_M = maxM; tile_M > 0; tile_M--) {
         if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
           goto tiling_no_parallel_exit;
-        }
-        if (tile_N % TOTAL_EU) {
-          tile_N -= (tile_N % TOTAL_EU);
-        } else {
-          tile_N -= TOTAL_EU;
         }
       }
     }
@@ -526,10 +521,16 @@ void TgFcKernel::load(int32_t step_idx) {
   }
   // load quant
   if (do_quant_bf16) {
-    ctx.tdma_load_stride(&tl_scale, ga_scale + tile.pos_n * fmt_size,
-                         {N * fmt_size});
-    ctx.tdma_load_stride(&tl_zeropoint, ga_zeropoint + tile.pos_n * fmt_size,
-                         {N * fmt_size});
+    static bool quant_loaded = false;
+    if (!quant_loaded) {
+      ctx.tdma_load_stride(&tl_scale, ga_scale + tile.pos_n * fmt_size,
+                           {N * fmt_size});
+      ctx.tdma_load_stride(&tl_zeropoint, ga_zeropoint + tile.pos_n * fmt_size,
+                           {N * fmt_size});
+      if (slice_n() == 1) {
+        quant_loaded = true;
+      }
+    }
   }
   // load B
   if (do_bias && is_last_k(step_idx)) {

@@ -201,17 +201,12 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
     }
   }
   mode = NO_PARALLEL;
-  for (tileM = maxM; tileM > 0; tileM--) {
-    for (tileK = maxK; tileK > 0; tileK--) {
-      for (tileN = maxN; tileN > 0;) {
+  for (tileK = maxK; tileK > 0; tileK--) {
+    for (tileN = maxN; tileN > 0; tileN--) {
+      for (tileM = maxM; tileM > 0; tileM--) {
         int needed = getLmSizePerLane();
         if (needed <= (int)mInfo.lmem_per_lane) {
           return {tileM, tileN, tileK};
-        }
-        if (tileN % totalEuNum) {
-          tileN -= (tileN % totalEuNum);
-        } else {
-          tileN -= totalEuNum;
         }
       }
     }

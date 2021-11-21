@@ -77,6 +77,27 @@ static void quantizeBf16WeightOp(Value op, TensorFile *wTF) {
                                           wTF);
 }
 
+static bool check_mix_bf16(Operation *op, Value weight, int axis, int max = 0) {
+  if (mlir::getOpQuantParamType(op) != "MIX_BF16") {
+    return false;
+  }
+  if (false == isa<tpu::LoadWeightOp>(weight.getDefiningOp())) {
+    return false;
+  }
+  auto shape = getTensorShape(weight);
+  int num_dims = shape.size();
+  if (axis < 0) {
+    axis += num_dims;
+  }
+  if (axis < 0 || axis > num_dims) {
+    return false;
+  }
+  if (max > 0 && shape[axis] > max) {
+    return false;
+  }
+  return true;
+}
+
 static void quantizeWeightInt8(const std::vector<float> &weight_fp32,
                                int64_t outer_size, int64_t axis_size,
                                int64_t inner_size,
@@ -438,14 +459,11 @@ LogicalResult tpu::ConvFcOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   TensorFile *wTF = getWeightTensorFile(op);
-  if (getOpQuantParamType() == "MIX_BF16") {
-    if (isa<tpu::LoadWeightOp>(filter().getDefiningOp())) {
-      quantizeWeightInt8Op(op, filter(), wTF, -1, 2, 3);
-    } else {
-      mlir::setOpQuantParamType(op, "NONE");
-    }
+  if (check_mix_bf16(op, filter(), -1)) {
+    quantizeWeightInt8Op(op, filter(), wTF, -1, 2, 3);
   } else {
     quantizeBf16WeightOp(filter(), wTF);
+    mlir::setOpQuantParamType(op, "NONE");
   }
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
@@ -455,16 +473,12 @@ LogicalResult tpu::EmbeddingOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  assert(getOpQuant() == "BF16");
   TensorFile *wTF = getWeightTensorFile(op);
-  if (getOpQuantParamType() == "MIX_BF16") {
-    if (isa<tpu::LoadWeightOp>(table().getDefiningOp())) {
-      quantizeWeightInt8Op(op, table(), wTF, -1, 2, 3);
-    } else {
-      mlir::setOpQuantParamType(op, "NONE");
-    }
+  if (check_mix_bf16(op, table(), -1)) {
+    quantizeWeightInt8Op(op, table(), wTF, -1, 2, 3);
   } else {
     quantizeBf16WeightOp(table(), wTF);
+    mlir::setOpQuantParamType(op, "NONE");
   }
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
@@ -505,15 +519,11 @@ LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
   assert(getOpQuant() == "BF16");
   TensorFile *wTF = getWeightTensorFile(op);
 
-  if (getOpQuantParamType() == "MIX_BF16") {
-    if (isa<tpu::LoadWeightOp>(filter().getDefiningOp())) {
-      // [N, K], axis = N
-      quantizeWeightInt8Op(op, filter(), wTF, -2, 3, 4);
-    } else {
-      mlir::setOpQuantParamType(op, "NONE");
-    }
+  if (check_mix_bf16(op, filter(), -2)) {
+    quantizeWeightInt8Op(op, filter(), wTF, -2, 3, 4);
   } else {
     quantizeBf16WeightOp(filter(), wTF);
+    mlir::setOpQuantParamType(op, "NONE");
   }
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();

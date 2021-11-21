@@ -40,7 +40,12 @@ def npz_dump(args):
   print('dtype', d.dtype)
 
   dims = len(d.shape)
-  if dims == 1:
+  if dims == 0:
+    n = 1
+    c = 1
+    h = 1
+    w = 1
+  elif dims == 1:
     n = 1
     c = 1
     h = 1
