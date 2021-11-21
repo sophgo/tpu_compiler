@@ -70,11 +70,13 @@ static void getNCHW_align_left(std::vector<int64_t> &shape, int64_t &n,
     n = shape[num_dims - 3];
     c = shape[num_dims - 2];
     h = shape[num_dims - 1];
-  } else if (shape.size() == 2) {
+  } else if (num_dims == 2) {
     n = shape[num_dims - 2];
     c = shape[num_dims - 1];
-  } else if (shape.size() == 1) {
+  } else if (num_dims == 1) {
     n = shape[num_dims - 1];
+  } else if (num_dims == 0) {
+    // scalar
   } else {
     llvm_unreachable("unsupported shape size");
   }

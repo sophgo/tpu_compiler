@@ -143,7 +143,7 @@ void DeepFusionGroupSlice::init() {
   auto fn = getFunction();
   auto fnResultType = fn.getType().getInput(0);
   auto fnResultShape = fnResultType.cast<RankedTensorType>().getShape();
-  batchSize_ = fnResultShape[0];
+  batchSize_ = (fnResultShape.empty() ? 1 : fnResultShape[0]);
   nSecs_ = 1;
   context_ = &getContext();
   setAllNSecs();

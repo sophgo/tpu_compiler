@@ -38,6 +38,7 @@ TEST_ONNX_IR = [
     "FullyConnected",
     "GroupFC", # test Group FC
     "Gather",
+    "Gather2", # special shape
     "GlobalMaxPool",
     "GRU",
     "GRUh", # test gru output Y_h
@@ -173,6 +174,7 @@ class ONNX_IR_TESTER(object):
             "FullyConnected": self.test_FullyConnected,
             "GroupFC": self.test_GroupFC,
             "Gather": self.test_Gather,
+            "Gather2": self.test_Gather2,
             "GlobalMaxPool": self.test_GlobalMaxPool,
             "GRU": self.test_GRU,
             "GRUh": self.test_GRUh,
@@ -220,7 +222,7 @@ class ONNX_IR_TESTER(object):
     def onnx_convert_and_infernece(self, input_data, model_def, model_name, input_cb=None):
         fp32_mlir = "{}.mlir".format(model_name)
         if type(input_data) != dict:
-            self.converter = OnnxConverter(model_name, model_def, fp32_mlir, batch_size=input_data.shape[0])
+            self.converter = OnnxConverter(model_name, model_def, fp32_mlir, batch_size=0)
         else:
             self.converter = OnnxConverter(model_name, model_def, fp32_mlir)
         self.converter.run()
@@ -984,6 +986,48 @@ class ONNX_IR_TESTER(object):
         total_tokens = 60004
         input_shape = [1, 13]
         output_shape = [1, 13, 256]
+        input_data = np.random.randint(0, total_tokens, input_shape).astype(np.int64)
+        token_data = np.random.randn(total_tokens, 256).astype(np.float32)
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.INT64, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        token_def = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['tokens'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.FLOAT,
+                dims=token_data.shape,
+                vals=token_data.flatten(),
+            ),
+        )
+
+        gather_node = helper.make_node(
+            'Gather',  # node name
+            ['tokens','input'],  # inputs
+            ['output'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [token_def, gather_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_Gather2(self):
+        test_case = 'Gather2'
+        total_tokens = 128
+        input_shape = []
+        output_shape = [1, 1, 256]
         input_data = np.random.randint(0, total_tokens, input_shape).astype(np.int64)
         token_data = np.random.randn(total_tokens, 256).astype(np.float32)
 

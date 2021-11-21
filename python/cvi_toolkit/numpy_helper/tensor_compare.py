@@ -112,7 +112,7 @@ class TensorCompare():
 
   def compare(self, d1, d2, verbose, int8_tensor_close=True):
     similarities = {}
-    if (len(d1) != len(d2)):
+    if d1.size != d2.size:
       return (False, self.NOT_MATCH, similarities, None)
 
     if np.array_equal(d1, d2):
