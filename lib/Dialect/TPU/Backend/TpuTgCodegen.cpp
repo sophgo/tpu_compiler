@@ -1776,6 +1776,14 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
     ga_bias = getWeightOpAddress(bias().getDefiningOp());
     with_bias = true;
   }
+  gaddr_t ga_scale = GA_INVALID;
+  gaddr_t ga_zeropoint = GA_INVALID;
+  bool do_quant_bf16 = false;
+  if (!isTensorNone(quant_scale())) {
+    do_quant_bf16 = true;
+    ga_scale = getWeightOpAddress(quant_scale().getDefiningOp());
+    ga_zeropoint = getWeightOpAddress(quant_zeropoint().getDefiningOp());
+  }
   int layer_id = getOpLayerId(op);
 
   auto fcOp = dyn_cast<tpu::TG_BF16_FullyConnectedOp>(op);
@@ -1793,7 +1801,7 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
   cvi_backend_tg_bf16_fc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
                                 ga_bias, ga_output, m, k, n, with_bias, do_relu,
                                 compr_weight_poss, batch_high, batch_low,
-                                lstride, false, ostride);
+                                lstride, false, ostride, do_quant_bf16, ga_scale, ga_zeropoint);
 
   return success();
 }

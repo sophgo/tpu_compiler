@@ -24,7 +24,9 @@ public:
             bool do_bias, bool do_relu, std::vector<int> *rshift_width,
             std::vector<int> *multiplier, int batch_high, int batch_low,
             bool lstride, bool rstride, bool ostride,
-            std::vector<int> compressed_pos, cvk_fmt_t fmt);
+            std::vector<int> compressed_pos, cvk_fmt_t fmt,
+            bool do_quant_bf16 = false, gaddr_t ga_scale = 0,
+            gaddr_t ga_zeropoint = 0);
 
   void selectTilePolicy();
   void schedule();
@@ -35,7 +37,8 @@ protected:
   void store(int32_t step_idx);
   uint32_t lmem_matrix_size(uint32_t row, uint32_t col,
                             bool ps32 = false) const;
-
+  void quant_bf16();
+  void matrix_to_tensor(cvk_tl_t *tensor, const cvk_ml_t &matrix);
   void update_tl_matrix(int32_t step_idx);
   void set_laddr();
   void matrix_for_tiu();
@@ -44,8 +47,8 @@ protected:
   inline uint32_t slice_k() const { return (K + tile_K - 1) / tile_K; }
   inline uint32_t slice_n() const { return (N + tile_N - 1) / tile_N; }
   typedef struct {
-    uint32_t L, R, B, Y;
-    uint32_t blob_L, blob_R, blob_B, blob_Y;
+    uint32_t L, R, B, Y, Q;
+    uint32_t blob_L, blob_R, blob_B, blob_Y, blob_Q;
   } lmem_size_t;
   lmem_size_t get_lmem_size() const;
   uint32_t total_lmem_size() const;
@@ -66,6 +69,8 @@ protected:
   gaddr_t ga_weight;
   gaddr_t ga_bias;
   gaddr_t ga_output;
+  gaddr_t ga_scale;
+  gaddr_t ga_zeropoint;
 
   gaddr_t ga_i, ga_w, ga_o, ga_b; // for origin addr
 
@@ -75,6 +80,7 @@ protected:
 
   bool do_bias;
   bool do_relu;
+  bool do_quant_bf16;
   std::vector<int> rshift;
   std::vector<int> multiplier;
   int cur_rshift;
@@ -88,6 +94,8 @@ protected:
   cvk_ml_t tl_L;
   cvk_ml_t tl_B;
   cvk_ml_t tl_R;
+  cvk_ml_t tl_scale;
+  cvk_ml_t tl_zeropoint;
 
   int batch_high;
   int batch_low;
@@ -133,6 +141,7 @@ protected:
   uint32_t L_laddr[2];           // [M, tile_K]
   uint32_t R_laddr[2];           // [tile_K, tile_N]
   uint32_t B_laddr[2];           // [4, tile_N]
+  uint32_t Q_laddr[4];           // [1, tile_N]
 };
 
 #endif

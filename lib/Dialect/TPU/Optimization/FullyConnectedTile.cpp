@@ -272,6 +272,9 @@ public:
     // Already configured
     if (tpuOp.tile_param().hasValue())
       return failure();
+    if (false == isTensorNone(tpuOp.quant_scale())) {
+      return failure();
+    }
 
     auto op = tpuOp.getOperation();
 

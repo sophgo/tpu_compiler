@@ -1105,6 +1105,8 @@ Value tpu::FullyConnectedOp::convertToTG() {
   operands.push_back(input());
   operands.push_back(filter());
   operands.push_back(bias());
+  operands.push_back(quant_scale());
+  operands.push_back(quant_zeropoint());
 
   std::vector<NamedAttribute> attrs;
   attrs.push_back(

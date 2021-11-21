@@ -223,7 +223,8 @@ void cvi_backend_tg_bf16_fc_kernel(
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
     bool do_bias, bool do_relu, std::vector<int> compr_weight_poss,
     int batch_high = 1, int batch_low = 1, bool lstride = false,
-    bool rstride = false, bool ostride = false);
+    bool rstride = false, bool ostride = false, bool do_quant_bf16 = 0,
+    gaddr_t ga_scale = 0, gaddr_t ga_zeropoint = 0);
 
 void cvi_backend_tg_bf16_leakyrelu_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,

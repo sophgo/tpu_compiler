@@ -15,7 +15,9 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
                       std::vector<int> *rshift_width,
                       std::vector<int> *multiplier, int batch_high,
                       int batch_low, bool lstride, bool rstride, bool ostride,
-                      std::vector<int> compressed_pos, cvk_fmt_t fmt) {
+                      std::vector<int> compressed_pos, cvk_fmt_t fmt,
+                      bool do_quant_bf16, gaddr_t ga_scale,
+                      gaddr_t ga_zeropoint) {
 
   this->layer_id = layer_id;
   this->M = static_cast<uint32_t>(M);
@@ -25,6 +27,9 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
   this->ga_w = ga_weight;
   this->ga_b = ga_bias;
   this->ga_o = ga_output;
+  this->ga_scale = ga_scale;
+  this->ga_zeropoint = ga_zeropoint;
+  this->do_quant_bf16 = do_quant_bf16;
   this->do_bias = do_bias;
   this->do_relu = do_relu;
   this->compressed_pos = compressed_pos;
@@ -92,18 +97,21 @@ TgFcKernel::lmem_size_t TgFcKernel::get_lmem_size() const {
   size.L = lmem_matrix_size(tile_M, tile_K);
   size.R = lmem_matrix_size(tile_K, tile_N);
   size.Y = lmem_matrix_size(tile_M, tile_N, K != tile_K);
+  size.Q = do_quant_bf16 ? lmem_matrix_size(1, tile_N) : 0;
   switch (mode) {
   case FC_GROUP_PARALLEL:
     size.blob_L = 2;
     size.blob_R = 2;
     size.blob_B = 2;
     size.blob_Y = 2;
+    size.blob_Q = 4;
     break;
   case FC_PARALLEL:
     size.blob_L = (slice_k() > 1 ? 2 : 1);
     size.blob_R = 2;
     size.blob_B = (slice_n() > 1 ? 2 : 1);
     size.blob_Y = (slice_k() > 1 ? slice_n() : 2);
+    size.blob_Q = (slice_n() > 1 ? 4 : 2);
     break;
   case FC_NO_TILING:
   case FC_NO_PARALLEL:
@@ -111,6 +119,7 @@ TgFcKernel::lmem_size_t TgFcKernel::get_lmem_size() const {
     size.blob_R = 1;
     size.blob_B = 1;
     size.blob_Y = 1;
+    size.blob_Q = 2;
     break;
   }
   return size;
@@ -119,7 +128,8 @@ TgFcKernel::lmem_size_t TgFcKernel::get_lmem_size() const {
 uint32_t TgFcKernel::total_lmem_size() const {
   auto lmem_size = get_lmem_size();
   return lmem_size.blob_L * lmem_size.L + lmem_size.blob_R * lmem_size.R +
-         lmem_size.blob_B * lmem_size.B + lmem_size.blob_Y * lmem_size.Y;
+         lmem_size.blob_B * lmem_size.B + lmem_size.blob_Y * lmem_size.Y +
+         lmem_size.blob_Q * lmem_size.Q;
 }
 
 void TgFcKernel::set_laddr() {
@@ -145,7 +155,19 @@ void TgFcKernel::set_laddr() {
   last_laddr += lmem_size.B;
   if (lmem_size.blob_B > 1) {
     B_laddr[1] = last_laddr;
+    last_laddr += lmem_size.B;
   }
+  Q_laddr[0] = Q_laddr[1] = last_laddr;
+  last_laddr += lmem_size.Q;
+  Q_laddr[2] = Q_laddr[3] = last_laddr;
+  last_laddr += lmem_size.Q;
+  if (lmem_size.blob_Q == 4) {
+    Q_laddr[1] = last_laddr;
+    last_laddr += lmem_size.Q;
+    Q_laddr[3] = last_laddr;
+    last_laddr += lmem_size.Q;
+  }
+  assert(last_laddr <= (uint32_t)LOCAL_MEM_SIZE);
 }
 
 // tiling N, for each group
@@ -325,6 +347,14 @@ void TgFcKernel::update_tl_matrix(int32_t step_idx) {
   ctx.lmem_init_matrix(&tl_Y, ctx.ml_default_shape(tile.m, tile.n, fmt), fmt,
                        1);
   tl_Y.start_address = Y_laddr[tile.Y_idx];
+  if (do_quant_bf16) {
+    ctx.lmem_init_matrix(&tl_scale, ctx.ml_default_shape(1, tile.n, fmt), fmt,
+                         1);
+    ctx.lmem_init_matrix(&tl_zeropoint, ctx.ml_default_shape(1, tile.n, fmt),
+                         fmt, 1);
+    tl_scale.start_address = Q_laddr[tile.RB_idx];
+    tl_zeropoint.start_address = Q_laddr[2 + tile.RB_idx];
+  }
   if (mode == FC_GROUP_PARALLEL) {
     update_batch_info(tile.batch_high, tile.batch_low);
   }
@@ -344,9 +374,53 @@ void TgFcKernel::matrix_for_tiu() {
   }
 }
 
+void TgFcKernel::matrix_to_tensor(cvk_tl_t *tensor, const cvk_ml_t &matrix) {
+  cvk_tl_shape_t shape = {matrix.shape.n, matrix.shape.c, 1, matrix.shape.w};
+  ctx.lmem_init_tensor(tensor, shape, fmt, 1);
+  tensor->start_address = matrix.start_address;
+}
+
+void TgFcKernel::quant_bf16() {
+  cvk_tl_t scale_tensor, zeropoint_tensor, filter_tensor;
+  matrix_to_tensor(&scale_tensor, tl_scale);
+  matrix_to_tensor(&zeropoint_tensor, tl_zeropoint);
+  matrix_to_tensor(&filter_tensor, tl_R);
+  scale_tensor.shape.n = tl_R.shape.n;
+  zeropoint_tensor.shape.n = tl_R.shape.n;
+  scale_tensor.stride.n = 0;
+  zeropoint_tensor.stride.n = 0;
+  cvk_tiu_mul_param_t p = {0};
+  p.res_high = nullptr;
+  p.res_low = &filter_tensor;
+  p.a = &filter_tensor;
+  p.b_is_const = 0;
+  p.b = &scale_tensor;
+  p.rshift_bits = 0;
+  p.layer_id = layer_id;
+  p.relu_enable = 0;
+  ctx.tiu_mul(&p);
+
+  cvk_tiu_add_param_t p1 = {0};
+  p1.res_high = nullptr;
+  p1.res_low = &filter_tensor;
+  p1.a_high = nullptr;
+  p1.a_low = &filter_tensor;
+  p1.b_is_const = false;
+  p1.b.high = nullptr;
+  p1.b.low = &zeropoint_tensor;
+  p1.rshift_bits = 0;
+  p1.layer_id = layer_id;
+  p1.relu_enable = 0;
+  ctx.tiu_add(&p1);
+}
+
 void TgFcKernel::compute(int32_t step_idx) {
   auto &tile = tiles[step_idx];
   update_tl_matrix(step_idx);
+  if (do_quant_bf16) {
+    quant_bf16();
+  }
+
   matrix_for_tiu();
 
   bool is_last = is_last_k(step_idx);
@@ -423,7 +497,22 @@ void TgFcKernel::load(int32_t step_idx) {
         left_gstride);
   }
   // load R
-  if (compressed_pos.empty()) {
+  if (do_quant_bf16) {
+    int row_stride = N * (rstride ? batch_low : 1);
+    cvk_mg_t mg_src = {0};
+    mg_src.start_address =
+        ga_weight + tile.pos_k * row_stride + tile.pos_n;
+    mg_src.base_reg_index =
+        ctx.getTdmaBaseSelectIndexFromGaddr(mg_src.start_address);
+    mg_src.fmt = CVK_FMT_I8;
+    mg_src.shape = {tile.k, tile.n};
+    mg_src.stride = {N};
+    cvk_tdma_g2l_matrix_copy_param_t param = {0};
+    param.src = &mg_src;
+    param.dst = &tl_R;
+    param.layer_id = layer_id;
+    ctx.tdma_g2l_matrix_copy(&param);
+  } else if (compressed_pos.empty()) {
     ctx.tdma_load_stride(&tl_R,
                          ga_weight + tile.pos_k * right_gstride.row +
                              tile.pos_n * fmt_size,
@@ -434,6 +523,13 @@ void TgFcKernel::load(int32_t step_idx) {
         ga_weight + compressed_pos[tile.compress_idx + compress_offset],
         tl_R.start_address, tile.k, tile.n, tile.n, false, true, fmt, fmt,
         true);
+  }
+  // load quant
+  if (do_quant_bf16) {
+    ctx.tdma_load_stride(&tl_scale, ga_scale + tile.pos_n * fmt_size,
+                         {N * fmt_size});
+    ctx.tdma_load_stride(&tl_zeropoint, ga_zeropoint + tile.pos_n * fmt_size,
+                         {N * fmt_size});
   }
   // load B
   if (do_bias && is_last_k(step_idx)) {
@@ -572,11 +668,13 @@ void cvi_backend_tg_bf16_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
     bool do_bias, bool do_relu, std::vector<int> compressed_pos, int batch_high,
-    int batch_low, bool lstride, bool rstride, bool ostride) {
+    int batch_low, bool lstride, bool rstride, bool ostride, bool do_quant_bf16,
+    gaddr_t ga_scale, gaddr_t ga_zeropoint) {
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
               do_bias, do_relu, nullptr, nullptr, batch_high, batch_low,
-              lstride, rstride, ostride, compressed_pos, CVK_FMT_BF16);
+              lstride, rstride, ostride, compressed_pos, CVK_FMT_BF16,
+              do_quant_bf16, ga_scale, ga_zeropoint);
 
   kernel.selectTilePolicy();
   kernel.schedule();
