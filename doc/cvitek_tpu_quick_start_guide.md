@@ -918,9 +918,9 @@ eval_classifier.py \
 
 **规则一：** quantize参数可以指定默认的量化方式
 
-目前支持三种量化方式，BF16、INT8、MIX_BF16。其中MIX_BF16方式，精度和性能都介于BF16与INT8之间。
+目前支持三种量化方式，BF16、INT8、MIX_BF16。其中MIX_BF16方式，精度和性能都介于BF16与INT8之间，ION内存占用与INT8相同。
 
-**规则二：**mix_precision_table指定特定量化方式，优先级高于quantize
+**规则二：** mix_precision_table指定特定量化方式，优先级高于quantize
 
 mix_precision_table文件格式如下：
 
@@ -932,7 +932,7 @@ mix_precision_table文件格式如下：
 122_Conv
 ```
 
-**规则三：**当存在INT8的量化时，需要传入calibration_table
+**规则三：** 当存在INT8的量化时，需要传入calibration_table
 
 当quantize指定为INT8时，或者mix_precision_table中存在layer被指定为INT8时，则需要传入calibration参数。
 

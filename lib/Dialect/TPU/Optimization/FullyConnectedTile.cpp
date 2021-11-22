@@ -59,7 +59,8 @@ public:
   typedef enum {
     GROUP_PARALLEL,
     NO_TILING,
-    PARALLEL,
+    PARALLEL_MN,
+    PARALLEL_KN,
     NO_PARALLEL,
   } model_t;
 
@@ -92,7 +93,13 @@ void FullyConnectedModel::update_blob() {
     blob_B = 2;
     blob_Y = 2;
     break;
-  case PARALLEL:
+  case PARALLEL_MN:
+    blob_L = (M != tileM ? 2 : 1);
+    blob_R = (N != tileN) ? 2 : 1;
+    blob_B = (N != tileN) ? 2 : 1;
+    blob_Y = 2;
+    break;
+  case PARALLEL_KN:
     blob_L = (K != tileK ? 2 : 1);
     blob_R = 2;
     blob_B = (N != tileN) ? 2 : 1;
@@ -183,7 +190,19 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
       return {tileM, tileN, tileK};
     }
   }
-  mode = PARALLEL;
+  mode = PARALLEL_MN;
+  if (maxK == K) {
+    tileK = K;
+    for (tileN = maxN; tileN > 0; tileN--) {
+      for (tileM = maxM; tileM > 0; tileM--) {
+        int needed = getLmSizePerLane();
+        if (needed <= (int)mInfo.lmem_per_lane) {
+          return {tileM, tileN, tileK};
+        }
+      }
+    }
+  }
+  mode = PARALLEL_KN;
   if (maxM == M) {
     tileM = maxM;
     for (tileK = maxK; tileK > 0; tileK--) {

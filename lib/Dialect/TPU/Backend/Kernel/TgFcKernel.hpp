@@ -37,7 +37,11 @@ protected:
   void store(int32_t step_idx);
   uint32_t lmem_matrix_size(uint32_t row, uint32_t col,
                             bool ps32 = false) const;
-  void quant_bf16();
+  void load_L(int32_t step_idx);
+  void load_R(int32_t step_idx);
+  void load_B(int32_t step_idx);
+  void load_Q(int32_t step_idx);
+  void quant_bf16(int32_t step_idx);
   void matrix_to_tensor(cvk_tl_t *tensor, const cvk_ml_t &matrix);
   void update_tl_matrix(int32_t step_idx);
   void set_laddr();
@@ -56,7 +60,8 @@ protected:
 
   bool try_tiling_group_parallel();
   bool try_no_tiling();
-  bool try_tiling_parallel();
+  bool try_tiling_parallel_mn();
+  bool try_tiling_parallel_kn();
   bool try_tiling_no_parallel();
   void tiling_generic();
   void schedule_parallel();
@@ -108,6 +113,8 @@ protected:
   cvk_mg_stride_t output_gstride;
 
   bool do_parallel;
+  bool bias_loaded;
+  bool quant_loaded;
   uint32_t maxM, maxK, maxN;
   uint32_t TOTAL_EU;
   uint32_t tile_M;
@@ -130,10 +137,11 @@ protected:
   } tile_info_t;
   std::vector<tile_info_t> tiles;
   typedef enum {
-    FC_NO_TILING,
-    FC_GROUP_PARALLEL,
-    FC_PARALLEL,
-    FC_NO_PARALLEL,
+    FC_NO_TILING,      // no tile
+    FC_GROUP_PARALLEL, // only tile N
+    FC_PARALLEL_KN,    // tile K, N
+    FC_PARALLEL_MN,    // tile M, N
+    FC_NO_PARALLEL,    // tile M, K, N
   } fc_mode_t;
   fc_mode_t mode;
   int total_steps;
