@@ -189,20 +189,13 @@ bool TgFcKernel::try_tiling_group_parallel() {
   }
   tile_K = maxK;
   tile_M = maxM;
-  for (tile_N = maxN; tile_N > 0;) {
+  for (tile_N = maxN; tile_N > 0; tile_N--) {
     if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
       goto tiling_group_parallel_exit;
     }
-    if (tile_N % TOTAL_EU) {
-      tile_N -= (tile_N % TOTAL_EU);
-    } else {
-      tile_N -= TOTAL_EU;
-    }
   }
+  return false;
 tiling_group_parallel_exit:
-  if (tile_N == 0) {
-    return false;
-  }
   tile_info_t info = {0};
   info.k = K;
   info.m = M;
@@ -249,15 +242,10 @@ bool TgFcKernel::try_tiling_parallel_kn() {
     return false;
   }
   tile_M = maxM;
-  for (tile_K = maxK; tile_K > 0; tile_K--) {
-    for (tile_N = maxN; tile_N > 0;) {
+  for (tile_N = maxN; tile_N > 0; tile_N--) {
+    for (tile_K = maxK; tile_K > 0; tile_K--) {
       if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
         goto parallel_kn_success;
-      }
-      if (tile_N % TOTAL_EU) {
-        tile_N -= (tile_N % TOTAL_EU);
-      } else {
-        tile_N -= TOTAL_EU;
       }
     }
   }
@@ -288,8 +276,8 @@ bool TgFcKernel::try_tiling_parallel_mn() {
     return false;
   }
   tile_K = maxK;
-  for (tile_N = maxN; tile_N > 0; tile_N--) {
-    for (tile_M = maxM; tile_M > 0; tile_M--) {
+  for (tile_M = maxM; tile_M > 0; tile_M--) {
+    for (tile_N = maxN; tile_N > 0; tile_N--) {
       if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
         goto parallel_mn_success;
       }
@@ -318,20 +306,17 @@ parallel_mn_success:
 bool TgFcKernel::try_tiling_no_parallel() {
   mode = FC_NO_PARALLEL;
   // try parallel first
-  for (tile_K = maxK; tile_K > 0; tile_K--) {
-    for (tile_N = maxN; tile_N > 0; tile_N--) {
-      for (tile_M = maxM; tile_M > 0; tile_M--) {
+  for (tile_M = maxM; tile_M > 0; tile_M--) {
+    for (tile_K = maxK; tile_K > 0; tile_K--) {
+      for (tile_N = maxN; tile_N > 0; tile_N--) {
         if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
           goto tiling_no_parallel_exit;
         }
       }
     }
   }
+  return false;
 tiling_no_parallel_exit:
-  if (tile_M == 0) {
-    return false;
-  }
-
   tile_info_t info = {0};
   for (uint32_t n_idx = 0, pos_n = 0; pos_n < N; n_idx++, pos_n += tile_N) {
     for (uint32_t pos_m = 0; pos_m < M; pos_m += tile_M) {

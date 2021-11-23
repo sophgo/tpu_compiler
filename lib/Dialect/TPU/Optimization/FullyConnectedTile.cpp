@@ -157,9 +157,16 @@ int FullyConnectedModel::getLmSizePerLane() {
   return totalSize;
 }
 
+#define CHECK_SIZE_RETURN                                                      \
+  {                                                                            \
+    int needed = getLmSizePerLane();                                           \
+    if (needed <= (int)mInfo.lmem_per_lane) {                                  \
+      return {tileM, tileN, tileK};                                            \
+    }                                                                          \
+  }
+
 FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
   int max_tiu = (4095 - 32);
-  int totalEuNum = mInfo.lane_num * (mInfo.eu_num / dataTypeSize);
   int maxM = std::min(M, max_tiu); // TIU 12bit
   int maxK = std::min(K, max_tiu); // TIU 12bit
   int maxN = std::min(N, max_tiu);
@@ -168,16 +175,8 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
   if (batch > 1 && maxM == M && maxK == K) {
     tileM = maxM;
     tileK = maxK;
-    for (tileN = maxN; tileN > 0;) {
-      int needed = getLmSizePerLane();
-      if (needed <= (int)mInfo.lmem_per_lane) {
-        return {tileM, tileN, tileK};
-      }
-      if (tileN % totalEuNum) {
-        tileN -= (tileN % totalEuNum);
-      } else {
-        tileN -= totalEuNum;
-      }
+    for (tileN = maxN; tileN > 0; tileN--) {
+      CHECK_SIZE_RETURN;
     }
   }
   mode = NO_TILING;
@@ -185,48 +184,31 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
     tileM = maxM;
     tileK = maxK;
     tileN = maxN;
-    int needed = getLmSizePerLane();
-    if (needed <= (int)mInfo.lmem_per_lane) {
-      return {tileM, tileN, tileK};
-    }
+    CHECK_SIZE_RETURN;
   }
   mode = PARALLEL_MN;
   if (maxK == K) {
     tileK = K;
-    for (tileN = maxN; tileN > 0; tileN--) {
-      for (tileM = maxM; tileM > 0; tileM--) {
-        int needed = getLmSizePerLane();
-        if (needed <= (int)mInfo.lmem_per_lane) {
-          return {tileM, tileN, tileK};
-        }
+    for (tileM = maxM; tileM > 0; tileM--) {
+      for (tileN = maxN; tileN > 0; tileN--) {
+        CHECK_SIZE_RETURN;
       }
     }
   }
   mode = PARALLEL_KN;
   if (maxM == M) {
     tileM = maxM;
-    for (tileK = maxK; tileK > 0; tileK--) {
-      for (tileN = maxN; tileN > 0;) {
-        int needed = getLmSizePerLane();
-        if (needed <= (int)mInfo.lmem_per_lane) {
-          return {tileM, tileN, tileK};
-        }
-        if (tileN % totalEuNum) {
-          tileN -= (tileN % totalEuNum);
-        } else {
-          tileN -= totalEuNum;
-        }
+    for (tileN = maxN; tileN > 0; tileN--) {
+      for (tileK = maxK; tileK > 0; tileK--) {
+        CHECK_SIZE_RETURN;
       }
     }
   }
   mode = NO_PARALLEL;
-  for (tileK = maxK; tileK > 0; tileK--) {
-    for (tileN = maxN; tileN > 0; tileN--) {
-      for (tileM = maxM; tileM > 0; tileM--) {
-        int needed = getLmSizePerLane();
-        if (needed <= (int)mInfo.lmem_per_lane) {
-          return {tileM, tileN, tileK};
-        }
+  for (tileM = maxM; tileM > 0; tileM--) {
+    for (tileK = maxK; tileK > 0; tileK--) {
+      for (tileN = maxN; tileN > 0; tileN--) {
+        CHECK_SIZE_RETURN;
       }
     }
   }
