@@ -133,7 +133,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgTileKernel.cpp
   Backend/Kernel/TgUpsampleKernel.cpp
   Backend/Kernel/TgZeroMaskKernel.cpp
-  Backend/Kernel/TgFixedReduceKernel.cpp
+  Backend/Kernel/TgReduceKernel.cpp
   Backend/Kernel/TgBf16Conv3dKernel.cpp
   Backend/Kernel/TgBf16GruKernel.cpp
   Backend/Kernel/TgBf16LayerNormKernel.cpp
@@ -144,7 +144,6 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgBf16SoftmaxKernel.cpp
   Backend/Kernel/TgBf16SquareKernel.cpp
   Backend/Kernel/TgBf16StdKernel.cpp
-  Backend/Kernel/TgBf16ReduceKernel.cpp
   Backend/Kernel/TgBf16LrnKernel.cpp
   Backend/Kernel/TlConcat.cpp
   Backend/Kernel/TlConv.cpp

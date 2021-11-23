@@ -56,8 +56,9 @@ TEST_ONNX_IR = [
     "PadReflect",
     "Relu",
     "PRelu",
-    "ReduceMax",
-    "ReduceMean",
+    "Reduce",
+    "Reduce2",
+    "ReduceL2",
     "Resize",
 #    "Reciprocal",
 #    "Slice",
@@ -72,7 +73,6 @@ TEST_ONNX_IR = [
     "Upsample",
 #    "Transpose",
     "BCastSub", # test broadcast sub
-    "ReduceMin",
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
@@ -203,9 +203,9 @@ class ONNX_IR_TESTER(object):
             "Softmax": self.test_Softmax,
             "Transpose": self.test_Transpose,
             "Tile": self.test_Tile,
-            "ReduceMean": self.test_ReduceMean,
-            "ReduceMax": self.test_ReduceMax,
-            "ReduceMin": self.test_ReduceMin,
+            "Reduce": self.test_Reduce,
+            "Reduce2": self.test_Reduce2,
+            "ReduceL2": self.test_ReduceL2,
             "Upsample": self.test_Upsample,
             "Where": self.test_Where,
         }
@@ -2115,109 +2115,161 @@ class ONNX_IR_TESTER(object):
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
-    def test_ReduceMean(self):
-        test_case = "ReduceMean"
-        input_shape = [1, 4, 16, 64]
-        output_shape = [1, 4, 16]
+    def test_Reduce(self):
+        test_case = "Reduce"
+        input_shape = [4, 4, 4, 16, 64]
+        output_shape = [4, 4, 4, 16]
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
+        output0 = helper.make_tensor_value_info(
+            'o_mean', TensorProto.FLOAT, output_shape)
+        output1 = helper.make_tensor_value_info(
+            'o_max', TensorProto.FLOAT, output_shape)
+        output2 = helper.make_tensor_value_info(
+            'o_min', TensorProto.FLOAT, output_shape)
+        output3 = helper.make_tensor_value_info(
+            'o_sum', TensorProto.FLOAT, output_shape)
 
-        x1_node = helper.make_node(
-            'Neg',
-            ['input'],
-            ['X1'],
-        )
-
-        reduce_node = helper.make_node(
+        reduce_mean = helper.make_node(
             'ReduceMean',
-            ['X1'],
-            ['output'],
-            keepdims=0,
-            axes=[3, ],
-        )
-
-        graph_def = helper.make_graph(
-            [x1_node, reduce_node],
-            test_case,
-            [input],
-            [output]
-        )
-
-        model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 11
-        input_data = np.random.rand(*input_shape).astype(np.float32)
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
-
-    def test_ReduceMax(self):
-        test_case = "ReduceMax"
-        input_shape = [1, 4, 16, 64]
-        output_shape = [1, 4, 16]
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-
-        x1_node = helper.make_node(
-            'Neg',
             ['input'],
-            ['X1'],
+            ['x1'],
+            keepdims=0,
+            axes=[4],
         )
-
-        reduce_node = helper.make_node(
+        neg_def = helper.make_node(
+            'Neg',  # node name
+            ['x1'],  # inputs
+            ['o_mean'],  # outputs
+        )
+        reduce_max = helper.make_node(
             'ReduceMax',
-            ['X1'],
-            ['output'],
+            ['input'],
+            ['o_max'],
             keepdims=0,
-            axes=[3, ],
+            axes=[4],
+        )
+        reduce_min = helper.make_node(
+            'ReduceMin',
+            ['input'],
+            ['o_min'],
+            keepdims=0,
+            axes=[4],
+        )
+        reduce_sum = helper.make_node(
+            'ReduceSum',
+            ['input'],
+            ['o_sum'],
+            keepdims=0,
+            axes=[4],
         )
 
         graph_def = helper.make_graph(
-            [x1_node, reduce_node],
+            [reduce_mean, neg_def, reduce_max, reduce_min, reduce_sum],
             test_case,
             [input],
-            [output]
+            [output0, output1, output2, output3]
         )
 
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
-        input_data = np.random.rand(*input_shape).astype(np.float32)
-        input_data = input_data.reshape(tuple(input_shape))
-        indices = np.argmax(input_data, axis=1)
-        input_data[:, indices] += 0.1
+        input_data = np.random.randn(*input_shape).astype(np.float32)
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 
-    def test_ReduceMin(self):
-        test_case = "ReduceMin"
-        input_shape = [1, 4, 16, 64]
-        output_shape = [1, 4, 16]
+    def test_Reduce2(self):
+        test_case = "Reduce2"
+        input_shape = [4, 4, 4, 16, 64]
+        output_shape = [4, 4, 1, 1, 64]
+        output_shape2 = [4, 4, 64]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output0 = helper.make_tensor_value_info(
+            'o_mean', TensorProto.FLOAT, output_shape)
+        output1 = helper.make_tensor_value_info(
+            'o_max', TensorProto.FLOAT, output_shape)
+        output2 = helper.make_tensor_value_info(
+            'o_min', TensorProto.FLOAT, output_shape)
+        output3 = helper.make_tensor_value_info(
+            'o_sum', TensorProto.FLOAT, output_shape2)
+        output4 = helper.make_tensor_value_info(
+            'o_l2', TensorProto.FLOAT, output_shape)
+
+        reduce_mean = helper.make_node(
+            'ReduceMean',
+            ['input'],
+            ['o_mean'],
+            keepdims=1,
+            axes=[2,3],
+        )
+        reduce_max = helper.make_node(
+            'ReduceMax',
+            ['input'],
+            ['o_max'],
+            keepdims=1,
+            axes=[2, 3],
+        )
+        reduce_min = helper.make_node(
+            'ReduceMin',
+            ['input'],
+            ['o_min'],
+            keepdims=1,
+            axes=[2, 3],
+        )
+        reduce_sum = helper.make_node(
+            'ReduceSum',
+            ['input'],
+            ['x1'],
+            keepdims=0,
+            axes=[2, 3],
+        )
+        neg_def = helper.make_node(
+            'Neg',  # node name
+            ['x1'],  # inputs
+            ['o_sum'],  # outputs
+        )
+
+        graph_def = helper.make_graph(
+            [reduce_mean, reduce_max, reduce_min, reduce_sum, neg_def],
+            test_case,
+            [input],
+            [output0, output1, output2, output3]
+        )
+
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 11
+        input_data = np.random.randn(*input_shape).astype(np.float32)
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_ReduceL2(self):
+        test_case = "ReduceL2"
+        input_shape = [4, 4, 4, 16, 16, 64]
+        output_shape = [4, 4, 4, 64]
 
         input = helper.make_tensor_value_info(
             'input', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
+            'o_l2', TensorProto.FLOAT, output_shape)
 
-        x1_node = helper.make_node(
-            'Neg',
+        reduce_l2 = helper.make_node(
+            'ReduceL2',
             ['input'],
-            ['X1'],
+            ['x1'],
+            keepdims=0,
+            axes=[3, 4],
         )
 
-        reduce_node = helper.make_node(
-            'ReduceMin',
-            ['X1'],
-            ['output'],
-            keepdims=0,
-            axes=[3, ],
+        neg_def = helper.make_node(
+            'Neg',  # node name
+            ['x1'],  # inputs
+            ['o_l2'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [x1_node, reduce_node],
+            [reduce_l2, neg_def],
             test_case,
             [input],
             [output]
@@ -2226,11 +2278,9 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
         input_data = np.random.rand(*input_shape).astype(np.float32)
-        input_data = input_data.reshape(tuple(input_shape))
-        indices = np.argmax(input_data, axis=1)
-        input_data[:, indices] += 0.1
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
 
     def test_Resize(self):
         test_case = "test_Resize"

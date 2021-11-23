@@ -560,9 +560,9 @@ static bool quant_no_need(Operation *op) {
     return true;
   }
   if (op->getName().getDialect()->getNamespace() != "tpu" ||
-      isa<tpu::ReshapeOp>(op) || isa<tpu::ReduceL2Op>(op) ||
-      isa<tpu::InputOp>(op) || isa<tpu::InstanceNormOp>(op) ||
-      isa<tpu::ROIPoolingOp>(op) || isa<tpu::SoftmaxCpuOp>(op)) {
+      isa<tpu::ReshapeOp>(op) || isa<tpu::InputOp>(op) ||
+      isa<tpu::InstanceNormOp>(op) || isa<tpu::ROIPoolingOp>(op) ||
+      isa<tpu::SoftmaxCpuOp>(op)) {
     return true;
   } else if (isa<tpu::CustomOp>(op) && !cast<tpu::CustomOp>(op).do_quant()) {
     return true;
@@ -596,8 +596,9 @@ static void quant_for_special(Operation *op) {
   } else if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == true) {
   } else if (isa<tpu::LayerNormOp>(op) || isa<tpu::ConvFcOp>(op) ||
              isa<tpu::GruOp>(op) || isa<tpu::LstmOp>(op) ||
-             isa<tpu::SquareOp>(op) || isa<tpu::StdOp>(op) || isa<tpu::EmbeddingOp>(op) ||
-             isa<tpu::QuadraticSumOp>(op) || isa<tpu::Conv3DOp>(op)) {
+             isa<tpu::SquareOp>(op) || isa<tpu::StdOp>(op) ||
+             isa<tpu::EmbeddingOp>(op) || isa<tpu::QuadraticSumOp>(op) ||
+             isa<tpu::Conv3DOp>(op) || isa<tpu::ReduceL2Op>(op)) {
   } else {
     return;
   }
@@ -699,7 +700,6 @@ public:
           || isa<tpu::InputOp>(op)
           || isa<tpu::QuantOp>(op)
           || isa<tpu::InstanceNormOp>(op)
-          || isa<tpu::ReduceL2Op>(op)
           || isa<tpu::ReshapeOp>(op)
           || isa<tpu::ROIPoolingOp>(op)
           || isa<tpu::SoftmaxCpuOp>(op)) {

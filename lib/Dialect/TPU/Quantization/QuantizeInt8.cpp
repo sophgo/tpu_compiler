@@ -779,23 +779,20 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     assert(castOp && "Expect ReduceMeanOp");
 
     std::vector<int64_t> axes;
-    if (castOp.axes().hasValue()) {
-      // Collect reduced axes
-      for (auto val : castOp.axes().getValue())
-        axes.push_back(val.cast<IntegerAttr>().getInt());
+    // Collect reduced axes
+    for (auto val : castOp.axes().getValue())
+      axes.push_back(val.cast<IntegerAttr>().getInt());
 
-      // Calculate size of reduced axes from input dimensions
-      auto type = castOp.input().getType().template cast<TensorType>();
-      std::vector<int64_t> inputShapes(type.getShape());
-      int64_t size = 1;
-      for (auto dim : axes) {
-        assert(static_cast<unsigned>(dim) < inputShapes.size() &&
-                "Expect valid axis");
-        size *= inputShapes[dim];
-      }
-
-      qscale[0] /= size;
+    // Calculate size of reduced axes from input dimensions
+    auto shape = getTensorShape(castOp.input());
+    int64_t size = 1;
+    for (auto dim : axes) {
+      assert(static_cast<unsigned>(dim) < shape.size() &&
+             "Expect valid axis");
+      size *= shape[dim];
     }
+
+    qscale[0] /= size;
   }
 
   // create tensors for rshift and multiplier

@@ -667,6 +667,15 @@ LogicalResult tpu::ReciprocalOp::quantizeBf16() {
   return success();
 }
 
+LogicalResult tpu::ReduceL2Op::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  insertBf16LutOp(op, "sqrt", "mantissa", 1, 2);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
+}
+
 LogicalResult tpu::SigmoidOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -783,7 +792,6 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMaskOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PowerOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReluOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReorgOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceL2Op)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMeanOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMaxOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMinOp)

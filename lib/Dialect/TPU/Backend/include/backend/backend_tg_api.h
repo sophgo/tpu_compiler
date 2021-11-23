@@ -128,32 +128,30 @@ void cvi_backend_tg_fixed_eltwise_mul_kernel(
     const int32_t *multipliers,
     const int32_t *coeffs);
 
-void cvi_backend_tg_fixed_reduce_max_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
-    int n, int c, int h, int w,
-    int axes[], int num_axes);
+void cvi_backend_tg_fixed_reduce_max_kernel(const CviBackendContext &ctx,
+                                            uint32_t layer_id, gaddr_t ga_input,
+                                            gaddr_t ga_output,
+                                            std::vector<int64_t> shape,
+                                            std::vector<int32_t> axes);
 
-void cvi_backend_tg_fixed_reduce_min_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
-    int n, int c, int h, int w,
-    int rshift, int multiplier,
-    int axes[], int num_axes);
+void cvi_backend_tg_fixed_reduce_min_kernel(const CviBackendContext &ctx,
+                                            uint32_t layer_id, gaddr_t ga_input,
+                                            gaddr_t ga_output,
+                                            std::vector<int64_t> shape,
+                                            std::vector<int32_t> axes,
+                                            int multiplier, int rshift);
 
 void cvi_backend_tg_fixed_reduce_mean_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
-    int n, int c, int h, int w,
-    int rshift, int multiplier,
-    int axes[], int num_axes);
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_output, std::vector<int64_t> shape, std::vector<int32_t> axes,
+    int multiplier, int rshift);
 
-void cvi_backend_tg_fixed_reduce_sum_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
-    int n, int c, int h, int w,
-    int rshift, int multiplier,
-    int axes[], int num_axes);
+void cvi_backend_tg_fixed_reduce_sum_kernel(const CviBackendContext &ctx,
+                                            uint32_t layer_id, gaddr_t ga_input,
+                                            gaddr_t ga_output,
+                                            std::vector<int64_t> shape,
+                                            std::vector<int32_t> axes,
+                                            int multiplier, int rshift);
 
 void cvi_backend_tg_int8_bcast_add_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_a, gaddr_t ga_b,
@@ -376,29 +374,36 @@ void cvi_backend_tg_bf16_convfc_kernel(
     gaddr_t ga_right, gaddr_t ga_output, int M, int K, int N,
     bool do_quant = false, gaddr_t ga_scale = 0, gaddr_t ga_zeropoint = 0);
 
-void cvi_backend_tg_bf16_reduce_max_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
-    int n, int c, int h, int w,
-    int axes[], int num_axes);
+void cvi_backend_tg_bf16_reduce_max_kernel(const CviBackendContext &ctx,
+                                           uint32_t layer_id, gaddr_t ga_input,
+                                           gaddr_t ga_output,
+                                           std::vector<int64_t> shape,
+                                           std::vector<int32_t> axes);
 
-void cvi_backend_tg_bf16_reduce_min_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
-    int n, int c, int h, int w,
-    int axes[], int num_axes);
+void cvi_backend_tg_bf16_reduce_min_kernel(const CviBackendContext &ctx,
+                                           uint32_t layer_id, gaddr_t ga_input,
+                                           gaddr_t ga_output,
+                                           std::vector<int64_t> shape,
+                                           std::vector<int32_t> axes);
 
-void cvi_backend_tg_bf16_reduce_mean_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
-    int n, int c, int h, int w,
-    int axes[], int num_axes);
+void cvi_backend_tg_bf16_reduce_mean_kernel(const CviBackendContext &ctx,
+                                            uint32_t layer_id, gaddr_t ga_input,
+                                            gaddr_t ga_output,
+                                            std::vector<int64_t> shape,
+                                            std::vector<int32_t> axes);
 
-void cvi_backend_tg_bf16_reduce_sum_kernel(
-    const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
-    int n, int c, int h, int w,
-    int axes[], int num_axes);
+void cvi_backend_tg_bf16_reduce_sum_kernel(const CviBackendContext &ctx,
+                                           uint32_t layer_id, gaddr_t ga_input,
+                                           gaddr_t ga_output,
+                                           std::vector<int64_t> shape,
+                                           std::vector<int32_t> axes);
+
+void cvi_backend_tg_bf16_reduce_l2_kernel(const CviBackendContext &ctx,
+                                         uint32_t layer_id, gaddr_t ga_input,
+                                         gaddr_t ga_output, gaddr_t ga_table,
+                                         gaddr_t ga_mantissa_table,
+                                         std::vector<int64_t> shape,
+                                         std::vector<int32_t> axes);
 
 void cvi_backend_tg_bf16_lrn_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t input_gaddr,

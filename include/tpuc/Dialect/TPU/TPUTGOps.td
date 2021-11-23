@@ -2065,11 +2065,11 @@ class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_PadOp : TPU_TG_PadOp<"tg_int8_pad", "Int8">;
 def TPU_TG_BF16_PadOp : TPU_TG_PadOp<"tg_bf16_pad", "Bf16">;
 
-class TPU_TG_ReduceMeanOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+class TPU_TG_ReduceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " Reduce mean operator.";
+  let summary = "TG " # opQuant # " Reduce  operator.";
 
   let description = [{
     Inputs:
@@ -2099,32 +2099,37 @@ class TPU_TG_ReduceMeanOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<I32ArrayAttr>:$axes,
+    I32ArrayAttr:$axes,
     StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_ReduceMeanOp : TPU_TG_ReduceMeanOp<"tg_int8_reduce_mean", "Int8">;
-def TPU_TG_BF16_ReduceMeanOp : TPU_TG_ReduceMeanOp<"tg_bf16_reduce_mean", "Bf16">;
+def TPU_TG_INT8_ReduceMeanOp : TPU_TG_ReduceOp<"tg_int8_reduce_mean", "Int8">;
+def TPU_TG_BF16_ReduceMeanOp : TPU_TG_ReduceOp<"tg_bf16_reduce_mean", "Bf16">;
+def TPU_TG_INT8_ReduceMaxOp  : TPU_TG_ReduceOp<"tg_int8_reduce_max", "Int8">;
+def TPU_TG_BF16_ReduceMaxOp  : TPU_TG_ReduceOp<"tg_bf16_reduce_max", "Bf16">;
+def TPU_TG_INT8_ReduceMinOp  : TPU_TG_ReduceOp<"tg_int8_reduce_min", "Int8">;
+def TPU_TG_BF16_ReduceMinOp  : TPU_TG_ReduceOp<"tg_bf16_reduce_min", "Bf16">;
+def TPU_TG_INT8_ReduceSumOp  : TPU_TG_ReduceOp<"tg_int8_reduce_sum", "Int8">;
+def TPU_TG_BF16_ReduceSumOp  : TPU_TG_ReduceOp<"tg_bf16_reduce_sum", "Bf16">;
 
-class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+class TPU_TG_ReduceL2Op<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " Reduce max operator.";
+  let summary = "TG " # opQuant # " reduce l2 operator.";
 
   let description = [{
+    Perform reduce l2 on input.
+
     Inputs:
-      `input`           : required, the input activation memref.
+      `input`           : required, the input activation tensor.
+      `table`           : required, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : required, the quantize lookup table,only used by BF16 .
 
     Attributes:
-
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `buffer_reused`   : optional, whether buffer is reused.
-      `axes`            : along which axis to do reduce
-      `name`            : required, name for comparing, or debug.
+      `name`            : required, name for calibration, comparing, or debug.
 
 
     Result:
@@ -2138,101 +2143,17 @@ class TPU_TG_ReduceMaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
   let arguments = (
     ins AnyTensor:$input,
-    OptionalAttr<I8Attr>:$rshift,
-    OptionalAttr<I8Attr>:$m_i8,
+    AnyTensor:$table,
+    AnyTensor:$mantissa_table,
+    I32ArrayAttr:$axes,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<I32ArrayAttr>:$axes,
     StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_ReduceMaxOp : TPU_TG_ReduceMaxOp<"tg_int8_reduce_max", "Int8">;
-def TPU_TG_BF16_ReduceMaxOp : TPU_TG_ReduceMaxOp<"tg_bf16_reduce_max", "Bf16">;
-
-class TPU_TG_ReduceMinOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " Reduce max operator.";
-
-  let description = [{
-    Inputs:
-      `input`           : required, the input activation memref.
-
-    Attributes:
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `buffer_reused`   : optional, whether buffer is reused.
-      `axes`            : along which axis to do reduce
-      `name`            : required, name for comparing, or debug.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<I8Attr>:$rshift,
-    OptionalAttr<I8Attr>:$m_i8,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<I32ArrayAttr>:$axes,
-    StrAttr:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-def TPU_TG_INT8_ReduceMinOp : TPU_TG_ReduceMinOp<"tg_int8_reduce_min", "Int8">;
-def TPU_TG_BF16_ReduceMinOp : TPU_TG_ReduceMinOp<"tg_bf16_reduce_min", "Bf16">;
-
-class TPU_TG_ReduceSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " Reduce sum operator.";
-
-  let description = [{
-    Inputs:
-      `input`           : required, the input activation memref.
-
-    Attributes:
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `buffer_reused`   : optional, whether buffer is reused.
-      `axes`            : along which axis to do reduce
-      `name`            : required, name for comparing, or debug.
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<I8Attr>:$rshift,
-    OptionalAttr<I8Attr>:$m_i8,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<I32ArrayAttr>:$axes,
-    StrAttr:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-def TPU_TG_INT8_ReduceSumOp : TPU_TG_ReduceSumOp<"tg_int8_reduce_sum", "Int8">;
-def TPU_TG_BF16_ReduceSumOp : TPU_TG_ReduceSumOp<"tg_bf16_reduce_sum", "Bf16">;
-
+def TPU_TG_BF16_ReduceL2Op : TPU_TG_ReduceL2Op<"tg_bf16_reduce_l2", "Bf16">;
 
 class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

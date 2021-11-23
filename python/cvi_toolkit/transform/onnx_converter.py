@@ -261,11 +261,11 @@ class OnnxConverter(BaseConverter):
             "Relu": lambda node: self.convert_relu_op(node),
             "Reshape": lambda node: self.convert_reshape_op(node),
             "Resize": lambda node: self.convert_resize_op(node),
-            "ReduceL2": lambda node: self.convert_reduce_l2_op(node),
-            "ReduceMean": lambda node: self.convert_reduce_mean_op(node),
-            "ReduceMax": lambda node: self.convert_reduce_max_op(node),
-            "ReduceMin": lambda node: self.convert_reduce_min_op(node),
-            "ReduceSum": lambda node: self.convert_reduce_sum_op(node),
+            "ReduceL2": lambda node: self.convert_reduce_op(node),
+            "ReduceMean": lambda node: self.convert_reduce_op(node),
+            "ReduceMax": lambda node: self.convert_reduce_op(node),
+            "ReduceMin": lambda node: self.convert_reduce_op(node),
+            "ReduceSum": lambda node: self.convert_reduce_op(node),
             "Shape": lambda node: self.convert_shape_op(node),
             "Sigmoid" :lambda node: self.convert_activation_op(node),
             "Slice": lambda node: self.convert_slice_op(node),
@@ -484,8 +484,10 @@ class OnnxConverter(BaseConverter):
                 preNodes.update({node.outputs[0]: i})
             elif node.op_type == "Div" and node.inputs[1] in preNodes.keys() \
                  and node.inputs[0] in preNodes.keys() \
-                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant":                                                                                                 \
+                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant":                                                                                                                                 \
                 # swap input and output (notice name eq outputs[0])
+
+
                 mul_idx = preNodes[node.inputs[0]]
                 mul = self.converted_nodes[mul_idx]
                 node.inputs[0] = mul.inputs[1]
@@ -3758,186 +3760,55 @@ class OnnxConverter(BaseConverter):
         self.addOperand(onnx_node.name, new_op,
                         output_shape, TensorType.ACTIVATION)
 
-    def convert_reduce_l2_op(self, onnx_node):
-        assert(onnx_node.op_type == "ReduceL2")
-        checkKey(onnx_node.attrs, 'axes')
-        axes = onnx_node.attrs['axes']
-        keepdims = onnx_node.attrs['keepdims']
-        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
-        output_shape = input_shape0
-        if len(axes) == 1 and axes[0] == 3:
-            # remove the last dimension
-            if keepdims == 0:
-                output_shape = input_shape0[:-1]
-            else:
-                output_shape = input_shape0[:-1]
-                output_shape.extend([1])
-        elif len(axes) == 1 and axes[0] == 1:
-            if keepdims == 0:
-                output_shape = (input_shape0[0:1])
-                output_shape.extend(input_shape0[2:])
-            else:
-                output_shape = input_shape0[0:1]
-                output_shape.extend([1,])
-                output_shape.extend(input_shape0[2:])
-        else:
-            raise RuntimeError("axes type not support: ", axes)
-
-        attr = {
-            'axes': axes
-        }
-
-        operands = list()
-        operands.append(op0)
-        reduce_l2_op = self.CVI.add_reduce_l2_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-        self.addOperand(onnx_node.name, reduce_l2_op, output_shape, TensorType.ACTIVATION)
-
-    def convert_reduce_mean_op(self, onnx_node):
-        assert(onnx_node.op_type == "ReduceMean")
+    def convert_reduce_op(self, onnx_node):
         checkKey(onnx_node.attrs, 'axes')
         axes = onnx_node.attrs['axes']
         keepdims = onnx_node.attrs.get('keepdims', 1)
-        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
-        output_shape = input_shape0
-
-        axis = 0
-        if len(axes) == 1:
-            if axes[0] == -1:
-                axes[0] = len(input_shape0) - 1
-
-            if axes[0] != 2 and axes[0] != 3:
-                raise RuntimeError("{} axis not support, please add".format(axes[0]))
-
-            output_shape = list(input_shape0)
-            if keepdims == 0:
-                output_shape.pop(axes[0])
-            else:
-                output_shape[axes[0]] = 1
-
-        elif len(axes) == 2 and axes[0] == 2 and axes[1] == 3:
-            if keepdims == 0:
-                output_shape = input_shape0[:-2]
-            else:
-                output_shape = input_shape0[:-2]
-                output_shape.extend([1,1])
+        op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
+        output_shape = list(input_shape)
+        num_dims = len(input_shape)
+        only_reshape = True
+        if len(axes) > 0:
+            for idx in range(len(axes)):
+                if axes[idx] < 0:
+                    axes[idx] += num_dims
+                if only_reshape and input_shape[axes[idx]] != 1:
+                    only_reshape = False
+                if keepdims:
+                    output_shape[axes[idx]] = 1
+            if not keepdims:
+                axes.sort(reverse=True)
+                for axis in axes:
+                    del output_shape[axis]
         else:
-            raise RuntimeError("axes type not support for now")
-
-        attr = {
-            'axes': axes
-        }
-        operands = list()
-        operands.append(op0)
-        reduce_mean_op = self.CVI.add_reduce_mean_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-        self.addOperand(onnx_node.name, reduce_mean_op, output_shape, TensorType.ACTIVATION)
-
-    def convert_reduce_max_op(self, onnx_node):
-        assert(onnx_node.op_type == "ReduceMax")
-        checkKey(onnx_node.attrs, 'axes')
-        axes = onnx_node.attrs['axes']
-        keepdims = onnx_node.attrs['keepdims']
-        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
-        output_shape = input_shape0
-        print("reduce max, input: ", input_shape0, "axes: ", axes, "keepdims: ", keepdims)
-        #
-        if len(axes) == 1 and axes[0] == 3:
-            # remove the last dimension
-            if keepdims == 0:
-                output_shape = input_shape0[:-1]
+            only_reshape = False
+            for idx in range(num_dims):
+                axes.append(idx)
+            if keepdims:
+                output_shape = [1] * num_dims
             else:
-                output_shape = input_shape0[:-1]
-                output_shape.extend([1])
-        elif len(axes) == 1 and axes[0] == 1:
-            if keepdims == 0:
-                output_shape = (input_shape0[0:1])
-                output_shape.extend(input_shape0[2:])
-            else:
-                output_shape = input_shape0[0:1]
-                output_shape.extend([1,])
-                output_shape.extend(input_shape0[2:])
+                output_shape = [1]
+
+        op_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+        if only_reshape:
+            new_op = self.CVI.add_reshape_op(op_name, [op], output_shape)
+            self.addOperand(onnx_node.name, new_op, output_shape, TensorType.ACTIVATION)
+            return
+        axes.sort()
+        attr = {'axes': axes}
+        if onnx_node.op_type == "ReduceMean":
+            new_op = self.CVI.add_reduce_mean_op(op_name, [op], output_shape, **attr)
+        elif onnx_node.op_type == "ReduceMax":
+            new_op = self.CVI.add_reduce_max_op(op_name, [op], output_shape, **attr)
+        elif onnx_node.op_type == "ReduceMin":
+            new_op = self.CVI.add_reduce_min_op(op_name, [op], output_shape, **attr)
+        elif onnx_node.op_type == "ReduceSum":
+            new_op = self.CVI.add_reduce_sum_op(op_name, [op], output_shape, **attr)
+        elif onnx_node.op_type == "ReduceL2":
+            new_op = self.CVI.add_reduce_l2_op(op_name, [op], output_shape, **attr)
         else:
-            raise RuntimeError("axes type not support: ", axes)
-
-        attr = {
-            'axes': axes
-        }
-
-        operands = list()
-        operands.append(op0)
-        reduce_mean_op = self.CVI.add_reduce_max_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-        self.addOperand(onnx_node.name, reduce_mean_op, output_shape, TensorType.ACTIVATION)
-
-    def convert_reduce_min_op(self, onnx_node):
-        assert(onnx_node.op_type == "ReduceMin")
-        checkKey(onnx_node.attrs, 'axes')
-        axes = onnx_node.attrs['axes']
-        keepdims = onnx_node.attrs['keepdims']
-        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
-        output_shape = input_shape0
-
-        #only support one axes
-        if len(axes) == 1 and axes[0] == 3:
-            # remove the last dimension
-            if keepdims == 0:
-                output_shape = input_shape0[:-1]
-            else:
-                output_shape = input_shape0[:-1]
-                output_shape.extend([1])
-        elif len(axes) == 1 and axes[0] == 1:
-            if keepdims == 0:
-                output_shape = (input_shape0[0:1])
-                output_shape.extend(input_shape0[2:])
-            else:
-                output_shape = input_shape0[0:1]
-                output_shape.extend([1,])
-                output_shape.extend(input_shape0[2:])
-        else:
-            raise RuntimeError("axes type not support: ", axes)
-
-        attr = {
-            'axes': axes
-        }
-
-        operands = list()
-        operands.append(op0)
-        reduce_min_op = self.CVI.add_reduce_min_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-        self.addOperand(onnx_node.name, reduce_min_op, output_shape, TensorType.ACTIVATION)
-
-    def convert_reduce_sum_op(self, onnx_node):
-        assert(onnx_node.op_type == "ReduceSum")
-        checkKey(onnx_node.attrs, 'axes')
-        axes = onnx_node.attrs['axes']
-        keepdims = onnx_node.attrs['keepdims']
-        op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
-        output_shape = input_shape0
-        print("reduce sum, input: ", input_shape0, "axes: ", axes, "keepdims: ", keepdims)
-        #
-        if len(axes) == 1 and axes[0] == 3:
-            # remove the last dimension
-            if keepdims == 0:
-                output_shape = input_shape0[:-1]
-            else:
-                output_shape = input_shape0[:-1]
-                output_shape.extend([1])
-        elif len(axes) == 1 and axes[0] == 1:
-            if keepdims == 0:
-                output_shape = (input_shape0[0:1])
-                output_shape.extend(input_shape0[2:])
-            else:
-                output_shape = input_shape0[0:1]
-                output_shape.extend([1,])
-                output_shape.extend(input_shape0[2:])
-        else:
-            raise RuntimeError("axes type not support: ", axes)
-
-        attr = {
-            'axes': axes
-        }
-
-        operands = list()
-        operands.append(op0)
-        reduce_sum_op = self.CVI.add_reduce_sum_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attr)
-        self.addOperand(onnx_node.name, reduce_sum_op, output_shape, TensorType.ACTIVATION)
+            raise RuntimeError("Reduce not support {}\n".format(onnx_node.op_type))
+        self.addOperand(onnx_node.name, new_op, output_shape, TensorType.ACTIVATION)
 
     def convert_std_op(self, onnx_node):
         assert(onnx_node.op_type == "Std")

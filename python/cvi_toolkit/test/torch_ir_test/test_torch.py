@@ -1104,10 +1104,10 @@ class TORCH_IR_TESTER(object):
 
             def forward(self, x):
                 x = torch.negative(x)
-                x = torch.norm(x, p=2, dim=1, keepdim=True)
+                x = torch.norm(x, p=2, dim=2, keepdim=True)
                 return x
 
-        input_shape = [3, 1, 100, 100]
+        input_shape = [3, 10, 100, 100]
         test_name = 'Norm'
 
         net = Net()

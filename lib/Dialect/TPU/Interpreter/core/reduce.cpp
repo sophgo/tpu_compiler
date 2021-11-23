@@ -1,387 +1,112 @@
 #include "tpuc/Interpreter/cpu/reduce.hpp"
+#include "internal.hpp"
 #include "tpuc/Dialect/TPU/TPUDialect.h"
+#include "tpuc/Interpreter/cpu/lut_func.hpp"
 #include "tpuc/MlirModuleInterpreter.h"
-
+#include <algorithm>
 namespace mlir {
-inline int count(std::vector<int64_t> &shape, int start_axis, int end_axis) {
-  int64_t count = 1;
-  for (int i = start_axis; i < end_axis; ++i) {
-    count *= shape[i];
+
+ReduceOpKernel::ReduceOpKernel(Operation &op, value_map_t &valueMapping,
+                               weight_map_t &weightMapping)
+    : CPUOpKernel(op, valueMapping, weightMapping) {
+  auto input_shape = getTensorShape(op.getOperand(0));
+  auto axes_v = op.getAttr("axes").cast<ArrayAttr>();
+  arrayAttrToVector(axes_v, this->axes);
+  if (datatype == DataType::INT8) {
+    auto quant_rshift = this->opdTensors[3];
+    auto quant_multiplier = this->opdTensors[4];
+    this->rshift = quant_rshift != nullptr ? quant_rshift->at(0) : 0;
+
+    this->multiplier =
+        quant_multiplier != nullptr ? quant_multiplier->at(0) : 1;
   }
-  return count;
+  lut = this->opdTensors[1];
+  mantissa_lut = this->opdTensors[2];
+  // get tensors
+  input_data = this->opdTensors[0];
+  output_data = this->resTensor;
+  // calc dims
+  int num_dims = input_shape.size();
+  int num_axes = axes.size();
+
+  for (int i = 1; i < num_axes; i++) {
+    assert(axes[i] == axes[i - 1] + 1);
+    assert(axes[i] < num_dims);
+  }
+  int start_axis = axes[0];
+  int end_axis = axes[num_axes - 1] + 1;
+  outer_dims =
+      std::accumulate(input_shape.begin(), input_shape.begin() + start_axis, 1,
+                      std::multiplies<int64_t>());
+  axis_dims = std::accumulate(input_shape.begin() + start_axis,
+                              input_shape.begin() + end_axis, 1,
+                              std::multiplies<int64_t>());
+  inner_dims =
+      std::accumulate(input_shape.begin() + end_axis, input_shape.end(), 1,
+                      std::multiplies<int64_t>());
 }
 
-void reduce_mean(float *input, float *output,
-                 std::vector<int64_t> &org_input_shape,
-                 std::vector<int> &axes) {
-  assert(axes.size() > 0);
-  auto input_shape = org_input_shape;
-  int size = count(input_shape, 0, input_shape.size());
-  std::vector<float> tmp(size, 0);
-  float *_output = tmp.data();
-
-  for (int i = 0; i < (int)axes.size(); i++) {
-    int dim = input_shape.size();
-    int axis = axes[i];
-    assert(dim > axis);
-
-    int inner = count(input_shape, axis + 1, input_shape.size());
-    int next_inner = inner * input_shape[axis];
-    int outer = count(input_shape, 0, axis);
-
-    for (int i = 0; i < outer; i++) {
-      std::vector<float> inner_sum(inner, 0);
-      for (int s = 0; s < input_shape[axis]; s++) {
-        for (int j = 0; j < inner; j++) {
-          inner_sum[j] += input[i * next_inner + s * inner + j];
+void ReduceOpKernel::invoke() {
+  auto input = input_data->data();
+  auto output = output_data->data();
+  for (int o = 0; o < outer_dims; o++) {
+    for (int i = 0; i < inner_dims; i++) {
+      switch (type) {
+      case REDUCE_MEAN:
+      case REDUCE_SUM: {
+        float sum = 0.0f;
+        if (inner_dims == 1) {
+          sum = std::accumulate(input + o * axis_dims,
+                                input + (o + 1) * axis_dims, 0.0f);
+        } else {
+          for (int a = 0; a < axis_dims; a++) {
+            sum += input[o * axis_dims * inner_dims + a * inner_dims + i];
+          }
         }
-      }
-
-      // mean
-      for (int j = 0; j < inner; j++) {
-        _output[i * inner + j] = inner_sum[j] / input_shape[axis];
-      }
-    }
-
-    input_shape[axis] = 1;
-    input = _output;
-  }
-
-  // export
-  size = count(input_shape, 0, input_shape.size());
-  std::copy(_output, _output + size, output);
-}
-
-void reduce_mean_int8(float *input, float *output,
-                      std::vector<int64_t> &org_input_shape,
-                      std::vector<int> &axes, int avg_const, int rshift) {
-  assert(axes.size() > 0);
-  auto input_shape = org_input_shape;
-  int size = count(input_shape, 0, input_shape.size());
-  std::vector<int> tmp(size, 0);
-  int *_output = tmp.data();
-  std::vector<int> tmp2(size, 0);
-  int *_input = tmp2.data();
-
-  // Convert integer format
-  for (int i = 0; i < size; i++)
-    _input[i] = (int)(input[i] * avg_const);
-
-  for (int i = 0; i < (int)axes.size(); i++) {
-    int dim = input_shape.size();
-    int axis = axes[i];
-    assert(dim > axis);
-
-    int inner = count(input_shape, axis + 1, input_shape.size());
-    int next_inner = inner * input_shape[axis];
-    int outer = count(input_shape, 0, axis);
-
-    llvm::errs() << "  [" << i << "] inner " << inner << ", outer " << outer
-                 << ", axis shape:" << input_shape[axis] << ", axis " << axis
-                 << "\n";
-
-    for (int i = 0; i < outer; i++) {
-      std::vector<int> inner_sum(inner, 0);
-      for (int s = 0; s < input_shape[axis]; s++) {
-        for (int j = 0; j < inner; j++) {
-          inner_sum[j] += _input[i * next_inner + s * inner + j];
+        if (type == REDUCE_SUM) {
+          output[o * inner_dims + i] = sum;
+        } else {
+          if (datatype != DataType::INT8) {
+            sum = sum / axis_dims;
+          }
+          output[o * inner_dims + i] = sum;
         }
-      }
-
-      for (int j = 0; j < inner; j++) {
-        _output[i * inner + j] = inner_sum[j];
-      }
-    }
-
-    input_shape[axis] = 1;
-    _input = _output;
-  }
-
-  // quant down and
-  // Store float format
-  size = count(input_shape, 0, input_shape.size());
-  for (int i = 0; i < size; i++) {
-    int val = _output[i];
-    val >>= rshift - 1;
-    val += 1; // round up
-    val >>= 1;
-    val = std::max(val, -128);
-    val = std::min(val, 127);
-    output[i] = (float)val;
-  }
-}
-
-void reduce_max(float *input, float *output, std::vector<int64_t> &input_shape,
-                std::vector<int> &axes) {
-  assert(axes.size() > 0);
-  int axis = axes[0];
-  // only support one axis, if has two axis, should be continous
-  int total = count(input_shape, 0, input_shape.size());
-  int n = count(input_shape, 0, axis);
-  int c = input_shape[axis];
-  int hw = total / (n * c);
-
-  for (int nidx = 0; nidx < n; nidx++) {
-    for (int inner_idx = 0; inner_idx < hw; inner_idx++) {
-      for (int cidx = 0; cidx < c; cidx++) {
-        float tmp = input[nidx * c * hw + cidx * hw + inner_idx];
-        if (cidx == 0)
-          output[nidx * hw + inner_idx] = tmp;
-        output[nidx * hw + inner_idx] =
-            std::max(tmp, output[nidx * hw + inner_idx]);
-      }
-    }
-  }
-}
-
-void reduce_min(float *input, float *output, std::vector<int64_t> &input_shape,
-                std::vector<int> &axes) {
-  assert(axes.size() > 0);
-  int axis = axes[0];
-  // only support one axis, if has two axis, should be continous
-  int total = count(input_shape, 0, input_shape.size());
-  int n = count(input_shape, 0, axis);
-  int c = input_shape[axis];
-  int hw = total / (n * c);
-
-  for (int nidx = 0; nidx < n; nidx++) {
-    for (int inner_idx = 0; inner_idx < hw; inner_idx++) {
-      for (int cidx = 0; cidx < c; cidx++) {
-        float tmp = input[nidx * c * hw + cidx * hw + inner_idx];
-        if (cidx == 0)
-          output[nidx * hw + inner_idx] = tmp;
-        output[nidx * hw + inner_idx] =
-            std::min(tmp, output[nidx * hw + inner_idx]);
-      }
-    }
-  }
-}
-
-void reduce_sum(float *input, float *output, std::vector<int64_t> &input_shape,
-                std::vector<int> &axes) {
-  assert(axes.size() > 0);
-  int axis = axes[0];
-  // only support one axis, if has two axis, should be continous
-  int total = count(input_shape, 0, input_shape.size());
-  int n = count(input_shape, 0, axis);
-  int c = input_shape[axis];
-  int hw = total / (n * c);
-
-  for (int nidx = 0; nidx < n; nidx++) {
-    for (int inner_idx = 0; inner_idx < hw; inner_idx++) {
-      float sum = 0.0f;
-      for (int cidx = 0; cidx < c; cidx++) {
-        sum += input[nidx * c * hw + cidx * hw + inner_idx];
-      }
-      output[nidx * hw + inner_idx] = sum;
-    }
-  }
-}
-
-//   reduced = np.sqrt(np.sum(
-//               a=np.square(data), axis=axes, keepdims=keepdims == 1))
-void reduce_l2(float *input, float *output,
-               std::vector<int64_t> &org_input_shape, std::vector<int> &axes) {
-  assert(axes.size() > 0);
-  auto input_shape = org_input_shape;
-  int size = count(input_shape, 0, input_shape.size());
-  std::vector<float> tmp(size, 0);
-  float *_output = tmp.data();
-
-  for (int i = 0; i < (int)axes.size(); i++) {
-    int dim = input_shape.size();
-    int axis = axes[i];
-    assert(dim > axis);
-
-    // NOTICE: only verify dim [1, xx]
-    int inner = count(input_shape, axis + 1, input_shape.size());
-    int next_inner = inner * input_shape[axis];
-    int outer = count(input_shape, 0, axis);
-
-    for (int i = 0; i < outer; i++) {
-      std::vector<float> inner_sum(inner, 0);
-      for (int s = 0; s < input_shape[axis]; s++) {
-        for (int j = 0; j < inner; j++) {
-          inner_sum[j] += std::pow(input[i * next_inner + s * inner + j], 2);
+      } break;
+      case REDUCE_MAX:
+      case REDUCE_MIN: {
+        float target = input[o * axis_dims * inner_dims + i];
+        for (int a = 1; a < axis_dims; a++) {
+          auto v = input[o * axis_dims * inner_dims + a * inner_dims + i];
+          if (type == REDUCE_MAX && v > target) {
+            target = v;
+          } else if (type == REDUCE_MIN && v < target) {
+            target = v;
+          }
         }
+        output[o * inner_dims + i] = target;
+      } break;
+      case REDUCE_L2: {
+        float sum = 0.0f;
+        for (int a = 0; a < axis_dims; a++) {
+          sum += std::pow(
+              input[o * axis_dims * inner_dims + a * inner_dims + i], 2);
+        }
+        if (datatype == DataType::BF16) {
+          bf16_lut_mantissa(&sum, &sum, 1, lut->data(), mantissa_lut->data());
+          output[o * inner_dims + i] = sum;
+        } else {
+          output[o * inner_dims + i] = std::sqrt(sum);
+        }
+      } break;
       }
-
-      // l2
-      for (int j = 0; j < inner; j++) {
-        _output[i * inner + j] = std::sqrt(inner_sum[j]);
-      }
     }
-
-    input_shape[axis] = 1;
-    input = _output;
   }
-
-  // export
-  size = count(input_shape, 0, input_shape.size());
-  std::copy(_output, _output + size, output);
-}
-
-ReduceL2OpKernel::ReduceL2OpKernel(Operation &op, value_map_t &valueMapping,
-                                   weight_map_t &weightMapping)
-    : CPUOpKernel(op, valueMapping, weightMapping) {
-  auto reducemaxOp = cast<tpu::ReduceL2Op>(op);
-  auto input_type = reducemaxOp.input().getType().template cast<TensorType>();
-  this->input_shape = input_type.getShape();
-  arrayAttrToVector(reducemaxOp.axes().getValue(), this->axes);
-  if (datatype == DataType::INT8) {
-    auto quant_rshift = this->opdTensors[3];
-    auto quant_multiplier = this->opdTensors[4];
-    assert(quant_rshift);
-    assert(quant_multiplier);
-    this->rshift = quant_rshift->at(0);
-    this->multiplier = quant_multiplier->at(0);
-  }
-  // get tensors
-  input_data = this->opdTensors[0];
-  output_data = this->resTensor;
-}
-
-void ReduceL2OpKernel::invoke() {
-  reduce_l2(input_data->data(), output_data->data(), input_shape, axes);
-  if (datatype == DataType::INT8) {
+  if (datatype == DataType::INT8 && (rshift != 0 || multiplier != 1)) {
     for (size_t i = 0; i < output_data->size(); ++i) {
       output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
           output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
     }
   } else if (datatype == DataType::BF16) {
-    BF16(output_data->data(), output_data->data(), output_data->size());
-  }
-}
-
-ReduceMaxOpKernel::ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping,
-                                     weight_map_t &weightMapping)
-    : CPUOpKernel(op, valueMapping, weightMapping) {
-  auto reducemaxOp = cast<tpu::ReduceMaxOp>(op);
-  auto input_type = reducemaxOp.input().getType().template cast<TensorType>();
-  this->input_shape = input_type.getShape();
-  arrayAttrToVector(reducemaxOp.axes().getValue(), this->axes);
-
-  if (datatype == DataType::INT8) {
-    auto quant_rshift = this->opdTensors[3];
-    auto quant_multiplier = this->opdTensors[4];
-    assert(quant_rshift);
-    assert(quant_multiplier);
-    this->rshift = quant_rshift->at(0);
-    this->multiplier = quant_multiplier->at(0);
-  }
-  // get tensors
-  input_data = this->opdTensors[0];
-  output_data = this->resTensor;
-}
-
-void ReduceMaxOpKernel::invoke() {
-  reduce_max(input_data->data(), output_data->data(), input_shape, axes);
-  if (datatype == DataType::INT8) {
-    for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
-    }
-  } else if (datatype == DataType::BF16) {
-    BF16(output_data->data(), output_data->data(), output_data->size());
-  }
-}
-
-ReduceMinOpKernel::ReduceMinOpKernel(Operation &op, value_map_t &valueMapping,
-                                     weight_map_t &weightMapping)
-    : CPUOpKernel(op, valueMapping, weightMapping) {
-  auto reduceminOp = cast<tpu::ReduceMinOp>(op);
-  auto input_type = reduceminOp.input().getType().template cast<TensorType>();
-  this->input_shape = input_type.getShape();
-  arrayAttrToVector(reduceminOp.axes().getValue(), this->axes);
-
-  if (datatype == DataType::INT8) {
-    auto quant_rshift = this->opdTensors[3];
-    auto quant_multiplier = this->opdTensors[4];
-    assert(quant_rshift);
-    assert(quant_multiplier);
-    this->rshift = quant_rshift->at(0);
-    this->multiplier = quant_multiplier->at(0);
-  }
-  // get tensors
-  input_data = this->opdTensors[0];
-  output_data = this->resTensor;
-}
-
-void ReduceMinOpKernel::invoke() {
-  reduce_min(input_data->data(), output_data->data(), input_shape, axes);
-  if (datatype == DataType::INT8) {
-    for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
-    }
-  } else if (datatype == DataType::BF16) {
-    BF16(output_data->data(), output_data->data(), output_data->size());
-  }
-}
-
-ReduceSumOpKernel::ReduceSumOpKernel(Operation &op, value_map_t &valueMapping,
-                                     weight_map_t &weightMapping)
-    : CPUOpKernel(op, valueMapping, weightMapping) {
-  auto reducesumOp = cast<tpu::ReduceSumOp>(op);
-  auto input_type = reducesumOp.input().getType().template cast<TensorType>();
-  this->input_shape = input_type.getShape();
-  arrayAttrToVector(reducesumOp.axes().getValue(), this->axes);
-
-  if (datatype == DataType::INT8) {
-    auto quant_rshift = this->opdTensors[3];
-    auto quant_multiplier = this->opdTensors[4];
-    assert(quant_rshift);
-    assert(quant_multiplier);
-    this->rshift = quant_rshift->at(0);
-    this->multiplier = quant_multiplier->at(0);
-  }
-  // get tensors
-  input_data = this->opdTensors[0];
-  output_data = this->resTensor;
-}
-
-void ReduceSumOpKernel::invoke() {
-  reduce_sum(input_data->data(), output_data->data(), input_shape, axes);
-  if (datatype == DataType::INT8) {
-    for (size_t i = 0; i < output_data->size(); ++i) {
-      output_data->at(i) = (float)applyMultiplierAndRShiftAndSaturateInt8(
-          output_data->at(i), (uint32_t)rshift, (uint32_t)multiplier, false);
-    }
-  } else if (datatype == DataType::BF16) {
-    BF16(output_data->data(), output_data->data(), output_data->size());
-  }
-}
-
-ReduceMeanOpKernel::ReduceMeanOpKernel(Operation &op, value_map_t &valueMapping,
-                                       weight_map_t &weightMapping)
-    : CPUOpKernel(op, valueMapping, weightMapping) {
-  auto reducemeanOp = cast<tpu::ReduceMeanOp>(op);
-  auto input_type = reducemeanOp.input().getType().template cast<TensorType>();
-  this->input_shape = input_type.getShape();
-  arrayAttrToVector(reducemeanOp.axes().getValue(), this->axes);
-
-  if (datatype == DataType::INT8) {
-    auto quant_rshift = this->opdTensors[3];
-    auto quant_multiplier = this->opdTensors[4];
-    assert(quant_rshift);
-    assert(quant_multiplier);
-    this->rshift = quant_rshift->at(0);
-    this->multiplier = quant_multiplier->at(0);
-  }
-  // get tensors
-  input_data = this->opdTensors[0];
-  output_data = this->resTensor;
-}
-
-void ReduceMeanOpKernel::invoke() {
-
-  if (datatype == DataType::FP32) {
-    reduce_mean(input_data->data(), output_data->data(), input_shape, axes);
-  } else if (datatype == DataType::INT8) {
-    reduce_mean_int8(input_data->data(), output_data->data(), input_shape, axes,
-                     (int)multiplier, (int)rshift);
-  } else if (datatype == DataType::BF16) {
-    reduce_mean(input_data->data(), output_data->data(), input_shape, axes);
     BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }

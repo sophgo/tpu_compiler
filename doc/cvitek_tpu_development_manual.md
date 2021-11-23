@@ -272,7 +272,7 @@ TPU软件开发框图如下图所示:
 | Conv                  | TPU    | Relu                  | TPU    |
 | ConvTranspose         | TPU    | Reshape               | None   |
 | Clip                  | TPU    | Resize                | TPU    |
-| Constant              | TPU    | ReduceL2              | CPU    |
+| Constant              | TPU    | ReduceL2              | TPU    |
 | ConstantOfShape       | TPU    | ReduceMean            | TPU    |
 | DepthToSpace          | TPU    | ReduceMax             | TPU    |
 | Div                   | TPU    | Shape                 | None   |
@@ -911,7 +911,6 @@ TPU软件开发框图如下图所示:
   |quant_rshift      | TPU_TensorOfOrNone      | Quant右移位      | 属性|
   |quant_multiplier  | TPU_TensorOfOrNone      | Quant乘数       | 属性|
   |axes              | OptionalAttr            | 指定维度          | 属性|
-  |keepdims          | DefaultValuedAttr       | 是否保持维度        | 属性|
   |name              | StrAttr                 | 名称            | 属性|
 
 
@@ -923,11 +922,12 @@ TPU软件开发框图如下图所示:
   |output            | AnyTensor          | 输出Tensor      | 输出|
   |input             | AnyTensor          | 输入Tensor      | 输入|
   |quant             | TPU_QuantParamAttr | Quant参数       | 属性|
-  |quant_scale       | TPU_TensorOfOrNone | Quant收缩因子     | 属性|
+  |quant_scale       | TPU_TensorOfOrNone | Quant收缩因子    | 属性|
   |quant_zeropoint   | TPU_TensorOfOrNone | Quant零点值      | 属性|
   |quant_rshift      | TPU_TensorOfOrNone | Quant右移位      | 属性|
-  |quant_multiplier  | TPU_TensorOfOrNone | Quant乘数       | 属性|
-  |keepdims          | DefaultValuedAttr  | 是否保持维度        | 属性|
+  |quant_multiplier  | TPU_TensorOfOrNone | Quant乘数        | 属性|
+  |axes              | OptionalAttr       | 指定维度          | 属性|
+  |name              | StrAttr            | 名称             | 属性|
 
 
 

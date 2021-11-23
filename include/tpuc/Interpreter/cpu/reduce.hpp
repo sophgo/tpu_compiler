@@ -7,114 +7,84 @@
 
 namespace mlir {
 
-class ReduceL2OpKernel : public CPUOpKernel {
-public:
-  static constexpr const char *OpName = "CPUReduceL2Op";
+typedef enum reduce_type {
+  REDUCE_MEAN,
+  REDUCE_MAX,
+  REDUCE_MIN,
+  REDUCE_SUM,
+  REDUCE_L2,
+} reduce_type_t;
 
+class ReduceOpKernel : public CPUOpKernel {
+public:
+  static constexpr const char *OpName = "CPUReduceOp";
+
+  ReduceOpKernel(Operation &op, value_map_t &valueMapping,
+                 weight_map_t &weightMapping);
+  void invoke() override;
+
+protected:
+  SyncedData input_data;
+  SyncedData output_data;
+  SyncedData lut;
+  SyncedData mantissa_lut;
+  SyncedDataShape input_shape;
+
+  // param
+  std::vector<int> axes;
+  int outer_dims;
+  int inner_dims;
+  int axis_dims;
+
+  // int8
+  int rshift;
+  int multiplier;
+  reduce_type_t type;
+};
+
+class ReduceL2OpKernel : public ReduceOpKernel {
+public:
   ReduceL2OpKernel(Operation &op, value_map_t &valueMapping,
-                   weight_map_t &weightMapping);
-
-  void invoke() override;
-
-private:
-  SyncedData input_data;
-  SyncedData output_data;
-  SyncedDataShape input_shape;
-
-  // param
-  std::vector<int> axes;
-
-  // int8
-  int rshift;
-  int multiplier;
+                   weight_map_t &weightMapping)
+      : ReduceOpKernel(op, valueMapping, weightMapping) {
+    type = REDUCE_L2;
+  }
 };
 
-class ReduceMinOpKernel : public CPUOpKernel {
+class ReduceMinOpKernel : public ReduceOpKernel {
 public:
-  static constexpr const char *OpName = "CPUReduceMinOp";
-
   ReduceMinOpKernel(Operation &op, value_map_t &valueMapping,
-                    weight_map_t &weightMapping);
-
-  void invoke() override;
-
-private:
-  SyncedData input_data;
-  SyncedData output_data;
-  SyncedDataShape input_shape;
-
-  // param
-  std::vector<int> axes;
-
-  // int8
-  int rshift;
-  int multiplier;
+                    weight_map_t &weightMapping)
+      : ReduceOpKernel(op, valueMapping, weightMapping) {
+    type = REDUCE_MIN;
+  }
 };
 
-class ReduceMaxOpKernel : public CPUOpKernel {
+class ReduceMaxOpKernel : public ReduceOpKernel {
 public:
-  static constexpr const char *OpName = "CPUReduceMaxOp";
-
   ReduceMaxOpKernel(Operation &op, value_map_t &valueMapping,
-                    weight_map_t &weightMapping);
-
-  void invoke() override;
-
-private:
-  SyncedData input_data;
-  SyncedData output_data;
-  SyncedDataShape input_shape;
-
-  // param
-  std::vector<int> axes;
-
-  // int8
-  int rshift;
-  int multiplier;
+                    weight_map_t &weightMapping)
+      : ReduceOpKernel(op, valueMapping, weightMapping) {
+    type = REDUCE_MAX;
+  }
 };
 
-class ReduceSumOpKernel : public CPUOpKernel {
+class ReduceSumOpKernel : public ReduceOpKernel {
 public:
-  static constexpr const char *OpName = "CPUReduceSumOp";
-
   ReduceSumOpKernel(Operation &op, value_map_t &valueMapping,
-                    weight_map_t &weightMapping);
-
-  void invoke() override;
-
-private:
-  SyncedData input_data;
-  SyncedData output_data;
-  SyncedDataShape input_shape;
-
-  // param
-  std::vector<int> axes;
-
-  // int8
-  int rshift;
-  int multiplier;
+                    weight_map_t &weightMapping)
+      : ReduceOpKernel(op, valueMapping, weightMapping) {
+    type = REDUCE_SUM;
+  }
 };
 
-class ReduceMeanOpKernel : public CPUOpKernel {
+class ReduceMeanOpKernel : public ReduceOpKernel {
 public:
-  static constexpr const char *OpName = "CPUReduceMeanOp";
-
   ReduceMeanOpKernel(Operation &op, value_map_t &valueMapping,
-                     weight_map_t &weightMapping);
-
-  void invoke() override;
-
-private:
-  SyncedData input_data;
-  SyncedData output_data;
-  SyncedDataShape input_shape;
-
-  // param
-  std::vector<int> axes;
-
-  // int8
-  int rshift;
-  int multiplier;
+                     weight_map_t &weightMapping)
+      : ReduceOpKernel(op, valueMapping, weightMapping) {
+    type = REDUCE_MEAN;
+  }
 };
 
 } // namespace mlir

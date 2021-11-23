@@ -2400,8 +2400,8 @@ Value tpu::UpsampleOp::convertToTG() {
 }
 
 Value tpu::ReduceL2Op::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto castOp = cast<ReduceL2Op>(op);
 
@@ -2412,30 +2412,16 @@ Value tpu::ReduceL2Op::convertToTG() {
 
   std::vector<Value> operands;
   operands.push_back(input());
-  //std::vector<Value> operands(op->getOperands().begin(),
-  //    op->getOperands().end());
-
+  operands.push_back(table());
+  operands.push_back(mantissa_table());
   std::vector<NamedAttribute> attrs;
-  std::vector<NamedAttribute> param;
-  for (auto &attr : castOp->getAttrs()) {
-    if (attr.first == "name" || attr.first == "gaddr" ||
-        attr.first == "quant") {
-      continue;
-    }
-    param.push_back(attr);
-  }
-
-  auto operationAttr = builder.getStringAttr(castOp.getOperationName());
-  auto paramAttr = builder.getDictionaryAttr(param);
-
   attrs.push_back(builder.getNamedAttr("name", castOp.nameAttr()));
-  attrs.push_back(builder.getNamedAttr("operation_name", operationAttr));
-  attrs.push_back(builder.getNamedAttr("param", paramAttr));
+  attrs.push_back(builder.getNamedAttr("axes", castOp.axesAttr()));
 
   // TODO: tpu support
-  auto newOp = OpBuilder(op).create<tpu::GenericCpuOp>(op->getLoc(),
-          castOp.getResult().getType(), ArrayRef<Value>{operands},
-          ArrayRef<NamedAttribute>{attrs});
+  auto newOp = OpBuilder(op).create<tpu::TG_BF16_ReduceL2Op>(
+      op->getLoc(), castOp.getResult().getType(), ArrayRef<Value>{operands},
+      ArrayRef<NamedAttribute>{attrs});
   return newOp.getResult();
 }
 
@@ -4280,6 +4266,7 @@ public:
         DefaultToTGPattern<tpu::ReduceMaxOp>,
         DefaultToTGPattern<tpu::ReduceMinOp>,
         DefaultToTGPattern<tpu::ReduceSumOp>,
+        DefaultToTGPattern<tpu::ReduceL2Op>,
         DefaultToTGPattern<tpu::GruOp>,
         DefaultToTGPattern<tpu::LstmOp>,
         DefaultToTGPattern<tpu::SoftmaxOp>,

@@ -1748,8 +1748,8 @@ class MLIRImporter(object):
             'axes': axes
         }
         none = self.add_none_op()
-        for _ in range(5 - len(inputOperands)):
-            inputOperands.append(none)
+        inputOperands.append(none)
+        inputOperands.append(none)
         return self.buildOp(TPU_OpType.ReduceL2.value, inputOperands, [
             tensor_output_type], name=reduce_name, quant=self.quant_param, **reduce_param)
 
