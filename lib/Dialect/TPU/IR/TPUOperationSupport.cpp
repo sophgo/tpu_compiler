@@ -642,6 +642,26 @@ template void parseMatMulParam<tpu::TG_BF16_MatMulOp>(Operation *op,
                                                       int &batch_low, int &m,
                                                       int &k, int &n);
 
+template<typename T>
+static int remove_value(std::vector<T> & v, T value) {
+  int idx = 0;
+  for(auto iter = v.begin(); iter != v.end(); iter++, idx++) {
+    if (*iter == value) {
+      v.erase(iter);
+      return idx;
+    }
+  }
+  return -1;
+}
+
+static void refresh(std::vector<int> &order, int idx) {
+  for(auto &v:order) {
+    if (v > idx) {
+      v--;
+    }
+  }
+}
+
 template <typename OpTy>
 void parsePermuteParam(Operation *op, std::vector<int64_t> &shape_4,
                        std::vector<int> &order_4) {
@@ -651,9 +671,32 @@ void parsePermuteParam(Operation *op, std::vector<int64_t> &shape_4,
   arrayAttrToVector(pmOp.order(), order);
   int num_dims = order.size();
   if (num_dims > 4) {
-    for (int i = 0; i < num_dims - 4; i++) {
-      assert(shape[i] == 1 && "> 4 dim, should be 1");
-      assert(order[i] == i && "> 4 dim, order can't change");
+    // remove dims = 1
+    while(num_dims > 4) {
+      int idx = remove_value<int64_t>(shape, 1);
+      if (idx < 0) {
+        break;
+      }
+      remove_value(order, idx);
+      refresh(order, idx);
+      num_dims--;
+    }
+    // remove continous order
+    while(num_dims > 4) {
+      for (int i = 0; i < num_dims-1; i++) {
+        if (order[i] +1 == order[i+1]) {
+          int idx = order[i];
+          shape[idx] *= shape[idx+1];
+          shape.erase(shape.begin() + idx + 1);
+          order.erase(order.begin() + i + 1);
+          refresh(order, idx + 1);
+          num_dims--;
+          break;
+        }
+      }
+    }
+    if (num_dims > 4) {
+      llvm_unreachable("permute shape not support");
     }
   }
   order_4 = {0, 1, 2, 3};

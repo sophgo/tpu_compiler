@@ -484,10 +484,8 @@ class OnnxConverter(BaseConverter):
                 preNodes.update({node.outputs[0]: i})
             elif node.op_type == "Div" and node.inputs[1] in preNodes.keys() \
                  and node.inputs[0] in preNodes.keys() \
-                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant":                                                                                                                                 \
+                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant":
                 # swap input and output (notice name eq outputs[0])
-
-
                 mul_idx = preNodes[node.inputs[0]]
                 mul = self.converted_nodes[mul_idx]
                 node.inputs[0] = mul.inputs[1]
@@ -1044,7 +1042,7 @@ class OnnxConverter(BaseConverter):
         self.addOperand(onnx_node.name, abs_op, output_shape, TensorType.ACTIVATION)
 
     def convert_avg_pool_op(self, onnx_node):
-        assert(onnx_node.op_type == "AveragePool")
+        assert (onnx_node.op_type == "AveragePool")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         operands = list()
         operands.append(op)
@@ -1070,16 +1068,20 @@ class OnnxConverter(BaseConverter):
             onnx_name = f"{onnx_node.name}_reshaped"
 
             # reshape to n,c,h,1 for friendly with optimizer
-            reshape_input_op = self.CVI.add_reshape_op(
-                    f"{onnx_node.name}_{onnx_node.op_type}_reshape",
-                    [op], input_shape)
+            reshape_input_op = self.CVI.add_reshape_op(f"{onnx_node.name}_{onnx_node.op_type}_reshape", [op], input_shape)
             operands[0] = reshape_input_op
 
+        sh, sw = strides
+        kh, kw = kernel_shape
+        if kh == input_shape[2]:
+            sh = 1
+        if kw == input_shape[3]:
+            sw = 1
         pool_avg_2d_param = {
-            'stride_h':  strides[0],
-            'stride_w':  strides[1],
-            'kernel_h':  kernel_shape[0],
-            'kernel_w':  kernel_shape[1],
+            'stride_h': sh,
+            'stride_w': sw,
+            'kernel_h': kh,
+            'kernel_w': kw,
             'padding_t': pads[0],
             'padding_l': pads[1],
             'padding_b': pads[2],
@@ -1087,19 +1089,20 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
             'count_include_pad': count_include_pad,
         }
-        oh = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_h'], pool_avg_2d_param['stride_h'], pool_avg_2d_param['padding_t'], pool_avg_2d_param['padding_b'])
-        ow = calcPool2DFloor(input_shape[3], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'], pool_avg_2d_param['padding_l'], pool_avg_2d_param['padding_r'])
+        oh = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_h'], pool_avg_2d_param['stride_h'],
+                             pool_avg_2d_param['padding_t'], pool_avg_2d_param['padding_b'])
+        ow = calcPool2DFloor(input_shape[3], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'],
+                             pool_avg_2d_param['padding_l'], pool_avg_2d_param['padding_r'])
         output_shape = [int(on), int(oc), oh, ow]
-        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_avg_2d_param)
+        pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape,
+                                                  **pool_avg_2d_param)
         self.addOperand(onnx_name, pool_avg_op, output_shape, TensorType.ACTIVATION)
         if is1d:
             # reshape back
             shape = output_shape[:-1]
-            reshape_input_op = self.CVI.add_reshape_op(f"{onnx_node.name}_{onnx_node.op_type}_reshaped",
-                    [pool_avg_op], shape)
+            reshape_input_op = self.CVI.add_reshape_op(f"{onnx_node.name}_{onnx_node.op_type}_reshaped", [pool_avg_op], shape)
             onnx_name = onnx_node.name
-            self.addOperand(onnx_name, reshape_input_op,
-                    shape, TensorType.ACTIVATION)
+            self.addOperand(onnx_name, reshape_input_op, shape, TensorType.ACTIVATION)
 
     def convert_batchnorm1d_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
@@ -1977,35 +1980,41 @@ class OnnxConverter(BaseConverter):
             raise("TODO: Our Ir not support gather function")
 
     def convert_gemm_op(self, onnx_node):
-        assert(onnx_node.op_type == "Gemm")
+        assert (onnx_node.op_type == "Gemm")
         #(M, K) * (K, N) => (M, N)
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        alpha = onnx_node.attrs.get('alpha', 1)
+        beta = onnx_node.attrs.get('beta', 1)
 
         operands = list()
         operands.append(op)
         weight_name = onnx_node.inputs[1]
-        weight_tensor = self.getTensor(weight_name)
-        weight_shape = weight_tensor.shape
+        weight_tensor = self.getTensor(weight_name).tensor_data
         if onnx_node.attrs.get('transA', 0) == 0 and onnx_node.attrs.get('transB', 0) == 0:
-            # mlir require second is transposed
-            print("transpose b for mlir require", onnx_node.attrs, type(weight_shape))
-            assert(len(weight_shape) == 2 and "shape should be 2 dim")
-            weight_shape.reverse()
-            weight_tensor_data = weight_tensor.tensor_data
-            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor_data, (1, 0)))
-            weight_name = "{}_{}_filter".format(onnx_node.inputs[0], onnx_node.inputs[1])
-            self.addTensor(weight_name, weight_tensor, weight_shape)
-        weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
+            assert (weight_tensor.ndim == 2 and "shape should be 2 dim")
+            weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor, (1, 0)))
+        if alpha != 1:
+            weight_tensor = weight_tensor * alpha
+        weight_name = "{}_filter".format(onnx_node.name)
+        self.addTensor(weight_name, weight_tensor, weight_tensor.shape)
+        weight_op = self.CVI.add_load_file_op(weight_name, weight_tensor.shape)
         operands.append(weight_op)
-
-        bias_name = onnx_node.inputs[2]
-        bias_tensor = self.getTensor(bias_name)
-        bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
-        operands.append(bias_op)
-
         M = input_shape[0]
         K = input_shape[1]
-        N = bias_tensor.shape[0]
+        N = weight_tensor.shape[-2]
+
+        if len(onnx_node.inputs) > 2 and beta != 0:
+            bias_tensor = self.getTensor(onnx_node.inputs[2]).tensor_data
+            bias_name = "{}_bias".format(onnx_node.name)
+            if bias_tensor.size == 1 and N != 1:
+                zeros = np.zeros([N], dtype=bias_tensor.dtype)
+                bias_tensor = zeros + bias_tensor
+            if beta != 1:
+                bias_tensor = bias_tensor * beta
+            self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
+            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
+            operands.append(bias_op)
+
         output_shape = [M, N]
         fc_op = self.CVI.add_fully_connected_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
         self.addOperand(onnx_node.name, fc_op, output_shape, TensorType.ACTIVATION)
@@ -2442,6 +2451,9 @@ class OnnxConverter(BaseConverter):
             if len(onnx_node.inputs) == 3:
                 bias_tensor = self.getTensor(onnx_node.inputs[2]).tensor_data
                 bias_name = "{}_{}_bias".format(onnx_node.inputs[0], onnx_node.inputs[1])
+                if bias_tensor.size == 1 and N != 1:
+                    zeros = np.zeros([N], dtype = bias_tensor.dtype)
+                    bias_tensor = zeros + bias_tensor
                 self.addTensor(bias_name, bias_tensor, bias_tensor.shape)
                 bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
                 operands.append(bias_op)
@@ -2457,14 +2469,17 @@ class OnnxConverter(BaseConverter):
 
     def convert_maxpool_1d_op(self, onnx_node):
         assert(onnx_node.op_type == "MaxPool")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         pads = onnx_node.attrs.get("pads",[0,0,0,0])
-        strides = onnx_node.attrs.get("strides",[1,1])
-
+        kw = onnx_node.attrs['kernel_shape'][0]
+        sw = onnx_node.attrs.get("strides",[1])[0]
+        if kw == input_shape[2]:
+            sw = 1
         conv_param = {
             'stride_h': 1,
-            'stride_w': strides[0],
+            'stride_w': sw,
             'kernel_h': 1,
-            'kernel_w': onnx_node.attrs['kernel_shape'][0],
+            'kernel_w': kw,
             'padding_t': 0,
             'padding_l': pads[0],
             'padding_b': 0,
@@ -2472,7 +2487,6 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
         }
 
-        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         shape = input_shape[:]
         if len(shape) == 3:
             shape.insert(2,1)
@@ -2485,7 +2499,7 @@ class OnnxConverter(BaseConverter):
         on = input_shape[0]
         oc = input_shape[1]
         oh = 1
-        ow = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], strides[0], pads[0], pads[1])
+        ow = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], kw, pads[0], pads[1])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
         pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
         new_output_shape = [on, oc, ow]
@@ -2494,19 +2508,23 @@ class OnnxConverter(BaseConverter):
         self.addOperand(onnx_node.name, reshape_back_op, output_shape, TensorType.ACTIVATION)
 
     def convert_maxpool_op(self, onnx_node):
-        assert(onnx_node.op_type == "MaxPool")
+        assert (onnx_node.op_type == "MaxPool")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
         if len(input_shape) == 3:
             return self.convert_maxpool_1d_op(onnx_node)
 
-        pads = onnx_node.attrs.get("pads",[0,0,0,0])
-        strides = onnx_node.attrs.get("strides",[1,1])
-
+        pads = onnx_node.attrs.get("pads", [0, 0, 0, 0])
+        sh, sw = onnx_node.attrs.get("strides", [1, 1])
+        kh, kw = onnx_node.attrs['kernel_shape']
+        if kh == input_shape[2]:
+            sh = 1
+        if kw == input_shape[3]:
+            sw = 1
         pool_max_2d_param = {
-            'stride_h': strides[0],
-            'stride_w': strides[1],
-            'kernel_h': onnx_node.attrs['kernel_shape'][0],
-            'kernel_w': onnx_node.attrs['kernel_shape'][1],
+            'stride_h': sh,
+            'stride_w': sw,
+            'kernel_h': kh,
+            'kernel_w': kw,
             'padding_t': pads[0],
             'padding_l': pads[1],
             'padding_b': pads[2],
@@ -2518,10 +2536,11 @@ class OnnxConverter(BaseConverter):
         operands.append(op)
         on = input_shape[0]
         oc = input_shape[1]
-        oh = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], strides[0], pads[0], pads[2])
-        ow = calcPool2DFloor(input_shape[3], onnx_node.attrs['kernel_shape'][1], strides[1], pads[1], pads[3])
+        oh = calcPool2DFloor(input_shape[2], kh, sh, pads[0], pads[2])
+        ow = calcPool2DFloor(input_shape[3], kw, sw, pads[1], pads[3])
         output_shape = [int(on), int(oc), int(oh), int(ow)]
-        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_max_2d_param)
+        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape,
+                                                  **pool_max_2d_param)
         self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
 
     def convert_max_op(self, onnx_node):
