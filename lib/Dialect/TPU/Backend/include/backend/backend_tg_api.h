@@ -130,6 +130,16 @@ void cvi_backend_tg_fixed_eltwise_mul_kernel(
     const int32_t *multipliers,
     const int32_t *coeffs);
 
+void cvi_backend_tg_fixed_eltwise_const_add_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_output, int32_t n, int32_t c, int32_t h, int32_t w, bool do_relu,
+    float const_val, int32_t coeff, int32_t rshift, std::vector<int8_t> &multiplier);
+
+void cvi_backend_tg_fixed_eltwise_const_mul_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_output, int32_t n, int32_t c, int32_t h, int32_t w, bool do_relu,
+    float const_val, int32_t coeff, int32_t rshift, std::vector<int8_t> &multiplier);
+
 void cvi_backend_tg_fixed_reduce_max_kernel(const CviBackendContext &ctx,
                                             uint32_t layer_id, gaddr_t ga_input,
                                             gaddr_t ga_output,
@@ -327,6 +337,16 @@ void cvi_backend_tg_bf16_eltwise_mul_kernel(
     int32_t h, int32_t w, bool do_relu, bool do_early_stride,
     int32_t stride_h, int32_t stride_w,
     const float *coeffs);
+
+void cvi_backend_tg_bf16_eltwise_const_add_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_output, int32_t n, int32_t c, int32_t h, int32_t w, bool do_relu,
+    float const_val);
+
+void cvi_backend_tg_bf16_eltwise_const_mul_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
+    gaddr_t ga_output, int32_t n, int32_t c, int32_t h, int32_t w, bool do_relu,
+    float const_val);
 
 void cvi_backend_tg_bf16_square_kernel(
     const CviBackendContext &ctx,

@@ -284,6 +284,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<ReduceMinOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ReduceSumOp>(op)) {
       krnl = std::make_shared<ReduceSumOpKernel>(*op, valueMapping, weightMapping);
+    } else if (isa<tpu::EltwiseConstOp>(op)) {
+      krnl = std::make_shared<EltwiseConstOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ReduceMeanOp>(op)) {
       krnl = std::make_shared<ReduceMeanOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ReflectionPadOp>(op)) {

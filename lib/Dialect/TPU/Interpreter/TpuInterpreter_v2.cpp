@@ -229,6 +229,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(elt_add_kernel_op));
     return;
   }
+  if (isa<tpu::EltwiseConstOp>(op)) {
+    auto eltwise_const_kernel_op = std::make_unique<EltwiseConstOpKernel>(op, valueMapping, weightMapping);
+    oplist.push_back(std::move(eltwise_const_kernel_op));
+    return;
+  }
   if (isa<tpu::EltwiseMaxOp>(op)) {
     auto elt_max_kernel_op =
         std::make_unique<EltwiseMaxOpKernel>(op, valueMapping, weightMapping);

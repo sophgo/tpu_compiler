@@ -748,6 +748,61 @@ def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
 def TPU_EltwiseMinOp : TPU_EltwiseOp<"eltwise_min", "Min">;
 def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
 
+def TPU_EltwiseConstOp: TPU_Op<"eltwise_const",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+  let summary = "EltwiseConst operator";
+
+  let description = [{
+    Perform EltwiseConst on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+
+    Attributes:
+      `do_relu`         : required, if need to preform relu on result.
+      `quant`           : required, a QuantParam struct attributes.
+      `name`            : required, name for calibration, comparing, or debug.
+      `quant_scale`     : optional,
+      `quant_zeropoint` : optional,
+      `quant_rshift`    : optional,
+      `quant_multiplier`: optional,
+      `const_val`       : operand, to be add or multiply
+      `op_mode`         : operator, (1:add or 2:multiply)
+      `coeff`           : indicate operator sign(1, -1)
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface` : support common TPU Op interface
+      `TpuOpQuantInterface`  : support quantization
+      `TpuOpLowerInterface`  : support lower to TPU TG Ops
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
+    TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    DefaultValuedAttr<F32Attr, "0">:$const_val,
+    DefaultValuedAttr<I8Attr, "1">:$op_mode,
+    DefaultValuedAttr<I8Attr, "1">:$coeff
+  );
+
+  let results = (outs AnyTensor:$output);
+  
+  let extraClassDeclaration = [{
+    unsigned getNumInputs() { return getNumOperands() - 4; }
+  }];
+}
 
 def TPU_FullyConnectedOp : TPU_Op<"fully_connected",
       [NoSideEffect,

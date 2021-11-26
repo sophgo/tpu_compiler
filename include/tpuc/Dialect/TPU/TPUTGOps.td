@@ -545,6 +545,58 @@ def TPU_TG_BF16_EltwiseMaxOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_max", "Bf16", "
 def TPU_TG_BF16_EltwiseMinOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_min", "Bf16", "Min">;
 def TPU_TG_BF16_EltwiseMulOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_mul", "Bf16", "Mul">;
 
+class TPU_TG_EltwiseConstOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # " EltwiseConst " # " operator.";
+
+  let description = [{
+    Inputs:
+      `inputs`          : required, the variadic activation memref.
+
+    Attributes:
+      `rshift`          : optional, rshift, an int8 value.
+      `m_i8`            : optional, multipliers for inputs. one int8 value for
+                          each input (saved as I32ArrayAttr)
+      `do_relu`         : required, if need to preform relu on result.
+
+      `gaddr`           : optional, address in global memory, normally the
+                          offset within the memory region.
+      `buffer_reused`   : optional, whether buffer is reused.
+      `name`            : required, name for comparing, or debug.
+      `const_val`       : operand, to be add or multiply
+      `op_mode`         : operator, (1:add or 2:multiply)
+      `coeff`           : indicate sign of const val
+
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins Variadic<AnyTensor>:$inputs,
+    OptionalAttr<I8Attr>:$rshift,
+    OptionalAttr<I32ArrayAttr>:$m_i8,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    StrAttr:$name,
+    DefaultValuedAttr<F32Attr, "0">:$const_val,
+    DefaultValuedAttr<I8Attr, "1">:$op_mode,
+    DefaultValuedAttr<I8Attr, "1">:$coeff
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_INT8_EltwiseConstOp : TPU_TG_EltwiseConstOp<"tg_int8_eltwise_const", "Int8">;
+def TPU_TG_BF16_EltwiseConstOp : TPU_TG_EltwiseConstOp<"tg_bf16_eltwise_const", "Bf16">;
+
 class TPU_TG_BroadcastOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

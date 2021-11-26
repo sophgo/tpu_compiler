@@ -1257,6 +1257,52 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_INT8_EltwiseConstOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  auto ga_inputs = getPreviousOpAddress(op, 0);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  int8_t rshift;
+  std::vector<int8_t> m_i8;
+  if (this->rshift().hasValue() && this->m_i8().hasValue()) {
+    rshift = this->rshift().getValue();
+
+    std::vector<int32_t> m_i8_array;
+    arrayAttrToVector(this->m_i8().getValue(), m_i8_array);
+    for (uint32_t i = 0; i < m_i8_array.size(); i++ ){
+      m_i8.emplace_back(static_cast<int8_t>(m_i8_array[i]));
+    }
+  } else {
+    assert(0);
+  }
+
+  int8_t op_mode = this->op_mode();
+  float const_val = this->const_val().convertToFloat();
+  int8_t coeff = this->coeff();
+  bool do_relu = this->do_relu();
+
+  if (op_mode == 1)  { // add
+    cvi_backend_tg_fixed_eltwise_const_add_kernel(
+        *backend_ctx, layer_id, ga_inputs, ga_output, n, c, h, w, do_relu,
+        const_val, coeff, rshift, m_i8);
+  } else { //mul
+    cvi_backend_tg_fixed_eltwise_const_mul_kernel(
+        *backend_ctx, layer_id, ga_inputs, ga_output, n, c, h, w, do_relu,
+        const_val, coeff, rshift, m_i8);
+  }
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_EltwiseMaxOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1529,6 +1575,38 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   delete[] ga_inputs;
   return success();
 }
+
+LogicalResult tpu::TG_BF16_EltwiseConstOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
+               << " [" << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  std::vector<int64_t> shape;
+  int64_t input_size, n, c, h, w;
+  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
+  getNCHW(shape, n, c, h, w);
+
+  auto ga_inputs = getPreviousOpAddress(op, 0);
+  gaddr_t ga_output = getOpAddress(op);
+  int layer_id = getOpLayerId(op);
+
+  int8_t op_mode = this->op_mode();
+  float const_val = this->const_val().convertToFloat();
+  bool do_relu = this->do_relu();
+
+  if (op_mode == 1)  { // add
+    cvi_backend_tg_bf16_eltwise_const_add_kernel(
+        *backend_ctx, layer_id, ga_inputs, ga_output, n, c, h, w, do_relu,
+        const_val);
+  } else { //mul
+    cvi_backend_tg_bf16_eltwise_const_mul_kernel(
+        *backend_ctx, layer_id, ga_inputs, ga_output, n, c, h, w, do_relu,
+        const_val);
+  }
+  return success();
+}
+
 
 LogicalResult tpu::TG_BF16_EltwiseMaxOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()

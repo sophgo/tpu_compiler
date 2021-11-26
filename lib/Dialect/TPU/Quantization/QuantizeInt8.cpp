@@ -1173,6 +1173,128 @@ LogicalResult quantizeInt8MultiplyOps(Operation *op) {
   return success();
 }
 
+
+// 
+// EltwiseConst Ops quantization method
+//
+template<typename OpTy>
+
+LogicalResult quantizeInt8EltwiseConstOps(Operation *op) {
+  auto EltConstOp = cast<tpu::EltwiseConstOp>(op);
+  float const_val = EltConstOp.const_val().convertToFloat();
+  int8_t op_mode = EltConstOp.op_mode();
+
+  setOpQuantParamType(op, "RSHIFT_AND_M_I8");
+
+  TensorFile *wTF = getWeightTensorFile(op);
+  Value wfV = getWeightFileValue(op);
+
+  // get operands
+  const unsigned nInputs = op->getNumOperands() - 4;
+  assert(nInputs == 1 && "support only 1 inputs multiply");
+
+  // get threshold of opd 0
+  float threshold_y = getOpThreshold(op);
+  LLVM_DEBUG(llvm::errs() << " > " << getOpName(op) << ", threshold_y = "
+      << std::to_string(threshold_y) << "\n";);
+  auto opd0 = op->getOperand(0).getDefiningOp();
+  assert(!isa<tpu::LoadWeightOp>(opd0));
+  float threshold_x = getOpThreshold(opd0);
+
+  // y = A * x + B
+  // y = A * x * thX / thY + B * 127 / thY
+  // y = x * A * thX / thY + B * 127 / thY 
+
+  // quant opd
+  int mul_size = op_mode == 1 ? 2 : 1;
+  float float_quant = 0.0f;
+  auto rshift = std::make_unique<std::vector<float>>(1);
+  auto multiplier = std::make_unique<std::vector<float>>(mul_size);
+
+  if (threshold_y <= 1e-5) {
+    llvm::errs() << "WARNING: findQScaleForFilter threshold_y = " << threshold_y
+                 << "\n";
+    threshold_y = 0.00001;
+  }
+
+  if (op_mode == 1) // add mode
+  {
+    float qscale[2];
+    // y = thX / thY  / Qscale * x + B * 127 / thY / Qscale
+
+    // find scale
+    qscale[1] = std::ceil(std::abs(const_val) / threshold_y);
+    float_quant = const_val * 127.0f / threshold_y / qscale[1];
+    assert(float_quant < 127.0f);
+
+    qscale[0] = threshold_x / threshold_y / qscale[1];
+    float max_qscale = std::max(qscale[0], qscale[1]);
+
+    int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(max_qscale);
+    rshift->at(0) = (float)rshift_i8;
+    LLVM_DEBUG(llvm::errs()
+               << "  rshift = " << std::to_string(rshift->at(0)) << "\n");
+
+    for (int i = 0; i < mul_size; ++i) {
+      int8_t multiplier_i8 =
+          findMultiplierI8FromQScaleAndRShift(qscale[i], rshift_i8);
+      multiplier->at(i) = (float)multiplier_i8;
+      LLVM_DEBUG(llvm::errs() << "  multiplier[" << i << "] = "
+                              << std::to_string(multiplier->at(i)) << "\n");
+      LLVM_DEBUG(llvm::errs() << "  qscale[" << i
+                              << "] = " << std::to_string(qscale[i]) << "\n");
+    }
+  } else { // multiply
+    // y = A * thX / thY * x
+    float_quant = const_val;
+    float qscale = std::abs(const_val * threshold_x / threshold_y);
+
+    int8_t rshift_i8 = findRShiftAndMultiplierFromQScale(qscale);
+    rshift->at(0) = (float)rshift_i8;
+    LLVM_DEBUG(llvm::errs()
+               << "  rshift = " << std::to_string(rshift->at(0)) << "\n");
+    int8_t multiplier_i8 =
+        findMultiplierI8FromQScaleAndRShift(qscale, rshift_i8);
+    multiplier->at(0) = (float)multiplier_i8;
+    LLVM_DEBUG(llvm::errs() << "  multiplier[" << 0 << "] = "
+                            << std::to_string(multiplier->at(0)) << "\n");
+    LLVM_DEBUG(llvm::errs()
+               << "  qscale] = " << std::to_string(qscale) << "\n");
+  }
+  LLVM_DEBUG(llvm::errs() << "  const val = " << std::to_string(const_val)
+                          << " after quant val:" << std::to_string(float_quant)
+                          << "\n");
+
+  int8_t coeff = 1;
+  if (const_val < 0) {
+    coeff = -1;
+  }
+
+  auto rewriter = Builder(EltConstOp.getContext());
+  EltConstOp->setAttr("const_val", rewriter.getF32FloatAttr(INT8(float_quant)));
+  EltConstOp->setAttr("coeff", rewriter.getI8IntegerAttr(coeff));
+
+  // add rshift and multiplier to weight
+  StringRef storageType = "NONE";
+
+  auto shape_rshift = std::vector<int64_t>{1};
+  auto rshift_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "rshift", *rshift, shape_rshift, storageType,
+      wTF, wfV);
+  op->setOperand(3, rshift_op);
+
+  auto shape_multiplier = std::vector<int64_t>{mul_size};
+  auto multiplier_op = addWeightTensorAndCreateWeightOp<float>(
+      op, "multiplier", *multiplier, shape_multiplier, storageType,
+      wTF, wfV);
+  op->setOperand(4, multiplier_op);
+
+  setOpResultType(op->getResult(0), IntegerType::get(op->getContext(), 8, IntegerType::Signed));
+
+  return success();
+}
+
+
 ///
 /// bypass Ops quantization method
 /// which means threshold_x and threshold_y are the same
@@ -1295,6 +1417,13 @@ LogicalResult tpu::EltwiseAddOp::quantizeInt8() {
   } else {
     return quantizeInt8RescaleNoWeightOps<tpu::EltwiseAddOp>(op);
   }
+}
+
+LogicalResult tpu::EltwiseConstOp::quantizeInt8() {
+  LLVM_DEBUG(llvm::errs() << "quantizeInt8: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  return quantizeInt8EltwiseConstOps<tpu::EltwiseConstOp>(op);
 }
 
 LogicalResult tpu::EltwiseMaxOp::quantizeInt8() {
