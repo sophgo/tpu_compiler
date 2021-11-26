@@ -607,38 +607,17 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
-
   gaddr_t output_gaddr = getOpAddress(op);
-  std::vector<int64_t> input_shape = getTensorShape(op->getOperand(0));
-  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
 
   // prepare data
-  std::vector<int> i_s;
-  std::vector<int> o_s;
-  std::vector<int> offsets;
-  std::vector<int> steps_;
-
-  i_s.assign(input_shape.begin(), input_shape.end());
-  for (uint32_t i = i_s.size(); i < 4; i++) {
-    i_s.push_back(1);
-  }
-  o_s.assign(output_shape.begin(), output_shape.end());
-  for (uint32_t i = o_s.size(); i < 4; i++) {
-    o_s.push_back(1);
-  }
-  arrayAttrToVector(this->crop_offset(), offsets);
-  for (uint32_t i = offsets.size(); i < 4; i++) {
-    offsets.push_back(0);
-  }
-  if (steps().hasValue()){
-    arrayAttrToVector(this->steps().getValue(), steps_);
-  }
-  for (uint32_t i = steps_.size(); i < 4; i++) {
-    steps_.push_back(1);
-  }
+  std::vector<int64_t> i_s;
+  std::vector<int64_t> o_s;
+  std::vector<int> offset_4;
+  std::vector<int> step_4;
+  parseCropParam<tpu::TG_INT8_CropOp>(op, i_s, o_s, offset_4, step_4);
 
   cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
-                             i_s.data(), o_s.data(), offsets.data(), steps_.data(),
+                             i_s, o_s, offset_4, step_4,
                              CVK_FMT_I8);
 
   return success();
@@ -649,41 +628,20 @@ LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
                           << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
-  int layer_id = mlir::getOpLayerId(op);
+  int layer_id = getOpLayerId(op);
   gaddr_t input_gaddr = getPreviousOpAddress(op);
-
   gaddr_t output_gaddr = getOpAddress(op);
-  std::vector<int64_t> input_shape = getTensorShape(op->getOperand(0));
-  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
 
   // prepare data
-  std::vector<int> i_s;
-  std::vector<int> o_s;
-  std::vector<int> offsets;
-  std::vector<int> steps_;
+  std::vector<int64_t> i_s;
+  std::vector<int64_t> o_s;
+  std::vector<int> offset_4;
+  std::vector<int> step_4;
+  parseCropParam<tpu::TG_BF16_CropOp>(op, i_s, o_s, offset_4, step_4);
 
-  i_s.assign(input_shape.begin(), input_shape.end());
-  for (uint32_t i = i_s.size(); i < 4; i++) {
-    i_s.push_back(1);
-  }
-  o_s.assign(output_shape.begin(), output_shape.end());
-  for (uint32_t i = o_s.size(); i < 4; i++) {
-    o_s.push_back(1);
-  }
-  arrayAttrToVector(this->crop_offset(), offsets);
-  for (uint32_t i = offsets.size(); i < 4; i++) {
-    offsets.push_back(0);
-  }
-  if (steps().hasValue()){
-    arrayAttrToVector(this->steps().getValue(), steps_);
-  }
-  for (uint32_t i = steps_.size(); i < 4; i++) {
-    steps_.push_back(1);
-  }
   cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
-                             i_s.data(), o_s.data(), offsets.data(), steps_.data(),
+                             i_s, o_s, offset_4, step_4,
                              CVK_FMT_BF16);
-
   return success();
 }
 

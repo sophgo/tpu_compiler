@@ -252,7 +252,7 @@ def TPU_Pool3dParamAttr : StructAttr<"Pool3dParam", TPU_Dialect, [
     StructFieldAttr<"stride_w", I32Attr>,
     StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"count_include_pad", BoolAttr>]> {
-  let summary = "Structure of dimension parameters for pool op";
+  let summary = "Structure of dimension parameters for pool 3d op";
 }
 
 //===----------------------------------------------------------------------===//

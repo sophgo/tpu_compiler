@@ -367,10 +367,13 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
   pl = p.padding_l().getInt();
   pr = p.padding_r().getInt();
   is_dw = p.is_dw().getValue();
-  auto input_type = input.getType().template cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output.getType().template cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
+  auto i_s = getTensorShape(input);
+  auto o_s = getTensorShape(output);
+  if (kw == 0) {
+    kw = 1;
+    i_s.push_back(1);
+    o_s.push_back(1);
+  }
 
   assert((i_s[0] == o_s[0]) && "input N not equal to output N");
   if(i_s.size() == 4){
@@ -461,34 +464,45 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
   with_bias = p.with_bias().getValue();
 }
 
-void parsePoolParam(const tpu::PoolParam &p,
-    Value input, Value output,
-    int &n, int &c, int &ih, int &iw, int &oh, int &ow,
-    int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr,
-    int &pad_value, bool &is_global, bool &do_relu, bool &count_include_pad) {
+void parsePoolParam(const tpu::PoolParam &p, Value input, Value output, int &n,
+                    int &c, int &ih, int &iw, int &oh, int &ow, int &kh,
+                    int &kw, int &sh, int &sw, int &pt, int &pb, int &pl,
+                    int &pr, int &pad_value, bool &is_global, bool &do_relu,
+                    bool &count_include_pad) {
   kh = p.kernel_h().getInt();
   kw = p.kernel_w().getInt();
   sh = p.stride_h().getInt();
   sw = p.stride_w().getInt();
-  auto input_type = input.getType().template cast<TensorType>();
-  std::vector<int64_t> i_s(input_type.getShape());
-  auto output_type = output.getType().template cast<TensorType>();
-  std::vector<int64_t> o_s(output_type.getShape());
-  assert((i_s[0] == o_s[0]) && "input N not equal to output N");
-  assert((i_s[1] == o_s[1]) && "input C not equal to output C");
-  n = i_s[0];
-  c = i_s[1];
-  ih = i_s[2];
-  iw = i_s[3];
-  oh = o_s[2];
-  ow = o_s[3];
+  auto i_s = getTensorShape(input);
+  auto o_s = getTensorShape(output);
+  if (kw == 0) {
+    kw = 1;
+    i_s.push_back(1);
+    o_s.push_back(1);
+  }
+  assert(i_s.size() == o_s.size());
+  int num_dims = i_s.size();
+  if (num_dims >= 3) {
+    n = std::accumulate(i_s.begin(), i_s.begin() + num_dims - 3, 1,
+                        std::multiplies<int64_t>());
+    c = i_s[num_dims - 3];
+  } else if (num_dims == 2) {
+    n = 1;
+    c = 1;
+  } else {
+    llvm_unreachable("input num dims error\n");
+  }
+  ih = i_s[num_dims - 2];
+  iw = i_s[num_dims - 1];
+  oh = o_s[num_dims - 2];
+  ow = o_s[num_dims - 1];
   pt = p.padding_t().getInt();
   pb = p.padding_b().getInt();
   pl = p.padding_l().getInt();
   pr = p.padding_r().getInt();
   is_global = false;
   if (kh == ih && kw == iw && oh == 1 && ow == 1) {
-    //assert(oh == 1 && ow == 1);
+    // assert(oh == 1 && ow == 1);
     is_global = true;
   }
   pad_value = p.pad_value().getInt();
@@ -683,6 +697,7 @@ void parsePermuteParam(Operation *op, std::vector<int64_t> &shape_4,
     }
     // remove continous order
     while(num_dims > 4) {
+      bool done = false;
       for (int i = 0; i < num_dims-1; i++) {
         if (order[i] +1 == order[i+1]) {
           int idx = order[i];
@@ -691,8 +706,12 @@ void parsePermuteParam(Operation *op, std::vector<int64_t> &shape_4,
           order.erase(order.begin() + i + 1);
           refresh(order, idx + 1);
           num_dims--;
+          done = true;
           break;
         }
+      }
+      if (done == false) {
+        break;
       }
     }
     if (num_dims > 4) {
@@ -715,11 +734,95 @@ template void parsePermuteParam<tpu::TG_INT8_PermuteOp>(
 template void parsePermuteParam<tpu::TG_BF16_PermuteOp>(
     Operation *op, std::vector<int64_t> &shape_4, std::vector<int> &order_4);
 
-template<typename OpTy>
-void parseLeakyReluParam(Operation *op,
-    int8_t &pos_rshift, int8_t &pos_m_i8,
-    int8_t &neg_rshift, int8_t &neg_m_i8,
-    float &negative_slope) {
+template <typename OpTy>
+void parseCropParam(Operation *op, std::vector<int64_t> &is_4,
+                    std::vector<int64_t> &os_4, std::vector<int> &offset_4,
+                    std::vector<int> &step_4) {
+  auto castOp = llvm::dyn_cast<OpTy>(op);
+  auto is = getTensorShape(castOp.input());
+  auto os = getTensorShape(castOp.output());
+  int num_dims = is.size();
+  std::vector<int> crop_offset;
+  std::vector<int> steps;
+  arrayAttrToVector(castOp.crop_offset(), crop_offset);
+  if (castOp.steps().hasValue()) {
+    arrayAttrToVector(castOp.steps().getValue(), steps);
+  } else {
+    steps.assign(num_dims, 1);
+  }
+
+  assert(crop_offset.size() == steps.size());
+  assert(is.size() == steps.size());
+  assert(is.size() == os.size());
+
+  if (num_dims > 4) {
+    // remove dims = 1
+    while (num_dims > 4) {
+      int idx = remove_value<int64_t>(is, 1);
+      if (idx < 0) {
+        break;
+      }
+      crop_offset.erase(crop_offset.begin() + idx);
+      steps.erase(steps.begin() + idx);
+      os.erase(os.begin() + idx);
+      num_dims--;
+    }
+    // remove continous
+    while (num_dims > 4) {
+      bool done = false;
+      for (int i = 0; i < num_dims - 1; i++) {
+        if (is[i] == os[i] && is[i + 1] == os[i + 1]) {
+          is[i] *= is[i + 1];
+          os[i] *= os[i + 1];
+          is.erase(is.begin() + i + 1);
+          os.erase(os.begin() + i + 1);
+          steps.erase(steps.begin() + i + 1);
+          crop_offset.erase(crop_offset.begin() + i + 1);
+          num_dims--;
+          done = true;
+          break;
+        }
+      }
+      if (done == false) {
+        break;
+      }
+    }
+    if (num_dims > 4) {
+      llvm_unreachable("permute shape not support");
+    }
+  }
+  is_4 = {1, 1, 1, 1};
+  os_4 = {1, 1, 1, 1};
+  step_4 = {1, 1, 1, 1};
+  offset_4 = {0, 0, 0, 0};
+  for (int end = num_dims - 1, idx = 3; end >= 0 && idx >= 0; end--, idx--) {
+    is_4[idx] = is[end];
+    os_4[idx] = os[end];
+    step_4[idx] = steps[end];
+    offset_4[idx] = crop_offset[end];
+  }
+}
+
+template void parseCropParam<tpu::CropOp>(Operation *op,
+                                          std::vector<int64_t> &is_4,
+                                          std::vector<int64_t> &os_4,
+                                          std::vector<int> &offset_4,
+                                          std::vector<int> &step_4);
+template void parseCropParam<tpu::TG_INT8_CropOp>(Operation *op,
+                                                  std::vector<int64_t> &is_4,
+                                                  std::vector<int64_t> &os_4,
+                                                  std::vector<int> &offset_4,
+                                                  std::vector<int> &step_4);
+template void parseCropParam<tpu::TG_BF16_CropOp>(Operation *op,
+                                                  std::vector<int64_t> &is_4,
+                                                  std::vector<int64_t> &os_4,
+                                                  std::vector<int> &offset_4,
+                                                  std::vector<int> &step_4);
+
+template <typename OpTy>
+void parseLeakyReluParam(Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
+                         int8_t &neg_rshift, int8_t &neg_m_i8,
+                         float &negative_slope) {
   auto lreluOp = llvm::dyn_cast<OpTy>(op);
   assert(lreluOp);
 

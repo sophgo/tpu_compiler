@@ -1044,44 +1044,40 @@ class OnnxConverter(BaseConverter):
     def convert_avg_pool_op(self, onnx_node):
         assert (onnx_node.op_type == "AveragePool")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        kernel_shape = onnx_node.attrs['kernel_shape']
+        pads = onnx_node.attrs.get('pads', [0, 0, 0, 0])
+        strides = onnx_node.attrs.get('strides', [1, 1])
+        count_include_pad = onnx_node.attrs.get('count_include_pad', False)
+
         operands = list()
         operands.append(op)
-        on = input_shape[0]
-        oc = input_shape[1]
-        pads = onnx_node.attrs['pads'] if "pads" in onnx_node.attrs else [0, 0, 0, 0]
 
-        strides = onnx_node.attrs['strides'] if "strides" in onnx_node.attrs else [1, 1]
-        kernel_shape = onnx_node.attrs['kernel_shape']
-        count_include_pad = onnx_node.attrs.get('count_include_pad', False)
         if kernel_shape[0] == 1:
             count_include_pad = True
-        onnx_name = onnx_node.name
 
-        is1d = len(input_shape) == 3
-
-        if is1d:
-            # extend w
-            strides = strides + [1]
+        is_1d = False
+        if len(kernel_shape) == 1:
+            # zero means expand 1 dim
             kernel_shape = kernel_shape + [1]
-            pads = [pads[0], 0, pads[1], 0]
             input_shape = input_shape + [1]
-            onnx_name = f"{onnx_node.name}_reshaped"
+            is_1d = True
+        kh, kw = kernel_shape
+        if len(strides) == 1:
+            strides = strides + [1]
 
-            # reshape to n,c,h,1 for friendly with optimizer
-            reshape_input_op = self.CVI.add_reshape_op(f"{onnx_node.name}_{onnx_node.op_type}_reshape", [op], input_shape)
-            operands[0] = reshape_input_op
+        if len(pads) == 2:
+            pads = [pads[0], 0, pads[1], 0]
 
         sh, sw = strides
-        kh, kw = kernel_shape
-        if kh == input_shape[2]:
+        if kh == input_shape[-2]:
             sh = 1
-        if kw == input_shape[3]:
+        if kw == input_shape[-1]:
             sw = 1
         pool_avg_2d_param = {
             'stride_h': sh,
             'stride_w': sw,
             'kernel_h': kh,
-            'kernel_w': kw,
+            'kernel_w': kw if not is_1d else 0,
             'padding_t': pads[0],
             'padding_l': pads[1],
             'padding_b': pads[2],
@@ -1089,20 +1085,15 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
             'count_include_pad': count_include_pad,
         }
-        oh = calcPool2DFloor(input_shape[2], pool_avg_2d_param['kernel_h'], pool_avg_2d_param['stride_h'],
-                             pool_avg_2d_param['padding_t'], pool_avg_2d_param['padding_b'])
-        ow = calcPool2DFloor(input_shape[3], pool_avg_2d_param['kernel_w'], pool_avg_2d_param['stride_w'],
-                             pool_avg_2d_param['padding_l'], pool_avg_2d_param['padding_r'])
-        output_shape = [int(on), int(oc), oh, ow]
+        output_shape = list(input_shape)
+        output_shape[-2] = calcPool2DFloor(input_shape[-2], kh, sh, pads[0], pads[2])
+        output_shape[-1] = calcPool2DFloor(input_shape[-1], kw, sw, pads[1], pads[3])
+        if is_1d:
+            output_shape.pop()
         pool_avg_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape,
                                                   **pool_avg_2d_param)
-        self.addOperand(onnx_name, pool_avg_op, output_shape, TensorType.ACTIVATION)
-        if is1d:
-            # reshape back
-            shape = output_shape[:-1]
-            reshape_input_op = self.CVI.add_reshape_op(f"{onnx_node.name}_{onnx_node.op_type}_reshaped", [pool_avg_op], shape)
-            onnx_name = onnx_node.name
-            self.addOperand(onnx_name, reshape_input_op, shape, TensorType.ACTIVATION)
+        self.addOperand(onnx_node.name, pool_avg_op, output_shape, TensorType.ACTIVATION)
+
 
     def convert_batchnorm1d_op(self, onnx_node):
         assert(onnx_node.op_type == "BatchNormalization")
@@ -1285,91 +1276,39 @@ class OnnxConverter(BaseConverter):
         concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
         self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
 
-    def convert_conv1d_op(self, onnx_node):
-        assert(onnx_node.op_type == "Conv")
-        dilations = onnx_node.attrs.get("dilations", [1])
-        group = onnx_node.attrs.get("group", 1)
-        pads = onnx_node.attrs.get("pads",[0,0])
-        strides = onnx_node.attrs.get("strides",[1])
-        kw = onnx_node.attrs['kernel_shape'][0]
-        with_bias = len(onnx_node.inputs) > 2
-        conv_param = {
-            'kernel_h': 1,
-            'kernel_w': kw,
-            'stride_h':  1,
-            'stride_w':  strides[0],
-            'padding': "SAME" if pads[0] > 0 else "VALID",
-            'dilation_h': 1,
-            'dilation_w': dilations[0],
-            'padding_t': 0,
-            'padding_b': 0,
-            'padding_l': pads[0],
-            'padding_r': pads[1],
-            'group': group,
-            'is_dw': False,
-            'with_bias': with_bias,
-            'do_relu': False,
-            'ins': [],
-        }
-        op, shape_, _ = self.getOperand(onnx_node.inputs[0])
-        shape = shape_[:]
-        # convert conv1d to conv2d
-        if len(shape) == 3:
-            shape.insert(2,1)
-            reshape_input_op = self.CVI.add_reshape_op("{}_{}_input".format(
-                    onnx_node.name, onnx_node.op_type), [op], shape)
-            op = reshape_input_op
-        operands = list()
-        operands.append(op)
-        filter_name = onnx_node.inputs[1]
-        filter_tensor = self.getTensor(filter_name)
-        if len(filter_tensor.shape) == 3:
-            filter_tensor.shape.insert(2, 1)
-            filter_tensor.tensor_data.reshape(filter_tensor.shape)
-        filter_shape = filter_tensor.shape
-
-        on = shape[0]
-        oc = filter_shape[0] # feature map size
-        oh = 1
-        ow = calcConv2DSpatial(
-            shape[3],
-            kw,
-            strides[0],
-            conv_param['padding_l'],
-            conv_param['padding_r'],
-            dilations[0]
-        )
-        filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
-        operands.append(filter_op)
-        if with_bias:
-            bias_name = onnx_node.inputs[2]
-            bias_tensor = self.getTensor(bias_name)
-            bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
-            operands.append(bias_op)
-        output_shape = [on, oc, oh, ow]
-        conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
-        new_output_shape = [on, oc, ow]
-        reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
-                    onnx_node.name, onnx_node.op_type), [conv_op], new_output_shape)
-        self.addOperand(onnx_node.name, reshape_back_op,
-                                new_output_shape, TensorType.ACTIVATION)
-
     def convert_conv_op(self, onnx_node):
         assert(onnx_node.op_type == "Conv")
+        op, shape, _ = self.getOperand(onnx_node.inputs[0])
         kernel_shape = onnx_node.attrs['kernel_shape']
-        if len(kernel_shape) == 1:
-            return self.convert_conv1d_op(onnx_node)
         if len(kernel_shape) == 3:
             return self.convert_conv3d_op(onnx_node)
-        assert(len(kernel_shape) == 2)
-        kh , kw = kernel_shape
+        is_1d = False
+        if len(kernel_shape) == 1:
+            # 0 will expand input dims
+            kernel_shape = kernel_shape + [1]
+            shape = shape + [1]
+            is_1d = True
 
-        op, shape, _ = self.getOperand(onnx_node.inputs[0])
+        kh, kw = kernel_shape
+
+        assert(len(kernel_shape) == 2)
+        dilations = onnx_node.attrs.get("dilations", [1, 1])
+        group = onnx_node.attrs.get("group", 1)
+        pads = onnx_node.attrs.get("pads",[0,0,0,0])
+        strides = onnx_node.attrs.get("strides",[1,1])
+        if len(strides) == 1:
+            strides = strides + [1]
+        if len(dilations) == 1:
+            dilations = dilations + [1]
+        if len(pads) == 2:
+            pads = [pads[0], 0, pads[1], 0]
         operands = list()
         operands.append(op)
         filter_name = onnx_node.inputs[1]
         filter_tensor = self.getTensor(filter_name)
         filter_shape = filter_tensor.shape
+        if is_1d:
+            filter_shape = filter_shape + [1]
         with_bias = False
         if len(onnx_node.inputs) == 3:
             #with bias
@@ -1377,10 +1316,6 @@ class OnnxConverter(BaseConverter):
             bias_name = onnx_node.inputs[2]
             bias_tensor = self.getTensor(bias_name)
 
-        dilations = onnx_node.attrs.get("dilations", [1, 1])
-        group = onnx_node.attrs.get("group", 1)
-        pads = onnx_node.attrs.get("pads",[0,0,0,0])
-        strides = onnx_node.attrs.get("strides",[1,1])
         auto_pad = onnx_node.attrs.get("auto_pad", None)
         if auto_pad:
             pad_method = auto_pad.decode('utf-8')
@@ -1413,7 +1348,7 @@ class OnnxConverter(BaseConverter):
                 raise RuntimeError("Not support conv {} pad method".format(pad_method))
         conv_param = {
             'kernel_h': kh,
-            'kernel_w': kw,
+            'kernel_w': kw if not is_1d else 0,
             'stride_h':  strides[0],
             'stride_w':  strides[1],
             'padding': "SAME" if pads[0] > 0 else "VALID",
@@ -1467,6 +1402,8 @@ class OnnxConverter(BaseConverter):
             operands.append(bias_op)
 
         output_shape = [on, oc, oh, ow]
+        if is_1d:
+            output_shape.pop()
         conv_op = self.CVI.add_conv_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
         self.addOperand(onnx_node.name, conv_op, output_shape, TensorType.ACTIVATION)
 
@@ -2467,79 +2404,92 @@ class OnnxConverter(BaseConverter):
             matmul_op = self.CVI.add_matmul_op(fc_name, [lhs_op, rhs_op], output_shape)
             self.addOperand(onnx_node.name, matmul_op, output_shape, TensorType.ACTIVATION)
 
-    def convert_maxpool_1d_op(self, onnx_node):
-        assert(onnx_node.op_type == "MaxPool")
+    def convert_maxpool_3d_op(self, onnx_node):
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-        pads = onnx_node.attrs.get("pads",[0,0,0,0])
-        kw = onnx_node.attrs['kernel_shape'][0]
-        sw = onnx_node.attrs.get("strides",[1])[0]
-        if kw == input_shape[2]:
-            sw = 1
-        conv_param = {
-            'stride_h': 1,
-            'stride_w': sw,
-            'kernel_h': 1,
-            'kernel_w': kw,
-            'padding_t': 0,
-            'padding_l': pads[0],
-            'padding_b': 0,
-            'padding_r': pads[1],
-            'do_relu': False,
-        }
-
-        shape = input_shape[:]
-        if len(shape) == 3:
-            shape.insert(2,1)
-            reshape_input_op = self.CVI.add_reshape_op("{}_{}_input".format(
-                    onnx_node.name, onnx_node.op_type), [op], shape)
-            op = reshape_input_op
-        operands = list()
-        operands.append(op)
-
-        on = input_shape[0]
-        oc = input_shape[1]
-        oh = 1
-        ow = calcPool2DFloor(input_shape[2], onnx_node.attrs['kernel_shape'][0], kw, pads[0], pads[1])
-        output_shape = [int(on), int(oc), int(oh), int(ow)]
-        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **conv_param)
-        new_output_shape = [on, oc, ow]
-        reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
-                    onnx_node.name, onnx_node.op_type), [pool_max_op], new_output_shape)
-        self.addOperand(onnx_node.name, reshape_back_op, output_shape, TensorType.ACTIVATION)
-
-    def convert_maxpool_op(self, onnx_node):
-        assert (onnx_node.op_type == "MaxPool")
-        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
-        if len(input_shape) == 3:
-            return self.convert_maxpool_1d_op(onnx_node)
-
-        pads = onnx_node.attrs.get("pads", [0, 0, 0, 0])
-        sh, sw = onnx_node.attrs.get("strides", [1, 1])
-        kh, kw = onnx_node.attrs['kernel_shape']
-        if kh == input_shape[2]:
+        pads = onnx_node.attrs.get("pads", [0, 0, 0, 0, 0, 0])
+        sd, sh, sw = onnx_node.attrs.get("strides", [1, 1, 1])
+        kd, kh, kw = onnx_node.attrs['kernel_shape']
+        if kd == input_shape[-3]:
+            sd = 1
+        if kh == input_shape[-2]:
             sh = 1
-        if kw == input_shape[3]:
+        if kw == input_shape[-1]:
             sw = 1
+        assert (kd == 1 and pads[0] == 0 and pads[3] == 0)
+        operands = list()
+        if sd != 1:
+            num_dims = len(input_shape)
+            crop_offset = [0] * num_dims
+            step_shape = [1] * num_dims
+            step_shape[-3] = sd
+            crop_param = {"crop_offset": list(crop_offset), "steps": list(step_shape)}
+            crop_shape = list(input_shape)
+            crop_shape[-3] = calcPool2DFloor(input_shape[-3], kd, sd, pads[0], pads[3])
+            crop_op = self.CVI.add_crop_op(onnx_node.name + "_crop", [op], crop_shape, **crop_param)
+            operands.append(crop_op)
+            input_shape = crop_shape
+        else:
+            operands.append(op)
+
         pool_max_2d_param = {
             'stride_h': sh,
             'stride_w': sw,
             'kernel_h': kh,
             'kernel_w': kw,
+            'padding_t': pads[1],
+            'padding_l': pads[2],
+            'padding_b': pads[4],
+            'padding_r': pads[5],
+            'do_relu': False,
+        }
+        output_shape = list(input_shape)
+        output_shape[-2] = calcPool2DFloor(input_shape[-2], kh, sh, pads[1], pads[4])
+        output_shape[-1] = calcPool2DFloor(input_shape[-1], kw, sw, pads[2], pads[5])
+        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape,
+                                                  **pool_max_2d_param)
+        self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
+
+    def convert_maxpool_op(self, onnx_node):
+        assert (onnx_node.op_type == "MaxPool")
+        op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        kernel_shape = onnx_node.attrs['kernel_shape']
+        if len(kernel_shape) == 3:
+            return self.convert_maxpool_3d_op(onnx_node)
+        pads = onnx_node.attrs.get("pads", [0, 0, 0, 0])
+        strides = onnx_node.attrs.get("strides", [1, 1])
+        is_1d = False
+        if len(kernel_shape) == 1:
+            # zero will expand input_shape
+            kernel_shape = kernel_shape + [1]
+            input_shape = input_shape + [1]
+            is_1d = True
+        kh, kw = kernel_shape
+        if len(strides) == 1:
+            strides = strides + [1]
+        if len(pads) == 2:
+            pads = [pads[0], 0, pads[1], 0]
+        sh, sw = strides
+        if kh == input_shape[-2]:
+            sh = 1
+        if kw == input_shape[-1]:
+            sw = 1
+        pool_max_2d_param = {
+            'stride_h': sh,
+            'stride_w': sw,
+            'kernel_h': kh,
+            'kernel_w': kw if not is_1d else 0,
             'padding_t': pads[0],
             'padding_l': pads[1],
             'padding_b': pads[2],
             'padding_r': pads[3],
             'do_relu': False,
         }
-
-        operands = list()
-        operands.append(op)
-        on = input_shape[0]
-        oc = input_shape[1]
-        oh = calcPool2DFloor(input_shape[2], kh, sh, pads[0], pads[2])
-        ow = calcPool2DFloor(input_shape[3], kw, sw, pads[1], pads[3])
-        output_shape = [int(on), int(oc), int(oh), int(ow)]
-        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape,
+        output_shape = list(input_shape)
+        output_shape[-2] = calcPool2DFloor(input_shape[-2], kh, sh, pads[0], pads[2])
+        output_shape[-1] = calcPool2DFloor(input_shape[-1], kw, sw, pads[1], pads[3])
+        if is_1d:
+            output_shape.pop()
+        pool_max_op = self.CVI.add_pool_max_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape,
                                                   **pool_max_2d_param)
         self.addOperand(onnx_node.name, pool_max_op, output_shape, TensorType.ACTIVATION)
 

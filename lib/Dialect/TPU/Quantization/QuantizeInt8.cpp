@@ -749,6 +749,9 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
     assert(castOp);
     int kh = castOp.param().kernel_h().getInt();
     int kw = castOp.param().kernel_w().getInt();
+    if (kw == 0) {
+      kw = 1;
+    }
     qscale[0] = qscale[0] / (kh * kw);
   }
 

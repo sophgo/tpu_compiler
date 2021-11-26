@@ -15,17 +15,17 @@
 
 static void tg_crop_with_w_step(const CviBackendContext &ctx, uint32_t layer_id,
                                 gaddr_t ga_input, gaddr_t ga_output,
-                                int *input_dim, int *output_dim, int *offsets,
-                                int *steps, cvk_fmt_t fmt) {
+                                std::vector<int64_t> is_4,
+                                std::vector<int64_t> os_4,
+                                std::vector<int> offsets,
+                                std::vector<int> steps, cvk_fmt_t fmt) {
   ctx.set_layer_id(layer_id);
-  auto i_gstride =
-      ctx.tg_default_stride(input_dim[1], input_dim[2], input_dim[3], fmt);
+  auto i_gstride = ctx.tg_default_stride(is_4[1], is_4[2], is_4[3], fmt);
   auto i_gstride2 = i_gstride;
   i_gstride2.n *= steps[0];
   i_gstride2.c *= steps[1];
   i_gstride2.h *= steps[2];
-  auto o_s = ctx.tg_shape_t4(output_dim[0], output_dim[1], output_dim[2],
-                             output_dim[3]);
+  auto o_s = ctx.tg_shape_t4(os_4[0], os_4[1], os_4[2], os_4[3]);
   auto o_gstride = ctx.tg_default_stride(o_s, fmt);
   std::vector<CviBackendContext::tiling_info_t> tiles;
   int num_blobs = steps[3] + 1;
@@ -57,22 +57,22 @@ static void tg_crop_with_w_step(const CviBackendContext &ctx, uint32_t layer_id,
 
 void cvi_backend_tg_crop_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                 gaddr_t ga_input, gaddr_t ga_output,
-                                int *input_dim, int *output_dim, int *offsets,
-                                int *steps, cvk_fmt_t fmt) {
+                                std::vector<int64_t> is_4,
+                                std::vector<int64_t> os_4,
+                                std::vector<int> offsets,
+                                std::vector<int> steps, cvk_fmt_t fmt) {
   if (steps[3] != 1) {
-    tg_crop_with_w_step(ctx, layer_id, ga_input, ga_output, input_dim,
-                        output_dim, offsets, steps, fmt);
+    tg_crop_with_w_step(ctx, layer_id, ga_input, ga_output, is_4, os_4, offsets,
+                        steps, fmt);
     return;
   }
   ctx.set_layer_id(layer_id);
-  auto i_gstride =
-      ctx.tg_default_stride(input_dim[1], input_dim[2], input_dim[3], fmt);
+  auto i_gstride = ctx.tg_default_stride(is_4[1], is_4[2], is_4[3], fmt);
   auto i_gstride2 = i_gstride;
   i_gstride2.n *= steps[0];
   i_gstride2.c *= steps[1];
   i_gstride2.h *= steps[2];
-  auto o_s = ctx.tg_shape_t4(output_dim[0], output_dim[1], output_dim[2],
-                             output_dim[3]);
+  auto o_s = ctx.tg_shape_t4(os_4[0], os_4[1], os_4[2], os_4[3]);
   auto o_gstride = ctx.tg_default_stride(o_s, fmt);
 
   std::vector<CviBackendContext::tiling_info_t> tiles;

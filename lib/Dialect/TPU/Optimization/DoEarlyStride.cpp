@@ -55,6 +55,9 @@ struct MoveConvStrideToEltwiseOpPattern : public RewritePattern {
         int kw = convOp.param().kernel_w().getInt();
         int sh = convOp.param().stride_h().getInt();
         int sw = convOp.param().stride_w().getInt();
+        if (kw == 0) {
+          return failure();
+        }
         if (strideH == 0 || strideW == 0) {
           strideH = sh;
           strideW = sw;

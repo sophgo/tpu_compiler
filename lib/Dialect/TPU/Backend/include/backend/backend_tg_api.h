@@ -70,10 +70,12 @@ void cvi_backend_tg_fixed_prelu_kernel(
     int input_n, int input_c, int input_h, int input_w,
     int GT_right_shift_width, int GT_scale, int LE_right_shift_width);
 
-void cvi_backend_tg_crop_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t bottom_gaddr, gaddr_t top_gaddr, int *input_dim,
-    int *output_dim, int *offsets, int *steps, cvk_fmt_t fmt);
+void cvi_backend_tg_crop_kernel(const CviBackendContext &ctx, uint32_t layer_id,
+                                gaddr_t bottom_gaddr, gaddr_t top_gaddr,
+                                std::vector<int64_t> i_s,
+                                std::vector<int64_t> o_s,
+                                std::vector<int> offsets,
+                                std::vector<int> steps, cvk_fmt_t fmt);
 
 void cvi_backend_tg_fixed_dilate_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,

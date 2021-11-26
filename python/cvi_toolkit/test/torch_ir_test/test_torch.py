@@ -27,6 +27,7 @@ TEST_TORCH_IR = [
     "Conv", # sunpport Conv with 3d, 2d, 1d case
     "ConvTranspose",
     "MaxPool", ## Maxpool_1d and Max_Un_Pool2d not support
+    "MaxPool3d",
     "AvgPool",
     "ReflectionPad", ## ReflectionPad_2d not support
     "ZeroPad2d",
@@ -148,6 +149,7 @@ class TORCH_IR_TESTER(object):
             "Conv": self.test_Conv,
             "ConvTranspose": self.test_ConvTranspose,
             "MaxPool": self.test_MaxPool,
+            "MaxPool3d": self.test_MaxPool3d,
             "AvgPool": self.test_AvgPool,
             "ReflectionPad": self.test_ReflectionPad,
             "ZeroPad2d": self.test_ZeroPad2d,
@@ -1316,6 +1318,28 @@ class TORCH_IR_TESTER(object):
         test_name = 'MaxPool'
 
         input_data = torch.randn(batch_size, 3, 100).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_name)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
+    def test_MaxPool3d(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.max_pool3d = nn.MaxPool3d(kernel_size=(1, 3, 3), stride=(2, 1, 2))
+
+            def forward(self, x):
+                x = self.max_pool3d(x)
+                return x
+
+        shape = [1, 4, 128, 20, 90]
+        test_name = 'MaxPool3d'
+
+        input_data = torch.randn(*shape).float()
         net = Net()
         torch_output_data = net(input_data)
 

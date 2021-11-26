@@ -73,6 +73,7 @@ class TPU_OpType(Enum):
     PixelShuffle = 'tpu.pixelshuffle'
     PoolAvg2D = 'tpu.pool_avg_2d'
     PoolMax2D = 'tpu.pool_max_2d'
+    PoolMax3D = 'tpu.pool_max_3d'
     PoolMask = 'tpu.pool_mask'
     Power = 'tpu.power'
     Preprocess = 'tpu.preprocess'
@@ -1319,6 +1320,53 @@ class MLIRImporter(object):
 
         return self.buildOp(TPU_OpType.PoolMax2D.value, inputOperands, [
             tensor_output_type], name=pool_max_2d_name, param=dict_attr, quant=quant_param)
+
+    def add_pool_max_3d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
+
+        tensor_output_type = RankedTensorType.get(
+            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
+        checkKey(kargs, 'kernel_d')
+        checkKey(kargs, 'kernel_h')
+        checkKey(kargs, 'kernel_w')
+        checkKey(kargs, 'padding_d0')
+        checkKey(kargs, 'padding_d1')
+        checkKey(kargs, 'padding_b')
+        checkKey(kargs, 'padding_l')
+        checkKey(kargs, 'padding_r')
+        checkKey(kargs, 'padding_t')
+        checkKey(kargs, 'stride_d')
+        checkKey(kargs, 'stride_h')
+        checkKey(kargs, 'stride_w')
+        checkKey(kargs, 'do_relu')
+
+        pool_max_3d_name = StringAttr.get(op_name)
+        pool_max_3d_param = {
+            'stride_d': IntegerAttr.get(self.i32Type, kargs['stride_d']),
+            'stride_h': IntegerAttr.get(self.i32Type, kargs['stride_h']),
+            'stride_w': IntegerAttr.get(self.i32Type, kargs['stride_w']),
+            'kernel_d': IntegerAttr.get(self.i32Type, kargs['kernel_d']),
+            'kernel_h': IntegerAttr.get(self.i32Type, kargs['kernel_h']),
+            'kernel_w': IntegerAttr.get(self.i32Type, kargs['kernel_w']),
+            'padding_d0': IntegerAttr.get(self.i32Type, kargs['padding_d0']),
+            'padding_d1': IntegerAttr.get(self.i32Type, kargs['padding_d1']),
+            'padding_b': IntegerAttr.get(self.i32Type, kargs['padding_b']),
+            'padding_l': IntegerAttr.get(self.i32Type, kargs['padding_l']),
+            'padding_r': IntegerAttr.get(self.i32Type, kargs['padding_r']),
+            'padding_t': IntegerAttr.get(self.i32Type, kargs['padding_t']),
+            'do_relu': BoolAttr.get(kargs['do_relu']),
+            # max pool has no count_include_pad method
+            'count_include_pad': BoolAttr.get(False),
+        }
+        dict_attr = DictAttr.get(pool_max_3d_param)
+        if mode == TPU_MODE.INT8:
+            quant_param = self.create_int8_quant_attr(**kargs)
+        elif mode == TPU_MODE.FP32:
+            quant_param = self.quant_param
+        elif mode == TPU_MODE.BF16:
+            raise RuntimeError("Not support BF16")
+
+        return self.buildOp(TPU_OpType.PoolMax3D.value, inputOperands, [
+            tensor_output_type], name=pool_max_3d_name, param=dict_attr, quant=quant_param)
 
     def add_power_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

@@ -120,7 +120,7 @@ static bool is_crop_fusible(Operation *op) {
   if (total_steps > 1) {
     return false;
   }
-  if (crop_offsets.size() < 4) {
+  if (crop_offsets.size() != 4) {
     return false;
   }
   // offset should be n/c/h/w
