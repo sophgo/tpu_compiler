@@ -252,9 +252,9 @@ cp $INSTALL_PATH/cnpy/lib/* $INSTALL_PATH/tpuc/lib/
 
 mkdir -p $BUILD_PATH/tpuc
 pushd $BUILD_PATH/tpuc
-#BUILD_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
+DEBUG_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
 cmake -G Ninja \
-    $BUILD_FLAG \
+    $DEBUG_FLAG \
     -DMKLDNN_PATH=$INSTALL_PATH/mkldnn \
     -DCVIKERNEL_PATH=$INSTALL_PATH/cvikernel \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \

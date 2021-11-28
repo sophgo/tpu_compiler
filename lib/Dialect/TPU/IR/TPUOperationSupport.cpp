@@ -795,11 +795,11 @@ void parseCropParam(Operation *op, std::vector<int64_t> &is_4,
   os_4 = {1, 1, 1, 1};
   step_4 = {1, 1, 1, 1};
   offset_4 = {0, 0, 0, 0};
-  for (int end = num_dims - 1, idx = 3; end >= 0 && idx >= 0; end--, idx--) {
-    is_4[idx] = is[end];
-    os_4[idx] = os[end];
-    step_4[idx] = steps[end];
-    offset_4[idx] = crop_offset[end];
+  for (int idx = 0; idx < num_dims; idx++) {
+    is_4[idx] = is[idx];
+    os_4[idx] = os[idx];
+    step_4[idx] = steps[idx];
+    offset_4[idx] = crop_offset[idx];
   }
 }
 

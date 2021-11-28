@@ -83,7 +83,7 @@ Value MixNet::get_op_from_name(std::string name) {
   if (name_op_map_.find(name)!= name_op_map_.end()) {
     return (Value)name_op_map_[name];
   } else {
-    LLVM_DEBUG(llvm::errs() << "Cannot find op name " << name << " in MixNet.\n";);
+    llvm::errs() << "Cannot find op name " << name << " in MixNet.\n";
     assert(0);
   }
 }
