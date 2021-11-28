@@ -502,8 +502,10 @@ ImQuant::ImQuant(Operation *op) : ImLayer(IR_QUANT, op, true) {
 
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
-
-  if ((from == "INT8" || from == "UINT8") && to == "BF16") {
+  auto shape = getTensorShape(quantOp.input());
+  if (shape.size() != 3 || shape.size() != 4) {
+    fusible = false;
+  } else if ((from == "INT8" || from == "UINT8") && to == "BF16") {
   } else if (from == "BF16" && to == "INT8") {
     // to avoid quant input been override
     // check if quant's input has multi-usage
@@ -528,14 +530,15 @@ ImShuffleChannel::ImShuffleChannel(Operation *op): ImLayer(IR_SHUFFLECHANNEL, op
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
-ImSlice::ImSlice(Operation *op): ImLayer(IR_SLICE, op, false) {
+ImSlice::ImSlice(Operation *op) : ImLayer(IR_SLICE, op, false) {
   std::vector<int64_t> dst_shape = getTensorShape(op->getResult(0));
   int axis = 0;
   getSliceParam(op, axis);
-
-  // if before axis is all 1, we use tg slice
-  // since we can remove the slice after
-  if (axis == 1) {
+  if (dst_shape.size() != 3 || dst_shape.size() != 4) {
+    fusible = false;
+  } else if (axis == 1) {
+    // if before axis is all 1, we use tg slice
+    // since we can remove the slice after
     // tl_slice only support axis == 1
     for (int i = 0; i < axis; i++) {
       if (dst_shape[i] != 1) {
