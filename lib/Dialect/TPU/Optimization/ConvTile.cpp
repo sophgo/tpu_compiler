@@ -98,6 +98,14 @@ public:
   Operation *op = {nullptr};
   const MInfo &mInfo;
   int dataTypeSize = {1};
+
+private:
+  int w_after_ins_pad(int w) {
+    return (w - 1) * (1 + insert_w) + 1 + pad_left + pad_right;
+  }
+  int h_after_ins_pad(int h) {
+    return (h - 1) * (1 + insert_h) + 1 + pad_bottom + pad_top;
+  }
 };
 
 bool ConvolutionBaseModel::isNoTile(TileInfo &tileInfo) {
@@ -108,6 +116,7 @@ bool ConvolutionBaseModel::isNoTile(TileInfo &tileInfo) {
 
   return false;
 }
+
 
 int ConvolutionBaseModel::getLmSizePerLane(TileInfo &tileInfo) {
   int n_step = tileInfo.n_step;
@@ -255,14 +264,23 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes(
   int kh_extent = dilation_h * (kh - 1) + 1;
   int kw_extent = dilation_w * (kw - 1) + 1;
 
-  // Split output width
-  for (int ow_step = max_ow_step; ow_step > 0; --ow_step) {
-    int iw_step = std::min((ow_step - 1) * stride_w + kw_extent, input_w);
+  // Not handle ps32 tiling here.
+  if (max_ic_step < ic) {
+    LLVM_DEBUG(llvm::errs() << "  determineTileSize fail\n");
+    tileInfo = {0};
+    return tileInfo;
+  }
 
-    if (iw_step > mInfo.MAX_TIU_WIDTH)
-      continue;
+  // Split ow
+  for (int32_t ow_step = max_ow_step; ow_step > 0; --ow_step){
+    // int32_t iw_step = std::min((ow_step - 1) * stride_w + kw_extent, input_w);
+    int32_t iw_step =
+        ((ow_step - 1) * stride_w + kw_extent + insert_w) /  (1 + insert_w);
+    iw_step = std::min(iw_step, input_w);
 
-     if ((stride_w > 1) && ((iw_step + stride_w) > input_w)) {
+
+
+    if ((stride_w > 1) && ((iw_step + stride_w) > input_w)){
       // For better DMA transfer efficiency, use whole width.
       //   E.g.
       //     ifmap (1, 512, 28, 28), kernel (1, 1), stride 2
@@ -271,43 +289,52 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes(
       iw_step = std::min(iw_step + stride_w - 1, input_w);
     }
 
-    // Split output height
-    for (int oh_step = max_oh_step; oh_step > 0; --oh_step) {
+    if (w_after_ins_pad(iw_step) > mInfo.MAX_TIU_WIDTH) {
+      continue;
+    }
+
+    // Split oh
+    for (int32_t oh_step = max_oh_step; oh_step > 0; --oh_step){
       // When the width tiling is used, there is no need to do height tiling.
       if (ow_step < max_ow_step)
         oh_step = 1;
+      // int32_t ih_step = std::min((oh_step - 1) * stride_h + kh_extent, input_h);
+      // ceil
+      int32_t ih_step = ((oh_step - 1) * stride_h + kh_extent + insert_h)
+                        / (1 + insert_h);
+      ih_step = std::min(ih_step, input_h);
 
-      int ih_step = std::min((oh_step - 1) * stride_w + kh_extent, input_h);
-
-      if (ih_step > mInfo.MAX_TIU_HEIGHT)
+      if (h_after_ins_pad(ih_step) > mInfo.MAX_TIU_HEIGHT)
         continue;
 
-      // Split output channel
-      for (int oc_i = 0; oc_i < num_oc_step; ++oc_i) {
+      // Split oc
+      for (int32_t slice_oc = 0; slice_oc < num_oc_step; ++slice_oc){
         // Downward, align lanes
         //   E.g. oc = 48, oc_step: 48, 32
-        int oc_step = std::min((num_oc_step - oc_i) * (int)mInfo.lane_num, oc);
+        int32_t npu_num = static_cast<int32_t>(mInfo.lane_num);
+        int32_t oc_step = std::min((num_oc_step - slice_oc) * npu_num, oc);
 
-        for (int n_step = max_n_step; n_step > 0; --n_step) {
-            tileInfo = {0};
-            tileInfo.n_step = n_step;
-            tileInfo.oc_step = oc_step;
-            tileInfo.oh_step = oh_step;
-            tileInfo.ow_step = ow_step;
-            tileInfo.ih_step = ih_step;
-            tileInfo.iw_step = iw_step;
-            tileInfo.ic_step = is_dw ? oc_step : max_ic_step;
-            tileInfo.use_double_buffer = use_double_buffer;
-            tileInfo.favor_dma = favor_dma;
+        // split n
+        for (int32_t slice_n = 1; slice_n <= max_n_step; ++slice_n){
+          int32_t n_step = (input_n + slice_n - 1) / slice_n;
+          tileInfo = {0};
+          tileInfo.n_step = n_step;
+          tileInfo.oc_step = oc_step;
+          tileInfo.oh_step = oh_step;
+          tileInfo.ow_step = ow_step;
+          tileInfo.ih_step = ih_step;
+          tileInfo.iw_step = iw_step;
+          tileInfo.ic_step = max_ic_step;
+          tileInfo.use_double_buffer = use_double_buffer;
+          tileInfo.favor_dma = favor_dma;
+          uint64_t needed = (uint64_t)getLmSizePerLane(tileInfo);
+          if (needed <= mInfo.lmem_per_lane && checkDmaPolicy(tileInfo))
+            return tileInfo;
 
-            uint64_t needed = (uint64_t)getLmSizePerLane(tileInfo);
-            if (needed <= mInfo.lmem_per_lane && checkDmaPolicy(tileInfo))
-              return tileInfo;
         }
       }
     }
   }
-
   tileInfo = {0};
   return tileInfo;
 }
