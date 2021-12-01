@@ -1880,6 +1880,7 @@ class OnnxConverter(BaseConverter):
                     offset = input_shape1[axis] + offset
                 attr = {"axis": axis, "offset": offset}
                 tmp = np.take(np.ones(input_shape1), np.array([offset]), axis=axis)
+                tmp = np.squeeze(tmp, axis=axis)
                 output_shape = list(tmp.shape)
                 slice_op_ = self.CVI.add_slice_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [op1], output_shape, **attr)
                 self.addOperand(onnx_node.outputs[0], slice_op_, output_shape, TensorType.ACTIVATION)
@@ -1959,16 +1960,15 @@ class OnnxConverter(BaseConverter):
     def convert_global_pool_op(self, onnx_node):
         assert(onnx_node.op_type == "GlobalAveragePool" or onnx_node.op_type == "GlobalMaxPool")
         op, input_shape, _ = self.getOperand(onnx_node.inputs[0])
+        assert(len(input_shape) >= 3)  # Pool_1d for 3, Pool_2d for 4
         operands = list()
         operands.append(op)
-        on = input_shape[0]
-        oc = input_shape[1]
 
         pool_2d_param = {
             'stride_h':  1,
             'stride_w':  1,
-            'kernel_h':  input_shape[2],
-            'kernel_w':  input_shape[3],
+            'kernel_h':  input_shape[-2],
+            'kernel_w':  input_shape[-1],
             'padding_b': 0,
             'padding_r': 0,
             'padding_t': 0,
@@ -1976,7 +1976,12 @@ class OnnxConverter(BaseConverter):
             'do_relu': False,
             'count_include_pad': True,
         }
-        output_shape = [int(on), int(oc), 1, 1]
+        if len(input_shape) == 3:
+            pool_2d_param['kernel_h'] = input_shape[-1]
+            pool_2d_param['kernel_w'] = 0
+            output_shape = input_shape[:-1] + [1]
+        else:
+            output_shape = input_shape[:-2] + [1, 1]
         if onnx_node.op_type == "GlobalAveragePool":
             pool_op = self.CVI.add_pool_avg_2d_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **pool_2d_param)
         elif onnx_node.op_type == "GlobalMaxPool":
@@ -2775,8 +2780,9 @@ class OnnxConverter(BaseConverter):
                 reshape_output_shape.insert(0, 1)
                 pads.insert(0, 0)
                 pads.insert(4, 0)
+                pads_param["pads"] = pads
                 pads_op = self.CVI.add_pad_op(name + "_4dim_pad", [reshape_op], reshape_output_shape,
-                              pads=pads, const_val=constant_value)
+                              **pads_param)
                 reshape_back_op = self.CVI.add_reshape_op(name, [pads_op], output_shape)
                 self.addOperand(onnx_node.name, reshape_back_op, output_shape, TensorType.ACTIVATION)
             else:
@@ -3213,6 +3219,8 @@ class OnnxConverter(BaseConverter):
 
         assert(len(starts) == len(ends))
         assert(len(axes) == len(ends))
+        starts[starts < 0] += np.array(input_shape)[axes][starts < 0]
+        ends[ends < 0] += np.array(input_shape)[axes][ends < 0]
 
         if tesnor_type == TensorType.TENSOR:
             tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
@@ -3580,6 +3588,7 @@ class OnnxConverter(BaseConverter):
         # default revert it, eg: shape (2, 3, 4)->(4, 3, 2), per=[2, 1, 0]
         perm_default = list(np.arange(len(input_shape))[::-1])
         transpose_perm = onnx_node.attrs.get('perm', perm_default)
+        assert(len(input_shape) == len(transpose_perm))
         if tensor_type == TensorType.TENSOR:
             tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
             output_data = np.transpose(tensor_data, transpose_perm)
