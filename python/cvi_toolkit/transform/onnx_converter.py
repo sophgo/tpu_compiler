@@ -1272,7 +1272,6 @@ class OnnxConverter(BaseConverter):
             self.addTensor(const_name, const_data, const_data.shape)
             const_op = self.CVI.add_load_file_op(const_name, const_data.shape)
             operands.append(const_op)
-
         concat_op = self.CVI.add_concat_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, axis=axis)
         self.addOperand(onnx_node.name, concat_op, output_shape, TensorType.ACTIVATION)
 
@@ -2772,7 +2771,18 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-            if len(input_shape) == 3:
+            if len(input_shape) == 2:
+                reshape_input_shape = [1, 1] + list(input_shape)
+                reshape_op = self.CVI.add_reshape_op(name + "_input_reshape", [op], reshape_input_shape)
+                reshape_output_shape = [1, 1] + list(output_shape)
+                assert(len(pads) == 4)
+                pads_param["pads"] = [0, 0] + pads[:2] + [0, 0] + pads[2:4]
+                pads_op = self.CVI.add_pad_op(name + "_4dim_pad", [reshape_op], reshape_output_shape,
+                                              **pads_param)
+                reshape_back_op = self.CVI.add_reshape_op(name, [pads_op], output_shape)
+                self.addOperand(onnx_node.name, reshape_back_op, output_shape, TensorType.ACTIVATION)
+
+            elif len(input_shape) == 3:
                 reshape_input_shape = list(input_shape)
                 reshape_input_shape.insert(0, 1)
                 reshape_op = self.CVI.add_reshape_op(name + "_input_reshape", [op], reshape_input_shape)
@@ -3390,7 +3400,11 @@ class OnnxConverter(BaseConverter):
         if axis < 0:
             axis += len(input_shape)
         slice = input_shape[axis] // num_output
+
         split = onnx_node.attrs.get('split', [slice] * num_output)
+        if len(onnx_node.inputs) == 2:  # onnx offset 13 version
+            split = list(self.getTensor(onnx_node.inputs[1]).tensor_data.astype(np.int32))
+
         if tensor_type == TensorType.TENSOR:
             data = self.getTensor(onnx_node.inputs[0]).tensor_data
             outputs = np.split(data, split)
@@ -3740,7 +3754,7 @@ class OnnxConverter(BaseConverter):
 
     def convert_reduce_op(self, onnx_node):
         if len(onnx_node.inputs) > 1:
-            axes = list(self.getTensor(onnx_node.inputs[1]).tensor_data)
+            axes = list(self.getTensor(onnx_node.inputs[1]).tensor_data.astype(np.int32))
         else:
             checkKey(onnx_node.attrs, 'axes')
             axes = onnx_node.attrs['axes']
