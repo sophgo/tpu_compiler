@@ -3739,8 +3739,11 @@ class OnnxConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_reduce_op(self, onnx_node):
-        checkKey(onnx_node.attrs, 'axes')
-        axes = onnx_node.attrs['axes']
+        if len(onnx_node.inputs) > 1:
+            axes = list(self.getTensor(onnx_node.inputs[1]).tensor_data)
+        else:
+            checkKey(onnx_node.attrs, 'axes')
+            axes = onnx_node.attrs['axes']
         keepdims = onnx_node.attrs.get('keepdims', 1)
         op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
         output_shape = list(input_shape)
