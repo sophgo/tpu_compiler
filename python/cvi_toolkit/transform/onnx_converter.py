@@ -3229,8 +3229,6 @@ class OnnxConverter(BaseConverter):
 
         assert(len(starts) == len(ends))
         assert(len(axes) == len(ends))
-        starts[starts < 0] += np.array(input_shape)[axes][starts < 0]
-        ends[ends < 0] += np.array(input_shape)[axes][ends < 0]
 
         if tesnor_type == TensorType.TENSOR:
             tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
@@ -3256,6 +3254,8 @@ class OnnxConverter(BaseConverter):
                     axis = axis + num_dims
                 if end < 0:
                     end = end + input_shape[axis]
+                if start < 0:
+                    start = start + input_shape[axis]
                 if end > input_shape[axis]:
                     end = input_shape[axis]
                 crop_shape[axis] = (end - start + step - 1) // step
