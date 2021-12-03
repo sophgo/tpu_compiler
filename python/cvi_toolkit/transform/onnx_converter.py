@@ -1879,10 +1879,12 @@ class OnnxConverter(BaseConverter):
                     offset = input_shape1[axis] + offset
                 attr = {"axis": axis, "offset": offset}
                 tmp = np.take(np.ones(input_shape1), np.array([offset]), axis=axis)
-                tmp = np.squeeze(tmp, axis=axis)
                 output_shape = list(tmp.shape)
                 slice_op_ = self.CVI.add_slice_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [op1], output_shape, **attr)
-                self.addOperand(onnx_node.outputs[0], slice_op_, output_shape, TensorType.ACTIVATION)
+                output_shape = output_shape[:axis] + output_shape[axis + 1:]
+                final_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type) + "_reshape",
+                                                  [slice_op_], output_shape)
+                self.addOperand(onnx_node.outputs[0], final_op, output_shape, TensorType.ACTIVATION)
             else:
                 logger.warning("indices:", indices)
                 raise("TODO: Our Ir not support gather function")

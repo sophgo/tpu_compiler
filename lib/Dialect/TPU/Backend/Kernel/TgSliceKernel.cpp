@@ -18,7 +18,23 @@ void cvi_backend_tg_slice_kernel(const CviBackendContext &ctx,
                                  int length, cvk_fmt_t fmt) {
   assert(input_dim_size > axis && (offset + length <= input_dim[axis]) &&
          "paramter error");
-  assert(input_dim_size <= 4 && "dim size should <= 4");
+
+  while(input_dim_size > 4){
+    for (int i = input_dim_size - 1; i >= 0; i--){
+      if (axis != i && axis != i - 1){
+        input_dim[i - 1] *= input_dim[i];
+        input_dim_size--;
+        if (i < axis){
+          for (int j = i; j < input_dim_size; j++)
+            input_dim[j] = input_dim[j + 1];
+          axis--;
+        }
+        break;
+      }
+    }
+  }
+
+  assert(input_dim_size <= 4 && "dim size can't reduced <= 4");
   int shape[4] = {1, 1, 1, 1};
   for (int i = 0; i < input_dim_size; i++) {
     shape[i] = input_dim[i];
