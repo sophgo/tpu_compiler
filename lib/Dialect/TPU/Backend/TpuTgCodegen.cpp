@@ -3399,79 +3399,50 @@ LogicalResult tpu::TG_BF16_UpsampleOp::codegen(void *ctx) {
 }
 
 LogicalResult tpu::TG_INT8_PadOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
+  std::vector<int64_t> i_s;
+  std::vector<int64_t> o_s;
+  std::vector<int> pads;
+  parsePadParam<tpu::TG_INT8_PadOp>(op, i_s, o_s, pads);
 
-  // parse param
-  std::vector<int32_t> pads;
   auto const_val = this->const_val().convertToFloat();
   auto mode = this->mode().str().c_str();
-  arrayAttrToVector(this->pads().getValue(), pads);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_pad_kernel(
-      *backend_ctx,
-      layer_id,
-      ga_input,
-      ga_output,
-      n,
-      c,
-      h,
-      w,
-      pads.data(),
-      const_val,
-      mode,
-      CVK_FMT_I8
-  );
+  cvi_backend_tg_pad_kernel(*backend_ctx, layer_id, ga_input, ga_output, i_s[0],
+                            i_s[1], i_s[2], i_s[3], pads.data(), const_val,
+                            mode, CVK_FMT_I8);
 
   return success();
 }
 
 LogicalResult tpu::TG_BF16_PadOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
-  getTensorShapeAndSize(op->getOperand(0), shape, input_size);
-  getNCHW(shape, n, c, h, w);
-
-  // parse param
-  std::vector<int32_t> pads;
+  std::vector<int64_t> i_s;
+  std::vector<int64_t> o_s;
+  std::vector<int> pads;
+  parsePadParam<tpu::TG_BF16_PadOp>(op, i_s, o_s, pads);
   auto const_val = this->const_val().convertToFloat();
   auto mode = this->mode().str().c_str();
-  arrayAttrToVector(this->pads().getValue(), pads);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  cvi_backend_tg_pad_kernel(
-      *backend_ctx,
-      layer_id,
-      ga_input,
-      ga_output,
-      n,
-      c,
-      h,
-      w,
-      pads.data(),
-      const_val,
-      mode,
-      CVK_FMT_BF16
-  );
+  cvi_backend_tg_pad_kernel(*backend_ctx, layer_id, ga_input, ga_output, i_s[0],
+                            i_s[1], i_s[2], i_s[3], pads.data(), const_val,
+                            mode, CVK_FMT_BF16);
 
   return success();
 }

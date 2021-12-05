@@ -565,10 +565,10 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
       std::vector<int32_t> pads;
       if (isa<tpu::TG_INT8_PadOp>(im_layer->op())) {
         auto pad_op = cast<tpu::TG_INT8_PadOp>(im_layer->op());
-        arrayAttrToVector(pad_op.pads().getValue(), pads);
+        arrayAttrToVector(pad_op.pads(), pads);
       } else if (isa<tpu::TG_BF16_PadOp>(im_layer->op())) {
         auto pad_op = cast<tpu::TG_BF16_PadOp>(im_layer->op());
-        arrayAttrToVector(pad_op.pads().getValue(), pads);
+        arrayAttrToVector(pad_op.pads(), pads);
       }
 
       h_idx = out_h_idx ? out_h_idx - pads[2] : 0;
@@ -783,10 +783,10 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
       std::vector<int32_t> pads;
       if (isa<tpu::TG_INT8_PadOp>(im_layer->op())) {
         auto pad_op = cast<tpu::TG_INT8_PadOp>(im_layer->op());
-        arrayAttrToVector(pad_op.pads().getValue(), pads);
+        arrayAttrToVector(pad_op.pads(), pads);
       } else if (isa<tpu::TG_BF16_PadOp>(im_layer->op())) {
         auto pad_op = cast<tpu::TG_BF16_PadOp>(im_layer->op());
-        arrayAttrToVector(pad_op.pads().getValue(), pads);
+        arrayAttrToVector(pad_op.pads(), pads);
       }
 
       w_idx = out_w_idx ? out_w_idx - pads[3] : 0;

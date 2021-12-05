@@ -115,6 +115,10 @@ template <typename OpTy>
 void parseCropParam(Operation *op, std::vector<int64_t> &is_4, std::vector<int64_t> &os_4,
                        std::vector<int> &offset_4, std::vector<int> &step_4);
 
+template <typename OpTy>
+void parsePadParam(Operation *op, std::vector<int64_t> &is_4, std::vector<int64_t> &os_4,
+                       std::vector<int> &pad_4);
+
 template<typename OpTy>
 void parseLeakyReluParam(Operation *op,
     int8_t &pos_rshift, int8_t &pos_m_i8,

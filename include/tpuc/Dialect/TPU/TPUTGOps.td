@@ -2054,7 +2054,7 @@ class TPU_TG_PadOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     ins AnyTensor:$input,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<I32ArrayAttr>:$pads,
+    I32ArrayAttr:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
     DefaultValuedAttr<StrAttr, "constant">:$mode,
     StrAttr:$name

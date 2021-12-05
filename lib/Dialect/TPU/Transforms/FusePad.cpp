@@ -193,7 +193,10 @@ struct TpuFusePadPattern : public RewritePattern {
 
     std::vector<int32_t> pads;
     int const_val = padOp.const_val().convertToFloat();
-    arrayAttrToVector(padOp.pads().getValue(), pads);
+    arrayAttrToVector(padOp.pads(), pads);
+    if (pads.size() != 8) {
+      return failure();
+    }
 
     auto pad_n_begin = pads[0];
     auto pad_c_begin = pads[1];

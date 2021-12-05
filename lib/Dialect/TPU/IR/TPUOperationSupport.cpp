@@ -820,6 +820,86 @@ template void parseCropParam<tpu::TG_BF16_CropOp>(Operation *op,
                                                   std::vector<int> &step_4);
 
 template <typename OpTy>
+void parsePadParam(Operation *op, std::vector<int64_t> &is_4,
+                   std::vector<int64_t> &os_4, std::vector<int> &pad_4) {
+  auto castOp = llvm::dyn_cast<OpTy>(op);
+  auto is = getTensorShape(castOp.input());
+  auto os = getTensorShape(castOp.output());
+  int num_dims = is.size();
+  std::vector<int> pads;
+  arrayAttrToVector(castOp.pads(), pads);
+  assert(is.size() * 2 == pads.size());
+  assert(is.size() == os.size());
+
+  if (num_dims > 4) {
+    // remove continous
+    while (num_dims > 4) {
+      bool done = false;
+      for (int i = 0; i < num_dims - 1; i++) {
+        if (is[i] == os[i] && is[i + 1] == os[i + 1]) {
+          is[i] *= is[i + 1];
+          os[i] *= os[i + 1];
+          is.erase(is.begin() + i + 1);
+          os.erase(os.begin() + i + 1);
+          pads.erase(pads.begin() + i + 1);
+          num_dims--;
+          done = true;
+          break;
+        }
+      }
+      if (done == false) {
+        break;
+      }
+    }
+    if (num_dims > 4) {
+      llvm_unreachable("Pad shape not support");
+    }
+  }
+  is_4 = {1, 1, 1, 1};
+  os_4 = {1, 1, 1, 1};
+  pad_4 = {0, 0, 0, 0, 0, 0, 0, 0};
+  switch (num_dims) {
+  case 1:
+    is_4[3] = is[0];
+    os_4[3] = os[0];
+    pad_4[3] = pads[0];
+    pad_4[7] = pads[1];
+    break;
+  case 2:
+    is_4[1] = is[0];
+    is_4[3] = is[1];
+    os_4[1] = os[0];
+    os_4[3] = os[1];
+    pad_4[1] = pads[0];
+    pad_4[3] = pads[1];
+    pad_4[5] = pads[2];
+    pad_4[7] = pads[3];
+    break;
+  default:
+    for (int idx = 0; idx < num_dims; idx++) {
+      is_4[idx] = is[idx];
+      os_4[idx] = os[idx];
+      pad_4[idx] = pads[idx];
+      pad_4[idx + 4] = pads[idx + num_dims];
+    }
+    break;
+  }
+}
+
+template void parsePadParam<tpu::PadOp>(Operation *op,
+                                        std::vector<int64_t> &is_4,
+                                        std::vector<int64_t> &os_4,
+                                        std::vector<int> &pad_4);
+template void parsePadParam<tpu::TG_INT8_PadOp>(Operation *op,
+                                                std::vector<int64_t> &is_4,
+                                                std::vector<int64_t> &os_4,
+                                                std::vector<int> &pad_4);
+template void parsePadParam<tpu::TG_BF16_PadOp>(Operation *op,
+                                                std::vector<int64_t> &is_4,
+                                                std::vector<int64_t> &os_4,
+                                                std::vector<int> &pad_4);
+
+template <typename OpTy>
 void parseLeakyReluParam(Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
                          int8_t &neg_rshift, int8_t &neg_m_i8,
                          float &negative_slope) {

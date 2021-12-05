@@ -663,12 +663,13 @@ ImPad::ImPad(Operation *op): ImLayer(IR_PAD, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
   std::string mode;
+  auto shape = getTensorShape(op->getOperand(0));
   if(auto castOp = llvm::dyn_cast_or_null<tpu::TG_BF16_PadOp>(op)){
     mode = castOp.mode().str();
   } else if (auto castOp = llvm::dyn_cast_or_null<tpu::TG_INT8_PadOp>(op)) {
     mode = castOp.mode().str();
   }
-  if (mode != "constant") {
+  if (mode != "constant" || shape.size() != 4) {
     fusible = false;
   }
 }

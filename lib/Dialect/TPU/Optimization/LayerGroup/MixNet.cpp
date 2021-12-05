@@ -2000,10 +2000,10 @@ void MixNet::_add_tl_pad_op(MixOp * mix_op,
   float const_val;
   if (auto pad_op = dyn_cast<tpu::TG_INT8_PadOp>(op)) {
     const_val = pad_op.const_val().convertToFloat();
-    arrayAttrToVector(pad_op.pads().getValue(), pads);
+    arrayAttrToVector(pad_op.pads(), pads);
   } else if (auto pad_op = dyn_cast<tpu::TG_BF16_PadOp>(op)) {
     const_val = pad_op.const_val().convertToFloat();
-    arrayAttrToVector(pad_op.pads().getValue(), pads);
+    arrayAttrToVector(pad_op.pads(), pads);
   }
 
   int bottom_dim[4];

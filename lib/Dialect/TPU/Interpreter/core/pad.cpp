@@ -122,10 +122,8 @@ PadOpKernel::PadOpKernel(Operation &op, value_map_t &valueMapping,
                          weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
   auto padOp = cast<tpu::PadOp>(op);
-  auto input_type = padOp.input().getType().template cast<TensorType>();
-  this->input_shape = input_type.getShape();
+  parsePadParam<tpu::PadOp>(&op, input_shape, output_shape, pads);
   this->const_val = padOp.const_val().convertToFloat();
-  arrayAttrToVector(padOp.pads().getValue(), this->pads);
   this->mode = padOp.mode().str();
   // get tensors
   input_data = this->opdTensors[0];
@@ -137,10 +135,10 @@ void PadOpKernel::invoke() {
   int oc = pads[1] + pads[5] + input_shape[1];
   int oh = pads[2] + pads[6] + input_shape[2];
   int ow = pads[3] + pads[7] + input_shape[3];
-  assert(on == shape[0]);
-  assert(oc == shape[1]);
-  assert(oh == shape[2]);
-  assert(ow == shape[3]);
+  assert(on == output_shape[0]);
+  assert(oc == output_shape[1]);
+  assert(oh == output_shape[2]);
+  assert(ow == output_shape[3]);
   if (this->mode == "edge") {
     pad_edge(input_data->data(), output_data->data(), input_shape, pads);
   } else {

@@ -101,7 +101,10 @@ struct MergePermuteOpPattern : public RewritePattern {
     auto reshape_inst_9 = dyn_cast_or_null<tpu::ReshapeOp>(inst_9);
 
     std::vector<int32_t> pads;
-    arrayAttrToVector(pad_inst_4.pads().getValue(), pads);
+    arrayAttrToVector(pad_inst_4.pads(), pads);
+    if (pads.size() != 8) {
+      return failure();
+    }
     auto const_val = pad_inst_4.const_val().convertToFloat();
     // generate pad
     SmallVector<Attribute, 8> padsAttr;
@@ -208,7 +211,7 @@ struct MergeConvPadReluPattern : public RewritePattern {
                    do_relu, pad_value);
 
     std::vector<int32_t> pads;
-    arrayAttrToVector(padOp.pads().getValue(), pads);
+    arrayAttrToVector(padOp.pads(), pads);
 
     if (!((pt == 0) && (pb == 0)))
       return failure();
@@ -482,7 +485,7 @@ struct SwitchConvPadHWPattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_2;
     SmallVector<Attribute, 8> padsAttr;
     std::vector<int64_t> shape_pad_0 = getTensorShape(new_inst_1.getResult());
-    arrayAttrToVector(pad_0.pads().getValue(), pads);
+    arrayAttrToVector(pad_0.pads(), pads);
     auto const_val = pad_0.const_val().convertToFloat();
     for (unsigned int i = 0; i < 8; i++) {
       int v = pads[i];
@@ -613,7 +616,7 @@ struct SwitchConvPadHWPattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_5;
     SmallVector<Attribute, 8> padsAttr_1;
     std::vector<int64_t> shape_pad_1 = getTensorShape(new_inst_4.getResult());
-    arrayAttrToVector(pad_1.pads().getValue(), pads);
+    arrayAttrToVector(pad_1.pads(), pads);
     const_val = pad_1.const_val().convertToFloat();
     for (unsigned int i = 0; i < 8; i++) {
       int v = pads[i];
@@ -865,7 +868,7 @@ struct SwitchPadHWPattern : public RewritePattern {
     std::vector<NamedAttribute> pad_attrs;
     SmallVector<Attribute, 8> padsAttr;
     std::vector<int64_t> shape_pad_0 = getTensorShape(reshape_inst_0.getResult());
-    arrayAttrToVector(pad_op.pads().getValue(), pads);
+    arrayAttrToVector(pad_op.pads(), pads);
     auto const_val = pad_op.const_val().convertToFloat();
     for (unsigned int i = 0; i < 8; i++) {
       int v = pads[i];

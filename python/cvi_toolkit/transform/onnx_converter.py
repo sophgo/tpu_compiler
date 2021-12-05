@@ -2773,33 +2773,8 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-            if len(input_shape) == 2:
-                reshape_input_shape = [1, 1] + list(input_shape)
-                reshape_op = self.CVI.add_reshape_op(name + "_input_reshape", [op], reshape_input_shape)
-                reshape_output_shape = [1, 1] + list(output_shape)
-                assert(len(pads) == 4)
-                pads_param["pads"] = [0, 0] + pads[:2] + [0, 0] + pads[2:4]
-                pads_op = self.CVI.add_pad_op(name + "_4dim_pad", [reshape_op], reshape_output_shape,
-                                              **pads_param)
-                reshape_back_op = self.CVI.add_reshape_op(name, [pads_op], output_shape)
-                self.addOperand(onnx_node.name, reshape_back_op, output_shape, TensorType.ACTIVATION)
-
-            elif len(input_shape) == 3:
-                reshape_input_shape = list(input_shape)
-                reshape_input_shape.insert(0, 1)
-                reshape_op = self.CVI.add_reshape_op(name + "_input_reshape", [op], reshape_input_shape)
-                reshape_output_shape = list(output_shape)
-                reshape_output_shape.insert(0, 1)
-                pads.insert(0, 0)
-                pads.insert(4, 0)
-                pads_param["pads"] = pads
-                pads_op = self.CVI.add_pad_op(name + "_4dim_pad", [reshape_op], reshape_output_shape,
-                              **pads_param)
-                reshape_back_op = self.CVI.add_reshape_op(name, [pads_op], output_shape)
-                self.addOperand(onnx_node.name, reshape_back_op, output_shape, TensorType.ACTIVATION)
-            else:
-                pads_op = self.CVI.add_pad_op(name, [op], output_shape, **pads_param)
-                self.addOperand(onnx_node.name, pads_op, output_shape, TensorType.ACTIVATION)
+            pads_op = self.CVI.add_pad_op(name, [op], output_shape, **pads_param)
+            self.addOperand(onnx_node.name, pads_op, output_shape, TensorType.ACTIVATION)
 
     def convert_prelu_op(self, onnx_node):
         assert(onnx_node.op_type == "PRelu")
@@ -3219,10 +3194,10 @@ class OnnxConverter(BaseConverter):
         num_dims = len(input_shape)
         # start
         if num_input > 1:
-            starts = self.getTensor(onnx_node.inputs[1]).tensor_data
-            ends = self.getTensor(onnx_node.inputs[2]).tensor_data
-            axes = self.getTensor(onnx_node.inputs[3]).tensor_data if num_input > 3 else list(np.arange(num_dims))
-            steps = self.getTensor(onnx_node.inputs[4]).tensor_data if num_input > 4 else [1] * len(axes)
+            starts = self.getTensor(onnx_node.inputs[1]).tensor_data.astype(int)
+            ends = self.getTensor(onnx_node.inputs[2]).tensor_data.astype(int)
+            axes = self.getTensor(onnx_node.inputs[3]).tensor_data.astype(int) if num_input > 3 else list(np.arange(num_dims))
+            steps = self.getTensor(onnx_node.inputs[4]).tensor_data.astype(int) if num_input > 4 else [1] * len(axes)
         else:
             starts = onnx_node.attrs.get('starts')
             ends = onnx_node.attrs.get('ends')

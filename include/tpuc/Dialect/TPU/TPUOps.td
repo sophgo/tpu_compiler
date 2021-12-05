@@ -2867,7 +2867,7 @@ def TPU_PadOp: TPU_Op<"pad",
     ins AnyTensor:$input,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name,
-    OptionalAttr<I32ArrayAttr>:$pads,
+    I32ArrayAttr:$pads,
     DefaultValuedAttr<F32Attr, "0">:$const_val,
     DefaultValuedAttr<StrAttr, "constant">:$mode
   );

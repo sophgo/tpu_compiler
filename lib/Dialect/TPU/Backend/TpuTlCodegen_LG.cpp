@@ -1621,7 +1621,7 @@ LogicalResult tpu::TL_LG_INT8_PadOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   std::vector<int32_t> pads;
   auto const_val = this->const_val().convertToFloat();
-  arrayAttrToVector(this->pads().getValue(), pads);
+  arrayAttrToVector(this->pads(), pads);
 
   cvi_backend_tl_pad(
       *backend_ctx,
@@ -1652,7 +1652,7 @@ LogicalResult tpu::TL_LG_BF16_PadOp::codegen(void *ctx) {
   int layer_id = getOpLayerId(op);
   std::vector<int32_t> pads;
   auto const_val = this->const_val().convertToFloat();
-  arrayAttrToVector(this->pads().getValue(), pads);
+  arrayAttrToVector(this->pads(), pads);
 
   cvi_backend_tl_bf16_pad(
       *backend_ctx,
