@@ -5,10 +5,10 @@
  * Description:
  */
 
+#include "CviBackendContext.h"
 #include <llvm/Support/Debug.h>
 #include <llvm/Support/Format.h>
 #include <llvm/Support/raw_ostream.h>
-#include "CviBackendContext.h"
 
 #define DEBUG_TYPE "cvi_backend_pad_kernel"
 
@@ -21,14 +21,17 @@
 // oh = x2_begin + x2_end + ih
 // ow = x3_begin + x3_end + iw
 
-static void cvi_backend_tg_pad_kernel_edge(const CviBackendContext& ctx,
-    uint32_t layer_id, gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n,
-    int input_c, int input_h, int input_w, int *pads, cvk_fmt_t fmt) {
+static void cvi_backend_tg_pad_kernel_edge(const CviBackendContext &ctx,
+                                           uint32_t layer_id, gaddr_t ga_ifmap,
+                                           gaddr_t ga_ofmap, int input_n,
+                                           int input_c, int input_h,
+                                           int input_w, int *pads,
+                                           cvk_fmt_t fmt) {
   // pad left and right
   // pad top
   // pad bottom
-  assert(pads[0] == pads[4] && pads[1] == pads[5] && pads[0] == 0 && pads[1] == 0
-      && "only support h/w pad");
+  assert(pads[0] == pads[4] && pads[1] == pads[5] && pads[0] == 0 &&
+         pads[1] == 0 && "only support h/w pad");
   assert(input_n + pads[0] + pads[4] == 1 && "not support n slice");
 
   cvk_tg_shape_t dst_shape;
@@ -50,8 +53,9 @@ static void cvi_backend_tg_pad_kernel_edge(const CviBackendContext& ctx,
   int blob_num = 1;
   std::vector<CviBackendContext::tiling_info_t> tiles;
   // NOTICE: only tile h
-  ctx.tiling_packing(tiles, input_n, input_c, src_shape.h, dst_shape.w, fmt, blob_num,
-      /*reserved_lmem=*/0, CviBackendContext::TilingNH);
+  ctx.tiling_packing(tiles, input_n, input_c, src_shape.h, dst_shape.w, fmt,
+                     blob_num,
+                     /*reserved_lmem=*/0, CviBackendContext::TilingNH);
 
   // 1. load
   // 2.1 pad w by pads[3], pads[7]
@@ -110,14 +114,15 @@ static void cvi_backend_tg_pad_kernel_edge(const CviBackendContext& ctx,
     if (pads[7]) {
       tl_ofmap = *tl_ifmap;
       _tl_ifmap = *tl_ifmap;
-      tl_ofmap.start_address = _tl_ifmap.start_address + (src_shape.w * tl_ofmap.stride.w);
+      tl_ofmap.start_address =
+          _tl_ifmap.start_address + (src_shape.w * tl_ofmap.stride.w);
       tl_ofmap.shape.w = pads[7];
       tl_ofmap.stride.h = dst_shape.w * tl_ofmap.stride.w;
       tl_ofmap.stride.c = tile.h * tl_ofmap.stride.h;
       tl_ofmap.stride.n = 0; // n MUST eq 1
 
-      _tl_ifmap.start_address = _tl_ifmap.start_address +
-        (src_shape.w - 1) * _tl_ifmap.stride.w;
+      _tl_ifmap.start_address =
+          _tl_ifmap.start_address + (src_shape.w - 1) * _tl_ifmap.stride.w;
       _tl_ifmap.stride.w = 0;
       _tl_ifmap.shape = tl_ofmap.shape;
 
@@ -152,8 +157,9 @@ static void cvi_backend_tg_pad_kernel_edge(const CviBackendContext& ctx,
   if (pads[6]) {
     cvk_tl_t tl_ofmap;
     // shift to last
-    tl_ifmap->start_address = tl_ifmap_addr +
-      tl_ifmap->shape.w * (tl_ifmap->shape.h - 1) * tl_ifmap->stride.w;
+    tl_ifmap->start_address = tl_ifmap_addr + tl_ifmap->shape.w *
+                                                  (tl_ifmap->shape.h - 1) *
+                                                  tl_ifmap->stride.w;
 
     tl_ofmap = *tl_ifmap;
     tl_ofmap.stride = ctx.tl_default_stride(tl_ofmap.shape, fmt, eu_align);
@@ -171,6 +177,93 @@ static void cvi_backend_tg_pad_kernel_edge(const CviBackendContext& ctx,
   ctx.lmem_free_tensor(tl_ifmap);
 }
 
+static void pad_last(const CviBackendContext &ctx, uint32_t layer_id,
+                     gaddr_t ga_ifmap, gaddr_t ga_ofmap, int outer_dim,
+                     int inner_dim, int pad_l, int pad_r, uint16_t const_val,
+                     cvk_fmt_t fmt) {
+  int h, w;
+  auto fmt_size = ctx.bytesize_of_fmt(fmt);
+  if (pad_l != 0) {
+    ctx.size_to_hw(pad_l, h, w);
+    cvk_tg_t dst;
+    dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_ofmap);
+    dst.int8_rnd_mode = 0;
+    dst.fmt = fmt;
+    dst.start_address = ga_ofmap;
+    dst.shape = ctx.tg_shape_t4(1, outer_dim, h, w);
+    dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
+    dst.stride.c = (pad_l + inner_dim + pad_r) * fmt_size;
+
+    cvk_tdma_l2g_tensor_fill_constant_param_t p0;
+    p0.constant = const_val;
+    p0.dst = &dst;
+    p0.layer_id = layer_id;
+    ctx.tdma_l2g_tensor_fill_constant(&p0);
+  }
+  if (pad_r != 0) {
+    ctx.size_to_hw(pad_r, h, w);
+    cvk_tg_t dst;
+    dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_ofmap);
+    dst.int8_rnd_mode = 0;
+    dst.fmt = fmt;
+    dst.start_address = ga_ofmap + (pad_l + inner_dim) * fmt_size;
+    dst.shape = ctx.tg_shape_t4(1, outer_dim, h, w);
+    dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
+    dst.stride.c = (pad_l + inner_dim + pad_r) * fmt_size;
+
+    cvk_tdma_l2g_tensor_fill_constant_param_t p0;
+    p0.constant = const_val;
+    p0.dst = &dst;
+    p0.layer_id = layer_id;
+    ctx.tdma_l2g_tensor_fill_constant(&p0);
+  }
+  ctx.size_to_hw(inner_dim, h, w);
+  auto src_gaddr = ga_ifmap;
+  auto dst_gaddr = ga_ofmap + pad_l * fmt_size;
+  auto shape = ctx.tg_shape_t4(1, outer_dim, h, w);
+  auto src_gstride = ctx.tg_default_stride(shape, fmt);
+  auto dst_gstride = src_gstride;
+  dst_gstride.c = (pad_l + inner_dim + pad_r) * fmt_size;
+  ctx.tdma_g2g_tensor_copy(src_gaddr, shape, src_gstride, fmt, dst_gaddr, shape,
+                           dst_gstride, fmt);
+}
+
+static bool try_only_pad_last(const CviBackendContext &ctx, uint32_t layer_id,
+                              gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n,
+                              int input_c, int input_h, int input_w, int *pads,
+                              uint16_t const_val, cvk_fmt_t fmt) {
+  int shape[] = {input_n, input_c, input_h, input_w};
+  int pad_l, pad_r;
+  int inner_dim = 1;
+  int outer_dim = 1;
+  int pad_idx = -1;
+  // check only one dim do pad
+  for (int i = 0; i < 4; i++) {
+    if (pads[i] != 0 || pads[i + 4] != 0) {
+      if (pad_idx == -1) {
+        pad_idx = i;
+      } else {
+        return false;
+      }
+    }
+  }
+  // check last dim do pad
+  for (int i = pad_idx + 1; i < 4; i++) {
+    if (shape[i] != 1) {
+      return false;
+    }
+  }
+  inner_dim = shape[pad_idx];
+  for (int i = 0; i < pad_idx; i++) {
+    outer_dim *= shape[i];
+  }
+  pad_l = pads[pad_idx];
+  pad_r = pads[pad_idx + 4];
+  pad_last(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
+           pad_r, const_val, fmt);
+  return true;
+}
+
 void cvi_backend_tg_pad_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                gaddr_t ga_ifmap, gaddr_t ga_ofmap, int input_n,
                                int input_c, int input_h, int input_w, int *pads,
@@ -184,9 +277,24 @@ void cvi_backend_tg_pad_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                           input_n, input_c, input_h, input_w,
                                           pads, fmt);
   }
+  uint16_t const_data;
+  if (fmt == CVK_FMT_BF16) {
+    const_data = ctx.convert_fp32_to_bf16(const_val);
+  } else if (fmt == CVK_FMT_I8) {
+    assert(const_val >= -128 && const_val <= 127);
+    int8_t val = (int8_t)const_val;
+    const_data = *((uint8_t *)&val);
+  } else {
+    assert(0);
+  }
+  if (try_only_pad_last(ctx, layer_id, ga_ifmap, ga_ofmap, input_n, input_c,
+                        input_h, input_w, pads, const_data, fmt)) {
+    return;
+  }
+
   int fmt_size = ctx.bytesize_of_fmt(fmt);
-  if (input_w * fmt_size >= 0x10000 && input_h == 1 && pads[2] == 0 &&
-      pads[6] == 0) {
+  if ((input_w + pads[3] + pads[7]) * fmt_size >= 0x10000 && input_h == 1 &&
+      pads[2] == 0 && pads[6] == 0) {
     input_h = input_w;
     input_w = 1;
     pads[2] = pads[3];
@@ -215,15 +323,7 @@ void cvi_backend_tg_pad_kernel(const CviBackendContext &ctx, uint32_t layer_id,
   dst.stride = ctx.tg_default_stride(dst.shape, dst.fmt);
 
   cvk_tdma_l2g_tensor_fill_constant_param_t p0;
-  if (fmt == CVK_FMT_BF16) {
-    p0.constant = ctx.convert_fp32_to_bf16(const_val);
-  } else if (fmt == CVK_FMT_I8) {
-    assert(const_val >= -128 && const_val <= 127);
-    int8_t val = (int8_t)const_val;
-    p0.constant = *((uint8_t *)&val);
-  } else {
-    assert(0);
-  }
+  p0.constant = const_data;
   p0.dst = &dst;
   ctx.tdma_l2g_tensor_fill_constant(&p0);
 
