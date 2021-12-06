@@ -560,14 +560,14 @@ void CompressWeightPass::runOnFunction() {
 
   // Compress convolution weight
   OwningRewritePatternList patterns;
-  // patterns.insert<
-  //     TgConvCompressedWeightPattern<tpu::TG_INT8_Conv2DOp, int8_t>,
-  //     TgConvCompressedWeightPattern<tpu::TG_BF16_Conv2DOp, uint16_t>,
-  //     TlLgConvCompressedWightPattern<tpu::TL_LW_Conv2DOp, int8_t>,
-  //     TlLgConvCompressedWightPattern<tpu::TL_LG_INT8_Conv2DOp, int8_t>,
-  //     TlLgConvCompressedWightPattern<tpu::TL_LG_BF16_Conv2DOp, uint16_t>>(
-  //     &getContext(), compressInfos);
-  // applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
+  patterns.insert<
+      TgConvCompressedWeightPattern<tpu::TG_INT8_Conv2DOp, int8_t>,
+      TgConvCompressedWeightPattern<tpu::TG_BF16_Conv2DOp, uint16_t>,
+      TlLgConvCompressedWightPattern<tpu::TL_LW_Conv2DOp, int8_t>,
+      TlLgConvCompressedWightPattern<tpu::TL_LG_INT8_Conv2DOp, int8_t>,
+      TlLgConvCompressedWightPattern<tpu::TL_LG_BF16_Conv2DOp, uint16_t>>(
+      &getContext(), compressInfos);
+  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
   patterns.clear();
   patterns
