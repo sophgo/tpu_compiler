@@ -252,9 +252,8 @@ cp $INSTALL_PATH/cnpy/lib/* $INSTALL_PATH/tpuc/lib/
 
 mkdir -p $BUILD_PATH/tpuc
 pushd $BUILD_PATH/tpuc
-DEBUG_FLAG="-DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS=-ggdb"
 cmake -G Ninja \
-    $DEBUG_FLAG \
+    $BUILD_FLAG \
     -DMKLDNN_PATH=$INSTALL_PATH/mkldnn \
     -DCVIKERNEL_PATH=$INSTALL_PATH/cvikernel \
     -DCMAKE_INSTALL_PREFIX=$INSTALL_PATH/tpuc \
@@ -365,7 +364,7 @@ if [ "$1" = "RELEASE" ]; then
   find ./ -name "*.a" |xargs rm
   popd
   pushd $INSTALL_PATH/tpuc/bin
-  find ./ -type f ! -name "*.html" |xargs strip
+  find ./ -type f ! -name "*.html" |xargs strip -g
   ln -sf tpuc-opt mlir-opt
   ln -sf tpuc-interpreter mlir-tpu-interpreter
   ln -sf tpuc-translate mlir-translate

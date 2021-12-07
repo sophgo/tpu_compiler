@@ -9,4 +9,5 @@ lib/Dialect/TPU/Backend/test/tmp/*
 mkldnn_lnx_1.0.2_cpu_gomp.tgz
 cvitek_mlir/*
 dataset
+tmp/
 __pycache__
