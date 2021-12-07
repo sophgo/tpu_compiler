@@ -357,7 +357,9 @@ void cvi_backend_tg_pad_kernel(const CviBackendContext &ctx, uint32_t layer_id,
   ctx.tdma_l2g_tensor_fill_constant(&p0);
 
   auto src_gaddr = ga_ifmap;
-  auto dst_gaddr = ga_ofmap + (dst_shape.w * pads[2] + pads[3]) * fmt_size;
+  auto dst_gaddr = ga_ofmap + pads[0] * dst_gstride.n +
+                   pads[1] * dst_gstride.c + pads[2] * dst_gstride.h +
+                   pads[3] * dst_gstride.w;
   ctx.tdma_g2g_tensor_copy(src_gaddr, src_shape, src_gstride, fmt, dst_gaddr,
                            src_shape, dst_gstride, fmt);
 }
