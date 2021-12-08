@@ -104,7 +104,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/CviBackendContext.cpp
   Backend/Kernel/TgBroadcastKernel.cpp
   Backend/Kernel/TgEltwiseKernel.cpp
-  Backend/Kernel/TgEltwiseConstKernel.cpp
+  Backend/Kernel/TgMulConstKernel.cpp
   Backend/Kernel/TgFcKernel.cpp
   Backend/Kernel/TgFixedPoolingKernel.cpp
   Backend/Kernel/TgQuantKernel.cpp
@@ -155,6 +155,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TlLeakyRelu.cpp
   Backend/Kernel/TlLrn.cpp
   Backend/Kernel/TlLut.cpp
+  Backend/Kernel/TlMulConst.cpp
   Backend/Kernel/TlPad.cpp
   Backend/Kernel/TlPooling.cpp
   Backend/Kernel/TlPrelu.cpp

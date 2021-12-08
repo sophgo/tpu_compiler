@@ -178,6 +178,9 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
     layer = std::make_shared<ImScale>(op);
   } else if (isa<tpu::TG_INT8_ScaleLutOp>(op)) {
     layer = std::make_shared<ImScaleLut>(op);
+  } else if (isa<tpu::TG_INT8_MulConstOp>(op)||
+             isa<tpu::TG_BF16_MulConstOp>(op)) {
+    layer = std::make_shared<ImMulConst>(op);
   } else if (isa<tpu::TG_INT8_UpsampleOp>(op) ||
              isa<tpu::TG_BF16_UpsampleOp>(op)) {
     layer = std::make_shared<ImUpsample>(op);
@@ -575,6 +578,11 @@ ImScaleLut::ImScaleLut(Operation *op) : ImLayer(IR_SCALE_LUT, op, true) {
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
   add_in_tensor(op->getOperand(1), TENSOR_COEFF, false);
+}
+
+ImMulConst::ImMulConst(Operation *op) : ImLayer(IR_MUL_CONST, op, true) {
+  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
+  add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }
 
 ImLayerNorm::ImLayerNorm(Operation *op) : ImLayer(IR_LAYERNORM, op, true) {

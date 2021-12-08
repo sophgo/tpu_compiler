@@ -117,32 +117,21 @@ private:
   bool do_relu;
 };
 
-class EltwiseConstOpKernel : public CPUOpKernel {
+class MulConstOpKernel : public CPUOpKernel {
 public:
-  static constexpr const char *OpName = "CPUEltwiseConstOp";
+  static constexpr const char *OpName = "CPUMulConstOp";
 
-  EltwiseConstOpKernel(Operation &op, value_map_t &valueMapping,
+  MulConstOpKernel(Operation &op, value_map_t &valueMapping,
                      weight_map_t &weightMapping);
 
   void invoke() override;
 
 private:
-  void fp32_invoke();
-  void i8_invoke();
-
-private:
   SyncedData input_data;
   SyncedData output_data;
 
-  // int8
-  std::vector<float> rshift;
-  std::vector<float> multiplier;
-  bool do_quant;
-  // param
   bool do_relu;
   float const_val;
-  int8_t op_mode;
-  int8_t coeff;
 };
 } // namespace mlir
 

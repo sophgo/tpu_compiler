@@ -202,6 +202,11 @@ void cvi_backend_bf16_tl_eltwise(
     bool do_early_stride,
     int stride_h, int stride_w);
 
+void cvi_backend_tl_mul_const(const CviBackendContext &ctx, uint32_t layer_id,
+                              laddr_t la_input, laddr_t la_output,
+                              float const_val, bool do_relu, int n, int c,
+                              int h, int w, cvk_fmt_t fmt);
+
 void cvi_backend_tl_pooling(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t ifmap_laddr, laddr_t ofmap_laddr,

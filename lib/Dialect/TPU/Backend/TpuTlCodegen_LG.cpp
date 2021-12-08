@@ -693,6 +693,50 @@ LogicalResult tpu::TL_LG_BF16_LrnOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TL_LG_INT8_MulConstOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = getOpLayerId(op);
+
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  bool do_relu = this->do_relu();
+  float const_val = this->const_val().convertToFloat();
+
+  auto shape = getTensorShape(input());
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+
+  cvi_backend_tl_mul_const(*backend_ctx, layer_id, la_input, la_output,
+                           const_val, do_relu, n, c, h, w, CVK_FMT_I8);
+  return success();
+}
+
+LogicalResult tpu::TL_LG_BF16_MulConstOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+  int layer_id = getOpLayerId(op);
+
+  laddr_t la_input = this->la_input();
+  laddr_t la_output = this->la_output();
+  bool do_relu = this->do_relu();
+  float const_val = this->const_val().convertToFloat();
+
+  auto shape = getTensorShape(input());
+  int64_t n, c, h, w;
+  getNCHW(shape, n, c, h, w);
+
+  cvi_backend_tl_mul_const(*backend_ctx, layer_id, la_input, la_output,
+                           const_val, do_relu, n, c, h, w, CVK_FMT_BF16);
+  return success();
+}
+
 LogicalResult tpu::TL_LG_INT8_LutOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName()
                << " [" << getOpName() << "]\n";);

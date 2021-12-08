@@ -926,7 +926,7 @@ Value tpu::EltwiseAddOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-Value tpu::EltwiseConstOp::convertToTG() {
+Value tpu::MulConstOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
@@ -941,37 +941,15 @@ Value tpu::EltwiseConstOp::convertToTG() {
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   attrs.push_back(
       builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
-  attrs.push_back(
-      builder.getNamedAttr("const_val", builder.getF32FloatAttr(const_val().convertToFloat())));
-  attrs.push_back(
-      builder.getNamedAttr("op_mode", builder.getI8IntegerAttr(op_mode())));
-  attrs.push_back(
-      builder.getNamedAttr("coeff", builder.getI8IntegerAttr(coeff())));
+  attrs.push_back(builder.getNamedAttr("const_val", const_valAttr()));
 
   if (getOpQuant() == "INT8") {
-    auto rshift = readAndDeleteWeightTensor<float>(quant_rshift(), wTF);
-    assert(rshift->size() == 1);
-    int rshift_i8 = static_cast<int8_t>(rshift->at(0));
-
-    auto multiplier = readAndDeleteWeightTensor<float>(quant_multiplier(), wTF);
-    assert(multiplier->size() <= 2);
-    std::vector<int32_t> m_i8;
-    for (uint32_t i = 0; i < multiplier->size(); ++i) {
-      m_i8.emplace_back(static_cast<int32_t>(multiplier->at(i)));
-    }
-
-    attrs.push_back(
-        builder.getNamedAttr("rshift", builder.getI8IntegerAttr(rshift_i8)));
-    attrs.push_back(builder.getNamedAttr(
-        "m_i8", builder.getI32ArrayAttr(m_i8)));
-
-    // create op
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_EltwiseConstOp>(
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_MulConstOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_EltwiseConstOp>(
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_MulConstOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -4276,7 +4254,7 @@ public:
         DefaultToTGPattern<tpu::DilateOp>,
         DefaultToTGPattern<tpu::ReciprocalOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
-        DefaultToTGPattern<tpu::EltwiseConstOp>,
+        DefaultToTGPattern<tpu::MulConstOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
         DefaultToTGPattern<tpu::EltwiseMinOp>,
         DefaultToTGPattern<tpu::EltwiseMulOp>,

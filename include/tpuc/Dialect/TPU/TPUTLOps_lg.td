@@ -540,6 +540,33 @@ class TPU_TL_LG_ScaleLutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 
 def TPU_TL_LG_INT8_ScaleLutOp : TPU_TL_LG_ScaleLutOp<"tl_lg_int8_scale_lut", "Int8">;
 
+class TPU_TL_LG_MulConstOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTLOpCodegenInterface>]> {
+  let summary = "TL Mul Const operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    StrAttr:$name,
+    I32Attr:$la_input,
+    I32Attr:$la_output,
+    F32Attr:$const_val,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
+    DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
+    OptionalAttr<I64Attr>:$gaddr
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
+def TPU_TL_LG_INT8_MulConstOp : TPU_TL_LG_MulConstOp<"tl_lg_int8_mul_const", "Int8">;
+def TPU_TL_LG_BF16_MulConstOp : TPU_TL_LG_MulConstOp<"tl_lg_bf16_mul_const", "Bf16">;
+
 class TPU_TL_LG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

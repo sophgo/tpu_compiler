@@ -246,6 +246,9 @@ void MixNet::add_tl_layer(int layer_id) {
     case IR_SCALE_LUT:
       _add_tl_scale_lut_op(mix_op, in_tensors, out_tensors);
       break;
+    case IR_MUL_CONST:
+      _add_tl_mul_const_op(mix_op, in_tensors, out_tensors);
+      break;
     case IR_ACTIVATION:
       _add_tl_activation_op(mix_op, in_tensors, out_tensors);
       break;
@@ -1506,6 +1509,68 @@ void MixNet::_add_tl_scale_lut_op(MixOp * mix_op,
   add_opd_to_list(mix_op->name(), new_op.getResult(), true);
 }
 
+void MixNet::_add_tl_mul_const_op(MixOp *mix_op,
+                                  const std::vector<int> &in_tensors,
+                                  const std::vector<int> &out_tensors) {
+  int bottom_dim[4];
+  const ImLayer *im_layer = net_graph_->get_layer_by_id(mix_op->get_layer_id());
+  Operation *op = im_layer->op();
+  auto op_input_type = op->getOperand(0).getType().cast<RankedTensorType>();
+
+  net_graph_->get_tl_tensor_dim(in_tensors[0], bottom_dim, false);
+
+  std::string name = mix_op->name();
+  uint32_t la_input = net_graph_->get_tensor_local_offset(in_tensors[0]);
+  uint32_t la_output = net_graph_->get_tensor_local_offset(out_tensors[0]);
+
+  // attrs
+  Builder builder_(context_);
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(name)));
+  attrs.push_back(
+      builder_.getNamedAttr("la_input", builder_.getI32IntegerAttr(la_input)));
+  attrs.push_back(builder_.getNamedAttr("la_output",
+                                        builder_.getI32IntegerAttr(la_output)));
+
+  // setup input/output type
+  RankedTensorType input_type = RankedTensorType::get(
+      {bottom_dim[0], bottom_dim[1], bottom_dim[2], bottom_dim[3]},
+      op_input_type.getElementType());
+
+  RankedTensorType output_type = RankedTensorType::get(
+      {bottom_dim[0], bottom_dim[1], bottom_dim[2], bottom_dim[3]},
+      op_input_type.getElementType());
+
+  // setup operands
+  std::vector<Value> operands;
+  Operation *input_op =
+      get_op_from_name(mix_op->bottom_name(0)).getDefiningOp();
+  input_op->getResult(0).setType(input_type);
+  operands.push_back(input_op->getResult(0));
+
+  if (isa<tpu::TG_INT8_MulConstOp>(op)) {
+    auto castOp = cast<tpu::TG_INT8_MulConstOp>(op);
+    attrs.push_back(builder_.getNamedAttr("const_val", castOp.const_valAttr()));
+    attrs.push_back(builder_.getNamedAttr("do_relu", builder_.getBoolAttr(castOp.do_relu())));
+    auto op =
+        OpBuilder(get_start_op())
+            .create<tpu::TL_LG_INT8_MulConstOp>(
+                get_start_op()->getLoc(), output_type,
+                ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
+    add_opd_to_list(mix_op->name(), op.getResult(), true);
+  } else if (isa<tpu::TG_BF16_MulConstOp>(op)) {
+    auto castOp = cast<tpu::TG_BF16_MulConstOp>(op);
+    attrs.push_back(builder_.getNamedAttr("const_val", castOp.const_valAttr()));
+    attrs.push_back(builder_.getNamedAttr("do_relu", builder_.getBoolAttr(castOp.do_relu())));
+    auto op =
+        OpBuilder(get_start_op())
+            .create<tpu::TL_LG_BF16_MulConstOp>(
+                get_start_op()->getLoc(), output_type,
+                ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
+
+    add_opd_to_list(mix_op->name(), op.getResult(), true);
+  }
+}
 
 void MixNet::add_transport_op(int group_idx,
                               const TENSOR_STEP& tensor) {
@@ -1537,7 +1602,7 @@ void MixNet::_add_load_op(int group_idx,
   std::string storage = tensor->storage();
   net_graph_->get_tensor_dim(tensor_id, tensor_dim);
   name = tensor->name();
-  Value src_opd = weightFileOp_->getResult(0);
+  Value src_opd;
 
   local_shape[0] = (tensor_dim[0]);
   local_shape[1] = (tensor_dim[1]);
@@ -1546,6 +1611,7 @@ void MixNet::_add_load_op(int group_idx,
   laddr = net_graph_->get_tensor_local_offset(tensor_id);
 
   if (tensor_type == TENSOR_COEFF) {
+    src_opd = weightFileOp_->getResult(0);
     attrs.push_back(builder_.getNamedAttr("storage",
                                           builder_.getStringAttr(storage)));
   } else {

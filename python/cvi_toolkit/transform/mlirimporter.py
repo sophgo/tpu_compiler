@@ -47,7 +47,6 @@ class TPU_OpType(Enum):
     DetectionOutput = 'tpu.detectionoutput'
     DummyData = 'tpu.dummy'
     Eltwise_Add = 'tpu.eltwise_add'
-    Eltwise_Const = 'tpu.eltwise_const'
     Eltwise_Max = 'tpu.eltwise_max'
     Eltwise_Min = 'tpu.eltwise_min'
     Eltwise_Mul = 'tpu.eltwise_mul'
@@ -67,6 +66,7 @@ class TPU_OpType(Enum):
     Lrn = 'tpu.lrn'
     LSTM = 'tpu.lstm'
     LayerNorm = "tpu.layer_norm"
+    MulConst = 'tpu.mul_const'
     Normalize = 'tpu.normalize'
     Mish = 'tpu.mish'
     Pad = 'tpu.pad'
@@ -847,36 +847,16 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Eltwise_Add.value, inputOperands, [
             tensor_output_type], name=eltwise_add, quant=quant_param, do_relu=do_relu, **param)
 
-    def add_eltwise_const_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, do_relu = False, **kargs):
+    def add_mul_const_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-        do_relu = BoolAttr.get(do_relu)
-        eltwise_const = StringAttr.get(op_name)
-        checkKey(kargs, 'op_mode')
+        mul_const = StringAttr.get(op_name)
         checkKey(kargs, 'const_val')
         param = {
-            'op_mode':  IntegerAttr.get(self.i8Type, kargs['op_mode']),
             'const_val': FloatAttr.get_f32(kargs['const_val']),
         }
-        if mode == TPU_MODE.INT8:
-            quant_param = self.create_int8_quant_attr(**kargs)
+        return self.buildOp(TPU_OpType.MulConst.value, inputOperands, [
+            tensor_output_type], name=mul_const, quant=self.quant_param, **param)
 
-            # input, (bias), rshift, multipiler
-            rshift, multipiler = inputOperands[-2:]
-            inputOperands = inputOperands[:-2]
-            none = self.add_none_op()
-            for _ in range(4 - len(inputOperands)):
-                inputOperands.append(none)
-            inputOperands.append(rshift)
-            inputOperands.append(multipiler)
-
-        elif mode == TPU_MODE.FP32:
-            inputOperands = self.add_quant_reg(inputOperands)
-            quant_param = self.quant_param
-        elif mode == TPU_MODE.BF16:
-            raise RuntimeError("Not support BF16")
-        return self.buildOp(TPU_OpType.Eltwise_Const.value, inputOperands, [
-            tensor_output_type], name=eltwise_const, quant=quant_param, do_relu=do_relu, **param)
-        
 
     def add_eltwise_sub_op(self, op_name, inputOperands, output_tensor_shape,
                            mode=TPU_MODE.FP32, do_relu=False, **kargs):

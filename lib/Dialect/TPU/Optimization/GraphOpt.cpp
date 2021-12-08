@@ -136,6 +136,7 @@ bool Graph::check_fusible(Operation *op) {
       isa<tpu::TG_BF16_SwapChannelOp>(op) || isa<tpu::TG_INT8_LrnOp>(op) ||
       isa<tpu::TG_BF16_LrnOp>(op) || isa<tpu::TG_INT8_ScaleOp>(op) ||
       isa<tpu::TG_BF16_ScaleOp>(op) || isa<tpu::TG_INT8_ScaleLutOp>(op) ||
+      isa<tpu::TG_INT8_MulConstOp>(op) || isa<tpu::TG_BF16_MulConstOp>(op) ||
       isa<tpu::TG_INT8_UpsampleOp>(op) || isa<tpu::TG_BF16_UpsampleOp>(op) ||
       isa<tpu::TG_INT8_LeakyReluOp>(op) || isa<tpu::TG_BF16_LeakyReluOp>(op) ||
       isa<tpu::TG_INT8_PadOp>(op) || isa<tpu::TG_BF16_PadOp>(op) ||

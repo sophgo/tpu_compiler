@@ -61,6 +61,7 @@ typedef enum {
   IR_CROP,
   IR_JOIN,
   IR_MULTIINPUT,
+  IR_MUL_CONST,
   IR_CAST,
   IR_MATMUL,
   IR_OTHER,
@@ -150,6 +151,11 @@ class ImScale : public ImLayer {
 class ImScaleLut : public ImLayer {
  public:
   explicit ImScaleLut(Operation *op);
+};
+
+class ImMulConst : public ImLayer {
+ public:
+  explicit ImMulConst(Operation *op);
 };
 
 class ImLayerNorm : public ImLayer {

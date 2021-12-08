@@ -545,11 +545,11 @@ def TPU_TG_BF16_EltwiseMaxOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_max", "Bf16", "
 def TPU_TG_BF16_EltwiseMinOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_min", "Bf16", "Min">;
 def TPU_TG_BF16_EltwiseMulOp : TPU_TG_EltwiseOp<"tg_bf16_eltwise_mul", "Bf16", "Mul">;
 
-class TPU_TG_EltwiseConstOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+class TPU_TG_MulConstOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " EltwiseConst " # " operator.";
+  let summary = "TG " # opQuant # " MulConst " # " operator.";
 
   let description = [{
     Inputs:
@@ -580,22 +580,18 @@ class TPU_TG_EltwiseConstOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   }];
 
   let arguments = (
-    ins Variadic<AnyTensor>:$inputs,
-    OptionalAttr<I8Attr>:$rshift,
-    OptionalAttr<I32ArrayAttr>:$m_i8,
+    ins AnyTensor:$input,
     DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    DefaultValuedAttr<F32Attr, "0">:$const_val,
-    DefaultValuedAttr<I8Attr, "1">:$op_mode,
-    DefaultValuedAttr<I8Attr, "1">:$coeff
+    F32Attr:$const_val
   );
 
   let results = (outs AnyTensor:$output);
 }
-def TPU_TG_INT8_EltwiseConstOp : TPU_TG_EltwiseConstOp<"tg_int8_eltwise_const", "Int8">;
-def TPU_TG_BF16_EltwiseConstOp : TPU_TG_EltwiseConstOp<"tg_bf16_eltwise_const", "Bf16">;
+def TPU_TG_INT8_MulConstOp : TPU_TG_MulConstOp<"tg_int8_mul_const", "Int8">;
+def TPU_TG_BF16_MulConstOp : TPU_TG_MulConstOp<"tg_bf16_mul_const", "Bf16">;
 
 class TPU_TG_BroadcastOp<string mnemonic, string opQuant, string opType> : TPU_Op<mnemonic,
       [NoSideEffect,

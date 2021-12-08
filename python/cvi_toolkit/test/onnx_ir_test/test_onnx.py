@@ -534,15 +534,9 @@ class ONNX_IR_TESTER(object):
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 30])
 
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-
         node_def = onnx.helper.make_node(
             "AveragePool",
-            inputs=['X1'],
+            inputs=['input'],
             outputs=['output'],
             kernel_shape=[3],
             strides=[1],
@@ -550,7 +544,7 @@ class ONNX_IR_TESTER(object):
             count_include_pad=1
         )
         graph_def = helper.make_graph(
-            [x1_def, node_def],
+            [node_def],
             test_case,
             [input],
             [output],
@@ -566,15 +560,9 @@ class ONNX_IR_TESTER(object):
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, list(input_data.shape))
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, [1, 3, 30, 30])
 
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-
         node_def = onnx.helper.make_node(
             "AveragePool",
-            inputs=['X1'],
+            inputs=['input'],
             outputs=['output'],
             kernel_shape=[3, 3],
             strides=[1, 1],
@@ -582,7 +570,7 @@ class ONNX_IR_TESTER(object):
             count_include_pad=1
         )
         graph_def = helper.make_graph(
-            [x1_def, node_def],
+            [node_def],
             test_case,
             [input],
             [output],
@@ -814,26 +802,16 @@ class ONNX_IR_TESTER(object):
         input1 = helper.make_tensor_value_info('input1', TensorProto.FLOAT, input1_shape)
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, output_shape)
 
-        neg0_node = helper.make_node(
-            'Neg',  # node name
-            ['input0'],  # inputs
-            ['X0'],  # outputs
-        )
-        neg1_node = helper.make_node(
-            'Neg',  # node name
-            ['input1'],  # inputs
-            ['X1'],  # outputs
-        )
         #test only one input
         einsum_node = helper.make_node(
             'Einsum',  # node name
-            ['X0', "X1"],  # inputs
+            ['input0', "input1"],  # inputs
             ['output'],  # outputs
             equation='bfnd,ndh->bfh',
         )
 
         graph_def = helper.make_graph(
-            [neg0_node, neg1_node, einsum_node],
+            [einsum_node],
             test_case,
             [input0, input1],
             [output],
@@ -870,22 +848,16 @@ class ONNX_IR_TESTER(object):
                 vals=filter_data.flatten(),
             ),
         )
-
-        neg0_node = helper.make_node(
-            'Neg',  # node name
-            ['input0'],  # inputs
-            ['X0'],  # outputs
-        )
         #test only one input
         einsum_node = helper.make_node(
             'Einsum',  # node name
-            ['X0', "filter"],  # inputs
+            ['input0', "filter"],  # inputs
             ['output'],  # outputs
             equation='bfnd,ndh->bfh',
         )
 
         graph_def = helper.make_graph(
-            [neg0_node, filter_def, einsum_node],
+            [filter_def, einsum_node],
             test_case,
             [input0],
             [output],

@@ -117,7 +117,9 @@ class MixNet {
   void _add_tl_scale_lut_op(MixOp *mix_op,
                             const std::vector<int> &in_tensors,
                             const std::vector<int> &out_tensors);
-
+  void _add_tl_mul_const_op(MixOp *mix_op,
+                            const std::vector<int> &in_tensors,
+                            const std::vector<int> &out_tensors);
   void _add_tl_upsample_op(MixOp *mix_op,
                            const std::vector<int> &in_tensors,
                            const std::vector<int> &out_tensors);

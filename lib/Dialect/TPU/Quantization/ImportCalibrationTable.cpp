@@ -127,6 +127,25 @@ struct PoolMaskThresholdPattern : public RewritePattern {
   }
 };
 
+struct MulConstThresholdPattern : public RewritePattern {
+  MulConstThresholdPattern(MLIRContext *context)
+      : RewritePattern("tpu.mul_const", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = dyn_cast<tpu::MulConstOp>(op);
+    float threshold_x = getOpThreshold(castOp.input().getDefiningOp());
+    float threshold_y = getOpThreshold(op);
+    float const_val = castOp.const_val().convertToFloat();
+    if (const_val == 0 || threshold_x * std::abs(const_val) == threshold_y) {
+      return failure();
+    }
+    threshold_y = threshold_x * std::abs(const_val);
+    castOp.setOpQuantThreshold(threshold_y);
+    return success();
+  }
+};
+
 struct BackwardThresholdConcatPattern : public RewritePattern {
   BackwardThresholdConcatPattern(MLIRContext *context)
       : RewritePattern("tpu.concat", 1, context) {}
@@ -315,7 +334,6 @@ public:
     });
 
     OwningRewritePatternList patterns;
-
     // backward concat op
     LLVM_DEBUG(llvm::errs() << "Backward overwrite threshold for concat\n";);
     patterns.clear();
@@ -332,6 +350,12 @@ public:
         BackwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
         BackwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
         >(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    // forward mul const
+    LLVM_DEBUG(llvm::errs() << "set MulConst threshold\n";);
+    patterns.clear();
+    patterns.insert<MulConstThresholdPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     // forward, make sure  theshold_x == threshold_y in all ops that no do quantization

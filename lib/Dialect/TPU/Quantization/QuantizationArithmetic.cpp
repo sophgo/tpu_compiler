@@ -244,6 +244,7 @@ int8_t findRShiftAndMultiplierFromQScale(double qscale, uint32_t *multiplier,
     int lshift = 0;
     if (qscale >= 1) {
       qscale = 0.999999;
+      llvm::errs() << "WARNING: qscale > 1,  = " << qscale << "\n";
     }
     Tensorflow_QuantizeMultiplier(qscale, &quantized_multiplier, &lshift);
     *multiplier = quantized_multiplier;

@@ -135,7 +135,13 @@ Value getWeightFileValue(Operation *op) {
       auto weight_attr = builder.getStringAttr(weightFileName);
       auto weightOp = builder.create<tpu::WeightFileOp>(builder.getUnknownLoc(),
                                                   weight_type, weight_attr);
-      weightOp.getOperation()->moveBefore(op);
+      bool adjust = false;
+      fn.walk([&](tpu::TpuOpCommonInterface tmp_op) {
+        if (getOpLayerId(tmp_op) == 0 && false == adjust) {
+          weightOp.getOperation()->moveBefore(tmp_op);
+          adjust = true;
+        }
+      });
       wfV = weightOp.getResult();
     }
     // assert(wfV && "wfV is nullptr");

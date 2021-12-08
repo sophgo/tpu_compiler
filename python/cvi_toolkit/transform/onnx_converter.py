@@ -27,7 +27,6 @@ from ..utils.log_setting import setup_logger
 logger = setup_logger('root')
 
 log_flag = logger.level <= logging.DEBUG
-use_eltwise_const_op = False
 
 onnx_attr_translator = {
     "axis": lambda x: int(x),
@@ -962,6 +961,9 @@ class OnnxConverter(BaseConverter):
         if tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
             weight_name = onnx_node.inputs[1]
             weight_data = self.getTensor(onnx_node.inputs[1]).tensor_data
+            if np.all(weight_data == 0):
+                self.addOperand(onnx_node.name, op0, input_shape0, TensorType.ACTIVATION)
+                return
             output_shape = self.same_shape(input_shape0, input_shape1)
             if output_shape != None:
                 self.addTensor(weight_name, weight_data, output_shape)
@@ -970,30 +972,25 @@ class OnnxConverter(BaseConverter):
                 self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
                 return
             elif len(input_shape0) > 1 and (np.prod(input_shape1) == 1 or np.prod(input_shape1) == input_shape0[1]):
-                if use_eltwise_const_op and np.prod(input_shape1) == 1:
-                  onnx_node.op_type = "EltAddConst"
-                  onnx_node.attrs['const_val'] = weight_data.flatten()[0]
-                  return self.convert_eltwise_const_add_op(onnx_node)
+                # Use scale op, x * 1 + y
+                scale_data = np.full(input_shape0[1], 1) # broadcast via channel
+                scale_name = "{}_scale".format(weight_name)
+                self.addTensor(scale_name, scale_data, scale_data.shape)
+                op2 = self.CVI.add_load_file_op(scale_name, scale_data.shape)
+
+                if len(input_shape1) == 0:
+                    bias_data = np.full(input_shape0[1], weight_data)
+                elif len(input_shape1) == 1 and np.prod(input_shape1) == 1:
+                    bias_data = np.full(input_shape0[1], weight_data[0])
                 else:
-                  # Use scale op, x * 1 + y
-                  scale_data = np.full(input_shape0[1], 1) # broadcast via channel
-                  scale_name = "{}_scale".format(weight_name)
-                  self.addTensor(scale_name, scale_data, scale_data.shape)
-                  op2 = self.CVI.add_load_file_op(scale_name, scale_data.shape)
+                    bias_data = weight_data.flatten()
+                bias_name = "{}_bias".format(weight_name)
+                self.addTensor(bias_name, bias_data, bias_data.shape)
+                op3 = self.CVI.add_load_file_op(bias_name, bias_data.shape)
 
-                  if len(input_shape1) == 0:
-                      bias_data = np.full(input_shape0[1], weight_data)
-                  elif len(input_shape1) == 1 and np.prod(input_shape1) == 1:
-                      bias_data = np.full(input_shape0[1], weight_data[0])
-                  else:
-                      bias_data = weight_data.flatten()
-                  bias_name = "{}_bias".format(weight_name)
-                  self.addTensor(bias_name, bias_data, bias_data.shape)
-                  op3 = self.CVI.add_load_file_op(bias_name, bias_data.shape)
-
-                  scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0,op2,op3], input_shape0)
-                  self.addOperand(onnx_node.name, scale_op, input_shape0, TensorType.ACTIVATION)
-                  return
+                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0,op2,op3], input_shape0)
+                self.addOperand(onnx_node.name, scale_op, input_shape0, TensorType.ACTIVATION)
+                return
             else:
                 weight_name = "{}_{}_add_weight".format(onnx_node.inputs[0], onnx_node.inputs[1])
                 weight_data = self.getTensor(onnx_node.inputs[1]).tensor_data
@@ -2592,25 +2589,29 @@ class OnnxConverter(BaseConverter):
             # x * constant + 0
             channel = input_shape1[1]
             mul_value = self.getTensor(onnx_node.inputs[1]).tensor_data
+            if np.all(mul_value == 1.0):
+                self.addOperand(onnx_node.name, op1, input_shape1, TensorType.ACTIVATION)
+                return
             weight_name = "{}_{}_mul_weight".format(onnx_node.inputs[0], onnx_node.inputs[1])
-            if np.prod(input_shape2) == 1 or np.prod(input_shape2) == channel:
-                if np.prod(input_shape2) == 1 and use_eltwise_const_op:
-                  onnx_node.op_type = "EltMulConst"
-                  onnx_node.attrs['const_val'] = mul_value.flatten()[0]
-                  return self.convert_eltwise_const_mul_op(onnx_node)
-                else:
-                  if len(mul_value.flatten()) == 1:
-                      weight_data = np.full(channel, mul_value.flatten()[0]) # broadcast via channel
-                  else:
-                      weight_data = mul_value
-                  weight_shape = list(weight_data.shape)
-                  self.addTensor(weight_name, weight_data, weight_shape)
-                  weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
-                  output_shape = input_shape1
-                  scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, weight_op], output_shape)
-                  self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
-                  return
-
+            first_value = mul_value.flatten()[0]
+            num_elem = np.prod(input_shape2)
+            if num_elem == 1 or np.all(mul_value == first_value):
+                param = {'const_val': first_value}
+                output_shape = list(input_shape1)
+                new_op = self.CVI.add_mul_const_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1], output_shape,
+                                                   **param)
+                self.addOperand(onnx_node.name, new_op, output_shape, TensorType.ACTIVATION)
+                return
+            elif num_elem == channel:
+                weight_data = mul_value
+                weight_shape = list(weight_data.shape)
+                self.addTensor(weight_name, weight_data, weight_shape)
+                weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
+                output_shape = input_shape1
+                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, weight_op],
+                                                 output_shape)
+                self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
+                return
             weight_data = mul_value
             output_shape = self.same_shape(input_shape1, input_shape2)
             if output_shape == None:
@@ -2655,85 +2656,13 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
-            operands = list()
-            operands.append(op)
-
-            if use_eltwise_const_op:
-              param = {
-                  "const_val": -1,
-                  "op_mode" : 2   # *
-              }
-
-              output_shape = input_shape
-              elt_const_op = self.CVI.add_eltwise_const_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
-                                                       operands, output_shape, **param)
-              self.addOperand(onnx_node.name, elt_const_op, output_shape, TensorType.ACTIVATION)
-            else:
-              # weight (-1)
-              tensor_data = np.full(input_shape[1], -1) # broadcast via channel
-              weight_name = "{}_add_weight".format(onnx_node.name)
-              self.addTensor(weight_name, tensor_data, tensor_data.shape)
-              op2 = self.CVI.add_load_file_op(weight_name, tensor_data.shape)
-              operands.append(op2)
-              # bias (0)
-              bias_data = np.full(input_shape[1], 0)
-              bias_name = "{}_add_bias".format(onnx_node.name)
-              self.addTensor(bias_name, bias_data, bias_data.shape)
-              op3 = self.CVI.add_load_file_op(bias_name, tensor_data.shape)
-              operands.append(op3)
-              output_shape = input_shape
-              scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-              self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
-
-    def convert_eltwise_const_add_op(self, onnx_node):
-      assert(onnx_node.op_type == "EltAddConst")
-      # y = x + R
-      op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
-      const_val = onnx_node.attrs.get("const_val")
-      if tensor_type == TensorType.TENSOR:
-        tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data.astype(np.float32)
-        output_data = tensor_data + np.array(const_val) 
-        output_shape = list(output_data.shape)
-        self.addTensor(onnx_node.name, output_data, output_shape)
-        self.addOperand(onnx_node.name, None, output_shape, TensorType.Tensor)
-      else:
-        operands = list()
-        operands.append(op)
-        
-        param = {
-          "const_val": const_val,
-          "op_mode" : 1
-        }
-        output_shape = input_shape
-        elt_const_op = self.CVI.add_eltwise_const_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
-                                                     operands, output_shape, **param)
-        self.addOperand(onnx_node.name, elt_const_op,
-                        output_shape, TensorType.ACTIVATION)
-
-    def convert_eltwise_const_mul_op(self, onnx_node):
-      assert(onnx_node.op_type == "EltMulConst")
-      # y = x + R
-      op, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
-      const_val = onnx_node.attrs.get("const_val")
-      if tensor_type == TensorType.TENSOR:
-        tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data.astype(np.float32)
-        output_data = tensor_data + np.array(const_val) 
-        output_shape = list(output_data.shape)
-        self.addTensor(onnx_node.name, output_data, output_shape)
-        self.addOperand(onnx_node.name, None, output_shape, TensorType.Tensor)
-      else:
-        operands = list()
-        operands.append(op)
-        
-        param = {
-          "const_val": const_val,
-          "op_mode" : 2
-        }
-        output_shape = input_shape
-        elt_const_op = self.CVI.add_eltwise_const_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
-                                                     operands, output_shape, **param)
-        self.addOperand(onnx_node.name, elt_const_op,
-                        output_shape, TensorType.ACTIVATION)
+            param = {
+                "const_val": -1.0,
+            }
+            output_shape = list(input_shape)
+            new_op = self.CVI.add_mul_const_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
+                                                       [op], output_shape, **param)
+            self.addOperand(onnx_node.name, new_op, output_shape, TensorType.ACTIVATION)
 
 
     def convert_reflectionpad_op(self, onnx_node):

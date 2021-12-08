@@ -316,6 +316,22 @@ struct TpuMergeLrnPattern : public RewritePattern {
   }
 };
 
+struct TpuMulConstPattern : public RewritePattern {
+  TpuMulConstPattern(MLIRContext *context)
+      : RewritePattern("tpu.mul_const", 1, context) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto castOp = cast<tpu::MulConstOp>(op);
+    float const_val = castOp.const_val().convertToFloat();
+    if (const_val != 1.0) {
+      return failure();
+    }
+    rewriter.replaceOp(op, {castOp.input()});
+    return success();
+  }
+};
+
 struct ConvertClipOpToIdentityOpPattern : public RewritePattern {
   ConvertClipOpToIdentityOpPattern(MLIRContext *context)
       : RewritePattern(tpu::ClipOp::getOperationName(), 1, context) {}
@@ -692,6 +708,10 @@ public:
     // then quant to bf16 all.
     patterns.clear();
     patterns.insert<TpuQuantInputPassPattern>(context);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    patterns.clear();
+    patterns.insert<TpuMulConstPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
     // do quant
