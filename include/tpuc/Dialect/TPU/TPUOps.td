@@ -431,8 +431,7 @@ class TPU_BroadcastOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
   }];
 
   let arguments = (
-    ins AnyTensor:$input,
-    AnyTensor:$multiplier,
+    ins Variadic<AnyTensor>:$inputs,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_scale,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,

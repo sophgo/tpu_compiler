@@ -52,7 +52,7 @@ static void getNCHW_align_right(std::vector<int64_t> &shape, int64_t &n,
     n = shape[num_dims - 4];
   }
   for (int i = 4; i < num_dims; i++) {
-    n *= shape[i];
+    n *= shape[num_dims - i - 1];
   }
 }
 

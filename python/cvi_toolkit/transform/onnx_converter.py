@@ -951,27 +951,19 @@ class OnnxConverter(BaseConverter):
         assert(len(onnx_node.inputs) == 2)
         op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
-
+        op_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
         if tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.ACTIVATION:
             # put activation first
             onnx_node.inputs[0], onnx_node.inputs[1] = onnx_node.inputs[1], onnx_node.inputs[0]
             self.convert_add_op(onnx_node)
             return
-
-        if tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
+        elif tensor_type0 == TensorType.ACTIVATION and tensor_type1 == TensorType.TENSOR:
             weight_name = onnx_node.inputs[1]
             weight_data = self.getTensor(onnx_node.inputs[1]).tensor_data
             if np.all(weight_data == 0):
                 self.addOperand(onnx_node.name, op0, input_shape0, TensorType.ACTIVATION)
                 return
-            output_shape = self.same_shape(input_shape0, input_shape1)
-            if output_shape != None:
-                self.addTensor(weight_name, weight_data, output_shape)
-                op2 = self.CVI.add_load_file_op(weight_name, output_shape)
-                add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0, op2], output_shape)
-                self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
-                return
-            elif len(input_shape0) > 1 and (np.prod(input_shape1) == 1 or np.prod(input_shape1) == input_shape0[1]):
+            if len(input_shape0) > 1 and (np.prod(input_shape1) == 1 or np.prod(input_shape1) == input_shape0[1]):
                 # Use scale op, x * 1 + y
                 scale_data = np.full(input_shape0[1], 1) # broadcast via channel
                 scale_name = "{}_scale".format(weight_name)
@@ -988,23 +980,25 @@ class OnnxConverter(BaseConverter):
                 self.addTensor(bias_name, bias_data, bias_data.shape)
                 op3 = self.CVI.add_load_file_op(bias_name, bias_data.shape)
 
-                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0,op2,op3], input_shape0)
+                scale_op = self.CVI.add_scale_op(op_name, [op0,op2,op3], input_shape0)
                 self.addOperand(onnx_node.name, scale_op, input_shape0, TensorType.ACTIVATION)
                 return
-            else:
-                weight_name = "{}_{}_add_weight".format(onnx_node.inputs[0], onnx_node.inputs[1])
-                weight_data = self.getTensor(onnx_node.inputs[1]).tensor_data
-                output_shape = self.bcast_shape(input_shape0, input_shape1)
-                if output_shape == input_shape0:
-                    weight = np.zeros(output_shape, dtype=np.float32)
-                    weight_data = weight + weight_data
-                    input_shape1 = output_shape
-                if input_shape0 == input_shape1:
-                    self.addTensor(weight_name, weight_data, input_shape1)
-                    op3 = self.CVI.add_load_file_op(weight_name, input_shape1)
-                    add_op = self.CVI.add_eltwise_add_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0, op3], input_shape0)
-                    self.addOperand(onnx_node.name, add_op, input_shape0, TensorType.ACTIVATION)
-                    return
+            weight_name = "{}_add_weight".format(onnx_node.name)
+            weight_data = self.getTensor(onnx_node.inputs[1]).tensor_data
+            self.addTensor(weight_name, weight_data, input_shape1)
+            op3 = self.CVI.add_load_file_op(weight_name, input_shape1)
+            output_shape = self.same_shape(input_shape0, input_shape1)
+            if output_shape != None:
+                add_op = self.CVI.add_eltwise_add_op(op_name, [op0, op3], input_shape0)
+                self.addOperand(onnx_node.name, add_op, input_shape0, TensorType.ACTIVATION)
+                return
+            output_shape = self.bcast_shape(input_shape0, input_shape1)
+            if output_shape != None:
+                if np.prod(input_shape0) < np.prod(input_shape1):
+                    op0,op3 = op3,op0
+                add_op = self.CVI.add_broadcast_add_op(op_name, [op0, op3], output_shape)
+                self.addOperand(onnx_node.name, add_op, output_shape, TensorType.ACTIVATION)
+                return
         elif tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR:
             tensor_data1 = self.getTensor(onnx_node.inputs[0]).tensor_data
             tensor_data2 = self.getTensor(onnx_node.inputs[1]).tensor_data
@@ -2567,9 +2561,10 @@ class OnnxConverter(BaseConverter):
             self.addOperand(onnx_node.name, min_op, output_shape, TensorType.ACTIVATION)
 
     def convert_mul_op(self, onnx_node):
-        assert(onnx_node.op_type == "Mul")
+        assert (onnx_node.op_type == "Mul")
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
         op2, input_shape2, tensor_type2 = self.getOperand(onnx_node.inputs[1])
+        op_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
         if tensor_type1 == TensorType.TENSOR and tensor_type2 == TensorType.ACTIVATION:
             # put activation first
             onnx_node.inputs[0], onnx_node.inputs[1] = onnx_node.inputs[1], onnx_node.inputs[0]
@@ -2583,7 +2578,6 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
             return
-
         elif tensor_type1 == TensorType.ACTIVATION and tensor_type2 == TensorType.TENSOR:
             # constant
             # x * constant + 0
@@ -2592,14 +2586,13 @@ class OnnxConverter(BaseConverter):
             if np.all(mul_value == 1.0):
                 self.addOperand(onnx_node.name, op1, input_shape1, TensorType.ACTIVATION)
                 return
-            weight_name = "{}_{}_mul_weight".format(onnx_node.inputs[0], onnx_node.inputs[1])
+            weight_name = "{}_mul_weight".format(onnx_node.name)
             first_value = mul_value.flatten()[0]
             num_elem = np.prod(input_shape2)
             if num_elem == 1 or np.all(mul_value == first_value):
                 param = {'const_val': first_value}
                 output_shape = list(input_shape1)
-                new_op = self.CVI.add_mul_const_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1], output_shape,
-                                                   **param)
+                new_op = self.CVI.add_mul_const_op(op_name, [op1], output_shape, **param)
                 self.addOperand(onnx_node.name, new_op, output_shape, TensorType.ACTIVATION)
                 return
             elif num_elem == channel:
@@ -2608,42 +2601,38 @@ class OnnxConverter(BaseConverter):
                 self.addTensor(weight_name, weight_data, weight_shape)
                 weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
                 output_shape = input_shape1
-                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, weight_op],
-                                                 output_shape)
+                scale_op = self.CVI.add_scale_op(op_name, [op1, weight_op], output_shape)
                 self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
                 return
             weight_data = mul_value
+            self.addTensor(weight_name, weight_data, input_shape2)
+            op3 = self.CVI.add_load_file_op(weight_name, input_shape2)
             output_shape = self.same_shape(input_shape1, input_shape2)
-            if output_shape == None:
-                output_shape = self.bcast_shape(input_shape1, input_shape2)
-                if output_shape == input_shape1:
-                    weight = np.zeros(output_shape, dtype=np.float32)
-                    weight_data = weight + mul_value
-                    input_shape2 = output_shape
-                else:
-                    output_shape = None
             if output_shape != None:
-                self.addTensor(weight_name, weight_data, output_shape)
-                op3 = self.CVI.add_load_file_op(weight_name, output_shape)
-                mul_op = self.CVI.add_eltwise_mul_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op1, op3], output_shape)
+                mul_op = self.CVI.add_eltwise_mul_op(op_name, [op1, op3], output_shape)
+                self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
+                return
+            output_shape = self.bcast_shape(input_shape1, input_shape2)
+            if output_shape != None:
+                if np.prod(input_shape2) > np.prod(input_shape1):
+                    op1, op3 = op3, op1
+                mul_op = self.CVI.add_broadcast_mul_op(op_name, [op1, op3], output_shape)
                 self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
                 return
         else:
-            name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
             output_shape = self.same_shape(input_shape1, input_shape2)
             if output_shape != None:
-                mul_op = self.CVI.add_eltwise_mul_op(name, [op1, op2], output_shape)
+                mul_op = self.CVI.add_eltwise_mul_op(op_name, [op1, op2], output_shape)
                 self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
                 return
             output_shape = self.bcast_shape(input_shape1, input_shape2)
             if output_shape != None:
                 if np.prod(input_shape2) > np.prod(input_shape1):
                     op1, op2 = op2, op1
-                mul_op = self.CVI.add_broadcast_mul_op(name, [op1, op2], output_shape)
+                mul_op = self.CVI.add_broadcast_mul_op(op_name, [op1, op2], output_shape)
                 self.addOperand(onnx_node.name, mul_op, output_shape, TensorType.ACTIVATION)
                 return
         raise RuntimeError("Mul {} {} not support now".format(input_shape1, input_shape2))
-
 
     def convert_neg_op(self, onnx_node):
         assert(onnx_node.op_type == "Neg")
