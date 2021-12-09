@@ -502,6 +502,25 @@ def onnx_opt(model, batch_size, dump=False):
     where_op = PesudoNode("Where", [("input", 0), ("input", 1), ("input", 2)])
     where = FoldUnfoldInfo([where_op], [where_op0, where_op1, where_op2, where_op3, where_op4, where_op5, where_op6])
 
+    layernorm_aff_op0_c = PesudoNode("ReduceMean", [("input", 0)], attr_key_map=[("axes",)])
+    layernorm_aff_op1_c = PesudoNode("Sub", [("input", 0), (layernorm_aff_op0_c.output, 0)])
+    layernorm_aff_op_cast = PesudoNode("Cast", [(layernorm_aff_op1_c.output, 0), ])
+    layernorm_aff_op2_c = PesudoNode("Constant")
+    layernorm_aff_op3_c = PesudoNode("Pow", [(layernorm_aff_op_cast.output, 0), (layernorm_aff_op2_c.output, 0)])
+    layernorm_aff_op4_c = PesudoNode("ReduceMean", [(layernorm_aff_op3_c.output, 0)])
+    layernorm_aff_op5_c = PesudoNode("Constant", attr_key_map=[(None, "eps")])
+    layernorm_aff_op6_c = PesudoNode("Add", [(layernorm_aff_op4_c.output, 0), (layernorm_aff_op5_c.output, 0)])
+    layernorm_aff_op7_c = PesudoNode("Sqrt", [(layernorm_aff_op6_c.output, 0),])
+    layernorm_aff_op8_c = PesudoNode("Div", [(layernorm_aff_op1_c.output, 0), (layernorm_aff_op7_c.output, 0)])
+    layernorm_aff_op9_c = PesudoNode("Mul", [(layernorm_aff_op8_c.output, 0), ("input", 1)])
+    layernorm_aff_op10_c = PesudoNode("Add", [(layernorm_aff_op9_c.output, 0), ("input", 1)])
+    layernorm_aff_op_c = PesudoNode("LayerNorm", [("input", 0), ("input", 1), ("input", 2)],
+                                  attr_key_map=[("axes",), ("eps",),], default={"elementwise_affine": True})
+    layernorm_aff_with_cast = FoldUnfoldInfo([layernorm_aff_op0_c, layernorm_aff_op1_c, layernorm_aff_op_cast,
+                                    layernorm_aff_op2_c, layernorm_aff_op3_c, layernorm_aff_op4_c, layernorm_aff_op5_c,
+                                    layernorm_aff_op6_c, layernorm_aff_op7_c, layernorm_aff_op8_c,
+                                    layernorm_aff_op9_c, layernorm_aff_op10_c], [layernorm_aff_op_c])
+
     layernorm_aff_op0 = PesudoNode("ReduceMean", [("input", 0)], attr_key_map=[("axes",)])
     layernorm_aff_op1 = PesudoNode("Sub", [("input", 0), (layernorm_aff_op0.output, 0)])
     layernorm_aff_op2 = PesudoNode("Constant")
@@ -536,7 +555,7 @@ def onnx_opt(model, batch_size, dump=False):
                                     layernorm_op3, layernorm_op4, layernorm_op5,
                                     layernorm_op6, layernorm_op7, layernorm_op8], [layernorm_op])
 
-    fdef.run([eq_not, std_ub, std, where, layernorm_aff, layernorm])
+    fdef.run([eq_not, std_ub, std, where, layernorm_aff, layernorm, layernorm_aff_with_cast])
     if dump:
         dump_model(model, "final_opt.onnx")
     return model
