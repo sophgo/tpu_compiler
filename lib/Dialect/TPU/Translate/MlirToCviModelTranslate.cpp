@@ -598,7 +598,7 @@ void CviModelBuilder::parseModule() {
           uint32_t y_align, w_align, channel_align;
           setPixelAlign(clRunChipType, tensor->pixel_format, y_align,
                         w_align, channel_align);
-          tensor->size = aligned_image_size(tensor->shape[0], tensor->shape[1],
+          tensor->size = tensor->dsize * aligned_image_size(tensor->shape[0], tensor->shape[1],
                                             tensor->shape[2], tensor->shape[3],
                                             tensor->pixel_format, y_align,
                                             w_align, channel_align);
@@ -609,7 +609,8 @@ void CviModelBuilder::parseModule() {
                      << "]  pixel_format: " << tensor->pixel_format
                      << "  y aligned:" << y_align << "  w aligned:" << w_align
                      << "  c aligned:" << channel_align
-                     << "  tensor size:" << tensor->size << "\n");
+                     << "  tensor size:" << tensor->size
+                     << "  dsize:" << tensor->dsize << "\n");
         }
       }
       tensorMaps_.push_back(tensor);
