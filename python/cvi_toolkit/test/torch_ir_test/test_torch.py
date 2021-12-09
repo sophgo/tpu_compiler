@@ -53,6 +53,7 @@ TEST_TORCH_IR = [
     "Expand",
     "Max_Min",
     "Sum",
+    "Scale",
     # "Bilinear", ## Bilinear not support
     # "Customer_Net",
     # "Unfold", ##Unfold not support
@@ -158,6 +159,7 @@ class TORCH_IR_TESTER(object):
             "Std": self.test_Std,
             "Squeeze": self.test_Squeeze,
             "Size": self.test_Size,
+            "Scale": self.test_Scale,
             "masked_fill": self.test_masked_fill,
             "Mulit_attention_self": self.test_Mulit_attention_self,
             "Mulit_attention_api": self.test_Mulit_attention_api,
@@ -923,6 +925,34 @@ class TORCH_IR_TESTER(object):
 
         input_shape = [1, 3, 100, 100]
         test_name = 'Std'
+
+        net = Net()
+        input_data = torch.randn(input_shape)
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_name)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
+    def test_Scale(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.pool = nn.AvgPool2d((64,32), stride=1)
+                self.conv1 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
+                self.conv2 = nn.Conv2d(in_channels=64, out_channels=64, kernel_size=3, stride=1, padding=1)
+
+            def forward(self, x):
+                x1 = self.pool(x)
+                x2 = self.conv1(x)
+                x3 = x2 * x1
+                x4 = self.conv2(x3)
+                return x4
+
+        input_shape = [8, 64, 64, 32]
+        test_name = 'Scale'
 
         net = Net()
         input_data = torch.randn(input_shape)

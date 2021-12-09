@@ -607,6 +607,12 @@ bool Group::backward_nh_slice(int out_tensor_id, std::list<int>& branches, bool 
       if (axis != 2 || h_slice != tensor->h()) {
         return false;
       }
+    } else if (layer_type == IR_SCALE) {
+      h_idx = out_h_idx;
+      h_slice = out_h_slice;
+      if (h_slice != tensor->h()) {
+        return false;
+      }
     } else {
       h_idx = out_h_idx;
       h_slice = out_h_slice;
@@ -819,6 +825,12 @@ bool Group::backward_nw_slice(int out_tensor_id, std::list<int>& branches, bool 
       w_idx = out_w_idx;
       w_slice = out_w_slice;
       if (w_idx != 0 || w_slice != tensor->w()) {
+        return false;
+      }
+    } else if (layer_type == IR_SCALE) {
+      w_idx = out_w_idx;
+      w_slice = out_w_slice;
+      if (w_slice != tensor->w()) {
         return false;
       }
     } else {
