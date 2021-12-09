@@ -786,6 +786,7 @@ def TPU_MulConstOp: TPU_Op<"mul_const",
   );
 
   let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
 }
 
 def TPU_FullyConnectedOp : TPU_Op<"fully_connected",

@@ -64,7 +64,7 @@ TEST_TORCH_IR = [
     "Flatten", ## Unflatten not support
     "AdaptiveAvgPool2d",  #  input_size % output_size == 0
     "SiLU",
-    "EltMulConst",
+    "MulConst",
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
@@ -185,7 +185,7 @@ class TORCH_IR_TESTER(object):
             "Flatten": self.test_Flatten,
             "AdaptiveAvgPool2d": self.test_AdaptiveAvgPool2d,
             "SiLU": self.test_SiLU,
-            "EltMulConst": self.test_EltMulConst,
+            "MulConst": self.test_MulConst,
         }
         self.set_quant_mode()
 
@@ -1488,17 +1488,20 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
-    def test_EltMulConst(self):
+    def test_MulConst(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
                 self.const_val = torch.randn(1)
+                self.conv2d = nn.Conv2d(in_channels=3, out_channels=10, kernel_size=3, stride=1, padding=1)
             def forward(self, x):
+                x = self.conv2d(x)
                 x = torch.mul(x, self.const_val)
+                x = torch.relu(x)
                 return x
 
         input_shape = [1, 3, 100, 100]
-        test_name = 'EltMulConst'
+        test_name = 'MulConst'
 
         net = Net()
         input_data = torch.randn(input_shape)
