@@ -24,53 +24,50 @@ import gc
 import re
 
 TEST_TORCH_IR = [
+    "Activation",
+    "AvgPool",
+    "AdaptiveAvgPool2d",  #  input_size % output_size == 0
+    # "Bilinear", ## Bilinear not support
+    "Batch_Norm", ##Batch_norm_2d and Instance_Norm_2d easily will fail
     "Conv", # sunpport Conv with 3d, 2d, 1d case
     "ConvTranspose",
-    "MaxPool", ## Maxpool_1d and Max_Un_Pool2d not support
-    "MaxPool3d",
-    "AvgPool",
-    "ReflectionPad", ## ReflectionPad_2d not support
-    "ZeroPad2d",
-    "ConstantPad",
-    "Std",
-    "Squeeze",
-    "Linear",
-    #"Mulit_attention_self", ## Low accuracy
-    # "Mulit_attention_api",  ## now not support
-    "Norm",
-    "masked_fill",
-    "Activation",
-    "Batch_Norm", ##Batch_norm_2d and Instance_Norm_2d easily will fail
     "Cat_Chunk",
-    "Log",
-    "Math", ## sum, prod not support
-    "Repeat",   ## repeat_interleave nonx not support
+    "ConstantPad",
+    # "ChannelShuffle", ## ChannelShuffle not support
     # "Dropout", ## Dropout not support
-    "LSTM",
-    "GRU",
-    "Size",
-    "LayerNorm",
     "Expand",
-    "Max_Min",
-    "Sum",
-    "Scale",
-    # "Bilinear", ## Bilinear not support
-    # "Customer_Net",
-    # "Unfold", ##Unfold not support
+    "Flatten", ## Unflatten not support
+    "GRU",
+    "Identity",
+    "Log",
+    "LSTM",
+    "LayerNorm",
+    "Linear",
     #"LogSigmoid", #some times fail
     "LogSoftmax",
-    "Identity",
-    "Upsample",
-    # "ChannelShuffle", ## ChannelShuffle not support
-    "Flatten", ## Unflatten not support
-    "AdaptiveAvgPool2d",  #  input_size % output_size == 0
+    # "Mulit_attention_api",  ## now not support
+    "MaxPool", ## Maxpool_1d and Max_Un_Pool2d not support
+    "MaxPool3d",
+    "Max_Min",
+    "Math", ## sum, prod not support
+    "masked_fill",
+    "Norm",
+    "Repeat",   ## repeat_interleave nonx not support
+    "ReflectionPad", ## ReflectionPad_2d not support
+    "Std",
+    "Squeeze",
+    "Size",
+    "Sum",
+    "Scale",
     "SiLU",
-    "MulConst",
+    # "Unfold", ##Unfold not support
+    "Upsample",
+    "ZeroPad2d",
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
 NOT_SUPPORT_BF16_TEST_IR = [""]
-NOT_SUPPORT_INT8_TEST_IR = ["Customer_Net","masked_fill"] # just for save test time
+NOT_SUPPORT_INT8_TEST_IR = ["masked_fill"] # just for save test time
 
 def cvimodel_inference(inputs, model_name):
     model = pyruntime.Model(model_name)
@@ -146,47 +143,45 @@ class TORCH_IR_TESTER(object):
         self.cvi_model_test = True
 
         self.test_function = {
-            "LayerNorm": self.test_LayerNorm,
+            "Activation": self.test_Activation,
+            "AvgPool": self.test_AvgPool,
+            "AdaptiveAvgPool2d": self.test_AdaptiveAvgPool2d,
+            "Batch_Norm": self.test_Batch_Norm,
+            "Bilinear": self.test_Bilinear,
             "Conv": self.test_Conv,
             "ConvTranspose": self.test_ConvTranspose,
-            "MaxPool": self.test_MaxPool,
-            "MaxPool3d": self.test_MaxPool3d,
-            "AvgPool": self.test_AvgPool,
-            "ReflectionPad": self.test_ReflectionPad,
-            "ZeroPad2d": self.test_ZeroPad2d,
-            "ConstantPad": self.test_ConstantPad,
-            "Linear": self.test_Linear,
-            "Std": self.test_Std,
-            "Squeeze": self.test_Squeeze,
-            "Size": self.test_Size,
-            "Scale": self.test_Scale,
-            "masked_fill": self.test_masked_fill,
-            "Mulit_attention_self": self.test_Mulit_attention_self,
-            "Mulit_attention_api": self.test_Mulit_attention_api,
-            "Norm": self.test_Norm,
-            "Activation": self.test_Activation,
-            "Batch_Norm": self.test_Batch_Norm,
             "Cat_Chunk": self.test_Cat_Chunk,
-            "Math": self.test_Math,
-            "Repeat": self.test_Repeat,
+            "ConstantPad": self.test_ConstantPad,
+            "ChannelShuffle": self.test_ChannelShuffle,
             "Dropout": self.test_Dropout,
-            "LSTM": self.test_LSTM,
+            "Expand": self.test_Expand,
+            "Flatten": self.test_Flatten,
             "GRU": self.test_GRU,
-            "Bilinear": self.test_Bilinear,
+            "Identity": self.test_Identity,
             "Log": self.test_Log,
             "LogSigmoid": self.test_LogSigmoid,
             "LogSoftmax": self.test_LogSoftmax,
-            "Expand": self.test_Expand,
+            "LayerNorm": self.test_LayerNorm,
+            "Linear": self.test_Linear,
+            "LSTM": self.test_LSTM,
+            "MaxPool": self.test_MaxPool,
+            "MaxPool3d": self.test_MaxPool3d,
+            "Math": self.test_Math,
+            "masked_fill": self.test_masked_fill,
+            "Mulit_attention_api": self.test_Mulit_attention_api,
             "Max_Min": self.test_Max_Min,
+            "Norm": self.test_Norm,
+            "Repeat": self.test_Repeat,
+            "ReflectionPad": self.test_ReflectionPad,
+            "Std": self.test_Std,
+            "Scale": self.test_Scale,
+            "Squeeze": self.test_Squeeze,
+            "Size": self.test_Size,
+            "SiLU": self.test_SiLU,
             "Sum": self.test_Sum,
             "Unfold": self.test_Unfold,
-            "Identity": self.test_Identity,
             "Upsample": self.test_Upsample,
-            "ChannelShuffle": self.test_ChannelShuffle,
-            "Flatten": self.test_Flatten,
-            "AdaptiveAvgPool2d": self.test_AdaptiveAvgPool2d,
-            "SiLU": self.test_SiLU,
-            "MulConst": self.test_MulConst,
+            "ZeroPad2d": self.test_ZeroPad2d,
         }
         self.set_quant_mode()
 
@@ -986,73 +981,6 @@ class TORCH_IR_TESTER(object):
 
         # Use the exporter from  torch to convert to onnx
         self.pytorch_transform_onnx(net, input_data, test_name)
-
-        torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
-
-    def test_Mulit_attention_self(self):
-        class SelfAttention(nn.Module):
-            def __init__(self, hid_dim, n_heads, dropout, device):
-                super().__init__()
-
-                self.hid_dim = hid_dim
-                self.n_heads = n_heads
-
-                assert hid_dim % n_heads == 0
-
-                self.w_q = nn.Linear(hid_dim, hid_dim)
-                self.w_k = nn.Linear(hid_dim, hid_dim)
-                self.w_v = nn.Linear(hid_dim, hid_dim)
-
-                self.fc = nn.Linear(hid_dim, hid_dim)
-                self.do = nn.Dropout(dropout)
-                self.scale = torch.sqrt(torch.FloatTensor([hid_dim // n_heads])).to(device)
-
-            def forward(self, query, key, value, mask=None):
-                bsz = query.shape[0]
-
-                Q = self.w_q(query)
-                K = self.w_k(key)
-                V = self.w_v(value)
-
-                Q = Q.view(bsz, -1, self.n_heads, self.hid_dim //
-                        self.n_heads).permute(0, 2, 1, 3)
-                K = K.view(bsz, -1, self.n_heads, self.hid_dim //
-                        self.n_heads).permute(0, 2, 1, 3)
-                V = V.view(bsz, -1, self.n_heads, self.hid_dim //
-                        self.n_heads).permute(0, 2, 1, 3)
-
-                energy = torch.matmul(Q, K.permute(0, 1, 3, 2)) / self.scale
-                if mask is not None:
-                    energy = energy.masked_fill(mask == 0, -1e10)
-                attention = self.do(torch.softmax(energy, dim=-1))
-                x = torch.matmul(attention, V)
-                x = x.permute(0, 2, 1, 3).contiguous()
-                x = x.view(bsz, -1, self.n_heads * (self.hid_dim // self.n_heads))
-                x = self.fc(x)
-                return x
-
-        test_name = 'Mulit_attention_self'
-        embed_dim = 2
-        num_heads = 2
-        batch_size = 3
-        input_shape = [num_heads, batch_size, embed_dim]
-        query = torch.randn(input_shape[0], input_shape[1], input_shape[2])
-        key = torch.randn(input_shape[0], input_shape[1], input_shape[2])
-        value = torch.randn(input_shape[0], input_shape[1], input_shape[2])
-        input_data = {}
-        input_data['input'] = query
-        input_data['input1'] = key
-        input_data['input2'] = value
-
-        dropout = 0.2  # the dropout value
-        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-
-        multihead_net = SelfAttention(embed_dim, num_heads, dropout, device)
-        torch_output_data = multihead_net(input_data['input'], input_data['input1'], input_data['input2'])
-
-        # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(multihead_net, input_data, test_name)
 
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)

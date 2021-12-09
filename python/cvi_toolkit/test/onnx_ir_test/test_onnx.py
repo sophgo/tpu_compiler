@@ -26,6 +26,7 @@ TEST_ONNX_IR = [
     "AddConst",
     "AveragePool",
     "AveragePool1d",
+    "BCastSub", # test broadcast sub
     "Concat",
     "Conv2d", # Conv with 2d case
     "ConvTranspose1d",
@@ -54,8 +55,8 @@ TEST_ONNX_IR = [
     "Neg",
     "Pad",
     "PadReflect",
-    "Relu",
     "PRelu",
+    "Relu",
     "Reduce",
     "Reduce2",
     "ReduceL2",
@@ -68,11 +69,10 @@ TEST_ONNX_IR = [
     "Sub",
     "Sum",
     "Softmax",
+    #    "Transpose",
     "Tile",
-   "Where",
     "Upsample",
-#    "Transpose",
-    "BCastSub", # test broadcast sub
+    "Where",
 ]
 
 NOT_SUPPORT_CMDBUF_TEST_IR = [""]
@@ -190,10 +190,10 @@ class ONNX_IR_TESTER(object):
             "MatMul": self.test_MatMul,
             "Neg": self.test_Neg,
             "PRelu": self.test_PRelu,
-            "Reciprocal": self.test_Reciprocal,
             "Pad": self.test_Pad,
             "PadReflect": self.test_PadReflect,
             "Relu": self.test_Relu,
+            "Reciprocal": self.test_Reciprocal,
             "Resize": self.test_Resize,
             "Slice_3dim": self.test_Slice_3dim,
             "Slice_step": self.test_Slice_step,
