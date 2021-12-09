@@ -68,8 +68,8 @@ class ModelTest(object):
             if ret != 0:
                 raise RuntimeError("{} opt failed".format(self.model_path))
 
-        if "bf16" == quant_mode:
-            deploy_cmd = ['model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--quantize','BF16',
+        if "bf16" or "mix_bf16" == quant_mode:
+            deploy_cmd = ['model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--quantize', quant_mode.upper(),
                           '--chip', self.chip_type, '--image', self.input_path, '--tolerance', '0.99,0.99,0.87',
                           '--correctness', '0.99,0.99,0.95', '--debug', '--cvimodel', self.cvimodel]
         elif "int8" == quant_mode:
@@ -94,6 +94,7 @@ class ModelTest(object):
                     input_shape.append(dim.dim_value)
             if 1 == input.type.tensor_type.elem_type:    # 1 for np.float32
                 self.input_data[input.name] = np.random.randn(*input_shape).astype(np.float32)
+                # self.input_data[input.name] = np.random.uniform(1, 6, input_shape).astype(np.float32)
             elif 7 == input.type.tensor_type.elem_type:  # 7 for np.int64 / torch.long
                 self.input_data[input.name] = np.random.randint(0, 3, input_shape).astype(np.int64)
             elif 9 == input.type.tensor_type.elem_type:  # 9 for boolean
@@ -106,7 +107,7 @@ class ModelTest(object):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument("--model_def", help="model definition file.")
-    parser.add_argument("--qmode", choices=['bf16', 'int8'], default="bf16", help="quant mode")
+    parser.add_argument("--qmode", choices=['bf16', 'int8', 'mix_bf16'], default="bf16", help="quant mode")
     parser.add_argument("--batch_size", type=int, default=1, help="batch size")
     parser.add_argument("--chip_type", type=str, default="cv182x", help="chip type")
     parser.add_argument("--tmp_dir", type=str, default="tmp", help="tmp folder")
