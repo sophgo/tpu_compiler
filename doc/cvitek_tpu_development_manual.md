@@ -1139,7 +1139,7 @@ class MLIRImport:
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
- 	
+
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】

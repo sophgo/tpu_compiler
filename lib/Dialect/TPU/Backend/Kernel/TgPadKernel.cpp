@@ -184,7 +184,7 @@ typedef enum {
 } pad_step_t;
 
 static void do_pad(const CviBackendContext &ctx, uint32_t layer_id,
-                   uint32_t ga_ifmap, gaddr_t ga_ofmap, int outer_dim,
+                   gaddr_t ga_ifmap, gaddr_t ga_ofmap, int outer_dim,
                    int inner_dim, int pad_l, int pad_dim, int pad_r,
                    uint16_t const_val, pad_step_t step, cvk_fmt_t fmt) {
   auto fmt_size = ctx.bytesize_of_fmt(fmt);
@@ -226,19 +226,20 @@ static void do_pad(const CviBackendContext &ctx, uint32_t layer_id,
     dst_stride = ctx.tg_default_stride(dst_shape, fmt);
     dst_stride.n = pad_stride;
   }
-  cvk_tg_t dst;
-  dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
-  dst.int8_rnd_mode = 0;
-  dst.fmt = fmt;
-  dst.start_address = ga_output;
-  dst.shape = dst_shape;
-  dst.stride = dst_stride;
+
   if (step == PAD_COPY) {
     auto src_shape = dst_shape;
     auto src_stride = ctx.tg_default_stride(src_shape, fmt);
     ctx.tdma_g2g_tensor_copy(ga_input, src_shape, src_stride, fmt, ga_output,
                              dst_shape, dst_stride, fmt);
   } else {
+    cvk_tg_t dst;
+    dst.base_reg_index = ctx.getTdmaBaseSelectIndexFromGaddr(ga_output);
+    dst.int8_rnd_mode = 0;
+    dst.fmt = fmt;
+    dst.start_address = ga_output;
+    dst.shape = dst_shape;
+    dst.stride = dst_stride;
     cvk_tdma_l2g_tensor_fill_constant_param_t p0;
     p0.constant = const_val;
     p0.dst = &dst;
@@ -254,9 +255,9 @@ static void only_one_pad(const CviBackendContext &ctx, uint32_t layer_id,
   do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
          pad_dim, pad_r, const_val, PAD_LEFT, fmt);
   do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
-         pad_dim, pad_r, const_val, PAD_COPY, fmt);
-  do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
          pad_dim, pad_r, const_val, PAD_RIGHT, fmt);
+  do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
+         pad_dim, pad_r, const_val, PAD_COPY, fmt);
 }
 
 static bool try_only_one_pad(const CviBackendContext &ctx, uint32_t layer_id,

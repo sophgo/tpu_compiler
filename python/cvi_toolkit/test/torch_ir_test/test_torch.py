@@ -176,7 +176,6 @@ class TORCH_IR_TESTER(object):
             "LogSoftmax": self.test_LogSoftmax,
             "Expand": self.test_Expand,
             "Max_Min": self.test_Max_Min,
-            "Customer_Net": self.test_Customer_Net,
             "Sum": self.test_Sum,
             "Unfold": self.test_Unfold,
             "Identity": self.test_Identity,
@@ -414,7 +413,6 @@ class TORCH_IR_TESTER(object):
                 super(Net, self).__init__()
 
             def forward(self, x):
-                x = torch.negative(x)
                 x = torch.log(x)
                 return x
 
@@ -422,7 +420,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Log'
 
         net = Net()
-        input_data = torch.clamp(torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3]), -10.0, -8.0)
+        input_data = torch.clamp(torch.randn(*input_shape), 8.0, 10.0)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -515,7 +513,6 @@ class TORCH_IR_TESTER(object):
                 super(Net, self).__init__()
 
             def forward(self, x):
-                x = torch.negative(x)
                 x = x.expand(3, 4, 100, 100)
                 return x
 
@@ -613,8 +610,7 @@ class TORCH_IR_TESTER(object):
                 super(Net, self).__init__()
                 self.SiLU = nn.SiLU()
 
-            def forward(self, input):
-                x = torch.negative(input)
+            def forward(self, x):
                 return  self.SiLU(x)
 
         input_shape = [1, 32, 20, 20]
@@ -707,74 +703,6 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
-    def test_Customer_Net(self):
-        class Net(torch.nn.Module):
-            def __init__(self):
-                super(Net, self).__init__()
-                self.conv1d = nn.Conv1d(in_channels=80, out_channels=128, kernel_size=1)
-                self.LeakyReLU = nn.LeakyReLU(negative_slope=0.01,inplace=False)
-                self.conv_pose1d = nn.ConvTranspose1d(128, 64, kernel_size=10, stride=8, padding=1)
-
-                self.conv1d_new1 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new2 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new3 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new4 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new5 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new6 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new7 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new8 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new9 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new10 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new11 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new12 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new13 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new14 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new15 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new16 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new17 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new18 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new19 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new20 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.conv1d_new21 = nn.Conv1d(in_channels=64, out_channels=64, kernel_size=1)
-                self.con1d_test_list = [self.conv1d_new1, self.conv1d_new2, self.conv1d_new3, self.conv1d_new4, self.conv1d_new5,
-                                   self.conv1d_new6, self.conv1d_new7, self.conv1d_new8, self.conv1d_new9, self.conv1d_new10,
-                                   self.conv1d_new11, self.conv1d_new12, self.conv1d_new13, self.conv1d_new14, self.conv1d_new15,
-                                   self.conv1d_new16, self.conv1d_new17, self.conv1d_new18, self.conv1d_new19, self.conv1d_new20,
-                                   self.conv1d_new21,]
-
-            def forward(self, x):
-                ##conv and convtranpose
-                x = self.conv1d(x)
-                x = self.LeakyReLU(x)
-                x = torch.negative(x)
-                x = self.conv_pose1d(x)
-                x = self.LeakyReLU(x)
-
-                # add func 1layer
-                for i in range(0, 20, 2):
-                    x = self.con1d_test_list[i](x)
-                    x1 = self.LeakyReLU(x)
-                    x = self.con1d_test_list[i+1](x)
-                    x2 = self.LeakyReLU(x)
-                    x = torch.add(x1, x2)
-                    x = self.LeakyReLU(x)
-
-                #last
-                x = self.con1d_test_list[-1](x)
-                return x
-
-        test_name = 'Customer_Net'
-        net = Net()
-        input_shape = [1, 80, 100]
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2])
-        torch_output_data = net(input_data)
-
-        # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_name)
-
-        torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
-
     def test_Max_Min(self):
         class Net(torch.nn.Module):
             def __init__(self):
@@ -828,7 +756,6 @@ class TORCH_IR_TESTER(object):
                 super(Net, self).__init__()
 
             def forward(self, x):
-                x = torch.negative(x)
                 x = torch.squeeze(x)
                 x = torch.add(x,x)
                 return x
@@ -1106,7 +1033,6 @@ class TORCH_IR_TESTER(object):
                 super(Net, self).__init__()
 
             def forward(self, x):
-                x = torch.negative(x)
                 x = torch.norm(x, p=2, dim=2, keepdim=True)
                 return x
 
@@ -1130,7 +1056,6 @@ class TORCH_IR_TESTER(object):
                 self.linear = nn.Linear(10,20,bias=False)
 
             def forward(self, x):
-                x = torch.negative(x)
                 x = torch.transpose(x, 1, 2)
                 x = torch.squeeze(x)
                 x = torch.add(x,x)
@@ -1280,7 +1205,6 @@ class TORCH_IR_TESTER(object):
 
             def forward(self, x):
                 ## output_shape = (input-1)*stride - 2*padding + kernel_size + output_padding
-                x = torch.negative(x) ## input shape (3, 40, 1, 30)
                 x = self.dconv_2d(x) ## output shape (3, 50, 1, 59)
                 x = torch.squeeze(x, 2) ## output shape (3, 50, 59)
                 x = self.dconv_1d(x) ## output shape (3, 6, 118)
@@ -1309,8 +1233,7 @@ class TORCH_IR_TESTER(object):
 
             def forward(self, x):
                 ## output_shape = (h/w + kernel_size -1 - 1) / 2
-                output, indices = self.max_pool2d(x) ## output shape (3, 3, 50, 50)
-                x = torch.negative(x)
+                # output, indices = self.max_pool2d(x) ## output shape (3, 3, 50, 50)
                 x = self.max_pool1d(x) ## output shape (3, 3, 50)
                 # x = self.max_unpool2d(output, indices)
                 return x
@@ -1383,7 +1306,6 @@ class TORCH_IR_TESTER(object):
                 self.ReflectionPad2d = nn.ReflectionPad2d(2)
 
             def forward(self, x):
-                x = torch.negative(x)
                 x = self.ReflectionPad1d(x)
                 # x = x.unsqueeze(dim=1)
                 # x = self.ReflectionPad2d(x)
@@ -1409,7 +1331,6 @@ class TORCH_IR_TESTER(object):
                 self.ZeroPad2d = nn.ZeroPad2d(padding=(3, 4, 5, 6))
 
             def forward(self, x):
-                x = torch.negative(x)
                 ##input shape = (3, 100, 100)
                 x = self.ZeroPad2d(x) ##output shape = (3, 111, 107)
                 return x
@@ -1430,11 +1351,10 @@ class TORCH_IR_TESTER(object):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.ConstantPad2d = nn.ConstantPad2d(padding=(1, 1, 1, 1), value=0.01)
-                self.ConstantPad1d = nn.ConstantPad1d(2, 0.01)
+                self.ConstantPad2d = nn.ConstantPad2d(padding=(1, 1, 1, 1), value=0.0)
+                self.ConstantPad1d = nn.ConstantPad1d(2, 0.0)
 
             def forward(self, x):
-                x = torch.negative(x)
                 x = self.ConstantPad1d(x)
                 x = x.unsqueeze(dim=1)
                 x = self.ConstantPad2d(x)
@@ -1443,7 +1363,7 @@ class TORCH_IR_TESTER(object):
         batch_size = 3
         test_name = 'ConstantPad'
 
-        input_data = torch.randn(batch_size, 1, 3).float()
+        input_data = torch.randn(batch_size, 100, 30).float()
         net = Net()
         torch_output_data = net(input_data)
 

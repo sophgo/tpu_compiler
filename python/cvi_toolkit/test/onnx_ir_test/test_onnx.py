@@ -683,14 +683,9 @@ class ONNX_IR_TESTER(object):
                 vals=bias_data.flatten(),
             ),
         )
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
         node_def = onnx.helper.make_node(
             "ConvTranspose",
-            inputs=['X1', 'conv_w', 'conv_b'],
+            inputs=['input', 'conv_w', 'conv_b'],
             outputs=['output'],
             kernel_shape=kernel_shape,
             pads=pads,
@@ -701,7 +696,7 @@ class ONNX_IR_TESTER(object):
         )
 
         graph_def = helper.make_graph(
-            [weight_node_def, bias_node_def, x1_def, node_def],
+            [weight_node_def, bias_node_def, node_def],
             test_case,
             [input],
             [output],
@@ -931,19 +926,14 @@ class ONNX_IR_TESTER(object):
                 vals=np.array(output_shape, dtype=np.int64),
             ),
         )
-        neg_node = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
         expand_node = helper.make_node(
             'Expand',  # node name
-            ['X1','new_shape'],  # inputs
+            ['input','new_shape'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [shape_def, neg_node, expand_node],
+            [shape_def, expand_node],
             test_case,
             [input],
             [output],
@@ -1364,14 +1354,9 @@ class ONNX_IR_TESTER(object):
         alpha = 0.01
         test_case = "LeakyRelu"
         input_shape = [1, 3, 224, 224]
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
         node_def = helper.make_node(
             "LeakyRelu", # node name
-            ['X1'], # inputs
+            ['input'], # inputs
             ['output'], # outputs
             alpha=alpha
         )
@@ -1380,7 +1365,7 @@ class ONNX_IR_TESTER(object):
         output = helper.make_tensor_value_info('output', TensorProto.FLOAT, input_shape)
         # Create the graph (GraphProto)
         graph_def = helper.make_graph(
-            [x1_def, node_def],
+            [node_def],
             test_case,
             [input],
             [output],
@@ -1397,14 +1382,9 @@ class ONNX_IR_TESTER(object):
     def test_Log(self):
         test_case = "Log"
         input_shape = [1, 3, 224, 224]
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
         node_def = helper.make_node(
             "Log",  # node name
-            ['X1'],  # inputs
+            ['input'],  # inputs
             ['output'],  # outputs
         )
 
@@ -1414,7 +1394,7 @@ class ONNX_IR_TESTER(object):
             'output', TensorProto.FLOAT, input_shape)
         # Create the graph (GraphProto)
         graph_def = helper.make_graph(
-            [x1_def, node_def],
+            [node_def],
             test_case,
             [input],
             [output],
@@ -1423,7 +1403,7 @@ class ONNX_IR_TESTER(object):
         # Create the model (ModelProto)
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
-        input_data = np.clip(np.random.randn(*input_shape).astype(np.float32) * -10.0, -8, -0.5)
+        input_data = np.clip(np.random.randn(*input_shape).astype(np.float32) * 10.0, 0.5, 8)
 
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
@@ -1431,14 +1411,9 @@ class ONNX_IR_TESTER(object):
     def test_LogSoftmax(self):
         test_case = "LogSoftmax"
         input_shape = [1, 100, 72]
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
         node_def = helper.make_node(
             "LogSoftmax",  # node name
-            ['X1'],  # inputs
+            ['input'],  # inputs
             ['output'],  # outputs
             axis = 2,
         )
@@ -1449,7 +1424,7 @@ class ONNX_IR_TESTER(object):
             'output', TensorProto.FLOAT, input_shape)
         # Create the graph (GraphProto)
         graph_def = helper.make_graph(
-            [x1_def, node_def],
+            [node_def],
             test_case,
             [input],
             [output],
@@ -1473,21 +1448,15 @@ class ONNX_IR_TESTER(object):
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-
         lrn_def = helper.make_node(
             'LRN',  # node name
-            ['X1'],  # inputs
+            ['input'],  # inputs
             ['output'],  # outputs
             size=5,
         )
 
         graph_def = helper.make_graph(
-            [x1_def, lrn_def],
+            [lrn_def],
             test_case,
             [input],
             [output],
@@ -1495,8 +1464,6 @@ class ONNX_IR_TESTER(object):
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
         input_data = np.random.rand(*input_shape).astype(np.float32)
-        #only support positive input for lrn
-        input_data = -input_data
 
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
@@ -1689,71 +1656,68 @@ class ONNX_IR_TESTER(object):
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
-        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        input0 = helper.make_tensor_value_info('input0', TensorProto.FLOAT, input_shape)
+        input1 = helper.make_tensor_value_info('input1', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
-
-        #test only one input
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
 
         #test three input
         max_def = helper.make_node(
             'Max',  # node name
-            ['input', 'X1'],  # inputs
+            ['input0', 'input1'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [x1_def, max_def],
+            [max_def],
             test_case,
-            [input],
+            [input0, input1],
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
-        input_data = np.random.randn(*input_shape).astype(np.float32)
+        input_data0 = np.random.randn(*input_shape).astype(np.float32)
+        input_data1 = np.random.randn(*input_shape).astype(np.float32)
+        inputs = {
+            'input0':input_data0,
+            'input1':input_data1,
+        }
         onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+        self.onnx_convert_and_infernece(inputs, model_def, test_case)
 
     def test_Min(self):
         test_case = 'Min'
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
-        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        input0 = helper.make_tensor_value_info('input0', TensorProto.FLOAT, input_shape)
+        input1 = helper.make_tensor_value_info('input1', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
-
-        #test only one input
-
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
 
         #test four input
         min_def = helper.make_node(
             'Min',  # node name
-            ['input', 'X1'],  # inputs
+            ['input0', 'input1'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [x1_def, min_def],
+            [min_def],
             test_case,
-            [input],
+            [input0, input1],
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
-        input_data = np.random.rand(*input_shape).astype(np.float32)
+        input_data0 = np.random.randn(*input_shape).astype(np.float32)
+        input_data1 = np.random.randn(*input_shape).astype(np.float32)
+        inputs = {
+            'input0':input_data0,
+            'input1':input_data1,
+        }
         onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+        self.onnx_convert_and_infernece(inputs, model_def, test_case)
 
     def test_Mul(self):
         # mul(1x16x28x28, 1x1x28x28) => 1x16x28x28
@@ -1951,22 +1915,16 @@ class ONNX_IR_TESTER(object):
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-
         pad_def = helper.make_node(
             'Pad',
-            ['X1'],
+            ['input'],
             ['output'],
             mode='reflect',
             pads=[0,0,3,0,0,3]
         )
 
         graph_def = helper.make_graph(
-            [x1_def, pad_def],
+            [pad_def],
             test_case,
             [input],
             [output],
@@ -2106,14 +2064,9 @@ class ONNX_IR_TESTER(object):
         reduce_mean = helper.make_node(
             'ReduceMean',
             ['input'],
-            ['x1'],
+            ['o_mean'],
             keepdims=0,
             axes=[4],
-        )
-        neg_def = helper.make_node(
-            'Neg',  # node name
-            ['x1'],  # inputs
-            ['o_mean'],  # outputs
         )
         reduce_max = helper.make_node(
             'ReduceMax',
@@ -2138,7 +2091,7 @@ class ONNX_IR_TESTER(object):
         )
 
         graph_def = helper.make_graph(
-            [reduce_mean, neg_def, reduce_max, reduce_min, reduce_sum],
+            [reduce_mean, reduce_max, reduce_min, reduce_sum],
             test_case,
             [input],
             [output0, output1, output2, output3]
@@ -2193,18 +2146,13 @@ class ONNX_IR_TESTER(object):
         reduce_sum = helper.make_node(
             'ReduceSum',
             ['input'],
-            ['x1'],
+            ['o_sum'],
             keepdims=0,
             axes=[2, 3],
         )
-        neg_def = helper.make_node(
-            'Neg',  # node name
-            ['x1'],  # inputs
-            ['o_sum'],  # outputs
-        )
 
         graph_def = helper.make_graph(
-            [reduce_mean, reduce_max, reduce_min, reduce_sum, neg_def],
+            [reduce_mean, reduce_max, reduce_min, reduce_sum],
             test_case,
             [input],
             [output0, output1, output2, output3]
@@ -2229,19 +2177,13 @@ class ONNX_IR_TESTER(object):
         reduce_l2 = helper.make_node(
             'ReduceL2',
             ['input'],
-            ['x1'],
+            ['o_l2'],
             keepdims=0,
             axes=[3, 4],
         )
 
-        neg_def = helper.make_node(
-            'Neg',  # node name
-            ['x1'],  # inputs
-            ['o_l2'],  # outputs
-        )
-
         graph_def = helper.make_graph(
-            [reduce_l2, neg_def],
+            [reduce_l2],
             test_case,
             [input],
             [output]
@@ -2337,7 +2279,7 @@ class ONNX_IR_TESTER(object):
         )
         resize2_node = helper.make_node(
             'Resize',
-            inputs=['X1', 'roi', 'scales', 'sizes2'],
+            inputs=['input', 'roi', 'scales', 'sizes2'],
             outputs=['output2'],
             mode='linear',
             coordinate_transformation_mode='pytorch_half_pixel'
@@ -2355,7 +2297,7 @@ class ONNX_IR_TESTER(object):
         )
         resize3_node = helper.make_node(
             'Resize',
-            inputs=['X1', 'roi', 'scales', 'sizes3'],
+            inputs=['input', 'roi', 'scales', 'sizes3'],
             outputs=['output3'],
             mode='linear',
             coordinate_transformation_mode='half_pixel'
@@ -2373,7 +2315,7 @@ class ONNX_IR_TESTER(object):
         )
         resize4_node = helper.make_node(
             'Resize',
-            inputs=['X1', 'roi', 'scales', 'sizes4'],
+            inputs=['input', 'roi', 'scales', 'sizes4'],
             outputs=['output4'],
             mode='nearest',
         )
@@ -2390,7 +2332,7 @@ class ONNX_IR_TESTER(object):
         )
         resize5_node = helper.make_node(
             'Resize',
-            inputs=['X1', 'roi', 'scales', 'sizes5'],
+            inputs=['input', 'roi', 'scales', 'sizes5'],
             outputs=['output5'],
             mode='nearest',
         )
@@ -2575,18 +2517,13 @@ class ONNX_IR_TESTER(object):
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
-        x1_node = helper.make_node(
-            'Neg',
-            ['input'],
-            ['X1'],
-        )
         sigmoid_node = helper.make_node(
             'Sigmoid',
-            ['X1'],
+            ['input'],
             ['output'],
         )
         graph_def = helper.make_graph(
-            [x1_node, sigmoid_node],
+            [sigmoid_node],
             test_case,
             [input],
             [output],
@@ -2605,34 +2542,30 @@ class ONNX_IR_TESTER(object):
         input_shape = [1, 3, 27, 27]
         output_shape = [1, 3, 27, 27]
 
-        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        input0 = helper.make_tensor_value_info('input0', TensorProto.FLOAT, input_shape)
+        input1 = helper.make_tensor_value_info('input1', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-
         sub_def = helper.make_node(
             'Sub',  # node name
-            ['input', 'X1'],  # inputs
+            ['input0', 'input1'],  # inputs
             ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [x1_def, sub_def],
+            [sub_def],
             test_case,
-            [input],
+            [input0, input1],
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
         model_def.opset_import[0].version = 11
-
-        input_data = np.random.randn(*input_shape).astype(np.float32)
+        inputs = {}
+        inputs['input0'] = np.random.randn(*input_shape).astype(np.float32)
+        inputs['input1'] = np.random.randn(*input_shape).astype(np.float32)
         onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+        self.onnx_convert_and_infernece(inputs, model_def, test_case)
 
     def test_BCastSub(self):
         test_case = 'BCastSub'
@@ -2708,26 +2641,21 @@ class ONNX_IR_TESTER(object):
         test_case = 'Softmax'
         input_shape = [4, 64, 128, 1]
         output_shape = list(input_shape)
-        neg_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X0'],  # outputs
-        )
         x1_def = helper.make_node(
             'Softmax',
-            ['X0'],
+            ['input'],
             ['X1'],
             axis=1,
         )
         x2_def = helper.make_node(
             'Softmax',
-            ['X0'],
+            ['input'],
             ['X2'],
             axis=2,
         )
         x3_def = helper.make_node(
             'Softmax',
-            ['X0'],
+            ['input'],
             ['X3'],
             axis=3,
         )
@@ -2741,7 +2669,7 @@ class ONNX_IR_TESTER(object):
         X3 = helper.make_tensor_value_info(
             'X3', TensorProto.FLOAT, output_shape)
         graph_def = helper.make_graph(
-            [neg_def, x1_def, x2_def, x3_def],
+            [x1_def, x2_def, x3_def],
             test_case,
             [input],
             [X1, X2, X3],
@@ -2774,22 +2702,16 @@ class ONNX_IR_TESTER(object):
             output = helper.make_tensor_value_info(
                 'output', TensorProto.FLOAT, output_shape)
 
-            x1_def = helper.make_node(
-                'Neg',  # node name
-                ['input'],  # inputs
-                ['X1'],  # outputs
-            )
-
             #test only one input
             transpose_def = helper.make_node(
                 'Transpose',  # node name
-                ['X1'],  # inputs
+                ['input'],  # inputs
                 ['output'],  # outputs
                 perm=order
             )
 
             graph_def = helper.make_graph(
-                [x1_def, transpose_def],
+                [transpose_def],
                 test_case,
                 [input],
                 [output],
@@ -2823,18 +2745,13 @@ class ONNX_IR_TESTER(object):
                         vals=np.array([8,6,4,2]),
                     ),
                 )
-        x1_node = helper.make_node(
-            'Neg',
-            ['input'],
-            ['X1'],
-        )
         tile_node = helper.make_node(
             'Tile',
-            ['X1', 'tiles'],
+            ['input', 'tiles'],
             ['output'],
         )
         graph_def = helper.make_graph(
-            [param_node, x1_node, tile_node],
+            [param_node, tile_node],
             test_case,
             [input],
             [output],
@@ -2916,7 +2833,7 @@ class ONNX_IR_TESTER(object):
             mode='linear'
         )
         graph_def = helper.make_graph(
-            [scale1_node, scale2_node, scale3_node, x1_node, us1_node, us2_node, us3_node],
+            [x1_node, scale1_node, scale2_node, scale3_node, us1_node, us2_node, us3_node],
             test_case,
             [input],
             [output1, output2, output3],
@@ -2974,12 +2891,6 @@ class ONNX_IR_TESTER(object):
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
-        x1_node = helper.make_node(
-            'Neg',
-            ['input'],
-            ['X1'],
-        )
-
         condition_node_def = onnx.helper.make_node(
             'Constant',
             inputs=[],
@@ -3005,12 +2916,12 @@ class ONNX_IR_TESTER(object):
         )
         where_node = helper.make_node(
             'Where',
-            ['condition', 'const', 'X1'],
+            ['condition', 'const', 'input'],
             ['output'],
         )
 
         graph_def = helper.make_graph(
-            [x1_node, condition_node_def, masked_fill_node_def, where_node],
+            [condition_node_def, masked_fill_node_def, where_node],
             test_case,
             [input],
             [output]
