@@ -22,6 +22,7 @@
 #include "tpuc/TPUTensorSupport.h"
 #include "tpuc/Passes.h"
 #include "tpuc/Support/TensorFile.h"
+#include "tpuc/Support/PixelHelper.h"
 #include "tpuc/TPUOperationSupport.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
 #include "mlir/IR/BlockAndValueMapping.h"
@@ -211,7 +212,7 @@ public:
         auto channel_order = preprocess.channel_order().getValue();
         auto model_shape = getTensorShape(inputOp.getResult());
 
-        setPixelAlign(chipname, pixel_format);
+        setPixelAlign(chipname, pixel_format, this->y_align, this->w_align, this->channel_align);
 
         getNCHW(model_shape, n, c, h, w);
         std::vector<int64_t> dims;
@@ -262,7 +263,9 @@ public:
           if (std::string::npos != pixel_format.find("YUV")) {
             input_shape[1] = 1;
             input_shape[2] = 1;
-            input_shape[3] = yuv_size(1, c, resize_h, resize_w, pixel_format);
+            input_shape[3] = aligned_image_size(
+                1, c, resize_h, resize_w, pixel_format, this->y_align,
+                this->w_align, this->channel_align);
             aligned = true;
           } else if (aligned) {
             if (pixel_format == "RGB_PLANAR" || pixel_format == "BGR_PLANAR" || pixel_format == "RGBA_PLANAR") {
@@ -366,54 +369,9 @@ private:
   int64_t n, c, h, w;
   int64_t resize_h;
   int64_t resize_w;
-  int w_align, y_align, channel_align;
+  uint32_t w_align, y_align, channel_align;
 
 private:
-  inline int align_up(int x, int n) {
-    return ((x + n - 1) / n) * n;
-  }
-
-  void setPixelAlign(std::string &chip_name, std::string &pixel_format) {
-    if ("cv183x" == chip_name) {
-      y_align = 32;
-      w_align = 32;
-      channel_align = 0x1000;
-      if ("YUV420_PLANAR" == pixel_format) {
-        y_align = w_align * 2;
-      }
-    } else {
-      y_align = 64;
-      w_align = 64;
-      channel_align = 64;
-      if ("YUV420_PLANAR" == pixel_format) {
-        y_align = w_align * 2;
-      }
-    }
-  }
-
-  int yuv_size(int n, int c, int h, int w, std::string &pixel_format) {
-    if ("YUV420_PLANAR" == pixel_format) {
-      assert(c == 3);
-      int y_w_aligned = align_up(w, this->y_align);
-      int uv_w_aligned = align_up(w / 2, this->w_align);
-      int u = align_up(h * y_w_aligned, this->channel_align);
-      int v = align_up(u + h / 2 * uv_w_aligned, this->channel_align);
-      int n_stride = align_up(v + h / 2 * uv_w_aligned, this->channel_align);
-      return n * n_stride;
-    } else if ("YUV_NV21" == pixel_format || "YUV_NV12" == pixel_format) {
-      assert(c == 3);
-      int y_w_aligned = align_up(w, this->y_align);
-      int uv_w_aligned = align_up(w, this->w_align);
-      int uv = align_up(h * y_w_aligned, this->channel_align);
-      int n_stride = align_up(uv + h / 2 * uv_w_aligned, this->channel_align);
-      return n * n_stride;
-
-    } else {
-      assert(0 && "unsupported yuv pixel format");
-      return 0;
-    }
-  }
-
   RankedTensorType getTensorType(OpBuilder &builder, const std::vector<int64_t> &shape,
                                  const std::string &quantType) {
     Type eltType;

@@ -43,6 +43,7 @@
 #include "llvm/Support/DynamicLibrary.h"
 #include "mlir/Support/FileUtilities.h"
 #include "tpuc/Support/TensorFile.h"
+#include "tpuc/Support/PixelHelper.h"
 #include "cvibuilder/cvimodel_generated.h"
 #include "tpuc/MlirToCviModelTranslate.h"
 #include "mlir/Dialect/StandardOps/IR/Ops.h"
@@ -593,6 +594,23 @@ void CviModelBuilder::parseModule() {
         }
         tensor->pixel_format = preprocess.pixel_format().getValue().str();
         tensor->aligned = preprocess.aligned().getValue();
+        if (tensor->aligned) {
+          uint32_t y_align, w_align, channel_align;
+          setPixelAlign(clRunChipType, tensor->pixel_format, y_align,
+                        w_align, channel_align);
+          tensor->size = aligned_image_size(tensor->shape[0], tensor->shape[1],
+                                            tensor->shape[2], tensor->shape[3],
+                                            tensor->pixel_format, y_align,
+                                            w_align, channel_align);
+          LLVM_DEBUG(llvm::errs()
+                     << clRunChipType << " input tensor[" << tensor->shape[0]
+                     << ", " << tensor->shape[1] << "," << tensor->shape[2]
+                     << "," << tensor->shape[3]
+                     << "]  pixel_format: " << tensor->pixel_format
+                     << "  y aligned:" << y_align << "  w aligned:" << w_align
+                     << "  c aligned:" << channel_align
+                     << "  tensor size:" << tensor->size << "\n");
+        }
       }
       tensorMaps_.push_back(tensor);
     } else {
@@ -829,7 +847,7 @@ FBTensorVector CviModelBuilder::buildNeuronMap() {
         tensor->mean.size() ? &tensor->mean : nullptr,
         tensor->pixel_format.length() ?
             tensor->pixel_format.c_str() : nullptr,
-        tensor->aligned);
+        tensor->aligned, tensor->size);
     tensorVec.push_back(fbTensor);
   }
   return fbb_.CreateVector(tensorVec);
