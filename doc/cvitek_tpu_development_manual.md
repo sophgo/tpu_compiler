@@ -1139,7 +1139,7 @@ class MLIRImport:
 【主要属性】
 
  	MLIRImport.input_shape_list为模型的输入张量shape；
-
+ 	
  	MLIRImport.output_shape_list为模型的输出张量shape。
 
 【主要方法】
@@ -2006,41 +2006,23 @@ typedef enum {
 > TPU Runtime提供下述基本接口。
 
 -   CVI_NN_RegisterModel：从文件中加载神经网络模型
-
 -   CVI_NN_RegisterModelFromBuffer：从内存中加载网络模型
-
 -   CVI_NN_CloneModel: 复制神经网络模型
-
 -   CVI_NN_SetConfig:　配置神经网络模型
-
 -   CVI_NN_GetInputOutputTensors：获取输入以及输出TENSOR的信息
-
 -   CVI_NN_Forward：神经网络推理，同步接口
-
 -   CVI_NN_ForwardAsync：神经网络推理，异步接口
-
 -   CVI_NN_ForwardWait：等待推理任务完成
-
 -   CVI_NN_CleanupModel：释放网络资源
-
 -   CVI_NN_GetTensorByName：根据名字获取张量信息
-
 -   CVI_NN_TensorPtr：获取张量的系统内存指针
-
 -   CVI_NN_TensorSize：获取张量的系统内存大小
-
 -   CVI_NN_TensorCount：获得张量的元素个数
-
 -   CVI_NN_TensorQuantScale：获得张量的量化系数
-
 -   CVI_NN_TensorShape：获得张量的Shape
-
--   CVI_NN_SetTensorPr：设置张量的系统内存
-
--   CVI_NN_SetTensorDeviceMem：设置张量的设备内存
-
+-   CVI_NN_SetTensorPtr：设置张量的系统内存
+-   CVI_NN_SetTensoPhysicalAddrr：设置张量的物理内存
 -   CVI_NN_SetTensorWithAlignedFrames：将视频帧数据拷贝到张量
-
 -   CVI_NN_SetTensorWithVideoFrames: 将视频帧数据拷贝到张量
 
 ##### CVI_NN_RegisterModel
@@ -2144,7 +2126,7 @@ CVI_RC CVI_NN_GetInputOutputTensors(
 ```
 【描述】
 
-> 获取输入和输出TENSOR的信息，如果OPTION_PREPARE_FOR_INPUTS或OPTION_PREPARE_OUTPUTS设置为false，则需要用户在获取到输入或输出TENSOR后手动给TENSOR分配内存。
+> 获取输入和输出TENSOR的信息，同时给TENSOR分配内存。
 
 |  参数名称     |描述             |输入/输出|
 |------------ |-------------|---|
@@ -2318,6 +2300,27 @@ CVI_RC CVI_NN_SetTensorPtr(
 | tensor |    tensor指针|     输入|
 | buf    |    系统内存指针  | 输入|
 | size   |    buf的大小  |    输入|
+
+<br>
+
+##### CVI_NN_SetTensorPhysicalAddr
+
+【原型】
+
+```c++
+CVI_RC CVI_NN_SetTensorPhysicalAddr(
+    CVI_TENSOR *tensor,
+    uint64_t *paddr)
+```
+
+【描述】
+
+> 设置TENSOR的物理地址。调用该接口后，会释放TENSOR初始化时自动分配的内存。
+
+| 参数名称 | 描述        | 输入/输出 |
+| -------- | ----------- | --------- |
+| tensor   | tensor指针  | 输入      |
+| paddr    | ion内存指针 | 输入      |
 
 <br>
 
