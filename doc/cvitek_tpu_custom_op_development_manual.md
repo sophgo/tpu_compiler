@@ -400,8 +400,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --conv-ic-alignment             \
     --group-ops                     \
     --dce                           \
-    --deep-fusion-group-slice       \
-    --deep-fusion-opt               \
     --tg-op-tile                    \
     --compress-weight               \
     --assign-weight-address         \
@@ -608,8 +606,6 @@ Calibration的过程可以参考前面第一节编写leakyrelu的方式，准备
     --conv-ic-alignment        \
     --group-ops                \
     --dce                      \
-    --deep-fusion-group-slice  \
-    --deep-fusion-opt          \
     --tg-op-tile               \
     --compress-weight          \
     --assign-weight-address    \
@@ -820,8 +816,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --conv-ic-alignment        \
     --group-ops                \
     --dce                      \
-    --deep-fusion-group-slice  \
-    --deep-fusion-opt          \
     --tg-op-tile               \
     --compress-weight          \
     --assign-weight-address    \
@@ -973,8 +967,6 @@ Calibration前需要先准备图像文件列表，下述脚本可辅助在指定
     --conv-ic-alignment        \
     --group-ops                \
     --dce                      \
-    --deep-fusion-group-slice  \
-    --deep-fusion-opt          \
     --tg-op-tile               \
     --compress-weight          \
     --assign-weight-address    \

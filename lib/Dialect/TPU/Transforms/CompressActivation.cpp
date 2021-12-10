@@ -84,12 +84,6 @@ static bool isLgLoadNeuronOp(Operation *op) {
   return false;
 }
 
-static bool isTlConvOp(Operation *op) {
-  if (llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(op))
-    return true;
-  return false;
-}
-
 static bool isStoreCompressedOp(Operation *op) {
   if (isTgConvOp(op) || isTgEltAddOp(op) || isTgPoolOp(op))
     return true;
@@ -97,7 +91,7 @@ static bool isStoreCompressedOp(Operation *op) {
 }
 static bool isLoadDecompressedOp(Operation *op) {
   if (isTgConvOp(op) || isTgEltAddOp(op) || isLgLoadNeuronOp(op) ||
-      isTlConvOp(op) || isTgPoolOp(op))
+      isTgPoolOp(op))
     return true;
   return false;
 }
@@ -337,7 +331,7 @@ static void showOpCmprStatus(Operation *op) {
           LLVM_DEBUG(llvm::dbgs() << ", load_compr_act "
                                   << tpuOp.load_compr_act().getValue());
       })
-      .Case<tpu::TL_LG_LoadNeuronOp, tpu::TL_LW_Conv2DOp>([&](auto tpuOp) {
+      .Case<tpu::TL_LG_LoadNeuronOp>([&](auto tpuOp) {
         if (tpuOp.load_compr_act().hasValue())
           LLVM_DEBUG(llvm::dbgs() << ", load_compr_act "
                                   << tpuOp.load_compr_act().getValue());
@@ -459,8 +453,7 @@ static bool getLoadCompressActParam(Operation *op, int &n, int &c, int &h,
       llvm::TypeSwitch<Operation *, bool>(op)
           .Case<tpu::TG_INT8_Conv2DOp,
                 tpu::TG_BF16_Conv2DOp, tpu::TG_INT8_EltwiseAddOp,
-                tpu::TG_BF16_EltwiseAddOp, tpu::TG_INT8_PoolMax2DOp,
-                tpu::TL_LW_Conv2DOp>([&](auto tpuOp) {
+                tpu::TG_BF16_EltwiseAddOp, tpu::TG_INT8_PoolMax2DOp>([&](auto tpuOp) {
             if (tpuOp.load_compr_act_param().hasValue()) {
               parseActCompressParam(tpuOp.load_compr_act_param().getValue(), n,
                                     c, h, step, total);
@@ -745,8 +738,6 @@ static bool isValidLoadCompressActForTlLgJoin(Operation *op, int h_step) {
 
     if (llvm::dyn_cast<tpu::TpuTLOpCodegenInterface>(useOp)) {
       // valid layer group tiu op
-    } else if (llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
-      // supported deep fusion op
     } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
       std::vector<int64_t> inputShapes = getTensorShape(op->getOperand(0));
       if (inputShapes[2] != h_step) {
@@ -847,8 +838,6 @@ public:
       std::vector<int64_t> shapes;
       if (llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp))
         shapes = getTensorShape(useOp->getResult(0));
-      else if (llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp))
-        shapes = getTensorShape(useOp->getOperand(0));
       else if (llvm::dyn_cast<tpu::TG_INT8_SliceOp>(useOp)) {
         shapes = getTensorShape(useOp->getResult(0));
         canOcTiled = true;
@@ -933,18 +922,6 @@ public:
                        Builder(tpuOp.getContext()).getBoolAttr(true));
         tpuOp->setAttr(
             "compr_act_param",
-            tpu::ActCmprParam::get(
-                Builder(op->getContext()).getI32IntegerAttr(n_step),
-                Builder(op->getContext()).getI32IntegerAttr(oc_step),
-                Builder(op->getContext()).getI32IntegerAttr(oh_step),
-                Builder(op->getContext()).getI64IntegerAttr(step_size),
-                Builder(op->getContext()).getI64IntegerAttr(total_size),
-                rewriter.getContext()));
-      } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(op)) {
-        tpuOp->setAttr("load_compr_act",
-                       Builder(tpuOp.getContext()).getBoolAttr(true));
-        tpuOp->setAttr(
-            "load_compr_act_param",
             tpu::ActCmprParam::get(
                 Builder(op->getContext()).getI32IntegerAttr(n_step),
                 Builder(op->getContext()).getI32IntegerAttr(oc_step),
@@ -1084,8 +1061,6 @@ struct CompressActivationPass
 
   void addTlLdLoadNeuronOpToCmprMap(Operation *op);
 
-  void addTlConvOpToCmprMap(Operation *op);
-
   template <typename OpTy>
   void addTgPoolOpToCmprMap(OpTy tpuOp);
 
@@ -1198,10 +1173,6 @@ void CompressActivationPass::addTgPoolOpToCmprMap(OpTy tpuOp) {
 }
 
 void CompressActivationPass::addTlLdLoadNeuronOpToCmprMap(Operation *op) {
-  cmprMaps[op] = {0, 0, 0, nullptr};
-}
-
-void CompressActivationPass::addTlConvOpToCmprMap(Operation *op) {
   cmprMaps[op] = {0, 0, 0, nullptr};
 }
 
@@ -1376,8 +1347,6 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
       } else if (auto useTpuOp =
                      llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp)) {
         assertTlLgLoadNeuronOpLoadCompressedAct(useTpuOp);
-      } else if (auto useTpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
-        assertTlConvOpLoadCompressedAct(useTpuOp);
       } else if (auto useTpuOp =
                      llvm::dyn_cast<tpu::TG_INT8_PoolMax2DOp>(useOp)) {
         assertTgOpLoadCompressedAct<tpu::TG_INT8_PoolMax2DOp>(useTpuOp);
@@ -1406,8 +1375,6 @@ void CompressActivationPass::checkTgOpStatus(OpTy tpuOp) {
       } else if (auto useTpuOp =
                      llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp)) {
         assertTlLgLoadNeuronOpLoadPlainAct(useTpuOp);
-      } else if (auto useTpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(useOp)) {
-        assertTlConvOpLoadPlainAct<tpu::TL_LW_Conv2DOp>(useTpuOp);
       } else if (auto useTpuOp =
                      llvm::dyn_cast<tpu::TG_INT8_PoolMax2DOp>(useOp)) {
         assertTlConvOpLoadPlainAct<tpu::TG_INT8_PoolMax2DOp>(useTpuOp);
@@ -1489,8 +1456,6 @@ void CompressActivationPass::addOpToCmprMaps() {
       addTgEltAddOpToCmprMap<tpu::TG_BF16_EltwiseAddOp>(tpuOp);
     } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(op)) {
       addTlLdLoadNeuronOpToCmprMap(op);
-    } else if (auto tpuOp = llvm::dyn_cast<tpu::TL_LW_Conv2DOp>(op)) {
-      addTlConvOpToCmprMap(tpuOp);
     } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_PoolMax2DOp>(op)) {
       addTgPoolOpToCmprMap<tpu::TG_INT8_PoolMax2DOp>(tpuOp);
     }
@@ -1753,8 +1718,7 @@ void CompressActivationPass::runOnFunction() {
                   TgDecompressActPattern<tpu::TG_INT8_PoolMax2DOp>,
                   TgDecompressActPattern<tpu::TG_BF16_Conv2DOp>,
                   TgDecompressActPattern<tpu::TG_BF16_EltwiseAddOp>,
-                  TlLgLoadNeuronDecompressActPattern,
-                  TlConvDecompressActPattern<tpu::TL_LW_Conv2DOp>>(
+                  TlLgLoadNeuronDecompressActPattern>(
       &getContext(), cmprMaps);
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 

@@ -275,17 +275,7 @@ updateLiveRangeOfOps(FuncOp &fn, std::vector<Operation *> &chosenOps,
 
   fn.walk([&](Operation *op) {
     uint32_t endPosition = getOpLine(op) + 1;
-    if (isa<tpu::TL_LW_Conv2DOp>(op) || isa<tpu::TL_ScaleOp>(op) ||
-        isa<tpu::TL_EltwiseAddOp>(op) || isa<tpu::TL_EltwiseMulOp>(op) ||
-        isa<tpu::TL_PoolAvg2DOp>(op) || isa<tpu::TL_LutOp>(op) ||
-        isa<tpu::TL_PixelShuffleOp>(op)) {
-      bool store = op->getAttr("tl_store_flag").cast<BoolAttr>().getValue();
-      if (store) {
-        chosenOps.push_back(op);
-        liveRange[op] = {getOpLine(op), 0xFFFFFFFF};
-      }
-      updateOperandsLiveRange(op, endPosition);
-    } else if (isInPlaceOp(op)) {
+    if (isInPlaceOp(op)) {
       uint32_t maxPosition = getOpLine(op) + 1;
       findInPlaceOpMaxUsePosition(op, maxPosition);
       updateOperandsLiveRange(op, maxPosition);

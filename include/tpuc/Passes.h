@@ -58,16 +58,12 @@ std::unique_ptr<mlir::Pass> createAssignNeuronAddressPass();
 std::unique_ptr<mlir::Pass> createAssignLayerIdPass();
 std::unique_ptr<mlir::Pass> createAssignChipNamePass();
 
-std::unique_ptr<mlir::Pass> createDeepFusionSimple();
-
 std::unique_ptr<mlir::Pass> createConvertPriorBoxPass();
 
 std::unique_ptr<mlir::Pass> createTgFuseLeakyReluPass();
 
 std::unique_ptr<mlir::Pass> createCompressActivationPass();
 std::unique_ptr<mlir::Pass> createCompressWeightPass();
-std::unique_ptr<mlir::Pass> createDeepFusionGroupSlice();
-std::unique_ptr<mlir::Pass> createDeepFusionOpt();
 
 std::unique_ptr<mlir::Pass> createTgOpTilePass();
 

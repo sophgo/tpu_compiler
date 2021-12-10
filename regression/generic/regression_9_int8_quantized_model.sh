@@ -39,7 +39,6 @@ tpuc-opt ${NET}_quant.mlir\
     --reorder-op \
     --conv-ic-alignment \
     --dce \
-    --deep-fusion-opt \
     -o $optimized_mlir
 
 # compress activation will be failed, close

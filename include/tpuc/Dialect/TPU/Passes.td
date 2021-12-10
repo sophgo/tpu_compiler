@@ -38,21 +38,6 @@ def DoGroupOps : FunctionPass<"group-ops"> {
   let constructor = "mlir::createGroupOpsPass()";
 }
 
-def DoDeepFusionSimple : FunctionPass<"deep-fusion-simple"> {
-  let summary = "Apply simple deep fusion.";
-  let constructor = "mlir::createDeepFusionSimple()";
-}
-
-def DoDeepFusionOpt : FunctionPass<"deep-fusion-opt"> {
-  let summary = "deep fusion opt";
-  let constructor = "mlir::createDeepFusionOpt()";
-}
-
-def DoDeepFusionGroupSlice : FunctionPass<"deep-fusion-group-slice"> {
-  let summary = "Apply deep fusion slice.";
-  let constructor = "mlir::createDeepFusionGroupSlice()";
-}
-
 def DoDivideOpsToFunc : FunctionPass<"divide-ops-to-func"> {
   let summary = "divide ops into functions";
   let constructor = "mlir::createDivideOpsToFuncPass()";

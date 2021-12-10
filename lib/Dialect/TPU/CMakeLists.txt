@@ -78,10 +78,7 @@ add_llvm_library(MLIRTPU
   Optimization/AddTpuPreprocess.cpp
   Optimization/MergeConvConvPool.cpp
   Optimization/MergePermute.cpp
-  Optimization/DeepFusion/SimpleDeepFusion.cpp
-  Optimization/DeepFusion/SimpleAnalysis.cpp
-  Optimization/DeepFusion/DeepFusionGroupSlice.cpp
-  Optimization/DeepFusion/DeepFusionOpt.cpp
+  Optimization/SimpleAnalysis.cpp
   Optimization/LayerGroup/GroupOps.cpp
   Optimization/LayerGroup/NetGraph.cpp
   Optimization/LayerGroup/ImLayer.cpp
@@ -98,7 +95,6 @@ add_llvm_library(MLIRTPU
   Optimization/LayerGroup/TdmaCycle.cpp
   Optimization/LayerGroup/TiuCycle.cpp
   Backend/TpuTgCodegen.cpp
-  Backend/TpuTlCodegen_Simple.cpp
   Backend/TpuTlCodegen_LG.cpp
   Plugin/CustomOpPlugin.cpp
   Backend/MachineInfo.cpp
