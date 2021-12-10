@@ -278,7 +278,7 @@ torch.onnx.export(model,
 创建工作目录workspace，拷贝测试图片cat.jpg，和数据集100张图片（来自ILSVRC2012）：
 
 ``` shell
-mkdir workspace && cd workspacecp
+mkdir workspace && cd workspace
 cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
 cp -rf $MLIR_PATH/tpuc/regression/data/images .
 ```

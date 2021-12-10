@@ -3166,12 +3166,11 @@ class OnnxConverter(BaseConverter):
             data.shape), TensorType.TENSOR)
 
     def convert_slice_op(self, onnx_node):
-        assert(onnx_node.op_type == "Slice")
+        assert (onnx_node.op_type == "Slice")
         # check if upper op is pad op
         # if it is, pass to next layer
         try:
-            pad_op_data = self.getTensor(
-                "{}_pad".format(onnx_node.inputs[0])).tensor_data
+            pad_op_data = self.getTensor("{}_pad".format(onnx_node.inputs[0])).tensor_data
             self.addTensor("{}_pad".format(onnx_node.name), pad_op_data, None)
         except KeyError:
             # not pad op, pass
@@ -3181,6 +3180,7 @@ class OnnxConverter(BaseConverter):
         starts = []
         ends = []
         axes = []
+        op_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
         num_input = len(onnx_node.inputs)
         num_dims = len(input_shape)
         # start
@@ -3195,8 +3195,8 @@ class OnnxConverter(BaseConverter):
             axes = onnx_node.attrs.get('axes')
             steps = [1] * len(axes)
 
-        assert(len(starts) == len(ends))
-        assert(len(axes) == len(ends))
+        assert (len(starts) == len(ends))
+        assert (len(axes) == len(ends))
 
         if tesnor_type == TensorType.TENSOR:
             tensor_data = self.getTensor(onnx_node.inputs[0]).tensor_data
@@ -3205,19 +3205,19 @@ class OnnxConverter(BaseConverter):
                 if axis < 0:
                     axis = axis + num_dims
                 s = slice(start, end, step)
-                tensor_data = tensor_data[(slice(None),)*axis + (s,)]
+                tensor_data = tensor_data[(slice(None), ) * axis + (s, )]
             output_shape = list(tensor_data.shape)
             self.addTensor(onnx_node.name, tensor_data, output_shape)
-            self.addOperand(onnx_node.name, None,
-                            output_shape, TensorType.TENSOR)
+            self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
             return
         else:
             crop_shape = list(input_shape)
             crop_offset = [0] * num_dims
             step_shape = [1] * num_dims
+            real_axes = []
             for start, end, axis, step in zip(starts, ends, axes, steps):
                 start, end, axis, step = int(start), int(end), int(axis), int(step)
-                assert(step > 0)
+                assert (step > 0)
                 if axis < 0:
                     axis = axis + num_dims
                 if end < 0:
@@ -3229,15 +3229,18 @@ class OnnxConverter(BaseConverter):
                 crop_shape[axis] = (end - start + step - 1) // step
                 crop_offset[axis] = start
                 step_shape[axis] = step
-            crop_param = {
-                "crop_offset": list(crop_offset),
-                "steps": list(step_shape)
-            }
+                if crop_shape[axis] != input_shape[axis]:
+                    real_axes.append(axis)
             output_shape = list(crop_shape)
-            crop_op = self.CVI.add_crop_op("{}_{}".format(
-                onnx_node.name, onnx_node.op_type), [op], output_shape, **crop_param)
-            self.addOperand(onnx_node.name, crop_op,
-                            output_shape, TensorType.ACTIVATION)
+            if len(real_axes) == 1 and np.prod(step_shape) == 1:
+                axis = real_axes[0]
+                attr = {"axis": axis, "offset": crop_offset[axis]}
+                slice_op = self.CVI.add_slice_op(op_name, [op], output_shape, **attr)
+                self.addOperand(onnx_node.name, slice_op, output_shape, TensorType.ACTIVATION)
+                return
+            crop_param = {"crop_offset": list(crop_offset), "steps": list(step_shape)}
+            crop_op = self.CVI.add_crop_op(op_name, [op], output_shape, **crop_param)
+            self.addOperand(onnx_node.name, crop_op, output_shape, TensorType.ACTIVATION)
             return
 
     def convert_softmax_op(self, onnx_node):

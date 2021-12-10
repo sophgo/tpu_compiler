@@ -64,6 +64,9 @@ struct BackwardOverwriteThresholdDefaultPattern : public RewritePattern {
     if (threshold_x == threshold_y) {
       return failure();
     }
+    if (formerOp->hasOneUse() == false) {
+      return failure();
+    }
 
     setOpThreshold(formerOp, threshold_y);
     LLVM_DEBUG(llvm::errs()
@@ -348,7 +351,8 @@ public:
         BackwardOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
         BackwardOverwriteThresholdDefaultPattern<tpu::ReluOp>,
         BackwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
-        BackwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
+        BackwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>,
+        BackwardOverwriteThresholdDefaultPattern<tpu::SliceOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
