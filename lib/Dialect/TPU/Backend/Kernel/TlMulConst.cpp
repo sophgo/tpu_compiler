@@ -26,11 +26,11 @@ void cvi_backend_tl_mul_const(const CviBackendContext &ctx, uint32_t layer_id,
   ctx.lmem_init_tensor(&top, shape, fmt, 1);
   bottom.start_address = la_input;
   top.start_address = la_output;
-  uint16_t val;
+  int16_t val;
   if (fmt == CVK_FMT_BF16) {
     val = ctx.convert_fp32_to_bf16(const_val);
   } else {
-    val = static_cast<int8_t>(const_val);
+    val = static_cast<int16_t>(const_val);
   }
   if (const_val == 1.0f && do_relu == false) {
     cvk_tiu_copy_param_t p = {0};

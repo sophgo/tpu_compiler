@@ -72,7 +72,7 @@ void TgMulConstKernel::compute(int32_t step_idx) {
     p1.res_high = nullptr;
     p1.res_low = &tl_input;
     p1.a = &tl_input;
-    p1.b_const.val = static_cast<int8_t>(const_val);
+    p1.b_const.val = static_cast<int16_t>(const_val);
     p1.b_const.is_signed = true;
     p1.b_is_const = 1;
     p1.rshift_bits = 0;
