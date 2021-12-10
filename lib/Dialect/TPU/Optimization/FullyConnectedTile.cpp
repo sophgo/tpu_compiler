@@ -198,8 +198,14 @@ FullyConnectedModel::TileInfo FullyConnectedModel::getTileSizes() {
   mode = PARALLEL_KN;
   if (maxM == M) {
     tileM = maxM;
-    for (tileN = maxN; tileN > 0; tileN--) {
-      for (tileK = maxK; tileK > 0; tileK--) {
+    if (maxN == N) {
+      // try only tile K
+      for (tileK = maxK, tileN = maxN; tileK > 0; tileK--) {
+        CHECK_SIZE_RETURN;
+      }
+    }
+    for (tileK = maxK; tileK > 0; tileK--) {
+      for (tileN = maxN; tileN > 0; tileN--) {
         CHECK_SIZE_RETURN;
       }
     }
