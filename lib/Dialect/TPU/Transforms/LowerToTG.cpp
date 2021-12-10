@@ -192,8 +192,8 @@ Value tpu::BroadcastMulOp::convertToTG() {
   if ((bn == n || bn == 1) && bc == c && bh == 1 && bw == 1) {
     // convert to scale op
     std::vector<Value> operands;
-    operands.push_back(input());
-    operands.push_back(multiplier());
+    operands.push_back(op->getOperand(0));
+    operands.push_back(op->getOperand(1));
     // This is a little tricky, as there is no bias() operand to reuse
     // we reuse the quant_rshift() to carry the packed per-channel info
     operands.push_back(quant_rshift());
@@ -3129,7 +3129,7 @@ struct PackWeightBroadcastMulOpPattern : public RewritePattern {
     TensorFile *wTF = getWeightTensorFile(op);
 
     // get param
-    int64_t oc = getTensorSize(castOp.multiplier());
+    int64_t oc = getTensorSize(op->getOperand(1));
 
     // get tensor
     std::unique_ptr<std::vector<float>> pc_info = nullptr;

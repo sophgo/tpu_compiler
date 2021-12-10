@@ -529,6 +529,32 @@ LogicalResult tpu::FullyConnectedOp::quantizeBf16() {
   return success();
 }
 
+LogicalResult tpu::BroadcastMulOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  assert(getOpQuant() == "BF16");
+  TensorFile *wTF = getWeightTensorFile(op);
+  for (auto input: inputs()) {
+    quantizeBf16WeightOp(input, wTF);
+  }
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
+}
+
+LogicalResult tpu::BroadcastAddOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  assert(getOpQuant() == "BF16");
+  TensorFile *wTF = getWeightTensorFile(op);
+  for (auto input: inputs()) {
+    quantizeBf16WeightOp(input, wTF);
+  }
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
+}
+
 LogicalResult tpu::GruOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -771,8 +797,6 @@ LogicalResult tpu::ReflectionPadOp::quantizeBf16() {
   }
 
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::AbsOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastMulOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastAddOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::BroadcastSubOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ClipOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::CropOp)
