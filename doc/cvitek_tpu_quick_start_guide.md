@@ -1034,7 +1034,7 @@ model_runner \
 --reference mobilenet_v2_quantized_tensors_sim.npz
 ```
 
-以上过程包含将为经过前处理的输入文件放到带前处理的cvi_model模型中推理，并且将输出的结果和在仿真环境输出的结果进行比较，保证误差在可控范围内。
+以上过程包含将为经过未前处理的输入文件放到带前处理的cvi_model模型中推理，并且将输出的结果和在仿真环境输出的结果进行比较，保证误差在可控范围内。
 
 
 <div STYLE="page-break-after: always;"></div>
