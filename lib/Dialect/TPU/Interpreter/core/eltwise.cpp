@@ -392,7 +392,11 @@ void MulConstOpKernel::invoke() {
                                  std::multiplies<int64_t>());
 
   for (int64_t i = 0; i < size; ++i) {
-    output_data->at(i) = input_data->at(i) * const_val;
+    if (datatype != DataType::INT8) {
+      output_data->at(i) = input_data->at(i) * const_val;
+    } else {
+      output_data->at(i) = F32ToInt8(input_data->at(i) * const_val, 0);
+    }
   }
 
   if (do_relu) {
