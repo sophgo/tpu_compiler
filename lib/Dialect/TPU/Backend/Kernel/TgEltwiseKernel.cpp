@@ -119,56 +119,20 @@ void TgEltwiseKernel::doTileForNormalCase() {
   if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
     block_num = 2; // 2 for ping pong buffer and reuse activation
   }
-
-  uint32_t remain = n * c * h * w;
-  uint32_t offset = 0;
-  int32_t max_h = LOCAL_MEM_SIZE / (EU_NUM * block_num * elementSize);
-  max_h = std::min(max_h, MAX_HEIGHT);
-  assert(max_h);
-  int32_t cur_h = max_h;
-
-  cvk_tl_shape_t shape = ctx.tl_shape_t4(1, NPU_NUM, cur_h, EU_NUM);
+  std::vector<CviBackendContext::tiling_info_t> ts;
+  ctx.tiling_packing(ts, ctx.tg_shape_t4(n,c,h,w), fmt, block_num, 0, CviBackendContext::TilingAll);
+  EltwiseTile tile = {0};
+  for(auto & t:ts) {
+     tile.n = t.n;
+     tile.c = t.c;
+     tile.h = t.h;
+     tile.w = t.w;
+     tile.input_offset = t.offset;
+     tile.output_offset = t.offset;
+     tiles.push_back(tile);
+  }
+  auto shape = ctx.tl_shape_t4(ts[0].n,ts[0].c,ts[0].h,ts[0].w);
   allocLmem(shape, shape);
-
-  EltwiseTile tile;
-  int32_t loop = remain / (NPU_NUM * EU_NUM * max_h);
-  remain %= NPU_NUM * EU_NUM * max_h;
-  for (int32_t i = 0; i < loop; i++) {
-    tile.n = 1;
-    tile.c = NPU_NUM;
-    tile.h = cur_h;
-    tile.w = EU_NUM;
-    tile.input_offset = offset;
-    tile.output_offset = offset;
-    tiles.push_back(tile);
-    offset += 1 * NPU_NUM * cur_h * EU_NUM * elementSize;
-  }
-  if (remain) {
-    int32_t cur_c = remain / (EU_NUM * cur_h);
-    if (cur_c) {
-      tile.n = 1;
-      tile.c = cur_c;
-      tile.h = cur_h;
-      tile.w = EU_NUM;
-      tile.input_offset = offset;
-      tile.output_offset = offset;
-      tiles.push_back(tile);
-      offset += 1 * cur_c * cur_h * EU_NUM * elementSize;
-    }
-
-    remain %= EU_NUM * cur_h;
-    if (remain) {
-      tile.n = 1;
-      tile.c = 1;
-      // memory size of neuon is align to 16 bytes, so
-      // it's safe to compute more data than needed.
-      tile.h = ceiling_func(remain, EU_NUM);
-      tile.w = EU_NUM;
-      tile.input_offset = offset;
-      tile.output_offset = offset;
-      tiles.push_back(tile);
-    }
-  }
 }
 
 void TgEltwiseKernel::doTileForStrideCase() {
