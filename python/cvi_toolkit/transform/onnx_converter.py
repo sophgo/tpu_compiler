@@ -3214,7 +3214,6 @@ class OnnxConverter(BaseConverter):
             crop_shape = list(input_shape)
             crop_offset = [0] * num_dims
             step_shape = [1] * num_dims
-            real_axes = []
             for start, end, axis, step in zip(starts, ends, axes, steps):
                 start, end, axis, step = int(start), int(end), int(axis), int(step)
                 assert (step > 0)
@@ -3229,15 +3228,7 @@ class OnnxConverter(BaseConverter):
                 crop_shape[axis] = (end - start + step - 1) // step
                 crop_offset[axis] = start
                 step_shape[axis] = step
-                if crop_shape[axis] != input_shape[axis]:
-                    real_axes.append(axis)
             output_shape = list(crop_shape)
-            if len(real_axes) == 1 and np.prod(step_shape) == 1:
-                axis = real_axes[0]
-                attr = {"axis": axis, "offset": crop_offset[axis]}
-                slice_op = self.CVI.add_slice_op(op_name, [op], output_shape, **attr)
-                self.addOperand(onnx_node.name, slice_op, output_shape, TensorType.ACTIVATION)
-                return
             crop_param = {"crop_offset": list(crop_offset), "steps": list(step_shape)}
             crop_op = self.CVI.add_crop_op(op_name, [op], output_shape, **crop_param)
             self.addOperand(onnx_node.name, crop_op, output_shape, TensorType.ACTIVATION)
