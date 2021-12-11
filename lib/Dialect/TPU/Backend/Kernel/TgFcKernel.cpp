@@ -242,14 +242,6 @@ bool TgFcKernel::try_tiling_parallel_kn() {
     return false;
   }
   tile_M = maxM;
-  // try only tile k first
-  if (maxN == N) {
-    for (tile_K = maxK, tile_N = maxN; tile_K > 0; tile_K--) {
-      if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
-        goto parallel_kn_success;
-      }
-    }
-  }
   for (tile_K = maxK; tile_K > 0; tile_K--) {
     for (tile_N = maxN; tile_N > 0; tile_N--) {
       if (total_lmem_size() <= (uint32_t)LOCAL_MEM_SIZE) {
