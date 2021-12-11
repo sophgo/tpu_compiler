@@ -614,11 +614,13 @@ LogicalResult tpu::TG_INT8_CropOp::codegen(void *ctx) {
   std::vector<int64_t> o_s;
   std::vector<int> offset_4;
   std::vector<int> step_4;
-  parseCropParam<tpu::TG_INT8_CropOp>(op, i_s, o_s, offset_4, step_4);
-
-  cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
-                             i_s, o_s, offset_4, step_4,
-                             CVK_FMT_I8);
+  bool fusible;
+  parseCropParam<tpu::TG_INT8_CropOp>(op, i_s, o_s, offset_4, step_4, fusible);
+  if (fusible == false) {
+    cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr,
+                               output_gaddr, i_s, o_s, offset_4, step_4,
+                               CVK_FMT_I8);
+  }
 
   return success();
 }
@@ -637,11 +639,13 @@ LogicalResult tpu::TG_BF16_CropOp::codegen(void *ctx) {
   std::vector<int64_t> o_s;
   std::vector<int> offset_4;
   std::vector<int> step_4;
-  parseCropParam<tpu::TG_BF16_CropOp>(op, i_s, o_s, offset_4, step_4);
-
-  cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr, output_gaddr,
-                             i_s, o_s, offset_4, step_4,
-                             CVK_FMT_BF16);
+  bool fusible;
+  parseCropParam<tpu::TG_BF16_CropOp>(op, i_s, o_s, offset_4, step_4, fusible);
+  if (fusible == false) {
+    cvi_backend_tg_crop_kernel(*backend_ctx, layer_id, input_gaddr,
+                               output_gaddr, i_s, o_s, offset_4, step_4,
+                               CVK_FMT_BF16);
+  }
   return success();
 }
 
@@ -3326,74 +3330,6 @@ LogicalResult tpu::TG_StrideCopyOp::codegen(void *ctx) {
 
   cvi_backend_tg_stride_copy_kernel(*backend_ctx, input_gaddr,
                        output_gaddr, out_shape, i_stride, o_stride, CVK_FMT_I8);
-  return success();
-}
-
-LogicalResult tpu::TG_INT8_SliceOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int axis = this->axis();
-  std::vector<int64_t> input_shape = getTensorShape(input());
-  std::vector<int> input_shape_fix;
-  for (auto &dim : input_shape) {
-    input_shape_fix.push_back((int)dim);
-  }
-  int index = 0;
-  for (;index < axis; index++) {
-    if (input_shape[index] != 1) {
-      break;
-    }
-  }
-
-  if (index == axis) {
-    LLVM_DEBUG(llvm::errs() << "  no copy\n";);
-    return success();
-  }
-  int offset = this->offset();
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
-  cvi_backend_tg_slice_kernel(*backend_ctx, layer_id, input_gaddr,
-                       output_gaddr, (int)input_shape.size(),
-                       input_shape_fix.data(), axis, offset,
-                       (int)output_shape[axis], CVK_FMT_I8);
-
-  return success();
-}
-
-LogicalResult tpu::TG_BF16_SliceOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  int axis = this->axis();
-  std::vector<int64_t> input_shape = getTensorShape(input());
-  std::vector<int> input_shape_fix;
-  for (auto &dim : input_shape) {
-    input_shape_fix.push_back((int)dim);
-  }
-
-  int index = 0;
-  for (;index < axis && input_shape[index] == 1; index++);
-  if (index == axis) {
-    LLVM_DEBUG(llvm::errs() << "  no copy\n";);
-    return success();
-  }
-  int offset = this->offset();
-  gaddr_t input_gaddr = getPreviousOpAddress(op);
-  gaddr_t output_gaddr = getOpAddress(op);
-  int layer_id = getOpLayerId(op);
-  std::vector<int64_t> output_shape = getTensorShape(this->getResult());
-  cvi_backend_tg_slice_kernel(*backend_ctx, layer_id, input_gaddr,
-                       output_gaddr, (int)input_shape.size(),
-                       input_shape_fix.data(), axis, offset,
-                       (int)output_shape[axis], CVK_FMT_BF16);
-
   return success();
 }
 

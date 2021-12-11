@@ -162,9 +162,6 @@ std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {
   } else if (isa<tpu::TG_INT8_ShuffleChannelOp>(op) ||
              isa<tpu::TG_BF16_ShuffleChannelOp>(op)) {
     layer = std::make_shared<ImShuffleChannel>(op);
-  } else if (isa<tpu::TG_INT8_SliceOp>(op) ||
-             isa<tpu::TG_BF16_SliceOp>(op)) {
-    layer = std::make_shared<ImSlice>(op);
   } else if (isa<tpu::TG_INT8_SwapChannelOp>(op) ||
              isa<tpu::TG_BF16_SwapChannelOp>(op)) {
     layer = std::make_shared<ImSwapChannel>(op);
@@ -527,27 +524,6 @@ ImPRelu::ImPRelu(Operation* op) : ImLayer(IR_PRELU, op, true) {
 
 // shufflechannel as tg layer
 ImShuffleChannel::ImShuffleChannel(Operation *op): ImLayer(IR_SHUFFLECHANNEL, op, false) {
-  add_in_tensor(op->getOperand(0), TENSOR_NEURON);
-  add_out_tensor(op->getResult(0), TENSOR_NEURON);
-}
-
-ImSlice::ImSlice(Operation *op) : ImLayer(IR_SLICE, op, false) {
-  std::vector<int64_t> dst_shape = getTensorShape(op->getResult(0));
-  int axis = 0;
-  getSliceParam(op, axis);
-  if (dst_shape.size() != 3 && dst_shape.size() != 4) {
-    fusible = false;
-  } else if (axis == 1) {
-    // if before axis is all 1, we use tg slice
-    // since we can remove the slice after
-    // tl_slice only support axis == 1
-    for (int i = 0; i < axis; i++) {
-      if (dst_shape[i] != 1) {
-        fusible = true;
-        break;
-      }
-    }
-  }
   add_in_tensor(op->getOperand(0), TENSOR_NEURON);
   add_out_tensor(op->getResult(0), TENSOR_NEURON);
 }

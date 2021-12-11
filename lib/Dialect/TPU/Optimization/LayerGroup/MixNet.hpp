@@ -152,10 +152,6 @@ class MixNet {
                        const std::vector<int>& in_tensors,
                        const std::vector<int>& out_tensors);
 
-  void _add_tl_slice_op(MixOp * mix_op,
-                       const std::vector<int>& in_tensors,
-                       const std::vector<int>& out_tensors);
-
   void _add_tl_swap_channel_op(MixOp * mix_op,
                        const std::vector<int>& in_tensors,
                        const std::vector<int>& out_tensors);

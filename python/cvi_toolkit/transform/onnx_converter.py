@@ -1874,10 +1874,12 @@ class OnnxConverter(BaseConverter):
                 offset = int(indices.flatten()[0])
                 if offset < 0:
                     offset = input_shape1[axis] + offset
-                attr = {"axis": axis, "offset": offset}
                 tmp = np.take(np.ones(input_shape1), np.array([offset]), axis=axis)
                 output_shape = list(tmp.shape)
-                slice_op_ = self.CVI.add_slice_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [op1], output_shape, **attr)
+                crop_offset = [0] * len(output_shape)
+                crop_offset[axis] = offset
+                attr = {"crop_offset": crop_offset}
+                slice_op_ = self.CVI.add_crop_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [op1], output_shape, **attr)
                 output_shape = output_shape[:axis] + output_shape[axis + 1:]
                 final_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type) + "_reshape",
                                                   [slice_op_], output_shape)
@@ -2328,19 +2330,24 @@ class OnnxConverter(BaseConverter):
             lstm_param['final_c'] = True if need2 else False
             lstm_op = self.CVI.add_lstm_op(name, operands, output_shape, **lstm_param)
             if need0:
-                attr0 = {"axis": 0, "offset": 0}
-                slice0_op = self.CVI.add_slice_op(name0, [lstm_op], shape0, **attr0)
+                crop_offset= [0] * len(shape0)
+                attr0 = {"crop_offset": crop_offset}
+                slice0_op = self.CVI.add_crop_op(name0, [lstm_op], shape0, **attr0)
                 self.addOperand(out0, slice0_op, shape0, TensorType.ACTIVATION)
             offset = seq_length
             if need1:
-                attr1 = {"axis": 0, "offset": offset}
-                slice1_op = self.CVI.add_slice_op(name1 + "_4dim", [lstm_op], shape1, **attr1)
+                crop_offset = [0] * len(shape1)
+                crop_offset[0] = offset
+                attr1 = {"crop_offset": crop_offset}
+                slice1_op = self.CVI.add_crop_op(name1 + "_4dim", [lstm_op], shape1, **attr1)
                 final_h_op = self.CVI.add_reshape_op(name1, [slice1_op], rshape1)
                 self.addOperand(out1, final_h_op, rshape1, TensorType.ACTIVATION)
                 offset = offset + 1
             if need2:
-                attr2 = {"axis": 0, "offset": offset}
-                slice2_op = self.CVI.add_slice_op(name2 + "_4dim", [lstm_op], shape2, **attr2)
+                crop_offset = [0] * len(shape2)
+                crop_offset[0] = offset
+                attr2 = {"crop_offset": crop_offset}
+                slice2_op = self.CVI.add_crop_op(name2 + "_4dim", [lstm_op], shape2, **attr2)
                 final_c_op = self.CVI.add_reshape_op(name2, [slice2_op], rshape2)
                 self.addOperand(out2, final_c_op, rshape2, TensorType.ACTIVATION)
             return
@@ -3378,11 +3385,12 @@ class OnnxConverter(BaseConverter):
             for i, name in zip(split, onnx_node.outputs):
                 output_shape = list(input_shape)
                 output_shape[axis] = i
+                crop_offset = [0] * len(output_shape)
+                crop_offset[axis] = offset
                 attr = {
-                    "axis": axis,
-                    "offset": offset
+                    "crop_offset": crop_offset
                  }
-                slice_op = self.CVI.add_slice_op("{}_{}".format(
+                slice_op = self.CVI.add_crop_op("{}_{}".format(
                     name, onnx_node.op_type), [op], output_shape, **attr)
                 self.addOperand(name, slice_op,
                                 output_shape, TensorType.ACTIVATION)

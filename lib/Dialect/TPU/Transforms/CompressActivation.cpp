@@ -743,18 +743,6 @@ static bool isValidLoadCompressActForTlLgJoin(Operation *op, int h_step) {
       if (inputShapes[2] != h_step) {
         return false;
       }
-    } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(useOp)) {
-      // Support slice channel
-      if (tpuOp.axis() != 1)
-        return false;
-
-      // Lg_joint -> Tg_slice -> TgQuant/TgConv
-      for (auto &nextUse : useOp->getResult(0).getUses()) {
-        auto nextUseOp = nextUse.getOwner();
-        if (!llvm::dyn_cast<tpu::TG_QuantOp>(nextUseOp) &&
-            !llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(nextUseOp))
-          return false;
-      }
     } else {
       LLVM_DEBUG(llvm::dbgs()
                  << "  user op " << getOpName(op) << ", " << op->getName()
@@ -836,11 +824,8 @@ public:
       auto useOp = use.getOwner();
 
       std::vector<int64_t> shapes;
-      if (llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp))
+      if (llvm::dyn_cast<tpu::TL_LG_LoadNeuronOp>(useOp)) {
         shapes = getTensorShape(useOp->getResult(0));
-      else if (llvm::dyn_cast<tpu::TG_INT8_SliceOp>(useOp)) {
-        shapes = getTensorShape(useOp->getResult(0));
-        canOcTiled = true;
       } else if (llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
         shapes = getTensorShape(useOp->getOperand(0));
         canOcTiled = true;
@@ -946,50 +931,6 @@ public:
                 Builder(op->getContext()).getI64IntegerAttr(step_size),
                 Builder(op->getContext()).getI64IntegerAttr(total_size),
                 rewriter.getContext()));
-      } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
-        // gaddr needed to adjust, but not assigned yet
-        sliceOp->setAttr("load_compr_act",
-                         Builder(sliceOp.getContext()).getBoolAttr(true));
-        auto value = tpu::ActCmprParam::get(
-            Builder(op->getContext()).getI32IntegerAttr(n_step),
-            Builder(op->getContext()).getI32IntegerAttr(oc_step),
-            Builder(op->getContext()).getI32IntegerAttr(oh_step),
-            Builder(op->getContext()).getI64IntegerAttr(step_size),
-            Builder(op->getContext()).getI64IntegerAttr(total_size),
-            rewriter.getContext());
-        sliceOp->setAttr("load_compr_act_param", value);
-
-        for (auto &use : op->getResult(0).getUses()) {
-          auto useOp = use.getOwner();
-          if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_Conv2DOp>(useOp)) {
-            tpuOp->setAttr("load_compr_act",
-                           Builder(tpuOp.getContext()).getBoolAttr(true));
-            tpuOp->setAttr(
-                "load_compr_act_param",
-                tpu::ActCmprParam::get(
-                    Builder(op->getContext()).getI32IntegerAttr(n_step),
-                    Builder(op->getContext()).getI32IntegerAttr(oc_step),
-                    Builder(op->getContext()).getI32IntegerAttr(oh_step),
-                    Builder(op->getContext()).getI64IntegerAttr(step_size),
-                    Builder(op->getContext()).getI64IntegerAttr(total_size),
-                    rewriter.getContext()));
-
-          } else if (auto tpuOp = llvm::dyn_cast<tpu::TG_QuantOp>(useOp)) {
-            tpuOp->setAttr("load_compr_act",
-                           Builder(tpuOp.getContext()).getBoolAttr(true));
-            tpuOp->setAttr(
-                "load_compr_act_param",
-                tpu::ActCmprParam::get(
-                    Builder(op->getContext()).getI32IntegerAttr(n_step),
-                    Builder(op->getContext()).getI32IntegerAttr(oc_step),
-                    Builder(op->getContext()).getI32IntegerAttr(oh_step),
-                    Builder(op->getContext()).getI64IntegerAttr(step_size),
-                    Builder(op->getContext()).getI64IntegerAttr(total_size),
-                    rewriter.getContext()));
-          } else {
-            llvm_unreachable("Not support from Slice yet");
-          }
-        }
       } else {
         LLVM_DEBUG(llvm::dbgs() << "      load_compr_act not set\n");
       }

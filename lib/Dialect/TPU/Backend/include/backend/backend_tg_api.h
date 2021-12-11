@@ -482,12 +482,6 @@ void cvi_backend_tg_scale_lut_kernel(const CviBackendContext &ctx,
                                        int input_n, int input_c, int input_h,
                                        int input_w, cvk_fmt_t fmt);
 
-// slice, refer to tg op, support int8 and bf16
-void cvi_backend_tg_slice_kernel(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    gaddr_t input_gaddr, gaddr_t output_gaddr, int input_dim_size,
-    int *input_dim, int axis, int offset, int length, cvk_fmt_t fmt);
-
 void cvi_backend_tg_scale_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
     gaddr_t input_gaddr, gaddr_t scale_gaddr, gaddr_t bias_gaddr,

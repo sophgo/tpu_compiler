@@ -393,16 +393,14 @@ static bool is_fused_op(Operation *op) {
   if (isa<tpu::ReshapeOp>(op)) {
     return true;
   }
-  if (isa<tpu::SliceOp>(op)) {
-    auto castOp = cast<tpu::SliceOp>(op);
-    auto ax = castOp.axis();
-    auto shape = getTensorShape(op->getOperand(0));
-    for (uint32_t i = 0; i< ax; i++) {
-      if (shape[i] != 1) {
-        return false;
-      }
-    }
-    return true;
+  if (isa<tpu::CropOp>(op)) {
+    std::vector<int64_t> is_4;
+    std::vector<int64_t> os_4;
+    std::vector<int> offset_4;
+    std::vector<int> step_4;
+    bool fusible;
+    parseCropParam<tpu::CropOp>(op, is_4, os_4, offset_4, step_4, fusible);
+    return fusible;
   }
   return false;
 }
@@ -2214,37 +2212,6 @@ Value tpu::SwishOp::convertToTG() {
         builder.getNamedAttr("method", builder.getStringAttr("slope")));
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  }
-  llvm_unreachable("unsupported type");
-}
-
-Value tpu::SliceOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  //  TensorFile *wTF = getWeightTensorFile(op);
-
-  std::vector<Value> operands;
-  operands.push_back(input());
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("axis",
-      builder.getI32IntegerAttr(axis())));
-  attrs.push_back(builder.getNamedAttr("offset", offsetAttr()));
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-
-  if (getOpQuant() == "INT8") {
-    assert(getOpQuantParamType() == "NONE");
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_SliceOp>(op->getLoc(),
-        getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_SliceOp>(op->getLoc(),
-        getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
@@ -4283,7 +4250,6 @@ public:
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SwishOp>,
-        DefaultToTGPattern<tpu::SliceOp>,
         DefaultToTGPattern<tpu::SqrtOp>,
         DefaultToTGPattern<tpu::SwapChannelOp>,
         DefaultToTGPattern<tpu::TanHOp>,

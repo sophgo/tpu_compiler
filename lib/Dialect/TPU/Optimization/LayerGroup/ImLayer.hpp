@@ -54,7 +54,6 @@ typedef enum {
   IR_ACTIVATION,
   IR_UPSAMPLE,
   IR_SHUFFLECHANNEL,
-  IR_SLICE,
   IR_SWAPCHANNEL,
   IR_ARITHMETIC,
   IR_PAD,
@@ -216,11 +215,6 @@ class ImDeconv : public ImLayer {
 class ImShuffleChannel : public ImLayer {
  public:
   explicit ImShuffleChannel(Operation *op);
-};
-
-class ImSlice : public ImLayer {
- public:
-  explicit ImSlice(Operation *op);
 };
 
 class ImSwapChannel : public ImLayer {

@@ -737,7 +737,7 @@ template void parsePermuteParam<tpu::TG_BF16_PermuteOp>(
 template <typename OpTy>
 void parseCropParam(Operation *op, std::vector<int64_t> &is_4,
                     std::vector<int64_t> &os_4, std::vector<int> &offset_4,
-                    std::vector<int> &step_4) {
+                    std::vector<int> &step_4, bool &fusible) {
   auto castOp = llvm::dyn_cast<OpTy>(op);
   auto is = getTensorShape(castOp.input());
   auto os = getTensorShape(castOp.output());
@@ -795,11 +795,27 @@ void parseCropParam(Operation *op, std::vector<int64_t> &is_4,
   os_4 = {1, 1, 1, 1};
   step_4 = {1, 1, 1, 1};
   offset_4 = {0, 0, 0, 0};
+  std::vector<int>real_axes;
+  bool no_step = true;
   for (int idx = 0; idx < num_dims; idx++) {
     is_4[idx] = is[idx];
     os_4[idx] = os[idx];
     step_4[idx] = steps[idx];
     offset_4[idx] = crop_offset[idx];
+    if (no_step && steps[idx] != 1) {
+      no_step = false;
+    }
+    if (is_4[idx] != os_4[idx]) {
+      real_axes.push_back(idx);
+    }
+  }
+  fusible = false;
+  if (no_step && real_axes.size() == 1) {
+    int axis = real_axes[0];
+    int outer_dim = std::accumulate(is_4.begin(), is_4.begin() + axis, 1, std::multiplies<int64_t>());
+    if (outer_dim == 1) {
+      fusible = true;
+    }
   }
 }
 
@@ -807,17 +823,20 @@ template void parseCropParam<tpu::CropOp>(Operation *op,
                                           std::vector<int64_t> &is_4,
                                           std::vector<int64_t> &os_4,
                                           std::vector<int> &offset_4,
-                                          std::vector<int> &step_4);
+                                          std::vector<int> &step_4,
+                                          bool &fusible);
 template void parseCropParam<tpu::TG_INT8_CropOp>(Operation *op,
                                                   std::vector<int64_t> &is_4,
                                                   std::vector<int64_t> &os_4,
                                                   std::vector<int> &offset_4,
-                                                  std::vector<int> &step_4);
+                                                  std::vector<int> &step_4,
+                                                  bool &fusible);
 template void parseCropParam<tpu::TG_BF16_CropOp>(Operation *op,
                                                   std::vector<int64_t> &is_4,
                                                   std::vector<int64_t> &os_4,
                                                   std::vector<int> &offset_4,
-                                                  std::vector<int> &step_4);
+                                                  std::vector<int> &step_4,
+                                                  bool &fusible);
 
 template <typename OpTy>
 void parsePadParam(Operation *op, std::vector<int64_t> &is_4,

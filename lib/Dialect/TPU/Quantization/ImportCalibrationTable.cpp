@@ -351,8 +351,7 @@ public:
         BackwardOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
         BackwardOverwriteThresholdDefaultPattern<tpu::ReluOp>,
         BackwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
-        BackwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>,
-        BackwardOverwriteThresholdDefaultPattern<tpu::SliceOp>
+        BackwardOverwriteThresholdDefaultPattern<tpu::PoolMax2DOp>
         >(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
@@ -378,7 +377,6 @@ public:
         ForwardOverwriteThresholdDefaultPattern<tpu::ReverseOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::ReduceMaxOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::ReduceMinOp>,
-        ForwardOverwriteThresholdDefaultPattern<tpu::SliceOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::ShuffleChannelOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::SwapChannelOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::TileOp>,

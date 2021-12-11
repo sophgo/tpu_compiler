@@ -65,19 +65,6 @@ void getConcatParam(Operation *op,
   }
 }
 
-void getSliceParam(Operation * op,
-                  int &axis) {
-  if (isa<tpu::TG_INT8_SliceOp>(op)) {
-    auto slice_op = dyn_cast<tpu::TG_INT8_SliceOp>(op);
-    axis = slice_op.axis();
-  } else if (isa<tpu::TG_BF16_SliceOp>(op)) {
-    auto slice_op = dyn_cast<tpu::TG_BF16_SliceOp>(op);
-    axis = slice_op.axis();
-  } else {
-    assert(!"Only support INT8/BF16 Slice in LayerGroup");
-  }
-}
-
 void getUpsampleParam(Operation * op,
                       int &scale_h, int &scale_w) {
   if (isa<tpu::TG_INT8_UpsampleOp>(op)) {

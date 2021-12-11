@@ -1641,19 +1641,6 @@ class MLIRImporter(object):
                                       tensor_output_type], name=sigmoid_name, quant=self.quant_param,
                                       scale=FloatAttr.get_f32(scale), bias=FloatAttr.get_f32(bias))
 
-    def add_slice_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = RankedTensorType.get(
-            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-
-        attr_dict = {
-            'axis':  IntegerAttr.get(self.i32Type, kargs['axis']),
-            'offset':  IntegerAttr.get(self.i32Type, kargs['offset']),
-        }
-
-        slice_name = StringAttr.get(op_name)
-        return self.buildOp(TPU_OpType.Slice.value, inputOperands, [
-            tensor_output_type], name=slice_name, quant=self.quant_param, **attr_dict)
-
     def add_sqrt_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))

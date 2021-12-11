@@ -44,7 +44,6 @@
 #include "tpuc/Interpreter/cpu/scale.hpp"
 #include "tpuc/Interpreter/cpu/scale_lut.hpp"
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
-#include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
 #include "tpuc/Interpreter/cpu/std.hpp"
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
@@ -184,8 +183,6 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<SigmoidOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::SwishOp>(op)) {
       krnl = std::make_shared<SwishOpKernel>(*op, valueMapping, weightMapping);
-    } else if (isa<tpu::SliceOp>(op)) {
-      krnl = std::make_shared<SliceOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ConcatOp>(op)) {
       krnl = std::make_shared<ConcatOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ConvFcOp>(op)) {

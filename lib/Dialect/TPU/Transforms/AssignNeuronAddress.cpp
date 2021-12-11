@@ -101,34 +101,9 @@ struct TlLgLoadNeuronAddressPattern : public RewritePattern {
   }
 };
 
-static bool isSliceOpSkip(Operation *op) {
-  if (auto sliceOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
-    auto type = sliceOp.getResult().getType().template cast<TensorType>();
-    int axis = sliceOp.axis();
-    std::vector<int64_t> shape = type.getShape();
-    for (int index = 0; index < axis; index++) {
-      if (shape[index] != 1) {
-        return false;
-      }
-    }
-  } else if (auto sliceOp = llvm::dyn_cast<tpu::TG_BF16_SliceOp>(op)) {
-    auto type = sliceOp.getResult().getType().template cast<TensorType>();
-    int axis = sliceOp.axis();
-    std::vector<int64_t> shape = type.getShape();
-    for (int index = 0; index < axis; index++) {
-      if (shape[index] != 1) {
-        return false;
-      }
-    }
-  } else {
-    return false;
-  }
-  return true;
-}
-
 template <typename OpTy>
-struct TgSliceAddressPattern : public RewritePattern {
-  TgSliceAddressPattern(MLIRContext *context)
+struct TgCropAddressPattern : public RewritePattern {
+  TgCropAddressPattern(MLIRContext *context)
       : RewritePattern(OpTy::getOperationName(), 1, context) {}
 
   LogicalResult matchAndRewrite(Operation *op,
@@ -137,43 +112,39 @@ struct TgSliceAddressPattern : public RewritePattern {
     if (castOp.gaddr().hasValue()) {
       return failure();
     }
-    int axis = castOp.axis();
-    int offset = castOp.offset();
-
-    std::vector<int64_t> shape = getTensorShape(castOp.input());
-
-    if (false == isSliceOpSkip(op)) {
-      return failure();
-    }
-    auto opd = op->getOperand(0).getDefiningOp();
-    if (auto formerOp = llvm::dyn_cast<OpTy>(opd)) {
+    auto input_op = castOp.input().getDefiningOp();
+    if (auto formerOp = llvm::dyn_cast<OpTy>(input_op)) {
       if (formerOp.gaddr().hasValue() == false) {
         return failure();
       }
     }
-
-    int32_t dsize = getOpDtypeSize(op);
-    int64_t isz = 1;
-    for (unsigned i = axis + 1; i < shape.size(); i++) {
-      isz *= shape[i];
+    std::vector<int64_t> is_4;
+    std::vector<int64_t> os_4;
+    std::vector<int> offset_4;
+    std::vector<int> step_4;
+    bool fusible;
+    parseCropParam<OpTy>(op, is_4, os_4, offset_4, step_4, fusible);
+    if (fusible == false) {
+      return failure();
     }
-    size_t offset_bytes = offset * isz * dsize;
-
-    if (castOp.load_compr_act().hasValue() && castOp.load_compr_act().getValue()) {
-      auto c_step = castOp.load_compr_act_param().getValue().c_step().getInt();
-      auto step_size = castOp.load_compr_act_param().getValue().step_size().getInt();
-      auto h = shape[2];
-      offset_bytes = (offset / c_step) * h * step_size;
+    int axis;
+    for (axis = 0; offset_4[axis] == 0 && axis < 4; axis++);
+    size_t offset_bytes = 0;
+    if (axis != 4) {
+      offset_bytes = offset_4[axis] * getOpDtypeSize(op);
+      for (int i = axis + 1; i < 4; i++) {
+        offset_bytes *= is_4[i];
+      }
     }
 
     auto curPos = getPreviousOpAddress(castOp);
     setOpAddress(op, curPos + offset_bytes);
 
-    if (opd->getAttr("buffer_reused")) {
+    if (input_op->getAttr("buffer_reused")) {
       castOp->setAttr("buffer_reused", rewriter.getBoolAttr(true));
-    } else if (isa<tpu::ReshapeOp>(opd)) {
-      opd = opd->getOperand(0).getDefiningOp();
-      if (opd->getAttr("buffer_reused")) {
+    } else if (isa<tpu::ReshapeOp>(input_op)) {
+      input_op = input_op->getOperand(0).getDefiningOp();
+      if (input_op->getAttr("buffer_reused")) {
         castOp->setAttr("buffer_reused", rewriter.getBoolAttr(true));
       }
     }
@@ -227,8 +198,19 @@ struct TlLgStoreAddressNeuronPattern : public RewritePattern {
 };
 
 static bool isInPlaceOp(Operation *op) {
-  if (isSliceOpSkip(op)) {
-    return true;
+  std::vector<int64_t> is_4;
+  std::vector<int64_t> os_4;
+  std::vector<int> offset_4;
+  std::vector<int> step_4;
+  bool fusible;
+  if (isa<tpu::TG_INT8_CropOp>(op)) {
+    parseCropParam<tpu::TG_INT8_CropOp>(op, is_4, os_4, offset_4, step_4,
+                                        fusible);
+    return fusible;
+  } else if (isa<tpu::TG_BF16_CropOp>(op)) {
+    parseCropParam<tpu::TG_BF16_CropOp>(op, is_4, os_4, offset_4, step_4,
+                                        fusible);
+    return fusible;
   } else if (isa<tpu::ReshapeOp>(op)) {
     return true;
   }
@@ -466,8 +448,8 @@ public:
     });
 
     OwningRewritePatternList patterns;
-    patterns.insert<TgSliceAddressPattern<tpu::TG_INT8_SliceOp>,
-                    TgSliceAddressPattern<tpu::TG_BF16_SliceOp>,
+    patterns.insert<TgCropAddressPattern<tpu::TG_INT8_CropOp>,
+                    TgCropAddressPattern<tpu::TG_BF16_CropOp>,
                     TgConcatNAddressPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
     patterns.clear();

@@ -64,7 +64,6 @@
 #include "tpuc/Interpreter/cpu/scale.hpp"
 #include "tpuc/Interpreter/cpu/scale_lut.hpp"
 #include "tpuc/Interpreter/cpu/shuffle_channel.hpp"
-#include "tpuc/Interpreter/cpu/slice.hpp"
 #include "tpuc/Interpreter/cpu/softmax.hpp"
 #include "tpuc/Interpreter/cpu/std.hpp"
 #include "tpuc/Interpreter/cpu/swap_channel.hpp"
@@ -502,11 +501,6 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::SwishOp>(op)) {
     auto sws_kernel_op = std::make_unique<SwishOpKernel>(op, valueMapping, weightMapping);
     oplist.push_back(std::move(sws_kernel_op));
-    return;
-  }
-  if (isa<tpu::SliceOp>(op)) {
-    auto slice_kernel_op = std::make_unique<SliceOpKernel>(op, valueMapping, weightMapping);
-    oplist.push_back(std::move(slice_kernel_op));
     return;
   }
   if (isa<tpu::StdOp>(op)) {

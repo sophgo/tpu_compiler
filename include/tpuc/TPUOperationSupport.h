@@ -113,7 +113,7 @@ void parsePermuteParam(Operation *op, std::vector<int64_t> &shape_4,
 
 template <typename OpTy>
 void parseCropParam(Operation *op, std::vector<int64_t> &is_4, std::vector<int64_t> &os_4,
-                       std::vector<int> &offset_4, std::vector<int> &step_4);
+                       std::vector<int> &offset_4, std::vector<int> &step_4, bool &fusible);
 
 template <typename OpTy>
 void parsePadParam(Operation *op, std::vector<int64_t> &is_4, std::vector<int64_t> &os_4,

@@ -89,17 +89,16 @@ struct SplitPoolPattern : public RewritePattern {
     for (auto &slice : h_slices) {
       std::vector<NamedAttribute> attrs;
       result_type = RankedTensorType::get({n, c, slice, iw}, elementType_);
-      attrs.push_back(rewriter.getNamedAttr(
-          "axis", rewriter.getI32IntegerAttr(2))); // h_dim
+      std::vector<int> crop_offset = {0, 0, offset, 0};
       attrs.push_back(
-          rewriter.getNamedAttr("offset", rewriter.getI32IntegerAttr(offset)));
+          rewriter.getNamedAttr("crop_offset", rewriter.getI32ArrayAttr(crop_offset)));
 
       offset += slice;
       attrs.push_back(rewriter.getNamedAttr(
           "name", rewriter.getStringAttr("slice_" + getOpName(op).str() +
                                          std::to_string(offset))));
 
-      auto splitOp = rewriter.create<tpu::TG_INT8_SliceOp>(
+      auto splitOp = rewriter.create<tpu::TG_INT8_CropOp>(
           op->getLoc(), result_type, ArrayRef<Value>{{formerOp}},
           ArrayRef<NamedAttribute>{attrs});
       attrs.clear();

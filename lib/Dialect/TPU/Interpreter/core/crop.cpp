@@ -44,7 +44,8 @@ void CropOpKernel::crop(int cur_dim, int *offsets, int *indices) {
 CropOpKernel::CropOpKernel(Operation &op, value_map_t &valueMapping,
                            weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
-  parseCropParam<tpu::CropOp>(&op, input_shape, output_shape, crop_offset, steps);
+  bool fusible;
+  parseCropParam<tpu::CropOp>(&op, input_shape, output_shape, crop_offset, steps, fusible);
 
   // get tensors
   input_data = this->opdTensors[0];

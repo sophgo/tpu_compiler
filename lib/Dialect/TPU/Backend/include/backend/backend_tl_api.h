@@ -454,18 +454,6 @@ void cvi_backend_tl_quant(
     int n, int c, int h, int w,
     bool bExtraInput);
 
-void cvi_backend_tl_slice(
-     const CviBackendContext &ctx, uint32_t layer_id,
-     int64_t *input_dim, int64_t *output_dim,
-     laddr_t la_input, laddr_t la_output,
-     int axis, int offset);
-
-void cvi_backend_tl_bf16_slice(
-     const CviBackendContext &ctx, uint32_t layer_id,
-     int64_t *input_dim, int64_t *output_dim,
-     laddr_t la_input, laddr_t la_output,
-     int axis, int offset);
-
 void cvi_backend_tl_pixel_shuffle_LA(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t ifmap_laddr, laddr_t ofmap_laddr, gaddr_t ga_ifmap,

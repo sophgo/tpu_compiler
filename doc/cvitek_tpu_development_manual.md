@@ -153,8 +153,8 @@ TPU软件开发框图如下图所示:
 
 -   每个Op的操作除了会影响输出Tensor的值以外，不会产生任何其他副作用；
 
-> 例如，对于SliceOp，虽然原本含义会有多个Output。但在TPU IR的定义中会对每一个sub tensor生成一个SliceOp，它们的input
-> tensor指向同一个tensor，通过attribute指定offset等参数，但每个SliceOp只有一个输出tensor。
+> 例如，对于SliceOp，虽然原本含义会有多个Output。但在TPU IR的定义中会对每一个sub tensor生成一个CropOp，它们的input
+> tensor指向同一个tensor，通过attribute指定offset等参数，但每个CropOp只有一个输出tensor。
 
 
 

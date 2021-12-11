@@ -653,11 +653,6 @@ void CviModelBuilder::parseModule() {
           overwritten = tpuOp.store_compr_act().getValue();
       }
 
-      if (auto tpuOp = llvm::dyn_cast<tpu::TG_INT8_SliceOp>(op)) {
-        if (tpuOp.load_compr_act().hasValue())
-          overwritten = tpuOp.load_compr_act().getValue();
-      }
-
       tensor->overwritten = overwritten;
       tensorMaps_.push_back(tensor);
     }

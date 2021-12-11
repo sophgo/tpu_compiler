@@ -1573,11 +1573,12 @@ class CaffeConverter(BaseConverter):
         for i in range(top_size):
             output_shape = list(input_shape)
             output_shape[axis] = slices[i]
+            crop_offset = [0] * len(input_shape)
+            crop_offset[axis] = offset
             param = {
-                'axis': axis,
-                'offset': offset,
+                'crop_offset': crop_offset,
             }
-            new_op = self.CVI.add_slice_op("{}_{}".format(
+            new_op = self.CVI.add_crop_op("{}_{}".format(
                 layer.name, i), operands, output_shape, **param)
             self.addOperand(layer.top[i], new_op,
                             output_shape, TensorType.ACTIVATION)

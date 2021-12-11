@@ -2456,54 +2456,6 @@ def TPU_SwishOp : TPU_LutOp<"swish", "Swish">;
 
 def TPU_EluOp: TPU_LutOp<"elu", "Elu">;
 
-def TPU_SliceOp: TPU_Op<"slice",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-     DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Slice operator";
-
-  let description = [{
-    Slices an tensor to multiple output tensors along a given dimension
-    (currently channel only) with given slice indices.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `axis`            : required, the axis to slice.
-      `offset`          : required, the offset the output is sliced within the
-                          input, along the specified axis.
-      `quant`           : required, a QuantParam struct attributes, to carrying
-                          threshold, although the quantization is bypassed.
-      `name`            : required, name for calibration, comparing, or debug.
-
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TPU_QuantSameInputResultScale` : input and result share same threshold
-                                        or scale (bypassed).
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    DefaultValuedAttr<I32Attr, "1">:$axis,
-    I32Attr:$offset,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_SoftmaxOp: TPU_Op<"softmax",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

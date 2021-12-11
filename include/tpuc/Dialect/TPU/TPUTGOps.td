@@ -1794,56 +1794,6 @@ class TPU_TG_ClipOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_ClipOp : TPU_TG_ClipOp<"tg_int8_clip", "Int8">;
 def TPU_TG_BF16_ClipOp : TPU_TG_ClipOp<"tg_bf16_clip", "Bf16">;
 
-class TPU_TG_SliceOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " slice operator.";
-
-  let description = [{
-    Slices an tensor to multiple output tensors along a given dimension
-    (currently channel only) with given slice indices.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `axis`            : required, the axis to slice.
-      `offset`          : required, the offset the output is sliced within the
-                          input, along the specified axis.
-
-      `gaddr`           : optional, address in global memory, normally the
-                                     offset within the memory region.
-      `buffer_reused`   : optional, whether buffer is reused.
-
-      `name`            : required, name for comparing, or debug.
-
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    DefaultValuedAttr<I32Attr, "1">:$axis,
-    I32Attr:$offset,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
-    StrAttr:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-def TPU_TG_INT8_SliceOp : TPU_TG_SliceOp<"tg_int8_slice", "Int8">;
-def TPU_TG_BF16_SliceOp : TPU_TG_SliceOp<"tg_bf16_slice", "Bf16">;
-
 class TPU_TG_SoftmaxOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

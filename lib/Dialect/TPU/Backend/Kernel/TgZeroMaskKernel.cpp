@@ -1,7 +1,7 @@
 /*
  * Copyright (C) Cvitek Co., Ltd. 2019-2020. All rights reserved.
  *
- * File Name: TgSliceKernel.cpp
+ * File Name: TgZeroMaskKernel.cpp
  * Description:
  */
 

@@ -1821,62 +1821,6 @@ LogicalResult tpu::TL_LG_BF16_ReluOp::codegen(void *ctx) {
   return success();
 }
 
-LogicalResult tpu::TL_LG_INT8_SliceOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  auto input_shape = getTensorShape(op->getOperand(0));
-  auto output_shape = getTensorShape(op->getResult(0));
-
-  laddr_t la_input = this->la_input();
-  laddr_t la_output = this->la_output();
-  int offset = this->offset();
-  int axis = this->axis();
-  int layer_id = getOpLayerId(op);
-
-  cvi_backend_tl_slice(
-      *backend_ctx,
-      layer_id, //layer_id,
-      input_shape.data(),
-      output_shape.data(),
-      la_input,
-      la_output,
-      axis,
-      offset
-  );
-  return success();
-}
-
-LogicalResult tpu::TL_LG_BF16_SliceOp::codegen(void *ctx) {
-  LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
-  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
-  Operation *op = this->getOperation();
-
-  auto input_shape = getTensorShape(op->getOperand(0));
-  auto output_shape = getTensorShape(op->getResult(0));
-
-  laddr_t la_input = this->la_input();
-  laddr_t la_output = this->la_output();
-  int layer_id = getOpLayerId(op);
-  auto offset = this->offset();
-  auto axis = this->axis();
-
-  cvi_backend_tl_bf16_slice(
-      *backend_ctx,
-      layer_id, //layer_id,
-      input_shape.data(),
-      output_shape.data(),
-      la_input,
-      la_output,
-      axis,
-      offset
-  );
-  return success();
-}
-
 LogicalResult tpu::TL_LG_INT8_SwapChannelOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TL_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
