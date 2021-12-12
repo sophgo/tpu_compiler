@@ -1571,16 +1571,6 @@ Value tpu::PoolMax3DOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-Value tpu::PowerOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  //Operation *op = this->getOperation();
-  //auto builder = Builder(op->getContext());
-  //  TensorFile *wTF = getWeightTensorFile(op);
-
-  llvm_unreachable("unsupported type");
-}
-
 Value tpu::PReluOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1673,42 +1663,6 @@ Value tpu::QuantOp::convertToTG() {
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
   }
-}
-
-Value tpu::ReciprocalOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-
-  int nInputs = 3; // input and table
-  std::vector<Value> operands;
-  for (auto i = 0; i < nInputs; ++i) {
-    operands.push_back(op->getOperand(i));
-  }
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-
-  // get default/assign value
-  attrs.push_back(builder.getNamedAttr("max_range",
-      builder.getF32FloatAttr(max_range().convertToFloat())));
-  attrs.push_back(builder.getNamedAttr("min_range",
-      builder.getF32FloatAttr(min_range().convertToFloat())));
-
-  if (getOpQuant() == "INT8") {
-    auto newOp = OpBuilder(op).create<tpu::TG_INT8_LutOp>(
-        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  } else if (getOpQuant() == "BF16") {
-    attrs.push_back(
-        builder.getNamedAttr("method", builder.getStringAttr("mantissa")));
-    auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
-        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
-        ArrayRef<NamedAttribute>{attrs});
-    return newOp.getResult();
-  }
-  llvm_unreachable("unsupported type");
 }
 
 Value tpu::ReflectionPadOp::convertToTG() {
@@ -2218,16 +2172,14 @@ Value tpu::SwishOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
-Value tpu::SqrtOp::convertToTG() {
+Value tpu::PowOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   auto builder = Builder(op->getContext());
 
-
-  int nInputs = 3; // input and table
   std::vector<Value> operands;
-  for (auto i = 0; i < nInputs; ++i) {
+  for (auto i = 0; i < 3; ++i) {
     operands.push_back(op->getOperand(i));
   }
 
@@ -2735,23 +2687,6 @@ Value tpu::SoftPlusOp::convertToTG() {
     return newOp.getResult();
   }
   llvm_unreachable("unsupported type");
-}
-
-Value tpu::SquareOp::convertToTG() {
-  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
-               << " [" << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  auto builder = Builder(op->getContext());
-  std::vector<Value> operands;
-  operands.push_back(op->getOperand(0));
-
-  std::vector<NamedAttribute> attrs;
-  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
-  assert(getOpQuant() == "BF16");
-  auto newOp = OpBuilder(op).create<tpu::TG_BF16_SquareOp>(op->getLoc(),
-      getResult().getType(), ArrayRef<Value>{operands},
-      ArrayRef<NamedAttribute>{attrs});
-  return newOp.getResult();
 }
 
 Value tpu::StdOp::convertToTG() {
@@ -4219,7 +4154,6 @@ public:
         DefaultToTGPattern<tpu::CropOp>,
         DefaultToTGPattern<tpu::DeConv2DOp>,
         DefaultToTGPattern<tpu::DilateOp>,
-        DefaultToTGPattern<tpu::ReciprocalOp>,
         DefaultToTGPattern<tpu::EltwiseAddOp>,
         DefaultToTGPattern<tpu::MulConstOp>,
         DefaultToTGPattern<tpu::EltwiseMaxOp>,
@@ -4241,6 +4175,7 @@ public:
         DefaultToTGPattern<tpu::PoolMax3DOp>,
         DefaultToTGPattern<tpu::PoolMaskOp>,
         DefaultToTGPattern<tpu::PReluOp>,
+        DefaultToTGPattern<tpu::PowOp>,
         DefaultToTGPattern<tpu::QuantOp>,
         DefaultToTGPattern<tpu::ReluOp>,
         DefaultToTGPattern<tpu::ReorgOp>,
@@ -4250,7 +4185,6 @@ public:
         DefaultToTGPattern<tpu::ShuffleChannelOp>,
         DefaultToTGPattern<tpu::SigmoidOp>,
         DefaultToTGPattern<tpu::SwishOp>,
-        DefaultToTGPattern<tpu::SqrtOp>,
         DefaultToTGPattern<tpu::SwapChannelOp>,
         DefaultToTGPattern<tpu::TanHOp>,
         DefaultToTGPattern<tpu::LogOp>,
@@ -4269,7 +4203,6 @@ public:
         DefaultToTGPattern<tpu::LstmOp>,
         DefaultToTGPattern<tpu::SoftmaxOp>,
         DefaultToTGPattern<tpu::SoftPlusOp>,
-        DefaultToTGPattern<tpu::SquareOp>,
         DefaultToTGPattern<tpu::QuadraticSumOp>,
         DefaultToTGPattern<tpu::CscOp>,
         DefaultToTGPattern<tpu::MatMulOp>,

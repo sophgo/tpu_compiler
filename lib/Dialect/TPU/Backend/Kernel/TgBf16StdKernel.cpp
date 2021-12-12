@@ -57,6 +57,7 @@ void cvi_backend_tg_bf16_std_kernel(const CviBackendContext &ctx,
                                  outer_size, h, w);
     assert(0);
   }
+  ctx.parallel_disable();
   float fix_div = unbiased ? (float)std_size / ((float)std_size - 1.0f) : 1.0f;
   for (int c_pos = 0; c_pos < outer_size; c_pos += c_step) {
     int c = std::min(c_step, outer_size - c_pos);

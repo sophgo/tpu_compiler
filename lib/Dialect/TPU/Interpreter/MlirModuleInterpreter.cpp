@@ -289,18 +289,14 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<ReflectionPadOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ReluOp>(op)) {
       krnl = std::make_shared<ReluOpKernel>(*op, valueMapping, weightMapping);
-    } else if (isa<tpu::ReciprocalOp>(op)) {
-      krnl = std::make_shared<ReciprocalOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ReorgOp>(op)) {
       krnl = std::make_shared<ReorgOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ReverseOp>(op)) {
       krnl = std::make_shared<ReverseOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ROIPoolingOp>(op)) {
       krnl = std::make_shared<ROIPoolingOpKernel>(*op, valueMapping, weightMapping);
-    } else if (isa<tpu::SqrtOp>(op)) {
-      krnl = std::make_shared<SqrtOpKernel>(*op, valueMapping, weightMapping);
-    } else if (isa<tpu::SquareOp>(op)) {
-      krnl = std::make_shared<SquareOpKernel>(*op, valueMapping, weightMapping);
+    } else if (isa<tpu::PowOp>(op)) {
+      krnl = std::make_shared<PowOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::ShuffleChannelOp>(op)) {
       krnl = std::make_shared<ShuffleChannelOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::SoftmaxCpuOp>(op)) {

@@ -224,54 +224,54 @@ class CaffeConverter(BaseConverter):
                         output_shape, TensorType.ACTIVATION)
 
     def convert_bn_op(self, layer):
-         assert(self.layerType(layer) == 'BN')
-         op, input_shape, _ = self.getOperand(layer.bottom[0])
-         operands = list()
-         operands.append(op)
-         # default comes from caffe.proto
+        assert(self.layerType(layer) == 'BN')
+        op, input_shape, _ = self.getOperand(layer.bottom[0])
+        operands = list()
+        operands.append(op)
+        # default comes from caffe.proto
 
-         p = layer.bn_param
-         bn_mode = 0
-         if hasattr(p, 'bn_mode'):
-             bn_mode = p.bn_mode
+        p = layer.bn_param
+        bn_mode = 0
+        if hasattr(p, 'bn_mode'):
+            bn_mode = p.bn_mode
 
-         param = {
-             'variance_epsilon': 1e-5,
-             #'momentum': 0.9,
-             'frozen': False
-         }
+        param = {
+            'variance_epsilon': 1e-5,
+            #'momentum': 0.9,
+            'frozen': False
+        }
 
-         if layer.HasField('bn_param'):
-             if layer.bn_param.HasField('eps'):
-                 param['variance_epsilon'] = layer.bn_param.eps
+        if layer.HasField('bn_param'):
+            if layer.bn_param.HasField('eps'):
+                param['variance_epsilon'] = layer.bn_param.eps
 
-             #if layer.bn_param.HasField('momentum'):
-             #    param['momentum'] = layer.bn_param.momentum
+            #if layer.bn_param.HasField('momentum'):
+            #    param['momentum'] = layer.bn_param.momentum
 
-             if layer.bn_param.HasField('frozen'):
-                 param['frozen'] = layer.bn_param.frozen
-                 assert(param['frozen'] == True and "only support frozen = false now")
+            if layer.bn_param.HasField('frozen'):
+                param['frozen'] = layer.bn_param.frozen
+                assert(param['frozen'] == True and "only support frozen = false now")
 
-         blobs = self.layer_dict[layer.name].blobs
+        blobs = self.layer_dict[layer.name].blobs
 
-         for idx, blob in enumerate(blobs):
-             blob_op = self.blob_to_weight_op(layer, idx)
-             operands.append(blob_op)
+        for idx, blob in enumerate(blobs):
+            blob_op = self.blob_to_weight_op(layer, idx)
+            operands.append(blob_op)
 
-         if bn_mode == 1:
-             output_shape = input_shape
-             new_op = self.CVI.add_scale_op(
-                 layer.name, operands, output_shape)
+        if bn_mode == 1:
+            output_shape = input_shape
+            new_op = self.CVI.add_scale_op(
+                layer.name, operands, output_shape)
 
-             self.addOperand(layer.top[0], new_op,
-                           output_shape, TensorType.ACTIVATION)
-         else:
-             output_shape = input_shape
-             new_op = self.CVI.add_batchnorm_op(
-                 layer.name, operands, output_shape, **param)
+            self.addOperand(layer.top[0], new_op,
+                          output_shape, TensorType.ACTIVATION)
+        else:
+            output_shape = input_shape
+            new_op = self.CVI.add_batchnorm_op(
+                layer.name, operands, output_shape, **param)
 
-             self.addOperand(layer.top[0], new_op,
-                             output_shape, TensorType.ACTIVATION)
+            self.addOperand(layer.top[0], new_op,
+                            output_shape, TensorType.ACTIVATION)
 
     def convert_concat_op(self, layer):
         assert(self.layerType(layer) == 'Concat')
@@ -1076,26 +1076,24 @@ class CaffeConverter(BaseConverter):
                             TensorType.ACTIVATION)
 
     def convert_power_op(self, layer):
-        assert(self.layerType(layer) == 'Power')
+        assert (self.layerType(layer) == 'Power')
         op, input_shape, _ = self.getOperand(layer.bottom[0])
-        operands = list()
-        operands.append(op)
         p = layer.power_param
         if p.shift == 0 and p.power == 1 and p.scale == 1:
             # do nothing
             return self.addOperand(layer.top[0], op, input_shape, TensorType.ACTIVATION)
+        output_shape = list(input_shape)
+        operands = []
         if p.power != 1.0:
-            param = {
-                'power': p.power,
-                'scale': p.scale,
-                'shift': p.shift,
-            }
-            output_shape = input_shape
-            new_op = self.CVI.add_power_op(
-                layer.name, operands, output_shape, **param)
-            self.addOperand(layer.top[0], new_op,
-                            output_shape, TensorType.ACTIVATION)
+            param = {'coeff': p.power}
+            power_name = layer.name
+            if p.shift != 0 or p.scale != 1:
+                power_name += "_pow"
+            new_op = self.CVI.add_pow_op(power_name, [op], output_shape, **param)
+            operands.append(new_op)
         else:
+            operands.append(op)
+        if p.shift != 0 or p.scale != 1:
             # convert to scale op
             # weight scale
             scale_name = layer.name + "_0"
@@ -1115,10 +1113,8 @@ class CaffeConverter(BaseConverter):
                 operands.append(bias_op)
             else:
                 operands.append(self.add_none_op())
-            output_shape = input_shape
             new_op = self.CVI.add_scale_op(layer.name, operands, output_shape)
-            self.addOperand(layer.top[0], new_op, output_shape,
-                            TensorType.ACTIVATION)
+        self.addOperand(layer.top[0], new_op, output_shape, TensorType.ACTIVATION)
 
     def convert_prelu_op(self, layer):
         assert(self.layerType(layer) == 'PReLU')
@@ -1660,10 +1656,10 @@ class CaffeConverter(BaseConverter):
 
         upsample_name = layer.name
         if len(layer.bottom) > 1:
-          op_mask, _, _ = self.getOperand(layer.bottom[1])
-          operands.append(op_mask)
+            op_mask, _, _ = self.getOperand(layer.bottom[1])
+            operands.append(op_mask)
         else:
-          operands.append(self.add_none_op())
+            operands.append(self.add_none_op())
 
         new_op = self.CVI.add_upsample_op(
             upsample_name, operands, output_shape, **param)

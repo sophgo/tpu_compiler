@@ -89,9 +89,7 @@ static bool check_mix_bf16(Operation *op, Value weight, int axis, int max = 0) {
   if (axis < 0) {
     axis += num_dims;
   }
-  if (axis < 0 || axis > num_dims) {
-    return false;
-  }
+  assert(axis < num_dims && axis >= 0);
   if (max > 0 && shape[axis] > max) {
     return false;
   }
@@ -214,8 +212,9 @@ static void quantizeBf16LayerNormWeightOp(Value op, TensorFile *wTF) {
 //
 
 // insert bf16 table to operands
-static void insertBf16LutOp(Operation *op, const std::string &type_name, const std::string &method,
-                                         int tableIndex, int mantissaIndex, float param0 = 0.0, float param1 = 0.0) {
+static void insertBf16LutOp(Operation *op, const std::string &type_name,
+                            int tableIndex, int mantissaIndex,
+                            float param0 = 0.0, float param1 = 0.0) {
   TensorFile *wTF = getWeightTensorFile(op);
   Value wfV = getWeightFileValue(op);
   int npu_num = MInfo::lane_num;
@@ -234,7 +233,8 @@ static void insertBf16LutOp(Operation *op, const std::string &type_name, const s
   float range_end = 63;
 
   std::string suffix_mantissa;
-  if (method == "mantissa") {
+  if (type_name == "pow") {
+    // only pow do mantissa
     bf16_gen_exponent_mantissa_table(type_name, table.data(), mantissa.data(),
                                      param0, param1);
     suffix_mantissa = type_name + "_mantissa_table";
@@ -332,48 +332,6 @@ LogicalResult quantizeBf16ConvOps(Operation *op, int spatial_dims) {
 
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
 
-  return success();
-}
-
-///
-/// Lut Ops quantization method
-///
-template <typename OpTy>
-LogicalResult quantizeBF16LutOps(Operation *op) {
-  assert(getOpQuant(op) == "BF16");
-  // use LUT
-  setOpQuantParamType(op, "LUT_BF16");
-
-  if (isa<tpu::SigmoidOp>(op)) {
-    auto sigmoidOp = cast<tpu::SigmoidOp>(op);
-    float scale = sigmoidOp.scale().convertToFloat();
-    float bias = sigmoidOp.bias().convertToFloat();
-    insertBf16LutOp(op, "sigmoid", "slope", 1, 2, scale, bias);
-  } else if (isa<tpu::SwishOp>(op)) {
-    insertBf16LutOp(op, "swish", "slope", 1, 2);
-  } else if (isa<tpu::TanHOp>(op)) {
-    insertBf16LutOp(op, "tanh", "slope", 1, 2);
-  } else if (isa<tpu::LogOp>(op)) {
-    insertBf16LutOp(op, "log", "slope", 1, 2);
-  } else if (isa<tpu::ExpOp>(op)) {
-    auto expOp = cast<tpu::ExpOp>(op);
-    float scale = expOp.scale().convertToFloat();
-    float bias = expOp.bias().convertToFloat();
-    insertBf16LutOp(op, "exp", "slope", 1, 2, scale, bias);
-  } else if (isa<tpu::EluOp>(op)) {
-    insertBf16LutOp(op, "elu", "slope", 1, 2);
-  } else if (isa<tpu::MishOp>(op)) {
-    insertBf16LutOp(op, "mish", "slope", 1, 2);
-  } else if (isa<tpu::SoftPlusOp>(op)) {
-    auto spOp = cast<tpu::SoftPlusOp>(op);
-    float scale = spOp.scale().convertToFloat();
-    float bias = spOp.bias().convertToFloat();
-    insertBf16LutOp(op, "softplus", "slope", 1, 2, scale, bias);
-  } else {
-    llvm_unreachable("not support now");
-  }
-
-  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
 
@@ -563,8 +521,8 @@ LogicalResult tpu::GruOp::quantizeBf16() {
   TensorFile *wTF = getWeightTensorFile(op);
   quantizeBf16WeightOp(recurrence(), wTF);
   quantizeBf16WeightOp(initial_h(), wTF);
-  insertBf16LutOp(op, "sigmoid", "slope", 4, 5, 1.0, 0.0);
-  insertBf16LutOp(op, "tanh", "slope", 6, 7);
+  insertBf16LutOp(op, "sigmoid", 4, 5, 1.0, 0.0);
+  insertBf16LutOp(op, "tanh", 6, 7);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -591,7 +549,7 @@ LogicalResult tpu::LayerNormOp::quantizeBf16() {
   TensorFile *wTF = getWeightTensorFile(op);
   quantizeBf16LayerNormWeightOp(scale(), wTF);
   quantizeBf16LayerNormWeightOp(bias(), wTF);
-  insertBf16LutOp(op, "reciprocal_sqrt", "mantissa", 1, 2);
+  insertBf16LutOp(op, "pow", 1, 2, -0.5f);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -600,7 +558,7 @@ LogicalResult tpu::StdOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  insertBf16LutOp(op, "sqrt", "mantissa", 1, 2);
+  insertBf16LutOp(op, "pow", 1, 2, 0.5f);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -616,7 +574,9 @@ LogicalResult tpu::LogOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBF16LutOps<tpu::LogOp>(op);
+  insertBf16LutOp(op, "log", 1, 2);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::PReluOp::quantizeBf16() {
@@ -634,10 +594,7 @@ LogicalResult tpu::LrnOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n");
   Operation *op = this->getOperation();
-  assert(getOpQuant() == "BF16");
-  auto lrnOp = cast<tpu::LrnOp>(op);
-  float beta = lrnOp.beta().convertToFloat();
-  insertBf16LutOp(op, "power", "mantissa", 1, 2, beta);
+  insertBf16LutOp(op, "pow", 1, 2, beta().convertToFloat());
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -651,8 +608,8 @@ LogicalResult tpu::LstmOp::quantizeBf16() {
   quantizeBf16WeightOp(initial_h(), wTF);
   quantizeBf16WeightOp(initial_c(), wTF);
   quantizeBf16WeightOp(cont(), wTF);
-  insertBf16LutOp(op, "sigmoid", "slope", 6, 7, 1.0, 0.0);
-  insertBf16LutOp(op, "tanh", "slope", 8, 9);
+  insertBf16LutOp(op, "sigmoid", 6, 7, 1.0, 0.0);
+  insertBf16LutOp(op, "tanh", 8, 9);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -661,7 +618,9 @@ LogicalResult tpu::MishOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBF16LutOps<tpu::MishOp>(op);
+  insertBf16LutOp(op, "mish", 1, 2);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::QuadraticSumOp::quantizeBf16() {
@@ -673,22 +632,11 @@ LogicalResult tpu::QuadraticSumOp::quantizeBf16() {
   return success();
 }
 
-LogicalResult tpu::SqrtOp::quantizeBf16() {
+LogicalResult tpu::PowOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  assert(getOpQuant() == "BF16");
-  insertBf16LutOp(op, "sqrt", "mantissa", 1, 2);
-  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
-  return success();
-}
-
-LogicalResult tpu::ReciprocalOp::quantizeBf16() {
-  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
-                          << getOpName() << "]\n";);
-  Operation *op = this->getOperation();
-  assert(getOpQuant() == "BF16");
-  insertBf16LutOp(op, "reciprocal", "mantissa", 1, 2);
+  insertBf16LutOp(op, "pow", 1, 2, coeff().convertToFloat());
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -697,7 +645,7 @@ LogicalResult tpu::ReduceL2Op::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  insertBf16LutOp(op, "sqrt", "mantissa", 1, 2);
+  insertBf16LutOp(op, "pow", 1, 2, 0.5f);
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }
@@ -706,35 +654,45 @@ LogicalResult tpu::SigmoidOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBF16LutOps<tpu::SigmoidOp>(op);
+  insertBf16LutOp(op, "sigmoid", 1, 2, scale().convertToFloat(), bias().convertToFloat());
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::SwishOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBF16LutOps<tpu::SwishOp>(op);
+  insertBf16LutOp(op, "swish", 1, 2);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::TanHOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBF16LutOps<tpu::TanHOp>(op);
+  insertBf16LutOp(op, "tanh", 1, 2);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::EluOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBF16LutOps<tpu::EluOp>(op);
+  insertBf16LutOp(op, "elu", 1, 2);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::ExpOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBF16LutOps<tpu::ExpOp>(op);
+  insertBf16LutOp(op, "exp", 1, 2, scale().convertToFloat(), bias().convertToFloat());
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::SoftmaxOp::quantizeBf16() {
@@ -742,11 +700,11 @@ LogicalResult tpu::SoftmaxOp::quantizeBf16() {
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
   assert(getOpQuant() == "BF16");
-  insertBf16LutOp(op, "exp", "slope", 1, 2, 1.0, 0.0);
+  insertBf16LutOp(op, "exp", 1, 2, 1.0, 0.0);
   if (do_log() == false) {
-    insertBf16LutOp(op, "reciprocal", "mantissa", 3, 4);
+    insertBf16LutOp(op, "pow", 3, 4, -1.0f);
   } else {
-    insertBf16LutOp(op, "log", "slope", 3, 4);
+    insertBf16LutOp(op, "log", 3, 4);
   }
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
@@ -756,7 +714,9 @@ LogicalResult tpu::SoftPlusOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
   Operation *op = this->getOperation();
-  return quantizeBF16LutOps<tpu::SoftPlusOp>(op);
+  insertBf16LutOp(op, "softplus", 1, 2, scale().convertToFloat(), bias().convertToFloat());
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
 }
 
 LogicalResult tpu::ReflectionPadOp::quantizeBf16() {
@@ -814,7 +774,6 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolAvg2DOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMax2DOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMax3DOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PoolMaskOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::PowerOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReluOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReorgOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ReduceMeanOp)
@@ -826,7 +785,6 @@ DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ROIPoolingOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ScaleLutOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::ShuffleChannelOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SoftmaxCpuOp)
-DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SquareOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::SwapChannelOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::TileOp)
 DECLARE_QUANTIZE_BF16_BYPASS_METHOD(tpu::UpsampleOp)

@@ -253,10 +253,7 @@ void bf16_lut_mantissa_tl_kernel(
   param.tbl_answer = &tl_table_answer;
   param.tbl_answer_mantissa = &tl_table_answer_mantissa;
   param.ofmap = &tl_ofmap;
-#if 1
-  // FIXME: enable it after new lut kernel struct merged
   param.is_scientific = 1;
-#endif
   ctx.tiu_bf16_lookup_interp_table(&param);
 }
 
@@ -282,7 +279,7 @@ void cvi_backend_tg_bf16_lut_mantissa_kernel(
   std::vector<CviBackendContext::tiling_info_t> tiles;
   ctx.tiling_packing(tiles, n, c, h, w, CVK_FMT_BF16, blob_num, lmem_used,
                      CviBackendContext::TilingAll);
-
+  ctx.parallel_disable();
   for (auto &tile : tiles) {
 
     cvk_tl_shape_t slice_shape =

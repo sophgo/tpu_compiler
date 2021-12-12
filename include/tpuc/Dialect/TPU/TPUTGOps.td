@@ -1068,8 +1068,7 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     StrAttr:$name,
     OptionalAttr<StrAttr>:$method,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
-    DefaultValuedAttr<F32Attr, "-8">:$min_range,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id
+    DefaultValuedAttr<F32Attr, "-8">:$min_range
   );
 
   let results = (outs AnyTensor:$output);
@@ -2152,44 +2151,6 @@ class TPU_TG_ReduceL2Op<string mnemonic, string opQuant> : TPU_Op<mnemonic,
   let results = (outs AnyTensor:$output);
 }
 def TPU_TG_BF16_ReduceL2Op : TPU_TG_ReduceL2Op<"tg_bf16_reduce_l2", "Bf16">;
-
-class TPU_TG_SquareOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " Square operator.";
-
-  let description = [{
-    Inputs:
-      `input`           : required, the input activation memref.
-
-    Attributes:
-
-      `gaddr`           : optional, address in global memory, normally the
-                          offset within the memory region.
-      `buffer_reused`   : optional, whether buffer is reused.
-      `name`            : required, name for comparing, or debug.
-
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface`    : support common TPU TG Op interface.
-      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    OptionalAttr<I64Attr>:$gaddr,
-    OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-def TPU_TG_BF16_SquareOp : TPU_TG_SquareOp<"tg_bf16_square", "Bf16">;
 
 class TPU_TG_QuadraticSumOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

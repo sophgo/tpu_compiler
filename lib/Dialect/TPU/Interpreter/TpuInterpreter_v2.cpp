@@ -446,11 +446,6 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(reshape_kernel_op));
     return;
   }
-  if (isa<tpu::ReciprocalOp>(op)) {
-    auto r_kernel_op = std::make_unique<ReciprocalOpKernel>(op, valueMapping, weightMapping);
-    oplist.push_back(std::move(r_kernel_op));
-    return;
-  }
   if (isa<tpu::ReorgOp>(op)) {
     auto r_kernel_op = std::make_unique<ReorgOpKernel>(op, valueMapping, weightMapping);
     oplist.push_back(std::move(r_kernel_op));
@@ -477,14 +472,9 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
     oplist.push_back(std::move(scale_lut_kernel_op));
     return;
   }
-  if (isa<tpu::SqrtOp>(op)) {
-    auto sqrt_kernel_op = std::make_unique<SqrtOpKernel>(op, valueMapping, weightMapping);
-    oplist.push_back(std::move(sqrt_kernel_op));
-    return;
-  }
-  if (isa<tpu::SquareOp>(op)) {
-    auto sq_kernel_op = std::make_unique<SquareOpKernel>(op, valueMapping, weightMapping);
-    oplist.push_back(std::move(sq_kernel_op));
+  if (isa<tpu::PowOp>(op)) {
+    auto cast_op = std::make_unique<PowOpKernel>(op, valueMapping, weightMapping);
+    oplist.push_back(std::move(cast_op));
     return;
   }
   if (isa<tpu::ShuffleChannelOp>(op)) {

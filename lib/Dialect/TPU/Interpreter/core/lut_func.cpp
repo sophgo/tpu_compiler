@@ -186,176 +186,66 @@ void bf16_lut_slope(const std::string &name, float *input, float *output, int si
   }
 }
 
-static void bf16_gen_reciprocal(int start, int end, int table_hw, float *table_data) {
-
-  int exp_start = start;
+static void bf16_gen_pow(int start, int table_hw, float coeff, float *table_data) {
   int half = table_hw / 2;
   uint64_t idx = 0;
-
-  // prepare channel 0
-  // double s = 0.0;
+  assert(half == 128);
   // 0^-1 is invalid, use positive/negtive max value: 0x7F7F / 0xFF7F
   uint32_t max_bf16_val = 0x7F7F0000;
   float max_bf16 = BF16(*((float *)(&max_bf16_val)), false);
-  table_data[idx] = max_bf16; //<! convert to 0x7F7F
-
-  idx++;
-
-  // > 0, exp from 0 -62 -61 ..  62  63
-  for (int i = 0; i < half - 1; i++) {
-    int shift = (exp_start + i);
-    float exp = shift;
-    float s = (float)pow(2, -1 * exp);
-    table_data[idx] = BF16(s);
-    idx++;
-  }
-
-  table_data[idx] = max_bf16; //<! convert to 0x7F7F
-  idx++;
-
-  // < 0, exp from 0 -62 -61 ..  62  63
-  for (int i = 0; i < half - 1; i++) {
-    int shift = (exp_start + i);
-    float exp = shift;
-    float s = -1 * (float)pow(2, -1 * exp);
-    table_data[idx] = BF16(s);
-    idx++;
-  }
-}
-
-static void bf16_gen_reciprocal_mantissa(int start, int end, int table_hw,
-                                         float *table_mantissa) {
-  int half = table_hw/2;
-
-  int idx = 0;
-  for (int i = 0; i < half; i++) {
-    float d = 1 + i * 1 / 128.0;
-    d = (float) pow(d, -1);
-    table_mantissa[128 + idx] = BF16(d);
-    table_mantissa[idx] = BF16(d);
-    idx++;
-  }
-}
-
-static void bf16_gen_sqrt(int start, int table_hw, float *table_data) {
-  int half = table_hw / 2;
-  uint64_t idx = 0;
-  assert(half == 128);
 
   // prepare channel 0
-  float s = 0.0;
-  table_data[idx] = BF16(s);
+  if (coeff < 0) {
+    table_data[idx] = max_bf16;
+  } else if (coeff == 0) {
+    table_data[idx] = BF16(1.0);
+  } else {
+    table_data[idx] = BF16(0.0);
+  }
   idx++;
 
   // > 0, exp from 0 -62 -61 ..  62  63
-  for (int i = 0; i < half; i++) {
+  for (int i = 0; i < half-1; i++) {
     int shift = (start + i);
     float exp = shift;
-    float s = (float)pow(2, 0.5 * exp);
+    float s = (float)pow(2, coeff * exp);
     table_data[idx] = BF16(s);
     idx++;
   }
-}
-
-static void bf16_gen_sqrt_mantissa(int table_hw, float *table_mantissa) {
-
-  uint32_t half = table_hw  / 2;
-  assert(half == 128);
-
-  int idx = 0;
-  for (uint32_t i = 0; i < half; i++) {
-    float d = 1 + i * 1 / 128.0;
-    d = (float) pow(d, 0.5);
-    table_mantissa[128 + idx] = BF16(d);
-    table_mantissa[idx] = BF16(d);
-    idx++;
+  if (coeff < 0) {
+    table_data[idx] = max_bf16;
+  } else if (coeff == 0) {
+    table_data[idx] = BF16(1.0);
+  } else {
+    table_data[idx] = BF16(0.0);
   }
-}
-
-static void bf16_gen_reciprocal_sqrt(int start, int table_hw, float *table_data) {
-  int half = table_hw / 2;
-  uint64_t idx = 0;
-  assert(half == 128);
-
-  uint32_t max_bf16_val = 0x7F7F0000;
-  float max_bf16 = BF16(*((float *)(&max_bf16_val)), false);
-  table_data[idx] = max_bf16;
   idx++;
-
-  // > 0, exp from 0 -62 -61 ..  62  63
-  for (int i = 0; i < half; i++) {
-    int shift = (start + i);
-    float exp = shift;
-    float s = (float)pow(2, 0.5 * exp);
-    table_data[idx] = BF16(1.0 / s);
-    idx++;
-  }
-}
-
-static void bf16_gen_reciprocal_sqrt_mantissa(int table_hw, float *table_mantissa) {
-
-  uint32_t half = table_hw  / 2;
-  assert(half == 128);
-
-  int idx = 0;
-  for (uint32_t i = 0; i < half; i++) {
-    float d = 1 + i * 1 / 128.0;
-    d = (float) pow(d, -0.5);
-    table_mantissa[128+idx] = BF16(d);
-    table_mantissa[idx] = BF16(d);
-    idx++;
-  }
-}
-
-// gen power exp table
-static void bf16_gen_power_exp_table(float *table_data, float beta,
-                                     int start, int table_hw) {
-  int exp_start = start;
-  int half = table_hw/2;
-  uint64_t idx = 0;
-
-  table_data[idx] = BF16(1); // power(0)
-  idx++;
-
-  // > 0, exp from -62 -61 ..  62  63
-  for (int i = 0; i < half - 1; i++) {
-    int shift = (exp_start + i);
-    float exp = shift;
-    double s = (double)(pow(2, (exp*(-beta))));
-    table_data[idx] = BF16(s);
-    idx++;
-  }
-
-  table_data[idx] = BF16(1); // power(-0)
-  idx++;
-
-  bool _signed = false;
-  if ((((int)beta) % 2 == 0) && (beta - (int)beta == 0)) {
-    _signed = true;
-  }
-
-  // < 0, exp from 0 -62 -61 ..  62  63
-  for (int i = 0; i < half - 1; i++) {
-    int shift = (exp_start + i);
-    float exp = shift;
-    float s = -1 * (double)(pow(2, (exp*(-beta))));
-    if (_signed) {
-      s *= -1;
+  int _signed = -1;
+  if (coeff == (int)(coeff)) {
+    if ((int)(coeff) % 2 == 0) {
+      _signed = 1;
     }
-    table_data[idx] = BF16(s);
-    idx++;
+    // < 0, exp from 0 -62 -61 ..  62  63
+    for (int i = 0; i < half - 1; i++) {
+      int shift = (start + i);
+      float exp = shift;
+      float s = _signed * (float)pow(2, coeff * exp);
+      table_data[idx] = BF16(s);
+      idx++;
+    }
   }
 }
 
-static void bf16_gen_power_mantissa_table(float *table_mantissa, float beta, int table_hw) {
-  int half = table_hw / 2;
+static void bf16_gen_pow_mantissa(int table_hw, float coeff, float *table_mantissa) {
+
+  uint32_t half = table_hw  / 2;
   assert(half == 128);
 
   int idx = 0;
-  for (int i = 0; i < half; i++) {
+  for (uint32_t i = 0; i < half; i++) {
     float d = 1 + i * 1 / 128.0;
-    d = (float)pow(d, (-beta));
-    table_mantissa[128+idx] = BF16(d);
+    d = (float) pow(d, coeff);
+    table_mantissa[128 + idx] = BF16(d);
     table_mantissa[idx] = BF16(d);
     idx++;
   }
@@ -365,20 +255,10 @@ void bf16_gen_exponent_mantissa_table(const std::string &name, float *exp_table,
                                       float *mantissa_table, float param0,  float param1) {
   (void)param1;
   float range_start = -62;
-  float range_end = 63;
   int table_hw = 256;
-  if (name == "reciprocal") {
-      bf16_gen_reciprocal(range_start, range_end, table_hw, exp_table);
-      bf16_gen_reciprocal_mantissa(range_start, range_end, table_hw, mantissa_table);
-  } else if (name == "sqrt") {
-      bf16_gen_sqrt(range_start, table_hw, exp_table);
-      bf16_gen_sqrt_mantissa(table_hw, mantissa_table);
-  } else if (name == "reciprocal_sqrt") {
-      bf16_gen_reciprocal_sqrt(range_start, table_hw, exp_table);
-      bf16_gen_reciprocal_sqrt_mantissa(table_hw, mantissa_table);
-  } else if (name == "power") {
-      bf16_gen_power_exp_table(exp_table, param0, range_start, table_hw);
-      bf16_gen_power_mantissa_table(mantissa_table, param0, table_hw);
+  if (name == "pow") {
+      bf16_gen_pow(range_start, table_hw, param0,exp_table);
+      bf16_gen_pow_mantissa(table_hw, param0, mantissa_table);
   } else {
     llvm::errs() << "unsupported lookup table func:" << name << "\n";
     llvm_unreachable("Error");

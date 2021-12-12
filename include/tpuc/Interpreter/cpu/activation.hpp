@@ -211,30 +211,6 @@ private:
   int bf16_max_range;
 };
 
-class ReciprocalOpKernel : public CPUOpKernel {
-public:
-  static constexpr const char *OpName = "CPUReciprocalOpOp";
-
-  ReciprocalOpKernel(Operation &op, value_map_t &valueMapping,
-                     weight_map_t &weightMapping);
-
-  void invoke() override;
-
-private:
-  SyncedData input_data;
-  SyncedData output_data;
-  SyncedDataShape input_shape;
-
-  SyncedData y0_table_op;
-  SyncedData slope_table;
-
-  // bf16
-  SyncedData y0_bf16_table_op;
-  SyncedData y0_bf16_slope_table;
-  int bf16_min_range;
-  int bf16_max_range;
-};
-
 class SoftPlusOpKernel : public CPUOpKernel {
 public:
   static constexpr const char *OpName = "CPUSoftPlusOpOp";
@@ -259,11 +235,11 @@ private:
   SyncedData y0_bf16_slope_table;
 };
 
-class SqrtOpKernel : public CPUOpKernel {
+class PowOpKernel : public CPUOpKernel {
 public:
-  static constexpr const char *OpName = "CPUSqrtOpOp";
+  static constexpr const char *OpName = "CPUPowOpOp";
 
-  SqrtOpKernel(Operation &op, value_map_t &valueMapping,
+  PowOpKernel(Operation &op, value_map_t &valueMapping,
                weight_map_t &weightMapping);
 
   void invoke() override;
@@ -281,21 +257,7 @@ private:
   SyncedData y0_bf16_slope_table;
   int bf16_min_range;
   int bf16_max_range;
-};
-
-class SquareOpKernel : public CPUOpKernel {
-public:
-  static constexpr const char *OpName = "CPUSquareOpOp";
-
-  SquareOpKernel(Operation &op, value_map_t &valueMapping,
-                 weight_map_t &weightMapping);
-
-  void invoke() override;
-
-private:
-  SyncedData input_data;
-  SyncedData output_data;
-  SyncedDataShape input_shape;
+  float coeff;
 };
 
 class TanHOpKernel : public CPUOpKernel {

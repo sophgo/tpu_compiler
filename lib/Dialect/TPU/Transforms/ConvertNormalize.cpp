@@ -85,71 +85,19 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     ///
 
     /// 1. Power OP
-#if 0
-    // use power op
-
-    assert(false&&"not support normalize decompose to power");
+    auto NoneOp = rewriter.create<tpu::NoneOp>(loc,rewriter.getNoneType());
     std::vector<Value> operands;
     operands.push_back(input_var);
-
-    // we leverage depthwise to calculat a*x + b,
-    // one shot by channel, we should reserve weight
-    // for extend scale/shift from 1 dimension to <1, NUP_NUM, 1, 1>
-    // FIXME: not harcode
-    int channel = 32;
-    int tbl_size = channel;
-    auto table_type_scale = RankedTensorType::get({1, channel, 1, 1}, elementType_);
-    std::vector<float> dataVec_fp32;
-    dataVec_fp32.reserve(tbl_size);
-    auto filter_name = layer->layer_param().name()+"_power_scale";
-    weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_scale);
-    operands.push_back(AddLoadWeightOp(block, filter_name, table_type_scale));
-
-    // we just allocate 1 batch cuz
-    // `AssignWeightAddress.cpp` auto seperate high/low part into int8 buffer
-    tbl_size = 1 * channel;
-    auto table_type_shift = RankedTensorType::get({1, channel, 1, 1}, elementType_);
-    dataVec_fp32.reserve(tbl_size);
-    filter_name = layer->layer_param().name()+"_power_shift";
-    weightFile_->addTensor(filter_name, &dataVec_fp32, table_type_shift);
-    operands.push_back(AddLoadWeightOp(block, filter_name, table_type_shift));
-
-    auto result_type = RankedTensorType::get(input_shape, elementType_);
+    operands.push_back(NoneOp.getResult()); // quant_table
+    operands.push_back(NoneOp.getResult()); // quant_table
     std::vector<NamedAttribute> attrs_power;
-    attrs_power.push_back(builder_.getNamedAttr("power", builder_.getF32FloatAttr(2.0)));
-    attrs_power.push_back(builder_.getNamedAttr("scale", builder_.getF32FloatAttr(1.0)));
-    attrs_power.push_back(builder_.getNamedAttr("shift", builder_.getF32FloatAttr(0.0)));
-    attrs_power.push_back(builder_.getNamedAttr("rshift", builder_.getF32FloatAttr(0.0)));
-
-    attrs_power.push_back(builder_.getNamedAttr("name", builder_.getStringAttr(layer_param.name()+"_power")));
-
-    auto power_op = rewriter.create<tpu::PowerOp>(
-        builder_.getUnknownLoc(), result_type,
+    attrs_power.push_back(rewriter.getNamedAttr("coeff", rewriter.getF32FloatAttr(2.0)));
+    attrs_power.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_power")));
+    attrs_power.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    auto power_op = rewriter.create<tpu::PowOp>(
+        rewriter.getUnknownLoc(), result_type,
         ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs_power});
     auto power_result_var = power_op.getResult();
-#else
-    // use eltwise_mul to do power(2)
-    std::vector<Value> operands_eltwise_power;
-    operands_eltwise_power.push_back(input_var);
-    operands_eltwise_power.push_back(input_var);
-    auto NoneOp = rewriter.create<tpu::NoneOp>(loc,rewriter.getNoneType());
-    operands_eltwise_power.push_back(NoneOp.getResult());
-    operands_eltwise_power.push_back(NoneOp.getResult());
-    operands_eltwise_power.push_back(NoneOp.getResult());
-    operands_eltwise_power.push_back(NoneOp.getResult());
-
-    std::vector<NamedAttribute> attrs_eltwise_power;
-    attrs_eltwise_power.push_back(rewriter.getNamedAttr("name",
-                      rewriter.getStringAttr(op_name+"_eltwise_prod_power")));
-    attrs_eltwise_power.push_back(rewriter.getNamedAttr("quant",
-                                  getDefaultQuantParam(rewriter)));
-
-    auto eltwiseMulOp = rewriter.create<tpu::EltwiseMulOp>(
-        loc, result_type,
-        ArrayRef<Value>{operands_eltwise_power},
-        ArrayRef<NamedAttribute>{attrs_eltwise_power});
-    auto power_result_var = eltwiseMulOp.getResult();
-#endif
 
     /// 2. Reduction(using conv2D Op) OP
     std::vector<Value> operands_conv;
@@ -222,11 +170,13 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands_sqrt.push_back(NoneOp.getResult()); // quant_table
 
     std::vector<NamedAttribute> attrs_sqrt;
-    attrs_sqrt.push_back(rewriter.getNamedAttr("name",
-                         rewriter.getStringAttr(op_name + "_sqrt")));
-    attrs_sqrt.push_back(rewriter.getNamedAttr("quant",
-                         getDefaultQuantParam(rewriter)));
-    auto sqrt_op = rewriter.create<tpu::SqrtOp>(
+    attrs_sqrt.push_back(rewriter.getNamedAttr(
+        "name", rewriter.getStringAttr(op_name + "_sqrt")));
+    attrs_sqrt.push_back(
+        rewriter.getNamedAttr("coeff", rewriter.getF32FloatAttr(0.5)));
+    attrs_sqrt.push_back(
+        rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    auto sqrt_op = rewriter.create<tpu::PowOp>(
         loc, result_type,
         ArrayRef<Value>{operands_sqrt}, ArrayRef<NamedAttribute>{attrs_sqrt});
     auto sqrt_result_var = sqrt_op.getResult();
@@ -237,11 +187,12 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands_reciprocal.push_back(NoneOp.getResult()); // quant_table
     operands_reciprocal.push_back(NoneOp.getResult()); // quant_table
     std::vector<NamedAttribute> attrs_reciprocal;
+    attrs_reciprocal.push_back(rewriter.getNamedAttr("coeff", rewriter.getF32FloatAttr(-1.0f)));
     attrs_reciprocal.push_back(rewriter.getNamedAttr("name",
                                rewriter.getStringAttr(op_name+"_reciprocal")));
     attrs_reciprocal.push_back(rewriter.getNamedAttr("quant",
                                getDefaultQuantParam(rewriter)));
-    auto reciprocal_op = rewriter.create<tpu::ReciprocalOp>(
+    auto reciprocal_op = rewriter.create<tpu::PowOp>(
         loc, result_type,
         ArrayRef<Value>{operands_reciprocal},
         ArrayRef<NamedAttribute>{attrs_reciprocal});

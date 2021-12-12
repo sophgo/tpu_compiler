@@ -220,10 +220,10 @@ void TgReduceKernel::reduce_l2() {
   p.relu_enable = 0;
   ctx.tiu_mul(&p);
 
-  cvk_tl_t tl_buf = tl_ofmap;
-  tl_buf.start_address = tl_sum->start_address;
+  cvk_tl_t tl_avg = tl_ofmap;
+  tl_avg.start_address = tl_sum->start_address;
   cvk_tiu_average_pooling_param_t p1 = {0};
-  p1.ofmap = &tl_buf;
+  p1.ofmap = &tl_avg;
   p1.ifmap = &tl_ifmap;
   p1.kh = kh;
   p1.kw = kw;
@@ -239,11 +239,18 @@ void TgReduceKernel::reduce_l2() {
   p1.ins_fp = p1.avg_pooling_const;
   ctx.tiu_average_pooling(&p1);
 
-  auto &s = tl_ofmap.shape;
-  cvi_backend_bf16_tl_lut_mantissa_method(
-      ctx, layer_id, tl_sum->start_address, tl_ofmap.start_address,
-      tl_ifmap.start_address, tl_lut->start_address,
-      tl_lut_mantissa->start_address, s.n, s.c, s.h, s.w);
+  cvk_tl_t tl_buf = tl_ofmap;
+  tl_buf.start_address = tl_ifmap.start_address;
+  ctx.parallel_disable();
+  cvk_tiu_bf16_lookup_interp_table_param_t p2 = {0};
+  p2.ifmap = &tl_avg;
+  p2.ofmap = &tl_ofmap;
+  p2.buf = &tl_buf;
+  p2.tbl_answer = tl_lut;
+  p2.tbl_answer_mantissa = tl_lut_mantissa;
+  p2.is_scientific = 1;
+  p2.layer_id = layer_id;
+  ctx.tiu_bf16_lookup_interp_table(&p2);
 }
 
 void TgReduceKernel::init(uint32_t layer_id, gaddr_t ga_input,

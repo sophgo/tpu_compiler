@@ -217,41 +217,6 @@ void PReluOpKernel::invoke() {
   }
 }
 
-ReciprocalOpKernel::ReciprocalOpKernel(Operation &op, value_map_t &valueMapping,
-                                       weight_map_t &weightMapping)
-    : CPUOpKernel(op, valueMapping, weightMapping) {
-
-  auto rOp = cast<tpu::ReciprocalOp>(op);
-  if (datatype == DataType::INT8) {
-    y0_table_op = this->opdTensors[1];
-    slope_table = this->opdTensors[2];
-  } else if (datatype == DataType::BF16) {
-    y0_bf16_table_op = this->opdTensors[1];
-    y0_bf16_slope_table = this->opdTensors[2];
-    bf16_min_range = rOp.min_range().convertToFloat();
-    bf16_max_range = rOp.max_range().convertToFloat();
-  }
-
-  // get tensors
-  input_data = this->opdTensors[0];
-  output_data = this->resTensor;
-}
-
-void ReciprocalOpKernel::invoke() {
-  size_t output_size = output_data->size();
-  if (datatype == DataType::INT8) {
-#pragma omp parallel for schedule(static, omp_schedule(output_size))
-    for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
-    }
-  } else {
-#pragma omp parallel for schedule(static, omp_schedule(output_size))
-    for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = 1.0 / input_data->at(i);
-    }
-  }
-}
-
 ReshapeOpKernel::ReshapeOpKernel(Operation &op, value_map_t &valueMapping,
                                  weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
@@ -414,25 +379,26 @@ void SoftPlusOpKernel::invoke() {
   }
 }
 
-SqrtOpKernel::SqrtOpKernel(Operation &op, value_map_t &valueMapping,
+PowOpKernel::PowOpKernel(Operation &op, value_map_t &valueMapping,
                            weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
-  auto sqrtOp = cast<tpu::SqrtOp>(op);
+  auto powOp = cast<tpu::PowOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
     slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
     y0_bf16_table_op = this->opdTensors[1];
     y0_bf16_slope_table = this->opdTensors[2];
-    bf16_min_range = sqrtOp.min_range().convertToFloat();
-    bf16_max_range = sqrtOp.max_range().convertToFloat();
+    bf16_min_range = powOp.min_range().convertToFloat();
+    bf16_max_range = powOp.max_range().convertToFloat();
   }
   // get tensors
   input_data = this->opdTensors[0];
   output_data = this->resTensor;
+  coeff = powOp.coeff().convertToFloat();
 }
 
-void SqrtOpKernel::invoke() {
+void PowOpKernel::invoke() {
   size_t output_size = output_data->size();
   if (datatype == DataType::INT8) {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
@@ -446,29 +412,12 @@ void SqrtOpKernel::invoke() {
   } else {
 #pragma omp parallel for schedule(static, omp_schedule(output_size))
     for (size_t i = 0; i < output_size; ++i) {
-      output_data->at(i) = pow(input_data->at(i), 0.5);
+      if (coeff != (int)(coeff) && input_data->at(i) < 0) {
+        output_data->at(i) = 0.0f;
+      } else {
+        output_data->at(i) = std::pow(input_data->at(i), coeff);
+      }
     }
-  }
-}
-
-SquareOpKernel::SquareOpKernel(Operation &op, value_map_t &valueMapping,
-                               weight_map_t &weightMapping)
-    : CPUOpKernel(op, valueMapping, weightMapping) {
-  // get tensors
-  input_data = this->opdTensors[0];
-  output_data = this->resTensor;
-}
-
-void SquareOpKernel::invoke() {
-  size_t output_size = output_data->size();
-#pragma omp parallel for schedule(static, omp_schedule(output_size))
-  for (size_t i = 0; i < output_size; ++i) {
-    output_data->at(i) = input_data->at(i) * input_data->at(i);
-  }
-  if (datatype == DataType::INT8) {
-    llvm_unreachable("No int8 sqaure");
-  } else if (datatype == DataType::BF16) {
-    BF16(output_data->data(), output_data->data(), output_data->size());
   }
 }
 

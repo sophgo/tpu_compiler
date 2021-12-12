@@ -922,7 +922,8 @@ class OnnxConverter(BaseConverter):
                 activation_op = self.CVI.add_exp_op("{}_{}".format(onnx_node.name, onnx_node.op_type),
                                                        operands, output_shape, scale=scale, bias=bias)
             elif onnx_node.op_type == "Sqrt":
-                activation_op = self.CVI.add_sqrt_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
+                attrs = {'coeff':0.5}
+                activation_op = self.CVI.add_pow_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape, **attrs)
             elif onnx_node.op_type == "Softplus":
                 scale = onnx_node.attrs.get('scale', 1)
                 bias = onnx_node.attrs.get('bias', 0)
@@ -1690,7 +1691,8 @@ class OnnxConverter(BaseConverter):
             # get 1/y
             output_shape = list(input_shape2)
             name = "{}_reciprocal_{}".format(onnx_node.name, onnx_node.op_type)
-            _op = self.CVI.add_reciprocal_op(name, [op2], output_shape)
+            attrs = {'coeff':-1.0}
+            _op = self.CVI.add_pow_op(name, [op2], output_shape, **attrs)
 
             name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
             output_shape = self.same_shape(input_shape1, input_shape2)
@@ -2819,16 +2821,15 @@ class OnnxConverter(BaseConverter):
         assert(onnx_node.op_type == "Pow")
         op0, input_shape0, tensor_type0 = self.getOperand(onnx_node.inputs[0])
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[1])
+        op_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
         if tensor_type1 == TensorType.TENSOR and np.prod(input_shape1) == 1:
-            data = self.getTensor(onnx_node.inputs[1]).tensor_data.astype(np.int32)
-            if data > 4:
-                raise RuntimeError("Power not support {} {}".format(input_shape0, input_shape1))
-            mul_op = op0
-            name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-            for i in range(data - 1):
-                name_i = "{}_{}".format(name, i)
-                mul_op = self.CVI.add_eltwise_mul_op(name_i, [mul_op, op0], input_shape0)
-            self.addOperand(onnx_node.name, mul_op, input_shape0, TensorType.ACTIVATION)
+            data = self.getTensor(onnx_node.inputs[1]).tensor_data.flatten()[0]
+            if data == 1.0:
+                self.addOperand(onnx_node.name, op0, input_shape0, tensor_type0)
+                return
+            attrs = {'coeff': data}
+            new_op = self.CVI.add_pow_op(op_name, [op0], input_shape0, **attrs)
+            self.addOperand(onnx_node.name, new_op, input_shape0, TensorType.ACTIVATION)
             return
         raise RuntimeError("Power not support {} {}".format(input_shape0, input_shape1))
 
@@ -2837,19 +2838,19 @@ class OnnxConverter(BaseConverter):
         if len(onnx_node.inputs) != 1:
             raise ValueError("{} must only one input".format(onnx_node.op_type))
         op1, input_shape1, tensor_type1 = self.getOperand(onnx_node.inputs[0])
-
+        op_name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
+        output_shape = list(input_shape1)
         if tensor_type1 == TensorType.TENSOR:
             tensor_data1 = self.getTensor(onnx_node.inputs[0]).tensor_data
             output_data = 1.0 / tensor_data1
-            output_shape = output_data.shape
             self.addTensor(onnx_node.name, output_data, list(output_shape))
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
             operands = list()
             operands.append(op1)
-            output_shape = input_shape1
-            relu_op = self.CVI.add_reciprocal_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands, output_shape)
-            self.addOperand(onnx_node.name, relu_op, output_shape, TensorType.ACTIVATION)
+            attrs = {'coeff': -1.0}
+            new_op = self.CVI.add_pow_op(op_name, operands, output_shape, **attrs)
+            self.addOperand(onnx_node.name, new_op, output_shape, TensorType.ACTIVATION)
 
     def convert_relu_op(self, onnx_node):
         assert(onnx_node.op_type == "Relu")

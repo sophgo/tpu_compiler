@@ -75,7 +75,7 @@ void cvi_backend_tg_bf16_layernorm_kernel(
         "Tilling LayerNorm failed, src shape:[1,%d,%d,%d]\n", batch_size, h, w);
     assert(0);
   }
-
+  ctx.parallel_disable();
   for (int batch_pos = 0; batch_pos < batch_size; batch_pos += batch_step) {
     int batch = std::min(batch_step, batch_size - batch_pos);
     auto input_shape = ctx.tl_shape_t4(1, batch, h, w);

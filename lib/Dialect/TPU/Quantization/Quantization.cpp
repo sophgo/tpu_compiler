@@ -598,9 +598,9 @@ static void quant_for_special(Operation *op) {
   } else if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == true) {
   } else if (isa<tpu::LayerNormOp>(op) || isa<tpu::ConvFcOp>(op) ||
              isa<tpu::GruOp>(op) || isa<tpu::LstmOp>(op) ||
-             isa<tpu::SquareOp>(op) || isa<tpu::StdOp>(op) ||
-             isa<tpu::EmbeddingOp>(op) || isa<tpu::QuadraticSumOp>(op) ||
-             isa<tpu::Conv3DOp>(op) || isa<tpu::ReduceL2Op>(op)) {
+             isa<tpu::StdOp>(op) || isa<tpu::EmbeddingOp>(op) ||
+             isa<tpu::QuadraticSumOp>(op) || isa<tpu::Conv3DOp>(op) ||
+             isa<tpu::ReduceL2Op>(op)) {
   } else {
     return;
   }

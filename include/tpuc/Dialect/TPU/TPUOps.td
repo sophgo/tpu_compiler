@@ -220,6 +220,11 @@ class TPU_EltwiseOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
   }];
 }
 
+def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
+def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
+def TPU_EltwiseMinOp : TPU_EltwiseOp<"eltwise_min", "Min">;
+def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
+
 class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -264,12 +269,18 @@ class TPU_LutOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     StrAttr:$name,
     DefaultValuedAttr<F32Attr, "8">:$max_range,
     DefaultValuedAttr<F32Attr, "-8">:$min_range,
-    DefaultValuedAttr<I32Attr, "-1">:$layer_id,
+    DefaultValuedAttr<F32Attr, "0">:$coeff,
     TPU_QuantParamAttr:$quant
   );
 
   let results = (outs AnyTensor:$output);
 }
+
+def TPU_EluOp: TPU_LutOp<"elu", "Elu">;
+def TPU_LogOp : TPU_LutOp<"log", "Log">;
+def TPU_PowOp : TPU_LutOp<"pow", "Pow">;
+def TPU_SwishOp : TPU_LutOp<"swish", "Swish">;
+def TPU_TanHOp : TPU_LutOp<"tanh", "TanH">;
 
 //===----------------------------------------------------------------------===//
 // TPU op definitions. (in alphabetical order)
@@ -742,11 +753,6 @@ def TPU_DilateOp: TPU_Op<"dilate",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_EltwiseAddOp : TPU_EltwiseOp<"eltwise_add", "Add">;
-def TPU_EltwiseMaxOp : TPU_EltwiseOp<"eltwise_max", "Max">;
-def TPU_EltwiseMinOp : TPU_EltwiseOp<"eltwise_min", "Min">;
-def TPU_EltwiseMulOp : TPU_EltwiseOp<"eltwise_mul", "Mul">;
-
 def TPU_MulConstOp: TPU_Op<"mul_const",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -1203,8 +1209,6 @@ def TPU_LeakyReluOp: TPU_Op<"leaky_relu",
 
   let results = (outs AnyTensor:$output);
 }
-
-def TPU_LogOp : TPU_LutOp<"log", "Log">;
 
 class TPU_LrnPartOp<string mnemonic,  string opSummary> : TPU_Op<mnemonic,
     [NoSideEffect,
@@ -1810,54 +1814,6 @@ def TPU_CustomOp : TPU_Op<"custom_op",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_PowerOp: TPU_Op<"power",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Power operator";
-
-  let description = [{
-    Power f(x) = (scale * x + shift) ^ power
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `power`           : required
-      `scale`           : required
-      `shift`           : required
-      `quant`           : required, a QuantParam struct attributes.
-      `name`            : required, name for calibration, comparing, or debug.
-
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TPU_QuantPerTensorOnly`
-      `TPU_QuantSupportAsymmetric`
-      `TPU_QuantSameInputResultScale` : input and result share same threshold
-                                        or scale (bypassed).
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpQuantInterface`  : support quantization
-      `TpuOpLowerInterface`  : support lower
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    DefaultValuedAttr<F32Attr, "1.0">:$power,
-    DefaultValuedAttr<F32Attr, "1.0">:$scale,
-    DefaultValuedAttr<F32Attr, "0.0">:$shift,
-    TPU_QuantParamAttr:$quant,
-    StrAttr:$name
-  );
-
-  let results = (outs AnyTensor:$output);
-  let hasCanonicalizer = 1;
-}
-
 def TPU_PReluOp : TPU_Op<"prelu",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -2023,8 +1979,6 @@ def TPU_ProposalOp: TPU_Op<"proposal",
 
   let results = (outs AnyTensor:$output);
 }
-
-def TPU_ReciprocalOp : TPU_LutOp<"reciprocal", "Reciprocal">;
 
 def TPU_ReflectionPadOp : TPU_Op<"reflection_pad",
       [NoSideEffect,
@@ -2452,10 +2406,6 @@ def TPU_SigmoidOp : TPU_Op<"sigmoid",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_SwishOp : TPU_LutOp<"swish", "Swish">;
-
-def TPU_EluOp: TPU_LutOp<"elu", "Elu">;
-
 def TPU_SoftmaxOp: TPU_Op<"softmax",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -2546,45 +2496,6 @@ def TPU_SoftmaxCpuOp: TPU_Op<"softmax_cpu",
   let results = (outs AnyTensor:$output);
 }
 
-def TPU_SqrtOp : TPU_LutOp<"sqrt", "Sqrt">;
-
-def TPU_SquareOp: TPU_Op<"square",
-      [NoSideEffect,
-       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
-       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
-       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
-  let summary = "Square operator";
-
-  let description = [{
-    Perform square on input.
-
-    Inputs:
-      `input`           : required, the input activation tensor.
-
-    Attributes:
-      `name`            : required, name for calibration, comparing, or debug.
-
-
-    Result:
-      `output`          : result tensor.
-
-    Interfaces or Traits:
-      `NoSideEffect`
-      `TpuOpCommonInterface` : support common TPU Op interface
-      `TpuOpQuantInterface`  : CPU Op still needs threshold for quant/dequant
-                               of the next/prev Ops.
-      No `TpuOpLowerInterface`  : CPU Op no lowering to TPU TG Ops
-  }];
-
-  let arguments = (
-    ins AnyTensor:$input,
-    StrAttr:$name,
-    TPU_QuantParamAttr:$quant
-  );
-
-  let results = (outs AnyTensor:$output);
-}
-
 def TPU_QuadraticSumOp: TPU_Op<"quadratic_sum",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
@@ -2668,8 +2579,6 @@ def TPU_SwapChannelOp: TPU_Op<"swap_channel",
   let results = (outs AnyTensor:$output);
   let hasCanonicalizer = 1;
 }
-
-def TPU_TanHOp : TPU_LutOp<"tanh", "TanH">;
 
 def TPU_TileOp: TPU_Op<"tile",
       [NoSideEffect,

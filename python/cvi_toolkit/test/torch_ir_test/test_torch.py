@@ -52,6 +52,7 @@ TEST_TORCH_IR = [
     "Math", ## sum, prod not support
     "masked_fill",
     "Norm",
+    "Pow",
     "Repeat",   ## repeat_interleave nonx not support
     "ReflectionPad", ## ReflectionPad_2d not support
     "Std",
@@ -171,6 +172,7 @@ class TORCH_IR_TESTER(object):
             "Mulit_attention_api": self.test_Mulit_attention_api,
             "Max_Min": self.test_Max_Min,
             "Norm": self.test_Norm,
+            "Pow": self.test_Pow,
             "Repeat": self.test_Repeat,
             "ReflectionPad": self.test_ReflectionPad,
             "Std": self.test_Std,
@@ -517,7 +519,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Expand'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -546,7 +548,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Unfold'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -570,7 +572,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Flatten'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -637,7 +639,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'ChannelShuffle'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -667,7 +669,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Upsample'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -691,7 +693,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Identity'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -715,7 +717,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Max_Min'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -761,7 +763,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Squeeze'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -784,7 +786,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Dropout'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -811,7 +813,7 @@ class TORCH_IR_TESTER(object):
         test_name = 'Math'
 
         net = Net()
-        input_data = torch.randn(input_shape[0], input_shape[1], input_shape[2], input_shape[3])
+        input_data = torch.randn(*input_shape)
         torch_output_data = net(input_data)
 
         # Use the exporter from  torch to convert to onnx
@@ -996,6 +998,32 @@ class TORCH_IR_TESTER(object):
 
         input_shape = [3, 10, 100, 100]
         test_name = 'Norm'
+
+        net = Net()
+        input_data = torch.randn(input_shape)
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_name)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
+    def test_Pow(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv2d = nn.Conv2d(in_channels=10, out_channels=10, kernel_size=3, stride=1, padding=1)
+
+            def forward(self, x):
+                x1 = torch.pow(x, 3)
+                x2 = self.conv2d(x)
+                x2 = torch.relu(x2)
+                x3 = x1 + x2
+                return x3
+
+        input_shape = [3, 10, 50, 50]
+        test_name = 'Pow'
 
         net = Net()
         input_data = torch.randn(input_shape)

@@ -393,96 +393,31 @@ void cvi_backend_bf16_tl_lut_slope_method(
 }
 
 void cvi_backend_bf16_tl_lut_mantissa_method(
-    const CviBackendContext &ctx, uint32_t layer_id,
-    laddr_t la_input, laddr_t la_output, laddr_t la_working,
-    laddr_t la_exponential_table, laddr_t la_mantissa_lut,
-    int n, int c, int h, int w) {
-
+    const CviBackendContext &ctx, uint32_t layer_id, laddr_t la_input,
+    laddr_t la_output, laddr_t la_working, laddr_t la_exponential_table,
+    laddr_t la_mantissa_lut, int n, int c, int h, int w) {
   ctx.set_layer_id(layer_id);
+  auto shape = ctx.tl_shape_t4(n, c, h, w);
+  auto table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
+  cvk_tl_t tl_ifmap = {0}, tl_ofmap = {0}, tl_working = {0}, tl_table = {0},
+           tl_mantissa = {0};
+  ctx.lmem_init_tensor(&tl_ifmap, shape, CVK_FMT_BF16, 1);
+  ctx.lmem_init_tensor(&tl_ofmap, shape, CVK_FMT_BF16, 1);
+  ctx.lmem_init_tensor(&tl_working, shape, CVK_FMT_BF16, 1);
+  ctx.lmem_init_tensor(&tl_table, table_shape, CVK_FMT_BF16, 1);
+  ctx.lmem_init_tensor(&tl_mantissa, table_shape, CVK_FMT_BF16, 1);
+  tl_ifmap.start_address = la_input;
+  tl_ofmap.start_address = la_output;
+  tl_working.start_address = la_working;
+  tl_table.start_address = la_exponential_table;
+  tl_mantissa.start_address = la_mantissa_lut;
   ctx.parallel_disable();
-  LLVM_DEBUG(
-    llvm::errs() << "cvi_backend_bf16_tl_lut_mantissa_method: nchw = ("
-                 << n << "," << c << "," << h << "," << w << ")"
-                 << "\n                     "
-                 << "la_i = " << la_input
-                 << ", la_o = " << la_output
-                 << ", la_w = " << la_working
-                 << ", la_lut = " << la_exponential_table
-                 << ", la_lut = " << la_mantissa_lut
-                 << "\n";
-  );
-
-  cvk_tl_t _tl_ifmap = {}, _tl_ofmap_slope = {}, _tl_ofmap_y0 = {}, _tl_table_answer = {}, _tl_table_answer_mantissa = {};
-  cvk_tl_t *tl_ifmap, *tl_ofmap_slope, *tl_ofmap_y0, *tl_table_answer, *tl_table_answer_mantissa;
-  tl_ifmap = &_tl_ifmap;
-  tl_ofmap_slope = &_tl_ofmap_slope;
-  tl_ofmap_y0 = &_tl_ofmap_y0;
-  tl_table_answer = &_tl_table_answer;
-  tl_table_answer_mantissa = &_tl_table_answer_mantissa;
-
-  // input
-  tl_ifmap->start_address = la_input;
-  tl_ifmap->fmt = CVK_FMT_BF16;
-  tl_ifmap->shape = ctx.tl_shape_t4(n, c, h, w);
-  tl_ifmap->stride = ctx.tl_default_stride(tl_ifmap->shape, tl_ifmap->fmt, /*eu_align=*/1);
-  // output
-  tl_ofmap_y0->start_address = la_output;
-  tl_ofmap_y0->fmt = tl_ifmap->fmt;
-  tl_ofmap_y0->shape = tl_ifmap->shape;
-  tl_ofmap_y0->stride = tl_ifmap->stride;
-  // working
-  tl_ofmap_slope->start_address = la_working;
-  tl_ofmap_slope->fmt = tl_ifmap->fmt;
-  tl_ofmap_slope->shape = tl_ifmap->shape;
-  tl_ofmap_slope->stride = tl_ifmap->stride;
-
-  // y0
-  tl_table_answer->start_address = la_exponential_table;
-  tl_table_answer->fmt = CVK_FMT_BF16;
-  tl_table_answer->shape = ctx.lut_table_shape(CVK_FMT_BF16);
-  tl_table_answer->stride = ctx.tl_default_stride(tl_table_answer->shape, CVK_FMT_BF16, /*eu_align=*/1);
-
-  // mantissa
-  tl_table_answer_mantissa->start_address = la_mantissa_lut;
-  tl_table_answer_mantissa->fmt = tl_table_answer->fmt;
-  tl_table_answer_mantissa->shape = tl_table_answer->shape;
-  tl_table_answer_mantissa->stride = tl_table_answer->stride;
-
-  // issue lut cmd
-  cvk_tdma_l2l_tensor_copy_param_t p10;
-  // remove low 8 bits by int8 copy with stride
-  // <! get index(pow)
-  memset(&p10, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
-  p10.dst = tl_ofmap_y0;
-  p10.src = tl_ifmap;
-  p10.mv_lut_base = false; // MUST init by ifself in soc
-  p10.mv_lut_idx = true;
-  p10.layer_id = layer_id;
-  ctx.tdma_l2l_tensor_copy(&p10);
-
-  // <! get f(x0) = 2^(x0*-0.5)
-  cvk_tiu_lookup_table_param_t p12={0};
-  p12.layer_id = layer_id;
-  p12.ofmap = tl_ofmap_y0;
-  p12.ifmap = tl_ofmap_y0;
-  p12.table = tl_table_answer;
-  ctx.tiu_lookup_table(&p12);
-
-  // <! get mantissa value
-  p12.ofmap = tl_ifmap;
-  p12.ifmap = tl_ifmap;
-  p12.table = tl_table_answer_mantissa;
-  ctx.tiu_lookup_table(&p12);
-
-  // sqrt = (2^exp) * mantissa
-  cvk_tiu_mul_param_t p = {0};
-  p.res_high = nullptr;
-  p.res_low = tl_ofmap_y0;
-  p.a =tl_ofmap_y0;
-  p.b = tl_ifmap;
-  p.b_is_const = 0;
-  p.rshift_bits = 0;
-  p.layer_id = layer_id;
-  p.relu_enable = false;
-  ctx.tiu_mul(&p);
+  cvk_tiu_bf16_lookup_interp_table_param_t p = {0};
+  p.ifmap = &tl_ifmap;
+  p.buf = &tl_working;
+  p.tbl_answer = &tl_table;
+  p.tbl_answer_mantissa = &tl_mantissa;
+  p.ofmap = &tl_ofmap;
+  p.is_scientific = 1;
+  ctx.tiu_bf16_lookup_interp_table(&p);
 }

@@ -76,14 +76,13 @@ class TPU_OpType(Enum):
     PoolMax2D = 'tpu.pool_max_2d'
     PoolMax3D = 'tpu.pool_max_3d'
     PoolMask = 'tpu.pool_mask'
-    Power = 'tpu.power'
+    Pow = 'tpu.pow'
     Preprocess = 'tpu.preprocess'
     PriorBox = 'tpu.priorbox'
     PRelu = 'tpu.prelu'
     Proposal = 'tpu.proposal'
     Quant = 'tpu.quant'
     ReQuant = 'tpu.requant'
-    Reciprocal = 'tpu.reciprocal'
     Reshape = 'tpu.reshape'
     Relu = 'tpu.relu'
     Reorg = 'tpu.reorg'
@@ -97,7 +96,6 @@ class TPU_OpType(Enum):
     Slice = 'tpu.slice'
     SoftPlus = 'tpu.softplus'
     Softmax = 'tpu.softmax'
-    Sqrt = 'tpu.sqrt'
     Std = 'tpu.std'
     SwapChannel = 'tpu.swap_channel'
     Tanh = 'tpu.tanh'
@@ -112,7 +110,6 @@ class TPU_OpType(Enum):
     ReduceSum = 'tpu.reduce_sum'
     MatMul = 'tpu.matmul'
     BroadcastSub = 'tpu.broadcast_sub'
-    Square = 'tpu.square'
     QuadraticSum = 'tpu.quadratic_sum'
     ZeroMask = 'tpu.zero_mask'
 
@@ -1380,22 +1377,6 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.PoolMax3D.value, inputOperands, [
             tensor_output_type], name=pool_max_3d_name, param=dict_attr, quant=quant_param)
 
-    def add_power_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = RankedTensorType.get(
-            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-        checkKey(kargs, 'power')
-        checkKey(kargs, 'scale')
-        checkKey(kargs, 'shift')
-
-        name_attr = StringAttr.get(op_name)
-        param = {
-            'power': FloatAttr.get_f32(kargs['power']),
-            'scale': FloatAttr.get_f32(kargs['scale']),
-            'shift': FloatAttr.get_f32(kargs['shift']),
-        }
-        return self.buildOp(TPU_OpType.Power.value, inputOperands, [
-            tensor_output_type], name=name_attr, quant=self.quant_param, **param)
-
     def add_priorbox_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
@@ -1518,20 +1499,6 @@ class MLIRImporter(object):
         return self.buildOp(TPU_OpType.Quant.value, inputOperands, [
             tensor_output_type], name=quant_name, **attr_dict)
 
-    def add_reciprocal_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
-        tensor_output_type = RankedTensorType.get(
-            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-
-        reciprocal_name = StringAttr.get(op_name)
-
-        # table and table_mantissa all are none
-        none = self.add_none_op()
-        for _ in range(3 - len(inputOperands)):
-            inputOperands.append(none)
-
-        return self.buildOp(TPU_OpType.Reciprocal.value, inputOperands, [
-            tensor_output_type], name=reciprocal_name, quant=self.quant_param)
-
     def add_relu_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
@@ -1641,17 +1608,21 @@ class MLIRImporter(object):
                                       tensor_output_type], name=sigmoid_name, quant=self.quant_param,
                                       scale=FloatAttr.get_f32(scale), bias=FloatAttr.get_f32(bias))
 
-    def add_sqrt_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
+    def add_pow_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
 
-        sqrt_name = StringAttr.get(op_name)
+        name = StringAttr.get(op_name)
         none = self.add_none_op()
-        # We assigne 4 reg for sqrt quant table
+        coeff = kargs.get('coeff', 0.0)
+        param = {
+            'coeff': FloatAttr.get_f32(coeff)
+        }
+        # We assigne 4 reg for quant table
         for _ in range(2):
             inputOperands.append(none)
-        return self.buildOp(TPU_OpType.Sqrt.value, inputOperands, [
-            tensor_output_type], name=sqrt_name, quant=self.quant_param)
+        return self.buildOp(TPU_OpType.Pow.value, inputOperands, [
+            tensor_output_type], name=name, quant=self.quant_param, **param)
 
     def add_std_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
@@ -1908,13 +1879,6 @@ class MLIRImporter(object):
         name_attr = StringAttr.get(op_name)
         self.add_quant_reg(inputOperands)
         return self.buildOp(TPU_OpType.MatMul.value, inputOperands, [tensor_output_type],
-                            name=name_attr, quant=self.quant_param)
-
-    def add_square_op(self, op_name, inputOperands, output_tensor_shape):
-        tensor_output_type = RankedTensorType.get(
-            tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
-        name_attr = StringAttr.get(op_name)
-        return self.buildOp(TPU_OpType.Square.value, inputOperands, [tensor_output_type],
                             name=name_attr, quant=self.quant_param)
 
     def add_zero_mask_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
