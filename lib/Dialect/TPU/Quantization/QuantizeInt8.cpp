@@ -45,9 +45,9 @@ using namespace mlir;
 
 namespace mlir {
 
-inline static float INT8(float data) {
+inline static double INT8(double data) {
   data = std::floor(data + 0.5);
-  return std::max(std::min(data, 127.0f), -128.0f);
+  return std::max(std::min(data, 127.0), -128.0);
 }
 
 ///
@@ -553,7 +553,7 @@ LogicalResult quantizeInt8LutOps(Operation *op, float coeff= 0.0f) {
 
   // input: 0~127, -128~ -1, Y=1/(1+EXP(-X*thx/128)) * 128/thy
   // output:0~127, negative is invalid
-  float index, lutOutput;
+  double index, lutOutput;
   int8_t lutInput;
   for (int n = 0; n < npu_num; n++) {
     for (int idx = 0; idx < table_hw; ++idx) {
