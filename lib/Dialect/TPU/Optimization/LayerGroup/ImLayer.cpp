@@ -101,30 +101,28 @@ void ImLayer::add_imm_tensor(const std::shared_ptr<Tensor> associcate,
 
 static bool is_crop_fusible(Operation *op) {
   // ONLY shift channel offset align NPU_NUM
-  std::vector<int32_t> crop_offsets;
-  std::vector<int32_t> steps;
+  std::vector<int32_t> offset_4;
+  std::vector<int32_t> step_4;
+  std::vector<int64_t> is_4;
+  std::vector<int64_t> os_4;
+  bool fusible;
   if (auto crop_op = dyn_cast<tpu::TG_INT8_CropOp>(op)) {
-    arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
-    if (crop_op.steps().hasValue()) {
-      arrayAttrToVector(crop_op.steps().getValue(), steps);
-    }
+    parseCropParam<tpu::TG_INT8_CropOp>(op, is_4, os_4, offset_4, step_4, fusible);
   } else if (auto crop_op = dyn_cast<tpu::TG_BF16_CropOp>(op)) {
-    arrayAttrToVector(crop_op.crop_offset(), crop_offsets);
-    if (crop_op.steps().hasValue()) {
-      arrayAttrToVector(crop_op.steps().getValue(), steps);
-    }
+    parseCropParam<tpu::TG_BF16_CropOp>(op, is_4, os_4, offset_4, step_4, fusible);
   } else {
     llvm_unreachable("unsupported op");
   }
-  int total_steps = std::accumulate(steps.begin(),steps.end(), 1, std::multiplies<int32_t>());
-  if (total_steps > 1) {
+  int total_steps = std::accumulate(step_4.begin(),step_4.end(), 1, std::multiplies<int32_t>());
+  if (total_steps != 1 || fusible == true) {
     return false;
   }
-  if (crop_offsets.size() != 4) {
+  auto shape = getTensorShape(op->getOperand(0));
+  if (shape.size() != 3 || shape.size() != 4) {
     return false;
   }
   // offset should be n/c/h/w
-  return crop_offsets[1] % NPU_NUM == 0;
+  return offset_4[1] % NPU_NUM == 0;
 }
 
 std::shared_ptr<ImLayer> ImLayer::create(Operation* op) {

@@ -223,44 +223,10 @@ void cvi_backend_tg_bf16_lut_slope_kernel(
   ctx.lmem_free_tensor(tl_table_answer);
 }
 
-void bf16_lut_mantissa_tl_kernel(
-    const CviBackendContext &ctx, laddr_t la_ifmap, laddr_t la_buf,
-    laddr_t la_table_answer, laddr_t la_table_answer_mantissa, laddr_t la_ofmap,
-    uint32_t tensor_n, uint32_t tensor_c, uint32_t tensor_h, uint32_t tensor_w,
-    uint32_t table_n, uint32_t table_c, uint32_t table_h, uint32_t table_w) {
-
-  cvk_fmt_t fmt = CVK_FMT_BF16;
-
-  cvk_tl_t tl_ifmap, tl_buf, tl_table_answer, tl_table_answer_mantissa,
-      tl_ofmap;
-
-  // restore tensor from  start_address / shape
-  cvi_backend_tl_to_tensor(ctx, &tl_ifmap, la_ifmap, tensor_n, tensor_c,
-                           tensor_h, tensor_w, fmt, 1);
-  cvi_backend_tl_to_tensor(ctx, &tl_buf, la_buf, tensor_n, tensor_c, tensor_h,
-                           tensor_w, fmt, 1);
-  cvi_backend_tl_to_tensor(ctx, &tl_table_answer, la_table_answer, table_n,
-                           table_c, table_h, table_w, fmt, 1);
-  cvi_backend_tl_to_tensor(ctx, &tl_table_answer_mantissa,
-                           la_table_answer_mantissa, table_n, table_c, table_h,
-                           table_w, fmt, 1);
-  cvi_backend_tl_to_tensor(ctx, &tl_ofmap, la_ofmap, tensor_n, tensor_c,
-                           tensor_h, tensor_w, fmt, 1);
-
-  cvk_tiu_bf16_lookup_interp_table_param_t param = {0};
-  param.ifmap = &tl_ifmap;
-  param.buf = &tl_buf;
-  param.tbl_answer = &tl_table_answer;
-  param.tbl_answer_mantissa = &tl_table_answer_mantissa;
-  param.ofmap = &tl_ofmap;
-  param.is_scientific = 1;
-  ctx.tiu_bf16_lookup_interp_table(&param);
-}
-
 void cvi_backend_tg_bf16_lut_mantissa_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
-    gaddr_t ga_output, gaddr_t exp_lut_table, gaddr_t mantissa_lut_table,
-    int n, int c, int h, int w) {
+    gaddr_t ga_output, gaddr_t exp_lut_table, gaddr_t mantissa_lut_table, int n,
+    int c, int h, int w) {
 
   cvk_fmt_t fmt = CVK_FMT_BF16;
   cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
@@ -292,14 +258,15 @@ void cvi_backend_tg_bf16_lut_mantissa_kernel(
 
     // load input
     ctx.tdma_load(tl_ifmap, ga_input + tile.offset);
-    bf16_lut_mantissa_tl_kernel(
-        ctx, tl_ifmap->start_address, tl_buf->start_address,
-        tl_table_answer->start_address, tl_table_answer_mantissa->start_address,
-        tl_ofmap->start_address, tile.n, tile.c, tile.h, tile.w, table_shape.n, table_shape.c,
-        table_shape.h, table_shape.w);
+    cvk_tiu_bf16_lookup_interp_table_param_t param = {0};
+    param.ifmap = tl_ifmap;
+    param.buf = tl_buf;
+    param.tbl_answer = tl_table_answer;
+    param.tbl_answer_mantissa = tl_table_answer_mantissa;
+    param.ofmap = tl_ofmap;
+    param.is_scientific = 1;
+    ctx.tiu_bf16_lookup_interp_table(&param);
 
-    // TODO checke tfma/tiu pipeline
-    // store
     ctx.tdma_store(tl_ofmap, ga_output + tile.offset);
 
     ctx.lmem_free_tensor(tl_ofmap);
