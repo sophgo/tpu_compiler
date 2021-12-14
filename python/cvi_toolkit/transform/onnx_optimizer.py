@@ -1,3 +1,4 @@
+from typing import cast
 import onnx
 import copy
 import torch
@@ -9,6 +10,7 @@ import onnx.shape_inference
 from collections import OrderedDict
 from numbers import Number
 from onnx import TensorProto, mapping
+
 
 def convert_onnx_attribute_proto(attr_proto):
     if attr_proto.HasField('f'):
@@ -57,9 +59,6 @@ def get_attr(attrs, name):
                   for attr in attrs])
     return attrs[name]
 
-def get_constant_vale(node):
-    return onnx.numpy_helper.to_array(node.attribute[0].t)
-
 def fixed_point(fun):
     flag = fun()
     while True:
@@ -73,8 +72,10 @@ def dump_model(model, name="opt.onnx"):
     with open(name, "wb") as file:
         file.write(data)
 
+
 class PesudoNode(object):
-    def __init__(self, op_type, input=None, output=None, attr_key_map=None, const_value=None, default=None):
+    def __init__(self, op_type, input=None, output=None, attr_key_map=None,
+                 const_value=None, default=None, constraint=None):
         if input is None:
             input = []
         if output is None:
@@ -91,6 +92,8 @@ class PesudoNode(object):
         # for constant node
         self.const_value = const_value
         self.default = default
+        # for broat cast or other constraint
+        self.constraint = constraint
 
 
 class RedundanciesOps(object):
@@ -106,27 +109,155 @@ class FoldUnfoldInfo(object):
         self.src_node = src_node
         self.trg_node = trg_node
 
+
 class Form_Deform(object):
     # support form/deform multi input single output op
-    def __init__(self, nodes):
+    def __init__(self, model):
         self.op_list = []
-        self.nodes = nodes
+        self.nodes = model.graph.node
+        self.weight = model.graph.initializer
+        # store node shape
+        self.shape_info = [info for info in model.graph.value_info]
+        self.shape_info.extend(model.graph.output)
+        self.shape_info = {info.name: [i.dim_value for i in info.type.tensor_type.shape.dim if i.dim_value > 0]
+                            for info in self.shape_info}
+        self.tensor = [x.name for x in self.weight]
+        self.tensor.extend([node.output[0] for node in self.nodes if node.op_type == "Constant"])
 
-    @staticmethod
-    def is_node_connected(node0, node1):
-        return set(node0.output).intersection(set(node1.input))
+    def get_node(self, name):
+        for idx, n in enumerate(self.nodes):
+            if name in n.output:
+                return idx, n
 
-    @staticmethod
-    def get_input(input, node):
-        _input = []
-        pattern_input = []
-        for inp, idx in input:
-            if inp == "input":
-                _input.append(node.input[idx])
-                pattern_input.append(node.input[idx])
+    def is_tensor(self, name):
+        return name in self.tensor
+
+    def get_tensor_vale(self, name):
+        for n in self.nodes:
+            if name == n.output[0] and n.op_type == 'Constant':
+                return onnx.numpy_helper.to_array(n.attribute[0].t)
+        for w in self.weight:
+            if name == w.name:
+                return onnx.numpy_helper.to_array(w).astype(np.float32)
+
+    def get_input_shape(self, name):
+        for n in self.nodes:
+            if name == n.output[0]:
+                return self.shape_info[name]
+        for w in self.weight:
+            if name == w.name:
+                return list(w.dims)
+
+    def remove_cast(self):
+        cast_ops = []
+        flush_input = False
+        for idx, node in enumerate(self.nodes):
+            if node.op_type == "Cast":
+                cast_ops.append(node)
+                flush_input = True
+                continue
+            if node.op_type == "Constant":
+                continue
+            if flush_input:
+                flush_input = False
+                for i in range(len(node.input)):
+                    if cast_ops[-1].output[0] == node.input[i]:
+                        self.nodes[idx].input[i] = cast_ops[-1].input[0]
+        for op in cast_ops:
+            self.nodes.remove(op)
+
+    def constraint(self, node, mode):
+        if mode == 'broadcast' and len(node.input) == 2:
+            inp_0, inp_1 = node.input
+            inp_0_shape = self.get_input_shape(inp_0)
+            inp_1_shape = self.get_input_shape(inp_1)
+            # don't worry, in this function shape always be list
+            if len(inp_0_shape) == 1 or len(inp_1_shape) == 1:
+                 # normal case
+                if inp_0_shape[-1] == inp_1_shape[-1] \
+                    or inp_0_shape[-1] == 1 or inp_1_shape[-1] == 1:
+                    return True
+            elif ((inp_0_shape[-2] == 1 or inp_1_shape[-2] == 1) \
+                  and inp_0_shape[:-2] == inp_1_shape[:-2]):
+                # for group fc
+                 return True
+        else:
+            raise ValueError("constrain mode: {} not support now.".format(mode))
+        return False
+
+    def normal_check(self, pninp, ninp):
+        # check one node
+        tensor_attr = {}
+        const_tensor_remove = []
+        outside_input = []
+        if len(pninp) != len(ninp):
+            return False, outside_input, tensor_attr, const_tensor_remove
+        for p, n in zip(pninp, ninp):
+            # Fold p defined as:
+            # Activation: 1. (pre_pnode.output, idx), if pre_pnode has muti-output
+            #             2. pre_pnode.output, if pre_pnode has one-output
+            #             3. 'input', this will get input from ninp at same position
+            #
+            # Tensor:     1. ('input', 'tensor'), if you concern input type. eg. constant, weight
+            #             2. otherwise 'input' is enough
+            #             3. attr_key, get attr from tensor eg. 'axes', 'dims'. or just set any str
+            #                if u don't care what the tensor will doing.
+            if type(p) == tuple:
+                i, j = p
+                if type(i) == str and type(j) == str \
+                   and i.lower() == 'input' and j.lower() == 'tensor':
+                    if self.is_tensor(n):
+                        outside_input.append(n)
+                    else:
+                        return False, outside_input, tensor_attr, const_tensor_remove
+                elif type(i) == list and type(j) == int:
+                    if i[j] != n:
+                        return False, outside_input, tensor_attr, const_tensor_remove
+                else:
+                    raise ValueError("Wrong defination. {}".format(p))
+            elif type(p) == str:
+                if p.lower() == 'input':
+                    outside_input.append(n)
+                elif self.is_tensor(n):
+                    # get attr form tensor value
+                    tensor_attr[p] = float(self.get_tensor_vale(n))
+                    const_tensor_remove.append(n)
+                else:
+                    raise ValueError("Invalid. This should set to be input or activation.")
+                    # return False, outside_input, tensor_attr, const_tensor_remove
+            elif type(p) == list and len(p) == 1:
+                if p[0] != n:
+                    return False, outside_input, tensor_attr, const_tensor_remove
             else:
-                _input.append(inp[idx])
-        return pattern_input, _input
+                raise ValueError("Wrong input defination. {}".format(p))
+        return True, outside_input, tensor_attr, const_tensor_remove
+
+    def match_node(self, pnode, node):
+        # match node, determin the inputs out of pattern, get attr form tensor, record the nodes which should be removed
+        # check and process node's input
+        matched,  outside_inp, attr, rm_tensor = self.normal_check(pnode.input, node.input)
+        if not matched and (node.op_type == 'Mul' or node.op_type == 'Concat' or node.op_type == 'Add'):
+            # swap input, maybe concat with >3 input doesn't work
+            matched, outside_inp, attr, rm_tensor = self.normal_check(pnode.input[::-1], node.input)
+
+        # process current node
+        if matched:
+            # process constraint
+            if pnode.constraint is not None:
+                matched = self.constraint(node, pnode.constraint)
+            rm_tensor.append(node.output[0])
+            # get extra attr from node's attr
+            for km in pnode.attr_key_map:
+
+                if type(km) == tuple:
+                    raw_node_attr = km[0]
+                    new_node_attr = km[-1]
+                else:
+                    raw_node_attr, new_node_attr = km, km
+                if new_node_attr in attr:
+                    raise ValueError("Duplicate attr name please check.")
+                attr.update({new_node_attr: get_attr(node.attribute, raw_node_attr)})
+        return matched,  outside_inp, attr, rm_tensor
 
     def match_pattern(self, pattern):
         redundancies_ops_list = []
@@ -134,59 +265,45 @@ class Form_Deform(object):
         pattern_input = []
         pattern_attr = {}
         pattern_idx = 0
-        for nidx, node in enumerate(self.nodes):
+        for node in self.nodes:
             match_success = False
+            # for different torch version onnx graph may different.
+            # eg. insert Cast, sometimes use Tensor sometimes use Weight and so on...
+            if node.op_type == "Constant":
+                continue
             if node.op_type == pattern[pattern_idx].op_type:
-                if node.op_type == "Constant":
-                    if pattern[pattern_idx].const_value \
-                            and get_constant_vale(node) != pattern[pattern_idx].const_value:
-                        continue
-                    redundancies_ops.append(node)
-                    pattern[pattern_idx].output.clear()
-                    pattern[pattern_idx].output.extend(node.output)
-                    # get eps and so on
-                    if pattern[pattern_idx].attr_key_map:
-                        for km in pattern[pattern_idx].attr_key_map:
-                            pattern_attr.update({km[-1]: float(get_constant_vale(node))})
-                    pattern_idx += 1
-                    continue
-                pinp, input_idx = self.get_input(pattern[pattern_idx].input, node)
-                if input_idx == node.input:
-                    pattern[pattern_idx].output.clear()
-                    pattern[pattern_idx].output.extend(node.output)
-                    for km in pattern[pattern_idx].attr_key_map:
-                        pattern_attr.update({km[-1]: get_attr(node.attribute, km[0])})
-                    redundancies_ops.append(node)
-                    # store pattern input info
-                    for i in pinp:
-                        if i not in pattern_input:
-                            pattern_input.append(i)
-                    pattern_idx += 1
-                    match_success = True
-                if match_success and pattern_idx == len(pattern):
-                    #  get pattern output from the last op in the pattern list
-                    redundancies_ops_list.append(RedundanciesOps(copy.copy(pattern_input),
-                                                                 copy.copy(list(node.output)),
-                                                                 copy.copy(pattern_attr),
-                                                                 copy.copy(redundancies_ops)))
+                match_success, pinp, attr, rm_op = self.match_node(pattern[pattern_idx], node)
+
+            if match_success:
+                # flush output info, so next pnode's input will be updated
+                pattern[pattern_idx].output.clear()
+                pattern[pattern_idx].output.extend(node.output)
+                pattern_idx += 1
+
+                pattern_attr.update(attr)
+                redundancies_ops.extend(rm_op)
+                # store pattern input info
+                for i in pinp:
+                    if i not in pattern_input:
+                        pattern_input.append(i)
+
+                if pattern_idx == len(pattern):
+                    redundancies_ops_list.append(
+                        RedundanciesOps(copy.copy(pattern_input), copy.copy(list(node.output)),
+                                        copy.copy(pattern_attr), copy.copy(redundancies_ops)))
+                    pattern_idx = 0
                     redundancies_ops.clear()
                     pattern_input.clear()
                     pattern_attr.clear()
-                    pattern_idx = 0
-            if not match_success:
+            else:
                 pattern_idx = 0
                 redundancies_ops.clear()
                 pattern_input.clear()
                 pattern_attr.clear()
         return redundancies_ops_list
 
-    def get_node_idx(self, name):
-        for idx, n in enumerate(self.nodes):
-            if name in n.output:
-                return idx
-
-    # def replace_pattern(self, ops, pattern):
     def replace_pattern(self):
+        self.remove_cast()
         replaced = False
         for op_info in self.op_list:
             ops = op_info.trg_node
@@ -195,7 +312,8 @@ class Form_Deform(object):
             if len(redundancies_ops_list) > 0:
                 replaced = True
             for nodes in redundancies_ops_list:  # [pattern0, patter1, ...]
-                node_idx = self.get_node_idx(nodes.redundancies_ops[0].output[0])
+                node_idx, _ = self.get_node(nodes.redundancies_ops[0])
+                rm_node = [self.get_node(oname)[1] for oname in nodes.redundancies_ops]
                 out = nodes.pattern_output
                 for i, op in enumerate(ops):
                     attr = {}
@@ -204,9 +322,14 @@ class Form_Deform(object):
                     prefix = "replace_{}_{}".format(node_idx, op.op_type)
                     # get attr
                     for k in op.attr_key_map:
-                        if len(k) > 2:
-                            raise ValueError("key must be one in replace pattern")
-                        attr.update([(k[-1], nodes.attr[k[0]])])
+                        if type(k) == tuple:
+                            if len(k) > 2:
+                                raise ValueError("key must be one in replace pattern")
+                            attr.update([(k[-1], nodes.attr[k[0]])])
+                        elif type(k) == str:
+                            attr.update([(k, nodes.attr[k])])
+                        else:
+                            raise ValueError("Wrong attr defination.")
                     attr.update(op.default)
                     # get input
                     for inp, idx in op.input:
@@ -232,7 +355,7 @@ class Form_Deform(object):
                                                          outputs=_output, **attr)
                     self.nodes.insert(node_idx, new_node)
                     node_idx += 1
-                for n in nodes.redundancies_ops:
+                for n in rm_node:
                     self.nodes.remove(n)
         return replaced
 
@@ -242,7 +365,6 @@ class Form_Deform(object):
 
         return self.nodes
 
-        # fixed_point(self.constant_folding)
 
 class OnnxOpt(object):
     def __init__(self, model, batch_size):
@@ -464,34 +586,36 @@ class OnnxOpt(object):
 def onnx_opt(model, batch_size, dump=False):
     constant_opt = OnnxOpt(model, batch_size)
     model = constant_opt.run(dump)
-    fdef = Form_Deform(model.graph.node)
-    # define pattern. ("input", 0) refer to current node's input
-    eq_not_op0 = PesudoNode("Equal", [("input", 0), ("input", 1)])
-    eq_not_op1 = PesudoNode("Not", [(eq_not_op0.output, 0),])
+    fdef = Form_Deform(model)
+
+    # torch.not_equal
+    eq_not_op0 = PesudoNode("Equal", ["input", "input"])
+    eq_not_op1 = PesudoNode("Not", [eq_not_op0.output,])
     eq_not_op = PesudoNode("Equal", [("input", 0), ("input", 1)], default={"not": True})
     eq_not = FoldUnfoldInfo([eq_not_op0, eq_not_op1], [eq_not_op])
 
-    std_ub_op0 = PesudoNode("ReduceMean", [("input", 0),], attr_key_map=[("axes", "dim"),])
-    std_ub_op1 = PesudoNode("Sub", [("input", 0), (std_ub_op0.output, 0)])
-    std_ub_op2 = PesudoNode("Mul", [(std_ub_op1.output, 0), (std_ub_op1.output, 0)])
-    std_ub_op3 = PesudoNode("ReduceMean", [(std_ub_op2.output, 0),], attr_key_map=[("keepdims",),])
-    std_ub_op4 = PesudoNode("Constant")
-    std_ub_op5 = PesudoNode("Mul", [(std_ub_op3.output, 0), (std_ub_op4.output, 0)])
-    std_ub_op6 = PesudoNode("Constant")
-    std_ub_op7 = PesudoNode("Div", [(std_ub_op5.output, 0), (std_ub_op6.output, 0)])
-    std_ub_op8 = PesudoNode("Sqrt", [(std_ub_op7.output, 0),])
-    std_ub_op = PesudoNode("Std", [("input", 0),], attr_key_map=[("dim",), ("keepdims",),], default={"unbiased": True})
-    std_ub = FoldUnfoldInfo([std_ub_op0, std_ub_op1, std_ub_op2, std_ub_op3, std_ub_op4,
-                             std_ub_op5, std_ub_op6, std_ub_op7, std_ub_op8], [std_ub_op])
+    # torch.std
+    std_ub_op0 = PesudoNode("ReduceMean", ["input",], attr_key_map=[("axes", "dim"),])
+    std_ub_op1 = PesudoNode("Sub", ["input", std_ub_op0.output])
+    std_ub_op2 = PesudoNode("Mul", [std_ub_op1.output, std_ub_op1.output])
+    std_ub_op3 = PesudoNode("ReduceMean", [std_ub_op2.output,], attr_key_map=["keepdims",])
+    std_ub_op5 = PesudoNode("Mul", [std_ub_op3.output, "dont_care"])
+    std_ub_op7 = PesudoNode("Div", [std_ub_op5.output, "dont_care"])
+    std_ub_op8 = PesudoNode("Sqrt", [std_ub_op7.output,])
+    std_ub_op = PesudoNode("Std", [("input", 0),], attr_key_map=["dim", "keepdims",], default={"unbiased": True})
+    std_ub = FoldUnfoldInfo([std_ub_op0, std_ub_op1, std_ub_op2, std_ub_op3,
+                             std_ub_op5, std_ub_op7, std_ub_op8], [std_ub_op])
 
-    std_op0 = PesudoNode("ReduceMean", [("input", 0),], attr_key_map=[("axes", "dim"),])
-    std_op1 = PesudoNode("Sub", [("input", 0), (std_op0.output, 0)])
-    std_op2 = PesudoNode("Mul", [(std_op1.output, 0), (std_op1.output, 0)])
-    std_op3 = PesudoNode("ReduceMean", [(std_op2.output, 0),], attr_key_map=[("keepdims",),])
-    std_op4 = PesudoNode("Sqrt", [(std_op3.output, 0),])
-    std_op = PesudoNode("Std", [("input", 0),], attr_key_map=[("dim",), ("keepdims",),], default={"unbiased": False})
+    std_op0 = PesudoNode("ReduceMean", ["input",], attr_key_map=[("axes", "dim"),])
+    std_op1 = PesudoNode("Sub", ["input", std_op0.output])
+    std_op2 = PesudoNode("Mul", [std_op1.output, std_op1.output])
+    std_op3 = PesudoNode("ReduceMean", [std_op2.output,], attr_key_map=["keepdims",])
+    std_op4 = PesudoNode("Sqrt", [std_op3.output,])
+    std_op = PesudoNode("Std", [("input", 0),], attr_key_map=["dim", "keepdims",], default={"unbiased": False})
     std = FoldUnfoldInfo([std_op0, std_op1, std_op2, std_op3, std_op4], [std_op])
 
+    # torch.Where
+    where_op = PesudoNode("Where", ["input", "input", "input"])
     where_op0 = PesudoNode("Mul", [("input", 0), ("input", 1)])          # mask * cond
     where_op1 = PesudoNode("Constant", const_value=[-1])
     where_op2 = PesudoNode("Constant", const_value=[1])
@@ -499,63 +623,45 @@ def onnx_opt(model, batch_size, dump=False):
     where_op4 = PesudoNode("Add", [(where_op3.output, 0), (where_op2.output, 0)])  # -mask + 1
     where_op5 = PesudoNode("Mul", [("input", 2), (where_op4.output, 0)])           # y * (-mask + 1)
     where_op6 = PesudoNode("Add", [(where_op0.output, 0), (where_op5.output, 0)])  # -mask + 1
-    where_op = PesudoNode("Where", [("input", 0), ("input", 1), ("input", 2)])
     where = FoldUnfoldInfo([where_op], [where_op0, where_op1, where_op2, where_op3, where_op4, where_op5, where_op6])
 
-    layernorm_aff_op0_c = PesudoNode("ReduceMean", [("input", 0)], attr_key_map=[("axes",)])
-    layernorm_aff_op1_c = PesudoNode("Sub", [("input", 0), (layernorm_aff_op0_c.output, 0)])
-    layernorm_aff_op_cast = PesudoNode("Cast", [(layernorm_aff_op1_c.output, 0), ])
-    layernorm_aff_op2_c = PesudoNode("Constant")
-    layernorm_aff_op3_c = PesudoNode("Pow", [(layernorm_aff_op_cast.output, 0), (layernorm_aff_op2_c.output, 0)])
-    layernorm_aff_op4_c = PesudoNode("ReduceMean", [(layernorm_aff_op3_c.output, 0)])
-    layernorm_aff_op5_c = PesudoNode("Constant", attr_key_map=[(None, "eps")])
-    layernorm_aff_op6_c = PesudoNode("Add", [(layernorm_aff_op4_c.output, 0), (layernorm_aff_op5_c.output, 0)])
-    layernorm_aff_op7_c = PesudoNode("Sqrt", [(layernorm_aff_op6_c.output, 0),])
-    layernorm_aff_op8_c = PesudoNode("Div", [(layernorm_aff_op1_c.output, 0), (layernorm_aff_op7_c.output, 0)])
-    layernorm_aff_op9_c = PesudoNode("Mul", [(layernorm_aff_op8_c.output, 0), ("input", 1)])
-    layernorm_aff_op10_c = PesudoNode("Add", [(layernorm_aff_op9_c.output, 0), ("input", 1)])
-    layernorm_aff_op_c = PesudoNode("LayerNorm", [("input", 0), ("input", 1), ("input", 2)],
-                                  attr_key_map=[("axes",), ("eps",),], default={"elementwise_affine": True})
-    layernorm_aff_with_cast = FoldUnfoldInfo([layernorm_aff_op0_c, layernorm_aff_op1_c, layernorm_aff_op_cast,
-                                    layernorm_aff_op2_c, layernorm_aff_op3_c, layernorm_aff_op4_c, layernorm_aff_op5_c,
-                                    layernorm_aff_op6_c, layernorm_aff_op7_c, layernorm_aff_op8_c,
-                                    layernorm_aff_op9_c, layernorm_aff_op10_c], [layernorm_aff_op_c])
-
-    layernorm_aff_op0 = PesudoNode("ReduceMean", [("input", 0)], attr_key_map=[("axes",)])
-    layernorm_aff_op1 = PesudoNode("Sub", [("input", 0), (layernorm_aff_op0.output, 0)])
-    layernorm_aff_op2 = PesudoNode("Constant")
-    layernorm_aff_op3 = PesudoNode("Pow", [(layernorm_aff_op1.output, 0), (layernorm_aff_op2.output, 0)])
-    layernorm_aff_op4 = PesudoNode("ReduceMean", [(layernorm_aff_op3.output, 0)])
-    layernorm_aff_op5 = PesudoNode("Constant", attr_key_map=[(None, "eps")])
-    layernorm_aff_op6 = PesudoNode("Add", [(layernorm_aff_op4.output, 0), (layernorm_aff_op5.output, 0)])
-    layernorm_aff_op7 = PesudoNode("Sqrt", [(layernorm_aff_op6.output, 0),])
-    layernorm_aff_op8 = PesudoNode("Div", [(layernorm_aff_op1.output, 0), (layernorm_aff_op7.output, 0)])
-    layernorm_aff_op9 = PesudoNode("Mul", [(layernorm_aff_op8.output, 0), ("input", 1)])
-    layernorm_aff_op10 = PesudoNode("Add", [(layernorm_aff_op9.output, 0), ("input", 1)])
+    # torch.LayerNorm
+    layernorm_aff_op0 = PesudoNode("ReduceMean", ["input",], attr_key_map=[("axes",)])
+    layernorm_aff_op1 = PesudoNode("Sub", ["input", layernorm_aff_op0.output])
+    layernorm_aff_op3 = PesudoNode("Pow", [layernorm_aff_op1.output, "dont_care"])
+    layernorm_aff_op4 = PesudoNode("ReduceMean", [layernorm_aff_op3.output,])
+    layernorm_aff_op6 = PesudoNode("Add", [layernorm_aff_op4.output, "eps"])
+    layernorm_aff_op7 = PesudoNode("Sqrt", [layernorm_aff_op6.output,])
+    layernorm_aff_op8 = PesudoNode("Div", [layernorm_aff_op1.output, layernorm_aff_op7.output])
+    layernorm_aff_op9 = PesudoNode("Mul", [layernorm_aff_op8.output, "input"])
+    layernorm_aff_op10 = PesudoNode("Add", [layernorm_aff_op9.output, "input"])
     layernorm_aff_op = PesudoNode("LayerNorm", [("input", 0), ("input", 1), ("input", 2)],
-                                  attr_key_map=[("axes",), ("eps",),], default={"elementwise_affine": True})
-    layernorm_aff = FoldUnfoldInfo([layernorm_aff_op0, layernorm_aff_op1, layernorm_aff_op2,
-                                    layernorm_aff_op3, layernorm_aff_op4, layernorm_aff_op5,
+                                  attr_key_map=["axes", "eps",], default={"elementwise_affine": True})
+    layernorm_aff = FoldUnfoldInfo([layernorm_aff_op0, layernorm_aff_op1,
+                                    layernorm_aff_op3, layernorm_aff_op4,
                                     layernorm_aff_op6, layernorm_aff_op7, layernorm_aff_op8,
                                     layernorm_aff_op9, layernorm_aff_op10], [layernorm_aff_op])
 
-    layernorm_op0 = PesudoNode("ReduceMean", [("input", 0)], attr_key_map=[("axes",)])
-    layernorm_op1 = PesudoNode("Sub", [("input", 0), (layernorm_op0.output, 0)])
-    layernorm_op2 = PesudoNode("Constant")
-    layernorm_op3 = PesudoNode("Pow", [(layernorm_op1.output, 0), (layernorm_op2.output, 0)])
-    layernorm_op4 = PesudoNode("ReduceMean", [(layernorm_op3.output, 0)])
-    layernorm_op5 = PesudoNode("Constant", attr_key_map=[(None, "eps")])
-    layernorm_op6 = PesudoNode("Add", [(layernorm_op4.output, 0), (layernorm_op5.output, 0)])
-    layernorm_op7 = PesudoNode("Sqrt", [(layernorm_op6.output, 0), ])
-    layernorm_op8 = PesudoNode("Div", [(layernorm_op1.output, 0), (layernorm_op7.output, 0)])
-
+    layernorm_op0 = PesudoNode("ReduceMean", ["input",], attr_key_map=[("axes",)])
+    layernorm_op1 = PesudoNode("Sub", ["input", layernorm_op0.output])
+    layernorm_op3 = PesudoNode("Pow", [layernorm_op1.output, "dont_care"])
+    layernorm_op4 = PesudoNode("ReduceMean", [layernorm_op3.output, ])
+    layernorm_op6 = PesudoNode("Add", [layernorm_op4.output, "eps"])
+    layernorm_op7 = PesudoNode("Sqrt", [layernorm_op6.output, ])
+    layernorm_op8 = PesudoNode("Div", [layernorm_op1.output, layernorm_op7.output])
     layernorm_op = PesudoNode("LayerNorm", [("input", 0),],
-                                  attr_key_map=[("axes",), ("eps",), ], default={"elementwise_affine": False})
-    layernorm = FoldUnfoldInfo([layernorm_op0, layernorm_op1, layernorm_op2,
-                                    layernorm_op3, layernorm_op4, layernorm_op5,
+                                  attr_key_map=["axes", "eps", ], default={"elementwise_affine": False})
+    layernorm = FoldUnfoldInfo([layernorm_op0, layernorm_op1, layernorm_op3, layernorm_op4,
                                     layernorm_op6, layernorm_op7, layernorm_op8], [layernorm_op])
 
-    fdef.run([eq_not, std_ub, std, where, layernorm_aff, layernorm, layernorm_aff_with_cast])
+    # matmul + bias
+    matmul_bias_op0 = PesudoNode("MatMul", ["input", ("input", "tensor")])
+    matmul_bias_op1 = PesudoNode("Add", [matmul_bias_op0.output, ("input", "tensor")], constraint="broadcast")
+    matmul_bias_op = PesudoNode("MatMul", [("input", 0), ("input", 1), ("input", 2)],)
+    matmul_bias = FoldUnfoldInfo([matmul_bias_op0, matmul_bias_op1], [matmul_bias_op])
+
+    fdef.run([eq_not, std_ub, std, where, layernorm_aff, layernorm, matmul_bias])
+
     if dump:
         dump_model(model, "final_opt.onnx")
     return model

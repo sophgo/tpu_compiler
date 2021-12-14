@@ -637,42 +637,6 @@ class OnnxConverter(BaseConverter):
                 ln_out.clear()
         self.converted_nodes = [node for node in self.converted_nodes if node]
 
-        # merge matmul + bias
-        i = 1
-        while i < len(self.converted_nodes):
-            node = self.converted_nodes[i]
-            if node.op_type != "MatMul":
-                i += 1
-                continue
-            # rhs should be weight, skip if it's activation
-            filter_node = self.getNode(node.inputs[1])
-            if filter_node and filter_node.op_type != 'Constant':
-                i += 1
-                continue
-            if i + 1 >= len(self.converted_nodes):
-                i += 1
-                continue
-            next_node = self.converted_nodes[i+1]
-            if next_node.op_type != "Add":
-                i += 1
-                continue
-            add_node = self.getNode(next_node.inputs[1])
-            if add_node and add_node.op_type != 'Constant':
-                i += 1
-                continue
-
-            info = {}
-            info["name"] = next_node.name
-            info["op_type"] = "MatMul"
-            info["attrs"] = node.attrs
-            info["inputs"] = [node.inputs[0], node.inputs[1], next_node.inputs[1]]
-            info["outputs"] = [next_node.outputs[0]]
-            matmul_node = BaseNode(info)
-            self.converted_nodes[i] = None
-            self.converted_nodes[i+1] = matmul_node
-            i += 1
-        self.converted_nodes = [node for node in self.converted_nodes if node]
-
         # merge log(exp + add_1) * const => softplus
         i = 1
         while i < len(self.converted_nodes):
