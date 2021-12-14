@@ -56,9 +56,11 @@ class ModelTest(object):
             onnx_model = onnx.load(self.model_path)
             input_nodes = onnx_model.graph.input
             self.__gen_onnx_input__(input_nodes)
-            transform_cmd = ['model_transform.py', '--model_type', 'onnx', '--model_name', self.model_name,
-                             '--model_def', self.model_path, '--image', self.input_path, '--net_input_dims', '1,100',
-                             '--tolerance', '0.99,0.99,0.99', '--mlir', self.fp32_mlir]
+            transform_cmd = [
+                'model_transform.py', '--model_type', 'onnx', '--model_name', self.model_name, '--model_def', self.model_path,
+                '--image', self.input_path, '--net_input_dims', '1,100', '--tolerance', '0.99,0.99,0.99', '--mlir',
+                self.fp32_mlir
+            ]
             subprocess.run(transform_cmd)
         elif self.model_path.endswith(".mlir"):
             tmp_mlir_file = IntermediateFile(self.model_name, 'fp32.mlir.tmp', False)
@@ -68,17 +70,23 @@ class ModelTest(object):
             if ret != 0:
                 raise RuntimeError("{} opt failed".format(self.model_path))
 
-        if "bf16" or "mix_bf16" == quant_mode:
-            deploy_cmd = ['model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--quantize', quant_mode.upper(),
-                          '--chip', self.chip_type, '--image', self.input_path, '--tolerance', '0.99,0.99,0.87',
-                          '--correctness', '0.99,0.99,0.95', '--debug', '--cvimodel', self.cvimodel]
+        if quant_mode in ['bf16', 'mix_bf16']:
+            deploy_cmd = [
+                'model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--quantize',
+                quant_mode.upper(), '--chip', self.chip_type, '--image', self.input_path, '--inputs_type', 'bf16',
+                '--outputs_type', 'bf16', '--tolerance', '0.99,0.99,0.87', '--correctness', '0.99,0.99,0.95', '--debug',
+                '--cvimodel', self.cvimodel
+            ]
         elif "int8" == quant_mode:
             # simple cali and convert to cvimodel
             table_file = IntermediateFile(self.model_name, 'calibration_table', True)
             self.__make_test_calibration_table__(str(table_file))
-            deploy_cmd = ['model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--calibration_table',
-                          str(table_file), '--chip', self.chip_type, '--image',self. input_path, '--tolerance',
-                          '0.10,0.10,0.1', '--correctness', '0.99,0.99,0.93', '--debug','--cvimodel', self.cvimodel]
+            deploy_cmd = [
+                'model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--calibration_table',
+                str(table_file), '--chip', self.chip_type, '--image', self.input_path, '--inputs_type', 'int8',
+                '--outputs_type', 'int8', '--tolerance', '0.10,0.10,0.1', '--correctness', '0.99,0.99,0.93', '--debug',
+                '--cvimodel', self.cvimodel
+            ]
         else:
             raise ValueError("Now just support bf16/int8")
         subprocess.run(deploy_cmd)
@@ -116,7 +124,7 @@ if __name__ == '__main__':
     args = parser.parse_args()
 
     if os.path.exists(args.tmp_dir):
-         shutil.rmtree(args.tmp_dir)
+        shutil.rmtree(args.tmp_dir)
     os.makedirs(args.tmp_dir)
 
     tmp_model_file = os.path.split(args.model_def)[-1]
