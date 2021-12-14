@@ -594,7 +594,7 @@ LogicalResult tpu::LrnOp::quantizeBf16() {
   LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
                           << getOpName() << "]\n");
   Operation *op = this->getOperation();
-  insertBf16LutOp(op, "pow", 1, 2, beta().convertToFloat());
+  insertBf16LutOp(op, "pow", 1, 2, -1 * beta().convertToFloat());
   setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
   return success();
 }

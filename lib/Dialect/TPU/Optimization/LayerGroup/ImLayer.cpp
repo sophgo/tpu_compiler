@@ -118,7 +118,7 @@ static bool is_crop_fusible(Operation *op) {
     return false;
   }
   auto shape = getTensorShape(op->getOperand(0));
-  if (shape.size() != 3 || shape.size() != 4) {
+  if (shape.size() != 3 && shape.size() != 4) {
     return false;
   }
   // offset should be n/c/h/w
