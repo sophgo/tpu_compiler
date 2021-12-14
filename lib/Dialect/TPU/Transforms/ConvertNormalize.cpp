@@ -92,7 +92,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     operands.push_back(NoneOp.getResult()); // quant_table
     std::vector<NamedAttribute> attrs_power;
     attrs_power.push_back(rewriter.getNamedAttr("coeff", rewriter.getF32FloatAttr(2.0)));
-    attrs_power.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_power")));
+    attrs_power.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name + "_eltwise_prod_power")));
     attrs_power.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
     auto power_op = rewriter.create<tpu::PowOp>(
         rewriter.getUnknownLoc(), result_type,
