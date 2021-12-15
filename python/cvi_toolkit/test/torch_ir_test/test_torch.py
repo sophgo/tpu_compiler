@@ -52,6 +52,7 @@ TEST_TORCH_IR = [
     "Math", ## sum, prod not support
     "masked_fill",
     "Norm",
+    "Non_image_model",
     "Pow",
     "Repeat",   ## repeat_interleave nonx not support
     "ReflectionPad", ## ReflectionPad_2d not support
@@ -172,6 +173,7 @@ class TORCH_IR_TESTER(object):
             "Mulit_attention_api": self.test_Mulit_attention_api,
             "Max_Min": self.test_Max_Min,
             "Norm": self.test_Norm,
+            "Non_image_model": self.test_Non_image_model,
             "Pow": self.test_Pow,
             "Repeat": self.test_Repeat,
             "ReflectionPad": self.test_ReflectionPad,
@@ -1034,6 +1036,32 @@ class TORCH_IR_TESTER(object):
 
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
+    def test_Non_image_model(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+                self.conv_1d = nn.Conv1d(in_channels=3, out_channels=1, kernel_size=3)
+                self.layer_norm = nn.LayerNorm(98)
+                self.rnn = nn.LSTM(input_size=98, hidden_size=128, bidirectional=True)
+
+            def forward(self, x, h_0, c_0):
+                x = self.conv_1d(x)
+                x = self.layer_norm(x)
+                Y,(Y_h, Y_c) = self.rnn(x, (h_0, c_0))
+                return Y,Y_h,Y_c
+
+        test_name = 'Non_image_model'
+        net = Net()
+        input_data = torch.randn(81, 3, 100)
+        h_0 = torch.randn(2, 1, 128)
+        c_0 = torch.randn(2, 1, 128)
+        outputs = net(input_data, h_0, c_0)
+
+        # Use the exporter from  torch to convert to onnx
+        inputs = (input_data, h_0, c_0)
+        self.pytorch_transform_onnx(net, inputs, test_name)
+        self.onnx_convert_and_infernece(inputs, test_name, outputs)
 
     def test_Linear(self):
         class Net(torch.nn.Module):

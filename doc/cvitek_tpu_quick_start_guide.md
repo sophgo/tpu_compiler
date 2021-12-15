@@ -86,6 +86,10 @@
 
   介绍如何移植一个新的caffe模型，实现bf16和int8的转换为cvimodel，再到开发板中验证结果
 
+* 非图片形式多输入模型
+
+  介绍多输入模型的构造，多输入npz,npy文件的创建以及模型转化和转化为cvimodel的过程
+
 * 精度优化和混合量化
 
   介绍BF16量化和混合量化，提高精度
@@ -521,7 +525,6 @@ model_deploy.py \
   --cvimodel mobilenet_v2_bf16.cvimodel
 ```
 
-
 #### 步骤 4：生成全int8量化cvimodel
 先做Calibration。Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
 这里用100张图片举例，执行calibration：
@@ -583,7 +586,123 @@ model_runner \
 
 <div STYLE="page-break-after: always;"></div>
 
-## 5  精度优化和混合量化
+## 5 非图片形式多输入模型
+之前的输入形式都是以图片形式提供，需要对输入图片进行预处理
+
+#### 步骤 0：使用pytorch来构建简易的多输入模型
+``` python
+import torch
+import torch.nn as nn
+class Net(torch.nn.Module):
+	def __init__(self):
+		super(Net, self).__init__()
+		self.conv_1d = nn.Conv1d(in_channels=3, out_channels=1, kernel_size=3)
+		self.layer_norm = nn.LayerNorm(98)
+		self.rnn = nn.LSTM(input_size=98, hidden_size=128, bidirectional=True)
+	def forward(self, x, h_0, c_0):
+		x = self.conv_1d(x)
+		x = self.layer_norm(x)
+		Y,(Y_h, Y_c) = self.rnn(x, (h_0, c_0))
+		return Y,Y_h,Y_c
+
+net = Net()
+input_data = torch.randn(81, 3, 100)
+h_0 = torch.randn(2, 1, 128)
+c_0 = torch.randn(2, 1, 128)
+outputs = net(input_data, h_0, c_0)
+inputs = (input_data, h_0, c_0)
+
+in_names = []
+for i in range(len(inputs)):
+	in_names.append("in_{}".format(i))
+
+torch.onnx.export(net,
+				  inputs,
+				 "non_image_model.onnx",
+				  export_params=True,
+				  opset_version=11,
+				  verbose=True,
+				  input_names=in_names)
+```
+#### 步骤 2：模拟非图片的npz或者npy形式输入
+``` python
+import numpy as np
+input_data = np.random.rand(81, 3, 100).astype(np.float32)
+h0_data = np.random.rand(2, 1, 128).astype(np.float32)
+c0_data = np.random.rand(2, 1, 128).astype(np.float32)
+
+np.save("in_0", input_data)
+np.save("in_1", h0_data)
+np.save("in_2", c0_data)
+np.savez('test', in_0=input_data, in_1=h0_data, in_2=c0_data)
+```
+#### 步骤 3：onnx模型转换为fp32 mlir形式
+支持多个npy形式输入
+``` shell
+model_transform.py \
+  --model_type onnx \
+  --model_name non_image \
+  --model_def ./non_image_model.onnx \
+  --image ./in_0.npy,./in_1.npy,./in_2.npy \
+  --tolerance 0.99,0.99,0.99 \
+  --mlir non_image_model_npy.mlir
+```
+
+支持npz形式输入
+``` shell
+model_transform.py \
+  --model_type onnx \
+  --model_name non_image \
+  --model_def ./non_image_model.onnx \
+  --image ./test.npz \
+  --tolerance 0.99,0.99,0.99 \
+  --mlir non_image_model_npy.mlir
+```
+#### 步骤 4：生成全bf16量化cvimodel
+image参数选项与步骤三相同，支持多个npy形式输入和npz形式输入，为了简化起见，步骤四仅使用npz形式表示
+
+``` shell
+model_deploy.py \
+  --model_name resnet18 \
+  --mlir non_image_model.mlir \
+  --quantize BF16 \
+  --chip cv183x \
+  --image ./test.npz \
+  --tolerance 0.99,0.99,0.86 \
+  --correctness 0.99,0.99,0.93 \
+  --cvimodel non_image_model.cvimodel
+```
+
+#### 步骤 5：生成全int8量化cvimodel
+先做Calibration。Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
+这里用一张npz格式的数据来表示，执行calibration：
+
+``` shell
+run_calibration.py \
+  non_image_model.mlir \
+  --image_list=./images_list \
+  --input_num=1 \
+  -o non_image_model_calibration_table
+```
+
+得到`mobilenet_v2_calibration_table`。
+
+导入calibration_table，生成cvimodel：
+
+image参数选项与步骤三相同，支持多个npy形式输入和npz形式输入，为了简化起见，步骤四仅使用npz形式表示
+``` shell
+model_deploy.py \
+  --model_name non_image_model \
+  --mlir non_image_model.mlir \
+  --calibration_table non_image_model_calibration_table \
+  --chip cv183x \
+  --image ./test.npz \
+  --tolerance 0.94,0.94,0.61 \
+  --correctness 0.99,0.99,0.99 \
+  --cvimodel non_image_model_int8.cvimodel
+```
+
+## 6  精度优化和混合量化
 
 TPU支持INT8和BF16两种量化方法。在模型编译阶段，工具链支持以搜索的方式找到对模型精度最敏感的op，并支持将指定数量的op替换为BF16，从而提高整个网络的精度。
 
@@ -938,7 +1057,7 @@ mix_precision_table文件格式如下：
 
 <div STYLE="page-break-after: always;"></div>
 
-## 6 使用TPU做前处理
+## 7 使用TPU做前处理
 
 CV183X提供两种硬件资源进行神经网络模型的前处理加速。
 
@@ -1039,7 +1158,7 @@ model_runner \
 
 <div STYLE="page-break-after: always;"></div>
 
-## 7 合并cvimodel模型文件
+## 8 合并cvimodel模型文件
 对于同一个模型，可以依据输入的batch size以及分辨率(不同的h和w)分别生成独立的cvimodel文件。不过为了节省外存和运存，可以选择将这些相关的cvimodel文件合并为一个cvimodel文件，共享其权重部分。具体步骤如下：
 #### 步骤 0：生成batch 1的cvimodel
 请参考前述章节，新建workspace，通过model_transform.py将mobilenet_v2的caffemodel转换为mlir fp32模型:
@@ -1175,7 +1294,7 @@ CVI_NN_CleanupModel(bs4_handle);
 
 <div STYLE="page-break-after: always;"></div>
 
-## 8 运行runtime samples
+## 9 运行runtime samples
 
 #### 1) EVB运行Samples程序
 
