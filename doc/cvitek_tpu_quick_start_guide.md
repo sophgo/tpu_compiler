@@ -619,7 +619,7 @@ torch.onnx.export(net,
       dynamic_axes=None,
       )
 ```
-#### 步骤 2：模拟输入
+#### 步骤 1：模拟输入
 
 这里用随机数模拟输入，请以实际模型的输入为准。用一个npz或者用多个 npy都可以。如下：
 
@@ -636,7 +636,7 @@ np.save("c_0", c0_data)
 # npz文件
 np.savez('in_all', input=input_data, h_0=h0_data, c_0=c0_data)
 ```
-#### 步骤 3：onnx模型转换为fp32 mlir形式
+#### 步骤 2：onnx模型转换为fp32 mlir形式
 
 支持用一个npz文件作为测试输入
 ``` shell
@@ -659,11 +659,11 @@ model_transform.py \
   --tolerance 0.99,0.99,0.99 \
   --mlir sample_model.mlir
 ```
-特别要说明的是，如果输入中既有图片，也有非图片，则可以加入图片的预处理参数，预处理仅对图片有用，输入形式如下：
+特别要说明的是，如果输入中既有图片，也有非图片，则可以加入图片的预处理参数，预处理仅对图片生效，输入形式如下：
 
 `--image dog.jpg,h_0.npy,c_0.npy`
 
-#### 步骤 4：生成全bf16量化cvimodel
+#### 步骤 3：生成全bf16量化cvimodel
 
 ``` shell
 model_deploy.py \
@@ -677,7 +677,7 @@ model_deploy.py \
   --cvimodel sample_model.cvimodel
 ```
 
-#### 步骤 5：生成全int8量化cvimodel
+#### 步骤 4：生成全int8量化cvimodel
 先做Calibration。Calibration前需要先准备少量数据集，一般建议100-1000之间。
 这里举例，只用一个npz的数据来执行calibration。首先生成cali_list文件，命令如下：
 
