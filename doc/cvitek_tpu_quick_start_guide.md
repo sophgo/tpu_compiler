@@ -86,9 +86,9 @@
 
   介绍如何移植一个新的caffe模型，实现bf16和int8的转换为cvimodel，再到开发板中验证结果
 
-* 非图片形式多输入模型
+* 多输入模型
 
-  介绍多输入模型的构造，多输入npz,npy文件的创建以及模型转化和转化为cvimodel的过程
+  用pytorch构造多输入模型，介绍如何转换多输入模型为cvimodel的过程
 
 * 精度优化和混合量化
 
@@ -586,121 +586,138 @@ model_runner \
 
 <div STYLE="page-break-after: always;"></div>
 
-## 5 非图片形式多输入模型
-之前的输入形式都是以图片形式提供，需要对输入图片进行预处理
+## 5 多输入模型转换
+这里用pytorch自定义一个简单的模型，介绍如何转换多输入模型
 
 #### 步骤 0：使用pytorch来构建简易的多输入模型
 ``` python
 import torch
 import torch.nn as nn
+
 class Net(torch.nn.Module):
-	def __init__(self):
-		super(Net, self).__init__()
-		self.conv_1d = nn.Conv1d(in_channels=3, out_channels=1, kernel_size=3)
-		self.layer_norm = nn.LayerNorm(98)
-		self.rnn = nn.LSTM(input_size=98, hidden_size=128, bidirectional=True)
-	def forward(self, x, h_0, c_0):
-		x = self.conv_1d(x)
-		x = self.layer_norm(x)
-		Y,(Y_h, Y_c) = self.rnn(x, (h_0, c_0))
-		return Y,Y_h,Y_c
+    def __init__(self):
+        super(Net, self).__init__()
+        self.conv_1d = nn.Conv1d(in_channels=3, out_channels=1, kernel_size=3, padding=1)
+        self.layer_norm = nn.LayerNorm(100)
+        self.rnn = nn.LSTM(input_size=100, hidden_size=128, bidirectional=True)
+
+    def forward(self, x, h_0, c_0):
+        x = self.conv_1d(x)
+        x = self.layer_norm(x)
+        Y, (Y_h, Y_c) = self.rnn(x, (h_0, c_0))
+        return Y, Y_h, Y_c
 
 net = Net()
-input_data = torch.randn(81, 3, 100)
-h_0 = torch.randn(2, 1, 128)
-c_0 = torch.randn(2, 1, 128)
-outputs = net(input_data, h_0, c_0)
-inputs = (input_data, h_0, c_0)
-
-in_names = []
-for i in range(len(inputs)):
-	in_names.append("in_{}".format(i))
+inputs = (torch.randn(81, 3, 100), torch.randn(2, 1, 128), torch.randn(2, 1, 128))
 
 torch.onnx.export(net,
-				  inputs,
-				 "non_image_model.onnx",
-				  export_params=True,
-				  opset_version=11,
-				  verbose=True,
-				  input_names=in_names)
+      inputs,
+     "sample_model.onnx",
+      export_params=True,
+      opset_version=13,
+      input_names=["input",'h_0','c_0'],
+      dynamic_axes=None,
+      )
 ```
-#### 步骤 2：模拟非图片的npz或者npy形式输入
+#### 步骤 2：模拟输入
+
+这里用随机数模拟输入，请以实际模型的输入为准。用一个npz或者用多个 npy都可以。如下：
+
 ``` python
 import numpy as np
 input_data = np.random.rand(81, 3, 100).astype(np.float32)
 h0_data = np.random.rand(2, 1, 128).astype(np.float32)
 c0_data = np.random.rand(2, 1, 128).astype(np.float32)
 
-np.save("in_0", input_data)
-np.save("in_1", h0_data)
-np.save("in_2", c0_data)
-np.savez('test', in_0=input_data, in_1=h0_data, in_2=c0_data)
+# npy文件
+np.save("input", input_data)
+np.save("h_0", h0_data)
+np.save("c_0", c0_data)
+# npz文件
+np.savez('in_all', input=input_data, h_0=h0_data, c_0=c0_data)
 ```
 #### 步骤 3：onnx模型转换为fp32 mlir形式
-支持多个npy形式输入
+
+支持用一个npz文件作为测试输入
 ``` shell
 model_transform.py \
   --model_type onnx \
-  --model_name non_image \
-  --model_def ./non_image_model.onnx \
-  --image ./in_0.npy,./in_1.npy,./in_2.npy \
+  --model_name sample \
+  --model_def sample_model.onnx \
+  --image in_all.npz \
   --tolerance 0.99,0.99,0.99 \
-  --mlir non_image_model_npy.mlir
+  --mlir sample_model.mlir
 ```
 
-支持npz形式输入
+也可以支持多个npy形式的输入（可选，后文皆以npz文件为例）
 ``` shell
 model_transform.py \
   --model_type onnx \
-  --model_name non_image \
-  --model_def ./non_image_model.onnx \
-  --image ./test.npz \
+  --model_name sample_model \
+  --model_def sample_model.onnx \
+  --image input.npy,h_0.npy,c_0.npy \
   --tolerance 0.99,0.99,0.99 \
-  --mlir non_image_model_npy.mlir
+  --mlir sample_model.mlir
 ```
+特别要说明的是，如果输入中既有图片，也有非图片，则可以加入图片的预处理参数，预处理仅对图片有用，输入形式如下：
+
+`--image dog.jpg,h_0.npy,c_0.npy`
+
 #### 步骤 4：生成全bf16量化cvimodel
-image参数选项与步骤三相同，支持多个npy形式输入和npz形式输入，为了简化起见，步骤四仅使用npz形式表示
 
 ``` shell
 model_deploy.py \
-  --model_name resnet18 \
-  --mlir non_image_model.mlir \
+  --model_name sample_model \
+  --mlir sample_model.mlir \
   --quantize BF16 \
   --chip cv183x \
-  --image ./test.npz \
-  --tolerance 0.99,0.99,0.86 \
-  --correctness 0.99,0.99,0.93 \
-  --cvimodel non_image_model.cvimodel
+  --image in_all.npz \
+  --tolerance 0.95,0.95,0.80 \
+  --correctness 0.95,0.95,0.90 \
+  --cvimodel sample_model.cvimodel
 ```
 
 #### 步骤 5：生成全int8量化cvimodel
-先做Calibration。Calibration前需要先准备校正图片集,图片的数量根据情况准备100~1000张左右。
-这里用一张npz格式的数据来表示，执行calibration：
+先做Calibration。Calibration前需要先准备少量数据集，一般建议100-1000之间。
+这里举例，只用一个npz的数据来执行calibration。首先生成cali_list文件，命令如下：
+
+```shell
+echo in_all.npz > cali_list
+```
+
+多个npy文件，也可以如下表示：（可选）
+
+```shell
+echo input.npy,h_0.npy,c_0.npy > cali_list
+```
+
+然后执行`run_calibration.py`，如下：
 
 ``` shell
 run_calibration.py \
-  non_image_model.mlir \
-  --image_list=./images_list \
+  sample_model.mlir \
+  --image_list=cali_list \
   --input_num=1 \
-  -o non_image_model_calibration_table
+  -o sample_calibration_table
 ```
 
-得到`mobilenet_v2_calibration_table`。
+得到`sample_calibration_table`。
 
 导入calibration_table，生成cvimodel：
 
-image参数选项与步骤三相同，支持多个npy形式输入和npz形式输入，为了简化起见，步骤四仅使用npz形式表示
 ``` shell
 model_deploy.py \
-  --model_name non_image_model \
-  --mlir non_image_model.mlir \
-  --calibration_table non_image_model_calibration_table \
+  --model_name sample_model \
+  --mlir sample_model.mlir \
+  --calibration_table sample_calibration_table \
   --chip cv183x \
-  --image ./test.npz \
-  --tolerance 0.94,0.94,0.61 \
-  --correctness 0.99,0.99,0.99 \
-  --cvimodel non_image_model_int8.cvimodel
+  --image in_all.npz \
+  --tolerance 0.9,0.9,0.6 \
+  --correctness 0.95,0.95,0.9 \
+  --cvimodel sample_model_int8.cvimodel
 ```
+
+<div STYLE="page-break-after: always;"></div>
 
 ## 6  精度优化和混合量化
 
