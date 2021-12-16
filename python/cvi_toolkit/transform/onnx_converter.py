@@ -112,76 +112,6 @@ class OnnxTensor():
         cprint("tensor: {}".format(self.name), 'cyan')
         cprint("    shape: {}".format(self.shape), 'white')
 
-class Redundancy():
-    def __init__(self):
-        # -1: reconstructing op's input; 0,1,2,3...: the idx of eatch redundandent op's input
-        self.op_list = {
-            "Std_unbiased" :[{"ReduceMean": (-1,)}, {"Shape": (-1,)}, {"Constant": None}, {"Gather": (1,2)}, {"ReduceProd": (3,)},
-                    {"Sub": (-1, 0)}, {"Mul": (5, 5)}, {"ReduceMean": (6,)}, {"Cast": (4,)}, {"Mul": (7, 8)}, {"Constant": None},
-                    {"Sub": (8, 10)}, {"Div": (9, 11)}, {"Sqrt": (12,)},],
-            "Std_biased": [{"ReduceMean": (-1,)}, {"Sub": (-1, 0)}, {"Mul": (1, 1)}, {"ReduceMean": (2,)}, {"Sqrt": (3,)},],
-        }
-        # get attr from which redundandent op with specify key (op_idx_in_op_list, (org_op_attr, new_op_attr))
-        self.attr_idxes = {
-            "Std_unbiased": [(0, ("axes", "dim")), (7, ("keepdims",)), ("default", {"unbiased": True})],
-            "Std_biased": [(0, ("axes", "dim")), (3, ("keepdims",)), ("default", {"unbiased": False})],
-            }
-
-    def refine(self, converted_nodes):
-        for op_tpye in self.op_list.keys():
-            pattern = self.op_list[op_tpye]
-            pattern_idx = 0
-            redundancies = []
-            re_op_inp = None
-            for nidx, node in enumerate(converted_nodes):
-                match_success = False
-                if node.op_type == list(pattern[pattern_idx].keys())[0]:
-                    op_input_idxes = list(pattern[pattern_idx].values())[0]
-                    # for Constant
-                    if op_input_idxes is None:
-                        redundancies.append(nidx)
-                        pattern_idx += 1
-                        continue
-
-                    for i in op_input_idxes:
-                        if -1 == i or set(converted_nodes[redundancies[i]].outputs).intersection(set(node.inputs)):
-                            redundancies.append(nidx)
-                            match_success = True
-                    _tmp = list(set(redundancies))
-                    _tmp.sort(key=redundancies.index)
-                    redundancies = _tmp
-
-                    pattern_idx += 1
-                    if match_success and len(pattern) == pattern_idx:
-                        # get attr and form op
-                        attrs = {}
-                        attr_idxes = self.attr_idxes[op_tpye]
-                        for i, k in attr_idxes:
-                            if "default" == i:
-                                attrs.update(k)
-                                continue
-                            attrs.update({k[-1]: converted_nodes[redundancies[i]].attrs[k[0]]})
-                        info = {}
-                        info["name"] = node.name
-                        info["op_type"] = op_tpye.split("_")[0]
-
-                        info["attrs"] = attrs
-                        info["inputs"] = converted_nodes[redundancies[0]].inputs
-                        info["outputs"] = node.outputs
-                        new_node = BaseNode(info)
-                        for i in redundancies:
-                            converted_nodes[i] = None
-                        converted_nodes[redundancies[-1]] = new_node
-                        # reset wait for another pattern
-                        pattern_idx = 0
-                        redundancies.clear()
-
-                if not match_success:
-                    pattern_idx = 0
-                    redundancies.clear()
-            converted_nodes = [node for node in converted_nodes if node]
-        return converted_nodes
-
 class OnnxConverter(BaseConverter):
     def __init__(self, model_name, onnx_model, mlir_file_path,
                 batch_size=1, preprocess_args=None):
@@ -189,7 +119,7 @@ class OnnxConverter(BaseConverter):
         if isinstance(onnx_model, str):
             onnx_model = onnx.load(onnx_model)
         # opt onnx model
-        onnx_model = onnx_opt(onnx_model, batch_size, dump=False)
+        onnx_model = onnx_opt(onnx_model, batch_size, dump=True)
         self.batch_size = batch_size
         self.model_name = model_name
         self.input_nodes = onnx_model.graph.input
@@ -210,7 +140,7 @@ class OnnxConverter(BaseConverter):
         self.CVI = None
         self.output_weight_file = "{}_1_06eeeb7e.npz".format(model_name)
         self.init_importer()
-        self.refine = Redundancy()
+        self.getShapeInfo(onnx_model)
 
         self.onnxop_factory = {
             "Abs": lambda node: self.convert_abs_op(node),
@@ -322,6 +252,12 @@ class OnnxConverter(BaseConverter):
 
         # init importer
         self.CVI = MLIRImporter(inputs, outputs, "FP32", output_weight_file=self.output_weight_file)
+
+    def getShapeInfo(self, model):
+        self.shape_info = [info for info in model.graph.value_info]
+        self.shape_info.extend(model.graph.output)
+        self.shape_info = {info.name: [i.dim_value for i in info.type.tensor_type.shape.dim if i.dim_value > 0]
+                            for info in self.shape_info}
 
     def getNode(self, op_name):
         for node in self.converted_nodes:
@@ -781,7 +717,6 @@ class OnnxConverter(BaseConverter):
                 info["outputs"] = node.outputs
                 resize_node = BaseNode(info)
                 self.converted_nodes[i] = resize_node
-        self.converted_nodes = self.refine.refine(self.converted_nodes)
 
     def convert_tensor(self):
         """convert onnx tensor to OnnxTensor"""
@@ -3195,7 +3130,7 @@ class OnnxConverter(BaseConverter):
                     end = end + input_shape[axis]
                 if start < 0:
                     start = start + input_shape[axis]
-                if end > input_shape[axis]:
+                if end > input_shape[axis] or end < 0:
                     end = input_shape[axis]
                 crop_shape[axis] = (end - start + step - 1) // step
                 crop_offset[axis] = start
