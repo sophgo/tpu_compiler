@@ -257,22 +257,16 @@ import  torchvision.models as models
 # Use an existing model  from Torchvision, note it
 # will download this if  not already on your computer (might take time)
 model = models.resnet18(pretrained=True)
-batch_size = 1
 # Create some sample  input in the shape this model expects
-dummy_input = torch.randn(batch_size, 3, 224, 224)
-input_names = ['input']
-output_names = ['output']
+dummy_input = torch.randn(1, 3, 224, 224)
 # Use the exporter from  torch to convert to onnx
 torch.onnx.export(model,
     dummy_input,
     'resnet18.onnx',
     export_params=True,
-    opset_version=10,
+    opset_version=13,
     verbose=True,
-    input_names=input_names,
-    output_names=output_names,
-    dynamic_axes={'input'  : {0 : 'batch_size'},
-                  'output' : {0 : 'batch_size'}})
+    input_names=['input'])
 ```
 
 得到`resnet18.onnx`。
