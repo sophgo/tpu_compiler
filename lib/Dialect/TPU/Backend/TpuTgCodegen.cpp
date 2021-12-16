@@ -42,6 +42,10 @@
 
 #define DEBUG_TYPE "tg_codegen"
 
+llvm::cl::opt<std::string>
+    clWeightBinFileName("weight-file",
+                        llvm::cl::desc("saved weight bin filename"),
+                        llvm::cl::init("_weight.bin"));
 using namespace mlir;
 
 
@@ -49,6 +53,67 @@ using namespace mlir;
 #include "backend/backend_tl_api.h"
 
 namespace mlir {
+
+bool isRedundantWeight(Operation *op) {
+  auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op);
+  if (!weight_op) {
+    llvm::errs() << getOpName(op) << " not weight op, can't get weight file offset\n";
+    assert(0);
+  }
+  return weight_op.is_redundant();
+}
+
+int64_t getWeightFileOffset(Operation *op) {
+  auto weight_op = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(op);
+  if (!weight_op) {
+    llvm::errs() << getOpName(op) << " not weight op, can't get weight file offset\n";
+    assert(0);
+  }
+  int64_t weight_offset = weight_op.offset().getValue();
+  // must sync with AssignWeightAddress.cpp
+  weight_offset -= ((uint64_t)1) << 40;
+  return weight_offset;
+}
+
+void readWeightFile(char *ptr, int64_t offset, size_t size) {
+  std::ifstream weight_file(clWeightBinFileName, std::ios::binary);
+  if (!weight_file.good()) {
+    llvm::errs() << "weight bin file:" << clWeightBinFileName << " not exist!\n";
+    assert(0);
+  }
+  weight_file.seekg(0, std::ios_base::end);
+  auto file_size = weight_file.tellg();
+  if (offset + size > static_cast<uint64_t>(file_size)) {
+    llvm::errs() << "read weight file overflow! file size:" << file_size
+                 << " read offset:" << offset << " read size:" << size << "\n";
+    assert(0);
+  }
+  weight_file.seekg(offset, std::ios_base::beg);
+  weight_file.read(ptr, size);
+  weight_file.close();
+  LLVM_DEBUG(llvm::errs() << "weight file size:" << file_size << " offset:"
+                          << offset << "  read size:" << size << "\n";);
+}
+
+void writeWeightFile(char *ptr, int64_t offset, size_t size) {
+  std::ofstream weight_file(clWeightBinFileName,
+                            std::ios::binary | std::ios::ate | std::ios::in);
+  if (!weight_file.good()) {
+    llvm::errs() << "weight bin file:" << clWeightBinFileName << " not exist!\n";
+    assert(0);
+  }
+  auto file_size = weight_file.tellp();
+  if (offset + size > static_cast<uint64_t>(file_size)) {
+    llvm::errs() << "write weight file overflow! file size:" << file_size
+                 << " write offset:" << offset << " write size:" << size << "\n";
+    assert(0);
+  }
+  weight_file.seekp(offset, std::ios_base::beg);
+  weight_file.write(ptr, size);
+  weight_file.close();
+  LLVM_DEBUG(llvm::errs() << "weight file size:" << file_size << " offset:"
+                          << offset << "  write size:" << size << "\n";);
+}
 
 LogicalResult tpu::TG_INT8_AbsOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName()
@@ -1736,22 +1801,49 @@ LogicalResult tpu::TG_INT8_FullyConnectedOp::codegen(void *ctx) {
   arrayAttrToVector(this->rshift().getValue(), rshift_v);
   arrayAttrToVector(this->multiplier().getValue(), multiplier_v);
 
-  auto fcOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op);
   std::vector<int> compr_weight_poss;
-  if (fcOp.compr_weight_poss().hasValue())
-    arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
-  else {
-    if (fcOp.compressed_weight().hasValue() &&
-        fcOp.compressed_weight().getValue()) {
-      llvm::errs() << "  compressed weight enabled, but no poss\n";
-      return failure();
-    }
+  std::vector<int64_t> filterShape;
+  int64_t filterSize;
+  auto fcOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op);
+  int fltEltSize = getDataTypeSize(fcOp.filter());
+  getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
+
+  bool need_compress = fcOp.do_compress();
+  if (!fcOp.filter().getDefiningOp()->hasOneUse() ||
+      isRedundantWeight(fcOp.filter().getDefiningOp())) {
+    need_compress = false;
   }
+
+  std::unique_ptr<std::vector<uint8_t> > filter = std::make_unique<std::vector<uint8_t> >();
+  int64_t weight_offset = 0;
+  if (need_compress) {
+    // read weight file
+    weight_offset = getWeightFileOffset(fcOp.filter().getDefiningOp());
+    filter->resize(filterSize * fltEltSize);
+    readWeightFile(reinterpret_cast<char *>(filter->data()), weight_offset, filterSize * fltEltSize);
+    assert(filterSize == batch_high * batch_low * n * k);
+  }
+  auto newFilter = std::vector<uint8_t>(filterSize * fltEltSize);
+  std::memset(newFilter.data(), 0, filterSize * fltEltSize);
 
   cvi_backend_tg_fixed_fc_kernel(
       *backend_ctx, layer_id, ga_input, ga_filter, ga_bias, ga_output, m, k, n,
-      with_bias, do_relu, rshift_v, multiplier_v, compr_weight_poss, batch_high,
-      batch_low, lstride, false, ostride);
+      with_bias, do_relu, rshift_v, multiplier_v, need_compress, filter.get(),
+      &compr_weight_poss, &newFilter, batch_high, batch_low, lstride, false,
+      ostride);
+
+  if (need_compress && !compr_weight_poss.empty()) {
+    writeWeightFile(reinterpret_cast<char *>(newFilter.data()), weight_offset,
+                    filterSize * fltEltSize);
+    llvm::errs() << "compress fc weight success!\n";
+    LLVM_DEBUG(
+      llvm::errs() << "compr weight pos:";
+      for (auto pos : compr_weight_poss) {
+        llvm::errs() << pos << ", ";
+      }
+      llvm::errs() << "\n";
+    );
+  }
 
   return success();
 }
@@ -1795,20 +1887,45 @@ LogicalResult tpu::TG_BF16_FullyConnectedOp::codegen(void *ctx) {
 
   auto fcOp = dyn_cast<tpu::TG_BF16_FullyConnectedOp>(op);
   std::vector<int> compr_weight_poss;
-  if (fcOp.compr_weight_poss().hasValue())
-    arrayAttrToVector(fcOp.compr_weight_poss().getValue(), compr_weight_poss);
-  else {
-    if (fcOp.compressed_weight().hasValue() &&
-        fcOp.compressed_weight().getValue()) {
-      llvm::errs() << "  compressed weight enabled, but no poss\n";
-      return failure();
-    }
+  std::vector<int64_t> filterShape;
+  int64_t filterSize;
+  int fltEltSize = getDataTypeSize(fcOp.filter());
+  getTensorShapeAndSize(fcOp.filter(), filterShape, filterSize);
+
+  bool need_compress = fcOp.do_compress();
+  if (!fcOp.filter().getDefiningOp()->hasOneUse() ||
+      isRedundantWeight(fcOp.filter().getDefiningOp())) {
+    need_compress = false;
   }
+
+  int64_t weight_offset = 0;
+  std::unique_ptr<std::vector<uint8_t> > filter = std::make_unique<std::vector<uint8_t> >();
+  if (need_compress) {
+    // read weight file
+    weight_offset = getWeightFileOffset(fcOp.filter().getDefiningOp());
+    filter->resize(filterSize * fltEltSize);
+    readWeightFile(reinterpret_cast<char *>(filter->data()), weight_offset, filterSize * fltEltSize);
+    assert(filterSize == batch_high * batch_low * n * k);
+  }
+  auto newFilter = std::vector<uint8_t>(filterSize * fltEltSize);
+  std::memset(newFilter.data(), 0, filterSize * fltEltSize);
 
   cvi_backend_tg_bf16_fc_kernel(*backend_ctx, layer_id, ga_input, ga_filter,
                                 ga_bias, ga_output, m, k, n, with_bias, do_relu,
-                                compr_weight_poss, batch_high, batch_low,
+                                need_compress, filter.get(), &compr_weight_poss, &newFilter, batch_high, batch_low,
                                 lstride, false, ostride, do_quant_bf16, ga_scale, ga_zeropoint);
+
+  if (!compr_weight_poss.empty()) {
+    writeWeightFile(reinterpret_cast<char *>(newFilter.data()), weight_offset, filterSize * fltEltSize);
+    llvm::errs() << "compress fc weight success!\n";
+    LLVM_DEBUG(
+      llvm::errs() << "compr weight pos:";
+      for (auto pos : compr_weight_poss) {
+        llvm::errs() << pos << ", ";
+      }
+      llvm::errs() << "\n";
+    );
+  }
 
   return success();
 }
@@ -2400,11 +2517,13 @@ LogicalResult tpu::TG_INT8_MatMulOp::codegen(void *ctx) {
   std::vector<int32_t> rshift_v(1, rshift_int8);
   std::vector<int32_t> multiplier_v(1, multiplier);
   std::vector<int> compr_weight_poss;
+  std::vector<uint8_t> filter;
+  std::vector<uint8_t> newFilter;
 
-  cvi_backend_tg_fixed_fc_kernel(*backend_ctx, layer_id, ga_left, ga_right,
-                                 GA_INVALID, ga_output, M, K, N, false, do_relu,
-                                 rshift_v, multiplier_v, compr_weight_poss,
-                                 batch_high, batch_low, lt, rt, ot);
+  cvi_backend_tg_fixed_fc_kernel(
+      *backend_ctx, layer_id, ga_left, ga_right, GA_INVALID, ga_output, M, K, N,
+      false, do_relu, rshift_v, multiplier_v, false, &filter,
+      &compr_weight_poss, &newFilter, batch_high, batch_low, lt, rt, ot);
 
   return success();
 }
@@ -2426,10 +2545,13 @@ LogicalResult tpu::TG_BF16_MatMulOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
   std::vector<int> compr_weight_poss;
+  std::vector<uint8_t> filter;
+  std::vector<uint8_t> newFilter;
 
-  cvi_backend_tg_bf16_fc_kernel(
-      *backend_ctx, layer_id, ga_left, ga_right, GA_INVALID, ga_output, M, K, N,
-      false, do_relu, compr_weight_poss, batch_high, batch_low, lt, rt, ot);
+  cvi_backend_tg_bf16_fc_kernel(*backend_ctx, layer_id, ga_left, ga_right,
+                                GA_INVALID, ga_output, M, K, N, false, do_relu,
+                                false, &filter, &compr_weight_poss, &newFilter,
+                                batch_high, batch_low, lt, rt, ot);
 
   return success();
 }

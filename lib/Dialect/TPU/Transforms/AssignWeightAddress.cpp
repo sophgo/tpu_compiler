@@ -39,7 +39,9 @@
 #include "llvm/Support/ToolOutputFile.h"
 #include "llvm/Support/raw_ostream.h"
 #include <openssl/md5.h>
+#include <list>
 #include <map>
+#include <unordered_map>
 #include <memory>
 #include <set>
 #include <iostream>
@@ -309,8 +311,31 @@ struct TpuLoadWeightOpPattern : public RewritePattern {
   size_t alignment_;
 };
 
-class AssignWeightAddressPass : public mlir::PassWrapper<AssignWeightAddressPass,
-                                                         FunctionPass> {
+template<typename OpTy>
+struct WeightSetRedundantPattern : public RewritePattern {
+  WeightSetRedundantPattern(MLIRContext *context,
+      std::unordered_map<int64_t, std::list<Operation *> > &offset_map)
+      : RewritePattern(OpTy::getOperationName(), 1, context),
+        offset_map_(offset_map) {}
+
+  LogicalResult matchAndRewrite(Operation *op,
+                                PatternRewriter &rewriter) const override {
+    auto weightOp = cast<OpTy>(op);
+    //if (!weightOp.offset().hasValue()) {
+    //  // error
+    //  return failure();
+    //}
+    int64_t offset = weightOp.offset().getValue();
+    if (offset_map_[offset].size() > 1) {
+      weightOp->setAttr("is_redundant", rewriter.getBoolAttr(true));
+    }
+    return success();
+  }
+  std::unordered_map<int64_t, std::list<Operation *> > &offset_map_;
+};
+
+class AssignWeightAddressPass
+    : public mlir::PassWrapper<AssignWeightAddressPass, FunctionPass> {
 public:
   explicit AssignWeightAddressPass() {}
 
@@ -348,6 +373,20 @@ public:
     return true;
   }
 
+  static void SetRedundant(FuncOp &fn, MLIRContext *context) {
+    std::unordered_map<int64_t, std::list<Operation *> > offset_map;
+    fn.walk([&] (Operation * op) {
+      if (auto castOp = llvm::dyn_cast<tpu::LoadWeightOp>(op)) {
+        int64_t offset = castOp.offset().getValue();
+        offset_map[offset].emplace_back(op);
+      }
+    });
+    OwningRewritePatternList patterns;
+    patterns.insert<WeightSetRedundantPattern<tpu::LoadWeightOp> >(
+        context, offset_map);
+    applyPatternsAndFoldGreedily(fn, std::move(patterns));
+  }
+
   void runOnFunction() override {
     auto fn = getFunction();
     // create a bin file
@@ -379,6 +418,8 @@ public:
     >(context, weightBinFile, weightMapFile,
       addrMapping, clWeightAlignment);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
+
+    SetRedundant(fn, context);
 
     weightBinFile->close();
     weightMapFile->close();

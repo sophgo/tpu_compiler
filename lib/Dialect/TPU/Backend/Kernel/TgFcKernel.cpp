@@ -6,18 +6,18 @@
  */
 
 #include "TgFcKernel.hpp"
+#include "tpuc/TPUCompressUtil.h"
 
 #define DEBUG_TYPE "fc_kernel"
 
-void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
-                      gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
-                      bool do_bias, bool do_relu,
-                      std::vector<int> *rshift_width,
-                      std::vector<int> *multiplier, int batch_high,
-                      int batch_low, bool lstride, bool rstride, bool ostride,
-                      std::vector<int> compressed_pos, cvk_fmt_t fmt,
-                      bool do_quant_bf16, gaddr_t ga_scale,
-                      gaddr_t ga_zeropoint) {
+void TgFcKernel::init(
+    uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight, gaddr_t ga_bias,
+    gaddr_t ga_output, int M, int K, int N, bool do_bias, bool do_relu,
+    std::vector<int> *rshift_width, std::vector<int> *multiplier,
+    int batch_high, int batch_low, bool lstride, bool rstride, bool ostride,
+    bool need_compress, const std::vector<uint8_t> *weight,
+    std::vector<int> *compr_weight_poss, std::vector<uint8_t> *compr_weight,
+    cvk_fmt_t fmt, bool do_quant_bf16, gaddr_t ga_scale, gaddr_t ga_zeropoint) {
 
   this->layer_id = layer_id;
   this->M = static_cast<uint32_t>(M);
@@ -32,7 +32,10 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
   this->do_quant_bf16 = do_quant_bf16;
   this->do_bias = do_bias;
   this->do_relu = do_relu;
-  this->compressed_pos = compressed_pos;
+  this->need_compress = need_compress;
+  this->filter = weight;
+  this->compressed_pos = compr_weight_poss;
+  this->compressed_weight = compr_weight;
   this->fmt = fmt;
   this->total_steps = 1;
   this->fmt_size = ctx.bytesize_of_fmt(fmt);
@@ -77,9 +80,10 @@ void TgFcKernel::init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
       llvm_unreachable("multiplier size error");
     }
   }
-  if (compressed_pos.empty() == false) {
+  if (need_compress) {
     this->ga_weight = ga_weight;
   }
+
   ctx.set_layer_id(layer_id);
 }
 
@@ -335,6 +339,100 @@ tiling_no_parallel_exit:
   return true;
 }
 
+template <typename T>
+static void stridedMatrixMemcpy(T *dstPtr, const T *srcPtr, int srcStride, int H,
+                                int W) {
+  for (int i = 0; i < H; ++i) {
+    for (int j = 0; j < W; ++j) {
+      dstPtr[i * W + j] = srcPtr[i * srcStride + j];
+    }
+  }
+}
+
+void TgFcKernel::compress_weight() {
+  int dstOffset = 0;
+  int filterSize = filter->size();
+
+  compressed_pos->resize(batch * tiles.size());
+  int compress_idx = 0;
+  int compress_idx_offset = tiles.size();
+  for (int b = 0; b < batch; ++b) {
+    for (auto &tile : tiles) {
+      compress_idx = tile.compress_idx + compress_idx_offset * b;
+      int n_pos = tile.pos_n;
+      int k_pos = tile.pos_k;
+      int n_size = tile.n;
+      int k_size = tile.k;
+      int srcOffset = b * N * K + k_pos * N + n_pos;
+      int stepSize = n_size * k_size * fmt_size;
+      auto plainData = std::make_unique<std::vector<uint8_t>>(stepSize);
+      bool isBf16Flt = false;
+      if (fmt_size == 1) {
+        stridedMatrixMemcpy<uint8_t>((uint8_t *)plainData->data(),
+                                     (const uint8_t *)filter->data() + srcOffset, N,
+                                     k_size, n_size);
+      } else {
+        isBf16Flt = true;
+        stridedMatrixMemcpy<uint16_t>((uint16_t *)plainData->data(),
+                                     (uint16_t *)filter->data() + srcOffset, N,
+                                     k_size, n_size);
+      }
+      // Calculate compress parameter first.
+      mlir::CompressCommandInfo cmdInfo;
+      std::memset(&cmdInfo, 0, sizeof(cmdInfo));
+      cmdInfo.signedness = isBf16Flt ? 0 : 1;
+      cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
+      cmdInfo.bias0 = isBf16Flt ? 127 : 0;
+      getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
+                           cmdInfo.is_bfloat16, &cmdInfo);
+
+      // Create Compress data.
+      int requiredSize = mlir::getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
+      auto compressedData =
+          std::make_unique<std::vector<uint8_t>>(requiredSize);
+      int compressedSize = requiredSize;
+
+      if (isBf16Flt)
+        mlir::compressBf16Data(plainData->data(), stepSize, compressedData->data(),
+                         &compressedSize, &cmdInfo);
+      else
+        mlir::compressInt8Data(plainData->data(), stepSize, compressedData->data(),
+                         &compressedSize, &cmdInfo);
+
+      if ((dstOffset + compressedSize) > filterSize) {
+        llvm::errs()
+                   << "  compressed size exceed, dstOffset " << dstOffset
+                   << " + " << compressedSize << " > " << filterSize << "\n";
+        need_compress = false;
+        compressed_weight->clear();
+        compressed_pos->clear();
+        break;
+      }
+      {
+        //debug
+        LLVM_DEBUG(llvm::errs() << "n_pos:" << n_pos << "  k_pos:" << k_pos
+                                << "  n_size:" << n_size
+                                << "  k_size:" << k_size << "\n";
+                   llvm::errs()
+                   << "weight length:" << stepSize
+                   << " compressed size:" << compressedSize << "\n";);
+      }
+
+      // Fill compressed data.
+      std::memcpy(compressed_weight->data() + dstOffset, compressedData->data(),
+                  compressedSize);
+      (*compressed_pos)[compress_idx] = dstOffset;
+      dstOffset += compressedSize;
+    }
+  }
+  LLVM_DEBUG(
+    if (need_compress) {
+      llvm::errs() << "weight size:" << filterSize
+                 << " after compress:" << dstOffset << "\n";
+    }          
+  );
+}
+
 void TgFcKernel::selectTilePolicy() {
   if (try_tiling_group_parallel()) {
   } else if (try_no_tiling()) {
@@ -347,9 +445,12 @@ void TgFcKernel::selectTilePolicy() {
     assert(0);
   }
   total_steps = tiles.size();
+  if (need_compress) {
+    compress_weight();
+  }
   set_laddr();
-  if (compressed_pos.empty() == false) {
-    assert(batch * slice_n() * slice_k() == compressed_pos.size());
+  if (compressed_pos->empty() == false) {
+    assert(batch * slice_n() * slice_k() == compressed_pos->size());
   }
 }
 
@@ -545,7 +646,7 @@ void TgFcKernel::load_R(int32_t step_idx) {
     param.dst = &tl_R;
     param.layer_id = layer_id;
     ctx.tdma_g2l_matrix_copy(&param);
-  } else if (compressed_pos.empty()) {
+  } else if (compressed_pos->empty()) {
     ctx.tdma_load_stride(&tl_R,
                          ga_weight + tile.pos_k * right_gstride.row +
                              tile.pos_n * fmt_size,
@@ -553,7 +654,7 @@ void TgFcKernel::load_R(int32_t step_idx) {
   } else {
     cvi_backend_ml_load_stride(
         ctx, layer_id,
-        ga_weight + compressed_pos[tile.compress_idx + compress_offset],
+        ga_weight + (*compressed_pos)[tile.compress_idx + compress_offset],
         tl_R.start_address, tile.k, tile.n, tile.n, false, true, fmt, fmt,
         true);
   }
@@ -621,7 +722,7 @@ void TgFcKernel::update_batch_info(int high_idx, int low_idx) {
   } else {
     ga_input = ga_i + batch_idx * M * left_gstride.row;
   }
-  if (compressed_pos.empty()) {
+  if (compressed_pos->empty()) {
     if (rstride) {
       ga_weight =
           ga_w + high_idx * K * right_gstride.row + low_idx * N * fmt_size;
@@ -718,12 +819,15 @@ void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
     bool do_bias, bool do_relu, std::vector<int> rshift_width,
-    std::vector<int> multiplier, std::vector<int> compressed_pos,
-    int batch_high, int batch_low, bool lstride, bool rstride, bool ostride) {
+    std::vector<int> multiplier, bool need_compress,
+    const std::vector<uint8_t> *weight, std::vector<int> *compr_weight_poss,
+    std::vector<uint8_t> *compr_weight, int batch_high, int batch_low,
+    bool lstride, bool rstride, bool ostride) {
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
               do_bias, do_relu, &rshift_width, &multiplier, batch_high,
-              batch_low, lstride, rstride, ostride, compressed_pos, CVK_FMT_I8);
+              batch_low, lstride, rstride, ostride, need_compress, weight,
+              compr_weight_poss, compr_weight, CVK_FMT_I8);
 
   kernel.selectTilePolicy();
   kernel.schedule();
@@ -732,14 +836,17 @@ void cvi_backend_tg_fixed_fc_kernel(
 void cvi_backend_tg_bf16_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
-    bool do_bias, bool do_relu, std::vector<int> compressed_pos, int batch_high,
-    int batch_low, bool lstride, bool rstride, bool ostride, bool do_quant_bf16,
+    bool do_bias, bool do_relu, bool need_compress,
+    const std::vector<uint8_t> *weight, std::vector<int> *compr_weight_poss,
+    std::vector<uint8_t> *compr_weight, int batch_high, int batch_low,
+    bool lstride, bool rstride, bool ostride, bool do_quant_bf16,
     gaddr_t ga_scale, gaddr_t ga_zeropoint) {
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
               do_bias, do_relu, nullptr, nullptr, batch_high, batch_low,
-              lstride, rstride, ostride, compressed_pos, CVK_FMT_BF16,
-              do_quant_bf16, ga_scale, ga_zeropoint);
+              lstride, rstride, ostride, need_compress, weight,
+              compr_weight_poss, compr_weight, CVK_FMT_BF16, do_quant_bf16,
+              ga_scale, ga_zeropoint);
 
   kernel.selectTilePolicy();
   kernel.schedule();

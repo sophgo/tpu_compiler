@@ -148,7 +148,8 @@ def TPU_LoadWeightOp : TPU_Op<"load_weight", [NoSideEffect]> {
     DefaultValuedAttr<BoolAttr, "false">:$lowered,
     DefaultValuedAttr<BoolAttr, "false">:$compressed,
     OptionalAttr<F32ArrayAttr>: $threshold,
-    OptionalAttr<I64Attr>:$offset
+    OptionalAttr<I64Attr>:$offset,
+    DefaultValuedAttr<BoolAttr, "false">:$is_redundant
   );
 
   let results = (outs AnyTensor:$tensor);
