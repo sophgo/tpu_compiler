@@ -1619,12 +1619,36 @@ export RAW_SCALE=1.0
 export INPUT=input
 export TOLERANCE_INT8_MULTIPLER=0.90,0.90,0.54
 export DO_QUANT_BF16=1
-export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16=0.99,0.99,0.96_s
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.98
 export TOLERANCE_FP32=0.99,0.99,0.99 #
 export DO_PREPROCESS=0
 export BGRAY=0
 # just compare last one
+fi
+
+if [ $NET = "yolox_s" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/object_detection/yolox/onnx/yolox_s.onnx
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+#export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolox.sh
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolox_s_calib.txt
+export INPUT=input
+export MODEL_CHANNEL_ORDER="bgr"
+export IMAGE_RESIZE_DIMS=640,640
+export RESIZE_KEEP_ASPECT_RATIO=0
+export NET_INPUT_DIMS=640,640
+export RAW_SCALE=255.0
+export MEAN=0.,0.,0.
+export STD=1.,1.,1.
+export INPUT_SCALE=1.0
+export EXCEPTS="796_Sigmoid" # 0.873364, 0.873364, 0.347177
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.98,0.98,0.82
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
+export DO_QUANT_INT8=1
+export TOLERANCE_INT8_MULTIPLER=0.87,0.87,0.6
+export DO_LAYERGROUP=1
 fi
 
 # TFLite
