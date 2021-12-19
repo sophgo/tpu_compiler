@@ -32,6 +32,12 @@ static void cvi_backend_tg_pad_kernel_edge(const CviBackendContext &ctx,
   // pad bottom
   assert(pads[0] == pads[4] && pads[1] == pads[5] && pads[0] == 0 &&
          pads[1] == 0 && "only support h/w pad");
+  if (input_n + pads[0] + pads[4] == input_n && input_n != 1) {
+    if (input_c + pads[1] + pads[5] == input_c) {
+      input_c *= input_n;
+      input_n = 1;
+    }
+  }
   assert(input_n + pads[0] + pads[4] == 1 && "not support n slice");
 
   cvk_tg_shape_t dst_shape;

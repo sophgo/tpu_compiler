@@ -54,6 +54,7 @@ TEST_ONNX_IR = [
     "MatMul",
     "Neg",
     "Pad",
+    "PadEdge",
     "PadReflect",
     "PRelu",
     "Relu",
@@ -191,6 +192,7 @@ class ONNX_IR_TESTER(object):
             "Neg": self.test_Neg,
             "PRelu": self.test_PRelu,
             "Pad": self.test_Pad,
+            "PadEdge": self.test_PadEdge,
             "PadReflect": self.test_PadReflect,
             "Relu": self.test_Relu,
             "Reciprocal": self.test_Reciprocal,
@@ -1903,6 +1905,46 @@ class ONNX_IR_TESTER(object):
         input_data = np.random.randn(*input_shape).astype(np.float32)
         # avoid divide 0
         input_data[input_data==0] = 1
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+
+    def test_PadEdge(self):
+        test_case = 'PadEdge'
+        input_shape = [2,  8, 1, 41]
+        output_shape = [2, 8, 1, 45]
+
+        input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+        edge_def  = onnx.helper.make_node(
+            'Constant',
+            inputs=[],
+            outputs=['edge'],
+            value=onnx.helper.make_tensor(
+                name='const_tensor',
+                data_type=onnx.TensorProto.INT64,
+                dims=[8],
+                vals=[0,0,0,3,0,0,0,1],
+            ),
+        )
+        pad_def = helper.make_node(
+            'Pad',
+            ['input','edge'],
+            ['output'],
+            mode='edge',
+        )
+        graph_def = helper.make_graph(
+            [edge_def, pad_def],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 13
+        onnx.checker.check_model(model_def)
+
+        input_data = np.random.rand(*input_shape).astype(np.float32)
+
         onnx.checker.check_model(model_def)
         self.onnx_convert_and_infernece(input_data, model_def, test_case)
 

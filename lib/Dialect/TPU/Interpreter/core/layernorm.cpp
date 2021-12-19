@@ -33,6 +33,7 @@ LayerNormOpKernel::LayerNormOpKernel(Operation &op, value_map_t &valueMapping,
     assert(normalized_shape[i] == shape[index]);
     normalized_size *= normalized_shape[i];
   }
+  affine = false;
   if (scale_data != nullptr && bias_data != nullptr) {
     affine = true;
   }
