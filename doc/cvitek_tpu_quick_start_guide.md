@@ -86,9 +86,9 @@
 
   介绍如何移植一个新的caffe模型，实现bf16和int8的转换为cvimodel，再到开发板中验证结果
 
-* 多输入模型
+* 编译移植多输入模型
 
-  用pytorch构造多输入模型，介绍如何转换多输入模型为cvimodel的过程
+  用pytorch构造多输入模型，介绍如何转换多输入模型
 
 * 精度优化和混合量化
 
@@ -122,54 +122,15 @@ CVITEK Release包含如下组成部分：
 | cvitek_tpu_sdk_[cv182x/cv183x].tar.gz   | cvitek Runtime SDK，包括交叉编译头文件和库文件 |
 | cvitek_tpu_samples.tar.gz               | sample程序源代码                               |
 | cvimodel_samples_[cv182x/cv183x].tar.gz | sample程序使用的cvimodel模型文件               |
-| docker_cvitek_dev.tar                   | CVITEK开发Docker镜像文件                       |
+| docker_cvitek_dev_1.7-ubuntu-18.04.tar  | CVITEK开发Docker镜像文件                       |
 
-#### 3) 当前支持测试的网络列表
+#### 3) 经过验证的网络列表
 
-cv183x支持的网络如下：
+* **Classification:** `resnet50` `resnet18` `mobilenet_v1` `mobilenet_v2` `squeezenet_v1.1` `shufflenet_v2` `googlenet` `inception_v3` `inception_v4` `vgg16` `densenet_121` `densenet_201` `senet_res50` `resnext50` `res2net50` `ecanet50` `efficientnet_b0` `efficientnet_lite_b0` `nasnet_mobile`
+* **Detection:** `retinaface_mnet25` `retinaface_res50` `ssd300` `mobilenet_ssd` `yolo_v1`  `yolo_v2` `yolo_v3`  `yolo_v4` `yolo_v5` `yolo_x`
+* **Misc:**`arcface_res50` `alphapose` `espcn_3x` `unet` `erfnet`
 
-| Classification                | Detection                  | Misc                     |
-| ----------------------------- | -------------------------- | ------------------------ |
-| resnet50       [BS=1,4]       | retinaface_mnet25 [BS=1,4] | arcface_res50 [BS=1,4]   |
-| resnet18       [BS=1,4]       | retinaface_res50   [BS=1]  | alphapose       [BS=1,4] |
-| mobilenet_v1     [BS=1,4]     | ssd300        [BS=1,4]     | espcn_3x       [BS=1,4]  |
-| mobilenet_v2     [BS=1,4]     | mobilenet_ssd [BS=1,4]     | unet          [BS=1,4]   |
-| squeezenet_v1.1    [BS=1,4]   | yolo_v1_448      [BS=1]    | erfnet         [BS=1]    |
-| shufflenet_v2     [BS=1,4]    | yolo_v2_416      [BS=1]    |                          |
-| googlenet       [BS=1,4]      | yolo_v2_1080     [BS=1]    |                          |
-| inception_v3     [BS=1,4]     | yolo_v3_416      [BS=1,4]  |                          |
-| inception_v4     [BS=1,4]     | yolo_v3_608      [BS=1]    |                          |
-| vgg16         [BS=1,4]        | yolo_v3_tiny     [BS=1]    |                          |
-| densenet_121     [BS=1,4]     | yolo_v3_spp      [BS=1]    |                          |
-| densenet_201     [BS=1,4]     | yolo_v4        [BS=1]      |                          |
-| senet_res50      [BS=1,4]     |                            |                          |
-| resnext50       [BS=1,4]      |                            |                          |
-| res2net50       [BS=1,4]      |                            |                          |
-| ecanet50       [BS=1,4]       |                            |                          |
-| efficientnet_b0    [BS=1,4]   |                            |                          |
-| efficientnet_lite_b0 [BS=1,4] |                            |                          |
-| nasnet_mobile     [BS=1,4]    |                            |                          |
 
-cv182x支持的网络如下：
-
-| Classification                | Detection                  | Misc                     |
-| ----------------------------- | -------------------------- | ------------------------ |
-| resnet50       [BS=1,4]       | retinaface_mnet25 [BS=1,4] | arcface_res50 [BS=1,4]   |
-| resnet18       [BS=1,4]       | retinaface_res50   [BS=1]  | alphapose       [BS=1,4] |
-| mobilenet_v1     [BS=1,4]     | mobilenet_ssd [BS=1,4]     |                          |
-| mobilenet_v2     [BS=1,4]     | yolo_v1_448      [BS=1]    |                          |
-| squeezenet_v1.1    [BS=1,4]   | yolo_v2_416      [BS=1]    |                          |
-| shufflenet_v2     [BS=1,4]    | yolo_v3_416      [BS=1,4]  |                          |
-| googlenet       [BS=1,4]      | yolo_v3_608      [BS=1]    |                          |
-| inception_v3     [BS=1]       | yolo_v3_tiny     [BS=1]    |                          |
-| densenet_121     [BS=1,4]     |                            |                          |
-| densenet_201     [BS=1]       |                            |                          |
-| senet_res50      [BS=1]       |                            |                          |
-| resnext50       [BS=1,4]      |                            |                          |
-| efficientnet_lite_b0 [BS=1,4] |                            |                          |
-| nasnet_mobile     [BS=1]      |                            |                          |
-
-**注：** BS表示batch，[BS=1]表示板子目前至少batch 1，[BS=1,4]表示板子至少支持batch 1和batch 4。
 
 <div STYLE="page-break-after: always;"></div>
 

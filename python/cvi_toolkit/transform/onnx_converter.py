@@ -1200,8 +1200,9 @@ class OnnxConverter(BaseConverter):
             pads = [pads[0], 0, pads[1], 0]
         operands = list()
         operands.append(op)
-        filter_name = onnx_node.inputs[1]
-        filter_tensor = self.getTensor(filter_name)
+        filter_tensor = self.getTensor(onnx_node.inputs[1])
+        filter_name = "{}_filter".format(onnx_node.name)
+        filter_data = filter_tensor.tensor_data
         filter_shape = filter_tensor.shape
         if is_1d:
             filter_shape = filter_shape + [1]
@@ -1209,8 +1210,9 @@ class OnnxConverter(BaseConverter):
         if len(onnx_node.inputs) == 3:
             #with bias
             with_bias = True
-            bias_name = onnx_node.inputs[2]
-            bias_tensor = self.getTensor(bias_name)
+            bias_tensor = self.getTensor(onnx_node.inputs[2])
+            bias_name = "{}_bias".format(onnx_node.name)
+            bias_data = bias_tensor.tensor_data
 
         auto_pad = onnx_node.attrs.get("auto_pad", None)
         if auto_pad:
@@ -1284,16 +1286,19 @@ class OnnxConverter(BaseConverter):
             # filter shape s is in (g, oc/g, ic/g, kh, kw)
             g = conv_param['group']
             ic = shape[1]
-            new_shape = [g, int(oc/g), int(ic/g), kh, kw]
-            filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
+            filter_shape = [g, int(oc/g), int(ic/g), kh, kw]
+            self.addTensor(filter_name, filter_data, filter_shape)
+            filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
             if g == oc and ic == oc:
                 conv_param['is_dw'] = True
 
         else:
-            filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
+            self.addTensor(filter_name, filter_data, filter_shape)
+            filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
         operands.append(filter_op)
 
         if with_bias:
+            self.addTensor(bias_name, bias_data, bias_tensor.shape)
             bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
             operands.append(bias_op)
 

@@ -69,14 +69,20 @@ struct TpuMergeMulConstPattern : public RewritePattern {
     TensorFile *wTF = getWeightTensorFile(op);
 
     auto formerOp = castOp.input().getDefiningOp();
-    if (!isa<tpu::Conv2DOp>(formerOp) &&
-        !isa<tpu::FullyConnectedOp>(formerOp)) {
-      return failure();
-    }
     if (!formerOp->getResult(0).hasOneUse()) {
       return failure();
     }
-
+    if (auto convOp = dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
+      if (convOp.param().do_relu().getValue() == true && const_val < 0) {
+        return failure();
+      }
+    } else if (auto fcOp = dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
+      if (fcOp.do_relu() == true && const_val < 0) {
+        return failure();
+      }
+    } else {
+      return failure();
+    }
     for (auto value : formerOp->getOperands()) {
       auto weight_op =
           llvm::dyn_cast_or_null<tpu::LoadWeightOp>(value.getDefiningOp());
