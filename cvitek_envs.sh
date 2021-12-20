@@ -32,6 +32,8 @@ export PATH=$MLIR_PATH/tpuc/python/cvi_toolkit/tool:$PATH
 export PATH=$MLIR_PATH/tpuc/python/cvi_toolkit/performance/performance_viewer:$PATH
 export PATH=$MLIR_PATH/tpuc/regression:$PATH
 export PATH=$MLIR_PATH/tpuc/regression/generic:$PATH
+export PATH=$MLIR_PATH/tpuc/python/cvi_toolkit/test/onnx_ir_test:$PATH
+export PATH=$MLIR_PATH/tpuc/python/cvi_toolkit/test/torch_ir_test:$PATH
 
 export LD_LIBRARY_PATH=$MLIR_PATH/tpuc/lib:$LD_LIBRARY_PATH
 export LD_LIBRARY_PATH=$MLIR_PATH/mkldnn/lib:$LD_LIBRARY_PATH

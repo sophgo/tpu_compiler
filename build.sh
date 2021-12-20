@@ -364,7 +364,7 @@ if [ "$1" = "RELEASE" ]; then
   find ./ -name "*.a" |xargs rm
   popd
   pushd $INSTALL_PATH/tpuc/bin
-  find ./ -type f ! -name "*.html" |xargs strip -g
+  find ./ -type f ! -name "*.html" |xargs strip
   ln -sf tpuc-opt mlir-opt
   ln -sf tpuc-interpreter mlir-tpu-interpreter
   ln -sf tpuc-translate mlir-translate
