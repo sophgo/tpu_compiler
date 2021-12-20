@@ -1628,10 +1628,11 @@ export BGRAY=0
 fi
 
 if [ $NET = "yolox_s" ]; then
+# onnx: IoU 0.5:0.95 0.363, IoU 0.50 0.541, IoU 0.75 0.389
+# int8: IoU 0.5:0.95 0.344, IoU 0.50 0.515, IoU 0.75 0.373
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/object_detection/yolox/onnx/yolox_s.onnx
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
-#export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolox.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolox_s_calib.txt
 export INPUT=input
 export MODEL_CHANNEL_ORDER="bgr"
@@ -1649,6 +1650,10 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export DO_QUANT_INT8=1
 export TOLERANCE_INT8_MULTIPLER=0.87,0.87,0.6
 export DO_LAYERGROUP=1
+# accuracy setting
+export EVAL_MODEL_TYPE="coco"
+export EVAL_SCRIPT_ONNX="eval_yolox.py"
+export EVAL_SCRIPT_INT8="eval_yolox.py"
 fi
 
 # TFLite
