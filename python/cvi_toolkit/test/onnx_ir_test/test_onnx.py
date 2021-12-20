@@ -1910,8 +1910,8 @@ class ONNX_IR_TESTER(object):
 
     def test_PadEdge(self):
         test_case = 'PadEdge'
-        input_shape = [2,  8, 1, 41]
-        output_shape = [2, 8, 1, 45]
+        input_shape = [2,  80, 20, 40]
+        output_shape = [2, 80, 32, 54]
 
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
         output = helper.make_tensor_value_info(
@@ -1924,7 +1924,7 @@ class ONNX_IR_TESTER(object):
                 name='const_tensor',
                 data_type=onnx.TensorProto.INT64,
                 dims=[8],
-                vals=[0,0,0,3,0,0,0,1],
+                vals=[0,0,5,6,0,0,7,8],
             ),
         )
         pad_def = helper.make_node(
@@ -1982,34 +1982,16 @@ class ONNX_IR_TESTER(object):
 
     def test_Pad(self):
         test_case = 'Pad'
-        input_shape = [1, 3, 27, 27]
-        output_shape = [1, 6, 27, 27]
+        input_shape = [2, 8, 44]
+        output_shape = [2, 8, 45]
 
         input = helper.make_tensor_value_info('input', TensorProto.FLOAT, input_shape)
-        pads = np.array([0, 0, 1, 4, 0, 0, 2, 3]).astype(np.int64)  # pad order [x1_begin, x2_begin, ..., x1_end, x2_end, ...]
-        #pads = np.array([0, 0, 1, 1, 0, 0, 1, 1]).astype(np.int64)  # pad order [x1_begin, x2_begin, ..., x1_end, x2_end, ...]
-        for idx, p in enumerate(pads):
-            dim = idx % 4
-            output_shape[dim] = int(output_shape[dim] + p)
+        pads = np.array([0, 0, 0, 0, 0, 1]).astype(np.int64)
 
         output = helper.make_tensor_value_info(
             'output', TensorProto.FLOAT, output_shape)
 
-        x1_def = helper.make_node(
-            'Neg',  # node name
-            ['input'],  # inputs
-            ['X1'],  # outputs
-        )
-
-        #test three input
-        concat_def = helper.make_node(
-            'Concat',  # node name
-            ['input', 'X1'],  # inputs
-            ['X2'],  # outputs
-            axis = 1
-        )
-
-        pad_def  = onnx.helper.make_node(
+        data_def  = onnx.helper.make_node(
             'Constant',
             inputs=[],
             outputs=['pads'],
@@ -2021,21 +2003,21 @@ class ONNX_IR_TESTER(object):
             ),
         )
 
-        relu_def = helper.make_node(
+        pad_def = helper.make_node(
             'Pad',
-            ['X2', 'pads'],
+            ['input', 'pads'],
             ['output'],
             mode='constant'
         )
 
         graph_def = helper.make_graph(
-            [x1_def, concat_def, pad_def, relu_def],
+            [data_def, pad_def],
             test_case,
             [input],
             [output],
         )
         model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 11
+        model_def.opset_import[0].version = 13
         onnx.checker.check_model(model_def)
 
         input_data = np.random.rand(*input_shape).astype(np.float32)

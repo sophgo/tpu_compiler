@@ -258,10 +258,14 @@ static void only_one_pad(const CviBackendContext &ctx, uint32_t layer_id,
                          gaddr_t ga_ifmap, gaddr_t ga_ofmap, int outer_dim,
                          int pad_dim, int inner_dim, int pad_l, int pad_r,
                          uint16_t const_val, cvk_fmt_t fmt) {
-  do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
-         pad_dim, pad_r, const_val, PAD_LEFT, fmt);
-  do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
-         pad_dim, pad_r, const_val, PAD_RIGHT, fmt);
+  if (pad_l > 0) {
+    do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
+          pad_dim, pad_r, const_val, PAD_LEFT, fmt);
+  }
+  if (pad_r > 0) {
+    do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
+          pad_dim, pad_r, const_val, PAD_RIGHT, fmt);
+  }
   do_pad(ctx, layer_id, ga_ifmap, ga_ofmap, outer_dim, inner_dim, pad_l,
          pad_dim, pad_r, const_val, PAD_COPY, fmt);
 }
