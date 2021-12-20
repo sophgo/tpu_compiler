@@ -692,9 +692,8 @@ class TPU_TG_FullyConnectedOp<string mnemonic, string opQuant> : TPU_Op<mnemonic
     OptionalAttr<I32ArrayAttr>:$multiplier,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<TPU_FcTileParamAttr>:$tile_param,
+    DefaultValuedAttr<BoolAttr, "false">:$do_compress,
     OptionalAttr<BoolAttr>:$compressed_weight,
-    OptionalAttr<I32ArrayAttr>:$compr_weight_poss,
     StrAttr:$name
   );
 

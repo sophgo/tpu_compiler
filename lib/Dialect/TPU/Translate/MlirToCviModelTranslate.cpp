@@ -57,8 +57,8 @@ static llvm::cl::opt<std::string>
     clCustomRuntimeLibraries("custom-runtime-lib",
                              llvm::cl::desc("Specify a comma-delimited list of custom op runtime lib"));
 
-static llvm::cl::opt<std::string>
-    clWeightBinFileName("weight-file", llvm::cl::desc("saved weight bin filename"));
+extern llvm::cl::opt<std::string>
+    clWeightBinFileName;
 
 extern llvm::cl::opt<std::string> clRunChipType;
 

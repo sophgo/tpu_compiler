@@ -69,7 +69,6 @@ add_llvm_library(MLIRTPU
   Optimization/PoolingTile.cpp
   Optimization/SplitPool.cpp
   Optimization/FuseLeakyRelu.cpp
-  Optimization/FullyConnectedTile.cpp
   Optimization/TgOpTile.cpp
   Optimization/GraphOpt.cpp
   Optimization/TgOpDivide.cpp

@@ -23,8 +23,10 @@ public:
             gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
             bool do_bias, bool do_relu, std::vector<int> *rshift_width,
             std::vector<int> *multiplier, int batch_high, int batch_low,
-            bool lstride, bool rstride, bool ostride,
-            std::vector<int> compressed_pos, cvk_fmt_t fmt,
+            bool lstride, bool rstride, bool ostride, bool need_compress,
+            const std::vector<uint8_t> *weight,
+            std::vector<int> *compr_weight_poss,
+            std::vector<uint8_t> *compr_weight, cvk_fmt_t fmt,
             bool do_quant_bf16 = false, gaddr_t ga_scale = 0,
             gaddr_t ga_zeropoint = 0);
 
@@ -68,6 +70,8 @@ protected:
   void schedule_group_parallel();
   void schedule_no_parallel();
 
+  void compress_weight();
+
 protected:
   const CviBackendContext &ctx;
   gaddr_t ga_input;
@@ -90,7 +94,10 @@ protected:
   std::vector<int> multiplier;
   int cur_rshift;
   int cur_multiplier;
-  std::vector<int> compressed_pos;
+  bool need_compress;
+  std::vector<int> *compressed_pos;
+  std::vector<uint8_t> *compressed_weight;
+  const std::vector<uint8_t> *filter;
   cvk_fmt_t fmt;
   int fmt_size;
   uint32_t layer_id;
