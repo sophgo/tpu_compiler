@@ -5,6 +5,7 @@
  * Description:
  */
 
+#include <map>
 #include "TgFcKernel.hpp"
 #include "tpuc/TPUCompressUtil.h"
 
@@ -353,76 +354,100 @@ void TgFcKernel::compress_weight() {
   int dstOffset = 0;
   int filterSize = filter->size();
 
-  compressed_pos->resize(batch * tiles.size());
-  int compress_idx = 0;
-  int compress_idx_offset = tiles.size();
+  // remove redundant pos_k, pos_n
+  // [pos_n, [pos_k, {n_size, k_size, compress_idx}]]
+  std::map<uint32_t, std::map<uint32_t, std::tuple<uint32_t, uint32_t, int> > > kn_map;
+
+  int split_num = 0;
+  for (auto &tile : tiles) {
+    if (kn_map.find(tile.pos_n) != kn_map.end() &&
+        kn_map[tile.pos_n].find(tile.pos_k) != kn_map[tile.pos_n].end()) {
+      assert(std::get<0>(kn_map[tile.pos_n][tile.pos_k]) == tile.n &&
+             std::get<1>(kn_map[tile.pos_n][tile.pos_k]) == tile.k &&
+             std::get<2>(kn_map[tile.pos_n][tile.pos_k]) == tile.compress_idx);
+    } else {
+      kn_map[tile.pos_n][tile.pos_k] = std::make_tuple(tile.n, tile.k, tile.compress_idx);
+      ++split_num;
+    }
+  }
+
+  compressed_pos->resize(split_num * batch);
+  int compress_idx_offset = split_num;
   for (int b = 0; b < batch; ++b) {
-    for (auto &tile : tiles) {
-      compress_idx = tile.compress_idx + compress_idx_offset * b;
-      int n_pos = tile.pos_n;
-      int k_pos = tile.pos_k;
-      int n_size = tile.n;
-      int k_size = tile.k;
-      int srcOffset = b * N * K + k_pos * N + n_pos;
-      int stepSize = n_size * k_size * fmt_size;
-      auto plainData = std::make_unique<std::vector<uint8_t>>(stepSize);
-      bool isBf16Flt = false;
-      if (fmt_size == 1) {
-        stridedMatrixMemcpy<uint8_t>((uint8_t *)plainData->data(),
-                                     (const uint8_t *)filter->data() + srcOffset, N,
-                                     k_size, n_size);
-      } else {
-        isBf16Flt = true;
-        stridedMatrixMemcpy<uint16_t>((uint16_t *)plainData->data(),
-                                     (uint16_t *)filter->data() + srcOffset, N,
-                                     k_size, n_size);
+    for (auto n_iter : kn_map) {
+      for (auto k_iter : n_iter.second) {
+        int n_pos = n_iter.first;
+        int k_pos = k_iter.first;
+        int n_size = 0;
+        int k_size = 0;
+        int compress_idx = 0;
+        std::tie(n_size, k_size, compress_idx) = k_iter.second;
+        compress_idx += compress_idx_offset * b;
+
+        int srcOffset = b * N * K + k_pos * N + n_pos;
+        int stepSize = n_size * k_size * fmt_size;
+        auto plainData = std::make_unique<std::vector<uint8_t>>(stepSize);
+        bool isBf16Flt = false;
+        if (fmt_size == 1) {
+          stridedMatrixMemcpy<uint8_t>(
+              (uint8_t *)plainData->data(),
+              (const uint8_t *)filter->data() + srcOffset, N, k_size, n_size);
+        } else {
+          isBf16Flt = true;
+          stridedMatrixMemcpy<uint16_t>((uint16_t *)plainData->data(),
+                                        (uint16_t *)filter->data() + srcOffset,
+                                        N, k_size, n_size);
+        }
+        // Calculate compress parameter first.
+        mlir::CompressCommandInfo cmdInfo;
+        std::memset(&cmdInfo, 0, sizeof(cmdInfo));
+        cmdInfo.signedness = isBf16Flt ? 0 : 1;
+        cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
+        cmdInfo.bias0 = isBf16Flt ? 127 : 0;
+        getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
+                             cmdInfo.is_bfloat16, &cmdInfo);
+
+        // Create Compress data.
+        int requiredSize =
+            mlir::getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
+        auto compressedData =
+            std::make_unique<std::vector<uint8_t>>(requiredSize);
+        int compressedSize = requiredSize;
+
+        if (isBf16Flt)
+          mlir::compressBf16Data(plainData->data(), stepSize,
+                                 compressedData->data(), &compressedSize,
+                                 &cmdInfo);
+        else
+          mlir::compressInt8Data(plainData->data(), stepSize,
+                                 compressedData->data(), &compressedSize,
+                                 &cmdInfo);
+
+        if ((dstOffset + compressedSize) > filterSize) {
+          llvm::errs() << "  compressed size exceed, dstOffset " << dstOffset
+                       << " + " << compressedSize << " > " << filterSize
+                       << "\n";
+          need_compress = false;
+          compressed_weight->clear();
+          compressed_pos->clear();
+          break;
+        }
+        {
+          // debug
+          LLVM_DEBUG(llvm::errs() << "n_pos:" << n_pos << "  k_pos:" << k_pos
+                                  << "  n_size:" << n_size
+                                  << "  k_size:" << k_size << "\n";
+                     llvm::errs()
+                     << "weight length:" << stepSize
+                     << " compressed size:" << compressedSize << "\n";);
+        }
+
+        // Fill compressed data.
+        std::memcpy(compressed_weight->data() + dstOffset,
+                    compressedData->data(), compressedSize);
+        (*compressed_pos)[compress_idx] = dstOffset;
+        dstOffset += compressedSize;
       }
-      // Calculate compress parameter first.
-      mlir::CompressCommandInfo cmdInfo;
-      std::memset(&cmdInfo, 0, sizeof(cmdInfo));
-      cmdInfo.signedness = isBf16Flt ? 0 : 1;
-      cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
-      cmdInfo.bias0 = isBf16Flt ? 127 : 0;
-      getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
-                           cmdInfo.is_bfloat16, &cmdInfo);
-
-      // Create Compress data.
-      int requiredSize = mlir::getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
-      auto compressedData =
-          std::make_unique<std::vector<uint8_t>>(requiredSize);
-      int compressedSize = requiredSize;
-
-      if (isBf16Flt)
-        mlir::compressBf16Data(plainData->data(), stepSize, compressedData->data(),
-                         &compressedSize, &cmdInfo);
-      else
-        mlir::compressInt8Data(plainData->data(), stepSize, compressedData->data(),
-                         &compressedSize, &cmdInfo);
-
-      if ((dstOffset + compressedSize) > filterSize) {
-        llvm::errs()
-                   << "  compressed size exceed, dstOffset " << dstOffset
-                   << " + " << compressedSize << " > " << filterSize << "\n";
-        need_compress = false;
-        compressed_weight->clear();
-        compressed_pos->clear();
-        break;
-      }
-      {
-        //debug
-        LLVM_DEBUG(llvm::errs() << "n_pos:" << n_pos << "  k_pos:" << k_pos
-                                << "  n_size:" << n_size
-                                << "  k_size:" << k_size << "\n";
-                   llvm::errs()
-                   << "weight length:" << stepSize
-                   << " compressed size:" << compressedSize << "\n";);
-      }
-
-      // Fill compressed data.
-      std::memcpy(compressed_weight->data() + dstOffset, compressedData->data(),
-                  compressedSize);
-      (*compressed_pos)[compress_idx] = dstOffset;
-      dstOffset += compressedSize;
     }
   }
   LLVM_DEBUG(
