@@ -51,14 +51,8 @@ struct TgOpTilePass : public mlir::PassWrapper<TgOpTilePass, FunctionPass> {
     mInfo.getChipInfo(getFunction());
     assert(MInfo::version && "refer to set-chip");
 
-    getFunction().walk([&](Operation *op) {
-      if (auto tpuOp = dyn_cast<tpu::TG_INT8_Conv2DOp>(op)) {
-        tpuOp->removeAttr("tile_param");
-      } else if (auto tpuOp = dyn_cast<tpu::TG_INT8_FullyConnectedOp>(op)) {
-        tpuOp->removeAttr("tile_step");
-      } else if (auto tpuOp = dyn_cast<tpu::TG_BF16_FullyConnectedOp>(op)) {
-        tpuOp->removeAttr("tile_step");
-      }
+    getFunction().walk([&](tpu::TG_INT8_Conv2DOp convOp) {
+        convOp->removeAttr("tile_param");
     });
 
     OwningRewritePatternList patterns;

@@ -300,40 +300,6 @@ static void stridedMatrixMemcpy(T *dstPtr, T *srcPtr, int srcStride, int H,
   }
 }
 
-template <typename TensorTyOp, typename DataType>
-class CompressFcWeightPattern : public OpRewritePattern<TensorTyOp> {
-public:
-  using OpRewritePattern<TensorTyOp>::OpRewritePattern;
-
-  CompressFcWeightPattern(MLIRContext *ctx,
-                          std::vector<CompressInfo> &compressInfos)
-      : OpRewritePattern<TensorTyOp>(ctx), compressInfos_(compressInfos) {}
-
-  LogicalResult matchAndRewrite(TensorTyOp fcOp,
-                                PatternRewriter &rewriter) const override {
-
-    auto filterOp = llvm::dyn_cast_or_null<tpu::LoadWeightOp>(
-        fcOp.filter().getDefiningOp());
-    if (!filterOp) {
-      // filterOp is null means rhs is activation
-      return failure();
-    }
-
-    // Step size must generated first
-    if (fcOp.compressed_weight().hasValue())
-      return failure();
-
-    if (!isTensorNone(fcOp.quant_scale())) {
-      return failure();
-    }
-
-    fcOp->setAttr("do_compress", rewriter.getBoolAttr(true));
-    return success();
-  }
-
-  std::vector<struct CompressInfo> &compressInfos_;
-};
-
 struct CompressWeightPass
     : public mlir::PassWrapper<CompressWeightPass, FunctionPass> {
   void runOnFunction() override;
@@ -383,15 +349,14 @@ void CompressWeightPass::runOnFunction() {
   // Remove compressed weight attributes first.
   getFunction().walk([&](Operation *op) {
     llvm::TypeSwitch<Operation *>(op)
-        .Case<tpu::TG_INT8_Conv2DOp,
-              tpu::TG_BF16_Conv2DOp,
+        .Case<tpu::TG_INT8_Conv2DOp, tpu::TG_BF16_Conv2DOp,
               tpu::TL_LG_INT8_Conv2DOp, tpu::TL_LG_BF16_Conv2DOp,
               tpu::TL_LG_LoadCoeffOp, tpu::LoadWeightOp>(
             [&](auto tpuOp) { tpuOp->removeAttr("compressed_weight"); })
         .Case<tpu::TG_INT8_FullyConnectedOp, tpu::TG_BF16_FullyConnectedOp>(
             [&](auto tpuOp) {
-              tpuOp->removeAttr("compressed_weight");
-              tpuOp->removeAttr("compr_weight_poss");
+              tpuOp->setAttr("do_compress",
+                             Builder(op->getContext()).getBoolAttr(true));
             });
   });
 
@@ -403,13 +368,6 @@ void CompressWeightPass::runOnFunction() {
       TlLgConvCompressedWightPattern<tpu::TL_LG_INT8_Conv2DOp, int8_t>,
       TlLgConvCompressedWightPattern<tpu::TL_LG_BF16_Conv2DOp, uint16_t>>(
       &getContext(), compressInfos);
-  applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
-
-  patterns.clear();
-  patterns
-      .insert<CompressFcWeightPattern<tpu::TG_INT8_FullyConnectedOp, int8_t>,
-              CompressFcWeightPattern<tpu::TG_BF16_FullyConnectedOp, uint16_t>>(
-          &getContext(), compressInfos);
   applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
 
   // Remove offset in load weight first.

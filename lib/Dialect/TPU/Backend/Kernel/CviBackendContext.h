@@ -326,6 +326,7 @@ public:
                          bool do_transpose = false, bool do_compress = false) const;
   // matrix format
   void tdma_load(cvk_ml_t *tlp, uint64_t ga_src, uint8_t do_transpose = 0) const;
+  void tdma_load_decompress(cvk_ml_t *tlp, uint64_t ga_src) const;
   void tdma_load_stride(cvk_ml_t *tlp, uint64_t ga_src, cvk_mg_stride_t ts_stride,
                         uint8_t do_transpose = 0) const;
   void tdma_store(cvk_ml_t *tlp, uint64_t ga_dst, uint8_t do_transpose = 0) const;
@@ -368,6 +369,11 @@ public:
   inline cvk_tg_stride_t tg_default_stride(int c, int h, int w,
                                            cvk_fmt_t fmt) const {
     return tg_default_stride(tg_shape_t4(1, c, h, w), fmt);
+  }
+
+  inline cvk_mg_stride_t mg_default_stride(cvk_mg_shape_t shape,
+                                           cvk_fmt_t fmt) const {
+    return {shape.col * bytesize_of_fmt(fmt)};
   }
 
   inline int tensor_size(int n, int c, int h, int w, cvk_fmt_t fmt) const {

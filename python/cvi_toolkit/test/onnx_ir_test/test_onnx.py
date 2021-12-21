@@ -287,7 +287,7 @@ class ONNX_IR_TESTER(object):
                 int8_csv = "{}_int8.csv".format(model_name)
                 chip = get_chip_name()
                 ret = mlir_quant(fp32_opt_mlir, quant_mlir, chip,
-                                 int8_csv, calib_table=table_name)
+                                 int8_csv, calib_table=table_name, quantize="int8")
                 if ret < 0: raise RuntimeError("tpu_quant failed")
 
                 # get mlir output
@@ -334,7 +334,7 @@ class ONNX_IR_TESTER(object):
                 quant_mlir = "{}_quant_bf16.mlir".format(model_name)
                 chip = get_chip_name()
                 ret = mlir_quant(fp32_opt_mlir, quant_mlir, chip,
-                                 bf16_csv, all_bf16=True)
+                                 bf16_csv, quantize="bf16")
                 if ret < 0: raise RuntimeError("tpu_quant failed")
 
                 # get mlir output
@@ -1057,32 +1057,14 @@ class ONNX_IR_TESTER(object):
             ),
         )
 
-        div_def = onnx.helper.make_node(
-            'Constant',
-            inputs=[],
-            outputs=['div'],
-            value=onnx.helper.make_tensor(
-                name='const_tensor',
-                data_type=onnx.TensorProto.FLOAT,
-                dims=div_data.shape,
-                vals=div_data.flatten(),
-            ),
-        )
-
         fc_node = helper.make_node(
             'MatMul',  # node name
             ['input', 'filter'],  # inputs
-            ['fc'],  # outputs
-        )
-
-        scale_node = helper.make_node(
-            "Div",
-            ['fc', 'div'],
-            ['output'],
+            ['output'],  # outputs
         )
 
         graph_def = helper.make_graph(
-            [filter_def, div_def, fc_node, scale_node],
+            [filter_def, fc_node],
             test_case,
             [input],
             [output],

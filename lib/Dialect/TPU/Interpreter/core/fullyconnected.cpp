@@ -31,10 +31,11 @@ FullyConnectedOpKernel::FullyConnectedOpKernel(Operation &op,
   if (datatype == DataType::BF16) {
     if (getOpQuantParamType(&op) == "MIX_BF16") {
       int filter_size = filter_data->size();
+      int n_times = filter_size / n;
       for (int i = 0; i < filter_size; i++) {
         filter_data->at(i) =
-            BF16(BF16(filter_data->at(i) * quant_scale->at(i / k) +
-                      quant_zeropoint->at(i / k)));
+            BF16(BF16(filter_data->at(i) * quant_scale->at(i / n_times) +
+                      quant_zeropoint->at(i / n_times)));
       }
     }
   }

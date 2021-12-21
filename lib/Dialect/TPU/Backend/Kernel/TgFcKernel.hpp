@@ -22,11 +22,10 @@ public:
   void init(uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight,
             gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
             bool do_bias, bool do_relu, std::vector<int> *rshift_width,
-            std::vector<int> *multiplier, int batch_high, int batch_low,
-            bool lstride, bool rstride, bool ostride, bool need_compress,
-            const std::vector<uint8_t> *weight,
-            std::vector<int> *compr_weight_poss,
-            std::vector<uint8_t> *compr_weight, cvk_fmt_t fmt,
+            std::vector<int> *multiplier,
+            const std::vector<uint8_t> *old_filter,
+            std::vector<uint8_t> *new_filter, int batch_high, int batch_low,
+            bool lstride, bool rstride, bool ostride, cvk_fmt_t fmt,
             bool do_quant_bf16 = false, gaddr_t ga_scale = 0,
             gaddr_t ga_zeropoint = 0);
 
@@ -70,7 +69,8 @@ protected:
   void schedule_group_parallel();
   void schedule_no_parallel();
 
-  void compress_weight();
+  void filter_optimize();
+  bool try_optimize();
 
 protected:
   const CviBackendContext &ctx;
@@ -94,12 +94,12 @@ protected:
   std::vector<int> multiplier;
   int cur_rshift;
   int cur_multiplier;
-  bool need_compress;
-  std::vector<int> *compressed_pos;
-  std::vector<uint8_t> *compressed_weight;
-  const std::vector<uint8_t> *filter;
+  const std::vector<uint8_t> *old_filter;
+  std::vector<uint8_t> *new_filter;
   cvk_fmt_t fmt;
   int fmt_size;
+  cvk_fmt_t r_fmt; // filter fmt
+  int r_fmt_size;  // filter fmt bytes
   uint32_t layer_id;
 
   cvk_ml_t tl_Y;
@@ -127,7 +127,14 @@ protected:
   uint32_t tile_M;
   uint32_t tile_K;
   uint32_t tile_N;
-  int compress_offset; // for batch compress pos
+  typedef enum {
+    FC_OPT_COMPRESS,
+    FC_OPT_REPOSE,
+    FC_NO_OPT,
+  } fc_opt_t;
+  fc_opt_t opt_mode;
+  int opt_offset; // for batch compress pos
+  std::vector<int> opt_pos;
   typedef struct TileInfo {
     uint32_t pos_m;
     uint32_t pos_k;
@@ -140,7 +147,7 @@ protected:
     int Y_idx;
     int batch_high;
     int batch_low;
-    int compress_idx; // compress pos
+    int opt_idx; // compress pos
   } tile_info_t;
   std::vector<tile_info_t> tiles;
   typedef enum {

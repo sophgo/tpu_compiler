@@ -5,7 +5,6 @@
  * Description:
  */
 
-#include <map>
 #include "TgFcKernel.hpp"
 #include "tpuc/TPUCompressUtil.h"
 
@@ -15,9 +14,8 @@ void TgFcKernel::init(
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_weight, gaddr_t ga_bias,
     gaddr_t ga_output, int M, int K, int N, bool do_bias, bool do_relu,
     std::vector<int> *rshift_width, std::vector<int> *multiplier,
+    const std::vector<uint8_t> *old_filter, std::vector<uint8_t> *new_filter,
     int batch_high, int batch_low, bool lstride, bool rstride, bool ostride,
-    bool need_compress, const std::vector<uint8_t> *weight,
-    std::vector<int> *compr_weight_poss, std::vector<uint8_t> *compr_weight,
     cvk_fmt_t fmt, bool do_quant_bf16, gaddr_t ga_scale, gaddr_t ga_zeropoint) {
 
   this->layer_id = layer_id;
@@ -33,14 +31,14 @@ void TgFcKernel::init(
   this->do_quant_bf16 = do_quant_bf16;
   this->do_bias = do_bias;
   this->do_relu = do_relu;
-  this->need_compress = need_compress;
-  this->filter = weight;
-  this->compressed_pos = compr_weight_poss;
-  this->compressed_weight = compr_weight;
+  this->old_filter = old_filter;
+  this->new_filter = new_filter;
   this->fmt = fmt;
   this->total_steps = 1;
   this->fmt_size = ctx.bytesize_of_fmt(fmt);
-  this->compress_offset = 0;
+  this->r_fmt = do_quant_bf16 ? CVK_FMT_I8 : fmt;
+  this->r_fmt_size = ctx.bytesize_of_fmt(r_fmt);
+  this->opt_offset = 0;
   TOTAL_EU = NPU_NUM * ctx.tiu_eu_num(fmt);
   uint32_t max_tiu = MAX_TIU_CHL; // 1880v2: 12 bit
   this->maxM = std::min(this->M, max_tiu);
@@ -60,7 +58,7 @@ void TgFcKernel::init(
   this->bias_loaded = false;
   this->quant_loaded = false;
   left_gstride.row = K * fmt_size * (lstride ? batch_low : 1);
-  right_gstride.row = N * fmt_size * (rstride ? batch_low : 1);
+  right_gstride.row = N * r_fmt_size * (rstride ? batch_low : 1);
   output_gstride.row = N * fmt_size * (ostride ? batch_low : 1);
   size_t batch = this->batch_high * this->batch_low;
   if (rshift_width != nullptr) {
@@ -81,8 +79,9 @@ void TgFcKernel::init(
       llvm_unreachable("multiplier size error");
     }
   }
-  if (need_compress) {
-    this->ga_weight = ga_weight;
+  opt_mode = FC_NO_OPT;
+  if (old_filter != nullptr && old_filter->empty() == false) {
+    opt_mode = do_quant_bf16 ? FC_OPT_REPOSE : FC_OPT_COMPRESS;
   }
 
   ctx.set_layer_id(layer_id);
@@ -208,7 +207,7 @@ tiling_group_parallel_exit:
     for (info.batch_low = 0; info.batch_low < batch_low; info.batch_low++) {
       for (info.pos_n = 0; info.pos_n < N; info.pos_n += tile_N) {
         info.n = std::min(tile_N, N - info.pos_n);
-        info.compress_idx = info.pos_n / tile_N;
+        info.opt_idx = info.pos_n / tile_N;
         tiles.emplace_back(info);
         info.RB_idx = 1 - info.RB_idx;
         info.Y_idx = 1 - info.Y_idx;
@@ -234,9 +233,9 @@ bool TgFcKernel::try_no_tiling() {
   info.n = N;
   info.k = K;
   info.m = M;
-  info.batch_high = 1;
-  info.batch_low = 1;
-  info.compress_idx = 0;
+  info.batch_high = 0;
+  info.batch_low = 0;
+  info.opt_idx = 0;
   tiles.emplace_back(info);
   return true;
 }
@@ -266,7 +265,7 @@ parallel_kn_success:
       info.pos_n = pos_n;
       info.pos_k = pos_k;
       info.Y_idx = n_idx % size.blob_Y;
-      info.compress_idx = n_idx * slice_k() + k_idx;
+      info.opt_idx = k_idx * slice_n() + n_idx;
       tiles.emplace_back(info);
       info.RB_idx = 1 - info.RB_idx;
     }
@@ -298,7 +297,7 @@ parallel_mn_success:
       info.n = std::min(N - pos_n, tile_N);
       info.pos_m = pos_m;
       info.pos_n = pos_n;
-      info.compress_idx = n_idx;
+      info.opt_idx = n_idx;
       tiles.emplace_back(info);
       info.L_idx = 1 - info.L_idx;
       info.Y_idx = 1 - info.Y_idx;
@@ -332,7 +331,7 @@ tiling_no_parallel_exit:
         info.pos_n = pos_n;
         info.pos_k = pos_k;
         info.pos_m = pos_m;
-        info.compress_idx = n_idx * slice_k() + k_idx;
+        info.opt_idx = n_idx * slice_k() + k_idx;
         tiles.emplace_back(info);
       }
     }
@@ -341,121 +340,110 @@ tiling_no_parallel_exit:
 }
 
 template <typename T>
-static void stridedMatrixMemcpy(T *dstPtr, const T *srcPtr, int srcStride, int H,
-                                int W) {
-  for (int i = 0; i < H; ++i) {
-    for (int j = 0; j < W; ++j) {
-      dstPtr[i * W + j] = srcPtr[i * srcStride + j];
+static void stridedMatrixMemcpy(uint8_t *dst, const uint8_t *src,
+                                uint32_t row_stride, uint32_t row,
+                                uint32_t col) {
+  T *dstPtr = (T *)dst;
+  const T *srcPtr = (const T *)src;
+  for (uint32_t i = 0; i < row; ++i) {
+    for (uint32_t j = 0; j < col; ++j) {
+      dstPtr[i * col + j] = srcPtr[i * row_stride / sizeof(T) + j];
     }
   }
 }
 
-void TgFcKernel::compress_weight() {
+void TgFcKernel::filter_optimize() {
+  if (opt_mode == FC_NO_OPT) {
+    return;
+  }
+  bool ret = false;
+  if (opt_mode == FC_OPT_COMPRESS) {
+    ret = try_optimize();
+    if (ret) {
+      return;
+    }
+    opt_mode = FC_OPT_REPOSE;
+  }
+  if (tile_N != N) {
+    ret = try_optimize();
+    if (ret) {
+      return;
+    }
+  }
+  opt_mode = FC_NO_OPT;
+  new_filter->clear();
+}
+
+bool TgFcKernel::try_optimize() {
   int dstOffset = 0;
-  int filterSize = filter->size();
-
-  // remove redundant pos_k, pos_n
-  // [pos_n, [pos_k, {n_size, k_size, compress_idx}]]
-  std::map<uint32_t, std::map<uint32_t, std::tuple<uint32_t, uint32_t, int> > > kn_map;
-
-  int split_num = 0;
-  for (auto &tile : tiles) {
-    if (kn_map.find(tile.pos_n) != kn_map.end() &&
-        kn_map[tile.pos_n].find(tile.pos_k) != kn_map[tile.pos_n].end()) {
-      assert(std::get<0>(kn_map[tile.pos_n][tile.pos_k]) == tile.n &&
-             std::get<1>(kn_map[tile.pos_n][tile.pos_k]) == tile.k &&
-             std::get<2>(kn_map[tile.pos_n][tile.pos_k]) == tile.compress_idx);
-    } else {
-      kn_map[tile.pos_n][tile.pos_k] = std::make_tuple(tile.n, tile.k, tile.compress_idx);
-      ++split_num;
-    }
-  }
-
-  compressed_pos->resize(split_num * batch);
-  int compress_idx_offset = split_num;
+  int filterSize = old_filter->size();
+  int split_num = slice_k() * slice_n();
+  opt_pos.resize(split_num * batch);
+  int opt_idx = 0;
+  bool is_bf16 = (r_fmt == CVK_FMT_BF16);
   for (int b = 0; b < batch; ++b) {
-    for (auto n_iter : kn_map) {
-      for (auto k_iter : n_iter.second) {
-        int n_pos = n_iter.first;
-        int k_pos = k_iter.first;
-        int n_size = 0;
-        int k_size = 0;
-        int compress_idx = 0;
-        std::tie(n_size, k_size, compress_idx) = k_iter.second;
-        compress_idx += compress_idx_offset * b;
-
-        int srcOffset = b * N * K + k_pos * N + n_pos;
-        int stepSize = n_size * k_size * fmt_size;
-        auto plainData = std::make_unique<std::vector<uint8_t>>(stepSize);
-        bool isBf16Flt = false;
-        if (fmt_size == 1) {
-          stridedMatrixMemcpy<uint8_t>(
-              (uint8_t *)plainData->data(),
-              (const uint8_t *)filter->data() + srcOffset, N, k_size, n_size);
-        } else {
-          isBf16Flt = true;
-          stridedMatrixMemcpy<uint16_t>((uint16_t *)plainData->data(),
-                                        (uint16_t *)filter->data() + srcOffset,
-                                        N, k_size, n_size);
-        }
-        // Calculate compress parameter first.
-        mlir::CompressCommandInfo cmdInfo;
-        std::memset(&cmdInfo, 0, sizeof(cmdInfo));
-        cmdInfo.signedness = isBf16Flt ? 0 : 1;
-        cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
-        cmdInfo.bias0 = isBf16Flt ? 127 : 0;
-        getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
-                             cmdInfo.is_bfloat16, &cmdInfo);
-
-        // Create Compress data.
-        int requiredSize =
-            mlir::getCompressedDataSize(stepSize, isBf16Flt ? 1 : 0);
-        auto compressedData =
-            std::make_unique<std::vector<uint8_t>>(requiredSize);
-        int compressedSize = requiredSize;
-
-        if (isBf16Flt)
-          mlir::compressBf16Data(plainData->data(), stepSize,
-                                 compressedData->data(), &compressedSize,
-                                 &cmdInfo);
-        else
-          mlir::compressInt8Data(plainData->data(), stepSize,
-                                 compressedData->data(), &compressedSize,
-                                 &cmdInfo);
-
-        if ((dstOffset + compressedSize) > filterSize) {
-          llvm::errs() << "  compressed size exceed, dstOffset " << dstOffset
-                       << " + " << compressedSize << " > " << filterSize
-                       << "\n";
-          need_compress = false;
-          compressed_weight->clear();
-          compressed_pos->clear();
-          break;
-        }
-        {
-          // debug
-          LLVM_DEBUG(llvm::errs() << "n_pos:" << n_pos << "  k_pos:" << k_pos
-                                  << "  n_size:" << n_size
-                                  << "  k_size:" << k_size << "\n";
-                     llvm::errs()
-                     << "weight length:" << stepSize
-                     << " compressed size:" << compressedSize << "\n";);
-        }
-
-        // Fill compressed data.
-        std::memcpy(compressed_weight->data() + dstOffset,
-                    compressedData->data(), compressedSize);
-        (*compressed_pos)[compress_idx] = dstOffset;
-        dstOffset += compressedSize;
+    for (auto &tile : tiles) {
+      if (tile.pos_m != 0 || tile.batch_high != 0 || tile.batch_low != 0) {
+        continue;
       }
+      assert(opt_idx % split_num == tile.opt_idx);
+      int srcOffset =
+          (b * K + tile.pos_k) * right_gstride.row + tile.pos_n * r_fmt_size;
+      int stepSize = tile.n * tile.k * r_fmt_size;
+      std::vector<uint8_t> plainData(stepSize);
+      if (false == is_bf16) {
+        stridedMatrixMemcpy<uint8_t>(plainData.data(),
+                                     old_filter->data() + srcOffset,
+                                     right_gstride.row, tile.k, tile.n);
+      } else {
+        stridedMatrixMemcpy<uint16_t>(plainData.data(),
+                                      old_filter->data() + srcOffset,
+                                      right_gstride.row, tile.k, tile.n);
+      }
+      if (opt_mode == FC_OPT_REPOSE) {
+        std::memcpy(new_filter->data() + dstOffset, plainData.data(), stepSize);
+        opt_pos[opt_idx] = dstOffset;
+        dstOffset += stepSize;
+        opt_idx++;
+        continue;
+      }
+      // Calculate compress parameter first.
+      mlir::CompressCommandInfo cmdInfo;
+      std::memset(&cmdInfo, 0, sizeof(cmdInfo));
+      cmdInfo.signedness = is_bf16 ? 0 : 1;
+      cmdInfo.is_bfloat16 = is_bf16 ? 1 : 0;
+      cmdInfo.bias0 = is_bf16 ? 127 : 0;
+      getCompressParameter(plainData.data(), stepSize, cmdInfo.signedness,
+                           cmdInfo.is_bfloat16, &cmdInfo);
+
+      // Create Compress data.
+      int requiredSize = mlir::getCompressedDataSize(stepSize, is_bf16 ? 1 : 0);
+      std::vector<uint8_t> compressedData(requiredSize);
+      int compressedSize = requiredSize;
+
+      if (is_bf16) {
+        mlir::compressBf16Data(plainData.data(), stepSize,
+                               compressedData.data(), &compressedSize,
+                               &cmdInfo);
+      } else {
+        mlir::compressInt8Data(plainData.data(), stepSize,
+                               compressedData.data(), &compressedSize,
+                               &cmdInfo);
+      }
+
+      if ((dstOffset + compressedSize) > filterSize) {
+        return false;
+      }
+      // Fill compressed data.
+      std::memcpy(new_filter->data() + dstOffset, compressedData.data(),
+                  compressedSize);
+      opt_pos[opt_idx] = dstOffset;
+      dstOffset += compressedSize;
+      opt_idx++;
     }
   }
-  LLVM_DEBUG(
-    if (need_compress) {
-      llvm::errs() << "weight size:" << filterSize
-                 << " after compress:" << dstOffset << "\n";
-    }          
-  );
+  assert(opt_idx == split_num * batch);
+  return true;
 }
 
 void TgFcKernel::selectTilePolicy() {
@@ -470,13 +458,8 @@ void TgFcKernel::selectTilePolicy() {
     assert(0);
   }
   total_steps = tiles.size();
-  if (need_compress) {
-    compress_weight();
-  }
+  filter_optimize();
   set_laddr();
-  if (compressed_pos->empty() == false) {
-    assert(batch * slice_n() * slice_k() == compressed_pos->size());
-  }
 }
 
 void TgFcKernel::update_tl_matrix(int32_t step_idx) {
@@ -657,31 +640,36 @@ void TgFcKernel::load_R(int32_t step_idx) {
   if (mode == FC_PARALLEL_MN && tile.pos_m != 0) {
     return;
   }
+  gaddr_t goffset = 0;
+  if (opt_mode == FC_NO_OPT) {
+    goffset =
+        ga_weight + tile.pos_k * right_gstride.row + tile.pos_n * r_fmt_size;
+  } else {
+    goffset = ga_w + opt_pos[tile.opt_idx + opt_offset];
+  }
   if (do_quant_bf16) {
-    int row_stride = N * (rstride ? batch_low : 1);
     cvk_mg_t mg_src = {0};
-    mg_src.start_address = ga_weight + tile.pos_k * row_stride + tile.pos_n;
+    mg_src.start_address = goffset;
     mg_src.base_reg_index =
         ctx.getTdmaBaseSelectIndexFromGaddr(mg_src.start_address);
     mg_src.fmt = CVK_FMT_I8;
     mg_src.shape = {tile.k, tile.n};
-    mg_src.stride = {N};
+    if (opt_mode == FC_NO_OPT) {
+      mg_src.stride = right_gstride;
+    } else {
+      mg_src.stride = ctx.mg_default_stride(mg_src.shape, mg_src.fmt);
+    }
     cvk_tdma_g2l_matrix_copy_param_t param = {0};
     param.src = &mg_src;
     param.dst = &tl_R;
     param.layer_id = layer_id;
     ctx.tdma_g2l_matrix_copy(&param);
-  } else if (compressed_pos->empty()) {
-    ctx.tdma_load_stride(&tl_R,
-                         ga_weight + tile.pos_k * right_gstride.row +
-                             tile.pos_n * fmt_size,
-                         right_gstride);
+  } else if (opt_mode == FC_OPT_COMPRESS) {
+    ctx.tdma_load_decompress(&tl_R, goffset);
+  } else if (opt_mode == FC_OPT_REPOSE) {
+    ctx.tdma_load(&tl_R, goffset);
   } else {
-    cvi_backend_ml_load_stride(
-        ctx, layer_id,
-        ga_weight + (*compressed_pos)[tile.compress_idx + compress_offset],
-        tl_R.start_address, tile.k, tile.n, tile.n, false, true, fmt, fmt,
-        true);
+    ctx.tdma_load_stride(&tl_R, goffset, right_gstride);
   }
 }
 
@@ -747,13 +735,11 @@ void TgFcKernel::update_batch_info(int high_idx, int low_idx) {
   } else {
     ga_input = ga_i + batch_idx * M * left_gstride.row;
   }
-  if (compressed_pos->empty()) {
-    if (rstride) {
-      ga_weight =
-          ga_w + high_idx * K * right_gstride.row + low_idx * N * fmt_size;
-    } else {
-      ga_weight = ga_w + batch_idx * K * right_gstride.row;
-    }
+  if (rstride) {
+    ga_weight =
+        ga_w + high_idx * K * right_gstride.row + low_idx * N * r_fmt_size;
+  } else {
+    ga_weight = ga_w + batch_idx * K * right_gstride.row;
   }
   if (ostride) {
     ga_output =
@@ -764,7 +750,7 @@ void TgFcKernel::update_batch_info(int high_idx, int low_idx) {
   if (do_bias) {
     ga_bias = ga_b + batch_idx * N * 4;
   }
-  compress_offset = batch_idx * slice_k() * slice_n();
+  opt_offset = batch_idx * slice_k() * slice_n();
   if (multiplier.empty() || rshift.empty()) {
     return;
   }
@@ -844,16 +830,14 @@ void cvi_backend_tg_fixed_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
     bool do_bias, bool do_relu, std::vector<int> rshift_width,
-    std::vector<int> multiplier, bool need_compress,
-    const std::vector<uint8_t> *weight, std::vector<int> *compr_weight_poss,
-    std::vector<uint8_t> *compr_weight, int batch_high, int batch_low,
+    std::vector<int> multiplier, const std::vector<uint8_t> *old_filter,
+    std::vector<uint8_t> *new_filter, int batch_high, int batch_low,
     bool lstride, bool rstride, bool ostride) {
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
-              do_bias, do_relu, &rshift_width, &multiplier, batch_high,
-              batch_low, lstride, rstride, ostride, need_compress, weight,
-              compr_weight_poss, compr_weight, CVK_FMT_I8);
-
+              do_bias, do_relu, &rshift_width, &multiplier, old_filter,
+              new_filter, batch_high, batch_low, lstride, rstride, ostride,
+              CVK_FMT_I8);
   kernel.selectTilePolicy();
   kernel.schedule();
 }
@@ -861,18 +845,15 @@ void cvi_backend_tg_fixed_fc_kernel(
 void cvi_backend_tg_bf16_fc_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_weight, gaddr_t ga_bias, gaddr_t ga_output, int M, int K, int N,
-    bool do_bias, bool do_relu, bool need_compress,
-    const std::vector<uint8_t> *weight, std::vector<int> *compr_weight_poss,
-    std::vector<uint8_t> *compr_weight, int batch_high, int batch_low,
+    bool do_bias, bool do_relu, const std::vector<uint8_t> *old_filter,
+    std::vector<uint8_t> *new_filter, int batch_high, int batch_low,
     bool lstride, bool rstride, bool ostride, bool do_quant_bf16,
     gaddr_t ga_scale, gaddr_t ga_zeropoint) {
   TgFcKernel kernel(ctx);
   kernel.init(layer_id, ga_input, ga_weight, ga_bias, ga_output, M, K, N,
-              do_bias, do_relu, nullptr, nullptr, batch_high, batch_low,
-              lstride, rstride, ostride, need_compress, weight,
-              compr_weight_poss, compr_weight, CVK_FMT_BF16, do_quant_bf16,
-              ga_scale, ga_zeropoint);
-
+              do_bias, do_relu, nullptr, nullptr, old_filter, new_filter,
+              batch_high, batch_low, lstride, rstride, ostride, CVK_FMT_BF16,
+              do_quant_bf16, ga_scale, ga_zeropoint);
   kernel.selectTilePolicy();
   kernel.schedule();
 }

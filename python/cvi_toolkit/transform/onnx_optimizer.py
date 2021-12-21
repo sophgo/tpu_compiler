@@ -579,8 +579,8 @@ class OnnxOpt(object):
     def run(self, dump):
         fixed_point(self.constant_folding)
         self.remove_unused_nodes()
-        if dump:
-            dump_model(self.model, "constant_opt.onnx")
+        #if dump:
+        #    dump_model(self.model, "constant_opt.onnx")
         return self.model
 
 def onnx_opt(model, batch_size, dump=False):

@@ -354,6 +354,26 @@ void CviBackendContext::tdma_load(cvk_ml_t *tlp, uint64_t ga_src,
   tdma_load_stride(tlp, ga_src, stride);
 }
 
+void CviBackendContext::tdma_load_decompress(cvk_ml_t *tlp,
+                                             uint64_t ga_src) const {
+  assert(tlp != nullptr);
+
+  cvk_mg_t mg_src = {0};
+  mg_src.base_reg_index = getTdmaBaseSelectIndexFromGaddr(ga_src);
+  mg_src.start_address = ga_src;
+  mg_src.fmt = tlp->fmt;
+  mg_src.shape = {tlp->shape.n, tlp->shape.col};
+  mg_src.stride = mg_default_stride(mg_src.shape, mg_src.fmt);
+
+  cvk_cmpr_mg_t cmpr_mg_src = {0};
+  cmpr_mg_src.m = mg_src;
+
+  cvk_tdma_g2l_matrix_copy_decompressed_param_t param = {0};
+  param.src = &cmpr_mg_src;
+  param.dst = tlp;
+  tdma_g2l_matrix_copy_decompressed(&param);
+}
+
 //
 // Implement 1880 gdma_store, matrix format
 //
