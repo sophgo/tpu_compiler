@@ -255,6 +255,7 @@ class OnnxConverter(BaseConverter):
 
     def getShapeInfo(self, model):
         self.shape_info = [info for info in model.graph.value_info]
+        self.shape_info.extend(model.graph.input)
         self.shape_info.extend(model.graph.output)
         self.shape_info = {info.name: [i.dim_value for i in info.type.tensor_type.shape.dim if i.dim_value > 0]
                             for info in self.shape_info}

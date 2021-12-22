@@ -325,7 +325,7 @@ def multiclass_nms_class_agnostic(boxes, scores, nms_thr, score_thr):
         )
     return dets
 
-def multiclass_nms(boxes, scores, nms_thr, score_thr, class_agnostic=True):
+def multiclass_nms(boxes, scores, nms_thr, score_thr, class_agnostic=False):
     """Multiclass NMS implemented in Numpy"""
     if class_agnostic:
         nms_method = multiclass_nms_class_agnostic
@@ -401,11 +401,11 @@ def yolo_x_onnx_detector(img_path, input_shape, sess, score_thr, nms_thr=0.45,
         ret = sess.run(img)
         output = sess.get_all_tensor()['output_Transpose_dequant']
     scores, boxes_xyxy = postproc(output, input_shape, p6=with_p6)
-    boxes_xyxy /= ratio
     dets = multiclass_nms(boxes_xyxy, scores, nms_thr=nms_thr, score_thr=nms_score_thr)
 
     if dets is not None:
         final_boxes, final_scores, final_cls_inds = dets[:, :4], dets[:, 4], dets[:, 5]
+        final_boxes /= ratio
         if draw_image:
             out_path = "vis_outout"
             mkdir(out_path)
@@ -416,6 +416,7 @@ def yolo_x_onnx_detector(img_path, input_shape, sess, score_thr, nms_thr=0.45,
             cv2.imwrite(output_path, origin_img)
 
         boxes_xywh = xyxy2xywh(final_boxes)
+
         # store js info
         try:
             image_id = get_image_id_in_path(img_path)
@@ -427,13 +428,12 @@ def yolo_x_onnx_detector(img_path, input_shape, sess, score_thr, nms_thr=0.45,
             json_dict.append({
                 "image_id": image_id,
                 "category_id": COCO_IDX[final_cls_inds[ind].astype(np.int32)],
-                "bbox": list(boxes_xywh[ind].astype(np.int32)),
+                "bbox": list(boxes_xywh[ind]),
                 "score": float(final_scores[ind].astype(np.float32))
             })
     return json_dict
 
 def cal_coco_result(annotations_file, result_json_file):
-    # https://github.com/muyiguangda/tensorflow-keras-yolov3/blob/master/pycocoEval.py
     if not os.path.exists(result_json_file):
         assert ValueError("result file: {} not exist.".format(result_json_file))
     if not os.path.exists(annotations_file):
@@ -443,7 +443,6 @@ def cal_coco_result(annotations_file, result_json_file):
     annType = annType[1]
     cocoGt = COCO(annotations_file)
     imgIds = get_img_id(result_json_file)
-    print (len(imgIds))
     cocoDt = cocoGt.loadRes(result_json_file)
     imgIds = sorted(imgIds)
     imgIds = imgIds[0:5000]
@@ -465,9 +464,9 @@ def parse_args():
                         help="Draw results on image")
     parser.add_argument("--dump_blobs",
                         help="Dump all blobs into a file in npz format")
-    parser.add_argument("--obj_threshold", type=float, default=0.3,
+    parser.add_argument("--nms_score_thr", type=float, default=0.01,
                         help="Object confidence threshold")
-    parser.add_argument("--nms_threshold", type=float, default=0.45,
+    parser.add_argument("--nms_threshold", type=float, default=0.65,
                         help="NMS threshold")
     parser.add_argument("--coco_image_path", type=str, default='/work/dataset/coco/val2017',
                         help="dataset image list file")
@@ -520,7 +519,7 @@ def main(argv):
         for image_name in image_list:
             image_path = os.path.join(args.coco_image_path, image_name)
             jlist = yolo_x_onnx_detector(image_path, args.net_input_dims, sess, args.score_thr, args.nms_threshold,
-                         nms_score_thr=0.1, with_p6=args.with_p6, draw_image=args.draw_image)
+                         nms_score_thr=args.nms_score_thr, with_p6=args.with_p6, draw_image=args.draw_image)
 
             result_jist.extend(jlist)
             count_num += 1
