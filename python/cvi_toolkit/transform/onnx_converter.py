@@ -1405,11 +1405,12 @@ class OnnxConverter(BaseConverter):
         oc = filter_tensor.shape[1] * group # feature map size
         oh = (ih - 1) * strides[0] - pads[0] - pads[2] + dilations[0] * (filter_shape[2] - 1) + 1 + output_padding[-2]
         ow = (iw - 1) * strides[1] - pads[1] - pads[3] + dilations[1] * (filter_shape[3] - 1) + 1 + output_padding[-1]
-
+        filter_name = "{}_filter".format(onnx_node.name)
         if conv_param['group'] != 1:
             g = conv_param['group']
             new_shape = [g, int(filter_shape[0]/g), filter_shape[1], kh, kw]
-            filter_op = self.CVI.add_load_file_op(filter_tensor.name, new_shape)
+            self.addTensor(filter_name, filter_tensor.tensor_data, new_shape)
+            filter_op = self.CVI.add_load_file_op(filter_name, new_shape)
             if g == oc and ic == oc:
                 conv_param['is_dw'] = True
         else:
@@ -1418,12 +1419,14 @@ class OnnxConverter(BaseConverter):
             weight_tensor = np.ascontiguousarray(np.transpose(weight_tensor_data, (1,0,2,3)))
             filter_shape = weight_tensor.shape
             oc = weight_tensor.shape[0]
-            self.addTensor(filter_tensor.name, weight_tensor, filter_shape)
-            filter_op = self.CVI.add_load_file_op(filter_tensor.name, filter_shape)
+            self.addTensor(filter_name, weight_tensor, filter_shape)
+            filter_op = self.CVI.add_load_file_op(filter_name, filter_shape)
 
         operands.append(filter_op)
 
         if with_bias:
+            bias_name = "{}_bias".format(onnx_node.name)
+            self.addTensor(bias_name, bias_tensor.tensor_data, bias_tensor.shape)
             bias_op = self.CVI.add_load_file_op(bias_name, bias_tensor.shape)
             operands.append(bias_op)
 
