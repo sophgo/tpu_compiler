@@ -29,7 +29,7 @@ TEST_TORCH_IR = [
     "AdaptiveAvgPool2d",  #  input_size % output_size == 0
     # "Bilinear", ## Bilinear not support
     "Batch_Norm", ##Batch_norm_2d and Instance_Norm_2d easily will fail
-    "Conv", # sunpport Conv with 3d, 2d, 1d case
+    "Conv3d", # sunpport Conv with 3d, 2d, 1d case
     "ConvTranspose",
     "Cat_Chunk",
     "ConstantPad",
@@ -52,7 +52,7 @@ TEST_TORCH_IR = [
     "Math", ## sum, prod not support
     "masked_fill",
     "Norm",
-    "Non_image_model",
+    "Multi_input",
     "Pow",
     "Repeat",   ## repeat_interleave nonx not support
     "ReflectionPad", ## ReflectionPad_2d not support
@@ -82,6 +82,8 @@ def cvimodel_inference(inputs, model_name):
             data= data.astype(np.uint16)
         elif name.endswith('_quant_i16'):
             data = data.astype(np.int16)
+        elif name.endswith('_quant_bf16'):
+            data = fp32_to_bf16(data)
         i.data[:] = data.reshape(i.data.shape)
     model.forward()
     outputs = {}
@@ -150,7 +152,7 @@ class TORCH_IR_TESTER(object):
             "AdaptiveAvgPool2d": self.test_AdaptiveAvgPool2d,
             "Batch_Norm": self.test_Batch_Norm,
             "Bilinear": self.test_Bilinear,
-            "Conv": self.test_Conv,
+            "Conv3d": self.test_Conv3d,
             "ConvTranspose": self.test_ConvTranspose,
             "Cat_Chunk": self.test_Cat_Chunk,
             "ConstantPad": self.test_ConstantPad,
@@ -171,9 +173,9 @@ class TORCH_IR_TESTER(object):
             "Math": self.test_Math,
             "masked_fill": self.test_masked_fill,
             "Mulit_attention_api": self.test_Mulit_attention_api,
+            "Multi_input": self.test_Multi_input,
             "Max_Min": self.test_Max_Min,
             "Norm": self.test_Norm,
-            "Non_image_model": self.test_Non_image_model,
             "Pow": self.test_Pow,
             "Repeat": self.test_Repeat,
             "ReflectionPad": self.test_ReflectionPad,
@@ -284,7 +286,7 @@ class TORCH_IR_TESTER(object):
                             "0.6,0.6,0.5", "--dequant", "--op_info", int8_csv])
             # gen cvimodel
             cvimodel = "{}_int8.cvimodel".format(model_name)
-            ret = mlir_to_cvimodel(quant_mlir, cvimodel)
+            ret = mlir_to_cvimodel(quant_mlir, cvimodel, inputs_type="SAME", outputs_type="FP32")
             if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
             # run cvi_model
@@ -331,7 +333,7 @@ class TORCH_IR_TESTER(object):
 
             # gen cvimodel
             cvimodel = "{}_bf16.cvimodel".format(model_name)
-            ret = mlir_to_cvimodel(quant_mlir, cvimodel)
+            ret = mlir_to_cvimodel(quant_mlir, cvimodel, inputs_type="SAME", outputs_type="FP32")
             if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
             # run cvi_model
@@ -484,20 +486,15 @@ class TORCH_IR_TESTER(object):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
-                self.embedding_layer = torch.nn.Embedding(20, 5)
-                self.gru = nn.GRU(input_size=5, hidden_size=50, batch_first=True)
+                self.gru = nn.GRU(input_size=100, hidden_size=50)
 
             def forward(self, x):
-                x = self.embedding_layer(x)
                 out, hidden = self.gru(x)
                 return out
 
         test_name = 'GRU'
-
-        batch_size = 50
-        seq_length = 100
-        input_data = np.random.uniform(0, 19, size=(batch_size, seq_length))
-        input_data = torch.from_numpy(input_data).long()
+        input_shape = [8, 50, 100]
+        input_data = torch.randn(input_shape)
 
         net = Net()
         torch_output_data = net(input_data)
@@ -1037,7 +1034,7 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
-    def test_Non_image_model(self):
+    def test_Multi_input(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
@@ -1051,7 +1048,7 @@ class TORCH_IR_TESTER(object):
                 Y,(Y_h, Y_c) = self.rnn(x, (h_0, c_0))
                 return Y,Y_h,Y_c
 
-        test_name = 'Non_image_model'
+        test_name = 'Multi_input'
         net = Net()
         input_data = torch.randn(81, 3, 100)
         h_0 = torch.randn(2, 1, 128)
@@ -1386,32 +1383,19 @@ class TORCH_IR_TESTER(object):
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
-    def test_Conv(self):
+    def test_Conv3d(self):
         class Net(torch.nn.Module):
             def __init__(self):
                 super(Net, self).__init__()
                 self.conv_test_3d = nn.Conv3d(3, 1, (3, 7, 7), stride=1, padding=0)
-                # conv_test_2d : (input + 2*padding - (kernel_size-1) -1) / stride + 1
-                self.conv_test_2d = nn.Conv2d(in_channels=28, out_channels=1, kernel_size=3, stride=1, padding=1)
-                self.LazyConv2d = torch.nn.LazyConv2d(1, 3, padding=1)
-                self.conv_test_1d = nn.Conv1d(in_channels=94, out_channels=10, kernel_size=3, stride=2, padding=1)
 
             def forward(self, x):
                 ## 3d_conv for 5 dim
                 x = self.conv_test_3d(x)
-                ## squeeze from 5 dim to 4 dim
-                x = x.squeeze(dim=1)
-                ## 2d_conv for 4 dim
-                x = self.conv_test_2d(x)
-                x = self.LazyConv2d(x)
-                ## squeeze from 4 dim to 3 dim
-                x = x.squeeze(dim=1)
-                ## 1d_conv for 3 dim
-                x = self.conv_test_1d(x)
                 return x
 
         input_shape = [1, 3, 30, 100, 10]
-        test_name = 'Conv'
+        test_name = 'Conv3d'
         ##torch needn't weight and bias
         input_data = torch.randn(input_shape)
         net = Net()

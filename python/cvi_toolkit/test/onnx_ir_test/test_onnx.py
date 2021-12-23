@@ -144,6 +144,8 @@ def cvimodel_inference(inputs, model_name):
             data= data.astype(np.uint16)
         elif name.endswith('_quant_i16'):
             data = data.astype(np.int16)
+        elif name.endswith('_quant_bf16'):
+            data = fp32_to_bf16(data)
         i.data[:] = data.reshape(i.data.shape)
     model.forward()
     outputs = {}
@@ -304,7 +306,7 @@ class ONNX_IR_TESTER(object):
 
                 # gen cvimodel
                 cvimodel = "{}_int8.cvimodel".format(model_name)
-                ret = mlir_to_cvimodel(quant_mlir, cvimodel)
+                ret = mlir_to_cvimodel(quant_mlir, cvimodel, inputs_type="SAME", outputs_type="SAME")
                 if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
                 # run cvi_model
@@ -351,7 +353,7 @@ class ONNX_IR_TESTER(object):
 
                 # gen cvimodel
                 cvimodel = "{}_bf16.cvimodel".format(model_name)
-                ret = mlir_to_cvimodel(quant_mlir, cvimodel)
+                ret = mlir_to_cvimodel(quant_mlir, cvimodel, inputs_type="SAME", outputs_type="SAME")
                 if ret < 0: raise RuntimeError("gen_cvimodel failed")
 
                 # run cvi_model

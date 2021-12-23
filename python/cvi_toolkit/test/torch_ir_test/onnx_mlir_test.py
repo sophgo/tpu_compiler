@@ -73,8 +73,8 @@ class ModelTest(object):
         if quant_mode in ['bf16', 'mix_bf16']:
             deploy_cmd = [
                 'model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--quantize',
-                quant_mode.upper(), '--chip', self.chip_type, '--image', self.input_path, '--inputs_type', 'bf16',
-                '--outputs_type', 'bf16', '--tolerance', '0.99,0.99,0.87', '--correctness', '0.99,0.99,0.95', '--debug',
+                quant_mode.upper(), '--chip', self.chip_type, '--image', self.input_path, '--inputs_type', 'SAME',
+                '--outputs_type', 'SAME', '--tolerance', '0.99,0.99,0.87', '--correctness', '0.99,0.99,0.95', '--debug',
                 '--cvimodel', self.cvimodel
             ]
         elif "int8" == quant_mode:
@@ -83,8 +83,8 @@ class ModelTest(object):
             self.__make_test_calibration_table__(str(table_file))
             deploy_cmd = [
                 'model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--calibration_table',
-                str(table_file), '--chip', self.chip_type, '--image', self.input_path, '--inputs_type', 'int8',
-                '--outputs_type', 'int8', '--tolerance', '0.10,0.10,0.1', '--correctness', '0.99,0.99,0.93', '--debug',
+                str(table_file), '--chip', self.chip_type, '--image', self.input_path, '--inputs_type', 'SAME',
+                '--outputs_type', 'SAME', '--tolerance', '0.10,0.10,0.1', '--correctness', '0.99,0.99,0.93', '--debug',
                 '--cvimodel', self.cvimodel
             ]
         else:

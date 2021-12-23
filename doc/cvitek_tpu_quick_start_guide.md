@@ -361,8 +361,8 @@ model_deploy.py的相关参数说明如下：
 | excepts                 | 指定需要排除比较的层的名称，默认为-                        |
 | correctnetss            | 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度          |
 | chip                    | 支持平台，可以为cv183x或cv182x                                    |
-| inputs_type             | 指定输入类型(AUTO/FP32/INT8/BF16)，如果是AUTO，当第一层是INT8时用INT8，BF16时用FP32 |
-| outputs_type            | 指定输出类型(AUTO/FP32/INT8/BF16)，如果是AUTO，当最后层是INT8时用INT8，BF16时用FP32  |
+| inputs_type             | 指定输入类型(AUTO/FP32/INT8/BF16/SAME)，如果是AUTO，当第一层是INT8时用INT8，BF16时用FP32 |
+| outputs_type            | 指定输出类型(AUTO/FP32/INT8/BF16/SAME)，如果是AUTO，当最后层是INT8时用INT8，BF16时用FP32  |
 | model_version           | 支持选择模型的版本，默认为latest                                    |
 | custom_op_plugin        | 支持用户自定义op的动态库文件                                        |
 | image                   | 用于测试的输入文件，可以是图片、npz、npy；如果有多个输入，用,隔开       |

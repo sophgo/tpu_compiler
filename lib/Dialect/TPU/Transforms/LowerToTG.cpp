@@ -45,12 +45,12 @@
 
 llvm::cl::opt<std::string> clInputsType(
     "inputs-type",
-    llvm::cl::desc("set result type: AUTO/FP32/INT8/BF16; if AUTO, use INT8 if first layer is INT8, FP32 if BF16"),
+    llvm::cl::desc("set result type: AUTO/FP32/INT8/BF16/SAME; if AUTO, use INT8 if first layer is INT8, FP32 if BF16"),
     llvm::cl::init("AUTO"));
 
 llvm::cl::opt<std::string> clOutputsType(
     "outputs-type",
-    llvm::cl::desc("set result type: AUTO/FP32/INT8/BF16; if AUTO, use INT8 if last layer is INT8, FP32 if BF16"),
+    llvm::cl::desc("set result type: AUTO/FP32/INT8/BF16/SAME; if AUTO, use INT8 if last layer is INT8, FP32 if BF16"),
     llvm::cl::init("FP32"));
 
 namespace mlir {
@@ -3807,7 +3807,7 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
         setOpResultType(prevOp->getResult(0), FloatType::getBF16(op->getContext()));
         setOpResultType(op->getOperand(0), FloatType::getBF16(op->getContext()));
         quantOp->setAttr("from", rewriter.getStringAttr("BF16"));
-      } else if ((inputs_type == "AUTO" || inputs_type == "INT8") && quantOp.from() == "NONE" &&
+      } else if ((inputs_type == "AUTO" || inputs_type == "INT8" || inputs_type == "SAME") && quantOp.from() == "NONE" &&
                  (quantOp.to() == "INT8" || quantOp.to() == "UINT8")) {
         // remove quantOp and change argType
         // and inputOp's type to int8
@@ -3837,7 +3837,7 @@ struct EliminateInputQuantOpPattern: public RewritePattern {
         setOpThreshold(prevOp, 1.0);
         rewriter.replaceOp(op, {op->getOperand(0)});
       } else if (quantOp.from() == "NONE" && quantOp.to() == "BF16" &&
-                 inputs_type == "BF16") {
+                 (inputs_type == "BF16" || inputs_type == "SAME")) {
         auto argument = prevOp->getOperand(0);
         setOpResultType(argument, FloatType::getBF16(op->getContext()));
         setOpResultType(prevOp->getResult(0), FloatType::getBF16(op->getContext()));
@@ -3939,6 +3939,15 @@ struct EliminateOutputQuantOpPattern: public RewritePattern {
       }
     } else if (outputs_type == "BF16") {
       if (quantOp.from() == "BF16" && quantOp.to() == "NONE") {
+        rewriter.replaceOp(op, {op->getOperand(0)});
+        fixed = true;
+      }
+    } else {
+      // keep
+      if (quantOp.from() == "INT8" && quantOp.to() == "NONE") {
+        rewriter.replaceOp(op, {op->getOperand(0)});
+        fixed = true;
+      } else if (quantOp.from() == "BF16" && quantOp.to() == "NONE") {
         rewriter.replaceOp(op, {op->getOperand(0)});
         fixed = true;
       }

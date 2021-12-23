@@ -195,9 +195,9 @@ if __name__ == '__main__':
     parser.add_argument("--aligned_input", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
     parser.add_argument("--inputs_type", default="AUTO",
-                        help="set inputs type:AUTO/FP32/INT8/BF16; if AUTO, use INT8 if input layer is INT8, use FP32 if BF16")
+                        help="set inputs type:AUTO/FP32/INT8/BF16/SAME; if AUTO, use INT8 if input layer is INT8, use FP32 if BF16")
     parser.add_argument("--outputs_type", default="FP32",
-                        help="set outputs type:AUTO/FP32/INT8/BF16; if AUTO, use INT8 if output layer is INT8, use FP32 if BF16")
+                        help="set outputs type:AUTO/FP32/INT8/BF16/SAME; if AUTO, use INT8 if output layer is INT8, use FP32 if BF16")
     parser.add_argument("--merge_weight", action='store_true',
                         help="merge weights into one weight binary wight previous generated cvimodel")
     parser.add_argument("--tg_op_divide", type=str2bool, default=False,
