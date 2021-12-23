@@ -25,7 +25,6 @@ add_llvm_library(MLIRTPU
   Analysis/GenFakeWeightNpz.cpp
   Analysis/TpuOpPrint.cpp
   Analysis/TpuOpStats.cpp
-  Transforms/CompressActivation.cpp
   Transforms/CompressWeight.cpp
   Transforms/ConvertBnToScale.cpp
   Transforms/ConvertScale.cpp
@@ -65,7 +64,6 @@ add_llvm_library(MLIRTPU
   Quantization/Quantization.cpp
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizeBf16.cpp
-  Optimization/ConvTile.cpp
   Optimization/PoolingTile.cpp
   Optimization/SplitPool.cpp
   Optimization/FuseLeakyRelu.cpp

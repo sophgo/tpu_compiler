@@ -148,11 +148,6 @@ def DoReorderOp : FunctionPass<"reorder-op"> {
   let constructor = "mlir::createReorderOpPass()";
 }
 
-def DoCompressActivation : FunctionPass<"compress-activation"> {
-  let summary = "Compress activation";
-  let constructor = "mlir::createCompressActivationPass()";
-}
-
 def DoFuseRelu : FunctionPass<"fuse-relu"> {
   let summary = "Fuse relu op into previous op (conv/eltwise etc)";
   let constructor = "mlir::createFuseReluPass()";

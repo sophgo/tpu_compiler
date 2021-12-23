@@ -715,6 +715,8 @@ struct Conv_ARGS {
   int pad_value;
   bool do_scale_lut;
   gaddr_t ga_scale_lut;
+  std::vector<uint8_t> *filter;
+  std::vector<uint8_t> *new_filter;
 };
 
 typedef struct {
@@ -948,6 +950,8 @@ public:
   void enqueueEnParallelCmd();
 
   void generateCmd();
+
+  bool compressWeight();
 
   // CMODEL Debug
   void configCModelDebug();

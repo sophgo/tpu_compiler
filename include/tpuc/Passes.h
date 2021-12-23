@@ -62,7 +62,6 @@ std::unique_ptr<mlir::Pass> createConvertPriorBoxPass();
 
 std::unique_ptr<mlir::Pass> createTgFuseLeakyReluPass();
 
-std::unique_ptr<mlir::Pass> createCompressActivationPass();
 std::unique_ptr<mlir::Pass> createCompressWeightPass();
 
 std::unique_ptr<mlir::Pass> createTgOpTilePass();

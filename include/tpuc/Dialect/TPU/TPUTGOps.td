@@ -239,12 +239,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
     DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
-    OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<BoolAttr>:$store_compr_act,
-    OptionalAttr<TPU_ConvTileParamAttr>:$tile_param,
-    OptionalAttr<BoolAttr>:$compressed_weight,
-    OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,
-    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param
+    DefaultValuedAttr<BoolAttr, "false">:$do_compress
   );
 
   let results = (outs AnyTensor:$output);

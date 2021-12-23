@@ -6,6 +6,7 @@
  */
 
 #include "TgConvKernel.hpp"
+#include "tpuc/TPUCompressUtil.h"
 #include "backend/backend_tl_api.h"
 #include <numeric>
 
@@ -3654,6 +3655,89 @@ void Conv::determineTilePolicy() {
   }
 }
 
+bool Conv::compressWeight() {
+  bool isBf16Flt = (args.tiu_fmt == CVK_FMT_BF16);
+  int fltEltSize = isBf16Flt ? 2 : 1;
+  int oc = group_output_channels();
+  int ic = group_input_channels();
+  int kh = kernel_height();
+  int kw = kernel_width();
+  int oc_step = tile_info.oc_step;
+  int ic_step = tile_info.ic_step;
+
+  if (ic != ic_step) {
+    return false;
+  }
+
+  int totalSize = 0;
+  int totalCompressedSize = 0;
+
+  int maxPlainSize = oc_step *kh * kw *ic * fltEltSize;
+  auto plainData = std::make_unique<std::vector<uint8_t> >(maxPlainSize);
+
+  int maxComprSize = mlir::getCompressedDataSize(maxPlainSize, isBf16Flt ? 1 : 0);
+  auto compressedData = std::make_unique<std::vector<uint8_t>>(maxComprSize);
+
+  bool canCompress = true;
+  int filterSize = args.filter->size();
+  for (int oc_pos = 0; oc_pos < oc; oc_pos += oc_step) {
+    int cur_oc = std::min(oc - oc_pos, oc_step);
+    int stepSize = cur_oc * kh * kw * ic * fltEltSize;
+    int pos = oc_pos * kh * kw * ic * fltEltSize;
+
+    // H/W constraint: must align 16B
+    if (pos % 16) {
+      canCompress = false;
+      break;
+    }
+
+    std::memcpy(plainData->data(), args.filter->data() + pos, stepSize);
+
+    // Calculate compress parameter first.
+    mlir::CompressCommandInfo cmdInfo;
+    std::memset(&cmdInfo, 0, sizeof(cmdInfo));
+    cmdInfo.signedness = isBf16Flt ? 0 : 1;
+    cmdInfo.is_bfloat16 = isBf16Flt ? 1 : 0;
+    cmdInfo.bias0 = isBf16Flt ? 127 : 0;
+    mlir::getCompressParameter(plainData->data(), stepSize, cmdInfo.signedness,
+                         cmdInfo.is_bfloat16, &cmdInfo);
+
+    int compressedSize = maxComprSize;
+    if (isBf16Flt)
+      mlir::compressBf16Data(plainData->data(), stepSize, compressedData->data(),
+                       &compressedSize, &cmdInfo);
+    else
+      mlir::compressInt8Data(plainData->data(), stepSize, compressedData->data(),
+                       &compressedSize, &cmdInfo);
+
+    // Compress size must be less than tiled size.
+    LLVM_DEBUG(llvm::dbgs()
+               << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
+               << ", stepSize " << stepSize << ", compressedSize "
+               << compressedSize << ", pos " << pos << ", totalSize "
+               << totalSize << ", totalCompressedSize " << totalCompressedSize
+               << ", filterSize " << filterSize << "\n");
+
+    if (compressedSize > stepSize) {
+      LLVM_DEBUG(llvm::dbgs()
+                 << "  [oc_pos=" << oc_pos << "] cur_oc " << cur_oc
+                 << ", stepSize " << stepSize << ", compressedSize "
+                 << compressedSize << ", SKIP\n");
+      canCompress = false;
+      break;
+    } else {
+      totalSize += stepSize;
+      totalCompressedSize += compressedSize;
+    }
+
+    // Fill compressed data.
+    assert(static_cast<uint32_t>(pos + compressedSize) <= args.new_filter->size());
+    std::memcpy(args.new_filter->data() + pos, compressedData->data(),
+                compressedSize);
+  }
+  return canCompress;
+}
+
 void Conv::doConvByTilePolicy() {
   // Pre-alloc maximum one-step size
   // The local memory release must be in reverse order.
@@ -3684,6 +3768,13 @@ void Conv::doConvByTilePolicy() {
 
   default:
     return;
+  }
+
+  if (args.do_load_cmpr_wgt) {
+    if (!compressWeight()) {
+      args.do_load_cmpr_wgt = false;
+      args.new_filter->clear();
+    }
   }
 
   // Channel should larger than NPU_NUM
@@ -3722,10 +3813,8 @@ void cvi_backend_tg_fixed_conv_kernel(
     int do_bias, int do_activation, float activation_arg[],
     int activation_gt_scale, int activation_gt_rshift, int activation_le_scale,
     int activation_le_rshift, int right_shift_width, bool do_chl_quan,
-    bool do_ic_alignment, int store_cmpr_act, int load_cmpr_act,
-    bool do_load_cmpr_wgt, int store_cmpr_act_c_step, int load_cmpr_act_c_step,
-    int store_cmpr_act_h_step, int load_cmpr_act_h_step, int pad_value,
-    gaddr_t ga_scale_lut) {
+    bool do_ic_alignment, std::vector<uint8_t> *filter,
+    std::vector<uint8_t> *new_filter, int pad_value, gaddr_t ga_scale_lut) {
   // this message is too long for llvm::format, so seperate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
                  "cvi_backend_tg_fixed_conv_kernel:\n"
@@ -3738,19 +3827,15 @@ void cvi_backend_tg_fixed_conv_kernel(
                  input_c, input_h, input_w, groups, output_c, kh, kw,
                  dilation_h, dilation_w, pad_top, pad_bottom, pad_left,
                  pad_right, stride_h, stride_w));
-  LLVM_DEBUG(
-      llvm::errs() << llvm::format(
-          "    activation_gt_rshift = %d, activation_gt_scale = %d\n"
-          "    activation_le_rshift = %d, activation_le_scale = %d\n"
-          "    do_activation = %d\n"
-          "    do_ic_alignment = %d\n"
-          "    store_cmpr_act %d, load_cmpr_act %d, do_load_cmpr_wgt %d\n"
-          "    store_cmpr_act_c_step %d, load_cmpr_act_c_step %d\n"
-          "    ga_scale_lut 0x%lx\n",
-          activation_gt_rshift, activation_gt_scale, activation_le_rshift,
-          activation_le_scale, do_activation, do_ic_alignment, store_cmpr_act,
-          load_cmpr_act, do_load_cmpr_wgt, store_cmpr_act_c_step,
-          load_cmpr_act_c_step, ga_scale_lut));
+  LLVM_DEBUG(llvm::errs() << llvm::format(
+                 "    activation_gt_rshift = %d, activation_gt_scale = %d\n"
+                 "    activation_le_rshift = %d, activation_le_scale = %d\n"
+                 "    do_activation = %d\n"
+                 "    do_ic_alignment = %d\n"
+                 "    ga_scale_lut 0x%lx\n",
+                 activation_gt_rshift, activation_gt_scale,
+                 activation_le_rshift, activation_le_scale, do_activation,
+                 do_ic_alignment, ga_scale_lut));
 
   //
   // Convolution initialization
@@ -3790,13 +3875,6 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args.do_chl_quan = do_chl_quan;
   conv->args.layer_id = layer_id;
   conv->args.do_ic_alignment = do_ic_alignment;
-  conv->args.store_cmpr_act = store_cmpr_act;
-  conv->args.load_cmpr_act = load_cmpr_act;
-  conv->args.do_load_cmpr_wgt = do_load_cmpr_wgt;
-  conv->args.store_cmpr_act_c_step = store_cmpr_act_c_step;
-  conv->args.load_cmpr_act_c_step = load_cmpr_act_c_step;
-  conv->args.store_cmpr_act_h_step = store_cmpr_act_h_step;
-  conv->args.load_cmpr_act_h_step = load_cmpr_act_h_step;
   conv->args.pad_value = pad_value;
   conv->args.do_quant = false;
   conv->args.ga_scale_lut = ga_scale_lut;
@@ -3806,6 +3884,13 @@ void cvi_backend_tg_fixed_conv_kernel(
   conv->args.input_fmt = CVK_FMT_I8;
   conv->args.output_fmt = CVK_FMT_I8;
   conv->args.tiu_fmt = CVK_FMT_I8;
+  conv->args.filter = filter;
+  conv->args.new_filter = new_filter;
+  conv->args.do_load_cmpr_wgt = false;
+  if (filter != nullptr && !filter->empty()) {
+    assert(new_filter && !new_filter->empty());
+    conv->args.do_load_cmpr_wgt = true;
+  }
 
   // Global memory region from dialect
   conv->initializeGlobalMem();
@@ -3856,11 +3941,9 @@ void cvi_backend_tg_bf16_conv_kernel(
     uint16_t kh, uint16_t kw, uint16_t dilation_h, uint16_t dilation_w,
     uint8_t pad_top, uint8_t pad_bottom, uint8_t pad_left, uint8_t pad_right,
     uint8_t ins_h, uint8_t ins_w, uint8_t stride_h, uint8_t stride_w,
-    int do_bias, int do_activation, bool fp32_output, int store_cmpr_act,
-    int load_cmpr_act, bool do_load_cmpr_wgt, int store_cmpr_act_c_step,
-    int load_cmpr_act_c_step, int store_cmpr_act_h_step,
-    int load_cmpr_act_h_step, bool do_quant, gaddr_t ga_scale,
-    gaddr_t ga_zeropoint) {
+    int do_bias, int do_activation, bool fp32_output,
+    std::vector<uint8_t> *filter, std::vector<uint8_t> *new_filter,
+    bool do_quant, gaddr_t ga_scale, gaddr_t ga_zeropoint) {
 
   // this message is too long for llvm::format, so separate it
   LLVM_DEBUG(llvm::errs() << llvm::format(
@@ -3869,13 +3952,11 @@ void cvi_backend_tg_bf16_conv_kernel(
                  "    bottom = %lx, top = %lx, weight = %lx, bias = %lx\n"
                  "    nchw = (%d, %d, %d, %d), group = %d, oc = (%d)\n"
                  "    kernel = (%d, %d), dilation = (%d, %d)\n"
-                 "    pad = (%d, %d, %d, %d), ins=(%d, %d) stride = (%d, %d)\n"
-                 "    store_cmpr_act_c_step %d, load_cmpr_act_c_step %d\n",
+                 "    pad = (%d, %d, %d, %d), ins=(%d, %d) stride = (%d, %d)\n",
                  layer_id, ga_ifmap, ga_ofmap, ga_weight, ga_bias, input_n,
                  input_c, input_h, input_w, groups, output_c, kh, kw,
                  dilation_h, dilation_w, pad_top, pad_bottom, pad_left,
-                 pad_right, ins_h, ins_w, stride_h, stride_w,
-                 store_cmpr_act_c_step, load_cmpr_act_c_step));
+                 pad_right, ins_h, ins_w, stride_h, stride_w));
   LLVM_DEBUG(
       llvm::errs() << llvm::format("    do_activation = %d\n", do_activation));
 
@@ -3912,13 +3993,6 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args.do_activation = static_cast<bool>(do_activation);
   conv->args.do_quant = do_quant;
   conv->args.layer_id = layer_id;
-  conv->args.store_cmpr_act = store_cmpr_act;
-  conv->args.load_cmpr_act = load_cmpr_act;
-  conv->args.do_load_cmpr_wgt = do_load_cmpr_wgt;
-  conv->args.store_cmpr_act_c_step = store_cmpr_act_c_step;
-  conv->args.load_cmpr_act_c_step = load_cmpr_act_c_step;
-  conv->args.store_cmpr_act_h_step = store_cmpr_act_h_step;
-  conv->args.load_cmpr_act_h_step = load_cmpr_act_h_step;
 
   // Mix-precision tdma load/store from dialect
   // E.g. input int8 -> tiu bf16 -> output fp32
@@ -3926,6 +4000,12 @@ void cvi_backend_tg_bf16_conv_kernel(
   conv->args.output_fmt = CVK_FMT_BF16;
   conv->args.tiu_fmt = CVK_FMT_BF16;
   conv->args.ps32_output = fp32_output;
+  conv->args.filter = filter;
+  conv->args.new_filter = new_filter;
+  if (filter != nullptr && !filter->empty()) {
+    assert(new_filter && !new_filter->empty());
+    conv->args.do_load_cmpr_wgt = true;
+  }
 
   // Global memory region from dialect
   conv->initializeGlobalMem();

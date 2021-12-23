@@ -972,36 +972,6 @@ bool isBf16Tensor(Value val) {
   return elementType.isBF16();
 }
 
-int64_t getTotalCompressedActivationSize(Operation *op) {
-  int64_t cmrSize =
-      llvm::TypeSwitch<Operation *, int64_t>(op)
-          .Case<tpu::TG_INT8_Conv2DOp,
-                tpu::TG_BF16_Conv2DOp, tpu::TG_INT8_EltwiseAddOp,
-                tpu::TG_BF16_EltwiseAddOp, tpu::TG_INT8_PoolMax2DOp>(
-              [&](auto tpuOp) {
-                if (tpuOp.store_compr_act_param().hasValue())
-                  return tpuOp.store_compr_act_param()
-                      .getValue()
-                      .total_size()
-                      .getInt();
-                else
-                  return (int64_t)0;
-              })
-          .Case([&](tpu::TL_LG_JoinOp) {
-            auto tpuOp = llvm::dyn_cast<tpu::TL_LG_StoreOp>(
-                op->getOperand(0).getDefiningOp());
-
-            // tl_lg_store -> tl_lg_join
-            if (tpuOp.compr_act_param().hasValue())
-              return tpuOp.compr_act_param().getValue().total_size().getInt();
-            else
-              return (int64_t)0;
-          })
-          .Default([](Operation *) { return (int64_t)0; });
-
-  return cmrSize;
-}
-
 // Tiled compressed activation split as (tiled_n, tiled_c, tiled_h, W)
 // Global memory shape: (N/tiled_n, C/tiled_c, tiled_h, tiled_c, W)
 //

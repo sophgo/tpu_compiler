@@ -257,34 +257,13 @@ public:
   LogicalResult matchAndRewrite(TensorTyOp convOp,
                                 PatternRewriter &rewriter) const override {
 
-    // Already compressed.
-    if (convOp.compressed_weight().hasValue())
-      return failure();
-
-    // TG conv must determine tile size first
-    if (!convOp.tile_param().hasValue())
-      return failure();
 
     // Not support group convolution and depthwise convolution
     if (convOp.param().group().getInt() > 1)
       return failure();
 
-    int ic_step = convOp.tile_param().getValue().ic_step().getInt();
-    int oc_step = convOp.tile_param().getValue().oc_step().getInt();
-
-    std::vector<int64_t> filterShape = getTensorShape(convOp.filter());
-    int ic = filterShape[1];
-
-    // Not support partial sum
-    if (ic_step != ic)
-      return failure();
-
-    bool canCompress = tryCompressConvWeight<TensorTyOp, DataType>(
-        convOp, rewriter, oc_step, compressInfos_);
-    if (canCompress)
-      return success();
-
-    return failure();
+    convOp->setAttr("do_compress", rewriter.getBoolAttr(true));
+    return success();
   }
 
   std::vector<struct CompressInfo> &compressInfos_;
