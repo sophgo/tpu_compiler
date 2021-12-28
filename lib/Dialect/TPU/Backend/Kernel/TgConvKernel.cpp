@@ -2195,9 +2195,10 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
     scaleLutSize =
         ctx.lmem_tensor_to_size(shape, args.input_fmt, /*eu_align=*/1);
   }
-
+  int32_t max_oh = std::min(oh, MAX_HEIGHT);
+  int32_t max_ow = std::min(ow, MAX_WIDTH);
   // Split ow
-  for (int32_t ow_step = std::min(ow, MAX_WIDTH); ow_step > 0; --ow_step) {
+  for (int32_t ow_step = max_ow; ow_step > 0; --ow_step) {
     int32_t iw_step =
         ceiling_func((ow_step - 1) * stride_w + kw_extent, 1 + insert_width());
     iw_step = std::min(iw_step, iw);
@@ -2217,11 +2218,8 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
     }
 
     // Split oh
-    for (int32_t oh_step = std::min(oh, MAX_HEIGHT); oh_step > 0; --oh_step) {
-      // When the width tiling is used, there is no need to do height tiling.
-      if (ow_step < std::min(ow, MAX_WIDTH))
-        oh_step = 1;
-
+    int32_t oh_step = max_oh;
+    while(oh_step > 0) {
       // int32_t oh_step = ceiling_func(oh, tile_info.h);
       int32_t ih_step = ceiling_func((oh_step - 1) * stride_h + kh_extent,
                                      1 + insert_height());
@@ -2350,6 +2348,11 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
 
         } // for (tile_info.n = 1; tile_info.n < n; ++tile_info.n)
       }   // for (int32_t slice_oc = 0; slice_oc < num_oc_step; ++slice_oc)
+      if (ow_step < max_ow) {
+        // When the width tiling is used, there is no need to do height tiling.
+        break;
+      }
+      oh_step--;
     }     // for (tile_info.h = 1; tile_info.h <= oh; ++tile_info.h)
   }       // for (tile_info.w = 1; tile_info.w <= ow; ++tile_info.ow)
 
