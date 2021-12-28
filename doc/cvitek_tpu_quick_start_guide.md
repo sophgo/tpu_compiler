@@ -5,9 +5,9 @@
 
 
 
->文档版本: 1.5.3
+>文档版本: 1.5.4
 >
->发布日期: 2021-11-01
+>发布日期: 2021-12-25
 
 
 
@@ -16,37 +16,6 @@
 本文件所含信息归<u>北京晶视智能科技有限公司</u>所有。
 
 未经授权，严禁全部或部分复制或披露该等信息。
-
-<div STYLE="page-break-after: always;"></div>
-
-## 修订记录
-
-| 版本    | 日期       | 修改描述                                       |
-| ------- | ---------- |--------------------------------------------- |
-| V0.0.1  | 2019/12/11 | 初始版本                                      |
-| V0.1.0  | 2020/04/18 | 增加使用说明                                  |
-| V0.1.1  | 2020/04/20 | 更新测试命令                                  |
-| V0.1.2  | 2020/04/28 | 更新模型精度测试命令                           |
-| V0.2.0  | 2020/04/30 | 修订                                         |
-| V0.2.1  | 2020/05/15 | 根据V0.9 SDK更新部分命令                      |
-| V0.2.2  | 2020/06/01 | 增加端到端推理性能测试命令                     |
-| V0.3.0  | 2020/06/25 | 根据V1.0 SDK修订增加移植编译TensorFlow 2.x模型 |
-| V0.3.1  | 2020/06/29 | 采用python importer进行caffe移植              |
-| V0.3.2  | 2020/07/17 | 增加第9章使用TPU进行前处理                     |
-| V0.3.3  | 2020/07/19 | 根据V1.1 SDK修订                              |
-| V0.3.4  | 2020/07/20 | 修订                                          |
-| V0.3.5  | 2020/07/29 | 增加移植编译TensorFlow 2.x模型                 |
-| V0.3.6  | 2020/08/08 | 增加精度优化和混合量化指南                      |
-| V0.3.7  | 2020/08/12 | 更新使用TPU进行前处理流程                       |
-| V0.3.8  | 2020/09/06 | 根据V1.2 SDK修订                               |
-| V0.3.9  | 2020/09/22 | 增加移植tflite模型                             |
-| V0.3.10 | 2020/09/30 | 更新移植tflite模型                             |
-| V0.3.11 | 2020/10/26 | 根据V1.3 SDK修订                               |
-| V1.4.0  | 2020/12/07 | 根据V1.4 SDK修订                               |
-| V1.5.0  | 2021/01/29 | 根据V1.5 SDK修订                               |
-| V1.5.1 | 2021/08/01  | 根据V1.5.1 SDK修订                             |
-| V1.5.2 | 2021/09/20  | 根据V1.5.2 SDK修订                             |
-| V1.5.3 | 2021/11/01  | 根据V1.5.3 SDK修订                             |
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -70,47 +39,11 @@
 
 ## 1 概述
 
-#### 1) 阅读说明
+#### 1) 整理框架介绍
 
-本文档包含下述章节，请根据需要参阅相关章节。
+![](./assets/NNToolchain.png)
 
-* 开发环境配置
 
-  使用CVITEK提供的docker，配置编译开发所需的环境
-
-* 编译移植pytorch模型
-
-  以pytorch为例，介绍如何将原始模型转换成onnx模型，实现bf16和int8的转换为cvimodel，再到开发板中验证结果
-
-* 编译移植caffe模型
-
-  介绍如何移植一个新的caffe模型，实现bf16和int8的转换为cvimodel，再到开发板中验证结果
-
-* 编译移植多输入模型
-
-  用pytorch构造多输入模型，介绍如何转换多输入模型
-
-* 精度优化和混合量化
-
-  介绍BF16量化和混合量化，提高精度
-
-* 使用TPU进行前处理
-
-  介绍如何在cvimodel模型中增加前处理描述，并在运行时使用TPU进行前处理，将未经过前处理的输入到开发板带前处理的模型验证
-
-* 合并cvimodel模型
-
-  介绍将同一个模型的不同batch合并到一起，以及接口如何调用
-
-* 编译samples程序
-
-  介绍如何交叉编译sample应用程序，调用runtime API完成推理任务。具体包括3个samples：
-
-  * Sample-1 : classifier (mobilenet_v2)
-
-  * Sample-2 : classifier fused preprocess (mobilenet_v2)
-
-  * Sample-3 : classifier multiple batch (mobilenet_v2)
 
 #### 2) Release 内容
 
@@ -123,6 +56,8 @@ CVITEK Release包含如下组成部分：
 | cvitek_tpu_samples.tar.gz               | sample程序源代码                               |
 | cvimodel_samples_[cv182x/cv183x].tar.gz | sample程序使用的cvimodel模型文件               |
 | docker_cvitek_dev_1.7-ubuntu-18.04.tar  | CVITEK开发Docker镜像文件                       |
+
+
 
 #### 3) 经过验证的网络列表
 
@@ -444,20 +379,20 @@ cp -rf $MLIR_PATH/tpuc/regression/data/images .
 
 ``` shell
 model_transform.py \
-  --net_input_dims 224,224 \
+  --model_type caffe \
+  --model_name mobilenet_v2 \
+  --model_def ../mobilenet_v2_deploy.prototxt \
+  --model_data ../mobilenet_v2.caffemodel \
+  --image ./cat.jpg \
+  --image_resize_dims 256,256 \
   --keep_aspect_ratio false \
+  --net_input_dims 224,224 \
   --raw_scale 255.0 \
   --mean 103.94,115.78,123.68 \
   --std 1.0,1.0,1.0 \
   --input_scale 0.017 \
   --model_channel_order "bgr" \
   --gray false \
-  --image_resize_dims 256,256 \
-  --image ./cat.jpg \
-  --model_def ../mobilenet_v2_deploy.prototxt \
-  --model_data ../mobilenet_v2.caffemodel \
-  --model_name mobilenet_v2 \
-  --model_type caffe \
   --batch_size 1 \
   --tolerance 0.99,0.99,0.99 \
   --excepts prob \
@@ -1268,6 +1203,14 @@ CVI_NN_CleanupModel(bs4_handle);
 
 ## 9 运行runtime samples
 
+本章首先介绍EVB如何运行sample应用程序，然后介绍如何交叉编译sample应用程序，最后介绍docker仿真编译和运行sample。具体包括3个samples：
+
+* Sample-1 : classifier (mobilenet_v2)
+
+* Sample-2 : classifier fused preprocess (mobilenet_v2)
+
+* Sample-3 : classifier multiple batch (mobilenet_v2)
+
 #### 1) EVB运行Samples程序
 
 在EVB运行release提供的sample预编译程序。
@@ -1505,7 +1448,7 @@ cmake -G Ninja \
 cmake --build . --target install
 ```
 
-#### 3) 编译docker环境下运行的samples程序
+#### 3) docker环境仿真运行的samples程序
 
 需要如下文件：
 
