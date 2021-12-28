@@ -294,10 +294,8 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes(
     }
 
     // Split oh
-    for (int32_t oh_step = max_oh_step; oh_step > 0; --oh_step){
-      // When the width tiling is used, there is no need to do height tiling.
-      if (ow_step < max_ow_step)
-        oh_step = 1;
+    int32_t oh_step = max_oh_step;
+    while (oh_step > 0) {
       // int32_t ih_step = std::min((oh_step - 1) * stride_h + kh_extent, input_h);
       // ceil
       int32_t ih_step = ((oh_step - 1) * stride_h + kh_extent + insert_h)
@@ -333,6 +331,11 @@ ConvolutionBaseModel::TileInfo ConvolutionBaseModel::getTileSizes(
 
         }
       }
+      if (ow_step < max_ow_step) {
+        // When the width tiling is used, there is no need to do height tiling.
+        break;
+      }
+      oh_step--;
     }
   }
   tileInfo = {0};
