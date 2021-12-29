@@ -84,10 +84,6 @@ public:
     return offset;
   }
 
-  void setCompressed(bool compressed) { compressed_ = compressed; }
-
-  bool getCompressed() { return compressed_; }
-
   // Expect physical shape, but it is very difficult in our system.
   std::vector<uint32_t> shapes_;
 
@@ -100,10 +96,6 @@ public:
 
   uint64_t address_ = {0};
   uint32_t layerId_ = {0};
-
-  // TDMA load needs to enable decompression if true.
-  // TDMA store needs to enable compression if true.
-  bool compressed_ = {false};
 };
 
 class LocalMemoryDescriptor : public MemoryDescriptor {
@@ -695,15 +687,9 @@ struct Conv_ARGS {
   bool do_chl_quan;
   uint32_t layer_id;
   bool do_ic_alignment;
-  int store_cmpr_act;
-  int load_cmpr_act;
-  bool do_load_cmpr_wgt;
-  int store_cmpr_act_c_step;
-  int load_cmpr_act_c_step;
-  int store_cmpr_act_h_step;
-  int load_cmpr_act_h_step;
   bool fused_conv_relu;
   bool do_leaky_relu;
+  bool do_load_cmpr_wgt;
   cvk_fmt_t input_fmt;
   cvk_fmt_t output_fmt;
   cvk_fmt_t tiu_fmt;
@@ -882,9 +868,6 @@ public:
                   uint32_t cmdQueueIndex, uint32_t icPos = 0);
   void loadInput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
                  uint32_t cmdQueueIndex, uint32_t ic_pos = 0);
-  void loadPartialCompressedInput(std::vector<uint32_t> gmOutputPoss,
-                                  std::vector<uint32_t> gmInputPoss,
-                                  cvk_tl_t *tl_dst, cvk_tg_t *tg_src);
   void loadScaleLutTable(uint32_t lmIndex, uint32_t cmdQueueIndex);
   void computeConv(cvk_tl_t *tl_output, cvk_tl_t *tl_input, cvk_tl_t *tl_weight,
                    cvk_tl_t *tl_bias,
@@ -910,8 +893,6 @@ public:
                        uint32_t cmdQueueIndex, uint32_t icPos = 0);
   void computeQuant(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
                     uint32_t cmdQueueIndex, uint32_t icPos = 0);
-  void storePartialCompressedOutput(std::vector<uint32_t> gmOutputPoss,
-                                    cvk_tg_t *dst, cvk_tl_t *src);
   void storeOutput(std::vector<uint32_t> gmOutputPoss, uint32_t lmIndex,
                    uint32_t cmdQueueIndex);
 

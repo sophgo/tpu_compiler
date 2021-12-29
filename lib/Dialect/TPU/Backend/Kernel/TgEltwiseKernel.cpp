@@ -12,9 +12,7 @@ void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_ou
                            int32_t operand_num, int32_t n, int32_t c, int32_t h,
                            int32_t w, bool do_relu, bool do_early_stride,
                            int32_t stride_h, int32_t stride_w, int32_t rshift,
-                           const int32_t *multipliers, const int32_t *coeffs,
-                           int32_t store_cmpr_act, int32_t load_cmpr_act,
-                           int32_t store_cmpr_act_c_step, int32_t load_cmpr_act_c_step) {
+                           const int32_t *multipliers, const int32_t *coeffs) {
   this->layer_id = layer_id;
   this->ga_inputs = ga_inputs;
   this->ga_output = ga_output;
@@ -33,19 +31,12 @@ void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_ou
   this->coeffs_float = nullptr;
   this->fmt = CVK_FMT_I8;
   this->elementSize = this->fmt == CVK_FMT_I8 ? 1 : 2;
-
-  this->store_cmpr_act = store_cmpr_act;
-  this->load_cmpr_act = load_cmpr_act;
-  this->store_cmpr_act_c_step = store_cmpr_act_c_step;
-  this->load_cmpr_act_c_step = load_cmpr_act_c_step;
 }
 
 void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_output,
                            int32_t operand_num, int32_t n, int32_t c, int32_t h,
                            int32_t w, bool do_relu, bool do_early_stride,
-                           int32_t stride_h, int32_t stride_w, const float *coeffs,
-                           int32_t store_cmpr_act, int32_t load_cmpr_act,
-                           int32_t store_cmpr_act_c_step, int32_t load_cmpr_act_c_step) {
+                           int32_t stride_h, int32_t stride_w, const float *coeffs) {
   this->layer_id = layer_id;
   this->ga_inputs = ga_inputs;
   this->ga_output = ga_output;
@@ -62,10 +53,6 @@ void TgEltwiseKernel::init(uint32_t layer_id, gaddr_t ga_inputs[], gaddr_t ga_ou
   this->coeffs = nullptr;
   this->fmt = CVK_FMT_BF16;
   this->elementSize = this->fmt == CVK_FMT_I8 ? 1 : 2;
-  this->store_cmpr_act = store_cmpr_act;
-  this->load_cmpr_act = load_cmpr_act;
-  this->store_cmpr_act_c_step = store_cmpr_act_c_step;
-  this->load_cmpr_act_c_step = load_cmpr_act_c_step;
 }
 
 void TgEltwiseKernel::allocLmem(cvk_tl_shape_t &input_shape,
@@ -106,8 +93,6 @@ void TgEltwiseKernel::deallocLmem() {
 void TgEltwiseKernel::selectTilePolicy() {
   if (do_early_stride) {
     doTileForStrideCase();
-  } else if (load_cmpr_act || store_cmpr_act) {
-    doTileForCompressCase();
   } else {
     doTileForNormalCase();
   }
@@ -180,82 +165,19 @@ void TgEltwiseKernel::doTileForStrideCase() {
   }
 }
 
-void TgEltwiseKernel::doTileForCompressCase() {
-  assert (n == 1 && "Expect batch 1");
-
-  int32_t block_num = 5;
-
-  if (dynamic_cast<TgBf16EltwiseMinMaxKernel*>(this) && fmt == CVK_FMT_BF16) {
-    block_num = 2; // 2 for ping pong buffer and reuse activation
-  }
-
-  uint32_t remain = n * c * h * w * elementSize;
-  uint32_t offset = 0;
-
-  int32_t c_step = std::max(store_cmpr_act_c_step, load_cmpr_act_c_step);
-
-  int32_t max_h = LOCAL_MEM_SIZE / (block_num *
-                                    llvm::divideCeil(c_step, NPU_NUM) *
-                                    llvm::alignTo(w * elementSize, EU_NUM));
-  max_h = std::min(max_h, h);
-  assert(max_h);
-  int32_t cur_h = max_h;
-
-  cvk_tl_shape_t shape = ctx.tl_shape_t4(1, c_step, cur_h, w);
-  allocLmem(shape, shape);
-
-  LLVM_DEBUG(llvm::dbgs() << "doTileForCompressCase "
-      << "shape (" << n << ", " << c << ", " << h << ", " << w << ")\n");
-
-  EltwiseTile tile;
-  for (int32_t i = 0; i < c; i += c_step) {
-    int32_t cur_c = std::min(c - i, c_step);
-
-    for (int32_t j = 0; j < h; j += max_h) {
-      int cur_h = std::min(h - j, max_h);
-      tile.n = 1;
-      tile.c = cur_c;
-      tile.h = cur_h;
-      tile.w = w;
-      tile.n_pos = 0;
-      tile.c_pos = i;
-      tile.h_pos = j;
-      tile.input_offset = offset;
-      tile.output_offset = offset;
-      tiles.push_back(tile);
-
-        LLVM_DEBUG(llvm::dbgs()
-            << "  [" << i << "][" << j << "] shape (" << tile.n
-            << ", " << tile.c << ", " << tile.h << ", " << tile.w
-            << "), offset " << offset << ", remain " << remain << "\n");
-
-      offset += 1 * cur_c * cur_h * w * elementSize;
-
-      if (offset > remain) {
-        LLVM_DEBUG(llvm::dbgs()
-            << "  [" << i << "][" << j << "] "
-            << "offset " << offset << ", remain " << remain << "\n");
-        assert(offset == remain);
-      }
-    }
-  }
-}
-
 void TgEltwiseKernel::schedule() {
   int32_t total_steps = tiles.size() * operand_num;
   for (int32_t i = 0; i < total_steps + 2; i++) {
     ctx.parallel_enable();
 
     if ((i - 2) >= 0 && (i - 2) % operand_num == operand_num - 1) {
-      store_cmpr_act ? StoreCompressed(i - 2) :
-                       load_cmpr_act ? storeTensorStrided(i - 2) : store(i - 2);
+      store(i - 2);
     }
     if (i - 1 >= 0 && i - 1 < total_steps) {
       compute(i - 1);
     }
     if (i < total_steps) {
-      load_cmpr_act ? loadDecompressed(i) :
-                      store_cmpr_act ? loadTensorStrided(i) : load(i);
+      load(i);
     }
 
     ctx.parallel_disable();
@@ -296,74 +218,6 @@ void TgEltwiseKernel::load(int32_t step_idx) {
   input_flip = 1 - input_flip;
 }
 
-void TgEltwiseKernel::loadDecompressed(int32_t step_idx) {
-  cvk_tl_t operand;
-  auto tile_idx = step_idx / operand_num;
-  auto opd_idx = step_idx % operand_num;
-  auto tile = tiles[tile_idx];
-  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
-  operand.start_address = tl_input[input_flip]->start_address;
-  operand.shape = shape;
-  operand.stride = ctx.tl_default_stride(shape, fmt, 1);
-  operand.fmt = fmt;
-
-  assert(!do_early_stride && "Not support early stride yet");
-
-  uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(n, c, h, w,
-                                               tile.n_pos, tile.c_pos, tile.h_pos,
-                                               load_cmpr_act_c_step,
-                                               load_cmpr_act);
-  cvi_backend_tl_load_compressed(ctx, layer_id,
-                                 ga_inputs[opd_idx] + ga_cmpr_offset,
-                                 tl_input[input_flip]->start_address,
-                                 tile.n, tile.c, tile.h, tile.w,
-                                 c, h, w,
-                                 false, // DoTranspose
-                                 true,  // DoAligned
-                                 true,  // isNeuron
-                                 fmt,
-                                 fmt,
-                                 1,     // h_step
-                                 load_cmpr_act,
-                                 load_cmpr_act_c_step);
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-                 "load_cmpr[%d], flip[%d], shape<%d,%d,%d,%d>, global:%d<%d,%d,%d> -> local: %u\n", step_idx,
-                 input_flip, tile.n, tile.c, tile.h, tile.w, ga_cmpr_offset, tile.n_pos, tile.c_pos, tile.h_pos, operand.start_address));
-
-  input_flip = 1 - input_flip;
-}
-
-void TgEltwiseKernel::loadTensorStrided(int32_t step_idx) {
-  cvk_tl_t operand;
-  auto tile_idx = step_idx / operand_num;
-  auto opd_idx = step_idx % operand_num;
-  auto tile = tiles[tile_idx];
-  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
-  operand.start_address = tl_input[input_flip]->start_address;
-  operand.shape = shape;
-  operand.stride = ctx.tl_default_stride(shape, fmt, 1);
-  operand.fmt = fmt;
-
-  assert(!do_early_stride && "Not support early stride yet");
-
-  cvk_tg_shape_t tg_shape = ctx.tg_shape_t4(n, c, h, w);
-  cvk_tg_stride_t stride = ctx.tg_default_stride(tg_shape, fmt);
-  uint32_t ga_offset = tile.n_pos * stride.n + tile.c_pos * stride.c +
-                       tile.h_pos * stride.h;
-  ctx.tdma_load_stride(&operand, ga_inputs[opd_idx] + ga_offset, stride);
-
-  LLVM_DEBUG(llvm::errs() << llvm::format("loadTensorStrided[%d], flip[%d], shape<%d,%d,%d,%d>,"
-                                          " stride:<%d,%d,%d,%d>, global:%d<%d,%d,%d> -> local: %u\n",
-                                          step_idx, input_flip, tile.n, tile.c, tile.h,
-                                          tile.w, stride.n, stride.c, stride.h,
-                                          stride.w, ga_offset,
-                                          tile.n_pos, tile.c_pos, tile.h_pos,
-                                          operand.start_address));
-
-  input_flip = 1 - input_flip;
-}
-
 void TgEltwiseKernel::store(int32_t step_idx) {
   auto tile_idx = step_idx / operand_num;
   auto tile = tiles[tile_idx];
@@ -394,72 +248,6 @@ void TgEltwiseKernel::store(int32_t step_idx) {
                    1 - output_flip, result.shape.n, result.shape.c, result.shape.h,
                    result.shape.w, result.start_address, tile.output_offset));
   }
-}
-
-void TgEltwiseKernel::StoreCompressed(int32_t step_idx) {
-  auto tile_idx = step_idx / operand_num;
-  auto tile = tiles[tile_idx];
-  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
-  cvk_tl_t result;
-
-  result.start_address = tl_output[1 - output_flip]->start_address;
-  result.shape = shape;
-  result.stride = ctx.tl_default_stride(shape, fmt, 1);
-  result.fmt = fmt;
-
-  assert(!do_early_stride && "Not support early stride yet");
-
-  uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(n, c, h, w,
-                                               tile.n_pos, tile.c_pos, tile.h_pos,
-                                               store_cmpr_act_c_step,
-                                               store_cmpr_act);
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-                 "StoreCompressed[%d], flip[%d], shape<%d,%d,%d,%d>, local:%u -> global: %d<%d,%d,%d>\n", step_idx,
-                 1 - output_flip, result.shape.n, result.shape.c, result.shape.h,
-                 result.shape.w, result.start_address, tile.output_offset, tile.n_pos, tile.c_pos, tile.h_pos));
-
-  cvi_backend_tl_store_compressed(ctx, layer_id,
-                                  ga_output + ga_cmpr_offset,
-                                  tl_output[1 - output_flip]->start_address,
-                                  tile.n, tile.c, tile.h, tile.w,
-                                  c, h, w,
-                                  false, // DoTranspose
-                                  true,  // DoAligned
-                                  true,  // isNeuron,
-                                  fmt,
-                                  fmt,
-                                  1,     // h_step,
-                                  store_cmpr_act,
-                                  store_cmpr_act_c_step
-                                  );
-}
-
-void TgEltwiseKernel::storeTensorStrided(int32_t step_idx) {
-  auto tile_idx = step_idx / operand_num;
-  auto tile = tiles[tile_idx];
-  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w / stride_w);
-  cvk_tl_t result;
-
-  result.start_address = tl_output[1 - output_flip]->start_address;
-  result.shape = shape;
-  result.stride = ctx.tl_default_stride(shape, fmt, 1);
-  result.fmt = fmt;
-
-  assert(!do_early_stride && "Not support early stride yet");
-
-  cvk_tg_shape_t tg_shape = ctx.tg_shape_t4(n, c, h, w);
-  cvk_tg_stride_t stride = ctx.tg_default_stride(tg_shape, fmt);
-  uint32_t ga_offset = tile.n_pos * stride.n + tile.c_pos * stride.c +
-                       tile.h_pos * stride.h;
-
-  ctx.tdma_store_stride(&result, ga_output + ga_offset, stride);
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-                 "storeTensorStrided[%d], flip[%d], shape<%d,%d,%d,%d>, local:%u -> global: %d<%d,%d,%d>\n", step_idx,
-                 1 - output_flip, result.shape.n, result.shape.c, result.shape.h,
-                 result.shape.w, result.start_address, ga_offset,
-                 tile.n_pos, tile.c_pos, tile.h_pos));
 }
 
 void TgInt8EltwiseAddKernel::symmetric_compute(const int opd_idx,
@@ -1261,15 +1049,11 @@ void cvi_backend_tg_fixed_eltwise_add_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_inputs[],
     gaddr_t ga_output, int32_t operand_num, int32_t n, int32_t c, int32_t h, int32_t w,
     bool do_relu, bool do_early_stride, int32_t stride_h, int32_t stride_w,
-    int32_t rshift, const int32_t *multipliers, const int32_t *coeffs,
-    int32_t store_cmpr_act, int32_t load_cmpr_act,
-    int32_t store_cmpr_act_c_step, int32_t load_cmpr_act_c_step) {
+    int32_t rshift, const int32_t *multipliers, const int32_t *coeffs) {
 
   TgInt8EltwiseAddKernel kernel(ctx);
   kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
-              do_early_stride, stride_h, stride_w, rshift, multipliers, coeffs,
-              store_cmpr_act, load_cmpr_act,
-              store_cmpr_act_c_step, load_cmpr_act_c_step);
+              do_early_stride, stride_h, stride_w, rshift, multipliers, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();
@@ -1323,15 +1107,10 @@ void cvi_backend_tg_bf16_eltwise_add_kernel(const CviBackendContext &ctx,
                                             int32_t n, int32_t c, int32_t h, int32_t w,
                                             bool do_relu, bool do_early_stride,
                                             int32_t stride_h, int32_t stride_w,
-                                            const float coeffs[],
-                                            int32_t store_cmpr_act, int32_t load_cmpr_act,
-                                            int32_t store_cmpr_act_c_step,
-                                            int32_t load_cmpr_act_c_step) {
+                                            const float coeffs[]) {
   TgBf16EltwiseAddKernel kernel(ctx);
   kernel.init(layer_id, ga_inputs, ga_output, operand_num, n, c, h, w, do_relu,
-              do_early_stride, stride_h, stride_w, coeffs,
-              store_cmpr_act, load_cmpr_act,
-              store_cmpr_act_c_step, load_cmpr_act_c_step);
+              do_early_stride, stride_h, stride_w, coeffs);
 
   kernel.selectTilePolicy();
   kernel.schedule();

@@ -403,9 +403,7 @@ def TPU_TL_LG_LoadNeuronOp : TPU_Op<"tl_lg_load_neuron",
     BoolAttr:$transpose,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<TPU_ActCmprParamAttr>:$compr_act_param
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);
@@ -456,9 +454,7 @@ def TPU_TL_LG_StoreOp : TPU_Op<"tl_lg_store",
     BoolAttr:$transpose,
     StrAttr:$name,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
-    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
-    OptionalAttr<BoolAttr>:$store_compr_act,
-    OptionalAttr<TPU_ActCmprParamAttr>:$compr_act_param
+    DefaultValuedAttr<BoolAttr, "false">:$disable_parallel
   );
 
   let results = (outs AnyTensor:$output);

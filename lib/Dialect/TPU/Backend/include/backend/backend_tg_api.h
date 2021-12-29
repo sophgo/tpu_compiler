@@ -48,9 +48,7 @@ void cvi_backend_tg_fixed_max_pooling_kernel(
     gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w, int kh, int kw, int pad_top, int pad_bot,
     int pad_left, int pad_right, int stride_h, int stride_w,
-    bool do_relu, bool ceil_mode,
-    int store_cmpr_act = 0, int load_cmpr_act = 0,
-    int store_cmpr_act_c_step = 0, int load_cmpr_act_c_step = 0);
+    bool do_relu, bool ceil_mode);
 
 void cvi_backend_tg_fixed_avg_pooling_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -100,9 +98,7 @@ void cvi_backend_tg_fixed_eltwise_add_kernel(
     int32_t h, int32_t w, bool do_relu, bool do_early_stride,
     int32_t stride_h, int32_t stride_w, int32_t rshift,
     const int32_t *multipliers,
-    const int32_t *coeffs,
-    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
-    int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
+    const int32_t *coeffs);
 
 void cvi_backend_tg_fixed_eltwise_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -302,9 +298,7 @@ void cvi_backend_tg_bf16_eltwise_add_kernel(
     int32_t operand_num, int32_t n, int32_t c,
     int32_t h, int32_t w, bool do_relu, bool do_early_stride,
     int32_t stride_h, int32_t stride_w,
-    const float *coeffs,
-    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
-    int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
+    const float *coeffs);
 
 void cvi_backend_tg_bf16_eltwise_max_kernel(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -460,8 +454,7 @@ void cvi_backend_tg_quant_kernel(
     cvk_fmt_t from, cvk_fmt_t to,
     gaddr_t bottom_gaddr, gaddr_t top_gaddr,
     int input_n, int input_c, int input_h, int input_w,
-    float const_scale = 1.0, int offset=0,
-    int load_cmpr_act = 0, int load_cmpr_act_c_step = 0);
+    float const_scale = 1.0, int offset=0);
 
 void cvi_backend_tg_dequant_kernel(const CviBackendContext &ctx,
                                    uint32_t layer_id, gaddr_t ga_input,

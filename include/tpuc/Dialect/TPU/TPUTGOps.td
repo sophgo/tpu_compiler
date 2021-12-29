@@ -300,10 +300,7 @@ class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
-    DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
-    OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<BoolAttr>:$store_compr_act,
-    OptionalAttr<TPU_ConvTileParamAttr>:$tile_param
+    DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu
   );
 
   let results = (outs AnyTensor:$output);
@@ -522,11 +519,7 @@ class TPU_TG_EltwiseOp<string mnemonic, string opQuant, string opType> : TPU_Op<
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
     StrAttr:$name,
-    OptionalAttr<F32ArrayAttr>:$coeff,
-    OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<BoolAttr>:$store_compr_act,
-    OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,
-    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param
+    OptionalAttr<F32ArrayAttr>:$coeff
   );
 
   let results = (outs AnyTensor:$output);
@@ -631,9 +624,7 @@ class TPU_TG_BroadcastOp<string mnemonic, string opQuant, string opType> : TPU_O
     DefaultValuedAttr<BoolAttr, "true">:$align_right,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    StrAttr:$name,
-    OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<BoolAttr>:$store_compr_act
+    StrAttr:$name
   );
 
   let results = (outs AnyTensor:$output);
@@ -1189,11 +1180,6 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     TPU_PoolParamAttr:$param,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<TPU_PoolTileParamAttr>:$tile_param,
-    OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<BoolAttr>:$store_compr_act,
-    OptionalAttr<TPU_ActCmprParamAttr>:$store_compr_act_param,
-    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
     StrAttr:$name
   );
 
@@ -1379,8 +1365,6 @@ def TPU_TG_QuantOp : TPU_Op<"tg_quant",
     F32Attr:$scale,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
-    OptionalAttr<BoolAttr>:$load_compr_act,
-    OptionalAttr<TPU_ActCmprParamAttr>:$load_compr_act_param,
     StrAttr:$name
   );
 

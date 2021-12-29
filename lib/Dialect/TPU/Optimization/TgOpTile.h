@@ -4,14 +4,9 @@
 namespace mlir {
 namespace tpu {
 
-void PopulateConvTilePatterns(MLIRContext *context,
-                              OwningRewritePatternList *patterns, MInfo &mInfo);
 void PopulateSplitPoolPatterns(MLIRContext *context,
                                OwningRewritePatternList *patterns,
                                MInfo &mInfo);
-void PopulatePoolingTilePatterns(MLIRContext *context,
-                                 OwningRewritePatternList *patterns,
-                                 MInfo &mInfo);
 
 } // namespace tpu
 } // namespace mlir

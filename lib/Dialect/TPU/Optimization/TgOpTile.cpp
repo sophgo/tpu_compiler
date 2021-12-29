@@ -51,13 +51,8 @@ struct TgOpTilePass : public mlir::PassWrapper<TgOpTilePass, FunctionPass> {
     mInfo.getChipInfo(getFunction());
     assert(MInfo::version && "refer to set-chip");
 
-    getFunction().walk([&](tpu::TG_INT8_Conv2DOp convOp) {
-        convOp->removeAttr("tile_param");
-    });
-
     OwningRewritePatternList patterns;
     tpu::PopulateSplitPoolPatterns(&getContext(), &patterns, mInfo);
-    tpu::PopulatePoolingTilePatterns(&getContext(), &patterns, mInfo);
     applyPatternsAndFoldGreedily(getFunction(), std::move(patterns));
   }
 };

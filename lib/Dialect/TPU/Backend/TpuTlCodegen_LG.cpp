@@ -1029,11 +1029,7 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
     llvm_unreachable("current `to` only support int8/bf16");
   }
 
-  bool do_decompress = this->load_compr_act().hasValue() ?
-                       this->load_compr_act().getValue() : false;
-
-  if (!do_decompress) {
-    cvi_backend_tl_load_stride( *backend_ctx,
+  cvi_backend_tl_load_stride( *backend_ctx,
                                 layer_id,
                                 src_gaddr,
                                 dst_laddr,
@@ -1042,27 +1038,6 @@ LogicalResult tpu::TL_LG_LoadNeuronOp::codegen(void *ctx) {
                                 transpose, aligned, isNeuron,
                                 from, to
                                 );
-  } else {
-    int step_size = 0;
-    int c_step = local_c;
-    int h_step = local_h;
-    if (this->compr_act_param().hasValue()) {
-      c_step = this->compr_act_param().getValue().c_step().getInt();
-      h_step = this->compr_act_param().getValue().h_step().getInt();
-      step_size = this->compr_act_param().getValue().step_size().getInt();
-    }
-
-    cvi_backend_tl_load_compressed( *backend_ctx,
-                                    layer_id,
-                                    src_gaddr,
-                                    dst_laddr,
-                                    local_n, local_c, local_h, local_w,
-                                    global_c, global_h, global_w,
-                                    transpose, aligned, isNeuron,
-                                    from, to,
-                                    h_step, step_size, c_step
-                                    );
-  }
   return success();
 }
 
@@ -1188,19 +1163,7 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
     llvm_unreachable("current `to` only support int8/bf16");
   }
 
-  bool do_compress = this->store_compr_act().hasValue() ?
-                     this->store_compr_act().getValue() : false;
-  int step_size = 0;
-  int c_step = local_c;
-  int h_step = local_h;
-  if (this->compr_act_param().hasValue()) {
-    h_step = this->compr_act_param().getValue().h_step().getInt();
-    c_step = this->compr_act_param().getValue().c_step().getInt();
-    step_size = this->compr_act_param().getValue().step_size().getInt();
-  }
-
-  if (!do_compress) {
-    cvi_backend_tl_store_stride( *backend_ctx,
+  cvi_backend_tl_store_stride( *backend_ctx,
                                   layer_id,
                                   src_gaddr,
                                   dst_laddr,
@@ -1209,18 +1172,6 @@ LogicalResult tpu::TL_LG_StoreOp::codegen(void *ctx) {
                                   transpose, aligned, isNeuron,
                                   from, to
                                   );
-  } else {
-    cvi_backend_tl_store_compressed( *backend_ctx,
-                                     layer_id,
-                                     src_gaddr,
-                                     dst_laddr,
-                                     local_n, local_c, local_h, local_w,
-                                     global_c, global_h, global_w,
-                                     transpose, aligned, isNeuron,
-                                     from, to,
-                                     h_step, step_size, c_step
-                                     );
-  }
 
   return success();
 }

@@ -37,9 +37,7 @@ public:
     bool do_early_stride, int32_t stride_h,
     int32_t stride_w, int32_t rshift,
     const int32_t *multipliers,
-    const int32_t *coeffs,
-    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
-    int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
+    const int32_t *coeffs);
 
   void init(uint32_t layer_id,
     gaddr_t ga_inputs[], gaddr_t ga_output,
@@ -47,9 +45,7 @@ public:
     int32_t h, int32_t w, bool do_relu,
     bool do_early_stride, int32_t stride_h,
     int32_t stride_w,
-    const float *coeffs,
-    int32_t store_cmpr_act = 0, int32_t load_cmpr_act = 0,
-    int32_t store_cmpr_act_c_step = 0, int32_t load_cmpr_act_c_step = 0);
+    const float *coeffs);
 
   void selectTilePolicy();
   void schedule();
@@ -61,15 +57,10 @@ protected:
       cvk_tl_shape_t &input_shape,
       cvk_tl_shape_t &output_shape);
   void deallocLmem();
-  void doTileForNormalCase();
   void doTileForStrideCase();
-  void doTileForCompressCase();
+  void doTileForNormalCase();
   void load(int32_t step_idx);
-  void loadDecompressed(int32_t step_idx);
-  void loadTensorStrided(int32_t step_idx);
   void store(int32_t step_idx);
-  void StoreCompressed(int32_t step_idx);
-  void storeTensorStrided(int32_t step_idx);
 
   const CviBackendContext &ctx;
 
@@ -101,11 +92,6 @@ protected:
   int32_t output_flip = 0;
 
   std::vector<EltwiseTile> tiles;
-
-  int32_t store_cmpr_act = 0;
-  int32_t load_cmpr_act = 0;
-  int32_t store_cmpr_act_c_step = 0;
-  int32_t load_cmpr_act_c_step = 0;
 };
 
 class TgInt8EltwiseAddKernel : public TgEltwiseKernel {

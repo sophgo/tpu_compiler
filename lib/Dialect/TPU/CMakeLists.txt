@@ -64,7 +64,6 @@ add_llvm_library(MLIRTPU
   Quantization/Quantization.cpp
   Quantization/QuantizeInt8.cpp
   Quantization/QuantizeBf16.cpp
-  Optimization/PoolingTile.cpp
   Optimization/SplitPool.cpp
   Optimization/FuseLeakyRelu.cpp
   Optimization/TgOpTile.cpp

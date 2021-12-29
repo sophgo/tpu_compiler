@@ -25,9 +25,7 @@ void TgInt8PoolingKernel::init(uint32_t layer_id,
     int32_t pad_t, int32_t pad_b, int32_t pad_l, int32_t pad_r,
     int32_t kh, int32_t kw, int32_t stride_h, int32_t stride_w,
     bool is_avg_pooling, bool do_relu, int32_t rshift,
-    int32_t multiplier, bool ceil_mode,
-    int32_t store_cmpr_act, int32_t load_cmpr_act,
-    int32_t store_cmpr_act_c_step, int32_t load_cmpr_act_c_step) {
+    int32_t multiplier, bool ceil_mode) {
 
   this->layer_id = layer_id;
   this->ga_input = ga_input;
@@ -54,10 +52,6 @@ void TgInt8PoolingKernel::init(uint32_t layer_id,
   if (ceil_mode) {
     adjustPadding();
   }
-  this->store_cmpr_act = store_cmpr_act;
-  this->load_cmpr_act = load_cmpr_act;
-  this->store_cmpr_act_c_step = store_cmpr_act_c_step;
-  this->load_cmpr_act_c_step = load_cmpr_act_c_step;
 }
 
 void TgInt8PoolingKernel::allocLmem(cvk_tl_shape_t &input_shape,
@@ -183,10 +177,10 @@ void TgInt8PoolingKernel::schedule() {
       compute(i - 1, flip);
     }
     if (i < total_steps) {
-      load_cmpr_act ? loadDecompressed(i, flip) : load(i, flip);
+      load(i, flip);
     }
     if (i - 2 >= 0) {
-      store_cmpr_act ? storeCompressed(i - 2, flip) : store(i - 2, flip);
+      store(i - 2, flip);
     }
     flip = 1 - flip;
     ctx.parallel_disable();
@@ -218,39 +212,6 @@ void TgInt8PoolingKernel::load(int32_t step_idx, int32_t flip) {
       tile.input_offset));
 }
 
-void TgInt8PoolingKernel::loadDecompressed(int32_t step_idx, int32_t flip) {
-  cvk_tl_t operand;
-  auto tile = tiles[step_idx];
-  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.h, tile.w);
-  operand.start_address = tl_input[1 - flip]->start_address;
-  operand.shape = shape;
-  operand.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
-  operand.fmt = CVK_FMT_I8;
-
-  uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(n, c, h, w,
-                                               0, tile.c_pos, tile.ih_pos,
-                                               load_cmpr_act_c_step,
-                                               load_cmpr_act);
-  cvi_backend_tl_load_compressed(ctx, layer_id,
-                                 ga_input + ga_cmpr_offset,
-                                 tl_input[1 - flip]->start_address,
-                                 tile.n, tile.c, tile.h, tile.w,
-                                 c, h, w,
-                                 false, // DoTranspose
-                                 true,  // DoAligned
-                                 true,  // isNeuron
-                                 CVK_FMT_I8,
-                                 CVK_FMT_I8,
-                                 1,     // h_step
-                                 load_cmpr_act,
-                                 load_cmpr_act_c_step);
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-      "loadCmpr[%d], flip[%d], addr:%d, shape<%d,%d,%d,%dd>, global:%d<%d,%d>\n",
-      step_idx, 1 - flip, operand.start_address, shape.n, shape.c, shape.h, shape.w,
-      ga_cmpr_offset, tile.c_pos, tile.ih_pos));
-}
-
 void TgInt8PoolingKernel::store(int32_t step_idx, int32_t flip) {
   cvk_tl_t result;
   auto tile = tiles[step_idx];
@@ -271,40 +232,6 @@ void TgInt8PoolingKernel::store(int32_t step_idx, int32_t flip) {
       step_idx, 1 - flip, result.start_address, shape.n, shape.c, shape.h, shape.w,
       stride.n, stride.c, stride.h, stride.w,
       tile.output_offset));
-}
-
-void TgInt8PoolingKernel::storeCompressed(int32_t step_idx, int32_t flip) {
-  cvk_tl_t result;
-  auto tile = tiles[step_idx];
-  cvk_tl_shape_t shape = ctx.tl_shape_t4(tile.n, tile.c, tile.oh, tile.ow);
-  result.start_address = tl_output[1 - flip]->start_address;
-  result.shape = shape;
-  result.stride = ctx.tl_default_stride(shape, CVK_FMT_I8, 1);
-  result.fmt = CVK_FMT_I8;
-
-  uint32_t ga_cmpr_offset = ctx.ga_cmpr_offset(n, c, oh, ow,
-                                               0, tile.c_pos, tile.oh_pos,
-                                               store_cmpr_act_c_step,
-                                               store_cmpr_act);
-  cvi_backend_tl_store_compressed(ctx, layer_id,
-                                  ga_output + ga_cmpr_offset,
-                                  tl_output[1 - flip]->start_address,
-                                  tile.n, tile.c, tile.oh, tile.ow,
-                                  c, oh, ow,
-                                  false, // DoTranspose
-                                  true,  // DoAligned
-                                  true,  // isNeuron,
-                                  CVK_FMT_I8,
-                                  CVK_FMT_I8,
-                                  1,     // h_step,
-                                  store_cmpr_act,
-                                  store_cmpr_act_c_step
-                                  );
-
-  LLVM_DEBUG(llvm::errs() << llvm::format(
-      "storeCmpr[%d], flip[%d], addr:%d, shape<%d,%d,%d,%d>, offset:%d\n",
-      step_idx, 1 - flip, result.start_address, shape.n, shape.c, shape.h, shape.w,
-      ga_cmpr_offset));
 }
 
 void TgInt8PoolingKernel::compute(int32_t step_idx, int32_t flip) {
@@ -384,9 +311,7 @@ void cvi_backend_tg_fixed_max_pooling_kernel(
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,
     int n, int c, int h, int w, int kh, int kw,
     int pad_top, int pad_bot, int pad_left, int pad_right,
-    int stride_h, int stride_w, bool do_relu, bool ceil_mode,
-    int32_t store_cmpr_act, int32_t load_cmpr_act,
-    int32_t store_cmpr_act_c_step, int32_t load_cmpr_act_c_step) {
+    int stride_h, int stride_w, bool do_relu, bool ceil_mode) {
 
   assert(!do_relu);
   TgInt8PoolingKernel kernel(ctx);
@@ -394,9 +319,7 @@ void cvi_backend_tg_fixed_max_pooling_kernel(
       layer_id, ga_input, ga_output, n, c, h, w,
       pad_top, pad_bot, pad_left, pad_right,
       kh, kw, stride_h, stride_w, false, do_relu,
-      0, 1, ceil_mode,
-      store_cmpr_act, load_cmpr_act,
-      store_cmpr_act_c_step, load_cmpr_act_c_step);
+      0, 1, ceil_mode);
 
   kernel.selectTilePolicy();
   kernel.schedule();

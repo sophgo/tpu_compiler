@@ -19,21 +19,16 @@ public:
 
   void init(uint32_t layer_id, cvk_fmt_t from, cvk_fmt_t to, gaddr_t ga_input,
             gaddr_t ga_output, int32_t n, int32_t c, int32_t h, int32_t w,
-            float const_scale, int offset, int load_cmpr_act,
-            int load_cmpr_act_c_step);
+            float const_scale, int offset);
 
   void selectTilePolicy();
   void doTileForNormalCase();
-  void doTileForCompressCase();
   void schedule();
 
 protected:
   void compute(int32_t step_idx, int32_t flip);
   void load(int32_t step_idx, int32_t flip);
-  void loadTensorStrided(int32_t step_idx, int32_t flip);
-  void loadDecompressed(int32_t step_idx, int32_t flip);
   void store(int32_t step_idx, int32_t flip);
-  void storeTensorStrided(int32_t step_idx, int32_t flip);
   void allocLmem();
   void deallocLmem();
   cvk_tl_t *alloc_lmem(const cvk_tl_shape_t &shape, bool clean) const;
@@ -59,8 +54,6 @@ protected:
   int32_t flip = 0;
   float const_scale;
   int offset;
-  int load_cmpr_act;
-  int load_cmpr_act_c_step;
   std::vector<CviBackendContext::tiling_info_t> tiles;
 };
 

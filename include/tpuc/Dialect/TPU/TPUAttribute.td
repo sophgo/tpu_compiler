@@ -256,57 +256,6 @@ def TPU_Pool3dParamAttr : StructAttr<"Pool3dParam", TPU_Dialect, [
 }
 
 //===----------------------------------------------------------------------===//
-// FC tile parameters structure.
-//===----------------------------------------------------------------------===//
-def TPU_FcTileParamAttr : StructAttr<"FcTileParam", TPU_Dialect, [
-    StructFieldAttr<"tile_step", I32ArrayAttr>,
-    StructFieldAttr<"n_poss", I32ArrayAttr>,
-    StructFieldAttr<"k_poss", I32ArrayAttr>,
-    StructFieldAttr<"n_sizes", I32ArrayAttr>,
-    StructFieldAttr<"k_sizes", I32ArrayAttr>]> {
-  let summary = "Structure of tile parameters for fc op";
-}
-
-//===----------------------------------------------------------------------===//
-// Convolution tile parameters structure.
-//===----------------------------------------------------------------------===//
-def TPU_ConvTileParamAttr : StructAttr<"ConvTileParam", TPU_Dialect, [
-    StructFieldAttr<"n_step", I32Attr>,
-    StructFieldAttr<"oc_step", I32Attr>,
-    StructFieldAttr<"oh_step", I32Attr>,
-    StructFieldAttr<"ow_step", I32Attr>,
-    StructFieldAttr<"ih_step", I32Attr>,
-    StructFieldAttr<"iw_step", I32Attr>,
-    StructFieldAttr<"ic_step", I32Attr>,
-    StructFieldAttr<"use_double_buffer", BoolAttr>]> {
-  let summary = "Structure of tile parameters for conv op";
-}
-
-//===----------------------------------------------------------------------===//
-// Pool parameters structure.
-//===----------------------------------------------------------------------===//
-def TPU_PoolTileParamAttr : StructAttr<"PoolTileParam", TPU_Dialect, [
-    StructFieldAttr<"oc_step", I32Attr>,
-    StructFieldAttr<"oh_step", I32Attr>,
-    StructFieldAttr<"ow_step", I32Attr>,
-    StructFieldAttr<"ih_step", I32Attr>,
-    StructFieldAttr<"iw_step", I32Attr>]> {
-  let summary = "Structure of tile parameters for pool op";
-}
-
-//===----------------------------------------------------------------------===//
-// Activation compression parameters structure.
-//===----------------------------------------------------------------------===//
-def TPU_ActCmprParamAttr : StructAttr<"ActCmprParam", TPU_Dialect, [
-    StructFieldAttr<"n_step", I32Attr>,
-    StructFieldAttr<"c_step", I32Attr>,
-    StructFieldAttr<"h_step", I32Attr>,
-    StructFieldAttr<"step_size", I64Attr>,
-    StructFieldAttr<"total_size", I64Attr>]> {
-  let summary = "Structure of parameters for activation compression";
-}
-
-//===----------------------------------------------------------------------===//
 // Input preprocess parameters structure.
 //===----------------------------------------------------------------------===//
 def TPU_PreprocessParamAttr : StructAttr<"PreprocessParam", TPU_Dialect, [

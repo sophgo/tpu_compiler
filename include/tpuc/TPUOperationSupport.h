@@ -125,9 +125,6 @@ void parseLeakyReluParam(Operation *op,
     int8_t &neg_rshift, int8_t &neg_m_i8,
     float &negative_slope);
 
-void parseActCompressParam(const tpu::ActCmprParam &param, int &cmpr_n,
-    int &cmpr_c, int &cmpr_h, int64_t &step_size, int64_t &total_size);
-
 bool isBf16Tensor(Value val);
 
 int64_t getTotalCompressedActivationSize(Operation *op);

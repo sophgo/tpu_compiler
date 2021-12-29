@@ -1231,28 +1231,6 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
 
   std::vector<int>coeffs(input_number, 1);
 
-  int store_cmpr_act = this->store_compr_act().hasValue() ?
-                       this->store_compr_act().getValue() : 0;
-  int store_cmpr_act_c_step = 0;
-  if (store_cmpr_act) {
-    assert(this->store_compr_act_param().hasValue());
-    store_cmpr_act =
-        this->store_compr_act_param().getValue().step_size().getInt();
-    store_cmpr_act_c_step =
-        this->store_compr_act_param().getValue().c_step().getInt();
-  }
-
-  int load_cmpr_act = this->load_compr_act().hasValue() ?
-                      this->load_compr_act().getValue() : 0;
-  int load_cmpr_act_c_step = 0;
-  if (load_cmpr_act) {
-    assert(this->load_compr_act_param().hasValue());
-    load_cmpr_act =
-        this->load_compr_act_param().getValue().step_size().getInt();
-    load_cmpr_act_c_step =
-        this->load_compr_act_param().getValue().c_step().getInt();
-  }
-
   cvi_backend_tg_fixed_eltwise_add_kernel(
       *backend_ctx, layer_id,
       ga_inputs, ga_output,
@@ -1261,9 +1239,7 @@ LogicalResult tpu::TG_INT8_EltwiseAddOp::codegen(void *ctx) {
       early_stride_h, early_stride_w,
       do_quant_rescale ? rshift_int : 0,
       do_quant_rescale ? m_int : nullptr,
-      coeffs.data(),
-      store_cmpr_act, load_cmpr_act,
-      store_cmpr_act_c_step, load_cmpr_act_c_step);
+      coeffs.data());
 
   delete[] m_i8_input;
   delete[] m_int;
@@ -1527,28 +1503,6 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
   gaddr_t ga_output = getOpAddress(op);
   int layer_id = getOpLayerId(op);
 
-  int store_cmpr_act = this->store_compr_act().hasValue() ?
-                       this->store_compr_act().getValue() : 0;
-  int store_cmpr_act_c_step = 0;
-  if (store_cmpr_act) {
-    assert(this->store_compr_act_param().hasValue());
-    store_cmpr_act =
-        this->store_compr_act_param().getValue().step_size().getInt();
-    store_cmpr_act_c_step =
-        this->store_compr_act_param().getValue().c_step().getInt();
-  }
-
-  int load_cmpr_act = this->load_compr_act().hasValue() ?
-                      this->load_compr_act().getValue() : 0;
-  int load_cmpr_act_c_step = 0;
-  if (load_cmpr_act) {
-    assert(this->load_compr_act_param().hasValue());
-    load_cmpr_act =
-        this->load_compr_act_param().getValue().step_size().getInt();
-    load_cmpr_act_c_step =
-        this->load_compr_act_param().getValue().c_step().getInt();
-  }
-
   cvi_backend_tg_bf16_eltwise_add_kernel(
       *backend_ctx,
       layer_id,     // layer_id
@@ -1558,9 +1512,7 @@ LogicalResult tpu::TG_BF16_EltwiseAddOp::codegen(void *ctx) {
       n, c, h, w,
       do_relu,      // bool do_relu
       do_early_stride, early_stride_h, early_stride_w,
-      coeffs.data(),
-      store_cmpr_act, load_cmpr_act,
-      store_cmpr_act_c_step, load_cmpr_act_c_step);
+      coeffs.data());
 
   delete[] ga_inputs;
   return success();
@@ -2592,25 +2544,6 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
   assert(!this->rshift().hasValue());
   assert(!this->m_i8().hasValue());
 
-  int store_cmpr_act = this->store_compr_act().hasValue() ?
-                       this->store_compr_act().getValue() : 0;
-  int store_cmpr_act_c_step = 0;
-  if (store_cmpr_act) {
-    store_cmpr_act =
-        this->store_compr_act_param().getValue().step_size().getInt();
-    store_cmpr_act_c_step =
-        this->store_compr_act_param().getValue().c_step().getInt();
-  }
-  int load_cmpr_act = this->load_compr_act().hasValue() ?
-                      this->load_compr_act().getValue() : 0;
-  int load_cmpr_act_c_step = 0;
-  if (load_cmpr_act) {
-    load_cmpr_act =
-        this->load_compr_act_param().getValue().step_size().getInt();
-    load_cmpr_act_c_step =
-        this->load_compr_act_param().getValue().c_step().getInt();
-  }
-
   cvi_backend_tg_fixed_max_pooling_kernel(
       *backend_ctx,
       layer_id, // layer_id,
@@ -2621,11 +2554,7 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
       pt, pb, pl, pr, // pad (t, b, l, r)
       sh, sw,
       do_relu,        // int do_relu,
-      true,
-      store_cmpr_act,
-      load_cmpr_act,
-      store_cmpr_act_c_step,
-      load_cmpr_act_c_step);
+      true);
 
   return success();
 }
@@ -2851,20 +2780,9 @@ LogicalResult tpu::TG_QuantOp::codegen(void *ctx) {
   float scale = this->scale().convertToFloat();
   int offset = 0;
 
-  int load_cmpr_act = this->load_compr_act().hasValue() ?
-                      this->load_compr_act().getValue() : 0;
-  int load_cmpr_act_c_step = 0;
-  if (load_cmpr_act) {
-    load_cmpr_act =
-        this->load_compr_act_param().getValue().step_size().getInt();
-    load_cmpr_act_c_step =
-        this->load_compr_act_param().getValue().c_step().getInt();
-  }
-
   //  quant to int8
   cvi_backend_tg_quant_kernel(*backend_ctx, layer_id, from, to, ga_input,
-                              ga_output, n, c, h, w, scale, offset,
-                              load_cmpr_act, load_cmpr_act_c_step);
+                              ga_output, n, c, h, w, scale, offset);
 
   return success();
 }

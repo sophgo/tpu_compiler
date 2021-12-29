@@ -956,16 +956,6 @@ template void parseLeakyReluParam<tpu::TG_BF16_LeakyReluOp>(
     Operation *op, int8_t &pos_rshift, int8_t &pos_m_i8,
     int8_t &neg_rshift, int8_t &neg_m_i8, float &negative_slope);
 
-void parseActCompressParam(const tpu::ActCmprParam &param, int &cmpr_n,
-    int &cmpr_c, int &cmpr_h, int64_t &step_size, int64_t &total_size) {
-  std::vector<int> shapes;
-  cmpr_n = param.n_step().getInt();
-  cmpr_c = param.c_step().getInt();
-  cmpr_h = param.h_step().getInt();
-  step_size = param.step_size().getInt();
-  total_size = param.total_size().getInt();
-}
-
 bool isBf16Tensor(Value val) {
   auto valType = val.getType().dyn_cast<TensorType>();
   auto elementType = valType.getElementType();
