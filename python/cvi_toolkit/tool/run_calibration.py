@@ -27,6 +27,8 @@ if __name__ == '__main__':
     parser.add_argument('--input_num', type=int, required=True, default=100,
                         help='num of images for calibration')
     parser.add_argument('--image_list', help='Input image list file')
+    parser.add_argument('--tune_num', type=int, default=5,
+                        help='num of images for tune')
     parser.add_argument('--histogram_bin_num', type=int, default=2048,
                         help='Specify histogram bin numer for kld calculate')
     parser.add_argument('--buffer_size', type=buffer_size_type, default='2G',
@@ -45,7 +47,7 @@ if __name__ == '__main__':
 
     # calibration
     calibrator = ActivationCalibrator(args.model_file, selector.image_list,
-                                args.histogram_bin_num, buffer_size,
+                                args.histogram_bin_num, args.tune_num, buffer_size,
                                 custom_op_plugin=args.custom_op_plugin)
     calibrator.run(args.calibration_table)
 

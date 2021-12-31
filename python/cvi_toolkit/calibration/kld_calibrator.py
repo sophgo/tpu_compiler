@@ -202,11 +202,12 @@ class SimpleTuner:
 
 
 class ActivationCalibrator(BaseKldCalibrator):
-    def __init__(self, mlir_file, image_list, histogram_bin_num,
+    def __init__(self, mlir_file, image_list, histogram_bin_num, tune_num,
                  buffer_size, custom_op_plugin=None):
         super().__init__()
         self.images = image_list
         self.num_samples = len(self.images)
+        self.tune_num = tune_num
         self.preprocessor = preprocess()
         self.num_inputs = self.preprocessor.get_input_num(mlir_file)
 
@@ -363,8 +364,12 @@ class ActivationCalibrator(BaseKldCalibrator):
         thresholds_map = self.calc_thresholds(activations_statistics, hist_bin_nums)
         self._clean_resource()
 
+        cali_name = output_calibration_table
+        if self.tune_num > 0:
+            cali_name += '.1'
+
         # step 6: dump threshold table of default histogram bins
-        with open(output_calibration_table + '.1', 'w') as f:
+        with open(cali_name, 'w') as f:
             f.write("# genetated time: {}\n".format(datetime.datetime.now()))
             f.write("# histogram number: {}\n".format(self.histogram_bin_num))
             f.write("# sample number: {}\n###\n".format(self.num_samples))
@@ -375,11 +380,12 @@ class ActivationCalibrator(BaseKldCalibrator):
                 min_value, max_value, _ = activations_statistics[op_name]
                 f.write("{} {:.7f} {:.7f} {:.7f}\n".format(op_name, threshold,
                                                          min_value, max_value))
-
+        if self.tune_num <= 0:
+            return
 
         # setp 4: tune to get better threshold of each layers.
         self.tuner = SimpleTuner(self.fp32_mlir, thresholds_map, activations_statistics,
-                                 self.images,  5, self.num_inputs, self.preprocessor)
+                                 self.images,  self.tune_num, self.num_inputs, self.preprocessor)
         thresholds = self.tuner.run()
 
         # step 5: dump threshold table after tuning
