@@ -170,7 +170,7 @@ class SimpleTuner:
             minimum_distance = float('inf')
             best_threshold = candidates[0]
             for threshold in candidates:
-                if threshold == 0:
+                if threshold <= 1e-6:
                     continue
                 self.threshold_table.update_to(tmp_table, op_name, threshold)
                 self.tuner.load(self.fp32_mlir)
