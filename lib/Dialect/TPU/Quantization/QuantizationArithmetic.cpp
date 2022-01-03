@@ -362,11 +362,15 @@ static inline int16_t saturateInt16(float f) {
 
 /// saturate a float to int
 static inline int32_t saturateInt32(float f) {
-  LLVM_DEBUG(if ((f > INT_MAX) || (f < INT_MIN)) {
+  if ((f > INT_MAX) || (f < INT_MIN)) {
     llvm::errs() << "WARNING: exceeds INT limits : " << std::to_string(f)
                  << "\n";
-  });
-  assert((f <= INT_MAX) && (f >= INT_MIN));
+    if (f > INT_MAX) {
+      return (int32_t)INT_MAX;
+    } else {
+      return (int32_t)INT_MIN;
+    }
+  }
 #if 0
   // cast
   int q = (int)f;
