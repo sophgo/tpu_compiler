@@ -1,17 +1,17 @@
 ![image](./assets/logo_0.png)
 
-# CV183x/CV182x TPU 快速入门指南
+# CV183x/CV182x TPU快速入门指南
 
 
 
 
->文档版本: 1.5.4
+>文档版本: 1.5.5
 >
->发布日期: 2021-12-25
+>发布日期: 2022-01-01
 
 
 
-© 2021 北京晶视智能科技有限公司
+© 2022 北京晶视智能科技有限公司
 
 本文件所含信息归<u>北京晶视智能科技有限公司</u>所有。
 
@@ -49,13 +49,13 @@
 
 CVITEK Release包含如下组成部分：
 
-| 文件                                    | 描述                                           |
-| --------------------------------------- | ---------------------------------------------- |
-| cvitek_mlir_ubuntu-18.04.tar.gz         | cvitek NN工具链软件                            |
-| cvitek_tpu_sdk_[cv182x/cv183x].tar.gz   | cvitek Runtime SDK，包括交叉编译头文件和库文件 |
-| cvitek_tpu_samples.tar.gz               | sample程序源代码                               |
-| cvimodel_samples_[cv182x/cv183x].tar.gz | sample程序使用的cvimodel模型文件               |
-| docker_cvitek_dev_1.7-ubuntu-18.04.tar  | CVITEK开发Docker镜像文件                       |
+| 文件                                   | 描述                                           |
+| -------------------------------------- | ---------------------------------------------- |
+| cvitek_mlir_ubuntu-18.04.tar.gz        | cvitek NN工具链软件                            |
+| cvitek_tpu_sdk.tar.gz                  | cvitek Runtime SDK，包括交叉编译头文件和库文件 |
+| cvitek_tpu_samples.tar.gz              | sample程序源代码                               |
+| cvimodel_samples.tar.gz                | sample程序使用的cvimodel模型文件               |
+| docker_cvitek_dev_1.7-ubuntu-18.04.tar | CVITEK开发Docker镜像文件                       |
 
 
 
@@ -98,7 +98,7 @@ newgrp docker (use before reboot)
 取得docker image后，执行下述命令运行docker：
 
 ``` shell
-docker run -itd -v $PWD:/work --name cvitek cvitek/cvitek_dev:1.5-ubuntu-18.04
+docker run -itd -v $PWD:/work --name cvitek cvitek/cvitek_dev:1.7-ubuntu-18.04
 docker exec -it cvitek bash
 ```
 
@@ -108,7 +108,7 @@ docker exec -it cvitek bash
 docker run -itd -v $PWD:/work \
    -v ~/data/models:/work/models \
    -v ~/data/dataset:/work/dataset \
-   --name cvitek cvitek/cvitek_dev:1.5-ubuntu-18.04
+   --name cvitek cvitek/cvitek_dev:1.7-ubuntu-18.04
 docker exec -it cvitek bash
 ```
 
@@ -181,19 +181,22 @@ cp -rf $MLIR_PATH/tpuc/regression/data/images .
 
 > preprocess = transforms.Compose([
 >
-> ​    transforms.Resize(256),
+>     transforms.Resize(256),
 >
-> ​    transforms.CenterCrop(224),
+>     transforms.CenterCrop(224),
 >
-> ​    transforms.ToTensor(),
+>     transforms.ToTensor(),
 >
-> ​    transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
+>     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
 >
 > ])
 
 使用`model_transform.py`将onnx模型转换成mlir文件，其中可支持预处理参数如下:
 | **参数名**           | **说明**                                      |
 | ------------------- | ---------------------------------------------  |
+| model_type          | 指定模型类型，caffe或者onnx |
+| model_name          | 指定模型名称 |
+| image | 指定输入文件用于验证，可以是图片或npy或npz；可以不指定，则不会正确性验证 |
 | net_input_dims      | 模型输入的大小，比如224,224 |
 | image_resize_dims   | 改变图片宽高的大小，默认与网络输入维度一样  |
 | keep_aspect_ratio   | 在Resize时是否保持长宽比，默认为false；设置true时会对不足部分补0 |
@@ -202,7 +205,8 @@ cp -rf $MLIR_PATH/tpuc/regression/data/images .
 | std                 | 图像每个通道的标准值，默认为1.0,1.0,1.0  |
 | input_scale         | 图像的每个像素比值，默认为1.0 |
 | model_channel_order | 模型的通道顺序(bgr/rgb/rgba)，默认为bgr |
-| gray                | 支持灰度格式，默认为Flase |
+| gray                | 支持灰度格式，默认为false |
+| batch_size          | 指定batch，默认用模型本身的batch |
 
 预处理过程用公式表达如下（x代表输入)：
 $$
@@ -225,8 +229,6 @@ model_transform.py \
   --std 0.255,0.244,0.229 \
   --input_scale 1.0 \
   --model_channel_order "rgb" \
-  --gray false \
-  --batch_size 1 \
   --tolerance 0.99,0.99,0.99 \
   --mlir resnet18_fp32.mlir
 ```
@@ -262,7 +264,7 @@ run_calibration.py \
   -o resnet18_calibration_table
 ```
 
-得到`resnet18_calibration_table`。
+得到`resnet18_calibration_table`。这里用`--dataset`指定样本目录，也可以用`--image_list`指定样本列表。
 
 导入calibration_table，生成cvimodel：
 
@@ -290,19 +292,18 @@ model_deploy.py的相关参数说明如下：
 | -------------------     | ----------------------------------------------------------------|
 | model_name              | 模型名称                                                         |
 | mlir                    | mlir文件                                                        |
+| image                   | 用于测试的输入文件，可以是图片、npz、npy；如果有多个输入，用,隔开 |
 | calibration_table       | 指定calibration文件路径                                          |
 | quantize                | 指定默认量化方式，BF16/MIX_BF16/INT8                       |
-| tolerance               | 表示 MLIR 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度          |
-| excepts                 | 指定需要排除比较的层的名称，默认为-                        |
-| correctnetss            | 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度          |
 | chip                    | 支持平台，可以为cv183x或cv182x                                    |
 | inputs_type             | 指定输入类型(AUTO/FP32/INT8/BF16/SAME)，如果是AUTO，当第一层是INT8时用INT8，BF16时用FP32 |
 | outputs_type            | 指定输出类型(AUTO/FP32/INT8/BF16/SAME)，如果是AUTO，当最后层是INT8时用INT8，BF16时用FP32  |
 | model_version           | 支持选择模型的版本，默认为latest                                    |
-| custom_op_plugin        | 支持用户自定义op的动态库文件                                        |
-| image                   | 用于测试的输入文件，可以是图片、npz、npy；如果有多个输入，用,隔开       |
+| tolerance               | 表示 MLIR 量化模型与 MLIR fp32模型推理结果相似度的误差容忍度 |
+| correctnetss            | 表示仿真器运行的结果与MLIR int8模型的结果相似度的误差容忍度，默认0.99,0.99,0.99 |
+| excepts                 | 指定需要排除比较的层的名称，默认为- |
+| debug                   | 调试选项，保存所有的临时文件进行调试 |
 | cvimodel                | 表示输出的cvimodel文件名                                         |
-| debug                   | 调试选项，保存所有的临时文件进行调试                                |
 
 
 
@@ -392,8 +393,6 @@ model_transform.py \
   --std 1.0,1.0,1.0 \
   --input_scale 0.017 \
   --model_channel_order "bgr" \
-  --gray false \
-  --batch_size 1 \
   --tolerance 0.99,0.99,0.99 \
   --excepts prob \
   --mlir mobilenet_v2_fp32.mlir
@@ -549,9 +548,7 @@ model_transform.py \
   --tolerance 0.99,0.99,0.99 \
   --mlir sample_model.mlir
 ```
-特别要说明的是，如果输入中既有图片，也有非图片，则可以加入图片的预处理参数，预处理仅对图片生效，输入形式如下：
-
-`--image dog.jpg,h_0.npy,c_0.npy`
+特别要说明的是，如果输入中既有图片，也有非图片，则可以加入图片的预处理参数，预处理仅对图片生效，输入形式：`--image dog.jpg,h_0.npy,c_0.npy`
 
 #### 步骤 3：生成全bf16量化cvimodel
 
@@ -704,8 +701,6 @@ model_transform.py \
   --std 127.5,127.5,127.5 \
   --input_scale 1.0 \
   --model_channel_order "rgb" \
-  --gray false \
-  --batch_size 1 \
   --tolerance 0.99,0.99,0.99 \
   --mlir mnet_25_fp32.mlir
 ```
@@ -1018,9 +1013,9 @@ model_deploy.py \
 | BGR_PACKED    | bgr顺序，按照nhwc摆放        |
 | GRAYSCALE     | 仅有一个灰色通道，按nchw摆放 |
 | YUV420_PLANAR | yuv420 planner格式，来自vpss的输入 |
-| YUV_NV21 | yuv420的NV21格式，来自vpss的输入 |
-| YUV_NV12 | yuv420的NV12格式，来自vpss的输入 |
-| RGBA_PLANAR | rgba格式，按照nchw摆放     |
+| YUV_NV21      | yuv420的NV21格式，来自vpss的输入 |
+| YUV_NV12      | yuv420的NV12格式，来自vpss的输入 |
+| RGBA_PLANAR   | rgba格式，按照nchw摆放     |
 
 其中`aligned_input`用于表示是否数据存在对齐，如果数据来源于VPSS，则会有数据对齐要求，比如w按照32字节对齐。
 
@@ -1085,7 +1080,6 @@ model_transform.py \
   --std 1.0,1.0,1.0 \
   --input_scale 0.017 \
   --model_channel_order "bgr" \
-  --gray false \
   --batch_size 1 \
   --tolerance 0.99,0.99,0.99 \
   --excepts prob \
@@ -1128,7 +1122,6 @@ model_transform.py \
   --std 1.0,1.0,1.0 \
   --input_scale 0.017 \
   --model_channel_order "bgr" \
-  --gray false \
   --batch_size 4 \
   --tolerance 0.99,0.99,0.99 \
   --excepts prob \

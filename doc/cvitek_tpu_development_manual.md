@@ -3,29 +3,15 @@
 # CV183x/CV182x TPU开发指南
 
 >
-> 文档版本: 1.5.2
+> 文档版本: 1.5.5
 >
-> 发布日期: 2021-09-20
+> 发布日期: 2022-01-01
 
-© 2021 北京晶视智能科技有限公司
+© 2022 北京晶视智能科技有限公司
 
 本文件所含信息归<u>北京晶视智能科技有限公司</u>所有。
 
 未经授权，严禁全部或部分复制或披露该等信息。
-
-**修订记录**
-
-| 版本   | 日期       |  修改描述              |
-| ------ | ---------- |------------------- |
-| V0.0.1 | 2019/12/11 | 初始版本            |
-| V0.1.0 | 2020/03/30 | 增加使用说明和API说明 |
-| V0.2.0 | 2020/07/17 | 增加使用说明和API说明 |
-| V0.3.0 | 2020/10/26 | 更新使用说明和API说明 |
-| V0.3.1 | 2020/11/24 | 更新mlir op和更新格式 |
-| V1.4.0 | 2020/12/04 | 更新文档结构         |
-| V1.5.0 | 2021/01/29 | 根据工具链1.5修改     |
-| V1.5.1 | 2021/04/22 | 根据工具链1.5.1修改   |
-| V1.5.2 | 2021/09/20 | 添加onnx/caffe算子支持列表 |
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -36,7 +22,9 @@
 本文件内信息如有更改，恕不另行通知。晶视智能不对使用或依赖本文件所含信息承担任何责任。
 
 本数据手册和本文件所含的所有信息均按"原样"提供，无任何明示、暗示、法定或其他形式的保证。晶视智能特别声明未做任何适销性、非侵权性和特定用途适用性的默示保证，亦对本数据手册所使用、包含或提供的任何第三方的软件不提供任何保证；用户同意仅向该第三方寻求与此相关的任何保证索赔。此外，晶视智能亦不对任何其根据用户规格或符合特定标准或公开讨论而制作的可交付成果承担责任。
+
 <div STYLE="page-break-after: always;"></div>
+
 # 目 录
 
 [TOC]
@@ -75,7 +63,6 @@ TPU软件开发框图如下图所示:
 
 -   `model_transform.py`：用于将caffe/onnx框架生成的模型转换为以mlir为前端的fp32模型文件，用于后续的量化，优化和指令生成。
 -   `model_deploy.py`：用于将fp32 mlir文件转换成cvimodel文件
-
 -   `run_calibration.py`：对开发者指定的校准数据集执行推理计算，对每个tensor的数据进行统计，形成模型量化所需的参数。使用python进行数据读取，预处理，后处理和统计分析。
 -   `run_tune.py`：对量化结果进行微调，提高量化精度
 -   `run_mix_precision.py`：通过校准数据集，进行混合量化，得到bf16量化表
@@ -1275,12 +1262,11 @@ def add_conv_Op(self, op_name, inputOperands,
   |--image_resize_dims \<h,w\>         | 输入图片resize后的h和w, 如"256,256", 可选；<br/>如果设置的image_resize_dims和net_input_dims不相等，<br/>图片resize后还将center crop到net_input_dims指定的高宽;<br/>如不设置, 则此值默认和net_input_dims相同 |
   |--resize_keep_aspect_ratio \<bool\> | resize时是否保持原始高宽比不变，值为**1**或者**0**, 默认值为**0**;<br/>如设置为**1**，在resize后高宽不足的部分会填充0 |
   |--net_input_dims \<h,w\>            | 模型的input shape的h与w:  如 **"224,224"** |
-  |--channel_num \<h,w\>            | 模型的input shape的c, 默认值为**3** |
-  |--model_channel_order \<order>     | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
-  |--raw_scale  \<255.0>      | raw_scale 默认值为**255** |
-  |--mean \<0,0,0>           | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
-  |--input_scale <1.0>      | input_scale，默认值为**1.0** |
-  |--std  \<1,1,1>           | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
+  |--model_channel_order \<order\>     | 通道顺序，如**"bgr"** 或 **“rgb"**,  默认值为**"bgr"** |
+  |--raw_scale  \<255.0\>              | raw_scale 默认值为**255** |
+  |--mean \<0,0,0\>                    | mean 通道均值，默认值为**"0,0,0"**, 值的顺序要和model_channel_order一致 |
+  |--input_scale \<1.0\>               | input_scale，默认值为**1.0** |
+  |--std  \<1,1,1\>                    | std, 通道标准差，默认值为**"1,1,1"**, 值的顺序要和model_channel_order一致 |
   |--batch_size \<num\>                | 指定生成模型的的batch num |
   |--gray \<bool\>                     | 是否输入的图片为灰度图，默认值为false |
   |--image \<image_file\>              | 用于验证单精度模型转换是否正确的参考输入图片，也可以指定为npz文件 |
@@ -1340,6 +1326,7 @@ run_calibration.py <model file> [option]
   |参数名称|描述|
   |---|---|
   |--dataset                   | 指定校准图片集的路径|
+  |--image_list                | 指定样本列表，与dataset二选一 |
   |--input_num                 | 指定校准图片数量|
   |--histogram_bin_num         | 直方图bin数量, 默认为2048, 可以适当增大该值提升量化的精度 |
   |-o \<calib_tabe\>           | 输出calibration table文件|
@@ -1415,21 +1402,36 @@ run_calibration.py <model file> [option]
   | --mlir \<model_fp32_mlir\>           | 指定mlir单精度模型文件 |
   | --calibration_table \<calib_table\>  | 输入calibration table, 可选, 量化为int8模型 |
   | --mix_precision_table \<mix_table\>  | 输入mix precision table, 可选, 配合calib_table量化为混精度模型 |
-  | --all_bf16                           | 量化为全bf16模型 |
+  | --quantize \<BF16\>                  | 指定默认量化方式，BF16/MIX_BF16/INT8 |
   | --tolerance  \<cos,cor,euc\>         | 量化模型和单精度模型精度对比所能接受的最小相似度,<br/>相似度包括三项：余弦相似度、相关相似度、欧式距离相似度.|
   | --excepts \<"-"\>                    | 逐层对比时跳过某些层, 多个层可以用逗号隔开, 如:"layer1,layer2",<br/>默认值为"-",即对比所有层 |
   | --correctness \<cos,cor,euc\>        | cvimodel在仿真上运行的结果与量化模型推理的结果对比时所能接受的最小相似度,<br/>默认值为:"0.99,0.99,0.98" |
   | --chip \<chip_name\>                 | cvimodel被部署的目标平台名, 值为"cv183x"或"cv182x" |
   | --fuse_preprocess \<bool\>           | 是否加入preprocess op到cvimodel中, 默认值为false |
-  | --pixel_format \<format\>            | preprocess所接受的图片输入格式, 可选值为:<br/>  "RGB_PACKED", "BGR_PACKED", "RGB_PLANAR",<br/>"BGR_PLANAR", "YUV420_PLANAR", "GRAYSCALE", "RGBA_PLANAR"等值 |
+  | --pixel_format \<format\>            | preprocess所接受的图片输入格式, 详见下文 |
   | --aligned_input \<bool\>             | preprocess所接受的输入图片是否为对齐格式, 默认值为false |
-  | --dequant_outputs_to_fp32 \<bool\>   | 是否将模型的输出反量化为fp32格式, 默认值为true；false时bf16模型产生bf16输出，int8模型产生int8输出 |
-  | --expose_bf16_inputs <bool\> | 对于bf16输入是否不转换成fp32输入，默认false，表示bf16默认转换成fp32输入 |
-  | --merge_weight                       | 与同一个工作目前中生成的模型共享权重，用于后续合并同一个模型依据不同batch或分辨率生成的cvimodel. 打开此选项时，需要将compress_weight设置为false|
+  | --inputs_type \<AUTO\>               | 指定输入类型(AUTO/FP32/INT8/BF16/SAME)，如果是AUTO，当第一层是INT8时用INT8，BF16时用FP32 |
+  | --outputs_type \<AUTO\>              | 指定输出类型(AUTO/FP32/INT8/BF16/SAME)，如果是AUTO，当最后层是INT8时用INT8，BF16时用FP32 |
+  | --merge_weight                       | 与同一个工作目前中生成的模型共享权重，用于后续合并同一个模型依据不同batch或分辨率生成的cvimodel |
+  | --model_version \<latest\>           | 支持选择模型的版本，默认为latest; 如果runtime比较老，比如1.2，则指定为1.2 |
   | --image \<image_file\>               | 用于验证精度的参考输入图片 |
   | --cvimodel \<out_cvimodel\>          | 输出的cvimodel名 |
 
+其中`pixel_format`用于指定外部输入的数据格式，有这几种格式：
 
+| pixel_format  | 说明                         |
+| ------------- | ---------------------------- |
+| RGB_PLANAR    | rgb顺序，按照nchw摆放        |
+| RGB_PACKED    | rgb顺序，按照nhwc摆放        |
+| BGR_PLANAR    | bgr顺序，按照nchw摆放        |
+| BGR_PACKED    | bgr顺序，按照nhwc摆放        |
+| GRAYSCALE     | 仅有一个灰色通道，按nchw摆放 |
+| YUV420_PLANAR | yuv420 planner格式，来自vpss的输入 |
+| YUV_NV21      | yuv420的NV21格式，来自vpss的输入 |
+| YUV_NV12      | yuv420的NV12格式，来自vpss的输入 |
+| RGBA_PLANAR   | rgba格式，按照nchw摆放     |
+
+其中`aligned_input`用于表示是否数据存在对齐，如果数据来源于VPSS，则会有数据对齐要求，比如w按照32字节对齐。
 
 
 #### 2.1.2.6 model_runner
@@ -1511,7 +1513,6 @@ run_calibration.py \
     ${NET}_opt_fp32.mlir \
     --dataset=$DATASET \
     --input_num=${CALIBRATION_IMAGE_COUNT} \
-    --histogram_bin_num=2048 \
     -o ${NET}_calibration_table
 ```
 
@@ -1834,11 +1835,11 @@ TENSOR的基本数据类型
 
 ##### CVI_MEM_TYPE_E
 ```c++
-typedef enum {
-  CVI_MEM_UNSPECIFIED = 0,
-  CVI_MEM_SYSTEM      = 1,
-  CVI_MEM_DEVICE      = 2
-} CVI_MEM_TYPE_E;
+typedef enum {
+  CVI_MEM_UNSPECIFIED = 0,
+  CVI_MEM_SYSTEM      = 1,
+  CVI_MEM_DEVICE      = 2
+} CVI_MEM_TYPE_E;
 ```
 【描述】
 
@@ -2029,9 +2030,9 @@ typedef enum {
 
 【原型】
 ```c++
- CVI_RC CVI_NN_RegisterModel(
-     const char *model_file,
-     CVI_MODEL_HANDLE *model)
+ CVI_RC CVI_NN_RegisterModel(
+     const char *model_file,
+     CVI_MODEL_HANDLE *model)
 ```
 【描述】
 
@@ -2069,9 +2070,9 @@ CVI_RC CVI_NN_RegisterModelFromBuffer(
 
 【原型】
 ```c++
-CVI_RC CVI_NN_CloneModel(
-    CVI_MODEL_HANDLE model,
-    CVI_MODEL_HANDLE *cloned)
+CVI_RC CVI_NN_CloneModel(
+    CVI_MODEL_HANDLE model,
+    CVI_MODEL_HANDLE *cloned)
 ```
 【描述】
 
@@ -2089,10 +2090,10 @@ CVI_RC CVI_NN_CloneModel(
 
 【原型】
 ```c++
-CVI_RC CVI_NN_SetConfig(
-    CVI_MODEL_HANDLE model,
-    CVI_CONFIG_OPTION option,
-    ...)
+CVI_RC CVI_NN_SetConfig(
+    CVI_MODEL_HANDLE model,
+    CVI_CONFIG_OPTION option,
+    ...)
 ```
 
 【描述】
@@ -2110,8 +2111,8 @@ CVI_RC CVI_NN_SetConfig(
 
 【示例】
 ```c++
-CVI_NN_SetConfig(model, OPTION_BATCH_SIZE, 1);
-CVI_NN_SetConfig(model, OPTION_OUTPUT_ALL_TENSORS, false);
+CVI_NN_SetConfig(model, OPTION_BATCH_SIZE, 1);
+CVI_NN_SetConfig(model, OPTION_OUTPUT_ALL_TENSORS, false);
 ```
 <br>
 
@@ -2119,10 +2120,10 @@ CVI_NN_SetConfig(model, OPTION_OUTPUT_ALL_TENSORS, false);
 
 【原型】
 ```c++
-CVI_RC CVI_NN_GetInputOutputTensors(
-    CVI_MODEL_HANDLE model,
-    CVI_TENSOR **inputs, int32_t *input_num,
-    CVI_TENSOR **outputs, int32_t *output_num)
+CVI_RC CVI_NN_GetInputOutputTensors(
+    CVI_MODEL_HANDLE model,
+    CVI_TENSOR **inputs, int32_t *input_num,
+    CVI_TENSOR **outputs, int32_t *output_num)
 ```
 【描述】
 
@@ -2142,10 +2143,10 @@ CVI_RC CVI_NN_GetInputOutputTensors(
 
 【原型】
 ```c++
-CVI_RC CVI_NN_Forward(
-     CVI_MODEL_HANDLE model,
-     CVI_TENSOR inputs[], int32_t input_num,
-     CVI_TENSOR outputs[], int32_t output_num);
+CVI_RC CVI_NN_Forward(
+     CVI_MODEL_HANDLE model,
+     CVI_TENSOR inputs[], int32_t input_num,
+     CVI_TENSOR outputs[], int32_t output_num);
 ```
 【描述】
 
@@ -2165,7 +2166,7 @@ CVI_RC CVI_NN_Forward(
 
 【原型】
 ```c++
-CVI_RC CVI_NN_CleanupModel(CVI_MODEL_HANDLE model)
+CVI_RC CVI_NN_CleanupModel(CVI_MODEL_HANDLE model)
 ```
 【描述】
 
@@ -2181,10 +2182,10 @@ CVI_RC CVI_NN_CleanupModel(CVI_MODEL_HANDLE model)
 
 【原型】
 ```c++
-CVI_TENSOR *CVI_NN_GetTensorByName(
-    const char *name,
-    CVI_TENSOR *tensors,
-    int32_t num)
+CVI_TENSOR *CVI_NN_GetTensorByName(
+    const char *name,
+    CVI_TENSOR *tensors,
+    int32_t num)
 ```
 【描述】
 
@@ -2203,7 +2204,7 @@ CVI_TENSOR *CVI_NN_GetTensorByName(
 【原型】
 
 ```c++
-void *CVI_NN_TensorPtr(CVI_TENSOR *tensor)
+void *CVI_NN_TensorPtr(CVI_TENSOR *tensor)
 ```
 
 【描述】
@@ -2220,7 +2221,7 @@ void *CVI_NN_TensorPtr(CVI_TENSOR *tensor)
 
 【原型】
 ```c++
-size_t CVI_NN_TensorSize(CVI_TENSOR *tensor);
+size_t CVI_NN_TensorSize(CVI_TENSOR *tensor);
 ```
 【描述】
 
@@ -2236,7 +2237,7 @@ size_t CVI_NN_TensorSize(CVI_TENSOR *tensor);
 
 【原型】
 ```c++
-size_t CVI_NN_TensorCount(CVI_TENSOR *tensor);
+size_t CVI_NN_TensorCount(CVI_TENSOR *tensor);
 ```
 
 【描述】
@@ -2286,10 +2287,10 @@ float CVI_NN_TensorQuantScale(CVI_TENSOR *tensor)
 
 【原型】
 ```c++
-CVI_RC CVI_NN_SetTensorPtr(
-    CVI_TENSOR *tensor,
-    uint8_t *buf,
-    size_t size)
+CVI_RC CVI_NN_SetTensorPtr(
+    CVI_TENSOR *tensor,
+    uint8_t *buf,
+    size_t size)
 ```
 【描述】
 
@@ -2308,9 +2309,9 @@ CVI_RC CVI_NN_SetTensorPtr(
 【原型】
 
 ```c++
-CVI_RC CVI_NN_SetTensorPhysicalAddr(
-    CVI_TENSOR *tensor,
-    uint64_t *paddr)
+CVI_RC CVI_NN_SetTensorPhysicalAddr(
+    CVI_TENSOR *tensor,
+    uint64_t *paddr)
 ```
 
 【描述】
@@ -2378,11 +2379,11 @@ Tensor表示张量对象，
 【原型】
 
 ```python
-class Tensor:
+class Tensor:
 
-  def __init__(self):
-    self.name = str()
-    self.data = numpy.ndarray()
+  def __init__(self):
+    self.name = str()
+    self.data = numpy.ndarray()
 ```
 【属性】
 
@@ -2400,14 +2401,14 @@ class Tensor:
 【原型】
 
 ```python
- class Model:
+ class Model:
 
-   def __init__(self, model_file, batch_num=0, dump_all_tensors=False):
-     self.inputs = [Tensor]
-     self.outputs = [Tensor]
+   def __init__(self, model_file, batch_num=0, dump_all_tensors=False):
+     self.inputs = [Tensor]
+     self.outputs = [Tensor]
 
-   def forward(self):
-     pass
+   def forward(self):
+     pass
 ```
 【属性】
 
@@ -2418,7 +2419,7 @@ class Tensor:
 【方法】
 
 ```python
-def __init__(self, model_file, batch_num=0, dump_all_tensors=False)
+def __init__(self, model_file, batch_num=0, dump_all_tensors=False)
 ```
 > Model类的构造方法，用于注册并配置cvimodel模型文件。
 
@@ -2429,7 +2430,7 @@ def __init__(self, model_file, batch_num=0, dump_all_tensors=False)
 |  dump_all_tensors |  Bool型, 将网络可见的张量作为输出Tensors|
 
 ```python
-def forward(self)
+def forward(self)
 ```
 > 用于做模型的前向推理
 
@@ -2441,25 +2442,25 @@ def forward(self)
 #### 示例
 
 ```python
- import pyruntime
+ import pyruntime
 
- # initialize the cvimodel
- model = pyruntime.Model("1.cvimodel")
- if model == None:
-   raise Exception("cannot load cvimodel")
+ # initialize the cvimodel
+ model = pyruntime.Model("1.cvimodel")
+ if model == None:
+   raise Exception("cannot load cvimodel")
 
-# fill data to inputs
- data = model.inputs[0].data
- input_data = np.fromfile("input.bin", dtype=data.dtype)
-                .reshape(data.shape)
- data[:] = input_data
+# fill data to inputs
+ data = model.inputs[0].data
+ input_data = np.fromfile("input.bin", dtype=data.dtype)
+                .reshape(data.shape)
+ data[:] = input_data
 
- # forward
+ # forward
  model.forward()
 
- # get output date
- for out in model.outputs:
-   print(outputs)
+ # get output date
+ for out in model.outputs:
+   print(outputs)
 ```
 
 
