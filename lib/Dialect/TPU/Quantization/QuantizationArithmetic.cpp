@@ -247,7 +247,9 @@ int8_t findRShiftAndMultiplierFromQScale(double qscale, uint32_t *multiplier,
       llvm::errs() << "WARNING: qscale > 1,  = " << qscale << "\n";
     }
     Tensorflow_QuantizeMultiplier(qscale, &quantized_multiplier, &lshift);
-    *multiplier = quantized_multiplier;
+    if (multiplier) {
+      *multiplier = quantized_multiplier;
+    }
     int rshift = -lshift;
     assert(rshift >= 0);
     LLVM_DEBUG(if (rshift > 25) {
@@ -257,10 +259,11 @@ int8_t findRShiftAndMultiplierFromQScale(double qscale, uint32_t *multiplier,
     return (int8_t)rshift;
   } else {
     if (qscale > max_multiplier) {
-      llvm::errs() << "Error: qscale > max_multipiler ( " << qscale << " v.s. "
+      llvm::errs() << "WARNING: qscale > max_multipiler ( " << qscale << " v.s. "
                    << max_multiplier << " )\n";
-      //assert(false);
-      *multiplier = max_multiplier;
+      if (multiplier) {
+        *multiplier = max_multiplier;
+      }
       return 0;
     }
     for (int8_t rshift = 0; rshift < 63; ++rshift) {
