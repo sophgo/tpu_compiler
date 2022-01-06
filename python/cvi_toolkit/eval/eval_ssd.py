@@ -32,7 +32,7 @@ def parse_args():
 
     parser.add_argument("--pre_result_json", type=str,
                         help="when present, use pre detected result file, skip detection")
-    parser.add_argument('--model_do_preprocess', type=bool, default=False)
+    parser.add_argument('--model_do_preprocess', type=int, default=0)
 
     args = parser.parse_args()
     return args

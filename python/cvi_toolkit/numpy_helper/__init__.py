@@ -1,4 +1,4 @@
-from .npz_compare import npz_compare
+from .npz_compare import npz_compare, load_op_info, dequantize
 from .npz_dump import npz_dump
 from .npz_predict import npz_predict
 import numpy as np
@@ -85,6 +85,22 @@ def npz_bf16_to_fp32(args):
         npz_out[s] = fp32_arr
 
     np.savez(args[1], **npz_out)
+
+def npz_int8_to_fp32(args):
+    # just for full-int8 not deal with mix-precision
+    if len(args) < 3:
+        print("Usage: {} int8_to_fp32 in.npz quantized_op_info.csv out.npz".format(sys.argv[0]))
+        exit(-1)
+    npz_in = np.load(args[0])
+    _, _, _, thresholds = load_op_info(args[1])
+    npz_out = {}
+    for name in npz_in.files:
+        int8_arr = npz_in[name]
+        if name in thresholds and not thresholds[name] == 0.0:
+            npz_out[name] = dequantize(int8_arr, thresholds[name]).astype(np.float32)
+        else:
+            npz_out[name] = int8_arr.astype(np.float32)
+    np.savez(args[2], **npz_out)
 
 
 def npz_transpose(args):

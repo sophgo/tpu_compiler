@@ -49,38 +49,38 @@ def parse_args():
     parser.add_argument("--pre_result_json", type=str,
                         help="when present, use pre detected result file, skip detection")
     parser.add_argument("--count", type=int, default=-1)
-    parser.add_argument("--yolov3", type=str, default='yes')
-    parser.add_argument("--yolov4", type=str, default='false')
-    parser.add_argument("--spp_net", type=str, default="false")
-    parser.add_argument("--tiny", type=str, default="false")
+    parser.add_argument("--yolov3", type=bool, default=True)
+    parser.add_argument("--yolov4", type=bool, default=False)
+    parser.add_argument("--spp_net", type=bool, default=False)
+    parser.add_argument("--tiny", type=bool, default=False)
 
     args = parser.parse_args()
     return args
 
-def yolo_detect(args, net, image, net_input_dims, obj_threshold, nms_threshold, yolov3, spp_net, tiny):
+def yolo_detect(args, net, image, net_input_dims, obj_threshold, nms_threshold):
     x = preprocess(image, net_input_dims)
     net.blobs['data'].data[...] = x
     y = net.forward()
     out_feat = {}
-    if yolov3 == True:
-        if tiny:
+    if args.yolov3 == True:
+        if args.tiny:
             out_feat['layer16-conv'] = net.blobs['layer16-conv'].data
             out_feat['layer23-conv'] = net.blobs['layer23-conv'].data
             batched_predictions = postprocess_v3_tiny(out_feat, image.shape, net_input_dims,
                                     obj_threshold, nms_threshold, batch=1)
         else:
-            if not spp_net:
+            if not args.spp_net:
                 out_feat['layer82-conv'] = net.blobs['layer82-conv'].data
                 out_feat['layer94-conv'] = net.blobs['layer94-conv'].data
                 out_feat['layer106-conv'] = net.blobs['layer106-conv'].data
                 batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
-                                        obj_threshold, nms_threshold, spp_net, batch=1)
+                                        obj_threshold, nms_threshold, args.spp_net, batch=1)
             else:
                 out_feat['layer89-conv'] = net.blobs['layer89-conv'].data
                 out_feat['layer101-conv'] = net.blobs['layer101-conv'].data
                 out_feat['layer113-conv'] = net.blobs['layer113-conv'].data
                 batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
-                                        obj_threshold, nms_threshold, spp_net, batch=1)
+                                        obj_threshold, nms_threshold, args.spp_net, batch=1)
     elif args.yolov4 == 'true':
         out_feat['layer139-conv'] = net.blobs['layer139-conv'].data
         out_feat['layer150-conv'] = net.blobs['layer150-conv'].data
@@ -120,7 +120,7 @@ def clip_box(box, image_shape):
     return np.array([bx, by, bw, bh])
 
 def eval_detector(args, net, result_json_file, dataset_path, net_input_dims,
-                  obj_threshold, nms_threshold, yolov3, spp_net, tiny, count=-1):
+                  obj_threshold, nms_threshold, count=-1):
     coco_ids= [ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 13, 14, 15, 16, 17,
                18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34, 35, 36,
                37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53,
@@ -140,7 +140,7 @@ def eval_detector(args, net, result_json_file, dataset_path, net_input_dims,
             image_id = get_image_id_in_path(image_path)
             image = cv2.imread(image_path)
             predictions = yolo_detect(args, net, image, net_input_dims,
-                                        obj_threshold, nms_threshold, yolov3, spp_net, tiny)
+                                        obj_threshold, nms_threshold)
             for pred in predictions:
                 clipped_box = clip_box(pred[0], image.shape)
                 x, y, w, h = clipped_box
@@ -206,11 +206,6 @@ def main(argv):
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     obj_threshold = float(args.obj_threshold)
     nms_threshold = float(args.nms_threshold)
-    yolov3 = True if args.yolov3 == 'yes' else False
-    if args.yolov4 == 'true':
-        yolov3 = False # yolov4
-    spp_net = True if args.spp_net == "true" else False
-    tiny = True if args.tiny == "true" else False
     print("net_input_dims", net_input_dims)
     print("obj_threshold", obj_threshold)
     print("nms_threshold", nms_threshold)
@@ -221,7 +216,7 @@ def main(argv):
     if (args.input_file != '') :
         image = cv2.imread(args.input_file)
         predictions = yolo_detect(args, net, image, net_input_dims,
-                                    obj_threshold, nms_threshold, yolov3, spp_net, tiny)
+                                    obj_threshold, nms_threshold)
         print(predictions)
         if (args.draw_image != ''):
             image = draw(image, predictions, args.label_file)
@@ -231,7 +226,7 @@ def main(argv):
     # eval
     result_json_file = args.result_json
     eval_detector(args, net, result_json_file, args.dataset, net_input_dims,
-                  obj_threshold, nms_threshold, yolov3, spp_net, tiny, count=args.count)
+                  obj_threshold, nms_threshold, count=args.count)
     cal_coco_result(args.annotations, result_json_file)
 
 if __name__ == '__main__':

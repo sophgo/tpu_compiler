@@ -1,101 +1,77 @@
 #!/bin/bash
 set -e
 
+MLIR_FILES=()
+MLIR_TYPES=()
+MODEL_DO_PREPROCESS=0
 EVAL_CAFFE_FUNC=eval_caffe_detector_yolo.py
 
-IS_YOLO_V4=false
-if [ "$YOLO_V4" = "true" ]; then
-  IS_YOLO_V4="$YOLO_V4"
+
+if [ -z $YOLO_V3 ]; then
+  YOLO_V3=0
 fi
 
-$EVAL_CAFFE_FUNC \
-    --model_def $MODEL_DEF \
-    --pretrained_model $MODEL_DAT \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --obj_threshold 0.005 \
-    --nms_threshold 0.45 \
-    --dataset=$DATASET_PATH/coco/val2017 \
-    --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
-    --result_json=result_416.json \
-    --spp_net=$SPP_NET \
-    --tiny=$TINY \
-    --yolov4 $IS_YOLO_V4 \
-    --count=$1
+if [ -z $YOLO_V4 ]; then
+  YOLO_V4=0
+fi
 
+if [ -z $SPP_NET ]; then
+  SPP_NET=0
+fi
+
+if [ -z $TINY ]; then
+  TINY=0
+fi
+
+# $EVAL_CAFFE_FUNC \
+#     --model_def $MODEL_DEF \
+#     --pretrained_model $MODEL_DAT \
+#     --net_input_dims ${NET_INPUT_DIMS} \
+#     --obj_threshold 0.005 \
+#     --nms_threshold 0.45 \
+#     --dataset=$DATASET_PATH/coco/val2017 \
+#     --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
+#     --result_json=result_416.json \
+#     --spp_net=$SPP_NET \
+#     --yolov3 $YOLO_V3 \
+#     --yolov4 $YOLO_V4 \
+#     --spp_net=$SPP_NET \
+#     --tiny=$TINY \
+#     --count=$1
 EVAL_FUNC=eval_yolo.py
 
-if [ $DO_ACCURACY_FUSED_PREPROCESS -eq 1 ]; then
-  echo "$0 DO_ACCURACY_FUSED_PREPROCESS under refactor yet, exit"
-  exit 1
-  $EVAL_FUNC \
-      --model=${NET}.mlir \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --obj_threshold 0.005 \
-      --nms_threshold 0.45 \
-      --dataset=$DATASET_PATH/coco/val2017 \
-      --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
-      --result_json=result_416.json \
-      --model_do_preprocess=True \
-      --spp_net=$SPP_NET \
-      --tiny=$TINY \
-      --count=$1
-else
-  $EVAL_FUNC \
-    --model=${NET}.mlir \
-    --net_input_dims ${NET_INPUT_DIMS} \
-    --obj_threshold 0.005 \
-    --nms_threshold 0.45 \
-    --dataset=$DATASET_PATH/coco/val2017 \
-    --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
-    --result_json=result_416.json \
-    --spp_net=$SPP_NET \
-    --tiny=$TINY \
-    --count=$1
-fi
-
-if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
-  if [ $DO_ACCURACY_FUSED_PREPROCESS -eq 1 ]; then
-    echo "$0 DO_ACCURACY_FUSED_PREPROCESS under refactor yet, exit"
-    exit 1
-    $EVAL_FUNC \
-        --model=${NET}_quant_int8_multiplier.mlir \
-        --net_input_dims ${NET_INPUT_DIMS} \
-        --obj_threshold 0.005 \
-        --nms_threshold 0.45 \
-        --dataset=$DATASET_PATH/coco/val2017 \
-        --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
-        --result_json=result_416.json \
-        --model_do_preprocess=True \
-        --spp_net=$SPP_NET \
-        --tiny=$TINY \
-        --count=$1
-  else
-    $EVAL_FUNC \
-      --model=${NET}_quant_int8_multiplier.mlir \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --obj_threshold 0.005 \
-      --nms_threshold 0.45 \
-      --dataset=$DATASET_PATH/coco/val2017 \
-      --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
-      --result_json=result_416.json \
-      --spp_net=$SPP_NET \
-      --tiny=$TINY \
-      --count=$1
-  fi
+if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
+  MLIR_FILES+=(${NET}_fp32.mlir)
+  MLIR_TYPES+=("fp32")
 fi
 
 if [ $DO_QUANT_BF16 -eq 1 ]; then
+  MLIR_FILES+=(${NET}_bf16_quantized.mlir)
+  MLIR_TYPES+=("bf16")
+fi
+
+if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
+  MLIR_FILES+=(${NET}_quant_int8_multiplier.mlir)
+  MLIR_TYPES+=("int8")
+fi
+
+for ((i=0; i<${#MLIR_FILES[@]}; i++))
+do
+  echo "Eval ${MLIR_TYPES[i]} with interpreter"
   $EVAL_FUNC \
-      --model=${NET}_quant_bf16.mlir \
+      --model=${MLIR_FILES[i]} \
       --net_input_dims ${NET_INPUT_DIMS} \
       --obj_threshold 0.005 \
       --nms_threshold 0.45 \
       --dataset=$DATASET_PATH/coco/val2017 \
       --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
       --result_json=result_416.json \
+      --model_do_preprocess=${MODEL_DO_PREPROCESS} \
+      --spp_net=$SPP_NET \
+      --yolov3 $YOLO_V3 \
+      --yolov4 $YOLO_V4 \
       --spp_net=$SPP_NET \
       --tiny=$TINY \
       --count=$1
-fi
-
+done
 echo $0 DONE

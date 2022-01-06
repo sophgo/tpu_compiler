@@ -2,8 +2,6 @@ from .base_model import model_base
 import pymlir
 import numpy as np
 
-
-
 class MLIRModel(model_base):
     def __init__(self):
         self.net = pymlir.module()
@@ -33,3 +31,6 @@ class MLIRModel(model_base):
 
     def get_op_info(self):
         return self.net.op_info
+
+    def get_inputs(self):
+        return self.net.get_input_details()

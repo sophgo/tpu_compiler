@@ -1,7 +1,11 @@
 #!/bin/bash
 set -e
 
-DIR="$( cd "$(dirname "$0")" ; pwd -P )"
+# DIR="$( cd "$(dirname "$0")" ; pwd -P )"
+MODEL_DO_PREPROCESS=0
+MLIR_FILES=()
+MLIR_TYPES=()
+DEQUANTS=()
 
 # assuming run after run regression_XXX.sh
 if [ $2 = "pytorch" ]; then
@@ -16,10 +20,35 @@ else
 fi
 
 if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
-  echo "Eval fp32 with interpreter"
+  MLIR_FILES+=(${NET}_fp32.mlir)
+  MLIR_TYPES+=("fp32")
+  DEQUANTS+=(0)
+fi
+
+if [ $DO_QUANT_BF16 -eq 1 ]; then
+  MLIR_FILES+=(${NET}_bf16_quantized.mlir)
+  MLIR_TYPES+=("bf16")
+  DEQUANTS+=(1)
+fi
+
+if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
+  MLIR_FILES+=(${NET}_quant_int8_multiplier.mlir)
+  MLIR_TYPES+=("int8")
+  DEQUANTS+=(1)
+fi
+
+if [ $DO_ACCURACY_FUSED_PREPROCESS -eq 1 ]; then
+  echo "$0 DO_ACCURACY_FUSED_PREPROCESS under refactor yet, exit"
+  exit 1
+  # MODEL_DO_PREPROCESS=1
+fi
+
+for ((i=0; i<${#MLIR_FILES[@]}; i++))
+do
+  echo "Eval ${MLIR_TYPES[i]} with interpreter on ${EVAL_MODEL_TYPE}"
   if [ "$EVAL_MODEL_TYPE" = "imagenet" ]; then
     $EVAL_FUNC \
-        --mlir_file=${NET}.mlir \
+        --mlir_file=${MLIR_FILES[i]} \
         --dataset=$DATASET_PATH/imagenet/img_val_extracted \
         --label_file=$LABEL_FILE \
         --net_input_dims $NET_INPUT_DIMS \
@@ -32,180 +61,52 @@ if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
         --model_channel_order $MODEL_CHANNEL_ORDER \
         --count=$1
 
-  elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
-    _EVAL_FUNC=$EVAL_SCRIPT_VOC
-    $_EVAL_FUNC \
-      --mlir=${NET}.mlir \
-      --net_input_dims ${NET_INPUT_DIMS} \
-      --mean $MEAN \
-      --input_scale $INPUT_SCALE \
-      --dataset=$DATASET_PATH/VOCdevkit
-
-  else
-    echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"
-    exit 1
-  fi
-fi
-
-if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
-  echo "Eval int8_multiplier with interpreter"
-  tpuc-opt ${NET}_fp32.mlir \
-    --import-calibration-table \
-    --calibration-table ${CALI_TABLE} \
-    --assign-chip-name \
-    --chipname ${SET_CHIP_NAME} \
-    --tpu-quant \
-    --print-tpu-op-info \
-    --tpu-op-info-filename ${NET}_op_info_int8.csv \
-    -o ${NET}_quant_int8_multiplier.mlir
-
-  if [ "$EVAL_MODEL_TYPE" = "imagenet" ]; then
-    $EVAL_FUNC \
-      --mlir_file=${NET}_quant_int8_multiplier.mlir \
-      --label_file=$LABEL_FILE \
-      --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-      --net_input_dims $NET_INPUT_DIMS \
-      --image_resize_dims $IMAGE_RESIZE_DIMS \
-      --raw_scale $RAW_SCALE \
-      --mean $MEAN \
-      --std $STD \
-      --input_scale $INPUT_SCALE \
-      --model_type mlir \
-      --model_channel_order $MODEL_CHANNEL_ORDER \
-      --count=$1
-
   elif [ "$EVAL_MODEL_TYPE" = "widerface" ]; then
     _EVAL_FUNC=eval_retinaface_on_widerface.py
-
-    #rm ${NET}_interpreter_result_int8 -rf
-    if [ $DO_ACCURACY_FUSED_PREPROCESS -eq 1 ]; then
-      echo "$0 DO_ACCURACY_FUSED_PREPROCESS under refactor yet, exit"
-      exit 1
-      $_EVAL_FUNC \
-          --model ${NET}_quant_int8_multiplier.mlir \
-          --net_input_dims $NET_INPUT_DIMS \
-          --obj_threshold $OBJ_THRESHOLD \
-          --nms_threshold $NMS_THRESHOLD \
-          --images=$DATASET \
-          --annotation=$ANNOTATION \
-          --model_do_preprocess=True \
-          --result=./${NET}_interpreter_result_int8 \
-          --int8
-    else
-      $_EVAL_FUNC \
-          --model ${NET}_quant_int8_multiplier.mlir \
-          --net_input_dims $NET_INPUT_DIMS \
-          --obj_threshold $OBJ_THRESHOLD \
-          --nms_threshold $NMS_THRESHOLD \
-          --images=$DATASET \
-          --annotation=$ANNOTATION \
-          --result=./${NET}_interpreter_result_int8 \
-          --int8
-    fi
+    rm ${NET}_interpreter_result_${MLIR_TYPES[i]} -rf
+    $_EVAL_FUNC \
+        --model ${MLIR_FILE} \
+        --net_input_dims $NET_INPUT_DIMS \
+        --obj_threshold $OBJ_THRESHOLD \
+        --nms_threshold $NMS_THRESHOLD \
+        --images=$DATASET \
+        --annotation=$ANNOTATION \
+        --model_do_preprocess=${MODEL_DO_PREPROCESS} \
+        --result=./${NET}_interpreter_result_${MLIR_TYPES[i]} \
+        --dequant=${DEQUANTS[i]}
 
   elif [ "$EVAL_MODEL_TYPE" = "lfw" ]; then
     _EVAL_FUNC=eval_arcface.py
-    if [ $DO_ACCURACY_FUSED_PREPROCESS -eq 1 ];then
-      echo "$0 DO_ACCURACY_FUSED_PREPROCESS under refactor yet, exit"
-      exit 1
-      $_EVAL_FUNC \
-        --model=${NET}_quant_int8_multiplier.mlir \
-        --dataset=$DATASET_PATH/lfw/lfw \
-        --pairs=$DATASET_PATH/lfw/pairs.txt \
-        --model_do_preprocess=True \
-        --show=True
-    else
-      $_EVAL_FUNC \
-        --model=${NET}_quant_int8_multiplier.mlir \
-        --dataset=$DATASET_PATH/lfw/lfw \
-        --pairs=$DATASET_PATH/lfw/pairs.txt \
-        --show=True
-    fi
+    $_EVAL_FUNC \
+      --model=${MLIR_FILE} \
+      --dataset=$DATASET_PATH/lfw/lfw \
+      --pairs=$DATASET_PATH/lfw/pairs.txt \
+      --model_do_preprocess=${MODEL_DO_PREPROCESS} \
+      --show=True
 
   elif [ "$EVAL_MODEL_TYPE" = "coco" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_INT8
-    if [ $DO_ACCURACY_FUSED_PREPROCESS -eq 1 ]; then
-      echo "$0 DO_ACCURACY_FUSED_PREPROCESS under refactor yet, exit"
-      exit 1
-      $_EVAL_FUNC \
-        --model=${NET}_quant_int8_multiplier.mlir \
-        --net_input_dims ${NET_INPUT_DIMS} \
-        --coco_image_path=$DATASET_PATH/coco/val2017/ \
-        --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
-        --coco_result_jason_file=./${NET}_coco_results_int8_multiplier.json \
-        --model_do_preprocess=True \
-        --count=$1
-    else
-      $_EVAL_FUNC \
-        --model=${NET}_quant_int8_multiplier.mlir \
-        --net_input_dims ${NET_INPUT_DIMS} \
-        --coco_image_path=$DATASET_PATH/coco/val2017/ \
-        --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
-        --coco_result_jason_file=./${NET}_coco_results_int8_multiplier.json \
-        --count=$1
-    fi
+    $_EVAL_FUNC \
+      --model=${MLIR_FILE} \
+      --net_input_dims ${NET_INPUT_DIMS} \
+      --coco_image_path=$DATASET_PATH/coco/val2017/ \
+      --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
+      --coco_result_jason_file=./${NET}_coco_results_${MLIR_TYPES[i]}.json \
+      --model_do_preprocess=${MODEL_DO_PREPROCESS} \
+      --count=$1
 
   elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_VOC
     $_EVAL_FUNC \
-      --mlir=${NET}_quant_int8_multiplier.mlir \
+      --mlir=${MLIR_FILE} \
       --net_input_dims ${NET_INPUT_DIMS} \
       --mean $MEAN \
       --input_scale $INPUT_SCALE \
-      --dataset=$DATASET_PATH/VOCdevkit
-
-  elif [ "$EVAL_MODEL_TYPE" = "isbi" ]; then
-    _EVAL_FUNC=eval_unet.py
-    $_EVAL_FUNC \
-      --mlir_file=${NET}_quant_int8_multiplier.mlir \
-      --dataset=$DATASET_PATH/unet/ \
-      --net_input_dims $NET_INPUT_DIMS \
-      --image_resize_dims $IMAGE_RESIZE_DIMS \
-      --raw_scale $RAW_SCALE \
-      --mean $MEAN \
-      --std $STD \
-      --input_scale $INPUT_SCALE \
-      --model_type mlir \
-      --model_channel_order $MODEL_CHANNEL_ORDER \
+      --dataset=$DATASET_PATH/VOCdevkit \
       --count=$1
-
   else
     echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"
     exit 1
   fi
-fi
-
-if [ $DO_QUANT_BF16 -eq 1 ]; then
-  echo "Eval bf16 with interpreter"
-  $EVAL_FUNC \
-    --mlir_file=${NET}_bf16_quantized.mlir \
-    --label_file=$LABEL_FILE \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --net_input_dims $NET_INPUT_DIMS \
-    --image_resize_dims $IMAGE_RESIZE_DIMS \
-    --raw_scale $RAW_SCALE \
-    --mean $MEAN \
-    --std $STD \
-    --input_scale $INPUT_SCALE \
-    --model_type mlir \
-    --model_channel_order $MODEL_CHANNEL_ORDER \
-    --count=$1
-fi
-
-if [ $INT8_MODEL -eq 1 ]; then
-  echo "Eval int8 model to mlir with interpreter"
-  $EVAL_FUNC \
-    --mlir_file=${NET}_quant.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --net_input_dims $NET_INPUT_DIMS \
-    --image_resize_dims $IMAGE_RESIZE_DIMS \
-    --raw_scale $RAW_SCALE \
-    --mean $MEAN \
-    --std $STD \
-    --input_scale $INPUT_SCALE \
-    --model_type mlir \
-    --model_channel_order $MODEL_CHANNEL_ORDER \
-    --count=$1
-fi
-
+done
 echo $0 DONE

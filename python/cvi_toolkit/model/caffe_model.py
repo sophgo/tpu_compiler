@@ -32,6 +32,9 @@ class CaffeModel(model_base):
             in_ = self.net.inputs[0]
             return "{},{}".format(self.net.blobs[in_].data.shape[2], self.net.blobs[in_].data.shape[3])
 
+    def get_inputs(self):
+        return self.net.inputs
+
     def get_all_tensor(self, input_data=None, get_in_place_tensor=False):
         if input_data is None:
             print("[Warning] Caffe model get all tensor need input data")

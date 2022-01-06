@@ -216,7 +216,6 @@ if __name__ == '__main__':
     parser.add_argument("--expose_bf16_inputs", action='store_true', help="DEPRECATED, please use --inputs_type BF16")
     parser.add_argument("--compress_weight", action='store_true', help="DEPRECATED, no need any more")
     args = parser.parse_args()
-
     ##check options DEPRECATED
     deprecated_option(args.dequant_results_to_fp32, "DEPRECATED, please use --outputs_type FP32")
     deprecated_option(args.expose_bf16_inputs, "DEPRECATED, please use --inputs_type BF16")

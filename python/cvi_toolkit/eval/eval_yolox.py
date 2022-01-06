@@ -399,7 +399,11 @@ def yolo_x_onnx_detector(img_path, input_shape, sess, score_thr, nms_thr=0.45,
         output = sess.run(None, ort_inputs)[0]
     except AttributeError:
         ret = sess.run(img)
-        output = sess.get_all_tensor()['output_Transpose_dequant']
+        tensors = sess.get_all_tensor()
+        if 'output_Transpose_dequant' in tensors.keys():
+            output = tensors['output_Transpose_dequant']
+        else:
+            output = tensors['output_Transpose']
     scores, boxes_xyxy = postproc(output, input_shape, p6=with_p6)
     dets = multiclass_nms(boxes_xyxy, scores, nms_thr=nms_thr, score_thr=nms_score_thr)
 

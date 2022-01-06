@@ -49,6 +49,12 @@ class ModelFactory(object):
     def get_op_info(self):
         return self.model.get_op_info()
 
+    def get_input_name(self):
+        input_names = [i for i in self.model.get_inputs()]
+        if self.model_type == 'onnx':
+            input_names = [i.name for i in input_names]
+        return input_names
+
     def get_input_shape(self):
         return self.model.get_input_shape()
 

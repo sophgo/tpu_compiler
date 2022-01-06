@@ -18,7 +18,7 @@ g_net_input_dims = '600,600'
 g_detector = None
 
 g_mlir_model = pymlir.module()
-g_is_int8 = False
+g_dequant = 0
 
 
 def detect(img_bgr):
@@ -28,7 +28,7 @@ def detect(img_bgr):
     y = g_mlir_model.run(x)
 
     faces, landmarks = g_detector.postprocess(y, retinaface_w, retinaface_h,
-        dequant=g_is_int8, do_preprocess=do_preprocess)
+        dequant=g_dequant, do_preprocess=do_preprocess)
     ret = np.zeros(faces.shape)
 
     for i in range(faces.shape[0]):
@@ -57,11 +57,11 @@ if __name__ == '__main__':
                         help="Object confidence threshold")
     parser.add_argument("--nms_threshold", type=float, default=0.45,
                         help="NMS threshold")
-    parser.add_argument("--model_do_preprocess", type=bool, default=False)
-    parser.add_argument('--int8', default=False, action="store_true", help="int8 model")
+    parser.add_argument("--model_do_preprocess", type=int, default=0)
+    parser.add_argument('--dequant', type=int, default=0, help="dequant outputs")
     args = parser.parse_args()
 
-    g_is_int8 = args.int8
+    g_dequant = args.dequant
     g_net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     g_nms_threshold = args.nms_threshold
     g_obj_threshold = args.obj_threshold

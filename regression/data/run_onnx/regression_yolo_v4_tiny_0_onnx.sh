@@ -18,7 +18,7 @@ if [ ! -f "$CAFFE_BLOBS_NPZ" ]; then
       --input_file $REGRESSION_PATH/data/dog.jpg \
       --label_file $REGRESSION_PATH/data/coco-labels-2014_2017.txt \
       --draw_image dog_out.jpg \
-      --yolov4-tiny "yes"
+      --yolov4-tiny 1
 fi
 
 # extract input and output

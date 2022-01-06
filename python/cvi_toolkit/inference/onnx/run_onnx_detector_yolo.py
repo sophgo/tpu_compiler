@@ -21,7 +21,7 @@ def check_files(args):
     if not os.path.isfile(args.input_file):
         print("cannot find the file %s", args.input_file)
         sys.exit(1)
-
+python/cvi_toolkit/inference/onnx/run_onnx_detector_yolo.py
 def parse_args():
     parser = argparse.ArgumentParser(description='Eval YOLO networks.')
     parser.add_argument('--model_def', type=str, default='',
@@ -42,9 +42,9 @@ def parse_args():
                         help="NMS threshold")
     parser.add_argument("--batch_size", type=int, default=1,
                         help="Set batch size")
-    parser.add_argument("--yolov3", type=str, default='yes',
+    parser.add_argument("--yolov3", type=int, default=1,
                         help="yolov2 or yolov3")
-    parser.add_argument("--yolov4-tiny", type=str, default='false',
+    parser.add_argument("--yolov4-tiny", type=int, default=0,
                         help="set to yolov4")
 
     args = parser.parse_args()
@@ -58,8 +58,8 @@ def main(argv):
     net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     obj_threshold = float(args.obj_threshold)
     nms_threshold = float(args.nms_threshold)
-    yolov3 = True if args.yolov3 == 'yes' else False
-    yolov4_tiny = True if args.yolov4_tiny == 'yes' else False
+    yolov3 = True if args.yolov3 else False
+    yolov4_tiny = True if args.yolov4_tiny else False
     print("net_input_dims", net_input_dims)
     print("obj_threshold", obj_threshold)
     print("nms_threshold", nms_threshold)

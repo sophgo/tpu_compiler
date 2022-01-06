@@ -6,6 +6,7 @@
 # --------------------------------------------------------
 
 import cv2
+import shutil
 import caffe
 import xml.etree.ElementTree as ET
 import os
@@ -396,3 +397,5 @@ if __name__ == '__main__':
     if not os.path.isdir(args.output_dir):
         os.mkdir(args.output_dir)
     eval_voc_main()
+    shutil.rmtree(args.output_dir)
+

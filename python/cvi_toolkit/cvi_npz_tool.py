@@ -8,6 +8,7 @@ npz_tool_func = {
     "extract": npz_extract,
     "rename": npz_rename,
     "to_bin": npz_to_bin,
+    "int8_to_fp32": npz_int8_to_fp32,
     "bf16_to_fp32": npz_bf16_to_fp32,
     "tranpose": npz_transpose,
     "get_shape": get_npz_shape,

@@ -20,7 +20,7 @@ parser.add_argument("--dataset", type=str, help="The root directory of the LFW d
                     default=LFW_DATASET_PATH)
 parser.add_argument("--pairs", type=str, help="The path of the pairs file.",
                     default=PAIRS_FILE_PATH)
-parser.add_argument("--model_do_preprocess", type=bool, default=False)
+parser.add_argument("--model_do_preprocess", type=int, default=0)
 parser.add_argument("--show", type=bool, default=False)
 args = parser.parse_args()
 

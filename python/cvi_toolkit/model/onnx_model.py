@@ -53,8 +53,10 @@ class OnnxModel(model_base):
          # dump all inferneced tensor
         ort_outs = self._infernece(input_data, onnx_model=dump_all_onnx)
         output_dict = dict(zip(output_keys, map(np.ndarray.flatten, ort_outs)))
-
         return output_dict
+
+    def get_inputs(self, ):
+        return self.net.get_inputs()
 
     def get_op_info(self):
         raise RuntimeError("Todo")

@@ -175,13 +175,12 @@ if __name__ == '__main__':
     x = images[0].numpy() * 255
     if preprocessor.channel_order == 'bgr':
       x = x[[2, 1, 0], :, :]
-    x -= preprocessor.perchannel_mean
-    x *= preprocessor.perchannel_scale
 
+    x *= preprocessor.perchannel_scale
+    x -= preprocessor.perchannel_mean
     x = np.expand_dims(x, axis=0)
     # run inference
-
-    res = net.inference({'data': x})
+    res = net.inference({net.get_input_name()[0]: x})
     res = np.reshape(res, (res.shape[0], res.shape[1]))
 
     output = torch.from_numpy(res)
@@ -203,10 +202,10 @@ if __name__ == '__main__':
     end = time.time()
 
     # if i % args.print_freq == 0:
-    if (i + 1) % 50 == 0:
+    if (i + 1) % 1000 == 0:
       progress.display(i + 1)
 
-    if (i + 1) >= int(args.count):
+    if int(args.count) > 0 and (i + 1) >= int(args.count):
       break
 
   # TODO: this should also be done with the ProgressMeter
