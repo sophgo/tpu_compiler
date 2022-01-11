@@ -47,12 +47,12 @@ if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
 fi
 
 if [ $DO_QUANT_BF16 -eq 1 ]; then
-  MLIR_FILES+=(${NET}_bf16_quantized.mlir)
+  MLIR_FILES+=(${NET}_quant_bf16.mlir)
   MLIR_TYPES+=("bf16")
 fi
 
-if [ $DO_QUANT_INT8_MULTIPLER -eq 1 ]; then
-  MLIR_FILES+=(${NET}_quant_int8_multiplier.mlir)
+if [ $DO_QUANT_INT8 -eq 1 ]; then
+  MLIR_FILES+=(${NET}_quant_int8.mlir)
   MLIR_TYPES+=("int8")
 fi
 

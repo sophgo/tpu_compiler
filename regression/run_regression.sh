@@ -43,20 +43,20 @@ run_generic_all_parallel()
   do
     echo "run_generic $net 1" >> regression.txt
   done
-  for net in ${net_list_batch[@]}
-  do
-    echo "run_generic $net 4" >> regression.txt
-  done
+  # for net in ${net_list_batch[@]}
+  # do
+  #   echo "run_generic $net 4" >> regression.txt
+  # done
   # extra
   if [ $run_extra -eq 1 ]; then
     for net in ${net_list_generic_extra[@]}
     do
       echo "run_generic $net 1" >> regression.txt
     done
-    for net in ${net_list_batch_extra[@]}
-    do
-      echo "run_generic $net 4" >> regression.txt
-    done
+    # for net in ${net_list_batch_extra[@]}
+    # do
+    #   echo "run_generic $net 4" >> regression.txt
+    # done
   fi
   cat regression.txt
   parallel -j${MAX_PARALLEL_JOBS} --delay 5  --joblog job_regression.log < regression.txt

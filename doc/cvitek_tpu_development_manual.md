@@ -1582,7 +1582,7 @@ CVITEK TPU支持INT8和BF16两种数据格式运算的加速，在INT8精度不�
 model_deploy.py \
     --model_name ${NET}_bf16 \
     --mlir ${NET}_fp32.mlir \
-    --all_bf16 \
+    --quantize bf16 \
     --chip [cv183x|cv182x] \
     --image ${IMAGE_PATH} \
     --tolerance ${TOLERANCE_BF16} \

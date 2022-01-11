@@ -78,7 +78,7 @@ function gencvimodel_for_sample() {
       --mix_precision_table ${MIX_PRECISION_TABLE} \
       --chip ${chip} \
       --image ${IMAGE_PATH} \
-      --tolerance ${TOLERANCE_INT8_MULTIPLER} \
+      --tolerance ${TOLERANCE_INT8} \
       --excepts ${EXCEPTS} \
       --fuse_preprocess \
       --pixel_format $pixel_format \
@@ -93,7 +93,7 @@ function gencvimodel_for_sample() {
       --mix_precision_table ${MIX_PRECISION_TABLE} \
       --chip ${chip} \
       --image ${IMAGE_PATH} \
-      --tolerance ${TOLERANCE_INT8_MULTIPLER} \
+      --tolerance ${TOLERANCE_INT8} \
       --excepts ${EXCEPTS} \
       --correctness 0.99,0.99,0.99 \
       --cvimodel $cvimodel
@@ -135,7 +135,7 @@ function gen_model_for_merge() {
       --chip ${chip} \
       --image ${IMAGE_PATH}\
       --merge_weight \
-      --tolerance ${TOLERANCE_INT8_MULTIPLER}\
+      --tolerance ${TOLERANCE_INT8}\
       --correctness 0.99,0.99,0.99\
       --excepts ${EXCEPTS}\
       --cvimodel $name"
@@ -226,12 +226,8 @@ function pack_regression_cvimodels() {
   pushd regression_out/$chip/cvimodel_regression
   tar zcvf $dest_dir/cvimodel_regression_bs1_${chip}.tar.gz \
            cvimodel_regression_bs1
-  tar zcvf $dest_dir/cvimodel_regression_bs4_${chip}.tar.gz \
-           cvimodel_regression_bs4
   tar zcvf $dest_dir/cvimodel_regression_bf16_${chip}.tar.gz \
            cvimodel_regression_bf16_bs1
-  tar zcvf $dest_dir/cvimodel_regression_bf16_${chip}.tar.gz \
-           cvimodel_regression_bf16_bs4
   popd
 }
 

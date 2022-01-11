@@ -43,7 +43,7 @@ if [ $DO_QUANT_INT8 -eq 1 ]; then
     --mix_precision_table ${MIX_PRECISION_TABLE} \
     --chip ${SET_CHIP_NAME} \
     --image ${IMAGE_PATH} \
-    --tolerance ${TOLERANCE_INT8_MULTIPLER} \
+    --tolerance ${TOLERANCE_INT8} \
     --excepts ${EXCEPTS} \
     --correctness 0.99,0.99,0.99 \
     --cvimodel ${NET}.cvimodel
@@ -54,14 +54,14 @@ if [ $DO_QUANT_INT8 -eq 1 ]; then
   mv ${NET}_in_fp32.npz $DST_DIR/${NET}_${postfix}_in_fp32.npz
   mv ${NET}.cvimodel $DST_DIR/${NET}_${postfix}.cvimodel
   mv ${NET}_quantized_tensors_sim.npz $DST_DIR/${NET}_${postfix}_out_all.npz
-  mv ${NET}_quantized.mlir ${NET}_quant_int8_multiplier.mlir
+  mv ${NET}_quantized.mlir ${NET}_quant_int8.mlir
 fi
 
 if [ $DO_QUANT_BF16 -eq 1 ]; then
   model_deploy.py \
     --model_name ${NET} \
     --mlir ${NET}_fp32.mlir \
-    --all_bf16 \
+    --quantize bf16 \
     --image ${IMAGE_PATH} \
     --chip ${SET_CHIP_NAME} \
     --tolerance ${TOLERANCE_BF16} \
@@ -77,5 +77,5 @@ if [ $DO_QUANT_BF16 -eq 1 ]; then
   mv ${NET}_in_fp32_resize_only.npz $DST_DIR/${NET}_${postfix}_only_resize_in_fp32.npz
   mv ${NET}_bf16.cvimodel $DST_DIR/${NET}_${postfix}.cvimodel
   mv ${NET}_quantized_tensors_sim.npz $DST_DIR/${NET}_${postfix}_bf16_out_all.npz
-  mv ${NET}_quantized.mlir ${NET}_bf16_quantized.mlir
+  mv ${NET}_quantized.mlir ${NET}_quant_bf16.mlir
 fi

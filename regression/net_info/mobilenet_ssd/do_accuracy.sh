@@ -22,7 +22,7 @@ python3 $EVAL_FUNC \
 
 echo  "eval with mlir"
 python3 $EVAL_FUNC \
-    --mlir=mobilenet_ssd_quant_int8_multiplier.mlir \
+    --mlir=mobilenet_ssd_quant_int8.mlir \
     --net_input_dims 300,300 \
     --mean 127.5,127.5,127.5 \
     --input_scale 0.007843 \

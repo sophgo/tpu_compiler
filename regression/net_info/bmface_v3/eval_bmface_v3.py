@@ -11,7 +11,7 @@ import pymlir
 
 #MODEL_MLIR_PATH  = './bmface_v3.mlir'
 #MODEL_MLIR_PATH  = './bmface_v3_opt.mlir'
-MODEL_MLIR_PATH  = './bmface_v3_quant_int8_multiplier.mlir'
+MODEL_MLIR_PATH  = './bmface_v3_quant_int8.mlir'
 LFW_DATASET_PATH = '/workspace/data/dataset_zoo/lfw/bmface_preprocess/bmface_LFW/'
 PAIRS_FILE_PATH  = '/workspace/data/dataset_zoo/lfw/pairs.txt'
 

@@ -40,7 +40,7 @@ fi
 ##    #--input_scale=${SCALE} \
 
 $EVAL_FUNC \
-    --model=${NET}_quant_int8_multiplier.mlir \
+    --model=${NET}_quant_int8.mlir \
     --dataset=$DATASET_PATH/imagenet/img_val_extracted \
     --mean=0.485,0.456,0.406 \
     --loader_transforms 1 \

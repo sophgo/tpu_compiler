@@ -39,7 +39,6 @@ usage()
 }
 
 bs="1"
-do_layergroup="1"
 do_fused_preprocess="0"
 do_crop="0"
 do_tpu_softmax="0"
@@ -48,7 +47,7 @@ outputs_type="FP32"
 do_quant_full_bf16="0"
 pixel_format="BGR_PACKED"
 
-while getopts "i:d:t:b:q:v:o:l:pz:r:m:s:a:w:y:g:f:n:e:xu" opt
+while getopts "i:d:t:b:q:v:o:pz:r:m:s:a:w:y:g:f:n:e:xu" opt
 do
   case "$opt" in
     i ) model_def="$OPTARG" ;;
@@ -58,7 +57,6 @@ do
     q ) cali_table="$OPTARG" ;;
     v ) chip_ver="$OPTARG" ;;
     o ) output="$OPTARG" ;;
-    l ) do_layergroup="$OPTARG" ;;
     p ) do_fused_preprocess="1" ;;
     z ) net_input_dims="$OPTARG" ;;
     r ) raw_scale="$OPTARG" ;;

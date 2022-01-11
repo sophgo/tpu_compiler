@@ -9,7 +9,7 @@ import copy
 
 import pymlir
 
-MODEL_MLIR_PATH  = './arcface_res50_quant_int8_multiplier.mlir'
+MODEL_MLIR_PATH  = './arcface_res50_quant_int8.mlir'
 LFW_DATASET_PATH = '/workspace/data/datasets/lfw/lfw_aligned/'
 PAIRS_FILE_PATH  = '/workspace/data/datasets/lfw/pairs.txt'
 

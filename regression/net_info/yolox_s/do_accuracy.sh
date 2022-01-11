@@ -23,7 +23,7 @@ $EVAL_FUNC \
 echo  "eval with mlir"
 
 $_EVAL_FUNC \
-    --model=yolox_s_quant_int8_multiplier.mlir \
+    --model=yolox_s_quant_int8.mlir \
     --net_input_dims 640,640 \
     --coco_image_path=$DATASET_PATH/coco/val2017/ \
     --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \

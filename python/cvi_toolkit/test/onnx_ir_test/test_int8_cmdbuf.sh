@@ -53,12 +53,12 @@ tpuc-opt \
     --print-tpu-op-info \
     --tpu-op-info-filename ${1}_op_info_int8_multiplier.csv \
     ${1}_cali.mlir \
-    -o ${1}_quant_int8_multiplier.mlir
+    -o ${1}_quant_int8.mlir
 if [ $? != 0 ]; then
     exit 1
 fi
 
-tpuc-interpreter ${1}_quant_int8_multiplier.mlir \
+tpuc-interpreter ${1}_quant_int8.mlir \
     --tensor-in ${1}_input.npz \
     --tensor-out ${1}_out_int8_multiplier.npz \
     --dump-all-tensor=${1}_tensor_all_int8_multiplier.npz
@@ -81,16 +81,16 @@ fi
 # test int8 cmdbuf
 tpuc-opt \
     --tpu-lower --reorder-op \
-    ${1}_quant_int8_multiplier.mlir \
-    -o ${1}_quant_int8_multiplier_tg.mlir
+    ${1}_quant_int8.mlir \
+    -o ${1}_quant_int8_tg.mlir
 if [ $? != 0 ]; then
     exit 1
 fi
 
 tpuc-opt \
     --tg-fuse-leakyrelu --conv-ic-alignment \
-    ${1}_quant_int8_multiplier_tg.mlir \
-    -o ${1}_quant_int8_multiplier_tg_opt.mlir
+    ${1}_quant_int8_tg.mlir \
+    -o ${1}_quant_int8_tg_opt.mlir
 if [ $? != 0 ]; then
     exit 1
 fi
@@ -103,16 +103,16 @@ tpuc-opt \
     --assign-neuron-address \
     --tpu-neuron-address-align=64 \
     --tpu-neuron-map-filename=${1}_neuron_map_int8_multiplier.csv \
-    ${1}_quant_int8_multiplier_tg_opt.mlir \
-    -o ${1}_quant_int8_multiplier_addr.mlir
+    ${1}_quant_int8_tg_opt.mlir \
+    -o ${1}_quant_int8_addr.mlir
 if [ $? != 0 ]; then
     exit 1
 fi
 
 tpuc-opt \
     --divide-ops-to-func \
-    ${1}_quant_int8_multiplier_addr.mlir \
-    -o ${1}_quant_int8_multiplier_addr_func.mlir
+    ${1}_quant_int8_addr.mlir \
+    -o ${1}_quant_int8_addr_func.mlir
 if [ $? != 0 ]; then
     exit 1
 fi
@@ -120,7 +120,7 @@ fi
 tpuc-translate \
     --mlir-to-cvimodel \
     --weight-file weight_int8_multiplier.bin \
-    ${1}_quant_int8_multiplier_addr_func.mlir \
+    ${1}_quant_int8_addr_func.mlir \
     -o ${1}_int8_multiplier.cvimodel
 if [ $? != 0 ]; then
     exit 1
