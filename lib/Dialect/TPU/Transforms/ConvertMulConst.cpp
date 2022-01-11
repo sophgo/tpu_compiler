@@ -73,7 +73,7 @@ struct TpuMergeMulConstPattern : public RewritePattern {
       return failure();
     }
     if (auto convOp = dyn_cast_or_null<tpu::Conv2DOp>(formerOp)) {
-      if (convOp.param().do_relu().getValue() == true && const_val < 0) {
+      if (convOp.do_relu() == true && const_val < 0) {
         return failure();
       }
     } else if (auto fcOp = dyn_cast_or_null<tpu::FullyConnectedOp>(formerOp)) {
@@ -100,23 +100,7 @@ struct TpuMergeMulConstPattern : public RewritePattern {
     }
     formerOp->setAttr("name", rewriter.getStringAttr(op_name));
     if (do_relu) {
-      if (isa<tpu::FullyConnectedOp>(formerOp)) {
-        formerOp->setAttr("do_relu", rewriter.getBoolAttr(do_relu));
-      } else {
-        auto convOp = cast<tpu::Conv2DOp>(formerOp);
-        convOp->setAttr(
-            "param",
-            tpu::ConvParam::get(
-                convOp.param().kernel_h(), convOp.param().kernel_w(),
-                convOp.param().stride_h(), convOp.param().stride_w(),
-                convOp.param().padding(), convOp.param().dilation_h(),
-                convOp.param().dilation_w(), convOp.param().padding_t(),
-                convOp.param().padding_b(), convOp.param().padding_l(),
-                convOp.param().padding_r(), convOp.param().group(),
-                convOp.param().is_dw(), convOp.param().with_bias(),
-                rewriter.getBoolAttr(true), convOp.param().ins(),
-                convOp.param().pad_value(), rewriter.getContext()));
-      }
+      formerOp->setAttr("do_relu", rewriter.getBoolAttr(true));
     }
     rewriter.replaceOp(op, {castOp.input()});
     return success();

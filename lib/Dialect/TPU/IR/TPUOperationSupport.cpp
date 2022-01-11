@@ -355,7 +355,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
                     int &oh, int &ow, int &g, int &kh, int &kw, int &ins_h,
                     int &ins_w, int &sh, int &sw, int &pt, int &pb, int &pl,
                     int &pr, int &dh, int &dw, bool &is_dw, bool &with_bias,
-                    bool &do_relu, int &pad_value) {
+                    int &pad_value) {
   kh = p.kernel_h().getInt();
   kw = p.kernel_w().getInt();
   dh = p.dilation_h().getInt();
@@ -409,7 +409,6 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
   ins_h = ins[1];
   ins_w = ins[0];
   g = p.group().getInt();
-  do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
   pad_value= p.pad_value().getInt();
 }
@@ -422,7 +421,7 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
     int &sd, int &sh, int &sw,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
     int &dd, int &dh, int &dw,
-    bool &is_dw, bool &with_bias, bool &do_relu) {
+    bool &is_dw, bool &with_bias) {
   kd = p.kernel_d().getInt();
   kh = p.kernel_h().getInt();
   kw = p.kernel_w().getInt();
@@ -460,14 +459,13 @@ void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv,
   }
 
   g = p.group().getInt();
-  do_relu = p.do_relu().getValue();
   with_bias = p.with_bias().getValue();
 }
 
 void parsePoolParam(const tpu::PoolParam &p, Value input, Value output, int &n,
                     int &c, int &ih, int &iw, int &oh, int &ow, int &kh,
                     int &kw, int &sh, int &sw, int &pt, int &pb, int &pl,
-                    int &pr, int &pad_value, bool &is_global, bool &do_relu,
+                    int &pr, int &pad_value, bool &is_global,
                     bool &count_include_pad) {
   kh = p.kernel_h().getInt();
   kw = p.kernel_w().getInt();
@@ -506,7 +504,6 @@ void parsePoolParam(const tpu::PoolParam &p, Value input, Value output, int &n,
     is_global = true;
   }
   pad_value = p.pad_value().getInt();
-  do_relu = p.do_relu().getValue();
   count_include_pad = p.count_include_pad().getValue();
 }
 
@@ -517,7 +514,7 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
     int &kd, int &kh, int &kw,
     int &sd, int &sh, int &sw,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
-    bool &is_global, bool &do_relu, bool &count_include_pad) {
+    bool &is_global, bool &count_include_pad) {
   kd = p.kernel_d().getInt();
   kh = p.kernel_h().getInt();
   kw = p.kernel_w().getInt();
@@ -549,7 +546,6 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
     //assert(oh == 1 && ow == 1);
     is_global = true;
   }
-  do_relu = p.do_relu().getValue();
   count_include_pad = p.count_include_pad().getValue();
 }
 

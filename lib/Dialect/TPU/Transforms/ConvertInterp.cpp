@@ -317,11 +317,10 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
                 rewriter.getI32IntegerAttr(1), //convOp.param().group(),
                 rewriter.getBoolAttr(false), //convOp.param().is_dw(),
                 rewriter.getBoolAttr(false), //bias
-                rewriter.getBoolAttr(false), //convOp.param().do_relu(),
                 rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
                 rewriter.getI32IntegerAttr(0), //pad_value
                 rewriter.getContext())));
-
+        attrs.push_back(rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(false)));
         attrs.push_back(rewriter.getNamedAttr("quant",
               getDefaultQuantParam(rewriter)));
 
@@ -504,6 +503,7 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
           int g, bool is_dw, bool with_bias, std::vector<int32_t> ins) mutable ->
         std::vector<NamedAttribute> {
           std::vector<NamedAttribute> attrs;
+          attrs.push_back(rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(false)));
           attrs.push_back(rewriter.getNamedAttr("param",
                 tpu::ConvParam::get(
                   rewriter.getI32IntegerAttr(kernel[0]),
@@ -520,7 +520,6 @@ struct TpuMergeInterpToConv2DPattern : public RewritePattern {
                   rewriter.getI32IntegerAttr(g),
                   rewriter.getBoolAttr(is_dw),
                   rewriter.getBoolAttr(with_bias),
-                  rewriter.getBoolAttr(false),
                   rewriter.getI32ArrayAttr(ArrayRef<int32_t>({ins})), // [0]ins_w/[1]ins_h
                   rewriter.getI32IntegerAttr(0), //pad_value
                   rewriter.getContext())));

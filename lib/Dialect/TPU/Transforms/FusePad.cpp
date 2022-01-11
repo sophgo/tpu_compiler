@@ -131,7 +131,7 @@ struct TpuFusePadPattern : public RewritePattern {
             rewriter.getI32IntegerAttr(pt), rewriter.getI32IntegerAttr(pb),
             rewriter.getI32IntegerAttr(pl), rewriter.getI32IntegerAttr(pr),
             rewriter.getI32IntegerAttr(pad_value), poolOp.param().stride_h(),
-            poolOp.param().stride_w(), poolOp.param().do_relu(),
+            poolOp.param().stride_w(),
             rewriter.getBoolAttr(true), rewriter.getContext()));
   }
 
@@ -164,7 +164,7 @@ struct TpuFusePadPattern : public RewritePattern {
             rewriter.getI32IntegerAttr(pb), rewriter.getI32IntegerAttr(pl),
             rewriter.getI32IntegerAttr(pr), convOp.param().group(),
             convOp.param().is_dw(), convOp.param().with_bias(),
-            convOp.param().do_relu(), convOp.param().ins(),
+            convOp.param().ins(),
             rewriter.getI32IntegerAttr(pad_value), rewriter.getContext()));
   }
 

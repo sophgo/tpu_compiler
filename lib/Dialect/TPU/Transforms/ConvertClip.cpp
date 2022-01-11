@@ -63,7 +63,7 @@ struct TpuConvertClipToRelu6Pattern : public RewritePattern {
 
     if (isa<tpu::Conv2DOp>(formerOp)){
       auto cast_op = cast<tpu::Conv2DOp>(formerOp);
-      if(cast_op.param().do_relu().getValue() == true)
+      if(cast_op.do_relu() == true)
         return failure();
     }
 

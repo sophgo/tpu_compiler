@@ -135,6 +135,7 @@ class TPU_TL_LG_Conv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
     DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     OptionalAttr<BoolAttr>:$compressed_weight,
     StrAttr:$name
   );
@@ -174,6 +175,7 @@ class TPU_TL_LG_DeConv2DOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     DefaultValuedAttr<I32Attr, "0">:$pad_bottom_h,
     DefaultValuedAttr<I32Attr, "0">:$pad_left_w,
     DefaultValuedAttr<I32Attr, "0">:$pad_right_w,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name
@@ -239,6 +241,7 @@ class TPU_TL_LG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_O
     I32Attr:$la_output,
     TPU_PoolParamAttr:$param,
     OptionalAttr<I64Attr>:$gaddr,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<BoolAttr, "false">:$enable_parallel,
     DefaultValuedAttr<BoolAttr, "false">:$disable_parallel,
     StrAttr:$name

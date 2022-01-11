@@ -136,6 +136,7 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
     std::vector<NamedAttribute> attrs_conv;
     attrs_conv.push_back(rewriter.getNamedAttr("name",
                          rewriter.getStringAttr(op_name+"_conv")));
+    attrs_conv.push_back(rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(false)));
     attrs_conv.push_back(rewriter.getNamedAttr("param",
     tpu::ConvParam::get(
         rewriter.getI32IntegerAttr(1),
@@ -152,7 +153,6 @@ struct TpuDecomposeNormalizePattern : public RewritePattern {
         rewriter.getI32IntegerAttr(g),
         rewriter.getBoolAttr(is_dw),
         rewriter.getBoolAttr(with_bias),
-        rewriter.getBoolAttr(false),
         rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
         rewriter.getI32IntegerAttr(0), //pad_value
         rewriter.getContext())));

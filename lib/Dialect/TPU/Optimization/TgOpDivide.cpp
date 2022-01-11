@@ -318,13 +318,13 @@ public:
       return true;
     }
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::TG_INT8_Conv2DOp>(op)) {
-      bool is_dw, with_bias, do_relu;
+      bool is_dw, with_bias;
       int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
       int sh, sw, pt, pb, pl, pr, dh = 1, dw, pad_value;
       parseConvParam(cast_op.param(), false, cast_op.input(), cast_op.output(),
                      n, ic, ih, iw, oc, oh, ow, g, kh, kw,
                      ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                     with_bias, do_relu, pad_value);
+                     with_bias, pad_value);
 
       if (dh > 1) {
         kh = dh * (kh - 1) + 1;
@@ -343,10 +343,10 @@ public:
     }
     if (auto cast_op = llvm::dyn_cast_or_null<tpu::TG_INT8_PoolMax2DOp>(op)) {
       int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
-      bool is_global, do_relu, count_include_pad;
+      bool is_global, count_include_pad;
       parsePoolParam(cast_op.param(), cast_op.input(), cast_op.output(), n, c,
                      ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                     is_global, do_relu, count_include_pad);
+                     is_global, count_include_pad);
       s.in_h_start = (start_slice() ? 0 : s.out_h_start * sh - pt);
       s.in_h_start = std::max(s.in_h_start, 0);
       if (start_slice()) {
@@ -559,7 +559,7 @@ public:
                   p.dilation_w(), builder.getI32IntegerAttr(pad_t),
                   builder.getI32IntegerAttr(pad_b), p.padding_l(),
                   p.padding_r(), p.group(), p.is_dw(), p.with_bias(),
-                  p.do_relu(), p.ins(), p.pad_value(), &getContext())));
+                  p.ins(), p.pad_value(), &getContext())));
         } else {
           attrs.push_back(
               builder.getNamedAttr(pair.first.c_str(), pair.second));
@@ -595,7 +595,7 @@ public:
                   p.kernel_h(), p.kernel_w(), builder.getI32IntegerAttr(pad_t),
                   builder.getI32IntegerAttr(pad_b), p.padding_l(),
                   p.padding_r(), p.pad_value(), p.stride_h(), p.stride_w(),
-                  p.do_relu(), p.count_include_pad(), &getContext())));
+                  p.count_include_pad(), &getContext())));
         } else {
           attrs.push_back(
               builder.getNamedAttr(pair.first.c_str(), pair.second));

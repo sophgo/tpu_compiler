@@ -202,13 +202,13 @@ struct MergeConvPadReluPattern : public RewritePattern {
     auto padOp = dyn_cast_or_null<tpu::PadOp>(nextOp);
     auto reluOp = dyn_cast_or_null<tpu::ReluOp>(nextnextOp);
 
-    bool is_dw, with_bias, do_relu;
+    bool is_dw, with_bias;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw;
     int pt, pb, pl, pr, dh, dw, pad_value;
     parseConvParam(convOp.param(), false, convOp.input(), convOp.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h,
                    ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
-                   do_relu, pad_value);
+                   pad_value);
 
     std::vector<int32_t> pads;
     arrayAttrToVector(padOp.pads(), pads);
@@ -246,10 +246,10 @@ struct MergeConvPadReluPattern : public RewritePattern {
         rewriter.getI32IntegerAttr(g),
         rewriter.getBoolAttr(is_dw),
         rewriter.getBoolAttr(with_bias),
-        rewriter.getBoolAttr(true),
         convOp.param().ins(), // [0]ins_w/[1]ins_h
         rewriter.getI32IntegerAttr(0), //pad_value
         rewriter.getContext())));
+    attrs.push_back(rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(true)));
     attrs.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
 
@@ -311,11 +311,10 @@ struct MergeConvReluPattern : public RewritePattern {
               convOp.param().group(),
               convOp.param().is_dw(),
               convOp.param().with_bias(),
-              rewriter.getBoolAttr(true),
               convOp.param().ins(),
               convOp.param().pad_value(),
               rewriter.getContext()));
-
+    convOp->setAttr("do_relu", rewriter.getBoolAttr(true));
     reluOp.getResult().replaceAllUsesWith(padOp.getResult());
     rewriter.eraseOp(reluOp);
 
@@ -461,12 +460,13 @@ struct SwitchConvPadHWPattern : public RewritePattern {
               conv_0.param().group(),
               conv_0.param().is_dw(),
               conv_0.param().with_bias(),
-              conv_0.param().do_relu(),
               conv_0.param().ins(),
               conv_0.param().pad_value(),
               rewriter.getContext())));
     attrs_1.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_1.push_back(
+        rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(conv_0.do_relu())));
 
     std::vector<int64_t> shape_conv_0 = getTensorShape(conv_0.getResult());
     RankedTensorType out_type_conv_0 = RankedTensorType::get(
@@ -545,12 +545,13 @@ struct SwitchConvPadHWPattern : public RewritePattern {
               conv_1.param().group(),
               conv_1.param().is_dw(),
               conv_1.param().with_bias(),
-              conv_1.param().do_relu(),
               conv_1.param().ins(),
               conv_1.param().pad_value(),
               rewriter.getContext())));
     attrs_3.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_3.push_back(
+        rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(conv_1.do_relu())));
 
     std::vector<int64_t> shape_conv_1 = getTensorShape(conv_1.getResult());
     if (shape_conv_1.size() != 3)
@@ -593,12 +594,13 @@ struct SwitchConvPadHWPattern : public RewritePattern {
               conv_2.param().group(),
               conv_2.param().is_dw(),
               conv_2.param().with_bias(),
-              conv_2.param().do_relu(),
               conv_2.param().ins(),
               conv_2.param().pad_value(),
               rewriter.getContext())));
     attrs_4.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_4.push_back(
+        rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(conv_2.do_relu())));
 
     std::vector<int64_t> shape_conv_2 = getTensorShape(conv_2.getResult());
     RankedTensorType out_type_conv_2 = RankedTensorType::get(
@@ -676,12 +678,13 @@ struct SwitchConvPadHWPattern : public RewritePattern {
               conv_3.param().group(),
               conv_3.param().is_dw(),
               conv_3.param().with_bias(),
-              conv_3.param().do_relu(),
               conv_3.param().ins(),
               conv_3.param().pad_value(),
               rewriter.getContext())));
     attrs_6.push_back(
         rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
+    attrs_6.push_back(
+        rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(conv_3.do_relu())));
 
     std::vector<int64_t> shape_conv_3 = getTensorShape(conv_3.getResult());
     if (shape_conv_3.size() != 3)
@@ -786,7 +789,6 @@ struct SwitchConv2DHWPattern : public RewritePattern {
               conv_op.param().group(),
               conv_op.param().is_dw(),
               conv_op.param().with_bias(),
-              conv_op.param().do_relu(),
               conv_op.param().ins(),
               conv_op.param().pad_value(),
               rewriter.getContext())));
@@ -994,7 +996,6 @@ struct ExtendGroupConvShapePattern : public RewritePattern {
               conv_op.param().group(),
               conv_op.param().is_dw(),
               conv_op.param().with_bias(),
-              conv_op.param().do_relu(),
               conv_op.param().ins(),
               conv_op.param().pad_value(),
               rewriter.getContext())));

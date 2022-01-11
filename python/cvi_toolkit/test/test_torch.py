@@ -299,7 +299,7 @@ class TORCH_IR_TESTER(object):
                     raise RuntimeError("cvimodel output name not correct")
             np.savez(output_tensor_npz, **cvi_outs)
             npz_compare([output_tensor_npz, ref_npz,
-                            "--tolerance", "0.99,0.99,0.9"])
+                            "--tolerance", "0.99,0.99,0.90"])
         elif self.quant_mode == "bf16":
             for i in NOT_SUPPORT_BF16_TEST_IR:
                 if i == model_name:
@@ -344,7 +344,7 @@ class TORCH_IR_TESTER(object):
                 if name not in bf16_tensors:
                     raise RuntimeError("cvimodel output name not correct")
             np.savez(output_tensor_npz, **cvi_outs)
-            npz_compare([output_tensor_npz, ref_npz, "--op_info", bf16_csv, "--tolerance", "0.9,0.9,0.9", "-vv"])
+            npz_compare([output_tensor_npz, ref_npz, "--op_info", bf16_csv, "--tolerance", "0.9,0.9,0.90", "-vv"])
 
         del self.mlir_model
 

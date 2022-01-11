@@ -100,8 +100,8 @@ struct MoveConvStrideToEltwiseOpPattern : public RewritePattern {
                          convOp.param().padding_t(), convOp.param().padding_b(),
                          convOp.param().padding_l(), convOp.param().padding_r(),
                          convOp.param().group(), convOp.param().is_dw(),
-                         convOp.param().with_bias(), convOp.param().do_relu(),
-                         convOp.param().ins(), convOp.param().pad_value(),
+                         convOp.param().with_bias(), convOp.param().ins(),
+                         convOp.param().pad_value(),
                          rewriter.getContext())); // rewrite strideH
     }
 

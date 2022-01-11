@@ -204,12 +204,12 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `pt_rshift`       : optional, rshift for per-tensor mode.
       `param`           : required, a ConvParam struct attributes, carrying
-                          stride, padding, dilation, group, is_dw, with_bias,
-                          and do_relu.
+                          stride, padding, dilation, group, is_dw, with_bias.
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
+      `do_relu`         : required, do_relu.
 
 
     Result:
@@ -238,6 +238,7 @@ class TPU_TG_ConvOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu,
     DefaultValuedAttr<BoolAttr, "false">:$do_compress
   );
@@ -267,14 +268,13 @@ class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     Attributes:
       `pt_rshift`       : optional, rshift for per-tensor mode.
       `param`           : required, a ConvParam struct attributes, carrying
-                          stride, padding, dilation, group, is_dw, with_bias,
-                          and do_relu.
+                          stride, padding, dilation, group, is_dw, with_bias.
 
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-
+      `do_relu`         : required, do_relu.
 
     Result:
       `output`          : result tensor.
@@ -300,6 +300,7 @@ class TPU_TG_Conv3dOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
     OptionalAttr<I8Attr>:$m_i8_pos,
     OptionalAttr<I8Attr>:$rshift_neg,
     OptionalAttr<I8Attr>:$m_i8_neg,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     DefaultValuedAttr<BoolAttr, "false">:$do_leaky_relu
   );
 
@@ -1156,11 +1157,12 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
       `rshift`          : optional, rshift, an int8 value.
       `m_i8`            : optional, multiplier for output.
       `param`           : required, a PoolParam struct attributes, carrying
-                          filter size, stride, padding, and do_relu.
+                          filter size, stride, and padding.
 
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
+      `do_relu`         : required, do_relu.
       `name`            : required, name for comparing, or debug.
 
 
@@ -1180,6 +1182,7 @@ class TPU_TG_Pool2DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     TPU_PoolParamAttr:$param,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name
   );
 
@@ -1204,13 +1207,13 @@ class TPU_TG_Pool3DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
       `rshift`          : optional, rshift, an int8 value.
       `m_i8`            : optional, multiplier for output.
       `param`           : required, a PoolParam struct attributes, carrying
-                          filter size, stride, padding, and do_relu.
+                          filter size, stride, and padding.
 
       `gaddr`           : optional, address in global memory, normally the
                           offset within the memory region.
       `buffer_reused`   : optional, whether buffer is reused.
       `name`            : required, name for comparing, or debug.
-
+      `do_relu`         : required, do_relu.
 
     Result:
       `output`          : result tensor.
@@ -1228,6 +1231,7 @@ class TPU_TG_Pool3DOp<string mnemonic, string opQuant, string opType> : TPU_Op<m
     TPU_Pool3dParamAttr:$param,
     OptionalAttr<I64Attr>:$gaddr,
     OptionalAttr<BoolAttr>:$buffer_reused,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name
   );
 

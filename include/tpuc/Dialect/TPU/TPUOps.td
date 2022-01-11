@@ -60,9 +60,9 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
     Attributes:
       `param`           : required, a ConvParam struct attributes, carrying
-                          stride, padding, dilation, group, is_dw, with_bias,
-                          and do_relu.
+                          stride, padding, dilation, group, is_dw, with_bias.
       `quant`           : required, a QuantParam struct attributes.
+      `do_relu`         : required, a Do_relu_Param attributes.
       `name`            : required, name for calibration, comparing, or debug.
 
 
@@ -86,6 +86,7 @@ class TPU_ConvOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     TPU_ConvParamAttr:$param,
     TPU_QuantParamAttr:$quant,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name
   );
 
@@ -124,10 +125,10 @@ class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
 
     Attributes:
       `param`           : required, a ConvParam struct attributes, carrying
-                          stride, padding, dilation, group, is_dw, with_bias,
-                          and do_relu.
+                          stride, padding, dilation, group, is_dw, with_bias.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
+      `do_relu`         : required, a Do_relu_Param attributes.
 
 
     Result:
@@ -150,6 +151,7 @@ class TPU_Conv3dOp<string mnemonic, string opSummary> : TPU_Op<mnemonic,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     TPU_Conv3dParamAttr:$param,
     TPU_QuantParamAttr:$quant,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name
   );
 
@@ -1655,7 +1657,8 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
 
     Attributes:
       `param`           : required, a PoolParam struct attributes, carrying
-                          filter size, stride, padding, and do_relu.
+                          filter size, stride, and padding.
+      `do_relu`         : required, do_relu attributes.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
 
@@ -1678,6 +1681,7 @@ def TPU_PoolAvg2DOp : TPU_Op<"pool_avg_2d",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_zeropoint,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_rshift,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name
@@ -1701,7 +1705,8 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
 
     Attributes:
       `param`           : required, a PoolParam struct attributes, carrying
-                          filter size, stride, padding, and do_relu.
+                          filter size, stride, and padding.
+      `do_relu`         : required, do_relu attributes.
       `quant`           : required, a QuantParam struct attributes.
       `name`            : required, name for calibration, comparing, or debug.
 
@@ -1724,6 +1729,7 @@ def TPU_PoolMax2DOp : TPU_Op<"pool_max_2d",
     ins AnyTensor:$input,
     TPU_PoolParamAttr:$param,
     TPU_QuantParamAttr:$quant,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     StrAttr:$name
   );
 
@@ -1745,8 +1751,9 @@ def TPU_PoolMax3DOp : TPU_Op<"pool_max_3d",
 
     Attributes:
       `param`           : required, a PoolParam struct attributes, carrying
-                          filter size, stride, padding, and do_relu.
+                          filter size, stride, and padding.
       `quant`           : required, a QuantParam struct attributes.
+      `do_relu`         : required, do_relu attributes.
       `name`            : required, name for calibration, comparing, or debug.
 
 
@@ -1766,6 +1773,7 @@ def TPU_PoolMax3DOp : TPU_Op<"pool_max_3d",
 
   let arguments = (
     ins AnyTensor:$input,
+    DefaultValuedAttr<BoolAttr, "false">:$do_relu,
     TPU_Pool3dParamAttr:$param,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name

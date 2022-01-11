@@ -10,10 +10,11 @@ DeConv2DOpKernel::DeConv2DOpKernel(Operation &op, value_map_t &valueMapping,
     : CPUOpKernel(op, valueMapping, weightMapping) {
   auto castOp = cast<tpu::DeConv2DOp>(op);
   int no_use0, no_use1;
+  do_relu = castOp.do_relu();
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
                  n, ic, ih, iw, oc, oh, ow, g, kh, kw, no_use0,
                  no_use1, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
-                 do_relu, pad_value);
+                 pad_value);
   // int8 init
   if (datatype == DataType::INT8) {
     auto quant_rshift = this->opdTensors[5];
