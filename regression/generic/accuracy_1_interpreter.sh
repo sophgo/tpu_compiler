@@ -65,7 +65,7 @@ do
     _EVAL_FUNC=eval_retinaface_on_widerface.py
     rm ${NET}_interpreter_result_${MLIR_TYPES[i]} -rf
     $_EVAL_FUNC \
-        --model ${MLIR_FILE} \
+        --model ${MLIR_FILES[i]} \
         --net_input_dims $NET_INPUT_DIMS \
         --obj_threshold $OBJ_THRESHOLD \
         --nms_threshold $NMS_THRESHOLD \
@@ -78,16 +78,16 @@ do
   elif [ "$EVAL_MODEL_TYPE" = "lfw" ]; then
     _EVAL_FUNC=eval_arcface.py
     $_EVAL_FUNC \
-      --model=${MLIR_FILE} \
+      --model=${MLIR_FILES[i]} \
       --dataset=$DATASET_PATH/lfw/lfw \
       --pairs=$DATASET_PATH/lfw/pairs.txt \
       --model_do_preprocess=${MODEL_DO_PREPROCESS} \
-      --show=True
+      --show=False
 
   elif [ "$EVAL_MODEL_TYPE" = "coco" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_INT8
     $_EVAL_FUNC \
-      --model=${MLIR_FILE} \
+      --model=${MLIR_FILES[i]} \
       --net_input_dims ${NET_INPUT_DIMS} \
       --coco_image_path=$DATASET_PATH/coco/val2017/ \
       --coco_annotation=$DATASET_PATH/coco/annotations/instances_val2017.json \
@@ -98,7 +98,7 @@ do
   elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
     _EVAL_FUNC=$EVAL_SCRIPT_VOC
     $_EVAL_FUNC \
-      --mlir=${MLIR_FILE} \
+      --mlir=${MLIR_FILES[i]} \
       --net_input_dims ${NET_INPUT_DIMS} \
       --mean $MEAN \
       --input_scale $INPUT_SCALE \

@@ -15,7 +15,7 @@ import numpy as np
 import uuid
 import pymlir
 
-over_threshold = 0.5
+# over_threshold = 0.5
 
 voc_class = ('__background__',  # always index 0
              'aeroplane', 'bicycle', 'bird', 'boat',
@@ -251,7 +251,7 @@ class pascal_voc():
 
         return rec, prec, ap
 
-    def _do_python_eval(self, output_dir='output'):
+    def _do_python_eval(self, output_dir='output', over_threshold=0.5):
         annopath = os.path.join(
             self._devkit_path,
             'VOC' + self._year,
@@ -313,7 +313,9 @@ class pascal_voc():
         top_ymin = det_ymin[top_indices]
         top_ymin[top_ymin < 0] = 0
         top_xmax = det_xmax[top_indices]
+        top_xmax[top_xmax > 1] = 1.0
         top_ymax = det_ymax[top_indices]
+        top_ymax[top_ymax > 1] = 1.0
 
         bboxs = np.zeros((top_conf.shape[0], 4), dtype=int)
         for i in range(top_conf.shape[0]):
@@ -336,6 +338,8 @@ def parse_args():
                         help="Caffe model definition file")
     parser.add_argument('--pretrained_model', type=str, default='',
                         help='Load weights from caffemodel, and eval by Caffe.')
+    parser.add_argument('--confidence_threshold', default=0.01, type=float,
+                    help='Detection confidence threshold')
     parser.add_argument('--mlir', type=str, default='',
                         help='load mlir file, and eval by mlir')
     parser.add_argument("--net_input_dims", default='300,300',
@@ -368,19 +372,19 @@ def eval_voc_main():
         # eval by caffe
         net = caffe.Net(args.model_def, args.pretrained_model, caffe.TEST)
         for i in range(voc._image_num):
-            if i % 50 == 0:
+            if i % 1000 == 0:
                 print("caffe inference image:{}/{}".format(i, voc._image_num))
             image = caffe.io.load_image(voc.image_path_at(i))
             net.blobs['data'].reshape(1, 3, net_input_dims[0], net_input_dims[1])
             net.blobs['data'].data[...] = transformer.preprocess('data', image)
             detections = net.forward()['detection_out']
             voc.parse_top_detection(
-                voc._image_index[i], image.shape, detections, over_threshold)
+                voc._image_index[i], image.shape, detections, conf_threshold=args.confidence_threshold)
     else:
         module = pymlir.module()
         module.load(args.mlir)
         for i in range(voc._image_num):
-            if i % 50 == 0:
+            if i % 1000 == 0:
                 print("mlir inference image:{}/{}".format(i, voc._image_num))
             image = caffe.io.load_image(voc.image_path_at(i))
             x = transformer.preprocess('data', image)
@@ -388,8 +392,9 @@ def eval_voc_main():
             _ = module.run(x)
             data = module.get_all_tensor()
             detections = data['detection_out']
+            # print(x.shape, detections.shape)
             voc.parse_top_detection(
-                voc._image_index[i], image.shape, detections, over_threshold)
+                voc._image_index[i], image.shape, detections, conf_threshold=args.confidence_threshold)
     voc.evaluate_detections(args.output_dir)
 
 if __name__ == '__main__':
@@ -397,5 +402,4 @@ if __name__ == '__main__':
     if not os.path.isdir(args.output_dir):
         os.mkdir(args.output_dir)
     eval_voc_main()
-    shutil.rmtree(args.output_dir)
 

@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 
 import argparse
+import caffe
 import numpy as np
 import os
-import pymlir
 from cvi_toolkit.utils.retinaface_util import RetinaFace, detect_on_widerface, evaluation
 
 g_wider_face_path = os.path.join(os.environ['DATASET_PATH'], 'widerface')
@@ -16,18 +16,22 @@ g_obj_threshold = 0.5
 g_net_input_dims = '600,600'
 g_detector = None
 
-g_mlir_model = pymlir.module()
-g_dequant = 0
+g_caffe_net = None
+g_caffe_model_path = os.path.join(os.environ['MODEL_PATH'], 'face_detection/retinaface/caffe')
+g_caffe_proto = os.path.join(g_caffe_model_path, 'R50-0000.prototxt')
+g_caffe_weight = os.path.join(g_caffe_model_path, 'R50-0000.caffemodel')
 
 
 def detect(img_bgr):
     retinaface_h, retinaface_w = g_net_input_dims[0], g_net_input_dims[1]
-    do_preprocess = not args.model_do_preprocess
-    x = g_detector.preprocess(img_bgr, retinaface_w, retinaface_h, do_preprocess)
-    y = g_mlir_model.run(x)
 
-    faces, landmarks = g_detector.postprocess(y, retinaface_w, retinaface_h,
-        dequant=g_dequant, do_preprocess=do_preprocess)
+    x = g_detector.preprocess(img_bgr, retinaface_w, retinaface_h)
+
+    g_caffe_net.blobs['data'].reshape(1, 3, x.shape[2], x.shape[3])
+    g_caffe_net.blobs['data'].data[...] = x
+    y = g_caffe_net.forward()
+    print(y.keys())
+    faces, landmarks = g_detector.postprocess(y, retinaface_w, retinaface_h)
     ret = np.zeros(faces.shape)
 
     for i in range(faces.shape[0]):
@@ -42,8 +46,10 @@ def detect(img_bgr):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('--model', type=str, default='',
-                        help="MLIR Model file")
+    parser.add_argument('--model_def', type=str, default=g_caffe_proto,
+                        help="caffe proto")
+    parser.add_argument('--pretrained_model', type=str, default=g_caffe_weight,
+                        help="caffe model")
     parser.add_argument("--images", type=str, default=g_img_path,
                         help="dataset image folder")
     parser.add_argument("--annotation", type=str, default=g_wider_face_gt_folder,
@@ -56,17 +62,14 @@ if __name__ == '__main__':
                         help="Object confidence threshold")
     parser.add_argument("--nms_threshold", type=float, default=0.45,
                         help="NMS threshold")
-    parser.add_argument("--model_do_preprocess", type=int, default=0)
-    parser.add_argument('--dequant', type=int, default=0, help="dequant outputs")
     args = parser.parse_args()
 
-    g_dequant = args.dequant
     g_net_input_dims = [int(s) for s in args.net_input_dims.split(',')]
     g_nms_threshold = args.nms_threshold
     g_obj_threshold = args.obj_threshold
     g_detector = RetinaFace(g_nms_threshold, g_obj_threshold)
 
-    g_mlir_model.load(args.model)
+    g_caffe_net = caffe.Net(args.model_def, args.pretrained_model, caffe.TEST)
     detect_on_widerface(args.images, args.annotation, args.result, detect)
-    evaluation(args.result, 'retinaface')
+    evaluation(args.result, 'retinaface-res50')
 

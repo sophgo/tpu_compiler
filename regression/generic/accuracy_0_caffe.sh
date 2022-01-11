@@ -66,10 +66,8 @@ elif [ "$EVAL_MODEL_TYPE" = "voc2012" ]; then
       --net_input_dims $NET_INPUT_DIMS \
       --mean $MEAN \
       --input_scale $INPUT_SCALE \
-      --dataset=$DATASET_PATH/VOCdevkit
-# if count not set, do eval with all images
-#      --count=$1
-
+      --dataset=$DATASET_PATH/VOCdevkit \
+      --count=$1
 else
   echo "Unknown EVAL_MODEL_TYPE $EVAL_MODEL_TYPE"
   exit 1

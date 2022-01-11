@@ -695,6 +695,7 @@ if [ $NET = "yolo_v2_416" ]; then
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v2/caffe/caffe_deploy.prototxt
 export MODEL_DAT=$MODEL_PATH/object_detection/yolo_v2/caffe/yolov2.caffemodel
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v2_calibration_table
 export INPUT=data
 export MODEL_CHANNEL_ORDER="rgb"

@@ -49,10 +49,10 @@ def parse_args():
     parser.add_argument("--pre_result_json", type=str,
                         help="when present, use pre detected result file, skip detection")
     parser.add_argument("--count", type=int, default=-1)
-    parser.add_argument("--yolov3", type=bool, default=True)
-    parser.add_argument("--yolov4", type=bool, default=False)
-    parser.add_argument("--spp_net", type=bool, default=False)
-    parser.add_argument("--tiny", type=bool, default=False)
+    parser.add_argument("--yolov3", type=int, default=0)
+    parser.add_argument("--yolov4", type=int, default=0)
+    parser.add_argument("--spp_net", type=int, default=0)
+    parser.add_argument("--tiny", type=int, default=0)
 
     args = parser.parse_args()
     return args
@@ -62,7 +62,7 @@ def yolo_detect(args, net, image, net_input_dims, obj_threshold, nms_threshold):
     net.blobs['data'].data[...] = x
     y = net.forward()
     out_feat = {}
-    if args.yolov3 == True:
+    if args.yolov3:
         if args.tiny:
             out_feat['layer16-conv'] = net.blobs['layer16-conv'].data
             out_feat['layer23-conv'] = net.blobs['layer23-conv'].data
@@ -81,12 +81,12 @@ def yolo_detect(args, net, image, net_input_dims, obj_threshold, nms_threshold):
                 out_feat['layer113-conv'] = net.blobs['layer113-conv'].data
                 batched_predictions = postprocess_v3(out_feat, image.shape, net_input_dims,
                                         obj_threshold, nms_threshold, args.spp_net, batch=1)
-    elif args.yolov4 == 'true':
+    elif args.yolov4:
         out_feat['layer139-conv'] = net.blobs['layer139-conv'].data
         out_feat['layer150-conv'] = net.blobs['layer150-conv'].data
         out_feat['layer161-conv'] = net.blobs['layer161-conv'].data
         batched_predictions = postprocess_v4(out_feat, image.shape, net_input_dims,
-            obj_threshold, nms_threshold, spp_net, batch=1)
+            obj_threshold, nms_threshold, args.spp_net, batch=1)
 
     else:
         out_feat['conv22'] = net.blobs['conv22'].data

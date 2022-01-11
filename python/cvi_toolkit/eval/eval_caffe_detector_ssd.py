@@ -12,6 +12,7 @@ import argparse
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from tqdm import tqdm
+from pathlib import Path
 
 ssd_mean = np.array([104, 117, 123], dtype=np.float32)
 
@@ -20,7 +21,7 @@ def parse_args():
     parser.add_argument('--model_def', type=str, default='',
                         help="Model definition file")
     parser.add_argument('--pretrained_model', type=str, default='',
-                        help='Load weights from previously saved parameters.')    
+                        help='Load weights from previously saved parameters.')
     parser.add_argument("--net_input_dims", default='300,300',
                         help="'height,width' dimensions of net input tensors.")
     parser.add_argument("--coco_image_path", type=str, default='',
@@ -32,7 +33,7 @@ def parse_args():
     parser.add_argument("--count", type=int, default=-1)
     parser.add_argument("--pre_result_json", type=str,
                         help="when present, use pre detected result file, skip detection")
-    
+
     args = parser.parse_args()
     return args
 
@@ -47,11 +48,18 @@ class NpEncoder(json.JSONEncoder):
         else:
             return super(NpEncoder, self).default(obj)
 
+def get_image_id_in_path(image_path):
+    stem = Path(image_path).stem
+    # in val2014, name would be like COCO_val2014_000000xxxxxx.jpg
+    # in val2017, name would be like 000000xxxxxx.jpg
+    if (stem.rfind('_') == -1):
+        id = int(stem)
+    else:
+        id = int(stem[stem.rfind('_') + 1:])
+    return id
 
-
-def write_result_to_json(image_name, predictions, fp, line):
-    ori_name = os.path.splitext(image_name)[0]
-    image_id = int(ori_name[ori_name.rfind('_') + 1:])
+def write_result_to_json(image_path, predictions, fp, line):
+    image_id = get_image_id_in_path(image_path)
 
     coco_ids = [
         0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21,
@@ -77,7 +85,7 @@ def write_result_to_json(image_name, predictions, fp, line):
             "bbox": [bx, by, bw, bh],
             "score": float(score)
         }
-        common = "" if line == 0 and cnt == 0 else "," 
+        common = "" if line == 0 and cnt == 0 else ","
         fp.write("{}{}".format(common, json.dumps(res, cls=NpEncoder)))
         fp.write('\n')
         cnt += 1
@@ -89,7 +97,7 @@ def get_img_id(file_name):
     for anno in annos:
         ls.append(anno['image_id'])
     myset = {}.fromkeys(ls).keys()
-    return myset        
+    return myset
 
 def cal_coco_result_from_json(annotations_file, result_json_file):
     # https://github.com/muyiguangda/tensorflow-keras-yolov3/blob/master/pycocoEval.py
@@ -100,7 +108,7 @@ def cal_coco_result_from_json(annotations_file, result_json_file):
         print("annotations_file file not exist,", annotations_file)
         exit(-1)
     print("load json name:",result_json_file)
-    
+
     annType = ['segm', 'bbox', 'keypoints']
     annType = annType[1]
     cocoGt = COCO(annotations_file)
@@ -115,27 +123,28 @@ def cal_coco_result_from_json(annotations_file, result_json_file):
     cocoEval.accumulate()
     cocoEval.summarize()
 
-def coco_result(coco_image_path, ann_file, coco_result_file):
-    mAp = 0.0
-    coco_gt = COCO(ann_file)
-    coco_dt = coco_gt.loadRes(coco_result_file)
-    # img_ids = sorted(coco_gt.getImgIds())
-    coco_eval = COCOeval(coco_gt, coco_dt, 'bbox')
+def cal_coco_result(annotations_file, result_json_file):
+    # https://github.com/muyiguangda/tensorflow-keras-yolov3/blob/master/pycocoEval.py
+    if not os.path.exists(result_json_file):
+        print("result file not exist,", result_json_file)
+        exit(-1)
+    if not os.path.exists(annotations_file):
+        print("annotations_file file not exist,", annotations_file)
+        exit(-1)
 
-    img_ids = []
-    imgs_name = os.listdir(coco_image_path)
-    for img_name in imgs_name:
-        image_id = int(img_name[img_name.rfind('_') + 1:-4])
-        img_ids.append(image_id)
-
-    coco_eval.params.imgIds = img_ids
-    coco_eval.evaluate()
-    coco_eval.accumulate()
-    coco_eval.summarize()
-    mAp = coco_eval.stats[1]
-
-    return mAp
-
+    annType = ['segm', 'bbox', 'keypoints']
+    annType = annType[1]
+    cocoGt = COCO(annotations_file)
+    imgIds = get_img_id(result_json_file)
+    print (len(imgIds))
+    cocoDt = cocoGt.loadRes(result_json_file)
+    imgIds = sorted(imgIds)
+    imgIds = imgIds[0:5000]
+    cocoEval = COCOeval(cocoGt, cocoDt, annType)
+    cocoEval.params.imgIds = imgIds
+    cocoEval.evaluate()
+    cocoEval.accumulate()
+    cocoEval.summarize()
 
 def parse_top_detection(resolution, detections, conf_threshold=0.6):
     det_label = detections[0, 0, :, 1]
@@ -183,7 +192,7 @@ def dump_coco_json():
 
         imgs_name = os.listdir(args.coco_image_path)
         i=0
-        with tqdm(total= args.count if args.count > 0 else len(image_list)) as pbar:
+        with tqdm(total= args.count if args.count > 0 else len(imgs_name)) as pbar:
             for img_name in imgs_name:
                 image_path = os.path.join(args.coco_image_path, img_name)
                 image = caffe.io.load_image(image_path)  # range from 0 to 1
@@ -194,7 +203,7 @@ def dump_coco_json():
 
                 classes, scores, boxes = parse_top_detection(image.shape, detections, 0.01)
                 if len(boxes) > 0:
-                    write_result_to_json(img_name, [boxes, classes, scores], coco_result, i)
+                    write_result_to_json(image_path, [boxes, classes, scores], coco_result, i)
 
                 coco_result.flush()
 
@@ -210,6 +219,6 @@ if __name__ == '__main__':
     args = parse_args()
     if (args.pre_result_json) :
         cal_coco_result_from_json(args.coco_annotation, args.pre_result_json)
-    else:       
+    else:
         dump_coco_json()
-        coco_result(args.coco_image_path, args.coco_annotation, args.coco_result_jason_file)
+        cal_coco_result(args.coco_annotation, args.coco_result_jason_file)

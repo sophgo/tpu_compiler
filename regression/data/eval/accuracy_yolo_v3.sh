@@ -23,21 +23,22 @@ if [ -z $TINY ]; then
   TINY=0
 fi
 
-# $EVAL_CAFFE_FUNC \
-#     --model_def $MODEL_DEF \
-#     --pretrained_model $MODEL_DAT \
-#     --net_input_dims ${NET_INPUT_DIMS} \
-#     --obj_threshold 0.005 \
-#     --nms_threshold 0.45 \
-#     --dataset=$DATASET_PATH/coco/val2017 \
-#     --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
-#     --result_json=result_416.json \
-#     --spp_net=$SPP_NET \
-#     --yolov3 $YOLO_V3 \
-#     --yolov4 $YOLO_V4 \
-#     --spp_net=$SPP_NET \
-#     --tiny=$TINY \
-#     --count=$1
+$EVAL_CAFFE_FUNC \
+    --model_def $MODEL_DEF \
+    --pretrained_model $MODEL_DAT \
+    --net_input_dims ${NET_INPUT_DIMS} \
+    --obj_threshold 0.005 \
+    --nms_threshold 0.45 \
+    --dataset=$DATASET_PATH/coco/val2017 \
+    --annotations=$DATASET_PATH/coco/annotations/instances_val2017.json \
+    --result_json=result_416.json \
+    --spp_net=$SPP_NET \
+    --yolov3 $YOLO_V3 \
+    --yolov4 $YOLO_V4 \
+    --spp_net=$SPP_NET \
+    --tiny=$TINY \
+    --count=$1
+
 EVAL_FUNC=eval_yolo.py
 
 if [ $DO_ACCURACY_FP32_INTERPRETER -eq 1 ]; then
