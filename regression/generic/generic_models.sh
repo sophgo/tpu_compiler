@@ -882,9 +882,9 @@ export NET_INPUT_DIMS=608,608
 export RAW_SCALE=1.0
 export MEAN=0,0,0
 export INPUT_SCALE=1.0
-export TOLERANCE_INT8=0.65,0.61,0.01
+export TOLERANCE_INT8_MULTIPLER=0.88,0.88,0.46
 # mish layer
-export EXCEPTS="layer136-act,layer137-act,layer138-act,layer138-scale,layer142-act,layer148-act,layer149-act,layer149-scale,layer153-act"
+export EXCEPTS="layer137-act,layer138-act,layer138-scale,layer142-act,layer149-act,layer149-scale"
 export OUTPUTS="layer139-conv,layer150-conv,layer161-conv"
 export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.94
