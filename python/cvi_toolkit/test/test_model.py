@@ -22,8 +22,8 @@ def pushd(new_dir):
         os.chdir(previous_dir)
 
 class ModelTest(object):
-    def __init__(self, chip_type, model_path, batch_size):
-        self.chip_type = chip_type
+    def __init__(self, chip, model_path, batch_size):
+        self.chip = chip
         self.model_path = model_path
         self.batch_size = batch_size
         self.model_name = os.path.split(model_path)[-1].split(".")[0]
@@ -57,7 +57,7 @@ class ModelTest(object):
             input_nodes = onnx_model.graph.input
             self.__gen_onnx_input__(input_nodes)
             transform_cmd = [
-                'model_transform.py', '--model_type', 'onnx', '--model_name', self.model_name, '--model_def', self.model_path,
+                'model_transform.py', '--model_type', 'onnx', '--model_name', self.model_name, '--model', self.model_path,
                 '--image', self.input_path, '--net_input_dims', '1,100', '--tolerance', '0.99,0.99,0.99', '--mlir',
                 self.fp32_mlir
             ]
@@ -73,7 +73,7 @@ class ModelTest(object):
         if quant_mode in ['bf16', 'mix_bf16']:
             deploy_cmd = [
                 'model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--quantize',
-                quant_mode.upper(), '--chip', self.chip_type, '--image', self.input_path, '--inputs_type', 'SAME',
+                quant_mode.upper(), '--chip', self.chip, '--image', self.input_path, '--inputs_type', 'SAME',
                 '--outputs_type', 'SAME', '--tolerance', '0.99,0.99,0.87', '--correctness', '0.99,0.99,0.95', '--debug',
                 '--cvimodel', self.cvimodel
             ]
@@ -83,7 +83,7 @@ class ModelTest(object):
             self.__make_test_calibration_table__(str(table_file))
             deploy_cmd = [
                 'model_deploy.py', '--model_name', self.model_name, '--mlir', self.fp32_mlir, '--calibration_table',
-                str(table_file), '--chip', self.chip_type, '--image', self.input_path, '--inputs_type', 'SAME',
+                str(table_file), '--chip', self.chip, '--image', self.input_path, '--inputs_type', 'SAME',
                 '--outputs_type', 'SAME', '--tolerance', '0.10,0.10,0.1', '--correctness', '0.99,0.99,0.93', '--debug',
                 '--cvimodel', self.cvimodel
             ]
@@ -114,22 +114,22 @@ class ModelTest(object):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument("--model_def", help="model definition file.")
-    parser.add_argument("--qmode", choices=['bf16', 'int8', 'mix_bf16'], default="bf16", help="quant mode")
+    parser.add_argument("--model", help="model definition file, mlir or onnx")
+    parser.add_argument("--quantize", choices=['bf16', 'int8', 'mix_bf16'], default="bf16", help="quant mode")
     parser.add_argument("--batch_size", type=int, default=1, help="batch size")
-    parser.add_argument("--chip_type", type=str, default="cv182x", help="chip type")
-    parser.add_argument("--tmp_dir", type=str, default="tmp", help="tmp folder")
+    parser.add_argument("--chip", type=str, default="cv182x", help="chip type")
+    parser.add_argument("--out_dir", type=str, default="tmp", help="out folder")
     # parser.add_argument("--excepts", default='-', help="excepts")
     # parser.add_argument("--graph", action='store_true', help="generate graph to pb file")
     args = parser.parse_args()
 
-    if os.path.exists(args.tmp_dir):
-        shutil.rmtree(args.tmp_dir)
-    os.makedirs(args.tmp_dir)
+    if os.path.exists(args.out_dir):
+        shutil.rmtree(args.out_dir)
+    os.makedirs(args.out_dir)
 
-    tmp_model_file = os.path.split(args.model_def)[-1]
-    shutil.copy(args.model_def, os.path.join(args.tmp_dir, tmp_model_file))
+    tmp_model_file = os.path.split(args.model)[-1]
+    shutil.copy(args.model, os.path.join(args.out_dir, tmp_model_file))
 
-    with pushd(args.tmp_dir):
-        tool = ModelTest(args.chip_type, tmp_model_file, args.batch_size)
-        tool.run(args.qmode)
+    with pushd(args.out_dir):
+        tool = ModelTest(args.chip, tmp_model_file, args.batch_size)
+        tool.run(args.quantize)
