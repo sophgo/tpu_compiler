@@ -2084,8 +2084,9 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
   }
   int32_t max_oh = std::min(oh, MAX_HEIGHT);
   int32_t max_ow = std::min(ow, MAX_WIDTH);
+  int32_t min_ow = std::min((int)kw, max_ow);
   // Split ow
-  for (int32_t ow_step = max_ow; ow_step > 0; --ow_step) {
+  for (int32_t ow_step = max_ow; ow_step >= min_ow; --ow_step) {
     int32_t iw_step =
         ceiling_func((ow_step - 1) * stride_w + kw_extent, 1 + insert_width());
     iw_step = std::min(iw_step, iw);
