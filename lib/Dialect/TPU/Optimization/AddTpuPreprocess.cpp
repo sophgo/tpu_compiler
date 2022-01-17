@@ -545,10 +545,10 @@ private:
             builder.getI32IntegerAttr((int)c),
             builder.getBoolAttr(true),
             builder.getBoolAttr(true),
-            builder.getBoolAttr(false),
             builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
             builder.getI32IntegerAttr(0), //pad_value
             builder.getContext())));
+    attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(false)));
     attrs.push_back(
         builder.getNamedAttr("quant", getDefaultQuantParam(builder)));
 

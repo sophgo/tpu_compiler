@@ -487,7 +487,6 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
     else if (getOpQuant(op) == "BF16")
       addWeightTensorAndUpdateWeightOp<float>(convOp.getOperand(1),
           "dilation", newFilter, filterShape, "BF16", wTF);
-
     // rewrite pad
     convOp->setAttr("param",
            tpu::ConvParam::get(
@@ -505,7 +504,6 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
                 convOp.param().group(),
                 convOp.param().is_dw(),
                 convOp.param().with_bias(),
-                convOp.param().do_relu(),
                 convOp.param().ins(),
                 convOp.param().pad_value(),
                 rewriter.getContext()));

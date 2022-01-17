@@ -74,21 +74,20 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
                     int &oh, int &ow, int &g, int &kh, int &kw, int &ins_h,
                     int &ins_w, int &sh, int &sw, int &pt, int &pb, int &pl,
                     int &pr, int &dh, int &dw, bool &is_dw, bool &with_bias,
-                    bool &do_relu, int &pad_value);
+                    int &pad_value);
 
 void parseConv3dParam(const tpu::Conv3dParam &p, bool is_deconv, Value input,
                       Value output, int &n, int &ic, int &id, int &ih, int &iw,
                       int &oc, int &od, int &oh, int &ow, int &g, int &kd,
                       int &kh, int &kw, int &sd, int &sh, int &sw, int &pd0,
                       int &pd1, int &pt, int &pb, int &pl, int &pr, int &dd,
-                      int &dh, int &dw, bool &is_dw, bool &with_bias,
-                      bool &do_relu);
+                      int &dh, int &dw, bool &is_dw, bool &with_bias);
 
 void parsePoolParam(const tpu::PoolParam &p,
     Value input, Value output,
     int &n, int &c, int &ih, int &iw, int &oh, int &ow,
     int &kh, int &kw, int &sh, int &sw, int &pt, int &pb, int &pl, int &pr, int &pad_value,
-    bool &is_global, bool &do_relu, bool &count_include_pad);
+    bool &is_global, bool &count_include_pad);
 
 void parsePool3dParam(const tpu::Pool3dParam &p,
     Value input, Value output,
@@ -97,7 +96,7 @@ void parsePool3dParam(const tpu::Pool3dParam &p,
     int &kd, int &kh, int &kw,
     int &sd, int &sh, int &sw,
     int &pd0, int &pd1, int &pt, int &pb, int &pl, int &pr,
-    bool &is_global, bool &do_relu, bool &count_include_pad);
+    bool &is_global, bool &count_include_pad);
 
 template <typename OpTy>
 void parseFullyConnectedParam(Operation *op, int &batch_high, int &batch_low,
@@ -151,7 +150,7 @@ public:
         }
         parseConvParam(param, is_deconv, input, output, n, ic, ih, iw,
                        oc, oh, ow, group, kh, kw, ins_h, ins_w, sh, sw, pt, pb,
-                       pl, pr, dh, dw, is_dw, with_bias, do_relu, pad_val);
+                       pl, pr, dh, dw, is_dw, with_bias, pad_val);
     }
     int n, ic, ih, iw;
     int oc, oh, ow, group;
@@ -173,13 +172,13 @@ public:
         parsePoolParam(param, input, output,
                        n, c, ih, iw, oh, ow,
                        kh, kw, sh, sw, pt, pb, pl, pr, pad_val,
-                       is_global, do_relu, count_include_pad);
+                       is_global, count_include_pad);
     }
 
     int n, c, ih, iw, oh, ow;
     int kh, kw, sh, sw;
     int pt, pb, pl, pr, pad_val;
-    bool is_global, do_relu, count_include_pad;
+    bool is_global, count_include_pad;
 };
 
 } // namespace mlir

@@ -191,12 +191,12 @@ LogicalResult tpu::TL_LG_INT8_Conv2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl,
       pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh,
-                 dw, is_dw, with_bias, do_relu, pad_value);
+                 dw, is_dw, with_bias, pad_value);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -251,13 +251,13 @@ LogicalResult tpu::TL_LG_BF16_Conv2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w;
   int sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(),
                  n, ic, ih, iw, oc, oh, ow, g,
                  kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
-                 dh, dw, is_dw, with_bias, do_relu, pad_value);
+                 dh, dw, is_dw, with_bias, pad_value);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -296,12 +296,12 @@ LogicalResult tpu::TL_LG_INT8_DeConv2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   int no_use0, no_use1;
   parseConvParam(param(), false, input(), output(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                 with_bias, do_relu, pad_value);
+                 with_bias, pad_value);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -345,13 +345,13 @@ LogicalResult tpu::TL_LG_BF16_DeConv2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();
   int n, ic, ih, iw, oc, oh, ow, g;
   int kh, kw, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   int no_use0, no_use1;
   parseConvParam(param(), false, input(), output(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                 with_bias, do_relu, pad_value);
+                 with_bias, pad_value);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -1221,12 +1221,12 @@ LogicalResult tpu::TL_LG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
 
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                 is_global, do_relu, count_include_pad);
+                 is_global, count_include_pad);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -1257,12 +1257,12 @@ LogicalResult tpu::TL_LG_BF16_PoolAvg2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
 
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                 is_global, do_relu, count_include_pad);
+                 is_global, count_include_pad);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -1285,12 +1285,12 @@ LogicalResult tpu::TL_LG_INT8_PoolMax2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
 
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                 is_global, do_relu, count_include_pad);
+                 is_global, count_include_pad);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();
@@ -1318,12 +1318,12 @@ LogicalResult tpu::TL_LG_BF16_PoolMax2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
   int layer_id = getOpLayerId(op);
 
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                 is_global, do_relu, count_include_pad);
+                 is_global, count_include_pad);
 
   laddr_t la_input = this->la_input();
   laddr_t la_output = this->la_output();

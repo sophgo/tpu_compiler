@@ -45,13 +45,13 @@ struct MergeConvConvPoolOpPattern : public RewritePattern {
 
   int32_t calcFilterAndBiasSize(Operation *op) const {
     auto conv_ = dyn_cast<tpu::TG_INT8_Conv2DOp>(op);
-    bool is_dw, with_bias, do_relu;
+    bool is_dw, with_bias;
     int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw;
     int pt, pb, pl, pr, dh, dw, pad_value;
     parseConvParam(conv_.param(), false, conv_.input(), conv_.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h,
                    ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
-                   do_relu, pad_value);
+                   pad_value);
 
     uint64_t filterSizePerLane = 0;
     assert(ic < 4096);

@@ -115,9 +115,9 @@ struct SplitPoolPattern : public RewritePattern {
                               rewriter.getI32IntegerAttr(0),     // pad_value
                               rewriter.getI32IntegerAttr(1),     // stride_h
                               rewriter.getI32IntegerAttr(1),     // stride_w
-                              rewriter.getBoolAttr(false),       // do_relu
                               rewriter.getBoolAttr(false),
                               rewriter.getContext())));
+      attrs.push_back(rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(false)));
       attrs.push_back(rewriter.getNamedAttr("m_i8", avg_pool_op.m_i8Attr()));
       attrs.push_back(rewriter.getNamedAttr("rshift", avg_pool_op.rshiftAttr()));
       attrs.push_back(rewriter.getNamedAttr(
@@ -166,8 +166,8 @@ struct SplitPoolPattern : public RewritePattern {
             rewriter.getI32IntegerAttr(0),            // pad_value
             rewriter.getI32IntegerAttr(1),            // stride_h
             rewriter.getI32IntegerAttr(1),            // stride_w
-            rewriter.getBoolAttr(false),              // do_relu
             rewriter.getBoolAttr(false), rewriter.getContext())));
+    final_attrs.push_back(rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(false)));
     final_attrs.push_back(rewriter.getNamedAttr("name", avg_pool_op.nameAttr()));
     auto pool_final_op = rewriter.create<tpu::TG_INT8_PoolAvg2DOp>(
         op->getLoc(), result_type, ArrayRef<Value>{{concat_op}},

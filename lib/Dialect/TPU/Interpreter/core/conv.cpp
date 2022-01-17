@@ -12,10 +12,11 @@ Conv2DOpKernel::Conv2DOpKernel(Operation &op, value_map_t &valueMapping,
                                weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
   auto castOp = cast<tpu::Conv2DOp>(op);
+  do_relu = castOp.do_relu();
   parseConvParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
                  n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h,
                  ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw, with_bias,
-                 do_relu, pad_value);
+                 pad_value);
   this->quant_scale = this->opdTensors[3];
   this->quant_zeropoint = this->opdTensors[4];
   this->quant_rshift = this->opdTensors[5];

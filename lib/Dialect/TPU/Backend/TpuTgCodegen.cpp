@@ -293,7 +293,7 @@ LogicalResult tpu::TG_INT8_ScaleOp::codegen(void *ctx) {
     n = 1;
   }
 
-  bool do_relu = this->param().do_relu().getValue();
+  bool do_relu = this->do_relu();
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -338,7 +338,7 @@ LogicalResult tpu::TG_BF16_ScaleOp::codegen(void *ctx) {
     c = n * c;
     n = 1;
   }
-  bool do_relu = this->param().do_relu().getValue();
+  bool do_relu = this->do_relu();
 
   int64_t input_size_1;
   std::vector<int64_t> shape_1;
@@ -738,11 +738,11 @@ LogicalResult tpu::TG_INT8_Conv2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, is_dw,
-                 with_bias, do_relu, pad_value);
+                 with_bias, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -824,11 +824,11 @@ LogicalResult tpu::TG_BF16_Conv2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh, dw, pad_value;
   parseConvParam(param(), false, input(), output(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr, dh,
-                 dw, is_dw, with_bias, do_relu, pad_value);
+                 dw, is_dw, with_bias, pad_value);
 
   std::vector<int32_t> ins;
   arrayAttrToVector(param().ins(), ins);
@@ -887,13 +887,13 @@ LogicalResult tpu::TG_INT8_DeConv2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
       pad_value;
   int no_use0, no_use1;
   parseConvParam(param(), false, input(), output(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr,
-                 dh, dw, is_dw, with_bias, do_relu, pad_value);
+                 dh, dw, is_dw, with_bias, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -954,13 +954,13 @@ LogicalResult tpu::TG_BF16_DeConv2DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();;
   int n, ic, ih, iw, oc, oh, ow, g, kh, kw, sh, sw, pt, pb, pl, pr, dh, dw,
       pad_value;
   int no_use0, no_use1;
   parseConvParam(param(), false, input(), output(), n, ic, ih, iw, oc,
                  oh, ow, g, kh, kw, no_use0, no_use1, sh, sw, pt, pb, pl, pr,
-                 dh, dw, is_dw, with_bias, do_relu, pad_value);
+                 dh, dw, is_dw, with_bias, pad_value);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -1016,7 +1016,7 @@ LogicalResult tpu::TG_BF16_Conv3DOp::codegen(void *ctx) {
   CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
   Operation *op = this->getOperation();
 
-  bool is_dw, with_bias, do_relu;
+  bool is_dw, with_bias, do_relu = this->do_relu();;
   int n, ic, id, ih, iw, oc, od, oh, ow, g, kd, kh, kw, sd, sh, sw;
   int pd0, pd1, pt, pb, pl, pr, dd, dh, dw;
   parseConv3dParam(param(), false, input(), output(),
@@ -1026,7 +1026,7 @@ LogicalResult tpu::TG_BF16_Conv3DOp::codegen(void *ctx) {
                    sd, sh, sw,
                    pd0, pd1, pt, pb, pl, pr,
                    dd, dh, dw,
-                   is_dw, with_bias, do_relu);
+                   is_dw, with_bias);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
   gaddr_t ga_output = getOpAddress(op);
@@ -2484,12 +2484,12 @@ LogicalResult tpu::TG_INT8_PoolAvg2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad, do_relu = this->do_relu();
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                 is_global, do_relu, count_include_pad);
+                 is_global, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -2529,12 +2529,12 @@ LogicalResult tpu::TG_INT8_PoolMax2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad, do_relu = this->do_relu();;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                 is_global, do_relu, count_include_pad);
+                 is_global, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -2566,12 +2566,12 @@ LogicalResult tpu::TG_BF16_PoolAvg2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad, do_relu = this->do_relu();;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                 is_global, do_relu, count_include_pad);
+                 is_global, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -2604,12 +2604,12 @@ LogicalResult tpu::TG_BF16_PoolMax2DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad, do_relu = this->do_relu();;
   int n, c, ih, iw, oh, ow, kh, kw, sh, sw, pt, pb, pl, pr, pad_value;
   parsePoolParam(param(), input(), output(),
                  n, c, ih, iw, oh, ow,
                  kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                 is_global, do_relu, count_include_pad);
+                 is_global, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);
@@ -2649,14 +2649,14 @@ LogicalResult tpu::TG_BF16_PoolMax3DOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   // parse param
-  bool is_global, do_relu, count_include_pad;
+  bool is_global, count_include_pad, do_relu = this->do_relu();
   int n, c, id, ih, iw, od, oh, ow, kd, kh, kw, sd, sh, sw;
   int pd0, pd1, pt, pb, pl, pr;
   parsePool3dParam(param(), input(), output(),
                    n, c, id, ih, iw, od, oh, ow,
                    kd, kh, kw, sd, sh, sw,
                    pd0, pd1, pt, pb, pl, pr,
-                   is_global, do_relu, count_include_pad);
+                   is_global, count_include_pad);
   assert(!do_relu);
 
   gaddr_t ga_input = getPreviousOpAddress(op);

@@ -216,10 +216,10 @@ Value tpu::BroadcastMulOp::convertToTG() {
             builder.getI32IntegerAttr(1),
             builder.getBoolAttr(true),                      // is_dw
             builder.getBoolAttr(false),                     // with_bias
-            builder.getBoolAttr(this->do_relu()),           // do_relu
             builder.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
             builder.getI32IntegerAttr(0),                   // pad_value
             builder.getContext())));
+    attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
     attrs.push_back(builder.getNamedAttr("name", nameAttr()));
     if (getOpQuant() == "INT8") {
       // somehow, existing backend implementation is using per-channel mode
@@ -566,9 +566,10 @@ Value tpu::Conv2DOp::convertToTG() {
           param().dilation_w(), builder.getI32IntegerAttr(pad_t),
           builder.getI32IntegerAttr(pad_b), builder.getI32IntegerAttr(pad_l),
           builder.getI32IntegerAttr(pad_r), param().group(), param().is_dw(),
-          param().with_bias(), param().do_relu(), param().ins(),
+          param().with_bias(), param().ins(),
           param().pad_value(), builder.getContext())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
   if (getOpQuant() == "INT8") {
     auto newOp = OpBuilder(op).create<tpu::TG_INT8_Conv2DOp>(op->getLoc(),
         getResult().getType(), ArrayRef<Value>{operands},
@@ -672,9 +673,9 @@ Value tpu::Conv3DOp::convertToTG() {
               param().group(),
               param().is_dw(),
               param().with_bias(),
-              param().do_relu(),
               param().ins(),
               builder.getContext())));
+  attrs.push_back(builder.getNamedAttr("do_relu", builder.getBoolAttr(do_relu())));
   attrs.push_back(builder.getNamedAttr("name", nameAttr()));
   if (getOpQuant() == "INT8") {
   } else if (getOpQuant() == "BF16") {

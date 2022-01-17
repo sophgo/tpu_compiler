@@ -14,34 +14,38 @@ void getConvParam(Operation *p,
                   bool &do_leaky_relu,
                   int &pad_value) {
   if (auto op = dyn_cast<tpu::TG_INT8_Conv2DOp>(p)) {
+    do_relu = op.do_relu();
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
-                   dh, dw, is_dw, with_bias, do_relu, pad_value);
+                   dh, dw, is_dw, with_bias, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();
   } else if (auto op = dyn_cast<tpu::TG_BF16_Conv2DOp>(p)) {
+    do_relu = op.do_relu();
     bool is_deconv = false;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
-                   dh, dw, is_dw, with_bias, do_relu, pad_value);
+                   dh, dw, is_dw, with_bias, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();
   } else if (auto op = dyn_cast<tpu::TG_INT8_DeConv2DOp>(p)) {
+    do_relu = op.do_relu();
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
-                   dh, dw, is_dw, with_bias, do_relu, pad_value);
+                   dh, dw, is_dw, with_bias, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();
   }else if (auto op = dyn_cast<tpu::TG_BF16_DeConv2DOp>(p)) {
+    do_relu = op.do_relu();
     bool is_deconv = true;
     parseConvParam(op.param(), is_deconv, op.input(), op.output(),
                    n, ic, ih, iw, oc, oh, ow, g, kh, kw, ins_h, ins_w, sh, sw, pt, pb, pl, pr,
-                   dh, dw, is_dw, with_bias, do_relu, pad_value);
+                   dh, dw, is_dw, with_bias, pad_value);
     do_ic_align = op.do_ic_alignment().hasValue() ?
                   op.do_ic_alignment().getValue() : false;
     do_leaky_relu = op.do_leaky_relu();
@@ -90,32 +94,36 @@ void getPoolingParam(Operation * op,
                     bool &count_include_pad) {
   if (isa<tpu::TG_INT8_PoolAvg2DOp>(op)) {
     auto pooling_op = cast<tpu::TG_INT8_PoolAvg2DOp>(op);
+    do_relu = pooling_op.do_relu();
     parsePoolParam(pooling_op.param(), pooling_op.input(),
                    pooling_op.output(),
                    n, c, ih, iw, oh, ow,
                    kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                   is_global, do_relu, count_include_pad);
+                   is_global, count_include_pad);
   } else if (isa<tpu::TG_INT8_PoolMax2DOp>(op)) {
     auto pooling_op = cast<tpu::TG_INT8_PoolMax2DOp>(op);
+    do_relu = pooling_op.do_relu();
     parsePoolParam(pooling_op.param(), pooling_op.input(),
                    pooling_op.output(),
                    n, c, ih, iw, oh, ow,
                    kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                   is_global, do_relu, count_include_pad);
+                   is_global, count_include_pad);
   } else if (isa<tpu::TG_BF16_PoolAvg2DOp>(op)) {
     auto pooling_op = cast<tpu::TG_BF16_PoolAvg2DOp>(op);
+    do_relu = pooling_op.do_relu();
     parsePoolParam(pooling_op.param(), pooling_op.input(),
                    pooling_op.output(),
                    n, c, ih, iw, oh, ow,
                    kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                   is_global, do_relu, count_include_pad);
+                   is_global, count_include_pad);
   } else if (isa<tpu::TG_BF16_PoolMax2DOp>(op)) {
     auto pooling_op = cast<tpu::TG_BF16_PoolMax2DOp>(op);
+    do_relu = pooling_op.do_relu();
     parsePoolParam(pooling_op.param(), pooling_op.input(),
                    pooling_op.output(),
                    n, c, ih, iw, oh, ow,
                    kh, kw, sh, sw, pt, pb, pl, pr, pad_value,
-                   is_global, do_relu, count_include_pad);
+                   is_global, count_include_pad);
   } else {
     assert(!"Only support INT8/BF16 Pooling in LayerGroup");
   }

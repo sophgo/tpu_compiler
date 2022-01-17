@@ -182,7 +182,6 @@ def TPU_ConvParamAttr : StructAttr<"ConvParam", TPU_Dialect, [
     StructFieldAttr<"group", I32Attr>,
     StructFieldAttr<"is_dw", BoolAttr>,
     StructFieldAttr<"with_bias", BoolAttr>,
-    StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"ins", I32ArrayAttr>,
     StructFieldAttr<"pad_value", I32Attr>]> {
   let summary = "Structure of dimension parameters for conv op";
@@ -211,7 +210,6 @@ def TPU_Conv3dParamAttr : StructAttr<"Conv3dParam", TPU_Dialect, [
     StructFieldAttr<"group", I32Attr>,
     StructFieldAttr<"is_dw", BoolAttr>,
     StructFieldAttr<"with_bias", BoolAttr>,
-    StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"ins", I32ArrayAttr>]> {
   let summary = "Structure of dimension parameters for conv3d op";
 }
@@ -229,7 +227,6 @@ def TPU_PoolParamAttr : StructAttr<"PoolParam", TPU_Dialect, [
     StructFieldAttr<"pad_value", I32Attr>,
     StructFieldAttr<"stride_h", I32Attr>,
     StructFieldAttr<"stride_w", I32Attr>,
-    StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"count_include_pad", BoolAttr>]> {
   let summary = "Structure of dimension parameters for pool op";
 }
@@ -250,7 +247,6 @@ def TPU_Pool3dParamAttr : StructAttr<"Pool3dParam", TPU_Dialect, [
     StructFieldAttr<"stride_d", I32Attr>,
     StructFieldAttr<"stride_h", I32Attr>,
     StructFieldAttr<"stride_w", I32Attr>,
-    StructFieldAttr<"do_relu", BoolAttr>,
     StructFieldAttr<"count_include_pad", BoolAttr>]> {
   let summary = "Structure of dimension parameters for pool 3d op";
 }

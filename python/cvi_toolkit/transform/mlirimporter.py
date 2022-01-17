@@ -506,6 +506,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'ins')
 
         conv_name = StringAttr.get(op_name)
+        do_relu = BoolAttr.get(kargs['do_relu'])
         conv_param = {
             'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
             'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
@@ -521,7 +522,6 @@ class MLIRImporter(object):
             'group':  IntegerAttr.get(self.i32Type, kargs['group']),
             'is_dw': BoolAttr.get(kargs['is_dw']),
             'with_bias': BoolAttr.get(kargs['with_bias']),
-            'do_relu': BoolAttr.get(kargs['do_relu']),
             'ins': ArrayAttr.get(
                 [IntegerAttr.get(self.i32Type, x) for x in kargs['ins']]),
             'pad_value':  IntegerAttr.get(self.i32Type, pad_value),
@@ -558,12 +558,13 @@ class MLIRImporter(object):
 
         # quant param
         return self.buildOp(TPU_OpType.Conv2d.value, inputOperands, [
-            tensor_output_type], name=conv_name, param=dict_attr, quant=quant_param)
+            tensor_output_type], name=conv_name, param=dict_attr, quant=quant_param, do_relu=do_relu)
 
     def add_conv3d_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
             tuple(output_tensor_shape), self.get_input_type(inputOperands[0]))
         conv_name = StringAttr.get(op_name)
+        do_relu = BoolAttr.get(kargs['do_relu'])
         conv3d_param = {
             'kernel_d':  IntegerAttr.get(self.i32Type, kargs['kernel_d']),
             'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
@@ -584,7 +585,6 @@ class MLIRImporter(object):
             'group':  IntegerAttr.get(self.i32Type, kargs['group']),
             'is_dw': BoolAttr.get(kargs['is_dw']),
             'with_bias': BoolAttr.get(kargs['with_bias']),
-            'do_relu': BoolAttr.get(kargs['do_relu']),
             'ins': ArrayAttr.get(
                 [IntegerAttr.get(self.i32Type, x) for x in kargs['ins']])
         }
@@ -595,7 +595,7 @@ class MLIRImporter(object):
             inputOperands.append(none)
         quant_param = self.quant_param
         return self.buildOp(TPU_OpType.Conv3d.value, inputOperands, [
-            tensor_output_type], name=conv_name, param=dict_attr, quant=quant_param)
+            tensor_output_type], name=conv_name, param=dict_attr, quant=quant_param, do_relu=do_relu)
 
     def add_csc_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         assert(len(inputOperands) == 1)
@@ -747,6 +747,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'ins')
 
         deconv_name = StringAttr.get(op_name)
+        do_relu = BoolAttr.get(kargs['do_relu'])
         deconv_param = {
             'kernel_h':  IntegerAttr.get(self.i32Type, kargs['kernel_h']),
             'kernel_w':  IntegerAttr.get(self.i32Type, kargs['kernel_w']),
@@ -762,7 +763,6 @@ class MLIRImporter(object):
             'group':  IntegerAttr.get(self.i32Type, kargs['group']),
             'is_dw': BoolAttr.get(kargs['is_dw']),
             'with_bias': BoolAttr.get(kargs['with_bias']),
-            'do_relu': BoolAttr.get(kargs['do_relu']),
             'ins': ArrayAttr.get(
                 [IntegerAttr.get(self.i32Type, x) for x in kargs['ins']]),
             'pad_value':  IntegerAttr.get(self.i32Type, pad_value),
@@ -797,7 +797,7 @@ class MLIRImporter(object):
         elif mode == TPU_MODE.BF16:
             raise RuntimeError("Not support BF16")
         return self.buildOp(TPU_OpType.DeConv2d.value, inputOperands, [
-            tensor_output_type], name=deconv_name, param=dict_attr, quant=quant_param)
+            tensor_output_type], name=deconv_name, param=dict_attr, quant=quant_param, do_relu=do_relu)
 
     def add_dummydata_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(
@@ -1256,6 +1256,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'count_include_pad')
 
         pool_avg_2d_name = StringAttr.get(op_name)
+        do_relu = BoolAttr.get(kargs['do_relu'])
         pool_avg_2d_param = {
             'stride_h': IntegerAttr.get(self.i32Type, kargs['stride_h']),
             'stride_w': IntegerAttr.get(self.i32Type, kargs['stride_w']),
@@ -1266,7 +1267,6 @@ class MLIRImporter(object):
             'padding_r': IntegerAttr.get(self.i32Type, kargs['padding_r']),
             'padding_t': IntegerAttr.get(self.i32Type, kargs['padding_t']),
             'pad_value': IntegerAttr.get(self.i32Type, pad_value),
-            'do_relu': BoolAttr.get(kargs['do_relu']),
             'count_include_pad': BoolAttr.get(kargs['count_include_pad']),
         }
         dict_attr = DictAttr.get(pool_avg_2d_param)
@@ -1288,7 +1288,7 @@ class MLIRImporter(object):
             raise RuntimeError("Not support BF16")
 
         return self.buildOp(TPU_OpType.PoolAvg2D.value, inputOperands, [
-            tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=quant_param)
+            tensor_output_type], name=pool_avg_2d_name, param=dict_attr, quant=quant_param, do_relu=do_relu)
 
     def add_pool_max_2d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
 
@@ -1305,6 +1305,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'do_relu')
 
         pool_max_2d_name = StringAttr.get(op_name)
+        do_relu = BoolAttr.get(kargs['do_relu'])
         pool_max_2d_param = {
             'stride_h': IntegerAttr.get(self.i32Type, kargs['stride_h']),
             'stride_w': IntegerAttr.get(self.i32Type, kargs['stride_w']),
@@ -1315,7 +1316,6 @@ class MLIRImporter(object):
             'padding_r': IntegerAttr.get(self.i32Type, kargs['padding_r']),
             'padding_t': IntegerAttr.get(self.i32Type, kargs['padding_t']),
             'pad_value': IntegerAttr.get(self.i32Type, pad_value),
-            'do_relu': BoolAttr.get(kargs['do_relu']),
             # max pool has no count_include_pad method
             'count_include_pad': BoolAttr.get(False),
         }
@@ -1328,7 +1328,7 @@ class MLIRImporter(object):
             raise RuntimeError("Not support BF16")
 
         return self.buildOp(TPU_OpType.PoolMax2D.value, inputOperands, [
-            tensor_output_type], name=pool_max_2d_name, param=dict_attr, quant=quant_param)
+            tensor_output_type], name=pool_max_2d_name, param=dict_attr, quant=quant_param, do_relu=do_relu)
 
     def add_pool_max_3d_op(self, op_name, inputOperands, output_tensor_shape, mode=TPU_MODE.FP32, pad_value=0, **kargs):
 
@@ -1349,6 +1349,7 @@ class MLIRImporter(object):
         checkKey(kargs, 'do_relu')
 
         pool_max_3d_name = StringAttr.get(op_name)
+        do_relu = BoolAttr.get(kargs['do_relu']),
         pool_max_3d_param = {
             'stride_d': IntegerAttr.get(self.i32Type, kargs['stride_d']),
             'stride_h': IntegerAttr.get(self.i32Type, kargs['stride_h']),
@@ -1362,7 +1363,6 @@ class MLIRImporter(object):
             'padding_l': IntegerAttr.get(self.i32Type, kargs['padding_l']),
             'padding_r': IntegerAttr.get(self.i32Type, kargs['padding_r']),
             'padding_t': IntegerAttr.get(self.i32Type, kargs['padding_t']),
-            'do_relu': BoolAttr.get(kargs['do_relu']),
             # max pool has no count_include_pad method
             'count_include_pad': BoolAttr.get(False),
         }
@@ -1375,7 +1375,7 @@ class MLIRImporter(object):
             raise RuntimeError("Not support BF16")
 
         return self.buildOp(TPU_OpType.PoolMax3D.value, inputOperands, [
-            tensor_output_type], name=pool_max_3d_name, param=dict_attr, quant=quant_param)
+            tensor_output_type], name=pool_max_3d_name, param=dict_attr, quant=quant_param, do_relu=do_relu)
 
     def add_priorbox_op(self, op_name, inputOperands, output_tensor_shape, **kargs):
         tensor_output_type = RankedTensorType.get(

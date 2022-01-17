@@ -37,11 +37,13 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping,
   bool is_avg;
   if (isa<tpu::PoolAvg2DOp>(op)) {
     auto poolavgOp = cast<tpu::PoolAvg2DOp>(op);
+    do_relu = poolavgOp.do_relu();
     pool_method = POOL_METHOD::AVG;
     pool_param = poolavgOp.param();
     is_avg = true;
   } else if (isa<tpu::PoolMax2DOp>(op)) {
     auto poolmaxOp = cast<tpu::PoolMax2DOp>(op);
+    do_relu = poolmaxOp.do_relu();
     pool_method = POOL_METHOD::MAX;
     pool_param = poolmaxOp.param();
     is_avg = false;
@@ -52,7 +54,7 @@ PoolingOpKernel::PoolingOpKernel(Operation &op, value_map_t &valueMapping,
   auto input_value = op.getOperand(0);
   auto result = op.getResult(0);
   parsePoolParam(pool_param, input_value, result, n, c, ih, iw, oh, ow, kh, kw,
-                 sh, sw, pt, pb, pl, pr, pad_value, is_global, do_relu,
+                 sh, sw, pt, pb, pl, pr, pad_value, is_global,
                  count_include_pad);
   assert(!do_relu);
 

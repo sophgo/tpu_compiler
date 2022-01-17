@@ -475,11 +475,10 @@ void MixNet::_add_tl_convolution_op(MixOp* mix_op,
       builder_.getI32IntegerAttr(g),
       builder_.getBoolAttr(is_dw),
       builder_.getBoolAttr(with_bias),
-      builder_.getBoolAttr(do_relu),
       param.ins(),
       builder_.getI32IntegerAttr(0), //pad_value
       builder_.getContext())));
-
+  attrs.push_back(builder_.getNamedAttr("do_relu", builder_.getBoolAttr(do_relu)));
   if(do_ic_align){
       attrs.push_back(builder_.getNamedAttr("do_ic_alignment",
                            builder_.getBoolAttr(do_ic_align)));
@@ -665,10 +664,11 @@ void MixNet::_add_tl_deconvolution_op(MixOp* mix_op,
       builder_.getI32IntegerAttr(g),
       builder_.getBoolAttr(is_dw),
       builder_.getBoolAttr(with_bias),
-      builder_.getBoolAttr(do_relu),
       builder_.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
       builder_.getI32IntegerAttr(0), //pad_value
       builder_.getContext())));
+  attrs.push_back(builder_.getNamedAttr("do_relu",
+                               builder_.getBoolAttr(do_relu)));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(input_laddr)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1002,9 +1002,10 @@ void MixNet::_add_tl_pooling_op(MixOp * mix_op,
       builder_.getI32IntegerAttr(pad_value),
       builder_.getI32IntegerAttr(sh),
       builder_.getI32IntegerAttr(sw),
-      builder_.getBoolAttr(do_relu),
       builder_.getBoolAttr(count_include_pad),
       builder_.getContext())));
+  attrs.push_back(builder_.getNamedAttr("do_relu",
+                           builder_.getBoolAttr(do_relu)));
   attrs.push_back(builder_.getNamedAttr("la_input",
                            builder_.getI32IntegerAttr(la_input)));
   attrs.push_back(builder_.getNamedAttr("la_output",
@@ -1108,9 +1109,9 @@ void MixNet::_add_tl_scale_op(
 
   bool do_relu = false;
   if(auto tmp_op = dyn_cast<tpu::TG_INT8_ScaleOp>(op)) {
-    do_relu = tmp_op.param().do_relu().getValue();
+    do_relu = tmp_op.do_relu();
   } else if (auto tmp_op = dyn_cast<tpu::TG_BF16_ScaleOp>(op)) {
-    do_relu = tmp_op.param().do_relu().getValue();
+    do_relu = tmp_op.do_relu();
   }
   attrs.push_back(builder_.getNamedAttr("do_relu",
                            builder_.getBoolAttr(do_relu)));

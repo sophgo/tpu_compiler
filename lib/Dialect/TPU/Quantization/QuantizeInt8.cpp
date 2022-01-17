@@ -771,7 +771,6 @@ LogicalResult quantizeInt8RescaleNoWeightOps(Operation *op) {
             castOp.param().pad_value(),
             castOp.param().stride_h(),
             castOp.param().stride_w(),
-            castOp.param().do_relu(),
             rewriter.getBoolAttr(true),
             castOp.getContext()));
   }

@@ -485,10 +485,10 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
             convOp.param().group(),
             convOp.param().is_dw(),
             rewriter.getBoolAttr(true),
-            convOp.param().do_relu(),
             convOp.param().ins(),
             convOp.param().pad_value(),
             rewriter.getContext()));
+    convOp->setAttr("do_relu", rewriter.getBoolAttr(convOp.do_relu()));
     auto origAttrs = convOp->getAttrs();
     // update name with the later op name, because this name is for
     // calibration table
@@ -605,13 +605,13 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
               rewriter.getI32IntegerAttr(c),
               rewriter.getBoolAttr(true),
               rewriter.getBoolAttr(bias?true:false),
-              rewriter.getBoolAttr(scaleOp.do_relu()),
               rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
               rewriter.getI32IntegerAttr(0), // pad_value
               rewriter.getContext())));
       attrs.push_back(rewriter.getNamedAttr("quant",
                                             getDefaultQuantParam(rewriter)));
-
+      attrs.push_back(rewriter.getNamedAttr("do_relu",
+                                            rewriter.getBoolAttr(scaleOp.do_relu())));
       rewriter.replaceOpWithNewOp<tpu::Conv2DOp>(
           scaleOp, scaleOp.getResult().getType(),
           ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});
@@ -637,12 +637,12 @@ struct TpuConvertScaleToDWConvPattern : public RewritePattern {
               rewriter.getI32IntegerAttr(c),
               rewriter.getBoolAttr(true),
               rewriter.getBoolAttr(bias?true:false),
-              rewriter.getBoolAttr(scaleOp.do_relu()),
               rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})), // [0]ins_w/[1]ins_h
               rewriter.getContext())));
       attrs.push_back(rewriter.getNamedAttr("quant",
                                             getDefaultQuantParam(rewriter)));
-
+      attrs.push_back(rewriter.getNamedAttr("do_relu",
+                                            rewriter.getBoolAttr(scaleOp.do_relu())));
       rewriter.replaceOpWithNewOp<tpu::Conv3DOp>(
           scaleOp, scaleOp.getResult().getType(),
           ArrayRef<Value>{operands}, ArrayRef<NamedAttribute>{attrs});

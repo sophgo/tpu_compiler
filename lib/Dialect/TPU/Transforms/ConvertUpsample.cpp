@@ -200,6 +200,7 @@ struct TpuUpsampleOpPattern : public RewritePattern {
 
     std::vector<NamedAttribute> attrs;
     attrs.push_back(rewriter.getNamedAttr("name", upsampleOp.nameAttr()));
+    attrs.push_back(rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(false)));
     attrs.push_back(rewriter.getNamedAttr(
         "param",
         tpu::ConvParam::get(
@@ -214,7 +215,7 @@ struct TpuUpsampleOpPattern : public RewritePattern {
             rewriter.getI32IntegerAttr(padding[1]),
             rewriter.getI32IntegerAttr(padding[1]),
             rewriter.getI32IntegerAttr(g), rewriter.getBoolAttr(is_dw),
-            rewriter.getBoolAttr(with_bias), rewriter.getBoolAttr(false),
+            rewriter.getBoolAttr(with_bias),
             rewriter.getI32ArrayAttr(ArrayRef<int32_t>({})),
             rewriter.getI32IntegerAttr(0), rewriter.getContext())));
     attrs.push_back(

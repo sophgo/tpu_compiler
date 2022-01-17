@@ -606,7 +606,118 @@ model_deploy.py \
 
 <div STYLE="page-break-after: always;"></div>
 
-## 6  精度优化和混合量化
+## 6 单个算子验证和板端推理耗时
+TPU工具链支持对pytorch或者onnx框架的单个算子转化为cvimodel模型，并且可查询在板端推理中耗时。
+
+本章需要如下文件：
+
+* cvitek_mlir_ubuntu-18.04.tar.gz
+* cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
+
+#### 步骤 0：算子的验证
+在模型转换的过程中遇到某个算子转化过程失败，可能是TPU工具链不支持该算子或者该算子精度损失比较大。可借助工具链提供test_torch.py或者test_onnx.py脚本进行对某个算子进行验证。
+
+在test_onnx.py文件中可进行测试,以Add算子来举例:
+
+1.对TEST_ONNX_IR列表增加欲测试的算子的名字
+
+2.在ONNX_IR_TESTER类的test_function字典中注册算子和对应的test_Add回调函数
+
+3.实现对应算子的test_Add回调函数
+
+``` python
+TEST_ONNX_IR = ["Add"]
+class ONNX_IR_TESTER(object):
+    self.test_function = { "Add": self.test_Add }
+    def test_Add(self):
+        test_case = 'Add'
+        input_shape = [1, 3, 8, 8]
+        output_shape = [1, 3, 8, 8]
+
+        input = helper.make_tensor_value_info(
+            'input', TensorProto.FLOAT, input_shape)
+        output = helper.make_tensor_value_info(
+            'output', TensorProto.FLOAT, output_shape)
+
+        add_node = helper.make_node(
+            'Add',  # node name
+            ['input', 'input'],  # inputs
+            ['output'],  # outputs
+        )
+        graph_def = helper.make_graph(
+            [add_node],
+            test_case,
+            [input],
+            [output],
+        )
+        model_def = helper.make_model(graph_def, producer_name=test_case)
+        model_def.opset_import[0].version = 13
+        input_data = np.random.rand(*input_shape).astype(np.float32)
+
+        onnx.checker.check_model(model_def)
+        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+```
+
+在test_torch.py文件中可进行测试,以Log算子来举例:
+
+1.对TEST_ONNX_IR列表增加欲测试的算子的名字
+
+2.在ONNX_IR_TESTER类的test_function字典中注册算子和对应的test_Log回调函数
+
+3.实现对应算子的test_Log回调函数
+
+``` python
+TEST_ONNX_IR = ["Log"]
+class TORCH_IR_TESTER(object):
+    self.test_function = { "Log": self.test_Log }
+    def test_Log(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x = torch.log(x)
+                return x
+
+        input_shape = [1, 3, 100, 100]
+        test_name = 'Log'
+        net = Net()
+        input_data = torch.clamp(torch.randn(*input_shape), 8.0, 10.0)
+        torch_output_data = net(input_data)
+
+        # Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_name)
+
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+```
+
+#### 步骤 1：板端推理耗时
+
+配置开发板的TPU sdk环境可参考之前的章节介绍：
+
+这里取resnet18_int8.cvimodel模型和resnet18_in_fp32.npz输入来进行测试
+
+在开发板中执行以下shell，测试量化为模型输出结果以及推理时间
+
+``` shell
+export TPU_ENABLE_PMU=1
+model_runner \
+--input resnet18_in_fp32.npz \
+--model resnet18_int8.cvimodel \
+--output out.npz \
+```
+
+模型输出的相关参数说明如下：
+
+| **参数名**               | **说明**                                                        |
+| -------------------     | ----------------------------------------------------------------|
+| inference_tick          | TPU推理过程执行tick次数(tdma搬运和exec运算的总时长)                |
+| inference_ms            | TPU推理过程的耗时(tdma搬运和exec运算的总时长)                      |
+
+<div STYLE="page-break-after: always;"></div>
+
+## 7  精度优化和混合量化
 
 TPU支持INT8和BF16两种量化方法。在模型编译阶段，工具链支持以搜索的方式找到对模型精度最敏感的op，并支持将指定数量的op替换为BF16，从而提高整个网络的精度。
 
@@ -959,7 +1070,7 @@ mix_precision_table文件格式如下：
 
 <div STYLE="page-break-after: always;"></div>
 
-## 7 使用TPU做前处理
+## 8 使用TPU做前处理
 
 CV183X提供两种硬件资源进行神经网络模型的前处理加速。
 
@@ -1060,7 +1171,7 @@ model_runner \
 
 <div STYLE="page-break-after: always;"></div>
 
-## 8 合并cvimodel模型文件
+## 9 合并cvimodel模型文件
 对于同一个模型，可以依据输入的batch size以及分辨率(不同的h和w)分别生成独立的cvimodel文件。不过为了节省外存和运存，可以选择将这些相关的cvimodel文件合并为一个cvimodel文件，共享其权重部分。具体步骤如下：
 #### 步骤 0：生成batch 1的cvimodel
 请参考前述章节，新建workspace，通过model_transform.py将mobilenet_v2的caffemodel转换为mlir fp32模型:
@@ -1194,7 +1305,7 @@ CVI_NN_CleanupModel(bs4_handle);
 
 <div STYLE="page-break-after: always;"></div>
 
-## 9 运行runtime samples
+## 10 运行runtime samples
 
 本章首先介绍EVB如何运行sample应用程序，然后介绍如何交叉编译sample应用程序，最后介绍docker仿真编译和运行sample。具体包括3个samples：
 

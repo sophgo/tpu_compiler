@@ -193,10 +193,11 @@ Conv3DOpKernel::Conv3DOpKernel(Operation &op, value_map_t &valueMapping,
                                weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
   auto castOp = cast<tpu::Conv3DOp>(op);
+  do_relu = castOp.do_relu();
   parseConv3dParam(castOp.param(), is_deconv, castOp.input(), castOp.output(),
                    n, ic, id, ih, iw, oc, od, oh, ow, g, kd,
                    kh, kw, sd, sh, sw, pd0, pd1, pt, pb, pl, pr, dd, dh, dw,
-                   is_dw, with_bias, do_relu);
+                   is_dw, with_bias);
 
   arrayAttrToVector(castOp.param().ins(), ins);
 
