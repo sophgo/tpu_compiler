@@ -326,7 +326,7 @@ cd ..
 * xxx__in_fp32.npz              模型的输入tensor文件，测试不同类型的模型，input_npz文件需要不一样
 * xxx_[int8/bf16].cvimodel      输出int8或者bf16的cvimodel文件
 
-在开发板中执行以下shell，测试量化为int8模型的仿真环境和真实硬件输出结果进行比较
+在开发板中执行以下shell，测试量化为int8模型的仿真环境和真实硬件输出结果进行比较：
 
 ``` shell
 model_runner \
@@ -336,6 +336,13 @@ model_runner \
 --dump-all-tensors \
 --reference resnet18_quantized_tensors_sim.npz
 ```
+
+执行`model_runner`之前也可以先定义如下环境变量，可以打印性能数据：
+
+```shell
+export TPU_ENABLE_PMU=1
+```
+
 
 <div STYLE="page-break-after: always;"></div>
 
@@ -606,114 +613,32 @@ model_deploy.py \
 
 <div STYLE="page-break-after: always;"></div>
 
-## 6 单个算子验证和板端推理耗时
-TPU工具链支持对pytorch或者onnx框架的单个算子转化为cvimodel模型，并且可查询在板端推理中耗时。
+## 6 算子验证
 
-本章需要如下文件：
+TPU工具链中包含算子测试用例，test_torch.py和test_onnx.py。
 
-* cvitek_mlir_ubuntu-18.04.tar.gz
-* cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
+执行方法如下：
 
-#### 步骤 0：算子的验证
-在模型转换的过程中遇到某个算子转化过程失败，可能是TPU工具链不支持该算子或者该算子精度损失比较大。可借助工具链提供test_torch.py或者test_onnx.py脚本进行对某个算子进行验证。
-
-在test_onnx.py文件中可进行测试,以Add算子来举例:
-
-1.对TEST_ONNX_IR列表增加欲测试的算子的名字
-
-2.在ONNX_IR_TESTER类的test_function字典中注册算子和对应的test_Add回调函数
-
-3.实现对应算子的test_Add回调函数
-
-``` python
-TEST_ONNX_IR = ["Add"]
-class ONNX_IR_TESTER(object):
-    self.test_function = { "Add": self.test_Add }
-    def test_Add(self):
-        test_case = 'Add'
-        input_shape = [1, 3, 8, 8]
-        output_shape = [1, 3, 8, 8]
-
-        input = helper.make_tensor_value_info(
-            'input', TensorProto.FLOAT, input_shape)
-        output = helper.make_tensor_value_info(
-            'output', TensorProto.FLOAT, output_shape)
-
-        add_node = helper.make_node(
-            'Add',  # node name
-            ['input', 'input'],  # inputs
-            ['output'],  # outputs
-        )
-        graph_def = helper.make_graph(
-            [add_node],
-            test_case,
-            [input],
-            [output],
-        )
-        model_def = helper.make_model(graph_def, producer_name=test_case)
-        model_def.opset_import[0].version = 13
-        input_data = np.random.rand(*input_shape).astype(np.float32)
-
-        onnx.checker.check_model(model_def)
-        self.onnx_convert_and_infernece(input_data, model_def, test_case)
+```shell
+source cvitek_mlir/cvitek_envs.sh
+## 测试torch的LayerNorm
+test_torch.py LayerNorm
+## 测试torch全部算子用例
+test_torch.py
+## 测试onnx的Conv2d
+test_onnx.py Conv2d
+## 测试onnx的全部算子用例
+test_onnx.py
 ```
 
-在test_torch.py文件中可进行测试,以Log算子来举例:
+用户可以参考修改test_torch.py和test_onnx.py，对算子进行测试。
 
-1.对TEST_ONNX_IR列表增加欲测试的算子的名字
-
-2.在ONNX_IR_TESTER类的test_function字典中注册算子和对应的test_Log回调函数
-
-3.实现对应算子的test_Log回调函数
-
-``` python
-TEST_ONNX_IR = ["Log"]
-class TORCH_IR_TESTER(object):
-    self.test_function = { "Log": self.test_Log }
-    def test_Log(self):
-        class Net(torch.nn.Module):
-            def __init__(self):
-                super(Net, self).__init__()
-
-            def forward(self, x):
-                x = torch.log(x)
-                return x
-
-        input_shape = [1, 3, 100, 100]
-        test_name = 'Log'
-        net = Net()
-        input_data = torch.clamp(torch.randn(*input_shape), 8.0, 10.0)
-        torch_output_data = net(input_data)
-
-        # Use the exporter from  torch to convert to onnx
-        self.pytorch_transform_onnx(net, input_data, test_name)
-
-        torch_output_data = torch_output_data.data.numpy()
-        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
-```
-
-#### 步骤 1：板端推理耗时
-
-配置开发板的TPU sdk环境可参考之前的章节介绍：
-
-这里取resnet18_int8.cvimodel模型和resnet18_in_fp32.npz输入来进行测试
-
-在开发板中执行以下shell，测试量化为模型输出结果以及推理时间
+docker中测试完后会生成相应的cvimodel模型和输入文件，可以放入开发板，用于测试算子的性能。这里取`Add_int8.cvimodel`模型和`Add_in_fp32.npz`输入来进行举例：
 
 ``` shell
 export TPU_ENABLE_PMU=1
-model_runner \
---input resnet18_in_fp32.npz \
---model resnet18_int8.cvimodel \
---output out.npz \
+model_runner --input Add_in_fp32.npz --model Add_int8.cvimodel
 ```
-
-模型输出的相关参数说明如下：
-
-| **参数名**               | **说明**                                                        |
-| -------------------     | ----------------------------------------------------------------|
-| inference_tick          | TPU推理过程执行tick次数(tdma搬运和exec运算的总时长)                |
-| inference_ms            | TPU推理过程的耗时(tdma搬运和exec运算的总时长)                      |
 
 <div STYLE="page-break-after: always;"></div>
 

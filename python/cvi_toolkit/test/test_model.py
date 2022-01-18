@@ -57,7 +57,7 @@ class ModelTest(object):
             input_nodes = onnx_model.graph.input
             self.__gen_onnx_input__(input_nodes)
             transform_cmd = [
-                'model_transform.py', '--model_type', 'onnx', '--model_name', self.model_name, '--model', self.model_path,
+                'model_transform.py', '--model_type', 'onnx', '--model_name', self.model_name, '--model_def', self.model_path,
                 '--image', self.input_path, '--net_input_dims', '1,100', '--tolerance', '0.99,0.99,0.99', '--mlir',
                 self.fp32_mlir
             ]

@@ -117,7 +117,6 @@ struct SplitPoolPattern : public RewritePattern {
                               rewriter.getI32IntegerAttr(1),     // stride_w
                               rewriter.getBoolAttr(false),
                               rewriter.getContext())));
-      attrs.push_back(rewriter.getNamedAttr("do_relu", rewriter.getBoolAttr(false)));
       attrs.push_back(rewriter.getNamedAttr("m_i8", avg_pool_op.m_i8Attr()));
       attrs.push_back(rewriter.getNamedAttr("rshift", avg_pool_op.rshiftAttr()));
       attrs.push_back(rewriter.getNamedAttr(
