@@ -35,6 +35,7 @@ protected:
   int outer_dims;
   int inner_dims;
   int axis_dims;
+  float coeff;
 
   // int8
   int rshift;

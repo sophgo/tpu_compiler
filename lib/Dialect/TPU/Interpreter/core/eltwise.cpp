@@ -318,10 +318,8 @@ EltwiseMulOpKernel::EltwiseMulOpKernel(Operation &op, value_map_t &valueMapping,
 }
 
 void EltwiseMulOpKernel::fp32_invoke() {
-  int in = this->shape.at(0);
-  int ic = this->shape.at(1);
-  int ih = shape.size() > 2 ? this->shape.at(2) : 1;
-  int iw = shape.size() > 3 ? this->shape.at(3) : 1;
+  int64_t in,ic,ih,iw;
+  getNCHW(shape, in,ic,ih,iw);
   std::fill(output_data->begin(), output_data->end(), 1);
 
   for (size_t ni = 0; ni < inputs_data.size(); ++ni) {
@@ -335,10 +333,8 @@ void EltwiseMulOpKernel::fp32_invoke() {
 }
 
 void EltwiseMulOpKernel::i8_invoke() {
-  int in = this->shape.at(0);
-  int ic = this->shape.at(1);
-  int ih = shape.size() > 2 ? this->shape.at(2) : 1;
-  int iw = shape.size() > 3 ? this->shape.at(3) : 1;
+  int64_t in,ic,ih,iw;
+  getNCHW(shape, in,ic,ih,iw);
   size_t input_number = inputs_data.size();
   size_t size = in * ic * ih * iw;
 

@@ -247,13 +247,13 @@ LogicalResult tpu::TG_BF16_ArgMaxOp::codegen(void *ctx) {
   Operation *op = this->getOperation();
 
   std::vector<int64_t> shape;
-  int64_t input_size, n, c, h, w;
+  int64_t input_size, n=1, c=1, h=1, w=1;
   getTensorShapeAndSize(input(), shape, input_size);
-  if (shape.size() == 2) {
+  if (shape.size() == 1) {
+    w = shape[0];
+  } else if (shape.size() == 2) {
     n = shape[0];
     w = shape[1];
-    h = 1;
-    c = 1;
   } else {
     getNCHW(shape, n, c, h, w);
   }

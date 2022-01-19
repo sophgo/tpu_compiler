@@ -1485,6 +1485,25 @@ def TPU_NormalizeOp: TPU_Op<"normalize",
   let hasCanonicalizer = 1;
 }
 
+def TPU_MatchTemplateOp: TPU_Op<"match_template",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>]> {
+  let summary = "opencv matchTemplate operator";
+
+  let description = [{
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$match,
+    StrAttr:$mode,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+  let hasCanonicalizer = 1;
+}
+
 def TPU_MishOp : TPU_LutOp<"mish", "yolov4 mish op"> {
 
   let description = [{
@@ -2903,6 +2922,7 @@ def TPU_ReduceL2Op: TPU_Op<"reduce_l2",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$table,
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$mantissa_table,
     I32ArrayAttr:$axes,
+    DefaultValuedAttr<F32Attr, "0.5">:$coeff,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name
   );

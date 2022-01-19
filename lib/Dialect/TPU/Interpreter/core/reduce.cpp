@@ -20,6 +20,9 @@ ReduceOpKernel::ReduceOpKernel(Operation &op, value_map_t &valueMapping,
     this->multiplier =
         quant_multiplier != nullptr ? quant_multiplier->at(0) : 1;
   }
+  if (auto castOp = llvm::dyn_cast_or_null<tpu::ReduceL2Op>(&op)) {
+    coeff = castOp.coeff().convertToFloat();
+  }
   lut = this->opdTensors[1];
   mantissa_lut = this->opdTensors[2];
   // get tensors
@@ -95,7 +98,7 @@ void ReduceOpKernel::invoke() {
           bf16_lut_mantissa(&sum, &sum, 1, lut->data(), mantissa_lut->data());
           output[o * inner_dims + i] = sum;
         } else {
-          output[o * inner_dims + i] = std::sqrt(sum);
+          output[o * inner_dims + i] = std::pow(sum, coeff);
         }
       } break;
       }
