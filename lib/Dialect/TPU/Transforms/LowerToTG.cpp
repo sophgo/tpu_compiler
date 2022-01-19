@@ -711,6 +711,39 @@ Value tpu::ConvFcOp::convertToTG() {
   llvm_unreachable("unsupported type");
 }
 
+Value tpu::CopyOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  TensorFile *wTF = getWeightTensorFile(op);
+  assert(wTF);
+
+  std::vector<Value> operands;
+  operands.push_back(input());
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("shape", shapeAttr()));
+  attrs.push_back(builder.getNamedAttr("input_stride", input_strideAttr()));
+  attrs.push_back(builder.getNamedAttr("output_stride", output_strideAttr()));
+
+  if (getOpQuant() == "INT8" || getOpQuant() == "UINT8") {
+    // create op
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_CopyOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  } else if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_CopyOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  assert(false);
+  return nullptr;
+}
+
 Value tpu::CropOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName()
                << " [" << getOpName() << "]\n";);
@@ -1892,6 +1925,7 @@ Value tpu::CscOp::convertToTG() {
 
     std::vector<int> i_stride(4, 0);
     std::vector<int> o_stride(4, 0);
+    std::vector<int> copy_shape(4, 1);
     i_stride[3] = 1;
     i_stride[2] = align_up(ow, w_alignAttr().getInt());
     i_stride[1] = align_up(i_stride[2] * oh, channel_alignAttr().getInt());
@@ -1901,12 +1935,18 @@ Value tpu::CscOp::convertToTG() {
     o_stride[2] = ow;
     o_stride[1] = o_stride[2] * oh;
     o_stride[0] = i_stride[1] * oc;
+    copy_shape[3] = ow;
+    copy_shape[2] = oh;
+    copy_shape[1] = oc;
+    copy_shape[0] = on;
 
     attrs.push_back(
-        builder.getNamedAttr("input_stride", builder.getI32ArrayAttr(i_stride)));
-    attrs.push_back(
-        builder.getNamedAttr("output_stride", builder.getI32ArrayAttr(o_stride)));
-    auto newOp = OpBuilder(op).create<tpu::TG_StrideCopyOp>(
+        builder.getNamedAttr("shape", builder.getI32ArrayAttr(copy_shape)));
+    attrs.push_back(builder.getNamedAttr("input_stride",
+                                         builder.getI32ArrayAttr(i_stride)));
+    attrs.push_back(builder.getNamedAttr("output_stride",
+                                         builder.getI32ArrayAttr(o_stride)));
+    auto newOp = OpBuilder(op).create<tpu::TG_INT8_CopyOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});
     return newOp.getResult();
@@ -4161,6 +4201,7 @@ public:
         DefaultToTGPattern<tpu::Conv2DOp>,
         DefaultToTGPattern<tpu::Conv3DOp>,
         DefaultToTGPattern<tpu::ConvFcOp>,
+        DefaultToTGPattern<tpu::CopyOp>,
         DefaultToTGPattern<tpu::CropOp>,
         DefaultToTGPattern<tpu::DeConv2DOp>,
         DefaultToTGPattern<tpu::DilateOp>,

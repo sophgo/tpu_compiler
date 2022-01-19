@@ -731,6 +731,43 @@ template void parsePermuteParam<tpu::TG_BF16_PermuteOp>(
     Operation *op, std::vector<int64_t> &shape_4, std::vector<int> &order_4);
 
 template <typename OpTy>
+void parseCopyParam(Operation *op, std::vector<int> &shape_4,
+                    std::vector<int> &i_stride_4,
+                    std::vector<int> &o_stride_4) {
+  auto castOp = cast<OpTy>(op);
+  std::vector<int> shape;
+  std::vector<int> i_stride;
+  std::vector<int> o_stride;
+  arrayAttrToVector(castOp.shape(), shape);
+  arrayAttrToVector(castOp.input_stride(), i_stride);
+  arrayAttrToVector(castOp.output_stride(), o_stride);
+  shape_4 = {1, 1, 1, 1};
+  i_stride_4 = {0, 0, 0, 0};
+  o_stride_4 = {0, 0, 0, 0};
+  int num_dims = shape.size();
+  assert(num_dims <= 4);
+  assert(i_stride.size() == shape.size());
+  assert(o_stride.size() == shape.size());
+  for (int end = num_dims - 1, idx = 3; end >= 0 && idx >= 0; end--, idx--) {
+    shape_4[idx] = shape[end];
+    i_stride_4[idx] = i_stride[end];
+    o_stride_4[idx] = o_stride[end];
+  }
+}
+template void parseCopyParam<tpu::CopyOp>(Operation *op,
+                                          std::vector<int> &shape_4,
+                                          std::vector<int> &i_stride_4,
+                                          std::vector<int> &o_stride_4);
+template void parseCopyParam<tpu::TG_INT8_CopyOp>(Operation *op,
+                                                  std::vector<int> &shape_4,
+                                                  std::vector<int> &i_stride_4,
+                                                  std::vector<int> &o_stride_4);
+template void parseCopyParam<tpu::TG_BF16_CopyOp>(Operation *op,
+                                                  std::vector<int> &shape_4,
+                                                  std::vector<int> &i_stride_4,
+                                                  std::vector<int> &o_stride_4);
+
+template <typename OpTy>
 void parseCropParam(Operation *op, std::vector<int64_t> &is_4,
                     std::vector<int64_t> &os_4, std::vector<int> &offset_4,
                     std::vector<int> &step_4, bool &fusible) {

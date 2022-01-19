@@ -351,11 +351,11 @@ class TPU_TG_CropOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 def TPU_TG_INT8_CropOp : TPU_TG_CropOp<"tg_int8_crop", "Int8">;
 def TPU_TG_BF16_CropOp : TPU_TG_CropOp<"tg_bf16_crop", "Bf16">;
 
-def TPU_TG_StrideCopyOp : TPU_Op<"tg_stride_copy",
+class TPU_TG_CopyOp<string mnemonic> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,
        DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
-  let summary = "TG " # opQuant # " stride copy operator.";
+  let summary = "TG copy operator.";
 
   let description = [{
     Inputs:
@@ -381,6 +381,7 @@ def TPU_TG_StrideCopyOp : TPU_Op<"tg_stride_copy",
 
   let arguments = (
     ins AnyTensor:$input,
+    I32ArrayAttr:$shape,
     I32ArrayAttr:$input_stride,
     I32ArrayAttr:$output_stride,
     OptionalAttr<I64Attr>:$gaddr,
@@ -390,6 +391,8 @@ def TPU_TG_StrideCopyOp : TPU_Op<"tg_stride_copy",
 
   let results = (outs AnyTensor:$output);
 }
+def TPU_TG_INT8_CopyOp : TPU_TG_CopyOp<"tg_int8_copy">;
+def TPU_TG_BF16_CopyOp : TPU_TG_CopyOp<"tg_bf16_copy">;
 
 class TPU_TG_DilateOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,

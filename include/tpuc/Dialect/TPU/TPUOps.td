@@ -627,6 +627,26 @@ def TPU_ConvFcOp : TPU_Op<"convfc",
   let results = (outs AnyTensor:$output);
 }
 
+def TPU_CopyOp: TPU_Op<"copy",
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuOpQuantInterface>,
+       DeclareOpInterfaceMethods<TpuOpLowerInterface>]> {
+
+  let summary = "Copy operator";
+
+  let arguments = (
+    ins AnyTensor:$input,
+    I32ArrayAttr:$shape,
+    I32ArrayAttr:$input_stride,
+    I32ArrayAttr:$output_stride,
+    TPU_QuantParamAttr:$quant,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+
 def TPU_CscOp: TPU_Op<"csc",
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

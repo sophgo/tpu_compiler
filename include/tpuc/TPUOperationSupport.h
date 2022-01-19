@@ -115,6 +115,10 @@ void parseCropParam(Operation *op, std::vector<int64_t> &is_4, std::vector<int64
                        std::vector<int> &offset_4, std::vector<int> &step_4, bool &fusible);
 
 template <typename OpTy>
+void parseCopyParam(Operation *op, std::vector<int> &shape_4,
+                    std::vector<int> &i_stride_4, std::vector<int> &o_stride_4);
+
+template <typename OpTy>
 void parsePadParam(Operation *op, std::vector<int64_t> &is_4, std::vector<int64_t> &os_4,
                        std::vector<int> &pad_4);
 

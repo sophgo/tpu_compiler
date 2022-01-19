@@ -9,6 +9,7 @@
 #include "tpuc/Interpreter/cpu/conv.hpp"
 #include "tpuc/Interpreter/cpu/conv3d.hpp"
 #include "tpuc/Interpreter/cpu/convfc.hpp"
+#include "tpuc/Interpreter/cpu/copy.hpp"
 #include "tpuc/Interpreter/cpu/crop.hpp"
 #include "tpuc/Interpreter/cpu/csc.hpp"
 #include "tpuc/Interpreter/cpu/customop.hpp"
@@ -205,6 +206,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<ClipOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::Conv3DOp>(op)) {
       krnl = std::make_shared<Conv3DOpKernel>(*op, valueMapping, weightMapping);
+    } else if (isa<tpu::CopyOp>(op)) {
+      krnl = std::make_shared<CopyOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::CropOp>(op)) {
       krnl = std::make_shared<CropOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::CscOp>(op)) {

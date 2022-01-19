@@ -527,11 +527,10 @@ void cvi_backend_zero_mask_kernel(const CviBackendContext &ctx,
                                   gaddr_t ga_output, int n, int c, int h, int w,
                                   bool positive, cvk_fmt_t fmt);
 
-
-void cvi_backend_tg_stride_copy_kernel(const CviBackendContext &ctx,
-                                       gaddr_t ga_input, gaddr_t ga_output,
-                                       const std::vector<int64_t> &shape,
-                                       const std::vector<int32_t> &i_stride,
-                                       const std::vector<int32_t> &o_stride,
-                                       cvk_fmt_t fmt);
+void cvi_backend_tg_copy_kernel(const CviBackendContext &ctx, gaddr_t ga_input,
+                                gaddr_t ga_output,
+                                const std::vector<int> &shape,
+                                const std::vector<int> &i_stride,
+                                const std::vector<int> &o_stride,
+                                cvk_fmt_t fmt);
 #endif /* CVI_BACKEND_TG_API */

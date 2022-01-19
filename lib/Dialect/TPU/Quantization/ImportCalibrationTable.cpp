@@ -369,6 +369,7 @@ public:
     patterns.clear();
     patterns.insert<
         ForwardOverwriteThresholdDefaultPattern<tpu::AbsOp>,
+        ForwardOverwriteThresholdDefaultPattern<tpu::CopyOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::CropOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::LeakyReluOp>,
         ForwardOverwriteThresholdDefaultPattern<tpu::ReluOp>,
