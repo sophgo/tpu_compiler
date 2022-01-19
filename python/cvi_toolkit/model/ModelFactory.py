@@ -34,11 +34,10 @@ class ModelFactory(object):
             raise RuntimeError("Model Type {} not support.".format(model_type))
 
     def inference(self, input):
+        outs = self.model.inference(input)
         if self.model_type == 'mlir':
-            outs = self.model.inference(input)
-            return list(outs.values())[0]
-        else:
-            return self.model.inference(input)
+            outs = list(outs.values())
+        return outs[0] if len(outs) == 1 else outs
 
     def get_all_tensor(self, input_data=None, npz_file=None):
         tensor_dict = self.model.get_all_tensor(input_data=input_data)

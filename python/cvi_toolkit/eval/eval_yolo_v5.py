@@ -11,7 +11,7 @@ import json
 from pathlib import Path
 from tqdm import tqdm
 import numpy as np
-import pymlir
+from cvi_toolkit.model.ModelFactory import ModelFactory
 
 COCO_CLASSES = (
     "person",
@@ -189,13 +189,18 @@ COCO_IDX= [
             74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87, 88, 89, 90
           ]
 
+ANCHORS = { # stride: anchor
+           8: [[1.25000, 1.62500], [2.00000, 3.75000], [4.12500, 2.87500]],
+           16: [[1.87500, 3.81250], [3.87500, 2.81250], [3.68750, 7.43750]],
+           32: [[ 3.62500,  2.81250], [ 4.87500,  6.18750], [11.65625, 10.18750]]
+}
+
 def mkdir(path):
     if not os.path.exists(path):
         os.makedirs(path)
 
 def convert(o):
     if isinstance(o, np.int32): return float(o)
-    print(type(o), o)
     raise TypeError
 
 def get_image_id_in_path(image_path):
@@ -234,7 +239,6 @@ def vis(img, boxes, scores, cls_ids, conf=0.5, class_names=None):
         y0 = int(box[1])
         x1 = int(box[2])
         y1 = int(box[3])
-
         color = (_COLORS[cls_id] * 255).astype(np.uint8).tolist()
         text = '{}:{:.1f}%'.format(class_names[cls_id], score * 100)
         txt_color = (0, 0, 0) if np.mean(_COLORS[cls_id]) > 0.5 else (255, 255, 255)
@@ -347,38 +351,39 @@ def preproc(img, input_size, swap=(2, 0, 1)):
     ).astype(np.uint8)
     padded_img[: int(img.shape[0] * r), : int(img.shape[1] * r)] = resized_img
 
-    padded_img = padded_img.transpose(swap)
+    padded_img = padded_img.transpose(swap)[::-1]  # HWC to CHW, BGR to RGB
     padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)
     return padded_img, r
 
-def postproc(outputs, img_size, p6=False):
+def make_grid(nx, ny, stride, anchor):
+    stride = np.array(stride)
+    anchor = np.array(anchor)
+    xv, yv = np.meshgrid(np.arange(nx),  np.arange(ny))
+    grid = np.stack((xv, yv), -1)
+    anchor_grid = (anchor * stride).reshape(1, len(anchor), 1, 1, 2)
+    return grid, anchor_grid
 
-    grids = []
-    expanded_strides = []
+def _sigmoid(x):
+    return 1. / (1. + np.exp(-x))
 
-    if not p6:
-        strides = [8, 16, 32]
-    else:
-        strides = [8, 16, 32, 64]
-
-    hsizes = [img_size[0] // stride for stride in strides]
-    wsizes = [img_size[1] // stride for stride in strides]
-
-    for hsize, wsize, stride in zip(hsizes, wsizes, strides):
-        xv, yv = np.meshgrid(np.arange(wsize), np.arange(hsize))
-        grid = np.stack((xv, yv), 2).reshape(1, -1, 2)
-        grids.append(grid)
-        shape = grid.shape[:2]
-        expanded_strides.append(np.full((*shape, 1), stride))
-
-    grids = np.concatenate(grids, 1)
-    expanded_strides = np.concatenate(expanded_strides, 1)
-    outputs[..., :2] = (outputs[..., :2] + grids) * expanded_strides
-    outputs[..., 2:4] = np.exp(outputs[..., 2:4]) * expanded_strides
-    # batch = 1
-    predictions = outputs[0]
-    boxes = predictions[:, :4]
-    scores = predictions[:, 4:5] * predictions[:, 5:]
+def postproc(outputs, imsize, anchors=ANCHORS):
+    z = []
+    for out in  outputs:
+        # bs, 3, 20, 20, 85
+        bs, _, ny, nx,  _ = out.shape
+        stride = imsize[0] / ny
+        assert(stride == imsize[1] / nx)
+        anchor = anchors[stride]
+        grid, anchor_grid = make_grid(nx, ny, stride, anchor)
+        y = _sigmoid(out)
+        y[..., 0:2] = (y[..., 0:2] * 2 - 0.5 + grid) * stride  # xy
+        y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * anchor_grid  # wh
+        # batch = 1
+        # z.append(y.view(bs, -1, 85))
+        z.append(y.reshape(-1, 85))
+    pred = np.concatenate(z, axis=0)
+    boxes = pred[:, :4]
+    scores = pred[:, 4:5] * pred[:, 5:]
 
     boxes_xyxy = np.ones_like(boxes)
     boxes_xyxy[:, 0] = boxes[:, 0] - boxes[:, 2]/2.
@@ -387,24 +392,15 @@ def postproc(outputs, img_size, p6=False):
     boxes_xyxy[:, 3] = boxes[:, 1] + boxes[:, 3]/2.
     return scores, boxes_xyxy
 
-def yolo_x_onnx_detector(img_path, input_shape, sess, score_thr, nms_thr=0.45,
-                         nms_score_thr=0.1, with_p6=False, draw_image=True):
+def yolo_v5_onnx_detector(img_path, input_shape, net, score_thr, nms_thr=0.45,
+                         nms_score_thr=0.1, draw_image=True):
     json_dict = []
     input_shape = tuple(map(int, input_shape.split(',')))
     origin_img = cv2.imread(img_path)
     img, ratio = preproc(origin_img, input_shape)
-    img = np.expand_dims(img, axis=0)
-    try:
-        ort_inputs = {sess.get_inputs()[0].name: img}
-        output = sess.run(None, ort_inputs)[0]
-    except AttributeError:
-        ret = sess.run(img)
-        tensors = sess.get_all_tensor()
-        if 'output_Transpose_dequant' in tensors.keys():
-            output = tensors['output_Transpose_dequant']
-        else:
-            output = tensors['output_Transpose']
-    scores, boxes_xyxy = postproc(output, input_shape, p6=with_p6)
+    img = np.expand_dims(img, axis=0) / 255.  # 0 - 255 to 0.0 - 1.0
+    output = net.inference({net.get_input_name()[0]: img})
+    scores, boxes_xyxy = postproc(output, input_shape)
     dets = multiclass_nms(boxes_xyxy, scores, nms_thr=nms_thr, score_thr=nms_score_thr)
 
     if dets is not None:
@@ -470,8 +466,8 @@ def parse_args():
                         help="Dump all blobs into a file in npz format")
     parser.add_argument("--nms_score_thr", type=float, default=0.01,
                         help="Object confidence threshold")
-    parser.add_argument("--nms_threshold", type=float, default=0.65,
-                        help="NMS threshold")
+    parser.add_argument("--nms_threshold", type=float, default=0.6,
+                        help="NMS IOU threshold")
     parser.add_argument("--coco_image_path", type=str, default='/work/dataset/coco/val2017',
                         help="dataset image list file")
     parser.add_argument("--coco_annotation", type=str, default='/work/dataset/coco/annotations/instances_val2017.json',
@@ -482,37 +478,39 @@ def parse_args():
                         help="when present, use pre detected result file, skip detection")
     parser.add_argument("-s", "--score_thr", type=float, default=0.3,
                         help="Score threshould to filter the result.", )
-    parser.add_argument("--with_p6", action="store_true",
-                        help="Whether your model uses p6 in FPN/PAN.",)
-    parser.add_argument("--count", type=int, default=-1)
     parser.add_argument("--model_do_preprocess", type=int, default=0)
+    parser.add_argument("--count", type=int, default=-1)
     args = parser.parse_args()
     return args
 
 def main(argv):
     args = parse_args()
-    assert(args.model_do_preprocess == 0)  # not support now
+    model_file, mlir_file = None, None
     if args.pre_result_json:
         cal_coco_result(args.coco_annotation, args.pre_result_json)
         return
 
-    result_jist = []
-    result_json_file = args.coco_result_jason_file
-
     if args.model.endswith(".onnx"):
-        sess = onnxruntime.InferenceSession(args.model)
+        model_type = "onnx"
+        model_file = args.model
     elif args.model.endswith(".mlir"):
-        module = pymlir.module()
-        module.load(args.model)
-        sess = module
-        print("model loaded")
+        model_type = "mlir"
+        mlir_file = args.model
     else:
         assert(0)
 
+    result_jist = []
+    result_json_file = args.coco_result_jason_file
+    net = ModelFactory()
+
+    # load model
+    net.load_model(model_type, model_file=model_file, mlirfile=mlir_file)
+    args.net_input_dims = args.net_input_dims if args.net_input_dims else net.get_input_shape()
+
     if args.input_file:
         print("image stored in vis_outout.")
-        yolo_x_onnx_detector(args.input_file, args.net_input_dims, sess, args.score_thr, args.nms_threshold,
-                             nms_score_thr=0.1, with_p6=args.with_p6, draw_image=True)
+        yolo_v5_onnx_detector(args.input_file, args.net_input_dims, net, args.score_thr, args.nms_threshold,
+                             nms_score_thr=0.1, draw_image=True)
         return
 
     if not os.path.exists(args.coco_image_path):
@@ -523,8 +521,8 @@ def main(argv):
     with tqdm(total= args.count if args.count > 0 else len(image_list)) as pbar:
         for image_name in image_list:
             image_path = os.path.join(args.coco_image_path, image_name)
-            jlist = yolo_x_onnx_detector(image_path, args.net_input_dims, sess, args.score_thr, args.nms_threshold,
-                         nms_score_thr=args.nms_score_thr, with_p6=args.with_p6, draw_image=args.draw_image)
+            jlist = yolo_v5_onnx_detector(image_path, args.net_input_dims, net, args.score_thr, args.nms_threshold,
+                         nms_score_thr=args.nms_score_thr, draw_image=args.draw_image)
 
             result_jist.extend(jlist)
             count_num += 1

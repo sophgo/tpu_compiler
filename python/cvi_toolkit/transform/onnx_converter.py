@@ -1095,6 +1095,9 @@ class OnnxConverter(BaseConverter):
             else:
                 operands.append(op)
             continue
+        if len(onnx_node.inputs) == 1:
+            self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
+            return
         if len(operands) == 0:
             # only tensors
             self.addTensor(onnx_node.name, const_data, output_shape)
@@ -1729,6 +1732,22 @@ class OnnxConverter(BaseConverter):
                 final_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type) + "_reshape",
                                                   [slice_op_], output_shape)
                 self.addOperand(onnx_node.outputs[0], final_op, output_shape, TensorType.ACTIVATION)
+            elif ~np.any(np.diff(indices, 2)):
+                assert(np.all(indices >= 0))
+                num_dims = len(input_shape1)
+                crop_shape = list(input_shape1)
+                crop_offset = [0] * num_dims
+                step_shape = [1] * num_dims
+                if axis < 0:
+                    axis = axis + num_dims
+                step = indices[1] - indices[0]
+                crop_shape[axis] = (indices[-1] - indices[0] + step) // step
+                crop_offset[axis] = indices[0]
+                step_shape[axis] = step
+                output_shape = list(crop_shape)
+                crop_param = {"crop_offset": list(crop_offset), "steps": list(step_shape)}
+                crop_op = self.CVI.add_crop_op("{}_{}".format(onnx_node.outputs[0], onnx_node.op_type), [op1], output_shape, **crop_param)
+                self.addOperand(onnx_node.name, crop_op, output_shape, TensorType.ACTIVATION)
             else:
                 logger.warning("indices:", indices)
                 raise("TODO: Our Ir not support gather function")

@@ -30,7 +30,9 @@
 | yolo_v3_416          | coco2017 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.379 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.359 |
 | yolo_v3_608          | coco2017 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.402 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.383 |
 | yolo_v3_spp          | coco2017 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.430 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.366 |
-| yolo_v4              | coco2017 |                                                          | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.303 |
+| yolo_v4              | coco2017 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.394 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.303 |
+| yolo_v5_m            | coco2017 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.449 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.336 |
+| yolo_v5_s            | coco2017 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.359 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.297 |
 | yolox_s              | coco2017 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.405 | @[ IoU=0.50:0.95 \| area=   all \| maxDets=100 ] = 0.387 |
 |                      |          |                                                          |                                                          |
 |                      |          |                                                          |                                                          |

@@ -24,7 +24,7 @@ class OnnxModel(model_base):
         self.onnx_model = onnx.load(model_file)
 
     def inference(self, inputs):
-        return self._infernece(inputs)[0]
+        return self._infernece(inputs)
 
     def _infernece(self, inputs, onnx_model=None):
         if onnx_model:
