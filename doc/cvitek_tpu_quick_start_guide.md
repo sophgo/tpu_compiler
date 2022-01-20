@@ -55,7 +55,7 @@ CVITEK Release包含如下组成部分：
 | cvitek_tpu_sdk.tar.gz                  | cvitek Runtime SDK，包括交叉编译头文件和库文件 |
 | cvitek_tpu_samples.tar.gz              | sample程序源代码                               |
 | cvimodel_samples.tar.gz                | sample程序使用的cvimodel模型文件               |
-| docker_cvitek_dev_1.7-ubuntu-18.04.tar | CVITEK开发Docker镜像文件                       |
+| docker_cvitek_dev_1.7-ubuntu-18.04.tar | cvitek Docker镜像文件                       |
 
 
 
@@ -63,7 +63,7 @@ CVITEK Release包含如下组成部分：
 
 * **Classification:** `resnet50` `resnet18` `mobilenet_v1` `mobilenet_v2` `squeezenet_v1.1` `shufflenet_v2` `googlenet` `inception_v3` `inception_v4` `vgg16` `densenet_121` `densenet_201` `senet_res50` `resnext50` `res2net50` `ecanet50` `efficientnet_b0` `efficientnet_lite_b0` `nasnet_mobile`
 * **Detection:** `retinaface_mnet25` `retinaface_res50` `ssd300` `mobilenet_ssd` `yolo_v1`  `yolo_v2` `yolo_v3`  `yolo_v4` `yolo_v5` `yolo_x`
-* **Misc:**`arcface_res50` `alphapose` `espcn_3x` `unet` `erfnet`
+* **Misc:** `arcface_res50` `alphapose` `espcn_3x` `unet` `erfnet`
 
 
 
@@ -180,15 +180,13 @@ cp -rf $MLIR_PATH/tpuc/regression/data/images .
 推理前，我们需要了解这个模型的预处理参数，resnet18的预处理如链接描述<https://pytorch.org/hub/pytorch_vision_resnet>：
 
 > preprocess = transforms.Compose([
->
 >     transforms.Resize(256),
 >
 >     transforms.CenterCrop(224),
 >
 >     transforms.ToTensor(),
 >
->     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]),
->
+>     transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
 > ])
 
 使用`model_transform.py`将onnx模型转换成mlir文件，其中可支持预处理参数如下:
@@ -313,18 +311,18 @@ model_deploy.py的相关参数说明如下：
 
 
 ``` shell
+# 若在182x板端环境中出现: taz:invalid option --z的情况
+# 先在其他linux环境解压为.tar的格式，再放到板端进行解压
 tar zxf cvitek_tpu_sdk_cv183x.tar.gz
 export TPU_SDK_PATH=$PWD/cvitek_tpu_sdk
-cd cvitek_tpu_sdk
-source ./envs_tpu_sdk.sh
-cd ..
+cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
 ```
 
 测试仿真环境与真实硬件的输出结果，需要步骤三或步骤四生成的调试文件：
 
 * xxx_quantized_tensors_sim.npz 仿真环境中网络推理过程的tensor文件，作为与真实硬件输出结果参考对比
-* xxx__in_fp32.npz              模型的输入tensor文件，测试不同类型的模型，input_npz文件需要不一样
-* xxx_[int8/bf16].cvimodel      输出int8或者bf16的cvimodel文件
+* xxx_in_fp32.npz 模型的输入tensor文件，测试不同类型的模型，input_npz文件需要不一样
+* xxx_[int8/bf16].cvimodel  输出int8或者bf16的cvimodel文件
 
 在开发板中执行以下shell，测试量化为int8模型的仿真环境和真实硬件输出结果进行比较：
 
@@ -333,7 +331,6 @@ model_runner \
 --input resnet18_in_fp32.npz \
 --model resnet18_int8.cvimodel \
 --output out.npz \
---dump-all-tensors \
 --reference resnet18_quantized_tensors_sim.npz
 ```
 
@@ -458,16 +455,14 @@ model_deploy.py \
 # 此处以183x举例
 tar zxf cvitek_tpu_sdk_cv183x.tar.gz
 export TPU_SDK_PATH=$PWD/cvitek_tpu_sdk
-cd cvitek_tpu_sdk
-source ./envs_tpu_sdk.sh
-cd ..
+cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
 ```
 
 测试仿真环境与真实硬件的输出结果，需要步骤三或步骤四生成的调试文件：
 
 * xxx_quantized_tensors_sim.npz 仿真环境中网络推理过程的tensor文件，作为与真实硬件输出结果参考对比
-* xxx__in_fp32.npz              模型的输入tensor文件，测试不同类型的模型，input_npz文件需要不一样
-* xxx_[int8/bf16].cvimodel      输出int8或者bf16的cvimodel文件
+* xxx_in_fp32.npz 模型的输入tensor文件，测试不同类型的模型，input_npz文件需要不一样
+* xxx_[int8/bf16].cvimodel  输出int8或者bf16的cvimodel文件
 
 在开发板中执行以下shell，测试量化为int8模型的仿真环境和真实硬件输出结果进行比较：
 
@@ -476,14 +471,13 @@ model_runner \
 --input mobilenet_v2_in_fp32.npz \
 --model mobilenet_v2_int8.cvimodel \
 --output out.npz \
---dump-all-tensors \
 --reference mobilenet_v2_quantized_tensors_sim.npz
 ```
 
 <div STYLE="page-break-after: always;"></div>
 
 ## 5 多输入模型转换
-这里用pytorch自定义一个简单的模型，介绍如何转换多输入模型
+在docker下cvitek_mlir环境中，用pytorch自定义一个简单的模型，介绍如何转换多输入模型
 
 #### 步骤 0：使用pytorch来构建简易的多输入模型
 ``` python
@@ -496,7 +490,6 @@ class Net(torch.nn.Module):
         self.conv_1d = nn.Conv1d(in_channels=3, out_channels=1, kernel_size=3, padding=1)
         self.layer_norm = nn.LayerNorm(100)
         self.rnn = nn.LSTM(input_size=100, hidden_size=128, bidirectional=True)
-
     def forward(self, x, h_0, c_0):
         x = self.conv_1d(x)
         x = self.layer_norm(x)
@@ -517,7 +510,7 @@ torch.onnx.export(net,
 ```
 #### 步骤 1：模拟输入
 
-这里用随机数模拟输入，请以实际模型的输入为准。用一个npz或者用多个 npy都可以。如下：
+这里用随机数模拟输入，请以实际模型的输入为准。用一个npz或者用多个npy都可以。如下：
 
 ``` python
 import numpy as np
@@ -633,7 +626,9 @@ test_onnx.py
 
 用户可以参考修改test_torch.py和test_onnx.py，对算子进行测试。
 
-docker中测试完后会生成相应的cvimodel模型和输入文件，可以放入开发板，用于测试算子的性能。这里取`Add_int8.cvimodel`模型和`Add_in_fp32.npz`输入来进行举例：
+docker中测试完后会生成相应的cvimodel模型和输入文件，可以放入开发板，用于测试算子的性能。
+
+这里取`Add_int8.cvimodel`模型和`Add_in_fp32.npz`输入来进行举例：
 
 ``` shell
 export TPU_ENABLE_PMU=1
@@ -707,6 +702,7 @@ onnx.save(model, 'mnet_25_new.onnx')
 ``` shell
 mkdir workspace && cd workspace
 cp $MLIR_PATH/tpuc/regression/data/cat.jpg .
+cp -rf $MLIR_PATH/tpuc/regression/data/images .
 ```
 
 预处理参数如下：
@@ -781,8 +777,8 @@ eval_classifier.py \
 ``` shell
 run_calibration.py \
     mnet_25_fp32.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --input_num=1000 \
+    --dataset=./images \
+    --input_num=100 \
     --calibration_table mnet_25_calibration_table
 ```
 
@@ -797,7 +793,7 @@ model_deploy.py \
   --calibration_table mnet_25_calibration_table \
   --chip cv183x \
   --image cat.jpg \
-  --tolerance 0.93,0.90,0.62 \
+  --tolerance 0.93,0.90,0.60 \
   --correctness 0.99,0.99,0.99 \
   --cvimodel mnet_25.cvimodel
 ```
@@ -880,7 +876,7 @@ eval_classifier.py \
 ``` shell
 run_mix_precision.py \
     mnet_25_fp32.mlir \
-    --dataset ${DATASET_PATH} \
+    --dataset ./images \
     --input_num=20 \
     --calibration_table mnet_25_calibration_table \
     --max_bf16_layers=6 \
@@ -1070,9 +1066,7 @@ model_deploy.py \
 # 183x为例
 tar zxf cvitek_tpu_sdk_cv183x.tar.gz
 export TPU_SDK_PATH=$PWD/cvitek_tpu_sdk
-cd cvitek_tpu_sdk
-source ./envs_tpu_sdk.sh
-cd ..
+cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
 ```
 
 测试仿真环境与真实硬件的输出结果，需要之前步骤生成的调试文件：
@@ -1259,8 +1253,7 @@ tar zxf cvimodel_samples_cv183x.tar.gz
 export MODEL_PATH=$PWD/cvimodel_samples
 tar zxf cvitek_tpu_sdk_cv183x.tar.gz
 export TPU_ROOT=$PWD/cvitek_tpu_sdk
-cd cvitek_tpu_sdk
-source ./envs_tpu_sdk.sh
+cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh
 
 # get cvimodel info
 cd samples
@@ -1414,9 +1407,7 @@ TPU sdk准备：
 ``` shell
 tar zxf cvitek_tpu_sdk_cv183x.tar.gz
 export TPU_SDK_PATH=$PWD/cvitek_tpu_sdk
-cd cvitek_tpu_sdk
-source ./envs_tpu_sdk.sh
-cd ..
+cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
 ```
 
 编译samples，安装至install_samples目录：
@@ -1446,9 +1437,7 @@ TPU sdk准备：
 ``` shell
 tar zxf cvitek_tpu_sdk_cv182x.tar.gz
 export TPU_SDK_PATH=$PWD/cvitek_tpu_sdk
-cd cvitek_tpu_sdk
-source ./envs_tpu_sdk.sh
-cd ..
+cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
 ```
 
 如果docker版本低于1.7，则需要更新32位系统库（只需一次）：

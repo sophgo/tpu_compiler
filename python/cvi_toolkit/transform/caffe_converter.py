@@ -136,6 +136,9 @@ class CaffeConverter(BaseConverter):
             input_shape = list(self.blobs[i].shape)
             if self.batch_size != 0:
                 input_shape[0] = self.batch_size
+            elif input_shape[0] <= 0:
+                input_shape[0] = 1
+                self.batch_size = 1
             self.blobs[i].reshape(*input_shape)
             self.input_shapes.append(input_shape)
 
