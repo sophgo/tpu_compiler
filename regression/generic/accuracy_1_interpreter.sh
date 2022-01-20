@@ -9,10 +9,10 @@ DEQUANTS=()
 
 # assuming run after run regression_XXX.sh
 if [ $2 = "pytorch" ]; then
-  echo "Eval imagenet with pytorch dataloader"
+  echo "Eval with pytorch dataloader on ${EVAL_MODEL_TYPE}"
   EVAL_FUNC=eval_classifier.py
 elif [ $2 = "gluoncv" ]; then
-  echo "Eval imagenet with gluoncv dataloader"
+  echo "Eval with gluoncv dataloader on ${EVAL_MODEL_TYPE}"
   EVAL_FUNC=eval_imagenet_gluoncv.py
 else
   echo "invalid dataloader, choose [pytorch | gluoncv]"

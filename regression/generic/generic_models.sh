@@ -1460,7 +1460,6 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export BGRAY="true"
 fi
 
-
 if [ $NET = "yolo_v3_416_tf" ]; then
 export MODEL_TYPE="tensorflow"
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v3/tensorflow/yolo_v3_416_without_detection
@@ -1501,8 +1500,38 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.98
 export TOLERANCE_FP32=0.99,0.99,0.99 #
 export DO_PREPROCESS=0
 export BGRAY=0
-# just compare last one
-# export YOLO_V5=1 # not support cal accuracy now
+# accuracy setting
+export EVAL_MODEL_TYPE="coco"
+export EVAL_SCRIPT_ONNX="eval_yolo_v5.py"
+export EVAL_SCRIPT_INT8="eval_yolo_v5.py"
+fi
+
+if [ $NET = "yolo_v5_m" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v5/onnx/yolov5m.onnx
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export NET_INPUT_DIMS=640,640 # h,w
+export RESIZE_KEEP_ASPECT_RATIO=1
+export IMAGE_RESIZE_DIMS=640,640
+export DO_CALIBRATION=0
+export MODEL_CHANNEL_ORDER="rgb"
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export STD=1,1,1
+export RAW_SCALE=1.0
+export INPUT=input
+export TOLERANCE_INT8=0.97,0.97,0.77
+export DO_QUANT_BF16=0
+export TOLERANCE_BF16=0.99,0.99,0.96
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.98
+export TOLERANCE_FP32=0.99,0.99,0.99 #
+export DO_PREPROCESS=0
+export BGRAY=0
+# accuracy setting
+export EVAL_MODEL_TYPE="coco"
+export EVAL_SCRIPT_ONNX="eval_yolo_v5.py"
+export EVAL_SCRIPT_INT8="eval_yolo_v5.py"
 fi
 
 if [ $NET = "yolox_s" ]; then
