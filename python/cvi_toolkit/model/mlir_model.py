@@ -1,4 +1,5 @@
 from .base_model import model_base
+from collections import OrderedDict as ord_dict
 import pymlir
 import numpy as np
 
@@ -15,7 +16,7 @@ class MLIRModel(model_base):
                 self.net.set_tensor(k, v)
             self.net.invoke()
             all_tensor = self.net.get_all_tensor()
-            output_dit = {}
+            output_dit = ord_dict()
             for key, value in all_tensor.items():
                 if key in self.net.get_output_details():
                     output_dit[key] = value
