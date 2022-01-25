@@ -19,8 +19,8 @@ model_deploy.py --model_name ccoeff_normed \
     --calibration_table ../ccoeff_normed_cali_table \
     --mix_precision_table ../ccoeff_normed_mix_table \
     --chip cv182x \
-    --inputs_type KEEP \
-    --outputs_type KEEP \
+    --inputs_type SAME \
+    --outputs_type SAME \
     --tolerance 0.8,0.8,0.67 \
     --correctness 0.9,0.9,0.9 \
     --debug \

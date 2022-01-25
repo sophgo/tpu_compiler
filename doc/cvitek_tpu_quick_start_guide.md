@@ -5,9 +5,9 @@
 
 
 
->文档版本: 1.5.5
+>文档版本: 1.5.6
 >
->发布日期: 2022-01-01
+>发布日期: 2022-01-17
 
 
 
@@ -643,6 +643,8 @@ TPU支持INT8和BF16两种量化方法。在模型编译阶段，工具链支持
 
 本章以`mobilenet_v1_0.25`为例，介绍如何对这个模型采用自动搜索和混合精度的方式提高模型精度。
 
+此处如何测试精度省略，可以参考各种网络的官网eval脚本，也可以参考`cvitek_mlir`中的`eval_classifier.py`脚本。
+
 本章需要如下文件：
 
 * cvitek_mlir_ubuntu-18.04.tar.gz
@@ -673,23 +675,15 @@ python3 -m tf2onnx.convert --graphdef mobilenet_v1_0.25_224_frozen.pb \
 
 ``` python
 import onnx
-
 model = onnx.load('mnet_25.onnx')
-
 print(model.graph.input[0].type.tensor_type.shape.dim)
-
 model.graph.input[0].type.tensor_type.shape.dim[1].dim_value = 3
 model.graph.input[0].type.tensor_type.shape.dim[2].dim_value = 224
 model.graph.input[0].type.tensor_type.shape.dim[3].dim_value = 224
-
 print(model.graph.input[0].type.tensor_type.shape.dim)
-
 input_name = model.graph.input[0].name
-
 del model.graph.node[0]
-
 model.graph.node[0].input[0] = input_name
-
 onnx.save(model, 'mnet_25_new.onnx')
 ```
 
@@ -739,36 +733,7 @@ model_transform.py \
 
 得到`mnet_25_fp32.mlir`文件。
 
-###### 测试FP32模型精度（可选）
-
-数据集来自ILSVRC2012，下载地址： <https://github.com/cvitek-mlir/dataset>
-使用pymlir python接口测试精度：
-
-``` shell
-# FP32
-eval_classifier.py \
-    --mlir_file=mnet_25_fp32.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --label_file=$REGRESSION_PATH/data/synset_words.txt \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --model_type mlir \
-    --count=50000
-
-# ......
-# Test: [49900/50000]     Time  0.042 ( 0.056)    Loss 5.9356e+00 (6.5670e+00)    Acc@1 100.00 ( 49.15)       Acc@5 100.00 ( 73.46)
-# Test: [49950/50000]     Time  0.041 ( 0.056)    Loss 6.8937e+00 (6.5669e+00)    Acc@1   0.00 ( 49.16)       Acc@5   0.00 ( 73.47)
-# Test: [50000/50000]     Time  0.043 ( 0.056)    Loss 6.8896e+00 (6.5669e+00)    Acc@1   0.00 ( 49.16)       Acc@5   0.00 ( 73.47)
-# * Acc@1 49.164 Acc@5 73.468
-# tensor(49.1640)
-```
-
-测试得到FP32模型精度为Top-1 49.2% Top-5 73.5%。
+使用ILSVRC2012数据集验证精度，测试得到FP32模型精度为Top-1 49.2% Top-5 73.5%。
 
 #### 步骤 2：进行INT8量化
 
@@ -798,34 +763,7 @@ model_deploy.py \
   --cvimodel mnet_25.cvimodel
 ```
 
-###### 测试INT8模型精度（可选)
-
-上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度：
-
-``` shell
-# INT8
-eval_classifier.py \
-    --mlir_file=mnet_25_quantized.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --label_file=$REGRESSION_PATH/data/synset_words.txt \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --model_type mlir \
-    --count=50000
-
-# ......
-# Test: [49900/50000]     Time  0.088 ( 0.078)    Loss 5.9236e+00 (6.6264e+00)    Acc@1 100.00 ( 43.19)   Acc@5 100.00 ( 68.34)
-# Test: [49950/50000]     Time  0.041 ( 0.078)    Loss 6.9057e+00 (6.6264e+00)    Acc@1   0.00 ( 43.18)   Acc@5   0.00 ( 68.33)
-# Test: [50000/50000]     Time  0.081 ( 0.078)    Loss 6.9052e+00 (6.6264e+00)    Acc@1   0.00 ( 43.18)   Acc@5   0.00 ( 68.32)
-# * Acc@1 43.176 Acc@5 68.318
-```
-
-测试得到INT8模型精度为Top-1 43.2% Top-5 68.3%，比FP32模型精度（Top-1 49.2% Top-5 73.5%）有一定幅度下降。
+测试得到INT8模型精度为Top-1 43.2% Top-5 68.3%，比FP32模型精度有一定幅度下降。
 
 #### 步骤 3：进行BF16量化
 
@@ -841,29 +779,7 @@ model_deploy.py \
   --cvimodel mnet_25_all_bf16_precision.cvimodel
 ```
 
-###### 测试BF16模型精度 （可选)
-
-上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度
-
-``` shell
-eval_classifier.py \
-    --mlir_file=mnet_25_quantized.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --label_file=$REGRESSION_PATH/data/synset_words.txt \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --model_type mlir \
-    --count=50000
-
-# Test: [49950/50000]     Time  0.031 ( 0.036)    Loss 6.4377e+00 (6.5711e+00)    Acc@1 100.00 ( 48.49)   Acc@5 100.00 ( 73.06)
-# Test: [50000/50000]     Time  0.033 ( 0.036)    Loss 6.8726e+00 (6.5711e+00)    Acc@1   0.00 ( 48.50)   Acc@5 100.00 ( 73.06)
-# * Acc@1 48.498 Acc@5 73.064
-```
+测试BF16模型精度为Top-1 48.49 Top-5 73.064。
 
 
 
@@ -911,52 +827,9 @@ model_deploy.py \
   --cvimodel mnet_25_mix_precision.cvimodel
 ```
 
-###### 测试混合量化模型精度 (可选)
+测试混合量化模型精度为Top-1 47.4% Top-5 72.3%。
 
-上一步会产生量化mlir模型文件mnet_25_quantized.mlir, 可以使用pymlir python接口进行测试精度：
-
-``` shell
-# MIXED, 6 layers
-eval_classifier.py \
-    --mlir_file=mnet_25_quantized.mlir \
-    --dataset=$DATASET_PATH/imagenet/img_val_extracted \
-    --label_file=$REGRESSION_PATH/data/synset_words.txt \
-    --image_resize_dims 256,256 \
-    --net_input_dims 224,224 \
-    --raw_scale 255.0 \
-    --mean 127.5,127.5,127.5 \
-    --std 127.5,127.5,127.5 \
-    --data_format "nchw" \
-    --model_channel_order "rgb" \
-    --model_type mlir \
-    --count=50000
-# Test: [49900/50000]     Time  0.052 ( 0.064)    Loss 6.8954e+00 (6.5889e+00)    Acc@1   0.00 ( 47.40)   Acc@5   0.00 ( 72.28)
-# Test: [49950/50000]     Time  0.044 ( 0.064)    Loss 6.2587e+00 (6.5890e+00)    Acc@1 100.00 ( 47.39)   Acc@5 100.00 ( 72.29)
-# Test: [50000/50000]     Time  0.053 ( 0.064)    Loss 5.9630e+00 (6.5890e+00)    Acc@1 100.00 ( 47.40)   Acc@5 100.00 ( 72.29)
-#  * Acc@1 47.400 Acc@5 72.292
-```
-
-测试得到混合量化T8模型精度为Top-1 47.4% Top-5 72.3%。
-
-为比较效果，我们调整number_bf16参数分别为10和15，重复上面测试（具体命令略），结果分别为。
-
-``` shell
-# MIXED, 10 layers
-
-# Test: [49950/50000]     Time  0.041 ( 0.044)    Loss 6.8057e+00 (6.5866e+00)    Acc@1   0.00 ( 47.64)   Acc@5 100.00 ( 72.28)
-# Test: [50000/50000]     Time  0.040 ( 0.044)    Loss 6.2855e+00 (6.5865e+00)    Acc@1 100.00 ( 47.65)   Acc@5 100.00 ( 72.29)
-#  * Acc@1 47.648 Acc@5 72.294
-
-# MIXED, 15 layers
-
-# Test: [49950/50000]     Time  0.049 ( 0.044)    Loss 5.9641e+00 (6.5852e+00)    Acc@1 100.00 ( 47.78)   Acc@5 100.00 ( 72.51)
-# Test: [50000/50000]     Time  0.043 ( 0.044)    Loss 6.3955e+00 (6.5852e+00)    Acc@1 100.00 ( 47.78)   Acc@5 100.00 ( 72.52)
-#  * Acc@1 47.782 Acc@5 72.518
-```
-
-###### 各种量化精度测试对比 (可选)
-
-比较6种量化方式的结果（混合量化包含6层，10层和15层三个版本）：
+为比较效果，我们调整number_bf16参数分别为10和15，测试混和量化精度。最终结果如下：
 
 | **Quant Type**    | **Top-1** | **Top-5** |
 | ----------------- | --------- | --------- |

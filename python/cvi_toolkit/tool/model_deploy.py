@@ -2,10 +2,7 @@
 import os
 import sys
 import argparse
-import glob
 import time
-import skimage
-import caffe
 import numpy as np
 from cvi_toolkit.utils.version import declare_toolchain_version
 from cvi_toolkit.utils.log_setting import setup_logger
@@ -184,7 +181,7 @@ if __name__ == '__main__':
     parser.add_argument("--calibration_table", help="calibration table for int8 quantization")
     parser.add_argument("--mix_precision_table", help="table of OPs that quantized to specific mode")
     parser.add_argument("--quantize", default='', help="set qauntization type: BF16/INT8/MIX_BF16")
-    parser.add_argument("--tolerance", required=True, help="tolerance")
+    parser.add_argument("--tolerance", default='0.8,0.8,0.3', help="tolerance")
     parser.add_argument("--excepts", default='-', help="excepts")
     parser.add_argument("--correctness", default='0.99,0.99,0.98', help="correctness")
     parser.add_argument("--chip", required=True, choices=['cv183x', 'cv182x', 'mars'], help="chip platform name")
@@ -194,10 +191,10 @@ if __name__ == '__main__':
                         help="pixel format of input frame to the model")
     parser.add_argument("--aligned_input", type=str2bool, default=False,
                         help='if the input frame is width/channel aligned')
-    parser.add_argument("--inputs_type", default="AUTO",
-                        help="set inputs type:AUTO/FP32/INT8/BF16/SAME; if AUTO, use INT8 if input layer is INT8, use FP32 if BF16")
-    parser.add_argument("--outputs_type", default="FP32",
-                        help="set outputs type:AUTO/FP32/INT8/BF16/SAME; if AUTO, use INT8 if output layer is INT8, use FP32 if BF16")
+    parser.add_argument("--inputs_type", default="AUTO", choices=['AUTO', 'FP32', 'INT8', 'SAME'],
+                        help="set inputs type. if AUTO, use INT8 if input layer is INT8, use FP32 if BF16")
+    parser.add_argument("--outputs_type", default="FP32", choices=['AUTO', 'FP32', 'INT8', 'SAME'],
+                        help="set outputs type. if AUTO, use INT8 if output layer is INT8, use FP32 if BF16")
     parser.add_argument("--merge_weight", action='store_true',
                         help="merge weights into one weight binary wight previous generated cvimodel")
     parser.add_argument("--tg_op_divide", type=str2bool, default=False,
