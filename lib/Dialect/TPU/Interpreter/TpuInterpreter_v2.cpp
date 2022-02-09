@@ -71,6 +71,7 @@
 #include "tpuc/Interpreter/cpu/tile.hpp"
 #include "tpuc/Interpreter/cpu/upsample.hpp"
 #include "tpuc/Interpreter/cpu/embedding.hpp"
+#include "tpuc/Interpreter/cpu/matchtemplate.hpp"
 #include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "tpuc/Interpreter/cpu/zero_mask.hpp"
 #include "tpuc/Interpreter/cpukernel.h"
@@ -333,6 +334,11 @@ void ModuleInterpreter::prepareOperation(Operation &op) {
   if (isa<tpu::LstmOp>(op)) {
     auto kernel_op = std::make_unique<LstmOpKernel>(op, valueMapping, weightMapping);
     oplist.push_back(std::move(kernel_op));
+    return;
+  }
+  if (isa<tpu::MatchTemplateOp>(op)) {
+    auto match_t_kernel_op = std::make_unique<MatchTemplateOpOpKernel>(op, valueMapping, weightMapping);
+    oplist.push_back(std::move(match_t_kernel_op));
     return;
   }
   if (isa<tpu::MatMulOp>(op)) {

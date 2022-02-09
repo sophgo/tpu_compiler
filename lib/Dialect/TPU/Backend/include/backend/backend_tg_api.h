@@ -203,6 +203,13 @@ void cvi_backend_tg_bf16_pooling_kernel(
     int stride_h, int stride_w, int is_avg_pooling, float avg_const,
     int do_relu, const bool ceil_mode);
 
+void cvi_backend_tg_bf16_match_template_kernel(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    gaddr_t ga_input, gaddr_t ga_template,
+    gaddr_t ga_table, gaddr_t ga_mantissa_table,
+    gaddr_t ga_output, int ih, int iw,
+    int th, int tw, const char* mode);
+
 void cvi_backend_tg_bf16_max_pooling3d_kernel(
     const CviBackendContext &ctx,
     uint32_t layer_id, gaddr_t ga_input, gaddr_t ga_output,

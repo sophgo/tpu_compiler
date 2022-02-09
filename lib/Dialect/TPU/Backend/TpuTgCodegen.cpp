@@ -2312,6 +2312,43 @@ LogicalResult tpu::TG_BF16_QuadraticSumOp::codegen(void *ctx) {
   return success();
 }
 
+LogicalResult tpu::TG_BF16_MatchTemplateOp::codegen(void *ctx) {
+  LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  CviBackendContext *backend_ctx = (CviBackendContext *)ctx;
+  Operation *op = this->getOperation();
+
+  auto input_shape = getTensorShape(op->getOperand(0));
+  auto template_shape = getTensorShape(op->getOperand(1));
+  auto mode_copy = this->mode().str();
+  auto mode = mode_copy.c_str();
+
+  assert(input_shape.size() == 2);
+  assert(template_shape.size() == 2);
+
+  int ih = input_shape[0];
+  int iw = input_shape[1];
+  int th = template_shape[0];
+  int tw = template_shape[1];
+
+  assert(ih >= th);
+  assert(iw >= tw);
+
+  gaddr_t input_gaddr = getPreviousOpAddress(op, 0);
+  gaddr_t template_gaddr = getPreviousOpAddress(op, 1);
+  gaddr_t output_gaddr = getOpAddress(op);
+  gaddr_t ga_table = getWeightOpAddress(table().getDefiningOp());
+  gaddr_t ga_mantissa_table =
+      getWeightOpAddress(mantissa_table().getDefiningOp());
+  int layer_id = getOpLayerId(op);
+
+  cvi_backend_tg_bf16_match_template_kernel(*backend_ctx, layer_id,
+                                            input_gaddr, template_gaddr,
+                                            ga_table, ga_mantissa_table,
+                                            output_gaddr, ih, iw, th, tw, mode);
+  return success();
+}
+
 LogicalResult tpu::TG_INT8_MatMulOp::codegen(void *ctx) {
   LLVM_DEBUG(llvm::errs() << "TG_codegen: " << getOperationName() << " ["
                           << getOpName() << "]\n";);

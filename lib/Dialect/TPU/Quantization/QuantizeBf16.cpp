@@ -623,6 +623,15 @@ LogicalResult tpu::MishOp::quantizeBf16() {
   return success();
 }
 
+LogicalResult tpu::MatchTemplateOp::quantizeBf16() {
+  LLVM_DEBUG(llvm::errs() << "quantizeBf16: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  insertBf16LutOp(op, "pow", 2, 3, -0.5f);
+  setOpResultType(op->getResult(0), FloatType::getBF16(op->getContext()));
+  return success();
+}
+
 LogicalResult tpu::QuadraticSumOp::quantizeBf16() {
   Operation *op = this->getOperation();
   // for high precision

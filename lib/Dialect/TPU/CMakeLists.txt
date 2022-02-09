@@ -31,7 +31,6 @@ add_llvm_library(MLIRTPU
   Transforms/ConvertClip.cpp
   Transforms/ConvertMulConst.cpp
   Transforms/ConvertNormalize.cpp
-  Transforms/ConvertMatchTemplate.cpp
   Transforms/ConvertSwish.cpp
   Transforms/ConvertPermute.cpp
   Transforms/FuseRelu.cpp
@@ -137,6 +136,7 @@ add_llvm_library(MLIRTPU
   Backend/Kernel/TgBf16SoftmaxKernel.cpp
   Backend/Kernel/TgBf16StdKernel.cpp
   Backend/Kernel/TgBf16LrnKernel.cpp
+  Backend/Kernel/TgBf16MatchTemplateKernel.cpp
   Backend/Kernel/TlConcat.cpp
   Backend/Kernel/TlConv.cpp
   Backend/Kernel/TlCrop.cpp

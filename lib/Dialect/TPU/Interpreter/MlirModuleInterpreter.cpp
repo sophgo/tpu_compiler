@@ -25,6 +25,7 @@
 #include "tpuc/Interpreter/cpu/gru.hpp"
 #include "tpuc/Interpreter/cpu/lstm.hpp"
 #include "tpuc/Interpreter/cpu/lrn.hpp"
+#include "tpuc/Interpreter/cpu/matchtemplate.hpp"
 #include "tpuc/Interpreter/cpu/matmul.hpp"
 #include "tpuc/Interpreter/cpu/normalize.hpp"
 #include "tpuc/Interpreter/cpu/layernorm.hpp"
@@ -252,6 +253,8 @@ void MlirModuleInterpreter::updateKernelList(FuncOp &func, std::string &target_o
       krnl = std::make_shared<LrnThreeOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::LstmOp>(op)) {
       krnl = std::make_shared<LstmOpKernel>(*op, valueMapping, weightMapping);
+    } else if (isa<tpu::MatchTemplateOp>(op)) {
+      krnl = std::make_shared<MatchTemplateOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::MatMulOp>(op)) {
       krnl = std::make_shared<MatMulOpKernel>(*op, valueMapping, weightMapping);
     } else if (isa<tpu::MishOp>(op)) {

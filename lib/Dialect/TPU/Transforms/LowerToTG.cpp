@@ -2776,6 +2776,30 @@ Value tpu::QuadraticSumOp::convertToTG() {
   return newOp.getResult();
 }
 
+Value tpu::MatchTemplateOp::convertToTG() {
+  LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
+                          << getOpName() << "]\n";);
+  Operation *op = this->getOperation();
+  auto builder = Builder(op->getContext());
+  std::vector<Value> operands;
+  const int nInputs = op->getNumOperands();
+  for (auto i = 0; i < nInputs; ++i) {
+    operands.push_back(op->getOperand(i));
+  }
+
+  std::vector<NamedAttribute> attrs;
+  attrs.push_back(builder.getNamedAttr("name", nameAttr()));
+  attrs.push_back(builder.getNamedAttr("mode", modeAttr()));
+
+  if (getOpQuant() == "BF16") {
+    auto newOp = OpBuilder(op).create<tpu::TG_BF16_MatchTemplateOp>(
+        op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
+        ArrayRef<NamedAttribute>{attrs});
+    return newOp.getResult();
+  }
+  llvm_unreachable("unsupported type");
+}
+
 Value tpu::MatMulOp::convertToTG() {
   LLVM_DEBUG(llvm::errs() << "lowerToTG: " << getOperationName() << " ["
                           << getOpName() << "]\n";);
@@ -4218,6 +4242,7 @@ public:
         DefaultToTGPattern<tpu::LrnOp>,
         DefaultToTGPattern<tpu::LeakyReluOp>,
         DefaultToTGPattern<tpu::MishOp>,
+        DefaultToTGPattern<tpu::MatchTemplateOp>,
         DefaultToTGPattern<tpu::PadOp>,
         DefaultToTGPattern<tpu::PermuteOp>,
         DefaultToTGPattern<tpu::PixelShuffleOp>,

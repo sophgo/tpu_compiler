@@ -1,7 +1,0 @@
-data INT8
-template INT8
-data_expand INT8
-match_matmul BF16
-data_l2 BF16
-match_mul BF16
-argmax BF16

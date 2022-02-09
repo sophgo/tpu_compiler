@@ -1,7 +1,0 @@
-data 1
-template 1
-data_expand 1
-match_matmul 4480
-data_l2 0.015
-match_mul 67.2
-argmax 960

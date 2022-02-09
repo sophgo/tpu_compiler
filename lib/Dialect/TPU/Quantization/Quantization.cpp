@@ -142,6 +142,9 @@ static void insertQuantOp(Operation *op) {
     if (isa<tpu::EmbeddingOp>(op)) {
       curr_quant = (i == 0 ? "UINT16" : "BF16");
     }
+    if (isa<tpu::MatchTemplateOp>(op)) {
+      curr_quant =  "UINT8";
+    }
 
     StringRef prev_quant;
     auto prev_name = getOpName(prev_op);
@@ -598,7 +601,7 @@ static void quant_for_special(Operation *op) {
              isa<tpu::GruOp>(op) || isa<tpu::LstmOp>(op) ||
              isa<tpu::StdOp>(op) || isa<tpu::EmbeddingOp>(op) ||
              isa<tpu::QuadraticSumOp>(op) || isa<tpu::Conv3DOp>(op) ||
-             isa<tpu::ReduceL2Op>(op)) {
+             isa<tpu::ReduceL2Op>(op) || isa<tpu::MatchTemplateOp>(op)) {
   } else {
     return;
   }

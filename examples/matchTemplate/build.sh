@@ -15,15 +15,14 @@ tpuc-opt ../ccoeff_normed.mlir \
     -o ccoeff_normed_fp32.mlir
 
 model_deploy.py --model_name ccoeff_normed \
+    --image ../random_fp32.npz \
     --mlir ccoeff_normed_fp32.mlir \
-    --calibration_table ../ccoeff_normed_cali_table \
-    --mix_precision_table ../ccoeff_normed_mix_table \
     --chip cv182x \
+    --quantize bf16 \
     --inputs_type SAME \
     --outputs_type SAME \
     --tolerance 0.8,0.8,0.67 \
     --correctness 0.9,0.9,0.9 \
     --debug \
     --cvimodel ccoeff_normed.cvimodel
-
 popd

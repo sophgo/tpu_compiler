@@ -851,6 +851,49 @@ class TPU_TG_LayerNormOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
 }
 def TPU_TG_BF16_LayerNormOp : TPU_TG_LayerNormOp<"tg_bf16_layernorm", "Bf16">;
 
+class TPU_TG_MatchTemplateOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
+      [NoSideEffect,
+       DeclareOpInterfaceMethods<TpuOpCommonInterface>,
+       DeclareOpInterfaceMethods<TpuTGOpCodegenInterface>]> {
+  let summary = "TG " # opQuant # "opencv matchTemplate operator.";
+
+  let description = [{
+    Perform layernorm on input.
+
+    Inputs:
+      `input`           : required, the input activation tensor.
+      `match`           : required, the input template tensor.
+      `table`           : required, the quantize lookup table,which is reused by INT8 and BF16.
+      `table_mantissa`  : required, the quantize lookup table,only used by BF16 .
+
+    Attributes:
+      `name`            : required, name for calibration, comparing, or debug.
+      `mode`            : optional, method, supported modes: `CCOEFF_NORMED`(default).
+
+    Result:
+      `output`          : result tensor.
+
+    Interfaces or Traits:
+      `NoSideEffect`
+      `TpuOpCommonInterface`    : support common TPU TG Op interface.
+      `TpuTGOpCodegenInterface` : support generate TPU instuctions.
+  }];
+
+  let arguments = (
+    ins AnyTensor:$input,
+    AnyTensor:$match,
+    AnyTensor:$table,
+    AnyTensor:$mantissa_table,
+    OptionalAttr<I64Attr>:$gaddr,
+    OptionalAttr<BoolAttr>:$buffer_reused,
+    DefaultValuedAttr<StrAttr, "TM_CCOEFF_NORMED">:$mode,
+    StrAttr:$name
+  );
+
+  let results = (outs AnyTensor:$output);
+}
+def TPU_TG_BF16_MatchTemplateOp : TPU_TG_MatchTemplateOp<"tg_bf16_matchtemplate", "Bf16">;
+
 class TPU_TG_LstmOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       [NoSideEffect,
        DeclareOpInterfaceMethods<TpuOpCommonInterface>,

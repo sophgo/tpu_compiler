@@ -31,6 +31,13 @@ static void quantizeFromFp32ToInt8(float *src, float *dst, int64_t size,
   }
 }
 
+static void quantizeFromFp32ToUInt8(float *src, float *dst, int64_t size) {
+  for (int64_t i = 0; i < size; ++i) {
+    float f32_val = src[i];
+    dst[i] = (float)F32ToUint8(f32_val, 0);
+  }
+}
+
 static void quantizeFromFp32ToBf16(float *src, float *dst, int64_t size) {
   for (int64_t i = 0; i < size; ++i) {
     float f32_val = src[i];
@@ -127,7 +134,10 @@ void QuantOpKernel::invoke() {
   if (this->from == "NONE" && this->to == "INT8") {
     quantizeFromFp32ToInt8(input_data->data(), output_data->data(),
                            input_data->size(), scale, zero_point, useTpuQuant);
-  } else if ((this->from == "INT8" || this->from == "UINT8") &&
+  }else if (this->from == "NONE" && this->to == "UINT8") {
+    quantizeFromFp32ToUInt8(input_data->data(), output_data->data(),
+                             input_data->size());
+  }else if ((this->from == "INT8" || this->from == "UINT8") &&
              this->to == "NONE") {
     dequantizeFromInt8ToFp32(input_data->data(), output_data->data(),
                              input_data->size(), scale, zero_point, true);
