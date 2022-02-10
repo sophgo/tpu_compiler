@@ -280,22 +280,17 @@ fi
 
 if [ $NET = "mobilenet_v3" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/mobilenetv3_rw.onnx
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/mobilenetv3_calibration_table
+export MODEL_DEF=$MODEL_PATH/imagenet/mobilenet_v3/onnx/${NET}.onnx
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
 export RAW_SCALE=1
-export INPUT_SCALE=0.875
-export NET_INPUT_DIMS=256,256
-export MEAN=0.406,0.456,0.485  # in BGR, pytorch mean=[0.485, 0.456, 0.406]
-export STD=0.225,0.224,0.229   # in BGR, pytorch std=[0.229, 0.224, 0.225]
-export IMAGE_RESIZE_DIMS=224,224
+export INPUT_SCALE=1
+export NET_INPUT_DIMS=224,224
+export MEAN=0.485,0.456,0.406  # in BGR, pytorch mean=[0.485, 0.456, 0.406]
+export STD=0.229,0.224,0.225   # in BGR, pytorch std=[0.229, 0.224, 0.225]
+export IMAGE_RESIZE_DIMS=256,256
 export INPUT=input
-export TOLERANCE_INT8=0.083338,-0.1,-1.0
-export DO_QUANT_INT8=0
-export DO_CMDBUF_BF16=1
-export TOLERANCE_BF16=0.9,0.9,0.9
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
-export EXCEPTS=371_Add,315_Add,390_Add,401_Add,409_Add,419_Add,427_Add,438_Add,446_Add,457_Add,465_Add,476_Add,484_Add,492_Add,499_Add,509_Add,517_Add,525_Add,532_Add,543_Add,551_Add,559_Add,566_Add,576_Add,584_Add,592_Add,599_Add,610_Add,618_Add,626_Add,633_Add,644_Add,652_Add # cuz relu6 could add 'relu' layer that could mismatch original layer
-export DO_QUANT_BF16=0
+export MODEL_CHANNEL_ORDER="rgb"
+export TOLERANCE_INT8=0.84,0.84,0.4
 export TOLERANCE_BF16=0.99,0.99,0.92
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
@@ -313,7 +308,6 @@ export IMAGE_RESIZE_DIMS=256,256
 export INPUT=input
 export TOLERANCE_INT8=0.77,0.77,0.277
 export CALIBRATION_IMAGE_COUNT=2000
-export DO_CMDBUF_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
 fi
