@@ -1268,7 +1268,7 @@ cd samples
 
 本节需要如下文件：
 
-* cvitek_tpu_sdk_[cv182x/cv183x].tar.gz
+* cvitek_tpu_sdk_[cv182x/cv183x]\[\_uclibc/\_32bit\].tar.gz
 * cvitek_tpu_samples.tar.gz
 
 **64位平台**
@@ -1332,6 +1332,44 @@ cmake -G Ninja \
     -DCMAKE_BUILD_TYPE=RELEASE \
     -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3 \
     -DCMAKE_TOOLCHAIN_FILE=$TPU_SDK_PATH/cmake/toolchain-linux-gnueabihf.cmake \
+    -DTPU_SDK_PATH=$TPU_SDK_PATH \
+    -DOPENCV_PATH=$TPU_SDK_PATH/opencv \
+    -DCMAKE_INSTALL_PREFIX=../install_samples \
+    ..
+cmake --build . --target install
+```
+
+**uclibc位平台**
+
+> cv182x 32位平台 uclibc
+
+TPU sdk准备：
+
+``` shell
+tar zxf cvitek_tpu_sdk_cv182x_uclibc.tar.gz
+export TPU_SDK_PATH=$PWD/cvitek_tpu_sdk
+cd cvitek_tpu_sdk && source ./envs_tpu_sdk.sh && cd ..
+```
+
+如果docker版本低于1.7，则需要更新32位系统库（只需一次）：
+
+``` shell
+dpkg --add-architecture i386
+apt-get update
+apt-get install libc6:i386 libncurses5:i386 libstdc++6:i386
+```
+
+编译samples，安装至install_samples目录：
+
+``` shell
+tar zxf cvitek_tpu_samples.tar.gz
+cd cvitek_tpu_samples
+mkdir build_soc
+cd build_soc
+cmake -G Ninja \
+    -DCMAKE_BUILD_TYPE=RELEASE \
+    -DCMAKE_C_FLAGS_RELEASE=-O3 -DCMAKE_CXX_FLAGS_RELEASE=-O3 \
+    -DCMAKE_TOOLCHAIN_FILE=$TPU_SDK_PATH/cmake/toolchain-linux-uclibc.cmake \
     -DTPU_SDK_PATH=$TPU_SDK_PATH \
     -DOPENCV_PATH=$TPU_SDK_PATH/opencv \
     -DCMAKE_INSTALL_PREFIX=../install_samples \
