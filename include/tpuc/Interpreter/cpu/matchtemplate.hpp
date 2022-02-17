@@ -16,8 +16,8 @@ public:
 private:
   void ccoeff_normed_fp32(float *input, float *tmplate, float *dst, int size);
   void ccoeff_normed_bf16(float *input, float *tmplate, float *dst, int size);
-  void sqiff_fp32(float *input, float *tmplate, float *dst, int size);
-  void sqiff_bf16(float *input, float *tmplate, float *dst, int size);
+  void sqdiff_fp32(float *input, float *tmplate, float *dst, int size);
+  void sqdiff_bf16(float *input, float *tmplate, float *dst, int size);
 
 private:
   SyncedData input_data;
@@ -33,6 +33,8 @@ private:
   int32_t outer_size;
   int32_t match_size;
   int32_t n, c, h, w, stride;
+  float_t scale;
+  float_t mean;
 };
 } // namespace mlir
 

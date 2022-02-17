@@ -5,7 +5,6 @@
 #include "tpuc/MlirModuleInterpreter.h"
 #include "tpuc/NativeCpuImplementation.h"
 
-
 namespace mlir {
 
 MatchTemplateOpKernel::MatchTemplateOpKernel(Operation &op, value_map_t &valueMapping,
@@ -35,6 +34,9 @@ MatchTemplateOpKernel::MatchTemplateOpKernel(Operation &op, value_map_t &valueMa
   stride = input_shape[1];
   outer_size = n * c;
   match_size = h * w;
+  // fix overflow
+  mean = 128.;
+  scale = 1. / (h * w * 100);
 
   if (datatype == DataType::BF16) {
     assert(lut);
@@ -43,25 +45,26 @@ MatchTemplateOpKernel::MatchTemplateOpKernel(Operation &op, value_map_t &valueMa
 }
 
 void MatchTemplateOpKernel::ccoeff_normed_fp32(float *input, float *tmplate, float *dst, int size) {
-  double dividend = 0;
-  double divider = 0;
+  double_t dividend = 0;
+  double_t divider = 0;
+
   for (int i = 0; i < size; i++){
     uint32_t offset = i / w * stride + i % w;
-    auto inp = input[offset];
-    dividend += inp * tmplate[i];
+    auto inp = input[offset] - mean;
+    dividend += inp * (tmplate[i] - mean);
     divider += std::pow(inp, 2);
   }
   *dst = dividend * std::pow(divider, -0.5);
 }
 
 void MatchTemplateOpKernel::ccoeff_normed_bf16(float *input, float *tmplate, float *dst, int size) {
-  float dividend = 0;
-  float divider = 0;
-  for (int i = 0; i < size; i++){
+  float_t dividend = 0;
+  float_t divider = 0;
+  for (int32_t i = 0; i < size; i++){
     uint32_t offset = i / w * stride + i % w;
-    auto inp = input[offset];
-    dividend += BF16(BF16(inp) * BF16(tmplate[i]));
-    divider +=  BF16(BF16(inp) * BF16(inp));
+    auto inp = BF16(input[offset] - mean);
+    dividend += BF16(inp * BF16(tmplate[i] - mean));
+    divider +=  BF16(inp * inp);
   }
   dividend = BF16(dividend);
   divider = BF16(divider);
@@ -69,28 +72,31 @@ void MatchTemplateOpKernel::ccoeff_normed_bf16(float *input, float *tmplate, flo
   *dst =  BF16(dividend * divider);
 }
 
-void MatchTemplateOpKernel::sqiff_fp32(float *input, float *tmplate, float *dst, int size) {
+void MatchTemplateOpKernel::sqdiff_fp32(float *input, float *tmplate, float *dst, int size) {
   double sum = 0;
   for (int i = 0; i < size; i++){
     uint32_t offset = i / w * stride + i % w;
     auto inp = input[offset];
     sum += std::pow(inp - tmplate[i], 2);
   }
-  *dst = sum;
+  *dst = std::pow(scale * sum + 1e-5, -0.5);
 }
 
-void MatchTemplateOpKernel::sqiff_bf16(float *input, float *tmplate, float *dst, int size) {
+void MatchTemplateOpKernel::sqdiff_bf16(float *input, float *tmplate, float *dst, int size) {
   float sum = 0;
   for (int i = 0; i < size; i++){
     uint32_t offset = i / w * stride + i % w;
-    auto inp = input[offset];
-    sum += BF16(BF16(inp - tmplate[i]) * BF16(inp - tmplate[i]));
+    auto inp = BF16(input[offset]);
+    auto tpl = BF16(tmplate[i]);
+    sum += BF16(BF16(inp - tpl) * BF16(inp - tpl));
   }
-  *dst =  BF16(sum);
+  sum =  BF16(BF16(sum) * BF16(scale)) + 1e-5;
+  bf16_lut_mantissa(&sum, &sum, 1, lut->data(), mantissa_lut->data());
+  *dst =  sum;
 }
 
 void MatchTemplateOpKernel::invoke() {
-  assert(mode == "TM_CCOEFF_NORMED" || mode == "TM_SQIFF");
+  assert(mode == "TM_CCOEFF_NORMED" || mode == "TM_SQDIFF");
   switch (datatype) {
   case DataType::FP32:
 #pragma omp parallel for schedule(static, omp_schedule(outer_size))
@@ -102,7 +108,7 @@ void MatchTemplateOpKernel::invoke() {
                            output_data->data() + i,
                            match_size);
       else
-        sqiff_fp32(input_data->data() + ioffset,
+        sqdiff_fp32(input_data->data() + ioffset,
                            template_data->data(),
                            output_data->data() + i,
                            match_size);
@@ -118,7 +124,7 @@ void MatchTemplateOpKernel::invoke() {
                            output_data->data() + i,
                            match_size);
       else
-        sqiff_bf16(input_data->data() + ioffset,
+        sqdiff_bf16(input_data->data() + ioffset,
                            template_data->data(),
                            output_data->data() + i,
                            match_size);
