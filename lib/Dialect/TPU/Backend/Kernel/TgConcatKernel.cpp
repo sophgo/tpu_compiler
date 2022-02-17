@@ -63,13 +63,14 @@ void TgConcatKernel::init(uint32_t layer_id, int input_num, int dim_size,
                           const int right_shift_width[],
                           const int threshold_x_quantized[], cvk_fmt_t fmt) {
   ctx.assert_support_fmt(fmt);
-  assert(dim_size >= 2 && dim_size <= 4);
+  assert(dim_size >= 2);
   assert(concat_axis < dim_size);
   this->layer_id = layer_id;
   this->fmt = fmt;
   this->do_relu = do_relu;
   this->input_num = input_num;
   this->tiling_mode = CviBackendContext::TilingNCHW;
+
   update_output(output_dim, dim_size, concat_axis);
   uint64_t axis_addr_offset = 0;
   do_parallel = false;

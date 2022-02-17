@@ -33,9 +33,9 @@ ConcatOpKernel::ConcatOpKernel(Operation &op, value_map_t &valueMapping,
 
 void ConcatOpKernel::invoke() {
   std::vector<int64_t> output_shape = this->shape;
-
-  for (uint32_t i = output_shape.size(); i < 4; i++) {
-    output_shape.push_back(1); // append to 4 dim
+  int nof_axis = output_shape.size();
+  for (uint32_t i = output_shape.size(); i < (uint32_t)nof_axis; i++) {
+    output_shape.push_back(1); // append to nof_axis dim
   }
 
   int global_offset = 0;
@@ -46,19 +46,19 @@ void ConcatOpKernel::invoke() {
   }
 
   int concat_output_size = 1;
-  for (int idx = axis; idx < 4; idx++) {
+  for (int idx = axis; idx < nof_axis; idx++) {
     concat_output_size *= output_shape[idx];
   }
 
   for (uint32_t i = 0; i < input_number; i++) {
     float *input = (float *)inputs_data[i]->data();
     std::vector<int64_t> input_shape = inputs_shape[i];
-    for (uint32_t idx = input_shape.size(); idx < 4; idx++) {
+    for (uint32_t idx = input_shape.size(); idx < (uint32_t)nof_axis; idx++) {
       input_shape.push_back(1);
     }
 
     int concat_input_size = 1;
-    for (int idx = axis; idx < 4; idx++) {
+    for (int idx = axis; idx < nof_axis; idx++) {
       concat_input_size *= input_shape[idx];
     }
 
