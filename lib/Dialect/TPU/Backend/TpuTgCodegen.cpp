@@ -619,7 +619,6 @@ LogicalResult tpu::TG_INT8_ConcatOp::codegen(void *ctx) {
   std::vector<int> output_dim;
   std::vector<int64_t> shape = getTensorShape(this->getResult());
   int output_dim_size = shape.size();
-  assert(output_dim_size <= 4);
   for (int i = 0; i < output_dim_size; i++) {
     output_dim.push_back(shape[i]);
   }
