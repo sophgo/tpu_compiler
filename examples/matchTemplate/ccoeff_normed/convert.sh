@@ -6,17 +6,16 @@ mkdir -p tmp
 
 pushd tmp
 
-tpuc-opt ../sqdiff.mlir \
+tpuc-opt ../ccoeff_normed.mlir \
     --convert-bn-to-scale \
     --canonicalize \
     --fuse-relu \
     --print-tpu-op-info \
-    --tpu-op-info-filename sqdiff_op_info.csv \
-    -o sqdiff_fp32.mlir
+    --tpu-op-info-filename ccoeff_normed_op_info.csv \
+    -o ccoeff_normed_fp32.mlir
 
-model_deploy.py --model_name sqdiff \
-    --image ../random_fp32.npz \
-    --mlir sqdiff_fp32.mlir \
+model_deploy.py --model_name ccoeff_normed \
+    --mlir ccoeff_normed_fp32.mlir \
     --chip cv182x \
     --quantize bf16 \
     --inputs_type SAME \
@@ -24,5 +23,5 @@ model_deploy.py --model_name sqdiff \
     --tolerance 0.8,0.8,0.67 \
     --correctness 0.9,0.9,0.9 \
     --debug \
-    --cvimodel sqdiff.cvimodel
+    --cvimodel ccoeff_normed.cvimodel
 popd

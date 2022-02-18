@@ -170,18 +170,18 @@ class MLIRImporter(object):
         for output in outputs_shape:
             assert(isinstance(output, list))
             self.output_shape_list.append(output)
-            self.u8Type = IntegerType.get_unsigned(8)
-            self.i8Type = IntegerType.get_signless(8)
-            self.i32Type = IntegerType.get_signless(32)
-            self.f32Type = F32Type.get()
+        self.u8Type = IntegerType.get_unsigned(8)
+        self.i8Type = IntegerType.get_signless(8)
+        self.i32Type = IntegerType.get_signless(32)
+        self.f32Type = F32Type.get()
 
-            quant_param = {
-                'mode': StringAttr.get("NONE"),
-                'param_type': StringAttr.get("NONE"),
-                'threshold': FloatAttr.get_f32(0),
-            }
-            self.quant_param = DictAttr.get(quant_param)
-            self.input_type = input_type
+        quant_param = {
+            'mode': StringAttr.get("NONE"),
+            'param_type': StringAttr.get("NONE"),
+            'threshold': FloatAttr.get_f32(0),
+        }
+        self.quant_param = DictAttr.get(quant_param)
+        self.input_type = input_type
 
         self.declare_func(input_type=input_type)
 
