@@ -3337,6 +3337,17 @@ class OnnxConverter(BaseConverter):
             if np.prod(input_shape1) == 1:
                 # constant
                 # x * 1 + (-1) * constant
+                reshape_back = []
+                operands = list()
+                if len(input_shape0) > 4:
+                    reshape_back = input_shape0[:]
+                    new_c = np.prod(input_shape0[:-2])
+                    input_shape0 = [1, new_c] + input_shape0[-2:]
+                    reshape_op = self.CVI.add_reshape_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0], input_shape0)
+                    operands.append(reshape_op)
+                else:
+                    operands.append(op0)
+
                 constant_data = self.getTensor(onnx_node.inputs[1]).tensor_data
                 VAR = -1 if need_neg else 1
                 weight_data = np.full(input_shape0[1], VAR)
@@ -3344,17 +3355,23 @@ class OnnxConverter(BaseConverter):
                 weight_shape = list(weight_data.shape)
                 self.addTensor(weight_name, weight_data, weight_shape)
                 weight_op = self.CVI.add_load_file_op(weight_name, weight_shape)
-
+                operands.append(weight_op)
                 bias_data = np.full(input_shape0[1], (-VAR) * constant_data.flatten()[0])
                 bias_name = "{}_add_bias".format(onnx_node.name)
                 bias_shape = list(bias_data.shape)
                 self.addTensor(bias_name, bias_data, bias_shape)
                 bias_op = self.CVI.add_load_file_op(bias_name, bias_shape)
+                operands.append(bias_op)
                 output_shape = input_shape0
                 name = "{}_{}".format(onnx_node.name, onnx_node.op_type)
-                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op0, weight_op, bias_op],
+                scale_op = self.CVI.add_scale_op("{}_{}".format(onnx_node.name, onnx_node.op_type), operands,
                                                  output_shape)
-                self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
+                if reshape_back:
+                    reshape_back_op = self.CVI.add_reshape_op("{}_{}_back_dim".format(
+                    onnx_node.name, onnx_node.op_type), [scale_op], reshape_back)
+                    self.addOperand(onnx_node.name, reshape_back_op, reshape_back, TensorType.ACTIVATION)
+                else:
+                    self.addOperand(onnx_node.name, scale_op, output_shape, TensorType.ACTIVATION)
                 return
         elif tensor_type0 == TensorType.TENSOR and tensor_type1 == TensorType.TENSOR:
             tensor_data0 = self.getTensor(onnx_node.inputs[0]).tensor_data

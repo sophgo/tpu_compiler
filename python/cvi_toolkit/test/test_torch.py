@@ -52,6 +52,7 @@ TEST_TORCH_IR = [
     "Math", ## sum, prod not support
     "masked_fill",
     "Norm",
+    "MulSubConstant5d",
     "Multi_input",
     "Pow",
     "Repeat",   ## repeat_interleave nonx not support
@@ -173,6 +174,7 @@ class TORCH_IR_TESTER(object):
             "Math": self.test_Math,
             "masked_fill": self.test_masked_fill,
             "Mulit_attention_api": self.test_Mulit_attention_api,
+            "MulSubConstant5d": self.test_MulSubConstant5d,
             "Multi_input": self.test_Multi_input,
             "Max_Min": self.test_Max_Min,
             "Norm": self.test_Norm,
@@ -1031,6 +1033,25 @@ class TORCH_IR_TESTER(object):
         # Use the exporter from  torch to convert to onnx
         self.pytorch_transform_onnx(net, input_data, test_name)
 
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
+    def test_MulSubConstant5d(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                x0 = x[..., 0:2] * 2. - 0.5
+                return x0
+
+        batch_size = 1
+        test_name = 'test_5d_mul_sub_constant'
+        input_data = torch.randn(batch_size, 3, 12, 300, 13).float()
+        net = Net()
+        torch_output_data = net(input_data)
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
 
