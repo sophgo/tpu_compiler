@@ -233,12 +233,12 @@ static void insertBf16LutOp(Operation *op, const std::string &type_name,
   float range_end = 63;
 
   std::string suffix_mantissa;
-  if (type_name == "pow") {
+  if (type_name == "pow" || type_name == "log") {
     // only pow do mantissa
     bf16_gen_exponent_mantissa_table(type_name, table.data(), mantissa.data(),
                                      param0, param1);
     suffix_mantissa = type_name + "_mantissa_table";
-  } else {
+  }else {
     bf16_gen_base_slope_table(type_name, table.data(), mantissa.data(),
                               range_start, range_end, param0, param1);
     suffix_mantissa = type_name + "_slope_table";

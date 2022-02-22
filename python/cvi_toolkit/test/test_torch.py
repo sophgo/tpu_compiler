@@ -43,7 +43,7 @@ TEST_TORCH_IR = [
     "LSTM",
     "LayerNorm",
     "Linear",
-    #"LogSigmoid", #some times fail
+    "LogSigmoid", #some times fail
     "LogSoftmax",
     # "Mulit_attention_api",  ## now not support
     "MaxPool", ## Maxpool_1d and Max_Un_Pool2d not support

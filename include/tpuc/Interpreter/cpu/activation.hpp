@@ -303,7 +303,7 @@ private:
 
   // bf16
   SyncedData y0_bf16_table_op;
-  SyncedData y0_bf16_slope_table;
+  SyncedData y0_bf16_mantissa_table;
   int bf16_min_range;
   int bf16_max_range;
 };

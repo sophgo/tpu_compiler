@@ -871,8 +871,30 @@ void quantizeActivationInt8PerChannelMultiplierAndRShift(
 }
 
 bfloat16 F32ToBF16(float src, bool rounding) {
+  // To convert a float 32 to bfloat16, a float 32 can be viewed as 32 bits
+  // with the following tags:
+  //
+  // Sign |  Exp (8 bits) | Frac (23 bits)
+  //  S     EEEEEEEE         FFFFFFLRTTTTTTTTTTTTTTT
+  //
+  //  S: Sign bit.
+  //  E: Exponent bits.
+  //  F: First 6 bits of fraction.
+  //  L: Least significant bit of resulting bfloat16 if we truncate away the
+  //  rest of the float32. This is also the 7th bit of fraction
+  //  R: Rounding bit, 8th bit of fraction.
+  //  T: Sticky bits, rest of fraction, 15 bits.
+
+  // At this point, src must be either a normal float, or +/-infinity or
+  // zero.
   uint16_t u16_val;
   if (rounding) {
+    // Fast rounding algorithm that rounds a half value to nearest even. This
+    // reduces expected error when we convert a large number of floats.
+    //
+    // The fast converting algorithm simply adds lsb (L) to 0x7fff (15 bits of
+    // 1s) as the rounding bias, adds the rounding bias to the input, then
+    // truncates the last 16 bits away.
     uint32_t u32_val = *((uint32_t *)(&src));
     uint32_t lsb = (u32_val >> 16) & 1;
     u32_val += (0x7fff + lsb);

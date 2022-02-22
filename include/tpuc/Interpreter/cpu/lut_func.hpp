@@ -24,5 +24,6 @@ void bf16_gen_exponent_mantissa_table(const std::string &name, float *exp_table,
                                       float *mantissa_table, float param0, float param1);
 
 void bf16_lut_mantissa(float *input, float *output, int size,
-                       float *exp_table, float *mantissa_table);
+                       float *exp_table, float *mantissa_table,
+                       const std::string &method="mantissa");
 #endif

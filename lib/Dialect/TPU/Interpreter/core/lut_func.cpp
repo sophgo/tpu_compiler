@@ -236,8 +236,30 @@ static void bf16_gen_pow(int start, int table_hw, float coeff, float *table_data
   }
 }
 
-static void bf16_gen_pow_mantissa(int table_hw, float coeff, float *table_mantissa) {
+static void bf16_gen_log(int start, int table_hw, float *table_data) {
+  int half = table_hw / 2;
+  uint64_t idx = 0;
+  assert(half == 128);
+  // log(0) is invalid, use negtive max value:  0xFF7F
+  uint32_t neg_max_bf16_val = 0xFF7F0000;
+  float neg_max_bf16 = BF16(*((float *)(&neg_max_bf16_val)), false);
+  table_data[0] = neg_max_bf16;
+  idx++;
+  // all 64 used indicate inf ignore
+  // exp from -62 -61 .. 0 .. 62  63
+  for (int i = 0; i < half-1; i++) {
+    int shift = (start + i);
+    float exp = shift;
+    float s = (float)(exp * log(2.));
+    table_data[idx] = BF16(s);
+    // log(neg_value) is invalid
+    table_data[128 + idx] = neg_max_bf16;
+    idx++;
+  }
+}
 
+static void bf16_gen_pow_mantissa(int table_hw, float coeff, float *table_mantissa) {
+  // lut low 8 bits and we don't care it's normal number or subnormal number
   uint32_t half = table_hw  / 2;
   assert(half == 128);
 
@@ -251,6 +273,19 @@ static void bf16_gen_pow_mantissa(int table_hw, float coeff, float *table_mantis
   }
 }
 
+static void bf16_gen_log_mantissa(int table_hw, float *table_mantissa) {
+  uint32_t half = table_hw  / 2;
+  assert(half == 128);
+  int idx = 0;
+  for (uint32_t i = 0; i < half; i++) {
+    float d = 1 + i * 1 / 128.0;
+    d = (float) log(d);
+    table_mantissa[idx] = BF16(d);
+    table_mantissa[128 + idx] = BF16(d);
+    idx++;
+  }
+}
+
 void bf16_gen_exponent_mantissa_table(const std::string &name, float *exp_table,
                                       float *mantissa_table, float param0,  float param1) {
   (void)param1;
@@ -259,6 +294,9 @@ void bf16_gen_exponent_mantissa_table(const std::string &name, float *exp_table,
   if (name == "pow") {
       bf16_gen_pow(range_start, table_hw, param0,exp_table);
       bf16_gen_pow_mantissa(table_hw, param0, mantissa_table);
+  } else if (name == "log"){
+      bf16_gen_log(range_start, table_hw, exp_table);
+      bf16_gen_log_mantissa(table_hw, mantissa_table);
   } else {
     llvm::errs() << "unsupported lookup table func:" << name << "\n";
     llvm_unreachable("Error");
@@ -266,7 +304,8 @@ void bf16_gen_exponent_mantissa_table(const std::string &name, float *exp_table,
 }
 
 void bf16_lut_mantissa(float *input, float *output, int size,
-                       float *exp_table, float *mantissa_table) {
+                       float *exp_table, float *mantissa_table,
+                       const std::string &method) {
   for (int i = 0; i < size; i++) {
     float val = input[i];
     uint16_t bf16_val = F32ToBF16(val, false);
@@ -282,8 +321,13 @@ void bf16_lut_mantissa(float *input, float *output, int size,
     }
     float exponent = exp_table[exponentIndex];
     float mantissa = mantissa_table[bf16_val & 0xff];
-    output[i] = BF16(exponent * mantissa);
+    if (method == "mantissa")
+      output[i] = BF16(exponent * mantissa);
+    else if (method == "log")
+      output[i] = BF16(exponent + mantissa);
+    else{
+      llvm::errs() << "unsupported lookup table func:" << method << "\n";
+      llvm_unreachable("Error");
+    }
   }
 }
-
-

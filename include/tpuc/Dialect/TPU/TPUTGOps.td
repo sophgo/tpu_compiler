@@ -1080,7 +1080,6 @@ class TPU_TG_LutOp<string mnemonic, string opQuant> : TPU_Op<mnemonic,
       `max_range`       : reauired, we cut to max_range and outlier saturate it
       `min_range`       : reauired, we cut to min_range and outlier saturate it
 
-
     Result:
       `output`          : result tensor.
 

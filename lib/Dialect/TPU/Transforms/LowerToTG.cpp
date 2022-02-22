@@ -1406,7 +1406,7 @@ Value tpu::LogOp::convertToTG() {
     return newOp.getResult();
   } else if (getOpQuant() == "BF16") {
     attrs.push_back(builder.getNamedAttr(
-        "method", builder.getStringAttr("slope")));
+        "method", builder.getStringAttr("log")));
     auto newOp = OpBuilder(op).create<tpu::TG_BF16_LutOp>(
         op->getLoc(), getResult().getType(), ArrayRef<Value>{operands},
         ArrayRef<NamedAttribute>{attrs});

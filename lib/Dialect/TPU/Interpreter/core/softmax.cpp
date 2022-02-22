@@ -132,8 +132,8 @@ void SoftmaxOpKernel::invoke_bf16() {
       bf16_lut_mantissa(sum_arr, sum_arr, inner_dim, reciprocal_table->data(),
                         reciprocal_mantissa_table->data());
     } else {
-      bf16_lut_slope("log", sum_arr, sum_arr, inner_dim, reciprocal_table->data(),
-                        reciprocal_mantissa_table->data());
+      bf16_lut_mantissa(sum_arr, sum_arr, inner_dim, reciprocal_table->data(),
+                        reciprocal_mantissa_table->data(), "log");
     }
 
     c_offset = i * channel * inner_dim;
