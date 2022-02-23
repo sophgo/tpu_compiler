@@ -266,6 +266,12 @@ void cvi_backend_bf16_tl_lut_mantissa_method(
     laddr_t la_exponential_table, laddr_t la_mantissa_lut,
     int n, int c, int h, int w);
 
+void cvi_backend_bf16_tl_log_lut_mantissa_method(
+    const CviBackendContext &ctx, uint32_t layer_id,
+    laddr_t la_input, laddr_t la_output, laddr_t la_working,
+    laddr_t la_exponential_table, laddr_t la_mantissa_lut,
+    int n, int c, int h, int w);
+
 void cvi_backend_bf16_tl_lut_slope_method(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,

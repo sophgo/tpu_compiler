@@ -462,15 +462,12 @@ void TanHOpKernel::invoke() {
 LogOpKernel::LogOpKernel(Operation &op, value_map_t &valueMapping,
                          weight_map_t &weightMapping)
     : CPUOpKernel(op, valueMapping, weightMapping) {
-  auto logOp = cast<tpu::LogOp>(op);
   if (datatype == DataType::INT8) {
     y0_table_op = this->opdTensors[1];
     slope_table = this->opdTensors[2];
   } else if (datatype == DataType::BF16) {
     y0_bf16_table_op = this->opdTensors[1];
-    y0_bf16_slope_table = this->opdTensors[2];
-    bf16_min_range = logOp.min_range().convertToFloat();
-    bf16_max_range = logOp.max_range().convertToFloat();
+    y0_bf16_mantissa_table = this->opdTensors[2];
   }
   // get tensors
   input_data = this->opdTensors[0];
@@ -485,9 +482,9 @@ void LogOpKernel::invoke() {
       output_data->at(i) = y0_table_op->at((unsigned char)input_data->at(i));
     }
   } else if (datatype == DataType::BF16) {
-    bf16_lut_slope("log", input_data->data(), output_data->data(),
-                   output_data->size(), y0_bf16_table_op->data(),
-                   y0_bf16_slope_table->data());
+    bf16_lut_mantissa(input_data->data(), output_data->data(),
+                      output_data->size(), y0_bf16_table_op->data(),
+                      y0_bf16_mantissa_table->data(), "log");
   } else {
 
 #pragma omp parallel for schedule(static, omp_schedule(output_size))

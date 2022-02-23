@@ -16,6 +16,10 @@
 
 #define DEBUG_TYPE "lut_kernel"
 
+#define METHOD_MANTISSA 0
+#define METHOD_LOG 1
+#define METHOD_SLOPE 2
+
 void cvi_backend_tg_lut_kernel(const CviBackendContext &ctx, uint32_t layer_id,
                                gaddr_t ga_input, gaddr_t ga_output,
                                gaddr_t sg_lut_gaddr, int n, int c, int h, int w,
@@ -226,7 +230,7 @@ void cvi_backend_tg_bf16_lut_slope_kernel(
 void cvi_backend_tg_bf16_lut_mantissa_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t ga_input,
     gaddr_t ga_output, gaddr_t exp_lut_table, gaddr_t mantissa_lut_table, int n,
-    int c, int h, int w) {
+    int c, int h, int w, int method) {
 
   cvk_fmt_t fmt = CVK_FMT_BF16;
   cvk_tl_shape_t table_shape = ctx.lut_table_shape(CVK_FMT_BF16);
@@ -258,15 +262,21 @@ void cvi_backend_tg_bf16_lut_mantissa_kernel(
 
     // load input
     ctx.tdma_load(tl_ifmap, ga_input + tile.offset);
-    cvk_tiu_bf16_lookup_interp_table_param_t param = {0};
-    param.ifmap = tl_ifmap;
-    param.buf = tl_buf;
-    param.tbl_answer = tl_table_answer;
-    param.tbl_answer_mantissa = tl_table_answer_mantissa;
-    param.ofmap = tl_ofmap;
-    param.is_scientific = 1;
-    ctx.tiu_bf16_lookup_interp_table(&param);
-
+    if (method == METHOD_MANTISSA) {
+      cvk_tiu_bf16_lookup_interp_table_param_t param = {0};
+      param.ifmap = tl_ifmap;
+      param.buf = tl_buf;
+      param.tbl_answer = tl_table_answer;
+      param.tbl_answer_mantissa = tl_table_answer_mantissa;
+      param.ofmap = tl_ofmap;
+      param.is_scientific = 1;
+      ctx.tiu_bf16_lookup_interp_table(&param);
+    }else if (method == METHOD_LOG){
+      cvi_backend_bf16_tl_log_lut_mantissa_method(
+          ctx, layer_id, tl_ifmap->start_address, tl_ofmap->start_address,
+          tl_buf->start_address, tl_table_answer->start_address,
+          tl_table_answer_mantissa->start_address, tile.n, tile.c, tile.h, tile.w);
+    }
     ctx.tdma_store(tl_ofmap, ga_output + tile.offset);
 
     ctx.lmem_free_tensor(tl_ofmap);

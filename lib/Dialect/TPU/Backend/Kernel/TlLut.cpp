@@ -15,7 +15,8 @@
 #define DEBUG_TYPE "tl_lut"
 
 #define METHOD_MANTISSA 0
-#define METHOD_SLOPE 1
+#define METHOD_LOG 1
+#define METHOD_SLOPE 2
 
 void cvi_backend_tl_lut_LA(
     const CviBackendContext &ctx, uint32_t layer_id,
@@ -197,21 +198,27 @@ void cvi_backend_int8_tl_lut(
 void cvi_backend_bf16_tl_lut(
     const CviBackendContext &ctx, uint32_t layer_id,
     laddr_t la_input, laddr_t la_output, laddr_t la_working,
-    laddr_t la_y_table, laddr_t la_slope_table,
-    int thresh_min, int thresh_max,
-    int n, int c, int h, int w, int method) {
+    laddr_t la_y_table, laddr_t la_slope_table, int thresh_min,
+    int thresh_max, int n, int c, int h, int w, int method) {
   ctx.parallel_disable();
   if (method == METHOD_MANTISSA) {
     // for reciprocal/sqrt/power
     laddr_t la_exponential_table = la_y_table;
     laddr_t la_mantissa_lut = la_slope_table;
     cvi_backend_bf16_tl_lut_mantissa_method(ctx, layer_id,
-            la_input, la_output, la_working,
-            la_exponential_table, la_mantissa_lut, n, c, h, w);
+        la_input, la_output, la_working,
+        la_exponential_table, la_mantissa_lut, n, c, h, w);
+  }else if (method == METHOD_LOG) {
+    // for log mantissa
+    laddr_t la_exponential_table = la_y_table;
+    laddr_t la_mantissa_lut = la_slope_table;
+    cvi_backend_bf16_tl_log_lut_mantissa_method(ctx, layer_id,
+        la_input, la_output, la_working, la_exponential_table,
+        la_mantissa_lut , n, c, h, w);
   } else if (method == METHOD_SLOPE) {
     cvi_backend_bf16_tl_lut_slope_method(ctx, layer_id,
-            la_input, la_output, la_working,
-            la_y_table, la_slope_table, thresh_min, thresh_max, n, c, h, w);
+        la_input, la_output, la_working,
+        la_y_table, la_slope_table, thresh_min, thresh_max, n, c, h, w);
   }
 }
 
@@ -420,4 +427,68 @@ void cvi_backend_bf16_tl_lut_mantissa_method(
   p.ofmap = &tl_ofmap;
   p.is_scientific = 1;
   ctx.tiu_bf16_lookup_interp_table(&p);
+}
+
+// for log
+void cvi_backend_bf16_tl_log_lut_mantissa_method(
+    const CviBackendContext &ctx, uint32_t layer_id, laddr_t la_input,
+    laddr_t la_output, laddr_t la_working, laddr_t la_exponential_table,
+    laddr_t la_mantissa_lut, int n, int c, int h, int w){
+  cvk_fmt_t fmt = CVK_FMT_BF16;
+  cvk_tl_shape_t shape = ctx.tl_shape_t4(n, c, h, w);
+  cvk_tl_shape_t table_shape = ctx.lut_table_shape(fmt);
+  cvk_tl_t tl_ifmap = {0}, tl_ofmap = {0}, tl_working = {0}, tl_table = {0},
+           tl_mantissa = {0};
+  ctx.set_layer_id(layer_id);
+  // creat tensor ref
+  ctx.lmem_init_tensor(&tl_ifmap, shape, fmt, 1);
+  ctx.lmem_init_tensor(&tl_ofmap, shape, fmt, 1);
+  ctx.lmem_init_tensor(&tl_working, shape, fmt, 1);  // buf
+  ctx.lmem_init_tensor(&tl_table, table_shape, fmt, 1);
+  ctx.lmem_init_tensor(&tl_mantissa, table_shape, fmt, 1);
+  tl_ifmap.start_address = la_input;
+  tl_ofmap.start_address = la_output;
+  tl_working.start_address = la_working;
+  tl_table.start_address = la_exponential_table;
+  tl_mantissa.start_address = la_mantissa_lut;
+  ctx.parallel_disable();
+  // copy from cvikernel_1822.c
+  // issue lut cmd
+  cvk_tdma_l2l_tensor_copy_param_t p10;
+  // get exponent index
+  memset(&p10, 0x00, sizeof(cvk_tdma_l2l_tensor_copy_param_t));
+  p10.dst = &tl_ofmap;
+  p10.src = &tl_ifmap;
+  // (mv_lut_base || mv_lut_idx) == 1 will update dst
+  p10.mv_lut_base = false; // MUST init by ifself in soc. true: remove mantissa
+  p10.mv_lut_idx = true;   // Get exponent index,
+                           // set low and height bits with idx at same time
+  p10.layer_id = layer_id;
+  ctx.tdma_l2l_tensor_copy(&p10);
+  p10.mv_lut_idx = false;
+  // get exponent value
+  cvk_tiu_lookup_table_param_t p12;
+  p12.ofmap = &tl_ofmap;
+  p12.ifmap = &tl_ofmap;
+  p12.table = &tl_table;
+  p12.layer_id = layer_id;
+  ctx.tiu_lookup_table(&p12);  // Get low 8 bits with &0xff then lut
+  // get mantissa value
+  p12.ofmap = &tl_working;
+  p12.ifmap = &tl_ifmap;
+  p12.table = &tl_mantissa;
+  ctx.tiu_lookup_table(&p12);
+  // exponent + mantissa
+  cvk_tiu_add_param_t p1;
+  p1.res_high = NULL;
+  p1.res_low = &tl_ofmap;
+  p1.a_high = NULL;
+  p1.a_low = &tl_ofmap;
+  p1.b.high = NULL;
+  p1.b.low = &tl_working;
+  p1.b_is_const = 0;
+  p1.rshift_bits = 0;
+  p1.relu_enable = 0;
+  p1.layer_id = layer_id;
+  ctx.tiu_add(&p1);
 }

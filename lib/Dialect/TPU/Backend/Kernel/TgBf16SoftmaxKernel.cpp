@@ -1087,12 +1087,9 @@ void TgSoftmaxKernel::reciprocal(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl
 }
 
 void TgSoftmaxKernel::log(cvk_tl_t *tl_in, cvk_tl_t *tl_out, cvk_tl_t *tl_work) {
-    cvi_backend_bf16_tl_lut_slope_method(
-        ctx, layer_id, tl_in->start_address,
-        tl_out->start_address, tl_work->start_address,
-        tl_reciprocal_table_answer->start_address,
-        tl_reciprocal_mantissa_table_answer->start_address,
-        -1 * LOG_BF16_LUT_RANGE, LOG_BF16_LUT_RANGE,
+    cvi_backend_bf16_tl_log_lut_mantissa_method(
+        ctx, layer_id, tl_in->start_address,  tl_out->start_address, tl_work->start_address,
+        tl_reciprocal_table_answer->start_address, tl_reciprocal_mantissa_table_answer->start_address,
         tl_in->shape.n, tl_in->shape.c, tl_in->shape.h, tl_in->shape.w);
 }
 

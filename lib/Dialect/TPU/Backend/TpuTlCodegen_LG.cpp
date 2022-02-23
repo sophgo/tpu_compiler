@@ -791,10 +791,12 @@ LogicalResult tpu::TL_LG_BF16_LutOp::codegen(void *ctx) {
   auto lut_method = method().getValue().str();
   // method 0: mantissa, 1: slope
   int method = 0;
-  if(lut_method == "mantissa")
+  if (lut_method == "mantissa")
     method = 0;
-  else if (lut_method == "slope")
+  else if (lut_method == "log")
     method = 1;
+  else if (lut_method == "slope")
+    method = 2;
 
   cvi_backend_bf16_tl_lut( *backend_ctx,
                           layer_id,

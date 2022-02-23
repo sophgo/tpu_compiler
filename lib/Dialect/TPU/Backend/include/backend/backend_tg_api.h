@@ -248,7 +248,7 @@ void cvi_backend_tg_bf16_layernorm_kernel(
 void cvi_backend_tg_bf16_lut_mantissa_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,
     gaddr_t top_gaddr, gaddr_t exp_lut_table, gaddr_t mantissa_lut_table,
-    int input_n, int input_c, int input_h, int input_w);
+    int input_n, int input_c, int input_h, int input_w, int method);
 
 void cvi_backend_tg_bf16_lut_slope_kernel(
     const CviBackendContext &ctx, uint32_t layer_id, gaddr_t bottom_gaddr,

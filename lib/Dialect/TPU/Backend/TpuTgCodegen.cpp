@@ -2450,15 +2450,14 @@ LogicalResult tpu::TG_BF16_LutOp::codegen(void *ctx) {
   gaddr_t table_data_lut = getWeightOpAddress(table().getDefiningOp());
   gaddr_t table_data_mantissa_lut = getWeightOpAddress(table_mantissa().getDefiningOp());
 
-
   int layer_id = getOpLayerId(op);
   auto lut_method = method().getValue().str();
   LLVM_DEBUG(llvm::errs() << "lut method:" << lut_method << " [" << getOpName()
                           << "]\n";);
-  if(lut_method == "mantissa") {
+  if(lut_method == "mantissa" || lut_method == "log") {
     cvi_backend_tg_bf16_lut_mantissa_kernel(
         *backend_ctx, layer_id, input_gaddr, output_gaddr, table_data_lut,
-        table_data_mantissa_lut, n, c, h, w);
+        table_data_mantissa_lut, n, c, h, w, lut_method == "mantissa"? 0: 1);
   } else if (lut_method == "slope") {
     cvi_backend_tg_bf16_lut_slope_kernel(
         *backend_ctx, layer_id, input_gaddr, output_gaddr, table_data_lut,
