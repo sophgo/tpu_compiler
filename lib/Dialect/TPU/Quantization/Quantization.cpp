@@ -328,7 +328,8 @@ struct ConvertClipOpToIdentityOpPattern : public RewritePattern {
     auto clipOp = cast<tpu::ClipOp>(op);
 
     auto curr_quant = getOpQuant(op);
-    if (curr_quant != "INT8") {
+    if (curr_quant != "INT8" || clipOp.min().convertToFloat() != 0.) {
+      setOpQuant(op, "BF16");
       return failure();
     }
     float threshold_y = getOpThreshold(op);

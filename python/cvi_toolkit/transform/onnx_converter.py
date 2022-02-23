@@ -1480,7 +1480,9 @@ class OnnxConverter(BaseConverter):
                 clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [relu_op], output_shape, **clip_param)
                 self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
             else:
-                raise RuntimeError("Not support clip min not zero case (min: {})".format(clip_param.get("min")))
+                # temporary let clip cal with bf16 if min != 0
+                clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **clip_param)
+                self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
 
     def convert_depth_to_space_op(self, onnx_node):
         assert(onnx_node.op_type == "DepthToSpace")
