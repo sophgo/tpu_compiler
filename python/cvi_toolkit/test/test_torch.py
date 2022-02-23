@@ -32,6 +32,7 @@ TEST_TORCH_IR = [
     "Conv3d", # sunpport Conv with 3d, 2d, 1d case
     "ConvTranspose",
     "Cat_Chunk",
+    "Clip",
     "ConstantPad",
     # "ChannelShuffle", ## ChannelShuffle not support
     # "Dropout", ## Dropout not support
@@ -155,6 +156,7 @@ class TORCH_IR_TESTER(object):
             "Conv3d": self.test_Conv3d,
             "ConvTranspose": self.test_ConvTranspose,
             "Cat_Chunk": self.test_Cat_Chunk,
+            "Clip": self.test_Clip,
             "ConstantPad": self.test_ConstantPad,
             "ChannelShuffle": self.test_ChannelShuffle,
             "Dropout": self.test_Dropout,
@@ -1357,6 +1359,27 @@ class TORCH_IR_TESTER(object):
         self.pytorch_transform_onnx(net, input_data, test_name)
         torch_output_data = torch_output_data.data.numpy()
         self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
+    def test_Clip(self):
+        class Net(torch.nn.Module):
+            def __init__(self):
+                super(Net, self).__init__()
+
+            def forward(self, x):
+                return torch.clamp(x, min=-0.25, max=0.25)
+
+        batch_size = 1
+        test_name = 'Clip'
+
+        input_data = torch.randn(batch_size, 100, 30).float()
+        net = Net()
+        torch_output_data = net(input_data)
+
+        #Use the exporter from  torch to convert to onnx
+        self.pytorch_transform_onnx(net, input_data, test_name)
+        torch_output_data = torch_output_data.data.numpy()
+        self.onnx_convert_and_infernece(input_data, test_name, torch_output_data)
+
 
     def test_ConstantPad(self):
         class Net(torch.nn.Module):
