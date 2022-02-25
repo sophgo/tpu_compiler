@@ -401,6 +401,7 @@ void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
     oh = o_s[2];
     ow = 1;
   } else{
+    output.dump();
     llvm_unreachable("unsupported shape size");
   }
   std::vector<int32_t> ins;

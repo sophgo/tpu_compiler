@@ -522,16 +522,22 @@ Value tpu::Conv2DOp::convertToTG() {
     pad_r = 0;
   }
   if (pad_h_begin > 0 || pad_h_end > 0 || pad_w_begin > 0 || pad_w_end > 0) {
-    std::vector<int32_t> pads = {0, 0, pad_h_begin, pad_w_begin, 0, 0, pad_h_end, pad_w_end};
     std::vector<NamedAttribute> attrs;
     auto inputShape = getTensorShape(input());
     auto type = getResult().getType().template cast<TensorType>();
-
-    std::vector<int64_t> shape(4);
+    int num_dims = inputShape.size();
+    std::vector<int64_t> shape(num_dims);
+    std::vector<int32_t> pads;
     shape[0] = inputShape[0];
     shape[1] = inputShape[1];
     shape[2] = inputShape[2] + pad_h_begin + pad_h_end;
-    shape[3] = inputShape[3] + pad_w_begin + pad_w_end;
+
+    if (num_dims > 3) {
+      shape[3] = inputShape[3] + pad_w_begin + pad_w_end;
+      pads = {0, 0, pad_h_begin, pad_w_begin, 0, 0, pad_h_end, pad_w_end};
+    } else {
+      pads = {0, 0, pad_h_begin, 0, 0, pad_h_end};
+    }
     auto resultType = RankedTensorType::get(shape, type.getElementType());
 
     attrs.push_back(builder.getNamedAttr("name", builder.getStringAttr(name().str() + "_pad")));

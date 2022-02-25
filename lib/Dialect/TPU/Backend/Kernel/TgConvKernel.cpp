@@ -2113,8 +2113,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
                                      1 + insert_height());
       ih_step = std::min(ih_step, ih);
 
-      if (h_after_ins_pad(ih_step) > MAX_HEIGHT)
-        continue;
+      if (h_after_ins_pad(ih_step) <= MAX_HEIGHT) {
 
       // Split oc
       for (int32_t slice_oc = 0; slice_oc < num_oc_step; ++slice_oc) {
@@ -2236,6 +2235,7 @@ bool Conv::determineTileSize(bool useDoubleBuffer, bool favor_dma) {
 
         } // for (tile_info.n = 1; tile_info.n < n; ++tile_info.n)
       }   // for (int32_t slice_oc = 0; slice_oc < num_oc_step; ++slice_oc)
+      }
       if (ow_step < max_ow) {
         // When the width tiling is used, there is no need to do height tiling.
         break;
