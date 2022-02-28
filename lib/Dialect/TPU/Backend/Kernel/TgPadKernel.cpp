@@ -205,8 +205,13 @@ static void do_pad(const CviBackendContext &ctx, uint32_t layer_id,
     cur_dim = pad_l;
     break;
   case PAD_COPY:
-    ga_output = ga_ofmap + pad_l * inner_dim * fmt_size;
+    if (pad_l > 0)
+      ga_output = ga_ofmap + pad_l * inner_dim * fmt_size;
     cur_dim = pad_dim;
+    if (pad_l < 0 || pad_r < 0) {
+      cur_dim += pad_l < 0? pad_l : 0;
+      cur_dim += pad_r < 0? pad_r : 0;
+    }
     break;
   case PAD_RIGHT:
     ga_output = ga_ofmap + (pad_l + pad_dim) * inner_dim * fmt_size;
@@ -236,6 +241,20 @@ static void do_pad(const CviBackendContext &ctx, uint32_t layer_id,
   if (step == PAD_COPY) {
     auto src_shape = dst_shape;
     auto src_stride = ctx.tg_default_stride(src_shape, fmt);
+    if (pad_l < 0 || pad_r < 0) {
+      assert(inner_dim == 1);
+      ga_input -= pad_l < 0? pad_l * inner_dim * fmt_size : 0;
+      if (inner_dim == 1){
+        src_shape = ctx.tg_shape_t4(1, outer_dim, cur_dim, 1);
+        auto org_src_shape = ctx.tg_shape_t4(1, outer_dim, pad_dim, 1);
+        src_stride = ctx.tg_default_stride(org_src_shape, fmt);
+      } else {
+        ctx.size_to_hw(inner_dim, d0, d1);
+        src_shape = ctx.tg_shape_t4(outer_dim, cur_dim, d0, d1);
+        auto org_src_shape = ctx.tg_shape_t4(outer_dim, pad_dim, d0, d1);
+        src_stride = ctx.tg_default_stride(org_src_shape, fmt);
+      }
+    }
     ctx.tdma_g2g_tensor_copy(ga_input, src_shape, src_stride, fmt, ga_output,
                              dst_shape, dst_stride, fmt);
   } else {

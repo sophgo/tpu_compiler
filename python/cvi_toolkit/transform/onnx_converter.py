@@ -2613,6 +2613,9 @@ class OnnxConverter(BaseConverter):
         if len(pads) != 2 * len(input_shape):
             raise RuntimeError("pads number is two times as same as input shape ({} v.s 2 * {})".format(len(pads), len(input_shape)))
 
+        if np.any(np.array(pads) < 0) and mode != "constant":
+            raise RuntimeError("Todo support pad op mode")
+
         # fuesd if padding all zero
         if all(i == 0 for i in pads):
             print("All pad is zero ({}), Fuse padding op {}".format(pads, onnx_node.name))

@@ -1407,7 +1407,7 @@ class TORCH_IR_TESTER(object):
             def __init__(self):
                 super(Net, self).__init__()
                 self.ConstantPad2d = nn.ConstantPad2d(padding=(1, 1, 1, 1), value=0.0)
-                self.ConstantPad1d = nn.ConstantPad1d(2, 0.0)
+                self.ConstantPad1d = nn.ConstantPad1d([-1, 2], 0.0)
 
             def forward(self, x):
                 x = self.ConstantPad1d(x)

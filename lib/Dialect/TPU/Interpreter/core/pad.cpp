@@ -79,44 +79,37 @@ void pad_constant(float *input, float *output,
   int oc = pads[1] + pads[5] + ic;
   int oh = pads[2] + pads[6] + ih;
   int ow = pads[3] + pads[7] + iw;
+  // when pads < 0 means cutoff
+  int32_t start_in = pads[0] < 0 ? -pads[0] : 0;
+  int32_t start_ic = pads[1] < 0 ? -pads[1] : 0;
+  int32_t start_ih = pads[2] < 0 ? -pads[2] : 0;
+  int32_t start_iw = pads[3] < 0 ? -pads[3] : 0;
 
-  int in_offset = 0;
-  int out_offset = 0;
-  auto pad_n_begin_size = pads[0] * oc * oh * ow;
-  for (int in_idx = 0; in_idx < in; in_idx++) {
-    in_offset = in_idx * ic * ih * iw;
-    auto pad_c_begin_size = pads[1] * oh * ow;
-    out_offset = pad_n_begin_size + pad_c_begin_size + in_idx * oc * oh * ow;
-    for (int ic_idx = 0; ic_idx < ic; ic_idx++) {
+  int32_t end_in = pads[4] < 0 ? in + pads[4]: in;
+  int32_t end_ic = pads[5] < 0 ? ic + pads[5]: ic;
+  int32_t end_ih = pads[6] < 0 ? ih + pads[6]: ih;
+  int32_t end_iw = pads[7] < 0 ? iw + pads[7]: iw;
+
+  int32_t pad_n_begin_size = pads[0] < 0 ? 0 : pads[0] * oc * oh * ow;
+  int32_t pad_c_begin_size = pads[1] < 0 ? 0 : pads[1] * oh * ow;
+  int32_t pad_h_begin_size = pads[2] < 0 ? 0 : pads[2] * ow;
+  int32_t pad_w_begin_size = pads[3] < 0 ? 0 : pads[3];
+
+  for (int out_idx = 0, in_idx = start_in; in_idx < end_in; in_idx++, out_idx++) {
+    auto in_offset = in_idx * ic * ih * iw;
+    auto out_offset = pad_n_begin_size + pad_c_begin_size + out_idx * oc * oh * ow;
+    for (int oc_idx = 0, ic_idx = start_ic; ic_idx < end_ic; ic_idx++, oc_idx++) {
       auto in_ic_offset = in_offset + ic_idx * ih * iw;
-      auto out_oc_offset = out_offset + ic_idx * oh * ow;
-
-      // padding h_top and h_bottom;
-      int pad_h_size = oh * iw;
-      std::vector<float> out_pad_h(pad_h_size, const_val);
-
-      int pad_top_offset = pads[2] * iw;
-      memcpy(out_pad_h.data() + pad_top_offset, input + in_ic_offset,
-             ih * iw * sizeof(int));
-
-      if ((pads[3] != 0) || (pads[7] != 0)) {
-        int pad_hw_size = oh * ow;
-        std::vector<float> out_pad_hw(pad_hw_size, const_val);
-
-        for (int i = 0; i < oh; i++) {
-          int offset = i * ow + pads[3];
-          memcpy(out_pad_hw.data() + offset, out_pad_h.data() + i * iw,
-                 iw * sizeof(int));
-        }
-        memcpy(output + out_oc_offset, out_pad_hw.data(),
-               pad_hw_size * sizeof(int));
-      } else {
-        memcpy(output + out_oc_offset, out_pad_h.data(),
-               pad_h_size * sizeof(int));
-      }
-    }
-  }
-}
+      auto out_oc_offset = out_offset + pad_h_begin_size + oc_idx * oh * ow;
+      for (int oh_idx = 0, ih_idx = start_ih; ih_idx < end_ih; ih_idx++, oh_idx++) {
+        auto in_ih_offset = in_ic_offset + ih_idx * iw;
+        auto out_oh_offset = out_oc_offset + pad_w_begin_size + oh_idx * ow;
+        memcpy(output + out_oh_offset, input + in_ih_offset + start_iw ,
+               (end_iw - start_iw) * sizeof(float_t));
+      } // end h
+    } // end c
+  } // end n
+} // end func
 
 PadOpKernel::PadOpKernel(Operation &op, value_map_t &valueMapping,
                          weight_map_t &weightMapping)
