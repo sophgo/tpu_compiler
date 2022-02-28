@@ -228,10 +228,8 @@ class OnnxConverter(BaseConverter):
                 # dim is zero, mean mutli batch
                 if i == 0 and dim.dim_value <= 0:
                     if self.batch_size == 0:
-                        input_shape.append(1)
                         self.batch_size = 1
-                    else:
-                        input_shape.append(self.batch_size)
+                    input_shape.append(self.batch_size)
                 else:
                     input_shape.append(dim.dim_value)
             # if len(input_shape) != 4:
@@ -246,7 +244,9 @@ class OnnxConverter(BaseConverter):
             for i, dim in enumerate(output.type.tensor_type.shape.dim):
                 # i == 0 mean batch size
                 # if dim is zero, mean mutli batch
-                if i == 0 and dim.dim_value <= 0 and self.batch_size != 0:
+                if i == 0 and dim.dim_value <= 0:
+                    if self.batch_size == 0:
+                        self.batch_size = 1
                     output_shape.append(self.batch_size)
                 else:
                     output_shape.append(dim.dim_value)
