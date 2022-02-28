@@ -125,6 +125,8 @@ class Form_Deform(object):
         self.tensor.extend([node.output[0] for node in self.nodes if node.op_type == "Constant"])
 
     def get_node(self, name):
+        if self.is_tensor(name):
+            return None
         for idx, n in enumerate(self.nodes):
             if name in n.output:
                 return idx, n
@@ -313,7 +315,11 @@ class Form_Deform(object):
                 replaced = True
             for nodes in redundancies_ops_list:  # [pattern0, patter1, ...]
                 node_idx, _ = self.get_node(nodes.redundancies_ops[0])
-                rm_node = [self.get_node(oname)[1] for oname in nodes.redundancies_ops]
+                rm_node = []
+                for oname in nodes.redundancies_ops:
+                    idx_node = self.get_node(oname)
+                    if idx_node is not None:
+                        rm_node.append(idx_node[1])
                 out = nodes.pattern_output
                 for i, op in enumerate(ops):
                     attr = {}
