@@ -593,8 +593,8 @@ static void quant_for_special(Operation *op) {
     // no op only use INT8
     return;
   }
-  if (has_const<tpu::EltwiseMulOp>(op) || has_const<tpu::ConcatOp>(op) ||
-      has_const<tpu::BroadcastMulOp>(op) ||
+  if (has_const<tpu::EltwiseMulOp>(op) || has_const<tpu::EltwiseAddOp>(op) ||
+      has_const<tpu::ConcatOp>(op) || has_const<tpu::BroadcastMulOp>(op) ||
       has_const<tpu::BroadcastAddOp>(op)) {
   } else if (clQuantMixSoftmax && isa<tpu::SoftmaxOp>(op)) {
   } else if (isa<tpu::CustomOp>(op) && cast<tpu::CustomOp>(op).tpu() == true) {
