@@ -1086,7 +1086,7 @@ class OnnxConverter(BaseConverter):
             axis += num_dims
         output_shape[axis] = 0
         const_data = None
-        for input in onnx_node.inputs:
+        for i, input in enumerate(onnx_node.inputs):
             op, shape, type = self.getOperand(input)
             output_shape[axis] += shape[axis]
             if type == TensorType.TENSOR:
@@ -1097,8 +1097,14 @@ class OnnxConverter(BaseConverter):
                     const_data = data
                 continue
             else:
+                if const_data is not None:
+                    const_name = "{}_const_data_{}".format(onnx_node.name, i)
+                    self.addTensor(const_name, const_data, const_data.shape)
+                    const_op = self.CVI.add_load_file_op(const_name, const_data.shape)
+                    operands.append(const_op)
                 operands.append(op)
-            continue
+                const_data = None
+
         if len(onnx_node.inputs) == 1:
             self.addOperand(onnx_node.name, op, input_shape, TensorType.ACTIVATION)
             return

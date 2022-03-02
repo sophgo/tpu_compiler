@@ -49,6 +49,16 @@ class ModelTransformTool(object):
     def _is_npy(image):
         return True if image.split('.')[-1] == 'npy' else False
 
+    @staticmethod
+    def _check_npz_order(inputs):
+        for name in inputs.keys():
+            array = inputs[name]
+            if np.isfortran(array):
+                logger.warning('{} in input npz file is not w_major!'.format(name))
+                array = np.ascontiguousarray(array)
+                inputs[name] = array
+        return inputs
+
     def model_validate(self, image, tolerance, excepts):
         in_fp32_npz = IntermediateFile(self.model_name, 'in_fp32.npz', False)
         inputs = {}
@@ -71,6 +81,7 @@ class ModelTransformTool(object):
                         self.preprocessor.net_input_dims = self.ppa.net_input_dims
                         self.preprocessor.resize_dims = self.ppa.net_input_dims
                     inputs[self.ppa.input_name] = self.preprocessor.run(file, batch=self.batch_size)
+        inputs = self._check_npz_order(inputs)
         np.savez(str(in_fp32_npz), **inputs)
 
         # original model inference to get blobs of all layer
