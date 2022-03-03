@@ -458,12 +458,14 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
         break;
     }
 
-    while(1) {
-      insertNumW++;
-      newDilationW = (dw - 1 - insertNumW) / (insertNumW + 1) + 1;
-      if (((dw - 1 - insertNumW) % (insertNumW + 1) == 0) &&
-         newDilationW < DILATION_W_MAX)
-        break;
+    if (dw > 1) {
+      while(1) {
+        insertNumW++;
+        newDilationW = (dw - 1 - insertNumW) / (insertNumW + 1) + 1;
+        if (((dw - 1 - insertNumW) % (insertNumW + 1) == 0) &&
+          newDilationW < DILATION_W_MAX)
+          break;
+      }
     }
 
     int k_ext_h = (insertNumH + 1) * (kh - 1) + 1;
@@ -477,8 +479,8 @@ struct TpuConvertDilationWeightPattern : public RewritePattern {
         for (int k = 0; k < kw; k++) {
           auto old_offset = i * kh * kw + j * kw + k;
           auto new_offset = i * k_ext_h * k_ext_w +
-                            j * (insertNumW + 1) * k_ext_w +
-                            k * (insertNumH + 1);
+                            j * (insertNumH + 1) * k_ext_w +
+                            k * (insertNumW + 1);
           newFilter[new_offset] = filter->data()[old_offset];
         }
       }
