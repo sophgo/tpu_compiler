@@ -1,97 +1,100 @@
-images:0 1.0000048875808716
-efficientnet-lite0/model/stem/Relu6:0_relu6_reluClip 58.75836944580078
-efficientnet-lite0/model/stem/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_0/Relu6:0_relu6_reluClip 29.829275131225586
-efficientnet-lite0/model/blocks_0/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_0/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv 49.20669937133789
-efficientnet-lite0/model/blocks_1/Relu6:0_relu6_reluClip 23.920352935791016
-efficientnet-lite0/model/blocks_1/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_1/Relu6_1:0_relu6_reluClip 5.945524215698242
-efficientnet-lite0/model/blocks_1/Relu6_1:0_Clip 5.947528839111328
-efficientnet-lite0/model/blocks_1/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 52.532005310058594
-efficientnet-lite0/model/blocks_2/Relu6:0_relu6_reluClip 13.928631782531738
-efficientnet-lite0/model/blocks_2/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_2/Relu6_1:0_relu6_reluClip 12.57165241241455
-efficientnet-lite0/model/blocks_2/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_2/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 44.670108795166016
-efficientnet-lite0/model/blocks_2/Add:0_Add 57.48322296142578
-efficientnet-lite0/model/blocks_3/Relu6:0_relu6_reluClip 23.269729614257812
-efficientnet-lite0/model/blocks_3/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_3/Relu6_1:0_relu6_reluClip 9.49600887298584
-efficientnet-lite0/model/blocks_3/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_3/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 45.51264953613281
-efficientnet-lite0/model/blocks_4/Relu6:0_relu6_reluClip 19.345855712890625
-efficientnet-lite0/model/blocks_4/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_4/Relu6_1:0_relu6_reluClip 9.114164352416992
-efficientnet-lite0/model/blocks_4/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_4/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 27.45565414428711
-efficientnet-lite0/model/blocks_4/Add:0_Add 46.905906677246094
-efficientnet-lite0/model/blocks_5/Relu6:0_relu6_reluClip 16.818599700927734
-efficientnet-lite0/model/blocks_5/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_5/Relu6_1:0_relu6_reluClip 7.4819841384887695
-efficientnet-lite0/model/blocks_5/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_5/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 33.0999755859375
-efficientnet-lite0/model/blocks_6/Relu6:0_relu6_reluClip 10.113622665405273
-efficientnet-lite0/model/blocks_6/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_6/Relu6_1:0_relu6_reluClip 5.9939188957214355
-efficientnet-lite0/model/blocks_6/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_6/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 19.652048110961914
-efficientnet-lite0/model/blocks_6/Add:0_Add 34.21298599243164
-efficientnet-lite0/model/blocks_7/Relu6:0_relu6_reluClip 11.075091361999512
-efficientnet-lite0/model/blocks_7/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_7/Relu6_1:0_relu6_reluClip 7.040280342102051
-efficientnet-lite0/model/blocks_7/Relu6_1:0_Clip 5.5725274085998535
-efficientnet-lite0/model/blocks_7/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 16.70926284790039
-efficientnet-lite0/model/blocks_7/Add:0_Add 43.93781661987305
-efficientnet-lite0/model/blocks_8/Relu6:0_relu6_reluClip 15.532105445861816
-efficientnet-lite0/model/blocks_8/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_8/Relu6_1:0_relu6_reluClip 8.9717378616333
-efficientnet-lite0/model/blocks_8/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_8/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 37.383995056152344
-efficientnet-lite0/model/blocks_9/Relu6:0_relu6_reluClip 13.177467346191406
-efficientnet-lite0/model/blocks_9/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_9/Relu6_1:0_relu6_reluClip 9.146041870117188
-efficientnet-lite0/model/blocks_9/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_9/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 18.283342361450195
-efficientnet-lite0/model/blocks_9/Add:0_Add 44.21806716918945
-efficientnet-lite0/model/blocks_10/Relu6:0_relu6_reluClip 10.840167999267578
-efficientnet-lite0/model/blocks_10/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_10/Relu6_1:0_relu6_reluClip 7.3910417556762695
-efficientnet-lite0/model/blocks_10/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_10/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 19.592716217041016
-efficientnet-lite0/model/blocks_10/Add:0_Add 44.97256088256836
-efficientnet-lite0/model/blocks_11/Relu6:0_relu6_reluClip 11.92341423034668
-efficientnet-lite0/model/blocks_11/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_11/Relu6_1:0_relu6_reluClip 6.530104637145996
-efficientnet-lite0/model/blocks_11/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_11/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 30.929563522338867
-efficientnet-lite0/model/blocks_12/Relu6:0_relu6_reluClip 16.890438079833984
-efficientnet-lite0/model/blocks_12/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_12/Relu6_1:0_relu6_reluClip 9.897095680236816
-efficientnet-lite0/model/blocks_12/Relu6_1:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_12/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 15.89101505279541
-efficientnet-lite0/model/blocks_12/Add:0_Add 34.22465896606445
-efficientnet-lite0/model/blocks_13/Relu6:0_relu6_reluClip 12.570331573486328
-efficientnet-lite0/model/blocks_13/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_13/Relu6_1:0_relu6_reluClip 4.8848557472229
-efficientnet-lite0/model/blocks_13/Relu6_1:0_Clip 5.426276683807373
-efficientnet-lite0/model/blocks_13/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 17.172136306762695
-efficientnet-lite0/model/blocks_13/Add:0_Add 37.16121292114258
-efficientnet-lite0/model/blocks_14/Relu6:0_relu6_reluClip 12.642670631408691
-efficientnet-lite0/model/blocks_14/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_14/Relu6_1:0_relu6_reluClip 4.1221208572387695
-efficientnet-lite0/model/blocks_14/Relu6_1:0_Clip 4.1250200271606445
-efficientnet-lite0/model/blocks_14/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 19.535860061645508
-efficientnet-lite0/model/blocks_14/Add:0_Add 43.83131408691406
-efficientnet-lite0/model/blocks_15/Relu6:0_relu6_reluClip 13.472305297851562
-efficientnet-lite0/model/blocks_15/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/blocks_15/Relu6_1:0_relu6_reluClip 3.98498272895813
-efficientnet-lite0/model/blocks_15/Relu6_1:0_Clip 4.02001953125
-efficientnet-lite0/model/blocks_15/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 18.765581130981445
-efficientnet-lite0/model/head/Relu6:0_relu6_reluClip 26.812257766723633
-efficientnet-lite0/model/head/Relu6:0_Clip 6.00002908706665
-efficientnet-lite0/model/head/AvgPool:0_AveragePool 3.3960258960723877
-efficientnet-lite0/model/head/Squeeze:0_Squeeze 3.3960258960723877
-efficientnet-lite0/model/head/dense/MatMul:0_MatMul 14.15828800201416
-efficientnet-lite0/model/head/dense/BiasAdd:0_MatMul 16.629589080810547
-Softmax:0_Softmax 0.00499872537329793
+# genetated time: 2022-03-04 20:19:56.915378
+# sample number: 1000
+###
+# op_name    threshold    min    max
+images:0 1.0019569 -0.9921875 1.0000000
+efficientnet-lite0/model/stem/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 25.4604969 0.0000000 101.6430740
+efficientnet-lite0/model/stem/Relu6:0_Clip 6.0001831 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_0/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 26.0129948 0.0000000 103.8487549
+efficientnet-lite0/model/blocks_0/Relu6:0_Clip 6.0000000 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_0/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv 41.7958679 -65.4581604 66.8080826
+efficientnet-lite0/model/blocks_1/tpu_batch_normalization/FusedBatchNormV3:0_BatchNormalization 24.6872692 -25.2296906 32.8520699
+efficientnet-lite0/model/blocks_1/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_1/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 13.1382837 0.0000000 52.4504929
+efficientnet-lite0/model/blocks_1/Relu6_1:0_Clip 6.0000000 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_1/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 52.5965347 -67.7407227 69.9917450
+efficientnet-lite0/model/blocks_2/tpu_batch_normalization/FusedBatchNormV3:0_BatchNormalization 18.3347473 -34.5040398 24.6846409
+efficientnet-lite0/model/blocks_2/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_2/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 6.4105749 0.0000000 25.5922165
+efficientnet-lite0/model/blocks_2/Relu6_1:0_Clip 6.0001831 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_2/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 45.0383682 -62.9267578 64.0467453
+efficientnet-lite0/model/blocks_2/Add:0_Add 61.4749870 -75.1414337 77.1403732
+efficientnet-lite0/model/blocks_3/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 17.1050758 0.0000000 34.1433334
+efficientnet-lite0/model/blocks_3/Relu6:0_Clip 6.0000000 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_3/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 9.7614412 0.0000000 19.4847527
+efficientnet-lite0/model/blocks_3/Relu6_1:0_Clip 6.0007324 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_3/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 40.9717560 -50.7150459 54.5223083
+efficientnet-lite0/model/blocks_4/tpu_batch_normalization/FusedBatchNormV3:0_BatchNormalization 15.9625568 -19.4654102 31.8939362
+efficientnet-lite0/model/blocks_4/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_4/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 10.2016563 0.0000000 20.3634624
+efficientnet-lite0/model/blocks_4/Relu6_1:0_Clip 6.0058651 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_4/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 26.2444916 -39.9867249 38.0575485
+efficientnet-lite0/model/blocks_4/Add:0_Add 49.2272530 -57.3711586 65.6203156
+efficientnet-lite0/model/blocks_5/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 12.4745150 0.0000000 24.9003010
+efficientnet-lite0/model/blocks_5/Relu6:0_Clip 6.0000000 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_5/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 6.9346819 0.0000000 13.8422756
+efficientnet-lite0/model/blocks_5/Relu6_1:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_5/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 34.0379105 -45.3395615 44.8213348
+efficientnet-lite0/model/blocks_6/tpu_batch_normalization/FusedBatchNormV3:0_BatchNormalization 7.7925768 -15.5699339 14.0289583
+efficientnet-lite0/model/blocks_6/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_6/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 6.4814496 0.0000000 12.9375811
+efficientnet-lite0/model/blocks_6/Relu6_1:0_Clip 6.0001831 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_6/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 17.6871243 -28.2717628 23.1590023
+efficientnet-lite0/model/blocks_6/Add:0_Add 33.9139442 -47.1730995 42.2073441
+efficientnet-lite0/model/blocks_7/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 7.9894671 0.0000000 15.9477253
+efficientnet-lite0/model/blocks_7/Relu6:0_Clip 6.0058651 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_7/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 6.7464776 0.0000000 13.4666014
+efficientnet-lite0/model/blocks_7/Relu6_1:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_7/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 14.8706293 -20.8019943 20.7957535
+efficientnet-lite0/model/blocks_7/Add:0_Add 36.3060150 -50.5003853 45.3786697
+efficientnet-lite0/model/blocks_8/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 16.8698349 0.0000000 22.4491806
+efficientnet-lite0/model/blocks_8/Relu6:0_Clip 6.0001831 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_8/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 7.3877754 0.0000000 14.7466927
+efficientnet-lite0/model/blocks_8/Relu6_1:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_8/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 35.3469048 -47.0999756 47.1234550
+efficientnet-lite0/model/blocks_9/tpu_batch_normalization/FusedBatchNormV3:0_BatchNormalization 9.7634621 -17.0926895 19.4887848
+efficientnet-lite0/model/blocks_9/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_9/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 11.1023169 0.0000000 22.1612644
+efficientnet-lite0/model/blocks_9/Relu6_1:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_9/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 17.9485569 -35.8620567 23.5496655
+efficientnet-lite0/model/blocks_9/Add:0_Add 40.0241547 -51.2184105 45.8621712
+efficientnet-lite0/model/blocks_10/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 7.9745617 0.0000000 15.9179726
+efficientnet-lite0/model/blocks_10/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_10/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 6.1393003 0.0000000 24.5092373
+efficientnet-lite0/model/blocks_10/Relu6_1:0_Clip 6.0003662 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_10/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 15.8214092 -31.5810165 22.4498444
+efficientnet-lite0/model/blocks_10/Add:0_Add 35.4323769 -70.7263489 46.0157738
+efficientnet-lite0/model/blocks_11/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 9.2275438 0.0000000 18.4190426
+efficientnet-lite0/model/blocks_11/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_11/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 6.9856224 0.0000000 27.8879147
+efficientnet-lite0/model/blocks_11/Relu6_1:0_Clip 6.0029311 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_11/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 34.7842216 -46.3336716 42.7077179
+efficientnet-lite0/model/blocks_12/tpu_batch_normalization/FusedBatchNormV3:0_BatchNormalization 12.8411226 -15.0685520 25.6571655
+efficientnet-lite0/model/blocks_12/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_12/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 6.9211531 0.0000000 27.6305408
+efficientnet-lite0/model/blocks_12/Relu6_1:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_12/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 15.7070665 -31.3527775 28.6472206
+efficientnet-lite0/model/blocks_12/Add:0_Add 37.0989609 -49.3686714 44.5600357
+efficientnet-lite0/model/blocks_13/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 12.1238432 0.0000000 24.2003269
+efficientnet-lite0/model/blocks_13/Relu6:0_Clip 6.0058651 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_13/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 7.6297517 0.0000000 30.4594002
+efficientnet-lite0/model/blocks_13/Relu6_1:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_13/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 16.0836735 -26.5759296 31.1906738
+efficientnet-lite0/model/blocks_13/Add:0_Add 30.7210789 -53.8840485 61.3221550
+efficientnet-lite0/model/blocks_14/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 12.6898508 0.0000000 25.3301315
+efficientnet-lite0/model/blocks_14/Relu6:0_Clip 6.0000000 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_14/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 6.9106326 0.0000000 27.5885410
+efficientnet-lite0/model/blocks_14/Relu6_1:0_Clip 6.0000000 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_14/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 22.3944130 -22.8505764 36.7453194
+efficientnet-lite0/model/blocks_14/Add:0_Add 40.3833694 -67.7835312 80.6089935
+efficientnet-lite0/model/blocks_15/tpu_batch_normalization/FusedBatchNormV3:0_Conv_relu 9.7141848 0.0000000 19.3904228
+efficientnet-lite0/model/blocks_15/Relu6:0_Clip 6.0007324 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_15/tpu_batch_normalization_1/FusedBatchNormV3:0_Conv_relu 9.7527227 0.0000000 38.9346962
+efficientnet-lite0/model/blocks_15/Relu6_1:0_Clip 6.0000000 0.0000000 6.0000000
+efficientnet-lite0/model/blocks_15/tpu_batch_normalization_2/FusedBatchNormV3:0_Conv 16.9296761 -22.5618782 21.4349594
+efficientnet-lite0/model/head/tpu_batch_normalization/FusedBatchNormV3:0_BatchNormalization 27.9684639 -37.2184525 26.8662415
+efficientnet-lite0/model/head/Relu6:0_Clip 6.0117416 0.0000000 6.0000000
+efficientnet-lite0/model/head/AvgPool:0_AveragePool 5.5680304 0.0000000 5.5680304
+efficientnet-lite0/model/head/Squeeze:0_Squeeze 5.5680304 0.0000000 5.5680304
+efficientnet-lite0/model/head/dense/BiasAdd:0_MatMul 12.4917936 -6.0451441 19.4981956
+Softmax:0_Softmax 0.2504717 0.0000000 0.9999301

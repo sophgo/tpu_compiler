@@ -1480,15 +1480,8 @@ class OnnxConverter(BaseConverter):
             self.addTensor(onnx_node.name, output_data, output_shape)
             self.addOperand(onnx_node.name, None, output_shape, TensorType.TENSOR)
         else:
-            if clip_min == 0:
-                # relu6
-                relu_op = self.CVI.add_relu_op("{}_relu6_relu{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape)
-                clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [relu_op], output_shape, **clip_param)
-                self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
-            else:
-                # temporary let clip cal with bf16 if min != 0
-                clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **clip_param)
-                self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
+            clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [op], output_shape, **clip_param)
+            self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
 
     def convert_depth_to_space_op(self, onnx_node):
         assert(onnx_node.op_type == "DepthToSpace")
@@ -1999,8 +1992,9 @@ class OnnxConverter(BaseConverter):
             'min':  0.,
             'max':  1.,
         }
-        relu_op = self.CVI.add_relu_op("{}_relu6_relu{}".format(onnx_node.name, onnx_node.op_type), [scale_op], output_shape)
-        clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [relu_op], output_shape, **clip_param)
+        # relu_op = self.CVI.add_relu_op("{}_relu6_relu{}".format(onnx_node.name, onnx_node.op_type), [scale_op], output_shape)
+        # clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [relu_op], output_shape, **clip_param)
+        clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [scale_op], output_shape, **clip_param)
         self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
 
     def convert_leaky_relu_op(self, onnx_node):

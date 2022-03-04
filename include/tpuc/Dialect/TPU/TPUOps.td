@@ -1652,7 +1652,7 @@ def TPU_ClipOp: TPU_Op<"clip",
     Attributes:
       `max`: optional, Minimum value, under which element is replaced by min. It must be a scalar(tensor of empty shape).
       `min`: optional, Maximum value, above which element is replaced by max. It must be a scalar(tensor of empty shape).
-
+      `fused_relu`: optional, For int8, true: insert relu and use threshold done clip(0, max), false: cal with clip_bf16.
 
     Result:
       `output`          : result tensor.
@@ -1672,6 +1672,7 @@ def TPU_ClipOp: TPU_Op<"clip",
     TPU_TensorOfOrNone<[F32, BF16, I8]>:$quant_multiplier,
     DefaultValuedAttr<F32Attr, "-999">:$min,
     DefaultValuedAttr<F32Attr, "999">:$max,
+    DefaultValuedAttr<BoolAttr, "false">:$fused_relu,
     TPU_QuantParamAttr:$quant,
     StrAttr:$name
   );
