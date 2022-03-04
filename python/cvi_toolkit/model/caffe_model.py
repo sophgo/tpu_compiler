@@ -15,14 +15,7 @@ class CaffeModel(model_base):
         self.net = caffe.Net(model_file, wegiht_file, caffe.TEST)
 
     def inference(self, inputs):
-        # reshape to multi-batch blobs
-        if len(self.net.inputs) == 1:
-            in_ = self.net.inputs[0]
-            input = inputs[in_]
-            self.net.blobs[in_].reshape(input.shape[0], self.net.blobs[in_].data.shape[1],
-                                            self.net.blobs[in_].data.shape[2], self.net.blobs[in_].data.shape[3])
-        out = self.net.forward_all(**inputs)
-        return out[self.net.outputs[0]]
+        pass
 
     def get_input_shape(self):
         if not self.net:
@@ -39,7 +32,12 @@ class CaffeModel(model_base):
         if input_data is None:
             print("[Warning] Caffe model get all tensor need input data")
             return None
-        # print("Input Shape : ", input_data.shape)
+
+        if len(self.net.inputs) == 1:
+            in_ = self.net.inputs[0]
+            input = input_data[in_]
+            self.net.blobs[in_].reshape(input.shape[0], self.net.blobs[in_].data.shape[1],
+                                            self.net.blobs[in_].data.shape[2], self.net.blobs[in_].data.shape[3])
 
         blobs_dict = input_data
         if get_in_place_tensor:

@@ -122,7 +122,6 @@ class CaffeModelTransformTool(ModelTransformTool):
     def _inference_(self, inputs):
         caffemodel = CaffeModel()
         caffemodel.load_model(self.prototxt, self.caffemodel)
-        caffemodel.inference(inputs) # just for reshape ?
         return caffemodel.get_all_tensor(inputs, False)
 
     def _transform_(self, mlir_file):
