@@ -69,6 +69,8 @@ LogicalResult setOpBufferReused(Operation *op, bool flag);
 
 tpu::QuantParam getDefaultQuantParam(Builder &builder);
 
+bool isOpSupportRelu(Operation * op);
+
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
                     Value output, int &n, int &ic, int &ih, int &iw, int &oc,
                     int &oh, int &ow, int &g, int &kh, int &kw, int &ins_h,

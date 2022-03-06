@@ -364,7 +364,7 @@ public:
     patterns.insert<MulConstThresholdPattern>(context);
     applyPatternsAndFoldGreedily(fn, std::move(patterns));
 
-    // forward, make sure  theshold_x == threshold_y in all ops that no do quantization`
+    // forward, make sure  theshold_x == threshold_y in all ops that no do quantization
     LLVM_DEBUG(llvm::errs() << "Forward overwrite threshold for all\n";);
     patterns.clear();
     patterns.insert<

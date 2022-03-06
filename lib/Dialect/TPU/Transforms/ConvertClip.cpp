@@ -37,26 +37,6 @@ using namespace mlir;
 
 namespace {
 
-static bool supportRelu(Operation *op) {
-  if (
-      isa<tpu::Conv2DOp>(op) ||
-      isa<tpu::Conv3DOp>(op) ||
-      isa<tpu::DeConv2DOp>(op) ||
-      isa<tpu::EltwiseAddOp>(op) ||
-      isa<tpu::EltwiseMaxOp>(op) ||
-      isa<tpu::EltwiseMinOp>(op) ||
-      isa<tpu::EltwiseMulOp>(op) ||
-      isa<tpu::MatMulOp>(op) ||
-      isa<tpu::FullyConnectedOp>(op) ||
-      isa<tpu::BroadcastMulOp>(op) ||
-      isa<tpu::BroadcastAddOp>(op) ||
-      isa<tpu::MulConstOp>(op) ||
-      isa<tpu::ScaleOp>(op) ||
-      isa<tpu::ConcatOp>(op)) {
-    return true;
-  }
-  return false;
-}
 struct TpuConvertClipToRelu6Pattern : public RewritePattern {
   TpuConvertClipToRelu6Pattern(MLIRContext *context)
       : RewritePattern("tpu.clip", 1, context) {}
@@ -64,24 +44,21 @@ struct TpuConvertClipToRelu6Pattern : public RewritePattern {
   LogicalResult matchAndRewrite(Operation *op, PatternRewriter &rewriter) const override {
     auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op);
     if (clipOp && clipOp.min().convertToFloat() == 0){
-      auto formerOp = clipOp.getOperand(0).getDefiningOp();
-      auto layer_name = mlir::getOpName(clipOp).str();
-      auto formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-      std::vector<Value> newOperands;
+      auto formerOp = clipOp.input().getDefiningOp();
+      auto formerName = getOpName(formerOp).str();
       // check if clipOp is rewrited already
-      if (clipOp.fused_relu())
+      if (clipOp.fused_relu()) {
         return failure();
+      }
 
       if (isa<tpu::ReluOp>(formerOp)){
           clipOp->setAttr("fused_relu", rewriter.getBoolAttr(true));
           return success();
       }
       // simply consider formerOp can fuse relu
-      if (!isa<tpu::ScaleOp>(formerOp) &&
-          supportRelu(formerOp) &&
-          formerOp->getResult(0).hasOneUse()) {
+      if (isOpSupportRelu(formerOp) && formerOp->getResult(0).hasOneUse()) {
         formerOp->setAttr("do_relu", rewriter.getBoolAttr(true));
-        formerOp->setAttr("name", rewriter.getStringAttr(formerOpName+"_relu"));
+        formerOp->setAttr("name", rewriter.getStringAttr(formerName+"_relu"));
         clipOp->setAttr("fused_relu", rewriter.getBoolAttr(true));
         return success();
       }

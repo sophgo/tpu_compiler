@@ -328,17 +328,18 @@ struct ConvertClipOpToIdentityOpPattern : public RewritePattern {
     auto clipOp = cast<tpu::ClipOp>(op);
     auto curr_quant = getOpQuant(op);
     float threshold_y = getOpThreshold(op);
-    auto formerOp = op->getOperand(0).getDefiningOp();
+    auto formerOp = clipOp.input().getDefiningOp();
 
-    if (curr_quant != "INT8" )
+    if (curr_quant != "INT8" ) {
       return failure();
+    }
     if (clipOp.fused_relu() == false || isa<tpu::ReluOp>(formerOp)) {
       setOpQuant(op, "BF16");
       return failure();
     }
     setOpThreshold(formerOp, threshold_y);
     formerOp->setAttr("name", clipOp.nameAttr());
-    rewriter.replaceOp(op, {clipOp.getOperand(0)});
+    rewriter.replaceOp(op, {clipOp.input()});
     return success();
   }
 };

@@ -37,26 +37,6 @@ using namespace mlir;
 
 namespace {
 
-static bool supportRelu(Operation *op) {
-  if (matchPattern(op, m_Op<tpu::Conv2DOp>()) ||
-      matchPattern(op, m_Op<tpu::Conv3DOp>()) ||
-      matchPattern(op, m_Op<tpu::DeConv2DOp>()) ||
-      matchPattern(op, m_Op<tpu::EltwiseAddOp>()) ||
-      matchPattern(op, m_Op<tpu::EltwiseMaxOp>()) ||
-      matchPattern(op, m_Op<tpu::EltwiseMinOp>()) ||
-      matchPattern(op, m_Op<tpu::EltwiseMulOp>()) ||
-      matchPattern(op, m_Op<tpu::MatMulOp>()) ||
-      matchPattern(op, m_Op<tpu::FullyConnectedOp>()) ||
-      matchPattern(op, m_Op<tpu::BroadcastMulOp>()) ||
-      matchPattern(op, m_Op<tpu::BroadcastAddOp>()) ||
-      matchPattern(op, m_Op<tpu::MulConstOp>()) ||
-      matchPattern(op, m_Op<tpu::ScaleOp>()) ||
-      matchPattern(op, m_Op<tpu::ConcatOp>())) {
-    return true;
-  }
-  return false;
-}
-
 struct TpuFuseReluPattern : public RewritePattern {
   TpuFuseReluPattern(MLIRContext *context)
       : RewritePattern("tpu.relu", 1, context) {}
@@ -72,12 +52,12 @@ struct TpuFuseReluPattern : public RewritePattern {
     if (!formerOp->getResult(0).hasOneUse())
       return failure();
 
-    if (matchPattern(formerOp, m_Op<tpu::ScaleOp>()) || !supportRelu(formerOp)) {
+    if (!isOpSupportRelu(formerOp)) {
       return failure();
     }
 
     formerOp->setAttr("do_relu", rewriter.getBoolAttr(true));
-    formerOp->setAttr("name", rewriter.getStringAttr(reluOp.getOpName()));
+    formerOp->setAttr("name", reluOp.nameAttr());
     // remove the relu Op
     rewriter.replaceOp(op, {op->getOperand(0)});
     return success();
@@ -97,8 +77,9 @@ struct TpuMoveReluAheadConcatPattern : public RewritePattern {
       return failure();
     }
 
-    if (!formerOp->getResult(0).hasOneUse())
+    if (!formerOp->getResult(0).hasOneUse()) {
       return failure();
+    }
 
     auto concatOp = cast<tpu::ConcatOp>(formerOp);
     LLVM_DEBUG(llvm::errs() << reluOp.getOperationName() << ":"
@@ -106,7 +87,7 @@ struct TpuMoveReluAheadConcatPattern : public RewritePattern {
     size_t nInputs = concatOp.getNumInputs();
     for (uint32_t i = 0; i < nInputs; i ++) {
       auto inOp = formerOp->getOperand(i).getDefiningOp();
-      if (false == supportRelu(inOp)) {
+      if (false == isOpSupportRelu(inOp)) {
         return failure();
       }
     }

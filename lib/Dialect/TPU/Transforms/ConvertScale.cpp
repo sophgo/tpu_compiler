@@ -129,6 +129,9 @@ struct TpuRemoveScalePattern : public RewritePattern {
     }
     // fix name
     fcOp->setAttr("name", rewriter.getStringAttr(fcOp.name().str() + "_scale"));
+    if (castOp.do_relu()) {
+      fcOp->setAttr("do_relu", castOp.do_reluAttr());
+    }
     formerOp = op->getOperand(0).getDefiningOp();
     do {
       if (auto castOp = llvm::dyn_cast<tpu::ReshapeOp>(formerOp)) {
@@ -165,7 +168,7 @@ struct TpuFoldScalePattern : public RewritePattern {
     Value wfV = getWeightFileValue(op);
 
     // match consecutive scale operations
-    auto formerOp = laterScaleOp.getOperand(0).getDefiningOp();
+    auto formerOp = laterScaleOp.input().getDefiningOp();
     if (!isa<tpu::ScaleOp>(formerOp)) {
       return failure();
     }
@@ -175,6 +178,9 @@ struct TpuFoldScalePattern : public RewritePattern {
     }
 
     auto formerScaleOp = cast<tpu::ScaleOp>(formerOp);
+    if (formerScaleOp.do_relu()) {
+      return failure();
+    }
 
     // op_name from the later scale
     auto nameAttr = laterScaleOp->getAttrOfType<StringAttr>("name");
@@ -272,8 +278,12 @@ struct TpuFoldScalePattern : public RewritePattern {
     // replace the later scale with the new scale
     // the former one will be removed automatically
     std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("name",
-                    rewriter.getStringAttr(op_name)));
+    attrs.push_back(
+        rewriter.getNamedAttr("name", rewriter.getStringAttr(op_name)));
+    if (laterScaleOp.do_relu()) {
+      attrs.push_back(
+          rewriter.getNamedAttr("do_relu", laterScaleOp.do_reluAttr()));
+    }
     // replace former scale op with new scale op
     rewriter.replaceOpWithNewOp<tpu::ScaleOp>(
         formerScaleOp, formerScaleOp.getResult().getType(),
@@ -326,6 +336,9 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
     }
 
     auto convOp = cast<tpu::Conv2DOp>(formerOp);
+    if (convOp.do_relu()) {
+      return failure();
+    }
 
     // op_name from the scale
     auto nameAttr = scaleOp->getAttrOfType<StringAttr>("name");
@@ -488,7 +501,9 @@ struct TpuMergeScaleIntoConvPattern : public RewritePattern {
             convOp.param().ins(),
             convOp.param().pad_value(),
             rewriter.getContext()));
-    convOp->setAttr("do_relu", rewriter.getBoolAttr(convOp.do_relu()));
+    if (scaleOp.do_relu()) {
+      convOp->setAttr("do_relu", scaleOp.do_reluAttr());
+    }
     auto origAttrs = convOp->getAttrs();
     // update name with the later op name, because this name is for
     // calibration table

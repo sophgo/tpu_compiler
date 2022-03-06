@@ -350,6 +350,19 @@ tpu::QuantParam getDefaultQuantParam(Builder &builder) {
       builder.getContext());
 }
 
+bool isOpSupportRelu(Operation *op) {
+  if (isa<tpu::Conv2DOp>(op) || isa<tpu::Conv3DOp>(op) ||
+      isa<tpu::DeConv2DOp>(op) || isa<tpu::EltwiseAddOp>(op) ||
+      isa<tpu::EltwiseMaxOp>(op) || isa<tpu::EltwiseMinOp>(op) ||
+      isa<tpu::EltwiseMulOp>(op) || isa<tpu::MatMulOp>(op) ||
+      isa<tpu::FullyConnectedOp>(op) || isa<tpu::BroadcastMulOp>(op) ||
+      isa<tpu::BroadcastAddOp>(op) || isa<tpu::MulConstOp>(op) ||
+      isa<tpu::ScaleOp>(op) || isa<tpu::ConcatOp>(op)) {
+    return true;
+  }
+  return false;
+}
+
 void parseConvParam(const tpu::ConvParam &p, bool is_deconv, Value input,
                     Value output, int &n, int &ic, int &ih, int &iw, int &oc,
                     int &oh, int &ow, int &g, int &kh, int &kw, int &ins_h,
