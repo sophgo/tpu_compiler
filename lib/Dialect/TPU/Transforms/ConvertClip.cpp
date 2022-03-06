@@ -37,73 +37,56 @@ using namespace mlir;
 
 namespace {
 
+static bool supportRelu(Operation *op) {
+  if (
+      isa<tpu::Conv2DOp>(op) ||
+      isa<tpu::Conv3DOp>(op) ||
+      isa<tpu::DeConv2DOp>(op) ||
+      isa<tpu::EltwiseAddOp>(op) ||
+      isa<tpu::EltwiseMaxOp>(op) ||
+      isa<tpu::EltwiseMinOp>(op) ||
+      isa<tpu::EltwiseMulOp>(op) ||
+      isa<tpu::MatMulOp>(op) ||
+      isa<tpu::FullyConnectedOp>(op) ||
+      isa<tpu::BroadcastMulOp>(op) ||
+      isa<tpu::BroadcastAddOp>(op) ||
+      isa<tpu::MulConstOp>(op) ||
+      isa<tpu::ScaleOp>(op) ||
+      isa<tpu::ConcatOp>(op)) {
+    return true;
+  }
+  return false;
+}
 struct TpuConvertClipToRelu6Pattern : public RewritePattern {
   TpuConvertClipToRelu6Pattern(MLIRContext *context)
       : RewritePattern("tpu.clip", 1, context) {}
 
-  LogicalResult matchAndRewrite(Operation *op,
-                                     PatternRewriter &rewriter) const override {
-
+  LogicalResult matchAndRewrite(Operation *op, PatternRewriter &rewriter) const override {
     auto clipOp = llvm::dyn_cast<tpu::ClipOp>(op);
-    if (!clipOp) {
-      return failure();
-    }
-
-    auto min = clipOp.min().convertToFloat();
-    if (min != 0) {
-      // keep < 0 part
-      return failure();
-    }
-
-    auto formerOp = clipOp.getOperand(0).getDefiningOp();
-    if (isa<tpu::ReluOp>(formerOp)) {
-      // has deal with
-      return failure();
-    }
-
-    if (isa<tpu::Conv2DOp>(formerOp)){
-      auto cast_op = cast<tpu::Conv2DOp>(formerOp);
-      if(cast_op.do_relu() == true)
+    if (clipOp && clipOp.min().convertToFloat() == 0){
+      auto formerOp = clipOp.getOperand(0).getDefiningOp();
+      auto layer_name = mlir::getOpName(clipOp).str();
+      auto formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
+      std::vector<Value> newOperands;
+      // check if clipOp is rewrited already
+      if (clipOp.fused_relu())
         return failure();
+
+      if (isa<tpu::ReluOp>(formerOp)){
+          clipOp->setAttr("fused_relu", rewriter.getBoolAttr(true));
+          return success();
+      }
+      // simply consider formerOp can fuse relu
+      if (!isa<tpu::ScaleOp>(formerOp) &&
+          supportRelu(formerOp) &&
+          formerOp->getResult(0).hasOneUse()) {
+        formerOp->setAttr("do_relu", rewriter.getBoolAttr(true));
+        formerOp->setAttr("name", rewriter.getStringAttr(formerOpName+"_relu"));
+        clipOp->setAttr("fused_relu", rewriter.getBoolAttr(true));
+        return success();
+      }
     }
-
-    auto loc = op->getLoc();
-
-    auto layer_name = mlir::getOpName(clipOp).str();
-    std::vector<Value> newOperands;
-    newOperands.push_back(clipOp.getOperand(0));
-
-    // duplicate name for not mess up calibration table name
-    std::string formerOpName = formerOp->getAttrOfType<StringAttr>("name").getValue().str();
-    std::vector<NamedAttribute> attrs;
-    attrs.push_back(rewriter.getNamedAttr("name", rewriter.getStringAttr(formerOpName)));
-    attrs.push_back(rewriter.getNamedAttr("quant", getDefaultQuantParam(rewriter)));
-    // insert relu before clip op
-    auto reluOp = rewriter.create<tpu::ReluOp>(loc,
-        clipOp.getOperand(0).getType(),
-        ArrayRef<Value>{newOperands},
-        ArrayRef<NamedAttribute>{attrs});
-
-    // duplicate one
-    std::vector<Value> operands;
-    auto NoneOp = rewriter.create<tpu::NoneOp>(
-        rewriter.getUnknownLoc(), rewriter.getNoneType());
-
-    operands.push_back(reluOp.getResult());
-    operands.push_back(NoneOp.getResult()); // quant_scale
-    operands.push_back(NoneOp.getResult()); // quant_zeropoint
-    operands.push_back(NoneOp.getResult()); // quant_rshift
-    operands.push_back(NoneOp.getResult()); // quant_multiplier
-
-    auto newOp = rewriter.create<tpu::ClipOp>(loc,
-        op->getResult(0).getType(),
-        operands,
-        op->getAttrs());
-
-    // replace to relu->clip
-    rewriter.replaceOp(op, {newOp});
-
-    return success();
+    return failure();
   }
 };
 
@@ -123,7 +106,6 @@ public:
 private:
   llvm::raw_ostream &os;
 };
-
 
 } // namespace
 
