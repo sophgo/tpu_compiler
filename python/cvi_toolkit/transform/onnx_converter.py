@@ -413,106 +413,6 @@ class OnnxConverter(BaseConverter):
             self.converted_nodes.append(node)
 
     def refine_node(self):
-        """reconstruct some node like hard_sigmoid"""
-        # swap Costant_Div with Mul (Mul -> Constant Div to Constant Div -> Mul)
-        # for pp model
-        preNodes = dict()
-        # for node in self.converted_nodes.values():
-        for i, node in enumerate(self.converted_nodes):
-            if node.op_type == "Mul" or node.op_type == "Constant":
-                # mulOut2divIn.update{node.outputs[0]: (i, node.inputs)}
-                # mul_list.append(node.outputs[0])
-                preNodes.update({node.outputs[0]: i})
-            elif node.op_type == "Div" and node.inputs[1] in preNodes.keys() \
-                 and node.inputs[0] in preNodes.keys() \
-                 and self.converted_nodes[preNodes[node.inputs[1]]].op_type == "Constant":
-                # swap input and output (notice name eq outputs[0])
-                mul_idx = preNodes[node.inputs[0]]
-                mul = self.converted_nodes[mul_idx]
-                node.inputs[0] = mul.inputs[1]
-                node.outputs[0] = mul.name
-
-                mul.inputs[1] = node.outputs[0]
-                mul.outputs[0] = node.name
-                # follow the name eq outputs[0] rule
-                node.name = node.outputs[0]
-                mul.name = mul.outputs[0]
-
-                self.converted_nodes[i] = mul
-                self.converted_nodes[mul_idx] = node
-                # self.converted_nodes.update({node.name: node, mul.name: mul})
-                preNodes.clear()  # just need swap nearst connected Mul-Constant_div pattern
-
-        # hard_sigmoid_pattern = ["Constant", "Add", "Clip", "Constant", "Div"]
-        # for pp after swap is ["Constant", "Constant", "Add", "Clip", "Div"]
-        consumed = list()      # idx
-        reserve_out  = dict()  # {node_out: idx}
-        base_pattern = ["Add", "Clip", "Div"]
-        alpha, beta = 0., 0.
-        hs_in, hs_out = "", ""
-        for i, node in enumerate(self.converted_nodes):
-            if node.op_type == "Constant":
-                reserve_out.update({node.outputs[0]: i})
-                continue
-            if len(base_pattern) > 0 and node.op_type == base_pattern[0]:
-                base_pattern.pop(0)
-                if node.op_type == "Add":
-                    betaIdx = reserve_out.get(node.inputs[1], None)
-                    # if betaIdx is not None and self.converted_nodes[betaIdx].op_type == "Constant":
-                    if betaIdx is not None:
-                        beta = self.converted_nodes[betaIdx].attrs['value']
-                        beta = numpy_helper.to_array(beta)
-                        hs_in = node.inputs[0]
-                        reserve_out.update({node.outputs[0]: i})
-                        consumed.append(reserve_out.pop(node.inputs[1]))
-                    else:
-                        base_pattern =  ["Add", "Clip", "Div"]
-                        reserve_out.clear()
-                        consumed.clear()
-                elif node.op_type == "Clip":
-                    pre_out = reserve_out.get(node.inputs[0], None)
-                    if pre_out is not None:
-                        reserve_out.update({node.outputs[0]: i})
-                        consumed.append(reserve_out.pop(node.inputs[0]))
-                    else:
-                        base_pattern =  ["Add", "Clip", "Div"]
-                        reserve_out.clear()
-                        consumed.clear()
-                elif node.op_type == "Div":
-                    pre_out = reserve_out.get(node.inputs[0], None)
-                    alphaIdx = reserve_out.get(node.inputs[1], None)
-                    if alphaIdx is not None and pre_out is not None:
-                        alpha = self.converted_nodes[alphaIdx].attrs['value']
-                        alpha = numpy_helper.to_array(alpha)
-                        hs_out = node.outputs[0]
-                        consumed.append(reserve_out.pop(node.inputs[0]))
-                        consumed.append(reserve_out.pop(node.inputs[1]))
-                    else:
-                        base_pattern = ["Add", "Clip", "Div"]
-                        reserve_out.clear()
-                        consumed.clear()
-            # reconstruct hsigmoid node
-            if len(base_pattern) == 0:
-                beta = 1.* beta / alpha
-                alpha = 1. / alpha
-                hs_node = onnx.helper.make_node('HardSigmoid',
-                                                inputs=[hs_in],
-                                                outputs=[hs_out],
-                                                alpha=alpha,
-                                                beta=beta
-                                               )
-                hs_node = OnnxNode(hs_node)
-                self.converted_nodes[i] = hs_node
-
-                # remove consumed nodes
-                for j in consumed:
-                    self.converted_nodes[j] = None
-                # reset and wait for next pattern
-                base_pattern = ["Add", "Clip", "Div"]
-                reserve_out.clear()
-                consumed.clear()
-        self.converted_nodes = [node for node in self.converted_nodes if node]
-
         # merge log(exp + add_1) * const => softplus
         i = 1
         while i < len(self.converted_nodes):
@@ -1960,12 +1860,8 @@ class OnnxConverter(BaseConverter):
     def convert_hard_sigmoid_op(self, onnx_node):
         operands = list()
         assert(onnx_node.op_type == "HardSigmoid")
-        alpha = onnx_node.attrs.get("alpha", 1.0 / 6)
-        beta = onnx_node.attrs.get("beta", 0.5)
-        hard_sigmoid_param = {
-            'alpha': alpha,
-            'beta': beta,
-        }
+        alpha =  1.0 / 6
+        beta =  0.5
         op1, input_shape, tensor_type = self.getOperand(onnx_node.inputs[0])
 
         if tensor_type == tensor_type.TENSOR:
@@ -1975,12 +1871,12 @@ class OnnxConverter(BaseConverter):
 
         # convert to clip(in * alpha + beta, 0, 1)
         tensor_data = np.full(input_shape[1], alpha)
-        alpha_name = "{}_hardSdigmoid_alpha".format(onnx_node.name)
+        alpha_name = "{}_alpha".format(onnx_node.name)
         self.addTensor(alpha_name, tensor_data, tensor_data.shape)
         op2 = self.CVI.add_load_file_op(alpha_name, tensor_data.shape)
         operands.append(op2)
         tensor_data = np.full(input_shape[1], beta)
-        beta_name = "{}_hardSdigmoid_beta".format(onnx_node.name)
+        beta_name = "{}_beta".format(onnx_node.name)
         self.addTensor(beta_name, tensor_data, tensor_data.shape)
         op3 = self.CVI.add_load_file_op(beta_name, tensor_data.shape)
         operands.append(op3)
@@ -1992,8 +1888,6 @@ class OnnxConverter(BaseConverter):
             'min':  0.,
             'max':  1.,
         }
-        # relu_op = self.CVI.add_relu_op("{}_relu6_relu{}".format(onnx_node.name, onnx_node.op_type), [scale_op], output_shape)
-        # clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [relu_op], output_shape, **clip_param)
         clip_op = self.CVI.add_clip_op("{}_{}".format(onnx_node.name, onnx_node.op_type), [scale_op], output_shape, **clip_param)
         self.addOperand(onnx_node.name, clip_op, output_shape, TensorType.ACTIVATION)
 

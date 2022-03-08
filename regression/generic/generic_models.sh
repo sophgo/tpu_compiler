@@ -290,7 +290,7 @@ export STD=0.229,0.224,0.225   # in BGR, pytorch std=[0.229, 0.224, 0.225]
 export IMAGE_RESIZE_DIMS=256,256
 export INPUT=input
 export MODEL_CHANNEL_ORDER="rgb"
-export TOLERANCE_INT8=0.83,0.83,0.38
+export TOLERANCE_INT8=0.85,0.85,0.44
 export TOLERANCE_BF16=0.99,0.99,0.92
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 fi
@@ -849,6 +849,25 @@ export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.92
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export EXCEPTS_BF16=proposal,roi_pool5,roi_pool5_quant,fc6_reshape,relu6,relu7,cls_score,cls_score_dequant,bbox_pred,bbox_pred_dequant,cls_prob #output is euclidean_similarity   = 0.995603
+fi
+
+if [ $NET = "yolo_v4_s" ]; then
+export MODEL_TYPE="onnx"
+export MODEL_DEF=/work/test/yolov4_s/yolov4-csp-s-leaky.onnx
+export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
+export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_s_calibration_table_1000
+export INPUT=input
+export MODEL_CHANNEL_ORDER="rgb"
+export IMAGE_RESIZE_DIMS=640,640
+export RESIZE_KEEP_ASPECT_RATIO=1
+export NET_INPUT_DIMS=640,640
+export RAW_SCALE=1.0
+export MEAN=0,0,0
+export INPUT_SCALE=1.0
+export TOLERANCE_INT8=0.98,0.98,0.80
+export TOLERANCE_BF16=0.99,0.99,0.94
+export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.94
+export YOLO_V4=1
 fi
 
 if [ $NET = "yolo_v4" ]; then

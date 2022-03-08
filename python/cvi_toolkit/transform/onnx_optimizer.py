@@ -666,7 +666,35 @@ def onnx_opt(model, batch_size, dump=False):
     matmul_bias_op = PesudoNode("MatMul", [("input", 0), ("input", 1), ("input", 2)],)
     matmul_bias = FoldUnfoldInfo([matmul_bias_op0, matmul_bias_op1], [matmul_bias_op])
 
-    fdef.run([eq_not, std_ub, std, where, layernorm_aff, layernorm, matmul_bias])
+    # hard_swish
+    hard_swish_op0 = PesudoNode("Add", ["input", ("input", "tensor")])
+    hard_swish_op1 = PesudoNode("Clip", [hard_swish_op0.output, ("input", "tensor"), ("input", "tensor")])
+    hard_swish_op2 = PesudoNode("Mul", ["input", hard_swish_op1.output])
+    hard_swish_op3 = PesudoNode("Div", [hard_swish_op2.output, ("input", "tensor")])
+    hard_swish_op_0 = PesudoNode("HardSigmoid", [("input", 0),])
+    hard_swish_op_1 = PesudoNode("Mul", [("input", 0), (hard_swish_op_0.output, 0)],)
+    hard_swish = FoldUnfoldInfo([hard_swish_op0, hard_swish_op1, hard_swish_op2, hard_swish_op3],
+                                [hard_swish_op_0, hard_swish_op_1])
+
+    # hard_sigmoid
+    hard_sigmoid_op0 = PesudoNode("Add", ["input", ("input", "tensor")])
+    hard_sigmoid_op1 = PesudoNode("Clip", [hard_sigmoid_op0.output, ("input", "tensor"), ("input", "tensor")])
+    hard_sigmoid_op2 = PesudoNode("Div", [hard_sigmoid_op1.output, ("input", "tensor")])
+    hard_sigmoid_op = PesudoNode("HardSigmoid", [("input", 0),])
+    hard_sigmoid = FoldUnfoldInfo([hard_sigmoid_op0, hard_sigmoid_op1, hard_sigmoid_op2],
+                                     [hard_sigmoid_op,])
+
+    # matmul_HSigmoid(relu6_inplace)
+    matmul_Hsigmoid_op0 = PesudoNode("MatMul", ["input", ("input", "tensor"), ("input", "tensor")])
+    matmul_Hsigmoid_op1 = PesudoNode("Clip", [matmul_Hsigmoid_op0.output, ("input", "tensor"), ("input", "tensor")])
+    matmul_Hsigmoid_op2 = PesudoNode("Div", [matmul_Hsigmoid_op1.output, ("input", "tensor")])
+    matmul_Hsigmoid_op_0 = PesudoNode("MatMul", [("input", 0), ("input", 1)])
+    matmul_Hsigmoid_op_1 = PesudoNode("HardSigmoid", [(matmul_Hsigmoid_op_0.output, 0),])
+    matmul_Hsigmoid = FoldUnfoldInfo([matmul_Hsigmoid_op0, matmul_Hsigmoid_op1, matmul_Hsigmoid_op2,],
+                                  [matmul_Hsigmoid_op_0, matmul_Hsigmoid_op_1])
+
+    fdef.run([eq_not, std_ub, std, where, layernorm_aff, layernorm, matmul_bias,
+              hard_swish, hard_sigmoid, matmul_Hsigmoid])
 
     if dump:
         dump_model(model, "final_opt.onnx")
