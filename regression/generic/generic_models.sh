@@ -853,7 +853,7 @@ fi
 
 if [ $NET = "yolo_v4_s" ]; then
 export MODEL_TYPE="onnx"
-export MODEL_DEF=/work/test/yolov4_s/yolov4-csp-s-leaky.onnx
+export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/onnx/yolov4-csp-s-leaky.onnx
 export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_s_calibration_table_1000
 export INPUT=input
@@ -942,34 +942,6 @@ export DO_QUANT_BF16=0
 export TOLERANCE_BF16=0.99,0.99,0.93
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.93
 export YOLO_V4=1
-fi
-
-
-if [ $NET = "yolo_v4_tiny" ]; then
-export MODEL_TYPE="onnx"
-export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v4/onnx/yolov4_1_3_416_416_static.onnx
-export IMAGE_PATH=$REGRESSION_PATH/data/dog.jpg
-export EVAL_SCRIPT=$REGRESSION_PATH/data/eval/accuracy_yolo_v3.sh
-export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/yolo_v4_tiny_calibration_table_autotune
-export INPUT=input
-export MODEL_CHANNEL_ORDER="rgb"
-export IMAGE_RESIZE_DIMS=416,416
-export RESIZE_KEEP_ASPECT_RATIO=1
-export NET_INPUT_DIMS=416,416
-export OUTPUTS="layer30-conv,layer37-conv"
-export RAW_SCALE=1.0
-export MEAN=0,0,0
-export INPUT_SCALE=1.0
-export TOLERANCE_INT8=0.65,0.1,0.005
-#export EXCEPTS="layer6-act,layer7-route,layer9-route,layer10-maxpool,layer11-act,layer17-route,layer18-maxpool,layer27-act"
-export DO_QUANT_BF16=0
-export TOLERANCE_BF16=0.99,0.99,0.96
-export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
-export YOLO_V4=1
-export TINY=1
-if [ $DO_PREPROCESS -eq 1 ]; then
-  export EXCEPTS=data
-fi
 fi
 
 # ONNX
@@ -1493,7 +1465,7 @@ export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.96
 export YOLO_V3=1
 fi
 
-if [ $NET = "yolo_v5" ]; then
+if [ $NET = "yolo_v5_s" ]; then
 export MODEL_TYPE="onnx"
 export MODEL_DEF=$MODEL_PATH/object_detection/yolo_v5/onnx/yolov5s.onnx
 export CALI_TABLE=$REGRESSION_PATH/data/cali_tables/${NET}_calibration_table
@@ -1507,7 +1479,6 @@ export STD=1,1,1
 export RAW_SCALE=1.0
 export INPUT=input
 export TOLERANCE_INT8=0.90,0.90,0.54
-export DO_QUANT_BF16=1
 export TOLERANCE_BF16=0.99,0.99,0.96
 export TOLERANCE_BF16_CMDBUF=0.99,0.99,0.98
 export TOLERANCE_FP32=0.99,0.99,0.99 #
